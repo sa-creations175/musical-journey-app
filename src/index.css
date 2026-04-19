@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root { height: 100%; }
+
+body {
+  @apply bg-neutral-50 text-neutral-900 antialiased;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.dark body {
+  @apply bg-neutral-950 text-neutral-100;
+}
+
+/* Practice calendar cell colors — consumed as inline styles in
+   PracticeCalendar so they win over any class-based cascade. */
+:root {
+  --cal-empty-bg:          rgba(0, 0, 0, 0.05);
+  --cal-empty-text:        rgba(0, 0, 0, 0.45);
+  --cal-below-bg:          rgba(0, 0, 0, 0.08);
+  --cal-below-text:        rgba(0, 0, 0, 0.55);
+  --cal-light-bg:          rgba(29, 158, 117, 0.25);
+  --cal-light-text:        #111827;
+  --cal-solid-bg:          rgba(29, 158, 117, 0.65);
+  --cal-solid-text:        #ffffff;
+  --cal-goal-met-bg:       #1D9E75;
+  --cal-goal-met-text:     #ffffff;
+  --cal-goal-crushed-bg:   #0F5E47;
+  --cal-goal-crushed-text: #ffffff;
+}
+.dark {
+  --cal-empty-bg:          rgba(255, 255, 255, 0.06);
+  --cal-empty-text:        rgba(255, 255, 255, 0.5);
+  --cal-below-bg:          rgba(255, 255, 255, 0.09);
+  --cal-below-text:        rgba(255, 255, 255, 0.65);
+  --cal-light-bg:          rgba(29, 158, 117, 0.3);
+  --cal-light-text:        #f3f4f6;
+  --cal-solid-bg:          rgba(29, 158, 117, 0.7);
+  --cal-solid-text:        #ffffff;
+}
