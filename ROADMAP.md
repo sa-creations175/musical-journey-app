@@ -33,6 +33,13 @@ For each song, store its chord progression (Roman numerals or named chords) with
 
 A simple place inside the app to capture feature ideas as they come during practice sessions. Fields: module/area, idea description, priority (nice-to-have / really want / must have), date added. Ideas can later be promoted to this roadmap when ready to build.
 
+## Data & Sync
+- Cloud sync via Supabase — automatic continuous backup to a cloud database. Users can create a free account, log in on multiple devices, and have their practice data synced seamlessly. Works alongside local IndexedDB (IndexedDB as cache, Supabase as source of truth). Conflict resolution for offline edits. Much bigger than export/import — will require a dedicated build phase.
+- Scheduled automatic exports — app automatically exports to a user-specified folder (via File System Access API if supported) on a schedule, without requiring manual clicks
+- Import merge mode — instead of replacing all data, merge imported attempts with current data by timestamp (useful for combining practice data from two devices before cloud sync exists)
+- Selective export — choose which data to export (just attempts, or everything)
+- Practice data analytics — once cloud sync exists, show long-term trends, year-over-year comparisons, etc.
+
 ## Calendar & Progress Visualization
 - Year-at-a-glance heatmap (full year grid, single view)
 - Cross-module combined calendar showing overall practice across all modules

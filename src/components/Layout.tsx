@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import InstrumentSelector from './InstrumentSelector';
+import SettingsPanel from './SettingsPanel';
+import BackupReminderBanner from './BackupReminderBanner';
 
 const links = [
   { to: '/', label: 'dashboard', end: true },
@@ -11,6 +14,7 @@ const links = [
 ];
 
 export default function Layout() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <div className="min-h-full flex flex-col md:flex-row">
       <aside className="md:w-56 md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur">
@@ -40,12 +44,24 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-between gap-3">
           <span className="text-[10px] uppercase tracking-wide text-neutral-500">instrument</span>
-          <InstrumentSelector />
+          <div className="flex items-center gap-2">
+            <InstrumentSelector />
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label="settings"
+              title="settings"
+              className="w-8 h-8 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent text-base leading-none"
+            >
+              ⚙
+            </button>
+          </div>
         </header>
+        <BackupReminderBanner />
         <main className="flex-1 p-6 md:p-10 max-w-5xl w-full">
           <Outlet />
         </main>
       </div>
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }
