@@ -15,22 +15,16 @@ const subModules: SubModule[] = [
     status: 'ready',
   },
   {
-    to: '/ear-training/chords',
+    to: '/ear-training/chord-recognition',
     label: 'chord recognition',
-    description: 'identify chord qualities by ear',
-    status: 'coming',
+    description: 'identify chord qualities by ear across four tiers from triads to extensions',
+    status: 'ready',
   },
   {
-    to: '/ear-training/bass',
-    label: 'bass lines',
-    description: 'transcribe bass movement under chord changes',
-    status: 'coming',
-  },
-  {
-    to: '/ear-training/progressions',
-    label: 'progressions',
-    description: 'recognize common diatonic and jazz progressions',
-    status: 'coming',
+    to: '/ear-training/chord-progressions',
+    label: 'chord progressions',
+    description: 'hear bass and harmony together — named progressions across gospel, jazz, soul, and pop',
+    status: 'ready',
   },
 ];
 

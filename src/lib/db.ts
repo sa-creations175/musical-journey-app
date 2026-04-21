@@ -114,6 +114,12 @@ export interface DailySummary {
   goalMet: boolean;
 }
 
+export interface ProgressionAssociation {
+  progressionId: string;
+  text: string;
+  updatedAt: number;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -126,6 +132,7 @@ export class AppDB extends Dexie {
   userPrefs!: Table<UserPref, string>;
   attempts!: Table<AttemptRecord, number>;
   dailySummaries!: Table<DailySummary, [string, string]>;
+  progressionAssociations!: Table<ProgressionAssociation, string>;
 
   constructor() {
     super('musical-journey');
@@ -164,6 +171,20 @@ export class AppDB extends Dexie {
       userPrefs: 'key',
       attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
       dailySummaries: '[date+moduleId], date, moduleId',
+    });
+    this.version(4).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
     });
   }
 }

@@ -10,10 +10,10 @@ import {
   startOfLocalDay,
 } from '../lib/dailyGoal';
 import {
-  DEFAULT_DAILY_GOAL,
   MAX_DAILY_GOAL,
   MIN_DAILY_GOAL,
   dailyGoalKey,
+  defaultDailyGoal,
   isValidGoal,
 } from '../lib/goalConfig';
 import { getPref, setPref } from '../lib/userPrefs';
@@ -39,9 +39,9 @@ export default function DailyGoalBar({ moduleId }: Props) {
   }, [todayKey]);
 
   const goal = useLiveQuery(
-    async () => getPref<number>(dailyGoalKey(moduleId), DEFAULT_DAILY_GOAL),
+    async () => getPref<number>(dailyGoalKey(moduleId), defaultDailyGoal(moduleId)),
     [moduleId],
-  ) ?? DEFAULT_DAILY_GOAL;
+  ) ?? defaultDailyGoal(moduleId);
 
   const moduleAttempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(moduleId).toArray(),

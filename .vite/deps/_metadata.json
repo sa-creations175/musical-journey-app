@@ -7,43 +7,43 @@
     "react/jsx-dev-runtime": {
       "src": "../../node_modules/react/jsx-dev-runtime.js",
       "file": "react_jsx-dev-runtime.js",
-      "fileHash": "e32d7725",
+      "fileHash": "903890c0",
       "needsInterop": true
     },
     "react": {
       "src": "../../node_modules/react/index.js",
       "file": "react.js",
-      "fileHash": "e1c08db1",
+      "fileHash": "7ea603fe",
       "needsInterop": true
     },
     "react-dom/client": {
       "src": "../../node_modules/react-dom/client.js",
       "file": "react-dom_client.js",
-      "fileHash": "5e834e49",
+      "fileHash": "e1a5b488",
       "needsInterop": true
     },
     "react-router-dom": {
       "src": "../../node_modules/react-router-dom/dist/index.mjs",
       "file": "react-router-dom.js",
-      "fileHash": "9b3e80aa",
+      "fileHash": "f1353721",
       "needsInterop": false
     },
     "dexie-react-hooks": {
       "src": "../../node_modules/dexie-react-hooks/dist/dexie-react-hooks.mjs",
       "file": "dexie-react-hooks.js",
-      "fileHash": "48297cc1",
+      "fileHash": "338b25d7",
       "needsInterop": false
     },
     "dexie": {
       "src": "../../node_modules/dexie/import-wrapper.mjs",
       "file": "dexie.js",
-      "fileHash": "47a79f2e",
+      "fileHash": "35b1a5c1",
       "needsInterop": false
     },
     "react-dom": {
       "src": "../../node_modules/react-dom/index.js",
       "file": "react-dom.js",
-      "fileHash": "419187c5",
+      "fileHash": "a012dbe5",
       "needsInterop": true
     }
   },

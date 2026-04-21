@@ -12,7 +12,9 @@ import { getPref, setPref } from '../../../lib/userPrefs';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import { TIER_WEIGHT, computeTier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
+import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
+import SpeedControl from '../../../components/SpeedControl';
 
 const MODULE_ID = 'intervals';
 const PREF_FOCUS_SELECTION = 'intervalsFocusSelection';
@@ -58,6 +60,14 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
     async () => getPref<string[]>(PREF_FOCUS_SELECTION, []),
     [],
   ) ?? [];
+
+  const speedFallback = defaultSpeed(MODULE_ID);
+  const speed = useLiveQuery(
+    async () => getPref<number>(speedPrefKey(MODULE_ID), speedFallback),
+    [],
+  ) ?? speedFallback;
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
 
   const sortedIntervals = useMemo(
     () => [...intervals].sort((a, b) => a.semitones - b.semitones),
@@ -134,12 +144,12 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
     setSelectedId(null);
     setAnswered(false);
     setHasPlayed(true);
-    await playInterval(rootMidi, choice.interval.semitones, choice.direction === 'asc');
+    await playInterval(rootMidi, choice.interval.semitones, choice.direction === 'asc', speedRef.current);
   };
 
   const replay = async () => {
     if (!current) return;
-    await playInterval(current.rootMidi, current.interval.semitones, current.direction === 'asc');
+    await playInterval(current.rootMidi, current.interval.semitones, current.direction === 'asc', speedRef.current);
   };
 
   const submitAnswer = async (chosen: IntervalData) => {
@@ -287,6 +297,10 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
           </p>
         </div>
       )}
+
+      <div className="flex justify-center">
+        <SpeedControl moduleId={MODULE_ID} />
+      </div>
 
       {/* Play / Next */}
       <div className="flex flex-wrap items-center justify-center gap-3">

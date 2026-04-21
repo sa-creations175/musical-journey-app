@@ -1,7 +1,7 @@
 import { db } from './db';
 import { localDayKey, nextLocalMidnight, startOfLocalDay } from './dailyGoal';
 import { getPref } from './userPrefs';
-import { DEFAULT_DAILY_GOAL, dailyGoalKey } from './goalConfig';
+import { dailyGoalKey, defaultDailyGoal } from './goalConfig';
 
 // Upserts today's row in dailySummaries for the given module.
 // Pulls the current goal (from userPrefs) and today's attempt counts
@@ -19,7 +19,7 @@ export async function updateDailySummary(moduleId: string): Promise<void> {
     .toArray();
   const correctCount = todays.filter(a => a.correct).length;
   const wrongCount = todays.length - correctCount;
-  const dailyGoal = await getPref<number>(dailyGoalKey(moduleId), DEFAULT_DAILY_GOAL);
+  const dailyGoal = await getPref<number>(dailyGoalKey(moduleId), defaultDailyGoal(moduleId));
   const goalMet = correctCount >= dailyGoal;
   await db.dailySummaries.put({
     date: today,

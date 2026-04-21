@@ -287,38 +287,72 @@ export function playNote(
   }
 }
 
-export async function playInterval(rootMidi: number, semitones: number, ascending: boolean, noteDuration = 0.8) {
+// Speed multiplier convention across all playback functions:
+//   Multiplier M rescales time by 1/M (D → D/M, step → step/M, bpm → bpm*M).
+//   M = 1.0 → unchanged. M = 0.5 → twice as slow. M = 2.0 → twice as fast.
+//   Values are clamped to a conservative floor to avoid zero / negative
+//   times if a caller passes in garbage.
+function clampSpeed(m: number): number {
+  return Math.max(0.1, m);
+}
+
+export async function playInterval(
+  rootMidi: number,
+  semitones: number,
+  ascending: boolean,
+  speedMultiplier = 1.0,
+  noteDuration = 0.8,
+) {
   const context = await ensureRunning();
+  const dur = noteDuration / clampSpeed(speedMultiplier);
   const now = context.currentTime + 0.05;
   const first = ascending ? rootMidi : rootMidi + semitones;
   const second = ascending ? rootMidi + semitones : rootMidi;
-  playNote(midiToFreq(first), now, noteDuration, context, 0.25);
-  playNote(midiToFreq(second), now + noteDuration * 0.95, noteDuration, context, 0.25);
+  playNote(midiToFreq(first), now, dur, context, 0.25);
+  playNote(midiToFreq(second), now + dur * 0.95, dur, context, 0.25);
 }
 
-export async function playChordBlocked(rootMidi: number, intervals: number[], duration = 1.6) {
+export async function playChordBlocked(
+  rootMidi: number,
+  intervals: number[],
+  speedMultiplier = 1.0,
+  duration = 3.2,
+) {
   const context = await ensureRunning();
+  const dur = duration / clampSpeed(speedMultiplier);
   const now = context.currentTime + 0.05;
   const vol = chordVolume(intervals.length);
   intervals.forEach(iv => {
-    playNote(midiToFreq(rootMidi + iv), now, duration, context, vol);
+    playNote(midiToFreq(rootMidi + iv), now, dur, context, vol);
   });
 }
 
-export async function playChordBroken(rootMidi: number, intervals: number[], stepTime = 0.35, holdLast = 1.2) {
+// Ascending arpeggio. A new note starts every `stepTime` seconds and
+// each note sustains for `noteDuration` seconds; with the default values
+// notes overlap and blend (noteDuration > stepTime). The speed multiplier
+// scales both in lockstep so the blend ratio is preserved.
+export async function playChordBroken(
+  rootMidi: number,
+  intervals: number[],
+  speedMultiplier = 1.0,
+  stepTime = 0.4,
+  noteDuration = 2.0,
+) {
   const context = await ensureRunning();
+  const m = clampSpeed(speedMultiplier);
+  const step = stepTime / m;
+  const dur = noteDuration / m;
   const now = context.currentTime + 0.05;
   const vol = chordVolume(intervals.length);
   const sorted = [...intervals].sort((a, b) => a - b);
   sorted.forEach((iv, idx) => {
-    const dur = idx === sorted.length - 1 ? holdLast : stepTime * 1.1;
-    playNote(midiToFreq(rootMidi + iv), now + idx * stepTime, dur, context, vol);
+    playNote(midiToFreq(rootMidi + iv), now + idx * step, dur, context, vol);
   });
 }
 
-// playBassNote takes a caller-scheduled `time` and caller-provided `context`
-// because sequencers (playSeqChords, metronomes, etc.) resolve ensureRunning
-// once and then schedule many notes against that live context/clock.
+// playBassNote is scheduled by the caller at an explicit absolute time,
+// so it doesn't own a tempo itself. Sequencers that emit bass lines apply
+// the speed multiplier to the spacing between notes they pass in.
 export function playBassNote(midi: number, time: number, context: AudioContext, duration = 0.9) {
   playNote(midiToFreq(midi), time, duration, context, 0.32);
 }
@@ -329,11 +363,13 @@ export async function playSeqChords(
   chords: SeqChord[],
   rootMidi: number,
   bpm: number,
+  speedMultiplier = 1.0,
   onStep?: (index: number) => void,
 ) {
   const context = await ensureRunning();
+  const effBpm = bpm * clampSpeed(speedMultiplier);
   const now = context.currentTime + 0.05;
-  const secPerBeat = 60 / bpm;
+  const secPerBeat = 60 / effBpm;
   let cursor = now;
   chords.forEach((chord, idx) => {
     const beats = chord.beats ?? 2;
