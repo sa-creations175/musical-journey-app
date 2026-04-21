@@ -120,6 +120,20 @@ export interface ProgressionAssociation {
   updatedAt: number;
 }
 
+export interface FlashcardState {
+  cardId: string;
+  easeFactor: number;        // SM-2, starts at 2.5
+  interval: number;          // days until next review
+  nextReviewDate: number;    // epoch ms
+  lastReviewed: number;      // epoch ms
+  consecutiveCorrect: number;
+  totalAttempts: number;
+  totalCorrect: number;
+  /** User-flagged for "study later". Optional for backwards-compat with
+      records written before the field existed. */
+  isFlagged?: boolean;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -133,6 +147,7 @@ export class AppDB extends Dexie {
   attempts!: Table<AttemptRecord, number>;
   dailySummaries!: Table<DailySummary, [string, string]>;
   progressionAssociations!: Table<ProgressionAssociation, string>;
+  flashcardStates!: Table<FlashcardState, string>;
 
   constructor() {
     super('musical-journey');
@@ -185,6 +200,21 @@ export class AppDB extends Dexie {
       attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
       dailySummaries: '[date+moduleId], date, moduleId',
       progressionAssociations: 'progressionId',
+    });
+    this.version(5).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
     });
   }
 }

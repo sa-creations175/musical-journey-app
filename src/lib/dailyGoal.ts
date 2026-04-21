@@ -32,21 +32,21 @@ export function daysBetween(olderKey: string, newerKey: string): number {
 
 // Day streak — derived purely from attempt history.
 // Walks back from today (or yesterday if today's goal not yet met) counting
-// consecutive days where correct-count met the goal.
+// consecutive days where total-attempt count met the goal. Wrong answers
+// count toward the goal alongside correct ones — see DailyGoalBar.
 export function computeDayStreak(attempts: AttemptRecord[], goal: number, today: string = localDayKey()): number {
-  const correctByDay = new Map<string, number>();
+  const attemptsByDay = new Map<string, number>();
   for (const a of attempts) {
-    if (!a.correct) continue;
     const key = localDayKey(new Date(a.timestamp));
-    correctByDay.set(key, (correctByDay.get(key) ?? 0) + 1);
+    attemptsByDay.set(key, (attemptsByDay.get(key) ?? 0) + 1);
   }
   let cursor = today;
-  if ((correctByDay.get(cursor) ?? 0) < goal) {
+  if ((attemptsByDay.get(cursor) ?? 0) < goal) {
     // today not yet met — chain may still be alive from yesterday
     cursor = previousDayKey(cursor);
   }
   let streak = 0;
-  while ((correctByDay.get(cursor) ?? 0) >= goal) {
+  while ((attemptsByDay.get(cursor) ?? 0) >= goal) {
     streak += 1;
     cursor = previousDayKey(cursor);
   }

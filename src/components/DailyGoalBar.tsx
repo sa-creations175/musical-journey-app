@@ -48,14 +48,19 @@ export default function DailyGoalBar({ moduleId }: Props) {
     [moduleId],
   ) ?? [];
 
-  const todaysCorrect = useLiveQuery(async () => {
+  const todaysCounts = useLiveQuery(async () => {
     const start = startOfLocalDay();
     const rows = await db.attempts
       .where('timestamp').aboveOrEqual(start)
       .and(a => a.moduleId === moduleId)
       .toArray();
-    return rows.filter(a => a.correct).length;
-  }, [todayKey, moduleId]) ?? 0;
+    return {
+      correct: rows.filter(a => a.correct).length,
+      total: rows.length,
+    };
+  }, [todayKey, moduleId]) ?? { correct: 0, total: 0 };
+  const todaysCorrect = todaysCounts.correct;
+  const todaysAttempted = todaysCounts.total;
 
   const sessionResetAt = useLiveQuery(
     async () => getPref<number>(PREF_SESSION_RESET, 0),
@@ -78,9 +83,12 @@ export default function DailyGoalBar({ moduleId }: Props) {
   const dayStreak = computeDayStreak(moduleAttempts, goal, todayKey);
   const hot = computeHotStreak(moduleAttempts);
 
-  const pct = goal === 0 ? 100 : (todaysCorrect / goal) * 100;
-  const goalMet = todaysCorrect >= goal;
-  const overshoot = Math.max(0, todaysCorrect - goal);
+  // Progress is attempts-based across every module. Wrong answers are
+  // genuine learning moments and count toward the daily engagement goal
+  // alongside correct ones — see also computeDayStreak / classifyDay.
+  const pct = goal === 0 ? 100 : (todaysAttempted / goal) * 100;
+  const goalMet = todaysAttempted >= goal;
+  const overshoot = Math.max(0, todaysAttempted - goal);
 
   const openEditor = () => {
     setDraft(String(goal));
@@ -111,8 +119,11 @@ export default function DailyGoalBar({ moduleId }: Props) {
       <div className="flex items-baseline justify-between flex-wrap gap-2 mb-2">
         <div className="text-sm flex items-center gap-1.5 flex-wrap">
           <span className="text-neutral-500">today: </span>
-          <span className="font-medium font-mono">{todaysCorrect}</span>
-          <span className="text-neutral-400">/</span>
+          <span className="font-medium font-mono">{todaysAttempted}</span>
+          <span className="text-neutral-500">attempted /</span>
+          <span className="font-mono">{todaysCorrect}</span>
+          <span className="text-neutral-500">correct</span>
+          <span className="text-neutral-500">(goal:</span>
           {editing ? (
             <form
               onSubmit={e => { e.preventDefault(); saveEdit(); }}
@@ -139,7 +150,7 @@ export default function DailyGoalBar({ moduleId }: Props) {
             </form>
           ) : (
             <>
-              <span className="font-mono text-neutral-500">{goal}</span>
+              <span className="font-mono">{goal}</span>
               <button
                 onClick={openEditor}
                 aria-label="edit daily goal"
@@ -150,6 +161,7 @@ export default function DailyGoalBar({ moduleId }: Props) {
               </button>
             </>
           )}
+          <span className="text-neutral-500">)</span>
           {goalMet && !editing && (
             <span className="inline-flex items-center gap-1 text-fluent" aria-label="goal met">
               <span aria-hidden>✓</span>
@@ -197,13 +209,17 @@ export default function DailyGoalBar({ moduleId }: Props) {
           )}
         </div>
         {showSessionCounts && (
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             <div className="rounded-lg bg-neutral-100/60 dark:bg-neutral-800/60 px-3 py-2">
-              <div className="text-neutral-500">correct today</div>
+              <div className="text-neutral-500">attempted</div>
+              <div className="text-lg font-medium">{sessionStats.total}</div>
+            </div>
+            <div className="rounded-lg bg-neutral-100/60 dark:bg-neutral-800/60 px-3 py-2">
+              <div className="text-neutral-500">correct</div>
               <div className="text-lg font-medium text-fluent">{sessionStats.correct}</div>
             </div>
             <div className="rounded-lg bg-neutral-100/60 dark:bg-neutral-800/60 px-3 py-2">
-              <div className="text-neutral-500">wrong today</div>
+              <div className="text-neutral-500">wrong</div>
               <div className="text-lg font-medium text-needswork">{sessionStats.wrong}</div>
             </div>
             <div className="rounded-lg bg-neutral-100/60 dark:bg-neutral-800/60 px-3 py-2">

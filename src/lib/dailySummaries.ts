@@ -20,7 +20,9 @@ export async function updateDailySummary(moduleId: string): Promise<void> {
   const correctCount = todays.filter(a => a.correct).length;
   const wrongCount = todays.length - correctCount;
   const dailyGoal = await getPref<number>(dailyGoalKey(moduleId), defaultDailyGoal(moduleId));
-  const goalMet = correctCount >= dailyGoal;
+  // goalMet is attempts-based: total attempts (correct + wrong) vs. goal.
+  // Mirrors DailyGoalBar / computeDayStreak / classifyDay.
+  const goalMet = correctCount + wrongCount >= dailyGoal;
   await db.dailySummaries.put({
     date: today,
     moduleId,

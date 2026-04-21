@@ -8,6 +8,7 @@ const MODULE_DEFAULT_GOALS: Record<string, number> = {
   intervals: 30,
   'chord-recognition': 20,
   'chord-progressions': 15,
+  'harmonic-fluency': 50,
 };
 
 export function defaultDailyGoal(moduleId: string): number {

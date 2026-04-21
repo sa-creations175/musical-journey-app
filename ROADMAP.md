@@ -52,6 +52,14 @@ A simple place inside the app to capture feature ideas as they come during pract
 - Inversion-only drill mode: user hears the chord and just has to identify the bass inversion, not the chord itself.
 - Per-progression chord quality overrides: the `requiresDominant` flag pattern can extend to more nuanced rules (e.g. "this progression specifically needs Maj7 on I").
 
+## Harmonic Fluency — Future Enhancements
+- Cross-category "weakness challenges" — daily curated set pulling from the user's weakest tiers across all 12 categories
+- Streak-based difficulty scaling — as user gets cards right, slightly harder variants get introduced
+- User-created flashcards — let users add their own questions + answers
+- Shared card decks — community-contributed category expansions
+- Audio-enabled cards — blending the flashcard format with ear training specifically for the ear-theory crossover category
+- Skill Catalogue integration — each card's `skillTag` surfaces on a central Skills Catalogue page so users can see every fluency skill the app trains
+
 ## Future Modules
 - Modal Interchange sub-module: catching borrowed chords from parallel minor in an otherwise-diatonic context. Chord-level awareness. Distinct from Chord Progressions (which teaches pattern recognition) and Scales & Modes (which teaches full-section modal awareness).
 - Scales & Modes sub-module: recognizing when a section of music lives inside a specific mode (Dorian, Lydian, Mixolydian, harmonic/melodic minor). Section-level awareness. Focus on signature chords that reveal each mode — Dorian IV major, Lydian #IV, Mixolydian bVII.

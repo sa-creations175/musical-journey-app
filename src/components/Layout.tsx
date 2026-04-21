@@ -6,6 +6,7 @@ import BackupReminderBanner from './BackupReminderBanner';
 
 const links = [
   { to: '/', label: 'dashboard', end: true },
+  { to: '/harmonic-fluency', label: 'harmonic fluency' },
   { to: '/ear-training', label: 'ear training' },
   { to: '/chords-shapes', label: 'chords & shapes' },
   { to: '/repertoire', label: 'repertoire' },

@@ -2,6 +2,8 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './modules/dashboard/Dashboard';
+import HarmonicFluency from './modules/harmonic-fluency/HarmonicFluency';
+import HarmonicFluencyCalendar from './modules/harmonic-fluency/HarmonicFluencyCalendar';
 import EarTraining from './modules/ear-training/EarTraining';
 import Intervals from './modules/ear-training/intervals/Intervals';
 import IntervalsCalendar from './modules/ear-training/intervals/IntervalsCalendar';
@@ -22,6 +24,8 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
+            <Route path="harmonic-fluency" element={<HarmonicFluency />} />
+            <Route path="harmonic-fluency/calendar" element={<HarmonicFluencyCalendar />} />
             <Route path="ear-training" element={<EarTraining />} />
             <Route path="ear-training/intervals" element={<Intervals />} />
             <Route path="ear-training/intervals/calendar" element={<IntervalsCalendar />} />

@@ -24,7 +24,9 @@ export function classifyDay(summary: DailySummary | undefined): DayClass {
   if (attempts < PRACTICE_DAY_MIN_ATTEMPTS) return 'belowThreshold';
   const goal = summary.dailyGoal;
   if (goal <= 0) return 'light';
-  const pct = (summary.correctCount / goal) * 100;
+  // Progress is attempts-based — wrong answers count toward the goal
+  // alongside correct ones (see DailyGoalBar / computeDayStreak).
+  const pct = (attempts / goal) * 100;
   if (pct >= 150) return 'goalCrushed';
   if (pct >= 100) return 'goalMet';
   if (pct >= 50) return 'solid';

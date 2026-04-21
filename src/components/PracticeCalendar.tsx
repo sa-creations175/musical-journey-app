@@ -215,7 +215,9 @@ function DayDetail({ dateKey, todayKey, summary }: DayDetailProps) {
       </p>
     );
   } else if (summary) {
-    const goalReached = summary.correctCount >= summary.dailyGoal;
+    // Goal is attempts-based — wrong answers count toward it just like
+    // correct ones (see DailyGoalBar / classifyDay).
+    const goalReached = attempts >= summary.dailyGoal;
     body = (
       <div className="space-y-1 text-sm">
         <div>
@@ -232,7 +234,7 @@ function DayDetail({ dateKey, todayKey, summary }: DayDetailProps) {
           <span className={goalReached ? 'text-fluent font-medium' : 'text-neutral-500'}>
             {goalReached ? 'goal met' : 'below goal'}:
           </span>
-          <span className="ml-1 font-mono">{summary.correctCount}/{summary.dailyGoal}</span>
+          <span className="ml-1 font-mono">{attempts}/{summary.dailyGoal}</span>
         </div>
       </div>
     );
