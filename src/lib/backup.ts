@@ -29,6 +29,15 @@ const TABLES = {
   userPrefs: db.userPrefs,
   attempts: db.attempts,
   dailySummaries: db.dailySummaries,
+  progressionAssociations: db.progressionAssociations,
+  flashcardStates: db.flashcardStates,
+  modeAssociations: db.modeAssociations,
+  intervalDescriptions: db.intervalDescriptions,
+  songSections: db.songSections,
+  songChords: db.songChords,
+  songPracticeLog: db.songPracticeLog,
+  songCrossKeyProgress: db.songCrossKeyProgress,
+  wantToLearn: db.wantToLearn,
 } as const;
 
 type TableMap = typeof TABLES;

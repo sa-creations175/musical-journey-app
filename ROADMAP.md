@@ -29,6 +29,18 @@ Optional sub-feature: ear training layer inside Voicings module — "hear this v
 ### Chord Progression Playback
 For each song, store its chord progression (Roman numerals or named chords) with optional section labels (verse, chorus, bridge). "Play progression" button loops the progression at user-specified tempo, transposable to any key. Use cases: ear-training real songs you're learning, reviewing old analyses, testing progression variations, songwriter practice loop.
 
+## Repertoire — Future Enhancements
+- Chord-level semantic connections — click a chord in the lead sheet to open that chord's Chord Recognition tier, or audition it against your ear-training fluency in the current key.
+- Back-references from other modules — "this motion appears in Mirror (verse)" and "this progression is the hook of A Couple Minutes", surfaced next to the source drill.
+- Multi-voicing tracking per chord — attach several voicings to a single chord slot so the user can compare alternatives without stomping on the primary chart.
+- Audio recording of practice sessions — record straight into the session log with playback, so you can hear last week's take when you come back.
+- Tempo progression tracking — graph how the target tempo has climbed over time for each song, flagging plateaus and breakthroughs.
+- Integration with a Practice Sessions module — auto-log a Repertoire session when the user is practising inside a larger session block.
+- Cross-song progression library — "songs in your repertoire that use the 1-5-6-4" / "songs that borrow bVII", surfaced as a browsable view.
+- Mode tagging per section — connect a section's modal colour ("Dorian bridge") to Scales & Modes fluency.
+- Modal interchange flagging — mark chords that are borrowed from the parallel minor / Mixolydian / harmonic minor so the ear has a vocabulary for "why does this section feel brighter / darker".
+- Shared repertoire with friends — export a read-only song (or full repertoire) for another user to import.
+
 ## In-App Ideas Capture (new feature)
 
 A simple place inside the app to capture feature ideas as they come during practice sessions. Fields: module/area, idea description, priority (nice-to-have / really want / must have), date added. Ideas can later be promoted to this roadmap when ready to build.
