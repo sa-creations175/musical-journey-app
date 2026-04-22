@@ -161,6 +161,14 @@ export default function HarmonicFluency() {
           timerMode={timerMode}
           onExit={handleExit}
           onDisplayModeChange={setDisplayMode}
+          focusProtected={
+            // User has explicitly narrowed the pool (flagged-only drill
+            // or a hand-picked category set) AND the resulting queue is
+            // small enough that they're cued into what's coming next —
+            // so correct answers shouldn't count toward fluency tiers.
+            (flaggedOnly || selectedCategories.size > 0) &&
+            sessionQueue.cards.length < 4
+          }
         />
       ) : (
         <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-5">

@@ -1,6 +1,8 @@
 // Reusable 1-2 octave SVG piano keyboard. Accepts a key signature so it
 // can subtly tint in-key white notes, plus a list of explicitly
-// highlighted notes (blue / green / red). No audio — purely visual.
+// highlighted notes (blue / green / red). Optional click handler turns
+// the keyboard into an input surface — callers that omit the handler get
+// a pure visual keyboard (no cursor change, no hover state).
 // Shared with future modules (Chord Motion tab, etc.).
 
 export type HighlightColor = 'blue' | 'green' | 'red' | 'neutral';
@@ -28,6 +30,10 @@ interface Props {
   startOctave?: number;
   /** Width in pixels. Height auto-derives. */
   width?: number;
+  /** When provided, every rendered key becomes clickable and fires this
+      with the canonical note name (flat or sharp based on keySignature)
+      and its octave. Keep undefined for purely-visual use. */
+  onKeyClick?: (note: string, octave: number) => void;
 }
 
 const WHITE_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -81,7 +87,9 @@ export default function KeyboardVisual({
   octaves = 2,
   startOctave = 4,
   width = 320,
+  onKeyClick,
 }: Props) {
+  const interactive = typeof onKeyClick === 'function';
   const keyName = keyToName(keySignature);
   const totalWhite = 7 * octaves;
   const whiteW = width / totalWhite;
@@ -129,6 +137,10 @@ export default function KeyboardVisual({
                 fill={fill}
                 stroke="#d1d5db"
                 strokeWidth={1}
+                onClick={interactive ? () => onKeyClick!(note, octave) : undefined}
+                style={interactive ? { cursor: 'pointer' } : undefined}
+                role={interactive ? 'button' : undefined}
+                aria-label={interactive ? `${note}${octave}` : undefined}
               />
               <text
                 x={i * whiteW + whiteW / 2}
@@ -137,6 +149,7 @@ export default function KeyboardVisual({
                 fontSize={Math.max(9, whiteW * 0.3)}
                 fill={textFill}
                 fontFamily="ui-monospace, monospace"
+                pointerEvents="none"
               >
                 {note}
               </text>
@@ -162,6 +175,10 @@ export default function KeyboardVisual({
               fill={baseFill}
               stroke="#000"
               strokeOpacity={0.2}
+              onClick={interactive ? () => onKeyClick!(blackNote, octave) : undefined}
+              style={interactive ? { cursor: 'pointer' } : undefined}
+              role={interactive ? 'button' : undefined}
+              aria-label={interactive ? `${blackNote}${octave}` : undefined}
             />
           );
         })}

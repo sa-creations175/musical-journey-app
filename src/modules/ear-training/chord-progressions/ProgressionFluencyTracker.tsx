@@ -12,11 +12,12 @@ import {
   type Tier,
 } from '../../../lib/tier';
 import { PROGRESSIONS, TIER_NAMES, type Progression } from './catalog';
-import { containsSlashChords } from './progressionTheory';
+import { KEYS, containsSlashChords } from './progressionTheory';
+import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './ChordMotionTab';
 import AssociationsEditor from './AssociationsEditor';
 
 const MODULE_ID = 'chord-progressions';
-type ViewMode = 'tier' | 'must-knows';
+type ViewMode = 'full-progression' | 'key-detection' | 'chord-motion' | 'must-knows';
 
 interface RollingStats {
   correct: number;
@@ -125,30 +126,168 @@ function StatRow({ label, stats }: { label: string; stats: RollingStats }) {
   );
 }
 
-interface Props { attempts: AttemptRecord[]; }
+// --- Reusable generic stat row ---------------------------------------
 
-export default function ProgressionFluencyTracker({ attempts }: Props) {
-  const [view, setView] = useState<ViewMode>('tier');
+// Simple label + stats row for new-tab sections (Key Detection, Chord
+// Motion). Same visual vocabulary as the full-progression rows but
+// without the associations editor / slash chord badges.
+function SimpleStatRow({ label, stats, extra }: { label: string; stats: RollingStats; extra?: string }) {
+  return (
+    <div className="py-2.5 first:pt-0 last:pb-0 grid sm:grid-cols-[160px,1fr] gap-2 items-center">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm">{label}</span>
+          <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[stats.tier]}`}>
+            {TIER_LABEL[stats.tier]}
+          </span>
+        </div>
+        {extra && <div className="text-[10px] text-neutral-400 mt-0.5">{extra}</div>}
+      </div>
+      <StatRow label="rolling accuracy" stats={stats} />
+    </div>
+  );
+}
 
-  const tierGroups = useMemo(() => {
-    return Object.keys(TIER_NAMES).map(n => Number(n)).sort((a, b) => a - b).map(tier => ({
+// --- Full progression / must-knows views -----------------------------
+
+function FullProgressionView({ attempts }: { attempts: AttemptRecord[] }) {
+  const tierGroups = useMemo(() => (
+    Object.keys(TIER_NAMES).map(n => Number(n)).sort((a, b) => a - b).map(tier => ({
       key: String(tier),
       title: `Tier ${tier} — ${TIER_NAMES[tier]}`,
       progressions: PROGRESSIONS.filter(p => p.tier === tier),
-    }));
+    }))
+  ), []);
+  return (
+    <div className="space-y-5">
+      {tierGroups.map(group => (
+        <div key={group.key}>
+          <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{group.title}</h3>
+          <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            {group.progressions.map(prog => (
+              <ProgRow key={prog.id} progression={prog} attempts={attempts} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function MustKnowsView({ attempts }: { attempts: AttemptRecord[] }) {
+  const mustKnows = useMemo(() => PROGRESSIONS.filter(p => p.isMustKnow), []);
+  return (
+    <div>
+      <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+        must-know progressions ({mustKnows.length})
+      </h3>
+      <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+        {mustKnows.map(prog => <ProgRow key={prog.id} progression={prog} attempts={attempts} />)}
+      </div>
+    </div>
+  );
+}
+
+// --- Key Detection view ---------------------------------------------
+
+function KeyDetectionView({ attempts }: { attempts: AttemptRecord[] }) {
+  return (
+    <div>
+      <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">accuracy per key</h3>
+      <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+        {KEYS.map(k => {
+          const stats = rollingFor(attempts, `key-detection:${k}`);
+          return <SimpleStatRow key={k} label={`${k} major`} stats={stats} />;
+        })}
+      </div>
+    </div>
+  );
+}
+
+// --- Chord Motion view ----------------------------------------------
+
+function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
+  // Group motions by distance (2nds, 3rds, …) and show each as a
+  // "startDeg → destDeg (dir)" row. Each attempt row reuses the same
+  // rolling-window tier logic as the full-progression rows.
+  const groups = useMemo(() => {
+    const byDistance = new Map<number, typeof ALL_MOTIONS>();
+    for (const m of ALL_MOTIONS) {
+      const list = byDistance.get(m.distance) ?? [];
+      list.push(m);
+      byDistance.set(m.distance, list);
+    }
+    return Array.from(byDistance.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([dist, motions]) => ({
+        key: String(dist),
+        title: `${INTERVAL_NAME[dist as 2 | 3 | 4 | 5 | 6 | 7]}s — ${motions.length} motions`,
+        motions,
+      }));
   }, []);
 
-  const mustKnows = useMemo(() => PROGRESSIONS.filter(p => p.isMustKnow), []);
+  // Also roll up per scaffolding mode so the user can see whether
+  // Minimal mode is lagging Full.
+  const scaffoldStats = useMemo(() => ([
+    { mode: 'full' as const, label: 'full scaffolding', stats: rollingFor(attempts, 'motion-mode:full') },
+    { mode: 'partial' as const, label: 'partial scaffolding', stats: rollingFor(attempts, 'motion-mode:partial') },
+    { mode: 'minimal' as const, label: 'minimal scaffolding', stats: rollingFor(attempts, 'motion-mode:minimal') },
+  ]), [attempts]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">accuracy by scaffolding</h3>
+        <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          {scaffoldStats.map(s => (
+            <SimpleStatRow
+              key={s.mode}
+              label={s.label}
+              stats={s.stats}
+              extra="full credit only — half-credit Minimal rounds count as wrong here"
+            />
+          ))}
+        </div>
+      </div>
+      {groups.map(g => (
+        <div key={g.key}>
+          <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{g.title}</h3>
+          <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+            {g.motions.map(m => {
+              const id = `motion:${m.startLabel}-${m.destLabel}-${m.direction}`;
+              const parsed = parseMotionId(id);
+              const stats = rollingFor(attempts, id);
+              const label = `${m.startLabel} → ${m.destLabel}`;
+              const extra = `${m.direction === 'asc' ? 'ascending' : 'descending'} · ${parsed?.distance ?? ''}${parsed ? INTERVAL_NAME[parsed.distance].slice(-2) : ''}${m.isDiatonic ? '' : ' · chromatic'}`;
+              return <SimpleStatRow key={id} label={label} stats={stats} extra={extra} />;
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// --- Top-level tracker ----------------------------------------------
+
+interface Props { attempts: AttemptRecord[]; }
+
+const VIEW_TABS: Array<{ id: ViewMode; label: string }> = [
+  { id: 'full-progression', label: 'full progression' },
+  { id: 'key-detection', label: 'key detection' },
+  { id: 'chord-motion', label: 'chord motion' },
+  { id: 'must-knows', label: 'must-knows only' },
+];
+
+export default function ProgressionFluencyTracker({ attempts }: Props) {
+  const [view, setView] = useState<ViewMode>('full-progression');
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
-        <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-          {([
-            { id: 'tier', label: 'tier view' },
-            { id: 'must-knows', label: 'must-knows only' },
-          ] as const).map(opt => (
+        <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap">
+          {VIEW_TABS.map(opt => (
             <button
               key={opt.id}
               onClick={() => setView(opt.id)}
@@ -163,31 +302,10 @@ export default function ProgressionFluencyTracker({ attempts }: Props) {
           ))}
         </div>
       </div>
-      {view === 'tier' ? (
-        <div className="space-y-5">
-          {tierGroups.map(group => (
-            <div key={group.key}>
-              <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{group.title}</h3>
-              <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                {group.progressions.map(prog => (
-                  <ProgRow key={prog.id} progression={prog} attempts={attempts} />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div>
-          <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-            must-know progressions ({mustKnows.length})
-          </h3>
-          <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {mustKnows.map(prog => (
-              <ProgRow key={prog.id} progression={prog} attempts={attempts} />
-            ))}
-          </div>
-        </div>
-      )}
+      {view === 'full-progression' && <FullProgressionView attempts={attempts} />}
+      {view === 'must-knows' && <MustKnowsView attempts={attempts} />}
+      {view === 'key-detection' && <KeyDetectionView attempts={attempts} />}
+      {view === 'chord-motion' && <ChordMotionView attempts={attempts} />}
     </section>
   );
 }

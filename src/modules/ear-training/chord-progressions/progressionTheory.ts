@@ -158,9 +158,10 @@ export type ListeningMode = 'bass' | 'chords' | 'bass-chords';
 export type TonicContext = 'singleNote' | 'none';
 
 // Fixed priming note — not scaled by speed multiplier because it's a
-// reference pitch, not part of the music.
-export const TONIC_DURATION = 0.6;
-export const TONIC_GAP = 0.3;
+// reference pitch, not part of the music. Sustains long enough that the
+// ear has time to lock onto the tonic before the progression starts.
+export const TONIC_DURATION = 2.0;
+export const TONIC_GAP = 0.5;
 
 /** Total seconds added ahead of the progression by the given tonic context. */
 export function tonicLeadInSeconds(context: TonicContext): number {
@@ -283,6 +284,133 @@ export async function playProgression(
       const fadeAt = ctxNow + 0.05;
       for (const v of voices) v.stop(fadeAt);
       for (const id of timers) window.clearTimeout(id);
+    },
+  };
+}
+
+// --- Diatonic chord map ----------------------------------------------
+
+// Quality of each diatonic chord in major (scale degrees 1..7).
+// I-ii-iii-IV-V-vi-vii° — the five dominant is marked as a `dominant`
+// quality so seventh-chord voicings render as V7 when complexity is
+// `seventh` or `jazz`. Callers wanting a plain V triad can remap.
+export const DIATONIC_MAJOR: ChordQuality[] = [
+  'major',    // 1
+  'minor',    // 2
+  'minor',    // 3
+  'major',    // 4
+  'dominant', // 5
+  'minor',    // 6
+  'diminished', // 7
+];
+
+export interface DegreeChord {
+  rootMidi: number;
+  quality: ChordQuality;
+  /** Degree number (1..7) for display. */
+  degree: number;
+}
+
+/**
+ * Resolve a scale-degree position in a given key to a concrete chord —
+ * root MIDI plus diatonic quality. Degree is 1..7; out-of-range values
+ * clamp to the nearest in-scale degree.
+ */
+export function chordAtDegree(key: string, degree: number): DegreeChord {
+  const tonic = keyToRootMidi(key);
+  const d = Math.min(7, Math.max(1, Math.floor(degree)));
+  const offset = MAJOR_DEGREE_OFFSETS[d] ?? 0;
+  return {
+    rootMidi: tonic + offset,
+    quality: DIATONIC_MAJOR[d - 1] ?? 'major',
+    degree: d,
+  };
+}
+
+/**
+ * Build the MIDI pitch for a scale degree in a key — the root of the
+ * diatonic chord at that degree, kept inside the tonic's octave. Handy
+ * for the Chord Motion tab where we often need just the pitch, not a
+ * full chord voicing.
+ */
+export function degreePitchMidi(key: string, degree: number): number {
+  return chordAtDegree(key, degree).rootMidi;
+}
+
+// --- Cadence helper --------------------------------------------------
+
+// A short I-IV-V-I cadence used by Chord Motion (Full / Partial
+// scaffolding) to prime the tonal centre before each drill. Kept brief
+// — four half-note chords at 100bpm total ~4.8 seconds. Uses
+// `bass-chords` listening mode so the tonic sits unambiguously in the
+// bass. Seventh complexity by default so V reads as V7 (stronger pull).
+export async function playCadence(
+  key: string,
+  opts: { bpm?: number; complexity?: Complexity; speedMultiplier?: number } = {},
+): Promise<PlaybackHandle> {
+  const bpm = opts.bpm ?? 100;
+  const complexity = opts.complexity ?? 'seventh';
+  const speedMultiplier = opts.speedMultiplier ?? 1;
+  const tonic = keyToRootMidi(key);
+
+  const mk = (degree: number): ProgressionStep => {
+    const chord = chordAtDegree(key, degree);
+    return {
+      rootMidi: chord.rootMidi,
+      bassMidi: chord.rootMidi - 12,
+      isSlash: false,
+      quality: chord.quality,
+      beats: 2,
+    };
+  };
+
+  const steps: ProgressionStep[] = [mk(1), mk(4), mk(5), mk(1)];
+  return playProgression(
+    steps,
+    bpm,
+    complexity,
+    'bass-chords',
+    speedMultiplier,
+    1,
+    'none',
+    tonic,
+    true,
+  );
+}
+
+/**
+ * Total duration of a cadence played by `playCadence` with the given
+ * tempo/speed. Four half-note chords at `bpm` scaled by the speed
+ * multiplier. Matches the internal beats-per-step used above.
+ */
+export function cadenceDurationSeconds(bpm = 100, speedMultiplier = 1): number {
+  const m = Math.max(0.1, speedMultiplier);
+  const effBpm = bpm * m;
+  const secPerBeat = 60 / effBpm;
+  return secPerBeat * 2 * 4; // 4 chords × 2 beats each
+}
+
+// --- Drone overlay ---------------------------------------------------
+
+/**
+ * Play a sustained tonic pitch that can sit underneath another voice
+ * (e.g. a progression) without coupling its schedule to the progression
+ * callback. Returns a PlaybackHandle so the caller can cut it short.
+ */
+export async function playTonicDrone(
+  tonicMidi: number,
+  durationSeconds: number,
+  opts: { volume?: number; octaveShift?: number } = {},
+): Promise<PlaybackHandle> {
+  const context = await ensureRunning();
+  const startAt = context.currentTime + 0.05;
+  const volume = opts.volume ?? 0.22;
+  const shift = opts.octaveShift ?? -12; // one octave below the chord-root register
+  const voice = playNote(midiToFreq(tonicMidi + shift), startAt, durationSeconds, context, volume);
+  return {
+    stop: () => {
+      const now = context.currentTime;
+      voice.stop(now + 0.05);
     },
   };
 }

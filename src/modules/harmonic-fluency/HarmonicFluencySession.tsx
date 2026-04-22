@@ -7,6 +7,8 @@ import LinearScaleStrip from './LinearScaleStrip';
 import { degreeNote, parseKeyRoot } from './catalog';
 import type { Flashcard, FlashcardCategory } from './catalog';
 import { recordAttempt, toggleFlag } from './spacedRepetition';
+import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
+import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 
 const MODULE_ID = 'harmonic-fluency';
 const FADE_STREAK_THRESHOLD = 5;
@@ -20,6 +22,12 @@ interface Props {
   timerMode: TimerMode;
   onExit: (stats: SessionStats) => void;
   onDisplayModeChange: (mode: DisplayMode) => void;
+  /** True when the user has explicitly narrowed the pool (flagged-only
+      or hand-picked categories) and the queue has fewer than 4 unique
+      cards. In that case the attempt still logs to the DB (so daily
+      goal, streaks, and the calendar work normally), but we skip the
+      SM-2 update so a tight drill can't push easy cards further out. */
+  focusProtected?: boolean;
 }
 
 export interface SessionStats {
@@ -41,6 +49,7 @@ export default function HarmonicFluencySession({
   timerMode,
   onExit,
   onDisplayModeChange,
+  focusProtected = false,
 }: Props) {
   const [index, setIndex] = useState(0);
   const [outcomes, setOutcomes] = useState<Array<CardOutcome | undefined>>(
@@ -121,9 +130,12 @@ export default function HarmonicFluencySession({
       itemId: card.id,
       correct: isCorrect,
       timestamp: Date.now(),
+      ...(focusProtected ? { excludeFromFluency: true } : {}),
     };
     await db.attempts.add(record);
-    await recordAttempt(card.id, isCorrect);
+    if (!focusProtected) {
+      await recordAttempt(card.id, isCorrect);
+    }
     await updateDailySummary(MODULE_ID);
 
     setOutcomes(prev => {
@@ -251,6 +263,7 @@ export default function HarmonicFluencySession({
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-5">
+      {focusProtected && <FluencyProtectionNotice />}
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-3 flex-wrap">
@@ -357,7 +370,9 @@ export default function HarmonicFluencySession({
               </span>
             )}
             {card.explanation && (
-              <div className="mt-1 text-xs text-neutral-500 italic">{card.explanation}</div>
+              <div className="mt-1 text-xs text-neutral-500 italic">
+                <ModeLinkify text={card.explanation} />
+              </div>
             )}
           </div>
         </div>

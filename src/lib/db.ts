@@ -103,6 +103,13 @@ export interface AttemptRecord {
   direction?: AttemptDirection;
   correct: boolean;
   timestamp: number;
+  /** Set when the attempt should still be logged (so daily goals,
+      streaks, and the calendar keep working) but must NOT feed the
+      rolling-window fluency calculation. Used by small-pool focus
+      sessions where the user already knows what's coming and a "correct"
+      answer isn't a genuine fluency signal. Older records without the
+      field are treated as normal fluency-tracked attempts. */
+  excludeFromFluency?: boolean;
 }
 
 export interface DailySummary {
@@ -116,6 +123,22 @@ export interface DailySummary {
 
 export interface ProgressionAssociation {
   progressionId: string;
+  text: string;
+  updatedAt: number;
+}
+
+export interface ModeAssociation {
+  modeId: string;
+  text: string;
+  updatedAt: number;
+}
+
+// Per-interval-quality emotional description. Keyed by a composite id
+// like "minor-3rd-ascending" so ascending and descending versions of
+// the same quality live on separate rows (they feel different to the
+// ear and often attract different associations).
+export interface IntervalDescription {
+  intervalKey: string;
   text: string;
   updatedAt: number;
 }
@@ -148,6 +171,8 @@ export class AppDB extends Dexie {
   dailySummaries!: Table<DailySummary, [string, string]>;
   progressionAssociations!: Table<ProgressionAssociation, string>;
   flashcardStates!: Table<FlashcardState, string>;
+  modeAssociations!: Table<ModeAssociation, string>;
+  intervalDescriptions!: Table<IntervalDescription, string>;
 
   constructor() {
     super('musical-journey');
@@ -215,6 +240,39 @@ export class AppDB extends Dexie {
       dailySummaries: '[date+moduleId], date, moduleId',
       progressionAssociations: 'progressionId',
       flashcardStates: 'cardId, nextReviewDate',
+    });
+    this.version(6).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+    });
+    this.version(7).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
     });
   }
 }

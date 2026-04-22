@@ -17,6 +17,7 @@ import {
   speedPrefKey,
 } from '../../../lib/goalConfig';
 import SpeedControl from '../../../components/SpeedControl';
+import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import ItemSelectionPanel, {
   type FilterConfig,
   type FilterOption,
@@ -30,6 +31,7 @@ import {
   type Progression,
 } from './catalog';
 import AssociationsEditor from './AssociationsEditor';
+import ModeLinkify from '../scales-modes/ModeLinkify';
 import {
   KEYS,
   chordDisplay,
@@ -63,16 +65,19 @@ const NUMERAL_POOL = [
   'V', 'v', 'bVI', 'VI', 'vi', 'bVII', 'VII', 'vii°', 'viiø',
 ];
 
+// Labels pair the tier number with its data-driven name so users don't
+// have to memorize the tier structure. `title` is retained for tooltip
+// parity with the previous numeric-only labels.
 const TIER_TABS: Array<{ id: 'all' | number; label: string; title?: string }> = [
-  { id: 'all', label: 'all' },
-  { id: 1, label: '1', title: TIER_NAMES[1] },
-  { id: 2, label: '2', title: TIER_NAMES[2] },
-  { id: 3, label: '3', title: TIER_NAMES[3] },
-  { id: 4, label: '4', title: TIER_NAMES[4] },
-  { id: 5, label: '5', title: TIER_NAMES[5] },
-  { id: 6, label: '6', title: TIER_NAMES[6] },
-  { id: 7, label: '7', title: TIER_NAMES[7] },
-  { id: 8, label: '8', title: TIER_NAMES[8] },
+  { id: 'all', label: 'all progressions' },
+  { id: 1, label: `Tier 1: ${TIER_NAMES[1]}`, title: TIER_NAMES[1] },
+  { id: 2, label: `Tier 2: ${TIER_NAMES[2]}`, title: TIER_NAMES[2] },
+  { id: 3, label: `Tier 3: ${TIER_NAMES[3]}`, title: TIER_NAMES[3] },
+  { id: 4, label: `Tier 4: ${TIER_NAMES[4]}`, title: TIER_NAMES[4] },
+  { id: 5, label: `Tier 5: ${TIER_NAMES[5]}`, title: TIER_NAMES[5] },
+  { id: 6, label: `Tier 6: ${TIER_NAMES[6]}`, title: TIER_NAMES[6] },
+  { id: 7, label: `Tier 7: ${TIER_NAMES[7]}`, title: TIER_NAMES[7] },
+  { id: 8, label: `Tier 8: ${TIER_NAMES[8]}`, title: TIER_NAMES[8] },
 ];
 
 type RunState = 'idle' | 'playing' | 'identifying' | 'pattern' | 'reveal';
@@ -140,6 +145,20 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
   const [loopCount, setLoopCount] = useState<LoopCount>(1);
   const [runState, setRunState] = useState<RunState>('idle');
   const [active, setActive] = useState<Progression | null>(null);
+  // Settings captured at round start. Replay, feedback rendering, and
+  // the transition timer all read from here instead of the live pill /
+  // select state, so toggling key / complexity / listening / bpm /
+  // tonicContext mid-round (or during feedback) applies forward via
+  // "next progression" and never retroactively to the current one.
+  const [activeConfig, setActiveConfig] = useState<{
+    key: string;
+    complexity: Complexity;
+    listening: ListeningMode;
+    bpm: number;
+    tonicContext: TonicContext;
+    loopOn: boolean;
+    loopCount: LoopCount;
+  } | null>(null);
   const [answers, setAnswers] = useState<(string | null)[]>([]);
   const [currentSlot, setCurrentSlot] = useState<number>(0);
   const [submitted, setSubmitted] = useState(false);
@@ -169,6 +188,9 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
       // `${id}-pattern` as itemId. Both contribute to separate rolling
       // windows — for adaptive selection, use the chord-level set only.
       if (a.itemId.endsWith('-pattern')) continue;
+      // Small-pool focus sessions log attempts but are excluded from the
+      // rolling-window tier math to avoid cueing-driven inflation.
+      if (a.excludeFromFluency) continue;
       const arr = m.get(a.itemId);
       if (arr) arr.push(a); else m.set(a.itemId, [a]);
     }
@@ -192,6 +214,12 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     if (tierFilter === 'all') return PROGRESSIONS;
     return PROGRESSIONS.filter(p => p.tier === tierFilter);
   }, [focusActive, focusKeys, tierFilter]);
+
+  // Focus sessions with fewer than 4 items don't truly test fluency —
+  // the user knows what's coming. Attempts still log so the calendar
+  // and daily goal keep working, but the rolling-window tier math
+  // ignores them.
+  const focusProtected = focusActive && focusKeys.length < 4;
 
   const tierForProg = (id: string): ReturnType<typeof computeTier> => {
     const keyed = groupedAttempts.get(id) ?? [];
@@ -227,7 +255,20 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     const candidates = buildCandidates();
     if (candidates.length === 0) return;
     const prog = pickAdaptive(candidates);
+    // Capture every setting the round depends on into a snapshot the
+    // rest of the lifecycle reads from. Live pill / select changes
+    // reach the *next* round via startRound(), never the current one.
+    const cfg = {
+      key,
+      complexity,
+      listening,
+      bpm,
+      tonicContext,
+      loopOn: prog.loopDefault,
+      loopCount,
+    };
     setActive(prog);
+    setActiveConfig(cfg);
     setAnswers(new Array(prog.numerals.length).fill(null));
     setCurrentSlot(0);
     setSubmitted(false);
@@ -236,13 +277,17 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     setReplayedInReveal(false);
     setLoopOn(prog.loopDefault);
 
-    const count = loopOn ? loopCount : 1;
-    await playWith(prog, count);
+    const count = cfg.loopOn ? cfg.loopCount : 1;
+    await playWith(prog, count, cfg);
     setRunState('playing');
   };
 
-  const playWith = async (prog: Progression, count: number) => {
-    const rootMidi = keyToRootMidi(key);
+  const playWith = async (
+    prog: Progression,
+    count: number,
+    cfg: NonNullable<typeof activeConfig>,
+  ) => {
+    const rootMidi = keyToRootMidi(cfg.key);
     const steps: ProgressionStep[] = prog.numerals.map((numeral, i) => {
       const parsed = parseSlashChord(numeral);
       const chordRootMidi = rootMidi + numeralOffset(parsed.chord);
@@ -259,14 +304,14 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
       };
     });
     const handle = await playProgression(
-      steps, bpm, complexity, listening, speedRef.current, count,
-      tonicContext, rootMidi, prog.requiresDominant ?? false,
+      steps, cfg.bpm, cfg.complexity, cfg.listening, speedRef.current, count,
+      cfg.tonicContext, rootMidi, prog.requiresDominant ?? false,
     );
     playbackRef.current = handle;
     // Schedule transition to identifying after total duration.
     const totalBeats = prog.durationPattern.reduce((s, b) => s + b, 0) * count;
-    const leadInSecs = tonicLeadInSeconds(tonicContext);
-    const totalMs = ((totalBeats * 60 / (bpm * Math.max(0.1, speedRef.current))) + leadInSecs) * 1000 + 300;
+    const leadInSecs = tonicLeadInSeconds(cfg.tonicContext);
+    const totalMs = ((totalBeats * 60 / (cfg.bpm * Math.max(0.1, speedRef.current))) + leadInSecs) * 1000 + 300;
     endTimerRef.current = window.setTimeout(() => {
       playbackRef.current = null;
       endTimerRef.current = null;
@@ -285,10 +330,13 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
   };
 
   const handleReplay = async () => {
-    if (!active) return;
+    if (!active || !activeConfig) return;
     stopPlayback();
-    const count = loopOn ? loopCount : 1;
-    await playWith(active, count);
+    // Replay uses the round's captured config, not whatever the pills
+    // currently say. Mid-round changes to key / complexity / listening
+    // / tempo / tonic context never alter what the user just heard.
+    const count = activeConfig.loopOn ? activeConfig.loopCount : 1;
+    await playWith(active, count, activeConfig);
     // Audio plays in the background; leave runState alone so the user's
     // current UI (slot strip, pattern options, reveal card) stays visible.
     if (runState === 'reveal') setReplayedInReveal(true);
@@ -348,6 +396,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     const now = Date.now();
     const hasSlash = containsSlashChords(active.numerals);
     const records: AttemptRecord[] = [];
+    const fluencyFlag = focusProtected ? { excludeFromFluency: true } : {};
     answers.forEach((ans, i) => {
       const user = splitAnswer(ans!);
       const correct = splitAnswer(active!.numerals[i]);
@@ -356,6 +405,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         itemId: active!.id,
         correct: user.chord === correct.chord,
         timestamp: now + i,
+        ...fluencyFlag,
       });
       if (hasSlash) {
         records.push({
@@ -363,6 +413,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
           itemId: `${active!.id}-inversion`,
           correct: user.slash === correct.slash,
           timestamp: now + i,
+          ...fluencyFlag,
         });
       }
     });
@@ -391,6 +442,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         itemId: `${active.id}-pattern`,
         correct: isCorrect,
         timestamp: Date.now(),
+        ...(focusProtected ? { excludeFromFluency: true } : {}),
       });
     }
     setReplayedInReveal(false);
@@ -414,9 +466,13 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     return [...set].sort((a, b) => numeralOffset(a) - numeralOffset(b) || a.localeCompare(b));
   }, [active]);
 
+  // Feedback-card chord sequence. Reads the round's snapshot so the
+  // displayed transposition + voicing always match what the user heard,
+  // even if they've since changed the key or complexity pills in
+  // preparation for the next round.
   const chordSequenceDisplay = useMemo(() => {
-    if (!active) return '';
-    const rootMidi = keyToRootMidi(key);
+    if (!active || !activeConfig) return '';
+    const rootMidi = keyToRootMidi(activeConfig.key);
     const requiresDominant = active.requiresDominant ?? false;
     return active.numerals.map((n, i) => {
       const parsed = parseSlashChord(n);
@@ -427,11 +483,11 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
       return chordDisplay(
         chordRoot,
         active.chordQualities[i] ?? 'major',
-        complexity,
+        activeConfig.complexity,
         { requiresDominant, slashBassMidi },
       );
     }).join(' → ');
-  }, [active, key, complexity]);
+  }, [active, activeConfig]);
 
   const activeHasSlash = active ? containsSlashChords(active.numerals) : false;
 
@@ -495,22 +551,9 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord progressions quiz</h2>
       </div>
 
-      {/* Focus banner OR tier tabs */}
-      {focusActive ? (
-        <div className="rounded-lg border border-fluent/40 bg-fluent/10 px-3 py-2 flex items-center justify-between gap-3 flex-wrap text-sm">
-          <span>
-            <span className="font-medium text-fluent">focus mode</span>
-            <span className="text-neutral-500"> · {focusKeys.length} progression{focusKeys.length === 1 ? '' : 's'} selected</span>
-          </span>
-          <button
-            onClick={() => setFocusActive(false)}
-            className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            exit focus
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-2">
+      {/* Scope tabs (all-first) + focus button + dynamic status line. */}
+      <div className="flex flex-col items-center gap-2">
+        {!focusActive && (
           <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap justify-center">
             {TIER_TABS.map(tab => (
               <button
@@ -527,17 +570,33 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowFocusPanel(true)}
-            className="text-xs text-neutral-500 hover:text-fluent"
-          >
-            ⊞ focus on specific progressions
-          </button>
-          <p className="text-[11px] text-neutral-500">
-            {tierFilter === 'all' ? `${PROGRESSIONS.length} progressions` : TIER_NAMES[tierFilter as number]} · {pool.length} in pool
-          </p>
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => setShowFocusPanel(true)}
+          className="text-xs text-neutral-500 hover:text-fluent"
+        >
+          ⊞ focus on specific progressions
+        </button>
+        <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
+          <span>
+            {focusActive
+              ? `focused practice — ${focusKeys.length} progression${focusKeys.length === 1 ? '' : 's'} selected`
+              : tierFilter === 'all'
+                ? `all progressions — ${pool.length} in pool`
+                : `Tier ${tierFilter}: ${TIER_NAMES[tierFilter as number]} — ${pool.length} in pool`}
+          </span>
+          {focusActive && (
+            <button
+              onClick={() => setFocusActive(false)}
+              className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
+            >
+              exit focus
+            </button>
+          )}
+        </p>
+      </div>
+
+      {focusProtected && <FluencyProtectionNotice />}
 
       {/* Config grid: key + complexity + listening + loop */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
@@ -855,7 +914,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
           totalSlots={totalSlots}
           patternAnswered={patternAnswered}
           patternCorrect={patternCorrect}
-          keyLabel={key}
+          keyLabel={activeConfig?.key ?? key}
           chordSequenceDisplay={chordSequenceDisplay}
         />
       )}
@@ -958,7 +1017,7 @@ function RevealCard({
       {progression.theoryNote && (
         <div className="rounded-md bg-neutral-100/70 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
           <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">theory</span>
-          {progression.theoryNote}
+          <ModeLinkify text={progression.theoryNote} />
         </div>
       )}
 

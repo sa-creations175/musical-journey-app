@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(node --input-type=module -e \"import\\('./src/modules/harmonic-fluency/catalog.ts'\\).then\\(\\(\\) => console.log\\('ok'\\)\\).catch\\(e => console.log\\('skip:', e.message.slice\\(0,80\\)\\)\\)\")"
+      "Bash(node --input-type=module -e \"import\\('./src/modules/harmonic-fluency/catalog.ts'\\).then\\(\\(\\) => console.log\\('ok'\\)\\).catch\\(e => console.log\\('skip:', e.message.slice\\(0,80\\)\\)\\)\")",
+      "Bash(npx eslint *)",
+      "Bash(npx vite *)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")"
     ]
   }
 }

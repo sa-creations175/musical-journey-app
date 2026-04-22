@@ -5,6 +5,12 @@ import { defaultSpeed, speedPrefKey } from '../lib/goalConfig';
 
 interface Props {
   moduleId: string;
+  /** Override the userPrefs key this control reads/writes. Useful when
+      a module needs multiple independent speed sliders — e.g. Scales &
+      Modes keeps separate defaults for scale playback and modal vamps. */
+  prefKeyOverride?: string;
+  /** Override the fallback speed used when nothing is stored yet. */
+  fallbackOverride?: number;
 }
 
 const MIN = 0.5;
@@ -23,17 +29,19 @@ function snap(v: number): number {
 }
 
 // Per-module playback speed control. Reads + writes userPrefs[speed<Module>]
-// via useLiveQuery; changes take effect on the next playback.
-export default function SpeedControl({ moduleId }: Props) {
+// via useLiveQuery; changes take effect on the next playback. Pass
+// `prefKeyOverride` / `fallbackOverride` for sub-tab scoping.
+export default function SpeedControl({ moduleId, prefKeyOverride, fallbackOverride }: Props) {
   const listId = useId();
-  const fallback = defaultSpeed(moduleId);
+  const fallback = fallbackOverride ?? defaultSpeed(moduleId);
+  const key = prefKeyOverride ?? speedPrefKey(moduleId);
   const speed = useLiveQuery(
-    async () => getPref<number>(speedPrefKey(moduleId), fallback),
-    [moduleId],
+    async () => getPref<number>(key, fallback),
+    [key, fallback],
   ) ?? fallback;
 
   const set = async (v: number) => {
-    await setPref(speedPrefKey(moduleId), snap(v));
+    await setPref(key, snap(v));
   };
 
   return (

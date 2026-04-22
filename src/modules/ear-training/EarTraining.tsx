@@ -26,6 +26,12 @@ const subModules: SubModule[] = [
     description: 'hear bass and harmony together — named progressions across gospel, jazz, soul, and pop',
     status: 'ready',
   },
+  {
+    to: '/ear-training/scales-modes',
+    label: 'scales & modes',
+    description: 'recognize each mode by its color and atmosphere — modes as emotional worlds, not just scales',
+    status: 'ready',
+  },
 ];
 
 export default function EarTraining() {

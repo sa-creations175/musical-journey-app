@@ -51,6 +51,24 @@ A simple place inside the app to capture feature ideas as they come during pract
 - Advanced inversion tracking: separate fluency metrics for chord identification vs inversion identification so users can see where their weakness is.
 - Inversion-only drill mode: user hears the chord and just has to identify the bass inversion, not the chord itself.
 - Per-progression chord quality overrides: the `requiresDominant` flag pattern can extend to more nuanced rules (e.g. "this progression specifically needs Maj7 on I").
+- Common cadences scope for Chord Motion — filter to recognisable landing patterns (IV→I, V→I, vi→IV, ii→V) instead of all motions.
+- Chord quality scope for Chord Motion — filter by destination chord quality (major / minor / dominant / diminished) for targeted drilling.
+- Additional scope options for chromatic Chord Motion — modal-interchange-only, secondary-dominants-only, tritone-subs-only sub-pools inside the "all motions including chromatic" scope.
+- Difficulty progression suggestions in Chord Motion — app nudges "ready to try chromatic?" or "ready to drop scaffolding?" when rolling-window fluency on the current scope clears a threshold.
+- Chord voicing complexity scope in Chord Motion — practice with triads only vs sevenths only vs jazz voicings. Currently hard-coded to seventh chords.
+- Extended progressions for Key Detection — bring in tiers 4–6 progressively once the user is fluent in the curated tier-1-to-3 pool.
+- Modulation challenges in Key Detection — progressions that change key mid-stream so the user distinguishes the original key from the destination key.
+- Chord Motion with extended qualities — 9ths, 11ths, 13ths layered onto the two-chord motion drills so the ear learns to separate motion from colour.
+- Visual piano overlay showing the full motion across octaves (currently limited to one-octave clicks inside the tonic's register).
+- Integration with Repertoire — identify the key of a saved song's section by ear, then surface the detected key next to the song entry.
+
+## Scales & Modes — Future Enhancements
+- Keyboard construction mode: hear a mode, then click the notes on a keyboard to "construct" the scale visually.
+- Melody identification: user identifies the mode of a melodic phrase (harder than a vamp because just melody, no chords).
+- Modal improvisation challenges: user is given a mode and a chord vamp, prompted to improvise notes from the mode over the vamp.
+- Play-along modal vamps: extended loops users can practice their own playing over.
+- Mode blending: training to hear when a song shifts between modes mid-piece.
+- Advanced modes: pentatonic scales, blues scales, bebop scales, diminished / whole tone scales as extras.
 
 ## Harmonic Fluency — Future Enhancements
 - Cross-category "weakness challenges" — daily curated set pulling from the user's weakest tiers across all 12 categories

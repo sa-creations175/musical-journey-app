@@ -3,12 +3,15 @@ export const MIN_DAILY_GOAL = 5;
 export const MAX_DAILY_GOAL = 200;
 
 // Per-module default goals. Falls back to DEFAULT_DAILY_GOAL when a
-// module isn't listed here.
+// module isn't listed here. Kept intentionally modest — a full practice
+// session usually spans several modules, so each bar should clear in
+// normal practice; the overshoot indicator rewards bigger days.
 const MODULE_DEFAULT_GOALS: Record<string, number> = {
-  intervals: 30,
-  'chord-recognition': 20,
-  'chord-progressions': 15,
-  'harmonic-fluency': 50,
+  intervals: 10,
+  'chord-recognition': 10,
+  'chord-progressions': 8,
+  'harmonic-fluency': 10,
+  'scales-modes': 5,
 };
 
 export function defaultDailyGoal(moduleId: string): number {
@@ -43,11 +46,14 @@ export function focusSelectionKey(moduleId: string): string {
 
 // Playback speed multiplier per module. 1.0 = normal; < 1 slower; > 1 faster.
 // Chord-heavy modules default slower because complex voicings need more
-// time for the ear to parse.
+// time for the ear to parse. Scales & Modes also has per-tab overrides
+// (PREF_SCALE_SPEED / PREF_VAMP_SPEED) that take precedence over this
+// module-level default within each tab.
 const MODULE_DEFAULT_SPEEDS: Record<string, number> = {
   intervals: 1.0,
-  'chord-recognition': 0.75,
+  'chord-recognition': 0.5,
   'chord-progressions': 0.85,
+  'scales-modes': 0.75,
 };
 
 export function defaultSpeed(moduleId: string): number {

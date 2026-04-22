@@ -15,6 +15,7 @@ import { updateDailySummary } from '../../../lib/dailySummaries';
 import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
+import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 
 const MODULE_ID = 'intervals';
 const PREF_FOCUS_SELECTION = 'intervalsFocusSelection';
@@ -74,10 +75,14 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
     [intervals],
   );
 
+  // Only fluency-tracked attempts feed the rolling window. Small-pool
+  // focus sessions log with excludeFromFluency=true so they don't
+  // artificially boost tiers for items the user was already cued into.
   const groupedAttempts = useMemo(() => {
     const map = new Map<string, AttemptRecord[]>();
     for (const a of attempts) {
       if (!a.direction) continue;
+      if (a.excludeFromFluency) continue;
       const k = keyOf(a.itemId, a.direction);
       const arr = map.get(k);
       if (arr) arr.push(a); else map.set(k, [a]);
@@ -163,6 +168,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
       direction: current.direction,
       correct: isCorrect,
       timestamp: Date.now(),
+      ...(focusProtected ? { excludeFromFluency: true } : {}),
     };
     await db.attempts.add(record);
     await updateDailySummary(MODULE_ID);
@@ -187,6 +193,12 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
     }
     return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400 opacity-60`;
   };
+
+  // Focus sessions with fewer than 4 items don't truly test fluency —
+  // the user knows what's coming. We still log the attempt (so daily
+  // goal, calendar, and streaks all keep working), but flag it so it
+  // doesn't inflate the rolling-window tier calculation.
+  const focusProtected = focusActive && focusKeys.length < 4;
 
   const directionLabel = current?.direction === 'asc' ? 'ascending' : 'descending';
   const activeAnchor = current && (current.direction === 'asc'
@@ -247,55 +259,65 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
         <h2 className="text-base sm:text-lg font-medium tracking-tight">interval quiz</h2>
       </div>
 
-      {/* Direction filter tabs + focus link, OR focus-mode banner */}
-      {focusActive ? (
-        <div className="rounded-lg border border-fluent/40 bg-fluent/10 px-3 py-2 flex items-center justify-between gap-3 flex-wrap text-sm">
-          <span>
-            <span className="font-medium text-fluent">focus mode</span>
-            <span className="text-neutral-500"> · {focusKeys.length} interval{focusKeys.length === 1 ? '' : 's'} selected</span>
-          </span>
-          <button
-            onClick={onExitFocus}
-            className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            exit focus
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-2">
-          <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-            {([
-              { id: 'both', label: 'both' },
-              { id: 'asc', label: 'ascending' },
-              { id: 'desc', label: 'descending' },
-            ] as const).map(tab => (
+      {/* Focus button + dynamic scope description. Direction tabs sit
+          below as a sub-axis; they're hidden while focus mode is active
+          because the focus selection already pins direction per item. */}
+      <div className="flex flex-col items-center gap-2">
+        <button
+          onClick={() => setShowFocusPanel(true)}
+          className="text-xs text-neutral-500 hover:text-fluent"
+        >
+          ⊞ focus on specific intervals
+        </button>
+        <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
+          {focusActive ? (
+            <>
+              <span>
+                focused practice — {focusKeys.length} interval{focusKeys.length === 1 ? '' : 's'} selected
+              </span>
               <button
-                key={tab.id}
-                onClick={() => setFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-md transition ${
-                  filter === tab.id
-                    ? 'bg-fluent text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                }`}
+                onClick={onExitFocus}
+                className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
               >
-                {tab.label}
+                exit focus
               </button>
-            ))}
+            </>
+          ) : filter === 'asc' ? (
+            'ascending only — 13 combinations active'
+          ) : filter === 'desc' ? (
+            'descending only — 13 combinations active'
+          ) : (
+            'full quiz — all 26 interval combinations active'
+          )}
+        </p>
+        {!focusActive && (
+          <div className="inline-flex items-center gap-2 flex-wrap justify-center">
+            <span className="text-[11px] text-neutral-500 uppercase tracking-wide">direction:</span>
+            <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
+              {([
+                { id: 'both', label: 'both' },
+                { id: 'asc', label: 'ascending' },
+                { id: 'desc', label: 'descending' },
+              ] as const).map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setFilter(tab.id)}
+                  className={`px-3 py-1.5 rounded-md transition ${
+                    filter === tab.id
+                      ? 'bg-fluent text-white'
+                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <button
-            onClick={() => setShowFocusPanel(true)}
-            className="text-xs text-neutral-500 hover:text-fluent"
-          >
-            ⊞ focus on specific intervals
-          </button>
-          <p className="text-[11px] text-neutral-500">
-            {filter === 'asc'
-              ? 'ascending only — 13 combinations active'
-              : filter === 'desc'
-                ? 'descending only — 13 combinations active'
-                : 'full quiz — all 26 interval combinations active'}
-          </p>
-        </div>
+        )}
+      </div>
+
+      {focusProtected && (
+        <FluencyProtectionNotice />
       )}
 
       <div className="flex justify-center">

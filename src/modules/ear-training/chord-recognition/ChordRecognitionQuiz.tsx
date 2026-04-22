@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { playChordBlocked, playChordBroken } from '../../../lib/audio';
+import {
+  playChordBlocked,
+  playChordBroken,
+  type BrokenChordDirection,
+} from '../../../lib/audio';
 import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
 import {
   pickAdaptive,
@@ -19,25 +23,30 @@ import ItemSelectionPanel, {
   type SelectionSection,
 } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
+import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 
 const MODULE_ID = 'chord-recognition';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
+const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
 
 type TierFilter = 'all' | ChordData['tier'];
 type PlaybackStyle = 'blocked' | 'broken';
 
 const TIER_ORDER: ChordData['tier'][] = ['foundational', 'seventh', 'dominant', 'extensions'];
-const TIER_TAB_LABEL: Record<ChordData['tier'], string> = {
-  foundational: 'foundational',
-  seventh: 'seventh',
-  dominant: 'dominant',
-  extensions: 'extensions',
-};
 const TIER_SECTION_LABEL: Record<ChordData['tier'], string> = {
   foundational: 'Foundational Triads',
   seventh: 'Seventh Chords',
   dominant: 'Dominant Variations',
   extensions: 'Extensions & Colors',
+};
+// Scope tabs show the full descriptive label — no abbreviation. Same
+// strings as TIER_SECTION_LABEL; kept as a separate alias so the focus
+// panel's section headers can diverge later without affecting the tabs.
+const TIER_TAB_LABEL: Record<ChordData['tier'], string> = {
+  foundational: TIER_SECTION_LABEL.foundational,
+  seventh: TIER_SECTION_LABEL.seventh,
+  dominant: TIER_SECTION_LABEL.dominant,
+  extensions: TIER_SECTION_LABEL.extensions,
 };
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -75,8 +84,9 @@ interface Props {
 }
 
 export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
-  const [tierFilter, setTierFilter] = useState<TierFilter>('foundational');
+  const [tierFilter, setTierFilter] = useState<TierFilter>('all');
   const [playStyle, setPlayStyle] = useState<PlaybackStyle>('blocked');
+  const [brokenDir, setBrokenDir] = useState<BrokenChordDirection>('asc');
   const [current, setCurrent] = useState<{ chord: ChordData; rootMidi: number } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -88,6 +98,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
 
   const filterRef = useRef(tierFilter); filterRef.current = tierFilter;
   const playStyleRef = useRef(playStyle); playStyleRef.current = playStyle;
+  const brokenDirRef = useRef(brokenDir); brokenDirRef.current = brokenDir;
   const focusActiveRef = useRef(focusActive); focusActiveRef.current = focusActive;
   const focusKeysRef = useRef(focusKeys); focusKeysRef.current = focusKeys;
   const chordsRef = useRef(chords); chordsRef.current = chords;
@@ -97,6 +108,19 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     [],
   ) ?? [];
 
+  // Hydrate broken-chord direction from userPrefs on mount.
+  useEffect(() => {
+    (async () => {
+      const stored = await getPref<BrokenChordDirection>(PREF_BROKEN_DIRECTION, 'asc');
+      setBrokenDir(stored === 'desc' || stored === 'both' ? stored : 'asc');
+    })();
+  }, []);
+
+  const saveBrokenDir = async (d: BrokenChordDirection) => {
+    setBrokenDir(d);
+    await setPref(PREF_BROKEN_DIRECTION, d);
+  };
+
   const speedFallback = defaultSpeed(MODULE_ID);
   const speed = useLiveQuery(
     async () => getPref<number>(speedPrefKey(MODULE_ID), speedFallback),
@@ -105,10 +129,14 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const speedRef = useRef(speed);
   speedRef.current = speed;
 
+  // Only fluency-tracked attempts feed the rolling window. Small-pool
+  // focus sessions log with excludeFromFluency=true so they don't
+  // artificially boost tiers for items the user was already cued into.
   const groupedAttempts = useMemo(() => {
     const m = new Map<string, AttemptRecord[]>();
     for (const a of attempts) {
       if (a.moduleId !== MODULE_ID) continue;
+      if (a.excludeFromFluency) continue;
       const arr = m.get(a.itemId);
       if (arr) arr.push(a); else m.set(a.itemId, [a]);
     }
@@ -159,7 +187,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
 
   const playChord = async (chord: ChordData, rootMidi: number) => {
     if (playStyleRef.current === 'broken') {
-      await playChordBroken(rootMidi, chord.intervals, speedRef.current);
+      await playChordBroken(rootMidi, chord.intervals, speedRef.current, brokenDirRef.current);
     } else {
       await playChordBlocked(rootMidi, chord.intervals, speedRef.current);
     }
@@ -193,6 +221,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
       itemId: current.chord.id,
       correct: isCorrect,
       timestamp: Date.now(),
+      ...(focusProtected ? { excludeFromFluency: true } : {}),
     });
     await updateDailySummary(MODULE_ID);
   };
@@ -228,6 +257,11 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     if (isSelected) return `${base} border-needswork bg-needswork/10 text-needswork`;
     return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400 opacity-60`;
   };
+
+  // Focus sessions with fewer than 4 items don't truly test fluency.
+  // Attempts still log (calendar, daily goal, streaks unaffected) but
+  // are skipped from the rolling-window tier calculation.
+  const focusProtected = focusActive && focusKeys.length < 4;
 
   const rootName = current ? midiToNoteName(current.rootMidi) : '';
   const wasCorrect = answered && current && selectedId === current.chord.id;
@@ -285,8 +319,12 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
 
   const onExitFocus = () => setFocusActive(false);
 
+  // Dynamic status line shown directly under the focus button. Mirrors
+  // the pattern used by every other ear-training module.
   const scopeLabel = (() => {
-    if (focusActive) return null;
+    if (focusActive) {
+      return `focused practice — ${focusKeys.length} chord${focusKeys.length === 1 ? '' : 's'} selected`;
+    }
     if (tierFilter === 'all') return `all chords — ${chords.length} in pool`;
     const count = chords.filter(c => c.tier === tierFilter).length;
     return `${TIER_SECTION_LABEL[tierFilter].toLowerCase()} — ${count} in pool`;
@@ -298,29 +336,16 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord recognition quiz</h2>
       </div>
 
-      {/* Tier filter tabs / focus banner */}
-      {focusActive ? (
-        <div className="rounded-lg border border-fluent/40 bg-fluent/10 px-3 py-2 flex items-center justify-between gap-3 flex-wrap text-sm">
-          <span>
-            <span className="font-medium text-fluent">focus mode</span>
-            <span className="text-neutral-500"> · {focusKeys.length} chord{focusKeys.length === 1 ? '' : 's'} selected</span>
-          </span>
-          <button
-            onClick={onExitFocus}
-            className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-          >
-            exit focus
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-2">
+      {/* Scope selector (all-first) + focus button + dynamic status line. */}
+      <div className="flex flex-col items-center gap-2">
+        {!focusActive && (
           <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap justify-center">
             {([
+              { id: 'all', label: 'all chords' },
               { id: 'foundational', label: TIER_TAB_LABEL.foundational },
               { id: 'seventh', label: TIER_TAB_LABEL.seventh },
               { id: 'dominant', label: TIER_TAB_LABEL.dominant },
               { id: 'extensions', label: TIER_TAB_LABEL.extensions },
-              { id: 'all', label: 'all chords' },
             ] as const).map(tab => (
               <button
                 key={tab.id}
@@ -335,17 +360,27 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowFocusPanel(true)}
-            className="text-xs text-neutral-500 hover:text-fluent"
-          >
-            ⊞ focus on specific chords
-          </button>
-          {scopeLabel && (
-            <p className="text-[11px] text-neutral-500">{scopeLabel}</p>
+        )}
+        <button
+          onClick={() => setShowFocusPanel(true)}
+          className="text-xs text-neutral-500 hover:text-fluent"
+        >
+          ⊞ focus on specific chords
+        </button>
+        <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
+          <span>{scopeLabel}</span>
+          {focusActive && (
+            <button
+              onClick={onExitFocus}
+              className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
+            >
+              exit focus
+            </button>
           )}
-        </div>
-      )}
+        </p>
+      </div>
+
+      {focusProtected && <FluencyProtectionNotice />}
 
       {/* Playback style + root + play/next */}
       <div className="flex flex-col items-center gap-3">
@@ -362,6 +397,37 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
                   ? 'bg-fluent text-white'
                   : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
               }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Arpeggio direction — only meaningful for broken playback. Kept
+            visible and disabled when blocked is selected so the control
+            stays discoverable. "Both" plays ascending then descending
+            without re-striking the apex. */}
+        <div
+          className={`inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs transition-opacity ${
+            playStyle === 'broken' ? '' : 'opacity-40'
+          }`}
+          aria-disabled={playStyle !== 'broken'}
+        >
+          {([
+            { id: 'asc', label: 'ascending' },
+            { id: 'desc', label: 'descending' },
+            { id: 'both', label: 'both' },
+          ] as const).map(opt => (
+            <button
+              key={opt.id}
+              onClick={() => { if (playStyle === 'broken') saveBrokenDir(opt.id); }}
+              disabled={playStyle !== 'broken'}
+              className={`px-3 py-1.5 rounded-md transition ${
+                brokenDir === opt.id
+                  ? 'bg-fluent text-white'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+              } disabled:cursor-not-allowed disabled:hover:text-neutral-500`}
+              title={playStyle === 'broken' ? opt.label : 'switch to broken playback to change direction'}
             >
               {opt.label}
             </button>

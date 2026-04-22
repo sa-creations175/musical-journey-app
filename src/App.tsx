@@ -11,6 +11,8 @@ import ChordRecognition from './modules/ear-training/chord-recognition/ChordReco
 import ChordRecognitionCalendar from './modules/ear-training/chord-recognition/ChordRecognitionCalendar';
 import ChordProgressions from './modules/ear-training/chord-progressions/ChordProgressions';
 import ChordProgressionsCalendar from './modules/ear-training/chord-progressions/ChordProgressionsCalendar';
+import ScalesModes from './modules/ear-training/scales-modes/ScalesModes';
+import ScalesModesCalendar from './modules/ear-training/scales-modes/ScalesModesCalendar';
 import ChordsShapes from './modules/chords-shapes/ChordsShapes';
 import Repertoire from './modules/repertoire/Repertoire';
 import Production from './modules/production/Production';
@@ -33,6 +35,8 @@ export default function App() {
             <Route path="ear-training/chord-recognition/calendar" element={<ChordRecognitionCalendar />} />
             <Route path="ear-training/chord-progressions" element={<ChordProgressions />} />
             <Route path="ear-training/chord-progressions/calendar" element={<ChordProgressionsCalendar />} />
+            <Route path="ear-training/scales-modes" element={<ScalesModes />} />
+            <Route path="ear-training/scales-modes/calendar" element={<ScalesModesCalendar />} />
             <Route path="chords-shapes" element={<ChordsShapes />} />
             <Route path="repertoire" element={<Repertoire />} />
             <Route path="production" element={<Production />} />

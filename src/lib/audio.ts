@@ -327,14 +327,23 @@ export async function playChordBlocked(
   });
 }
 
-// Ascending arpeggio. A new note starts every `stepTime` seconds and
+export type BrokenChordDirection = 'asc' | 'desc' | 'both';
+
+// Arpeggiated playback. A new note starts every `stepTime` seconds and
 // each note sustains for `noteDuration` seconds; with the default values
 // notes overlap and blend (noteDuration > stepTime). The speed multiplier
 // scales both in lockstep so the blend ratio is preserved.
+//
+// Direction:
+//   · 'asc'  → low → high
+//   · 'desc' → high → low
+//   · 'both' → ascending then descending, without re-striking the apex
+//              (e.g. C-E-G-C then G-E-C for a C major triad)
 export async function playChordBroken(
   rootMidi: number,
   intervals: number[],
   speedMultiplier = 1.0,
+  direction: BrokenChordDirection = 'asc',
   stepTime = 0.4,
   noteDuration = 2.0,
 ) {
@@ -344,8 +353,17 @@ export async function playChordBroken(
   const dur = noteDuration / m;
   const now = context.currentTime + 0.05;
   const vol = chordVolume(intervals.length);
-  const sorted = [...intervals].sort((a, b) => a - b);
-  sorted.forEach((iv, idx) => {
+  const sortedAsc = [...intervals].sort((a, b) => a - b);
+  let sequence: number[];
+  if (direction === 'desc') {
+    sequence = [...sortedAsc].reverse();
+  } else if (direction === 'both') {
+    // Play up then back down without double-striking the apex.
+    sequence = [...sortedAsc, ...[...sortedAsc].reverse().slice(1)];
+  } else {
+    sequence = sortedAsc;
+  }
+  sequence.forEach((iv, idx) => {
     playNote(midiToFreq(rootMidi + iv), now + idx * step, dur, context, vol);
   });
 }
