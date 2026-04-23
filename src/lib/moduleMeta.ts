@@ -20,14 +20,24 @@ export type ModuleId =
   | 'practice-sessions'
   | 'production';
 
+/** Named inline-SVG icons for modules that need more semantic
+ *  representation than a typographic glyph. Keep this list tiny —
+ *  the glyph approach stays the default so new modules can be
+ *  added without adding svg assets. */
+export type NamedIcon = 'ear';
+
 export interface ModuleMeta {
   id: ModuleId;
   label: string;
   route: string;
-  /** Single-glyph icon rendered beside the module name. Kept to
-   *  typographic symbols (no emoji/image deps) so the look stays
-   *  cohesive with the app's dark-light modes. */
+  /** Fallback single-glyph icon — used when `iconName` is absent.
+   *  Typographic symbol (no emoji/image deps) so the look stays
+   *  cohesive with the app's palette. */
   icon: string;
+  /** Optional named SVG icon — takes precedence over `icon` at
+   *  render time. See `<ModuleGlyph>` in SidebarNav for the
+   *  concrete SVG. */
+  iconName?: NamedIcon;
   /** Tailwind token for the accent colour used in cards / badges.
    *  Pairs with `accentHex` for inline SVG + background tinting. */
   accentToken: 'fluent' | 'developing' | 'needswork' | 'mastered' | 'amber' | 'rose' | 'violet' | 'teal';
@@ -59,6 +69,7 @@ export const MODULE_ORDER: ModuleMeta[] = [
     label: 'ear training',
     route: '/ear-training',
     icon: '♪',
+    iconName: 'ear',
     accentToken: 'teal',
     accentHex: '#1D9E75',
     status: 'live',
@@ -101,17 +112,12 @@ export const MODULE_ORDER: ModuleMeta[] = [
   },
 ];
 
-const BY_ID = new Map<string, ModuleMeta>(MODULE_ORDER.map(m => [m.id, m]));
-
-export function moduleMetaById(id: string): ModuleMeta | undefined {
-  return BY_ID.get(id);
-}
-
 /**
  * Ear Training groups four ear-quiz submodules into a single
  * pedagogical lane. Callers that aggregate ear-training data should
  * use this list; callers that link into a specific quiz use the
- * submodule metadata directly.
+ * submodule metadata directly. All four inherit the ear icon +
+ * teal accent so they read as siblings of the parent.
  */
 export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
   {
@@ -119,6 +125,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     label: 'intervals',
     route: '/ear-training/intervals',
     icon: '♪',
+    iconName: 'ear',
     accentToken: 'teal',
     accentHex: '#1D9E75',
     status: 'live',
@@ -128,6 +135,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     label: 'chord recognition',
     route: '/ear-training/chord-recognition',
     icon: '♪',
+    iconName: 'ear',
     accentToken: 'teal',
     accentHex: '#1D9E75',
     status: 'live',
@@ -137,6 +145,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     label: 'chord progressions',
     route: '/ear-training/chord-progressions',
     icon: '♪',
+    iconName: 'ear',
     accentToken: 'teal',
     accentHex: '#1D9E75',
     status: 'live',
@@ -146,11 +155,25 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     label: 'scales & modes',
     route: '/ear-training/scales-modes',
     icon: '♪',
+    iconName: 'ear',
     accentToken: 'teal',
     accentHex: '#1D9E75',
     status: 'live',
   },
 ];
+
+// Lookup table — includes both top-level modules and the ear-training
+// submodules so any call site can resolve a moduleId to its visual
+// identity without having to know whether the id is a top-level
+// module or a submodule.
+const BY_ID = new Map<string, ModuleMeta>([
+  ...MODULE_ORDER.map(m => [m.id, m] as const),
+  ...EAR_TRAINING_SUBMODULES.map(m => [m.id, m] as const),
+]);
+
+export function moduleMetaById(id: string): ModuleMeta | undefined {
+  return BY_ID.get(id);
+}
 
 /** Quick lookup: is this moduleId one of the four ear-training quizzes? */
 export function isEarTrainingSubmodule(id: string): boolean {

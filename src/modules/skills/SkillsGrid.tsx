@@ -4,6 +4,7 @@ import type { FreshnessTier } from '../shapes-and-patterns/drillModel';
 import type { SkillRecord } from './registry';
 import type { SkillPriority, SkillType } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
+import ModuleGlyph from '../../components/ModuleGlyph';
 
 interface Props {
   records: SkillRecord[];
@@ -319,15 +320,7 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
                       const meta = moduleMetaById(r.moduleId);
                       return (
                         <>
-                          {meta && (
-                            <span
-                              aria-hidden
-                              className="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] shrink-0"
-                              style={{ backgroundColor: `${meta.accentHex}22`, color: meta.accentHex }}
-                            >
-                              {meta.icon}
-                            </span>
-                          )}
+                          {meta && <ModuleGlyph meta={meta} size={16} fontSize={10} />}
                           <span className="truncate text-neutral-500">{r.moduleLabel}</span>
                         </>
                       );

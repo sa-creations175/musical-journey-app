@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
 import { moduleMetaById } from '../lib/moduleMeta';
+import ModuleGlyph from './ModuleGlyph';
 
 // Sidebar navigation tree. Organised into three top-level groups
 // (Overview / Structured Learning / Creative Tools) each with its own
@@ -430,17 +431,8 @@ function SubNavLink({
   );
 }
 
-/** Small rounded glyph rendered beside a module's label. Uses the
- *  module's accent colour at low-alpha fill with the glyph in full
- *  accent — matches the Skills Catalogue cards exactly. */
+/** Small rounded glyph rendered beside a module's label. Sidebar
+ *  uses a compact 20px variant of the shared `ModuleGlyph`. */
 function ModuleIcon({ meta }: { meta: NonNullable<ReturnType<typeof moduleMetaById>> }) {
-  return (
-    <span
-      aria-hidden
-      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[11px] shrink-0"
-      style={{ backgroundColor: `${meta.accentHex}22`, color: meta.accentHex }}
-    >
-      {meta.icon}
-    </span>
-  );
+  return <ModuleGlyph meta={meta} size={20} fontSize={11} />;
 }

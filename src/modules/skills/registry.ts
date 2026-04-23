@@ -40,6 +40,27 @@ export const CHORD_MOTION_CATALOG = [
   { id: 'b6-to-b7-asc',       label: 'bVI → bVII ascending' },
 ] as const;
 
+/**
+ * Key-detection drill skills — one per pitch class. Each represents
+ * the "can you hear this is the tonic key" skill the module's Key
+ * Detection tab trains. Per-item tiers aren't wired yet so we emit
+ * them as concept entries (null tier / null freshness).
+ */
+export const KEY_DETECTION_CATALOG = [
+  { id: 'C',  label: 'C major' },
+  { id: 'Db', label: 'D♭ major' },
+  { id: 'D',  label: 'D major' },
+  { id: 'Eb', label: 'E♭ major' },
+  { id: 'E',  label: 'E major' },
+  { id: 'F',  label: 'F major' },
+  { id: 'F#', label: 'F# major' },
+  { id: 'G',  label: 'G major' },
+  { id: 'Ab', label: 'A♭ major' },
+  { id: 'A',  label: 'A major' },
+  { id: 'Bb', label: 'B♭ major' },
+  { id: 'B',  label: 'B major' },
+] as const;
+
 // --- Canonical skill IDs -------------------------------------------
 //
 // Every skill surfaced by the catalogue has a deterministic id of the
@@ -312,10 +333,64 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // Chord Progressions — the catalog's PROGRESSIONS list.
+  // Chord Progressions — emit in Key Detection → Chord Motion →
+  // Full Progression order so the Catalogue's grouped view mirrors
+  // the module's tab order exactly.
   {
     const { label, route } = moduleMeta('chord-progressions');
     const mod = byModule.get('chord-progressions') ?? new Map();
+
+    // Key Detection — 12 pitch classes, concept-level.
+    for (const k of KEY_DETECTION_CATALOG) {
+      const skillId = canonicalSkillId('chord-progressions', 'key-detection', k.id);
+      const ann = annotationById.get(skillId);
+      records.push({
+        skillId,
+        moduleId: 'chord-progressions',
+        moduleLabel: label,
+        moduleRoute: route,
+        moduleJumpQuery: 'tab=key-detection',
+        itemId: k.id,
+        name: ann?.customName ?? k.label,
+        category: 'Key Detection',
+        skillType: 'ear',
+        currentTier: null,
+        freshness: freshnessFrom(null),
+        daysSince: null,
+        lastPracticed: null,
+        totalTime: 0,
+        priority: ann?.priority,
+        tags: ann?.tags ?? [],
+        note: ann?.note,
+      });
+    }
+
+    // Chord Motion — 12 named motions, concept-level.
+    for (const motion of CHORD_MOTION_CATALOG) {
+      const skillId = canonicalSkillId('chord-progressions', 'motion', motion.id);
+      const ann = annotationById.get(skillId);
+      records.push({
+        skillId,
+        moduleId: 'chord-progressions',
+        moduleLabel: label,
+        moduleRoute: route,
+        moduleJumpQuery: 'tab=chord-motion',
+        itemId: motion.id,
+        name: ann?.customName ?? motion.label,
+        category: 'Chord Motion',
+        skillType: 'ear',
+        currentTier: null,
+        freshness: freshnessFrom(null),
+        daysSince: null,
+        lastPracticed: null,
+        totalTime: 0,
+        priority: ann?.priority,
+        tags: ann?.tags ?? [],
+        note: ann?.note,
+      });
+    }
+
+    // Full Progression — tier tracking from the real quiz attempts.
     for (const p of PROGRESSIONS) {
       const skillId = canonicalSkillId('chord-progressions', 'item', p.id);
       const ann = annotationById.get(skillId);
@@ -336,38 +411,6 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         daysSince: daysSinceOf(last, now),
         lastPracticed: last,
         totalTime: bucket.length * 10,
-        priority: ann?.priority,
-        tags: ann?.tags ?? [],
-        note: ann?.note,
-      });
-    }
-  }
-
-  // Chord motions — concept-level skills (no attempts today; they
-  // sit under the Chord Progressions module so users drill them
-  // inside the Chord Motion tab). Each carries a diary starter, so
-  // including them here lets the Catalogue surface them as real
-  // searchable skills rather than ghosts in the diary.
-  {
-    const { label, route } = moduleMeta('chord-progressions');
-    for (const motion of CHORD_MOTION_CATALOG) {
-      const skillId = canonicalSkillId('chord-progressions', 'motion', motion.id);
-      const ann = annotationById.get(skillId);
-      records.push({
-        skillId,
-        moduleId: 'chord-progressions',
-        moduleLabel: label,
-        moduleRoute: route,
-        moduleJumpQuery: 'tab=chord-motion',
-        itemId: motion.id,
-        name: ann?.customName ?? motion.label,
-        category: 'Chord Motion',
-        skillType: 'ear',
-        currentTier: null,
-        freshness: freshnessFrom(null),
-        daysSince: null,
-        lastPracticed: null,
-        totalTime: 0,
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
@@ -407,17 +450,17 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // --- Song Repertoire (one skill per song + Want-to-Learn list) ---
-  // Categories map to the user-facing stage progression so the
-  // Catalogue mirrors how the user thinks about the repertoire:
-  // Learning → Comfortable → Internalized → Cross-key → Maintenance.
-  // Want-to-Learn sits at the end as its own concept sub-header.
+  // --- Song Repertoire (flat list — no sub-sections for now) ------
+  // Songs live in a single "Songs" category so the Catalogue renders
+  // one flat list per module directive. Stage data is still carried
+  // as auto-tags + on the skill's currentTier mapping so filters /
+  // detail view can read it; the Catalogue just doesn't visually
+  // group by stage. Want-to-Learn entries are deliberately not
+  // enumerated as Catalogue skills — they live in the Repertoire
+  // module's own Want-to-Learn tab until promoted.
   {
     const { label, route } = moduleMeta('repertoire');
-    const [logs, wantToLearn] = await Promise.all([
-      db.songPracticeLog.toArray(),
-      db.wantToLearn.toArray(),
-    ]);
+    const logs = await db.songPracticeLog.toArray();
     const latestBySong = new Map<string, { ts: number; minutes: number }>();
     for (const log of logs) {
       const existing = latestBySong.get(log.songId);
@@ -444,7 +487,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         moduleRoute: route,
         itemId: song.id,
         name: ann?.customName ?? `${song.title} — ${song.artist}`,
-        category: stageCategoryLabel(song.stage ?? 'learning'),
+        category: 'Songs',
         skillType: 'song',
         // Songs track via stage progression, not rolling tier.
         currentTier: mapStageToTier(song),
@@ -457,44 +500,31 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         note: ann?.note,
       });
     }
-    // Want-to-Learn entries surface as skills too so the user's
-    // backlog shows in the Catalogue. No tier or practice stats —
-    // they haven't been promoted to the Active repertoire yet.
-    for (const w of wantToLearn) {
-      const skillId = canonicalSkillId('repertoire', 'want', w.id);
-      const ann = annotationById.get(skillId);
-      records.push({
-        skillId,
-        moduleId: 'repertoire',
-        moduleLabel: label,
-        moduleRoute: route,
-        moduleJumpQuery: 'tab=want-to-learn',
-        itemId: w.id,
-        name: ann?.customName ?? `${w.title} — ${w.artist}`,
-        category: 'Want to Learn',
-        skillType: 'song',
-        currentTier: null,
-        freshness: freshnessFrom(null),
-        daysSince: null,
-        lastPracticed: null,
-        totalTime: 0,
-        priority: ann?.priority,
-        tags: mergeTags(ann?.tags, w.tags ?? []),
-        note: ann?.note,
-      });
-    }
   }
 
   // --- Shapes & Patterns drill skills ------------------------------
+  // Sort by drill-kind so the Catalogue's grouped view emits the
+  // sub-sections in the same order as the module's tab strip:
+  // scales → chord shapes → voice-leading → mental viz. Dexie's
+  // toArray is id-ordered, which doesn't match.
   {
     const { label, route } = moduleMeta('shapes-and-patterns');
+    const kindRank: Record<DrillSkill['kind'], number> = {
+      'scale':         0,
+      'chord-shape':   1,
+      'voice-leading': 2,
+      'mental-viz':    3,
+    };
+    const sortedDrillSkills = [...drillSkills].sort((a, b) =>
+      (kindRank[a.kind] ?? 99) - (kindRank[b.kind] ?? 99),
+    );
     const typesBySkill = new Map<string, DrillType[]>();
     for (const t of drillTypes) {
       const arr = typesBySkill.get(t.skillId) ?? [];
       arr.push(t);
       typesBySkill.set(t.skillId, arr);
     }
-    for (const skill of drillSkills) {
+    for (const skill of sortedDrillSkills) {
       const skillId = canonicalSkillId('shapes-and-patterns', skill.kind, skill.id);
       const ann = annotationById.get(skillId);
       const ts = typesBySkill.get(skill.id) ?? [];
@@ -553,19 +583,6 @@ function mergeTags(userTags: string[] | undefined, autoTags: string[]): string[]
   return [...set];
 }
 
-/** Sub-category label for Song Repertoire — groups songs by their
- *  user-facing stage in the Catalogue drill-in. */
-function stageCategoryLabel(stage: string): string {
-  switch (stage) {
-    case 'learning':     return 'Stage · Learning';
-    case 'comfortable':  return 'Stage · Comfortable';
-    case 'internalized': return 'Stage · Internalized';
-    case 'cross-key':    return 'Stage · Cross-key';
-    case 'maintenance':  return 'Stage · Maintenance';
-    default:             return 'Stage · Learning';
-  }
-}
-
 /** Sub-category label for Chord Recognition — mirrors the
  *  pedagogical tier ordering in the module's seed catalog. */
 function chordTierLabel(tier: string): string {
@@ -578,13 +595,13 @@ function chordTierLabel(tier: string): string {
   }
 }
 
-/** Sub-category label for Scales & Modes — seven church modes vs
- *  the harmonic / melodic minor variants. */
+/** Sub-category label for Scales & Modes — seven modes vs the
+ *  minor-scale variants (harmonic / melodic minor). */
 function modeCategoryLabel(modeId: string): string {
   if (modeId === 'harmonic-minor' || modeId === 'melodic-minor') {
-    return 'Harmonic Scale Variants';
+    return 'Minor Scale Variants';
   }
-  return 'Church Modes';
+  return 'Modes';
 }
 
 function drillKindCategory(kind: DrillSkill['kind']): string {

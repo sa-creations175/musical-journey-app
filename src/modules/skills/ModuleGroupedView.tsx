@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import { moduleMetaById } from '../../lib/moduleMeta';
+import ModuleGlyph from '../../components/ModuleGlyph';
 import type { SkillRecord } from './registry';
 import TierDistributionBar from './TierDistributionBar';
 
@@ -218,13 +219,11 @@ function MultiModuleView({
               >
                 <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span
-                aria-hidden
-                className="w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0"
-                style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
-              >
-                {meta?.icon ?? '◦'}
-              </span>
+              {meta ? (
+                <ModuleGlyph meta={meta} size={28} fontSize={14} />
+              ) : (
+                <span aria-hidden className="w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0 bg-neutral-100 dark:bg-neutral-800 text-neutral-500">◦</span>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">{m.moduleLabel}</div>
                 <div className="text-[11px] text-neutral-500 truncate">
@@ -326,15 +325,7 @@ function CategorySection({
                     const meta = moduleMetaById(r.moduleId);
                     return (
                       <div className="truncate text-[10px] inline-flex items-center gap-1">
-                        {meta && (
-                          <span
-                            aria-hidden
-                            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] shrink-0"
-                            style={{ backgroundColor: `${meta.accentHex}22`, color: meta.accentHex }}
-                          >
-                            {meta.icon}
-                          </span>
-                        )}
+                        {meta && <ModuleGlyph meta={meta} size={14} fontSize={9} />}
                         <span className="text-neutral-500">{r.moduleLabel}</span>
                       </div>
                     );

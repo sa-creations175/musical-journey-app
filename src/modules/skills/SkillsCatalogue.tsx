@@ -16,6 +16,7 @@ import ModuleGroupedView from './ModuleGroupedView';
 import SkillDetailPanel from './SkillDetailPanel';
 import TierDistributionBar from './TierDistributionBar';
 import { moduleMetaById } from '../../lib/moduleMeta';
+import ModuleGlyph from '../../components/ModuleGlyph';
 
 /** Submodule ids that roll up into the Ear Training meta-module on
  *  the summary + grid view. */
@@ -163,13 +164,14 @@ export default function SkillsCatalogue() {
                     className="rounded-lg border p-3 flex items-center gap-3"
                     style={{ borderColor: meta ? `${meta.accentHex}33` : undefined }}
                   >
-                    <span
-                      aria-hidden
-                      className="w-9 h-9 rounded-md flex items-center justify-center text-lg shrink-0"
-                      style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
-                    >
-                      {meta?.icon ?? '◦'}
-                    </span>
+                    {meta ? (
+                      <ModuleGlyph meta={meta} size={36} fontSize={18} />
+                    ) : (
+                      <span
+                        aria-hidden
+                        className="w-9 h-9 rounded-md flex items-center justify-center text-lg shrink-0 bg-neutral-100 dark:bg-neutral-800 text-neutral-500"
+                      >◦</span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="text-[10px] uppercase tracking-wide text-neutral-500">
                         module drill-in
@@ -380,13 +382,11 @@ function SummaryView({
                 onMouseLeave={e => { if (meta) e.currentTarget.style.borderColor = `${meta.accentHex}33`; }}
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span
-                    aria-hidden
-                    className="w-7 h-7 rounded-md flex items-center justify-center text-[14px] shrink-0"
-                    style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
-                  >
-                    {meta?.icon ?? '◦'}
-                  </span>
+                  {meta ? (
+                    <ModuleGlyph meta={meta} size={28} fontSize={14} />
+                  ) : (
+                    <span aria-hidden className="w-7 h-7 rounded-md flex items-center justify-center text-[14px] shrink-0 bg-neutral-100 dark:bg-neutral-800 text-neutral-500">◦</span>
+                  )}
                   <span className="text-sm font-medium flex-1 truncate">{m.moduleLabel}</span>
                   <span className="text-[10px] text-neutral-500 font-mono tabular-nums">
                     {m.count} skill{m.count === 1 ? '' : 's'}

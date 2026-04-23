@@ -5,6 +5,7 @@ import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import { moduleMetaById } from '../../lib/moduleMeta';
+import ModuleGlyph from '../../components/ModuleGlyph';
 import type { SkillRecord } from './registry';
 import { upsertAnnotation } from './registry';
 import { upsertDiaryEntry } from '../harmonic-diary/data';
@@ -188,13 +189,11 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
           const meta = moduleMetaById(skill.moduleId);
           return (
             <div className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className="w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0"
-                style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
-              >
-                {meta?.icon ?? '◦'}
-              </span>
+              {meta ? (
+                <ModuleGlyph meta={meta} size={28} fontSize={14} />
+              ) : (
+                <span aria-hidden className="w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0 bg-neutral-100 dark:bg-neutral-800 text-neutral-500">◦</span>
+              )}
               <span
                 className="text-[11px] uppercase tracking-wide font-medium"
                 style={meta ? { color: meta.accentHex } : { color: 'var(--color-neutral-500)' }}

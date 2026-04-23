@@ -12,6 +12,7 @@ import {
 } from './aggregation';
 import MusicianBalanceRadar, { RADAR_AXES, type DimensionKey } from './MusicianBalanceRadar';
 import { MODULE_ORDER, type ModuleMeta } from '../../lib/moduleMeta';
+import ModuleGlyph from '../../components/ModuleGlyph';
 import { pickQuote, type MusicianQuote } from './quotes';
 import { useUserName } from './userName';
 
@@ -897,13 +898,7 @@ function ModulesPreviewSection({ data }: { data: DashboardData }) {
             onMouseEnter={e => { e.currentTarget.style.borderColor = c.meta.accentHex; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = `${c.meta.accentHex}33`; }}
           >
-            <span
-              aria-hidden
-              className="w-8 h-8 rounded-md flex items-center justify-center text-sm shrink-0"
-              style={{ backgroundColor: `${c.meta.accentHex}22`, color: c.meta.accentHex }}
-            >
-              {c.meta.icon}
-            </span>
+            <ModuleGlyph meta={c.meta} size={32} fontSize={14} />
             <div className="min-w-0 flex-1">
               <div className="text-xs font-medium truncate">{c.meta.label}</div>
               <div className="text-[10px] text-neutral-500 truncate">
