@@ -33,19 +33,20 @@ type Phase =
   | 'session'
   | 'summary';
 
+const DEFAULT_TARGET_SECONDS = 10 * 60; // 10 min — creative sessions want longer than drills
+const MIN_TARGET_SECONDS = 60;           // 1 min floor
+const MAX_TARGET_SECONDS = 60 * 60;      // 60 min ceiling
+const TARGET_PRESETS = [5, 10, 15, 20, 30, 45];
+
 /**
  * Creative-time logging flow.
  *
- *   mode-select → prompt-picker → session (timer) → summary (save)
+ *   mode-select → prompt-picker → session (countdown) → summary (save)
  *
- * Phase transitions:
- *   - User picks "Just Play" or "Just Produce" → prompt-picker
- *   - User clicks "start with this prompt" or "skip — no prompt" → session
- *   - User clicks "stop" → summary (save / cancel)
- *
- * Session state lives locally; only writes to DB on save. Cancelling
- * before save drops everything — we treat creative time as an
- * intentional act, not an auto-logged one.
+ * Session phase uses a countdown timer: user sets target, clicks
+ * Start, timer counts down. At 0 a gentle chime plays and a banner
+ * asks whether to extend (+5 / +10 / complete). Elapsed time is
+ * tracked independently of target so extensions accumulate correctly.
  */
 function CreativeTimeModalImpl({
   onClose,
@@ -54,9 +55,6 @@ function CreativeTimeModalImpl({
 }: Props) {
   const { toast } = useToast();
 
-  // We only render this impl when open=true, so state initialisers
-  // use the props directly. Fresh mount per open means no reset
-  // effect is needed.
   const [phase, setPhase] = useState<Phase>(
     initialMode ? (initialPrompt ? 'session' : 'prompt-picker') : 'mode-select',
   );
@@ -67,13 +65,24 @@ function CreativeTimeModalImpl({
   const [promptIndex, setPromptIndex] = useState(0);
   const [loadingPrompts, setLoadingPrompts] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<CreativePrompt | null>(initialPrompt ?? null);
+  const [notes, setNotes] = useState('');
+
+  // Timer state. `elapsed` is the source of truth for actual time
+  // played (monotonic, survives pauses). `targetSeconds` is what the
+  // user aimed for — changes when they extend at time's up.
+  const [targetSeconds, setTargetSeconds] = useState(DEFAULT_TARGET_SECONDS);
   const [elapsed, setElapsed] = useState(0);
   const [running, setRunning] = useState(false);
-  const [notes, setNotes] = useState('');
+  // Tracks whether we've played the time-up chime for the current
+  // target. Cleared when the user extends so the next deadline also
+  // chimes.
+  const [chimePlayed, setChimePlayed] = useState(false);
+  // Epoch timestamp of when the timer was most recently started.
+  // Combined with `elapsedAtStart` lets ticks compute elapsed without
+  // accumulating drift across pause/resume.
   const startRef = useRef<number | null>(null);
+  const elapsedAtStartRef = useRef<number>(0);
   const tickRef = useRef<number | null>(null);
-  // Guard so the auto-start effect fires at most once per mount.
-  const autoStartedRef = useRef(false);
 
   // Clear interval on unmount.
   useEffect(() => {
@@ -81,6 +90,9 @@ function CreativeTimeModalImpl({
       if (tickRef.current !== null) window.clearInterval(tickRef.current);
     };
   }, []);
+
+  const remaining = Math.max(0, targetSeconds - elapsed);
+  const timeUp = running && targetSeconds > 0 && elapsed >= targetSeconds;
 
   const pickMode = async (m: CreativeMode) => {
     setMode(m);
@@ -111,29 +123,15 @@ function CreativeTimeModalImpl({
 
   const startTimer = () => {
     setRunning(true);
-    startRef.current = Date.now() - elapsed * 1000;
+    elapsedAtStartRef.current = elapsed;
+    startRef.current = Date.now();
     if (tickRef.current !== null) window.clearInterval(tickRef.current);
     tickRef.current = window.setInterval(() => {
       if (startRef.current === null) return;
-      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+      const deltaSec = Math.floor((Date.now() - startRef.current) / 1000);
+      setElapsed(elapsedAtStartRef.current + deltaSec);
     }, 500);
   };
-
-  // Auto-start the clock when we land on the session phase with a
-  // pre-supplied prompt (dashboard launch path). Uses a ref guard so
-  // we don't restart after the user pauses. The `setState in effect`
-  // lint is intentional here — we're synchronising a real side
-  // effect (the interval timer) with phase, which is exactly what
-  // effects are for.
-  useEffect(() => {
-    if (autoStartedRef.current) return;
-    if (phase !== 'session') return;
-    if (!initialPrompt) return;
-    autoStartedRef.current = true;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    startTimer();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase]);
 
   const pauseTimer = () => {
     setRunning(false);
@@ -141,9 +139,33 @@ function CreativeTimeModalImpl({
       window.clearInterval(tickRef.current);
       tickRef.current = null;
     }
+    startRef.current = null;
   };
 
-  const stopAndReview = () => {
+  // Gentle chime + pause when the countdown reaches 0. The user can
+  // then extend or complete; running resumes on extend. Lives below
+  // the function declarations so it can reference pauseTimer.
+  useEffect(() => {
+    if (!timeUp || chimePlayed) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setChimePlayed(true);
+    pauseTimer();
+    void playEndChime();
+  }, [timeUp, chimePlayed]);
+
+  const resetTimer = () => {
+    pauseTimer();
+    setElapsed(0);
+    setChimePlayed(false);
+  };
+
+  const extendBy = (minutes: number) => {
+    setTargetSeconds(prev => Math.min(MAX_TARGET_SECONDS * 2, prev + minutes * 60));
+    setChimePlayed(false);
+    startTimer();
+  };
+
+  const completeSession = () => {
     pauseTimer();
     setPhase('summary');
   };
@@ -211,11 +233,22 @@ function CreativeTimeModalImpl({
       {phase === 'session' && (
         <SessionTimer
           prompt={selectedPrompt}
+          targetSeconds={targetSeconds}
+          onTargetChange={next => {
+            if (running || elapsed > 0) return; // only editable before start
+            const clamped = Math.max(MIN_TARGET_SECONDS, Math.min(MAX_TARGET_SECONDS, next));
+            setTargetSeconds(clamped);
+          }}
+          targetLocked={running || elapsed > 0}
           elapsed={elapsed}
+          remaining={remaining}
           running={running}
+          timeUp={timeUp || (elapsed >= targetSeconds && targetSeconds > 0 && elapsed > 0)}
           onStart={startTimer}
           onPause={pauseTimer}
-          onStop={stopAndReview}
+          onReset={resetTimer}
+          onExtend={extendBy}
+          onComplete={completeSession}
           notes={notes}
           onNotesChange={setNotes}
         />
@@ -225,6 +258,7 @@ function CreativeTimeModalImpl({
         <SessionSummary
           mode={mode!}
           elapsed={elapsed}
+          targetSeconds={targetSeconds}
           prompt={selectedPrompt}
           notes={notes}
           onNotesChange={setNotes}
@@ -285,7 +319,7 @@ function CreativeTimeModalImpl({
             cancel — don't log
           </button>
           <button
-            onClick={stopAndReview}
+            onClick={completeSession}
             disabled={elapsed === 0}
             className={`px-4 py-1.5 rounded-md text-sm font-medium ${
               elapsed === 0
@@ -293,7 +327,7 @@ function CreativeTimeModalImpl({
                 : 'bg-fluent text-white hover:opacity-90'
             }`}
           >
-            complete session
+            complete early
           </button>
         </div>
       );
@@ -445,30 +479,45 @@ function PromptPicker({
 }
 
 // -------------------------------------------------------------------
-// Session timer
+// Session timer (countdown)
 // -------------------------------------------------------------------
 
 interface SessionTimerProps {
   prompt: CreativePrompt | null;
+  targetSeconds: number;
+  onTargetChange: (seconds: number) => void;
+  targetLocked: boolean;
   elapsed: number;
+  remaining: number;
   running: boolean;
+  timeUp: boolean;
   onStart: () => void;
   onPause: () => void;
-  onStop: () => void;
+  onReset: () => void;
+  onExtend: (minutes: number) => void;
+  onComplete: () => void;
   notes: string;
   onNotesChange: (s: string) => void;
 }
 
 function SessionTimer({
   prompt,
+  targetSeconds,
+  onTargetChange,
+  targetLocked,
   elapsed,
+  remaining,
   running,
+  timeUp,
   onStart,
   onPause,
-  onStop,
+  onReset,
+  onExtend,
+  onComplete,
   notes,
   onNotesChange,
 }: SessionTimerProps) {
+  const displayClock = timeUp ? 0 : remaining;
   return (
     <div className="space-y-4 text-sm">
       {prompt && (
@@ -485,43 +534,121 @@ function SessionTimer({
         </div>
       )}
 
-      <div className="rounded-card border border-neutral-200 dark:border-neutral-800 p-6 flex flex-col items-center gap-3">
-        <div className={`font-mono tabular-nums text-5xl sm:text-6xl ${running ? 'text-fluent' : 'text-neutral-700 dark:text-neutral-200'}`}>
-          {formatClock(elapsed)}
+      {/* Target-time editor — only editable before Start */}
+      <div className={`rounded-md border p-3 space-y-2 ${
+        targetLocked
+          ? 'border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/40'
+          : 'border-neutral-200 dark:border-neutral-800'
+      }`}>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-neutral-500">target time</span>
+          <span className="font-mono tabular-nums text-sm">{formatClock(targetSeconds)}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {!running ? (
-            <button
-              onClick={onStart}
-              className="px-5 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-            >
-              {elapsed === 0 ? 'start' : 'resume'}
-            </button>
-          ) : (
-            <button
-              onClick={onPause}
-              className="px-5 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
-            >
-              pause
-            </button>
-          )}
-          <button
-            onClick={onStop}
-            disabled={elapsed === 0}
-            className={`px-4 py-2 rounded-lg border text-sm ${
-              elapsed === 0
-                ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400'
-                : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
-            }`}
-          >
-            stop
-          </button>
-        </div>
-        {elapsed > 0 && elapsed < MIN_CREATIVE_SECONDS && (
+        {!targetLocked ? (
+          <>
+            <input
+              type="range"
+              min={MIN_TARGET_SECONDS}
+              max={45 * 60}
+              step={60}
+              value={targetSeconds}
+              onChange={e => onTargetChange(Number(e.target.value))}
+              className="w-full accent-fluent"
+            />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {TARGET_PRESETS.map(m => (
+                <button
+                  key={m}
+                  onClick={() => onTargetChange(m * 60)}
+                  className={`px-2 py-0.5 rounded border text-xs ${
+                    targetSeconds === m * 60
+                      ? 'bg-fluent text-white border-fluent'
+                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+                  }`}
+                >
+                  {m}m
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
           <p className="text-[11px] text-neutral-500 italic">
-            under 2 min logs as "quick exploration"
+            target locked in while the session runs — reset to change.
           </p>
         )}
+      </div>
+
+      <div className={`rounded-card border p-6 flex flex-col items-center gap-3 ${
+        timeUp
+          ? 'border-fluent/40 bg-fluent/5'
+          : 'border-neutral-200 dark:border-neutral-800'
+      }`}>
+        <div className={`font-mono tabular-nums text-5xl sm:text-6xl ${
+          running ? 'text-fluent' : timeUp ? 'text-fluent' : 'text-neutral-700 dark:text-neutral-200'
+        }`}>
+          {formatClock(displayClock)}
+        </div>
+
+        {!timeUp ? (
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            {!running ? (
+              <button
+                onClick={onStart}
+                className="px-5 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+              >
+                {elapsed === 0 ? 'start' : 'resume'}
+              </button>
+            ) : (
+              <button
+                onClick={onPause}
+                className="px-5 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
+              >
+                pause
+              </button>
+            )}
+            {elapsed > 0 && !running && (
+              <button
+                onClick={onReset}
+                className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-500 hover:border-fluent hover:text-fluent"
+              >
+                reset
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="w-full max-w-sm text-center space-y-3">
+            <p className="text-sm text-neutral-700 dark:text-neutral-200">
+              Time's up. Keep going or wrap up?
+            </p>
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <button
+                onClick={() => onExtend(5)}
+                className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
+              >
+                +5 minutes
+              </button>
+              <button
+                onClick={() => onExtend(10)}
+                className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
+              >
+                +10 minutes
+              </button>
+              <button
+                onClick={onComplete}
+                className="px-4 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
+              >
+                complete session
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="text-[11px] text-neutral-500 flex items-center gap-3">
+          <span>played: <span className="font-mono tabular-nums">{formatDuration(elapsed)}</span></span>
+          {elapsed > 0 && elapsed < MIN_CREATIVE_SECONDS && (
+            <span className="italic">under 2 min → quick exploration</span>
+          )}
+        </div>
       </div>
 
       <label className="flex flex-col gap-1">
@@ -545,17 +672,20 @@ function SessionTimer({
 function SessionSummary({
   mode,
   elapsed,
+  targetSeconds,
   prompt,
   notes,
   onNotesChange,
 }: {
   mode: CreativeMode;
   elapsed: number;
+  targetSeconds: number;
   prompt: CreativePrompt | null;
   notes: string;
   onNotesChange: (s: string) => void;
 }) {
   const quick = elapsed < MIN_CREATIVE_SECONDS;
+  const hitTarget = elapsed >= targetSeconds;
   return (
     <div className="space-y-4 text-sm">
       <div className="rounded-card border border-neutral-200 dark:border-neutral-800 p-4 text-center">
@@ -563,8 +693,12 @@ function SessionSummary({
           {modeLabel(mode)} session
         </div>
         <div className="font-mono tabular-nums text-3xl my-1">{formatDuration(elapsed)}</div>
+        <div className="text-[11px] text-neutral-500">
+          target: <span className="font-mono tabular-nums">{formatDuration(targetSeconds)}</span>
+          {hitTarget && !quick && <span className="text-fluent ml-2">· completed</span>}
+        </div>
         {quick && (
-          <div className="text-[11px] text-developing italic">
+          <div className="text-[11px] text-developing italic mt-1">
             flagged as a quick exploration
           </div>
         )}
@@ -600,7 +734,7 @@ function titleFor(phase: Phase, mode: CreativeMode | null): string {
     case 'mode-select':  return 'creative time';
     case 'prompt-picker':return mode === 'produce' ? 'just produce — pick a prompt' : 'just play — pick a prompt';
     case 'session':      return mode === 'produce' ? 'producing' : 'playing';
-    case 'summary':      return mode === 'produce' ? 'session complete' : 'session complete';
+    case 'summary':      return 'session complete';
   }
 }
 
@@ -636,4 +770,39 @@ function formatDuration(seconds: number): string {
 
 function modeLabel(m: CreativeMode): string {
   return m === 'play' ? 'Just Play' : 'Just Produce';
+}
+
+// -------------------------------------------------------------------
+// End-of-session chime
+// -------------------------------------------------------------------
+
+// Gentle two-note bell chime. Uses the shared Web Audio context
+// (kept running by the existing audio module). Intentionally softer
+// than the drill module's end cue — creative sessions want a nudge,
+// not an alarm.
+async function playEndChime(): Promise<void> {
+  try {
+    const { ensureRunning } = await import('../../lib/audio');
+    const ctx = await ensureRunning();
+    const t0 = ctx.currentTime + 0.02;
+    // Two notes a perfect fifth apart (A5 → E6), sine, slow fade.
+    const notes = [
+      { freq: 880.00, delay: 0.00 },
+      { freq: 1318.51, delay: 0.28 },
+    ];
+    for (const n of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = n.freq;
+      gain.gain.setValueAtTime(0, t0 + n.delay);
+      gain.gain.linearRampToValueAtTime(0.14, t0 + n.delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + n.delay + 0.65);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0 + n.delay);
+      osc.stop(t0 + n.delay + 0.7);
+    }
+  } catch {
+    // Chime failure is non-fatal — the banner still appears.
+  }
 }

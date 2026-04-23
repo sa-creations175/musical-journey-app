@@ -102,11 +102,14 @@ export default function MetronomeControl() {
           aria-label="metronome settings"
           className="absolute right-0 mt-2 z-40 w-72 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl p-3 space-y-3 text-xs"
         >
-          {/* BPM slider + readout */}
+          {/* BPM slider + click-to-edit readout + ± steppers */}
           <div className="space-y-1">
             <div className="flex items-baseline justify-between">
               <span className="text-neutral-500 uppercase tracking-wide">tempo</span>
-              <span className="font-mono tabular-nums text-sm">{state.bpm} <span className="text-neutral-400">bpm</span></span>
+              <BpmEditor
+                bpm={state.bpm}
+                onCommit={next => metronome.update({ bpm: clamp(next, 40, 220) })}
+              />
             </div>
             <input
               type="range"
@@ -118,6 +121,22 @@ export default function MetronomeControl() {
               className="w-full accent-fluent"
             />
             <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={() => metronome.update({ bpm: clamp(state.bpm - 1, 40, 220) })}
+                aria-label="decrease bpm by 1"
+                title="decrease bpm"
+                className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent text-[10px] font-mono"
+              >
+                −
+              </button>
+              <button
+                onClick={() => metronome.update({ bpm: clamp(state.bpm + 1, 40, 220) })}
+                aria-label="increase bpm by 1"
+                title="increase bpm"
+                className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent text-[10px] font-mono"
+              >
+                +
+              </button>
               {[60, 75, 90, 110, 130, 160].map(b => (
                 <button
                   key={b}
@@ -131,8 +150,8 @@ export default function MetronomeControl() {
                   {b}
                 </button>
               ))}
-              <TapTempoButton />
             </div>
+            <TapTempoRow currentBpm={state.bpm} />
           </div>
 
           {/* Groove selector */}
@@ -189,24 +208,188 @@ export default function MetronomeControl() {
   );
 }
 
-function TapTempoButton() {
-  const [flash, setFlash] = useState(false);
+/**
+ * Click-to-edit BPM readout. Shows as a button with the current BPM;
+ * clicking swaps to a numeric input that commits on Enter or blur and
+ * discards on Escape. Validates 40-220 and silently reverts invalid
+ * input — the slider + steppers handle finer control for users who
+ * prefer them.
+ */
+function BpmEditor({
+  bpm,
+  onCommit,
+}: {
+  bpm: number;
+  onCommit: (next: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(bpm));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const begin = () => {
+    setDraft(String(bpm));
+    setEditing(true);
+  };
+
+  const commit = () => {
+    const parsed = parseInt(draft.trim(), 10);
+    if (Number.isFinite(parsed) && parsed >= 40 && parsed <= 220 && parsed !== bpm) {
+      onCommit(parsed);
+    }
+    // Invalid or out-of-range: silently revert by not calling onCommit.
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(String(bpm));
+    setEditing(false);
+  };
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-baseline gap-1">
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value.replace(/[^\d]/g, ''))}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') cancel();
+          }}
+          inputMode="numeric"
+          aria-label="bpm"
+          className="w-14 rounded border border-fluent/50 bg-white dark:bg-neutral-900 px-1 py-0.5 font-mono tabular-nums text-sm text-right focus:outline-none focus:border-fluent"
+        />
+        <span className="text-neutral-400 text-[10px] uppercase">bpm</span>
+      </span>
+    );
+  }
+
   return (
     <button
-      onClick={() => {
-        metronome.tap();
-        setFlash(true);
-        window.setTimeout(() => setFlash(false), 120);
-      }}
-      className={`px-2 py-0.5 rounded border text-[10px] font-medium transition ${
-        flash
-          ? 'bg-fluent text-white border-fluent'
-          : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-      }`}
-      title="tap repeatedly to set tempo"
+      onClick={begin}
+      title="click to type a BPM (40-220)"
+      className="font-mono tabular-nums text-sm hover:text-fluent transition-colors cursor-text"
     >
-      tap
+      {bpm} <span className="text-neutral-400">bpm</span>
     </button>
+  );
+}
+
+/**
+ * Tap tempo UI. Counts user taps, flashes on each, and after four
+ * (a steady pulse the algorithm can trust) surfaces a small inline
+ * confirmation ("Set to 84 BPM from your taps"). Includes an info
+ * popover explaining the feature — the raw "tap" button never made
+ * its purpose obvious.
+ */
+function TapTempoRow({ currentBpm }: { currentBpm: number }) {
+  const [flash, setFlash] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+  const [confirmedBpm, setConfirmedBpm] = useState<number | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const resetTimerRef = useRef<number | null>(null);
+  const confirmTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (resetTimerRef.current !== null) window.clearTimeout(resetTimerRef.current);
+    if (confirmTimerRef.current !== null) window.clearTimeout(confirmTimerRef.current);
+  }, []);
+
+  const handleTap = () => {
+    metronome.tap();
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 150);
+
+    // Reset the tap streak if the user pauses for > 3 s (matches
+    // the 3-second window inside metronome.tap).
+    if (resetTimerRef.current !== null) window.clearTimeout(resetTimerRef.current);
+    resetTimerRef.current = window.setTimeout(() => {
+      setTapCount(0);
+      setConfirmedBpm(null);
+    }, 3200);
+
+    const nextCount = tapCount + 1;
+    setTapCount(nextCount);
+
+    // At 4+ taps the algorithm has a stable average — surface the
+    // confirmation. Read the BPM AFTER the metronome has processed
+    // the tap so the confirmed value matches what got set.
+    if (nextCount >= 4) {
+      // metronome.tap() is sync, so state.bpm in this closure is the
+      // pre-tap value. Pull from the singleton directly for the fresh
+      // post-tap reading.
+      window.setTimeout(() => {
+        setConfirmedBpm(metronome.state.bpm);
+      }, 10);
+      if (confirmTimerRef.current !== null) window.clearTimeout(confirmTimerRef.current);
+      confirmTimerRef.current = window.setTimeout(() => {
+        setConfirmedBpm(null);
+      }, 2500);
+    }
+  };
+
+  return (
+    <div className="space-y-1 pt-1">
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={handleTap}
+          title="Tap this button in rhythm to set the BPM. Tap at least 4 times in a steady pulse."
+          className={`px-2.5 py-1 rounded-md border text-[11px] font-medium transition ${
+            flash
+              ? 'bg-fluent text-white border-fluent scale-[1.04]'
+              : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent'
+          }`}
+        >
+          tap tempo
+        </button>
+        <button
+          onClick={() => setShowInfo(v => !v)}
+          aria-label="what is tap tempo?"
+          title="what is tap tempo?"
+          className="w-5 h-5 rounded-full border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-fluent hover:border-fluent text-[10px] leading-none flex items-center justify-center"
+        >
+          ?
+        </button>
+        {tapCount > 0 && tapCount < 4 && (
+          <span className="text-[10px] text-neutral-500 italic">
+            {tapCount} tap{tapCount === 1 ? '' : 's'} · keep going
+          </span>
+        )}
+      </div>
+
+      {showInfo && (
+        <div className="rounded-md border border-fluent/30 bg-fluent/5 p-2 text-[11px] text-neutral-600 dark:text-neutral-300 leading-snug">
+          <strong className="text-fluent">Tap Tempo:</strong> listen to a song
+          or imagine a rhythm, then tap this button in time with the beat.
+          After 4+ taps, the metronome calculates the BPM and sets itself to
+          that tempo.
+        </div>
+      )}
+
+      {confirmedBpm !== null && (
+        <div className="text-[11px] text-fluent font-medium">
+          ✓ set to {confirmedBpm} bpm from your taps
+        </div>
+      )}
+
+      {/* Keep the current-bpm reference visible when the tap bar isn't
+          announcing a change — reassures the user that their input
+          actually landed. */}
+      {confirmedBpm === null && tapCount === 0 && (
+        <div className="text-[10px] text-neutral-400">
+          currently {currentBpm} bpm
+        </div>
+      )}
+    </div>
   );
 }
 

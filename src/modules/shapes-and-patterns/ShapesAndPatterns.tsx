@@ -19,21 +19,27 @@ function isTabId(v: string): v is TabId {
 const PREF_ACTIVE_TAB = 'shapesAndPatternsActiveTab';
 const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
 
+// Scales first: they're the parent structure from which chords are
+// derived, so leading with scales frames the rest of the module
+// pedagogically. Mental viz stays last as the away-from-keyboard
+// capstone.
 const TABS: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'chord-shapes',  label: 'chord shapes',       hint: 'triads, sevenths, extensions — 12 keys' },
   { id: 'scales',        label: 'scales',             hint: 'major + natural minor across 12 keys' },
+  { id: 'chord-shapes',  label: 'chord shapes',       hint: 'triads, sevenths, extensions — 12 keys' },
   { id: 'voice-leading', label: 'voice-leading',      hint: 'named patterns across 12 keys' },
   { id: 'mental-viz',    label: 'mental visualisation', hint: 'away-from-keyboard cognitive drills' },
 ];
 
+const DEFAULT_TAB: TabId = 'scales';
+
 export default function ShapesAndPatterns() {
-  const [tab, setTab] = useState<TabId>('chord-shapes');
+  const [tab, setTab] = useState<TabId>(DEFAULT_TAB);
   const [chordScope, setChordScope] = useState<QualityKind | 'all'>('all');
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const t = await getPref<TabId>(PREF_ACTIVE_TAB, 'chord-shapes');
+      const t = await getPref<TabId>(PREF_ACTIVE_TAB, DEFAULT_TAB);
       if (isTabId(t)) {
         setTab(t);
       }

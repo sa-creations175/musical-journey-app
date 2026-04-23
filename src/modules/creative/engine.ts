@@ -58,9 +58,14 @@ function extractEmotionTags(text: string): string[] {
 interface DrillSnapshot {
   /** Display label for the skill (e.g. "Cmaj7 (major seventh)") */
   label: string;
-  kind: 'chord-shape' | 'scale' | 'voice-leading' | 'mental-viz';
+  /** Intentionally excludes 'mental-viz' — see `gatherCreativeSnapshot`
+   *  for why. */
+  kind: 'chord-shape' | 'scale' | 'voice-leading';
   /** Total seconds drilled in the recent window. */
   recentSeconds: number;
+  /** Root key the drill was pinned to (if any). Voice-leading and
+   *  chord-shape drills always carry a key; scale drills do too. */
+  keyName?: string;
 }
 
 interface AssociationSnapshot {
@@ -108,6 +113,12 @@ export async function gatherCreativeSnapshot(): Promise<CreativeSnapshot> {
   const since = Date.now() - RECENT_WINDOW_MS;
 
   // ----- Drills (past 14 days, grouped by skill) -----
+  // Mental-visualisation drills are cognitive reps (picturing shapes
+  // on a keyboard with no instrument in front of you) — the opposite
+  // mode of engagement from creative play. Filtering them out up
+  // front keeps prompt templates from accidentally turning a
+  // cognitive drill into "try creating something with C major in
+  // 1st inversion", which doesn't land as a creative suggestion.
   const recentDrillSessions = await db.drillSessions
     .where('timestamp').above(since)
     .toArray();
@@ -120,10 +131,12 @@ export async function gatherCreativeSnapshot(): Promise<CreativeSnapshot> {
     const skills = await db.drillSkills.bulkGet([...drillSecondsBySkill.keys()]);
     for (const skill of skills) {
       if (!skill) continue;
+      if (skill.kind === 'mental-viz') continue;
       recentDrills.push({
         label: skill.label ?? 'a drill',
         kind: skill.kind,
         recentSeconds: drillSecondsBySkill.get(skill.id) ?? 0,
+        keyName: skill.keyName,
       });
     }
     recentDrills.sort((a, b) => b.recentSeconds - a.recentSeconds);
@@ -266,111 +279,192 @@ function formatIntervalKey(key: string): string {
 
 type Template = (snap: CreativeSnapshot) => CreativePrompt | null;
 
+// All 12 pitch classes the rest of the app uses, in order. Lets us
+// suggest a "new key" the user hasn't drilled recently without
+// pulling from some catalog — good enough for prompt purposes.
+const ALL_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+/** Pick a key the user hasn't drilled in their recent set — gives
+ *  prompts a "try this somewhere new" edge. Falls back to a rotating
+ *  default when the user has covered everything. */
+function suggestNewKey(drilledKeys: string[]): string {
+  const covered = new Set(drilledKeys);
+  const fresh = ALL_KEYS.filter(k => !covered.has(k));
+  return pickRandom(fresh) ?? pickRandom(ALL_KEYS) ?? 'A minor';
+}
+
+/** Format a list of keys as human prose: "C", "C and F", "C, F, and Bb". */
+function humanKeyList(keys: string[]): string {
+  if (keys.length === 0) return '';
+  if (keys.length === 1) return keys[0];
+  if (keys.length === 2) return `${keys[0]} and ${keys[1]}`;
+  return `${keys.slice(0, -1).join(', ')}, and ${keys[keys.length - 1]}`;
+}
+
+/** Split a voice-leading or scale drill label of the form
+ *  "<pattern> in <key>" into its two parts. Returns null when the
+ *  label doesn't match. */
+function splitLabelInKey(label: string): { pattern: string; key: string } | null {
+  const m = label.match(/^(.+?)\s+in\s+(\S+)$/i);
+  if (!m) return null;
+  return { pattern: m[1].trim(), key: m[2].trim() };
+}
+
+/** Group same-pattern drills across keys so templates can say "in C
+ *  and F" instead of a single key per prompt. */
+function groupByPattern(drills: DrillSnapshot[]): Array<{ pattern: string; keys: string[]; seconds: number }> {
+  const buckets = new Map<string, { keys: Set<string>; seconds: number }>();
+  for (const d of drills) {
+    const parts = splitLabelInKey(d.label);
+    if (!parts) continue;
+    const bucket = buckets.get(parts.pattern) ?? { keys: new Set<string>(), seconds: 0 };
+    bucket.keys.add(parts.key);
+    bucket.seconds += d.recentSeconds;
+    buckets.set(parts.pattern, bucket);
+  }
+  return [...buckets.entries()].map(([pattern, b]) => ({
+    pattern,
+    keys: [...b.keys].sort(),
+    seconds: b.seconds,
+  }));
+}
+
 const PLAY_TEMPLATES: Template[] = [
-  // Recent drill → improv hook
+  // Voice-leading → improvise in a new key
   snap => {
-    const drill = pickRandom(snap.recentDrills.filter(d => d.recentSeconds >= 60));
+    const vlDrills = snap.recentDrills.filter(d => d.kind === 'voice-leading' && d.recentSeconds >= 60);
+    const groups = groupByPattern(vlDrills);
+    const group = pickRandom(groups);
+    if (!group) return null;
+    const newKey = suggestNewKey(group.keys);
+    const vibe = pickRandom(['soul ballad', 'quiet-storm intro', 'gospel interlude', 'neo-soul loop']);
+    return {
+      kind: 'recent-voice-leading',
+      text: `You've been drilling the ${group.pattern.toLowerCase()} in ${humanKeyList(group.keys)} this week. Try improvising a ${vibe} over it in a new key like ${newKey} — see what the voice-leading feels like there.`,
+    };
+  },
+
+  // Scale drill → mode-feel improvisation
+  snap => {
+    const scaleDrills = snap.recentDrills.filter(d => d.kind === 'scale' && d.recentSeconds >= 60);
+    const groups = groupByPattern(scaleDrills);
+    const group = pickRandom(groups);
+    if (!group) return null;
+    const key = pickRandom(group.keys) ?? group.keys[0];
+    const styleHint = /minor/i.test(group.pattern)
+      ? 'a moody, suspended feel'
+      : 'a bright, airy phrase';
+    return {
+      kind: 'recent-scale',
+      text: `You practiced the ${group.pattern.toLowerCase()} in ${humanKeyList(group.keys)}. Improvise in ${key} for five minutes — aim for ${styleHint}. Record the one phrase you want to keep.`,
+    };
+  },
+
+  // Chord-shape → build a loop that features it
+  snap => {
+    const chordDrills = snap.recentDrills.filter(d => d.kind === 'chord-shape' && d.recentSeconds >= 60);
+    const drill = pickRandom(chordDrills);
     if (!drill) return null;
-    if (drill.kind === 'voice-leading') {
-      return {
-        kind: 'recent-voice-leading',
-        text: `You drilled ${drill.label.toLowerCase()} this week. Improvise a soul-ballad intro using it as the backbone — no pressure to stay in the pattern, just let it steer the harmony.`,
-      };
-    }
-    if (drill.kind === 'scale') {
-      return {
-        kind: 'recent-scale',
-        text: `You've been working ${drill.label}. Noodle in that scale for five minutes — find one phrase you want to come back to.`,
-      };
-    }
-    if (drill.kind === 'chord-shape') {
-      return {
-        kind: 'recent-chord-shape',
-        text: `You practiced ${drill.label} recently. Build a loop that features it — maybe 2 bars on that chord, 2 bars resolving away.`,
-      };
-    }
+    // Parse "Cmaj7 (major seventh)" → "Cmaj7"
+    const short = drill.label.replace(/\s*\(.+\)\s*$/, '');
+    const feel = pickRandom(['warm R&B', 'jazzy gospel', 'dreamy neo-soul', 'dusty hip-hop']);
     return {
-      kind: 'recent-mental-viz',
-      text: `Your mental visualisation reps are paying off. Close your eyes, hear a chord, find it — then let the next chord come on its own.`,
+      kind: 'recent-chord-shape',
+      text: `${short} has been in your hands this week. Build an 8-bar ${feel} loop that features it — two bars sitting on it, then move somewhere unexpected. See what resolves it best.`,
     };
   },
 
-  // Emotion tag → create something with that feel
-  snap => {
-    const tags = [...snap.emotionIndex.keys()];
-    const tag = pickRandom(tags);
-    if (!tag) return null;
-    const assocs = snap.emotionIndex.get(tag) ?? [];
-    const assoc = pickRandom(assocs);
-    if (!assoc) return null;
-    return {
-      kind: 'emotion-tag',
-      text: `Try creating something ${tag}. Your notes tag ${assoc.subject} as ${tag} — start there and see where the next chord wants to go.`,
-    };
-  },
-
-  // Recent song → improvise in its world
+  // Recent song → improvise in its key and feel
   snap => {
     const song = pickRandom(snap.recentSongs.slice(0, 5));
     if (!song) return null;
     const keyBit = song.key ? ` in ${song.key}` : '';
-    const stageBit = song.stage === 'comfortable' || song.stage === 'internalized'
-      ? `You've been getting comfortable with ${song.title}`
+    const stageBit = song.stage === 'comfortable' || song.stage === 'internalized' || song.stage === 'maintenance'
+      ? `You've been sitting with ${song.title}`
       : `You've been learning ${song.title}`;
+    const genreBit = song.genre ? ` — ${song.genre}` : '';
     return {
       kind: 'recent-song-improv',
-      text: `${stageBit} (${song.artist}). Improvise${keyBit} in that same emotional territory — what progression would YOU build on those chords?`,
+      text: `${stageBit} (${song.artist}${genreBit}). Improvise${keyBit} for ten minutes in that same emotional territory — what progression would you build if you wrote the follow-up song?`,
     };
   },
 
-  // Song stage momentum → write your own
+  // Song momentum → write your own in its world
   snap => {
     const internalized = snap.recentSongs.find(s => s.stage === 'internalized' || s.stage === 'maintenance');
     if (!internalized) return null;
+    const keyBit = internalized.key ? ` in ${internalized.key}` : '';
     return {
       kind: 'song-momentum',
-      text: `You've been sitting deep with ${internalized.title} (${internalized.artist}). Try writing something of your own that lives in its world — same feel, your melody.`,
+      text: `${internalized.title} is deep in you now. Write something of your own${keyBit} that lives in its world — borrow the feel, not the chords. Your turn to say the thing.`,
     };
   },
 
-  // Progression association → build a piece around it
+  // Emotion tag → mode-driven improv
+  snap => {
+    // Prefer mode associations when an emotion has them (most
+    // creative traction), else fall back to progression.
+    const tags = [...snap.emotionIndex.keys()];
+    const tag = pickRandom(tags);
+    if (!tag) return null;
+    const assocs = snap.emotionIndex.get(tag) ?? [];
+    const modeAssoc = assocs.find(a => /mode$/.test(a.subject));
+    const progAssoc = assocs.find(a => /progression/.test(a.subject));
+    const assoc = modeAssoc ?? progAssoc ?? pickRandom(assocs);
+    if (!assoc) return null;
+    if (/mode$/.test(assoc.subject)) {
+      const name = assoc.subject.replace(' mode', '');
+      return {
+        kind: 'emotion-mode',
+        text: `Create something ${tag}. Your diary tags ${name} as ${tag} — improvise in it for a few minutes, then build a short piece around the phrase that feels most true.`,
+      };
+    }
+    return {
+      kind: 'emotion-progression',
+      text: `Create something ${tag}. Your notes tag the ${assoc.subject} as ${tag} — loop that progression and improvise over it.`,
+    };
+  },
+
+  // Progression association → build around it, no modifier
   snap => {
     const progAssocs = snap.associations.filter(a => /progression/.test(a.subject));
     const a = pickRandom(progAssocs);
     if (!a) return null;
     const mood = a.emotions[0];
-    const moodBit = mood ? ` that ${mood} quality` : '';
+    const moodBit = mood ? ` You wrote that it feels ${mood}.` : '';
     return {
       kind: 'progression-association',
-      text: `The ${a.subject} has been sitting in your head${moodBit ? ` — you described${moodBit}` : ''}. Build a short piece around it. Let it breathe.`,
+      text: `The ${a.subject} is sitting in your head.${moodBit} Loop it slowly and build a short piece around it — one phrase can be the whole song.`,
+    };
+  },
+
+  // Mode exploration from diary
+  snap => {
+    const modeAssocs = snap.associations.filter(a => /mode$/.test(a.subject));
+    const a = pickRandom(modeAssocs);
+    if (!a) return null;
+    const mood = a.emotions[0];
+    const feelBit = mood ? ` ${mood}` : '';
+    return {
+      kind: 'mode-exploration',
+      text: `Improvise in ${a.subject.replace(' mode', '')} for five minutes. You wrote about its${feelBit} quality — now let your hands say what you've been hearing.`,
+    };
+  },
+
+  // Consistency reward — given only when they've earned it
+  snap => {
+    if (snap.recentPracticeDays < 4) return null;
+    return {
+      kind: 'streak-reward',
+      text: `You've practised ${snap.recentPracticeDays} of the last 7 days. Take ten minutes off the curriculum — play purely for yourself. See what the work unlocks.`,
     };
   },
 
   // No prompt — always available
   () => ({
     kind: 'freeform',
-    text: `No prompt today. Just play what your hands want to say. Listen for the phrase that surprises you.`,
+    text: `No prompt today. Just play what your hands want to say. Listen for the phrase that surprises you — that one's worth chasing.`,
   }),
-
-  // Consistency streak
-  snap => {
-    if (snap.recentPracticeDays < 4) return null;
-    return {
-      kind: 'streak-reward',
-      text: `You've practiced ${snap.recentPracticeDays} of the last 7 days. Take ten minutes off the curriculum — play purely for yourself. See what the work unlocks.`,
-    };
-  },
-
-  // Mode exploration
-  snap => {
-    const modeAssocs = snap.associations.filter(a => /mode$/.test(a.subject));
-    const a = pickRandom(modeAssocs);
-    if (!a) return null;
-    return {
-      kind: 'mode-exploration',
-      text: `Improvise in ${a.subject.replace(' mode', '')} for five minutes. You wrote about it — now let your hands say what you've been hearing.`,
-    };
-  },
 ];
 
 const PRODUCE_TEMPLATES: Template[] = [
@@ -379,19 +473,25 @@ const PRODUCE_TEMPLATES: Template[] = [
     const genre = pickRandom(snap.genres);
     if (!genre) return null;
     const bpm = genreBpmHint(genre);
+    const feel = /gospel|soul|r&?b|neo-?soul/.test(genre)
+      ? 'that laid-back, behind-the-beat feel'
+      : /hip-?hop|trap/.test(genre)
+        ? 'a dusty sample-loop foundation'
+        : 'that same energy';
     return {
       kind: 'genre-beat',
-      text: `You've been learning ${genre} songs. Try making a beat with that laid-back feel${bpm ? ` — around ${bpm} BPM` : ''}. Skeleton sketch, no pressure to finish.`,
+      text: `You've been learning ${genre} songs. Try making a beat with ${feel}${bpm ? ` around ${bpm} BPM` : ''}. Skeleton sketch, no pressure to finish.`,
     };
   },
 
-  // Record a progression you drilled
+  // Record a progression you drilled (voice-leading or chord-shape only)
   snap => {
     const drill = pickRandom(snap.recentDrills.filter(d => d.kind === 'voice-leading' || d.kind === 'chord-shape'));
     if (!drill) return null;
+    const short = drill.label.replace(/\s*\(.+\)\s*$/, '');
     return {
       kind: 'record-drill',
-      text: `Want to record the ${drill.label.toLowerCase()} you drilled this week? Would make a good Logic Pro sketch — loop it, try two different drum feels.`,
+      text: `Want to record the ${short} you've been drilling? Loop it in Logic, try two different drum feels (straight ahead vs. half-time) and see which one the chord wants.`,
     };
   },
 
@@ -401,18 +501,19 @@ const PRODUCE_TEMPLATES: Template[] = [
     if (!genre) return null;
     return {
       kind: 'sample-beat',
-      text: `Make a chopped-sample ${genre}-style beat. Pick a record, find one bar worth obsessing over, build around it.`,
+      text: `Make a chopped-sample ${genre}-style beat. Pick a record you love, find one bar worth obsessing over, build the drums around it. Keep it short and done.`,
     };
   },
 
-  // Recreate a song's feel
+  // Recreate a recent song's feel
   snap => {
     const song = pickRandom(snap.recentSongs.slice(0, 5));
     if (!song) return null;
-    const tempoBit = song.tempo ? ` at ~${song.tempo} BPM` : '';
+    const tempoBit = song.tempo ? ` at around ${song.tempo} BPM` : '';
+    const genreBit = song.genre ? ` (${song.genre} territory)` : '';
     return {
       kind: 'song-feel',
-      text: `Dial up the feel of ${song.title} (${song.artist})${tempoBit}. Drums, bass, pad — aim for ten minutes of groove, nothing polished.`,
+      text: `Dial up the feel of ${song.title} by ${song.artist}${genreBit}${tempoBit}. Drums, bass, one pad — ten minutes of groove, nothing polished.`,
     };
   },
 
@@ -422,25 +523,26 @@ const PRODUCE_TEMPLATES: Template[] = [
     if (!tag) return null;
     return {
       kind: 'emotion-beat',
-      text: `Produce something ${tag}. Start with the drums if that's easier, or a single pad that sets the mood. Don't overthink the arrangement.`,
+      text: `Produce something ${tag}. Start with whichever element sets the mood fastest — a pad, a vocal chop, a drum break — and let the rest follow.`,
+    };
+  },
+
+  // Loop-maker from a chord-shape drill
+  snap => {
+    const drill = pickRandom(snap.recentDrills.filter(d => d.kind === 'chord-shape'));
+    if (!drill) return null;
+    const short = drill.label.replace(/\s*\(.+\)\s*$/, '');
+    return {
+      kind: 'loop-maker',
+      text: `Build an 8-bar loop around ${short}. Kick, snare, bass, the chord — that's enough. Sit with it long enough to feel what wants to change next.`,
     };
   },
 
   // No prompt
   () => ({
     kind: 'freeform',
-    text: `No prompt — just open the DAW and follow curiosity. Even 20 minutes of exploration counts.`,
+    text: `No prompt — just open the DAW and follow curiosity. Even twenty minutes of exploration counts.`,
   }),
-
-  // Loop-maker
-  snap => {
-    const drill = pickRandom(snap.recentDrills.filter(d => d.kind === 'chord-shape'));
-    if (!drill) return null;
-    return {
-      kind: 'loop-maker',
-      text: `Build an 8-bar loop that features ${drill.label}. Kick, snare, bass, the chord — that's plenty. Listen to it on repeat and feel what wants to change.`,
-    };
-  },
 ];
 
 // Rough BPM associations by genre keyword. Only rendered when the

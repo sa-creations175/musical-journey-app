@@ -2,14 +2,13 @@ import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
 
-// Sidebar navigation tree. Modules that have multiple sub-destinations
-// get an expand/collapse affordance; simple single-page modules remain
-// plain links. Sub-item `to` is the full path including query string so
-// the URL-sync hooks in each module can land the user on the right tab.
-//
-// If a module's sub-tree is still in flux (Practice Sessions, Production),
-// mark `placeholder: true` on the parent — we still render it but
-// without children until the build catches up.
+// Sidebar navigation tree. Organised into three top-level groups
+// (Overview / Structured Learning / Creative Tools) each with its own
+// collapse toggle. Within each group, modules with multiple
+// sub-destinations get their own expand/collapse affordance; simple
+// single-page modules remain plain links. Sub-item `to` is the full
+// path including query string so the URL-sync hooks in each module
+// can land the user on the right tab.
 
 export interface NavSubItem {
   label: string;
@@ -34,83 +33,119 @@ export interface NavItem {
   }>;
 }
 
+interface NavGroup {
+  id: string;
+  label: string;
+  items: NavItem[];
+}
+
 const PREF_EXPANDED = 'sidebarExpandedGroups';
 
-const NAV_TREE: NavItem[] = [
-  { id: 'dashboard', label: 'dashboard', to: '/', end: true },
+const NAV_GROUPS: NavGroup[] = [
   {
-    id: 'harmonic-fluency',
-    label: 'harmonic fluency',
-    to: '/harmonic-fluency',
-    children: [
-      { label: 'scale degree math',        to: '/harmonic-fluency?category=scale-degree-math' },
-      { label: 'named notes',              to: '/harmonic-fluency?category=named-notes' },
-      { label: 'diatonic chord qualities', to: '/harmonic-fluency?category=diatonic-qualities' },
-      { label: 'functional harmony',       to: '/harmonic-fluency?category=functional-harmony' },
-      { label: 'key signatures',           to: '/harmonic-fluency?category=key-signatures' },
-      { label: 'reverse key pivots',       to: '/harmonic-fluency?category=reverse-key-pivots' },
-      { label: 'modes',                    to: '/harmonic-fluency?category=modes' },
-      { label: 'intervals',                to: '/harmonic-fluency?category=intervals' },
-      { label: 'chord construction',       to: '/harmonic-fluency?category=chord-construction' },
-      { label: 'progression vocabulary',   to: '/harmonic-fluency?category=progressions' },
-      { label: 'slash chords',             to: '/harmonic-fluency?category=slash-chords' },
-      { label: 'ear-theory crossover',     to: '/harmonic-fluency?category=ear-theory' },
+    id: 'overview',
+    label: 'overview',
+    items: [
+      { id: 'dashboard', label: 'dashboard', to: '/', end: true },
     ],
   },
   {
-    id: 'ear-training',
-    label: 'ear training',
-    to: '/ear-training',
-    nestedChildren: [
-      { id: 'intervals',         label: 'intervals',         to: '/ear-training/intervals' },
-      { id: 'chord-recognition', label: 'chord recognition', to: '/ear-training/chord-recognition' },
+    id: 'structured-learning',
+    label: 'structured learning',
+    items: [
       {
-        id: 'chord-progressions',
-        label: 'chord progressions',
-        to: '/ear-training/chord-progressions',
+        id: 'harmonic-fluency',
+        label: 'harmonic fluency',
+        to: '/harmonic-fluency',
         children: [
-          { label: 'key detection',     to: '/ear-training/chord-progressions?tab=key-detection' },
-          { label: 'chord motion',      to: '/ear-training/chord-progressions?tab=chord-motion' },
-          { label: 'full progression',  to: '/ear-training/chord-progressions?tab=full-progression' },
+          { label: 'scale degree math',        to: '/harmonic-fluency?category=scale-degree-math' },
+          { label: 'named notes',              to: '/harmonic-fluency?category=named-notes' },
+          { label: 'diatonic chord qualities', to: '/harmonic-fluency?category=diatonic-qualities' },
+          { label: 'functional harmony',       to: '/harmonic-fluency?category=functional-harmony' },
+          { label: 'key signatures',           to: '/harmonic-fluency?category=key-signatures' },
+          { label: 'reverse key pivots',       to: '/harmonic-fluency?category=reverse-key-pivots' },
+          { label: 'modes',                    to: '/harmonic-fluency?category=modes' },
+          { label: 'intervals',                to: '/harmonic-fluency?category=intervals' },
+          { label: 'chord construction',       to: '/harmonic-fluency?category=chord-construction' },
+          { label: 'progression vocabulary',   to: '/harmonic-fluency?category=progressions' },
+          { label: 'slash chords',             to: '/harmonic-fluency?category=slash-chords' },
+          { label: 'ear-theory crossover',     to: '/harmonic-fluency?category=ear-theory' },
         ],
       },
-      { id: 'scales-modes',      label: 'scales & modes',    to: '/ear-training/scales-modes' },
+      {
+        id: 'ear-training',
+        label: 'ear training',
+        to: '/ear-training',
+        nestedChildren: [
+          { id: 'intervals',         label: 'intervals',         to: '/ear-training/intervals' },
+          { id: 'chord-recognition', label: 'chord recognition', to: '/ear-training/chord-recognition' },
+          {
+            id: 'chord-progressions',
+            label: 'chord progressions',
+            to: '/ear-training/chord-progressions',
+            children: [
+              { label: 'key detection',     to: '/ear-training/chord-progressions?tab=key-detection' },
+              { label: 'chord motion',      to: '/ear-training/chord-progressions?tab=chord-motion' },
+              { label: 'full progression',  to: '/ear-training/chord-progressions?tab=full-progression' },
+            ],
+          },
+          { id: 'scales-modes',      label: 'scales & modes',    to: '/ear-training/scales-modes' },
+        ],
+      },
+      {
+        id: 'repertoire',
+        label: 'song repertoire',
+        to: '/repertoire',
+        children: [
+          { label: 'active repertoire', to: '/repertoire?tab=active' },
+          { label: 'want to learn',     to: '/repertoire?tab=want-to-learn' },
+        ],
+      },
+      {
+        id: 'shapes-and-patterns',
+        label: 'shapes & patterns',
+        to: '/shapes-and-patterns',
+        children: [
+          { label: 'scale drills',        to: '/shapes-and-patterns?tab=scales' },
+          { label: 'chord shape drills',  to: '/shapes-and-patterns?tab=chord-shapes' },
+          { label: 'voice-leading drills',to: '/shapes-and-patterns?tab=voice-leading' },
+          { label: 'mental visualisation',to: '/shapes-and-patterns?tab=mental-viz' },
+        ],
+      },
+      { id: 'production', label: 'production & logic pro', to: '/production' },
     ],
   },
   {
-    id: 'repertoire',
-    label: 'song repertoire',
-    to: '/repertoire',
-    children: [
-      { label: 'active repertoire', to: '/repertoire?tab=active' },
-      { label: 'want to learn',     to: '/repertoire?tab=want-to-learn' },
+    id: 'creative-sessions',
+    label: 'creative sessions',
+    items: [
+      { id: 'session-log', label: 'session log', to: '/session-log' },
     ],
   },
-  {
-    id: 'shapes-and-patterns',
-    label: 'shapes & patterns',
-    to: '/shapes-and-patterns',
-    children: [
-      { label: 'chord shape drills',  to: '/shapes-and-patterns?tab=chord-shapes' },
-      { label: 'scale drills',        to: '/shapes-and-patterns?tab=scales' },
-      { label: 'voice-leading drills',to: '/shapes-and-patterns?tab=voice-leading' },
-      { label: 'mental visualisation',to: '/shapes-and-patterns?tab=mental-viz' },
-    ],
-  },
-  { id: 'production', label: 'production', to: '/production' },
-  { id: 'session-log', label: 'session log', to: '/session-log' },
 ];
+
+/** All group ids — used to seed the default-open state so the first
+ *  visit shows everything expanded. */
+const ALL_GROUP_IDS = NAV_GROUPS.map(g => g.id);
+
+/** Group-state keys use a `group:` prefix to avoid colliding with
+ *  module-state keys in the same expansion map. */
+const groupKey = (id: string) => `group:${id}`;
 
 export default function SidebarNav() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
   const location = useLocation();
 
-  // Hydrate expansion state from prefs.
+  // Hydrate expansion state from prefs. Seed group defaults to open
+  // on first visit — leaves module-level defaults collapsed (modules
+  // toggled by the user preserve their stored state).
   useEffect(() => {
     (async () => {
       const stored = await getPref<Record<string, boolean>>(PREF_EXPANDED, {});
-      setExpanded(stored && typeof stored === 'object' ? stored : {});
+      const base: Record<string, boolean> = {};
+      for (const gid of ALL_GROUP_IDS) base[groupKey(gid)] = true;
+      setExpanded({ ...base, ...(stored && typeof stored === 'object' ? stored : {}) });
       setHydrated(true);
     })();
   }, []);
@@ -125,18 +160,70 @@ export default function SidebarNav() {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const currentPath = location.pathname + location.search;
+
   return (
-    <nav className="px-2 pb-4 flex flex-col gap-0.5 md:gap-1 overflow-x-auto md:overflow-x-visible">
-      {NAV_TREE.map(item => (
-        <NavItemRow
-          key={item.id}
-          item={item}
-          expanded={expanded}
-          onToggle={toggle}
-          currentPath={location.pathname + location.search}
-        />
-      ))}
+    <nav className="px-2 pb-4 flex flex-col gap-2 md:gap-3 overflow-x-auto md:overflow-x-visible">
+      {NAV_GROUPS.map(group => {
+        const gKey = groupKey(group.id);
+        // Default open when hydrated value is missing (covers race
+        // conditions before hydration completes).
+        const isGroupOpen = expanded[gKey] !== false;
+        return (
+          <div key={group.id} className="flex flex-col">
+            <GroupHeader
+              label={group.label}
+              open={isGroupOpen}
+              onToggle={() => toggle(gKey)}
+            />
+            {isGroupOpen && (
+              <div className="flex flex-col gap-0.5 md:gap-1 mt-1">
+                {group.items.map(item => (
+                  <NavItemRow
+                    key={item.id}
+                    item={item}
+                    expanded={expanded}
+                    onToggle={toggle}
+                    currentPath={currentPath}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </nav>
+  );
+}
+
+// -------------------------------------------------------------------
+
+function GroupHeader({
+  label,
+  open,
+  onToggle,
+}: {
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-expanded={open}
+      className="group flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-wide font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 rounded"
+    >
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 10 10"
+        className={`shrink-0 transition-transform ${open ? 'rotate-90' : ''}`}
+        aria-hidden
+      >
+        <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span>{label}</span>
+    </button>
   );
 }
 
