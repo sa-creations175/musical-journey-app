@@ -1,4 +1,5 @@
-import type { Arrangement, Beat, Phrase, SongSection } from '../../lib/db';
+import type { Arrangement, Beat, ChordFunction, Phrase, SongSection } from '../../lib/db';
+import { parseChordFunction } from './chordFunction';
 
 // Beat-based data model helpers. Legacy Phrase rows (pre-beat) carry
 // `chords: string` + `lyrics: string`. This module derives the new
@@ -31,15 +32,21 @@ export function normalizePhrase(phrase: Phrase): Required<Pick<Phrase, 'beats' |
   const beats: Beat[] = words.map(w => ({ id: uid('beat'), type: 'word', text: w }));
 
   // Map any pre-existing single-line chord tokens onto beats in order.
-  // Extras overflow into trailing blank beats so no data is lost.
+  // Each token parses to a ChordFunction (functional storage is the
+  // new authoritative shape); tokens that don't parse are preserved
+  // with `unparsed: true` so no input is silently lost.
   const chordTokens = (phrase.chords ?? '').split(/\s+/).filter(Boolean);
-  const placements: Record<string, string> = {};
+  const placements: Record<string, ChordFunction> = {};
   const paired = Math.min(chordTokens.length, beats.length);
-  for (let i = 0; i < paired; i++) placements[beats[i].id] = chordTokens[i];
+  for (let i = 0; i < paired; i++) {
+    const cf = parseChordFunction(chordTokens[i]);
+    if (cf) placements[beats[i].id] = cf;
+  }
   for (let i = paired; i < chordTokens.length; i++) {
     const extra: Beat = { id: uid('beat'), type: 'blank' };
     beats.push(extra);
-    placements[extra.id] = chordTokens[i];
+    const cf = parseChordFunction(chordTokens[i]);
+    if (cf) placements[extra.id] = cf;
   }
 
   return {
@@ -60,7 +67,7 @@ export function newEmptyPhrase(): Phrase {
   return {
     id: uid('phrase'),
     beats: [{ id: uid('beat'), type: 'blank' }],
-    chordsByArrangement: { [BASIC_ARRANGEMENT_ID]: {} },
+    chordsByArrangement: { [BASIC_ARRANGEMENT_ID]: {} as Record<string, ChordFunction> },
   };
 }
 
@@ -115,16 +122,18 @@ export function seedLegacyAlternatesInto(
   const normalised = normalizePhrase(phrase);
   if (normalised.chordsByArrangement[ALTERNATES_ARRANGEMENT_ID]) return normalised;
   const tokens = alternates.split(/\s+/).filter(Boolean);
-  const placements: Record<string, string> = {};
-  // Same approach as normalizePhrase — pair with word beats, overflow
-  // becomes trailing blank beats.
+  const placements: Record<string, ChordFunction> = {};
   const beats = [...normalised.beats];
   const paired = Math.min(tokens.length, beats.length);
-  for (let i = 0; i < paired; i++) placements[beats[i].id] = tokens[i];
+  for (let i = 0; i < paired; i++) {
+    const cf = parseChordFunction(tokens[i], section.id /* key unknown, functional parse only */);
+    if (cf) placements[beats[i].id] = cf;
+  }
   for (let i = paired; i < tokens.length; i++) {
     const extra: Beat = { id: uid('beat'), type: 'blank' };
     beats.push(extra);
-    placements[extra.id] = tokens[i];
+    const cf = parseChordFunction(tokens[i]);
+    if (cf) placements[extra.id] = cf;
   }
   return {
     ...normalised,
@@ -151,11 +160,11 @@ export function insertBeatAt(
 
 export function removeBeat(
   beats: Beat[],
-  chordsByArrangement: Record<string, Record<string, string>>,
+  chordsByArrangement: Record<string, Record<string, ChordFunction>>,
   beatId: string,
-): { beats: Beat[]; chordsByArrangement: Record<string, Record<string, string>> } {
+): { beats: Beat[]; chordsByArrangement: Record<string, Record<string, ChordFunction>> } {
   const nextBeats = beats.filter(b => b.id !== beatId);
-  const nextChords: Record<string, Record<string, string>> = {};
+  const nextChords: Record<string, Record<string, ChordFunction>> = {};
   for (const [arrId, placements] of Object.entries(chordsByArrangement)) {
     const { [beatId]: _removed, ...rest } = placements;
     void _removed;
@@ -164,36 +173,38 @@ export function removeBeat(
   return { beats: nextBeats, chordsByArrangement: nextChords };
 }
 
+/** Write a ChordFunction onto a (arrangement, beat) pair. Passing
+ *  `null` clears the placement. */
 export function setChordOnBeat(
-  chordsByArrangement: Record<string, Record<string, string>>,
+  chordsByArrangement: Record<string, Record<string, ChordFunction>>,
   arrangementId: string,
   beatId: string,
-  chord: string,
-): Record<string, Record<string, string>> {
+  chord: ChordFunction | null,
+): Record<string, Record<string, ChordFunction>> {
   const current = chordsByArrangement[arrangementId] ?? {};
   const nextPlacements = { ...current };
-  const trimmed = chord.trim();
-  if (trimmed === '') {
+  if (chord === null) {
     delete nextPlacements[beatId];
   } else {
-    nextPlacements[beatId] = trimmed;
+    nextPlacements[beatId] = chord;
   }
   return { ...chordsByArrangement, [arrangementId]: nextPlacements };
 }
 
 // --- Helpers for the progression detector --------------------------
 
-/** Ordered chord tokens for a given arrangement, skipping empty slots. */
+/** Ordered chord-function records for a given arrangement, skipping
+ *  empty slots and unparsed inputs. */
 export function chordSequenceForArrangement(
   phrase: Phrase,
   arrangementId: string,
-): string[] {
+): ChordFunction[] {
   const normalised = normalizePhrase(phrase);
   const placements = normalised.chordsByArrangement[arrangementId] ?? {};
-  const out: string[] = [];
+  const out: ChordFunction[] = [];
   for (const beat of normalised.beats) {
     const c = placements[beat.id];
-    if (c && c.trim() !== '') out.push(c.trim());
+    if (c && !c.unparsed && c.function !== '') out.push(c);
   }
   return out;
 }

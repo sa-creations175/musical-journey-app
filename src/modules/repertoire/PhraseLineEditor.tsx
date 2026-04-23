@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Beat, Phrase } from '../../lib/db';
+import type { Beat, ChordFunction, Phrase } from '../../lib/db';
 import {
   insertBeatAt,
   isInstrumentalPhrase,
@@ -7,6 +7,14 @@ import {
   removeBeat,
   setChordOnBeat,
 } from './beatsModel';
+import {
+  isEmpty as chordIsEmpty,
+  parseChordFunction,
+  renderNumbers,
+  renderRoman,
+  renderConcrete,
+  type NotationMode,
+} from './chordFunction';
 import { useToast } from '../../components/Toaster';
 
 interface Props {
@@ -17,6 +25,11 @@ interface Props {
   compareArrangementIds?: string[];
   /** arrangementId → display name, for the compare rows. */
   arrangementName: (id: string) => string;
+  /** App-wide notation mode (numbers / roman / stacked / concrete). */
+  notationMode: NotationMode;
+  /** Section's current key. Needed for concrete-chord display and for
+   *  parsing user-entered concrete chord names. */
+  sectionKey?: string;
   /** Called whenever the phrase's beats or chord placements change.
    *  Caller commits to DB. */
   onChange: (next: Phrase) => Promise<void>;
@@ -44,6 +57,8 @@ export default function PhraseLineEditor({
   activeArrangementId,
   compareArrangementIds = [],
   arrangementName,
+  notationMode,
+  sectionKey,
   onChange,
   highlighted,
   autofocusBeatId,
@@ -90,14 +105,31 @@ export default function PhraseLineEditor({
     });
   };
 
-  const commitChord = async (beatId: string, chord: string) => {
-    const next = setChordOnBeat(
-      normalised.chordsByArrangement,
-      activeArrangementId,
-      beatId,
-      chord,
-    );
-    await onChange({ ...normalised, chordsByArrangement: next });
+  const commitChord = async (beatId: string, rawInput: string) => {
+    // Empty input clears the slot. Anything else parses into a
+    // ChordFunction; unparseable inputs are preserved with
+    // `unparsed: true` so the user doesn't lose their typing.
+    const trimmed = rawInput.trim();
+    if (trimmed === '') {
+      const cleared = setChordOnBeat(
+        normalised.chordsByArrangement,
+        activeArrangementId,
+        beatId,
+        null,
+      );
+      await onChange({ ...normalised, chordsByArrangement: cleared });
+      return;
+    }
+    const parsed = parseChordFunction(trimmed, sectionKey);
+    if (parsed) {
+      const next = setChordOnBeat(
+        normalised.chordsByArrangement,
+        activeArrangementId,
+        beatId,
+        parsed,
+      );
+      await onChange({ ...normalised, chordsByArrangement: next });
+    }
   };
 
   const updateWordText = async (beatId: string, text: string) => {
@@ -116,15 +148,17 @@ export default function PhraseLineEditor({
       className={`rounded-md px-1 py-1 -mx-1 ${highlighted ? 'repertoire-flash' : ''}`}
     >
       {/* Compare arrangements: stacked chord rows above the active
-          one. Read-only; arrow / label on the left identifies each. */}
+          one. Read-only; label on the left identifies each. */}
       {compareArrangementIds.map(arrId => {
         const placements = normalised.chordsByArrangement[arrId] ?? {};
         return (
-          <CompareChordRow
+          <ChordRow
             key={arrId}
             label={arrangementName(arrId)}
             beats={beats}
             placements={placements}
+            notationMode={notationMode}
+            sectionKey={sectionKey}
           />
         );
       })}
@@ -135,6 +169,8 @@ export default function PhraseLineEditor({
         label={compareArrangementIds.length > 0 ? arrangementName(activeArrangementId) : undefined}
         beats={beats}
         placements={activePlacements}
+        notationMode={notationMode}
+        sectionKey={sectionKey}
         autofocusBeatId={autofocusBeatId}
         onCommit={commitChord}
       />
@@ -177,13 +213,24 @@ interface ChordRowProps {
   /** Label shown to the left (only used in compare mode). */
   label?: string;
   beats: Beat[];
-  placements: Record<string, string>;
+  placements: Record<string, ChordFunction>;
   active?: boolean;
+  notationMode: NotationMode;
+  sectionKey?: string;
   autofocusBeatId?: string;
-  onCommit?: (beatId: string, chord: string) => Promise<void>;
+  onCommit?: (beatId: string, raw: string) => Promise<void>;
 }
 
-function ChordRow({ label, beats, placements, active, autofocusBeatId, onCommit }: ChordRowProps) {
+function ChordRow({
+  label,
+  beats,
+  placements,
+  active,
+  notationMode,
+  sectionKey,
+  autofocusBeatId,
+  onCommit,
+}: ChordRowProps) {
   return (
     <div className="flex items-end flex-wrap">
       {label !== undefined && (
@@ -191,9 +238,6 @@ function ChordRow({ label, beats, placements, active, autofocusBeatId, onCommit 
           {label}:
         </span>
       )}
-      {/* The chord row mirrors the beat row's layout so chords sit
-          directly above their beats. Includes zero-width spacers for
-          the insertion "+" positions so the columns align. */}
       <div className="flex flex-wrap">
         <InsertSpacer />
         {beats.map(beat => (
@@ -201,28 +245,24 @@ function ChordRow({ label, beats, placements, active, autofocusBeatId, onCommit 
             {active && onCommit ? (
               <ChordSlot
                 beatId={beat.id}
-                value={placements[beat.id] ?? ''}
+                chord={placements[beat.id]}
+                notationMode={notationMode}
+                sectionKey={sectionKey}
                 autofocus={autofocusBeatId === beat.id}
-                onCommit={chord => onCommit(beat.id, chord)}
+                onCommit={raw => onCommit(beat.id, raw)}
               />
             ) : (
-              <ReadOnlyChordSlot value={placements[beat.id] ?? ''} />
+              <ReadOnlyChordSlot
+                chord={placements[beat.id]}
+                notationMode={notationMode}
+                sectionKey={sectionKey}
+              />
             )}
             <InsertSpacer />
           </span>
         ))}
       </div>
     </div>
-  );
-}
-
-function CompareChordRow({
-  label,
-  beats,
-  placements,
-}: { label: string; beats: Beat[]; placements: Record<string, string> }) {
-  return (
-    <ChordRow label={label} beats={beats} placements={placements} />
   );
 }
 
@@ -324,25 +364,54 @@ function BeatCell({
 
 // -------------------------------------------------------------------
 
-interface ChordSlotProps {
-  beatId: string;
-  value: string;
-  autofocus?: boolean;
-  onCommit: (chord: string) => Promise<void>;
+/**
+ * Convert the stored ChordFunction back to a string that the user
+ * would recognise as "what they typed", rendered in the currently-
+ * selected notation. Used as the initial value of the edit input so
+ * users see their own notation when they click to edit. When the
+ * slot is empty, returns "".
+ */
+function chordToDisplay(
+  chord: ChordFunction | undefined,
+  mode: NotationMode,
+  sectionKey?: string,
+): string {
+  if (!chord || chordIsEmpty(chord)) return '';
+  if (chord.unparsed) return chord.raw ?? '';
+  switch (mode) {
+    case 'numbers':
+    case 'stacked':
+      return renderNumbers(chord);
+    case 'roman':
+      return renderRoman(chord);
+    case 'concrete':
+      return renderConcrete(chord, sectionKey);
+  }
 }
 
-function ChordSlot({ beatId, value, autofocus, onCommit }: ChordSlotProps) {
-  const [draft, setDraft] = useState(value);
+interface ChordSlotProps {
+  beatId: string;
+  chord: ChordFunction | undefined;
+  notationMode: NotationMode;
+  sectionKey?: string;
+  autofocus?: boolean;
+  onCommit: (raw: string) => Promise<void>;
+}
+
+function ChordSlot({ beatId, chord, notationMode, sectionKey, autofocus, onCommit }: ChordSlotProps) {
+  const display = chordToDisplay(chord, notationMode, sectionKey);
+  const [draft, setDraft] = useState(display);
+  const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Only resync the draft when the slot identity changes — i.e. a
-  // different beat's chord is being shown. We explicitly do NOT depend
-  // on `value` because that would stomp the user's in-flight edit
-  // every time a sibling commit triggered a parent re-render.
+  // different beat's chord is being shown, OR the notation mode
+  // switched while this slot isn't being edited. Never on the user's
+  // in-flight edit.
   useEffect(() => {
-    setDraft(value);
+    if (!editing) setDraft(display);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [beatId]);
+  }, [beatId, notationMode, sectionKey]);
 
   useEffect(() => {
     if (autofocus) {
@@ -352,9 +421,9 @@ function ChordSlot({ beatId, value, autofocus, onCommit }: ChordSlotProps) {
   }, [autofocus]);
 
   const commit = () => {
-    const trimmed = draft.trim();
-    if (trimmed !== (value ?? '').trim()) {
-      void onCommit(trimmed);
+    setEditing(false);
+    if (draft.trim() !== display.trim()) {
+      void onCommit(draft);
     }
   };
 
@@ -364,45 +433,80 @@ function ChordSlot({ beatId, value, autofocus, onCommit }: ChordSlotProps) {
       (e.target as HTMLInputElement).blur();
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setDraft(value);
+      setDraft(display);
+      setEditing(false);
       (e.target as HTMLInputElement).blur();
-    } else if (e.key === 'Tab') {
-      // Let the default tab order handle focus navigation. No
-      // preventDefault so inputs with `tabIndex` naturally chain.
     }
   };
 
   const filled = draft.trim() !== '';
+  const unparsed = chord?.unparsed === true;
+  const stackedRoman = notationMode === 'stacked' && chord && !chord.unparsed
+    ? renderRoman(chord)
+    : '';
 
   return (
-    <input
-      ref={inputRef}
-      value={draft}
-      onChange={e => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={handleKey}
-      placeholder=" "
-      spellCheck={false}
-      className={`bg-transparent border-0 border-b border-dashed text-center px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors ${
-        filled
-          ? 'text-fluent border-fluent/30'
-          : 'text-neutral-400 border-transparent hover:border-neutral-300 dark:hover:border-neutral-600'
-      }`}
-      style={{ width: `${Math.max(2, draft.length + 1)}ch`, minWidth: '1.5rem' }}
-      title="chord slot — click to edit, Tab to next"
-    />
+    <span className="inline-flex flex-col items-center">
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onFocus={() => setEditing(true)}
+        onBlur={commit}
+        onKeyDown={handleKey}
+        placeholder=" "
+        spellCheck={false}
+        className={`bg-transparent border-0 border-b border-dashed text-center px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors ${
+          unparsed
+            ? 'text-developing border-developing/40'
+            : filled
+              ? 'text-fluent border-fluent/30'
+              : 'text-neutral-400 border-transparent hover:border-neutral-300 dark:hover:border-neutral-600'
+        }`}
+        style={{ width: `${Math.max(2, draft.length + 1)}ch`, minWidth: '1.5rem' }}
+        title={unparsed
+          ? "couldn't parse — saved as raw text"
+          : 'chord slot — numbers (4maj7), Roman (IVmaj7), or concrete (Fmaj7 — uses section key)'}
+      />
+      {stackedRoman && (
+        <span
+          className="text-[9px] font-mono text-neutral-400 -mt-0.5 leading-none"
+          aria-hidden
+        >
+          {stackedRoman}
+        </span>
+      )}
+    </span>
   );
 }
 
-function ReadOnlyChordSlot({ value }: { value: string }) {
+interface ReadOnlyChordSlotProps {
+  chord: ChordFunction | undefined;
+  notationMode: NotationMode;
+  sectionKey?: string;
+}
+
+function ReadOnlyChordSlot({ chord, notationMode, sectionKey }: ReadOnlyChordSlotProps) {
+  const display = chordToDisplay(chord, notationMode, sectionKey);
+  const empty = display === '';
+  const stackedRoman = notationMode === 'stacked' && chord && !chord.unparsed
+    ? renderRoman(chord)
+    : '';
   return (
-    <span
-      className={`inline-block text-center text-sm font-mono tracking-tight px-0.5 ${
-        value.trim() === '' ? 'text-neutral-300 dark:text-neutral-700' : 'text-neutral-600 dark:text-neutral-300'
-      }`}
-      style={{ minWidth: '1.5rem' }}
-    >
-      {value.trim() === '' ? '·' : value}
+    <span className="inline-flex flex-col items-center">
+      <span
+        className={`inline-block text-center text-sm font-mono tracking-tight px-0.5 ${
+          empty ? 'text-neutral-300 dark:text-neutral-700' : 'text-neutral-600 dark:text-neutral-300'
+        }`}
+        style={{ minWidth: '1.5rem' }}
+      >
+        {empty ? '·' : display}
+      </span>
+      {stackedRoman && (
+        <span className="text-[9px] font-mono text-neutral-400 -mt-0.5 leading-none" aria-hidden>
+          {stackedRoman}
+        </span>
+      )}
     </span>
   );
 }

@@ -118,6 +118,42 @@ export interface Arrangement {
 }
 
 /**
+ * Functional chord representation. The user works in functional
+ * harmony, so chords store their position (scale-degree function) and
+ * quality independently of any concrete key. Concrete chord names
+ * ("Fmaj7", "Ab", etc.) are DERIVED at render time from the song
+ * section's current key + these functional fields.
+ *
+ * Degree label convention matches the Chord Motion module:
+ *   "1" "b2" "2" "b3" "3" "4" "#4" "5" "b6" "6" "b7" "7"
+ * — so progression detection can interoperate without a translation
+ * layer.
+ *
+ * When the user types something the parser can't resolve (a chord in
+ * a key the section doesn't declare, an unrecognised quality), the
+ * entry is stored with `unparsed: true` and `raw` preserved so no
+ * input is silently discarded.
+ */
+export interface ChordFunction {
+  /** Scale-degree label — "1", "b2", "2", ... "7". Empty string when
+   *  parsing failed (check `unparsed`). */
+  function: string;
+  /** Quality suffix as the user would read it: "", "m", "7", "maj7",
+   *  "m7", "m7b5", "dim", "aug", "add9", "m(add9)", etc. */
+  quality: string;
+  /** Bass function for slash chords, as a scale-degree label
+   *  ("3", "5", "b7"). Undefined when not a slash. */
+  bass?: string;
+  /** Original user-entered text. Preserved verbatim so the display
+   *  layer can fall back to raw when parsing produced nothing useful. */
+  raw?: string;
+  /** Flag set by the parser when it couldn't resolve the input to a
+   *  functional position (e.g. a concrete chord name in a section
+   *  whose key is unknown). Renderer shows `raw` with a small warning. */
+  unparsed?: boolean;
+}
+
+/**
  * One phrase line = a sequence of beats + per-arrangement chord
  * placements over those beats.
  *
@@ -132,10 +168,11 @@ export interface Phrase {
   /** Ordered beat sequence. When undefined, renderer derives from
    *  `lyrics` (one word beat per whitespace-split token). */
   beats?: Beat[];
-  /** arrangementId → { beatId → chord token string }. A chord's
-   *  placement is stable across lyric edits because the beat id
-   *  doesn't change when the lyric text does. */
-  chordsByArrangement?: Record<string, Record<string, string>>;
+  /** arrangementId → { beatId → ChordFunction }. Functional storage
+   *  means the placement survives a key change without rewriting
+   *  anything — only the displayed concrete chord name (when the user
+   *  has that notation mode on) re-derives. */
+  chordsByArrangement?: Record<string, Record<string, ChordFunction>>;
   /** @deprecated pre-beat single chord string for the whole line.
    *  Migrated into `chordsByArrangement.basic` at render time. */
   chords?: string;

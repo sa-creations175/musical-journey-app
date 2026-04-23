@@ -27,6 +27,7 @@ import FullLyricsSection from './FullLyricsSection';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
+import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/notationPref';
 
 interface Props {
   songId: string | null;
@@ -114,6 +115,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   const { toast } = useToast();
   const { flash, isHighlighted } = useScrollHighlight();
+  const [notationMode, setNotationMode] = useNotationMode();
 
   // Which section / phrase to flash on next render — set by the
   // action handlers below.
@@ -300,11 +302,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     const anyChordTokens = (s.phrases ?? []).some(p => {
       // Legacy pre-beat chord blob.
       if ((p.chords ?? '').trim() !== '') return true;
-      // Any arrangement has at least one non-empty chord placement.
+      // Any arrangement has at least one non-empty ChordFunction
+      // placement. `function` or `raw` carrying content both count.
       const placements = p.chordsByArrangement ?? {};
       for (const perArrangement of Object.values(placements)) {
         for (const chord of Object.values(perArrangement)) {
-          if (chord.trim() !== '') return true;
+          if (chord.function !== '' || (chord.raw ?? '').trim() !== '') return true;
         }
       }
       return false;
@@ -563,12 +566,27 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
-          <button
-            onClick={addSection}
-            className="text-xs text-neutral-500 hover:text-fluent"
-          >
-            + add section
-          </button>
+          <div className="flex items-center gap-3 flex-wrap text-xs">
+            <label className="inline-flex items-center gap-1 text-neutral-500">
+              notation:
+              <select
+                value={notationMode}
+                onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
+                title="changes how chord functions display across the whole app"
+              >
+                {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
+                  <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              onClick={addSection}
+              className="text-neutral-500 hover:text-fluent"
+            >
+              + add section
+            </button>
+          </div>
         </div>
         {sections.length === 0 ? (
           <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
@@ -677,9 +695,16 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               <ul className="list-disc pl-5 text-xs text-neutral-600 dark:text-neutral-300 space-y-0.5">
                 {(() => {
                   const s = confirmDeleteSection;
-                  const phraseCount = (s.phrases ?? []).filter(
-                    p => p.chords.trim() !== '' || p.lyrics.trim() !== '',
-                  ).length;
+                  const phraseCount = (s.phrases ?? []).filter(p => {
+                    const beatCount = (p.beats ?? []).filter(
+                      b => (b.type === 'word' && (b.text ?? '').trim() !== ''),
+                    ).length;
+                    const chordCount = Object.values(p.chordsByArrangement ?? {})
+                      .reduce((acc, placements) =>
+                        acc + Object.values(placements).filter(c => c.function !== '' || (c.raw ?? '').trim() !== '').length, 0);
+                    const legacy = (p.chords ?? '').trim() !== '' || (p.lyrics ?? '').trim() !== '';
+                    return beatCount > 0 || chordCount > 0 || legacy;
+                  }).length;
                   const bullets: string[] = [];
                   if (phraseCount > 0) {
                     bullets.push(`${phraseCount} phrase line${phraseCount === 1 ? '' : 's'} with chords or lyrics`);

@@ -6,7 +6,7 @@ import {
   STAGE_BADGE_CLASS,
   STAGE_LABEL,
 } from './stage';
-import { chartToNumerals, parseChord } from './chordParser';
+import { parseChord } from './chordParser';
 import { detectProgressions } from '../../lib/progressionDetection';
 import { useToast } from '../../components/Toaster';
 import {
@@ -16,6 +16,8 @@ import {
   normalizePhrase,
   uid,
 } from './beatsModel';
+import { toRomanToken } from './chordFunction';
+import { useNotationMode } from '../../lib/notationPref';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
 
@@ -48,6 +50,7 @@ export default function LeadSheetSection({
 }: Props) {
   const stage = section.stage ?? song.stage ?? DEFAULT_STAGE;
   const { toast } = useToast();
+  const [notationMode] = useNotationMode();
 
   const [showNotes, setShowNotes] = useState(Boolean(section.notes));
   const [notesDraft, setNotesDraft] = useState(section.notes ?? '');
@@ -146,17 +149,21 @@ export default function LeadSheetSection({
   };
 
   // --- Progression detection -------------------------------------
+  // Runs on the active arrangement's functional data. Each
+  // ChordFunction converts to a Roman-numeral token that
+  // detectProgressions already knows how to read.
   const progressionMatches = useMemo(() => {
-    if (!song.key) return [];
     const tokens: string[] = [];
     for (const phrase of normalisedPhrases) {
-      tokens.push(...chordSequenceForArrangement(phrase, activeArrangementId));
+      const seq = chordSequenceForArrangement(phrase, activeArrangementId);
+      for (const cf of seq) {
+        const roman = toRomanToken(cf);
+        if (roman !== '') tokens.push(roman);
+      }
     }
     if (tokens.length < 2) return [];
-    const numerals = chartToNumerals(tokens.join(' '), song.key);
-    if (numerals.length < 2) return [];
-    return detectProgressions(numerals);
-  }, [normalisedPhrases, activeArrangementId, song.key]);
+    return detectProgressions(tokens);
+  }, [normalisedPhrases, activeArrangementId]);
 
   const setSectionStage = async (next: SongSection['stage']) => {
     await commit({ stage: next });
@@ -328,6 +335,8 @@ export default function LeadSheetSection({
                         activeArrangementId={activeArrangementId}
                         compareArrangementIds={otherCompareIds}
                         arrangementName={id => arrangements.find(a => a.id === id)?.name ?? id}
+                        notationMode={notationMode}
+                        sectionKey={song.key}
                         onChange={updatePhraseInPlace}
                         highlighted={highlightedPhraseId === p.id}
                       />
