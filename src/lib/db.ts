@@ -94,13 +94,54 @@ export interface Song {
   recorded?: boolean;
 }
 
-/** One chord+lyric row inside a section. Chord text sits above the
- *  lyric; both are rendered in monospace so users can space-align
- *  chords over syllables character-by-character. */
+/** One atomic unit inside a phrase line. A word beat carries lyric
+ *  text; a blank beat carries no lyric but can still hold a chord
+ *  (used for instrumental hits, pickup chords, mid-word chord changes,
+ *  etc.). Chords anchor to beat ids — never to character offsets — so
+ *  editing lyrics can't cascade chord placements. */
+export interface Beat {
+  id: string;
+  type: 'word' | 'blank';
+  /** Word text. Undefined / empty for blank beats. */
+  text?: string;
+}
+
+/** Named chord arrangement stored at the section level. Every phrase
+ *  within a section shares this list of arrangements; each phrase
+ *  decides which chord lands on which beat for each arrangement. */
+export interface Arrangement {
+  id: string;
+  name: string;
+  /** Per-arrangement notes (picked up from legacy alternateNote when
+   *  the Alternates arrangement is auto-created). */
+  notes?: string;
+}
+
+/**
+ * One phrase line = a sequence of beats + per-arrangement chord
+ * placements over those beats.
+ *
+ * Legacy fields `chords` / `lyrics` remain for backward compatibility
+ * with pre-beat data — the renderer derives beats from `lyrics.split`
+ * when `beats` is absent. Those fields are written on seed/init but
+ * the authoritative post-refactor state lives on `beats` +
+ * `chordsByArrangement`.
+ */
 export interface Phrase {
   id: string;
-  chords: string;
-  lyrics: string;
+  /** Ordered beat sequence. When undefined, renderer derives from
+   *  `lyrics` (one word beat per whitespace-split token). */
+  beats?: Beat[];
+  /** arrangementId → { beatId → chord token string }. A chord's
+   *  placement is stable across lyric edits because the beat id
+   *  doesn't change when the lyric text does. */
+  chordsByArrangement?: Record<string, Record<string, string>>;
+  /** @deprecated pre-beat single chord string for the whole line.
+   *  Migrated into `chordsByArrangement.basic` at render time. */
+  chords?: string;
+  /** @deprecated pre-beat single lyric string. Split into word beats
+   *  on demand. */
+  lyrics?: string;
 }
 
 export interface SongSection {
@@ -120,10 +161,20 @@ export interface SongSection {
   /** Authoritative lyric + chord data. Each phrase is one displayed
    *  row. Empty / missing = fall back to `lyrics` split on newlines. */
   phrases?: Phrase[];
+  /** Named chord arrangements available on this section. Every
+   *  section gets a seed "Basic" arrangement; users can add their own
+   *  ("My arrangement", "Jazz voicings", etc.). When undefined, the
+   *  renderer synthesises a single `{ id: 'basic', name: 'Basic' }`. */
+  arrangements?: Arrangement[];
+  /** Which arrangement is currently shown in the editor. Defaults to
+   *  the first arrangement (usually 'basic'). */
+  activeArrangementId?: string;
   /** @deprecated kept for backward-compat with pre-phrase-line data.
    *  Space-separated chord tokens for the whole section. */
   basicChords?: string;
-  /** Optional alternate/substitution chord chart the user explores. */
+  /** Optional alternate/substitution chord chart the user explores.
+   *  When non-empty on first load post-refactor, auto-materialised as
+   *  an "Alternates" arrangement alongside Basic. */
   alternateChords?: string;
   /** @deprecated kept for backward-compat. Per-line strike-through
    *  flags keyed by the old lyric-line index. Not used by phrase-line

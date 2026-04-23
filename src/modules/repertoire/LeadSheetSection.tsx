@@ -1,54 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Phrase, Song, SongSection } from '../../lib/db';
+import { useEffect, useMemo, useState } from 'react';
+import type { Arrangement, Phrase, Song, SongSection } from '../../lib/db';
 import {
   DEFAULT_STAGE,
   STAGES,
   STAGE_BADGE_CLASS,
   STAGE_LABEL,
 } from './stage';
-import { parseChord, parseChordChart, chartToNumerals } from './chordParser';
+import { chartToNumerals, parseChord } from './chordParser';
 import { detectProgressions } from '../../lib/progressionDetection';
 import { useToast } from '../../components/Toaster';
+import {
+  chordSequenceForArrangement,
+  newEmptyPhrase,
+  normalizeArrangements,
+  normalizePhrase,
+  uid,
+} from './beatsModel';
+import PhraseLineEditor from './PhraseLineEditor';
+import ArrangementBar from './ArrangementBar';
 
 interface Props {
   song: Song;
   section: SongSection;
-  /** True when this section can move up (i.e. not the first). */
   canMoveUp: boolean;
-  /** True when this section can move down (i.e. not the last). */
   canMoveDown: boolean;
-  /** Flash the whole card when true — used for freshly-added / moved sections. */
   highlighted?: boolean;
-  /** Which phrase id (if any) should flash briefly. */
   highlightedPhraseId?: string | null;
   onChange: (patch: Partial<SongSection>) => Promise<void>;
   onMoveUp?: () => Promise<void>;
   onMoveDown?: () => Promise<void>;
   onDelete?: () => Promise<void>;
-  /** Called by the phrase-line "+ add phrase line" button so the parent
-   *  can trigger scroll-and-flash on the new row. */
   onPhraseAdded?: (phraseId: string) => void;
-}
-
-function uid(prefix: string): string {
-  return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
-}
-
-/**
- * Derive the phrase list for rendering. When `phrases` exists, it is
- * authoritative. Otherwise we fall back to splitting the legacy
- * `lyrics` blob on newlines so pre-phrase-refactor seed data still
- * renders sensibly. Empty sections collapse to a single blank phrase
- * so the "+ add phrase line" affordance is always reachable.
- */
-function derivePhrases(section: SongSection): Phrase[] {
-  if (section.phrases && section.phrases.length > 0) return section.phrases;
-  if (section.lyrics.trim() === '') return [];
-  return section.lyrics.split('\n').map(line => ({
-    id: uid('phrase'),
-    chords: '',
-    lyrics: line,
-  }));
 }
 
 export default function LeadSheetSection({
@@ -65,120 +47,122 @@ export default function LeadSheetSection({
   onPhraseAdded,
 }: Props) {
   const stage = section.stage ?? song.stage ?? DEFAULT_STAGE;
-  const [showAlternates, setShowAlternates] = useState(Boolean(section.alternateChords));
-  const [showNotes, setShowNotes] = useState(Boolean(section.notes));
   const { toast } = useToast();
 
-  const [altDraft, setAltDraft] = useState(section.alternateChords ?? '');
-  const [altNoteDraft, setAltNoteDraft] = useState(section.alternateNote ?? '');
+  const [showNotes, setShowNotes] = useState(Boolean(section.notes));
   const [notesDraft, setNotesDraft] = useState(section.notes ?? '');
   const [nameDraft, setNameDraft] = useState(section.name);
   const [editingName, setEditingName] = useState(false);
+  const [compareIds, setCompareIds] = useState<string[]>([]);
 
-  // Re-sync drafts when a different section scrolls into view.
+  // Re-sync drafts when a different section rotates in.
   useEffect(() => {
-    setAltDraft(section.alternateChords ?? '');
-    setAltNoteDraft(section.alternateNote ?? '');
     setNotesDraft(section.notes ?? '');
     setNameDraft(section.name);
     setEditingName(false);
+    setCompareIds([]);
   }, [section.id]);
-
-  // Phrases are always derived — never trust a stale render.
-  const phrases = useMemo(() => derivePhrases(section), [section]);
 
   const commit = (patch: Partial<SongSection>) => onChange(patch);
 
-  const writePhrases = async (next: Phrase[]) => {
-    await commit({ phrases: next });
+  // --- Normalise arrangements + phrases at render time -----------
+  const arrangements: Arrangement[] = useMemo(() => normalizeArrangements(section), [section]);
+  const activeArrangementId = useMemo(() => {
+    const storedActive = section.activeArrangementId;
+    if (storedActive && arrangements.some(a => a.id === storedActive)) return storedActive;
+    return arrangements[0].id;
+  }, [section.activeArrangementId, arrangements]);
+
+  const rawPhrases: Phrase[] = useMemo(() => {
+    const list = section.phrases ?? [];
+    // Seed: if the section has no phrases array at all but carries a
+    // legacy `lyrics` blob, derive phrases per-line from that so the
+    // render doesn't come up blank.
+    if (list.length === 0 && (section.lyrics ?? '').trim() !== '') {
+      return section.lyrics.split('\n').map(line => ({
+        id: uid('phrase'),
+        chords: '',
+        lyrics: line,
+      }));
+    }
+    return list;
+  }, [section.phrases, section.lyrics]);
+
+  const normalisedPhrases = useMemo(() => rawPhrases.map(normalizePhrase), [rawPhrases]);
+
+  // --- Arrangement mutations -------------------------------------
+  const saveArrangements = async (next: Arrangement[]) => {
+    await commit({ arrangements: next });
+  };
+  const setActiveArrangementId = async (id: string) => {
+    await commit({ activeArrangementId: id });
   };
 
-  const updatePhrase = async (phraseId: string, patch: Partial<Phrase>) => {
-    const next = phrases.map(p => (p.id === phraseId ? { ...p, ...patch } : p));
-    await writePhrases(next);
+  const updatePhraseInPlace = async (next: Phrase) => {
+    const list = (section.phrases ?? rawPhrases).map(p =>
+      p.id === next.id ? next : p,
+    );
+    await commit({ phrases: list });
+  };
+
+  // --- Phrase list CRUD ------------------------------------------
+  const addPhrase = async () => {
+    const fresh = newEmptyPhrase();
+    const list = [...normalisedPhrases, fresh];
+    await commit({ phrases: list });
+    onPhraseAdded?.(fresh.id);
+  };
+
+  const deletePhrase = async (phraseId: string) => {
+    const current = [...normalisedPhrases];
+    const idx = current.findIndex(p => p.id === phraseId);
+    if (idx < 0) return;
+    const removed = current[idx];
+    const next = current.filter(p => p.id !== phraseId);
+    await commit({ phrases: next });
+    toast({
+      message: 'Phrase line deleted.',
+      variant: 'warning',
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          const restored = [...next];
+          restored.splice(idx, 0, removed);
+          await commit({ phrases: restored });
+        },
+      },
+    });
   };
 
   const movePhrase = async (phraseId: string, dir: -1 | 1) => {
-    const idx = phrases.findIndex(p => p.id === phraseId);
+    const list = [...normalisedPhrases];
+    const idx = list.findIndex(p => p.id === phraseId);
     if (idx < 0) return;
     const target = idx + dir;
-    if (target < 0 || target >= phrases.length) return;
-    const next = phrases.slice();
-    const [moved] = next.splice(idx, 1);
-    next.splice(target, 0, moved);
-    await writePhrases(next);
+    if (target < 0 || target >= list.length) return;
+    const [moved] = list.splice(idx, 1);
+    list.splice(target, 0, moved);
+    await commit({ phrases: list });
   };
 
-  const addPhrase = async () => {
-    const newId = uid('phrase');
-    const next = [...phrases, { id: newId, chords: '', lyrics: '' }];
-    await writePhrases(next);
-    onPhraseAdded?.(newId);
-  };
-
-  // Delete-with-undo: remove the phrase, raise a toast that restores
-  // it in-place when the user hits Undo.
-  const deletePhrase = async (phraseId: string) => {
-    const idx = phrases.findIndex(p => p.id === phraseId);
-    if (idx < 0) return;
-    const removed = phrases[idx];
-    const next = phrases.filter(p => p.id !== phraseId);
-    await writePhrases(next);
-    toast({
-      message: removed.lyrics.trim() === '' && removed.chords.trim() === ''
-        ? 'Line deleted.'
-        : `Line deleted: "${(removed.lyrics || removed.chords).slice(0, 50)}"`,
-      variant: 'warning',
-      action: {
-        label: 'Undo',
-        onClick: async () => {
-          const restored = [...phrases];
-          restored.splice(idx, 0, removed);
-          await writePhrases(restored);
-        },
-      },
-    });
-  };
-
-  const deleteAlternate = async () => {
-    const snap = { alternateChords: section.alternateChords ?? '', alternateNote: section.alternateNote ?? '' };
-    if (snap.alternateChords === '' && snap.alternateNote === '') return;
-    await commit({ alternateChords: undefined, alternateNote: undefined });
-    setAltDraft('');
-    setAltNoteDraft('');
-    toast({
-      message: 'Alternate cleared.',
-      variant: 'warning',
-      action: {
-        label: 'Undo',
-        onClick: async () => {
-          await commit({
-            alternateChords: snap.alternateChords || undefined,
-            alternateNote: snap.alternateNote || undefined,
-          });
-          setAltDraft(snap.alternateChords);
-          setAltNoteDraft(snap.alternateNote);
-        },
-      },
-    });
-  };
-
-  // Progression detection across the whole section — all chord tokens
-  // from every phrase concatenated in order.
-  const allChordTokens = useMemo(() => (
-    phrases.flatMap(p => p.chords.split(/\s+/).filter(Boolean))
-  ), [phrases]);
+  // --- Progression detection -------------------------------------
   const progressionMatches = useMemo(() => {
-    if (!song.key || allChordTokens.length < 2) return [];
-    const chartText = allChordTokens.join(' ');
-    const numerals = chartToNumerals(chartText, song.key);
+    if (!song.key) return [];
+    const tokens: string[] = [];
+    for (const phrase of normalisedPhrases) {
+      tokens.push(...chordSequenceForArrangement(phrase, activeArrangementId));
+    }
+    if (tokens.length < 2) return [];
+    const numerals = chartToNumerals(tokens.join(' '), song.key);
     if (numerals.length < 2) return [];
     return detectProgressions(numerals);
-  }, [allChordTokens, song.key]);
+  }, [normalisedPhrases, activeArrangementId, song.key]);
 
   const setSectionStage = async (next: SongSection['stage']) => {
     await commit({ stage: next });
   };
+
+  const comparing = compareIds.length > 0;
 
   return (
     <div
@@ -187,7 +171,7 @@ export default function LeadSheetSection({
         section.hidden
           ? 'border-dashed opacity-70'
           : 'border-neutral-200 dark:border-neutral-800'
-      } ${highlighted ? 'repertoire-flash' : ''}`}
+      } ${highlighted ? 'repertoire-flash' : ''} ${comparing ? 'bg-info/5' : ''}`}
     >
       {/* Header: name / stage / reorder / hide / delete */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -242,6 +226,11 @@ export default function LeadSheetSection({
               needs verification
             </span>
           )}
+          {comparing && (
+            <span className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border border-info/40 bg-info/10 text-info">
+              comparing arrangements
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1 text-[11px]">
           <button
@@ -283,8 +272,18 @@ export default function LeadSheetSection({
         <p className="text-xs text-neutral-500 italic">section hidden — won't show in your practice view.</p>
       ) : (
         <>
-          {/* Phrase lines */}
-          {phrases.length === 0 ? (
+          <ArrangementBar
+            arrangements={arrangements}
+            activeId={activeArrangementId}
+            compareIds={compareIds}
+            onChangeActive={setActiveArrangementId}
+            onChangeCompare={setCompareIds}
+            onArrangementsChange={saveArrangements}
+            phrases={normalisedPhrases}
+            onPhraseChange={updatePhraseInPlace}
+          />
+
+          {normalisedPhrases.length === 0 ? (
             <p className="text-xs text-neutral-500 italic">
               {section.lyricsNeedsVerification
                 ? 'no lyrics seeded — transcribe from the recording and click "+ add phrase line" to start.'
@@ -292,19 +291,50 @@ export default function LeadSheetSection({
             </p>
           ) : (
             <div className="space-y-2">
-              {phrases.map((p, idx) => (
-                <PhraseRow
-                  key={p.id}
-                  phrase={p}
-                  index={idx}
-                  total={phrases.length}
-                  highlighted={highlightedPhraseId === p.id}
-                  onChange={patch => updatePhrase(p.id, patch)}
-                  onMoveUp={() => movePhrase(p.id, -1)}
-                  onMoveDown={() => movePhrase(p.id, 1)}
-                  onDelete={() => deletePhrase(p.id)}
-                />
-              ))}
+              {normalisedPhrases.map((p, idx) => {
+                const otherCompareIds = compareIds.filter(id => id !== activeArrangementId);
+                return (
+                  <div key={p.id} className="group flex items-start gap-2">
+                    {/* Per-phrase reorder + delete affordances (fade in
+                        on hover to keep the editor calm). */}
+                    <div className="flex flex-col items-center gap-0.5 pt-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => movePhrase(p.id, -1)}
+                        disabled={idx === 0}
+                        title="move line up"
+                        className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        onClick={() => movePhrase(p.id, 1)}
+                        disabled={idx === normalisedPhrases.length - 1}
+                        title="move line down"
+                        className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        onClick={() => deletePhrase(p.id)}
+                        title="delete line"
+                        className="text-[10px] text-neutral-500 hover:text-needswork px-0.5"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <PhraseLineEditor
+                        phrase={p}
+                        activeArrangementId={activeArrangementId}
+                        compareArrangementIds={otherCompareIds}
+                        arrangementName={id => arrangements.find(a => a.id === id)?.name ?? id}
+                        onChange={updatePhraseInPlace}
+                        highlighted={highlightedPhraseId === p.id}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -315,9 +345,7 @@ export default function LeadSheetSection({
             + add phrase line
           </button>
 
-          {/* Detected progression chips — computed from all phrase chord
-              tokens concatenated in order. */}
-          {progressionMatches.length > 0 && (
+          {progressionMatches.length > 0 && !comparing && (
             <div className="flex flex-wrap gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
               <span className="uppercase tracking-wide">detected:</span>
               {progressionMatches.slice(0, 3).map(m => (
@@ -333,47 +361,17 @@ export default function LeadSheetSection({
             </div>
           )}
 
-          {/* Alternates */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowAlternates(v => !v)}
-                className="text-[11px] text-neutral-500 hover:text-fluent"
-              >
-                {showAlternates ? '▴ hide alternates' : '▸ show alternates / substitutions'}
-              </button>
-              {showAlternates && (section.alternateChords || section.alternateNote) && (
-                <button
-                  onClick={deleteAlternate}
-                  className="text-[11px] text-neutral-400 hover:text-needswork"
-                  title="clear alternates"
-                >
-                  clear
-                </button>
-              )}
+          {/* Arrangement notes (per active arrangement) */}
+          {arrangements.find(a => a.id === activeArrangementId)?.notes && (
+            <div className="rounded-md bg-neutral-50 dark:bg-neutral-900/60 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
+              <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">
+                arrangement note
+              </span>
+              {arrangements.find(a => a.id === activeArrangementId)?.notes}
             </div>
-            {showAlternates && (
-              <div className="space-y-2">
-                <input
-                  value={altDraft}
-                  onChange={e => setAltDraft(e.target.value)}
-                  onBlur={() => altDraft !== (section.alternateChords ?? '') && commit({ alternateChords: altDraft })}
-                  placeholder="alternate chord chart — e.g. Am9 G/B Cmaj9 F6/9"
-                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm font-mono"
-                />
-                <textarea
-                  rows={2}
-                  value={altNoteDraft}
-                  onChange={e => setAltNoteDraft(e.target.value)}
-                  onBlur={() => altNoteDraft !== (section.alternateNote ?? '') && commit({ alternateNote: altNoteDraft })}
-                  placeholder="why this alternate works — e.g. extensions brighten the chorus, voicing lets the melody sit on top"
-                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs"
-                />
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Notes */}
+          {/* Section notes */}
           <div className="space-y-1">
             <button
               onClick={() => setShowNotes(v => !v)}
@@ -398,123 +396,4 @@ export default function LeadSheetSection({
   );
 }
 
-// -------------------------------------------------------------------
-
-interface PhraseRowProps {
-  phrase: Phrase;
-  index: number;
-  total: number;
-  highlighted: boolean;
-  onChange: (patch: Partial<Phrase>) => Promise<void>;
-  onMoveUp: () => Promise<void>;
-  onMoveDown: () => Promise<void>;
-  onDelete: () => Promise<void>;
-}
-
-function PhraseRow({
-  phrase,
-  index,
-  total,
-  highlighted,
-  onChange,
-  onMoveUp,
-  onMoveDown,
-  onDelete,
-}: PhraseRowProps) {
-  const [chordDraft, setChordDraft] = useState(phrase.chords);
-  const [lyricDraft, setLyricDraft] = useState(phrase.lyrics);
-  const chordRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => { setChordDraft(phrase.chords); setLyricDraft(phrase.lyrics); }, [phrase.id, phrase.chords, phrase.lyrics]);
-
-  // Auto-focus the chord input of a freshly-added empty phrase so the
-  // user can start typing immediately.
-  useEffect(() => {
-    if (highlighted && phrase.chords === '' && phrase.lyrics === '') {
-      chordRef.current?.focus();
-    }
-  }, [highlighted, phrase.chords, phrase.lyrics]);
-
-  const parsedTokens = useMemo(() => parseChordChart(phrase.chords), [phrase.chords]);
-  const anyUnparsed = parsedTokens.some(t => !t.parsed);
-
-  return (
-    <div
-      id={`phrase-${phrase.id}`}
-      className={`rounded-md border border-transparent hover:border-neutral-200 dark:hover:border-neutral-700 -mx-1 px-1 py-1 group ${highlighted ? 'repertoire-flash' : ''}`}
-    >
-      <div className="flex items-start gap-2">
-        {/* Reorder + delete column — fades in on hover. */}
-        <div className="flex flex-col items-center gap-0.5 pt-0.5 opacity-30 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={onMoveUp}
-            disabled={index === 0}
-            title="move line up"
-            className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
-          >
-            ↑
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={index === total - 1}
-            title="move line down"
-            className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
-          >
-            ↓
-          </button>
-          <button
-            onClick={onDelete}
-            title="delete line"
-            className="text-[10px] text-neutral-500 hover:text-needswork px-0.5"
-          >
-            ✕
-          </button>
-        </div>
-        <div className="flex-1 min-w-0 space-y-0.5">
-          <input
-            ref={chordRef}
-            value={chordDraft}
-            onChange={e => setChordDraft(e.target.value)}
-            onBlur={() => chordDraft !== phrase.chords && onChange({ chords: chordDraft })}
-            placeholder="chords (space to align with syllables below)"
-            className="w-full bg-transparent border-0 border-b border-dashed border-transparent focus:border-fluent/40 focus:outline-none px-0 py-0 text-sm font-mono tracking-tight text-fluent placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
-            spellCheck={false}
-          />
-          <input
-            value={lyricDraft}
-            onChange={e => setLyricDraft(e.target.value)}
-            onBlur={() => lyricDraft !== phrase.lyrics && onChange({ lyrics: lyricDraft })}
-            placeholder="lyric line"
-            className="w-full bg-transparent border-0 border-b border-dashed border-transparent focus:border-fluent/40 focus:outline-none px-0 py-0 text-sm font-mono tracking-tight text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
-          />
-        </div>
-      </div>
-      {/* Parsed token chips — small; only shown when at least one
-          unparseable token would otherwise be silent about the failure. */}
-      {parsedTokens.length > 0 && anyUnparsed && (
-        <div className="flex flex-wrap gap-1 text-[10px] pl-6 pt-1">
-          {parsedTokens.map((c, i) => (
-            <span
-              key={i}
-              title={c.parsed
-                ? `root ${c.root}, quality ${c.quality}${c.extensions.length ? ', ' + c.extensions.join(' ') : ''}${c.bass ? ', bass ' + c.bass : ''}`
-                : 'couldn\'t parse this — saved as text. cross-module features won\'t light up.'}
-              className={`font-mono rounded border px-1 py-0.5 ${
-                c.parsed
-                  ? 'border-fluent/30 bg-fluent/5 text-fluent'
-                  : 'border-developing/40 bg-developing/10 text-developing'
-              }`}
-            >
-              {!c.parsed && <span aria-hidden className="mr-0.5">⚠</span>}
-              {c.rawText}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Re-export the parser so consumers can re-use it without a separate
-// import path. Keeps the module's public surface compact.
 export { parseChord };

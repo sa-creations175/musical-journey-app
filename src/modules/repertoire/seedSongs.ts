@@ -1,4 +1,4 @@
-import { db, type Song, type SongSection } from '../../lib/db';
+import { db, type Beat, type Song, type SongSection } from '../../lib/db';
 
 // Seed the user's 7 starter songs. Runs at most once per install —
 // tracked via userPrefs so we don't re-seed if the user deletes a song
@@ -385,14 +385,25 @@ const SEED_SONGS: SeedSong[] = [
 const SEED_TITLES = new Set(SEED_SONGS.map(s => `${s.title}|${s.artist}`));
 
 function phrasesFromLyrics(lyrics: string): NonNullable<SongSection['phrases']> {
-  // Split the seeded lyric block into phrase lines. Blank lines are
-  // preserved as empty phrases so stanzas stay visually separated in
-  // the lead sheet.
-  return lyrics.split('\n').map(line => ({
-    id: uid('phrase'),
-    chords: '',
-    lyrics: line,
-  }));
+  // Split the seeded lyric block into phrase lines. Each line is
+  // converted into word beats immediately so the post-refactor beat-
+  // based editor can read it without a migration round-trip. Blank
+  // lines become phrases with a single blank beat so the editor has
+  // somewhere to click "+" for intro / gap lines.
+  return lyrics.split('\n').map(line => {
+    const words = line.split(/\s+/).filter(Boolean);
+    const beats: Beat[] = words.length > 0
+      ? words.map(w => ({ id: uid('beat'), type: 'word' as const, text: w }))
+      : [{ id: uid('beat'), type: 'blank' as const }];
+    return {
+      id: uid('phrase'),
+      beats,
+      chordsByArrangement: { basic: {} },
+      // Preserve the legacy lyrics string too — keeps backup files
+      // human-readable and gives fallback rendering if beats ever drop.
+      lyrics: line,
+    };
+  });
 }
 
 // --- Dedupe migration ------------------------------------------------
@@ -482,6 +493,10 @@ async function seedFreshIfEmpty(): Promise<void> {
           lyrics: s.lyrics,
           lyricsNeedsVerification: s.lyricsNeedsVerification,
           phrases: s.lyrics === '' ? [] : phrasesFromLyrics(s.lyrics),
+          // Every section starts with a single "Basic" arrangement.
+          // Users add more via the arrangement bar as their ears grow.
+          arrangements: [{ id: 'basic', name: 'Basic' }],
+          activeArrangementId: 'basic',
         });
       });
     }

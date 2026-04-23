@@ -234,6 +234,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       order,
       lyrics: '',
       phrases: [],
+      arrangements: [{ id: 'basic', name: 'Basic' }],
+      activeArrangementId: 'basic',
     });
     setFlashSectionId(newId);
     requestAnimationFrame(() => flash(`section-${newId}`));
@@ -295,11 +297,25 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // don't qualify (seeds ship with lyrics pre-populated); it's chords,
   // alternates, or notes that imply real effort.
   const sectionHasUserContent = (s: SongSection): boolean => {
-    const anyChordTokens = (s.phrases ?? []).some(p => p.chords.trim() !== '');
+    const anyChordTokens = (s.phrases ?? []).some(p => {
+      // Legacy pre-beat chord blob.
+      if ((p.chords ?? '').trim() !== '') return true;
+      // Any arrangement has at least one non-empty chord placement.
+      const placements = p.chordsByArrangement ?? {};
+      for (const perArrangement of Object.values(placements)) {
+        for (const chord of Object.values(perArrangement)) {
+          if (chord.trim() !== '') return true;
+        }
+      }
+      return false;
+    });
     const anyAlt = (s.alternateChords ?? '').trim() !== '' || (s.alternateNote ?? '').trim() !== '';
     const anyNotes = (s.notes ?? '').trim() !== '';
     const legacyChords = (s.basicChords ?? '').trim() !== '';
-    return anyChordTokens || anyAlt || anyNotes || legacyChords;
+    // More than one arrangement means user has created additional
+    // chord variations beyond the default — treat as user content.
+    const multipleArrangements = (s.arrangements ?? []).length > 1;
+    return anyChordTokens || anyAlt || anyNotes || legacyChords || multipleArrangements;
   };
 
   // Wrap deleteSection to route through a confirm dialog when the

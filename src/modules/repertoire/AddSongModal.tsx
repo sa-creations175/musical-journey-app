@@ -90,6 +90,8 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
       order: idx,
       lyrics: '',
       phrases: [],
+      arrangements: [{ id: 'basic', name: 'Basic' }],
+      activeArrangementId: 'basic',
     }));
     return { song, sections, songId };
   };
