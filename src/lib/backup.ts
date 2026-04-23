@@ -41,6 +41,7 @@ const TABLES = {
   drillSkills: db.drillSkills,
   drillTypes: db.drillTypes,
   drillSessions: db.drillSessions,
+  creativeSessions: db.creativeSessions,
 } as const;
 
 type TableMap = typeof TABLES;

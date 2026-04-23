@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
+import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import TodayAndAttention from './TodayAndAttention';
 import ChordShapeDrills from './ChordShapeDrills';
 import ScaleDrills from './ScaleDrills';
@@ -10,6 +11,10 @@ import MentalVizDrills from './MentalVizDrills';
 import type { QualityKind } from './catalog';
 
 type TabId = 'chord-shapes' | 'scales' | 'voice-leading' | 'mental-viz';
+
+function isTabId(v: string): v is TabId {
+  return v === 'chord-shapes' || v === 'scales' || v === 'voice-leading' || v === 'mental-viz';
+}
 
 const PREF_ACTIVE_TAB = 'shapesAndPatternsActiveTab';
 const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
@@ -29,7 +34,7 @@ export default function ShapesAndPatterns() {
   useEffect(() => {
     (async () => {
       const t = await getPref<TabId>(PREF_ACTIVE_TAB, 'chord-shapes');
-      if (t === 'chord-shapes' || t === 'scales' || t === 'voice-leading' || t === 'mental-viz') {
+      if (isTabId(t)) {
         setTab(t);
       }
       const s = await getPref<QualityKind | 'all'>(PREF_CHORD_SCOPE, 'all');
@@ -39,6 +44,9 @@ export default function ShapesAndPatterns() {
       setPrefsLoaded(true);
     })();
   }, []);
+
+  // Sidebar sub-items land here as /shapes-and-patterns?tab=<id>.
+  useUrlTabSync<TabId>('tab', isTabId, setTab);
 
   useEffect(() => { if (prefsLoaded) void setPref(PREF_ACTIVE_TAB, tab); }, [tab, prefsLoaded]);
   useEffect(() => { if (prefsLoaded) void setPref(PREF_CHORD_SCOPE, chordScope); }, [chordScope, prefsLoaded]);

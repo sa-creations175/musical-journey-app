@@ -389,6 +389,30 @@ export interface DrillSession {
   timestamp: number;
 }
 
+/**
+ * Creative-time session — "Just Play" (freeform keyboard exploration)
+ * or "Just Produce" (beat-making / sound design / recording). Logged
+ * from the header's creative-time button, separate from the skill-
+ * targeted `sessions` and `drillSessions` tables because creative
+ * work isn't tied to a specific practiceable item.
+ */
+export interface CreativeSession {
+  id: string;
+  timestamp: number;
+  mode: 'play' | 'produce';
+  durationSeconds: number;
+  /** Prompt text the user accepted (or skipped past). Undefined when
+   *  the user chose to play with no prompt. */
+  prompt?: string;
+  /** Prompt template id — records WHICH kind of prompt was used
+   *  (e.g. 'recent-drill', 'emotion-tag'). Future feedback loops. */
+  promptKind?: string;
+  notes?: string;
+  /** Flagged when shorter than the 2-minute "genuine session"
+   *  threshold. Still logged so noodling is visible. */
+  quickExploration?: boolean;
+}
+
 export interface Session {
   id: string;
   date: number;
@@ -517,6 +541,7 @@ export class AppDB extends Dexie {
   drillSkills!: Table<DrillSkill, string>;
   drillTypes!: Table<DrillType, string>;
   drillSessions!: Table<DrillSession, string>;
+  creativeSessions!: Table<CreativeSession, string>;
 
   constructor() {
     super('musical-journey');
@@ -673,6 +698,36 @@ export class AppDB extends Dexie {
       drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
       drillTypes: 'id, skillId, [skillId+order]',
       drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+    });
+    this.version(10).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      // Creative-time sessions (Just Play / Just Produce). Indexed by
+      // timestamp for "this week / this month" aggregation and by
+      // [mode+timestamp] so the dashboard can split play vs produce
+      // time without scanning everything.
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
     });
   }
 }

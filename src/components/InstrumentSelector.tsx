@@ -15,6 +15,7 @@ export default function InstrumentSelector() {
     <div
       role="radiogroup"
       aria-label="instrument"
+      title="Instrument"
       className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs"
     >
       {options.map(opt => {

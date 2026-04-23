@@ -5,6 +5,7 @@ import { db } from '../../../lib/db';
 import ModuleIntro from '../../../components/ModuleIntro';
 import DailyGoalBar from '../../../components/DailyGoalBar';
 import { getPref, setPref } from '../../../lib/userPrefs';
+import { useUrlTabSync } from '../../../lib/useUrlTabSync';
 import ChordProgressionsQuiz from './ChordProgressionsQuiz';
 import KeyDetectionTab from './KeyDetectionTab';
 import ChordMotionTab from './ChordMotionTab';
@@ -14,6 +15,10 @@ const MODULE_ID = 'chord-progressions';
 const PREF_ACTIVE_TAB = 'chordProgressionsActiveTab';
 
 type TabId = 'key-detection' | 'chord-motion' | 'full-progression';
+
+function isTabId(v: string): v is TabId {
+  return v === 'key-detection' || v === 'chord-motion' || v === 'full-progression';
+}
 
 const TABS: Array<{ id: TabId; label: string; hint: string }> = [
   {
@@ -42,7 +47,7 @@ export default function ChordProgressions() {
   useEffect(() => {
     (async () => {
       const stored = await getPref<TabId>(PREF_ACTIVE_TAB, DEFAULT_TAB);
-      if (stored === 'key-detection' || stored === 'chord-motion' || stored === 'full-progression') {
+      if (isTabId(stored)) {
         setTab(stored);
       }
       setTabHydrated(true);
@@ -53,6 +58,9 @@ export default function ChordProgressions() {
     if (!tabHydrated) return;
     setPref(PREF_ACTIVE_TAB, tab);
   }, [tab, tabHydrated]);
+
+  // Sidebar sub-items land here as /ear-training/chord-progressions?tab=<id>.
+  useUrlTabSync<TabId>('tab', isTabId, setTab);
 
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(MODULE_ID).toArray(),

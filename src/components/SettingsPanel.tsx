@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from './Modal';
 import { getPref } from '../lib/userPrefs';
+import { useUserName } from '../modules/dashboard/userName';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -30,6 +31,18 @@ export default function SettingsPanel({ open, onClose }: Props) {
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [pendingBackup, setPendingBackup] = useState<BackupFile | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [userName, saveUserName] = useUserName();
+  const [nameDraft, setNameDraft] = useState(userName);
+  // Sync the draft with the stored pref whenever the panel opens (or
+  // when the stored value changes via the Dashboard inline editor).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (open) setNameDraft(userName);
+  }, [open, userName]);
+  const commitName = async () => {
+    if (nameDraft !== userName) await saveUserName(nameDraft);
+  };
 
   const lastExportedAt = useLiveQuery(
     async () => getPref<number>(PREF_LAST_EXPORTED_AT, 0),
@@ -87,6 +100,33 @@ export default function SettingsPanel({ open, onClose }: Props) {
     <>
       <Modal open={open} onClose={onClose} title="settings">
         <div className="space-y-6">
+          <section>
+            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+              your name
+            </h4>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
+              used in the dashboard greeting. leave blank to reset to the default.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                value={nameDraft}
+                onChange={e => setNameDraft(e.target.value)}
+                onBlur={commitName}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                placeholder="your name"
+                className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+              />
+              <button
+                onClick={commitName}
+                className="px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
+              >
+                save
+              </button>
+            </div>
+          </section>
+
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
               data backup &amp; restore

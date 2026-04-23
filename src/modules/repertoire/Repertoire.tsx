@@ -3,12 +3,17 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Song } from '../../lib/db';
 import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
+import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import { seedRepertoireIfNeeded } from './seedSongs';
 import ActiveRepertoireView from './ActiveRepertoireView';
 import SongDetailView from './SongDetailView';
 import WantToLearnView from './WantToLearnView';
 
 type TabId = 'active' | 'detail' | 'want-to-learn';
+
+function isTabId(v: string): v is TabId {
+  return v === 'active' || v === 'detail' || v === 'want-to-learn';
+}
 
 const PREF_ACTIVE_TAB = 'repertoireActiveTab';
 const PREF_SELECTED_SONG = 'repertoireSelectedSongId';
@@ -36,7 +41,7 @@ export default function Repertoire() {
   useEffect(() => {
     (async () => {
       const t = await getPref<TabId>(PREF_ACTIVE_TAB, 'active');
-      if (t === 'active' || t === 'detail' || t === 'want-to-learn') {
+      if (isTabId(t)) {
         setTab(t);
       }
       const s = await getPref<string | null>(PREF_SELECTED_SONG, null);
@@ -44,6 +49,9 @@ export default function Repertoire() {
       setPrefsLoaded(true);
     })();
   }, []);
+
+  // Sidebar sub-items land here as /repertoire?tab=want-to-learn.
+  useUrlTabSync<TabId>('tab', isTabId, setTab);
 
   useEffect(() => { if (prefsLoaded) setPref(PREF_ACTIVE_TAB, tab); }, [tab, prefsLoaded]);
   useEffect(() => {

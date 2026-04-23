@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
+import { useUrlMultiSelectSync } from '../../lib/useUrlTabSync';
 import ModuleIntro from '../../components/ModuleIntro';
 import DailyGoalBar from '../../components/DailyGoalBar';
 import HarmonicFluencySession, {
@@ -18,6 +19,10 @@ import {
   type FlashcardCategory,
 } from './catalog';
 import { buildSession } from './spacedRepetition';
+
+function isCategory(v: string): v is FlashcardCategory {
+  return (CATEGORY_ORDER as readonly string[]).includes(v);
+}
 
 const MODULE_ID = 'harmonic-fluency';
 const PREF_DISPLAY_MODE = 'harmonicFluencyDisplayMode';
@@ -69,6 +74,16 @@ export default function HarmonicFluency() {
     // totalAttempts intentionally not a dep — we only use it on first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sidebar sub-items land here as /harmonic-fluency?category=<id>.
+  // Mirrors the multi-select filter UI — click a sub-item, land with
+  // that category checked. Replaces (not merges) so the sub-item
+  // navigation always produces a predictable single-category view.
+  useUrlMultiSelectSync<FlashcardCategory>(
+    'category',
+    isCategory,
+    cats => setSelectedCategories(new Set(cats)),
+  );
 
   // Persist when user changes anything (after hydration so we don't
   // overwrite the saved value with our transient defaults).

@@ -1,55 +1,39 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import InstrumentSelector from './InstrumentSelector';
 import MetronomeControl from './MetronomeControl';
 import SettingsPanel from './SettingsPanel';
+import SidebarNav from './SidebarNav';
 import BackupReminderBanner from './BackupReminderBanner';
-
-const links = [
-  { to: '/', label: 'dashboard', end: true },
-  { to: '/harmonic-fluency', label: 'harmonic fluency' },
-  { to: '/ear-training', label: 'ear training' },
-  { to: '/repertoire', label: 'song repertoire' },
-  { to: '/shapes-and-patterns', label: 'shapes & patterns' },
-  { to: '/production', label: 'production' },
-  { to: '/session-log', label: 'session log' },
-];
+import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [creativeOpen, setCreativeOpen] = useState(false);
   return (
     <div className="min-h-full flex flex-col md:flex-row">
-      <aside className="md:w-56 md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur">
+      <aside className="md:w-60 md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur">
         <div className="p-4">
           <div className="text-sm font-medium tracking-tight text-fluent">musical journey</div>
           <div className="text-xs text-neutral-500 mt-0.5">practice companion</div>
         </div>
-        <nav className="px-2 pb-4 flex md:flex-col gap-1 overflow-x-auto">
-          {links.map(l => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              end={l.end}
-              className={({ isActive }) =>
-                `px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
-                  isActive
-                    ? 'bg-fluent/10 text-fluent'
-                    : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                }`
-              }
-            >
-              {l.label}
-            </NavLink>
-          ))}
-        </nav>
+        <SidebarNav />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-between gap-3">
-          <span className="text-[10px] uppercase tracking-wide text-neutral-500">instrument</span>
+        <header className="border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3">
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <InstrumentSelector />
             <span className="text-neutral-300 dark:text-neutral-700">·</span>
             <MetronomeControl />
+            <button
+              onClick={() => setCreativeOpen(true)}
+              aria-label="just play — log creative time"
+              title="just play — log creative time"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-fluent/30 text-fluent hover:bg-fluent/10 hover:border-fluent text-xs font-medium transition-colors"
+            >
+              <span aria-hidden className="text-sm leading-none">♪✧</span>
+              <span className="hidden sm:inline">just play</span>
+            </button>
             <button
               onClick={() => setSettingsOpen(true)}
               aria-label="settings"
@@ -66,6 +50,7 @@ export default function Layout() {
         </main>
       </div>
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
     </div>
   );
 }
