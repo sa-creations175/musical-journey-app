@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import {
@@ -15,6 +15,7 @@ import SkillsGrid from './SkillsGrid';
 import ModuleGroupedView from './ModuleGroupedView';
 import SkillDetailPanel from './SkillDetailPanel';
 import TierDistributionBar from './TierDistributionBar';
+import { moduleMetaById } from '../../lib/moduleMeta';
 
 /** Submodule ids that roll up into the Ear Training meta-module on
  *  the summary + grid view. */
@@ -60,10 +61,21 @@ export default function SkillsCatalogue() {
     })();
   }, [liveSignal]);
 
+  const [searchParams] = useSearchParams();
+  const urlModuleFilter = searchParams.get('module') ?? undefined;
   const [view, setView] = useState<{ kind: 'summary' } | { kind: 'grid'; moduleFilter?: string }>(
-    { kind: 'summary' },
+    urlModuleFilter ? { kind: 'grid', moduleFilter: urlModuleFilter } : { kind: 'summary' },
   );
   const [selectedSkill, setSelectedSkill] = useState<SkillRecord | null>(null);
+
+  // Keep view in sync if the `?module=<id>` param changes after mount
+  // (e.g. the user navigates between Dashboard preview cards with
+  // the catalogue already open).
+  useEffect(() => {
+    if (!urlModuleFilter) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setView({ kind: 'grid', moduleFilter: urlModuleFilter });
+  }, [urlModuleFilter]);
 
   const dist = useMemo(() => records ? tierDistribution(records) : null, [records]);
   const attention = useMemo(() => records ? pickAttentionItems(records, 5) : [], [records]);
@@ -152,20 +164,24 @@ export default function SkillsCatalogue() {
                   show all modules →
                 </button>
               </div>
-              {/* Drill-in uses the grouped view (sub-headers by
-                  submodule or by category). */}
+              {/* Module drill-in: single module, first category
+                  expanded by default so the view feels alive. */}
               <ModuleGroupedView
                 records={recordsForView}
                 onSelectSkill={setSelectedSkill}
+                defaultExpansion="first-category"
               />
             </>
           ) : (
-            /* "View all skills" path keeps the flat + filter grid
-               so users can search across every module at once. */
-            <SkillsGrid
-              records={records}
-              onSelectSkill={setSelectedSkill}
-            />
+            <>
+              {/* Flat filter grid still available via toggle, but the
+                  default "view all" is the hierarchical view so users
+                  don't drown in 300+ rows. */}
+              <ViewAllToggleGrid
+                records={records}
+                onSelectSkill={setSelectedSkill}
+              />
+            </>
           )}
         </div>
       )}
@@ -317,42 +333,61 @@ function SummaryView({
         </section>
       </div>
 
-      {/* Modules at a glance */}
+      {/* Modules at a glance — visual language matches the sidebar:
+          same module icons, same accent colour per module, same
+          name formatting. */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-3">
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           modules at a glance
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {byModule.map(m => (
-            <button
-              key={m.moduleId}
-              onClick={() => onViewModule(m.moduleId)}
-              className="text-left rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-fluent/60 transition-colors"
-            >
-              <div className="flex items-baseline justify-between mb-1.5 gap-2">
-                <span className="text-sm font-medium truncate">{m.moduleLabel}</span>
-                <span className="text-[10px] text-neutral-500 font-mono tabular-nums">
-                  {m.count} skill{m.count === 1 ? '' : 's'}
-                </span>
-              </div>
-              <TierDistributionBar distribution={m.distribution} compact />
-              <div className="text-[10px] text-neutral-500 mt-1.5">
-                {m.lastPracticed === null
-                  ? 'no recent activity'
-                  : `last practised ${formatHumanAgo(m.lastPracticed)}`}
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <Link
-                  to={m.moduleRoute}
-                  onClick={e => e.stopPropagation()}
-                  className="text-[10px] text-fluent hover:underline"
-                >
-                  open module →
-                </Link>
-                <span className="text-[10px] text-neutral-400">view skills</span>
-              </div>
-            </button>
-          ))}
+          {byModule.map(m => {
+            const meta = moduleMetaById(m.moduleId);
+            return (
+              <button
+                key={m.moduleId}
+                onClick={() => onViewModule(m.moduleId)}
+                className="text-left rounded-lg border p-3 transition-colors"
+                style={{
+                  borderColor: meta ? `${meta.accentHex}33` : undefined,
+                  borderWidth: 1,
+                }}
+                onMouseEnter={e => { if (meta) e.currentTarget.style.borderColor = meta.accentHex; }}
+                onMouseLeave={e => { if (meta) e.currentTarget.style.borderColor = `${meta.accentHex}33`; }}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span
+                    aria-hidden
+                    className="w-7 h-7 rounded-md flex items-center justify-center text-[14px] shrink-0"
+                    style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
+                  >
+                    {meta?.icon ?? '◦'}
+                  </span>
+                  <span className="text-sm font-medium flex-1 truncate">{m.moduleLabel}</span>
+                  <span className="text-[10px] text-neutral-500 font-mono tabular-nums">
+                    {m.count} skill{m.count === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <TierDistributionBar distribution={m.distribution} compact />
+                <div className="text-[10px] text-neutral-500 mt-1.5">
+                  {m.lastPracticed === null
+                    ? 'no recent activity'
+                    : `last practised ${formatHumanAgo(m.lastPracticed)}`}
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <Link
+                    to={m.moduleRoute}
+                    onClick={e => e.stopPropagation()}
+                    className="text-[10px] hover:underline"
+                    style={meta ? { color: meta.accentHex } : undefined}
+                  >
+                    open module →
+                  </Link>
+                  <span className="text-[10px] text-neutral-400">view skills</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </section>
     </div>
@@ -401,4 +436,49 @@ function formatHumanAgo(ts: number): string {
   if (days < 7) return `${days} days ago`;
   if (days < 30) return `${Math.floor(days / 7)} week${days < 14 ? '' : 's'} ago`;
   return `${Math.floor(days / 30)} month${days < 60 ? '' : 's'} ago`;
+}
+
+/**
+ * "View all skills" surface — hierarchical by default (module →
+ * category → skills, all collapsed), with a toggle to swap into the
+ * flat filterable grid for cross-module search.
+ */
+function ViewAllToggleGrid({
+  records,
+  onSelectSkill,
+}: {
+  records: SkillRecord[];
+  onSelectSkill: (skill: SkillRecord) => void;
+}) {
+  const [mode, setMode] = useState<'hierarchy' | 'flat'>('hierarchy');
+  return (
+    <div className="space-y-3">
+      <div role="radiogroup" aria-label="all-skills layout" className="inline-flex rounded-md border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
+        {(['hierarchy', 'flat'] as const).map(m => (
+          <button
+            key={m}
+            role="radio"
+            aria-checked={mode === m}
+            onClick={() => setMode(m)}
+            className={`px-2.5 py-1 rounded transition ${
+              mode === m
+                ? 'bg-fluent text-white'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+            }`}
+          >
+            {m === 'hierarchy' ? 'grouped' : 'search all'}
+          </button>
+        ))}
+      </div>
+      {mode === 'hierarchy' ? (
+        <ModuleGroupedView
+          records={records}
+          onSelectSkill={onSelectSkill}
+          defaultExpansion="all-collapsed"
+        />
+      ) : (
+        <SkillsGrid records={records} onSelectSkill={onSelectSkill} />
+      )}
+    </div>
+  );
 }

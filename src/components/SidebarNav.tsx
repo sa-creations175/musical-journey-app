@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
+import { moduleMetaById } from '../lib/moduleMeta';
 
 // Sidebar navigation tree. Organised into three top-level groups
 // (Overview / Structured Learning / Creative Tools) each with its own
@@ -106,15 +107,11 @@ const NAV_GROUPS: NavGroup[] = [
           { id: 'scales-modes',      label: 'scales & modes',    to: '/ear-training/scales-modes' },
         ],
       },
-      {
-        id: 'repertoire',
-        label: 'song repertoire',
-        to: '/repertoire',
-        children: [
-          { label: 'active repertoire', to: '/repertoire?tab=active' },
-          { label: 'want to learn',     to: '/repertoire?tab=want-to-learn' },
-        ],
-      },
+      // Pedagogical order: theory (Harmonic Fluency) → sound (Ear
+      // Training) → body (Shapes & Patterns) → song (Repertoire) →
+      // session → production. Shapes & Patterns moves AHEAD of Song
+      // Repertoire so the "hands learn the vocabulary" step precedes
+      // "hands apply the vocabulary to songs."
       {
         id: 'shapes-and-patterns',
         label: 'shapes & patterns',
@@ -124,6 +121,15 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'chord shape drills',  to: '/shapes-and-patterns?tab=chord-shapes' },
           { label: 'voice-leading drills',to: '/shapes-and-patterns?tab=voice-leading' },
           { label: 'mental visualisation',to: '/shapes-and-patterns?tab=mental-viz' },
+        ],
+      },
+      {
+        id: 'repertoire',
+        label: 'song repertoire',
+        to: '/repertoire',
+        children: [
+          { label: 'active repertoire', to: '/repertoire?tab=active' },
+          { label: 'want to learn',     to: '/repertoire?tab=want-to-learn' },
         ],
       },
       { id: 'production', label: 'production & logic pro', to: '/production' },
@@ -257,6 +263,10 @@ interface RowProps {
 function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
   const hasChildren = Boolean((item.children && item.children.length > 0) || (item.nestedChildren && item.nestedChildren.length > 0));
   const isOpen = hasChildren && expanded[item.id] === true;
+  // Central module meta provides the icon + accent colour so the
+  // sidebar's visual language matches the Skills Catalogue /
+  // Dashboard "Modules at a glance" cards.
+  const meta = moduleMetaById(item.id);
 
   // Simple module — just a NavLink.
   if (!hasChildren) {
@@ -265,14 +275,15 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
         to={item.to}
         end={item.end}
         className={({ isActive }) =>
-          `px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
+          `px-3 py-2 rounded-lg text-sm whitespace-nowrap transition inline-flex items-center gap-2 ${
             isActive
               ? 'bg-fluent/10 text-fluent'
               : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
           }`
         }
       >
-        {item.label}
+        {meta && <ModuleIcon meta={meta} />}
+        <span>{item.label}</span>
       </NavLink>
     );
   }
@@ -286,14 +297,15 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
           to={item.to}
           end={item.end}
           className={({ isActive }) =>
-            `flex-1 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
+            `flex-1 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition inline-flex items-center gap-2 ${
               isActive
                 ? 'bg-fluent/10 text-fluent'
                 : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`
           }
         >
-          {item.label}
+          {meta && <ModuleIcon meta={meta} />}
+          <span>{item.label}</span>
         </NavLink>
         <button
           onClick={() => onToggle(item.id)}
@@ -415,5 +427,20 @@ function SubNavLink({
     >
       {label}
     </NavLink>
+  );
+}
+
+/** Small rounded glyph rendered beside a module's label. Uses the
+ *  module's accent colour at low-alpha fill with the glyph in full
+ *  accent — matches the Skills Catalogue cards exactly. */
+function ModuleIcon({ meta }: { meta: NonNullable<ReturnType<typeof moduleMetaById>> }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-flex items-center justify-center w-5 h-5 rounded-md text-[11px] shrink-0"
+      style={{ backgroundColor: `${meta.accentHex}22`, color: meta.accentHex }}
+    >
+      {meta.icon}
+    </span>
   );
 }

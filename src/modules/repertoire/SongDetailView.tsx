@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
+  type HarmonicDiaryEntry,
   type Song,
   type SongCrossKeyProgress,
   type SongPracticeLog,
   type SongSection,
   type RepertoireStage,
 } from '../../lib/db';
+import { upsertDiaryEntry } from '../harmonic-diary/data';
+import { canonicalSkillId } from '../skills/registry';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -518,6 +522,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         )}
       </section>
 
+      {/* My associations — saves to Harmonic Diary under a stable
+          song skill id so the entry shows up both here and in the
+          Diary. */}
+      <SongAssociationsSection song={song} />
+
       {/* Full lyrics reference */}
       <FullLyricsSection song={song} onSave={saveFullLyrics} />
 
@@ -734,5 +743,125 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         }}
       />
     </div>
+  );
+}
+
+// -------------------------------------------------------------------
+// My associations (per-song) — syncs to the Harmonic Diary so the
+// same note shows up in both places. We deliberately keep the UX
+// lightweight here: inline textarea, save writes through
+// upsertDiaryEntry using the canonical repertoire skill id, and a
+// "open in Harmonic Diary" link for tag editing / deeper context.
+// -------------------------------------------------------------------
+
+function SongAssociationsSection({ song }: { song: Song }) {
+  const skillId = canonicalSkillId('repertoire', 'song', song.id);
+  const entry = useLiveQuery<HarmonicDiaryEntry | undefined>(
+    () => db.harmonicDiaryEntries.where('skillId').equals(skillId).first(),
+    [skillId],
+  );
+
+  const [draft, setDraft] = useState('');
+  const [dirty, setDirty] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+
+  const savedText = entry?.userText ?? '';
+  const hasSaved = savedText.trim().length > 0;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!dirty) setDraft(savedText);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedText]);
+
+  const save = async () => {
+    const text = draft.trim();
+    await upsertDiaryEntry(skillId, {
+      userText: text,
+      emotionalTags: entry?.emotionalTags ?? [],
+      genreTags: entry?.genreTags ?? [],
+      claudeStarterText: entry?.claudeStarterText,
+      isStarterEdited: text !== '',
+    });
+    setDirty(false);
+    setEditing(false);
+    setJustSaved(true);
+    window.setTimeout(() => setJustSaved(false), 1800);
+  };
+
+  const cancel = () => {
+    setDraft(savedText);
+    setDirty(false);
+    setEditing(false);
+  };
+
+  return (
+    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-2">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <div>
+          <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
+            my associations
+          </h3>
+          <p className="text-[11px] text-neutral-500 mt-0.5">
+            how does this song feel to you? notes here save to your Harmonic Diary.
+          </p>
+        </div>
+        <Link
+          to={`/harmonic-diary?skill=${encodeURIComponent(skillId)}`}
+          className="text-[11px] text-fluent hover:underline"
+        >
+          open in Harmonic Diary →
+        </Link>
+      </div>
+
+      {!editing && hasSaved ? (
+        <div className="rounded-md border border-fluent/30 bg-fluent/5 p-3 text-sm leading-relaxed">
+          <p className="whitespace-pre-wrap">{savedText}</p>
+          <button
+            onClick={() => setEditing(true)}
+            className="mt-2 text-[11px] text-fluent hover:underline"
+          >
+            edit
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={e => { setDraft(e.target.value); setDirty(true); setEditing(true); }}
+            rows={3}
+            placeholder={entry?.claudeStarterText
+              ? `Claude's starter: "${entry.claudeStarterText}" — add your own take.`
+              : 'what does this song make you feel? the bridge, a lyric, a chord change that stays with you.'}
+            className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={save}
+              disabled={draft.trim() === savedText && !dirty}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium text-white ${
+                draft.trim() === savedText && !dirty
+                  ? 'bg-neutral-300 dark:bg-neutral-700'
+                  : 'bg-fluent hover:opacity-90'
+              }`}
+            >
+              save to harmonic diary
+            </button>
+            {(editing || dirty) && (
+              <button
+                onClick={cancel}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
+              >
+                cancel
+              </button>
+            )}
+            {justSaved && (
+              <span className="text-[11px] text-fluent italic">saved</span>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

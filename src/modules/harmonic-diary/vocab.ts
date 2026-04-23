@@ -58,49 +58,40 @@ export interface DiaryPalette {
   label: string;
 }
 
+// Palette defaults follow the editorial-warmth spec. Gradient angle
+// is 135° so the darker corner sits top-left and light pools toward
+// the bottom-right — the layout where the eye naturally rests.
 const DEFAULT_PALETTE: DiaryPalette = {
-  background: 'radial-gradient(ellipse at top, #fdf9f3 0%, #f6f0e6 55%, #ecdfc9 100%)',
-  accent: '#6b4a2e',
-  cardTint: 'rgba(255, 250, 240, 0.85)',
+  background: 'linear-gradient(135deg, #1a1410 0%, #2a1f18 100%)',
+  accent: '#e3cba1',
+  cardTint: 'rgba(36, 29, 24, 0.92)',
   label: 'warm neutrals',
 };
 
 const PALETTES: Record<string, DiaryPalette> = {
   melancholy: {
-    background: 'radial-gradient(ellipse at top, #1e2848 0%, #2b2f5a 50%, #3a2b4a 100%)',
-    accent: '#c99a3b',
-    cardTint: 'rgba(20, 23, 45, 0.78)',
+    background: 'linear-gradient(135deg, #0f1419 0%, #1a2838 100%)',
+    accent: '#d4a055',
+    cardTint: 'rgba(26, 40, 56, 0.72)',
     label: 'blues twilight',
   },
   joyful: {
-    background: 'radial-gradient(ellipse at top, #9b1f2a 0%, #c44a2a 50%, #e3a54a 100%)',
-    accent: '#f9ecc1',
-    cardTint: 'rgba(155, 31, 42, 0.6)',
+    background: 'linear-gradient(135deg, #2a1610 0%, #3d2618 100%)',
+    accent: '#f5c456',
+    cardTint: 'rgba(61, 38, 24, 0.72)',
     label: 'gospel light',
   },
   contemplative: {
-    background: 'radial-gradient(ellipse at top, #3a1d3a 0%, #4b2449 60%, #723a59 100%)',
-    accent: '#d4a8b0',
-    cardTint: 'rgba(58, 29, 58, 0.68)',
+    background: 'linear-gradient(135deg, #1f1523 0%, #2d1a2e 100%)',
+    accent: '#c98478',
+    cardTint: 'rgba(45, 26, 46, 0.72)',
     label: 'neo-soul dusk',
   },
   groovy: {
-    background: 'radial-gradient(ellipse at top, #5a3319 0%, #8f5628 55%, #c78b44 100%)',
-    accent: '#fde3a7',
-    cardTint: 'rgba(90, 51, 25, 0.72)',
+    background: 'linear-gradient(135deg, #2a1a0f 0%, #3d2515 100%)',
+    accent: '#e8a55a',
+    cardTint: 'rgba(61, 37, 21, 0.72)',
     label: '70s soul',
-  },
-  dark: {
-    background: 'radial-gradient(ellipse at top, #111214 0%, #1f2127 55%, #2d2e36 100%)',
-    accent: '#d4b47a',
-    cardTint: 'rgba(17, 18, 20, 0.82)',
-    label: 'midnight',
-  },
-  warm: {
-    background: 'radial-gradient(ellipse at top, #3a2117 0%, #5a301c 55%, #8a4e2b 100%)',
-    accent: '#f4c988',
-    cardTint: 'rgba(58, 33, 23, 0.72)',
-    label: 'analog warmth',
   },
 };
 
@@ -108,12 +99,10 @@ const PALETTES: Record<string, DiaryPalette> = {
 // wins. Kept small to avoid surprise palette shifts on unrelated
 // searches; unknown terms just use the default.
 const PALETTE_MATCHERS: Array<{ re: RegExp; key: keyof typeof PALETTES }> = [
-  { re: /melanchol|blue|sad|longing|yearning|forlorn/i, key: 'melancholy' },
-  { re: /joy|uplift|triumph|bright|hopeful|light/i,     key: 'joyful' },
-  { re: /smooth|contemplat|tender|dreamy|pensive/i,     key: 'contemplative' },
-  { re: /groov|funk|soul(ful)?|pocket|greasy/i,         key: 'groovy' },
-  { re: /dark|ominous|mysterious|stormy/i,              key: 'dark' },
-  { re: /warm|cozy|intimate/i,                          key: 'warm' },
+  { re: /melanchol|blue|sad|longing|yearning|forlorn|pensive/i, key: 'melancholy' },
+  { re: /joy|uplift|triumph|bright|hopeful|light/i,             key: 'joyful' },
+  { re: /smooth|contemplat|tender|dreamy|intimate/i,            key: 'contemplative' },
+  { re: /groov|funk|soul(ful)?|warm|pocket|greasy/i,            key: 'groovy' },
 ];
 
 export function paletteFor(query: string): DiaryPalette {

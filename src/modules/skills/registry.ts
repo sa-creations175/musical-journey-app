@@ -628,15 +628,19 @@ export function summariseByModule(records: SkillRecord[]): PerModuleSummary[] {
       lastPracticed,
     });
   }
-  // Sort modules by the navigation order.
+  // Sort modules by the pedagogical order used throughout the app.
+  // Harmonic Fluency → Ear Training submodules → Shapes & Patterns
+  // → Repertoire → Production. Submodules of Ear Training sort
+  // immediately after Harmonic Fluency.
   const order = [
     'harmonic-fluency',
     'intervals',
     'chord-recognition',
     'chord-progressions',
     'scales-modes',
-    'repertoire',
     'shapes-and-patterns',
+    'repertoire',
+    'production',
   ];
   out.sort((a, b) => order.indexOf(a.moduleId) - order.indexOf(b.moduleId));
   return out;

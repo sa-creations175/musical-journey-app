@@ -1,6 +1,6 @@
-import { db, type HarmonicDiaryEntry } from '../../lib/db';
+import { db, type HarmonicDiaryEntry, type SkillAnnotation } from '../../lib/db';
 import { canonicalSkillId } from '../skills/registry';
-import { allStarters, starterToEntry } from './starters';
+import { allStarters, inferConceptTags, starterToEntry } from './starters';
 
 /**
  * Lightweight uuid-ish id generator, same pattern as the rest of the
@@ -124,23 +124,47 @@ export async function migrateLegacyAssociationsIfNeeded(): Promise<void> {
  * reference they can revisit.
  */
 export async function seedStartersIfNeeded(): Promise<void> {
-  const existing = await db.harmonicDiaryEntries.toArray();
+  const [existing, existingAnnotations] = await Promise.all([
+    db.harmonicDiaryEntries.toArray(),
+    db.skillAnnotations.toArray(),
+  ]);
   const existingSkillIds = new Set<string>();
   for (const e of existing) existingSkillIds.add(e.skillId);
+  const existingAnnSkillIds = new Set<string>();
+  for (const a of existingAnnotations) existingAnnSkillIds.add(a.skillId);
 
   const now = Date.now();
   const seeds = allStarters();
-  const toAdd: HarmonicDiaryEntry[] = [];
+  const entriesToAdd: HarmonicDiaryEntry[] = [];
+  const annotationsToAdd: SkillAnnotation[] = [];
   for (const seed of seeds) {
-    if (existingSkillIds.has(seed.skillId)) continue;
-    toAdd.push({
-      entryId: entryUid(),
-      ...starterToEntry(seed, now),
-    });
+    if (!existingSkillIds.has(seed.skillId)) {
+      entriesToAdd.push({
+        entryId: entryUid(),
+        ...starterToEntry(seed, now),
+      });
+    }
+    // Pre-apply concept tags when no annotation exists for this
+    // skill yet. Once the user starts editing tags, we stop
+    // touching their row (the `existingAnnSkillIds` check).
+    if (!existingAnnSkillIds.has(seed.skillId)) {
+      const conceptTags = inferConceptTags(seed);
+      if (conceptTags.length > 0) {
+        annotationsToAdd.push({
+          skillId: seed.skillId,
+          tags: conceptTags,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
   }
 
-  if (toAdd.length > 0) {
-    await db.harmonicDiaryEntries.bulkAdd(toAdd);
+  if (entriesToAdd.length > 0) {
+    await db.harmonicDiaryEntries.bulkAdd(entriesToAdd);
+  }
+  if (annotationsToAdd.length > 0) {
+    await db.skillAnnotations.bulkAdd(annotationsToAdd);
   }
 }
 

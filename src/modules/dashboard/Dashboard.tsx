@@ -11,6 +11,7 @@ import {
   type DashboardData,
 } from './aggregation';
 import MusicianBalanceRadar, { RADAR_AXES, type DimensionKey } from './MusicianBalanceRadar';
+import { MODULE_ORDER, type ModuleMeta } from '../../lib/moduleMeta';
 import { pickQuote, type MusicianQuote } from './quotes';
 import { useUserName } from './userName';
 
@@ -184,6 +185,10 @@ export default function Dashboard() {
               </div>
             </div>
           </section>
+
+          {/* Section 3a — compact Modules at a Glance preview. Full
+              depth lives in the Skills Catalogue; this is a launcher. */}
+          <ModulesPreviewSection data={data} />
 
           {/* Section 3 — Today's practice */}
           <TodaysPracticeSection data={data} />
@@ -794,6 +799,120 @@ function QuickActionsSection({
             <div className="text-xs text-neutral-500 mt-0.5">work a song you know</div>
           </Link>
         )}
+      </div>
+    </section>
+  );
+}
+
+// -------------------------------------------------------------------
+// Modules preview — compact launcher cards between the radar and
+// Today's Practice. Full module drill-down lives in the Skills
+// Catalogue; this is the "where can I go?" surface on the Dashboard.
+// -------------------------------------------------------------------
+
+interface ModulePreviewStat {
+  meta: ModuleMeta;
+  primaryStat: string;
+  secondaryStat?: string;
+  planned?: boolean;
+}
+
+function ModulesPreviewSection({ data }: { data: DashboardData }) {
+  const cards: ModulePreviewStat[] = useMemo(() => {
+    const out: ModulePreviewStat[] = [];
+    for (const meta of MODULE_ORDER) {
+      if (meta.id === 'harmonic-fluency') {
+        const c = data.harmonicFluency.counts;
+        out.push({
+          meta,
+          primaryStat: `${c.total} cards`,
+          secondaryStat: c.needsWork > 0 ? `${c.needsWork} needs work` : undefined,
+        });
+      } else if (meta.id === 'ear-training') {
+        let total = 0, needs = 0;
+        for (const m of data.earTraining) {
+          total += m.counts.total;
+          needs += m.counts.needsWork + m.counts.stale;
+        }
+        out.push({
+          meta,
+          primaryStat: `${total} ear skills`,
+          secondaryStat: needs > 0 ? `${needs} need attention` : undefined,
+        });
+      } else if (meta.id === 'shapes-and-patterns') {
+        const s = data.shapes;
+        out.push({
+          meta,
+          primaryStat: `${s.skillsTouched} skills touched`,
+          secondaryStat: s.imbalancedSkills > 0 ? `${s.imbalancedSkills} imbalanced` : undefined,
+        });
+      } else if (meta.id === 'repertoire') {
+        const byStage = data.repertoire.byStage;
+        const songs = Object.values(byStage).reduce((s, n) => s + n, 0);
+        const stale = data.repertoire.goingStale.length;
+        out.push({
+          meta,
+          primaryStat: `${songs} song${songs === 1 ? '' : 's'}`,
+          secondaryStat: stale > 0 ? `${stale} going stale` : undefined,
+        });
+      } else if (meta.status === 'planned') {
+        out.push({
+          meta,
+          primaryStat: 'coming soon',
+          planned: true,
+        });
+      } else {
+        out.push({
+          meta,
+          primaryStat: 'not yet tracked',
+          planned: true,
+        });
+      }
+    }
+    return out;
+  }, [data]);
+
+  return (
+    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-3">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
+          modules at a glance
+        </h2>
+        <Link
+          to="/skills-catalogue"
+          className="text-xs text-fluent hover:underline"
+        >
+          open skills catalogue →
+        </Link>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+        {cards.map(c => (
+          <Link
+            key={c.meta.id}
+            to={`/skills-catalogue?module=${c.meta.id}`}
+            className={`flex items-center gap-2.5 rounded-lg border p-2.5 transition-colors ${
+              c.planned ? 'opacity-60' : 'hover:shadow-sm'
+            }`}
+            style={{ borderColor: `${c.meta.accentHex}33` }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = c.meta.accentHex; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = `${c.meta.accentHex}33`; }}
+          >
+            <span
+              aria-hidden
+              className="w-8 h-8 rounded-md flex items-center justify-center text-sm shrink-0"
+              style={{ backgroundColor: `${c.meta.accentHex}22`, color: c.meta.accentHex }}
+            >
+              {c.meta.icon}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium truncate">{c.meta.label}</div>
+              <div className="text-[10px] text-neutral-500 truncate">
+                {c.primaryStat}
+                {c.secondaryStat && <> · <span className="text-developing">{c.secondaryStat}</span></>}
+              </div>
+            </div>
+          </Link>
+        ))}
       </div>
     </section>
   );

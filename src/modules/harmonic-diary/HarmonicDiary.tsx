@@ -103,7 +103,9 @@ export default function HarmonicDiary() {
   const quote = useMemo(() => quoteForToday(), []);
   const palette = useMemo(() => paletteFor(activeEmotionFilter ?? search), [activeEmotionFilter, search]);
 
-  // Filter + search pipeline.
+  // Filter + search pipeline. Search matches everything that makes
+  // a diary entry findable: user text, starter text, tags, and the
+  // underlying skill's name / module label / category.
   const filteredEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
     return entries.filter(e => {
@@ -114,9 +116,17 @@ export default function HarmonicDiary() {
       }
       if (q) {
         const skill = skillsById.get(e.skillId);
-        const skillName = (skill?.name ?? '').toLowerCase();
-        const hay = `${e.userText} ${e.claudeStarterText ?? ''} ${e.emotionalTags.join(' ')} ${e.genreTags.join(' ')} ${skillName}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        const parts = [
+          e.userText,
+          e.claudeStarterText ?? '',
+          e.emotionalTags.join(' '),
+          e.genreTags.join(' '),
+          skill?.name ?? '',
+          skill?.moduleLabel ?? '',
+          skill?.category ?? '',
+          skill?.skillType ?? '',
+        ].join(' ').toLowerCase();
+        if (!parts.includes(q)) return false;
       }
       return true;
     });
@@ -147,23 +157,42 @@ export default function HarmonicDiary() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Top header */}
-      <header className="space-y-3">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-medium tracking-tight diary-serif">harmonic diary</h1>
-            <p className="text-sm text-neutral-500 italic diary-serif">{quote}</p>
-          </div>
+    <div className="diary-root space-y-5">
+      {/* Top header — editorial masthead */}
+      <header className="space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h1 className="diary-serif text-3xl font-medium tracking-tight" style={{ color: 'var(--diary-text)' }}>
+            harmonic diary
+          </h1>
           <div className="flex items-center gap-2">
             <ViewToggle mode={mode} onChange={setMode} />
             <button
               onClick={() => setPicking(true)}
-              className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
+              className="px-3 py-1.5 rounded-md text-xs font-medium transition"
+              style={{
+                backgroundColor: 'var(--diary-text)',
+                color: '#2a1810',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.opacity = '0.9'; }}
+              onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
             >
               + add association
             </button>
           </div>
+        </div>
+
+        {/* Daily lineage quote — centred, with ornamental dividers */}
+        <div className="text-center py-4">
+          <span className="diary-divider-glyph" aria-hidden>· · ·</span>
+          <span className="diary-divider" aria-hidden />
+          <p
+            className="diary-serif-italic max-w-2xl mx-auto leading-relaxed"
+            style={{ fontSize: '26px', color: 'var(--diary-text-muted)' }}
+          >
+            {quote}
+          </p>
+          <span className="diary-divider" aria-hidden />
+          <span className="diary-divider-glyph" aria-hidden>· · ·</span>
         </div>
 
         {/* Filter row */}
@@ -172,7 +201,12 @@ export default function HarmonicDiary() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="search associations, tags, skills…"
-            className="flex-1 min-w-[200px] rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm"
+            className="flex-1 min-w-[200px] rounded-md px-3 py-2 text-sm"
+            style={{
+              backgroundColor: 'var(--diary-bg-card)',
+              color: 'var(--diary-text)',
+              border: '1px solid var(--diary-border)',
+            }}
           />
           {(activeEmotionFilter || activeModuleFilter || search) && (
             <button
@@ -181,47 +215,66 @@ export default function HarmonicDiary() {
                 setActiveModuleFilter(null);
                 setSearch('');
               }}
-              className="text-xs text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+              className="text-xs underline-offset-2 hover:underline transition"
+              style={{ color: 'var(--diary-text-dim)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-dim)'; }}
             >
               clear
             </button>
           )}
         </div>
 
-        {/* Emotion chip row */}
-        <div className="flex items-center gap-1 flex-wrap">
-          {emotionChips.map(tag => (
-            <button
-              key={tag}
-              onClick={() => setActiveEmotionFilter(tag === activeEmotionFilter ? null : tag)}
-              className={`px-2 py-0.5 rounded-full border text-[11px] transition ${
-                activeEmotionFilter === tag
-                  ? 'bg-fluent text-white border-fluent'
-                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
+        {/* Emotion chip row — cream chips, deep text */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {emotionChips.map(tag => {
+            const active = activeEmotionFilter === tag;
+            return (
+              <button
+                key={tag}
+                onClick={() => setActiveEmotionFilter(tag === activeEmotionFilter ? null : tag)}
+                className="px-2.5 py-0.5 rounded-full text-[11px] transition"
+                style={active ? {
+                  backgroundColor: 'var(--diary-text)',
+                  color: '#2a1810',
+                  border: '1px solid var(--diary-text)',
+                } : {
+                  backgroundColor: 'transparent',
+                  color: 'var(--diary-text-muted)',
+                  border: '1px solid var(--diary-border)',
+                }}
+              >
+                {tag}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Module chip row — only when there are multiple modules */}
+        {/* Module chip row */}
         {moduleOptions.length > 1 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1">origin:</span>
-            {moduleOptions.map(m => (
-              <button
-                key={m.moduleId}
-                onClick={() => setActiveModuleFilter(m.moduleId === activeModuleFilter ? null : m.moduleId)}
-                className={`px-2 py-0.5 rounded-full border text-[11px] transition ${
-                  activeModuleFilter === m.moduleId
-                    ? 'bg-amber-500 text-white border-amber-500'
-                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-amber-400 hover:text-amber-600'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] uppercase tracking-widest mr-1" style={{ color: 'var(--diary-text-dim)' }}>origin</span>
+            {moduleOptions.map(m => {
+              const active = activeModuleFilter === m.moduleId;
+              return (
+                <button
+                  key={m.moduleId}
+                  onClick={() => setActiveModuleFilter(m.moduleId === activeModuleFilter ? null : m.moduleId)}
+                  className="px-2.5 py-0.5 rounded-full text-[11px] transition"
+                  style={active ? {
+                    backgroundColor: palette.accent,
+                    color: '#1a1410',
+                    border: `1px solid ${palette.accent}`,
+                  } : {
+                    backgroundColor: 'transparent',
+                    color: 'var(--diary-text-dim)',
+                    border: '1px solid var(--diary-border)',
+                  }}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
         )}
       </header>
@@ -230,7 +283,7 @@ export default function HarmonicDiary() {
       {entries.length === 0 ? (
         <EmptyState onAdd={() => setPicking(true)} />
       ) : filteredEntries.length === 0 ? (
-        <div className="py-10 text-center text-sm text-neutral-500 italic">
+        <div className="py-10 text-center diary-serif-italic" style={{ color: 'var(--diary-text-dim)' }}>
           no entries match these filters.
         </div>
       ) : mode === 'moodboard' ? (
@@ -278,22 +331,32 @@ export default function HarmonicDiary() {
 
 function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
   return (
-    <div role="radiogroup" aria-label="view mode" className="inline-flex rounded-md border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-      {(['moodboard', 'list'] as ViewMode[]).map(m => (
-        <button
-          key={m}
-          role="radio"
-          aria-checked={mode === m}
-          onClick={() => onChange(m)}
-          className={`px-2.5 py-1 rounded transition ${
-            mode === m
-              ? 'bg-fluent text-white'
-              : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-          }`}
-        >
-          {m}
-        </button>
-      ))}
+    <div
+      role="radiogroup"
+      aria-label="view mode"
+      className="inline-flex rounded-md p-0.5 text-xs"
+      style={{ border: '1px solid var(--diary-border)' }}
+    >
+      {(['moodboard', 'list'] as ViewMode[]).map(m => {
+        const active = mode === m;
+        return (
+          <button
+            key={m}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(m)}
+            className="px-2.5 py-1 rounded transition"
+            style={active ? {
+              backgroundColor: 'var(--diary-text)',
+              color: '#2a1810',
+            } : {
+              color: 'var(--diary-text-muted)',
+            }}
+          >
+            {m}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -313,31 +376,30 @@ function MoodboardView({
   palette: ReturnType<typeof paletteFor>;
   onEdit: (e: HarmonicDiaryEntry) => void;
 }) {
+  // Varied-column CSS grid with generous gutters. The `diary-moodboard`
+  // class activates the :nth-child rotation + span-2 accents in
+  // index.css so some cards feel hand-placed rather than gridded.
   return (
     <div
-      className="rounded-card border border-white/5 p-5 sm:p-8 transition-all duration-700"
+      className="diary-canvas p-6 sm:p-8"
       style={{ background: palette.background }}
     >
-      <div className="mb-4 text-[10px] uppercase tracking-widest text-white/60 diary-serif">
-        {palette.label}
-      </div>
-      <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 [column-fill:_balance]">
-        {entries.map(e => {
-          // Stagger small vertical offsets per card so the masonry
-          // doesn't feel like a rigid grid.
-          return (
-            <div key={e.entryId} className="mb-4 break-inside-avoid">
-              <DiaryEntryCard
-                entry={e}
-                skill={skillsById.get(e.skillId)}
-                cardTint={palette.cardTint}
-                variant="moodboard"
-                onEdit={() => onEdit(e)}
-                onPlay={() => playSkillAudio(skillsById.get(e.skillId))}
-              />
-            </div>
-          );
-        })}
+      <div
+        className="diary-moodboard grid gap-6 sm:gap-7"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}
+      >
+        {entries.map(e => (
+          <div key={e.entryId} className="diary-card-wrap">
+            <DiaryEntryCard
+              entry={e}
+              skill={skillsById.get(e.skillId)}
+              variant="moodboard"
+              accentColor={palette.accent}
+              onEdit={() => onEdit(e)}
+              onPlay={() => playSkillAudio(skillsById.get(e.skillId))}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -353,18 +415,21 @@ function ListView({
   onEdit: (e: HarmonicDiaryEntry) => void;
 }) {
   return (
-    <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      {entries.map(e => (
-        <li key={e.entryId}>
-          <DiaryEntryCard
-            entry={e}
-            skill={skillsById.get(e.skillId)}
-            onEdit={() => onEdit(e)}
-            onPlay={() => playSkillAudio(skillsById.get(e.skillId))}
-          />
-        </li>
-      ))}
-    </ul>
+    <div className="diary-list p-4 sm:p-5">
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {entries.map(e => (
+          <li key={e.entryId}>
+            <DiaryEntryCard
+              entry={e}
+              skill={skillsById.get(e.skillId)}
+              variant="list"
+              onEdit={() => onEdit(e)}
+              onPlay={() => playSkillAudio(skillsById.get(e.skillId))}
+            />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -374,16 +439,26 @@ function ListView({
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="rounded-card border border-neutral-200 dark:border-neutral-800 p-8 sm:p-12 text-center space-y-3">
-      <p className="diary-serif text-lg text-neutral-700 dark:text-neutral-200">
+    <div
+      className="rounded-lg p-8 sm:p-12 text-center space-y-3"
+      style={{
+        backgroundColor: 'var(--diary-bg-card)',
+        border: '1px solid var(--diary-border)',
+      }}
+    >
+      <p className="diary-serif text-xl" style={{ color: 'var(--diary-text)' }}>
         your diary is a clean page.
       </p>
-      <p className="text-sm text-neutral-500 max-w-md mx-auto leading-relaxed">
-        Associations are notes about how a chord, mode, progression, or song <em>feels</em> to you. They live across modules, searchable and taggable.
+      <p
+        className="text-sm max-w-md mx-auto leading-relaxed"
+        style={{ color: 'var(--diary-text-muted)' }}
+      >
+        Associations are notes about how a chord, mode, progression, or song <em className="diary-serif-italic">feels</em> to you. They live across modules, searchable and taggable.
       </p>
       <button
         onClick={onAdd}
-        className="mt-2 px-4 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
+        className="mt-2 px-4 py-2 rounded-md text-sm font-medium transition"
+        style={{ backgroundColor: 'var(--diary-text)', color: '#2a1810' }}
       >
         + add your first association
       </button>

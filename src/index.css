@@ -52,16 +52,145 @@ body {
   animation: repertoire-flash 1500ms ease-out;
 }
 
-/* Harmonic Diary typography. A literary serif for the display
-   greeting, quotes, and moodboard card bodies — all other text in the
-   diary stays in the app's default sans-serif for scanability. */
+/* -------------------------------------------------------------
+   Harmonic Diary aesthetic
+   -------------------------------------------------------------
+   Editorial / literary-journal voice with soul-music warmth. Dark
+   espresso base; warm cream text; Crimson Pro serif + Work Sans
+   body. Moodboard backgrounds shift palette with the active
+   emotion filter; a film-grain overlay sits on top at low opacity
+   for analog atmosphere. List-view strips the atmosphere for
+   scan-friendliness while preserving the typography.
+*/
+
+.diary-root {
+  /* Palette tokens — referenced by component styles + inline
+     gradient backgrounds via rgb()/hex literals matching these. */
+  --diary-bg-base:     #1a1410;
+  --diary-bg-card:     #241d18;
+  --diary-text:        #f5eee4;
+  --diary-text-muted:  #c4b8a8;
+  --diary-text-dim:    #8a7a68;
+  --diary-border:      rgba(245, 238, 228, 0.08);
+
+  color: var(--diary-text);
+  font-family: 'Work Sans', 'DM Sans', Inter, system-ui, sans-serif;
+  letter-spacing: 0.005em;
+}
+
 .diary-serif {
-  font-family: 'Crimson Pro', 'Playfair Display', 'Cardo', Georgia, 'Times New Roman', serif;
-  font-style: normal;
+  font-family: 'Crimson Pro', Georgia, 'Times New Roman', serif;
   letter-spacing: 0.01em;
 }
-.diary-card-moodboard {
-  /* Warm, tactile shadow — mimics analog photography & chapbooks.
-     Kept subtle so the palette's background carries the mood. */
-  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+.diary-serif-italic {
+  font-family: 'Crimson Pro', Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  letter-spacing: 0.01em;
+}
+
+/* Moodboard canvas — layered gradient + grain. Gradient transitions
+   smoothly when the user's search / emotion-filter changes palette. */
+.diary-canvas {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  transition: background 800ms ease;
+}
+.diary-canvas::before {
+  /* Film-grain overlay — tiny inline SVG noise scaled via CSS. Sits
+     between the gradient and the card layer so cards read crisply
+     while the field feels analog. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.93  0 0 0 0 0.88  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 240px 240px;
+}
+
+/* Moodboard card — tactile object, not a button. Minimal radius,
+   warm shadow, whisper-thin border so the card lifts off the
+   gradient without looking plastic. */
+.diary-card {
+  background: var(--diary-bg-card);
+  color: var(--diary-text);
+  border: 1px solid var(--diary-border);
+  border-radius: 5px;
+  box-shadow: 0 4px 20px rgba(10, 5, 2, 0.4);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+.diary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(10, 5, 2, 0.55);
+}
+/* Alternating tiny rotation on moodboard cards — the `:nth-child`
+   rules nudge each card just enough to feel hand-placed. */
+.diary-moodboard > .diary-card-wrap:nth-child(3n+1) .diary-card {
+  transform: rotate(-0.5deg);
+}
+.diary-moodboard > .diary-card-wrap:nth-child(3n+1) .diary-card:hover {
+  transform: rotate(-0.5deg) translateY(-2px);
+}
+.diary-moodboard > .diary-card-wrap:nth-child(3n+2) .diary-card {
+  transform: rotate(0.3deg);
+}
+.diary-moodboard > .diary-card-wrap:nth-child(3n+2) .diary-card:hover {
+  transform: rotate(0.3deg) translateY(-2px);
+}
+.diary-moodboard > .diary-card-wrap:nth-child(5n) {
+  /* Occasional column-span-2 placements in the CSS grid give the
+     layout a varied, editorial rhythm instead of a rigid grid. */
+  grid-column: span 2;
+}
+
+/* Cream chip for emotional / genre tags on moodboard cards. */
+.diary-chip {
+  background: var(--diary-text);
+  color: #2a1810;
+  border-radius: 999px;
+  font-family: 'Work Sans', Inter, sans-serif;
+  font-weight: 500;
+  font-size: 10px;
+  padding: 2px 8px;
+  letter-spacing: 0.02em;
+}
+.diary-chip-muted {
+  background: rgba(245, 238, 228, 0.12);
+  color: var(--diary-text-muted);
+  border: 1px solid rgba(245, 238, 228, 0.18);
+  border-radius: 999px;
+  font-family: 'Work Sans', Inter, sans-serif;
+  font-weight: 500;
+  font-size: 10px;
+  padding: 2px 8px;
+  letter-spacing: 0.02em;
+}
+
+/* Ornamental divider used above/below the daily lineage quote. */
+.diary-divider {
+  display: block;
+  width: 64px;
+  height: 1px;
+  margin: 12px auto;
+  background: linear-gradient(90deg, transparent, var(--diary-text-dim), transparent);
+}
+.diary-divider-glyph {
+  color: var(--diary-text-dim);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-style: italic;
+  letter-spacing: 0.6em;
+  text-align: center;
+  display: block;
+  font-size: 11px;
+}
+
+/* List-view variant — flat dark background, no grain, tighter
+   spacing. Typography stays in the same family so the diary still
+   reads as itself. */
+.diary-list {
+  background: var(--diary-bg-base);
+  border-radius: 12px;
+  color: var(--diary-text);
 }

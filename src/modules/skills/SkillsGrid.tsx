@@ -81,6 +81,22 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
     return [...set.entries()].map(([moduleId, label]) => ({ moduleId, label }));
   }, [records]);
 
+  // Search matching expanded beyond skill name: also matches module
+  // label, category label, skill type, and tags. Lets a user type
+  // "ear training" or "modal-interchange" and find everything under
+  // that lens.
+  const skillMatchesQuery = (r: SkillRecord, q: string): boolean => {
+    if (!q) return true;
+    if (r.name.toLowerCase().includes(q)) return true;
+    if (r.category.toLowerCase().includes(q)) return true;
+    if (r.moduleLabel.toLowerCase().includes(q)) return true;
+    if (r.moduleId.toLowerCase().includes(q)) return true;
+    if (r.skillType.toLowerCase().includes(q)) return true;
+    if (r.tags.some(t => t.toLowerCase().includes(q))) return true;
+    if (r.note?.toLowerCase().includes(q) ?? false) return true;
+    return false;
+  };
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = records.slice();
@@ -92,17 +108,33 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
     }
     if (typeFilter.size > 0) list = list.filter(r => typeFilter.has(r.skillType));
     if (freshnessFilter.size > 0) list = list.filter(r => freshnessFilter.has(r.freshness));
-    if (q) {
-      list = list.filter(r =>
-        r.name.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q) ||
-        r.tags.some(t => t.toLowerCase().includes(q)) ||
-        (r.note?.toLowerCase().includes(q) ?? false),
-      );
-    }
+    if (q) list = list.filter(r => skillMatchesQuery(r, q));
     list.sort(sortComparator(sort));
     return list;
   }, [records, search, moduleFilter, moduleMultiFilter, tierFilter, priorityFilter, typeFilter, freshnessFilter, sort]);
+
+  // When searching, surface matching modules / categories as a
+  // header so the user immediately sees the conceptual groupings
+  // their query touched — not just the flat skill rows.
+  const searchSummary = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return null;
+    const moduleSet = new Map<string, string>();
+    const categorySet = new Map<string, string>();
+    for (const r of records) {
+      if (r.moduleLabel.toLowerCase().includes(q) || r.moduleId.toLowerCase().includes(q)) {
+        moduleSet.set(r.moduleId, r.moduleLabel);
+      }
+      if (r.category.toLowerCase().includes(q)) {
+        categorySet.set(`${r.moduleId}:${r.category}`, `${r.category} · ${r.moduleLabel}`);
+      }
+    }
+    if (moduleSet.size === 0 && categorySet.size === 0) return null;
+    return {
+      modules: [...moduleSet.entries()].map(([id, label]) => ({ id, label })),
+      categories: [...categorySet.entries()].map(([key, label]) => ({ key, label })),
+    };
+  }, [records, search]);
 
   const toggle = <T extends string>(set: Set<T>, value: T, update: (next: Set<T>) => void) => {
     const next = new Set(set);
@@ -221,10 +253,38 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
         )}
       </div>
 
-      {/* Row count */}
-      <div className="text-[11px] text-neutral-500">
-        <span className="font-mono tabular-nums">{filtered.length}</span> of{' '}
-        <span className="font-mono tabular-nums">{records.length}</span> skills
+      {/* Row count + matching-context header. When the query also
+          matches module / category names, surface those as callouts
+          above the individual results. */}
+      <div className="space-y-2">
+        <div className="text-[11px] text-neutral-500">
+          <span className="font-mono tabular-nums">{filtered.length}</span> of{' '}
+          <span className="font-mono tabular-nums">{records.length}</span> skills
+        </div>
+        {searchSummary && (
+          <div className="rounded-md border border-fluent/30 bg-fluent/5 p-2.5 space-y-1 text-xs">
+            {searchSummary.modules.length > 0 && (
+              <div>
+                <span className="text-[10px] uppercase tracking-wide text-fluent font-medium mr-2">matching modules</span>
+                {searchSummary.modules.map(m => (
+                  <span key={m.id} className="inline-block mr-1.5 px-1.5 py-0.5 rounded-full bg-fluent/10 text-fluent text-[10px]">
+                    {m.label}
+                  </span>
+                ))}
+              </div>
+            )}
+            {searchSummary.categories.length > 0 && (
+              <div>
+                <span className="text-[10px] uppercase tracking-wide text-fluent font-medium mr-2">matching categories</span>
+                {searchSummary.categories.map(c => (
+                  <span key={c.key} className="inline-block mr-1.5 px-1.5 py-0.5 rounded-full bg-fluent/10 text-fluent text-[10px]">
+                    {c.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table */}

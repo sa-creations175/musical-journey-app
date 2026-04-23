@@ -421,3 +421,59 @@ export function starterToEntry(starter: StarterSeed, now: number): Omit<Harmonic
     lastEdited: now,
   };
 }
+
+// ------------------------------------------------------------------
+// Concept tags inferred from starter content
+// ------------------------------------------------------------------
+//
+// When the catalog populates, a small set of obvious concept tags
+// gets pre-applied to the matching skill annotations ("gospel",
+// "jazz", "modal", "modal-interchange") so the Catalogue surfaces
+// useful groupings without the user manually tagging 100+ entries.
+// Users can always edit / remove / add more.
+
+const BORROWED_CHORD_PATTERNS: RegExp[] = [
+  /bVII?/, /bVI/, /bIII/, /\biv\b/, /modal interchange/i, /borrowed/i, /mixolydian/i, /dorian/i, /phrygian/i, /aeolian/i, /lydian/i,
+];
+
+function textMentions(patterns: RegExp[], text: string): boolean {
+  return patterns.some(p => p.test(text));
+}
+
+/** Infer concept-level tags for a starter's skill from its id + text.
+ *  Returns lowercase tags matching the vocabulary in SkillDetailPanel
+ *  so suggestions + existing tags line up. */
+export function inferConceptTags(starter: StarterSeed): string[] {
+  const tags = new Set<string>();
+  const text = starter.text;
+
+  // Modes always get the `modal` tag.
+  if (starter.skillId.startsWith('scales-modes:mode:')) {
+    tags.add('modal');
+  }
+
+  // Progressions / chord motions that mention borrowed chords or
+  // modal language get `modal-interchange`.
+  if (
+    starter.skillId.startsWith('chord-progressions:') &&
+    textMentions(BORROWED_CHORD_PATTERNS, text)
+  ) {
+    tags.add('modal-interchange');
+  }
+
+  // Genre tags lifted verbatim from the starter so the catalogue's
+  // "genre" tag-row suggestions reflect what's in the data.
+  for (const g of starter.genre ?? []) {
+    // Keep genre tags plain so they're searchable; no prefix.
+    if (g === 'r&b') tags.add('r&b');
+    else tags.add(g.toLowerCase());
+  }
+
+  // Explicit text mentions also qualify — the starter for the '1-4-vamp'
+  // progression ("gospel's vamp") doesn't list gospel in its genre
+  // array but clearly belongs in the gospel bucket.
+  if (/\bgospel\b/i.test(text)) tags.add('gospel');
+  if (/\bjazz\b/i.test(text)) tags.add('jazz');
+
+  return [...tags];
+}
