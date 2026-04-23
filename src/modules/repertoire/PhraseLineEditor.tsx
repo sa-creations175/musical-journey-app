@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Beat, ChordFunction, Phrase } from '../../lib/db';
 import {
+  applySyllableSplit,
+  breakJoinBefore,
+  concatGroupText,
   insertBeatAt,
   isInstrumentalPhrase,
   normalizePhrase,
   removeBeat,
   setChordOnBeat,
+  syllableGroupAt,
 } from './beatsModel';
 import {
   isEmpty as chordIsEmpty,
@@ -16,6 +20,7 @@ import {
   type NotationMode,
 } from './chordFunction';
 import { useToast } from '../../components/Toaster';
+import SyllableSplitModal from './SyllableSplitModal';
 
 interface Props {
   phrase: Phrase;
@@ -67,13 +72,51 @@ export default function PhraseLineEditor({
   const beats = normalised.beats;
   const activePlacements = normalised.chordsByArrangement[activeArrangementId] ?? {};
   const { toast } = useToast();
+  // Beat id whose syllable group is being edited in the split modal.
+  const [splitTargetBeatId, setSplitTargetBeatId] = useState<string | null>(null);
 
   // --- Mutation helpers ------------------------------------------
 
   const insertBlankAt = async (index: number): Promise<Beat> => {
-    const { beats: nextBeats, inserted } = insertBeatAt(beats, index, 'blank');
-    await onChange({ ...normalised, beats: nextBeats });
+    const { beats: afterInsert, inserted } = insertBeatAt(beats, index, 'blank');
+    // If the insert lands in the middle of a syllable group, break the
+    // `joinToNext` chain at that point so the blank doesn't render
+    // mid-word (e.g. "A-[blank]-maz-ing").
+    const finalBeats = breakJoinBefore(afterInsert, index);
+    await onChange({ ...normalised, beats: finalBeats });
     return inserted;
+  };
+
+  const applySplit = async (
+    groupStartIndex: number,
+    groupLength: number,
+    text: string,
+    splitIndices: number[],
+  ) => {
+    const oldGroupBeats = beats.slice(groupStartIndex, groupStartIndex + groupLength);
+    const { beats: nextBeats, inserted } = applySyllableSplit(
+      beats,
+      groupStartIndex,
+      groupLength,
+      text,
+      splitIndices,
+    );
+    // The new syllable beats have fresh ids, so every chord placement
+    // on the old group beats would be orphaned. Carry the first old
+    // beat's chord onto the first new syllable (downbeat preserves its
+    // chord); drop the rest rather than guess.
+    const firstOldId = oldGroupBeats[0]?.id;
+    const firstNewId = inserted[0]?.id;
+    const nextChords: Record<string, Record<string, ChordFunction>> = {};
+    for (const [arrId, placements] of Object.entries(normalised.chordsByArrangement)) {
+      const copy: Record<string, ChordFunction> = { ...placements };
+      for (const b of oldGroupBeats) delete copy[b.id];
+      if (firstOldId && firstNewId && placements[firstOldId]) {
+        copy[firstNewId] = placements[firstOldId];
+      }
+      nextChords[arrId] = copy;
+    }
+    await onChange({ ...normalised, beats: nextBeats, chordsByArrangement: nextChords });
   };
 
   const deleteBeat = async (beatId: string) => {
@@ -182,7 +225,33 @@ export default function PhraseLineEditor({
         onInsert={insertBlankAt}
         onDelete={deleteBeat}
         onUpdateText={updateWordText}
+        onSplitBeat={beatId => setSplitTargetBeatId(beatId)}
       />
+
+      {splitTargetBeatId && (() => {
+        const group = syllableGroupAt(beats, splitTargetBeatId);
+        if (!group) return null;
+        const text = concatGroupText(group.beats);
+        // initialSplits: cumulative char positions where each beat
+        // after the first begins within the concatenated text.
+        const initial: number[] = [];
+        let runningPos = 0;
+        for (let i = 0; i < group.beats.length - 1; i++) {
+          runningPos += (group.beats[i].text ?? '').length;
+          initial.push(runningPos);
+        }
+        return (
+          <SyllableSplitModal
+            word={text}
+            initialSplits={initial}
+            onCancel={() => setSplitTargetBeatId(null)}
+            onApply={async splits => {
+              await applySplit(group.startIndex, group.beats.length, text, splits);
+              setSplitTargetBeatId(null);
+            }}
+          />
+        );
+      })()}
 
       {showInstrumentalLabel && (
         <div className="text-[11px] italic text-neutral-400 ml-2 mt-0.5">
@@ -273,9 +342,10 @@ interface BeatRowProps {
   onInsert: (index: number) => Promise<Beat>;
   onDelete: (beatId: string) => Promise<void>;
   onUpdateText: (beatId: string, text: string) => Promise<void>;
+  onSplitBeat: (beatId: string) => void;
 }
 
-function BeatRow({ beats, onInsert, onDelete, onUpdateText }: BeatRowProps) {
+function BeatRow({ beats, onInsert, onDelete, onUpdateText, onSplitBeat }: BeatRowProps) {
   return (
     <div className="flex flex-wrap items-start">
       <InsertPoint onClick={() => onInsert(0)} />
@@ -283,10 +353,24 @@ function BeatRow({ beats, onInsert, onDelete, onUpdateText }: BeatRowProps) {
         <span key={beat.id} className="inline-flex items-start">
           <BeatCell
             beat={beat}
+            joinToNext={beat.joinToNext === true}
             onDelete={() => onDelete(beat.id)}
             onUpdateText={text => onUpdateText(beat.id, text)}
+            onSplit={beat.type === 'word' ? () => onSplitBeat(beat.id) : undefined}
           />
-          <InsertPoint onClick={() => onInsert(idx + 1)} />
+          {beat.joinToNext ? (
+            // Joined syllables render with a visual hyphen between
+            // them. Width matches InsertPoint so chord slots above
+            // stay column-aligned.
+            <span
+              aria-hidden
+              className="inline-flex items-center justify-center w-3 h-5 text-sm text-neutral-400 select-none"
+            >
+              -
+            </span>
+          ) : (
+            <InsertPoint onClick={() => onInsert(idx + 1)} />
+          )}
         </span>
       ))}
     </div>
@@ -295,9 +379,17 @@ function BeatRow({ beats, onInsert, onDelete, onUpdateText }: BeatRowProps) {
 
 function BeatCell({
   beat,
+  joinToNext,
   onDelete,
   onUpdateText,
-}: { beat: Beat; onDelete: () => void; onUpdateText: (t: string) => void }) {
+  onSplit,
+}: {
+  beat: Beat;
+  joinToNext: boolean;
+  onDelete: () => void;
+  onUpdateText: (t: string) => void;
+  onSplit?: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(beat.text ?? '');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +420,7 @@ function BeatCell({
   }
 
   // Word beat
+  const hasText = (beat.text ?? '').trim() !== '';
   return (
     <span className="inline-flex items-center group relative">
       {editing ? (
@@ -356,8 +449,21 @@ function BeatCell({
           {beat.text || '·'}
         </button>
       )}
-      {/* Trailing space so words have breathing room inline. */}
-      <span aria-hidden className="inline-block w-1" />
+      {/* Split affordance — visible on hover. Hidden when the word is
+          empty (nothing to split) or already editing (avoid jitter). */}
+      {onSplit && hasText && !editing && (
+        <button
+          onClick={onSplit}
+          title="split into syllables"
+          aria-label="split into syllables"
+          className="absolute -top-2 -right-1 opacity-0 group-hover:opacity-100 text-[9px] text-neutral-400 hover:text-fluent bg-white dark:bg-neutral-900 rounded px-1 leading-none py-0.5 border border-neutral-200 dark:border-neutral-700"
+        >
+          split
+        </button>
+      )}
+      {/* Trailing breathing space — suppressed when joined to the
+          next beat so the hyphen sits tight against the syllable. */}
+      {!joinToNext && <span aria-hidden className="inline-block w-1" />}
     </span>
   );
 }

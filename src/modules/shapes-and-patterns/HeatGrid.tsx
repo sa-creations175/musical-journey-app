@@ -1,0 +1,201 @@
+import { useMemo, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, type DrillSkill, type DrillType } from '../../lib/db';
+import {
+  aggregateCell,
+  findOrCreateSkill,
+  freshnessAlpha,
+  freshnessTier,
+  heatTierFor,
+  humanAgo,
+  formatDuration,
+  type CellAggregate,
+  type SkillDescriptor,
+} from './drillModel';
+import DrillListModal from './DrillListModal';
+import { KEYS } from './catalog';
+
+interface RowMeta {
+  /** Stable id for React keys. */
+  id: string;
+  /** Label shown on the row's left gutter. */
+  label: string;
+  /** Build a skill descriptor for a given (row, key). Heat-grid kinds
+   *  (chord-shape / scale / voice-leading) supply this. */
+  descriptorFor: (keyName: string) => SkillDescriptor;
+}
+
+interface Props {
+  rows: RowMeta[];
+  /** Column keys. Defaults to all 12. Rarely overridden. */
+  keyList?: readonly string[];
+  /** Optional accent color for the "row label" column (e.g. for
+   *  grouping triads vs sevenths). */
+  rowAccent?: (row: RowMeta) => string | undefined;
+}
+
+/**
+ * The shared 12-column heat grid. Generic across chord-shape / scale /
+ * voice-leading so the three heat-using activity areas can render
+ * with one component. Each cell:
+ *   · looks up the matching DrillSkill (if any),
+ *   · aggregates its DrillTypes' total seconds + last-practised,
+ *   · colours itself by heat tier × freshness,
+ *   · flags imbalance via a corner dot,
+ *   · opens DrillListModal on click (materialising the skill +
+ *     default drill types if it didn't exist yet).
+ */
+export default function HeatGrid({ rows, keyList = KEYS, rowAccent }: Props) {
+  const [openSkill, setOpenSkill] = useState<DrillSkill | null>(null);
+
+  // Single live query for all skills + types in the module; heavy on
+  // first load but avoids N×M queries per cell.
+  const allSkills = useLiveQuery<DrillSkill[]>(() => db.drillSkills.toArray(), []) ?? [];
+  const allTypes = useLiveQuery<DrillType[]>(() => db.drillTypes.toArray(), []) ?? [];
+
+  // Group drill types by skillId for O(1) lookup when colouring each
+  // cell.
+  const typesBySkill = useMemo(() => {
+    const m = new Map<string, DrillType[]>();
+    for (const t of allTypes) {
+      const arr = m.get(t.skillId) ?? [];
+      arr.push(t);
+      m.set(t.skillId, arr);
+    }
+    return m;
+  }, [allTypes]);
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-max">
+        {/* Column header with key names */}
+        <div
+          className="grid"
+          style={{ gridTemplateColumns: `minmax(160px, 1fr) repeat(${keyList.length}, minmax(42px, 56px))` }}
+        >
+          <div />
+          {keyList.map(k => (
+            <div
+              key={k}
+              className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
+            >
+              {k}
+            </div>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {rows.map(row => (
+          <div
+            key={row.id}
+            className="grid items-center"
+            style={{ gridTemplateColumns: `minmax(160px, 1fr) repeat(${keyList.length}, minmax(42px, 56px))` }}
+          >
+            <div className={`text-xs pr-3 py-1 truncate ${rowAccent?.(row) ?? ''}`} title={row.label}>
+              {row.label}
+            </div>
+            {keyList.map(k => (
+              <Cell
+                key={k}
+                descriptor={row.descriptorFor(k)}
+                skill={findSkillFor(allSkills, row.descriptorFor(k))}
+                types={findTypesFor(allSkills, typesBySkill, row.descriptorFor(k))}
+                onOpen={async () => {
+                  const skill = await findOrCreateSkill(row.descriptorFor(k));
+                  setOpenSkill(skill);
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {openSkill && (
+        <DrillListModal
+          skill={openSkill}
+          onClose={() => setOpenSkill(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------
+
+interface CellProps {
+  descriptor: SkillDescriptor;
+  skill?: DrillSkill;
+  types: DrillType[];
+  onOpen: () => void;
+}
+
+function Cell({ descriptor, skill, types, onOpen }: CellProps) {
+  const agg: CellAggregate = aggregateCell(types);
+  const heat = heatTierFor(agg.totalSeconds);
+  const fresh = freshnessTier(agg.lastPracticedAt);
+  const alpha = freshnessAlpha(fresh);
+
+  // Base colour intensity from heat tier. Freshness multiplies alpha
+  // so stale cells visibly desaturate.
+  const heatOpacity = heat === 'empty' ? 0.05
+    : heat === 'light' ? 0.25
+    : heat === 'medium' ? 0.55
+    : 0.85;
+  const effectiveOpacity = heatOpacity * alpha;
+
+  const untouched = skill === undefined || agg.totalSeconds === 0;
+  const title = untouched
+    ? `${descriptor.kind === 'chord-shape' ? 'Not practised' : 'Untouched'} — click to open`
+    : `${formatDuration(agg.totalSeconds)} · last ${humanAgo(agg.lastPracticedAt)}${agg.imbalanced ? ' · imbalanced' : ''}`;
+
+  const attentionFlag = fresh === 'aging' || fresh === 'stale';
+
+  return (
+    <button
+      onClick={onOpen}
+      title={title}
+      className="relative aspect-square mx-0.5 my-0.5 rounded-sm border border-neutral-200/60 dark:border-neutral-800/60 hover:ring-2 hover:ring-fluent/50 transition focus:outline-none"
+      style={{
+        backgroundColor: `rgba(29, 158, 117, ${effectiveOpacity})`,
+      }}
+    >
+      {agg.imbalanced && (
+        <span
+          aria-hidden
+          className="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-developing"
+          title="incomplete — some drill types under-practised"
+        />
+      )}
+      {attentionFlag && agg.totalSeconds > 0 && (
+        <span
+          aria-hidden
+          className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-needswork/80"
+          title="going stale — time for a refresh"
+        />
+      )}
+    </button>
+  );
+}
+
+function findSkillFor(skills: DrillSkill[], desc: SkillDescriptor): DrillSkill | undefined {
+  switch (desc.kind) {
+    case 'chord-shape':
+      return skills.find(s => s.kind === 'chord-shape' && s.keyName === desc.keyName && s.quality === desc.quality);
+    case 'scale':
+      return skills.find(s => s.kind === 'scale' && s.keyName === desc.keyName && s.scale === desc.scale);
+    case 'voice-leading':
+      return skills.find(s => s.kind === 'voice-leading' && s.patternId === desc.patternId && s.keyName === desc.keyName);
+    case 'mental-viz':
+      return skills.find(s => s.kind === 'mental-viz' && s.variant === desc.variant);
+  }
+}
+
+function findTypesFor(
+  skills: DrillSkill[],
+  typesBySkill: Map<string, DrillType[]>,
+  desc: SkillDescriptor,
+): DrillType[] {
+  const skill = findSkillFor(skills, desc);
+  if (!skill) return [];
+  return typesBySkill.get(skill.id) ?? [];
+}

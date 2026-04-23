@@ -13,8 +13,9 @@ import ChordProgressions from './modules/ear-training/chord-progressions/ChordPr
 import ChordProgressionsCalendar from './modules/ear-training/chord-progressions/ChordProgressionsCalendar';
 import ScalesModes from './modules/ear-training/scales-modes/ScalesModes';
 import ScalesModesCalendar from './modules/ear-training/scales-modes/ScalesModesCalendar';
-import ChordsShapes from './modules/chords-shapes/ChordsShapes';
 import Repertoire from './modules/repertoire/Repertoire';
+import ShapesAndPatterns from './modules/shapes-and-patterns/ShapesAndPatterns';
+import ShapesAndPatternsCalendar from './modules/shapes-and-patterns/ShapesAndPatternsCalendar';
 import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
 import { InstrumentProvider } from './lib/instrumentContext';
@@ -39,8 +40,9 @@ export default function App() {
             <Route path="ear-training/chord-progressions/calendar" element={<ChordProgressionsCalendar />} />
             <Route path="ear-training/scales-modes" element={<ScalesModes />} />
             <Route path="ear-training/scales-modes/calendar" element={<ScalesModesCalendar />} />
-            <Route path="chords-shapes" element={<ChordsShapes />} />
             <Route path="repertoire" element={<Repertoire />} />
+            <Route path="shapes-and-patterns" element={<ShapesAndPatterns />} />
+            <Route path="shapes-and-patterns/calendar" element={<ShapesAndPatternsCalendar />} />
             <Route path="production" element={<Production />} />
             <Route path="session-log" element={<SessionLog />} />
           </Route>

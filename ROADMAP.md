@@ -41,6 +41,18 @@ For each song, store its chord progression (Roman numerals or named chords) with
 - Modal interchange flagging — mark chords that are borrowed from the parallel minor / Mixolydian / harmonic minor so the ear has a vocabulary for "why does this section feel brighter / darker".
 - Shared repertoire with friends — export a read-only song (or full repertoire) for another user to import.
 
+## Shapes & Patterns — Future Enhancements
+- "Legacy mastery" declaration — mark cells as already solid from prior practice so the app respects that without requiring re-logging to turn the heat up.
+- Smart freshness decay — cells with significant cumulative investment decay more slowly than shallow cells, so a deeply-practised chord doesn't shout "stale" after a week off.
+- Self-assessment recalibration — periodic check-ins on cells the user declared solid; if you've been away a while, the app prompts "still solid?" before surfacing it in the "what needs attention" list.
+- Additional scales: harmonic minor, melodic minor, the seven modes, pentatonics, blues, bebop, diminished, whole tone.
+- Fingering overlays (beginner-focused, toggleable) for scale and chord-shape drills.
+- Cross-module integration with Song Repertoire — "you're using Abmaj7 in three songs, want to drill it?" surfaced as a suggestion in the attention panel.
+- Cross-module integration with Harmonic Fluency — mental-visualisation drill completions feed flashcard scheduling so theory review rides along with physical practice.
+- Chord voicings beyond root+inversions — rootless, spread, quartal, cluster, drop-2, drop-3 — as their own drill-type families inside the chord-shape cells.
+- Practice streaks specific to this module (separate from ear training's daily streak, because drilling is about accumulation, not daily minimums).
+- Metronome groove authoring — let users tweak / build their own grooves per-step, saved as presets that show up in the header selector.
+
 ## In-App Ideas Capture (new feature)
 
 A simple place inside the app to capture feature ideas as they come during practice sessions. Fields: module/area, idea description, priority (nice-to-have / really want / must have), date added. Ideas can later be promoted to this roadmap when ready to build.

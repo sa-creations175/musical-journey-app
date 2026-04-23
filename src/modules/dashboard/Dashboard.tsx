@@ -10,7 +10,7 @@ export default function Dashboard() {
           { label: 'sessions this week', value: '—' },
           { label: 'intervals fluent', value: '— / 13' },
           { label: 'chords fluent', value: '— / 29' },
-          { label: 'chord shapes mastered', value: '— / 348' },
+          { label: 'shapes & patterns drills', value: '—' },
           { label: 'song repertoire size', value: '—' },
           { label: 'logic skills complete', value: '— / 15' },
         ].map(card => (

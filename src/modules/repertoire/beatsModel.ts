@@ -218,3 +218,94 @@ export function isInstrumentalPhrase(phrase: Phrase): boolean {
     b => b.type === 'blank' || !b.text || b.text.trim() === '',
   );
 }
+
+// --- Syllable splitting --------------------------------------------
+
+/**
+ * Find the contiguous syllable group that includes the given beat.
+ * A group is a run of `word` beats chained by `joinToNext`. Returns
+ * the starting index + the beats in the group (length >= 1).
+ */
+export function syllableGroupAt(
+  beats: Beat[],
+  beatId: string,
+): { startIndex: number; beats: Beat[] } | null {
+  const idx = beats.findIndex(b => b.id === beatId);
+  if (idx < 0 || beats[idx].type !== 'word') return null;
+
+  let start = idx;
+  // Walk backward through the chain of joinToNext=true beats.
+  while (start > 0) {
+    const prev = beats[start - 1];
+    if (prev.type !== 'word' || prev.joinToNext !== true) break;
+    start -= 1;
+  }
+  // Walk forward until we hit a beat that doesn't join to its next.
+  let end = idx;
+  while (end < beats.length - 1) {
+    const cur = beats[end];
+    if (cur.joinToNext !== true) break;
+    end += 1;
+  }
+  return { startIndex: start, beats: beats.slice(start, end + 1) };
+}
+
+/** Concatenated text for a syllable group — used when opening the
+ *  split modal on a single syllable (we re-compose the whole word so
+ *  the user can re-split from scratch). */
+export function concatGroupText(group: Beat[]): string {
+  return group.map(b => b.text ?? '').join('');
+}
+
+/**
+ * Split a word into N syllables at the supplied split indices.
+ * `splitIndices` are character positions within the concatenated
+ * text; each index marks the start of a new syllable. Indices are
+ * deduplicated + sorted before use. Returns a new beat array where
+ * `group` is replaced with the new syllable beats.
+ */
+export function applySyllableSplit(
+  beats: Beat[],
+  groupStartIndex: number,
+  groupLength: number,
+  text: string,
+  splitIndices: number[],
+): { beats: Beat[]; inserted: Beat[] } {
+  const sanitized = Array.from(new Set(splitIndices))
+    .filter(i => i > 0 && i < text.length)
+    .sort((a, b) => a - b);
+  const syllables: string[] = [];
+  let prev = 0;
+  for (const idx of sanitized) {
+    syllables.push(text.slice(prev, idx));
+    prev = idx;
+  }
+  syllables.push(text.slice(prev));
+  const inserted: Beat[] = syllables
+    .filter(s => s.length > 0)
+    .map((s, i, arr) => ({
+      id: uid('beat'),
+      type: 'word' as const,
+      text: s,
+      joinToNext: i < arr.length - 1 ? true : false,
+    }));
+  const next = [
+    ...beats.slice(0, groupStartIndex),
+    ...inserted,
+    ...beats.slice(groupStartIndex + groupLength),
+  ];
+  return { beats: next, inserted };
+}
+
+/**
+ * When a caller inserts a blank beat in the middle of a syllable
+ * group the join should break (otherwise the rendering produces
+ * "syl-[blank]-lable" which reads nonsense). Returns a copy of
+ * `beats` with the join broken at the supplied index.
+ */
+export function breakJoinBefore(beats: Beat[], index: number): Beat[] {
+  if (index <= 0 || index > beats.length) return beats;
+  const prev = beats[index - 1];
+  if (!prev || prev.joinToNext !== true) return beats;
+  return beats.map((b, i) => (i === index - 1 ? { ...b, joinToNext: false } : b));
+}

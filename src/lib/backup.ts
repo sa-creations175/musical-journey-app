@@ -38,6 +38,9 @@ const TABLES = {
   songPracticeLog: db.songPracticeLog,
   songCrossKeyProgress: db.songCrossKeyProgress,
   wantToLearn: db.wantToLearn,
+  drillSkills: db.drillSkills,
+  drillTypes: db.drillTypes,
+  drillSessions: db.drillSessions,
 } as const;
 
 type TableMap = typeof TABLES;

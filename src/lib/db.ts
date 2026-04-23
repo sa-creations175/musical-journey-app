@@ -98,12 +98,21 @@ export interface Song {
  *  text; a blank beat carries no lyric but can still hold a chord
  *  (used for instrumental hits, pickup chords, mid-word chord changes,
  *  etc.). Chords anchor to beat ids — never to character offsets — so
- *  editing lyrics can't cascade chord placements. */
+ *  editing lyrics can't cascade chord placements.
+ *
+ *  `joinToNext` marks the beat as a syllable of a larger word: when
+ *  true, the renderer visually joins this beat's text to the next
+ *  beat's with a hyphen, so three beats `{text:'A', joinToNext:true}`,
+ *  `{text:'maz', joinToNext:true}`, `{text:'ing'}` display as
+ *  "A-maz-ing" while still carrying independent chord slots above
+ *  each syllable. */
 export interface Beat {
   id: string;
   type: 'word' | 'blank';
   /** Word text. Undefined / empty for blank beats. */
   text?: string;
+  /** Syllable-group join flag. Only meaningful on 'word' beats. */
+  joinToNext?: boolean;
 }
 
 /** Named chord arrangement stored at the section level. Every phrase
@@ -304,6 +313,82 @@ export interface WantToLearnEntry {
   addedDate: number;
 }
 
+// --- Shapes & Patterns module (v9) ----------------------------------
+
+/** Which activity area a drill belongs to. Four top-level categories
+ *  surface in the module's UI; the first two share the heat-grid
+ *  pattern while the latter two use flat lists. */
+export type DrillKind =
+  | 'chord-shape'
+  | 'scale'
+  | 'voice-leading'
+  | 'mental-viz';
+
+/**
+ * A drillable "cell" — something the user can practise across
+ * multiple drill types. Created lazily on first interaction: opening
+ * a heat-grid cell that's never been practised materialises the
+ * DrillSkill + its default DrillTypes on demand.
+ *
+ * The shape is deliberately polymorphic across the four drill kinds
+ * because the heat-grid dimensions differ (chord×key vs scale×key vs
+ * pattern×key vs single card).
+ */
+export interface DrillSkill {
+  id: string;
+  kind: DrillKind;
+  /** Major-pitch-name key for the skill ("C", "Db", …, "B"). Optional
+   *  because mental-viz drills aren't key-pinned. */
+  keyName?: string;
+  /** Chord-quality id for 'chord-shape' skills ("maj", "m7b5", etc.). */
+  quality?: string;
+  /** Scale id for 'scale' skills ('major' / 'natural-minor' in v1). */
+  scale?: string;
+  /** Voice-leading pattern id for 'voice-leading' skills. */
+  patternId?: string;
+  /** Mental-viz variant id ('shape-viz' / 'ghost-keyboard' / …). */
+  variant?: string;
+  /** Denormalised display label — used when rendering without having
+   *  to re-derive from catalog. Editable. */
+  label?: string;
+  createdAt: number;
+}
+
+/** One practice type inside a skill. E.g. for "Cmaj triad" the types
+ *  are "Root position", "1st inversion", "2nd inversion", "All
+ *  inversions fluid". Aggregate counts here are maintained by the
+ *  session-logging flow so the heat-grid doesn't need to sum sessions
+ *  at render time. */
+export interface DrillType {
+  id: string;
+  skillId: string;
+  name: string;
+  /** Suggested duration in seconds — default fill for the drill
+   *  session timer. Editable. */
+  suggestedSeconds: number;
+  /** Display ordering within the skill. */
+  order: number;
+  repCount: number;
+  totalSeconds: number;
+  lastPracticedAt: number | null;
+  /** User-added drills flagged so the UI can distinguish them from
+   *  defaults (only for display; no behavioural difference). */
+  userCreated?: boolean;
+}
+
+export interface DrillSession {
+  id: string;
+  drillTypeId: string;
+  skillId: string;
+  /** How long this session actually ran (not the target). Minimum
+   *  enforced at 30 s by the UI before a session can save. */
+  durationSeconds: number;
+  /** 1 = struggled, 2 = working on it, 3 = clean, 4 = in flow. */
+  feelRating: 1 | 2 | 3 | 4;
+  notes?: string;
+  timestamp: number;
+}
+
 export interface Session {
   id: string;
   date: number;
@@ -429,6 +514,9 @@ export class AppDB extends Dexie {
   songPracticeLog!: Table<SongPracticeLog, string>;
   songCrossKeyProgress!: Table<SongCrossKeyProgress, string>;
   wantToLearn!: Table<WantToLearnEntry, string>;
+  drillSkills!: Table<DrillSkill, string>;
+  drillTypes!: Table<DrillType, string>;
+  drillSessions!: Table<DrillSession, string>;
 
   constructor() {
     super('musical-journey');
@@ -556,6 +644,35 @@ export class AppDB extends Dexie {
       songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
       songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
       wantToLearn: 'id, addedDate, priority',
+    });
+    this.version(9).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      // Shapes & Patterns module. drillSkills indexes kind + the
+      // triplet (kind, keyName, quality) so heat-grid lookups are
+      // one round-trip per tab. drillTypes + drillSessions pivot on
+      // skillId / drillTypeId for the obvious aggregations.
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
     });
   }
 }

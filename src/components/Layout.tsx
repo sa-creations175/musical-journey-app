@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import InstrumentSelector from './InstrumentSelector';
+import MetronomeControl from './MetronomeControl';
 import SettingsPanel from './SettingsPanel';
 import BackupReminderBanner from './BackupReminderBanner';
 
@@ -8,8 +9,8 @@ const links = [
   { to: '/', label: 'dashboard', end: true },
   { to: '/harmonic-fluency', label: 'harmonic fluency' },
   { to: '/ear-training', label: 'ear training' },
-  { to: '/chords-shapes', label: 'chords & shapes' },
   { to: '/repertoire', label: 'song repertoire' },
+  { to: '/shapes-and-patterns', label: 'shapes & patterns' },
   { to: '/production', label: 'production' },
   { to: '/session-log', label: 'session log' },
 ];
@@ -45,8 +46,10 @@ export default function Layout() {
       <div className="flex-1 flex flex-col min-w-0">
         <header className="border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-between gap-3">
           <span className="text-[10px] uppercase tracking-wide text-neutral-500">instrument</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <InstrumentSelector />
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <MetronomeControl />
             <button
               onClick={() => setSettingsOpen(true)}
               aria-label="settings"
