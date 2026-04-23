@@ -41,52 +41,10 @@ export const GENRE_TAGS = [
 export type EmotionalTag = typeof EMOTIONAL_TAGS[number];
 export type GenreTag = typeof GENRE_TAGS[number];
 
-/**
- * Diary modes + emotion variants. The concrete palettes live in
- * `index.css` as CSS custom properties keyed by the `data-mode` +
- * `data-emotion` attributes on `.diary-root`; this module owns the
- * string vocabulary + emotion-detection regex that drive those
- * attributes, so the React layer just reads a key and sets an
- * attribute.
- */
-export type DiaryMode = 'light' | 'dark';
-
-export type DiaryEmotion =
-  | 'default'
-  | 'melancholy'
-  | 'joyful'
-  | 'contemplative'
-  | 'groovy';
-
-/** Short descriptor shown to the user when a palette activates. */
-export const EMOTION_LABEL: Record<DiaryEmotion, string> = {
-  default:       'warm neutral',
-  melancholy:    'overcast afternoon',
-  joyful:        'golden hour',
-  contemplative: 'moss and cream',
-  groovy:        'sun-drenched',
-};
-
-// Search terms that trigger an emotion palette. Fuzzy — the first
-// match wins. Kept small on purpose so unrelated searches don't
-// surprise-shift the palette.
-const EMOTION_MATCHERS: Array<{ re: RegExp; key: Exclude<DiaryEmotion, 'default'> }> = [
-  { re: /melanchol|blue|sad|longing|yearning|forlorn|pensive|bittersweet/i, key: 'melancholy' },
-  { re: /joy|uplift|triumph|bright|hopeful|light/i,                         key: 'joyful' },
-  { re: /smooth|contemplat|tender|dreamy|intimate/i,                        key: 'contemplative' },
-  { re: /groov|funk|soul(ful)?|warm|pocket|greasy/i,                        key: 'groovy' },
-];
-
-/** Resolve a search term (or active emotion tag) to a palette key.
- *  Returns `'default'` when nothing matches or the query is empty. */
-export function emotionFor(query: string): DiaryEmotion {
-  const q = query.trim().toLowerCase();
-  if (!q) return 'default';
-  for (const { re, key } of EMOTION_MATCHERS) {
-    if (re.test(q)) return key;
-  }
-  return 'default';
-}
+// Diary theming has been intentionally simplified to a single
+// earthy palette — see index.css (.diary-root). Emotion-driven
+// background shifts and light/dark mode are deferred to a future
+// iteration (noted in the Settings panel).
 
 // ---------------------------------------------------------------
 // Lineage quotes shown at the top of the Diary landing. Rotates

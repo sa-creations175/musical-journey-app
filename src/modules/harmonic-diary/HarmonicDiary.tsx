@@ -6,12 +6,9 @@ import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import Modal from '../../components/Modal';
 import DiaryEntryCard from './DiaryEntryCard';
 import DiaryEntryEditor from './DiaryEntryEditor';
-import { getPref, setPref } from '../../lib/userPrefs';
 import { loadAllDiaryEntries, migrateLegacyAssociationsIfNeeded, seedStartersIfNeeded } from './data';
-import { EMOTIONAL_TAGS, defaultStarterFor, emotionFor, EMOTION_LABEL, quoteForToday, type DiaryEmotion, type DiaryMode } from './vocab';
+import { EMOTIONAL_TAGS, defaultStarterFor, quoteForToday } from './vocab';
 import { playSkillAudio } from './audio';
-
-const PREF_DIARY_MODE = 'harmonicDiaryMode';
 
 type ViewMode = 'moodboard' | 'list';
 
@@ -76,24 +73,6 @@ export default function HarmonicDiary() {
   const [activeEmotionFilter, setActiveEmotionFilter] = useState<string | null>(null);
   const [activeModuleFilter, setActiveModuleFilter] = useState<string | null>(null);
 
-  // Light/dark mode for the diary — persists via userPrefs. Default
-  // light (the "warm sunny day" metaphor). Scoped to the diary only
-  // for v1; future iteration could make it app-wide.
-  const [diaryMode, setDiaryMode] = useState<DiaryMode>('light');
-  useEffect(() => {
-    void (async () => {
-      const stored = await getPref<DiaryMode>(PREF_DIARY_MODE, 'light');
-      if (stored === 'light' || stored === 'dark') setDiaryMode(stored);
-    })();
-  }, []);
-  const toggleMode = () => {
-    setDiaryMode(prev => {
-      const next: DiaryMode = prev === 'light' ? 'dark' : 'light';
-      void setPref(PREF_DIARY_MODE, next);
-      return next;
-    });
-  };
-
   // Editor modal state.
   const [editing, setEditing] = useState<{ entry: HarmonicDiaryEntry | null; skillId: string; starter?: string } | null>(null);
 
@@ -122,13 +101,6 @@ export default function HarmonicDiary() {
   }, [searchParams, skillsById]);
 
   const quote = useMemo(() => quoteForToday(), []);
-  // Emotion flows from: explicit chip filter > search query > default.
-  // The resolved key becomes a data-attribute on `.diary-root`; the
-  // stylesheet owns the concrete palette and transitions.
-  const emotion: DiaryEmotion = useMemo(
-    () => emotionFor(activeEmotionFilter ?? search),
-    [activeEmotionFilter, search],
-  );
 
   // Filter + search pipeline. Search matches everything that makes
   // a diary entry findable: user text, starter text, tags, and the
@@ -184,14 +156,9 @@ export default function HarmonicDiary() {
   };
 
   return (
-    <div
-      className="diary-root space-y-5"
-      data-mode={diaryMode}
-      data-emotion={emotion}
-    >
-      {/* Top header — editorial masthead. All colour comes from the
-          palette CSS variables so the entire header shifts with the
-          background when the emotion or mode changes. */}
+    <div className="diary-root space-y-5">
+      {/* Top header — editorial masthead. Single earth-tone palette
+          for everything; no mode toggle, no emotion-driven shifts. */}
       <header className="space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <h1
@@ -201,14 +168,13 @@ export default function HarmonicDiary() {
             harmonic diary
           </h1>
           <div className="flex items-center gap-2">
-            <ModeToggle mode={diaryMode} onToggle={toggleMode} />
             <ViewToggle mode={mode} onChange={setMode} />
             <button
               onClick={() => setPicking(true)}
               className="px-3 py-1.5 rounded-md text-xs font-medium transition"
               style={{
                 backgroundColor: 'var(--diary-text)',
-                color: 'var(--diary-bg-start)',
+                color: 'var(--diary-card-bg)',
               }}
               onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
@@ -218,8 +184,8 @@ export default function HarmonicDiary() {
           </div>
         </div>
 
-        {/* Daily lineage quote — uses --diary-text (dark on light,
-            cream on dark) so contrast passes AA in every state. */}
+        {/* Daily lineage quote — full-strength primary text so it
+            reads crisp against the paper background. */}
         <div className="text-center py-3">
           <span className="diary-divider-glyph" aria-hidden>· · ·</span>
           <span className="diary-divider" aria-hidden />
@@ -233,23 +199,12 @@ export default function HarmonicDiary() {
           <span className="diary-divider-glyph" aria-hidden>· · ·</span>
         </div>
 
-        {/* Active palette label — small caption that makes the
-            atmospheric shift discoverable. */}
-        <div className="text-center">
-          <span
-            className="text-[10px] uppercase tracking-[0.3em]"
-            style={{ color: 'var(--diary-text-dim)' }}
-          >
-            {EMOTION_LABEL[emotion]}
-          </span>
-        </div>
-
         {/* Filter row */}
         <div className="flex items-center gap-2 flex-wrap">
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="search associations, tags, skills… (try 'melancholy' or 'joyful')"
+            placeholder="search associations, tags, skills…"
             className="diary-input flex-1 min-w-[200px] rounded-md px-3 py-2 text-sm"
           />
           {(activeEmotionFilter || activeModuleFilter || search) && (
@@ -299,7 +254,7 @@ export default function HarmonicDiary() {
                   className="px-2.5 py-0.5 rounded-full text-[11px] transition"
                   style={active ? {
                     backgroundColor: 'var(--diary-accent)',
-                    color: 'var(--diary-bg-start)',
+                    color: 'var(--diary-card-bg)',
                     border: '1px solid var(--diary-accent)',
                   } : {
                     backgroundColor: 'transparent',
@@ -383,7 +338,7 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
             className="px-2.5 py-1 rounded transition"
             style={active ? {
               backgroundColor: 'var(--diary-text)',
-              color: 'var(--diary-bg-start)',
+              color: 'var(--diary-card-bg)',
             } : {
               color: 'var(--diary-text-muted)',
             }}
@@ -393,29 +348,6 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
         );
       })}
     </div>
-  );
-}
-
-/** Sun/moon toggle between the two Diary aesthetics. State lives in
- *  the parent and persists via userPrefs so the mode carries across
- *  visits. Scoped to the diary for v1 — doesn't affect the rest of
- *  the app's theming. */
-function ModeToggle({ mode, onToggle }: { mode: DiaryMode; onToggle: () => void }) {
-  return (
-    <button
-      onClick={onToggle}
-      aria-label={mode === 'light' ? 'switch to dark mode' : 'switch to light mode'}
-      title={mode === 'light' ? 'switch to dark mode' : 'switch to light mode'}
-      className="inline-flex items-center justify-center w-8 h-8 rounded-md text-sm transition"
-      style={{
-        border: '1px solid var(--diary-card-border)',
-        color: 'var(--diary-text)',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--diary-accent)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--diary-card-border)'; }}
-    >
-      {mode === 'light' ? '☾' : '☀'}
-    </button>
   );
 }
 
@@ -507,7 +439,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <button
         onClick={onAdd}
         className="mt-2 px-4 py-2 rounded-md text-sm font-medium transition"
-        style={{ backgroundColor: 'var(--diary-text)', color: 'var(--diary-bg-start)' }}
+        style={{ backgroundColor: 'var(--diary-text)', color: 'var(--diary-card-bg)' }}
       >
         + add your first association
       </button>

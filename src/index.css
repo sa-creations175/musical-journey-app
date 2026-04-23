@@ -53,56 +53,44 @@ body {
 }
 
 /* -------------------------------------------------------------
-   Harmonic Diary aesthetic — dual-mode editorial journal
+   Harmonic Diary aesthetic — faded botanical journal
    -------------------------------------------------------------
-   The Diary has two modes (light, dark) and layers an active
-   "emotion" variant on top. All colour tokens are CSS custom
-   properties on `.diary-root`. `@property` declarations below give
-   the browser type information so gradient colours interpolate
-   smoothly during the 800ms transition — rather than snapping.
-   When @property isn't supported, the gradient snaps but text
-   colour still animates (base CSS) and the visual change is still
-   clearly visible.
-
-   Mode + emotion are set via data-attributes on `.diary-root`:
-     data-mode="light"|"dark"
-     data-emotion=""|"melancholy"|"joyful"|"contemplative"|"groovy"
+   Single uniform earth-tone palette. No dark mode, no emotion-
+   driven colour shifts. Aged-paper warmth, olive-green cast,
+   Crimson Pro serif + Work Sans body. Atmospheric theming is
+   deferred to a future iteration (see SettingsPanel note).
 */
 
-/* Gradient end-points + text colour are registered as animatable
-   <color> properties. Browsers that honour @property interpolate
-   these smoothly when the CSS variables change value. */
-@property --diary-bg-start     { syntax: '<color>'; inherits: true; initial-value: #e4eef3; }
-@property --diary-bg-end       { syntax: '<color>'; inherits: true; initial-value: #f4ede0; }
-@property --diary-text         { syntax: '<color>'; inherits: true; initial-value: #2d3b2f; }
-@property --diary-text-muted   { syntax: '<color>'; inherits: true; initial-value: #4a5548; }
-@property --diary-text-dim     { syntax: '<color>'; inherits: true; initial-value: #7a8578; }
-@property --diary-card-bg      { syntax: '<color>'; inherits: true; initial-value: #faf5ec; }
-@property --diary-card-border  { syntax: '<color>'; inherits: true; initial-value: rgba(60, 50, 40, 0.12); }
-@property --diary-chip-bg      { syntax: '<color>'; inherits: true; initial-value: #f4ede0; }
-@property --diary-chip-text    { syntax: '<color>'; inherits: true; initial-value: #2d3b2f; }
-@property --diary-accent       { syntax: '<color>'; inherits: true; initial-value: #c4825a; }
-@property --diary-accent-earth { syntax: '<color>'; inherits: true; initial-value: #5a7852; }
-
-/* Base diary container — always light mode by default. Extends to
-   the edges of the main content area so the atmospheric gradient
-   fills the visible Diary surface. */
 .diary-root {
-  --diary-card-shadow: 0 2px 12px rgba(60, 50, 40, 0.08);
-  --diary-card-shadow-hover: 0 6px 24px rgba(60, 50, 40, 0.16);
-  --diary-grain-opacity: 0.07;
-  --diary-grain-color: 60 50 40;
+  /* Palette tokens — all rendered text + card surfaces read these
+     so there is a single place to adjust the feel. */
+  --diary-bg-start:   #d9dcc4;
+  --diary-bg-end:     #e8e0c9;
+  --diary-text:       #3a3d2a;
+  --diary-text-muted: #5a5c45;
+  --diary-text-dim:   #858562;
+  --diary-card-bg:    #f4efe0;
+  --diary-card-border: rgba(58, 61, 42, 0.06);
+  --diary-accent:     #8a7d52;       /* mustard / dried grass */
+  --diary-accent-earth: #6b7a4f;     /* deeper moss */
+  --diary-accent-tan: #b5a480;       /* warm tan highlight */
+  --diary-chip-bg:    var(--diary-card-bg);
+  --diary-chip-text:  var(--diary-text);
+  --diary-chip-border:#b5a480;
+  --diary-card-shadow: 0 2px 12px rgba(58, 61, 42, 0.08);
+  --diary-card-shadow-hover: 0 6px 22px rgba(58, 61, 42, 0.14);
 
   position: relative;
   min-height: calc(100vh - 140px);
   margin: -1.5rem -1.5rem -1.5rem -1.5rem;
   padding: 1.75rem 1.5rem 3rem;
-  background: linear-gradient(135deg, var(--diary-bg-start), var(--diary-bg-end));
+  /* Gentle diagonal that reads as "warm light across aged paper"
+     rather than a dramatic direction. */
+  background: linear-gradient(160deg, var(--diary-bg-start) 0%, var(--diary-bg-end) 100%);
   color: var(--diary-text);
   font-family: 'Work Sans', 'DM Sans', Inter, system-ui, sans-serif;
   letter-spacing: 0.005em;
-  transition: background 800ms ease, color 600ms ease;
-  isolation: isolate; /* contain the grain overlay */
+  isolation: isolate; /* contain the texture overlay */
 }
 
 @media (min-width: 768px) {
@@ -112,100 +100,25 @@ body {
   }
 }
 
-/* Texture overlay — paper grain in light mode, fine noise in dark
-   mode. Kept below cards (z-index 0) and above the gradient
-   background so the field feels analog without muddying text. */
+/* Paper / linen texture overlay — very low opacity, pressed to
+   multiply blend so it warms rather than lightens. */
 .diary-root::before {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: var(--diary-grain-opacity);
+  opacity: 0.04;
   z-index: 0;
   background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.2  0 0 0 0 0.18  0 0 0 0 0.15  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22  0 0 0 0 0.24  0 0 0 0 0.16  0 0 0 0.95 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   background-size: 220px 220px;
   mix-blend-mode: multiply;
-  transition: opacity 600ms ease;
 }
 
-/* Children sit above the grain overlay. */
+/* Children sit above the texture overlay. */
 .diary-root > * {
   position: relative;
   z-index: 1;
-}
-
-/* Light-mode emotion variants --------------------------------- */
-
-.diary-root[data-mode="light"][data-emotion="melancholy"] {
-  --diary-bg-start:  #a8bccc;
-  --diary-bg-end:    #c8c8c4;
-  --diary-text:      #2a3540;
-  --diary-text-muted:#3e4a55;
-  --diary-text-dim:  #5f6b75;
-  --diary-accent:    #3a5a7a;
-}
-.diary-root[data-mode="light"][data-emotion="joyful"] {
-  --diary-bg-start:  #d8ebf2;
-  --diary-bg-end:    #f6e8c6;
-  --diary-accent:    #d4a055;
-}
-.diary-root[data-mode="light"][data-emotion="contemplative"] {
-  --diary-bg-start:  #c8d4b8;
-  --diary-bg-end:    #e0d8c4;
-  --diary-accent:    #5a7852;
-}
-.diary-root[data-mode="light"][data-emotion="groovy"] {
-  --diary-bg-start:  #f2d8b8;
-  --diary-bg-end:    #e8c49c;
-  --diary-accent:    #b7602d;
-}
-
-/* Dark-mode base + emotion variants --------------------------- */
-
-.diary-root[data-mode="dark"] {
-  --diary-bg-start:  #1a1410;
-  --diary-bg-end:    #2a1f18;
-  --diary-text:      #f5eee4;
-  --diary-text-muted:#c4b8a8;
-  --diary-text-dim:  #8a7a68;
-  --diary-card-bg:   #241d18;
-  --diary-card-border: rgba(245, 238, 228, 0.10);
-  --diary-chip-bg:   #f5eee4;
-  --diary-chip-text: #1a1410;
-  --diary-accent:    #d4a055;
-  --diary-accent-earth: #d4a055;
-  --diary-card-shadow: 0 4px 20px rgba(10, 5, 2, 0.4);
-  --diary-card-shadow-hover: 0 10px 28px rgba(10, 5, 2, 0.55);
-  --diary-grain-opacity: 0.05;
-  --diary-grain-color: 245 238 228;
-}
-.diary-root[data-mode="dark"]::before {
-  /* Swap to a cream-tinted grain so texture reads on dark bg. */
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.93  0 0 0 0 0.88  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  mix-blend-mode: overlay;
-}
-.diary-root[data-mode="dark"][data-emotion="melancholy"] {
-  --diary-bg-start:  #0f1419;
-  --diary-bg-end:    #1a2838;
-  --diary-text:      #d8e2ea;
-  --diary-accent:    #d4a055;
-}
-.diary-root[data-mode="dark"][data-emotion="joyful"] {
-  --diary-bg-start:  #2a1610;
-  --diary-bg-end:    #3d2618;
-  --diary-accent:    #f5c456;
-}
-.diary-root[data-mode="dark"][data-emotion="contemplative"] {
-  --diary-bg-start:  #1f1523;
-  --diary-bg-end:    #2d1a2e;
-  --diary-accent:    #c98478;
-}
-.diary-root[data-mode="dark"][data-emotion="groovy"] {
-  --diary-bg-start:  #2a1a0f;
-  --diary-bg-end:    #3d2515;
-  --diary-accent:    #e8a55a;
 }
 
 /* Typography helpers ----------------------------------------- */
@@ -227,22 +140,16 @@ body {
   border: 1px solid var(--diary-card-border);
   border-radius: 6px;
   box-shadow: var(--diary-card-shadow);
-  transition:
-    transform 220ms ease,
-    box-shadow 220ms ease,
-    background 800ms ease,
-    color 600ms ease,
-    border-color 600ms ease;
+  transition: transform 220ms ease, box-shadow 220ms ease;
 }
 .diary-card:hover {
   transform: translateY(-2px);
   box-shadow: var(--diary-card-shadow-hover);
 }
 
-/* Alternating rotation — keep a touch of hand-placed feeling. The
-   translateY is inherited from :hover via `transform` being
-   resolved against the non-hover rotation rule, so we explicitly
-   re-state the full transform on hover for rotated cards. */
+/* Alternating rotation — keep a touch of hand-placed feeling.
+   translateY on hover is re-stated against the rotation so the two
+   transforms compose. */
 .diary-moodboard > .diary-card-wrap:nth-child(3n+1) .diary-card {
   transform: rotate(-0.5deg);
 }
@@ -264,14 +171,13 @@ body {
 .diary-chip {
   background: var(--diary-chip-bg);
   color: var(--diary-chip-text);
-  border: 1px solid var(--diary-card-border);
+  border: 1px solid var(--diary-chip-border);
   border-radius: 999px;
   font-family: 'Work Sans', Inter, sans-serif;
   font-weight: 500;
   font-size: 10px;
   padding: 2px 9px;
   letter-spacing: 0.02em;
-  transition: background 800ms ease, color 600ms ease, border-color 600ms ease;
 }
 .diary-chip-muted {
   background: transparent;
@@ -283,7 +189,6 @@ body {
   font-size: 10px;
   padding: 2px 9px;
   letter-spacing: 0.02em;
-  transition: color 600ms ease, border-color 600ms ease;
 }
 
 /* Form elements --------------------------------------------- */
@@ -292,7 +197,7 @@ body {
   background: var(--diary-card-bg);
   color: var(--diary-text);
   border: 1px solid var(--diary-card-border);
-  transition: background 800ms ease, color 600ms ease, border-color 200ms ease;
+  transition: border-color 200ms ease;
 }
 .diary-input::placeholder {
   color: var(--diary-text-dim);
@@ -321,16 +226,11 @@ body {
   font-size: 11px;
 }
 
-/* List-view variant — flat, no gradient distraction. The .diary-list
-   container lives inside .diary-root so it still picks up the
-   palette vars. */
+/* List-view variant — flat base background, no gradient. Still
+   sits on the paper-toned field inherited from .diary-root. */
 .diary-list {
   border-radius: 12px;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.35);
+  background: #e8e0c9;
   border: 1px solid var(--diary-card-border);
-  transition: background 800ms ease, border-color 600ms ease;
-}
-.diary-root[data-mode="dark"] .diary-list {
-  background: rgba(26, 20, 16, 0.55);
 }

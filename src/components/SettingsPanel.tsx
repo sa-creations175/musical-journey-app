@@ -191,6 +191,16 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+              harmonic diary
+            </h4>
+            <p className="text-sm text-neutral-500">
+              the diary currently uses a single earthy botanical palette. dynamic
+              emotion-based theming is planned for a future update.
+            </p>
+          </section>
+
+          <section>
+            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
               more settings
             </h4>
             <p className="text-sm text-neutral-500">
