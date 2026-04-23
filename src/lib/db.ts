@@ -413,6 +413,100 @@ export interface CreativeSession {
   quickExploration?: boolean;
 }
 
+// --- Skills registry + Harmonic Diary (v11) -------------------------
+//
+// These two tables power the Skills Catalogue and Harmonic Diary
+// features. They are both ANNOTATION layers on top of existing module
+// data — the module tables remain the source of truth for tier /
+// freshness / attempt counts, while these tables carry user-set
+// metadata (priorities, tags, emotional associations) that doesn't
+// belong inside any single module.
+
+/** Skill type classification — used by the Skills Catalogue to group
+ *  and filter the unified view. 'theory' covers conceptual harmonic
+ *  fluency cards; 'ear' covers interval / chord-recognition /
+ *  progression ear-training; 'physical-*' covers the three Shapes &
+ *  Patterns drill kinds (mental-viz stays its own category since it's
+ *  a cognitive drill); 'song' covers repertoire entries. */
+export type SkillType =
+  | 'theory'
+  | 'ear'
+  | 'physical-chord-shape'
+  | 'physical-scale'
+  | 'physical-voice-leading'
+  | 'physical-mental-viz'
+  | 'song'
+  | 'production';
+
+/** User-settable learning intent — lets the catalogue surface what
+ *  the user is actively choosing to invest in vs maintain. */
+export type SkillPriority = 'comfort' | 'deep' | 'maintenance';
+
+/**
+ * User annotations for a specific skill. `skillId` is a canonical
+ * string built by `canonicalSkillId` in src/modules/skills/registry.ts
+ * — it stays stable across module refactors because it embeds both
+ * moduleId and itemId.
+ *
+ * Tier / freshness / lastPracticed are INTENTIONALLY absent — those
+ * are derived live from source module tables. Only user-set
+ * annotations persist here.
+ */
+export interface SkillAnnotation {
+  skillId: string;
+  priority?: SkillPriority;
+  /** Free-form tags the user has attached to this skill ("Modal
+   *  Interchange", "gospel-blue", etc.). */
+  tags: string[];
+  /** User can override the catalogue's auto-derived display name. */
+  customName?: string;
+  /** User can write a private note about the skill, visible only
+   *  inside the catalogue detail panel. */
+  note?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * One harmonic-diary entry — the association a user has with a
+ * specific skill. Extends the per-module association concept (the
+ * existing `progressionAssociations`, `modeAssociations`, and
+ * `intervalDescriptions` tables) into a single unified space that can
+ * hold emotional/genre tags and link to any skill regardless of
+ * source module.
+ *
+ * `claudeStarterText` holds the app-generated seed associated with
+ * the skill. When the user edits, `userText` carries their version
+ * and `isStarterEdited = true` flags that the entry is now
+ * user-owned. Both are kept so we can show "Claude's starter — tap
+ * to customise" in the UI when no user text exists yet.
+ */
+export interface HarmonicDiaryEntry {
+  /** Stable id — uuid-ish. */
+  entryId: string;
+  /** FK into the derived skill registry. */
+  skillId: string;
+  /** User-written association text. Empty string when not yet
+   *  personalised. */
+  userText: string;
+  /** App-generated starter text shown when `userText` is empty. */
+  claudeStarterText?: string;
+  /** True once the user has edited the starter. */
+  isStarterEdited: boolean;
+  /** Emotion tag vocabulary — melancholy, hopeful, tense, resolved,
+   *  bright, dark, warm, dreamy, mysterious, etc. Curated in
+   *  src/modules/harmonic-diary/vocab.ts. */
+  emotionalTags: string[];
+  /** Genre tags — gospel, soul, neo-soul, hip-hop, jazz, etc. */
+  genreTags: string[];
+  createdAt: number;
+  lastEdited: number;
+  /** When the entry was materialised from a legacy per-module
+   *  association table, this records the source so subsequent syncs
+   *  stay idempotent. Absent for diary-native entries. */
+  legacySource?: 'progression' | 'mode' | 'interval';
+}
+
 export interface Session {
   id: string;
   date: number;
@@ -542,6 +636,8 @@ export class AppDB extends Dexie {
   drillTypes!: Table<DrillType, string>;
   drillSessions!: Table<DrillSession, string>;
   creativeSessions!: Table<CreativeSession, string>;
+  skillAnnotations!: Table<SkillAnnotation, string>;
+  harmonicDiaryEntries!: Table<HarmonicDiaryEntry, string>;
 
   constructor() {
     super('musical-journey');
@@ -728,6 +824,39 @@ export class AppDB extends Dexie {
       // [mode+timestamp] so the dashboard can split play vs produce
       // time without scanning everything.
       creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+    });
+    this.version(11).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      // Skills Catalogue user annotations — keyed by canonical
+      // skillId so joins with derived module data are O(1).
+      skillAnnotations: 'skillId, priority, updatedAt',
+      // Harmonic Diary entries. Indexed on skillId for per-skill
+      // lookup and legacySource so we can deduplicate across the
+      // old per-module association tables on first migration.
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
     });
   }
 }

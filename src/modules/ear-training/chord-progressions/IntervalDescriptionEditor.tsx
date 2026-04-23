@@ -1,6 +1,29 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
+import { INTERVAL_QUALITIES } from './intervalQuality';
+import { INTERVAL_SEEDS } from '../intervals/seed';
+import { canonicalSkillId } from '../../skills/registry';
+
+/**
+ * Map an intervalDescriptions row key ("minor-3rd-ascending") to the
+ * diary skillId that carries its emotional association. Returns null
+ * when the key can't be parsed — caller falls back to the diary
+ * landing without a specific skill filter.
+ */
+function diarySkillIdForIntervalKey(intervalKey: string): string | null {
+  // intervalKey is `<qualityId>-<direction>`, e.g. "minor-3rd-ascending".
+  const dirMatch = /-(ascending|descending)$/.exec(intervalKey);
+  if (!dirMatch) return null;
+  const direction = dirMatch[1] === 'ascending' ? 'asc' : 'desc';
+  const qualityId = intervalKey.slice(0, dirMatch.index);
+  const quality = INTERVAL_QUALITIES.find(q => q.id === qualityId);
+  if (!quality) return null;
+  const seed = INTERVAL_SEEDS.find(s => s.semitones === quality.semitones);
+  if (!seed) return null;
+  return canonicalSkillId('intervals', direction, seed.id);
+}
 
 const MAX = 280;
 
@@ -146,6 +169,19 @@ export default function IntervalDescriptionEditor({ intervalKey, defaultText }: 
           {draft.length}/{MAX}
         </span>
       </div>
+      {(() => {
+        const diarySkillId = diarySkillIdForIntervalKey(intervalKey);
+        return (
+          <Link
+            to={diarySkillId
+              ? `/harmonic-diary?skill=${encodeURIComponent(diarySkillId)}`
+              : '/harmonic-diary'}
+            className="inline-block text-[11px] text-fluent hover:underline"
+          >
+            open in Harmonic Diary →
+          </Link>
+        );
+      })()}
     </div>
   );
 }

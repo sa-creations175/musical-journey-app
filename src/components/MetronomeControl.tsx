@@ -100,7 +100,10 @@ export default function MetronomeControl() {
         <div
           role="dialog"
           aria-label="metronome settings"
-          className="absolute right-0 mt-2 z-40 w-72 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl p-3 space-y-3 text-xs"
+          // z-50 keeps the popover above page-level sticky bars,
+          // backdrop-blur surfaces, and any transform/filter ancestors
+          // that create stacking contexts downstream.
+          className="absolute right-0 mt-2 z-50 w-72 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl p-3 space-y-3 text-xs"
         >
           {/* BPM slider + click-to-edit readout + ± steppers */}
           <div className="space-y-1">

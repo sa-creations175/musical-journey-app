@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
+import { canonicalSkillId } from '../../skills/registry';
 
 const ASSOC_MAX = 500;
 
@@ -169,6 +171,12 @@ export default function AssociationsEditor({ progressionId, alwaysEditing = fals
           {draft.length}/{ASSOC_MAX}
         </span>
       </div>
+      <Link
+        to={`/harmonic-diary?skill=${encodeURIComponent(canonicalSkillId('chord-progressions', 'item', progressionId))}`}
+        className="inline-block text-[11px] text-fluent hover:underline"
+      >
+        open in Harmonic Diary →
+      </Link>
     </div>
   );
 }

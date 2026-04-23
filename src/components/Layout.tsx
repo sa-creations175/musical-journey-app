@@ -5,6 +5,7 @@ import MetronomeControl from './MetronomeControl';
 import SettingsPanel from './SettingsPanel';
 import SidebarNav from './SidebarNav';
 import BackupReminderBanner from './BackupReminderBanner';
+import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 
 export default function Layout() {
@@ -20,7 +21,7 @@ export default function Layout() {
         <SidebarNav />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3">
+        <header className="relative z-40 border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3">
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <InstrumentSelector />
             <span className="text-neutral-300 dark:text-neutral-700">·</span>
@@ -45,6 +46,7 @@ export default function Layout() {
           </div>
         </header>
         <BackupReminderBanner />
+        <ReturnToCatalogueBanner />
         <main className="flex-1 p-6 md:p-10 max-w-5xl w-full">
           <Outlet />
         </main>

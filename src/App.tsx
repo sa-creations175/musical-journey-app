@@ -18,6 +18,8 @@ import ShapesAndPatterns from './modules/shapes-and-patterns/ShapesAndPatterns';
 import ShapesAndPatternsCalendar from './modules/shapes-and-patterns/ShapesAndPatternsCalendar';
 import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
+import SkillsCatalogue from './modules/skills/SkillsCatalogue';
+import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 import { InstrumentProvider } from './lib/instrumentContext';
 import { Toaster } from './components/Toaster';
 
@@ -45,6 +47,8 @@ export default function App() {
             <Route path="shapes-and-patterns/calendar" element={<ShapesAndPatternsCalendar />} />
             <Route path="production" element={<Production />} />
             <Route path="session-log" element={<SessionLog />} />
+            <Route path="skills-catalogue" element={<SkillsCatalogue />} />
+            <Route path="harmonic-diary" element={<HarmonicDiary />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -690,6 +690,12 @@ function CreativeGeniusSection({
         >
           log a creative session
         </button>
+        <Link
+          to="/harmonic-diary"
+          className="px-3 py-1.5 rounded-md border border-amber-400/60 text-amber-700 dark:text-amber-300 text-sm hover:bg-amber-400/10"
+        >
+          browse your Harmonic Diary →
+        </Link>
         {stats?.lastSessionAt && (
           <span className="text-xs text-neutral-500 ml-auto">
             last: {formatHumanAgo(stats.lastSessionAt)} · {stats.lastSessionMode === 'produce' ? 'producing' : 'playing'}

@@ -46,7 +46,17 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'overview',
     label: 'overview',
     items: [
-      { id: 'dashboard', label: 'dashboard', to: '/', end: true },
+      // Skills Catalogue sits under Dashboard as a child — it's the
+      // detail companion to the Dashboard's top-level summary.
+      {
+        id: 'dashboard',
+        label: 'dashboard',
+        to: '/',
+        end: true,
+        children: [
+          { label: 'skills catalogue', to: '/skills-catalogue' },
+        ],
+      },
     ],
   },
   {
@@ -70,6 +80,10 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'progression vocabulary',   to: '/harmonic-fluency?category=progressions' },
           { label: 'slash chords',             to: '/harmonic-fluency?category=slash-chords' },
           { label: 'ear-theory crossover',     to: '/harmonic-fluency?category=ear-theory' },
+          // Dual-homed: the diary is the emotional companion to
+          // harmonic fluency's theoretical side, so it also lives
+          // here as well as under Creative Sessions.
+          { label: 'harmonic diary',           to: '/harmonic-diary' },
         ],
       },
       {
@@ -119,6 +133,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'creative-sessions',
     label: 'creative sessions',
     items: [
+      { id: 'harmonic-diary', label: 'harmonic diary', to: '/harmonic-diary' },
       { id: 'session-log', label: 'session log', to: '/session-log' },
     ],
   },
@@ -177,7 +192,10 @@ export default function SidebarNav() {
               onToggle={() => toggle(gKey)}
             />
             {isGroupOpen && (
-              <div className="flex flex-col gap-0.5 md:gap-1 mt-1">
+              // Indent the group's items + a subtle left-line so
+              // children read clearly as "inside" the group header
+              // rather than peers of it.
+              <div className="flex flex-col gap-0.5 md:gap-1 mt-1 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-800">
                 {group.items.map(item => (
                   <NavItemRow
                     key={item.id}
