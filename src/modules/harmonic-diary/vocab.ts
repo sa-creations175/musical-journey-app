@@ -42,76 +42,50 @@ export type EmotionalTag = typeof EMOTIONAL_TAGS[number];
 export type GenreTag = typeof GENRE_TAGS[number];
 
 /**
- * Atmospheric palette keyed by emotion. Returned when a search term
- * or active emotion tag implies a mood — the Moodboard view shifts
- * its background temperature subtly. Palettes are intentionally
- * dusty/muted so the effect feels atmospheric rather than costumed.
+ * Diary modes + emotion variants. The concrete palettes live in
+ * `index.css` as CSS custom properties keyed by the `data-mode` +
+ * `data-emotion` attributes on `.diary-root`; this module owns the
+ * string vocabulary + emotion-detection regex that drive those
+ * attributes, so the React layer just reads a key and sets an
+ * attribute.
  */
-export interface DiaryPalette {
-  /** CSS background (accepts any valid background value). */
-  background: string;
-  /** Accent colour used for headings and tag chips. */
-  accent: string;
-  /** Subtle overlay tint for cards. */
-  cardTint: string;
-  /** Short descriptor displayed to the user when the palette shifts. */
-  label: string;
-}
+export type DiaryMode = 'light' | 'dark';
 
-// Palette defaults follow the editorial-warmth spec. Gradient angle
-// is 135° so the darker corner sits top-left and light pools toward
-// the bottom-right — the layout where the eye naturally rests.
-const DEFAULT_PALETTE: DiaryPalette = {
-  background: 'linear-gradient(135deg, #1a1410 0%, #2a1f18 100%)',
-  accent: '#e3cba1',
-  cardTint: 'rgba(36, 29, 24, 0.92)',
-  label: 'warm neutrals',
+export type DiaryEmotion =
+  | 'default'
+  | 'melancholy'
+  | 'joyful'
+  | 'contemplative'
+  | 'groovy';
+
+/** Short descriptor shown to the user when a palette activates. */
+export const EMOTION_LABEL: Record<DiaryEmotion, string> = {
+  default:       'warm neutral',
+  melancholy:    'overcast afternoon',
+  joyful:        'golden hour',
+  contemplative: 'moss and cream',
+  groovy:        'sun-drenched',
 };
 
-const PALETTES: Record<string, DiaryPalette> = {
-  melancholy: {
-    background: 'linear-gradient(135deg, #0f1419 0%, #1a2838 100%)',
-    accent: '#d4a055',
-    cardTint: 'rgba(26, 40, 56, 0.72)',
-    label: 'blues twilight',
-  },
-  joyful: {
-    background: 'linear-gradient(135deg, #2a1610 0%, #3d2618 100%)',
-    accent: '#f5c456',
-    cardTint: 'rgba(61, 38, 24, 0.72)',
-    label: 'gospel light',
-  },
-  contemplative: {
-    background: 'linear-gradient(135deg, #1f1523 0%, #2d1a2e 100%)',
-    accent: '#c98478',
-    cardTint: 'rgba(45, 26, 46, 0.72)',
-    label: 'neo-soul dusk',
-  },
-  groovy: {
-    background: 'linear-gradient(135deg, #2a1a0f 0%, #3d2515 100%)',
-    accent: '#e8a55a',
-    cardTint: 'rgba(61, 37, 21, 0.72)',
-    label: '70s soul',
-  },
-};
-
-// Search terms that map onto palette keys. Fuzzy — the first match
-// wins. Kept small to avoid surprise palette shifts on unrelated
-// searches; unknown terms just use the default.
-const PALETTE_MATCHERS: Array<{ re: RegExp; key: keyof typeof PALETTES }> = [
-  { re: /melanchol|blue|sad|longing|yearning|forlorn|pensive/i, key: 'melancholy' },
-  { re: /joy|uplift|triumph|bright|hopeful|light/i,             key: 'joyful' },
-  { re: /smooth|contemplat|tender|dreamy|intimate/i,            key: 'contemplative' },
-  { re: /groov|funk|soul(ful)?|warm|pocket|greasy/i,            key: 'groovy' },
+// Search terms that trigger an emotion palette. Fuzzy — the first
+// match wins. Kept small on purpose so unrelated searches don't
+// surprise-shift the palette.
+const EMOTION_MATCHERS: Array<{ re: RegExp; key: Exclude<DiaryEmotion, 'default'> }> = [
+  { re: /melanchol|blue|sad|longing|yearning|forlorn|pensive|bittersweet/i, key: 'melancholy' },
+  { re: /joy|uplift|triumph|bright|hopeful|light/i,                         key: 'joyful' },
+  { re: /smooth|contemplat|tender|dreamy|intimate/i,                        key: 'contemplative' },
+  { re: /groov|funk|soul(ful)?|warm|pocket|greasy/i,                        key: 'groovy' },
 ];
 
-export function paletteFor(query: string): DiaryPalette {
+/** Resolve a search term (or active emotion tag) to a palette key.
+ *  Returns `'default'` when nothing matches or the query is empty. */
+export function emotionFor(query: string): DiaryEmotion {
   const q = query.trim().toLowerCase();
-  if (!q) return DEFAULT_PALETTE;
-  for (const { re, key } of PALETTE_MATCHERS) {
-    if (re.test(q)) return PALETTES[key];
+  if (!q) return 'default';
+  for (const { re, key } of EMOTION_MATCHERS) {
+    if (re.test(q)) return key;
   }
-  return DEFAULT_PALETTE;
+  return 'default';
 }
 
 // ---------------------------------------------------------------

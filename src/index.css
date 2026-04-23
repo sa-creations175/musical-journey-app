@@ -53,31 +53,162 @@ body {
 }
 
 /* -------------------------------------------------------------
-   Harmonic Diary aesthetic
+   Harmonic Diary aesthetic — dual-mode editorial journal
    -------------------------------------------------------------
-   Editorial / literary-journal voice with soul-music warmth. Dark
-   espresso base; warm cream text; Crimson Pro serif + Work Sans
-   body. Moodboard backgrounds shift palette with the active
-   emotion filter; a film-grain overlay sits on top at low opacity
-   for analog atmosphere. List-view strips the atmosphere for
-   scan-friendliness while preserving the typography.
+   The Diary has two modes (light, dark) and layers an active
+   "emotion" variant on top. All colour tokens are CSS custom
+   properties on `.diary-root`. `@property` declarations below give
+   the browser type information so gradient colours interpolate
+   smoothly during the 800ms transition — rather than snapping.
+   When @property isn't supported, the gradient snaps but text
+   colour still animates (base CSS) and the visual change is still
+   clearly visible.
+
+   Mode + emotion are set via data-attributes on `.diary-root`:
+     data-mode="light"|"dark"
+     data-emotion=""|"melancholy"|"joyful"|"contemplative"|"groovy"
 */
 
-.diary-root {
-  /* Palette tokens — referenced by component styles + inline
-     gradient backgrounds via rgb()/hex literals matching these. */
-  --diary-bg-base:     #1a1410;
-  --diary-bg-card:     #241d18;
-  --diary-text:        #f5eee4;
-  --diary-text-muted:  #c4b8a8;
-  --diary-text-dim:    #8a7a68;
-  --diary-border:      rgba(245, 238, 228, 0.08);
+/* Gradient end-points + text colour are registered as animatable
+   <color> properties. Browsers that honour @property interpolate
+   these smoothly when the CSS variables change value. */
+@property --diary-bg-start     { syntax: '<color>'; inherits: true; initial-value: #e4eef3; }
+@property --diary-bg-end       { syntax: '<color>'; inherits: true; initial-value: #f4ede0; }
+@property --diary-text         { syntax: '<color>'; inherits: true; initial-value: #2d3b2f; }
+@property --diary-text-muted   { syntax: '<color>'; inherits: true; initial-value: #4a5548; }
+@property --diary-text-dim     { syntax: '<color>'; inherits: true; initial-value: #7a8578; }
+@property --diary-card-bg      { syntax: '<color>'; inherits: true; initial-value: #faf5ec; }
+@property --diary-card-border  { syntax: '<color>'; inherits: true; initial-value: rgba(60, 50, 40, 0.12); }
+@property --diary-chip-bg      { syntax: '<color>'; inherits: true; initial-value: #f4ede0; }
+@property --diary-chip-text    { syntax: '<color>'; inherits: true; initial-value: #2d3b2f; }
+@property --diary-accent       { syntax: '<color>'; inherits: true; initial-value: #c4825a; }
+@property --diary-accent-earth { syntax: '<color>'; inherits: true; initial-value: #5a7852; }
 
+/* Base diary container — always light mode by default. Extends to
+   the edges of the main content area so the atmospheric gradient
+   fills the visible Diary surface. */
+.diary-root {
+  --diary-card-shadow: 0 2px 12px rgba(60, 50, 40, 0.08);
+  --diary-card-shadow-hover: 0 6px 24px rgba(60, 50, 40, 0.16);
+  --diary-grain-opacity: 0.07;
+  --diary-grain-color: 60 50 40;
+
+  position: relative;
+  min-height: calc(100vh - 140px);
+  margin: -1.5rem -1.5rem -1.5rem -1.5rem;
+  padding: 1.75rem 1.5rem 3rem;
+  background: linear-gradient(135deg, var(--diary-bg-start), var(--diary-bg-end));
   color: var(--diary-text);
   font-family: 'Work Sans', 'DM Sans', Inter, system-ui, sans-serif;
   letter-spacing: 0.005em;
+  transition: background 800ms ease, color 600ms ease;
+  isolation: isolate; /* contain the grain overlay */
 }
 
+@media (min-width: 768px) {
+  .diary-root {
+    margin: -2.5rem -2.5rem -2.5rem -2.5rem;
+    padding: 2.5rem 2.5rem 4rem;
+  }
+}
+
+/* Texture overlay — paper grain in light mode, fine noise in dark
+   mode. Kept below cards (z-index 0) and above the gradient
+   background so the field feels analog without muddying text. */
+.diary-root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--diary-grain-opacity);
+  z-index: 0;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.2  0 0 0 0 0.18  0 0 0 0 0.15  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
+  mix-blend-mode: multiply;
+  transition: opacity 600ms ease;
+}
+
+/* Children sit above the grain overlay. */
+.diary-root > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Light-mode emotion variants --------------------------------- */
+
+.diary-root[data-mode="light"][data-emotion="melancholy"] {
+  --diary-bg-start:  #a8bccc;
+  --diary-bg-end:    #c8c8c4;
+  --diary-text:      #2a3540;
+  --diary-text-muted:#3e4a55;
+  --diary-text-dim:  #5f6b75;
+  --diary-accent:    #3a5a7a;
+}
+.diary-root[data-mode="light"][data-emotion="joyful"] {
+  --diary-bg-start:  #d8ebf2;
+  --diary-bg-end:    #f6e8c6;
+  --diary-accent:    #d4a055;
+}
+.diary-root[data-mode="light"][data-emotion="contemplative"] {
+  --diary-bg-start:  #c8d4b8;
+  --diary-bg-end:    #e0d8c4;
+  --diary-accent:    #5a7852;
+}
+.diary-root[data-mode="light"][data-emotion="groovy"] {
+  --diary-bg-start:  #f2d8b8;
+  --diary-bg-end:    #e8c49c;
+  --diary-accent:    #b7602d;
+}
+
+/* Dark-mode base + emotion variants --------------------------- */
+
+.diary-root[data-mode="dark"] {
+  --diary-bg-start:  #1a1410;
+  --diary-bg-end:    #2a1f18;
+  --diary-text:      #f5eee4;
+  --diary-text-muted:#c4b8a8;
+  --diary-text-dim:  #8a7a68;
+  --diary-card-bg:   #241d18;
+  --diary-card-border: rgba(245, 238, 228, 0.10);
+  --diary-chip-bg:   #f5eee4;
+  --diary-chip-text: #1a1410;
+  --diary-accent:    #d4a055;
+  --diary-accent-earth: #d4a055;
+  --diary-card-shadow: 0 4px 20px rgba(10, 5, 2, 0.4);
+  --diary-card-shadow-hover: 0 10px 28px rgba(10, 5, 2, 0.55);
+  --diary-grain-opacity: 0.05;
+  --diary-grain-color: 245 238 228;
+}
+.diary-root[data-mode="dark"]::before {
+  /* Swap to a cream-tinted grain so texture reads on dark bg. */
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.93  0 0 0 0 0.88  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: overlay;
+}
+.diary-root[data-mode="dark"][data-emotion="melancholy"] {
+  --diary-bg-start:  #0f1419;
+  --diary-bg-end:    #1a2838;
+  --diary-text:      #d8e2ea;
+  --diary-accent:    #d4a055;
+}
+.diary-root[data-mode="dark"][data-emotion="joyful"] {
+  --diary-bg-start:  #2a1610;
+  --diary-bg-end:    #3d2618;
+  --diary-accent:    #f5c456;
+}
+.diary-root[data-mode="dark"][data-emotion="contemplative"] {
+  --diary-bg-start:  #1f1523;
+  --diary-bg-end:    #2d1a2e;
+  --diary-accent:    #c98478;
+}
+.diary-root[data-mode="dark"][data-emotion="groovy"] {
+  --diary-bg-start:  #2a1a0f;
+  --diary-bg-end:    #3d2515;
+  --diary-accent:    #e8a55a;
+}
+
+/* Typography helpers ----------------------------------------- */
 .diary-serif {
   font-family: 'Crimson Pro', Georgia, 'Times New Roman', serif;
   letter-spacing: 0.01em;
@@ -88,45 +219,30 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* Moodboard canvas — layered gradient + grain. Gradient transitions
-   smoothly when the user's search / emotion-filter changes palette. */
-.diary-canvas {
-  position: relative;
-  border-radius: 18px;
-  overflow: hidden;
-  transition: background 800ms ease;
-}
-.diary-canvas::before {
-  /* Film-grain overlay — tiny inline SVG noise scaled via CSS. Sits
-     between the gradient and the card layer so cards read crisply
-     while the field feels analog. */
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.05;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95  0 0 0 0 0.93  0 0 0 0 0.88  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size: 240px 240px;
-}
+/* Cards ------------------------------------------------------- */
 
-/* Moodboard card — tactile object, not a button. Minimal radius,
-   warm shadow, whisper-thin border so the card lifts off the
-   gradient without looking plastic. */
 .diary-card {
-  background: var(--diary-bg-card);
+  background: var(--diary-card-bg);
   color: var(--diary-text);
-  border: 1px solid var(--diary-border);
-  border-radius: 5px;
-  box-shadow: 0 4px 20px rgba(10, 5, 2, 0.4);
-  transition: transform 200ms ease, box-shadow 200ms ease;
+  border: 1px solid var(--diary-card-border);
+  border-radius: 6px;
+  box-shadow: var(--diary-card-shadow);
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    background 800ms ease,
+    color 600ms ease,
+    border-color 600ms ease;
 }
 .diary-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(10, 5, 2, 0.55);
+  box-shadow: var(--diary-card-shadow-hover);
 }
-/* Alternating tiny rotation on moodboard cards — the `:nth-child`
-   rules nudge each card just enough to feel hand-placed. */
+
+/* Alternating rotation — keep a touch of hand-placed feeling. The
+   translateY is inherited from :hover via `transform` being
+   resolved against the non-hover rotation rule, so we explicitly
+   re-state the full transform on hover for rotated cards. */
 .diary-moodboard > .diary-card-wrap:nth-child(3n+1) .diary-card {
   transform: rotate(-0.5deg);
 }
@@ -140,35 +256,54 @@ body {
   transform: rotate(0.3deg) translateY(-2px);
 }
 .diary-moodboard > .diary-card-wrap:nth-child(5n) {
-  /* Occasional column-span-2 placements in the CSS grid give the
-     layout a varied, editorial rhythm instead of a rigid grid. */
   grid-column: span 2;
 }
 
-/* Cream chip for emotional / genre tags on moodboard cards. */
+/* Chips ------------------------------------------------------- */
+
 .diary-chip {
-  background: var(--diary-text);
-  color: #2a1810;
+  background: var(--diary-chip-bg);
+  color: var(--diary-chip-text);
+  border: 1px solid var(--diary-card-border);
   border-radius: 999px;
   font-family: 'Work Sans', Inter, sans-serif;
   font-weight: 500;
   font-size: 10px;
-  padding: 2px 8px;
+  padding: 2px 9px;
   letter-spacing: 0.02em;
+  transition: background 800ms ease, color 600ms ease, border-color 600ms ease;
 }
 .diary-chip-muted {
-  background: rgba(245, 238, 228, 0.12);
+  background: transparent;
   color: var(--diary-text-muted);
-  border: 1px solid rgba(245, 238, 228, 0.18);
+  border: 1px solid var(--diary-card-border);
   border-radius: 999px;
   font-family: 'Work Sans', Inter, sans-serif;
   font-weight: 500;
   font-size: 10px;
-  padding: 2px 8px;
+  padding: 2px 9px;
   letter-spacing: 0.02em;
+  transition: color 600ms ease, border-color 600ms ease;
 }
 
-/* Ornamental divider used above/below the daily lineage quote. */
+/* Form elements --------------------------------------------- */
+
+.diary-input {
+  background: var(--diary-card-bg);
+  color: var(--diary-text);
+  border: 1px solid var(--diary-card-border);
+  transition: background 800ms ease, color 600ms ease, border-color 200ms ease;
+}
+.diary-input::placeholder {
+  color: var(--diary-text-dim);
+}
+.diary-input:focus {
+  outline: none;
+  border-color: var(--diary-accent);
+}
+
+/* Divider / quote treatment --------------------------------- */
+
 .diary-divider {
   display: block;
   width: 64px;
@@ -186,11 +321,16 @@ body {
   font-size: 11px;
 }
 
-/* List-view variant — flat dark background, no grain, tighter
-   spacing. Typography stays in the same family so the diary still
-   reads as itself. */
+/* List-view variant — flat, no gradient distraction. The .diary-list
+   container lives inside .diary-root so it still picks up the
+   palette vars. */
 .diary-list {
-  background: var(--diary-bg-base);
   border-radius: 12px;
-  color: var(--diary-text);
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid var(--diary-card-border);
+  transition: background 800ms ease, border-color 600ms ease;
+}
+.diary-root[data-mode="dark"] .diary-list {
+  background: rgba(26, 20, 16, 0.55);
 }

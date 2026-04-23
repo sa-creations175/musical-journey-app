@@ -7,23 +7,19 @@ interface Props {
   skill?: SkillRecord;
   onEdit: () => void;
   onPlay?: () => void;
-  /** Moodboard uses the dark espresso card; list view uses a
-   *  simpler variant. */
+  /** Moodboard card sits on the atmospheric gradient; list variant
+   *  sits on the flat `.diary-list` surface with tighter spacing. */
   variant?: 'moodboard' | 'list';
-  /** Accent colour from the active palette — applied to the skill
-   *  title on moodboard cards for a warm highlight that reflects
-   *  the search mood without overpowering the body text. */
-  accentColor?: string;
 }
 
 /**
- * Single diary entry card. Editorial aesthetic: dark espresso
- * background, warm cream text, Crimson Pro for the skill name +
- * starter italics, Work Sans for body. The pencil edit icon sits
- * next to the heading (not far right) so the affordance visually
- * connects to what it edits.
+ * Single diary entry card. All colour comes from CSS custom
+ * properties on `.diary-root`, so the card adapts automatically
+ * when the user toggles light/dark or searches a new emotion.
+ * Pencil edit icon sits next to the heading so the affordance
+ * visually connects to what it edits.
  */
-export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant = 'moodboard', accentColor }: Props) {
+export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant = 'moodboard' }: Props) {
   const displayName = skill?.name ?? fallbackSkillName(entry.skillId);
   const moduleLabel = skill?.moduleLabel ?? fallbackModule(entry.skillId);
   const jumpTo = skill
@@ -34,18 +30,15 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
   const showStarter = !hasUserText && Boolean(entry.claudeStarterText);
 
   return (
-    <article
-      className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}
-    >
+    <article className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}>
       <header className="flex items-start gap-2 mb-3">
         <div className="min-w-0 flex-1">
           <h3
             className="diary-serif text-[18px] font-medium leading-tight"
-            style={{ color: accentColor ?? 'var(--diary-text)' }}
+            style={{ color: 'var(--diary-accent)' }}
           >
             {displayName}
-            {/* Pencil icon inline with the heading — closer to the
-                text it edits, per the v2 note on placement. */}
+            {/* Inline pencil — connected to the heading it edits. */}
             <button
               onClick={onEdit}
               aria-label="edit entry"
@@ -53,7 +46,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
               className="inline-flex items-center justify-center w-5 h-5 ml-1.5 -mb-0.5 text-[10px] rounded-full align-middle transition"
               style={{
                 color: 'var(--diary-text-dim)',
-                border: '1px solid var(--diary-border)',
+                border: '1px solid var(--diary-card-border)',
               }}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-dim)'; }}
@@ -73,10 +66,10 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
             className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition"
             style={{
               color: 'var(--diary-text-muted)',
-              border: '1px solid var(--diary-border)',
+              border: '1px solid var(--diary-card-border)',
             }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; e.currentTarget.style.borderColor = 'rgba(245, 238, 228, 0.24)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; e.currentTarget.style.borderColor = 'var(--diary-border)'; }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
           >
             ▶
           </button>
@@ -127,9 +120,9 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
         <Link
           to={jumpTo}
           className="mt-4 inline-block text-[11px] transition"
-          style={{ color: 'var(--diary-text-dim)' }}
+          style={{ color: 'var(--diary-text-muted)' }}
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-dim)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
         >
           practise this →
         </Link>
