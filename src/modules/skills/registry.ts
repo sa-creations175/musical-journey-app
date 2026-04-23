@@ -256,7 +256,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           moduleRoute: route,
           itemId: `${seed.id}:${dir}`,
           name: ann?.customName ?? `${seed.name} (${dirWord})`,
-          category: 'Interval',
+          category: dir === 'asc' ? 'Ascending intervals' : 'Descending intervals',
           skillType: 'ear',
           currentTier: tier,
           freshness: freshnessFrom(last),
@@ -271,9 +271,19 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // Chord Recognition — walk the existing chordQualities seed.
+  // Chord Recognition — walk the existing chordQualities seed. The
+  // seed's `tier` field already groups qualities pedagogically —
+  // foundational triads → sevenths → dominants → extensions — so we
+  // surface those as the sub-category labels directly. We sort by
+  // tier rank before emitting so the grouped view preserves the
+  // pedagogical ordering (Dexie's toArray is id-ordered, which
+  // doesn't line up).
   {
     const chords = await db.chordQualities.toArray();
+    const tierRank: Record<string, number> = {
+      foundational: 0, seventh: 1, dominant: 2, extensions: 3,
+    };
+    chords.sort((a, b) => (tierRank[a.tier] ?? 99) - (tierRank[b.tier] ?? 99));
     const { label, route } = moduleMeta('chord-recognition');
     const mod = byModule.get('chord-recognition') ?? new Map();
     for (const c of chords) {
@@ -288,7 +298,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         moduleRoute: route,
         itemId: c.id,
         name: ann?.customName ?? c.name,
-        category: 'Chord quality',
+        category: chordTierLabel(c.tier),
         skillType: 'ear',
         currentTier: tier,
         freshness: freshnessFrom(last),
@@ -319,7 +329,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         moduleJumpQuery: 'tab=full-progression',
         itemId: p.id,
         name: ann?.customName ?? p.name,
-        category: 'Progression',
+        category: 'Full Progression',
         skillType: 'ear',
         currentTier: tier,
         freshness: freshnessFrom(last),
@@ -351,7 +361,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         moduleJumpQuery: 'tab=chord-motion',
         itemId: motion.id,
         name: ann?.customName ?? motion.label,
-        category: 'Chord motion',
+        category: 'Chord Motion',
         skillType: 'ear',
         currentTier: null,
         freshness: freshnessFrom(null),
@@ -365,7 +375,9 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // Scales & Modes
+  // Scales & Modes — split the 7 church modes from the harmonic /
+  // melodic minor variants so users can scan the two families
+  // separately in the Catalogue.
   {
     const { label, route } = moduleMeta('scales-modes');
     const mod = byModule.get('scales-modes') ?? new Map();
@@ -381,7 +393,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         moduleRoute: route,
         itemId: m.id,
         name: ann?.customName ?? m.name,
-        category: 'Mode',
+        category: modeCategoryLabel(m.id),
         skillType: 'ear',
         currentTier: tier,
         freshness: freshnessFrom(last),
@@ -395,10 +407,17 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // --- Song Repertoire (one skill per song) ------------------------
+  // --- Song Repertoire (one skill per song + Want-to-Learn list) ---
+  // Categories map to the user-facing stage progression so the
+  // Catalogue mirrors how the user thinks about the repertoire:
+  // Learning → Comfortable → Internalized → Cross-key → Maintenance.
+  // Want-to-Learn sits at the end as its own concept sub-header.
   {
     const { label, route } = moduleMeta('repertoire');
-    const logs = await db.songPracticeLog.toArray();
+    const [logs, wantToLearn] = await Promise.all([
+      db.songPracticeLog.toArray(),
+      db.wantToLearn.toArray(),
+    ]);
     const latestBySong = new Map<string, { ts: number; minutes: number }>();
     for (const log of logs) {
       const existing = latestBySong.get(log.songId);
@@ -425,7 +444,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         moduleRoute: route,
         itemId: song.id,
         name: ann?.customName ?? `${song.title} — ${song.artist}`,
-        category: song.genre ? `Song · ${song.genre}` : 'Song',
+        category: stageCategoryLabel(song.stage ?? 'learning'),
         skillType: 'song',
         // Songs track via stage progression, not rolling tier.
         currentTier: mapStageToTier(song),
@@ -435,6 +454,32 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         totalTime: Math.round((agg?.minutes ?? 0) * 60),
         priority: ann?.priority,
         tags: mergeTags(ann?.tags, autoTags),
+        note: ann?.note,
+      });
+    }
+    // Want-to-Learn entries surface as skills too so the user's
+    // backlog shows in the Catalogue. No tier or practice stats —
+    // they haven't been promoted to the Active repertoire yet.
+    for (const w of wantToLearn) {
+      const skillId = canonicalSkillId('repertoire', 'want', w.id);
+      const ann = annotationById.get(skillId);
+      records.push({
+        skillId,
+        moduleId: 'repertoire',
+        moduleLabel: label,
+        moduleRoute: route,
+        moduleJumpQuery: 'tab=want-to-learn',
+        itemId: w.id,
+        name: ann?.customName ?? `${w.title} — ${w.artist}`,
+        category: 'Want to Learn',
+        skillType: 'song',
+        currentTier: null,
+        freshness: freshnessFrom(null),
+        daysSince: null,
+        lastPracticed: null,
+        totalTime: 0,
+        priority: ann?.priority,
+        tags: mergeTags(ann?.tags, w.tags ?? []),
         note: ann?.note,
       });
     }
@@ -508,12 +553,46 @@ function mergeTags(userTags: string[] | undefined, autoTags: string[]): string[]
   return [...set];
 }
 
+/** Sub-category label for Song Repertoire — groups songs by their
+ *  user-facing stage in the Catalogue drill-in. */
+function stageCategoryLabel(stage: string): string {
+  switch (stage) {
+    case 'learning':     return 'Stage · Learning';
+    case 'comfortable':  return 'Stage · Comfortable';
+    case 'internalized': return 'Stage · Internalized';
+    case 'cross-key':    return 'Stage · Cross-key';
+    case 'maintenance':  return 'Stage · Maintenance';
+    default:             return 'Stage · Learning';
+  }
+}
+
+/** Sub-category label for Chord Recognition — mirrors the
+ *  pedagogical tier ordering in the module's seed catalog. */
+function chordTierLabel(tier: string): string {
+  switch (tier) {
+    case 'foundational': return 'Foundational Triads';
+    case 'seventh':      return 'Seventh Chords';
+    case 'dominant':     return 'Dominant Variants';
+    case 'extensions':   return 'Extensions & Colors';
+    default:             return tier || 'Chord Qualities';
+  }
+}
+
+/** Sub-category label for Scales & Modes — seven church modes vs
+ *  the harmonic / melodic minor variants. */
+function modeCategoryLabel(modeId: string): string {
+  if (modeId === 'harmonic-minor' || modeId === 'melodic-minor') {
+    return 'Harmonic Scale Variants';
+  }
+  return 'Church Modes';
+}
+
 function drillKindCategory(kind: DrillSkill['kind']): string {
   switch (kind) {
-    case 'chord-shape':  return 'Chord shape';
-    case 'scale':        return 'Scale';
-    case 'voice-leading':return 'Voice-leading';
-    case 'mental-viz':   return 'Mental visualisation';
+    case 'chord-shape':  return 'Chord Shape Drills';
+    case 'scale':        return 'Scale Drills';
+    case 'voice-leading':return 'Voice-leading Drills';
+    case 'mental-viz':   return 'Mental Visualisation';
   }
 }
 

@@ -4,10 +4,12 @@ import { db, type HarmonicDiaryEntry, type SkillPriority } from '../../lib/db';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
+import { moduleMetaById } from '../../lib/moduleMeta';
 import type { SkillRecord } from './registry';
 import { upsertAnnotation } from './registry';
 import { upsertDiaryEntry } from '../harmonic-diary/data';
 import { EMOTIONAL_TAGS, GENRE_TAGS } from '../harmonic-diary/vocab';
+import TagPicker from './TagPicker';
 
 interface Props {
   skill: SkillRecord;
@@ -49,11 +51,12 @@ const CONCEPT_TAGS = [
  */
 export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
   const { toast } = useToast();
-  const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState(skill.note ?? '');
   const [diary, setDiary] = useState<HarmonicDiaryEntry | null>(null);
   const [associationDraft, setAssociationDraft] = useState('');
   const [editingAssociation, setEditingAssociation] = useState(false);
+  const [editingStarter, setEditingStarter] = useState(false);
+  const [starterDraft, setStarterDraft] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -61,8 +64,40 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
       setDiary(entry ?? null);
       setAssociationDraft(entry?.userText ?? '');
       setEditingAssociation(false);
+      setStarterDraft(entry?.claudeStarterText ?? '');
+      setEditingStarter(false);
     })();
   }, [skill.skillId]);
+
+  // Edit / delete Claude's starter. Saves flow through the same
+  // upsertDiaryEntry helper so `lastEdited` updates and live queries
+  // refresh the diary landing.
+  const saveStarter = async () => {
+    const trimmed = starterDraft.trim();
+    const next = await upsertDiaryEntry(skill.skillId, {
+      userText: diary?.userText ?? '',
+      claudeStarterText: trimmed || undefined,
+      emotionalTags: diary?.emotionalTags ?? [],
+      genreTags: diary?.genreTags ?? [],
+      isStarterEdited: diary?.isStarterEdited ?? false,
+    });
+    setDiary(next);
+    setEditingStarter(false);
+    toast({ message: 'description updated.', variant: 'success', duration: 1500 });
+  };
+  const deleteStarter = async () => {
+    const next = await upsertDiaryEntry(skill.skillId, {
+      userText: diary?.userText ?? '',
+      claudeStarterText: undefined,
+      emotionalTags: diary?.emotionalTags ?? [],
+      genreTags: diary?.genreTags ?? [],
+      isStarterEdited: diary?.isStarterEdited ?? false,
+    });
+    setDiary(next);
+    setStarterDraft('');
+    setEditingStarter(false);
+    toast({ message: "Claude's description removed.", variant: 'warning', duration: 1800 });
+  };
 
   const setPriority = async (next: SkillPriority | '') => {
     await upsertAnnotation(skill.skillId, {
@@ -78,7 +113,6 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
     if (skill.tags.includes(t)) return;
     const next = [...skill.tags, t];
     await upsertAnnotation(skill.skillId, { tags: next });
-    setTagDraft('');
     onMutated?.();
   };
 
@@ -115,17 +149,13 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
 
   const hasUserText = (diary?.userText.trim() ?? '') !== '';
 
-  // Tag suggestions = curated vocabulary that isn't already applied.
-  const suggestedTags = useMemo(() => {
-    const already = new Set(skill.tags.map(t => t.toLowerCase()));
-    const q = tagDraft.trim().toLowerCase();
-    const passesQuery = (t: string) => q === '' || t.includes(q);
-    return {
-      emotion: EMOTIONAL_TAGS.filter(t => !already.has(t) && passesQuery(t)).slice(0, 6),
-      genre:   GENRE_TAGS.filter(t => !already.has(t) && passesQuery(t)).slice(0, 6),
-      concept: CONCEPT_TAGS.filter(t => !already.has(t) && passesQuery(t)).slice(0, 6),
-    };
-  }, [skill.tags, tagDraft]);
+  // Curated seed list merged into the TagPicker's pool when the
+  // user hasn't yet built their own tag vocabulary. Concept-level
+  // terms + the emotion / genre vocab from the Diary.
+  const tagSeed = useMemo(
+    () => [...CONCEPT_TAGS, ...EMOTIONAL_TAGS, ...GENRE_TAGS],
+    [],
+  );
 
   return (
     <Modal
@@ -152,6 +182,31 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
       }
     >
       <div className="space-y-5 text-sm">
+        {/* Module chip — same icon + accent as the sidebar, so the
+            skill's home is visually anchored throughout the flow. */}
+        {(() => {
+          const meta = moduleMetaById(skill.moduleId);
+          return (
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden
+                className="w-7 h-7 rounded-md flex items-center justify-center text-sm shrink-0"
+                style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
+              >
+                {meta?.icon ?? '◦'}
+              </span>
+              <span
+                className="text-[11px] uppercase tracking-wide font-medium"
+                style={meta ? { color: meta.accentHex } : { color: 'var(--color-neutral-500)' }}
+              >
+                {skill.moduleLabel}
+              </span>
+              <span className="text-[11px] text-neutral-400">·</span>
+              <span className="text-[11px] text-neutral-500">{skill.category}</span>
+            </div>
+          );
+        })()}
+
         {/* Status row */}
         <div className="flex items-center gap-3 flex-wrap">
           {skill.currentTier && (
@@ -174,15 +229,77 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
           )}
         </div>
 
-        {/* Claude's starter description — always shown when present */}
-        {diary?.claudeStarterText && (
-          <section className="rounded-md border border-amber-300/40 bg-amber-50/60 dark:bg-amber-900/10 p-3 space-y-1">
-            <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300 font-medium">
-              Claude's description
+        {/* Claude's starter description — editable inline. Users can
+            refine Claude's language, replace it entirely, or delete
+            it. The pencil and trash live right next to the label so
+            the affordances connect visually to what they edit. */}
+        {(diary?.claudeStarterText || editingStarter) && (
+          <section className="rounded-md border border-amber-300/40 bg-amber-50/60 dark:bg-amber-900/10 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center gap-1.5">
+                <span className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300 font-medium">
+                  Claude's description
+                </span>
+                {!editingStarter && diary?.claudeStarterText && (
+                  <>
+                    <button
+                      onClick={() => setEditingStarter(true)}
+                      aria-label="edit description"
+                      title="edit"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-amber-900/30"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={deleteStarter}
+                      aria-label="delete description"
+                      title="delete"
+                      className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] text-neutral-500 hover:text-needswork hover:bg-needswork/10"
+                    >
+                      ×
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            <p className="text-sm leading-relaxed italic text-neutral-700 dark:text-neutral-200">
-              {diary.claudeStarterText}
-            </p>
+            {editingStarter ? (
+              <div className="space-y-2">
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={starterDraft}
+                  onChange={e => setStarterDraft(e.target.value)}
+                  placeholder="refine the description — keep what works, change what doesn't."
+                  className="w-full rounded-md border border-amber-300/40 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm leading-relaxed italic"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveStarter}
+                    disabled={starterDraft.trim() === (diary?.claudeStarterText ?? '')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium text-white ${
+                      starterDraft.trim() === (diary?.claudeStarterText ?? '')
+                        ? 'bg-neutral-300 dark:bg-neutral-700'
+                        : 'bg-fluent hover:opacity-90'
+                    }`}
+                  >
+                    save description
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStarterDraft(diary?.claudeStarterText ?? '');
+                      setEditingStarter(false);
+                    }}
+                    className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
+                  >
+                    cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm leading-relaxed italic text-neutral-700 dark:text-neutral-200">
+                {diary?.claudeStarterText}
+              </p>
+            )}
           </section>
         )}
 
@@ -297,33 +414,12 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
           ) : (
             <p className="text-[11px] text-neutral-500 italic mb-2">no tags yet</p>
           )}
-          <div className="flex items-center gap-1.5">
-            <input
-              value={tagDraft}
-              onChange={e => setTagDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') void addTag(tagDraft); }}
-              placeholder="type a tag or pick from suggestions…"
-              className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
-            />
-            <button
-              onClick={() => addTag(tagDraft)}
-              disabled={tagDraft.trim() === ''}
-              className={`px-2.5 py-1 rounded-md text-xs ${
-                tagDraft.trim() === ''
-                  ? 'border border-neutral-200 dark:border-neutral-700 text-neutral-400'
-                  : 'bg-fluent text-white hover:opacity-90'
-              }`}
-            >
-              add
-            </button>
-          </div>
-          <SuggestedTagRows
-            suggestions={suggestedTags}
-            onPick={addTag}
+          <TagPicker
+            existing={skill.tags}
+            onAdd={t => void addTag(t)}
+            seed={tagSeed}
+            placeholder="search existing tags or type a new one…"
           />
-          <p className="text-[10px] text-neutral-500 mt-1.5 italic">
-            use suggested tags or type your own — lowercase, single words or hyphenated phrases.
-          </p>
         </section>
 
         {/* Private note */}
@@ -344,66 +440,6 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
 }
 
 // -------------------------------------------------------------------
-
-function SuggestedTagRows({
-  suggestions,
-  onPick,
-}: {
-  suggestions: { emotion: readonly string[]; genre: readonly string[]; concept: readonly string[] };
-  onPick: (tag: string) => void;
-}) {
-  const empty =
-    suggestions.emotion.length === 0 &&
-    suggestions.genre.length === 0 &&
-    suggestions.concept.length === 0;
-  if (empty) return null;
-  return (
-    <div className="mt-2 space-y-1.5">
-      {suggestions.emotion.length > 0 && (
-        <TagSuggestionRow label="emotion" tags={suggestions.emotion} tone="fluent" onPick={onPick} />
-      )}
-      {suggestions.genre.length > 0 && (
-        <TagSuggestionRow label="genre" tags={suggestions.genre} tone="amber" onPick={onPick} />
-      )}
-      {suggestions.concept.length > 0 && (
-        <TagSuggestionRow label="concept" tags={suggestions.concept} tone="neutral" onPick={onPick} />
-      )}
-    </div>
-  );
-}
-
-function TagSuggestionRow({
-  label,
-  tags,
-  tone,
-  onPick,
-}: {
-  label: string;
-  tags: readonly string[];
-  tone: 'fluent' | 'amber' | 'neutral';
-  onPick: (tag: string) => void;
-}) {
-  const toneCls =
-    tone === 'fluent'  ? 'border-fluent/40 text-fluent hover:bg-fluent/10' :
-    tone === 'amber'   ? 'border-amber-400/50 text-amber-700 dark:text-amber-300 hover:bg-amber-400/10' :
-                         'border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-100';
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className="text-[10px] uppercase tracking-wide text-neutral-500 w-14 shrink-0">{label}</span>
-      <div className="flex items-center gap-1 flex-wrap">
-        {tags.map(t => (
-          <button
-            key={t}
-            onClick={() => onPick(t)}
-            className={`px-2 py-0.5 rounded-full border text-[11px] transition ${toneCls}`}
-          >
-            + {t}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function formatTotalTime(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;

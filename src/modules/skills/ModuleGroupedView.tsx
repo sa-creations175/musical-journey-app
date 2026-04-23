@@ -322,7 +322,23 @@ function CategorySection({
               >
                 <div className="col-span-5 min-w-0">
                   <div className="truncate font-medium">{r.name}</div>
-                  <div className="truncate text-[10px] text-neutral-500">{r.moduleLabel}</div>
+                  {(() => {
+                    const meta = moduleMetaById(r.moduleId);
+                    return (
+                      <div className="truncate text-[10px] inline-flex items-center gap-1">
+                        {meta && (
+                          <span
+                            aria-hidden
+                            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded text-[9px] shrink-0"
+                            style={{ backgroundColor: `${meta.accentHex}22`, color: meta.accentHex }}
+                          >
+                            {meta.icon}
+                          </span>
+                        )}
+                        <span className="text-neutral-500">{r.moduleLabel}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="col-span-2">
                   {r.currentTier ? (

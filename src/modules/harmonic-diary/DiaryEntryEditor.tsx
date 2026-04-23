@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toaster';
 import { upsertDiaryEntry, deleteDiaryEntry } from './data';
 import { EMOTIONAL_TAGS, GENRE_TAGS } from './vocab';
 import type { SkillRecord } from '../skills/registry';
+import TagPicker from '../skills/TagPicker';
 
 interface Props {
   /** Pass a pre-existing entry to edit, or null to create a new one
@@ -30,7 +31,6 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
   const [text, setText] = useState(entry?.userText ?? '');
   const [emotional, setEmotional] = useState<string[]>(entry?.emotionalTags ?? []);
   const [genre, setGenre] = useState<string[]>(entry?.genreTags ?? []);
-  const [customTagDraft, setCustomTagDraft] = useState('');
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -47,16 +47,6 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
   const toggleTag = (list: string[], tag: string, set: (v: string[]) => void) => {
     if (list.includes(tag)) set(list.filter(t => t !== tag));
     else set([...list, tag]);
-  };
-
-  const addCustomEmotion = () => {
-    const t = customTagDraft.trim().toLowerCase();
-    if (t === '' || emotional.includes(t)) {
-      setCustomTagDraft('');
-      return;
-    }
-    setEmotional([...emotional, t]);
-    setCustomTagDraft('');
   };
 
   const save = async () => {
@@ -135,63 +125,59 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
         </label>
 
         <section>
-          <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">emotion tags</h4>
-          <div className="flex items-center gap-1 flex-wrap">
-            {EMOTIONAL_TAGS.map(t => (
-              <TagChip
-                key={t}
-                label={t}
-                active={emotional.includes(t)}
-                onClick={() => toggleTag(emotional, t, setEmotional)}
-                tone="emotion"
-              />
-            ))}
-            {emotional.filter(t => !EMOTIONAL_TAGS.includes(t as typeof EMOTIONAL_TAGS[number])).map(t => (
-              <TagChip
-                key={`custom-${t}`}
-                label={t}
-                active
-                onClick={() => toggleTag(emotional, t, setEmotional)}
-                tone="emotion"
-                custom
-              />
-            ))}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h4 className="text-xs uppercase tracking-wide text-neutral-500">emotion tags</h4>
+            {emotional.length > 0 && (
+              <span className="text-[10px] text-neutral-400">click a tag to remove it</span>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 mt-2">
-            <input
-              value={customTagDraft}
-              onChange={e => setCustomTagDraft(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addCustomEmotion(); }}
-              placeholder="custom emotion tag"
-              className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
-            />
-            <button
-              onClick={addCustomEmotion}
-              disabled={customTagDraft.trim() === ''}
-              className={`px-2 py-1 rounded-md text-xs ${
-                customTagDraft.trim() === ''
-                  ? 'border border-neutral-200 dark:border-neutral-700 text-neutral-400'
-                  : 'bg-fluent text-white hover:opacity-90'
-              }`}
-            >
-              add
-            </button>
-          </div>
+          {emotional.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap mb-2">
+              {emotional.map(t => (
+                <TagChip
+                  key={t}
+                  label={t}
+                  active
+                  onClick={() => toggleTag(emotional, t, setEmotional)}
+                  tone="emotion"
+                />
+              ))}
+            </div>
+          )}
+          <TagPicker
+            existing={emotional}
+            onAdd={t => setEmotional([...emotional, t])}
+            seed={EMOTIONAL_TAGS}
+            placeholder="search emotion tags or type a new one…"
+          />
         </section>
 
         <section>
-          <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">genre tags</h4>
-          <div className="flex items-center gap-1 flex-wrap">
-            {GENRE_TAGS.map(t => (
-              <TagChip
-                key={t}
-                label={t}
-                active={genre.includes(t)}
-                onClick={() => toggleTag(genre, t, setGenre)}
-                tone="genre"
-              />
-            ))}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h4 className="text-xs uppercase tracking-wide text-neutral-500">genre tags</h4>
+            {genre.length > 0 && (
+              <span className="text-[10px] text-neutral-400">click a tag to remove it</span>
+            )}
           </div>
+          {genre.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap mb-2">
+              {genre.map(t => (
+                <TagChip
+                  key={t}
+                  label={t}
+                  active
+                  onClick={() => toggleTag(genre, t, setGenre)}
+                  tone="genre"
+                />
+              ))}
+            </div>
+          )}
+          <TagPicker
+            existing={genre}
+            onAdd={t => setGenre([...genre, t])}
+            seed={GENRE_TAGS}
+            placeholder="search genre tags or type a new one…"
+          />
         </section>
       </div>
     </Modal>

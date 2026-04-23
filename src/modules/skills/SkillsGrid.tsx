@@ -3,6 +3,7 @@ import { TIER_BADGE_CLASS, TIER_LABEL, type Tier } from '../../lib/tier';
 import type { FreshnessTier } from '../shapes-and-patterns/drillModel';
 import type { SkillRecord } from './registry';
 import type { SkillPriority, SkillType } from '../../lib/db';
+import { moduleMetaById } from '../../lib/moduleMeta';
 
 interface Props {
   records: SkillRecord[];
@@ -313,7 +314,25 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
                     <div className="truncate font-medium">{r.name}</div>
                     <div className="truncate text-[10px] text-neutral-500">{r.category}</div>
                   </div>
-                  <div className="col-span-2 text-xs text-neutral-500 truncate">{r.moduleLabel}</div>
+                  <div className="col-span-2 text-xs truncate inline-flex items-center gap-1.5">
+                    {(() => {
+                      const meta = moduleMetaById(r.moduleId);
+                      return (
+                        <>
+                          {meta && (
+                            <span
+                              aria-hidden
+                              className="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] shrink-0"
+                              style={{ backgroundColor: `${meta.accentHex}22`, color: meta.accentHex }}
+                            >
+                              {meta.icon}
+                            </span>
+                          )}
+                          <span className="truncate text-neutral-500">{r.moduleLabel}</span>
+                        </>
+                      );
+                    })()}
+                  </div>
                   <div className="col-span-2">
                     {r.currentTier ? (
                       <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-medium ${TIER_BADGE_CLASS[r.currentTier]}`}>

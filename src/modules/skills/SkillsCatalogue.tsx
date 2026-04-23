@@ -150,20 +150,44 @@ export default function SkillsCatalogue() {
         <div className="space-y-3">
           {view.moduleFilter ? (
             <>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p className="text-xs text-neutral-500">
-                  showing only:{' '}
-                  <span className="font-medium">
-                    {displayedModules.find(m => m.moduleId === view.moduleFilter)?.moduleLabel ?? view.moduleFilter}
-                  </span>
-                </p>
-                <button
-                  onClick={() => setView({ kind: 'grid' })}
-                  className="text-xs text-fluent hover:underline"
-                >
-                  show all modules →
-                </button>
-              </div>
+              {(() => {
+                // Module drill-in: render a rich header with the
+                // module's sidebar icon + accent so the identity
+                // stays anchored while the user scrolls.
+                const activeModule = displayedModules.find(m => m.moduleId === view.moduleFilter);
+                const meta = view.moduleFilter === EAR_TRAINING_META_ID
+                  ? moduleMetaById('ear-training')
+                  : moduleMetaById(view.moduleFilter);
+                return (
+                  <div
+                    className="rounded-lg border p-3 flex items-center gap-3"
+                    style={{ borderColor: meta ? `${meta.accentHex}33` : undefined }}
+                  >
+                    <span
+                      aria-hidden
+                      className="w-9 h-9 rounded-md flex items-center justify-center text-lg shrink-0"
+                      style={meta ? { backgroundColor: `${meta.accentHex}22`, color: meta.accentHex } : undefined}
+                    >
+                      {meta?.icon ?? '◦'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                        module drill-in
+                      </div>
+                      <div className="text-sm font-medium truncate">
+                        {activeModule?.moduleLabel ?? view.moduleFilter}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setView({ kind: 'grid' })}
+                      className="text-xs hover:underline shrink-0"
+                      style={meta ? { color: meta.accentHex } : undefined}
+                    >
+                      show all modules →
+                    </button>
+                  </div>
+                );
+              })()}
               {/* Module drill-in: single module, first category
                   expanded by default so the view feels alive. */}
               <ModuleGroupedView
