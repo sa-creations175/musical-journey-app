@@ -7,11 +7,36 @@ import {
   type Freshness,
 } from './stage';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Human-friendly "added …" label:
+ *   0 days   → "added today"
+ *   1 day    → "added yesterday"
+ *   2–6 days → "added N days ago"
+ *   7–29 days → "added a/N weeks ago"
+ *   30+ days → absolute "added Oct 2025"
+ */
+export function formatAddedDate(ts: number): string {
+  const days = Math.max(0, Math.floor((Date.now() - ts) / DAY_MS));
+  if (days === 0) return 'added today';
+  if (days === 1) return 'added yesterday';
+  if (days < 7) return `added ${days} days ago`;
+  if (days < 30) {
+    const weeks = Math.round(days / 7);
+    return weeks === 1 ? 'added a week ago' : `added ${weeks} weeks ago`;
+  }
+  const d = new Date(ts);
+  return `added ${d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
+}
+
 interface Props {
   song: Song;
   lastPractisedAt: number | null;
   lastPractisedLabel: string;
+  addedLabel: string;
   freshness: Freshness;
+  readyToAdvance?: boolean;
   onOpen: () => void;
 }
 
@@ -19,11 +44,13 @@ export default function SongCard({
   song,
   lastPractisedAt,
   lastPractisedLabel,
+  addedLabel,
   freshness,
+  readyToAdvance,
   onOpen,
 }: Props) {
   const stage = song.stage ?? DEFAULT_STAGE;
-  void lastPractisedAt; // reserved for future "you haven't touched this in…" prompts
+  void lastPractisedAt;
 
   return (
     <article
@@ -47,6 +74,14 @@ export default function SongCard({
         >
           {STAGE_LABEL[stage]}
         </span>
+        {readyToAdvance && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 border border-fluent/30 bg-fluent/10 text-fluent"
+            title="meets criteria to advance — decide in song detail"
+          >
+            ✨ ready
+          </span>
+        )}
         {song.key && (
           <span className="text-neutral-500">
             key <span className="font-mono">{song.key}</span>
@@ -61,8 +96,10 @@ export default function SongCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 pt-1">
-        <span className="text-[11px] text-neutral-500">
-          {lastPractisedLabel === 'never' ? 'not practised yet' : `last practised ${lastPractisedLabel}`}
+        <span className="text-[11px] text-neutral-500 min-w-0 truncate">
+          {lastPractisedLabel === 'never' ? 'not practised yet' : `last ${lastPractisedLabel}`}
+          <span className="text-neutral-400 mx-1">·</span>
+          {addedLabel}
         </span>
         <button
           onClick={onOpen}

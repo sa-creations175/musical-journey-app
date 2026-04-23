@@ -39,3 +39,15 @@ body {
   --cal-solid-bg:          rgba(29, 158, 117, 0.7);
   --cal-solid-text:        #ffffff;
 }
+
+/* Short flash-highlight used by Repertoire when a section or phrase
+   line is freshly added / reordered. Pair with a smooth scrollIntoView
+   so the user's eye lands on the element as it pulses. */
+@keyframes repertoire-flash {
+  0%   { box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.40); background-color: rgba(29, 158, 117, 0.10); }
+  70%  { box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.10); background-color: rgba(29, 158, 117, 0.04); }
+  100% { box-shadow: 0 0 0 0   rgba(29, 158, 117, 0.00); background-color: transparent; }
+}
+.repertoire-flash {
+  animation: repertoire-flash 1500ms ease-out;
+}

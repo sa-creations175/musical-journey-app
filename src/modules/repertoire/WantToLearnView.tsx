@@ -7,6 +7,8 @@ import {
   type WantToLearnEntry,
 } from '../../lib/db';
 import { DEFAULT_STAGE } from './stage';
+import { useToast } from '../../components/Toaster';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface Props {
   onPromoted: (songId: string) => void;
@@ -225,6 +227,8 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
   const [whyDraft, setWhyDraft] = useState(entry.why ?? '');
   const [priority, setPriority] = useState<Priority>(entry.priority);
   const [tagsText, setTagsText] = useState(entry.tags.join(', '));
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { toast } = useToast();
 
   const saveEdits = async () => {
     await db.wantToLearn.update(entry.id, {
@@ -235,9 +239,34 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
     setEditing(false);
   };
 
-  const remove = async () => {
-    if (!confirm(`Remove "${entry.title}" from the backlog?`)) return;
+  // Bare entries (no note, no tags, default priority) delete with the
+  // toast alone; fuller entries go through the confirm dialog first
+  // since they represent actual thought-work the user invested.
+  const hasUserContent =
+    (entry.why ?? '').trim() !== '' ||
+    entry.tags.length > 0 ||
+    entry.priority !== 'medium' ||
+    (entry.link ?? '').trim() !== '';
+
+  const removeAfterConfirm = async () => {
+    const snapshot = entry;
     await db.wantToLearn.delete(entry.id);
+    toast({
+      message: `Removed "${entry.title}" from want-to-learn.`,
+      variant: 'warning',
+      action: {
+        label: 'Undo',
+        onClick: async () => { await db.wantToLearn.add(snapshot); },
+      },
+    });
+  };
+
+  const remove = () => {
+    if (hasUserContent) {
+      setConfirmDelete(true);
+    } else {
+      removeAfterConfirm();
+    }
   };
 
   return (
@@ -291,6 +320,28 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
           )}
         </>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Remove "${entry.title}" from want-to-learn?`}
+        message={
+          <>
+            <p>This removes the entry and everything you've captured alongside it:</p>
+            <ul className="list-disc pl-5 text-xs text-neutral-600 dark:text-neutral-300 space-y-0.5">
+              {entry.why && <li>your note ("why this song")</li>}
+              {entry.tags.length > 0 && <li>{entry.tags.length} tag{entry.tags.length === 1 ? '' : 's'}</li>}
+              {entry.link && <li>the recording link</li>}
+              <li>priority + date-added</li>
+            </ul>
+            <p className="text-xs text-neutral-500">You can still undo from the toast right after, but only for 10 seconds.</p>
+          </>
+        }
+        confirmLabel="Remove entry"
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={async () => {
+          setConfirmDelete(false);
+          await removeAfterConfirm();
+        }}
+      />
     </div>
   );
 }

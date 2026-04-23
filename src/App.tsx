@@ -18,10 +18,12 @@ import Repertoire from './modules/repertoire/Repertoire';
 import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
 import { InstrumentProvider } from './lib/instrumentContext';
+import { Toaster } from './components/Toaster';
 
 export default function App() {
   return (
     <InstrumentProvider>
+      <Toaster>
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
@@ -44,6 +46,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </Toaster>
     </InstrumentProvider>
   );
 }

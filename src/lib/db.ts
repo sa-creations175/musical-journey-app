@@ -68,6 +68,11 @@ export interface Song {
   /** Free-text "why I'm learning this" description. Starter copy is
    *  pre-populated when a song is seeded; user can edit or clear it. */
   description?: string;
+  /** Full-song lyrics reference (flowing text with [Section] markers).
+   *  Editable by the user. Pre-populated for the subset of seeded
+   *  songs whose lyrics could be verified without fabrication; for
+   *  the rest carries a short "add lyrics here" prompt. */
+  fullLyrics?: string;
   /** Spotify / YouTube / Apple Music links. Free-form strings. */
   spotifyLink?: string;
   youtubeLink?: string;
@@ -89,6 +94,15 @@ export interface Song {
   recorded?: boolean;
 }
 
+/** One chord+lyric row inside a section. Chord text sits above the
+ *  lyric; both are rendered in monospace so users can space-align
+ *  chords over syllables character-by-character. */
+export interface Phrase {
+  id: string;
+  chords: string;
+  lyrics: string;
+}
+
 export interface SongSection {
   id: string;
   songId: string;
@@ -96,18 +110,24 @@ export interface SongSection {
   name: string;
   /** Ordering within the song (0-indexed). */
   order: number;
-  /** Pre-populated seed lyrics or empty string. One line per row when
-   *  rendered; newlines are preserved. */
+  /** Pre-populated seed lyrics or empty string. Preserved as a fallback
+   *  when `phrases` is absent (legacy pre-phrase-refactor data) and as
+   *  a pristine copy of the original seed text. */
   lyrics: string;
   /** When true, the section's seed lyrics came from a source the author
    *  couldn't fully verify — surface a "needs verification" hint. */
   lyricsNeedsVerification?: boolean;
-  /** User-entered chord chart aligned to lyrics. One line per lyric
-   *  line; chord tokens separated by spaces. Starts empty. */
+  /** Authoritative lyric + chord data. Each phrase is one displayed
+   *  row. Empty / missing = fall back to `lyrics` split on newlines. */
+  phrases?: Phrase[];
+  /** @deprecated kept for backward-compat with pre-phrase-line data.
+   *  Space-separated chord tokens for the whole section. */
   basicChords?: string;
   /** Optional alternate/substitution chord chart the user explores. */
   alternateChords?: string;
-  /** Per-line strike-through flags (line index → true). */
+  /** @deprecated kept for backward-compat. Per-line strike-through
+   *  flags keyed by the old lyric-line index. Not used by phrase-line
+   *  rendering. */
   struckLines?: number[];
   /** Section hidden from playback view (collapsed) but still in data. */
   hidden?: boolean;

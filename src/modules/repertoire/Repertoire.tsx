@@ -61,7 +61,7 @@ export default function Repertoire() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-medium tracking-tight">repertoire</h1>
+        <h1 className="text-2xl font-medium tracking-tight">song repertoire</h1>
         <p className="text-neutral-500 text-sm">
           songs you're learning, maintaining, and stretching across 12 keys.
         </p>
@@ -69,7 +69,7 @@ export default function Repertoire() {
 
       <ModuleIntro
         accent="green"
-        headline="Songs are where theory meets practice."
+        headline="Your song repertoire — where theory meets practice."
         description="Track each song's stage, keep it fresh across weeks, and stretch its sections through 12 keys. The lead sheet is your working canvas; the practice log is your diary."
         bullets={[
           'Five **learning stages** with coaching guidance',

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
@@ -23,6 +23,10 @@ import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
+import FullLyricsSection from './FullLyricsSection';
+import { useToast } from '../../components/Toaster';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { useScrollHighlight } from './useScrollHighlight';
 
 interface Props {
   songId: string | null;
@@ -41,8 +45,6 @@ export default function SongDetailView({
   onSelectSong,
   onBackToActive,
 }: Props) {
-  // No song picked yet — show a picker so the user can open one. Keeps
-  // the tab usable even if the dropdown-pref on first mount is stale.
   if (!songId || songs.find(s => s.id === songId) === undefined) {
     return (
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
@@ -101,9 +103,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const logs = useLiveQuery<SongPracticeLog[]>(
     () => db.songPracticeLog
       .where('songId').equals(songId)
-      .reverse()
-      .sortBy('timestamp')
-      .then(arr => arr.slice().sort((a, b) => b.timestamp - a.timestamp)),
+      .toArray()
+      .then(arr => arr.sort((a, b) => b.timestamp - a.timestamp)),
     [songId],
   ) ?? [];
   const crossKey = useLiveQuery<SongCrossKeyProgress[]>(
@@ -111,10 +112,26 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     [songId],
   ) ?? [];
 
+  const { toast } = useToast();
+  const { flash, isHighlighted } = useScrollHighlight();
+
+  // Which section / phrase to flash on next render — set by the
+  // action handlers below.
+  const [flashSectionId, setFlashSectionId] = useState<string | null>(null);
+  const [flashPhraseId, setFlashPhraseId] = useState<string | null>(null);
+
+  // Confirm-dialog state. Separate state per dialog so the component
+  // can open only one at a time (song delete vs. section delete).
+  const [confirmDeleteSong, setConfirmDeleteSong] = useState(false);
+  const [confirmDeleteSection, setConfirmDeleteSection] = useState<SongSection | null>(null);
+
+  // Metadata edit state (full edit mode) and the standalone
+  // "why this song" note edit mode.
   const [editingMeta, setEditingMeta] = useState(false);
+  const [whyEditing, setWhyEditing] = useState(false);
+  const [whyDraft, setWhyDraft] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
 
-  // --- Metadata edit drafts --------------------------------------
   const [titleDraft, setTitleDraft] = useState('');
   const [artistDraft, setArtistDraft] = useState('');
   const [genreDraft, setGenreDraft] = useState('');
@@ -122,7 +139,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [tempoDraft, setTempoDraft] = useState('');
   const [spotifyDraft, setSpotifyDraft] = useState('');
   const [youtubeDraft, setYoutubeDraft] = useState('');
-  const [descriptionDraft, setDescriptionDraft] = useState('');
 
   const openEdit = () => {
     if (!song) return;
@@ -133,7 +149,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     setTempoDraft(song.tempoLabel ?? (song.tempo ? String(song.tempo) : ''));
     setSpotifyDraft(song.spotifyLink ?? '');
     setYoutubeDraft(song.youtubeLink ?? '');
-    setDescriptionDraft(song.description ?? '');
     setEditingMeta(true);
   };
 
@@ -148,13 +163,33 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       tempoLabel: tempoDraft.trim() || undefined,
       spotifyLink: spotifyDraft.trim() || undefined,
       youtubeLink: youtubeDraft.trim() || undefined,
-      description: descriptionDraft.trim() || undefined,
     };
     await db.songs.update(song.id, patch);
     setEditingMeta(false);
+    toast({ message: 'Song details saved.', variant: 'success' });
   };
 
-  // --- Advancement evaluation ------------------------------------
+  const openWhyEditor = () => {
+    if (!song) return;
+    setWhyDraft(song.description ?? '');
+    setWhyEditing(true);
+  };
+  const saveWhy = async () => {
+    if (!song) return;
+    const next = whyDraft.trim();
+    await db.songs.update(song.id, { description: next || undefined });
+    setWhyEditing(false);
+    toast({ message: next ? 'Note saved.' : 'Note cleared.', variant: 'success' });
+  };
+
+  const saveFullLyrics = async (fullLyrics: string) => {
+    if (!song) return;
+    const trimmed = fullLyrics.trim();
+    await db.songs.update(song.id, { fullLyrics: trimmed || undefined });
+    toast({ message: 'Full lyrics saved.', variant: 'success' });
+  };
+
+  // --- Advancement --------------------------------------------------
   const currentStage: RepertoireStage = song?.stage ?? DEFAULT_STAGE;
   const crossKeyPairs = useMemo(() => (
     crossKey.map(p => ({
@@ -171,37 +206,121 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   }), [currentStage, logs, song?.key, crossKeyPairs]);
   const nextStageOption = nextStage(currentStage);
 
-  // --- Section CRUD helpers --------------------------------------
+  const setStage = async (stage: RepertoireStage) => {
+    if (!song) return;
+    const prev = song.stage ?? DEFAULT_STAGE;
+    await db.songs.update(song.id, { stage });
+    toast({
+      message: `Advanced to ${STAGE_LABEL[stage]}.`,
+      variant: 'success',
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          await db.songs.update(song.id, { stage: prev });
+        },
+      },
+    });
+  };
+
+  // --- Section CRUD helpers ----------------------------------------
   const addSection = async () => {
     if (!song) return;
     const order = sections.length;
+    const newId = uid('section');
     await db.songSections.add({
-      id: uid('section'),
+      id: newId,
       songId: song.id,
       name: `Section ${order + 1}`,
       order,
       lyrics: '',
+      phrases: [],
     });
+    setFlashSectionId(newId);
+    requestAnimationFrame(() => flash(`section-${newId}`));
+    toast({ message: `Section added: Section ${order + 1}`, variant: 'success' });
   };
+
   const updateSection = async (sectionId: string, patch: Partial<SongSection>) => {
     await db.songSections.update(sectionId, patch);
   };
-  const deleteSection = async (sectionId: string) => {
-    await db.transaction('rw', [db.songSections, db.songCrossKeyProgress], async () => {
-      await db.songSections.delete(sectionId);
-      // Clean up any cross-key progress rows that pointed at this section.
-      const rows = await db.songCrossKeyProgress
-        .where('[songId+sectionId]').equals([songId, sectionId])
-        .toArray();
-      if (rows.length > 0) {
-        await db.songCrossKeyProgress.bulkDelete(rows.map(r => r.id));
-      }
+
+  // Section delete with full-state undo. Snapshot the section row +
+  // every related progress/chord row so Undo restores the exact
+  // prior state.
+  const deleteSection = async (section: SongSection) => {
+    const [chordRows, ckRows] = await Promise.all([
+      db.songChords.where('sectionId').equals(section.id).toArray(),
+      db.songCrossKeyProgress.where('[songId+sectionId]').equals([section.songId, section.id]).toArray(),
+    ]);
+    await db.transaction('rw', [db.songSections, db.songChords, db.songCrossKeyProgress], async () => {
+      await db.songSections.delete(section.id);
+      if (chordRows.length > 0) await db.songChords.bulkDelete(chordRows.map(r => r.id));
+      if (ckRows.length > 0) await db.songCrossKeyProgress.bulkDelete(ckRows.map(r => r.id));
+    });
+    toast({
+      message: `Section deleted: ${section.name}`,
+      variant: 'warning',
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          await db.transaction('rw', [db.songSections, db.songChords, db.songCrossKeyProgress], async () => {
+            await db.songSections.add(section);
+            if (chordRows.length > 0) await db.songChords.bulkAdd(chordRows);
+            if (ckRows.length > 0) await db.songCrossKeyProgress.bulkAdd(ckRows);
+          });
+          setFlashSectionId(section.id);
+          requestAnimationFrame(() => flash(`section-${section.id}`));
+        },
+      },
     });
   };
 
-  const deleteSong = async () => {
+  const moveSection = async (section: SongSection, dir: -1 | 1) => {
+    const idx = sections.findIndex(s => s.id === section.id);
+    if (idx < 0) return;
+    const target = idx + dir;
+    if (target < 0 || target >= sections.length) return;
+    const a = sections[idx];
+    const b = sections[target];
+    await db.transaction('rw', [db.songSections], async () => {
+      await db.songSections.update(a.id, { order: b.order });
+      await db.songSections.update(b.id, { order: a.order });
+    });
+    setFlashSectionId(section.id);
+    requestAnimationFrame(() => flash(`section-${section.id}`));
+  };
+
+  // Signals whether a section carries enough user-entered work that
+  // deletion should go through a confirm dialog first. Lyrics alone
+  // don't qualify (seeds ship with lyrics pre-populated); it's chords,
+  // alternates, or notes that imply real effort.
+  const sectionHasUserContent = (s: SongSection): boolean => {
+    const anyChordTokens = (s.phrases ?? []).some(p => p.chords.trim() !== '');
+    const anyAlt = (s.alternateChords ?? '').trim() !== '' || (s.alternateNote ?? '').trim() !== '';
+    const anyNotes = (s.notes ?? '').trim() !== '';
+    const legacyChords = (s.basicChords ?? '').trim() !== '';
+    return anyChordTokens || anyAlt || anyNotes || legacyChords;
+  };
+
+  // Wrap deleteSection to route through a confirm dialog when the
+  // section carries user work. Empty seed-only sections bypass the
+  // confirm and go straight to the undo-toast path.
+  const requestDeleteSection = (section: SongSection) => {
+    if (sectionHasUserContent(section)) {
+      setConfirmDeleteSection(section);
+    } else {
+      deleteSection(section);
+    }
+  };
+
+  const doDeleteSongConfirmed = async () => {
     if (!song) return;
-    if (!confirm(`Remove "${song.title}" from your repertoire? This also deletes its sections and practice log.`)) return;
+    setConfirmDeleteSong(false);
+    await performDeleteSong();
+  };
+
+  const performDeleteSong = async () => {
+    if (!song) return;
     await db.transaction('rw', [
       db.songs, db.songSections, db.songChords, db.songPracticeLog, db.songCrossKeyProgress,
     ], async () => {
@@ -219,13 +338,22 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         db.songs.delete(song.id),
       ]);
     });
+    toast({ message: `Removed "${song.title}" from repertoire.`, variant: 'warning' });
     onBackToActive();
   };
 
-  const setStage = async (stage: RepertoireStage) => {
-    if (!song) return;
-    await db.songs.update(song.id, { stage });
-  };
+  // Clean up the one-shot flash state once the highlight animation has
+  // finished its own lifecycle (handled inside the hook).
+  useEffect(() => {
+    if (flashSectionId === null) return;
+    const t = window.setTimeout(() => setFlashSectionId(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [flashSectionId]);
+  useEffect(() => {
+    if (flashPhraseId === null) return;
+    const t = window.setTimeout(() => setFlashPhraseId(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [flashPhraseId]);
 
   if (!song) {
     return (
@@ -235,9 +363,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     );
   }
 
+  const hasDescription = Boolean(song.description && song.description.trim().length > 0);
+
   return (
     <div className="space-y-5">
-      {/* --- Top nav row -------------------------------------- */}
+      {/* Top nav */}
       <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
         <button
           onClick={onBackToActive}
@@ -261,7 +391,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         )}
       </div>
 
-      {/* --- 2.1 Metadata ------------------------------------- */}
+      {/* Metadata */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
         {editingMeta ? (
           <div className="space-y-3 text-sm">
@@ -295,14 +425,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 <input value={youtubeDraft} onChange={e => setYoutubeDraft(e.target.value)} className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 font-mono text-xs" />
               </label>
             </div>
-            <label className="flex flex-col gap-1">
-              <span className="text-neutral-500 text-xs uppercase tracking-wide">description / why you're learning this</span>
-              <textarea rows={2} value={descriptionDraft} onChange={e => setDescriptionDraft(e.target.value)} className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm" />
-            </label>
             <div className="flex items-center gap-2">
               <button onClick={saveMeta} className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
               <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
-              <button onClick={deleteSong} className="ml-auto px-3 py-1.5 rounded-md border border-needswork/40 text-needswork text-xs hover:bg-needswork/10">remove from repertoire</button>
+              <button onClick={() => setConfirmDeleteSong(true)} className="ml-auto px-3 py-1.5 rounded-md border border-needswork/40 text-needswork text-xs hover:bg-needswork/10">remove from repertoire</button>
             </div>
           </div>
         ) : (
@@ -329,14 +455,54 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">youtube ↗</a>
               )}
             </div>
-            {song.description && (
-              <p className="text-sm text-neutral-700 dark:text-neutral-200 whitespace-pre-wrap">{song.description}</p>
-            )}
+
+            {/* Why this song — collapsed by default; inline editor. */}
+            <div className="pt-1">
+              {whyEditing ? (
+                <div className="space-y-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-neutral-500 text-xs uppercase tracking-wide">why this song</span>
+                    <textarea
+                      rows={3}
+                      value={whyDraft}
+                      autoFocus
+                      onChange={e => setWhyDraft(e.target.value)}
+                      placeholder="what drew you to it, what you want to learn from it"
+                      className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
+                    <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
+                  </div>
+                </div>
+              ) : hasDescription ? (
+                <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">why this song</div>
+                      <p className="whitespace-pre-wrap">{song.description}</p>
+                    </div>
+                    <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">edit</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={openWhyEditor}
+                  className="text-xs text-neutral-500 hover:text-fluent"
+                >
+                  + add a note about this song
+                </button>
+              )}
+            </div>
           </>
         )}
       </section>
 
-      {/* --- 2.2 Stage & guidance ------------------------------ */}
+      {/* Full lyrics reference */}
+      <FullLyricsSection song={song} onSave={saveFullLyrics} />
+
+      {/* Stage & guidance */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
@@ -377,7 +543,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         )}
       </section>
 
-      {/* --- 2.3 Lead sheet ------------------------------------ */}
+      {/* Lead sheet */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
@@ -392,20 +558,30 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
         ) : (
           <div className="space-y-3">
-            {sections.map(s => (
+            {sections.map((s, idx) => (
               <LeadSheetSection
                 key={s.id}
                 song={song}
                 section={s}
+                canMoveUp={idx > 0}
+                canMoveDown={idx < sections.length - 1}
+                highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
+                highlightedPhraseId={flashPhraseId}
                 onChange={patch => updateSection(s.id, patch)}
-                onDelete={sections.length > 1 ? () => deleteSection(s.id) : undefined}
+                onMoveUp={() => moveSection(s, -1)}
+                onMoveDown={() => moveSection(s, 1)}
+                onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
+                onPhraseAdded={pid => {
+                  setFlashPhraseId(pid);
+                  requestAnimationFrame(() => flash(`phrase-${pid}`));
+                }}
               />
             ))}
           </div>
         )}
       </section>
 
-      {/* --- 2.4 Cross-key grid -------------------------------- */}
+      {/* Cross-key grid */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">cross-key mastery</h3>
         {sections.filter(s => !s.hidden).length === 0 ? (
@@ -426,7 +602,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         )}
       </section>
 
-      {/* --- 2.5 + 2.6 practice history + heatmap -------------- */}
+      {/* Practice history + heatmap */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">practice history</h3>
@@ -446,9 +622,76 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           song={song}
           sections={sections}
           onClose={() => setShowLogModal(false)}
-          onLogged={() => setShowLogModal(false)}
+          onLogged={() => {
+            setShowLogModal(false);
+            toast({ message: 'Session logged.', variant: 'success' });
+          }}
         />
       )}
+
+      {/* High-stakes confirm dialogs — first safety layer; undo toast
+          after confirmation is the second layer. */}
+      <ConfirmDialog
+        open={confirmDeleteSong}
+        title={`Delete "${song.title}" from your repertoire?`}
+        message={
+          <>
+            <p>
+              This removes all section data, notes, cross-key progress, and practice history for this song.
+            </p>
+            <p className="text-xs text-neutral-500">
+              You can still undo from the toast right after, but only for 10 seconds.
+            </p>
+          </>
+        }
+        confirmLabel="Delete song"
+        onCancel={() => setConfirmDeleteSong(false)}
+        onConfirm={doDeleteSongConfirmed}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteSection !== null}
+        title={`Delete the "${confirmDeleteSection?.name ?? ''}" section?`}
+        message={
+          confirmDeleteSection && (
+            <>
+              <p>
+                This section has user-entered work:
+              </p>
+              <ul className="list-disc pl-5 text-xs text-neutral-600 dark:text-neutral-300 space-y-0.5">
+                {(() => {
+                  const s = confirmDeleteSection;
+                  const phraseCount = (s.phrases ?? []).filter(
+                    p => p.chords.trim() !== '' || p.lyrics.trim() !== '',
+                  ).length;
+                  const bullets: string[] = [];
+                  if (phraseCount > 0) {
+                    bullets.push(`${phraseCount} phrase line${phraseCount === 1 ? '' : 's'} with chords or lyrics`);
+                  }
+                  if ((s.alternateChords ?? '').trim() !== '' || (s.alternateNote ?? '').trim() !== '') {
+                    bullets.push('an alternate chord chart / note');
+                  }
+                  if ((s.notes ?? '').trim() !== '') {
+                    bullets.push('section notes');
+                  }
+                  if (bullets.length === 0) bullets.push('chord or note data');
+                  return bullets.map((b, i) => <li key={i}>{b}</li>);
+                })()}
+              </ul>
+              <p className="text-xs text-neutral-500">
+                You can still undo from the toast right after, but only for 10 seconds.
+              </p>
+            </>
+          )
+        }
+        confirmLabel="Delete section"
+        onCancel={() => setConfirmDeleteSection(null)}
+        onConfirm={async () => {
+          const s = confirmDeleteSection;
+          setConfirmDeleteSection(null);
+          if (s) await deleteSection(s);
+        }}
+      />
     </div>
   );
 }

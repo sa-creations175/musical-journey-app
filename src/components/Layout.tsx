@@ -9,7 +9,7 @@ const links = [
   { to: '/harmonic-fluency', label: 'harmonic fluency' },
   { to: '/ear-training', label: 'ear training' },
   { to: '/chords-shapes', label: 'chords & shapes' },
-  { to: '/repertoire', label: 'repertoire' },
+  { to: '/repertoire', label: 'song repertoire' },
   { to: '/production', label: 'production' },
   { to: '/session-log', label: 'session log' },
 ];

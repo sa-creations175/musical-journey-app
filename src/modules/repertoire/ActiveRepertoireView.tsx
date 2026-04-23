@@ -1,33 +1,75 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Song, type SongPracticeLog } from '../../lib/db';
+import {
+  db,
+  type Song,
+  type SongCrossKeyProgress,
+  type SongPracticeLog,
+} from '../../lib/db';
 import {
   DEFAULT_STAGE,
-  FRESHNESS_DOT_CLASS,
-  FRESHNESS_LABEL,
   STAGES,
-  STAGE_BADGE_CLASS,
   STAGE_LABEL,
-  STAGE_TAGLINE,
+  evaluateAdvancement,
   freshnessFor,
   humanAgo,
 } from './stage';
-import SongCard from './SongCard';
+import SongCard, { formatAddedDate } from './SongCard';
 import AddSongModal from './AddSongModal';
+import { getPref, setPref } from '../../lib/userPrefs';
 
 interface Props {
   songs: Song[];
   onOpenSong: (songId: string) => void;
 }
 
+type SortMode =
+  | 'date-added'
+  | 'recent-practice'
+  | 'alphabetical'
+  | 'by-stage'
+  | 'by-freshness';
+
+const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
+  { id: 'date-added',       label: 'date added (oldest first)' },
+  { id: 'recent-practice',  label: 'recently practiced' },
+  { id: 'alphabetical',     label: 'alphabetical (A–Z)' },
+  { id: 'by-stage',         label: 'by stage' },
+  { id: 'by-freshness',     label: 'by freshness (stalest first)' },
+];
+
+const PREF_SORT_MODE = 'repertoireSortMode';
+
+// Rank used by the by-freshness sort — lower = shows earlier.
+const FRESHNESS_RANK: Record<ReturnType<typeof freshnessFor>, number> = {
+  stale: 0,
+  aging: 1,
+  recent: 2,
+  fresh: 3,
+};
+
 export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   const [showAdd, setShowAdd] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>('date-added');
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
-  // All practice logs for the module. Pulled once here and indexed per
-  // song so SongCard doesn't need to re-query. Live-updates after any
-  // session logged elsewhere in the app.
+  useEffect(() => {
+    (async () => {
+      const s = await getPref<SortMode>(PREF_SORT_MODE, 'date-added');
+      if (SORT_OPTIONS.some(o => o.id === s)) setSortMode(s);
+      setPrefsLoaded(true);
+    })();
+  }, []);
+  useEffect(() => {
+    if (prefsLoaded) setPref(PREF_SORT_MODE, sortMode);
+  }, [sortMode, prefsLoaded]);
+
   const logs = useLiveQuery<SongPracticeLog[]>(
     () => db.songPracticeLog.orderBy('timestamp').reverse().toArray(),
+    [],
+  ) ?? [];
+  const crossKey = useLiveQuery<SongCrossKeyProgress[]>(
+    () => db.songCrossKeyProgress.toArray(),
     [],
   ) ?? [];
 
@@ -41,94 +83,173 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     return m;
   }, [logs]);
 
-  // Stage distribution for the summary strip. A quick glance-bar that
-  // answers "what kind of rep am I actually practising?".
+  const crossKeyBySong = useMemo(() => {
+    const m = new Map<string, Array<{ sectionId: string; keyName: string; sessionCount: number }>>();
+    for (const p of crossKey) {
+      const arr = m.get(p.songId) ?? [];
+      arr.push({ sectionId: p.sectionId, keyName: p.keyName, sessionCount: p.sessionCount });
+      m.set(p.songId, arr);
+    }
+    return m;
+  }, [crossKey]);
+
+  // Per-song freshness/advancement derived once so the dashboard
+  // header and the cards share the same computation.
+  const perSong = useMemo(() => {
+    return songs.map(song => {
+      const songLogs = logsBySong.get(song.id) ?? [];
+      const lastPractisedAt = songLogs[0]?.timestamp ?? null;
+      const freshness = freshnessFor(lastPractisedAt);
+      const advancement = evaluateAdvancement({
+        currentStage: song.stage ?? DEFAULT_STAGE,
+        logs: songLogs,
+        originalKey: song.key,
+        crossKeyPairs: crossKeyBySong.get(song.id) ?? [],
+      });
+      return { song, lastPractisedAt, freshness, readyToAdvance: advancement.suggest };
+    });
+  }, [songs, logsBySong, crossKeyBySong]);
+
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of STAGES) counts[s] = 0;
-    for (const song of songs) {
+    for (const { song } of perSong) {
       const stage = song.stage ?? DEFAULT_STAGE;
       counts[stage] = (counts[stage] ?? 0) + 1;
     }
     return counts;
-  }, [songs]);
+  }, [perSong]);
 
-  // Sort by freshness (freshest first), then by stage order, then by
-  // title. Users generally want to see what's warmest at the top.
+  const needsAttentionCount = perSong.filter(
+    p => p.freshness === 'aging' || p.freshness === 'stale',
+  ).length;
+  const readyToAdvanceCount = perSong.filter(p => p.readyToAdvance).length;
+
   const sortedSongs = useMemo(() => {
-    const lastTouch = (songId: string): number => {
-      const arr = logsBySong.get(songId) ?? [];
-      return arr[0]?.timestamp ?? 0;
-    };
-    return [...songs].sort((a, b) => {
-      const la = lastTouch(a.id);
-      const lb = lastTouch(b.id);
-      if (la !== lb) return lb - la;
-      const sa = STAGES.indexOf(a.stage ?? DEFAULT_STAGE);
-      const sb = STAGES.indexOf(b.stage ?? DEFAULT_STAGE);
-      if (sa !== sb) return sa - sb;
-      return a.title.localeCompare(b.title);
-    });
-  }, [songs, logsBySong]);
+    const rows = [...perSong];
+    const byDateAdded = (a: Song, b: Song) => a.addedDate - b.addedDate;
+    switch (sortMode) {
+      case 'date-added':
+        rows.sort((a, b) => byDateAdded(a.song, b.song));
+        break;
+      case 'recent-practice':
+        rows.sort((a, b) => (b.lastPractisedAt ?? 0) - (a.lastPractisedAt ?? 0));
+        break;
+      case 'alphabetical':
+        rows.sort((a, b) => a.song.title.localeCompare(b.song.title));
+        break;
+      case 'by-stage':
+        rows.sort((a, b) => {
+          const sa = STAGES.indexOf(a.song.stage ?? DEFAULT_STAGE);
+          const sb = STAGES.indexOf(b.song.stage ?? DEFAULT_STAGE);
+          if (sa !== sb) return sa - sb;
+          return byDateAdded(a.song, b.song);
+        });
+        break;
+      case 'by-freshness':
+        rows.sort((a, b) => {
+          const ra = FRESHNESS_RANK[a.freshness];
+          const rb = FRESHNESS_RANK[b.freshness];
+          if (ra !== rb) return ra - rb;
+          return (a.lastPractisedAt ?? 0) - (b.lastPractisedAt ?? 0);
+        });
+        break;
+    }
+    return rows;
+  }, [perSong, sortMode]);
+
+  // Stage one-liner formatted for humans.
+  const stageLine = STAGES.map(s => `${STAGE_LABEL[s]}: ${stageCounts[s] ?? 0}`).join(' · ');
+
+  const hasCallouts = needsAttentionCount > 0 || readyToAdvanceCount > 0;
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
-      <div className="flex items-baseline justify-between flex-wrap gap-2">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">
-          your active repertoire
-        </h2>
-        <span className="text-xs text-neutral-500">
-          {songs.length} song{songs.length === 1 ? '' : 's'}
-        </span>
+    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-4">
+      {/* Top-of-page: big count + subtitle + stage line + optional
+          callouts. Scales from big hero number down to muted details. */}
+      <div className="space-y-1">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <span className="font-medium tabular-nums leading-none text-[2.5rem] sm:text-[3rem]">
+            {songs.length}
+          </span>
+          <span className="text-lg sm:text-xl text-neutral-700 dark:text-neutral-200">
+            {songs.length === 1 ? 'song' : 'songs'}
+          </span>
+        </div>
+        <p className="text-sm text-neutral-500">
+          {songs.length === 0
+            ? 'your active repertoire is empty — click "+ add song" to start one.'
+            : 'in your active repertoire'}
+        </p>
       </div>
 
-      {/* Stage distribution strip */}
-      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs">
-        {STAGES.map(s => (
-          <span
-            key={s}
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 border ${STAGE_BADGE_CLASS[s]}`}
-            title={STAGE_TAGLINE[s]}
+      {songs.length > 0 && (
+        <p className="text-xs text-neutral-500">
+          {stageLine}
+        </p>
+      )}
+
+      {hasCallouts && (
+        <div className="space-y-1.5 text-sm">
+          {needsAttentionCount > 0 && (
+            <div className="inline-flex items-center gap-2 rounded-md border border-developing/30 bg-developing/10 text-developing px-3 py-1.5">
+              <span aria-hidden>🟠</span>
+              <span>
+                <span className="font-medium font-mono tabular-nums">{needsAttentionCount}</span>{' '}
+                {needsAttentionCount === 1 ? 'song needs' : 'songs need'} attention
+              </span>
+            </div>
+          )}
+          {readyToAdvanceCount > 0 && (
+            <div className="inline-flex items-center gap-2 rounded-md border border-fluent/30 bg-fluent/10 text-fluent px-3 py-1.5 ml-0 sm:ml-2">
+              <span aria-hidden>✨</span>
+              <span>
+                <span className="font-medium font-mono tabular-nums">{readyToAdvanceCount}</span>{' '}
+                ready to advance
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <hr className="border-neutral-200 dark:border-neutral-800" />
+
+      {/* Sort control */}
+      <div className="flex items-center justify-end gap-2 flex-wrap text-xs">
+        <label className="inline-flex items-center gap-1 text-neutral-500">
+          sort by:
+          <select
+            value={sortMode}
+            onChange={e => setSortMode(e.target.value as SortMode)}
+            className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1"
           >
-            <span className="font-mono tabular-nums font-medium">{stageCounts[s] ?? 0}</span>
-            <span>{STAGE_LABEL[s]}</span>
-          </span>
-        ))}
-      </div>
-
-      {/* Freshness legend (small, static) */}
-      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-neutral-500">
-        <span className="uppercase tracking-wide">freshness:</span>
-        {(['fresh', 'recent', 'aging', 'stale'] as const).map(f => (
-          <span key={f} className="inline-flex items-center gap-1">
-            <span aria-hidden className={`inline-block w-2 h-2 rounded-full ${FRESHNESS_DOT_CLASS[f]}`} />
-            {FRESHNESS_LABEL[f]}
-          </span>
-        ))}
+            {SORT_OPTIONS.map(o => (
+              <option key={o.id} value={o.id}>{o.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Song cards grid */}
       {sortedSongs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-neutral-200 dark:border-neutral-800 p-8 text-center text-sm text-neutral-500">
           no songs yet. starter songs seed automatically — if you've cleared your data, click
-          "add a song" below.
+          "add song" below.
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortedSongs.map(song => {
-            const songLogs = logsBySong.get(song.id) ?? [];
-            const lastPractised = songLogs[0]?.timestamp ?? null;
-            return (
-              <SongCard
-                key={song.id}
-                song={song}
-                lastPractisedAt={lastPractised}
-                lastPractisedLabel={humanAgo(lastPractised)}
-                freshness={freshnessFor(lastPractised)}
-                onOpen={() => onOpenSong(song.id)}
-              />
-            );
-          })}
+          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance }) => (
+            <SongCard
+              key={song.id}
+              song={song}
+              lastPractisedAt={lastPractisedAt}
+              lastPractisedLabel={humanAgo(lastPractisedAt)}
+              addedLabel={formatAddedDate(song.addedDate)}
+              freshness={freshness}
+              readyToAdvance={readyToAdvance}
+              onOpen={() => onOpenSong(song.id)}
+            />
+          ))}
         </div>
       )}
 
@@ -137,7 +258,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
           onClick={() => setShowAdd(true)}
           className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
         >
-          + add a song to active repertoire
+          + add song to repertoire
         </button>
       </div>
 
