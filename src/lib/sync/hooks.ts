@@ -18,13 +18,38 @@ type UnknownRow = Record<string, unknown>;
  * ordinary Dexie writes (db.songs.put(...), etc.) are automatically
  * mirrored to Supabase — no refactor of existing call sites needed.
  *
- * We defer enqueue to a microtask so the Dexie transaction doesn't
- * need to include the syncQueue table, and so a hook can't block the
- * user's write.
- *
  * Echo prevention: while the sync engine is pulling cloud data into
  * Dexie, `isPulling()` returns true and all hooks no-op. Otherwise
  * every pulled row would immediately re-push to the cloud.
+ *
+ * --- IMPORTANT: why setTimeout(fn, 0) and NOT queueMicrotask ---
+ *
+ * Dexie 4 uses native Promises but patches Promise scheduling to
+ * preserve its PSD (Promise State Domain — Dexie's transaction
+ * zone) across async boundaries. queueMicrotask is part of that
+ * patched plumbing (see dexie.mjs around line 1090), so a microtask
+ * scheduled inside a hook INHERITS the parent transaction's PSD.
+ *
+ * When AddSongModal does:
+ *   await db.transaction('rw', [songs, songSections], async () => {
+ *     await db.songs.add(song);
+ *   });
+ *
+ * the `creating` hook fires inside that transaction's PSD. If we
+ * had used queueMicrotask, the deferred `db.syncQueue.add(item)`
+ * would still run in the parent PSD — Dexie checks the storeNames
+ * list, finds syncQueue isn't in scope, and throws
+ * `NotFoundError: Table syncQueue not part of transaction`
+ * (minified to "N" in the production bundle). Even with a try/catch
+ * around the inner add, the rejection-inside-PSD aborts the parent
+ * transaction → the user's song never lands locally.
+ *
+ * setTimeout(fn, 0) schedules a fresh task (not a microtask). The
+ * parent transaction has fully committed and unwound by the time it
+ * runs, PSD is empty, and the syncQueue write opens its own
+ * implicit transaction normally.
+ *
+ * Verified by src/lib/sync/__tests__/hooks.test.ts.
  *
  * Call this ONCE, as soon as the db singleton exists.
  */
@@ -39,7 +64,7 @@ export function installSyncHooks(): void {
       // Snapshot now — Dexie may mutate `obj` between the hook and
       // our deferred work (e.g. if downstream code fills fields).
       const snapshot = { ...obj };
-      queueMicrotask(() => queueUpsert(cfg, snapshot));
+      setTimeout(() => queueUpsert(cfg, snapshot), 0);
     });
 
     table.hook('updating', (...args: unknown[]) => {
@@ -48,18 +73,18 @@ export function installSyncHooks(): void {
       const obj = (args[2] as UnknownRow) ?? {};
       // Post-update row = old obj merged with new mods.
       const merged = { ...obj, ...mods };
-      queueMicrotask(() => queueUpsert(cfg, merged));
+      setTimeout(() => queueUpsert(cfg, merged), 0);
     });
 
     table.hook('deleting', (...args: unknown[]) => {
       if (!shouldSync()) return;
       const obj = (args[1] as UnknownRow | undefined) ?? {};
       const id = obj[cfg.idField];
-      queueMicrotask(() => {
+      setTimeout(() => {
         if (typeof id === 'string' && id !== '') {
           void enqueue(cfg.dexie, 'delete', id, undefined);
         }
-      });
+      }, 0);
     });
   }
 }
