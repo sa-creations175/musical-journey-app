@@ -1426,11 +1426,1575 @@ Advanced: the parallel bus gets side-chained to the dry vocal. When the lead sin
 ];
 
 // ------------------------------------------------------------------
+// Path 4: Genre Productions (22 lessons, 11 two-session arcs)
+// Session A = guided reference build; Session B = user's own version.
+// ------------------------------------------------------------------
+
+const GENRE: LessonContent[] = [
+  // Arc 1 — 6/8 Church Beat for Gospel Freestyle ------------------
+  {
+    id: 'gen-01a',
+    pathId: 'genre-productions',
+    order: 1,
+    title: 'Build a 6/8 gospel beat (guided)',
+    goal: 'Build a church-beat gospel groove at 60-75 BPM in 6/8, ready for a freestyle lead.',
+    surface: `6/8 gospel is what church plays when the preacher leaves an altar call open. The tempo is slow, the subdivision is rolling, and every bar has the weight of a breath.
+
+Tempo: 60-75 BPM. [[time-signature]] 6/8. You'll count "one-two-three-four-five-six" per bar and feel it as two groups of three.
+
+Instrumentation: piano on the changes, [[hammond-organ]] swelling underneath, [[rhodes]] or second piano filling, electric bass walking, drums laying a patient groove. No strings yet — add those in Session 2 if you want lift.
+
+Build order:
+1. **Chord bed first.** Pick a key comfortable for the singer. Four-chord progression is plenty. Traditional gospel loves I - IV - V and I - vi - IV - V. Play the chords on piano in root position — no flashy voicings yet.
+2. **Bass.** Root notes on beat 1 of each bar, walking up to the next chord across beats 4-5-6. This is the most important move.
+3. **Drums.** Kick on 1, snare/clap on 4. Hi-hat rolling [[triplet]]s or eighth-notes. Tambourine on 4 if it's a fuller arrangement. Restraint — you're not driving a freeway.
+4. **Organ.** Sustained whole-bar chords behind the piano. Think of it as air, not notes.
+5. **Second keyboard.** [[rhodes]] or EP with sparse stabs — only enter between vocal lines, never during them.
+
+The whole thing should feel like it's breathing, not pushing. The vocal will carry energy; your job is to make a bed that lets the vocal soar without shoving.`,
+    deepDive: `Why 6/8 works for church: it mirrors breath. Your inhale and exhale aren't a perfect square; they have a rise and a fall. 6/8 with its triplet subdivision feels the same way. That's why the form lives in worship music across traditions, not just Black American gospel.
+
+Listening assignments for your build session:
+- Richard Smallwood, "Total Praise." Listen for how patient the piano is. The left hand plays root-5 shapes on the lower half of the bar; the right hand voices the chord slightly later.
+- Donnie McClurkin, "We Fall Down." The drums are almost conversational. Try to make yours feel like that — not martial, not pushy.
+- Yolanda Adams, "Open My Heart." Jam & Lewis prove 6/8 can carry polished R&B production. Hear how modern it sounds while still being deeply church.
+
+Common mistakes to avoid:
+- **Playing every beat.** 6/8 wants you to leave beats 2, 3, 5, and 6 relatively empty compared to 1 and 4. When in doubt, take something out.
+- **Rushing the drums.** A gospel drummer pushes the pocket when the preacher pushes; otherwise, they sit behind. Program your drums to sit behind the grid by 3-5 ticks.
+- **Too much reverb on everything.** Church has natural room sound. Use it — a medium hall on drums, plate on lead vocal — but don't drown the rhythm section. The bed should feel present.
+
+Voicings matter here more than in most genres. A I chord in gospel isn't just root-3-5; it's often root-3-5-7-9, voiced across both hands. If you're new to voicings, start with simple chords and come back to this after you've learned more harmony.
+
+One more key move: the [[vamp]]. Gospel songs usually end by locking on the last chord (or two chords) and letting the vocal improvise for a while. Arrange your track so it has a built-in vamp section. That's where the freestyle lives.`,
+    tryNow: 'Open an empty Logic session. Create a 16-bar loop at 65 BPM in 6/8 with the build order above: piano chords, bass, drums (kick on 1, snare on 4, rolling triplet hi-hats), organ swells, sparse Rhodes. Set a vamp section at bar 17-24 where only the last two chords repeat. Stop when the bed feels like it could support a freestyle without fighting it.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+a+6%2F8+gospel+beat',
+    glossaryTerms: ['six-eight', 'time-signature', 'triplet', 'vamp', 'rhodes', 'pocket', 'ghost-note'],
+    referenceTracks: ['ref-kirk-franklin'],
+  },
+  {
+    id: 'gen-01b',
+    pathId: 'genre-productions',
+    order: 2,
+    title: 'Create your own 6/8 gospel beat',
+    goal: 'Apply Session 1 to build your own original 6/8 gospel groove.',
+    surface: `Your turn. You've heard how 6/8 gospel breathes; now make one of your own.
+
+This isn't a prescribed step-by-step. Use whatever workflow feels natural. The reference session showed you the vocabulary; now write a sentence.
+
+Starting points:
+- Pick a key that suits your voice or a singer you know.
+- Decide on a 4-chord progression that wants to loop. If it feels like it's asking for another chord, keep writing.
+- Set your tempo in the 60-75 BPM range. Under 60 feels heavy; over 75 loses the church feel.
+- Build your bed in any order that works for you. Some producers start with drums; some start with piano.
+
+Checklist for review when you're done:
+- [ ] Does it breathe in 6/8, or does it feel like disguised 4/4?
+- [ ] Does the piano have room for a vocalist to live?
+- [ ] Is the groove patient, or is the drummer rushing?
+- [ ] Is there a built-in vamp where a lead could go off?
+- [ ] Could you play this bed for a live vocalist without the track fighting them?
+
+Reference tracks to inspire (listen, don't copy):
+Check your Reference Track Library for 6/8 Gospel picks — specifically "Total Praise," "Open My Heart," and any church-beat tracks you've added yourself.`,
+    deepDive: `A few things to try if your build feels stuck:
+
+**Harmony feels flat?** Try a ii-V-I or a I-iii-IV-V progression. Gospel uses diatonic sevenths and ninths generously. A simple IV chord with a 9 added can lift a whole section.
+
+**Drums feel stiff?** Quantize your MIDI to 6/8 triplet grid, then pull your snare back by 5-10 ticks. The snare leading the groove is the biggest giveaway that a beat is programmed; pulling it back makes it feel played.
+
+**Missing the church-iness?** A sustained organ pad through the whole bed is the single most-church move you can make. Logic's Vintage B3 or the included Swell Organ patch work well. Keep it quiet — think of it as air conditioning, not a feature.
+
+**Too busy?** Try muting everything but piano and bass, then adding drums back in, then building up again. Sometimes a full arrangement wants to be stripped down before it becomes whole.
+
+**Need a vamp?** A vamp is where you lock on two chords (often the vi and I, or the IV and I) and let the lead singer testify. Build yours long — 16 to 32 bars minimum. That's where the emotional climax of church music happens.
+
+Save and share. If you have a vocalist friend, send them the bed and see what they do with it. The best gospel tracks come out of conversations between producer and singer, not from a producer alone.`,
+    tryNow: 'Build an original 6/8 gospel bed in Logic. Aim for 24 bars minimum with a clear vamp section. Export as a 320 kbps MP3 and listen on your phone speakers — if it still sounds like church, you got it.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=gospel+freestyle+beat+6%2F8',
+    glossaryTerms: ['six-eight', 'vamp', 'triplet', 'pocket'],
+  },
+
+  // Arc 2 — 90s/00s Gospel Choir Arrangement ----------------------
+  {
+    id: 'gen-02a',
+    pathId: 'genre-productions',
+    order: 3,
+    title: 'Build a 90s gospel choir arrangement (guided)',
+    goal: 'Arrange a Kirk Franklin / Fred Hammond-era choir section with layered parts, ad-libs, and a full rhythm section.',
+    surface: `The 90s gospel choir sound is the result of two things: tight arrangements (every voice has a part) and aggressive group-vocal stacking (each part is doubled or tripled).
+
+Tempo: 85-105 BPM. [[time-signature]] 4/4 (not 6/8 — save that for Arc 1).
+
+Build order:
+1. **Rhythm section first.** [[kick]] on 1 and 3, [[snare]] on 2 and 4, hi-hat patterns that shift subtly between sections. Bass mostly on the root with tasty runs into chord changes. Piano and Rhodes comping — this is church, but it's also R&B.
+2. **Draw the choir parts.** Soprano, alto, tenor, bass. You need all four. Write them out on paper or in a DAW MIDI track. The four parts should form tight voicings — often shell voicings (root-3-7) or rootless voicings (3-5-7-9).
+3. **Record or program each part on its own track.** Whether you're singing them, programming with a vocal sample library, or using a virtual choir instrument, each part gets its own channel.
+4. **Double each part.** Record each part twice. Pan the first recording left, the second right. That's already a four-voice choir sounding like eight.
+5. **Add a lead.** Kirk's role isn't lead-throughout — it's the call that the choir answers. Record your lead vocal dry, close, and forward.
+6. **Bus compress the choir.** Send all choir tracks to a bus. Put moderate [[compression]] (3-4:1 ratio, slow attack, medium release) on the bus. This glues the voices.
+
+The final sound: a cohesive choir that feels huge without any one voice poking through, with Kirk's (or your lead's) voice conversationally in front.`,
+    deepDive: `The secret of the Kirk Franklin sound isn't the choir — it's the [[call-and-response]] architecture. Kirk isn't singing lead the whole time. He says a line, the choir answers. That's how church has always worked. Modern R&B lost this; gospel kept it.
+
+When you're writing your choir parts, think of them as characters:
+- The soprano is the sparkle. Higher, louder, cutting through.
+- The alto is the warmth. Middle-range, plenty of body.
+- The tenor is the texture. Sits between alto and bass, adds density.
+- The bass is the weight. Anchors the whole stack harmonically.
+
+Voicings: use close voicings for "choir singing as one instrument" sections, open voicings for "choir as full congregation" sections. Arrangement literacy here is everything. If you haven't studied four-part vocal writing, "Let It Be" and "Lean on Me" are great places to start.
+
+**Ad-libs.** Kirk's ad-libs are a character unto themselves. They're short, rhythmic, and placed between phrases — never over them. When you add ad-libs to your track, record them AFTER the choir is done. Listen to the space between choir phrases; that's where ad-libs live.
+
+**Bus compression glue.** Without it, choirs sound like a bunch of individual tracks. With it, they sound like one instrument. Try the Logic Vintage VCA on the choir bus, 3:1 ratio, 10 ms attack, 100 ms release, aiming for 2-3 dB of gain reduction during the loudest passages. Don't compress any harder than that — you'll lose the feel.
+
+**Reverb architecture.** Choir gets a hall reverb (2-3 second decay) sent via an aux. Lead vocal gets a shorter plate (1.4-1.8 seconds). The contrast is what makes the lead feel close and the choir feel architectural. If both get the same reverb, the lead gets swallowed.
+
+Listening homework: "Stomp" for modern choir; "Now Behold the Lamb" for classic Kirk; "Glory to the Lamb" for Fred Hammond's quartet-rooted approach.`,
+    tryNow: 'Program or record a four-part choir section (soprano, alto, tenor, bass) singing one 8-bar phrase in close harmony. Double each part, pan them 60% L/R, send all to a Choir Bus, and apply the compression and reverb settings from the deep dive. Then add a dry lead call that answers the choir on beats 3-4 of each bar. Mix it so the choir feels wide and the lead feels close.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+kirk+franklin',
+    glossaryTerms: ['call-and-response', 'compression', 'parallel-compression', 'plate-reverb', 'hall-reverb', 'auxiliary-track', 'bus', 'pan', 'vocal-doubling'],
+    referenceTracks: ['ref-kirk-franklin'],
+  },
+  {
+    id: 'gen-02b',
+    pathId: 'genre-productions',
+    order: 4,
+    title: 'Create your own gospel choir arrangement',
+    goal: 'Arrange your own original choir section using the Session 1 approach.',
+    surface: `Time to write your own choir. You don't need eight singers to pull this off — a vocal sample library or a virtual choir plugin gets you most of the way. What you do need is four clear parts and a plan for what the choir answers.
+
+Starting points:
+- Decide: what is the choir saying, and what is the lead asking? Call-and-response is the structural DNA.
+- Sketch your four parts on paper, a piano, or a MIDI track. Every part should be singable. If it's unsingable, it won't sound human.
+- Find your reference track. A specific song you're pulling energy from — Kirk, Fred Hammond, Donnie McClurkin, Hezekiah Walker, Walter Hawkins.
+
+Checklist when you're done:
+- [ ] Four voice parts that make sense on their own AND together?
+- [ ] Bus-compressed enough to feel glued?
+- [ ] Lead placed forward with shorter reverb than the choir?
+- [ ] Ad-libs in the spaces, not over the main phrases?
+- [ ] Room for the rhythm section to breathe underneath?`,
+    deepDive: `Some variations worth trying:
+
+**The "shout" section.** A faster, higher-energy section where the drums double-time, the organ swells, and the choir goes up an octave. This is the climax of a lot of gospel songs. Arrange one into yours.
+
+**The breakdown.** A section where everything drops out except the lead and one sustained instrument (often organ or bass). Even 2 bars of breakdown makes the return of the full arrangement feel huge.
+
+**The key change.** Modulating up a whole step for the final chorus is a classic gospel move. Feels cheap when overused; feels earned when the arc has built to it.
+
+Troubleshooting:
+- **Choir sounds thin?** Add a third doubling to each part (so you have 12 tracks for 4 parts). Pan them at different positions for width.
+- **Choir sounds too "stacked"?** Pull one or two of your doublings down a few dB. Not everyone needs to sing every word equally loud.
+- **Lead getting buried?** Automate the choir volume down slightly during lead phrases. Busy choir over busy lead = mud.
+
+When you finish, export and play it on a phone speaker. Gospel was built for car radios and church PAs, not studio monitors. If it sounds good on a phone, you're winning.`,
+    tryNow: 'Arrange and mix a complete 32-bar gospel song section (verse → choir entrance → chorus) using what you built in Session 1. Aim for clear call-and-response between lead and choir. Export to a phone, play it, and decide what to fix.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=gospel+choir+arrangement+tutorial',
+    glossaryTerms: ['call-and-response', 'hall-reverb', 'vocal-doubling', 'bus', 'automation'],
+  },
+
+  // Arc 3 — 90s R&B Ballad ---------------------------------------
+  {
+    id: 'gen-03a',
+    pathId: 'genre-productions',
+    order: 5,
+    title: 'Build a 90s R&B ballad production (guided)',
+    goal: 'Produce a Babyface / Jermaine Dupri-era R&B ballad — clean vocal in front, soft rhythm bed, BGV stack for emotion.',
+    surface: `A 90s R&B ballad is three things: a vocal that sits close and intimate, a rhythm bed that stays out of the way, and BGV stacks that bloom in the chorus. Everything is in service of the voice.
+
+Tempo: 60-75 BPM. Always slow. Always deliberate.
+
+Build order:
+1. **Start with the chords.** Piano or Rhodes playing seventh-chord voicings. The 90s ballad vocabulary is heavy on diatonic sevenths (Imaj7, IVmaj7, vi7) and minor iisus.
+2. **Program drums.** Kick on 1, snare on 3, hi-hat shuffles between. Don't use loops — program from scratch so the feel is yours. Jermaine Dupri drums are notoriously simple; the emotion comes from the vocal.
+3. **Bass.** DI'd electric bass (or a clean sample) mostly on roots with occasional fifth-string runs. Sidechain it softly to the kick so the low end doesn't fight.
+4. **Record the lead vocal.** This takes priority. Capture it dry and close with a [[condenser-microphone]]. Multiple takes, comp them to one. Leave space — don't double the verse.
+5. **Double the chorus lead.** One central take, one doubled. That's it. The chorus has more weight because of the double, but the verse feels closer because it's single-tracked.
+6. **Stack BGVs.** 3-part (soprano/alto/tenor) or 4-part harmony, two layers each, panned wide. BGVs enter at the pre-chorus or chorus, not the verse.
+7. **Reverb discipline.** Medium plate on the lead (1.6 sec, 30 ms pre-delay). Longer plate on the BGVs (2.2 sec). That contrast keeps lead close, BGVs architectural.
+
+Final rule: if a listener can't tell when the chorus hits, your arrangement is too flat. Something should lift — BGV stack, new element, drums getting slightly louder.`,
+    deepDive: `Babyface's secret is discipline. He doesn't add things; he subtracts them until the vocal can breathe. Study what he does:
+
+- The verse usually has fewer than four elements going: piano, bass, kick on 1 and 3, vocal. That's it.
+- The pre-chorus adds ONE thing (often a [[string-pad]] or a [[rhodes]] layer).
+- The chorus adds BGVs, drums get slightly fuller (maybe a shaker, maybe a second percussion layer), vocal doubles.
+- The bridge might drop to voice and one instrument, then rebuild.
+
+That progression — fewer elements in verse, more in chorus — is the arc that makes ballads feel alive.
+
+**Vocal comping** is critical here. Don't just pick the most technically correct take. Listen for where the emotion is strongest — often in breath, in cracks, in places the singer took a risk. The 90s lead vocals sound close and imperfect because producers kept the honest moments.
+
+**Compression on the lead vocal** should be two-stage: a fast peak-catcher first (fast attack, high ratio, catching 3-4 dB on loudest peaks), then a slower leveler behind it (medium attack, 3:1 ratio, 2-3 dB of gain reduction throughout). Together they make every word sit at the same felt level without feeling squashed.
+
+**Mix decisions to study** (listen to the reference tracks):
+- "End of the Road" — how the BGVs duck under the lead in verses but bloom in the chorus. That's automation, not compression.
+- "Un-Break My Heart" — how David Foster uses strings to carry emotional lift without losing the intimacy.
+- "Can We Talk" — how Tevin's breath is always audible between phrases. That's a deliberate choice.
+
+Listen for what you can't hear. The absence of sounds in these mixes is as important as the presence.`,
+    tryNow: 'Produce a complete 90s R&B ballad verse + chorus using a recorded or sampled lead vocal. Arrange 16 bars of verse (stripped bed), 8-bar pre-chorus (one element added), 16-bar chorus (BGVs, doubled lead, fuller drums). Apply the two-stage compression and plate reverb setup from the deep dive.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+babyface',
+    glossaryTerms: ['compression', 'parallel-compression', 'plate-reverb', 'vocal-doubling', 'condenser-microphone', 'side-chain', 'comping', 'string-pad', 'rhodes', 'automation'],
+    referenceTracks: ['ref-babyface-ballad', 'ref-babyface-ballad-2', 'ref-boyz-ii-men'],
+  },
+  {
+    id: 'gen-03b',
+    pathId: 'genre-productions',
+    order: 6,
+    title: 'Create your own 90s R&B ballad',
+    goal: 'Produce your own original 90s-style R&B ballad.',
+    surface: `Your turn. Write a 90s R&B ballad.
+
+Starting points:
+- Pick a tempo between 60-75 BPM.
+- Decide your key based on the vocalist's range. Remember: the whole song is the voice — start there.
+- Start sketchy — just piano and voice. Don't add drums until you know the song works as a demo.
+
+Checklist:
+- [ ] Clear verse/pre-chorus/chorus distinction in arrangement density?
+- [ ] Lead vocal sits close and dry-ish?
+- [ ] BGVs respect the lead — they don't step on it?
+- [ ] Plate reverb on lead shorter than on BGVs?
+- [ ] Tempo slow enough to feel ballad, not midtempo?`,
+    deepDive: `Common mistakes to avoid in your build:
+
+**Over-producing the verse.** If your verse has five elements going, it's a chorus pretending to be a verse. Pull things out.
+
+**BGVs too loud.** BGVs should support the lead, not compete. If you can hear every harmony word clearly, they're probably 3-5 dB too loud. Pull them back until they feel like a cloud around the lead, not separate voices.
+
+**Drums that drive instead of accompany.** A 90s ballad drummer never pushes. The kick on 1 and 3, snare on 3 (or on 4 in some cases), and the hats restrained. If your drums feel like they're going somewhere, make them sit back.
+
+**Modern-sounding reverbs.** Tails longer than 2.5 seconds on the lead will make it sound like a 2020s track, not a 90s one. Keep plates tight. If you want more ambience, add a second room reverb at a low send level rather than extending the plate decay.
+
+**Forgetting the bridge.** Many ballad tracks just stay verse-chorus-verse-chorus. A bridge that drops to voice + one instrument and then rebuilds is a classic 90s move. Write one.
+
+Reference your Session 1 build frequently. Reference your Library tracks. Export and listen on a phone speaker — that's where most 90s R&B was heard when it was new.`,
+    tryNow: "Produce a complete 90s-style R&B ballad with verse, pre-chorus, chorus, and bridge. Export to MP3 and listen on your phone. Note three things you'd change.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=90s+rnb+ballad+production+tutorial',
+    glossaryTerms: ['plate-reverb', 'compression', 'vocal-doubling', 'automation'],
+  },
+
+  // Arc 4 — 2000s R&B (Usher era) ---------------------------------
+  {
+    id: 'gen-04a',
+    pathId: 'genre-productions',
+    order: 7,
+    title: 'Build a 2000s R&B production (guided)',
+    goal: 'Produce a Jermaine Dupri / Bryan-Michael Cox-era R&B track at a midtempo groove.',
+    surface: `The Usher era is sleeker than the 90s. Drums are tighter and more programmed, keys are brighter, vocals have more processing, and groove is king. Bryan-Michael Cox's electric piano sound is the signature keyboard.
+
+Tempo: 88-105 BPM midtempo.
+
+Build order:
+1. **Drums first this time.** Program crisp kick and snare — 808-ish kick, snappy snare. Hi-hat patterns should be busier than 90s (eighth-notes, sometimes sixteenths). Don't over-humanize.
+2. **Bass.** Sub-bass or DI'd electric. Sits dead center. Keep it simple — often just roots with smooth fills between.
+3. **Electric piano.** [[rhodes]], [[dx7]], or the classic Bryan-Michael Cox EP sound (modulated electric piano). Comp through your chords.
+4. **Synth pads.** Under everything, very quiet. These fill the sonic space without calling attention.
+5. **Lead vocal.** Closer mic'd than 90s, more processed. Slight de-esser, maybe light pitch correction, doubled on the hook.
+6. **Ad-libs.** More of them than in a 90s ballad, panned wider.
+7. **Effects.** A reverb tail, slapback delay on ad-libs, maybe a tape delay on hook words.
+
+The track should feel clean, polished, and rhythmically tight. Groove and polish are the two axes.`,
+    deepDive: `The Bryan-Michael Cox EP sound is made by running a Rhodes or DX7 EP through a [[chorus-effect]] (classic 80s chorus, subtle) and a tape saturator. The result is a warm, wide, slightly wobbly keyboard sound. Cox's fingerprint.
+
+The Usher-era vocal is more processed than Babyface-era:
+- Close mic'd (still a [[condenser-microphone]], still [[pop-filter]] required)
+- Pitch-corrected lightly (not heavy Auto-Tune — Usher sings more in tune than most)
+- De-essed more aggressively (the era's style preferred clean)
+- Compressed harder — often with a third stage of compression on top of the two-stage chain
+
+**BGV stacks in 2000s R&B** are often tighter and panned wider than 90s. The "group of voices" feel is sometimes replaced by a couple of doubled parts, carefully tuned and compressed.
+
+**Drum reference specifics:**
+- Jermaine Dupri's drums on "U Got It Bad" — spacious, simple, clean.
+- "Confessions Part II" — hat patterns much busier, but kick/snare spacious.
+- "Burn" — pitched snare, smooth groove.
+- Stargate's "So Sick" — drums as punctuation, not drive.
+
+**Automation matters more here.** Volume rides on the BGVs, the pads, even the hi-hat. Every element fades up or down through the song. Set aside a whole session after the arrangement is done to just automate.
+
+The goal isn't a demo — it's a radio-ready polished record. That polish is all about finishing: automation, fills, transitions, mastering. Don't skip.`,
+    tryNow: 'Program a 16-bar 2000s R&B midtempo groove at 95 BPM. Build with the order above. Then add a lead vocal take (yours, a sample, whatever works), stack two BGVs on the hook, and finish with automation rides on the BGVs and pads.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+bryan-michael+cox',
+    glossaryTerms: ['rhodes', 'dx7', 'chorus-effect', 'synth-pad', 'compression', 'auto-tune', 'de-esser', 'slapback', 'tape-delay', 'automation'],
+    referenceTracks: ['ref-daniel-caesar'],
+  },
+  {
+    id: 'gen-04b',
+    pathId: 'genre-productions',
+    order: 8,
+    title: 'Create your own 2000s R&B track',
+    goal: 'Produce an original 2000s-style R&B midtempo.',
+    surface: `Your turn. Write a 2000s R&B groove.
+
+Tempo target: 88-105 BPM. Midtempo feel. Polished and rhythmic.
+
+Checklist:
+- [ ] Is the drum groove tight without being rigid?
+- [ ] Does the electric piano sit wide and warm?
+- [ ] Are the pads doing structural work (not just decorative)?
+- [ ] Is the lead vocal processed enough to feel era-appropriate but not over-corrected?
+- [ ] Are the BGVs tight, tuned, and panned well?
+- [ ] Have you done an automation pass on volume and effect sends?`,
+    deepDive: `A few era-specific tricks to try:
+
+**The hook turnaround.** Most 2000s R&B hooks have a 2-bar turnaround that leads back into the verse. A drum fill plus a vocal ad-lib plus sometimes a reverse cymbal. Build one into your track.
+
+**Slap delay on ad-libs.** A short slap delay (120-180 ms, 1-2 repeats, 15-25% wet) on ad-lib words gives them that "bouncing around the mix" feel. Use it in moderation.
+
+**The clean break.** Before a final chorus, drop to lead vocal and one instrument for 2-4 bars. When the full production returns, the impact is enormous.
+
+**Sixteenth-note hi-hats in the chorus.** Add busy hi-hat variation in the chorus to distinguish it rhythmically from the verse.
+
+Don't skip the automation pass. 2000s R&B was mixed obsessively; it's where the craft of R&B mixing reached its height. Your track will feel finished only when you've ridden the faders.`,
+    tryNow: 'Build a 32-bar 2000s R&B verse and chorus with full polish — compression chain on vocal, BGV stack on hook, automated rides, mastered to -10 LUFS. Listen on multiple speakers.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=2000s+rnb+production+tutorial',
+    glossaryTerms: ['compression', 'de-esser', 'slapback', 'automation', 'lufs'],
+  },
+
+  // Arc 5 — Lo-fi / Atmospheric Indie ----------------------------
+  {
+    id: 'gen-05a',
+    pathId: 'genre-productions',
+    order: 9,
+    title: 'Build a lo-fi atmospheric indie beat (guided)',
+    goal: 'Produce a lo-fi beat that embraces imperfection, warmth, and space.',
+    surface: `Lo-fi beats win by sounding imperfect. Tape hiss, vinyl crackle, swung drums, a sample that wasn't meant to be a sample. The aesthetic is intentional.
+
+Tempo: 70-90 BPM. [[swing]] enabled (16-25%).
+
+Build order:
+1. **Find a chord loop.** Either sample a 2-4 second phrase from an old jazz record (be mindful of clearance for commercial release) OR program warm chords on [[rhodes]] / [[electric-piano]].
+2. **Chop it (if sampled).** Cut the phrase into pieces. Rearrange. Time-stretch. Detune. Imperfect on purpose.
+3. **Program drums.** Swung [[hi-hat]], [[kick]] on 1 and 3, [[snare]] on 2 and 4 but often slightly behind the grid. Drop in [[ghost-note]]s.
+4. **Add bass.** Upright bass sample, soft synth bass, or just the low end of the chord loop. Doesn't need to be busy.
+5. **Atmospheric textures.** Vinyl [[vinyl-effect]], tape hiss, rain, a distant TV — background layers that say "room."
+6. **Limit the bandwidth.** Roll off some highs (above 8 kHz), some lows (below 50 Hz). The mix feels smaller and warmer — that's the goal.
+7. **Add imperfection.** Slight pitch modulation (wow-and-flutter), a tiny bit of distortion, compression that pumps audibly.
+
+Final sound: sounds like it was recorded in 1972, found on a dusty tape, and accidentally released. That's the [[lofi-aesthetic]].`,
+    deepDive: `The biggest mistake producers make with lo-fi is trying to make it sound clean. Lo-fi is about character, not clarity.
+
+**Sampling sources to learn from:**
+- Old jazz records (Blue Note catalog)
+- 60s-70s soul (Donny Hathaway, Bobby Womack)
+- Bossa nova (João Gilberto, Stan Getz)
+- Childhood TV soundtracks
+
+**Legal reminder:** Sampling copyrighted material without license is infringement. For commercial release, you must clear samples or stick to royalty-free loops / your own playing. For practice / private use, it's fine.
+
+**Lo-fi drum programming is all about feel.** Quantize loosely — a 60-70% quantize strength, not 100%. Add [[swing]] of 15-25%. Drop [[ghost-note]]s between the main hits. If you're using Logic, the Drummer (Drum Kit Designer) tool can help here.
+
+**Jazz chords are lo-fi's harmonic home.** Major 7ths, minor 7ths, dominant 13ths with altered extensions. If you don't know jazz harmony, start with ii-V-I progressions in a few keys and build from there.
+
+**Saturation is your friend.** A tape saturator on the drum bus, a vinyl emulator on the master, light distortion on the bass. These add "grit" and warmth. Be careful not to overdo — if your mix sounds muddy, it's probably too much saturation.
+
+**Reference tracks to study:**
+- J Dilla — Donuts (the whole album, especially "Stop")
+- Nujabes — Modal Soul
+- Knxwledge
+- ChilledCow / Lo-fi Beats to Relax/Study to Stream`,
+    tryNow: 'Build a 2-minute lo-fi beat. Use a sample or your own playing for the chord loop. Add swung drums, soft bass, vinyl crackle, and roll off extreme highs/lows. Export and listen on earbuds — lo-fi is a headphone genre.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+lofi+hip+hop',
+    glossaryTerms: ['swing', 'ghost-note', 'lofi-aesthetic', 'vinyl-effect', 'dusty', 'sampling', 'sample-chop', 'tape-saturation', 'rhodes'],
+  },
+  {
+    id: 'gen-05b',
+    pathId: 'genre-productions',
+    order: 10,
+    title: 'Create your own lo-fi track',
+    goal: 'Produce an original lo-fi beat with your own character.',
+    surface: `Make a lo-fi beat that's actually yours. Resist the temptation to sound like everyone else on the ChilledCow stream.
+
+Checklist:
+- [ ] Imperfection feels intentional, not sloppy?
+- [ ] Swung drums that sit behind the grid?
+- [ ] Warm low-fi mix (rolled highs/lows, saturation)?
+- [ ] Something unexpected — a field recording, an unusual chord, a strange sample?
+- [ ] 2-3 minute length or a loop that can extend?`,
+    deepDive: `Ways to make your lo-fi distinct:
+
+**Original sample source.** Record your own Rhodes loop, your own voice humming a melody, your own guitar. Original sources set you apart from the ocean of producers chopping the same Blue Note records.
+
+**Unusual chord choices.** Modal harmony (Dorian, Phrygian, Lydian) adds mood that major/minor don't. Study John Coltrane and Miles Davis for harmonic vocabulary beyond basic ii-V-I.
+
+**Live recording.** Record one element (piano, guitar, voice) live to tape or with a single mic. The room sound, the breath, the slight slips — they become part of the production.
+
+**Non-music texture.** Field recordings of rain, a coffee shop, a cassette tape rewinding — these textures differentiate your track from every other lo-fi beat.
+
+Don't aim for loudness in lo-fi. Master quietly. The genre thrives in low LUFS territory (-16 to -18 LUFS). Loud lo-fi feels wrong.`,
+    tryNow: "Make a lo-fi beat using at least one original source (your own playing, a field recording, something you captured). Aim for under -14 LUFS in your master. Share it with one person whose taste you trust.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=original+lofi+beat+production',
+    glossaryTerms: ['lofi-aesthetic', 'vinyl-effect', 'dusty', 'lufs'],
+  },
+
+  // Arc 6 — Modern Minimal R&B ------------------------------------
+  {
+    id: 'gen-06a',
+    pathId: 'genre-productions',
+    order: 11,
+    title: 'Build a modern minimal R&B production (guided)',
+    goal: 'Produce a Frank Ocean / H.E.R. / Daniel Caesar-style track — space, restraint, warmth.',
+    surface: `Modern minimal R&B's defining move is restraint. You add one thing at a time; you stop when the song says so.
+
+Tempo: 70-95 BPM typically. Can be slower.
+
+Build order:
+1. **Start with one chord voicing on piano or Rhodes.** Don't plan more yet. Just the sound of one chord.
+2. **Add the second chord.** If two chords work together well, you have your bed.
+3. **Record the lead vocal over just those two chords.** Let the song write itself. Often modern R&B songs have only two or three chords total.
+4. **Drums, when the song asks for them.** Light programming. The snare might be a finger snap or a clap. Kick on 1 and 3. Minimal hi-hats or none. Hand percussion is often better than drum machine.
+5. **Bass.** Sometimes absent. When present, sub-bass or warm electric. Sits far below everything.
+6. **Subtle texture.** A soft [[synth-pad]] that barely exists. A field recording of a room. A sound that says "space."
+7. **Vocal ad-libs.** Recorded sparingly, placed exactly, often pitch-lowered or treated.
+
+Final sound: feels like a private conversation. Every decision should be defensible by the test: "What is this adding?" If you can't answer, delete it.`,
+    deepDive: `Frank Ocean's "Pink + White" is six things: acoustic piano, gentle drums, subtle synth pad, Frank's lead vocal, backing vocals by (probably) Pharrell, and atmosphere. That's the whole track.
+
+**The biggest skill of modern minimal R&B is editing.** Cut stuff out. Every song starts with too many layers and gets stripped down. If you're unfamiliar with this discipline, try this: build a full R&B production, then go through and mute every element. Unmute them one at a time. Stop adding when the song feels complete — which is usually before you've unmuted everything.
+
+**Vocal treatment:**
+- Close mic'd — even closer than 90s ballads. The proximity effect gives it warmth.
+- Light compression (2-3 dB gain reduction max)
+- Short plate or room reverb (1.2-1.6 seconds)
+- Doubled or stacked ONLY when the song needs density (usually chorus peaks)
+- Effects like pitch-shifted harmonies, tape delay on specific words, glitchy chops
+
+**Chord voicings** should be rich — extended harmony (9ths, 11ths, 13ths) — but played sparsely. One voicing can do more than a chord progression.
+
+**The "space" element.** Listen to "Nights" by Frank Ocean. Before any note, there's a texture that is the song. A [[synth-pad]] that feels like looking out a window. Build a texture like this into your track. It should be present before the song starts and remain after it ends.
+
+Reference tracks to study:
+- "Best Part" — notice the whole song is just guitar, vocal, and light percussion.
+- "Focus" (H.E.R.) — notice how few things are happening at any moment.
+- "Pink + White" — notice the sparse drums and how the song breathes.`,
+    tryNow: 'Build a minimal R&B track with at most 5 elements: piano/Rhodes, drums, bass (optional), one atmospheric texture, lead vocal. Write a 2-3 chord loop and a simple melody over it. Don\'t add anything else until you can\'t hear what\'s missing.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+frank+ocean',
+    glossaryTerms: ['sparse-arrangement', 'synth-pad', 'rhodes', 'plate-reverb', 'tape-delay', 'proximity-effect', 'vocal-doubling'],
+    referenceTracks: ['ref-frank-ocean', 'ref-daniel-caesar'],
+  },
+  {
+    id: 'gen-06b',
+    pathId: 'genre-productions',
+    order: 12,
+    title: 'Create your own modern minimal R&B track',
+    goal: 'Produce an original minimal R&B song.',
+    surface: `Your turn. Make a modern minimal R&B track.
+
+Checklist:
+- [ ] 5 or fewer primary elements?
+- [ ] At least one atmospheric texture that lives throughout?
+- [ ] Vocal close, warm, restrained?
+- [ ] Does the song have room to breathe between sections?
+- [ ] Can you defend every element's presence?`,
+    deepDive: `The hardest part of minimal R&B is NOT adding things. Every producer has the instinct to add. Practice resistance.
+
+Exercises:
+- **The "one element less" test.** After your arrangement feels done, mute one element and listen. If the song still works, the muted element was probably unnecessary.
+- **The breathe test.** Listen with your eyes closed. Do you feel space, or do you feel crammed? The answer tells you whether you're minimal.
+- **The "phone check."** Play it on a phone speaker. Minimal R&B often feels even stronger there because the sparseness comes through.
+
+Avoid the common lo-fi trap of "minimalism as an excuse for laziness." Your track should feel intentional, not unfinished. Every element has been chosen carefully precisely because there are so few.`,
+    tryNow: 'Make a minimal R&B track. Use the one-element-less test and the breathe test. Share with someone and ask: "What sticks with you?"',
+    youtubeLink: 'https://www.youtube.com/results?search_query=modern+minimal+rnb+tutorial',
+    glossaryTerms: ['sparse-arrangement', 'synth-pad', 'plate-reverb'],
+  },
+
+  // Arc 7 — 80s Pop Ballad ----------------------------------------
+  {
+    id: 'gen-07a',
+    pathId: 'genre-productions',
+    order: 13,
+    title: 'Build an 80s pop ballad (guided)',
+    goal: 'Produce a classic 80s power ballad — gated drums, DX7 piano, big chorus.',
+    surface: `The 80s pop ballad is big, dramatic, and unapologetic. Every chorus is a climb. Every drum hit is significant.
+
+Tempo: 65-85 BPM typically.
+
+Build order:
+1. **[[dx7]] electric piano.** The defining 80s keyboard. Whole-note or half-note chords in the verse. Use a chorus effect to widen it.
+2. **Drums.** Programmed, with a big [[gated-reverb]] snare. Kick on 1 and 3, snare on 2 and 4, hi-hat quarter notes. The gated reverb is essential for era authenticity.
+3. **Bass.** Fretless or DI'd electric. Mostly on roots with slides into chord changes.
+4. **Lead vocal.** Close mic'd, compressed heavily. 80s ballad vocals are often slightly hyper-realistic — every breath audible.
+5. **Sax or guitar solo.** Around the bridge. This is the 80s — there's always a sax. George Michael's "Careless Whisper" is the textbook.
+6. **String pad.** Synthesized strings (Juno-60 or DX7 strings) under the chorus. This is the "big" in power ballad.
+7. **BGVs.** Entered in the chorus, stacked and panned wide. Often a modulation-heavy effect (chorus, slight phase).
+
+Final sound: It should evoke a blue-lit stage, rain on a window, and an absolutely committed singer. Everything is emotional.`,
+    deepDive: `The gated reverb snare is the single most recognizable 80s drum effect. Here's how it works: put a long reverb (2.5+ seconds) on the snare, then gate the reverb so it cuts off abruptly after ~400 ms. Result: each snare hit sounds huge but doesn't bleed into the next. Phil Collins did it first on "In the Air Tonight"; the whole decade copied.
+
+**The DX7 sound** is specific. Patch name: "E.Piano 1." Every 80s electric piano is this or emulating this. In software, Arturia's DX7 V, Native Instruments FM8, or Logic's Retro Synth can all nail the sound.
+
+**Chorus effect on everything:**
+- On DX7 EP: makes it sparkle
+- On clean guitar: gives it that Police / U2 shimmer
+- On synth pads: broadens them
+- On bass: too much and it loses definition — use carefully
+
+**Compression reference:** 80s ballad lead vocals are compressed harder than 70s, softer than 2000s. Aim for 5-7 dB of gain reduction on peaks. The resulting sound is present but still breathy.
+
+**Reverbs:**
+- Drums: gated plate or gated hall, 2+ seconds pre-gate, cut at ~400 ms
+- Lead vocal: medium plate, 1.8-2.2 seconds
+- BGVs: longer plate or hall, 2.5+ seconds
+- Instruments: room reverb or a small plate
+
+**Classic 80s ballad arrangement arc:**
+- Intro: DX7 EP + sparse hi-hat
+- Verse 1: + bass, quiet drums
+- Pre-chorus: + sustained strings
+- Chorus: + full drums (gated snare), doubled lead, BGVs
+- Verse 2: pulls back slightly
+- Bridge: solo section (sax or guitar), sometimes a key change
+- Final chorus: biggest, longest, fullest version
+
+Reference listening: "I Will Always Love You" (Whitney), "Total Eclipse of the Heart" (Bonnie Tyler), "Against All Odds" (Phil Collins). Study the drum sounds, the keyboard textures, the dynamics.`,
+    tryNow: 'Build a 32-bar 80s ballad verse + pre-chorus + chorus with DX7-style EP, gated snare, sustained string pads, lead vocal with era-appropriate compression, and BGVs in the chorus. The chorus should feel twice as big as the verse.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+an+80s+power+ballad',
+    glossaryTerms: ['dx7', 'fm-synthesis', 'gated-reverb', 'chorus-effect', 'string-pad', 'compression', 'vocal-doubling'],
+  },
+  {
+    id: 'gen-07b',
+    pathId: 'genre-productions',
+    order: 14,
+    title: 'Create your own 80s-inspired ballad',
+    goal: 'Produce an original 80s-style pop ballad.',
+    surface: `Make an original 80s pop ballad. Don't just pastiche — find something that's yours inside the language.
+
+Checklist:
+- [ ] DX7-style EP or authentic FM sound?
+- [ ] Gated snare in the chorus?
+- [ ] Dynamic arrangement (verses smaller, choruses huge)?
+- [ ] Vocal present and emotionally committed?
+- [ ] Sax, guitar, or keyboard solo in the bridge?`,
+    deepDive: `The 80s sound is so specific that modern producers often fall into either "perfect pastiche" (which sounds like a parody) or "modern production with 80s surface elements" (which is neither). Aim for the middle — era-authentic at the core but with your own song underneath.
+
+Modern artists doing this well include The Weeknd (After Hours), Dua Lipa (Future Nostalgia), and Bruno Mars (Unorthodox Jukebox era). Study how they integrate 80s signifiers without becoming museum pieces.
+
+Key moves to try:
+- **Modulate to a half-step up for the final chorus.** An 80s staple.
+- **Add a synth lead over the bridge.** Not just pads — a lead line that carries a melody.
+- **Use reverse cymbal swells.** Before each chorus, a reversed cymbal rises into the downbeat. Quintessential 80s transition.
+- **Big final chorus with strings, doubled lead, BGVs stacked wide, drums peaking.** Don't be shy; go big.`,
+    tryNow: "Build a complete 80s pop ballad with intro, verse, pre-chorus, chorus, verse, chorus, bridge, and modulated final chorus. Don't shy away from the big final chorus — the genre demands commitment.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=80s+pop+ballad+production',
+    glossaryTerms: ['dx7', 'gated-reverb', 'chorus-effect', 'string-pad'],
+  },
+
+  // Arc 8 — Modern Thoughtful Hip-Hop ------------------------------
+  {
+    id: 'gen-08a',
+    pathId: 'genre-productions',
+    order: 15,
+    title: 'Build a modern thoughtful hip-hop beat (guided)',
+    goal: 'Produce a beat in the J. Cole / Kendrick / Drake lineage — introspective, warm, groove-first.',
+    surface: `Modern thoughtful hip-hop prizes mood over aggression. The drums are tight but not banging; the samples or chord progressions are warm and jazz-informed; the space gives the rapper room to think.
+
+Tempo: 75-95 BPM, often with a [[half-time]] feel for a 150+ BPM vibe.
+
+Build order:
+1. **Start with a chord loop.** Either sample (a soul/jazz record) or play your own on [[rhodes]] or keys. Warm, not bright.
+2. **Program drums.** [[kick]] and [[snare]] simple — no tricks. Crisp but not loud. Hi-hat pattern varies: quarter notes under the verse, 16th-note rolls for transitions.
+3. **[[808]] sub-bass.** This is a hip-hop staple. Sits under the kick. Glide between notes on transitions.
+4. **Atmosphere.** Vinyl crackle, tape hiss, a distant vocal sample chop — texture that says "analog" without being overtly lo-fi.
+5. **Leave space for the rap.** The drum/music mix should feel present but not busy. A rapper needs the space between beats to land words.
+6. **Hook vocal.** Most thoughtful hip-hop has a melodic hook — a sung or half-sung chorus. Keep it simple. Repetition wins.
+
+Final sound: feels like a late-night drive. Contemplative. Doesn't push, doesn't brag. Holds space for the words.`,
+    deepDive: `The thoughtful hip-hop style is defined less by BPM and more by emotional texture. Key elements:
+
+**Warm sampling.** If you're sampling, reach for:
+- Soul (Curtis Mayfield, Roberta Flack)
+- Gospel (vintage Edwin Hawkins, Aretha gospel)
+- Bossa nova / Brazilian jazz
+- Old R&B ballads
+
+**Chord vocabulary.** Major 7ths, minor 9ths, suspended chords, occasional tritone substitutions. If you don't know these, learn them; they're the difference between "cheap beat" and "deep beat."
+
+**Drum programming principles:**
+- Kick and snare pattern is simple (kick on 1 and 3, snare on 2 and 4 — most of the time).
+- Hi-hat adds texture but shouldn't compete with the rap.
+- Ghost notes between main hits = human feel.
+- Quantize to 60-80% strength; fully quantized sounds robotic for this style.
+
+**The half-time feel.** Many beats feel slow but have fast hi-hats. That's because the snare is on 3 instead of 2 and 4, making the macro feel half-tempo. "HUMBLE." is half-time; a similar BPM in 4/4 would feel frenetic.
+
+**The hook melody.** Listen to J. Cole's hooks — they're hummable, repetitive, emotional. Write hooks you can sing in the shower without trying.
+
+**Mixing restraint.** Hip-hop for thinkers needs space in the mix. Volume automation, sidechain compression between the drums and the music bed, conservative reverb. The rapper's voice is the main instrument; everything supports it.
+
+Reference study: "Love Yourz" for minimalism, "Alright" for jazz-sampled complexity, "HUMBLE." for negative-space power, "Marvin's Room" for atmospheric mood.`,
+    tryNow: 'Build a thoughtful hip-hop beat at 85 BPM with [[half-time]] feel. Use a warm chord loop, simple drums with ghost notes, 808 sub-bass, and atmospheric texture. Leave enough space for a rapper to breathe.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+a+j+cole+beat',
+    glossaryTerms: ['half-time', 'rhodes', '808', 'glide', 'ghost-note', 'swing', 'sampling', 'pocket', 'vinyl-effect'],
+  },
+  {
+    id: 'gen-08b',
+    pathId: 'genre-productions',
+    order: 16,
+    title: 'Create your own thoughtful hip-hop track',
+    goal: 'Produce your own beat in the thoughtful hip-hop tradition.',
+    surface: `Your turn. Make a beat in this lineage.
+
+Checklist:
+- [ ] Warm, sample-informed or keys-driven chord bed?
+- [ ] Drums that groove without banging?
+- [ ] 808 sub-bass integrated with the kick?
+- [ ] Space for the rap to live?
+- [ ] A melodic hook someone could sing back?`,
+    deepDive: `Ways to distinguish your beat from the crowd:
+
+**Interesting chord progressions.** Most hip-hop uses ii-V-I or i-VI-VII patterns. Try something unusual — a tritone substitution, a modal mode (Dorian, Mixolydian), or a non-standard movement.
+
+**Unique percussion elements.** A rim click instead of a snare, hand-clap variations, finger snaps, or a sample of a physical object (book slap, chair squeak).
+
+**Unexpected hook delivery.** Talk the hook instead of singing it. Sing it at half speed. Use AutoTune on a short hook phrase for character.
+
+**Thematic atmosphere.** A recurring sample (spoken word, a field recording, a movie clip) that ties the track together thematically. Kendrick does this brilliantly.
+
+Finally: leave space for the rap. You're making a bed, not a finished song. The rapper completes the track.`,
+    tryNow: "Make an original thoughtful hip-hop beat. Submit it (even privately) as a bed for a real or imagined rap verse. Then decide what to trim.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=thoughtful+hip+hop+production',
+    glossaryTerms: ['half-time', '808', 'sampling', 'ghost-note'],
+  },
+
+  // Arc 9 — Classic Dance R&B --------------------------------------
+  {
+    id: 'gen-09a',
+    pathId: 'genre-productions',
+    order: 17,
+    title: 'Build a classic dance R&B groove (guided)',
+    goal: 'Produce a Beyoncé-era up-tempo R&B / dance record — tight drums, hook-driven, choreography-ready.',
+    surface: `Classic dance R&B is high-energy, rhythmically tight, and designed for bodies to move. Every arrangement decision serves motion.
+
+Tempo: 100-115 BPM.
+
+Build order:
+1. **Drums first.** Kick heavy on 1, snare or clap on 2 and 4, percussion layers on the and-of beats. The groove is king — lock it before you add anything else.
+2. **Bass.** Either electric bass or sub-synth. Rhythmically syncopated. Often more important than the chords for driving the groove.
+3. **Synth or horn stabs.** Short, rhythmic hits that punch in the chorus. Think Rich Harrison's horn sample on "Crazy in Love" or the horn stabs on "Say My Name."
+4. **Vocal stacks.** Lead + doubled + BGVs. Often the hook is four voices thick. Repetitive, chantable.
+5. **Ad-lib layer.** Panned wide, riding over everything. Often the most memorable vocal element.
+6. **Effects restraint.** Reverb sparingly, delay on specific words. This genre is drier than ballad territory — you want impact, not ambience.
+
+Final feel: immediate, irresistible, makes people move. If someone can't dance to it, something's wrong with the groove.`,
+    deepDive: `The Rodney Jerkins / Beyoncé / Destiny's Child sound is built on three things:
+
+1. **Rhythmic precision.** Every element locks into a tight grid. Unlike gospel or neo-soul (which live on looseness), dance R&B is surgical.
+2. **Vocal choreography.** Harmonies often move in precise lockstep — three voices hitting the same word at the same time, then trading lines with equally precise timing.
+3. **Arrangement dynamics.** Drops (where the drums cut out), builds (where the track stacks up), and transitions choreographed to match physical movement.
+
+**Drum specifics:**
+- Kick pattern is often busier than other R&B genres. Sometimes a double-hit on the 1.
+- Snare/clap is often layered (a programmed snare + a sampled clap).
+- Percussion (tambourine, shakers, handclaps) fills the and-beats.
+
+**Bass patterns.** Dance R&B bass is rhythmic and syncopated. Instead of sitting on roots, it bounces between roots, fifths, and octaves. The bass carries the groove as much as the drums.
+
+**Hook vocals.** Classic dance R&B hooks use repetition strategically: "Say my name, say my name," "Crazy right now," "Single ladies." The hook is often just a few words repeated with varying BGV stacks.
+
+**The hard stop.** Many dance R&B songs feature a mid-song moment where everything cuts to silence before dropping back in. This is a choreography cue as much as an arrangement choice.
+
+**Production reference:**
+- "Crazy in Love" — Rich Harrison's horn sample is the hook; the drums are precision.
+- "Say My Name" — Rodney Jerkins' signature skittering drum programming.
+- "Drunk in Love" — more modern, trap-influenced, but same bones.
+- "Formation" — Mike WiLL Made-It bringing trap drums to dance R&B.
+
+Mixing approach: mono bass, panned percussion, doubled vocals wide, punchy drums dry. Keep the mix forward and tight.`,
+    tryNow: 'Build a 16-bar dance R&B chorus at 105 BPM. Drums should groove tightly, bass should pop rhythmically, and the hook should have at least 3 vocal layers (lead, doubled, BGV). Include one hard-stop moment.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+rodney+jerkins',
+    glossaryTerms: ['compression', 'parallel-compression', 'syncopation', 'vocal-doubling', 'pan', 'automation'],
+  },
+  {
+    id: 'gen-09b',
+    pathId: 'genre-productions',
+    order: 18,
+    title: 'Create your own dance R&B track',
+    goal: 'Produce your own up-tempo dance R&B record.',
+    surface: `Your turn. Make people move.
+
+Checklist:
+- [ ] Tight, locked-in drum groove?
+- [ ] Rhythmically syncopated bass?
+- [ ] Memorable, repetitive hook?
+- [ ] At least 3 vocal layers on the chorus?
+- [ ] Arrangement drops or builds that choreograph?`,
+    deepDive: `Dance R&B is a listen-test genre. Play your track for someone and watch their body. If they nod their head or tap their foot involuntarily, you're winning. If they don't, the groove isn't locked yet.
+
+Common pitfalls:
+- **Groove is too busy.** Pull elements out. Empty space is what makes the present elements hit hard.
+- **Vocal stacks are muddy.** Check each BGV's EQ — often they need a high-pass around 200 Hz to avoid stepping on the lead.
+- **No payoff moments.** The best dance tracks have 2-3 "big" moments where the listener rewards are maximum. Design them deliberately.
+
+For modern dance R&B, the half-time drop is a common move. Listen to "Partition" for beat-switch drama.`,
+    tryNow: "Make an original dance R&B track with a chorus that makes you move at your desk. Test it on one other person.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=dance+rnb+production+tutorial',
+    glossaryTerms: ['syncopation', 'vocal-doubling', 'automation'],
+  },
+
+  // Arc 10 — 70s Soul/Funk ----------------------------------------
+  {
+    id: 'gen-10a',
+    pathId: 'genre-productions',
+    order: 19,
+    title: 'Build a 70s soul/funk groove (guided)',
+    goal: 'Produce a Stevie / EWF / Parliament-style groove — live-feel, bass-forward, horn-punctuated.',
+    surface: `70s soul/funk is conversation between live musicians. Every instrument has its voice. Every bar breathes. The groove is the song.
+
+Tempo: 95-115 BPM for funk, 75-95 BPM for soul ballads.
+
+Build order:
+1. **Drums.** Live-sounding drums. Use samples from a 70s kit or a DAW virtual drummer. Kick on 1, snare on 2 and 4, hi-hat with lots of [[ghost-note]]s. Shuffled eighth notes if it's swung funk.
+2. **Bass.** The hero instrument. [[walking-bass]] or syncopated funk lines. Play with the drums — literally, lock with the kick.
+3. **Guitar.** Clean or slightly overdriven, palm-muted chord stabs on beats 2 and 4 (the "chicken-scratch" rhythm). Can also fill in with slides and bends.
+4. **Rhodes or clavinet.** Clavinet for funk ("Superstition" style), Rhodes for soul (Donny Hathaway style). Short, rhythmic comping.
+5. **Horns.** Arranged as a section — two trumpets, tenor and bari sax. Stab and release, punctuating the ends of phrases. If you don't have horn samples, use a synth brass patch.
+6. **Vocals.** Lead + 2-3 BGVs. The BGV tradition here is tighter than gospel — think Aretha's background singers, Ray Charles' Raelettes.
+
+Final sound: feels alive. Like people in a room playing for each other. If it feels too clean, rough it up. If it feels too tight, loosen it.`,
+    deepDive: `70s production was defined by the tape machine. Every track was recorded to 2-inch analog tape, which added:
+- Low-end compression (tape saturates before it clips)
+- High-end softening (tape rolls off above ~18 kHz)
+- Harmonic richness (second-order harmonics from tape nonlinearity)
+- Slight wow-and-flutter (tape isn't perfectly stable)
+
+Modern producers emulate this with tape-saturator plugins (Slate VTM, Waves J37, Logic's Vintage Tape Saturator). Running drum busses and the whole mix through tape emulation gets you 80% of the 70s sound.
+
+**Instrumentation specifics:**
+- **Bass:** Jamerson (Motown) plays melodic lines; Bootsy Collins (P-Funk) plays syncopated "bumpy" patterns; Louis Johnson (Brothers Johnson) plays slap-heavy funk. Study each.
+- **Guitar:** The funk guitar is almost percussive. Palm mute, chord stabs, tight rhythmic figures. Hit-and-release — never let notes ring.
+- **Horns:** Arranged in parallel thirds or fourths. Stab on beat 4 or the "and" of 4 into the next bar's chord. They punctuate, not sustain.
+- **Rhodes/clav:** Comping in fours, playing the chord progression but with heavy off-beat emphasis.
+
+**Drum feel:**
+- Stevie Wonder's drums (he plays them himself on many Innervisions tracks) are precise but human — slightly ahead of the beat.
+- Earth, Wind & Fire's drums (Fred White) are tight and disco-influenced.
+- Parliament's drums (Tyrone Lampkin) are looser, swampier.
+
+Try each.
+
+**Mix approach:**
+- Drums dry or lightly plate'd. Not a lot of reverb — it was expensive in 1972.
+- Bass center, present, warm. Low-pass filter at 4 kHz to get that mic-in-front-of-amp sound.
+- Guitar panned slightly off-center, lightly compressed.
+- Horns bright, panned wide (first trumpet left, second right, sax center).
+- Vocals dry and close. The reverb in 70s vocals was usually EMT plate (still the best), decay around 2 seconds.`,
+    tryNow: 'Build a 16-bar 70s funk groove at 100 BPM. Start with bass + drums and LOCK them tight. Add clav/Rhodes, guitar stabs, and horn section. Run the whole thing through a tape saturator for glue. Test if it makes you want to dance.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+a+70s+soul+funk+beat',
+    glossaryTerms: ['walking-bass', 'rhodes', 'ghost-note', 'pocket', 'swing', 'tape-saturation', 'plate-reverb'],
+  },
+  {
+    id: 'gen-10b',
+    pathId: 'genre-productions',
+    order: 20,
+    title: 'Create your own 70s-inspired soul groove',
+    goal: 'Produce an original 70s-style soul or funk groove.',
+    surface: `Your turn. Write a 70s soul or funk track.
+
+Checklist:
+- [ ] Bass and drums lock tightly?
+- [ ] Tape saturation or warmth throughout?
+- [ ] Horns, Rhodes, or clav punctuating the groove?
+- [ ] Vocal stacks tight and soulful?
+- [ ] Feels alive, not programmed?`,
+    deepDive: `Ways to capture the 70s feel beyond the surface signifiers:
+
+**Record one element live.** Even if you can't play every instrument, try recording one (your voice, a simple bass line, a guitar chord) live. It changes the whole track.
+
+**Longer songs.** 70s songs were often 5-7 minutes. The groove is the point; it can breathe for a while. Extend your track past 4 minutes if the groove supports it.
+
+**Extended intros and outros.** A 30-second drum and bass intro was common. An outro that vamps on the last chord for 60 seconds was common. Don't rush.
+
+**Sparse arrangement at the start, full by the end.** 70s arrangements often built over the course of a song. Each verse added something — a horn line, a BGV stack, a guitar layer. By the end, the track is fuller than it started.
+
+**The solo.** A 70s song often has a 16 or 32-bar instrumental solo in the middle — usually sax, guitar, or keys. Write one. Even if you can't play a lead instrument, a synth lead or a sample-based solo works.`,
+    tryNow: 'Make an original 70s-inspired groove at least 4 minutes long. Include a solo section. Master warmly (tape-saturated, not loud). Share it with someone who knew the era.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=70s+soul+funk+production',
+    glossaryTerms: ['tape-saturation', 'walking-bass', 'rhodes'],
+  },
+
+  // Arc 11 — Neo-Soul ---------------------------------------------
+  {
+    id: 'gen-11a',
+    pathId: 'genre-productions',
+    order: 21,
+    title: 'Build a neo-soul production (guided)',
+    goal: "Produce a D'Angelo / Erykah Badu / Musiq Soulchild-style track — dragging pocket, Rhodes-driven, intentionally hazy.",
+    surface: `Neo-soul is soul music played with hip-hop sensibilities. Drums drag behind the beat. Rhodes and bass share space that would be mud elsewhere. The whole mix has a warm haze.
+
+Tempo: 75-95 BPM typically. Pocket matters more than tempo.
+
+Build order:
+1. **Program drums with heavy swing.** Swing 20-30%. Quantize to 60%. This creates the [[dilla-feel]] — drums that don't sit on the grid. The snare often lands slightly late, making the groove "lazy."
+2. **[[Rhodes]] bed.** Warm Rhodes voicings with extended harmony (9ths, 11ths, 13ths). Comp through the changes.
+3. **Bass.** Fretless or heavily rounded tone. Walks or glides through chords, often sharing frequency space with the Rhodes.
+4. **Vocal.** Close mic'd but with more room than a clean R&B track. The vocal should feel like it's in the same space as the instruments, not on top of them.
+5. **Texture layer.** Vinyl crackle, subtle tape hiss, occasional atmospheric pad. The "dust" of neo-soul.
+6. **Horns or keys fills.** Sparse. Between vocal phrases. Never during them.
+
+Final sound: feels like smoke. Warm, slow, unhurried. A little out of focus on purpose.`,
+    deepDive: `The neo-soul feel came from a specific cultural moment: the Soulquarians (D'Angelo, Questlove, James Poyser, J Dilla, Erykah Badu, Common, Q-Tip, Mos Def) who gathered at Electric Lady Studios in the late 90s and invented a sound. Understanding them is understanding the genre.
+
+**The Dilla feel.** J Dilla programmed drums in a way that felt "drunk" — snares slightly late, hi-hats slightly off-grid. It gave beats a human, lazy quality. When you hear D'Angelo's Voodoo album, the drums (played live by Questlove) are imitating Dilla's programmed feel. A drummer imitating a machine imitating a drummer.
+
+**Rhodes and bass sharing space.** In most mixes, bass and mid-range keys are EQ'd to stay out of each other's way. Neo-soul intentionally lets them share the low-mid frequencies. The result is warmth and "thickness" — what sounds like mud in a pop track sounds right in neo-soul.
+
+**Chord vocabulary.** Jazz-informed — major 9ths, minor 11ths, sus chords, altered dominants, tritone substitutions. Players like James Poyser (D'Angelo keys) bring full jazz harmony into R&B contexts.
+
+**Vocal treatment:**
+- Close mic'd with a warm condenser.
+- Light compression (3-4 dB).
+- Medium plate reverb (1.6-2 seconds), sometimes with a slap delay as well.
+- Stacked harmonies occasionally, but often the lead carries the vocal arrangement alone.
+- D'Angelo often doubled himself 3-5 times, slightly out of tune, creating a "choir of one" effect.
+
+**Saturation everywhere.** Tape saturation, tube saturation, subtle distortion on the drum bus. Neo-soul is warm because everything has been pushed through something analog (or emulating analog).
+
+**Mixing approach:**
+- Don't over-sharpen. Keep highs rolled off slightly.
+- Let elements overlap in frequency space.
+- Use tape emulation on the master bus.
+- Master to -14 LUFS or quieter. Neo-soul isn't loud music.
+
+Reference study: "Untitled (How Does It Feel)" for the textbook sound, "Didn't Cha Know" for J Dilla's programming, "A Long Walk" for Jill Scott's warmth, "Love of My Life" for Erykah / Common / Saadiq collaboration.`,
+    tryNow: 'Build a neo-soul groove at 80 BPM with swung drums (25% swing), Rhodes bed, fretless-sounding bass, and close vocal. Apply tape saturation to the drum bus and the master. The mix should feel warm and intentionally hazy.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+a+neo+soul+beat',
+    glossaryTerms: ['rhodes', 'swing', 'pocket', 'ghost-note', 'tape-saturation', 'dilla-feel', 'vinyl-effect', 'sparse-arrangement'],
+    referenceTracks: ['ref-dangelo-untitled'],
+  },
+  {
+    id: 'gen-11b',
+    pathId: 'genre-productions',
+    order: 22,
+    title: 'Create your own neo-soul track',
+    goal: 'Produce an original neo-soul song.',
+    surface: `Your turn. Make neo-soul.
+
+Checklist:
+- [ ] Drums that drag, not push?
+- [ ] Rhodes with extended harmony?
+- [ ] Bass that shares space with keys?
+- [ ] Vocal that sits inside the mix, not on top?
+- [ ] Warmth throughout — tape, vinyl, saturation?`,
+    deepDive: `The hardest part of neo-soul is the pocket. Even if every instrument is right, a too-tight groove kills the genre. Practice programming drums with intentional slop.
+
+Exercises:
+- **The pocket test.** Sit with a metronome and tap on 2 and 4, but consciously land 20 milliseconds late. Practice this until it feels natural. Program your drums this way.
+- **The Dilla exercise.** Listen to 10 minutes of Donuts without doing anything else. Let the rhythmic language sink in. Then program.
+- **The warmth pass.** After your mix is balanced, put tape saturation on the drum bus, the bass, and the master. Listen again. The warmth isn't a bug; it's the genre.
+
+Original neo-soul has become rarer in recent years — most producers doing this style are imitating the 90s/00s canon. Find something current in your own life to sing about. The genre's emotional palette is introspective and intimate; bring a 2020s perspective to that tradition.`,
+    tryNow: "Make an original neo-soul song with dragging pocket, warm Rhodes, close vocal. Listen to it through earbuds in a quiet room. Is it smoky enough?",
+    youtubeLink: 'https://www.youtube.com/results?search_query=neo+soul+production+tutorial',
+    glossaryTerms: ['pocket', 'dilla-feel', 'tape-saturation', 'rhodes'],
+  },
+];
+
+// ------------------------------------------------------------------
+// Path 5: Arrangement & Song Structure (5 lessons)
+// ------------------------------------------------------------------
+
+const ARRANGEMENT: LessonContent[] = [
+  {
+    id: 'arr-01',
+    pathId: 'arrangement',
+    order: 1,
+    title: 'Song Structure Fundamentals',
+    goal: 'Understand [[verse]], [[pre-chorus]], [[chorus]], [[bridge]], and [[outro]] — and why structure serves the emotional arc.',
+    surface: `Every song you love has a structure. You might not notice it consciously, but your ear does. [[song-form]] is the skeleton underneath the notes, and once you can see it, you can build your own songs intentionally instead of by accident.
+
+The main sections:
+
+- **[[intro]]** — Opens the song. Sets mood, hints at what's coming. Can be instrumental, acapella, a spoken word, or a loop.
+- **[[verse]]** — Tells the story. Melody usually repeats across verses, but the lyrics advance. Verses build context for the chorus.
+- **[[pre-chorus]]** — Optional but powerful. Builds tension between verse and chorus. Makes the chorus arrival feel earned.
+- **[[chorus]]** — The emotional peak. Most memorable melody. Usually contains the song title in the lyric.
+- **[[bridge]]** — Appears once, late in the song. Offers contrast — harmonic, lyrical, or arrangement — before returning to the final chorus.
+- **[[outro]]** — Closes the song. Can fade, vamp, or cap with a coda.
+
+Most pop, R&B, and hip-hop songs follow Verse-Chorus-Verse-Chorus-Bridge-Chorus (V-C-V-C-B-C). Many add a pre-chorus: V-PC-C-V-PC-C-B-C. Some just loop verse-chorus. All are valid.
+
+The structure serves [[emotional-arc]]. A song shouldn't be the same intensity throughout. Verses set up, pre-choruses build, choruses release, bridges pivot, final choruses climax. Understanding this is the difference between a song that works and one that just has good parts.`,
+    deepDive: `A quick history: modern pop [[song-form]] descends from the [[aaba]] form of Tin Pan Alley. Songs like "Somewhere Over the Rainbow" have three A sections (verses, essentially) bracketing a B (a bridge). As pop and R&B evolved, the chorus became separate from the verse, and the verse-chorus form we know today emerged.
+
+**Why each section matters:**
+
+- **Intros.** In a streaming era, a 30-second intro loses most listeners. Keep intros short — 8 bars max. Use them to establish mood, not to stall.
+
+- **Verses.** Verses need to set up the chorus. They should feel slightly smaller in arrangement density. The listener should feel "something bigger is coming."
+
+- **Pre-choruses.** The unsung hero of great songwriting. A good pre-chorus climbs — rhythmically (faster vocal phrasing), harmonically (moving toward a tension), dynamically (louder, more instruments), or all three. By the time the chorus arrives, the listener has been delivered there.
+
+- **Choruses.** The chorus is where the song's main hook lives. It should feel like release, not strain. The chord progression is usually simpler than the verse, the melody more memorable, the rhythmic emphasis clearer.
+
+- **Bridges.** A great bridge reframes the song. "Don't Stop Believin'" has one of the most recognized bridges ever — it delivers the title for the first time, and the final chorus hits differently because of it. Your bridges should offer something the listener hasn't heard yet.
+
+- **Outros.** Outros control the listener's residual feeling. A long vamp (like most gospel or soul outros) creates emotional residue; a quick tag creates movement into whatever plays next.
+
+**The arrangement question.** Structure is architecture; arrangement is furniture. Two songs can have the same structure (V-C-V-C-B-C) but completely different arrangements. Your arrangement decisions within each section — which instruments play, when they enter, how loud — are what make the structure come alive.`,
+    tryNow: 'Pick three songs you love. Map each one: label every section (intro, verse, pre-chorus, chorus, bridge, outro). Count the bars. Notice what arrangement moves happen at each section transition.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=song+structure+verse+chorus+bridge+explained',
+    glossaryTerms: ['intro', 'verse', 'pre-chorus', 'chorus', 'bridge', 'outro', 'aaba', 'song-form', 'emotional-arc'],
+  },
+  {
+    id: 'arr-02',
+    pathId: 'arrangement',
+    order: 2,
+    title: 'Building from Progression to Full Song',
+    goal: 'Take a 4-bar chord loop and build it into a complete song with intro, development, peak, and resolution.',
+    surface: `A chord loop is a seed. A song is a tree. The distance between them is arrangement thinking.
+
+Most producers get stuck at the chord loop stage. They have a great 4-bar idea and nothing to do with it. This lesson is about the bridge between "I have a loop" and "I have a song."
+
+**The process:**
+
+1. **Start with your loop.** Any 4-bar chord progression. Loop it so you can hear it repeat.
+
+2. **Write a verse melody over it.** Listen to the loop. Find a melody that wants to sit on it — usually something simple, with space between phrases.
+
+3. **Write a chorus melody over the same loop (or a variation).** The chorus melody should feel different — more singable, often higher in pitch, often with a simpler rhythm.
+
+4. **Design your [[arrangement]] differences.** What changes between verse and chorus? Usually: more instruments, louder drums, BGVs enter, a hook synth arrives. Decide what the difference is.
+
+5. **Write a [[pre-chorus]].** 4 or 8 bars of climb between verse and chorus. A pre-chorus usually uses different chords than the verse and chorus.
+
+6. **Write a [[bridge]].** A contrasting section. New chords, new melody, often a different vocal approach.
+
+7. **Sequence the full song.** Intro (8 bars) → Verse 1 (16 bars) → Pre-chorus (8 bars) → Chorus (16 bars) → Verse 2 (16 bars) → Pre-chorus → Chorus → Bridge (8 bars) → Final Chorus → Outro. That's about 3:30 at 90 BPM.
+
+8. **Polish [[transition]]s.** Each section-to-section move should feel intentional. Drum fills, reverse cymbals, vocal ad-libs, harmonic surprises.
+
+The goal: your 4-bar loop is now a complete 3-4 minute song with dynamic arc.`,
+    deepDive: `**Common mistakes when building from loop to song:**
+
+**Mistake 1: Using the same chord loop for everything.** If your verse, chorus, and bridge all sit on the same 4 bars, the song feels monotone. Vary the chord progression for the pre-chorus and bridge at minimum.
+
+**Mistake 2: Arrangement stays the same.** If verse and chorus have identical instrumentation, the listener never feels a release. Your chorus MUST have something the verse doesn't.
+
+**Mistake 3: No dynamic arc.** The song should get bigger (fuller, louder, more energetic) as it goes, peak in the final chorus, and resolve in the outro. If it's the same intensity throughout, it lacks arc.
+
+**Mistake 4: Forgetting the bridge.** A song without a bridge feels repetitive by the third chorus. Even 8 bars of contrast saves the arrangement.
+
+**Mistake 5: Copy-pasting the chorus identically every time.** Each chorus should evolve slightly. The second chorus often adds a BGV layer. The third (final) chorus often modulates up, doubles the lead vocal, or adds new fills.
+
+**Pro moves to try:**
+
+- **The half-time feel drop.** Before the final chorus, drop to half-time for 4 bars. When full-time returns, the impact is huge.
+- **The breakdown.** Before the final chorus, strip to voice and one instrument. Then rebuild.
+- **The key change.** Modulate up a whole step for the last chorus. Classic but effective.
+- **The instrumental hook.** Between vocal sections, let an instrument carry a hook.
+
+**Tools for building songs from loops:**
+- Logic's Arrangement Markers (create sections visually)
+- Audio edits that match the song structure
+- Automation lanes for arrangement dynamics
+
+This is craft. It takes practice. The first five songs you build from loops will feel awkward. The 20th will feel natural. Keep building.`,
+    tryNow: 'Take a 4-bar chord loop you have sitting around. Build it into a full 3-minute song: intro, verse, pre-chorus, chorus, verse, pre-chorus, chorus, bridge, chorus, outro. Use arrangement density (not just chord changes) to differentiate sections.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+turn+a+loop+into+a+full+song',
+    glossaryTerms: ['arrangement', 'verse', 'pre-chorus', 'chorus', 'bridge', 'transition', 'emotional-arc', 'half-time'],
+  },
+  {
+    id: 'arr-03',
+    pathId: 'arrangement',
+    order: 3,
+    title: 'Drum Patterns Across Genres',
+    goal: 'Learn the rhythmic fingerprint of gospel, R&B, lo-fi, trap, 80s pop, 70s soul, and modern hip-hop.',
+    surface: `Every genre has a drum signature. Once you can recognize and reproduce these, you can genre-shift any idea you have.
+
+**The rhythmic fingerprints:**
+
+- **Gospel (6/8).** Kick on 1, snare on 4 (or beats 2 and 5), rolling triplet hi-hats, organ swells between. Feels like breath.
+
+- **Gospel (modern 4/4).** Kick on 1 and 3, snare on 2 and 4, tight syncopation on hi-hats, tambourine on 4. Pop-rooted but with church energy.
+
+- **R&B Ballad (90s).** Kick on 1 and 3, snare on 3 (or 4), soft hi-hats. Drums sit back — they don't drive.
+
+- **R&B Midtempo (2000s).** Kick on 1 and 3 with syncopated fills, snare on 2 and 4, crisp hi-hats that add rhythmic density.
+
+- **Lo-fi.** Swung (20%+ swing), kick on 1 and 3, snare on 2 and 4 but slightly behind the grid, ghost notes between. Dusty, imperfect.
+
+- **Trap.** Kick on 1 (and syncopated variations), snare/clap on 3 (half-time feel), hyper-active 16th-note hi-hats, often with triplet rolls. 808 sub-bass doubles the kick pattern.
+
+- **80s Pop.** Kick on 1 and 3, gated-reverb snare on 2 and 4, quarter-note hi-hats. Drums feel huge and separated.
+
+- **70s Soul/Funk.** Kick on 1, snare on 2 and 4 with ghost notes everywhere, hi-hat that dances between open and closed. Groove lives in the space between hits.
+
+- **Modern Hip-Hop.** Varies wildly, but usually kick on 1, snare on 2 and 4 (or half-time on 3), hi-hat patterns that modulate between quarter-note and 16th-note fills.
+
+Each pattern has characteristic sounds too — not just placement. A gospel snare is different from a trap snare. Sound design matters as much as programming.`,
+    deepDive: `**Genre-by-genre deep dive on drum programming:**
+
+**Gospel drum programming:**
+- Live-sounding kit samples (not electronic)
+- Kick: deep, resonant, tuned around A
+- Snare: crisp with some body, not crackly
+- Hi-hats: open and closed mixed
+- Tambourine in the full arrangement
+- Light kick/snare compression, medium plate reverb on snare
+
+**Trap drum programming:**
+- 808 kit samples or modern trap kits
+- Kick: short, thumpy, often doubling the 808 pattern
+- Snare/clap: layered (electronic snare + acoustic clap)
+- Hi-hats: programmed with variable velocity, triplet rolls on transitions
+- 808 sub-bass is essential — glides between notes
+- Minimal reverb, lots of saturation
+
+**Lo-fi drum programming:**
+- Vintage kit samples or chopped breaks
+- Swing: 20-30%
+- Quantize: 60-80% strength
+- Ghost notes everywhere
+- Vinyl crackle layer
+- Lo-fi processing (bandwidth limiting, tape saturation)
+
+**80s pop drum programming:**
+- Gated snare (reverb + gate)
+- Linn LM-1 or DMX-style kicks
+- Simmons toms for fills
+- Reverse cymbals between sections
+- Big reverb space
+
+**70s soul/funk drum programming:**
+- Tight but not punchy kit
+- Ghost notes on the snare (quiet hits between the main ones)
+- Hi-hat patterns: 16th-notes with alternating accents
+- Percussion (tambourine, congas, shakers)
+- Tape saturation on the drum bus
+
+**Modern hip-hop drum programming:**
+- Depends on sub-genre, but common elements:
+- 808 kick with sub-bass
+- Clap or snare layers
+- Hi-hat velocity variation
+- Occasional half-time sections for contrast
+- Reverb sparingly, saturation generously
+
+**How to practice:**
+Take one 4-bar drum pattern you know and program it in six different genres. Same tempo, same basic beat, but redesigned as gospel, lo-fi, trap, 80s pop, 70s funk, neo-soul. This exercise teaches you how drum feel transforms a track.`,
+    tryNow: 'Open a new Logic session. Program the same basic beat (kick on 1/3, snare on 2/4) in five different genres: gospel, lo-fi, trap, 80s pop, neo-soul. Use appropriate drum samples and feel for each. Listen to the contrast.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=drum+patterns+across+genres',
+    glossaryTerms: ['kick', 'snare', 'hi-hat', 'ghost-note', 'swing', 'pocket', 'gated-reverb', '808', 'half-time', 'triplet'],
+  },
+  {
+    id: 'arr-04',
+    pathId: 'arrangement',
+    order: 4,
+    title: 'Writing Hooks That Stick',
+    goal: 'Learn the principles behind memorable hooks — simplicity, rhythmic interest, repetition with variation, emotional resonance, placement.',
+    surface: `A [[hook]] is the part of the song the listener walks away humming. Great songs without great hooks don't exist; hooks are why songs get stuck in your head.
+
+**Principles of hook writing:**
+
+1. **Simplicity.** The best hooks use few notes. "We Are the Champions" uses a 4-note phrase. "Happy Birthday" uses a 5-note phrase that repeats. Simplicity is why hooks stick.
+
+2. **Rhythmic interest.** A great hook has a rhythmic surprise — a syncopation, a pause, a place where the downbeat isn't where you expect. Flat rhythms are forgettable.
+
+3. **Repetition with variation.** Hooks repeat. But exact repetition is boring. The best hooks repeat three times with a slight variation on the third. "Seven Nation Army" does this perfectly.
+
+4. **Emotional resonance.** A hook needs to connect to an emotion — joy, heartbreak, rage, triumph. If the melody is catchy but feels nothing, it won't stick the same way.
+
+5. **Placement in the song.** The hook is usually the chorus. But some songs have instrumental hooks (Stevie's "Superstition" opening riff) or vocal-chop hooks (modern EDM/pop) that aren't technically the chorus but carry the song's identity.
+
+**Where to place hooks:**
+- **In the chorus** — default placement. The song's most memorable lyric and melody.
+- **In the intro** — an instrumental signature (riff, sample) that announces the song.
+- **Between verses** — a short melodic or rhythmic hook that keeps the song memorable between full choruses.
+- **As an [[earworm]]** — a short repeated phrase that loops in the listener's head.
+
+Great songs usually have MULTIPLE hooks: the main chorus, plus an instrumental hook, plus a memorable pre-chorus. "Crazy in Love" has the horn hook, the "uh oh uh oh" hook, AND the chorus hook.`,
+    deepDive: `**The anatomy of a memorable hook:**
+
+**Pitch contour.** A memorable hook has a distinctive shape. Sing "Happy Birthday" — it starts with a repeated note, jumps up, lands on a resolution. That contour is half the memorability.
+
+**Rhythmic pattern.** Is it syncopated? Straight? Does it have a pause in an unexpected place? The rhythm is as important as the notes.
+
+**Lyrical hook.** The words of the hook should be simple, singable, and meaningful. Titles often ARE the hook ("Say My Name," "Irreplaceable," "Rolling in the Deep"). If you can't fit the title naturally into the hook, consider changing the title.
+
+**The "earworm test."** After your song is finished, can you hum the hook 3 hours later? 24 hours later? If not, it's not quite sticking.
+
+**Techniques for writing better hooks:**
+
+- **Write multiple hook candidates.** Don't commit to the first one. Write 5 different hook ideas for the same chord progression. Pick the one that sticks after a day.
+
+- **Simplify aggressively.** Take your hook and cut out half the notes. Then cut half again. The leaner version is almost always better.
+
+- **Sing it as a voice memo.** If you can sing it into your phone without playing along to the track, it's probably a hook. If you need the track to remember how it goes, it's not sticky enough.
+
+- **Test on someone else.** Play your hook once for a friend. Ask them an hour later: "Can you hum it?" Their answer tells you everything.
+
+**The [[call-and-response]] hook.** Great for group vocals. One voice asks, another answers. Instantly hookable.
+
+**The rhythmic hook.** Sometimes the hook is a rhythm, not a melody. The "stomp stomp clap" of "We Will Rock You" is a rhythmic hook. The rhythm of "Let It Be" is as memorable as the melody.
+
+Hook writing is a skill you can practice. Commit to writing 5 hooks a week for a month — you'll develop instincts you didn't have before.`,
+    tryNow: 'Pick a song you know well. Identify all its hooks (main chorus, intro riff, bridge memorable moment, etc.). Then write 3 NEW hooks for your own song over a chord loop. Record each as a voice memo. Listen a day later and pick the one that stuck.',
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+to+write+a+hook+that+sticks',
+    glossaryTerms: ['hook', 'earworm', 'call-and-response'],
+  },
+  {
+    id: 'arr-05',
+    pathId: 'arrangement',
+    order: 5,
+    title: 'Space in Arrangement — When Less Is More',
+    goal: 'Master the principle that every element must earn its place. EQ carving, panning, volume automation.',
+    surface: `The most common mistake in modern production is adding too many elements. Great producers subtract; average producers keep layering.
+
+**The guiding principle:** Every element in your track should have a specific job. If you can't name the job, delete the element.
+
+**Ways to create space:**
+
+1. **[[EQ]] carving.** When two elements occupy the same frequency range, they fight. Cut a 3-4 dB notch in one element at the frequency where the other lives. Suddenly both can breathe.
+
+2. **Panning.** Stereo width creates space. Lead vocal dead center, guitars hard left and right, synths somewhere in between. A mix where everything sits in the center feels cramped.
+
+3. **Volume [[automation]].** Elements that are important in a section should be louder; elements that are supporting should be quieter. Ride those faders.
+
+4. **Arrangement space.** Not every section needs every instrument. Mute elements for 4 bars and see if the song still works. Often it does — the silence you added emphasizes the return.
+
+5. **[[Sparse arrangement]] as a choice.** Listen to Frank Ocean's "Thinkin Bout You" — at any moment, there are maybe 4 elements. That sparseness is deliberate.
+
+**The test for every element:** "What is this adding?" If you can't defend it, it doesn't belong.`,
+    deepDive: `**EQ carving example:**
+- Kick and bass both live in the low end. They fight.
+- Solution: High-pass the bass at 60 Hz to let the kick own the sub. Boost the bass at 100-120 Hz where the kick doesn't live.
+- Or: Sidechain the bass to the kick so the bass ducks when the kick hits.
+
+Both approaches create space. Either works depending on the genre.
+
+**Panning principles:**
+- **Lead vocal:** always center. It's the main storyteller.
+- **Kick and bass:** center (mono compatibility).
+- **Snare:** usually center, sometimes slightly off.
+- **Hi-hats:** panned slightly left or right.
+- **BGVs:** panned left and right for width.
+- **Guitars:** doubled and panned hard L/R for big sound.
+- **Pads:** wide stereo.
+- **Percussion:** spread across the field.
+
+**Volume automation disciplines:**
+- BGVs duck under the lead during important words.
+- Pads get louder in the chorus, softer in the verse.
+- Delays get louder on specific phrases (ear-catching, not constant).
+- The entire mix might get slightly louder going into the final chorus.
+
+**Automation isn't optional.** Professional mixes are automated obsessively. A mix that relies only on static faders sounds flat.
+
+**The [[sparse arrangement]] approach:**
+Neo-soul, modern minimal R&B, and lo-fi hip-hop all thrive on sparseness. Fewer elements, each one bigger and more important. Instead of 8 stacked pads, use 2 — but make them beautiful.
+
+**Mono compatibility.** Your stereo mix must still work in mono (phone speakers, club PAs, car speakers). Check by summing to mono occasionally. If the vocal disappears or elements cancel, you have phase problems.
+
+**Reference mixing.** Always reference against commercial tracks in your genre. Your mix should have similar low-end weight, vocal clarity, and stereo width. Use a reference plugin (Metric AB, Reference 2) to compare.
+
+**The final test.** Play your mix on a phone speaker, a car, studio monitors, and headphones. It should hold up everywhere. If it only sounds good on one, the mix is unbalanced.`,
+    tryNow: "Take an existing mix of yours. Mute 3 elements that you suspect aren't pulling their weight. Listen. Do you miss them? If not, delete them. If yes, understand what they're adding and make sure they earn that place.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=space+in+mix+less+is+more',
+    glossaryTerms: ['eq', 'pan', 'automation', 'sparse-arrangement', 'stereo-imaging', 'mono-compatibility', 'sidechain', 'dynamic-range', 'lufs'],
+  },
+];
+
+// ------------------------------------------------------------------
+// Path 6: The Business of Music (5 lessons)
+// ------------------------------------------------------------------
+
+const BUSINESS: LessonContent[] = [
+  {
+    id: 'biz-01',
+    pathId: 'business',
+    order: 1,
+    title: 'A Short History of How Music Made Money',
+    goal: 'Understand the arc from sheet music → records → CDs → streaming → AI era, and why today looks the way it does.',
+    surface: `Music has always been a business. How that business has worked has changed dramatically — and the current moment makes no sense without the history.
+
+**The eras:**
+
+**1900-1950: The sheet music era.** Music was sold as printed paper. You bought the song; you played it yourself on piano at home. Songwriters (and publishers) earned. Performers earned on stage.
+
+**1950-1980: The records era.** Vinyl records and tape cassettes meant music was bought as a recording. Record labels rose to dominance — they controlled the manufacturing and distribution. Artists signed to labels; producers began to matter. The [[record-label]] era.
+
+**1980-2000: The CD and [[album-era]] peak.** CDs were manufactured cheaply ($0.50) and sold expensively ($15-18). Labels enjoyed 40+ years of peak profitability. Big artists sold 10-20 million CDs per album.
+
+**1999-2010: The Napster disruption and iTunes response.** [[napster]] made music free to download in 1999. The industry's revenue collapsed — from $14.6B in 1999 to $6.3B by 2009. Apple's iTunes legitimized paid downloads at 99¢ per song, breaking the album as the unit of sale.
+
+**2010-now: The streaming era.** [[streaming]] services (Spotify, Apple Music) became the dominant revenue source. Subscription models work for platforms and big rightsholders; per-stream royalty rates are very low for individual artists.
+
+**2023-now: The AI era begins.** Generative AI music tools (Udio, Suno, etc.) and AI cover/clone technology raise new questions about what artistry, ownership, and compensation look like when making a song becomes nearly free.
+
+Understanding this arc means understanding why the industry incentives today are what they are — labels want catalogs for streaming royalties, artists need alternate income streams (sync, touring, merch), and we're all figuring out AI together.`,
+    deepDive: `**A closer look at each era:**
+
+**The sheet music era (1900-1950).**
+The Tin Pan Alley songwriters (Irving Berlin, George Gershwin) dominated. Songs made their money when purchased as sheet music for home pianos. ASCAP was founded in 1914 to collect performance royalties from live venues and radio. The economic model: sell paper, collect performance fees.
+
+**The records era (1950-1980).**
+Vinyl records shifted the unit of sale from the song to the recording. Labels (Motown, Atlantic, Stax, Columbia) became gatekeepers. The [[advance]] model emerged: artists got upfront cash in exchange for signing over rights. Most artists never [[recoup]] their advances.
+
+**The CD era (1980-1999).**
+CDs changed the economics. Artists who'd sold gold records were now selling platinum. Michael Jackson's Thriller (1982) sold 70+ million copies. The music business became the most profitable entertainment industry in the world. This era birthed the myth of the major-label lottery.
+
+**The Napster crash (1999-2010).**
+[[napster]] gave away music for free in 1999. The industry sued. Users won culturally. By 2003, global music industry revenue was down by half. Apple's iTunes (2003) offered a paid alternative — $0.99 per song — but by then, the album era was dead.
+
+**The streaming era (2010-present).**
+[[streaming]] platforms stabilized the business. But individual tracks earn $0.003-$0.005 per stream. A platinum-selling song (by streaming-equivalent metrics) earns maybe $50,000-100,000 across multiple rights holders. Artists need catalogs + touring + sync + merch to make a living.
+
+**Why this history matters for you:**
+- The producer's role has become more important than ever. In the streaming era, a hit song's value is in its recording — the master rights — which the producer helped create.
+- Independent artists can now release directly via distribution services. The label gatekeeper role has weakened.
+- [[sync-licensing]] has become a major revenue stream — often more valuable than streaming for individual songs.
+- Building a catalog over time creates long-term income. Each song is an asset.
+
+Next lesson: exactly how music makes money today, in dollar terms.`,
+    tryNow: "Pick one artist you love. Look up their catalog on Spotify. Think: at $0.003 per stream, what do their stream counts translate to? Now multiply by the number of rights holders sharing those royalties. Welcome to the streaming economy.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=history+of+the+music+industry+revenue',
+    glossaryTerms: ['record-label', 'album-era', 'napster', 'streaming'],
+  },
+  {
+    id: 'biz-02',
+    pathId: 'business',
+    order: 2,
+    title: 'How Music Makes Money Today',
+    goal: 'Understand streaming royalties, publishing royalties, sync licensing, beat leasing, direct-to-fan, live, sampling. What each actually pays.',
+    surface: `Music revenue comes from seven main streams. Each pays differently.
+
+**1. Streaming royalties.** Roughly $0.003-$0.005 per stream on Spotify/Apple Music. Split across label (50-70%), writer (10-15%), publisher (5%), artist (the rest). 1 million streams → $3,000-5,000 total, maybe $500-1,500 to the artist after all splits.
+
+**2. Publishing royalties.** Paid to songwriters and publishers when songs are performed (radio, TV, venues), reproduced (physical/digital sales), or streamed. Usually the most durable long-term income stream for songwriters. Collected by PROs ([[ascap]], [[bmi]], [[sesac]]) and SoundExchange.
+
+**3. Sync licensing.** Licensing music to film, TV, ads, games. ONE placement can pay $5,000 to $200,000+. For working songwriters and producers, sync is often more lucrative than streaming. Sync agents and music libraries are the gatekeepers.
+
+**4. Beat leasing.** Producers sell/lease beats directly to artists through platforms like BeatStars. Non-exclusive leases start at $20-50; exclusive beats sell for $500-$5,000+. A producer with 100 beats for sale can earn a real income.
+
+**5. Direct-to-fan.** Bandcamp, Patreon, Substack, direct merchandise sales. Artists keep 85-95% of revenue (platform fees). Best for artists with loyal audiences who want to support directly.
+
+**6. Live performance.** Ticket sales, touring, festivals. For emerging artists, often the #1 income source. Merchandise sold at shows multiplies gate revenue.
+
+**7. Sampling.** If you sample someone else's recording, you pay for clearance — often upfront plus a percentage of royalties going forward. Conversely, if you OWN masters, others sample you and pay you.
+
+Most working musicians earn from multiple streams at once. The era of "one hit album pays for life" is over for all but megastars.`,
+    deepDive: `**Deep dive on each stream:**
+
+**Streaming royalties:**
+- Spotify pays ~$0.003-0.005 per stream (varies by market, subscription tier)
+- Apple Music ~$0.007
+- YouTube Music ~$0.002
+- Amazon Music ~$0.004
+- The payout goes to the master owner (usually the label) first. Then artist gets their contracted share (often 15-30%).
+- The songwriter/publisher gets a separate mechanical royalty (~$0.0006 per stream) via the Mechanical Licensing Collective.
+
+**Publishing royalties:**
+Three types:
+- **Performance royalties.** Collected by PROs when songs play on radio, TV, streaming (public performance license), or live venues.
+- **Mechanical royalties.** Paid when songs are reproduced (physical sales, downloads, interactive streaming).
+- **Sync royalties.** Paid when songs are paired with visual media.
+
+Every songwriter needs to:
+1. Register with one PRO ([[ascap]] or [[bmi]] — pick one).
+2. Register with a publishing admin (or self-publish).
+3. Register with [[soundexchange]] for digital performance royalties.
+
+**[[sync-licensing]]:**
+Sync is the gold rush for producers. A 30-second clip on a major TV drama: $10,000-50,000. A Super Bowl ad: $100,000-1,000,000. A trailer: $20,000-200,000. The key is getting your music into music libraries or in front of music supervisors (the people who pick music for visual projects).
+
+Sync-friendly music: instrumental tracks, emotional tracks, mood-driven pieces, versions without vocals (instrumentals) in addition to the full vocal version.
+
+**[[beat-leasing]]:**
+BeatStars, Airbit, and similar platforms connect producers and artists. Pricing tiers:
+- [[non-exclusive-lease]]: $20-50. Artist gets limited rights; producer sells the same beat to others.
+- Premium non-exclusive: $50-200. Better rights, more stream caps.
+- [[exclusive-lease]]: $500-5,000+. Artist gets sole rights; producer removes beat from sale.
+
+Successful producers have hundreds of beats available at any time. It's volume + quality.
+
+**Direct-to-fan revenue:**
+- Bandcamp: 85-90% to artist.
+- Patreon: 85-92% depending on tier.
+- Merch: 40-70% margin after costs.
+- Superfans drive most revenue — a few hundred dedicated fans can fund a career.
+
+**The compound effect:**
+No single revenue stream usually makes a sustainable career for working musicians. Combine streaming + sync + beat leasing + direct-to-fan + merchandise + occasional live, and you have a real business.
+
+**[[split-sheet]]s matter.**
+When you write or produce with others, signing a split sheet at the end of the session (agreeing to ownership percentages) is the single most important business habit. Un-split sessions create disputes that can last decades.`,
+    tryNow: "Figure out where each of your income streams comes from (if any). List which ones you've accessed and which you haven't. For anything you haven't — decide this week whether to engage.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=how+music+makes+money+streaming+sync',
+    glossaryTerms: ['streaming-royalty', 'publishing-royalty', 'sync-licensing', 'beat-leasing', 'non-exclusive-lease', 'exclusive-lease', 'producer-points', 'ascap', 'bmi', 'sesac', 'soundexchange', 'split-sheet', 'catalog'],
+  },
+  {
+    id: 'biz-03',
+    pathId: 'business',
+    order: 3,
+    title: 'Protecting Your Work — Copyright Basics',
+    goal: 'Understand how copyright works, what split sheets are, what master vs. publishing rights mean, and when to worry about work-for-hire.',
+    surface: `Your song is [[copyright]]ed the moment you create it — when you record a demo, write down lyrics, or save a MIDI file. But owning copyright and enforcing copyright are different things.
+
+**Key concepts:**
+
+**Copyright automatically exists.** You don't need to file anything to OWN your work. As soon as it's "fixed in a tangible medium" (saved as audio, written down, recorded), you own the copyright.
+
+**[[registration]] strengthens your rights.** Registering with the US Copyright Office (copyright.gov, $65, 20 minutes) is optional — but without it, you can't sue for statutory damages or attorney's fees. Register any song you release.
+
+**Two separate copyrights per song:**
+1. **[[publishing-rights]]** (the composition — melody + lyrics). Written down, not tied to any specific recording.
+2. **[[master-rights]]** (the specific recording). The actual audio file you release.
+
+These can be owned by different parties. Beyoncé fought to own her masters; Taylor Swift re-recorded albums to own hers.
+
+**[[split-sheet]]s.** Every collaborative session should end with a signed document listing all contributors and their % ownership of both the composition AND the recording. Sign it on the spot. Disputes 10 years later are extremely hard to resolve.
+
+**[[work-for-hire]].** If you sign a contract saying your work is "work for hire," you DON'T own the copyright — the person paying you does. Check every contract. Jingles, demos for labels, session work — often work-for-hire.
+
+**[[public-domain]].** Works old enough (generally pre-1927 in the US) have no copyright. Classical music, old folk songs, hymns. You can record and sell them freely.
+
+These basics are the floor. Every working musician needs to know them.`,
+    deepDive: `**Copyright in practice:**
+
+**Your song's two copyrights:**
+
+Imagine your song, "Dreams."
+- The [[publishing-rights]] covers the melody and lyrics. You wrote those. 50% writer, 50% publisher (often the same person initially).
+- The [[master-rights]] covers your specific recording of "Dreams." A label might own this; or you (if self-released).
+
+When Spotify pays:
+- The master owner gets most of the payout.
+- The publishing owner gets the mechanical and performance royalties (smaller but separate).
+
+When you license your song for a TV show:
+- The sync license covers both the composition AND the recording.
+- Master owner and publisher negotiate separately (or together as one entity if you own both).
+
+**Why master rights matter:**
+Master rights = sampling income, film placement income, remix income. Artists who don't own their masters often can't control how their music is used.
+
+**[[split-sheet]] template (minimum requirements):**
+- Song title
+- Date of creation
+- All contributors (writers, producers)
+- Percentage ownership of composition
+- Percentage ownership of recording
+- Signatures of everyone present
+
+Keep a physical and digital copy. Email the signed version to everyone involved. This is your insurance.
+
+**[[work-for-hire]] red flags:**
+If a contract includes the phrase "work for hire," "all rights assigned to," or "you waive all rights to the work," read carefully. Some work-for-hire is fine — session musicians paid for a day's work, for example. But if you're writing a song, be very careful about signing away copyright.
+
+**Sampling:**
+If you sample someone else's recording, you owe:
+- Master clearance (payable to the master owner — usually a label).
+- Sync clearance on the composition (payable to the publisher).
+
+Both can be negotiated for a one-time fee, ongoing percentage, or both. Unclear sampling = lawsuits. Clear every sample, no matter how small.
+
+**International copyright:**
+The US Copyright Office handles US rights. For international rights, register through IPN (International Performing Rights) and work with a publisher that handles worldwide collection. PROs like ASCAP and BMI have international agreements.
+
+**Copyright length:**
+In the US, copyright lasts life of the author + 70 years. After that, the work enters [[public-domain]]. Joint works (multiple authors) last 70 years after the LAST surviving author's death.
+
+**Do this today:**
+1. List every song you've released or are about to release.
+2. For each, note: registered? split-sheeted? own masters? own publishing?
+3. Fix what's missing. This is insurance for your future career.`,
+    tryNow: "Register one of your released songs at copyright.gov. It costs $65 and takes 20 minutes. If you've never done this, consider it foundational business infrastructure — like insurance for your work.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=music+copyright+basics+producer',
+    glossaryTerms: ['copyright', 'registration', 'split-sheet', 'master-rights', 'publishing-rights', 'work-for-hire', 'public-domain', 'sampling', 'producer-points'],
+  },
+  {
+    id: 'biz-04',
+    pathId: 'business',
+    order: 4,
+    title: "The AI Era — What's Changing",
+    goal: 'Honest assessment of what AI can do now, what it struggles with, legal uncertainties, and how to position yourself.',
+    surface: `AI music generation went from a novelty to a working tool in two years (2022-2024). The industry is still figuring out what this means. So are you.
+
+**What AI can do well right now:**
+- Generate convincing background music (lo-fi, ambient, elevator jazz) in seconds
+- Create full songs from text prompts with structure and hooks (Udio, Suno)
+- Separate a finished recording into stems (vocals, drums, bass, other)
+- Clone voices from small training samples
+- Generate chord progressions, drum patterns, melodies on demand
+
+**What AI struggles with right now:**
+- Genuinely original musical ideas (it recombines rather than invents)
+- Singing with the specific emotional phrasing of a real artist
+- Understanding cultural context (gospel, soul, hip-hop aren't just sounds — they carry history)
+- Complex arrangement decisions that serve an emotional arc
+- Performance quality that feels genuinely human
+
+**Legal uncertainties:**
+- **Training data.** Labels have sued AI companies claiming their music was used without permission to train models.
+- **Vocal cloning.** If someone uses AI to clone Drake's voice and releases a fake-Drake song, is that fraud? IP violation? Free speech? The courts will decide.
+- **Ownership of AI output.** The US Copyright Office has ruled that purely AI-generated content is NOT copyrightable (no human author).
+- **Streaming platform policies.** Spotify is beginning to flag or remove AI-generated content.
+
+**How to position yourself:**
+1. **Human craft still matters.** AI tools are getting better, but genuine musical expression — the specific way YOU hear and make music — is still valuable.
+2. **Use AI as a tool, not a replacement.** Stem separation for remixing, AI for brainstorming melodies, AI for demos. Don't let it replace the hard work of writing.
+3. **Build an audience.** Real humans who want to hear YOUR music. AI can't replicate relationships.
+4. **Understand the legal landscape.** Sampling rules, vocal rights, training data — these are evolving fast. Stay informed.
+
+The bottom line: this is a transformational moment. Nobody knows exactly how it plays out. Smart musicians are experimenting, learning, and staying present.`,
+    deepDive: `**What's real, and what's hype:**
+
+**Real:**
+- [[udio]] and [[suno]] can make convincing 2-3 minute songs from text prompts.
+- [[stem-separation]] tools (Moises, Spleeter, Logic's new Stem Splitter) genuinely work — they can isolate vocals from a commercial recording in seconds.
+- [[vocal-cloning]] is convincing enough that major labels are suing AI companies over unauthorized use.
+- AI-generated [[ai-music]] and AI-cover content is appearing on streaming platforms in large quantities.
+
+**Hype:**
+- Claims that AI will replace all musicians. Probably not — humans still prefer music made by humans for humans.
+- Claims that AI-generated songs are going to the top of charts. So far, not really happening at scale.
+- Claims that AI can't handle complex music. It CAN, it just doesn't always handle it well.
+
+**The training data problem:**
+AI music models are trained on existing music — a lot of it copyrighted. The legal question: is this fair use (legal) or copyright infringement (illegal)?
+- Major labels (Sony, Universal, Warner) sued Suno and Udio in 2024.
+- The outcome of these cases will shape the industry.
+- Similar cases are playing out in visual AI (Getty v. Stability).
+
+**What this means for your career:**
+
+**Scenario 1: AI tools become widely licensed.** If AI companies pay rights holders, AI music becomes a new form of licensed creativity — like samples. Your catalog becomes more valuable as training data.
+
+**Scenario 2: AI tools stay in legal limbo.** The current situation continues — some AI music exists, courts are slow, uncertainty persists. Most artists proceed cautiously.
+
+**Scenario 3: AI tools are restricted.** Courts rule training on copyrighted data is infringement. AI companies must negotiate licenses or shut down. Human-made music becomes more valuable.
+
+All three scenarios are possible. Smart musicians prepare for all of them.
+
+**Practical moves for the AI era:**
+- **Register everything.** If AI companies eventually have to pay rights holders, only registered works will collect.
+- **Build a personal brand.** Listeners choose human creators partly for connection. Strengthen yours.
+- **Experiment with AI tools.** Use them for demos, brainstorming, learning. Knowing the tools keeps you relevant.
+- **Double down on what AI can't do.** Emotional range, cultural nuance, live performance, collaboration, teaching.
+
+**The ethical question.**
+Some artists have declared they won't use AI tools. Some will use them freely. Neither is wrong. What matters is clarity: be honest with your audience about how your music was made.
+
+Streaming platforms are beginning to require AI disclosure labels. This will probably spread.
+
+**One more thought:**
+Every major shift in music tech (player piano, recording, electric guitar, synthesizer, sampling, digital recording) caused panic at the time. In retrospect, each one expanded what was possible. AI is likely another — transformational, scary in the short term, clarifying in the long term. Humans will still want to hear other humans.`,
+    tryNow: "Use Udio or Suno to generate a song in your favorite genre. Listen critically. Where does it succeed? Where does it fail? What would you do differently as a human producer? This exercise grounds your understanding of the current state of the tech.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=ai+music+producer+perspective',
+    glossaryTerms: ['ai-music', 'stem-separation', 'vocal-cloning', 'training-data', 'ai-generated-content', 'udio', 'suno'],
+  },
+  {
+    id: 'biz-05',
+    pathId: 'business',
+    order: 5,
+    title: 'Getting Started — Your First Moves',
+    goal: 'Concrete steps to launch your music business, from skill building to registration to distribution.',
+    surface: `Starting is the hard part. Here's a concrete first-move list — not theory, action items.
+
+**Foundation (first 6 months):**
+1. **Build your skill foundation.** Finish 10 complete songs in 6 months. Not perfect songs — complete ones. This builds your craft.
+2. **Set up a home studio.** Interface, headphones, mic, DAW, MIDI keyboard. Doesn't need to be expensive.
+3. **Learn one DAW deeply.** Logic Pro, Ableton, FL Studio, Pro Tools — pick one and master it over a year.
+
+**Business infrastructure (months 3-6):**
+4. **Register with a PRO.** [[ascap]] or [[bmi]] — pick one. Registration is free for writers.
+5. **Register with [[soundexchange]].** Free. Collects digital performance royalties.
+6. **Set up a [[distribution]] account.** DistroKid ($23/year) or TuneCore. This pushes your music to Spotify, Apple Music, and all major services.
+7. **Register your first copyright.** $65 at copyright.gov for any song you release.
+
+**Building presence (months 6-12):**
+8. **Create an [[EPK]].** Bio, photos, representative tracks, contact info. A one-page website is sufficient. Tools: Linktree, Bandcamp, a basic Squarespace site.
+9. **Release consistently.** Aim for a new single every 6-8 weeks. Build momentum.
+10. **Play live.** Open mics, small venues, virtual performances. Live performance still builds audiences.
+
+**Growing (year 2+):**
+11. **Network.** Go to local music events. Contribute to sessions with other producers. Most opportunities come from relationships.
+12. **Document everything.** Behind-the-scenes content, studio time, process videos. Modern music is as much about narrative as sound.
+13. **Find your niche.** The musicians who thrive aren't generalists — they specialize. Gospel, neo-soul, lo-fi, sync music, film composing — pick one lane and go deep.
+14. **Track your money.** Every dollar in, every dollar out. Music is a business; treat it like one.
+15. **Stay curious.** The industry changes fast. Read, listen, experiment. Every year, your craft should be sharper than the last.
+
+You don't need to do all 15 at once. Start with 1-3. Build from there.`,
+    deepDive: `**The first 90 days:**
+
+Week 1-2:
+- Set up your DAW.
+- Decide on your PRO ([[ascap]] or [[bmi]]).
+- Create accounts: Bandcamp, SoundCloud, Spotify for Artists.
+
+Week 3-4:
+- Finish (or near-finish) one song.
+- Record it properly, mix it, master it.
+- Save the project.
+
+Month 2:
+- Finish 2-3 more songs.
+- Register your PRO account.
+- Set up distribution (DistroKid or TuneCore).
+
+Month 3:
+- Release your first single.
+- Register the copyright.
+- Start building your [[EPK]].
+
+**The first year:**
+
+- 10-12 released songs.
+- Email list of 50-200 dedicated fans.
+- One collaborative project with another artist.
+- One live or virtual performance.
+- One step forward in each of: skill, network, and audience.
+
+**Common beginner mistakes to avoid:**
+
+- **Over-building infrastructure before making music.** You don't need a website, a label, a manager, a social media strategy before your first release. Make music; the rest follows.
+- **Copying successful artists too directly.** "Sound like Drake" isn't a strategy. "Find what sounds like me" is.
+- **Obsessing over streaming numbers.** 50 loyal fans who'll buy your album > 50,000 Spotify streams.
+- **Avoiding business knowledge.** Musicians who don't understand contracts, royalties, and rights get exploited. You don't need a law degree — just basic literacy.
+- **Trying to do everything yourself.** Producer + engineer + mixer + mastering + marketer + performer is too much. Identify one area to be great at; collaborate for the rest.
+- **Burnout.** Music is a long game. Pace yourself.
+
+**Resources to explore:**
+
+- DIY Musician (CD Baby's blog) — practical career advice
+- Ari's Take — independent artist business
+- Future of Music Coalition — industry analysis
+- Your PRO's member resources
+- BeatStars / Airbit — for beat producers
+
+**The one thing that matters most:**
+
+Keep making music. Career advancement follows output. Without finishing songs, nothing else matters. Without consistency, audiences don't form. Without releases, there's no catalog to build.
+
+Ship your work. The best producers are the ones who finish songs and release them.
+
+**The long view:**
+
+A music career is 20-40 years. Your first year's catalog will generate stream royalties for decades. Sync placements that happen in year 3 may pay in year 10. The compound effect of consistent work over time is how music careers actually grow.
+
+You won't see results in year 1. You'll see glimpses in year 3. You'll see real movement in year 5-7. You'll have a career by year 10+.
+
+That's if you keep showing up. Most producers don't. That's why the ones who do become successful.`,
+    tryNow: "Pick 3 items from the 15-item list that you haven't done yet. Do one this week. Do the second in the next two weeks. Do the third within a month. Movement beats planning.",
+    youtubeLink: 'https://www.youtube.com/results?search_query=starting+music+career+producer+independent',
+    glossaryTerms: ['ascap', 'bmi', 'sesac', 'soundexchange', 'distribution', 'epk', 'catalog', 'registration', 'copyright'],
+  },
+];
+
+// ------------------------------------------------------------------
 
 export const PRODUCTION_LESSONS: LessonContent[] = [
   ...WORKFLOW,
   ...LANGUAGE,
   ...VOCAL,
+  ...GENRE,
+  ...ARRANGEMENT,
+  ...BUSINESS,
 ];
 
 export function lessonById(id: string): LessonContent | undefined {

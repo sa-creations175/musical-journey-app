@@ -27,20 +27,20 @@ export const PRODUCTION_PATHS: ProductionPath[] = [
   {
     id: 'genre-productions',
     title: 'Genre Productions',
-    subtitle: 'Build gospel, R&B, soul, neo-soul, hip-hop, jazz productions end to end.',
-    status: 'planned',
+    subtitle: 'Build gospel, R&B, soul, neo-soul, hip-hop productions end to end — 11 two-session arcs.',
+    status: 'live',
   },
   {
     id: 'arrangement',
     title: 'Arrangement & Song Structure',
     subtitle: 'Intros, pre-choruses, bridges, outros — how great songs breathe.',
-    status: 'planned',
+    status: 'live',
   },
   {
     id: 'business',
     title: 'The Business of Music',
     subtitle: 'Publishing, splits, placements, royalties, and releasing on your own.',
-    status: 'planned',
+    status: 'live',
   },
 ];
 
