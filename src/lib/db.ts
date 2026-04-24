@@ -483,6 +483,10 @@ export interface ReferenceTrack {
   id: string;
   title: string;
   artist: string;
+  /** Producer credit — single free-form field so multi-producer credits
+   *  ("Babyface, L.A. Reid, Daryl Simmons") read as one line. Optional
+   *  because user-added tracks may not know or care. */
+  producer?: string;
   genre: string;
   /** Guided-listening prompts — tells the user what to listen for in
    *  this track. Populated on add / generate, editable. Intentionally

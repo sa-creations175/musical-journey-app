@@ -10,7 +10,6 @@ import {
   restoreBackup,
   type BackupFile,
 } from '../lib/backup';
-import { PREF_ANTHROPIC_API_KEY, setApiKey } from '../lib/claudeClient';
 
 interface Props {
   open: boolean;
@@ -49,27 +48,6 @@ export default function SettingsPanel({ open, onClose }: Props) {
     async () => getPref<number>(PREF_LAST_EXPORTED_AT, 0),
     [],
   ) ?? 0;
-
-  const storedApiKey = useLiveQuery(
-    async () => getPref<string>(PREF_ANTHROPIC_API_KEY, ''),
-    [],
-  ) ?? '';
-  const [apiKeyDraft, setApiKeyDraft] = useState('');
-  const [apiKeyRevealed, setApiKeyRevealed] = useState(false);
-  const [apiKeySaved, setApiKeySaved] = useState(false);
-  // Keep the draft in sync with the stored value when the panel opens.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (open) setApiKeyDraft(storedApiKey);
-  }, [open, storedApiKey]);
-  const commitApiKey = async () => {
-    await setApiKey(apiKeyDraft);
-    setApiKeySaved(true);
-    window.setTimeout(() => setApiKeySaved(false), 1500);
-  };
-  const maskedStored = storedApiKey
-    ? `${storedApiKey.slice(0, 7)}…${storedApiKey.slice(-4)}`
-    : '';
 
   const handleExport = async () => {
     setStatus({ kind: 'idle' });
@@ -209,49 +187,6 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 </button>
               </div>
             )}
-          </section>
-
-          <section>
-            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-              anthropic api key
-            </h4>
-            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-              used by production → reference track library to generate tracks from a genre/style prompt.
-              stored locally in this browser, never sent anywhere except anthropic's api.
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                value={apiKeyDraft}
-                onChange={e => setApiKeyDraft(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                }}
-                type={apiKeyRevealed ? 'text' : 'password'}
-                placeholder="sk-ant-…"
-                autoComplete="off"
-                spellCheck={false}
-                className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm font-mono"
-              />
-              <button
-                onClick={() => setApiKeyRevealed(r => !r)}
-                className="px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-neutral-400"
-              >
-                {apiKeyRevealed ? 'hide' : 'show'}
-              </button>
-              <button
-                onClick={commitApiKey}
-                className="px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
-              >
-                save
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-neutral-500">
-              {apiKeySaved
-                ? 'saved.'
-                : storedApiKey
-                  ? `current key: ${maskedStored}`
-                  : 'no key saved. generation features will prompt to add one.'}
-            </p>
           </section>
 
           <section>

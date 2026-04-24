@@ -5,12 +5,8 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
 import TagPicker from '../skills/TagPicker';
-import {
-  generateReferenceTracks,
-  getApiKey,
-  type GeneratedTrack,
-} from '../../lib/claudeClient';
 import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
+import { TRACK_POOLS, type PoolTrack, type TrackPool } from './content/trackPools';
 import {
   addReferenceTrack,
   archiveReferenceTrack,
@@ -20,18 +16,11 @@ import {
 
 type Filter = 'active' | 'archived';
 
-const EXAMPLE_PROMPTS = [
-  '90s R&B ballads produced by Babyface',
-  'Modern indie R&B in the H.E.R. vein',
-  'Classic gospel choir arrangements',
-  'Lo-fi hip-hop with jazz influence',
-];
-
 /**
- * Reference Track Library view. Two add paths sit at the top:
- * manual entry and a Claude-powered "generate by style" curator
- * flow. Both produce tracks with consistent Spotify / YouTube
- * search links derived from title + artist.
+ * Reference Track Library view. Two add paths at the top: manual
+ * entry and a "Browse Track Suggestions" pool browser (curated
+ * offline catalogs — no API, no key required). Every track ends up
+ * with Spotify + YouTube search links derived from title + artist.
  */
 export default function ReferenceTracksView() {
   const { toast } = useToast();
@@ -40,7 +29,7 @@ export default function ReferenceTracksView() {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<ReferenceTrack | null>(null);
   const [adding, setAdding] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ReferenceTrack | null>(null);
 
   const rawTracks = useLiveQuery(async () => db.referenceTracks.toArray(), []);
@@ -68,6 +57,7 @@ export default function ReferenceTracksView() {
         return (
           t.title.toLowerCase().includes(q) ||
           t.artist.toLowerCase().includes(q) ||
+          (t.producer ?? '').toLowerCase().includes(q) ||
           t.genre.toLowerCase().includes(q) ||
           (t.whatToListenFor ?? '').toLowerCase().includes(q) ||
           (t.myListeningNotes ?? '').toLowerCase().includes(q) ||
@@ -96,13 +86,10 @@ export default function ReferenceTracksView() {
       <header className="space-y-1">
         <h1 className="text-2xl font-medium tracking-tight">Reference Track Library</h1>
         <p className="text-sm text-neutral-500">
-          The songs you study when you want to hear what great sounds like. Add your own, generate by style, and grow your listening notes over time.
+          The songs you study when you want to hear what great sounds like. Add your own, browse curated pools by genre, and grow your listening notes over time.
         </p>
       </header>
 
-      {/* Primary actions — intentionally oversized so the "+ Add Track"
-          and "+ Generate Tracks" entry points are the first thing you
-          see on the page, not hidden in a toolbar. */}
       <div className="rounded-card border border-production/30 bg-production/5 p-3 sm:p-4">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <button
@@ -112,23 +99,22 @@ export default function ReferenceTracksView() {
             <span aria-hidden>＋</span> Add Track
           </button>
           <button
-            onClick={() => setGenerating(true)}
+            onClick={() => setBrowsing(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md border-2 border-production text-production text-sm font-semibold hover:bg-production/10"
           >
-            <span aria-hidden>＋</span> Generate Tracks
+            <span aria-hidden>＋</span> Browse Track Suggestions
           </button>
           <span className="text-[11px] text-neutral-500 ml-1 flex-1 min-w-[140px]">
-            manually enter a track, or let Claude suggest tracks by genre / style for you to curate.
+            enter a track manually, or browse curated pools by genre and pick the ones you want.
           </span>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="search title, artist, genre, notes, tags…"
+          placeholder="search title, artist, producer, genre, notes, tags…"
           className="flex-1 min-w-[220px] rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1.5 text-sm"
         />
         <div className="inline-flex rounded-md border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
@@ -208,8 +194,8 @@ export default function ReferenceTracksView() {
         />
       )}
 
-      {generating && (
-        <GenerateTracksModal onClose={() => setGenerating(false)} />
+      {browsing && (
+        <BrowsePoolsModal onClose={() => setBrowsing(false)} />
       )}
 
       <ConfirmDialog
@@ -246,16 +232,19 @@ function TrackRow({ track, onEdit, onArchive, onDelete }: RowProps) {
     <li className="rounded-card border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <div className="min-w-0">
-          <div className="text-sm font-medium">
-            {track.title}
-            <span className="text-neutral-500 font-normal"> — {track.artist}</span>
-          </div>
-          <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2 flex-wrap">
+          <div className="text-sm font-medium">{track.title}</div>
+          <div className="text-xs text-neutral-500 mt-0.5">by {track.artist}</div>
+          {track.producer && track.producer.trim() !== '' && (
+            <div className="text-xs text-neutral-500 mt-0.5">
+              <span className="text-neutral-400">Produced by</span> {track.producer}
+            </div>
+          )}
+          <div className="text-[11px] text-neutral-500 mt-1 flex items-center gap-2 flex-wrap">
             <span>{track.genre}</span>
             {track.source === 'starter' || (track.isStarter && !track.source) ? (
               <span className="text-[10px] uppercase tracking-wide text-production/70">starter</span>
             ) : track.source === 'generated' ? (
-              <span className="text-[10px] uppercase tracking-wide text-production/70">generated</span>
+              <span className="text-[10px] uppercase tracking-wide text-production/70">from pool</span>
             ) : null}
             <span className="inline-flex items-center gap-1.5">
               {track.spotifyLink && (
@@ -339,6 +328,29 @@ function TrackRow({ track, onEdit, onArchive, onDelete }: RowProps) {
 }
 
 // -------------------------------------------------------------------
+// Form field layout primitives.
+//
+// IMPORTANT: `Field` is rendered as a <div>, NOT a <label>. Wrapping
+// form content in a <label> that contains multiple labelable controls
+// (button + input, multiple chip X buttons, etc.) caused the tag bugs
+// we fixed in this iteration: clicking anywhere in the label whitespace
+// caused the browser to synthesize a click on the first form control
+// inside, which was the first tag's X button. That ghost click
+// explained all three tag-interaction bugs (can't click dropdown items,
+// random tag deletion when clicking other fields, X removing multiple
+// tags). Using <div> with a styled label span eliminates the issue.
+// The label text still associates visually with the control below it.
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="block">
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------
 
 interface EditorProps {
   existing?: ReferenceTrack;
@@ -346,17 +358,12 @@ interface EditorProps {
   onClose: () => void;
 }
 
-/**
- * Track editor. Spotify / YouTube links auto-derive from title +
- * artist (spec: "auto-generated as search link based on title +
- * artist"). The preview updates live; users who want a specific URL
- * can toggle "customise links" to type their own.
- */
 function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
   const { toast } = useToast();
 
   const [title, setTitle] = useState(existing?.title ?? '');
   const [artist, setArtist] = useState(existing?.artist ?? '');
+  const [producer, setProducer] = useState(existing?.producer ?? '');
   const [genre, setGenre] = useState(existing?.genre ?? '');
   const [whatToListenFor, setWhatToListenFor] = useState(
     existing?.whatToListenFor ?? existing?.sonicNotes ?? '',
@@ -387,11 +394,13 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
       const finalYouTube = customiseLinks && youtubeLink.trim()
         ? youtubeLink.trim()
         : buildYouTubeProducerLink(artist);
+      const producerValue = producer.trim() || undefined;
 
       if (existing) {
         await updateReferenceTrack(existing.id, {
           title: title.trim(),
           artist: artist.trim(),
+          producer: producerValue,
           genre: genre.trim(),
           whatToListenFor: whatToListenFor.trim(),
           myListeningNotes: myListeningNotes.trim(),
@@ -404,6 +413,7 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
         await addReferenceTrack({
           title: title.trim(),
           artist: artist.trim(),
+          producer: producerValue,
           genre: genre.trim(),
           whatToListenFor: whatToListenFor.trim(),
           myListeningNotes: myListeningNotes.trim(),
@@ -425,7 +435,7 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
       open
       onClose={onClose}
       title={existing ? 'Edit reference track' : 'Add reference track'}
-      description={existing ? 'update notes, genre, tags, or links' : 'a new song to study'}
+      description={existing ? 'update notes, genre, tags, producer, or links' : 'a new song to study'}
       footer={(
         <div className="flex items-center justify-end gap-2">
           <button
@@ -457,6 +467,14 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
           <input
             value={artist}
             onChange={e => setArtist(e.target.value)}
+            className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+          />
+        </Field>
+        <Field label="producer">
+          <input
+            value={producer}
+            onChange={e => setProducer(e.target.value)}
+            placeholder="optional — e.g. Babyface, L.A. Reid, Daryl Simmons"
             className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
           />
         </Field>
@@ -541,32 +559,21 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
 // -------------------------------------------------------------------
 
 /**
- * Editable list of tag chips + typeahead picker. Removal is
- * bulletproofed against three earlier failure modes:
- *
- *   1. Filter-by-value with non-unique values → deleted duplicates.
- *      Fix: remove by INDEX using slice+splice.
- *   2. Stale state closures across batched clicks → removed the
- *      wrong tag. Fix: pass a functional updater through the
- *      `onChange` prop; the parent uses its own functional setter.
- *   3. Event bubbling to parent handlers. Fix: stopPropagation +
- *      preventDefault on the remove button plus `type="button"` so
- *      the click can't ever submit an enclosing form.
- *
- * Keys include the index so React keeps chip identity stable even
- * if the same tag value somehow appears twice.
+ * Tag chip editor. Uses functional setState + splice-by-index to make
+ * single-tag removal bulletproof. Critically, this component is NEVER
+ * rendered inside a <label> (see the note on Field above) — wrapping
+ * it in a label caused the browser to synthesize clicks on the first
+ * X button whenever the user clicked anywhere in the label's
+ * whitespace, creating the appearance of random tag deletion.
  */
 function TagChipEditor({
   tags,
   onChange,
 }: {
   tags: string[];
-  onChange: (next: string[] | ((prev: string[]) => string[])) => void;
+  onChange: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
   const removeAt = (idx: number) => {
-    // Functional updater so rapid clicks compose against the latest
-    // state rather than a captured snapshot. Each click removes
-    // exactly one chip at the given index.
     onChange(prev => {
       if (idx < 0 || idx >= prev.length) return prev;
       return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
@@ -610,60 +617,58 @@ function TagChipEditor({
 
 // -------------------------------------------------------------------
 
-interface GenerateProps {
+interface BrowseProps {
   onClose: () => void;
 }
 
-interface PreviewTrack extends GeneratedTrack {
+interface PoolPreview extends PoolTrack {
   uid: string;
   selected: boolean;
 }
 
 /**
- * Generate-tracks curator flow:
- *   1. User enters a style prompt (examples one-click available).
- *   2. App calls Claude, receives 3–5 candidate tracks.
- *   3. Each candidate renders as a reviewable card with a checkbox
- *      and every field editable inline.
- *   4. "Add Selected Tracks" persists only the checked ones; the
- *      rest are discarded. Search links auto-derive from the final
- *      title + artist so the curator can adjust either field before
- *      saving.
+ * Pool browser: pick a genre → see 15+ curated tracks → check the
+ * ones you want → "Add Selected". All content is static, shipped
+ * with the app. No API key or network call involved.
  */
-function GenerateTracksModal({ onClose }: GenerateProps) {
+function BrowsePoolsModal({ onClose }: BrowseProps) {
   const { toast } = useToast();
-  const [prompt, setPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<PreviewTrack[] | null>(null);
+  const [selectedPool, setSelectedPool] = useState<TrackPool | null>(null);
+  const [preview, setPreview] = useState<PoolPreview[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const generate = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const key = await getApiKey();
-      if (!key) {
-        setError('No Anthropic API key configured. Open Settings → Anthropic API key to add one.');
-        setLoading(false);
-        return;
-      }
-      const result = await generateReferenceTracks(prompt);
-      setPreview(
-        result.tracks.map(t => ({
-          ...t,
-          uid: `gen-${Math.random().toString(36).slice(2, 10)}`,
-          selected: true,
-        })),
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed.');
-    } finally {
-      setLoading(false);
+  const existingTracks = useLiveQuery(
+    async () => db.referenceTracks.toArray(),
+    [],
+  );
+  const existingKey = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of existingTracks ?? []) {
+      s.add(`${t.title.toLowerCase()}|${t.artist.toLowerCase()}`);
     }
+    return s;
+  }, [existingTracks]);
+
+  const openPool = (pool: TrackPool) => {
+    setSelectedPool(pool);
+    // Default to unchecked for tracks that already exist in the user's
+    // library; checked for new ones. Keeps the curator flow useful on
+    // repeat visits without accidentally duplicating entries.
+    setPreview(
+      pool.tracks.map(t => ({
+        ...t,
+        uid: `pool-${Math.random().toString(36).slice(2, 10)}`,
+        selected: !existingKey.has(`${t.title.toLowerCase()}|${t.artist.toLowerCase()}`),
+      })),
+    );
   };
 
-  const patchPreview = (uid: string, patch: Partial<PreviewTrack>) => {
+  const backToPools = () => {
+    setSelectedPool(null);
+    setPreview(null);
+  };
+
+  const patchPreview = (uid: string, patch: Partial<PoolPreview>) => {
     setPreview(prev => prev?.map(p => (p.uid === uid ? { ...p, ...patch } : p)) ?? prev);
   };
 
@@ -683,12 +688,10 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
         await addReferenceTrack({
           title: t.title.trim(),
           artist: t.artist.trim(),
+          producer: t.producer.trim() || undefined,
           genre: t.genre.trim(),
           whatToListenFor: t.whatToListenFor.trim(),
           myListeningNotes: '',
-          // Links are derived inside addReferenceTrack from the
-          // final title + artist, so the curator-edited values are
-          // what gets linked — no stale links from the generation.
           tags: t.tags.map(x => x.trim()).filter(Boolean),
           source: 'generated',
         });
@@ -700,7 +703,7 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
       });
       onClose();
     } catch {
-      toast({ message: 'Failed to save generated tracks.', variant: 'danger', duration: 2400 });
+      toast({ message: 'Failed to save tracks.', variant: 'danger', duration: 2400 });
     } finally {
       setSaving(false);
     }
@@ -710,142 +713,112 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
     <Modal
       open
       onClose={onClose}
-      title={preview ? 'Review generated tracks' : 'Generate tracks from genre'}
+      title={selectedPool ? selectedPool.label : 'Browse Track Suggestions'}
       description={
-        preview
-          ? `${selectedCount} of ${preview.length} selected`
-          : 'describe the genre, era, or style you want tracks for'
+        selectedPool
+          ? `${selectedCount} of ${preview?.length ?? 0} selected`
+          : 'pick a genre to see curated tracks'
       }
       footer={(
-        <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-          >
-            {preview ? 'Discard' : 'Cancel'}
-          </button>
-          {preview ? (
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            {selectedPool && (
+              <button
+                onClick={backToPools}
+                className="text-xs text-neutral-500 hover:text-production"
+              >
+                ← back to genres
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
             <button
-              onClick={saveSelected}
-              disabled={!canSave || saving}
-              className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
             >
-              {saving ? 'Saving…' : `Add Selected Tracks${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+              {selectedPool ? 'Discard' : 'Close'}
             </button>
-          ) : (
-            <button
-              onClick={generate}
-              disabled={loading || prompt.trim() === ''}
-              className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
-            >
-              {loading ? 'Generating…' : 'Generate'}
-            </button>
-          )}
+            {selectedPool && (
+              <button
+                onClick={saveSelected}
+                disabled={!canSave || saving}
+                className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : `Add Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+              </button>
+            )}
+          </div>
         </div>
       )}
     >
-      {!preview ? (
-        <div className="space-y-3">
-          <textarea
-            value={prompt}
-            onChange={e => setPrompt(e.target.value)}
-            rows={3}
-            data-autofocus
-            placeholder="e.g. 90s R&B ballads produced by Babyface"
-            className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm leading-relaxed"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-[10px] uppercase tracking-wide text-neutral-500 self-center pr-1">try:</span>
-            {EXAMPLE_PROMPTS.map(ex => (
+      {!selectedPool ? (
+        <div className="space-y-2">
+          <p className="text-xs text-neutral-500 mb-3">
+            Each pool ships with curated tracks and guided-listening notes. Pick a genre, review the list, and check the ones you want in your library.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {TRACK_POOLS.map(pool => (
               <button
-                key={ex}
-                onClick={() => setPrompt(ex)}
-                className="text-[11px] px-2 py-0.5 rounded-full border border-production/30 text-production/80 hover:bg-production/5"
+                key={pool.id}
+                onClick={() => openPool(pool)}
+                className="text-left rounded-card border border-neutral-200 dark:border-neutral-800 p-3 hover:border-production/60 hover:bg-production/5 transition-colors"
               >
-                {ex}
+                <div className="text-sm font-medium">{pool.label}</div>
+                <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{pool.subtitle}</div>
+                <div className="text-[10px] text-production/70 mt-1">
+                  {pool.tracks.length} tracks
+                </div>
               </button>
             ))}
           </div>
-          {error && (
-            <div className="rounded-md border border-needswork/40 bg-needswork/10 px-3 py-2 text-xs text-needswork">
-              {error}
-            </div>
-          )}
-          <p className="text-[11px] text-neutral-500 italic">
-            Claude generates 3–5 tracks with guided-listening notes. Review, check the ones you want, then click "Add Selected Tracks" to save.
-          </p>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-neutral-500">
-            Check the tracks you want to keep. Uncheck any you don't. Edit any field inline — your changes save with the track.
+            {selectedPool.subtitle}. Check the tracks you want to add. Tracks already in your library start unchecked.
           </p>
-          {preview.map(p => (
+          {preview?.map(p => (
             <div
               key={p.uid}
-              className={`rounded-card border p-3 space-y-2 ${
+              className={`rounded-card border p-3 space-y-1.5 ${
                 p.selected
                   ? 'border-production/40 bg-production/5'
                   : 'border-neutral-200 dark:border-neutral-800 opacity-60'
               }`}
             >
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-start gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={p.selected}
                   onChange={e => patchPreview(p.uid, { selected: e.target.checked })}
-                  className="shrink-0 w-4 h-4"
+                  className="mt-0.5 shrink-0 w-4 h-4"
                 />
-                <span className="text-xs font-medium text-production">Add to library</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-2">
-                <LabeledInline label="title">
-                  <input
-                    value={p.title}
-                    onChange={e => patchPreview(p.uid, { title: e.target.value })}
-                    className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm font-medium"
-                  />
-                </LabeledInline>
-                <LabeledInline label="artist">
-                  <input
-                    value={p.artist}
-                    onChange={e => patchPreview(p.uid, { artist: e.target.value })}
-                    className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
-                  />
-                </LabeledInline>
-              </div>
-              <LabeledInline label="genre">
-                <input
-                  value={p.genre}
-                  onChange={e => patchPreview(p.uid, { genre: e.target.value })}
-                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
-                />
-              </LabeledInline>
-              <LabeledInline label="what to listen for">
-                <textarea
-                  value={p.whatToListenFor}
-                  onChange={e => patchPreview(p.uid, { whatToListenFor: e.target.value })}
-                  rows={4}
-                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm leading-relaxed"
-                />
-              </LabeledInline>
-              {p.tags.length > 0 && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">tags (suggested)</div>
-                  <div className="flex flex-wrap gap-1">
-                    {p.tags.map(tag => (
-                      <span
-                        key={tag}
-                        className="text-[10px] px-1.5 py-0.5 rounded-full border border-production/30 text-production/80"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">{p.title}</div>
+                  <div className="text-xs text-neutral-500">by {p.artist}</div>
+                  <div className="text-xs text-neutral-500">
+                    <span className="text-neutral-400">Produced by</span> {p.producer}
                   </div>
                 </div>
+              </label>
+              <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed pl-6">
+                {p.whatToListenFor}
+              </p>
+              {p.tags.length > 0 && (
+                <div className="pl-6 flex flex-wrap gap-1">
+                  {p.tags.map(tag => (
+                    <span
+                      key={tag}
+                      className="text-[10px] px-1.5 py-0.5 rounded-full border border-production/30 text-production/80"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
               )}
-              <div className="text-[10px] text-neutral-500 truncate pt-1">
-                links auto: <a href={buildSpotifySearchLink(p.title, p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">spotify</a>
+              <div className="pl-6 text-[10px] text-neutral-500 truncate">
+                links auto:{' '}
+                <a href={buildSpotifySearchLink(p.title, p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">spotify</a>
                 {' · '}
                 <a href={buildYouTubeProducerLink(p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">youtube</a>
               </div>
@@ -858,24 +831,6 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
 }
 
 // -------------------------------------------------------------------
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function LabeledInline({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">{label}</span>
-      {children}
-    </label>
-  );
-}
 
 function SpotifyIcon() {
   return (

@@ -58,6 +58,10 @@ export interface ReferenceTrackContent {
   id: string;
   title: string;
   artist: string;
+  /** Producer credit — free-form so multi-producer credits read as
+   *  a single line. Required for starter / pool content, optional on
+   *  user-added tracks. */
+  producer?: string;
   genre: string;
   /** Guided-listening prose — what to notice while listening. Avoids
    *  fabricated gear/ratio claims; guides the ear to perceivable

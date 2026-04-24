@@ -169,6 +169,15 @@ async function refreshStarterListeningPrompts(): Promise<void> {
     if (!row.youtubeLink || row.youtubeLink.trim() === '') {
       updates.youtubeLink = canonicalYouTube;
     }
+    // Producer — backfill only when missing; never overwrite a value
+    // the user may have set. Only runs when the content file has a
+    // producer to contribute.
+    if (
+      content.producer &&
+      (!row.producer || row.producer.trim() === '')
+    ) {
+      updates.producer = content.producer;
+    }
     if (Object.keys(updates).length === 0) continue;
     updates.updatedAt = now;
     patches.push({ id: row.id, updates });
