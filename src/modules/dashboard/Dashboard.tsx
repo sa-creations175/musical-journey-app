@@ -31,16 +31,17 @@ import { useUserName } from './userName';
  * keyed off those live signals.
  */
 export default function Dashboard() {
-  // Live signal — re-fires when any of these three tables mutates,
+  // Live signal — re-fires when any of these tables mutates,
   // triggering a fresh aggregation.
   const liveSignal = useLiveQuery(async () => {
-    const [a, d, c, s] = await Promise.all([
+    const [a, d, c, s, p] = await Promise.all([
       db.attempts.count(),
       db.drillSessions.count(),
       db.creativeSessions.count(),
       db.songPracticeLog.count(),
+      db.productionLessons.count(),
     ]);
-    return { a, d, c, s };
+    return { a, d, c, s, p };
   }, []);
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -855,6 +856,13 @@ function ModulesPreviewSection({ data }: { data: DashboardData }) {
           meta,
           primaryStat: `${songs} song${songs === 1 ? '' : 's'}`,
           secondaryStat: stale > 0 ? `${stale} going stale` : undefined,
+        });
+      } else if (meta.id === 'production') {
+        const p = data.production;
+        out.push({
+          meta,
+          primaryStat: `${p.completed}/${p.totalLessons} lessons`,
+          secondaryStat: p.inProgress > 0 ? `${p.inProgress} in progress` : undefined,
         });
       } else if (meta.status === 'planned') {
         out.push({

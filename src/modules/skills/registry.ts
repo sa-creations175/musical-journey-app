@@ -4,6 +4,9 @@ import {
   type DrillSkill,
   type DrillType,
   type FlashcardState,
+  type ProductionLesson,
+  type ProductionLessonMastery,
+  type GlossaryTermState,
   type SkillAnnotation,
   type SkillType,
   type SkillPriority,
@@ -22,6 +25,9 @@ import {
   VOICE_LEADING_PATTERNS,
 } from '../shapes-and-patterns/catalog';
 import { freshnessTier, type FreshnessTier } from '../shapes-and-patterns/drillModel';
+import { PRODUCTION_LESSONS } from '../production/content/lessons';
+import { GLOSSARY } from '../production/content/glossary';
+import { pathById } from '../production/content/paths';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TIER_WINDOW = 20;
@@ -179,6 +185,7 @@ const MODULE_LABELS: Record<string, { label: string; route: string }> = {
   'scales-modes':       { label: 'scales & modes',    route: '/ear-training/scales-modes' },
   'repertoire':         { label: 'song repertoire',   route: '/repertoire' },
   'shapes-and-patterns':{ label: 'shapes & patterns', route: '/shapes-and-patterns' },
+  'production':         { label: 'production & logic pro', route: '/production' },
 };
 
 function moduleMeta(moduleId: string): { label: string; route: string } {
@@ -204,6 +211,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     drillSkills,
     drillTypes,
     annotations,
+    productionLessons,
+    glossaryTermStates,
   ] = await Promise.all([
     db.attempts.toArray(),
     db.flashcardStates.toArray(),
@@ -211,6 +220,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     db.drillSkills.toArray(),
     db.drillTypes.toArray(),
     db.skillAnnotations.toArray(),
+    db.productionLessons.toArray(),
+    db.glossaryTermStates.toArray(),
   ]);
 
   const annotationById = new Map<string, SkillAnnotation>();
@@ -691,7 +702,87 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
+  // --- Production & Logic Pro --------------------------------------
+  // Each Phase-1 lesson surfaces as a trackable skill with tier
+  // derived from its mastery state, plus one concept skill per
+  // glossary term (tier maps "got it" → fluent, otherwise untouched).
+  {
+    const { label, route } = moduleMeta('production');
+    const lessonStateById = new Map<string, ProductionLesson>();
+    for (const l of productionLessons) lessonStateById.set(l.id, l);
+    const termStateById = new Map<string, GlossaryTermState>();
+    for (const t of glossaryTermStates) termStateById.set(t.id, t);
+
+    for (const lesson of PRODUCTION_LESSONS) {
+      const state = lessonStateById.get(lesson.id);
+      const mastery: ProductionLessonMastery = state?.mastery ?? 'not-started';
+      const lastPracticed = state?.lastOpenedAt ?? null;
+      const path = pathById(lesson.pathId);
+      const skillId = canonicalSkillId('production', 'lesson', lesson.id);
+      const ann = annotationById.get(skillId);
+      records.push({
+        skillId,
+        moduleId: 'production',
+        moduleLabel: label,
+        moduleRoute: route,
+        moduleJumpQuery: `lesson=${lesson.id}`,
+        itemId: lesson.id,
+        name: ann?.customName ?? lesson.title,
+        category: path ? path.title : 'Production',
+        skillType: 'production',
+        currentTier: mapProductionMastery(mastery),
+        freshness: freshnessFrom(lastPracticed),
+        daysSince: daysSinceOf(lastPracticed, now),
+        lastPracticed,
+        totalTime: 0,
+        priority: ann?.priority,
+        tags: ann?.tags ?? [],
+        note: ann?.note,
+      });
+    }
+
+    for (const term of GLOSSARY) {
+      const state = termStateById.get(term.id);
+      const lastPracticed = state?.lastEncounteredAt ?? null;
+      const skillId = canonicalSkillId('production', 'glossary-term', term.id);
+      const ann = annotationById.get(skillId);
+      records.push({
+        skillId,
+        moduleId: 'production',
+        moduleLabel: label,
+        moduleRoute: route,
+        moduleJumpQuery: 'view=glossary',
+        itemId: term.id,
+        name: ann?.customName ?? term.name,
+        category: 'Glossary Terms',
+        skillType: 'production',
+        currentTier: state?.mastery === 'got-it' ? 'fluent' : 'untouched',
+        freshness: freshnessFrom(lastPracticed),
+        daysSince: daysSinceOf(lastPracticed, now),
+        lastPracticed,
+        totalTime: 0,
+        priority: ann?.priority,
+        tags: ann?.tags ?? [],
+        note: ann?.note,
+      });
+    }
+  }
+
   return records;
+}
+
+/** Map Production lesson mastery to the shared Tier vocabulary used
+ *  across the catalogue. Completed/Mastered read as fluent/mastered
+ *  so they sort alongside other practised skills; in-progress reads
+ *  as developing; not-started is untouched. */
+function mapProductionMastery(m: ProductionLessonMastery): Tier {
+  switch (m) {
+    case 'mastered':    return 'mastered';
+    case 'completed':   return 'fluent';
+    case 'in-progress': return 'developing';
+    case 'not-started':
+    default:            return 'untouched';
+  }
 }
 
 function mapStageToTier(song: Song): Tier {

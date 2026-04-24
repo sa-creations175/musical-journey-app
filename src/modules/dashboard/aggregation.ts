@@ -6,6 +6,8 @@ import {
 } from '../../lib/goalConfig';
 import { FLASHCARDS } from '../harmonic-fluency/catalog';
 import { freshnessTier, aggregateCell } from '../shapes-and-patterns/drillModel';
+import { PRODUCTION_LESSONS } from '../production/content/lessons';
+import { GLOSSARY } from '../production/content/glossary';
 
 // Rolling-window size for tier calculations — matches what quiz modules use.
 const TIER_WINDOW = 20;
@@ -547,25 +549,57 @@ export async function musicianBalance(now: number = Date.now()): Promise<Musicia
 
 // --- Top-level combined snapshot -----------------------------------
 
+export interface ProductionSnapshot {
+  totalLessons: number;
+  completed: number;
+  inProgress: number;
+  glossaryGotIt: number;
+  glossaryTotal: number;
+}
+
 export interface DashboardData {
   earTraining: ModuleSnapshot[];
   harmonicFluency: HarmonicFluencySnapshot;
   shapes: ShapesSnapshot;
   repertoire: RepertoireSnapshot;
+  production: ProductionSnapshot;
   consistency: ConsistencyStats;
   balance: MusicianBalance;
 }
 
 export async function gatherDashboardData(): Promise<DashboardData> {
-  const [earTraining, harmonicFluency, shapes, repertoire, consistency, balance] = await Promise.all([
+  const [earTraining, harmonicFluency, shapes, repertoire, production, consistency, balance] = await Promise.all([
     snapshotEarTrainingModules(),
     snapshotHarmonicFluency(),
     snapshotShapesAndPatterns(),
     snapshotRepertoire(),
+    snapshotProduction(),
     consistencySnapshot(),
     musicianBalance(),
   ]);
-  return { earTraining, harmonicFluency, shapes, repertoire, consistency, balance };
+  return { earTraining, harmonicFluency, shapes, repertoire, production, consistency, balance };
+}
+
+async function snapshotProduction(): Promise<ProductionSnapshot> {
+  const [lessons, terms] = await Promise.all([
+    db.productionLessons.toArray(),
+    db.glossaryTermStates.toArray(),
+  ]);
+  const totalLessons = PRODUCTION_LESSONS.length;
+  let completed = 0;
+  let inProgress = 0;
+  for (const l of lessons) {
+    if (l.mastery === 'completed' || l.mastery === 'mastered') completed += 1;
+    else if (l.mastery === 'in-progress') inProgress += 1;
+  }
+  const glossaryGotIt = terms.filter(t => t.mastery === 'got-it').length;
+  return {
+    totalLessons,
+    completed,
+    inProgress,
+    glossaryGotIt,
+    glossaryTotal: GLOSSARY.length,
+  };
 }
 
 // --- Formatting helpers --------------------------------------------

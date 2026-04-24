@@ -10,6 +10,20 @@ export default {
         developing: '#EF9F27',
         needswork: '#E24B4A',
         info: '#378ADD',
+        // Production module accent (deep indigo) + variants used for
+        // hover, subtle backgrounds, dark-mode shifts. `DEFAULT` lets
+        // Tailwind resolve bare `production` as the base.
+        production: {
+          DEFAULT: '#3a4875',
+          50:  '#eef0f6',
+          100: '#d4d9e7',
+          200: '#aab4cf',
+          400: '#6b78a2',
+          500: '#3a4875',
+          600: '#303c62',
+          700: '#25304e',
+          800: '#1a2238',
+        },
         family: {
           major: { 50: '#ecfdf5', 500: '#10b981', 600: '#059669', 700: '#047857' },
           minor: { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },

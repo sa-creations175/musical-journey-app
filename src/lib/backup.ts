@@ -44,6 +44,10 @@ const TABLES = {
   creativeSessions: db.creativeSessions,
   skillAnnotations: db.skillAnnotations,
   harmonicDiaryEntries: db.harmonicDiaryEntries,
+  productionLessons: db.productionLessons,
+  productionLessonSessions: db.productionLessonSessions,
+  glossaryTermStates: db.glossaryTermStates,
+  referenceTracks: db.referenceTracks,
 } as const;
 
 type TableMap = typeof TABLES;

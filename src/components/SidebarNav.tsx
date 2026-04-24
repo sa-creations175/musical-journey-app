@@ -139,7 +139,21 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'want to learn',     to: '/repertoire?tab=want-to-learn' },
         ],
       },
-      { id: 'production', label: 'production & logic pro', to: '/production' },
+      {
+        id: 'production',
+        label: 'production & logic pro',
+        to: '/production',
+        children: [
+          { label: 'workflow foundations',     to: '/production?path=workflow-foundations' },
+          { label: 'the language of production',to: '/production?path=language-of-production' },
+          { label: 'vocal production',         to: '/production?path=vocal-production' },
+          { label: 'genre productions',        to: '/production?path=genre-productions' },
+          { label: 'arrangement',              to: '/production?path=arrangement' },
+          { label: 'the business of music',    to: '/production?path=business' },
+          { label: 'glossary',                 to: '/production?view=glossary' },
+          { label: 'reference track library',  to: '/production?view=reference-tracks' },
+        ],
+      },
     ],
   },
   {

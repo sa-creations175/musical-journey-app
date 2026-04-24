@@ -413,6 +413,90 @@ export interface CreativeSession {
   quickExploration?: boolean;
 }
 
+// --- Production & Logic Pro module (v12) ----------------------------
+//
+// The module teaches production via six paths (Phase 1 ships the
+// first three: Workflow Foundations, Language of Production, Vocal
+// Production). Each path holds a list of lessons. A lesson carries
+// surface + deep-dive content, a curated YouTube link, and a list
+// of glossary-term ids. The user's mastery + revisit history lives
+// alongside.
+//
+// Static content (lesson bodies, glossary definitions, starter
+// reference tracks) lives in the module's content files; the tables
+// here carry per-user state on top. A seed function migrates any
+// new content into the user's DB on mount (idempotent).
+
+/** Mastery state for a production lesson. */
+export type ProductionLessonMastery =
+  | 'not-started'
+  | 'in-progress'
+  | 'completed'
+  | 'mastered';
+
+export interface ProductionLesson {
+  /** Stable string id — e.g. 'wf-01' for the first Workflow lesson. */
+  id: string;
+  /** Path id — one of the six Production paths. */
+  pathId: string;
+  /** Ordering within the path. */
+  order: number;
+  /** User mastery state. Seeds as 'not-started'. */
+  mastery: ProductionLessonMastery;
+  /** Number of times the user has opened this lesson. */
+  revisitCount: number;
+  /** Timestamp of first completion, null until Mastered/Completed. */
+  completedAt: number | null;
+  /** Last time the user opened the lesson. */
+  lastOpenedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProductionLessonSession {
+  /** Generated uid. */
+  id: string;
+  lessonId: string;
+  timestamp: number;
+  /** Duration the user spent in this revisit (seconds). Optional —
+   *  the UI tracks this when the user closes the lesson. */
+  durationSeconds?: number;
+  /** Whether this visit opened the Deep Dive layer. */
+  openedDeepDive: boolean;
+}
+
+/** Per-user understanding state for a glossary term. */
+export type GlossaryMastery = 'not-yet' | 'got-it';
+
+export interface GlossaryTermState {
+  /** Term id (kebab-case). Matches the static content file. */
+  id: string;
+  mastery: GlossaryMastery;
+  /** Number of times the user has opened this term's overlay. */
+  openCount: number;
+  lastEncounteredAt: number | null;
+  /** Timestamp of first "Got it" click. */
+  gotItAt: number | null;
+}
+
+export interface ReferenceTrack {
+  id: string;
+  title: string;
+  artist: string;
+  genre: string;
+  /** Production-focused sonic notes — what to listen for. */
+  sonicNotes: string;
+  /** User-editable free-form tags (lowercase). */
+  tags: string[];
+  /** True when the track is a starter seeded by the app; false
+   *  when the user added it. Starter entries can still be edited /
+   *  archived but serve as onboarding material. */
+  isStarter: boolean;
+  archived: boolean;
+  addedAt: number;
+  updatedAt: number;
+}
+
 // --- Skills registry + Harmonic Diary (v11) -------------------------
 //
 // These two tables power the Skills Catalogue and Harmonic Diary
@@ -638,6 +722,10 @@ export class AppDB extends Dexie {
   creativeSessions!: Table<CreativeSession, string>;
   skillAnnotations!: Table<SkillAnnotation, string>;
   harmonicDiaryEntries!: Table<HarmonicDiaryEntry, string>;
+  productionLessons!: Table<ProductionLesson, string>;
+  productionLessonSessions!: Table<ProductionLessonSession, string>;
+  glossaryTermStates!: Table<GlossaryTermState, string>;
+  referenceTracks!: Table<ReferenceTrack, string>;
 
   constructor() {
     super('musical-journey');
@@ -825,6 +913,7 @@ export class AppDB extends Dexie {
       // time without scanning everything.
       creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
     });
+    // v11 — Skills Catalogue user annotations + Harmonic Diary.
     this.version(11).stores({
       intervals: 'id, name, semitones',
       chordQualities: 'id, name, tier, family',
@@ -857,6 +946,41 @@ export class AppDB extends Dexie {
       // lookup and legacySource so we can deduplicate across the
       // old per-module association tables on first migration.
       harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+    });
+    // v12 — Production & Logic Pro module. Per-user lesson + glossary
+    // state on top of static content files. Lesson session log
+    // tracks revisits for freshness heuristics.
+    this.version(12).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
     });
   }
 }
