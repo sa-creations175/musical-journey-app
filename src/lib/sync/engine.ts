@@ -1,0 +1,261 @@
+import { db, type SyncQueueItem } from '../db';
+import { supabase } from '../supabase';
+import {
+  SYNC_TABLES,
+  SYNC_TABLE_BY_DEXIE,
+  type SyncTableConfig,
+} from './tables';
+import { beginPull, endPull } from './pullLock';
+import { getCurrentUserId } from './currentUser';
+
+/**
+ * Translate a Dexie row into the Postgres row shape the sync layer
+ * upserts. The whole Dexie row lives in `data` (JSONB) so nothing is
+ * lost; the indexed top-level columns (`added_date`, `song_id`, etc.)
+ * are extracted per the table config.
+ */
+function toPgRow(cfg: SyncTableConfig, dexieRow: unknown, userId: string): Record<string, unknown> {
+  const row = dexieRow as Record<string, unknown>;
+  const id = row[cfg.idField];
+  if (typeof id !== 'string' || id === '') {
+    throw new Error(`[sync] missing id for ${cfg.dexie}: ${JSON.stringify(row)}`);
+  }
+  const pgRow: Record<string, unknown> = {
+    id,
+    user_id: userId,
+    data: row,
+  };
+  for (const col of cfg.topLevel) {
+    const val = row[col.dexie];
+    pgRow[col.pg] = val === undefined ? null : val;
+  }
+  return pgRow;
+}
+
+/** Pull every synced table for the current user and overwrite the
+ *  local Dexie state. Called on sign-in — this is the "one-shot
+ *  hydrate" that makes device B mirror device A before the user
+ *  interacts.
+ *
+ *  Paginates in batches of 1000 to stay under the Supabase default
+ *  row limit. Wraps the Dexie writes in `beginPull/endPull` so write
+ *  hooks skip enqueueing (otherwise we'd immediately echo everything
+ *  we just pulled back to the cloud). */
+export async function pullAll(): Promise<void> {
+  const userId = getCurrentUserId();
+  if (!userId) return;
+  beginPull();
+  try {
+    for (const cfg of SYNC_TABLES) {
+      await pullOneTable(cfg, userId);
+    }
+  } finally {
+    endPull();
+  }
+}
+
+async function pullOneTable(cfg: SyncTableConfig, userId: string): Promise<void> {
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from(cfg.pg)
+      .select('id, data, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.warn(`[sync] pull ${cfg.pg} failed`, error);
+      return;
+    }
+    if (!data || data.length === 0) return;
+
+    // The row payload lives in data; we restore it verbatim into the
+    // Dexie row. The primary-id field is on the payload already (we
+    // wrote it there on push) — no need to splice it back in.
+    const rows = (data as Array<{ data: Record<string, unknown> | null }>)
+      .map(r => r.data)
+      .filter((r): r is Record<string, unknown> => r !== null);
+    if (rows.length > 0) {
+      // bulkPut replaces local rows with the cloud version — last-
+      // write-wins with cloud as the winner for initial hydration.
+      await (db as unknown as Record<string, { bulkPut: (rows: unknown[]) => Promise<unknown> }>)[cfg.dexie].bulkPut(rows);
+    }
+    if (data.length < PAGE) return;
+    from += PAGE;
+  }
+}
+
+/**
+ * Enqueue a sync job. Called from the Dexie write hooks on every
+ * create/update/delete of a synced table. The queue survives page
+ * reloads, so writes made while offline persist until the drain loop
+ * succeeds.
+ */
+export async function enqueue(
+  tableName: string,
+  operation: 'upsert' | 'delete',
+  rowId: string,
+  rowData: unknown,
+): Promise<void> {
+  const item: SyncQueueItem = {
+    tableName,
+    operation,
+    rowId,
+    rowData: operation === 'upsert' ? rowData : undefined,
+    queuedAt: Date.now(),
+    attempts: 0,
+  };
+  try {
+    await db.syncQueue.add(item);
+  } catch (err) {
+    // Enqueue failure is unusual (would mean Dexie itself is broken).
+    // Log and move on — the local write already succeeded, so the
+    // user isn't blocked.
+    console.warn('[sync] enqueue failed', err);
+  }
+}
+
+/** Drain-loop state. Prevents overlapping drains which would double-
+ *  send the same queue entry. */
+let draining = false;
+
+/**
+ * Process pending queue entries. Best effort — if a write fails we
+ * leave it in the queue and try again next tick. Silent on success.
+ *
+ * Batches upserts by table for efficiency: all pending upserts to
+ * `songs` go in one call, etc. Deletes are issued one at a time
+ * (they're rare).
+ */
+export async function drain(): Promise<void> {
+  if (draining) return;
+  const userId = getCurrentUserId();
+  if (!userId) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  draining = true;
+  try {
+    while (true) {
+      const batch = await db.syncQueue.orderBy('id').limit(100).toArray();
+      if (batch.length === 0) return;
+
+      // Group upserts by table. Deletes are processed individually so
+      // they stay ordered relative to any upserts that precede them.
+      const upsertsByTable = new Map<string, SyncQueueItem[]>();
+      const sequential: SyncQueueItem[] = [];
+      for (const item of batch) {
+        if (item.operation === 'upsert' && upsertsByTable.has(item.tableName)) {
+          upsertsByTable.get(item.tableName)!.push(item);
+        } else if (item.operation === 'upsert') {
+          upsertsByTable.set(item.tableName, [item]);
+        } else {
+          sequential.push(item);
+        }
+      }
+
+      const processed: number[] = [];
+
+      // Bulk upserts, one call per table.
+      for (const [tableName, items] of upsertsByTable) {
+        const cfg = SYNC_TABLE_BY_DEXIE.get(tableName);
+        if (!cfg) {
+          // Drop unknown-table jobs so they don't clog the queue
+          // (e.g., Phase B table added, then removed).
+          for (const it of items) if (it.id != null) processed.push(it.id);
+          continue;
+        }
+        // Dedup by rowId inside this batch — if the same row got
+        // updated twice back-to-back, we only need the latest row
+        // shape. Iterate in order; later writes override earlier.
+        const latest = new Map<string, SyncQueueItem>();
+        for (const it of items) latest.set(it.rowId, it);
+        const rows = [...latest.values()]
+          .map(it => {
+            try {
+              return toPgRow(cfg, it.rowData, userId);
+            } catch (e) {
+              console.warn('[sync] toPgRow failed', e);
+              return null;
+            }
+          })
+          .filter((r): r is Record<string, unknown> => r !== null);
+        if (rows.length === 0) {
+          for (const it of items) if (it.id != null) processed.push(it.id);
+          continue;
+        }
+        const { error } = await supabase
+          .from(cfg.pg)
+          .upsert(rows, { onConflict: 'user_id,id' });
+        if (error) {
+          console.warn(`[sync] upsert ${cfg.pg} failed`, error.message);
+          // Leave the batch in place; bump attempts so repeated
+          // failures are visible.
+          for (const it of items) {
+            if (it.id != null) {
+              await db.syncQueue.update(it.id, {
+                attempts: (it.attempts ?? 0) + 1,
+                lastError: error.message,
+              });
+            }
+          }
+          // Stop draining this tick — we'll retry next online event.
+          return;
+        }
+        for (const it of items) if (it.id != null) processed.push(it.id);
+      }
+
+      // Sequential deletes.
+      for (const it of sequential) {
+        const cfg = SYNC_TABLE_BY_DEXIE.get(it.tableName);
+        if (!cfg) {
+          if (it.id != null) processed.push(it.id);
+          continue;
+        }
+        const { error } = await supabase
+          .from(cfg.pg)
+          .delete()
+          .eq('user_id', userId)
+          .eq('id', it.rowId);
+        if (error) {
+          console.warn(`[sync] delete ${cfg.pg} failed`, error.message);
+          if (it.id != null) {
+            await db.syncQueue.update(it.id, {
+              attempts: (it.attempts ?? 0) + 1,
+              lastError: error.message,
+            });
+          }
+          return;
+        }
+        if (it.id != null) processed.push(it.id);
+      }
+
+      if (processed.length > 0) {
+        await db.syncQueue.bulkDelete(processed);
+      }
+      if (batch.length < 100) return;
+    }
+  } finally {
+    draining = false;
+  }
+}
+
+/**
+ * Wipe every synced Dexie table AND the sync queue. Used when the
+ * user signs out, so the next person signing in on the same browser
+ * doesn't see the previous account's cached data.
+ *
+ * Runs with beginPull/endPull so hooks don't enqueue teardown writes
+ * (they'd be stale by the time the drain runs anyway).
+ */
+export async function clearLocalCache(): Promise<void> {
+  beginPull();
+  try {
+    for (const cfg of SYNC_TABLES) {
+      const table = (db as unknown as Record<string, { clear: () => Promise<void> }>)[cfg.dexie];
+      if (table) await table.clear();
+    }
+    await db.syncQueue.clear();
+  } finally {
+    endPull();
+  }
+}

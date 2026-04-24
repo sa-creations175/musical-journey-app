@@ -733,6 +733,28 @@ export interface FlashcardState {
   isFlagged?: boolean;
 }
 
+/**
+ * Offline-first sync queue. Dexie write hooks push an entry here on
+ * every create/update/delete of a synced table; a background drain loop
+ * pops entries and sends them to Supabase. Survives page reloads, so
+ * writes made offline are sent as soon as the browser comes back online.
+ *
+ * `tableName` is the Dexie table name (camelCase, e.g. "referenceTracks");
+ * the sync engine maps it to the snake_case Postgres table.
+ */
+export interface SyncQueueItem {
+  /** Auto-increment so FIFO ordering is preserved. */
+  id?: number;
+  tableName: string;
+  operation: 'upsert' | 'delete';
+  rowId: string;
+  /** Full Dexie row for upserts; undefined for deletes. */
+  rowData?: unknown;
+  queuedAt: number;
+  attempts: number;
+  lastError?: string;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -765,6 +787,7 @@ export class AppDB extends Dexie {
   glossaryTermStates!: Table<GlossaryTermState, string>;
   referenceTracks!: Table<ReferenceTrack, string>;
   lessonReferenceTracks!: Table<LessonReferenceTrack, string>;
+  syncQueue!: Table<SyncQueueItem, number>;
 
   constructor() {
     super('musical-journey');
@@ -1072,6 +1095,8 @@ export class AppDB extends Dexie {
         }
       });
     });
+    // v15 adds the offline sync queue; see below. No schema changes
+    // to existing tables — v14 remains the authoritative shape.
     // v14 — User-curated per-lesson reference track associations.
     // Replaces the content-authored `referenceTracks: [...]` arrays on
     // lessons. Indexed by lessonId and trackId separately (both sides
@@ -1109,6 +1134,44 @@ export class AppDB extends Dexie {
       glossaryTermStates: 'id, mastery, lastEncounteredAt',
       referenceTracks: 'id, artist, genre, archived, addedAt',
       lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+    });
+    // v15 — Offline sync queue. Dexie write hooks push jobs here;
+    // the sync engine drains them to Supabase when online. Auto-
+    // incrementing id for FIFO ordering; indexed by tableName +
+    // queuedAt so the drain loop can batch by table.
+    this.version(15).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
     });
   }
 }

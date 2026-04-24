@@ -24,11 +24,13 @@ import { InstrumentProvider } from './lib/instrumentContext';
 import { Toaster } from './components/Toaster';
 import { AuthProvider } from './lib/auth/AuthContext';
 import AuthGate from './lib/auth/AuthGate';
+import { SyncProvider } from './lib/sync/SyncContext';
 
 export default function App() {
   return (
     <AuthProvider>
     <AuthGate>
+    <SyncProvider>
     <InstrumentProvider>
       <Toaster>
       <BrowserRouter>
@@ -58,6 +60,7 @@ export default function App() {
       </BrowserRouter>
       </Toaster>
     </InstrumentProvider>
+    </SyncProvider>
     </AuthGate>
     </AuthProvider>
   );
