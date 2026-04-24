@@ -10,15 +10,17 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
+import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
 
 /** Flag set after the first time starter reference tracks are seeded.
  *  Once true we never re-seed, so the user's curation (deletes,
  *  archives, additions) is preserved across future builds. */
 const PREF_REF_TRACKS_SEEDED = 'production.referenceTracks.seededAt';
-/** Flag set after the v1→v2 guided-listening rewrite has run for
- *  starter tracks. Ensures each user gets the content refresh exactly
- *  once, and only for starters whose text the user hasn't touched. */
-const PREF_REF_TRACKS_V2_REFRESHED = 'production.referenceTracks.v2RefreshedAt';
+/** Flag set after the most recent starter-content refresh pass has
+ *  run. Bumped when the content/link format changes so users who
+ *  already ran an earlier pass still receive the new backfill. Only
+ *  updates starters the user hasn't edited. */
+const PREF_REF_TRACKS_REFRESHED = 'production.referenceTracks.v3RefreshedAt';
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
@@ -75,25 +77,35 @@ export async function seedProductionIfNeeded(): Promise<void> {
     }));
 
   // --- Reference tracks: seed ONCE only ---
+  // Seeding rules:
+  //   * First-time user (no existing tracks in DB) → seed all starters.
+  //   * Existing user (tracks already in DB) → DON'T seed, just set the
+  //     flag so we never seed on any future load. Respects deletes and
+  //     additions the user has already made.
+  // Both paths record the seededAt timestamp, making this a one-way
+  // gate the user's library is safe from thereafter.
   const seededAt = await getPref<number>(PREF_REF_TRACKS_SEEDED, 0);
   let refRows: ReferenceTrack[] = [];
   if (seededAt === 0) {
-    refRows = REFERENCE_TRACKS.map(t => ({
-      id: t.id,
-      title: t.title,
-      artist: t.artist,
-      genre: t.genre,
-      whatToListenFor: t.whatToListenFor,
-      myListeningNotes: '',
-      spotifyLink: t.spotifyLink,
-      youtubeLink: t.youtubeLink,
-      tags: [...t.tags],
-      isStarter: true,
-      source: 'starter' as const,
-      archived: false,
-      addedAt: now,
-      updatedAt: now,
-    }));
+    const existingCount = await db.referenceTracks.count();
+    if (existingCount === 0) {
+      refRows = REFERENCE_TRACKS.map(t => ({
+        id: t.id,
+        title: t.title,
+        artist: t.artist,
+        genre: t.genre,
+        whatToListenFor: t.whatToListenFor,
+        myListeningNotes: '',
+        spotifyLink: t.spotifyLink ?? buildSpotifySearchLink(t.title, t.artist),
+        youtubeLink: t.youtubeLink ?? buildYouTubeProducerLink(t.artist),
+        tags: [...t.tags],
+        isStarter: true,
+        source: 'starter' as const,
+        archived: false,
+        addedAt: now,
+        updatedAt: now,
+      }));
+    }
   }
 
   await db.transaction(
@@ -113,10 +125,10 @@ export async function seedProductionIfNeeded(): Promise<void> {
   // original legacy sonic-notes text, we replace it with the new
   // guided-listening prose from the content file. If the text has
   // diverged at all, the user has edited it — we leave it alone.
-  const refreshedAt = await getPref<number>(PREF_REF_TRACKS_V2_REFRESHED, 0);
+  const refreshedAt = await getPref<number>(PREF_REF_TRACKS_REFRESHED, 0);
   if (refreshedAt === 0) {
     await refreshStarterListeningPrompts();
-    await setPref(PREF_REF_TRACKS_V2_REFRESHED, Date.now());
+    await setPref(PREF_REF_TRACKS_REFRESHED, Date.now());
   }
 }
 
@@ -131,19 +143,34 @@ async function refreshStarterListeningPrompts(): Promise<void> {
     if (!content) continue;
     const legacy = STARTER_LEGACY_SONIC_NOTES[row.id];
     // Treat a row as "unedited" when its current listening text is
-    // either the legacy fake-tech prose OR already the new guided
+    // either the legacy fake-tech prose OR already the new guided-
     // listening prose (second app-level refresh / restored backup).
     const current = row.whatToListenFor ?? row.sonicNotes ?? '';
     const isLegacy = legacy !== undefined && current.trim() === legacy.trim();
     const isAlreadyNew = current.trim() === content.whatToListenFor.trim();
-    if (!isLegacy && !isAlreadyNew) continue; // user-edited — skip
-    const updates: Partial<ReferenceTrack> = {
-      whatToListenFor: content.whatToListenFor,
-      source: 'starter',
-      updatedAt: now,
-    };
-    if (!row.spotifyLink && content.spotifyLink) updates.spotifyLink = content.spotifyLink;
-    if (!row.youtubeLink && content.youtubeLink) updates.youtubeLink = content.youtubeLink;
+    const contentUnedited = isLegacy || isAlreadyNew;
+
+    // Canonical search links — every starter should carry them, even
+    // when the user has edited the listening prose. A link format
+    // migration isn't destructive, it just refreshes the URL.
+    const canonicalSpotify = buildSpotifySearchLink(content.title, content.artist);
+    const canonicalYouTube = buildYouTubeProducerLink(content.artist);
+
+    const updates: Partial<ReferenceTrack> = {};
+    if (contentUnedited && row.whatToListenFor !== content.whatToListenFor) {
+      updates.whatToListenFor = content.whatToListenFor;
+    }
+    if (contentUnedited && row.source !== 'starter') {
+      updates.source = 'starter';
+    }
+    if (!row.spotifyLink || row.spotifyLink.trim() === '') {
+      updates.spotifyLink = canonicalSpotify;
+    }
+    if (!row.youtubeLink || row.youtubeLink.trim() === '') {
+      updates.youtubeLink = canonicalYouTube;
+    }
+    if (Object.keys(updates).length === 0) continue;
+    updates.updatedAt = now;
     patches.push({ id: row.id, updates });
   }
   if (patches.length === 0) return;
@@ -254,10 +281,22 @@ export async function addReferenceTrack(
   },
 ): Promise<ReferenceTrack> {
   const now = Date.now();
+  // Always ensure both search links are present. UI layers may also
+  // compute these, but having the data layer backstop it means any
+  // caller (including future importers) produces consistently-linked
+  // rows without special-casing.
+  const spotifyLink = input.spotifyLink && input.spotifyLink.trim() !== ''
+    ? input.spotifyLink
+    : buildSpotifySearchLink(input.title, input.artist);
+  const youtubeLink = input.youtubeLink && input.youtubeLink.trim() !== ''
+    ? input.youtubeLink
+    : buildYouTubeProducerLink(input.artist);
   const row: ReferenceTrack = {
     id: uid('ref'),
     source: 'user',
     ...input,
+    spotifyLink,
+    youtubeLink,
     isStarter: false,
     archived: false,
     addedAt: now,

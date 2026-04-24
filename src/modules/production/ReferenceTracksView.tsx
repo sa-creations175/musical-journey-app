@@ -10,6 +10,7 @@ import {
   getApiKey,
   type GeneratedTrack,
 } from '../../lib/claudeClient';
+import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
 import {
   addReferenceTrack,
   archiveReferenceTrack,
@@ -19,11 +20,18 @@ import {
 
 type Filter = 'active' | 'archived';
 
+const EXAMPLE_PROMPTS = [
+  '90s R&B ballads produced by Babyface',
+  'Modern indie R&B in the H.E.R. vein',
+  'Classic gospel choir arrangements',
+  'Lo-fi hip-hop with jazz influence',
+];
+
 /**
- * Reference Track Library view. A producer's running notebook of
- * songs to study — each with guided-listening prompts, personal
- * notes, and optional Spotify / YouTube links. Two ways to add:
- * manual entry or Claude-powered generation from a genre prompt.
+ * Reference Track Library view. Two add paths sit at the top:
+ * manual entry and a Claude-powered "generate by style" curator
+ * flow. Both produce tracks with consistent Spotify / YouTube
+ * search links derived from title + artist.
  */
 export default function ReferenceTracksView() {
   const { toast } = useToast();
@@ -73,7 +81,7 @@ export default function ReferenceTracksView() {
     const snapshot: ReferenceTrack = { ...track, tags: [...track.tags] };
     await deleteReferenceTrack(track.id);
     toast({
-      message: `Track removed.`,
+      message: 'Track removed.',
       variant: 'warning',
       action: {
         label: 'Undo',
@@ -84,7 +92,7 @@ export default function ReferenceTracksView() {
   };
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-5 max-w-4xl">
       <header className="space-y-1">
         <h1 className="text-2xl font-medium tracking-tight">Reference Track Library</h1>
         <p className="text-sm text-neutral-500">
@@ -92,20 +100,27 @@ export default function ReferenceTracksView() {
         </p>
       </header>
 
-      {/* Primary actions */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setAdding(true)}
-          className="px-4 py-2 rounded-md bg-production text-white text-sm font-medium hover:opacity-90 shadow-sm"
-        >
-          + Add Track
-        </button>
-        <button
-          onClick={() => setGenerating(true)}
-          className="px-4 py-2 rounded-md border border-production text-production text-sm font-medium hover:bg-production/5"
-        >
-          + Generate Tracks from Genre
-        </button>
+      {/* Primary actions — intentionally oversized so the "+ Add Track"
+          and "+ Generate Tracks" entry points are the first thing you
+          see on the page, not hidden in a toolbar. */}
+      <div className="rounded-card border border-production/30 bg-production/5 p-3 sm:p-4">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <button
+            onClick={() => setAdding(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 shadow-sm"
+          >
+            <span aria-hidden>＋</span> Add Track
+          </button>
+          <button
+            onClick={() => setGenerating(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md border-2 border-production text-production text-sm font-semibold hover:bg-production/10"
+          >
+            <span aria-hidden>＋</span> Generate Tracks
+          </button>
+          <span className="text-[11px] text-neutral-500 ml-1 flex-1 min-w-[140px]">
+            manually enter a track, or let Claude suggest tracks by genre / style for you to curate.
+          </span>
+        </div>
       </div>
 
       {/* Filters */}
@@ -133,7 +148,6 @@ export default function ReferenceTracksView() {
         </div>
       </div>
 
-      {/* Tag filter */}
       {allTags.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-[10px] uppercase tracking-wide text-neutral-500 pr-1">tags</span>
@@ -163,7 +177,6 @@ export default function ReferenceTracksView() {
         </div>
       )}
 
-      {/* List */}
       {rows.length === 0 ? (
         <div className="py-10 text-center text-sm text-neutral-500 italic">
           {filter === 'archived'
@@ -188,7 +201,7 @@ export default function ReferenceTracksView() {
 
       {(adding || editing !== null) && (
         <TrackEditorModal
-          key={editing?.id ?? 'new'}
+          key={editing?.id ?? 'new-track'}
           existing={editing ?? undefined}
           genres={allGenres}
           onClose={() => { setEditing(null); setAdding(false); }}
@@ -196,9 +209,7 @@ export default function ReferenceTracksView() {
       )}
 
       {generating && (
-        <GenerateTracksModal
-          onClose={() => setGenerating(false)}
-        />
+        <GenerateTracksModal onClose={() => setGenerating(false)} />
       )}
 
       <ConfirmDialog
@@ -241,39 +252,37 @@ function TrackRow({ track, onEdit, onArchive, onDelete }: RowProps) {
           </div>
           <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2 flex-wrap">
             <span>{track.genre}</span>
-            {track.source === 'starter' || track.isStarter ? (
+            {track.source === 'starter' || (track.isStarter && !track.source) ? (
               <span className="text-[10px] uppercase tracking-wide text-production/70">starter</span>
             ) : track.source === 'generated' ? (
               <span className="text-[10px] uppercase tracking-wide text-production/70">generated</span>
             ) : null}
-            {(track.spotifyLink || track.youtubeLink) && (
-              <span className="inline-flex items-center gap-1.5">
-                {track.spotifyLink && (
-                  <a
-                    href={track.spotifyLink}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    aria-label="open in Spotify"
-                    title="Spotify"
-                    className="text-neutral-400 hover:text-[#1db954]"
-                  >
-                    <SpotifyIcon />
-                  </a>
-                )}
-                {track.youtubeLink && (
-                  <a
-                    href={track.youtubeLink}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    aria-label="open on YouTube"
-                    title="YouTube"
-                    className="text-neutral-400 hover:text-[#ff0000]"
-                  >
-                    <YouTubeIcon />
-                  </a>
-                )}
-              </span>
-            )}
+            <span className="inline-flex items-center gap-1.5">
+              {track.spotifyLink && (
+                <a
+                  href={track.spotifyLink}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={`search Spotify for ${track.title}`}
+                  title="Spotify"
+                  className="text-neutral-400 hover:text-[#1db954]"
+                >
+                  <SpotifyIcon />
+                </a>
+              )}
+              {track.youtubeLink && (
+                <a
+                  href={track.youtubeLink}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={`YouTube tutorials for ${track.artist}`}
+                  title="YouTube"
+                  className="text-neutral-400 hover:text-[#ff0000]"
+                >
+                  <YouTubeIcon />
+                </a>
+              )}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -337,6 +346,12 @@ interface EditorProps {
   onClose: () => void;
 }
 
+/**
+ * Track editor. Spotify / YouTube links auto-derive from title +
+ * artist (spec: "auto-generated as search link based on title +
+ * artist"). The preview updates live; users who want a specific URL
+ * can toggle "customise links" to type their own.
+ */
 function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
   const { toast } = useToast();
 
@@ -347,10 +362,16 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
     existing?.whatToListenFor ?? existing?.sonicNotes ?? '',
   );
   const [myListeningNotes, setMyListeningNotes] = useState(existing?.myListeningNotes ?? '');
+  const [tags, setTags] = useState<string[]>(existing ? [...existing.tags] : []);
+  const [customiseLinks, setCustomiseLinks] = useState(
+    Boolean(existing?.spotifyLink || existing?.youtubeLink),
+  );
   const [spotifyLink, setSpotifyLink] = useState(existing?.spotifyLink ?? '');
   const [youtubeLink, setYoutubeLink] = useState(existing?.youtubeLink ?? '');
-  const [tags, setTags] = useState<string[]>(existing ? [...existing.tags] : []);
   const [saving, setSaving] = useState(false);
+
+  const derivedSpotify = title && artist ? buildSpotifySearchLink(title, artist) : '';
+  const derivedYouTube = artist ? buildYouTubeProducerLink(artist) : '';
 
   const save = async () => {
     if (saving) return;
@@ -360,6 +381,13 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
     }
     setSaving(true);
     try {
+      const finalSpotify = customiseLinks && spotifyLink.trim()
+        ? spotifyLink.trim()
+        : buildSpotifySearchLink(title, artist);
+      const finalYouTube = customiseLinks && youtubeLink.trim()
+        ? youtubeLink.trim()
+        : buildYouTubeProducerLink(artist);
+
       if (existing) {
         await updateReferenceTrack(existing.id, {
           title: title.trim(),
@@ -367,8 +395,8 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
           genre: genre.trim(),
           whatToListenFor: whatToListenFor.trim(),
           myListeningNotes: myListeningNotes.trim(),
-          spotifyLink: spotifyLink.trim() || undefined,
-          youtubeLink: youtubeLink.trim() || undefined,
+          spotifyLink: finalSpotify,
+          youtubeLink: finalYouTube,
           tags,
         });
         toast({ message: 'Track updated.', variant: 'success', duration: 1400 });
@@ -379,8 +407,8 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
           genre: genre.trim(),
           whatToListenFor: whatToListenFor.trim(),
           myListeningNotes: myListeningNotes.trim(),
-          spotifyLink: spotifyLink.trim() || undefined,
-          youtubeLink: youtubeLink.trim() || undefined,
+          spotifyLink: finalSpotify,
+          youtubeLink: finalYouTube,
           tags,
           source: 'user',
         });
@@ -397,7 +425,7 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
       open
       onClose={onClose}
       title={existing ? 'Edit reference track' : 'Add reference track'}
-      description={existing ? 'update notes, genre, or tags' : 'a new song to study'}
+      description={existing ? 'update notes, genre, tags, or links' : 'a new song to study'}
       footer={(
         <div className="flex items-center justify-end gap-2">
           <button
@@ -449,43 +477,62 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
             value={whatToListenFor}
             onChange={e => setWhatToListenFor(e.target.value)}
             rows={5}
-            placeholder="Guided listening. What should a producer notice? Balance, space, arrangement contrast, how voices blend. Avoid guessing at specific gear or ratios."
+            placeholder="Guided listening in your own words. What should a producer notice? Balance, space, arrangement contrast, how voices blend. Avoid guessing at specific gear or ratios."
             className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm leading-relaxed"
           />
         </Field>
-        <Field label="my listening notes">
-          <textarea
-            value={myListeningNotes}
-            onChange={e => setMyListeningNotes(e.target.value)}
-            rows={4}
-            placeholder="Your own observations. Grows over time as you listen while studying specific lessons."
-            className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm leading-relaxed"
-          />
-        </Field>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <Field label="spotify link">
-            <input
-              value={spotifyLink}
-              onChange={e => setSpotifyLink(e.target.value)}
-              placeholder="https://open.spotify.com/…"
-              className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+        {existing && (
+          <Field label="my listening notes">
+            <textarea
+              value={myListeningNotes}
+              onChange={e => setMyListeningNotes(e.target.value)}
+              rows={4}
+              placeholder="Your own observations. Grows over time as you listen while studying specific lessons."
+              className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm leading-relaxed"
             />
           </Field>
-          <Field label="youtube link">
-            <input
-              value={youtubeLink}
-              onChange={e => setYoutubeLink(e.target.value)}
-              placeholder="https://www.youtube.com/…"
-              className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
-            />
-          </Field>
-        </div>
+        )}
         <Field label="tags">
-          <TagChipEditor
-            tags={tags}
-            onChange={setTags}
-          />
+          <TagChipEditor tags={tags} onChange={setTags} />
         </Field>
+        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 p-2.5 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-neutral-500">links (auto)</span>
+            <label className="text-[10px] text-neutral-500 inline-flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={customiseLinks}
+                onChange={e => setCustomiseLinks(e.target.checked)}
+              />
+              customise
+            </label>
+          </div>
+          {customiseLinks ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                value={spotifyLink}
+                onChange={e => setSpotifyLink(e.target.value)}
+                placeholder={derivedSpotify || 'https://open.spotify.com/…'}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
+              />
+              <input
+                value={youtubeLink}
+                onChange={e => setYoutubeLink(e.target.value)}
+                placeholder={derivedYouTube || 'https://www.youtube.com/…'}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
+              />
+            </div>
+          ) : (
+            <div className="text-[11px] text-neutral-500 space-y-0.5">
+              <div className="truncate">
+                spotify: <span className="font-mono text-neutral-600 dark:text-neutral-300">{derivedSpotify || '—'}</span>
+              </div>
+              <div className="truncate">
+                youtube: <span className="font-mono text-neutral-600 dark:text-neutral-300">{derivedYouTube || '—'}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );
@@ -494,23 +541,36 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
 // -------------------------------------------------------------------
 
 /**
- * Editable list of tag chips + a typeahead picker for adding more.
- * Kept as its own component so remove-by-index is a pure local
- * operation — the X button's onClick captures the chip's index via
- * a stable closure, eliminating the earlier "clicking X removes
- * multiple tags" bug caused by matching on tag-value equality.
+ * Editable list of tag chips + typeahead picker. Removal is
+ * bulletproofed against three earlier failure modes:
+ *
+ *   1. Filter-by-value with non-unique values → deleted duplicates.
+ *      Fix: remove by INDEX using slice+splice.
+ *   2. Stale state closures across batched clicks → removed the
+ *      wrong tag. Fix: pass a functional updater through the
+ *      `onChange` prop; the parent uses its own functional setter.
+ *   3. Event bubbling to parent handlers. Fix: stopPropagation +
+ *      preventDefault on the remove button plus `type="button"` so
+ *      the click can't ever submit an enclosing form.
+ *
+ * Keys include the index so React keeps chip identity stable even
+ * if the same tag value somehow appears twice.
  */
 function TagChipEditor({
   tags,
   onChange,
 }: {
   tags: string[];
-  onChange: (next: string[]) => void;
+  onChange: (next: string[] | ((prev: string[]) => string[])) => void;
 }) {
   const removeAt = (idx: number) => {
-    const next = tags.slice();
-    next.splice(idx, 1);
-    onChange(next);
+    // Functional updater so rapid clicks compose against the latest
+    // state rather than a captured snapshot. Each click removes
+    // exactly one chip at the given index.
+    onChange(prev => {
+      if (idx < 0 || idx >= prev.length) return prev;
+      return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+    });
   };
   return (
     <div className="space-y-2">
@@ -518,18 +578,20 @@ function TagChipEditor({
         <div className="flex flex-wrap gap-1">
           {tags.map((tag, idx) => (
             <span
-              key={`${tag}-${idx}`}
+              key={`tag-${idx}-${tag}`}
               className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border border-production/30 text-production/80 bg-production/5"
             >
-              {tag}
+              <span>{tag}</span>
               <button
                 type="button"
                 onClick={e => {
+                  e.preventDefault();
                   e.stopPropagation();
                   removeAt(idx);
                 }}
                 aria-label={`remove ${tag}`}
-                className="text-production/60 hover:text-needswork leading-none"
+                title={`remove ${tag}`}
+                className="text-production/60 hover:text-needswork leading-none px-0.5"
               >
                 ×
               </button>
@@ -539,7 +601,7 @@ function TagChipEditor({
       )}
       <TagPicker
         existing={tags}
-        onAdd={tag => { if (!tags.includes(tag)) onChange([...tags, tag]); }}
+        onAdd={tag => onChange(prev => (prev.includes(tag) ? prev : [...prev, tag]))}
         placeholder="search existing tags or type a new one…"
       />
     </div>
@@ -558,10 +620,15 @@ interface PreviewTrack extends GeneratedTrack {
 }
 
 /**
- * "Generate tracks from genre" flow. Takes a free-form style prompt,
- * calls Claude, shows each suggestion with a checkbox + editable
- * fields, then adds the selected set to the library tagged as
- * `source: 'generated'` for provenance.
+ * Generate-tracks curator flow:
+ *   1. User enters a style prompt (examples one-click available).
+ *   2. App calls Claude, receives 3–5 candidate tracks.
+ *   3. Each candidate renders as a reviewable card with a checkbox
+ *      and every field editable inline.
+ *   4. "Add Selected Tracks" persists only the checked ones; the
+ *      rest are discarded. Search links auto-derive from the final
+ *      title + artist so the curator can adjust either field before
+ *      saving.
  */
 function GenerateTracksModal({ onClose }: GenerateProps) {
   const { toast } = useToast();
@@ -571,20 +638,13 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
   const [preview, setPreview] = useState<PreviewTrack[] | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const EXAMPLES = [
-    '90s R&B ballads produced by Babyface',
-    'Modern indie R&B in the H.E.R. vein',
-    'Classic gospel choir arrangements',
-    'Dilla-era soulful hip-hop',
-  ];
-
   const generate = async () => {
     setError(null);
     setLoading(true);
     try {
       const key = await getApiKey();
       if (!key) {
-        setError('No Anthropic API key configured. Open Settings → API key to add one.');
+        setError('No Anthropic API key configured. Open Settings → Anthropic API key to add one.');
         setLoading(false);
         return;
       }
@@ -592,7 +652,7 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
       setPreview(
         result.tracks.map(t => ({
           ...t,
-          uid: `gen-${Math.random().toString(36).slice(2, 8)}`,
+          uid: `gen-${Math.random().toString(36).slice(2, 10)}`,
           selected: true,
         })),
       );
@@ -607,8 +667,11 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
     setPreview(prev => prev?.map(p => (p.uid === uid ? { ...p, ...patch } : p)) ?? prev);
   };
 
+  const selectedCount = preview?.filter(p => p.selected).length ?? 0;
+  const canSave = selectedCount > 0;
+
   const saveSelected = async () => {
-    if (!preview) return;
+    if (!preview || saving) return;
     const chosen = preview.filter(p => p.selected);
     if (chosen.length === 0) {
       toast({ message: 'Select at least one track to add.', variant: 'warning', duration: 1600 });
@@ -623,8 +686,9 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
           genre: t.genre.trim(),
           whatToListenFor: t.whatToListenFor.trim(),
           myListeningNotes: '',
-          spotifyLink: t.spotifyLink?.trim() || undefined,
-          youtubeLink: t.youtubeLink?.trim() || undefined,
+          // Links are derived inside addReferenceTrack from the
+          // final title + artist, so the curator-edited values are
+          // what gets linked — no stale links from the generation.
           tags: t.tags.map(x => x.trim()).filter(Boolean),
           source: 'generated',
         });
@@ -642,35 +706,37 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
     }
   };
 
-  const canSave = preview?.some(p => p.selected) ?? false;
-
   return (
     <Modal
       open
       onClose={onClose}
-      title="Generate tracks from genre"
-      description="describe the genre, era, or style you want tracks for"
+      title={preview ? 'Review generated tracks' : 'Generate tracks from genre'}
+      description={
+        preview
+          ? `${selectedCount} of ${preview.length} selected`
+          : 'describe the genre, era, or style you want tracks for'
+      }
       footer={(
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            {preview ? 'Close' : 'Cancel'}
+            {preview ? 'Discard' : 'Cancel'}
           </button>
           {preview ? (
             <button
               onClick={saveSelected}
               disabled={!canSave || saving}
-              className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-medium hover:opacity-90 disabled:opacity-60"
+              className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
             >
-              {saving ? 'Saving…' : `Add selected`}
+              {saving ? 'Saving…' : `Add Selected Tracks${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
             </button>
           ) : (
             <button
               onClick={generate}
               disabled={loading || prompt.trim() === ''}
-              className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-medium hover:opacity-90 disabled:opacity-60"
+              className="px-4 py-1.5 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
             >
               {loading ? 'Generating…' : 'Generate'}
             </button>
@@ -690,7 +756,7 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
           />
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[10px] uppercase tracking-wide text-neutral-500 self-center pr-1">try:</span>
-            {EXAMPLES.map(ex => (
+            {EXAMPLE_PROMPTS.map(ex => (
               <button
                 key={ex}
                 onClick={() => setPrompt(ex)}
@@ -706,13 +772,13 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
             </div>
           )}
           <p className="text-[11px] text-neutral-500 italic">
-            Generates 3–5 real songs with guided-listening prompts — real-listening pointers, not invented technical analysis. You'll get to edit or deselect each one before saving.
+            Claude generates 3–5 tracks with guided-listening notes. Review, check the ones you want, then click "Add Selected Tracks" to save.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-neutral-500">
-            Review each suggestion. Uncheck tracks you don't want, edit fields inline, then add the selected ones.
+            Check the tracks you want to keep. Uncheck any you don't. Edit any field inline — your changes save with the track.
           </p>
           {preview.map(p => (
             <div
@@ -720,68 +786,69 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
               className={`rounded-card border p-3 space-y-2 ${
                 p.selected
                   ? 'border-production/40 bg-production/5'
-                  : 'border-neutral-200 dark:border-neutral-800 opacity-70'
+                  : 'border-neutral-200 dark:border-neutral-800 opacity-60'
               }`}
             >
-              <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={p.selected}
                   onChange={e => patchPreview(p.uid, { selected: e.target.checked })}
-                  className="shrink-0"
+                  className="shrink-0 w-4 h-4"
                 />
-                <input
-                  value={p.title}
-                  onChange={e => patchPreview(p.uid, { title: e.target.value })}
-                  className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm font-medium"
-                />
+                <span className="text-xs font-medium text-production">Add to library</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-2">
+                <LabeledInline label="title">
+                  <input
+                    value={p.title}
+                    onChange={e => patchPreview(p.uid, { title: e.target.value })}
+                    className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm font-medium"
+                  />
+                </LabeledInline>
+                <LabeledInline label="artist">
+                  <input
+                    value={p.artist}
+                    onChange={e => patchPreview(p.uid, { artist: e.target.value })}
+                    className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
+                  />
+                </LabeledInline>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-6">
-                <input
-                  value={p.artist}
-                  onChange={e => patchPreview(p.uid, { artist: e.target.value })}
-                  placeholder="artist"
-                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
-                />
+              <LabeledInline label="genre">
                 <input
                   value={p.genre}
                   onChange={e => patchPreview(p.uid, { genre: e.target.value })}
-                  placeholder="genre"
-                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
+                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
                 />
-              </div>
-              <textarea
-                value={p.whatToListenFor}
-                onChange={e => patchPreview(p.uid, { whatToListenFor: e.target.value })}
-                rows={4}
-                className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm leading-relaxed ml-6 max-w-[calc(100%-1.5rem)]"
-              />
-              <div className="pl-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  value={p.spotifyLink ?? ''}
-                  onChange={e => patchPreview(p.uid, { spotifyLink: e.target.value })}
-                  placeholder="spotify link"
-                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
+              </LabeledInline>
+              <LabeledInline label="what to listen for">
+                <textarea
+                  value={p.whatToListenFor}
+                  onChange={e => patchPreview(p.uid, { whatToListenFor: e.target.value })}
+                  rows={4}
+                  className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm leading-relaxed"
                 />
-                <input
-                  value={p.youtubeLink ?? ''}
-                  onChange={e => patchPreview(p.uid, { youtubeLink: e.target.value })}
-                  placeholder="youtube link"
-                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
-                />
-              </div>
+              </LabeledInline>
               {p.tags.length > 0 && (
-                <div className="pl-6 flex flex-wrap gap-1">
-                  {p.tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="text-[10px] px-1.5 py-0.5 rounded-full border border-production/30 text-production/80"
-                    >
-                      {tag}
-                    </span>
-                  ))}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">tags (suggested)</div>
+                  <div className="flex flex-wrap gap-1">
+                    {p.tags.map(tag => (
+                      <span
+                        key={tag}
+                        className="text-[10px] px-1.5 py-0.5 rounded-full border border-production/30 text-production/80"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
+              <div className="text-[10px] text-neutral-500 truncate pt-1">
+                links auto: <a href={buildSpotifySearchLink(p.title, p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">spotify</a>
+                {' · '}
+                <a href={buildYouTubeProducerLink(p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">youtube</a>
+              </div>
             </div>
           ))}
         </div>
@@ -793,6 +860,15 @@ function GenerateTracksModal({ onClose }: GenerateProps) {
 // -------------------------------------------------------------------
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function LabeledInline({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="block text-[10px] uppercase tracking-wide text-neutral-500 mb-0.5">{label}</span>

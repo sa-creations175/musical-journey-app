@@ -25,17 +25,15 @@ export interface GeneratedTrack {
   genre: string;
   whatToListenFor: string;
   tags: string[];
-  spotifyLink?: string;
-  youtubeLink?: string;
 }
 
 export interface GenerationResult {
   tracks: GeneratedTrack[];
 }
 
-const SYSTEM_PROMPT = `You are helping a producer build their reference track library. Given a short description of a genre, era, or style, suggest 4 real, well-known songs that match.
+const SYSTEM_PROMPT = `You are helping a producer build their reference track library. Given a short description of a genre, era, or style, suggest 3 to 5 real, well-known songs that match.
 
-For each track, produce a "what to listen for" guide — GUIDED LISTENING, not fabricated technical analysis. Never invent specific plugins, ratios, decay times, or gear choices; you cannot know them. Instead point the listener at things they can actually perceive:
+For each track, produce a "what to listen for" guide — GUIDED LISTENING in a producer's voice, not fabricated technical analysis. Never invent specific plugins, ratios, decay times, or gear choices; you cannot know them. Instead point the listener at things they can actually perceive:
 - how vocals sit relative to the backing
 - how much space / silence the track allows
 - how arrangement changes between sections
@@ -43,26 +41,26 @@ For each track, produce a "what to listen for" guide — GUIDED LISTENING, not f
 - how drums feel in time (pushing, dragging, tight, loose)
 - comparisons to other songs or genres
 
-Good example: "Listen for how the vocal floats on top of the mix — it's clearly compressed but you can still hear breath. Notice how drums feel warm and slightly behind the beat. Compare verses (sparse) to choruses (full) — arrangement is doing heavy emotional work."
+Good example: "Listen for how Babyface lets the vocal float — it's clearly compressed but you can still hear breath between phrases. The drums feel warm and slightly behind the beat, grounding everything. Reverb is generous but never muddies the mix. Notice how verses feel spacious and choruses fill up — arrangement is doing emotional work before any effect is applied."
 
-Bad example (avoid this): "Opto compression at 3:1 ratio, EMT 140 plate reverb at 1.8s decay, tape-saturated drums..."
+Bad example (avoid this): "Opto compressor at 3:1 ratio with 5ms attack, EMT 140 plate reverb at 1.8s decay, tape saturation via Chandler TG1..."
 
-Return ONLY a JSON object in this exact shape:
+The bad example invents specifics you can't actually know. The good example develops the user's listening instincts using observable traits.
+
+Return ONLY a JSON object in this exact shape, with 3 to 5 tracks:
 {
   "tracks": [
     {
       "title": "Song Title",
       "artist": "Artist Name",
       "genre": "short genre label matching the user's request",
-      "whatToListenFor": "3-5 sentence guided-listening prompt",
-      "tags": ["lowercase-hyphenated", "tags", "3-to-5-items"],
-      "spotifyLink": "https://open.spotify.com/search/<url-encoded query>",
-      "youtubeLink": "https://www.youtube.com/results?search_query=<url-encoded query>"
+      "whatToListenFor": "3-5 sentence guided-listening prompt in producer's voice, no invented gear details",
+      "tags": ["lowercase-hyphenated", "tags", "3-to-5-items"]
     }
   ]
 }
 
-Use search URLs (as shown) rather than guessing exact track IDs. Do not include any prose outside the JSON.`;
+Do not include Spotify or YouTube links — the app generates those from title + artist. Do not include any prose outside the JSON.`;
 
 /**
  * Call the Anthropic Messages API and return a parsed list of
@@ -160,9 +158,7 @@ function validateGenerationResult(value: unknown): GenerationResult {
           .map(x => x.toLowerCase().trim())
           .filter(Boolean)
       : [];
-    const spotifyLink = typeof t.spotifyLink === 'string' ? t.spotifyLink : undefined;
-    const youtubeLink = typeof t.youtubeLink === 'string' ? t.youtubeLink : undefined;
-    out.push({ title, artist, genre, whatToListenFor, tags, spotifyLink, youtubeLink });
+    out.push({ title, artist, genre, whatToListenFor, tags });
   }
   if (out.length === 0) throw new Error('No usable tracks in the response.');
   return { tracks: out };

@@ -11,31 +11,29 @@ import type { ReferenceTrackContent } from './types';
  * balance, space, arrangement contrast, how voices blend — and let
  * them notice the result of production choices on their own.
  *
- * Links use Spotify / YouTube search URLs rather than specific track
- * IDs so they don't rot when a playlist is moved or a video pulled.
+ * Spotify / YouTube links are NOT listed here — the seed routine
+ * derives them uniformly via `buildSpotifySearchLink` /
+ * `buildYouTubeProducerLink` so every track (starter, user-added,
+ * Claude-generated) gets the same link format.
  */
 export const REFERENCE_TRACKS: ReferenceTrackContent[] = [
   {
     id: 'ref-babyface-ballad',
     title: 'Can We Talk',
-    artist: 'Tevin Campbell (prod. Babyface)',
+    artist: 'Tevin Campbell',
     genre: 'R&B ballad',
     whatToListenFor:
-      "Listen for how the vocal floats on top of a warm, restrained backing — you can always hear Tevin's breath between phrases even when the track is full. Notice the tonal balance: everything lives in its own lane, nothing fights. Pay attention to how the reverb on the vocal feels generous but never smeared — you can tell exactly where a phrase ends. Compare the sparse verses to the thicker chorus: what gets added? What gets taken away? Babyface is famous for this kind of polish — see if you can sense the care in every moment.",
+      "Listen for how the vocal floats on top of a warm, restrained backing — you can always hear Tevin's breath between phrases even when the track is full. Notice the tonal balance: everything lives in its own lane, nothing fights. Pay attention to how the reverb on the vocal feels generous but never smeared — you can tell exactly where a phrase ends. Compare the sparse verses to the thicker chorus: what gets added? What gets taken away? Babyface's touch shows up as polish — see if you can sense the care in every moment.",
     tags: ['90s-rnb', 'babyface', 'vocal-production', 'ballad'],
-    spotifyLink: 'https://open.spotify.com/search/Tevin%20Campbell%20Can%20We%20Talk',
-    youtubeLink: 'https://www.youtube.com/results?search_query=tevin+campbell+can+we+talk',
   },
   {
     id: 'ref-babyface-ballad-2',
     title: 'Water Runs Dry',
-    artist: 'Boyz II Men (prod. Babyface)',
+    artist: 'Boyz II Men',
     genre: 'R&B ballad',
     whatToListenFor:
       "Focus on the background vocals. Start by trying to hear the lead alone, then bring your attention to the harmony stack — is it a few voices, or a cloud? Notice how the backgrounds feel wider than the lead. When the chorus hits, does the room feel bigger? See if you can tell when a harmony enters and exits; that's arrangement at work. Listen for the blend: no single voice pokes through, which is hard to make happen.",
     tags: ['bgv-stacking', 'babyface', '90s-rnb', 'ballad'],
-    spotifyLink: 'https://open.spotify.com/search/Boyz%20II%20Men%20Water%20Runs%20Dry',
-    youtubeLink: 'https://www.youtube.com/results?search_query=boyz+ii+men+water+runs+dry',
   },
   {
     id: 'ref-kirk-franklin',
@@ -45,8 +43,6 @@ export const REFERENCE_TRACKS: ReferenceTrackContent[] = [
     whatToListenFor:
       "Listen for how a choir can feel enormous and precise at the same time. Try to count the parts — soprano, alto, tenor, bass — and notice how each part has its own space. Pay attention to the ad-libs over the top: do they feel dry and present, or wet and far? Compare the choir sound to Kirk's lead — his voice is closer. When the groove drops in, notice how the drums push the whole thing forward without overpowering the vocals. This is modern gospel arrangement at its tightest.",
     tags: ['gospel', 'choir', 'arrangement'],
-    spotifyLink: "https://open.spotify.com/search/Kirk%20Franklin%20Stomp",
-    youtubeLink: 'https://www.youtube.com/results?search_query=kirk+franklin+stomp',
   },
   {
     id: 'ref-boyz-ii-men',
@@ -56,8 +52,6 @@ export const REFERENCE_TRACKS: ReferenceTrackContent[] = [
     whatToListenFor:
       "The gold standard of 90s R&B ensemble vocals. Pay attention to how the voices blend into one instrument during harmonies, then separate when a solo happens. Notice how the track feels big without feeling loud. Listen for the subtle automation — parts duck and lift so your ear always knows where to focus. Compare how much room the vocals occupy versus the instrumental bed; see how producers give the voice the center and push everything else to the sides.",
     tags: ['90s-rnb', 'bgv-stacking', 'ballad', 'vocal-production'],
-    spotifyLink: 'https://open.spotify.com/search/Boyz%20II%20Men%20End%20of%20the%20Road',
-    youtubeLink: 'https://www.youtube.com/results?search_query=boyz+ii+men+end+of+the+road',
   },
   {
     id: 'ref-frank-ocean',
@@ -67,8 +61,6 @@ export const REFERENCE_TRACKS: ReferenceTrackContent[] = [
     whatToListenFor:
       "This is a reference for space. Notice how much silence lives between the drum hits and how much air sits around the vocal. Listen for the difference between how close Frank's voice feels versus the backgrounds — which one is in your ear, which is in the room? Pay attention to the drums: they feel hand-held, loose, imperfect in the best way. Compare how this song breathes to tighter modern productions. The minimalism is doing the work — every element has been chosen carefully because there are so few of them.",
     tags: ['neo-soul', 'minimalism', 'modern-rnb'],
-    spotifyLink: 'https://open.spotify.com/search/Frank%20Ocean%20Pink%20%2B%20White',
-    youtubeLink: 'https://www.youtube.com/results?search_query=frank+ocean+pink+white',
   },
   {
     id: 'ref-daniel-caesar',
@@ -78,8 +70,6 @@ export const REFERENCE_TRACKS: ReferenceTrackContent[] = [
     whatToListenFor:
       "Listen for intimacy. How close does each voice feel? Notice that the guitar and vocal are the whole show — everything else is a texture. Pay attention to how the vocals hand off between Daniel and H.E.R.; where does one stop and the other begin? Listen for the subtle doubling and harmonies in the background — they're almost whispered. Compare the quietness of this production to modern pop R&B — this is what restraint sounds like.",
     tags: ['modern-rnb', 'minimalism', 'duet'],
-    spotifyLink: 'https://open.spotify.com/search/Daniel%20Caesar%20Best%20Part',
-    youtubeLink: 'https://www.youtube.com/results?search_query=daniel+caesar+best+part',
   },
   {
     id: 'ref-dangelo-untitled',
@@ -89,19 +79,15 @@ export const REFERENCE_TRACKS: ReferenceTrackContent[] = [
     whatToListenFor:
       "This is the neo-soul blueprint. Listen for how the drums pull slightly behind the beat — the whole track has a dragging, sensual feel. Pay attention to the Rhodes and the bass: they share frequency space that would be mud in another genre, but here it feels warm and thick. Notice how D'Angelo's vocal feels like it's in the same room as the instruments, not on top of them. Compare the way this mix breathes to cleaner, brighter R&B records — the slight haze is the point.",
     tags: ['neo-soul', 'dilla-feel', 'arrangement'],
-    spotifyLink: "https://open.spotify.com/search/D%27Angelo%20Untitled%20How%20Does%20It%20Feel",
-    youtubeLink: 'https://www.youtube.com/results?search_query=d%27angelo+untitled+how+does+it+feel',
   },
   {
     id: 'ref-whitney-ballad',
     title: 'I Will Always Love You',
-    artist: 'Whitney Houston (prod. David Foster)',
+    artist: 'Whitney Houston',
     genre: 'Pop ballad',
     whatToListenFor:
       "This is a vocal-performance reference. Listen for how Whitney's quietest whisper and her biggest belt sit at roughly the same perceived loudness — that's the magic of great compression and gain staging. Notice how every consonant lands clearly; nothing is harsh, nothing is lost. Pay attention to how the arrangement parts pull back when the vocal climbs, and fill back in during quieter moments. Compare the final chorus to the first verse: how much more emotional weight is the full production carrying by the end?",
     tags: ['pop-ballad', 'vocal-production', 'dynamics'],
-    spotifyLink: 'https://open.spotify.com/search/Whitney%20Houston%20I%20Will%20Always%20Love%20You',
-    youtubeLink: 'https://www.youtube.com/results?search_query=whitney+houston+i+will+always+love+you',
   },
 ];
 
@@ -110,13 +96,10 @@ export function referenceTrackById(id: string): ReferenceTrackContent | undefine
 }
 
 /**
- * Legacy (pre-v13) `sonicNotes` content for each starter. Used ONLY
- * by the first-time-after-migration refresh: if a starter track's
- * current `whatToListenFor` exactly matches its legacy sonic-notes
- * text, the seed routine can safely replace it with the new guided-
- * listening prose. If the field differs at all, the user has edited
- * it and we leave it alone. This guarantees we never overwrite
- * user-authored notes.
+ * Legacy (pre-v13) `sonicNotes` content for each starter. Used by the
+ * one-time content refresh pass to detect which starters still carry
+ * the original fake-technical prose (and can be safely rewritten to
+ * guided-listening) versus starters the user has edited (leave alone).
  */
 export const STARTER_LEGACY_SONIC_NOTES: Record<string, string> = {
   'ref-babyface-ballad':
