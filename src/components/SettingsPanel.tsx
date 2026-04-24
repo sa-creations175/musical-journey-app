@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from './Modal';
 import { getPref } from '../lib/userPrefs';
 import { useUserName } from '../modules/dashboard/userName';
+import { useAuth } from '../lib/auth/useAuth';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -25,6 +26,27 @@ type Status =
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function AccountSection() {
+  const { user, signOut } = useAuth();
+  if (!user) return null;
+  return (
+    <section>
+      <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+        account
+      </h4>
+      <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
+        signed in as <span className="font-medium">{user.email}</span>
+      </p>
+      <button
+        onClick={signOut}
+        className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-needswork hover:text-needswork"
+      >
+        sign out
+      </button>
+    </section>
+  );
 }
 
 export default function SettingsPanel({ open, onClose }: Props) {
@@ -198,6 +220,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
               emotion-based theming is planned for a future update.
             </p>
           </section>
+
+          <AccountSection />
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">

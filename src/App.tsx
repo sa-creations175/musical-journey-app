@@ -22,9 +22,13 @@ import SkillsCatalogue from './modules/skills/SkillsCatalogue';
 import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 import { InstrumentProvider } from './lib/instrumentContext';
 import { Toaster } from './components/Toaster';
+import { AuthProvider } from './lib/auth/AuthContext';
+import AuthGate from './lib/auth/AuthGate';
 
 export default function App() {
   return (
+    <AuthProvider>
+    <AuthGate>
     <InstrumentProvider>
       <Toaster>
       <BrowserRouter>
@@ -54,5 +58,7 @@ export default function App() {
       </BrowserRouter>
       </Toaster>
     </InstrumentProvider>
+    </AuthGate>
+    </AuthProvider>
   );
 }
