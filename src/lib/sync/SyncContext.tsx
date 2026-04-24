@@ -56,6 +56,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const hooksInstalledRef = useRef(false);
   const lastUserIdRef = useRef<string | null>(null);
 
+  // Diagnostic: fires once per render. Confirms whether SyncProvider
+  // is actually mounting and what its observable state is when it
+  // does. Primary use is debugging "no sync logs appeared" — if this
+  // line doesn't fire, the whole provider is AWOL.
+  console.log('[sync] SyncProvider render', { phase, userId: user?.id ?? null });
+
   // Live count of pending queue items → drives the UI badge.
   const pending = useLiveQuery(async () => db.syncQueue.count(), []) ?? 0;
 
@@ -144,12 +150,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   // mechanism for a change made on one device to land on another:
   // drain → pull replace → local mirrors cloud.
   //
-  // Console logs here are intentional and should stay — the handler
-  // and the pull both run silently when there's nothing to sync,
-  // which is impossible to distinguish from "not firing" without
-  // explicit signal. Keep these until we have a proper status UI.
+  // Attached ONCE, at SyncProvider mount. No phase gate — the phase
+  // gate previously here was the bug: if `phase` never reached
+  // `'ready'` (e.g. because the initial pull errored into a caught
+  // branch, or because runInitialPull was skipped on a rehydrated
+  // session), listeners never attached at all. refreshFromCloud has
+  // its own internal guards (signed-in + online checks), and the
+  // pullLock is now reference-counted, so a focus-triggered pull
+  // racing the initial-hydration pull is safe.
   useEffect(() => {
-    if (phase !== 'ready') return;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
       console.log('[sync] tab focused, pulling from cloud');
@@ -161,22 +170,23 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
-    console.log('[sync] tab-focus listeners attached (phase=ready)');
+    console.log('[sync] tab-focus listeners attached');
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
     };
-  }, [phase]);
+  }, []);
 
   // Periodic drain — catches queue entries enqueued while online but
   // after the last drain (e.g. a burst of user edits). 5s is frequent
   // enough that the user doesn't wait long for their device B to see
-  // changes, but not so frequent that we hammer Supabase.
+  // changes, but not so frequent that we hammer Supabase. drain() is
+  // itself a no-op when not signed in or offline, so leaving this
+  // always-on is safe.
   useEffect(() => {
-    if (phase !== 'ready') return;
     const h = window.setInterval(() => { void drain(); }, 5000);
     return () => window.clearInterval(h);
-  }, [phase]);
+  }, []);
 
   const value: SyncStatus = useMemo(
     () => ({
