@@ -9,6 +9,7 @@
 // pedagogical ordering within the "structured learning" lane.
 
 export type ModuleId =
+  | 'dashboard'
   | 'harmonic-fluency'
   | 'ear-training'
   | 'intervals'
@@ -24,7 +25,7 @@ export type ModuleId =
  *  representation than a typographic glyph. Keep this list tiny —
  *  the glyph approach stays the default so new modules can be
  *  added without adding svg assets. */
-export type NamedIcon = 'ear';
+export type NamedIcon = 'ear' | 'brain' | 'shapes' | 'song' | 'studio' | 'calendar';
 
 export interface ModuleMeta {
   id: ModuleId;
@@ -38,11 +39,12 @@ export interface ModuleMeta {
    *  render time. See `<ModuleGlyph>` in SidebarNav for the
    *  concrete SVG. */
   iconName?: NamedIcon;
-  /** Tailwind token for the accent colour used in cards / badges.
-   *  Pairs with `accentHex` for inline SVG + background tinting. */
+  /** Legacy Tailwind token — kept for the small number of places
+   *  that still reach for it. New surfaces should use the hex + its
+   *  derived light/dark variants instead. */
   accentToken: 'fluent' | 'developing' | 'needswork' | 'mastered' | 'amber' | 'rose' | 'violet' | 'teal';
-  /** Hex value of the accent — for inline styles where the Tailwind
-   *  class can't reach (radial gradients, svg fills). */
+  /** Canonical hex for the module's accent colour. Used directly
+   *  in sidebar, cards, module headers, catalogue chips. */
   accentHex: string;
   /** Status for nav rendering: 'live' modules have routes, 'planned'
    *  modules surface as placeholders. */
@@ -53,6 +55,15 @@ export interface ModuleMeta {
  * Pedagogical order — theory → sound → body → song → session →
  * production. Anywhere the app renders "all modules" should consume
  * this list to keep ordering synchronised.
+ *
+ * Palette (per latest design pass):
+ *   Dashboard          #4a6b8a (warm slate blue)
+ *   Harmonic Fluency   #7a5aa8 (deep purple)
+ *   Ear Training       #5a8752 (forest green)
+ *   Shapes & Patterns  #d4885a (warm amber)
+ *   Song Repertoire    #a8556b (deep rose)
+ *   Practice Sessions  #4a9088 (teal)
+ *   Production         #3a4875 (deep indigo)
  */
 export const MODULE_ORDER: ModuleMeta[] = [
   {
@@ -60,8 +71,9 @@ export const MODULE_ORDER: ModuleMeta[] = [
     label: 'harmonic fluency',
     route: '/harmonic-fluency',
     icon: '♯',
-    accentToken: 'fluent',
-    accentHex: '#378ADD',
+    iconName: 'brain',
+    accentToken: 'violet',
+    accentHex: '#7a5aa8',
     status: 'live',
   },
   {
@@ -71,7 +83,7 @@ export const MODULE_ORDER: ModuleMeta[] = [
     icon: '♪',
     iconName: 'ear',
     accentToken: 'teal',
-    accentHex: '#1D9E75',
+    accentHex: '#5a8752',
     status: 'live',
   },
   {
@@ -79,8 +91,9 @@ export const MODULE_ORDER: ModuleMeta[] = [
     label: 'shapes & patterns',
     route: '/shapes-and-patterns',
     icon: '◇',
-    accentToken: 'developing',
-    accentHex: '#D08A2B',
+    iconName: 'shapes',
+    accentToken: 'amber',
+    accentHex: '#d4885a',
     status: 'live',
   },
   {
@@ -88,8 +101,9 @@ export const MODULE_ORDER: ModuleMeta[] = [
     label: 'song repertoire',
     route: '/repertoire',
     icon: '♫',
-    accentToken: 'amber',
-    accentHex: '#E3A54A',
+    iconName: 'song',
+    accentToken: 'rose',
+    accentHex: '#a8556b',
     status: 'live',
   },
   {
@@ -97,8 +111,9 @@ export const MODULE_ORDER: ModuleMeta[] = [
     label: 'practice sessions',
     route: '/practice-sessions',
     icon: '◐',
-    accentToken: 'violet',
-    accentHex: '#8B5CF6',
+    iconName: 'calendar',
+    accentToken: 'teal',
+    accentHex: '#4a9088',
     status: 'planned',
   },
   {
@@ -106,11 +121,36 @@ export const MODULE_ORDER: ModuleMeta[] = [
     label: 'production & logic pro',
     route: '/production',
     icon: '▤',
-    accentToken: 'rose',
-    accentHex: '#C98478',
+    iconName: 'studio',
+    accentToken: 'fluent',
+    accentHex: '#3a4875',
     status: 'live',
   },
 ];
+
+/**
+ * Dashboard sits outside `MODULE_ORDER` (it isn't a learning module
+ * in the Catalogue sense) but it still needs visual identity in the
+ * sidebar. Exposed as its own meta so the sidebar can render an icon
+ * chip without branching.
+ */
+export const DASHBOARD_META: ModuleMeta = {
+  id: 'dashboard',
+  label: 'dashboard',
+  route: '/',
+  icon: '◉',
+  accentToken: 'fluent',
+  accentHex: '#4a6b8a',
+  status: 'live',
+};
+
+/**
+ * Accent for the "Creative Sessions" sidebar group (Just Play, Just
+ * Produce, Harmonic Diary). Not a module — a nav group — so it
+ * doesn't live in MODULE_ORDER, but sharing the export keeps the
+ * palette in one place.
+ */
+export const CREATIVE_SESSIONS_ACCENT_HEX = '#c4a05a';
 
 /**
  * Ear Training groups four ear-quiz submodules into a single
@@ -127,7 +167,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     icon: '♪',
     iconName: 'ear',
     accentToken: 'teal',
-    accentHex: '#1D9E75',
+    accentHex: '#5a8752',
     status: 'live',
   },
   {
@@ -137,7 +177,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     icon: '♪',
     iconName: 'ear',
     accentToken: 'teal',
-    accentHex: '#1D9E75',
+    accentHex: '#5a8752',
     status: 'live',
   },
   {
@@ -147,7 +187,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     icon: '♪',
     iconName: 'ear',
     accentToken: 'teal',
-    accentHex: '#1D9E75',
+    accentHex: '#5a8752',
     status: 'live',
   },
   {
@@ -157,16 +197,17 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     icon: '♪',
     iconName: 'ear',
     accentToken: 'teal',
-    accentHex: '#1D9E75',
+    accentHex: '#5a8752',
     status: 'live',
   },
 ];
 
-// Lookup table — includes both top-level modules and the ear-training
-// submodules so any call site can resolve a moduleId to its visual
-// identity without having to know whether the id is a top-level
-// module or a submodule.
+// Lookup table — includes Dashboard + top-level modules + the
+// ear-training submodules so any call site can resolve a moduleId
+// to its visual identity without having to know whether the id is
+// a top-level module, a submodule, or the Dashboard.
 const BY_ID = new Map<string, ModuleMeta>([
+  [DASHBOARD_META.id, DASHBOARD_META],
   ...MODULE_ORDER.map(m => [m.id, m] as const),
   ...EAR_TRAINING_SUBMODULES.map(m => [m.id, m] as const),
 ]);

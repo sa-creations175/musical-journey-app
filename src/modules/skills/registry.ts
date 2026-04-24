@@ -14,6 +14,13 @@ import { CATEGORY_LABELS, FLASHCARDS } from '../harmonic-fluency/catalog';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { MODES } from '../ear-training/scales-modes/catalog';
 import { PROGRESSIONS } from '../ear-training/chord-progressions/catalog';
+import {
+  CHORD_QUALITIES,
+  KEYS as SHAPES_KEYS,
+  MENTAL_VIZ_VARIANTS,
+  SCALES,
+  VOICE_LEADING_PATTERNS,
+} from '../shapes-and-patterns/catalog';
 import { freshnessTier, type FreshnessTier } from '../shapes-and-patterns/drillModel';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -503,31 +510,48 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
   }
 
   // --- Shapes & Patterns drill skills ------------------------------
-  // Sort by drill-kind so the Catalogue's grouped view emits the
-  // sub-sections in the same order as the module's tab strip:
-  // scales → chord shapes → voice-leading → mental viz. Dexie's
-  // toArray is id-ordered, which doesn't match.
+  // Catalog-driven enumeration — the Catalogue shows EVERY scale /
+  // chord-shape / voice-leading drill that CAN be practised, whether
+  // or not the user has materialised a DrillSkill row for it yet.
+  // When a DrillSkill *has* been materialised, we join its DrillType
+  // rows to surface real practice stats. Sub-sections emit in the
+  // module's tab order: Scale Drills → Chord Shape Drills →
+  // Voice-Leading Drills → Mental Visualisation.
   {
     const { label, route } = moduleMeta('shapes-and-patterns');
-    const kindRank: Record<DrillSkill['kind'], number> = {
-      'scale':         0,
-      'chord-shape':   1,
-      'voice-leading': 2,
-      'mental-viz':    3,
-    };
-    const sortedDrillSkills = [...drillSkills].sort((a, b) =>
-      (kindRank[a.kind] ?? 99) - (kindRank[b.kind] ?? 99),
-    );
+
+    // Index existing DrillSkills by their natural key so we can
+    // locate them without N queries per lookup. Each kind uses a
+    // distinct composite key because the schema varies.
+    const chordShapeIdx = new Map<string, DrillSkill>();
+    const scaleIdx = new Map<string, DrillSkill>();
+    const voiceLeadingIdx = new Map<string, DrillSkill>();
+    const mentalVizIdx = new Map<string, DrillSkill>();
+    for (const s of drillSkills) {
+      if (s.kind === 'chord-shape' && s.keyName && s.quality) {
+        chordShapeIdx.set(`${s.keyName}:${s.quality}`, s);
+      } else if (s.kind === 'scale' && s.keyName && s.scale) {
+        scaleIdx.set(`${s.keyName}:${s.scale}`, s);
+      } else if (s.kind === 'voice-leading' && s.keyName && s.patternId) {
+        voiceLeadingIdx.set(`${s.patternId}:${s.keyName}`, s);
+      } else if (s.kind === 'mental-viz' && s.variant) {
+        mentalVizIdx.set(s.variant, s);
+      }
+    }
+
     const typesBySkill = new Map<string, DrillType[]>();
     for (const t of drillTypes) {
       const arr = typesBySkill.get(t.skillId) ?? [];
       arr.push(t);
       typesBySkill.set(t.skillId, arr);
     }
-    for (const skill of sortedDrillSkills) {
-      const skillId = canonicalSkillId('shapes-and-patterns', skill.kind, skill.id);
-      const ann = annotationById.get(skillId);
-      const ts = typesBySkill.get(skill.id) ?? [];
+
+    // Small helper — aggregates a materialized DrillSkill's types
+    // into (totalTime, lastPracticed). Returns zeros when nothing
+    // materialised yet.
+    const aggregate = (existing: DrillSkill | undefined) => {
+      if (!existing) return { total: 0, last: null as number | null };
+      const ts = typesBySkill.get(existing.id) ?? [];
       let total = 0;
       let last: number | null = null;
       for (const t of ts) {
@@ -536,16 +560,125 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           last = t.lastPracticedAt;
         }
       }
+      return { total, last };
+    };
+
+    // --- Scale Drills --------------------------------------------
+    // 24 scales total (12 major + 12 natural minor). Split into two
+    // sibling Catalogue categories so the sub-section breakdown
+    // matches the module's own organisation.
+    for (const scale of SCALES) {
+      for (const k of SHAPES_KEYS) {
+        const skillId = canonicalSkillId('shapes-and-patterns', 'scale', `${scale.id}:${k}`);
+        const ann = annotationById.get(skillId);
+        const existing = scaleIdx.get(`${k}:${scale.id}`);
+        const { total, last } = aggregate(existing);
+        records.push({
+          skillId,
+          moduleId: 'shapes-and-patterns',
+          moduleLabel: label,
+          moduleRoute: route,
+          moduleJumpQuery: 'tab=scales',
+          itemId: `${scale.id}:${k}`,
+          name: ann?.customName ?? `${k} ${scale.label}`,
+          category: scale.id === 'major'
+            ? 'Scale Drills · Major'
+            : 'Scale Drills · Natural Minor',
+          skillType: 'physical-scale',
+          currentTier: null,
+          freshness: freshnessFrom(last),
+          daysSince: daysSinceOf(last, now),
+          lastPracticed: last,
+          totalTime: total,
+          priority: ann?.priority,
+          tags: ann?.tags ?? [],
+          note: ann?.note,
+        });
+      }
+    }
+
+    // --- Chord Shape Drills --------------------------------------
+    // 29 qualities × 12 keys = 348 entries. Iterate qualities in
+    // catalog order (triads → sevenths → extensions → specials)
+    // and keys in standard order so insertion order is stable.
+    for (const q of CHORD_QUALITIES) {
+      for (const k of SHAPES_KEYS) {
+        const skillId = canonicalSkillId('shapes-and-patterns', 'chord-shape', `${q.id}:${k}`);
+        const ann = annotationById.get(skillId);
+        const existing = chordShapeIdx.get(`${k}:${q.id}`);
+        const { total, last } = aggregate(existing);
+        records.push({
+          skillId,
+          moduleId: 'shapes-and-patterns',
+          moduleLabel: label,
+          moduleRoute: route,
+          moduleJumpQuery: 'tab=chord-shapes',
+          itemId: `${q.id}:${k}`,
+          name: ann?.customName ?? `${k}${q.suffix} (${q.label.toLowerCase()})`,
+          category: 'Chord Shape Drills',
+          skillType: 'physical-chord-shape',
+          currentTier: null,
+          freshness: freshnessFrom(last),
+          daysSince: daysSinceOf(last, now),
+          lastPracticed: last,
+          totalTime: total,
+          priority: ann?.priority,
+          tags: ann?.tags ?? [],
+          note: ann?.note,
+        });
+      }
+    }
+
+    // --- Voice-Leading Drills ------------------------------------
+    // 3 patterns × 12 keys = 36 entries.
+    for (const pattern of VOICE_LEADING_PATTERNS) {
+      for (const k of SHAPES_KEYS) {
+        const skillId = canonicalSkillId('shapes-and-patterns', 'voice-leading', `${pattern.id}:${k}`);
+        const ann = annotationById.get(skillId);
+        const existing = voiceLeadingIdx.get(`${pattern.id}:${k}`);
+        const { total, last } = aggregate(existing);
+        records.push({
+          skillId,
+          moduleId: 'shapes-and-patterns',
+          moduleLabel: label,
+          moduleRoute: route,
+          moduleJumpQuery: 'tab=voice-leading',
+          itemId: `${pattern.id}:${k}`,
+          name: ann?.customName ?? `${pattern.label} in ${k}`,
+          category: 'Voice-Leading Drills',
+          skillType: 'physical-voice-leading',
+          currentTier: null,
+          freshness: freshnessFrom(last),
+          daysSince: daysSinceOf(last, now),
+          lastPracticed: last,
+          totalTime: total,
+          priority: ann?.priority,
+          tags: ann?.tags ?? [],
+          note: ann?.note,
+        });
+      }
+    }
+
+    // --- Mental Visualisation ------------------------------------
+    // Only the two supported variants (ghost-keyboard was retired).
+    // If a user previously materialised ghost-keyboard, those orphan
+    // rows are filtered here; MENTAL_VIZ_VARIANTS is the source of
+    // truth.
+    for (const variant of MENTAL_VIZ_VARIANTS) {
+      const skillId = canonicalSkillId('shapes-and-patterns', 'mental-viz', variant.id);
+      const ann = annotationById.get(skillId);
+      const existing = mentalVizIdx.get(variant.id);
+      const { total, last } = aggregate(existing);
       records.push({
         skillId,
         moduleId: 'shapes-and-patterns',
         moduleLabel: label,
         moduleRoute: route,
-        moduleJumpQuery: `tab=${drillKindToTab(skill.kind)}`,
-        itemId: skill.id,
-        name: ann?.customName ?? skill.label ?? 'drill skill',
-        category: drillKindCategory(skill.kind),
-        skillType: drillKindToSkillType(skill.kind),
+        moduleJumpQuery: 'tab=mental-viz',
+        itemId: variant.id,
+        name: ann?.customName ?? variant.label,
+        category: 'Mental Visualisation',
+        skillType: 'physical-mental-viz',
         currentTier: null,
         freshness: freshnessFrom(last),
         daysSince: daysSinceOf(last, now),
@@ -602,33 +735,6 @@ function modeCategoryLabel(modeId: string): string {
     return 'Minor Scale Variants';
   }
   return 'Modes';
-}
-
-function drillKindCategory(kind: DrillSkill['kind']): string {
-  switch (kind) {
-    case 'chord-shape':  return 'Chord Shape Drills';
-    case 'scale':        return 'Scale Drills';
-    case 'voice-leading':return 'Voice-leading Drills';
-    case 'mental-viz':   return 'Mental Visualisation';
-  }
-}
-
-function drillKindToSkillType(kind: DrillSkill['kind']): SkillType {
-  switch (kind) {
-    case 'chord-shape':  return 'physical-chord-shape';
-    case 'scale':        return 'physical-scale';
-    case 'voice-leading':return 'physical-voice-leading';
-    case 'mental-viz':   return 'physical-mental-viz';
-  }
-}
-
-function drillKindToTab(kind: DrillSkill['kind']): string {
-  switch (kind) {
-    case 'chord-shape':  return 'chord-shapes';
-    case 'scale':        return 'scales';
-    case 'voice-leading':return 'voice-leading';
-    case 'mental-viz':   return 'mental-viz';
-  }
 }
 
 // --- Annotation read/write -----------------------------------------

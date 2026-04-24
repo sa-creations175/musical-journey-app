@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
-import { moduleMetaById } from '../lib/moduleMeta';
+import { moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
+
+/** Per-group accent colour used on the group header so Creative
+ *  Sessions (gold) reads distinctly from the neutral learning groups. */
+const GROUP_ACCENT: Record<string, string | undefined> = {
+  'creative-sessions': CREATIVE_SESSIONS_ACCENT_HEX,
+};
 
 // Sidebar navigation tree. Organised into three top-level groups
 // (Overview / Structured Learning / Creative Tools) each with its own
@@ -197,6 +203,7 @@ export default function SidebarNav() {
               label={group.label}
               open={isGroupOpen}
               onToggle={() => toggle(gKey)}
+              accentHex={GROUP_ACCENT[group.id]}
             />
             {isGroupOpen && (
               // Indent the group's items + a subtle left-line so
@@ -227,16 +234,19 @@ function GroupHeader({
   label,
   open,
   onToggle,
+  accentHex,
 }: {
   label: string;
   open: boolean;
   onToggle: () => void;
+  accentHex?: string;
 }) {
   return (
     <button
       onClick={onToggle}
       aria-expanded={open}
-      className="group flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-wide font-medium text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 rounded"
+      className="group flex items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-wide font-medium rounded"
+      style={{ color: accentHex ?? undefined }}
     >
       <svg
         width="8"
@@ -247,7 +257,9 @@ function GroupHeader({
       >
         <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span>{label}</span>
+      <span className={accentHex ? '' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}>
+        {label}
+      </span>
     </button>
   );
 }
