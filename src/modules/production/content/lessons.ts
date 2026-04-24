@@ -412,7 +412,6 @@ A high-pass sweeping from 20 Hz up to 1 kHz across a bar creates tension ("build
     tryNow: 'Load any track that feels muddy to you. Insert Channel EQ. Enable a bell with Q=2 around 250 Hz. Cut 3 dB. Listen. If the track cleared up, you found the mud. Move on. This single move alone will fix 40% of amateur mixes.',
     youtubeLink: 'https://www.youtube.com/results?search_query=logic+pro+eq+tutorial+vocal',
     glossaryTerms: ['eq', 'parametric-eq', 'shelving-eq', 'high-pass-filter', 'low-pass-filter', 'q-factor', 'frequency'],
-    referenceTracks: ['ref-babyface-ballad', 'ref-kirk-franklin', 'ref-dangelo-untitled'],
   },
   {
     id: 'lang-03',
@@ -473,7 +472,6 @@ Reference listening:
     tryNow: 'Load a vocal take. Insert Logic\'s Compressor. Set ratio 4:1, fast attack (5 ms), moderate release (100 ms). Lower the threshold until the GR meter shows 4-6 dB on the loudest words. Listen: does the vocal feel more present? Add 3 dB of makeup gain. That\'s the most common vocal compression move in production.',
     youtubeLink: 'https://www.youtube.com/results?search_query=logic+pro+compressor+tutorial',
     glossaryTerms: ['compression', 'threshold', 'ratio', 'attack', 'release', 'knee', 'makeup-gain', 'gain-reduction', 'parallel-compression', 'side-chain'],
-    referenceTracks: ['ref-whitney-ballad', 'ref-frank-ocean', 'ref-boyz-ii-men'],
   },
   {
     id: 'lang-04',
@@ -531,7 +529,6 @@ Dry sounds are close. Reverbed sounds are far. The more reverb, the more emotion
     tryNow: 'Create an [[auxiliary-track]] called "Plate Short." Insert ChromaVerb, pick the Plate preset. Set decay 1.4 s, pre-delay 25 ms. Route a lead vocal send to it at about -12 dB. Compare the vocal with and without — notice how the reverb positions the vocal in a space without making it distant.',
     youtubeLink: 'https://www.youtube.com/results?search_query=logic+pro+chromaverb+reverb+tutorial',
     glossaryTerms: ['reverb', 'decay', 'pre-delay', 'wet-dry', 'chromaverb', 'space-designer', 'plate-reverb', 'hall-reverb', 'convolution', 'send', 'auxiliary-track'],
-    referenceTracks: ['ref-babyface-ballad', 'ref-kirk-franklin', 'ref-frank-ocean'],
   },
   {
     id: 'lang-05',
@@ -591,7 +588,6 @@ Unlike reverb, delay doesn't necessarily make sounds "distant." It adds rhythmic
     tryNow: 'Create an [[auxiliary-track]] called "Tape Delay." Insert Logic\'s Tape Delay plugin. Set to 1/4 (dotted), feedback 25%, wet 100%, a little tape saturation. Route your lead vocal send at around -18 dB. Play the chorus. The delay should add motion without fighting the vocal.',
     youtubeLink: 'https://www.youtube.com/results?search_query=logic+pro+delay+tutorial+tape',
     glossaryTerms: ['delay', 'feedback', 'slapback', 'tape-delay', 'stereo-delay', 'send', 'auxiliary-track'],
-    referenceTracks: ['ref-daniel-caesar', 'ref-frank-ocean'],
   },
   {
     id: 'lang-06',
@@ -705,7 +701,6 @@ Remove saturation and mixes feel "just made" — clinical, floating, unreal. Add
     tryNow: 'Take a clean DI bass (or any sterile source). Insert Logic\'s Clip Distortion or the Tape Delay plugin (use just the tape section, no delay). Push the drive slowly. Find the point where it sounds "warmer" but not "distorted." A/B it bypassed. That\'s the move.',
     youtubeLink: 'https://www.youtube.com/results?search_query=saturation+logic+pro+tutorial+warmth',
     glossaryTerms: ['saturation', 'distortion', 'tape-saturation', 'tube-saturation', 'harmonic'],
-    referenceTracks: ['ref-dangelo-untitled'],
   },
   {
     id: 'lang-08',
@@ -887,7 +882,6 @@ The modern trap: comp until every breath is identical, every consonant starts on
     tryNow: 'Cycle over any eight-bar section. Record four passes of a vocal line back-to-back. Open the Take Folder. Do one comp pass, picking the best phrases. Listen back. Flatten. Count the time it took. That\'s your new baseline for vocal workflow.',
     youtubeLink: 'https://www.youtube.com/results?search_query=logic+pro+vocal+comping+take+folder',
     glossaryTerms: ['comping', 'cycle', 'take', 'take-folder', 'quick-swipe-comping', 'flatten', 'composite', 'punch'],
-    referenceTracks: ['ref-whitney-ballad', 'ref-frank-ocean', 'ref-boyz-ii-men'],
   },
   {
     id: 'vocal-03',
@@ -1050,7 +1044,6 @@ For gospel leads that go from conversational to full-voice belt: two moderate st
     tryNow: 'On a vocal take, insert Logic\'s Compressor. Set Circuit Type to Vintage Opto. Ratio 3:1, attack 20 ms, release 100 ms. Lower threshold until you see 3-4 dB of gain reduction on louder words. Add 3 dB makeup gain. A/B bypassed. You should hear the vocal "lock in" without feeling squashed.',
     youtubeLink: 'https://www.youtube.com/results?search_query=vocal+compression+logic+pro+tutorial',
     glossaryTerms: ['compression', 'threshold', 'ratio', 'attack', 'release', 'gain-reduction', 'makeup-gain', 'parallel-compression', 'clip-gain'],
-    referenceTracks: ['ref-whitney-ballad', 'ref-babyface-ballad'],
   },
   {
     id: 'vocal-05',
@@ -1229,7 +1222,6 @@ Every song starts with this architecture. You tune the send levels per section.`
     tryNow: 'Create two aux buses. Load ChromaVerb on both — one set to Plate, 1.2 s decay, 30 ms pre-delay; the other Plate, 2.5 s decay, 50 ms pre-delay. HPF each return at 300 Hz. Send your lead vocal to the short at -18 dB for the whole song, and the long at -24 dB only on the last chorus. A/B the bypass. You should feel the vocal move closer (dry sections) and further (wet ad-lib moments).',
     youtubeLink: 'https://www.youtube.com/results?search_query=logic+pro+vocal+reverb+tutorial',
     glossaryTerms: ['reverb', 'send', 'auxiliary-track', 'plate-reverb', 'hall-reverb', 'chromaverb', 'pre-delay', 'decay', 'wet-dry'],
-    referenceTracks: ['ref-babyface-ballad', 'ref-kirk-franklin', 'ref-frank-ocean'],
   },
   {
     id: 'vocal-07',
@@ -1336,7 +1328,6 @@ To make any small BGV stack feel huge: bus them, apply a hall reverb send (long 
     tryNow: 'Pick a chorus you\'ve been working on. Add three BGV tracks. Sing the root, the third, and the fifth of the main melody. Do two takes each. Pan them across the stereo field (hard left, center, hard right). Bus them. Insert a compressor at 2:1 ratio, 3 dB of GR. Send the bus to a reverb with 2 s decay. You\'ve built a wall.',
     youtubeLink: 'https://www.youtube.com/results?search_query=background+vocal+stacks+production+tutorial',
     glossaryTerms: ['background-vocals', 'bgv', 'stacking', 'double', 'pan', 'stereo-field', 'flex-pitch', 'send', 'auxiliary-track', 'hall-reverb', 'plate-reverb'],
-    referenceTracks: ['ref-kirk-franklin', 'ref-boyz-ii-men'],
   },
   {
     id: 'vocal-08',
@@ -1421,7 +1412,6 @@ Advanced: the parallel bus gets side-chained to the dry vocal. When the lead sin
     tryNow: 'Create a "Vocal Parallel" aux. Insert Logic\'s Compressor, pick Vintage FET. Set ratio 8:1, attack 1 ms, release 50 ms, threshold for 10-15 dB gain reduction. Send your vocal to this aux at -15 dB. Pull the aux fader from silent up slowly while the vocal plays. Stop when the vocal feels "fuller" but not "compressed." Mute the aux. Hear the lead thin out. That\'s parallel compression doing its job.',
     youtubeLink: 'https://www.youtube.com/results?search_query=parallel+compression+vocal+new+york',
     glossaryTerms: ['parallel-compression', 'new-york-compression', 'compression', 'ratio', 'attack', 'release', 'gain-reduction', 'auxiliary-track'],
-    referenceTracks: ['ref-frank-ocean', 'ref-daniel-caesar'],
   },
 ];
 
@@ -1470,7 +1460,6 @@ One more key move: the [[vamp]]. Gospel songs usually end by locking on the last
     tryNow: 'Open an empty Logic session. Create a 16-bar loop at 65 BPM in 6/8 with the build order above: piano chords, bass, drums (kick on 1, snare on 4, rolling triplet hi-hats), organ swells, sparse Rhodes. Set a vamp section at bar 17-24 where only the last two chords repeat. Stop when the bed feels like it could support a freestyle without fighting it.',
     youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+a+6%2F8+gospel+beat',
     glossaryTerms: ['six-eight', 'time-signature', 'triplet', 'vamp', 'rhodes', 'pocket', 'ghost-note'],
-    referenceTracks: ['ref-kirk-franklin'],
   },
   {
     id: 'gen-01b',
@@ -1555,7 +1544,6 @@ Listening homework: "Stomp" for modern choir; "Now Behold the Lamb" for classic 
     tryNow: 'Program or record a four-part choir section (soprano, alto, tenor, bass) singing one 8-bar phrase in close harmony. Double each part, pan them 60% L/R, send all to a Choir Bus, and apply the compression and reverb settings from the deep dive. Then add a dry lead call that answers the choir on beats 3-4 of each bar. Mix it so the choir feels wide and the lead feels close.',
     youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+kirk+franklin',
     glossaryTerms: ['call-and-response', 'compression', 'parallel-compression', 'plate-reverb', 'hall-reverb', 'auxiliary-track', 'bus', 'pan', 'vocal-doubling'],
-    referenceTracks: ['ref-kirk-franklin'],
   },
   {
     id: 'gen-02b',
@@ -1638,7 +1626,6 @@ Listen for what you can't hear. The absence of sounds in these mixes is as impor
     tryNow: 'Produce a complete 90s R&B ballad verse + chorus using a recorded or sampled lead vocal. Arrange 16 bars of verse (stripped bed), 8-bar pre-chorus (one element added), 16-bar chorus (BGVs, doubled lead, fuller drums). Apply the two-stage compression and plate reverb setup from the deep dive.',
     youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+babyface',
     glossaryTerms: ['compression', 'parallel-compression', 'plate-reverb', 'vocal-doubling', 'condenser-microphone', 'side-chain', 'comping', 'string-pad', 'rhodes', 'automation'],
-    referenceTracks: ['ref-babyface-ballad', 'ref-babyface-ballad-2', 'ref-boyz-ii-men'],
   },
   {
     id: 'gen-03b',
@@ -1720,7 +1707,6 @@ The goal isn't a demo — it's a radio-ready polished record. That polish is all
     tryNow: 'Program a 16-bar 2000s R&B midtempo groove at 95 BPM. Build with the order above. Then add a lead vocal take (yours, a sample, whatever works), stack two BGVs on the hook, and finish with automation rides on the BGVs and pads.',
     youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+bryan-michael+cox',
     glossaryTerms: ['rhodes', 'dx7', 'chorus-effect', 'synth-pad', 'compression', 'auto-tune', 'de-esser', 'slapback', 'tape-delay', 'automation'],
-    referenceTracks: ['ref-daniel-caesar'],
   },
   {
     id: 'gen-04b',
@@ -1874,7 +1860,6 @@ Reference tracks to study:
     tryNow: 'Build a minimal R&B track with at most 5 elements: piano/Rhodes, drums, bass (optional), one atmospheric texture, lead vocal. Write a 2-3 chord loop and a simple melody over it. Don\'t add anything else until you can\'t hear what\'s missing.',
     youtubeLink: 'https://www.youtube.com/results?search_query=how+to+produce+like+frank+ocean',
     glossaryTerms: ['sparse-arrangement', 'synth-pad', 'rhodes', 'plate-reverb', 'tape-delay', 'proximity-effect', 'vocal-doubling'],
-    referenceTracks: ['ref-frank-ocean', 'ref-daniel-caesar'],
   },
   {
     id: 'gen-06b',
@@ -2264,7 +2249,6 @@ Reference study: "Untitled (How Does It Feel)" for the textbook sound, "Didn't C
     tryNow: 'Build a neo-soul groove at 80 BPM with swung drums (25% swing), Rhodes bed, fretless-sounding bass, and close vocal. Apply tape saturation to the drum bus and the master. The mix should feel warm and intentionally hazy.',
     youtubeLink: 'https://www.youtube.com/results?search_query=how+to+make+a+neo+soul+beat',
     glossaryTerms: ['rhodes', 'swing', 'pocket', 'ghost-note', 'tape-saturation', 'dilla-feel', 'vinyl-effect', 'sparse-arrangement'],
-    referenceTracks: ['ref-dangelo-untitled'],
   },
   {
     id: 'gen-11b',

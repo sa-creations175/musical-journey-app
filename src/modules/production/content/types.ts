@@ -35,9 +35,6 @@ export interface LessonContent {
    *  inline in the surface text also count, but this list is the
    *  authoritative set for the lesson → term cross-reference. */
   glossaryTerms: string[];
-  /** Optional reference track ids whose sonic notes are relevant
-   *  for this lesson. */
-  referenceTracks?: string[];
 }
 
 export interface GlossaryContent {

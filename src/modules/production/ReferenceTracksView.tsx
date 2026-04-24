@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type ReferenceTrack } from '../../lib/db';
 import Modal from '../../components/Modal';
@@ -6,7 +6,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
 import TagPicker from '../skills/TagPicker';
 import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
-import { TRACK_POOLS, type PoolTrack, type TrackPool } from './content/trackPools';
+import { TRACK_POOLS, trackPoolById, type PoolTrack, type TrackPool } from './content/trackPools';
 import {
   addReferenceTrack,
   archiveReferenceTrack,
@@ -619,6 +619,14 @@ function TagChipEditor({
 
 interface BrowseProps {
   onClose: () => void;
+  /** When provided, the modal opens directly into this pool instead of
+   *  the genre picker. Used when a specific lesson knows which genre
+   *  it wants suggestions from. */
+  preselectedPoolId?: string;
+  /** Fired after "Add Selected" succeeds, with the new ReferenceTrack
+   *  ids that were just inserted. Lets callers (e.g. per-lesson
+   *  curator) auto-associate the new tracks with their current view. */
+  onAfterSave?: (addedTrackIds: string[]) => void;
 }
 
 interface PoolPreview extends PoolTrack {
@@ -630,8 +638,12 @@ interface PoolPreview extends PoolTrack {
  * Pool browser: pick a genre → see 15+ curated tracks → check the
  * ones you want → "Add Selected". All content is static, shipped
  * with the app. No API key or network call involved.
+ *
+ * Exported so other views (LessonReferenceSection) can open the same
+ * modal with a pre-selected pool and a callback for the newly added
+ * track ids.
  */
-function BrowsePoolsModal({ onClose }: BrowseProps) {
+export function BrowsePoolsModal({ onClose, preselectedPoolId, onAfterSave }: BrowseProps) {
   const { toast } = useToast();
   const [selectedPool, setSelectedPool] = useState<TrackPool | null>(null);
   const [preview, setPreview] = useState<PoolPreview[] | null>(null);
@@ -663,7 +675,34 @@ function BrowsePoolsModal({ onClose }: BrowseProps) {
     );
   };
 
+  // Preselection: if a pool id is passed, open straight into it once
+  // (and only once). Library state may not have loaded yet on first
+  // render — wait for existingTracks to arrive so the "already in
+  // library" checkbox defaults are correct.
+  useEffect(() => {
+    if (!preselectedPoolId) return;
+    if (selectedPool) return;
+    if (existingTracks === undefined) return;
+    const pool = trackPoolById(preselectedPoolId);
+    // setState inside effect is the right shape here: we can't
+    // initialise `preview` on mount because `existingTracks` (live
+    // query) hasn't resolved yet. The guards above ensure this runs
+    // at most once per preselected-pool lifecycle.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (pool) openPool(pool);
+    // openPool / existingKey read from closed-over state, which is fine
+    // for a one-shot effect. Re-running on every dep change would
+    // spuriously reset the user's checkbox edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedPoolId, existingTracks]);
+
   const backToPools = () => {
+    // If the caller pre-selected a pool, there's no picker to go back
+    // to — close instead so the user doesn't end up at a dead-end.
+    if (preselectedPoolId) {
+      onClose();
+      return;
+    }
     setSelectedPool(null);
     setPreview(null);
   };
@@ -684,8 +723,9 @@ function BrowsePoolsModal({ onClose }: BrowseProps) {
     }
     setSaving(true);
     try {
+      const addedIds: string[] = [];
       for (const t of chosen) {
-        await addReferenceTrack({
+        const row = await addReferenceTrack({
           title: t.title.trim(),
           artist: t.artist.trim(),
           producer: t.producer.trim() || undefined,
@@ -695,12 +735,14 @@ function BrowsePoolsModal({ onClose }: BrowseProps) {
           tags: t.tags.map(x => x.trim()).filter(Boolean),
           source: 'generated',
         });
+        addedIds.push(row.id);
       }
       toast({
         message: `Added ${chosen.length} track${chosen.length === 1 ? '' : 's'}.`,
         variant: 'success',
         duration: 1800,
       });
+      if (onAfterSave) onAfterSave(addedIds);
       onClose();
     } catch {
       toast({ message: 'Failed to save tracks.', variant: 'danger', duration: 2400 });

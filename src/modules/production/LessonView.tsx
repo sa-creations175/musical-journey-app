@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type ProductionLessonMastery } from '../../lib/db';
 import { lessonById } from './content/lessons';
 import { glossaryById } from './content/glossary';
-import { referenceTrackById } from './content/referenceTracks';
 import { pathById } from './content/paths';
 import { recordLessonOpen, updateLessonMastery } from './data';
 import GlossaryOverlay from './GlossaryOverlay';
+import LessonReferenceSection from './LessonReferenceSection';
 
 interface Props {
   lessonId: string;
@@ -150,33 +149,8 @@ export default function LessonView({ lessonId, onBack }: Props) {
         )}
       </section>
 
-      {/* Reference tracks */}
-      {lesson.referenceTracks && lesson.referenceTracks.length > 0 && (
-        <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-2">
-          <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium">
-            listen with this lesson
-          </div>
-          <ul className="space-y-1.5">
-            {lesson.referenceTracks.map(rid => {
-              const t = referenceTrackById(rid);
-              if (!t) return null;
-              return (
-                <li key={rid} className="text-sm">
-                  <span className="font-medium">{t.title}</span>
-                  <span className="text-neutral-500"> — {t.artist}</span>
-                  <span className="block text-[11px] text-neutral-500 mt-0.5">{t.whatToListenFor}</span>
-                </li>
-              );
-            })}
-          </ul>
-          <Link
-            to="/production?view=reference-tracks"
-            className="inline-block text-[11px] text-production hover:underline"
-          >
-            open full reference library →
-          </Link>
-        </section>
-      )}
+      {/* Reference tracks — user-curated per-lesson associations */}
+      <LessonReferenceSection lessonId={lesson.id} />
 
       {/* Glossary terms in this lesson */}
       {lesson.glossaryTerms.length > 0 && (

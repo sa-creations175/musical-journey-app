@@ -519,6 +519,22 @@ export interface ReferenceTrack {
   sonicNotes?: string;
 }
 
+/**
+ * Many-to-many link between a Production lesson and a Reference Track.
+ * Created when the user curates reference tracks for a specific lesson
+ * (either picking from their library or adding from a suggestions pool).
+ * Intentionally stored as its own table rather than an array on
+ * ProductionLesson so cascade-delete from the track side is a simple
+ * indexed query, and so one track can appear on multiple lessons without
+ * duplicate rows.
+ */
+export interface LessonReferenceTrack {
+  id: string;
+  lessonId: string;
+  trackId: string;
+  addedAt: number;
+}
+
 // --- Skills registry + Harmonic Diary (v11) -------------------------
 //
 // These two tables power the Skills Catalogue and Harmonic Diary
@@ -748,6 +764,7 @@ export class AppDB extends Dexie {
   productionLessonSessions!: Table<ProductionLessonSession, string>;
   glossaryTermStates!: Table<GlossaryTermState, string>;
   referenceTracks!: Table<ReferenceTrack, string>;
+  lessonReferenceTracks!: Table<LessonReferenceTrack, string>;
 
   constructor() {
     super('musical-journey');
@@ -1054,6 +1071,44 @@ export class AppDB extends Dexie {
           row.source = row.isStarter ? 'starter' : 'user';
         }
       });
+    });
+    // v14 — User-curated per-lesson reference track associations.
+    // Replaces the content-authored `referenceTracks: [...]` arrays on
+    // lessons. Indexed by lessonId and trackId separately (both sides
+    // of the many-to-many are queried independently) plus the composite
+    // so "is this exact pair already linked?" lookups are one hit.
+    this.version(14).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
     });
   }
 }

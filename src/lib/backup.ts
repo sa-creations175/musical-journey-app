@@ -48,6 +48,7 @@ const TABLES = {
   productionLessonSessions: db.productionLessonSessions,
   glossaryTermStates: db.glossaryTermStates,
   referenceTracks: db.referenceTracks,
+  lessonReferenceTracks: db.lessonReferenceTracks,
 } as const;
 
 type TableMap = typeof TABLES;

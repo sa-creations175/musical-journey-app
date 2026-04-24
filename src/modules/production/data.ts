@@ -1,6 +1,7 @@
 import {
   db,
   type GlossaryMastery,
+  type LessonReferenceTrack,
   type ProductionLesson,
   type ProductionLessonMastery,
   type ProductionLessonSession,
@@ -327,5 +328,69 @@ export async function archiveReferenceTrack(id: string, archived: boolean): Prom
 }
 
 export async function deleteReferenceTrack(id: string): Promise<void> {
-  await db.referenceTracks.delete(id);
+  // Cascade: drop any lesson associations pointing at this track so
+  // no ghost rows survive. Same transaction so a half-deleted state
+  // can't persist if one side throws.
+  await db.transaction(
+    'rw',
+    [db.referenceTracks, db.lessonReferenceTracks],
+    async () => {
+      await db.lessonReferenceTracks
+        .where('trackId')
+        .equals(id)
+        .delete();
+      await db.referenceTracks.delete(id);
+    },
+  );
+}
+
+// --- Lesson ↔ Reference Track associations -------------------------
+
+/** Link one or more tracks to a lesson. Skips pairs that already exist
+ *  so repeated adds are idempotent; returns the newly created link ids. */
+export async function linkTracksToLesson(
+  lessonId: string,
+  trackIds: string[],
+): Promise<string[]> {
+  if (trackIds.length === 0) return [];
+  const now = Date.now();
+  const existing = await db.lessonReferenceTracks
+    .where('lessonId')
+    .equals(lessonId)
+    .toArray();
+  const existingTrackIds = new Set(existing.map(r => r.trackId));
+  const rows: LessonReferenceTrack[] = trackIds
+    .filter(tid => !existingTrackIds.has(tid))
+    .map(tid => ({
+      id: uid('lrt'),
+      lessonId,
+      trackId: tid,
+      addedAt: now,
+    }));
+  if (rows.length === 0) return [];
+  await db.lessonReferenceTracks.bulkAdd(rows);
+  return rows.map(r => r.id);
+}
+
+/** Remove the association between a track and a lesson. The track
+ *  itself stays in the user's library — only the lesson link is cut. */
+export async function unlinkTrackFromLesson(
+  lessonId: string,
+  trackId: string,
+): Promise<void> {
+  await db.lessonReferenceTracks
+    .where('[lessonId+trackId]')
+    .equals([lessonId, trackId])
+    .delete();
+}
+
+/** Track ids currently associated with the given lesson, in the order
+ *  they were added. */
+export async function trackIdsForLesson(lessonId: string): Promise<string[]> {
+  const rows = await db.lessonReferenceTracks
+    .where('lessonId')
+    .equals(lessonId)
+    .toArray();
+  rows.sort((a, b) => a.addedAt - b.addedAt);
+  return rows.map(r => r.trackId);
 }
