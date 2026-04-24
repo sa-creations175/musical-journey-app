@@ -484,17 +484,35 @@ export interface ReferenceTrack {
   title: string;
   artist: string;
   genre: string;
-  /** Production-focused sonic notes — what to listen for. */
-  sonicNotes: string;
+  /** Guided-listening prompts — tells the user what to listen for in
+   *  this track. Populated on add / generate, editable. Intentionally
+   *  avoids fabricated gear/ratio claims. */
+  whatToListenFor: string;
+  /** User's own observations that grow over time as they listen in
+   *  the context of the lessons they're studying. Optional. */
+  myListeningNotes?: string;
+  /** Optional external listening links. Treated as free-form URLs so
+   *  search-style links are valid when a direct track URL is unknown. */
+  spotifyLink?: string;
+  youtubeLink?: string;
   /** User-editable free-form tags (lowercase). */
   tags: string[];
   /** True when the track is a starter seeded by the app; false
    *  when the user added it. Starter entries can still be edited /
    *  archived but serve as onboarding material. */
   isStarter: boolean;
+  /** Provenance — 'starter' = app seed, 'user' = user-typed, 'generated'
+   *  = Claude-generated from a prompt. Used in UI to badge origin and
+   *  in migration logic to decide what can be safely rewritten. */
+  source?: 'starter' | 'user' | 'generated';
   archived: boolean;
   addedAt: number;
   updatedAt: number;
+  /** Pre-v13 field preserved for backward compatibility only. New code
+   *  reads/writes `whatToListenFor` instead; migration copies the old
+   *  value over. Kept optional so typecheck doesn't break on legacy
+   *  rows still carrying this. */
+  sonicNotes?: string;
 }
 
 // --- Skills registry + Harmonic Diary (v11) -------------------------
@@ -981,6 +999,57 @@ export class AppDB extends Dexie {
       productionLessonSessions: 'id, lessonId, timestamp',
       glossaryTermStates: 'id, mastery, lastEncounteredAt',
       referenceTracks: 'id, artist, genre, archived, addedAt',
+    });
+    // v13 — Reference Track schema update: rename sonicNotes →
+    // whatToListenFor, add myListeningNotes, spotify/youtube links,
+    // and a `source` provenance flag. Indexes unchanged (new fields
+    // aren't indexed). The upgrade hook copies legacy sonicNotes to
+    // whatToListenFor and backfills `source` from the existing
+    // `isStarter` flag so existing rows don't look blank.
+    this.version(13).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+    }).upgrade(async tx => {
+      const table = tx.table('referenceTracks');
+      await table.toCollection().modify(row => {
+        if (typeof row.whatToListenFor !== 'string') {
+          row.whatToListenFor = typeof row.sonicNotes === 'string' ? row.sonicNotes : '';
+        }
+        if (typeof row.myListeningNotes !== 'string') {
+          row.myListeningNotes = '';
+        }
+        if (!row.source) {
+          row.source = row.isStarter ? 'starter' : 'user';
+        }
+      });
     });
   }
 }

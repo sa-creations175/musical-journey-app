@@ -6,7 +6,6 @@ import {
   type FlashcardState,
   type ProductionLesson,
   type ProductionLessonMastery,
-  type GlossaryTermState,
   type SkillAnnotation,
   type SkillType,
   type SkillPriority,
@@ -26,7 +25,6 @@ import {
 } from '../shapes-and-patterns/catalog';
 import { freshnessTier, type FreshnessTier } from '../shapes-and-patterns/drillModel';
 import { PRODUCTION_LESSONS } from '../production/content/lessons';
-import { GLOSSARY } from '../production/content/glossary';
 import { pathById } from '../production/content/paths';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -185,7 +183,7 @@ const MODULE_LABELS: Record<string, { label: string; route: string }> = {
   'scales-modes':       { label: 'scales & modes',    route: '/ear-training/scales-modes' },
   'repertoire':         { label: 'song repertoire',   route: '/repertoire' },
   'shapes-and-patterns':{ label: 'shapes & patterns', route: '/shapes-and-patterns' },
-  'production':         { label: 'production & logic pro', route: '/production' },
+  'production':         { label: 'production',             route: '/production' },
 };
 
 function moduleMeta(moduleId: string): { label: string; route: string } {
@@ -212,7 +210,6 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     drillTypes,
     annotations,
     productionLessons,
-    glossaryTermStates,
   ] = await Promise.all([
     db.attempts.toArray(),
     db.flashcardStates.toArray(),
@@ -221,7 +218,6 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     db.drillTypes.toArray(),
     db.skillAnnotations.toArray(),
     db.productionLessons.toArray(),
-    db.glossaryTermStates.toArray(),
   ]);
 
   const annotationById = new Map<string, SkillAnnotation>();
@@ -702,16 +698,18 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // --- Production & Logic Pro --------------------------------------
+  // --- Production ---------------------------------------------------
   // Each Phase-1 lesson surfaces as a trackable skill with tier
-  // derived from its mastery state, plus one concept skill per
-  // glossary term (tier maps "got it" → fluent, otherwise untouched).
+  // derived from its mastery state. Glossary terms are reference
+  // lookups rather than practised skills, so they stay inside the
+  // Production module's own Glossary view (with "got it" tracking)
+  // and are intentionally NOT enumerated here. A future "glossary
+  // flashcards" activity will re-introduce term-level skills when
+  // that becomes a practised drill.
   {
     const { label, route } = moduleMeta('production');
     const lessonStateById = new Map<string, ProductionLesson>();
     for (const l of productionLessons) lessonStateById.set(l.id, l);
-    const termStateById = new Map<string, GlossaryTermState>();
-    for (const t of glossaryTermStates) termStateById.set(t.id, t);
 
     for (const lesson of PRODUCTION_LESSONS) {
       const state = lessonStateById.get(lesson.id);
@@ -731,32 +729,6 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         category: path ? path.title : 'Production',
         skillType: 'production',
         currentTier: mapProductionMastery(mastery),
-        freshness: freshnessFrom(lastPracticed),
-        daysSince: daysSinceOf(lastPracticed, now),
-        lastPracticed,
-        totalTime: 0,
-        priority: ann?.priority,
-        tags: ann?.tags ?? [],
-        note: ann?.note,
-      });
-    }
-
-    for (const term of GLOSSARY) {
-      const state = termStateById.get(term.id);
-      const lastPracticed = state?.lastEncounteredAt ?? null;
-      const skillId = canonicalSkillId('production', 'glossary-term', term.id);
-      const ann = annotationById.get(skillId);
-      records.push({
-        skillId,
-        moduleId: 'production',
-        moduleLabel: label,
-        moduleRoute: route,
-        moduleJumpQuery: 'view=glossary',
-        itemId: term.id,
-        name: ann?.customName ?? term.name,
-        category: 'Glossary Terms',
-        skillType: 'production',
-        currentTier: state?.mastery === 'got-it' ? 'fluent' : 'untouched',
         freshness: freshnessFrom(lastPracticed),
         daysSince: daysSinceOf(lastPracticed, now),
         lastPracticed,

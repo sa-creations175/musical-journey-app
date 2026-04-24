@@ -118,7 +118,7 @@ export const MODULE_ORDER: ModuleMeta[] = [
   },
   {
     id: 'production',
-    label: 'production & logic pro',
+    label: 'production',
     route: '/production',
     icon: '▤',
     iconName: 'studio',

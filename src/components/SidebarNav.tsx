@@ -141,7 +141,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       {
         id: 'production',
-        label: 'production & logic pro',
+        label: 'production',
         to: '/production',
         children: [
           { label: 'workflow foundations',     to: '/production?path=workflow-foundations' },

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { seedProductionIfNeeded } from './data';
+import { lessonById } from './content/lessons';
 import ProductionOverview from './ProductionOverview';
 import PathView from './PathView';
 import LessonView from './LessonView';
@@ -55,7 +56,13 @@ export default function Production() {
 
   // Priority order: lesson > path > view.
   if (lessonId) {
-    return <LessonView lessonId={lessonId} onBack={backToOverview} />;
+    // "Back" inside a lesson lands on the path's lesson list, not the
+    // module home — one level up in the Production → Path → Lesson
+    // hierarchy. Falls back to the module home if the lesson id can't
+    // be resolved (deep link to a deleted lesson, etc.).
+    const lesson = lessonById(lessonId);
+    const onBack = lesson ? () => openPath(lesson.pathId) : backToOverview;
+    return <LessonView lessonId={lessonId} onBack={onBack} />;
   }
   if (pathId) {
     return (

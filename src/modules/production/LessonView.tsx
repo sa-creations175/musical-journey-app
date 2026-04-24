@@ -164,7 +164,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
                 <li key={rid} className="text-sm">
                   <span className="font-medium">{t.title}</span>
                   <span className="text-neutral-500"> — {t.artist}</span>
-                  <span className="block text-[11px] text-neutral-500 mt-0.5">{t.sonicNotes}</span>
+                  <span className="block text-[11px] text-neutral-500 mt-0.5">{t.whatToListenFor}</span>
                 </li>
               );
             })}

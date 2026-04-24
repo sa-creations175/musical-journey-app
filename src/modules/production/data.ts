@@ -6,9 +6,19 @@ import {
   type ProductionLessonSession,
   type ReferenceTrack,
 } from '../../lib/db';
+import { getPref, setPref } from '../../lib/userPrefs';
 import { PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
-import { REFERENCE_TRACKS } from './content/referenceTracks';
+import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
+
+/** Flag set after the first time starter reference tracks are seeded.
+ *  Once true we never re-seed, so the user's curation (deletes,
+ *  archives, additions) is preserved across future builds. */
+const PREF_REF_TRACKS_SEEDED = 'production.referenceTracks.seededAt';
+/** Flag set after the v1→v2 guided-listening rewrite has run for
+ *  starter tracks. Ensures each user gets the content refresh exactly
+ *  once, and only for starters whose text the user hasn't touched. */
+const PREF_REF_TRACKS_V2_REFRESHED = 'production.referenceTracks.v2RefreshedAt';
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
@@ -16,22 +26,27 @@ function uid(prefix: string): string {
 
 /**
  * Seed the per-user state tables with any lessons / glossary terms /
- * starter tracks that aren't already present. Idempotent — runs on
- * every mount of the Production module without touching rows the
- * user has already interacted with.
+ * starter tracks that aren't already present.
+ *
+ * Lessons and glossary terms seed on every mount — they're content
+ * the app ships, and new versions may add rows that need to exist in
+ * the user's DB. Reference tracks are different: the Library is a
+ * user-owned space, so starters seed ONCE (guarded by
+ * `PREF_REF_TRACKS_SEEDED`) and are never re-added afterwards. A
+ * separate one-time pass (`PREF_REF_TRACKS_V2_REFRESHED`) rewrites
+ * the original "fake technical analysis" notes to guided-listening
+ * prose, but only for starters the user hasn't edited.
  */
 export async function seedProductionIfNeeded(): Promise<void> {
   const now = Date.now();
 
-  const [existingLessons, existingGlossary, existingRefs] = await Promise.all([
+  const [existingLessons, existingGlossary] = await Promise.all([
     db.productionLessons.toArray(),
     db.glossaryTermStates.toArray(),
-    db.referenceTracks.toArray(),
   ]);
 
   const existingLessonIds = new Set(existingLessons.map(l => l.id));
   const existingGlossaryIds = new Set(existingGlossary.map(g => g.id));
-  const existingRefIds = new Set(existingRefs.map(r => r.id));
 
   // --- Lessons ---
   const lessonRows: ProductionLesson[] = PRODUCTION_LESSONS
@@ -59,31 +74,84 @@ export async function seedProductionIfNeeded(): Promise<void> {
       gotItAt: null,
     }));
 
-  // --- Reference tracks (starter seeds) ---
-  const refRows: ReferenceTrack[] = REFERENCE_TRACKS
-    .filter(t => !existingRefIds.has(t.id))
-    .map(t => ({
+  // --- Reference tracks: seed ONCE only ---
+  const seededAt = await getPref<number>(PREF_REF_TRACKS_SEEDED, 0);
+  let refRows: ReferenceTrack[] = [];
+  if (seededAt === 0) {
+    refRows = REFERENCE_TRACKS.map(t => ({
       id: t.id,
       title: t.title,
       artist: t.artist,
       genre: t.genre,
-      sonicNotes: t.sonicNotes,
+      whatToListenFor: t.whatToListenFor,
+      myListeningNotes: '',
+      spotifyLink: t.spotifyLink,
+      youtubeLink: t.youtubeLink,
       tags: [...t.tags],
       isStarter: true,
+      source: 'starter' as const,
       archived: false,
       addedAt: now,
       updatedAt: now,
     }));
+  }
 
   await db.transaction(
     'rw',
-    [db.productionLessons, db.glossaryTermStates, db.referenceTracks],
+    [db.productionLessons, db.glossaryTermStates, db.referenceTracks, db.userPrefs],
     async () => {
       if (lessonRows.length > 0) await db.productionLessons.bulkAdd(lessonRows);
       if (glossaryRows.length > 0) await db.glossaryTermStates.bulkAdd(glossaryRows);
       if (refRows.length > 0) await db.referenceTracks.bulkAdd(refRows);
+      if (seededAt === 0) await db.userPrefs.put({ key: PREF_REF_TRACKS_SEEDED, value: now });
     },
   );
+
+  // --- One-time starter content refresh (fake-tech → guided-listening) ---
+  // Runs exactly once per user, AFTER the initial seed. For each
+  // starter track whose current `whatToListenFor` still matches the
+  // original legacy sonic-notes text, we replace it with the new
+  // guided-listening prose from the content file. If the text has
+  // diverged at all, the user has edited it — we leave it alone.
+  const refreshedAt = await getPref<number>(PREF_REF_TRACKS_V2_REFRESHED, 0);
+  if (refreshedAt === 0) {
+    await refreshStarterListeningPrompts();
+    await setPref(PREF_REF_TRACKS_V2_REFRESHED, Date.now());
+  }
+}
+
+async function refreshStarterListeningPrompts(): Promise<void> {
+  const now = Date.now();
+  const contentById = new Map(REFERENCE_TRACKS.map(t => [t.id, t]));
+  const rows = await db.referenceTracks.toArray();
+  const patches: Array<{ id: string; updates: Partial<ReferenceTrack> }> = [];
+  for (const row of rows) {
+    if (row.source !== 'starter' && !row.isStarter) continue;
+    const content = contentById.get(row.id);
+    if (!content) continue;
+    const legacy = STARTER_LEGACY_SONIC_NOTES[row.id];
+    // Treat a row as "unedited" when its current listening text is
+    // either the legacy fake-tech prose OR already the new guided
+    // listening prose (second app-level refresh / restored backup).
+    const current = row.whatToListenFor ?? row.sonicNotes ?? '';
+    const isLegacy = legacy !== undefined && current.trim() === legacy.trim();
+    const isAlreadyNew = current.trim() === content.whatToListenFor.trim();
+    if (!isLegacy && !isAlreadyNew) continue; // user-edited — skip
+    const updates: Partial<ReferenceTrack> = {
+      whatToListenFor: content.whatToListenFor,
+      source: 'starter',
+      updatedAt: now,
+    };
+    if (!row.spotifyLink && content.spotifyLink) updates.spotifyLink = content.spotifyLink;
+    if (!row.youtubeLink && content.youtubeLink) updates.youtubeLink = content.youtubeLink;
+    patches.push({ id: row.id, updates });
+  }
+  if (patches.length === 0) return;
+  await db.transaction('rw', db.referenceTracks, async () => {
+    for (const p of patches) {
+      await db.referenceTracks.update(p.id, p.updates);
+    }
+  });
 }
 
 // --- Lesson state CRUD ---------------------------------------------
@@ -181,11 +249,14 @@ export async function recordGlossaryOpen(termId: string): Promise<void> {
 // --- Reference track CRUD ------------------------------------------
 
 export async function addReferenceTrack(
-  input: Omit<ReferenceTrack, 'id' | 'isStarter' | 'archived' | 'addedAt' | 'updatedAt'>,
+  input: Omit<ReferenceTrack, 'id' | 'isStarter' | 'archived' | 'addedAt' | 'updatedAt' | 'source'> & {
+    source?: 'user' | 'generated';
+  },
 ): Promise<ReferenceTrack> {
   const now = Date.now();
   const row: ReferenceTrack = {
     id: uid('ref'),
+    source: 'user',
     ...input,
     isStarter: false,
     archived: false,

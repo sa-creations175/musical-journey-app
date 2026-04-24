@@ -59,6 +59,11 @@ export interface ReferenceTrackContent {
   title: string;
   artist: string;
   genre: string;
-  sonicNotes: string;
+  /** Guided-listening prose — what to notice while listening. Avoids
+   *  fabricated gear/ratio claims; guides the ear to perceivable
+   *  things (balance, space, arrangement contrast, vocal placement). */
+  whatToListenFor: string;
   tags: string[];
+  spotifyLink?: string;
+  youtubeLink?: string;
 }
