@@ -143,14 +143,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   // local writes then pull latest from cloud. This is the main
   // mechanism for a change made on one device to land on another:
   // drain → pull replace → local mirrors cloud.
+  //
+  // Console logs here are intentional and should stay — the handler
+  // and the pull both run silently when there's nothing to sync,
+  // which is impossible to distinguish from "not firing" without
+  // explicit signal. Keep these until we have a proper status UI.
   useEffect(() => {
     if (phase !== 'ready') return;
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      void refreshFromCloud();
+      console.log('[sync] tab focused, pulling from cloud');
+      void refreshFromCloud().then(() => {
+        console.log('[sync] tab-focused refresh complete');
+      }).catch(err => {
+        console.warn('[sync] tab-focused refresh errored', err);
+      });
     };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
+    console.log('[sync] tab-focus listeners attached (phase=ready)');
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
