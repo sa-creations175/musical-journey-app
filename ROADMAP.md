@@ -30,6 +30,7 @@ Optional sub-feature: ear training layer inside Voicings module — "hear this v
 For each song, store its chord progression (Roman numerals or named chords) with optional section labels (verse, chorus, bridge). "Play progression" button loops the progression at user-specified tempo, transposable to any key. Use cases: ear-training real songs you're learning, reviewing old analyses, testing progression variations, songwriter practice loop.
 
 ## Repertoire — Future Enhancements
+- Surface associated context in the delete-song confirm modal — before deleting, show what will be lost (diary entries, Skills Catalogue annotations, custom tags/priority) so users with real, meaningful associations don't lose that context silently. V1 deletes them silently, which is fine for test songs; v2 should protect real ones.
 - Chord-level semantic connections — click a chord in the lead sheet to open that chord's Chord Recognition tier, or audition it against your ear-training fluency in the current key.
 - Back-references from other modules — "this motion appears in Mirror (verse)" and "this progression is the hook of A Couple Minutes", surfaced next to the source drill.
 - Multi-voicing tracking per chord — attach several voicings to a single chord slot so the user can compare alternatives without stomping on the primary chart.

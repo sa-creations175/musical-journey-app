@@ -344,24 +344,35 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   const performDeleteSong = async () => {
     if (!song) return;
+    const skillId = canonicalSkillId('repertoire', 'song', song.id);
+    const title = song.title;
     await db.transaction('rw', [
-      db.songs, db.songSections, db.songChords, db.songPracticeLog, db.songCrossKeyProgress,
+      db.songs,
+      db.songSections,
+      db.songChords,
+      db.songPracticeLog,
+      db.songCrossKeyProgress,
+      db.skillAnnotations,
+      db.harmonicDiaryEntries,
     ], async () => {
-      const [sectionRows, chordRows, logRows, ckRows] = await Promise.all([
+      const [sectionRows, chordRows, logRows, ckRows, diaryRows] = await Promise.all([
         db.songSections.where('songId').equals(song.id).toArray(),
         db.songChords.where('songId').equals(song.id).toArray(),
         db.songPracticeLog.where('songId').equals(song.id).toArray(),
         db.songCrossKeyProgress.where('songId').equals(song.id).toArray(),
+        db.harmonicDiaryEntries.where('skillId').equals(skillId).toArray(),
       ]);
       await Promise.all([
         db.songSections.bulkDelete(sectionRows.map(r => r.id)),
         db.songChords.bulkDelete(chordRows.map(r => r.id)),
         db.songPracticeLog.bulkDelete(logRows.map(r => r.id)),
         db.songCrossKeyProgress.bulkDelete(ckRows.map(r => r.id)),
+        db.skillAnnotations.delete(skillId),
+        db.harmonicDiaryEntries.bulkDelete(diaryRows.map(r => r.entryId)),
         db.songs.delete(song.id),
       ]);
     });
-    toast({ message: `Removed "${song.title}" from repertoire.`, variant: 'warning' });
+    toast({ message: `Deleted "${title}" and all associated data.`, variant: 'warning' });
     onBackToActive();
   };
 
@@ -451,7 +462,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             <div className="flex items-center gap-2">
               <button onClick={saveMeta} className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
               <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
-              <button onClick={() => setConfirmDeleteSong(true)} className="ml-auto px-3 py-1.5 rounded-md border border-needswork/40 text-needswork text-xs hover:bg-needswork/10">remove from repertoire</button>
             </div>
           </div>
         ) : (
@@ -660,6 +670,25 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         <PracticeHistory logs={logs} sections={sections} />
       </section>
 
+      {/* Danger zone — destructive actions, visually separated from
+          the rest of the page so nothing is clicked by accident. */}
+      <section className="rounded-card border border-needswork/30 bg-needswork/5 p-3 sm:p-5 space-y-2">
+        <h3 className="text-sm font-medium uppercase tracking-wide text-needswork">
+          danger zone
+        </h3>
+        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+          Permanently remove this song and every record tied to it — sections, chords, practice history, cross-key progress, Harmonic Diary associations, and Skills Catalogue annotations. This cannot be undone.
+        </p>
+        <div>
+          <button
+            onClick={() => setConfirmDeleteSong(true)}
+            className="px-3 py-1.5 rounded-md bg-needswork text-white text-xs font-medium hover:opacity-90"
+          >
+            Delete this song
+          </button>
+        </div>
+      </section>
+
       {showLogModal && (
         <PracticeLogModal
           song={song}
@@ -676,18 +705,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           after confirmation is the second layer. */}
       <ConfirmDialog
         open={confirmDeleteSong}
-        title={`Delete "${song.title}" from your repertoire?`}
+        title={`Delete "${song.title}"?`}
         message={
-          <>
-            <p>
-              This removes all section data, notes, cross-key progress, and practice history for this song.
-            </p>
-            <p className="text-xs text-neutral-500">
-              You can still undo from the toast right after, but only for 10 seconds.
-            </p>
-          </>
+          <p>
+            This permanently deletes <span className="font-medium">{song.title}</span> and all associated practice history, notes, and associations. This cannot be undone.
+          </p>
         }
-        confirmLabel="Delete song"
+        confirmLabel="Delete permanently"
+        cancelLabel="Cancel"
         onCancel={() => setConfirmDeleteSong(false)}
         onConfirm={doDeleteSongConfirmed}
       />
