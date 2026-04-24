@@ -40,51 +40,97 @@ function toPgRow(cfg: SyncTableConfig, dexieRow: unknown, userId: string): Recor
  *  Paginates in batches of 1000 to stay under the Supabase default
  *  row limit. Wraps the Dexie writes in `beginPull/endPull` so write
  *  hooks skip enqueueing (otherwise we'd immediately echo everything
- *  we just pulled back to the cloud). */
-export async function pullAll(): Promise<void> {
+ *  we just pulled back to the cloud).
+ *
+ *  `mode` decides what to do with local rows that DON'T appear in the
+ *  cloud response:
+ *    - 'additive' (default): leave them alone. Safe when the sync
+ *      queue still has outbound writes — we don't want to delete a
+ *      row the user just created locally but hasn't yet pushed.
+ *    - 'replace': treat cloud as source of truth. Local rows whose
+ *      id isn't in the cloud set get bulkDeleted so deletes made on
+ *      another device propagate down. Use this only when the sync
+ *      queue is empty (all local writes have reached the cloud). */
+export async function pullAll(mode: 'additive' | 'replace' = 'additive'): Promise<void> {
   const userId = getCurrentUserId();
   if (!userId) return;
   beginPull();
   try {
     for (const cfg of SYNC_TABLES) {
-      await pullOneTable(cfg, userId);
+      await pullOneTable(cfg, userId, mode);
     }
   } finally {
     endPull();
   }
 }
 
-async function pullOneTable(cfg: SyncTableConfig, userId: string): Promise<void> {
+async function pullOneTable(
+  cfg: SyncTableConfig,
+  userId: string,
+  mode: 'additive' | 'replace',
+): Promise<void> {
   const PAGE = 1000;
   let from = 0;
+  const cloudRows: Record<string, unknown>[] = [];
   while (true) {
     const { data, error } = await supabase
       .from(cfg.pg)
       .select('id, data, updated_at')
       .eq('user_id', userId)
-      .order('updated_at', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
+      // Leave local state untouched on error — partial reconciliation
+      // is worse than stale. The next pull (on focus / reconnect) will
+      // try again.
       console.warn(`[sync] pull ${cfg.pg} failed`, error);
       return;
     }
-    if (!data || data.length === 0) return;
-
-    // The row payload lives in data; we restore it verbatim into the
-    // Dexie row. The primary-id field is on the payload already (we
-    // wrote it there on push) — no need to splice it back in.
-    const rows = (data as Array<{ data: Record<string, unknown> | null }>)
-      .map(r => r.data)
-      .filter((r): r is Record<string, unknown> => r !== null);
-    if (rows.length > 0) {
-      // bulkPut replaces local rows with the cloud version — last-
-      // write-wins with cloud as the winner for initial hydration.
-      await (db as unknown as Record<string, { bulkPut: (rows: unknown[]) => Promise<unknown> }>)[cfg.dexie].bulkPut(rows);
+    if (!data || data.length === 0) break;
+    for (const row of data as Array<{ data: Record<string, unknown> | null }>) {
+      if (row.data) cloudRows.push(row.data);
     }
-    if (data.length < PAGE) return;
+    if (data.length < PAGE) break;
     from += PAGE;
   }
+
+  const table = (db as unknown as Record<string, DexieMiniTable | undefined>)[cfg.dexie];
+  if (!table) return;
+
+  // Replace mode: drop local rows that aren't in cloud. Runs BEFORE
+  // the bulkPut so bulkDelete/bulkPut aren't fighting over the same
+  // primary keys. beginPull is already active, so the delete hooks
+  // don't echo back to Supabase.
+  if (mode === 'replace') {
+    const cloudIds = new Set<string>();
+    for (const row of cloudRows) {
+      const id = row[cfg.idField];
+      if (typeof id === 'string' && id !== '') cloudIds.add(id);
+    }
+    const localRows = await table.toArray();
+    const orphanIds: string[] = [];
+    for (const row of localRows) {
+      const id = (row as Record<string, unknown>)[cfg.idField];
+      if (typeof id === 'string' && id !== '' && !cloudIds.has(id)) {
+        orphanIds.push(id);
+      }
+    }
+    if (orphanIds.length > 0) {
+      await table.bulkDelete(orphanIds);
+    }
+  }
+
+  if (cloudRows.length > 0) {
+    await table.bulkPut(cloudRows);
+  }
 }
+
+/** The slice of the Dexie Table type we actually need inside pull. */
+type DexieMiniTable = {
+  bulkPut: (rows: unknown[]) => Promise<unknown>;
+  bulkDelete: (ids: string[]) => Promise<unknown>;
+  toArray: () => Promise<unknown[]>;
+};
 
 /**
  * Enqueue a sync job. Called from the Dexie write hooks on every
@@ -237,6 +283,30 @@ export async function drain(): Promise<void> {
   } finally {
     draining = false;
   }
+}
+
+/**
+ * User-facing "pull latest from cloud and reconcile". Safe to call
+ * from anywhere — on sign-in, on tab focus, or from a settings
+ * button. Order matters:
+ *
+ *   1. Drain first so any local writes reach the cloud before we
+ *      decide what rows exist there.
+ *   2. If the queue is now empty, run a replace pull — cloud is the
+ *      source of truth, local orphans get deleted.
+ *   3. If the queue still has items (drain partially failed), run an
+ *      additive pull instead so we don't wipe local rows that just
+ *      haven't made it to the cloud yet.
+ *
+ * Returns the number of rows pulled is intentionally NOT returned —
+ * the caller should read live queries for the UI.
+ */
+export async function refreshFromCloud(): Promise<void> {
+  if (!getCurrentUserId()) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  await drain();
+  const pending = await db.syncQueue.count();
+  await pullAll(pending === 0 ? 'replace' : 'additive');
 }
 
 /**

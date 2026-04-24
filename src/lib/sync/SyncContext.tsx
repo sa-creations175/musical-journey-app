@@ -2,7 +2,7 @@ import { createContext, useEffect, useMemo, useRef, useState, type ReactNode } f
 import { useAuth } from '../auth/useAuth';
 import { installSyncHooks } from './hooks';
 import { setCurrentUserId } from './currentUser';
-import { pullAll, drain, clearLocalCache } from './engine';
+import { pullAll, drain, clearLocalCache, refreshFromCloud } from './engine';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
@@ -16,6 +16,9 @@ export interface SyncStatus {
   pending: number;
   /** Last initial-pull error message, if any. */
   error: string | null;
+  /** Manually trigger drain + pull. Used by the Settings "refresh
+   *  from cloud" button when the user wants to force a reconcile. */
+  refresh: () => Promise<void>;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -98,10 +101,17 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       setPhase('hydrating');
       setError(null);
       try {
-        await pullAll();
+        // Drain first to push anything that queued up before the
+        // user existed (stray writes on the sign-in screen, etc.),
+        // then pull in replace mode so local orphans from a prior
+        // broken-sync session get cleaned up.
+        await drain();
+        const pending = await db.syncQueue.count();
+        await pullAll(pending === 0 ? 'replace' : 'additive');
         setPhase('ready');
-        // Kick the drain in case hooks had queued anything before
-        // the user existed (first page load).
+        // Final drain — any rows the replace-pull wrote that hadn't
+        // settled to the cloud, plus anything enqueued during
+        // hydration (shouldn't happen, but defensive).
         void drain();
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'sync error';
@@ -111,11 +121,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.id]);
 
-  // Online/offline tracking. When we come back online, try to drain.
+  // Online/offline tracking. When we come back online, drain queued
+  // writes AND pull latest (catches changes made on other devices
+  // while this one was offline).
   useEffect(() => {
     const onOnline = () => {
       setOffline(false);
-      void drain();
+      void refreshFromCloud();
     };
     const onOffline = () => setOffline(true);
     window.addEventListener('online', onOnline);
@@ -125,6 +137,25 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('offline', onOffline);
     };
   }, []);
+
+  // Refresh-on-focus. When the tab becomes visible again (user
+  // switched back from another app, woke the phone, etc.), drain
+  // local writes then pull latest from cloud. This is the main
+  // mechanism for a change made on one device to land on another:
+  // drain → pull replace → local mirrors cloud.
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void refreshFromCloud();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, [phase]);
 
   // Periodic drain — catches queue entries enqueued while online but
   // after the last drain (e.g. a burst of user edits). 5s is frequent
@@ -137,7 +168,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   }, [phase]);
 
   const value: SyncStatus = useMemo(
-    () => ({ phase, offline, pending, error }),
+    () => ({
+      phase,
+      offline,
+      pending,
+      error,
+      refresh: refreshFromCloud,
+    }),
     [phase, offline, pending, error],
   );
 

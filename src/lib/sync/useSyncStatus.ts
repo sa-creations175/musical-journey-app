@@ -8,7 +8,13 @@ export function useSyncStatus(): SyncStatus {
     // Not inside <SyncProvider> (e.g. rendered at sign-in screen);
     // surface a benign default so the caller doesn't have to handle
     // null everywhere.
-    return { phase: 'idle', offline: false, pending: 0, error: null };
+    return {
+      phase: 'idle',
+      offline: false,
+      pending: 0,
+      error: null,
+      refresh: async () => {},
+    };
   }
   return ctx;
 }

@@ -4,6 +4,7 @@ import Modal from './Modal';
 import { getPref } from '../lib/userPrefs';
 import { useUserName } from '../modules/dashboard/userName';
 import { useAuth } from '../lib/auth/useAuth';
+import { useSyncStatus } from '../lib/sync/useSyncStatus';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -30,7 +31,18 @@ function formatDate(ts: number): string {
 
 function AccountSection() {
   const { user, signOut } = useAuth();
+  const { offline, pending, refresh } = useSyncStatus();
+  const [refreshing, setRefreshing] = useState(false);
   if (!user) return null;
+  const onRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
@@ -39,12 +51,29 @@ function AccountSection() {
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
         signed in as <span className="font-medium">{user.email}</span>
       </p>
-      <button
-        onClick={signOut}
-        className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-needswork hover:text-needswork"
-      >
-        sign out
-      </button>
+      <p className="text-xs text-neutral-500 mb-3">
+        practice data syncs automatically across devices.
+        {pending > 0 && ` ${pending} change${pending === 1 ? '' : 's'} pending upload.`}
+        {offline && ' currently offline.'}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={onRefresh}
+          disabled={refreshing || offline}
+          className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent disabled:opacity-50"
+        >
+          {refreshing ? 'refreshing…' : 'refresh from cloud'}
+        </button>
+        <button
+          onClick={signOut}
+          className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-needswork hover:text-needswork"
+        >
+          sign out
+        </button>
+      </div>
+      <p className="text-[11px] text-neutral-500 mt-2">
+        signing out clears this device's local cache. your cloud data is untouched — sign back in to restore.
+      </p>
     </section>
   );
 }
