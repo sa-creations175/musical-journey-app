@@ -8,7 +8,8 @@
       "Bash(npx vite *)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
       "Bash(curl -sI http://localhost:5192/)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(tee /tmp/vite-dev.log)"
     ]
   }
 }
