@@ -107,6 +107,52 @@ export const SYNC_TABLES: SyncTableConfig[] = [
   { dexie: 'userPrefs', pg: 'user_prefs', idField: 'key', topLevel: [] },
   { dexie: 'logicSkills', pg: 'logic_skills', idField: 'id', topLevel: [] },
   { dexie: 'chordShapes', pg: 'chord_shapes', idField: 'id', topLevel: [] },
+
+  // ----------------------------------------------------------
+  // Practice Sessions + Goals (v16 / Phase 1, April 2026)
+  // ----------------------------------------------------------
+  { dexie: 'practiceSessions', pg: 'practice_sessions', idField: 'id',
+    topLevel: [
+      { dexie: 'startedAt', pg: 'started_at' },
+      { dexie: 'lastEngagedAt', pg: 'last_engaged_at' },
+    ] },
+  { dexie: 'practiceBlocks', pg: 'practice_blocks', idField: 'id',
+    topLevel: [{ dexie: 'sessionId', pg: 'session_id' }] },
+  { dexie: 'goals', pg: 'goals', idField: 'id',
+    topLevel: [
+      { dexie: 'scope', pg: 'scope' },
+      { dexie: 'status', pg: 'status' },
+      { dexie: 'parentGoalId', pg: 'parent_goal_id' },
+      { dexie: 'targetDate', pg: 'target_date' },
+      { dexie: 'lastEngagedAt', pg: 'last_engaged_at' },
+    ] },
+  { dexie: 'dayProfiles', pg: 'day_profiles', idField: 'id',
+    topLevel: [{ dexie: 'name', pg: 'name' }] },
+  { dexie: 'vacationPeriods', pg: 'vacation_periods', idField: 'id',
+    topLevel: [
+      { dexie: 'startDate', pg: 'start_date' },
+      { dexie: 'endDate', pg: 'end_date' },
+    ] },
+  { dexie: 'proficiencyDefinitions', pg: 'proficiency_definitions', idField: 'id',
+    topLevel: [
+      { dexie: 'level', pg: 'level' },
+      { dexie: 'displayOrder', pg: 'display_order' },
+    ] },
+  { dexie: 'spacingState', pg: 'spacing_state', idField: 'id',
+    topLevel: [
+      { dexie: 'itemRef', pg: 'item_ref' },
+      { dexie: 'moduleRef', pg: 'module_ref' },
+      { dexie: 'nextDueAt', pg: 'next_due_at' },
+      { dexie: 'acquisitionStage', pg: 'acquisition_stage' },
+    ] },
+  { dexie: 'prompts', pg: 'prompts', idField: 'id',
+    topLevel: [
+      { dexie: 'status', pg: 'status' },
+      { dexie: 'tier', pg: 'tier' },
+      { dexie: 'promptType', pg: 'prompt_type' },
+      { dexie: 'surface', pg: 'surface' },
+      { dexie: 'expiresAt', pg: 'expires_at' },
+    ] },
 ];
 
 /** Dexie table name → config lookup. */

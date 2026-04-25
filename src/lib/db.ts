@@ -755,6 +755,289 @@ export interface SyncQueueItem {
   lastError?: string;
 }
 
+// ============================================================
+// Practice Sessions + Goals — Phase 1 schema (v16, April 2026)
+// ============================================================
+//
+// Eight new tables introducing the Goals layer and the foundation
+// for the Practice Sessions module.
+//
+// Schema decisions baked in (per the April 25, 2026 design review):
+//
+//  - No `mode` field on practiceSessions. Modes (focus /
+//    acquisition) collapsed in the design review — emergent from
+//    goals + spacing state, not user-declared. `sessionIntent`
+//    captures lighter per-session intent only.
+//  - No `spacingPaused` on vacationPeriods. Decay continues
+//    during vacation (truth-honoring); only goal target dates
+//    are affected (handled by the welcome-back UI in Phase 7).
+//  - No 'daily' value in goals.scope. Daily intent is generated
+//    by the algorithm in Phase 3+, not stored as a goal entity.
+//  - dayProfiles.expectedSessions JSONB keys are
+//    morning / midday / evening (matching practiceSessions
+//    .timeOfDay). UI may display "Afternoon" as user-facing copy
+//    but the data key is `midday`.
+//  - Multi-component goal support in schema (`isUmbrella`,
+//    `parentGoalId`, `contributesNumericallyToParent`); the UI
+//    for umbrella goals ships in Phase 2.
+//  - spacingState.acquisitionStage replaces the user-declared
+//    "acquisition mode" toggle from earlier drafts. Population
+//    at scale and detection logic ship in Phase 2.
+//  - proficiencyDefinitions is per-user (matching every other
+//    table) rather than a global static table; the five rows
+//    are identical across users.
+//
+// All eight tables register in SYNC_TABLES (src/lib/sync/tables.ts).
+// The Dexie write hooks enqueue to syncQueue automatically — no
+// `syncedWrite` wrapper exists or is needed in this codebase.
+
+export type PracticeSessionContext = 'keys' | 'laptop' | 'phone' | 'mixed';
+export type PracticeSessionTimeOfDay = 'morning' | 'midday' | 'evening';
+export type PracticeSessionRole = 'opener' | 'middler' | 'closer' | 'only';
+export type DayProfileName = 'standard' | 'light' | 'deep' | 'custom';
+export type BlockCompletionStatus =
+  | 'completed'
+  | 'partial'
+  | 'skipped'
+  | 'extended';
+export type PerformanceRating = 'flying' | 'cruising' | 'crawling';
+export type GoalScope =
+  | 'lifetime'
+  | 'three_to_five_year'
+  | 'yearly'
+  | 'quarterly'
+  | 'monthly'
+  | 'weekly';
+export type GoalStatus = 'active' | 'paused' | 'completed' | 'abandoned';
+export type MemoryType =
+  | 'declarative'
+  | 'procedural'
+  | 'integration'
+  | 'expression';
+export type AcquisitionStage =
+  | 'new'
+  | 'acquiring'
+  | 'acquired'
+  | 'consolidated'
+  | 'mastered';
+export type ProficiencyLevel =
+  | 'learning'
+  | 'comfortable'
+  | 'internalized'
+  | 'cross_key'
+  | 'maintenance';
+export type ProficiencyScope = 'song' | 'skill' | 'concept';
+export type PromptTier = 'high' | 'medium' | 'low';
+export type PromptStatus =
+  | 'queued'
+  | 'shown'
+  | 'dismissed'
+  | 'engaged'
+  | 'expired';
+export type PromptSurface = 'banner' | 'session_end' | 'home_screen' | 'modal';
+
+/**
+ * One slot in a day profile. `skip = true` means the user has
+ * declared "no practice in this slot" (not "not yet filled in");
+ * minutes/context carry no meaning when skip is true.
+ */
+export interface DayProfileSlot {
+  minutes: number;
+  context: PracticeSessionContext;
+  skip: boolean;
+}
+
+/**
+ * Day profile expected-sessions shape. Keys are canonical
+ * timeOfDay values: morning / midday / evening. UI can label the
+ * midday slot as "Afternoon" if that reads better.
+ */
+export interface DayProfileExpectedSessions {
+  morning: DayProfileSlot;
+  midday: DayProfileSlot;
+  evening: DayProfileSlot;
+}
+
+/**
+ * One Practice Sessions session. Phase 1 only writes manually-
+ * logged sessions; richer fields (sessionRole, energy*,
+ * dayProfileUsed, reasoningSnapshot) are populated by the input
+ * questionnaire + generator algorithm in Phase 3+.
+ */
+export interface PracticeSession {
+  id: string;
+  startedAt: number;            // epoch ms
+  endedAt: number | null;
+  plannedDurationMin: number;
+  actualDurationMin: number | null;
+  context: PracticeSessionContext;
+  timeOfDay: PracticeSessionTimeOfDay;
+  sessionRole: PracticeSessionRole;
+  /** Per-session intent (e.g. 'balanced', 'lean_to_goals',
+   *  'recover', 'push_on_X'). Replaces the multi-week mode
+   *  declarations from earlier drafts. */
+  sessionIntent: string | null;
+  hardBlocks: boolean;
+  energyFocus: number | null;       // 1-5
+  energyMotivation: number | null;  // 1-5
+  energyInspiration: number | null; // 1-5
+  dayProfileUsed: DayProfileName | null;
+  /** "Why this plan?" data captured at generation time. Phase 3+. */
+  reasoningSnapshot: Record<string, unknown> | null;
+  notes: string | null;
+  /** Application-managed; updated when user revisits / edits the
+   *  session. Phase 1 sets this on manual-log create. */
+  lastEngagedAt: number | null;
+}
+
+/**
+ * One block within a session. Phase 1 ships the table; the
+ * timer-execution UI that creates blocks ships in Phase 4.
+ */
+export interface PracticeBlock {
+  id: string;
+  sessionId: string;
+  orderIndex: number;
+  moduleRef: string;
+  subModuleRef: string | null;
+  itemRefs: string[];
+  plannedMinutes: number;
+  actualMinutes: number | null;
+  completionStatus: BlockCompletionStatus | null;
+  /** Flying / Cruising / Crawling — Phase 4 UI. */
+  performanceRating: PerformanceRating | null;
+  blockColor: string | null;
+  notes: string | null;
+}
+
+/**
+ * One goal at any scope. `parentGoalId` links to a higher-scope
+ * goal as a relationship; `contributesNumericallyToParent` is a
+ * separate toggle for whether progress rolls up. Multi-component
+ * (umbrella) goals have `isUmbrella = true` and may have null
+ * targetMetric/targetValue (their progress comes from children).
+ */
+export interface Goal {
+  id: string;
+  scope: GoalScope;
+  description: string;
+  /** Metric identifier — e.g. 'songs_at_comfortable_plus',
+   *  'hours_on_module', 'custom'. Null when umbrella. */
+  targetMetric: string | null;
+  targetValue: number | null;
+  targetUnit: string | null;
+  currentValue: number;
+  contextTag: PracticeSessionContext | null;
+  relatedModules: string[];
+  relatedItems: string[];
+  startDate: number;   // epoch ms
+  targetDate: number;  // epoch ms
+  status: GoalStatus;
+  /** Relationship link — does NOT imply numerical rollup. */
+  parentGoalId: string | null;
+  /** Rollup toggle — only meaningful when parentGoalId is set
+   *  AND metrics are compatible. Phase 1 surfaces the toggle in
+   *  the form; smart auto-suggestion fires in Phase 7. */
+  contributesNumericallyToParent: boolean;
+  /** Umbrella goals have child sub-goals. Their own
+   *  targetMetric/targetValue may be null — progress is computed
+   *  across children. Schema in Phase 1; UI in Phase 2. */
+  isUmbrella: boolean;
+  lastEngagedAt: number | null;
+}
+
+/**
+ * One of the user's day profiles — Standard, Light, Deep, or a
+ * Custom variant. Three profiles seeded during Goals onboarding;
+ * any slot is editable post-onboarding.
+ */
+export interface DayProfile {
+  id: string;
+  name: DayProfileName;
+  expectedSessions: DayProfileExpectedSessions;
+  isDefault: boolean;
+}
+
+/**
+ * A user-declared period off. Spacing decay continues during
+ * vacation (truth-honoring) — the only thing vacation affects is
+ * goal target dates, handled by the welcome-back UI in Phase 7.
+ * No `spacingPaused` field by design.
+ */
+export interface VacationPeriod {
+  id: string;
+  startDate: number;  // epoch ms
+  endDate: number;    // epoch ms
+  reason: string | null;
+}
+
+/**
+ * Read-only canonical proficiency vocabulary, seeded once per
+ * user. Goals, Song Repertoire, Skills Catalogue, and Practice
+ * Sessions all reference these definitions. Per-user (matching
+ * every other table in this codebase) rather than global; the
+ * five rows are identical across users.
+ */
+export interface ProficiencyDefinition {
+  id: string;
+  level: ProficiencyLevel;
+  scope: ProficiencyScope;
+  shortLabel: string;
+  description: string;
+  example: string;
+  displayOrder: number;
+}
+
+/**
+ * Per-item spacing + acquisition state. Phase 1 creates the
+ * table with acquisitionStage defaulting to 'new'; population
+ * at scale and signal-driven stage-advancement logic ship in
+ * Phase 2.
+ */
+export interface SpacingState {
+  id: string;
+  itemRef: string;
+  moduleRef: string;
+  memoryType: MemoryType;
+  acquisitionStage: AcquisitionStage;
+  currentIntervalDays: number;
+  lastEngagedAt: number | null;
+  nextDueAt: number | null;
+  performanceHistory: Array<Record<string, unknown>>;
+}
+
+/**
+ * Centralized prompt orchestration row. All proactive prompts
+ * route through this table — Phase 1 only fires the "set goals"
+ * nudge user-visibly, plus simple banners for vacation_return
+ * and end_of_month events. The orchestration layer enforces a
+ * 3/day soft cap, tier prioritization, and suppression during
+ * active sessions.
+ *
+ * The user-facing Settings UI for queue inspection and category
+ * mute toggles is deferred to Phase 7 when more prompt types
+ * are firing. Phase 1 verifies orchestration via dev console /
+ * programmatic checks.
+ */
+export interface PromptRecord {
+  id: string;
+  promptType: string;
+  tier: PromptTier;
+  payload: Record<string, unknown>;
+  surface: PromptSurface;
+  status: PromptStatus;
+  /** Application-managed; set at row creation. Drives FIFO
+   *  ordering within tier in the orchestrator. */
+  createdAt: number;
+  shownAt: number | null;
+  dismissedAt: number | null;
+  expiresAt: number | null;
+  engagedAt: number | null;
+  /** Bumped on every dismissal — drives per-prompt-type cadence
+   *  rules (e.g., 3-day re-prompt for set_goals_nudge). */
+  userDismissalCount: number;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -788,6 +1071,15 @@ export class AppDB extends Dexie {
   referenceTracks!: Table<ReferenceTrack, string>;
   lessonReferenceTracks!: Table<LessonReferenceTrack, string>;
   syncQueue!: Table<SyncQueueItem, number>;
+  // Practice Sessions + Goals — v16
+  practiceSessions!: Table<PracticeSession, string>;
+  practiceBlocks!: Table<PracticeBlock, string>;
+  goals!: Table<Goal, string>;
+  dayProfiles!: Table<DayProfile, string>;
+  vacationPeriods!: Table<VacationPeriod, string>;
+  proficiencyDefinitions!: Table<ProficiencyDefinition, string>;
+  spacingState!: Table<SpacingState, string>;
+  prompts!: Table<PromptRecord, string>;
 
   constructor() {
     super('musical-journey');
@@ -1172,6 +1464,56 @@ export class AppDB extends Dexie {
       referenceTracks: 'id, artist, genre, archived, addedAt',
       lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
       syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+    });
+    // v16 — Practice Sessions + Goals foundation. Eight new tables
+    // introducing the Goals layer and the foundation for the
+    // Practice Sessions module. Indexes chosen for the queries we
+    // know we'll run in Phase 1 (recent sessions by startedAt,
+    // active goals by scope+status, due items by nextDueAt, queued
+    // prompts by status+tier). Composite indexes match the
+    // orchestrator queries described in PRACTICE_SESSIONS_DESIGN_3.md.
+    this.version(16).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      // Practice Sessions + Goals (Phase 1)
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
     });
   }
 }
