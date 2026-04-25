@@ -792,7 +792,27 @@ export interface SyncQueueItem {
 // `syncedWrite` wrapper exists or is needed in this codebase.
 
 export type PracticeSessionContext = 'keys' | 'laptop' | 'phone' | 'mixed';
-export type PracticeSessionTimeOfDay = 'morning' | 'midday' | 'evening';
+/**
+ * Time-of-day window a session was practiced in. Auto-labeled by
+ * the app from the wall clock at session start:
+ *
+ *   late_night : 12am – 4am  (rolls up to the previous calendar
+ *                              day's metrics — Phase 3+)
+ *   morning    : 4am – 12pm
+ *   midday     : 12pm – 6pm
+ *   evening    : 6pm – 12am
+ *
+ * Day profiles only have three slots (morning / midday / evening);
+ * late_night is for after-the-fact session classification, not
+ * something users plan around. The previous-day rollup logic is
+ * a Phase 3 (algorithm) / Phase 7 (metrics) concern; Phase 1 just
+ * supports the value in the schema.
+ */
+export type PracticeSessionTimeOfDay =
+  | 'morning'
+  | 'midday'
+  | 'evening'
+  | 'late_night';
 export type PracticeSessionRole = 'opener' | 'middler' | 'closer' | 'only';
 export type DayProfileName = 'standard' | 'light' | 'deep' | 'custom';
 export type BlockCompletionStatus =
@@ -801,9 +821,17 @@ export type BlockCompletionStatus =
   | 'skipped'
   | 'extended';
 export type PerformanceRating = 'flying' | 'cruising' | 'crawling';
+/**
+ * Goal scope hierarchy. No 'daily' — daily intent is generated
+ * by the algorithm (Phase 3+), not stored as a goal entity.
+ *
+ * The two-to-three-year layer (was three-to-five-year in earlier
+ * drafts) reflects a more honest planning horizon; the lifetime
+ * vision layer absorbs longer-range aspiration.
+ */
 export type GoalScope =
   | 'lifetime'
-  | 'three_to_five_year'
+  | 'two_to_three_year'
   | 'yearly'
   | 'quarterly'
   | 'monthly'
@@ -1506,6 +1534,68 @@ export class AppDB extends Dexie {
       lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
       syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
       // Practice Sessions + Goals (Phase 1)
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+    });
+    // v17 — checkpoint for two TS-level enum widenings landing
+    // alongside Goals module sub-phase 3 (April 25, 2026 kick-off):
+    //
+    //   - PracticeSessionTimeOfDay gains 'late_night' (4-window
+    //     classification with previous-day rollup for after-midnight
+    //     sessions; rollup logic itself is Phase 3+).
+    //   - GoalScope replaces 'three_to_five_year' with
+    //     'two_to_three_year' (more honest planning horizon).
+    //
+    // Both values live in the JSONB `data` payload of their rows
+    // (time_of_day on practiceSessions, scope is indexed in Dexie
+    // but the index is over string content, not enum constraints),
+    // so the .stores() declaration is identical to v16. The version
+    // bump is a checkpoint so future readers can correlate the
+    // schema version with the type widening, not a structural
+    // change Dexie needs to migrate.
+    //
+    // No Postgres migration: 003_practice_sessions_phase1.sql
+    // declared both columns as TEXT / JSONB-only with no CHECK
+    // constraints, so Postgres already accepts the new values.
+    this.version(17).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
       practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
       practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
       goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',

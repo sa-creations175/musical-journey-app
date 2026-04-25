@@ -148,7 +148,7 @@ practiceSessions
   id, user_id
   started_at, ended_at, planned_duration_min, actual_duration_min
   context: 'keys' | 'laptop' | 'phone' | 'mixed'
-  time_of_day: 'morning' | 'midday' | 'evening'
+  time_of_day: 'morning' | 'midday' | 'evening' | 'late_night'
   session_role: 'opener' | 'middler' | 'closer' | 'only'
   session_intent: text | null  -- per-session intent (e.g., 'balanced', 'lean_to_goals', 'recover', 'push_on_X', or one of the abundance paths from Q3)
   hard_blocks: boolean
@@ -190,7 +190,7 @@ spacingState
 
 goals
   id, user_id
-  scope: 'lifetime' | 'three_to_five_year' | 'yearly' | 'quarterly' | 'monthly' | 'weekly'
+  scope: 'lifetime' | 'two_to_three_year' | 'yearly' | 'quarterly' | 'monthly' | 'weekly'
     -- NOTE: no 'daily' scope. Daily intent emerges from algorithm, not stored. (Q1)
   description: text
   target_metric: text | null
