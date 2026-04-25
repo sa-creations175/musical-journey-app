@@ -4,8 +4,10 @@ import {
   numeralOffset,
   parseSlashChord,
   playProgression,
+  voicingFor,
   type ProgressionStep,
 } from './progressionTheory';
+import { playNoteSequence, type NoteEvent } from '../../../lib/musicalPlayback';
 
 // Shared defaults for diary-triggered playback. Single-shot (no loop),
 // middle register, seventh complexity so the chord colour matches how
@@ -16,19 +18,28 @@ const DEFAULT_COMPLEXITY = 'seventh' as const;
 const DEFAULT_LISTENING = 'bass-chords' as const;
 const DEFAULT_TONIC_CONTEXT = 'singleNote' as const;
 
+export type DiaryPlaybackMode = 'blocked' | 'asc' | 'desc';
+
 export interface DiaryPlaybackOpts {
   key?: string;
   bpm?: number;
+  /** Per-chord rendering. 'blocked' plays each chord as a simultaneous
+   *  block (the default — preserves the original diary behaviour and
+   *  uses playProgression with bass-chords). 'asc' / 'desc' arpeggiates
+   *  each chord WITHIN its allotted beats so the total duration of the
+   *  progression / motion stays consistent across modes. */
+  mode?: DiaryPlaybackMode;
 }
 
 /**
  * Preview a progression from the shared catalog at a sensible diary
- * default: key C, ~100 BPM, seventh complexity, bass + chords. Used
- * by the Harmonic Diary play button; the full quiz uses its own
- * per-round config.
+ * default: key C, ~100 BPM, seventh complexity. Used by the Harmonic
+ * Diary play button; the full quiz uses its own per-round config.
  *
- * Mirrors the step-build logic in ChordProgressionsQuiz.tsx's playWith()
- * so the two surfaces stay visually/audibly consistent.
+ * 'blocked' mode mirrors ChordProgressionsQuiz's playWith() — bass +
+ * chord layered, optional tonic prime. 'asc' / 'desc' arpeggiates each
+ * chord within its allotted beats (catalog `durationPattern[i]`),
+ * preserving total progression time across modes.
  */
 export async function playProgressionById(
   id: string,
@@ -41,33 +52,89 @@ export async function playProgressionById(
   }
   const key = opts.key ?? DEFAULT_KEY;
   const bpm = opts.bpm ?? DEFAULT_BPM;
+  const mode = opts.mode ?? 'blocked';
   const rootMidi = keyToRootMidi(key);
-  const steps: ProgressionStep[] = prog.numerals.map((numeral, i) => {
-    const parsed = parseSlashChord(numeral);
-    const chordRootMidi = rootMidi + numeralOffset(parsed.chord);
-    const isSlash = parsed.bassOffset !== undefined;
-    const bassMidi = isSlash
-      ? (rootMidi + parsed.bassOffset!) - 12
-      : chordRootMidi - 12;
-    return {
-      rootMidi: chordRootMidi,
-      bassMidi,
-      isSlash,
-      quality: prog.chordQualities[i] ?? 'major',
-      beats: prog.durationPattern[i] ?? 1,
-    };
+
+  if (mode === 'blocked') {
+    const steps: ProgressionStep[] = prog.numerals.map((numeral, i) => {
+      const parsed = parseSlashChord(numeral);
+      const chordRootMidi = rootMidi + numeralOffset(parsed.chord);
+      const isSlash = parsed.bassOffset !== undefined;
+      const bassMidi = isSlash
+        ? (rootMidi + parsed.bassOffset!) - 12
+        : chordRootMidi - 12;
+      return {
+        rootMidi: chordRootMidi,
+        bassMidi,
+        isSlash,
+        quality: prog.chordQualities[i] ?? 'major',
+        beats: prog.durationPattern[i] ?? 1,
+      };
+    });
+    await playProgression(
+      steps,
+      bpm,
+      DEFAULT_COMPLEXITY,
+      DEFAULT_LISTENING,
+      1.0,
+      1,
+      DEFAULT_TONIC_CONTEXT,
+      rootMidi,
+      prog.requiresDominant ?? false,
+    );
+    return;
+  }
+
+  // Arpeggio path: walk every chord, build a NoteEvent[] that fills
+  // each chord's beat allotment with its voicing tones (low-to-high
+  // for asc, reversed for desc). The cumulative `beats` across notes
+  // matches the original durationPattern total so total time is
+  // preserved across modes.
+  const notes = buildArpeggioSequence({
+    chordRootSemis: prog.numerals.map(n => numeralOffset(parseSlashChord(n).chord)),
+    qualities: prog.chordQualities,
+    perStepBeats: prog.numerals.map((_, i) => prog.durationPattern[i] ?? 1),
+    requiresDominant: prog.requiresDominant ?? false,
+    direction: mode,
   });
-  await playProgression(
-    steps,
-    bpm,
-    DEFAULT_COMPLEXITY,
-    DEFAULT_LISTENING,
-    1.0,
-    1,
-    DEFAULT_TONIC_CONTEXT,
-    rootMidi,
-    prog.requiresDominant ?? false,
-  );
+  await playNoteSequence(rootMidi, notes, bpm);
+}
+
+/**
+ * Helper: convert a list of chord steps + qualities + per-step beat
+ * counts into a flat NoteEvent[] that arpeggiates each chord (low→high
+ * for 'asc', high→low for 'desc') over its allotted span. Each chord
+ * occupies exactly `perStepBeats[i]` beats regardless of how many
+ * notes it has — note durations adjust to fill the time evenly.
+ */
+function buildArpeggioSequence(args: {
+  chordRootSemis: number[];
+  qualities: ChordQuality[];
+  perStepBeats: number[];
+  requiresDominant: boolean;
+  direction: 'asc' | 'desc';
+}): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (let i = 0; i < args.chordRootSemis.length; i++) {
+    const intervals = voicingFor(
+      args.qualities[i] ?? 'major',
+      DEFAULT_COMPLEXITY,
+      args.requiresDominant,
+    );
+    // voicingFor returns intervals in ascending order from the chord
+    // root, so absolute semitones above the key tonic are already
+    // ascending. Reverse for descending.
+    const orderedIntervals = args.direction === 'desc' ? [...intervals].reverse() : intervals;
+    const chordBeats = args.perStepBeats[i];
+    const beatsPerNote = chordBeats / orderedIntervals.length;
+    for (const iv of orderedIntervals) {
+      out.push({
+        semitones: args.chordRootSemis[i] + iv,
+        beats: beatsPerNote,
+      });
+    }
+  }
+  return out;
 }
 
 // --- Chord motion starters -----------------------------------------
@@ -105,6 +172,11 @@ const MOTION_DEFS: Record<string, MotionDef> = {
  * Preview a two-chord motion starter at diary defaults. Respects the
  * named direction (asc / desc / deceptive) by octave-shifting the
  * target chord when the natural voicing would go the wrong way.
+ *
+ * The motion's named direction (e.g. '5-to-1-desc') is independent of
+ * the playback mode the user picks: a desc motion played in 'asc'
+ * arpeggio mode still has chord 2 sitting below chord 1, but each of
+ * those chords is rendered low→high internally.
  */
 export async function playMotionById(
   id: string,
@@ -117,31 +189,51 @@ export async function playMotionById(
   }
   const key = opts.key ?? DEFAULT_KEY;
   const bpm = opts.bpm ?? DEFAULT_BPM;
+  const mode = opts.mode ?? 'blocked';
   const rootMidi = keyToRootMidi(key);
 
-  const chord1Root = rootMidi + numeralOffset(def.numerals[0]);
-  let chord2Root = rootMidi + numeralOffset(def.numerals[1]);
+  const chord1RootSemis = numeralOffset(def.numerals[0]);
+  let chord2RootSemis = numeralOffset(def.numerals[1]);
 
-  // Honour the direction hint. 'deceptive' intentionally doesn't nudge
-  // — the surprise is in the chord quality (V → vi minor), not the
-  // octave.
-  if (def.direction === 'desc' && chord2Root > chord1Root) chord2Root -= 12;
-  else if (def.direction === 'asc' && chord2Root < chord1Root) chord2Root += 12;
+  // Honour the named-direction hint by octave-shifting the second
+  // chord when the natural voicing would go the wrong way. This
+  // applies BOTH to blocked playback (so the chord block sounds in
+  // the named direction) and arpeggio playback (so the second chord's
+  // arpeggio sits in the right register relative to the first).
+  // 'deceptive' deliberately doesn't nudge — the surprise is in the
+  // chord quality (V → vi minor), not the register.
+  if (def.direction === 'desc' && chord2RootSemis > chord1RootSemis) chord2RootSemis -= 12;
+  else if (def.direction === 'asc' && chord2RootSemis < chord1RootSemis) chord2RootSemis += 12;
 
-  const steps: ProgressionStep[] = [
-    { rootMidi: chord1Root, bassMidi: chord1Root - 12, isSlash: false, quality: def.qualities[0], beats: 2 },
-    { rootMidi: chord2Root, bassMidi: chord2Root - 12, isSlash: false, quality: def.qualities[1], beats: 2 },
-  ];
+  const requiresDominant = def.qualities.includes('dominant');
 
-  await playProgression(
-    steps,
-    bpm,
-    DEFAULT_COMPLEXITY,
-    DEFAULT_LISTENING,
-    1.0,
-    1,
-    DEFAULT_TONIC_CONTEXT,
-    rootMidi,
-    def.qualities.includes('dominant'),
-  );
+  if (mode === 'blocked') {
+    const chord1Root = rootMidi + chord1RootSemis;
+    const chord2Root = rootMidi + chord2RootSemis;
+    const steps: ProgressionStep[] = [
+      { rootMidi: chord1Root, bassMidi: chord1Root - 12, isSlash: false, quality: def.qualities[0], beats: 2 },
+      { rootMidi: chord2Root, bassMidi: chord2Root - 12, isSlash: false, quality: def.qualities[1], beats: 2 },
+    ];
+    await playProgression(
+      steps,
+      bpm,
+      DEFAULT_COMPLEXITY,
+      DEFAULT_LISTENING,
+      1.0,
+      1,
+      DEFAULT_TONIC_CONTEXT,
+      rootMidi,
+      requiresDominant,
+    );
+    return;
+  }
+
+  const notes = buildArpeggioSequence({
+    chordRootSemis: [chord1RootSemis, chord2RootSemis],
+    qualities: def.qualities,
+    perStepBeats: [2, 2],
+    requiresDominant,
+    direction: mode,
+  });
+  await playNoteSequence(rootMidi, notes, bpm);
 }

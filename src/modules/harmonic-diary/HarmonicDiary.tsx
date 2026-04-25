@@ -379,7 +379,7 @@ function MoodboardView({
             skill={skillsById.get(e.skillId)}
             variant="moodboard"
             onEdit={() => onEdit(e)}
-            onPlay={() => playSkillAudio(skillsById.get(e.skillId))}
+            onPlay={mode => playSkillAudio(skillsById.get(e.skillId), { mode })}
           />
         </div>
       ))}
@@ -406,7 +406,7 @@ function ListView({
               skill={skillsById.get(e.skillId)}
               variant="list"
               onEdit={() => onEdit(e)}
-              onPlay={() => playSkillAudio(skillsById.get(e.skillId))}
+              onPlay={mode => playSkillAudio(skillsById.get(e.skillId), { mode })}
             />
           </li>
         ))}

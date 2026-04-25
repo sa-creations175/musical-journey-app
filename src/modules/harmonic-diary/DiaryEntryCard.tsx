@@ -1,12 +1,16 @@
 import { Link } from 'react-router-dom';
 import type { HarmonicDiaryEntry } from '../../lib/db';
 import { parseSkillId, type SkillRecord } from '../skills/registry';
+import type { DiaryPlayMode } from './audio';
 
 interface Props {
   entry: HarmonicDiaryEntry;
   skill?: SkillRecord;
   onEdit: () => void;
-  onPlay?: () => void;
+  /** Called when the user taps a play affordance. `mode` is supplied
+   *  for chord and progression entries (the three-button variant);
+   *  intervals and modes call without an argument. */
+  onPlay?: (mode?: DiaryPlayMode) => void;
   /** Moodboard card sits on the atmospheric gradient; list variant
    *  sits on the flat `.diary-list` surface with tighter spacing. */
   variant?: 'moodboard' | 'list';
@@ -28,6 +32,13 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
 
   const hasUserText = entry.userText.trim() !== '';
   const showStarter = !hasUserText && Boolean(entry.claudeStarterText);
+
+  // Three-mode play affordance applies to entries whose musical content
+  // is a chord or a sequence of chords (where blocked vs ascending vs
+  // descending arpeggio all make sense). Intervals already carry their
+  // direction in the skillId, and modes/scales aren't ready for
+  // mode-aware preview yet, so both keep the single-button form.
+  const showThreeButtons = isChordOrProgressionSkill(entry.skillId);
 
   return (
     <article className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}>
@@ -59,20 +70,9 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
           </p>
         </div>
         {onPlay && (
-          <button
-            onClick={onPlay}
-            aria-label="hear this element"
-            title="hear this element"
-            className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition"
-            style={{
-              color: 'var(--diary-text-muted)',
-              border: '1px solid var(--diary-card-border)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
-          >
-            ▶
-          </button>
+          showThreeButtons
+            ? <PlayButtonGroup onPlay={onPlay} />
+            : <PlayButtonSingle onPlay={() => onPlay()} />
         )}
       </header>
 
@@ -129,6 +129,74 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
       )}
     </article>
   );
+}
+
+// ── Play-button variants ────────────────────────────────────────────
+
+/** Existing single-affordance ▶. Used by intervals (direction baked
+ *  into the skillId) and modes/scales (mode preview is a roadmap
+ *  item — for now there's only one playback path). */
+function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
+  return (
+    <button
+      onClick={onPlay}
+      aria-label="hear this element"
+      title="hear this element"
+      className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition"
+      style={{
+        color: 'var(--diary-text-muted)',
+        border: '1px solid var(--diary-card-border)',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
+    >
+      ▶
+    </button>
+  );
+}
+
+/** Three buttons for chord and progression entries: descending,
+ *  blocked, ascending. Each is a 44×44 touch target (Apple HIG
+ *  minimum) so the trio stays comfortable on a phone. Order is
+ *  ↓ / ▤ / ↑ — symmetric, with blocked anchoring the middle. */
+function PlayButtonGroup({ onPlay }: { onPlay: (mode: DiaryPlayMode) => void }) {
+  return (
+    <div className="shrink-0 flex items-center gap-1">
+      <ModeButton onClick={() => onPlay('desc')} label="play descending" glyph="↓" />
+      <ModeButton onClick={() => onPlay('blocked')} label="play blocked" glyph="▤" />
+      <ModeButton onClick={() => onPlay('asc')} label="play ascending" glyph="↑" />
+    </div>
+  );
+}
+
+function ModeButton({ onClick, label, glyph }: { onClick: () => void; label: string; glyph: string }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="w-11 h-11 rounded-full flex items-center justify-center text-[14px] transition"
+      style={{
+        color: 'var(--diary-text-muted)',
+        border: '1px solid var(--diary-card-border)',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
+    >
+      {glyph}
+    </button>
+  );
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
+
+function isChordOrProgressionSkill(skillId: string): boolean {
+  const parsed = parseSkillId(skillId);
+  if (!parsed) return false;
+  if (parsed.moduleId === 'chord-recognition') return true;
+  if (parsed.moduleId === 'shapes-and-patterns' && parsed.subtype === 'chord-shape') return true;
+  if (parsed.moduleId === 'chord-progressions') return true;
+  return false;
 }
 
 function fallbackSkillName(skillId: string): string {
