@@ -33,28 +33,32 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
   const hasUserText = entry.userText.trim() !== '';
   const showStarter = !hasUserText && Boolean(entry.claudeStarterText);
 
-  // Three-mode play affordance applies to entries whose musical content
-  // is a chord or a sequence of chords (where blocked vs ascending vs
-  // descending arpeggio all make sense). Intervals already carry their
-  // direction in the skillId, and modes/scales aren't ready for
-  // mode-aware preview yet, so both keep the single-button form.
-  const showThreeButtons = isChordOrProgressionSkill(entry.skillId);
+  // Three-mode play affordance applies to entries whose musical
+  // content is a chord, a sequence of chords, or a scale stack —
+  // anywhere that "all-at-once vs ascending arpeggio vs descending
+  // arpeggio" maps to a meaningful pedagogical distinction. Intervals
+  // already carry their direction in the skillId (asc / desc /
+  // harmonic), so they keep the single-button form.
+  const showThreeButtons = isThreeModeSkill(entry.skillId);
 
   return (
     <article className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}>
       <header className="flex items-start gap-2 mb-3">
         <div className="min-w-0 flex-1">
+          {/* Heading is its own flex row so the title text can truncate
+              cleanly with ellipsis on narrow viewports — without that,
+              the inline pencil button gets clipped along with the text
+              and a long title pushes the whole header to two lines. */}
           <h3
-            className="diary-serif text-[18px] font-medium leading-tight"
+            className="diary-serif text-[18px] font-medium leading-tight flex items-baseline gap-1.5 min-w-0"
             style={{ color: 'var(--diary-accent)' }}
           >
-            {displayName}
-            {/* Inline pencil — connected to the heading it edits. */}
+            <span className="truncate min-w-0">{displayName}</span>
             <button
               onClick={onEdit}
               aria-label="edit entry"
               title="edit"
-              className="inline-flex items-center justify-center w-5 h-5 ml-1.5 -mb-0.5 text-[10px] rounded-full align-middle transition"
+              className="shrink-0 inline-flex items-center justify-center w-5 h-5 -mb-0.5 text-[10px] rounded-full align-middle transition"
               style={{
                 color: 'var(--diary-text-dim)',
                 border: '1px solid var(--diary-card-border)',
@@ -65,7 +69,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
               ✎
             </button>
           </h3>
-          <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: 'var(--diary-text-dim)' }}>
+          <p className="text-[10px] uppercase tracking-wider mt-1 truncate" style={{ color: 'var(--diary-text-dim)' }}>
             {moduleLabel}{skill?.category ? ` · ${skill.category}` : ''}
           </p>
         </div>
@@ -155,16 +159,17 @@ function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
   );
 }
 
-/** Three buttons for chord and progression entries: descending,
- *  blocked, ascending. Each is a 44×44 touch target (Apple HIG
- *  minimum) so the trio stays comfortable on a phone. Order is
- *  ↓ / ▤ / ↑ — symmetric, with blocked anchoring the middle. */
+/** Three buttons for chord, progression, and mode entries: ascending,
+ *  blocked, descending. Each is a 44×44 touch target (Apple HIG
+ *  minimum). Order matches the keyboard's left-to-right pitch axis
+ *  (low → high) and Western reading direction — ascending on the left
+ *  because lower notes sit physically on the left of a piano. */
 function PlayButtonGroup({ onPlay }: { onPlay: (mode: DiaryPlayMode) => void }) {
   return (
     <div className="shrink-0 flex items-center gap-1">
-      <ModeButton onClick={() => onPlay('desc')} label="play descending" glyph="↓" />
-      <ModeButton onClick={() => onPlay('blocked')} label="play blocked" glyph="▤" />
       <ModeButton onClick={() => onPlay('asc')} label="play ascending" glyph="↑" />
+      <ModeButton onClick={() => onPlay('blocked')} label="play blocked" glyph="▤" />
+      <ModeButton onClick={() => onPlay('desc')} label="play descending" glyph="↓" />
     </div>
   );
 }
@@ -190,12 +195,13 @@ function ModeButton({ onClick, label, glyph }: { onClick: () => void; label: str
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function isChordOrProgressionSkill(skillId: string): boolean {
+function isThreeModeSkill(skillId: string): boolean {
   const parsed = parseSkillId(skillId);
   if (!parsed) return false;
   if (parsed.moduleId === 'chord-recognition') return true;
   if (parsed.moduleId === 'shapes-and-patterns' && parsed.subtype === 'chord-shape') return true;
   if (parsed.moduleId === 'chord-progressions') return true;
+  if (parsed.moduleId === 'scales-modes') return true;
   return false;
 }
 

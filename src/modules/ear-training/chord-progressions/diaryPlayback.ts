@@ -12,11 +12,24 @@ import { playNoteSequence, type NoteEvent } from '../../../lib/musicalPlayback';
 // Shared defaults for diary-triggered playback. Single-shot (no loop),
 // middle register, seventh complexity so the chord colour matches how
 // the quizzes sound, bass-and-chords listening mode for a full preview.
+//
+// 60 BPM matches the diary's overall slow-ballad aesthetic — the
+// progression sits long enough that each chord registers, and arpeggio
+// notes get room to breathe (see DIARY_OVERLAP below). At 60 BPM each
+// "beat" in the catalog's durationPattern is a full second, so a
+// progression like 1-4-5 with [1,1,1] takes 3s blocked / arpeggiated;
+// the 12-bar blues' [4,4,4,4,2,2,2,2,1,1,1,1] preserves its turnaround
+// acceleration intact.
 const DEFAULT_KEY = 'C';
-const DEFAULT_BPM = 100;
+const DEFAULT_BPM = 60;
 const DEFAULT_COMPLEXITY = 'seventh' as const;
 const DEFAULT_LISTENING = 'bass-chords' as const;
 const DEFAULT_TONIC_CONTEXT = 'singleNote' as const;
+
+/** Same legato amount as the rest of the diary's arpeggio playback so
+ *  chord-internal arpeggios feel consistent across single-chord and
+ *  progression entries. Notes ring 25% past the next note's onset. */
+const DIARY_ARPEGGIO_OVERLAP = 0.25;
 
 export type DiaryPlaybackMode = 'blocked' | 'asc' | 'desc';
 
@@ -97,7 +110,7 @@ export async function playProgressionById(
     requiresDominant: prog.requiresDominant ?? false,
     direction: mode,
   });
-  await playNoteSequence(rootMidi, notes, bpm);
+  await playNoteSequence(rootMidi, notes, bpm, { overlap: DIARY_ARPEGGIO_OVERLAP });
 }
 
 /**
@@ -235,5 +248,5 @@ export async function playMotionById(
     requiresDominant,
     direction: mode,
   });
-  await playNoteSequence(rootMidi, notes, bpm);
+  await playNoteSequence(rootMidi, notes, bpm, { overlap: DIARY_ARPEGGIO_OVERLAP });
 }
