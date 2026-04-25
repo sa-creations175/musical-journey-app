@@ -1519,3 +1519,10 @@ export class AppDB extends Dexie {
 }
 
 export const db = new AppDB();
+
+// Dev-only: expose db on window for console debugging. Vite strips
+// the entire block from production builds via the import.meta.env.DEV
+// guard (it folds to `if (false)` and tree-shakes).
+if (import.meta.env.DEV) {
+  (window as unknown as { db: AppDB }).db = db;
+}
