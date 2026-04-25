@@ -10,6 +10,7 @@
 
 export type ModuleId =
   | 'dashboard'
+  | 'goals'
   | 'harmonic-fluency'
   | 'ear-training'
   | 'intervals'
@@ -145,6 +146,23 @@ export const DASHBOARD_META: ModuleMeta = {
 };
 
 /**
+ * Goals sits in the Overview group above Dashboard. Like Dashboard,
+ * it's a meta-layer over the learning modules rather than a learning
+ * module itself, so it lives outside MODULE_ORDER. Foundational slate
+ * accent (#5a5e6e) signals that hierarchy — distinct from any
+ * learning module's color and quieter than Dashboard's warm blue.
+ */
+export const GOALS_META: ModuleMeta = {
+  id: 'goals',
+  label: 'goals',
+  route: '/goals',
+  icon: '◎',
+  accentToken: 'fluent',
+  accentHex: '#5a5e6e',
+  status: 'live',
+};
+
+/**
  * Accent for the "Creative Sessions" sidebar group (Just Play, Just
  * Produce, Harmonic Diary). Not a module — a nav group — so it
  * doesn't live in MODULE_ORDER, but sharing the export keeps the
@@ -202,12 +220,14 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
   },
 ];
 
-// Lookup table — includes Dashboard + top-level modules + the
-// ear-training submodules so any call site can resolve a moduleId
-// to its visual identity without having to know whether the id is
-// a top-level module, a submodule, or the Dashboard.
+// Lookup table — includes Dashboard + Goals + top-level modules +
+// the ear-training submodules so any call site can resolve a
+// moduleId to its visual identity without having to know whether
+// the id is a top-level module, a submodule, the Dashboard, or
+// the Goals meta-layer.
 const BY_ID = new Map<string, ModuleMeta>([
   [DASHBOARD_META.id, DASHBOARD_META],
+  [GOALS_META.id, GOALS_META],
   ...MODULE_ORDER.map(m => [m.id, m] as const),
   ...EAR_TRAINING_SUBMODULES.map(m => [m.id, m] as const),
 ]);

@@ -54,6 +54,14 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'overview',
     label: 'overview',
     items: [
+      // Goals leads the Overview group: it's the meta-layer that
+      // shapes everything the dashboard reflects. Practice Sessions
+      // will join this group in sub-phase 4.
+      {
+        id: 'goals',
+        label: 'goals',
+        to: '/goals',
+      },
       // Skills Catalogue sits under Dashboard as a child — it's the
       // detail companion to the Dashboard's top-level summary.
       {
