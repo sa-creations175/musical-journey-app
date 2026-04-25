@@ -103,6 +103,10 @@ A simple place inside the app to capture feature ideas as they come during pract
 - Audio-enabled cards — blending the flashcard format with ear training specifically for the ear-theory crossover category
 - Skill Catalogue integration — each card's `skillTag` surfaces on a central Skills Catalogue page so users can see every fluency skill the app trains
 
+## Harmonic Diary — Future Enhancements
+- Play-button visual feedback — DiaryEntryCard has no `isPlaying` state today, so the ▶ button looks identical before / during / after playback. Add a playing indicator (color pulse, spinner, or disabled state) and clear it when the underlying `playSkillAudio` promise resolves. Would also help surface failures where audio silently doesn't fire.
+- Real mode playback — `playSkillAudio`'s `scales-modes` branch plays a fixed major-scale stack regardless of which mode the entry is, so all 9 mode starters (Ionian through Locrian + harmonic/melodic minor) sound identical. Needs per-mode interval data threaded through the preview path.
+
 ## Future Modules
 - Modal Interchange sub-module: catching borrowed chords from parallel minor in an otherwise-diatonic context. Chord-level awareness. Distinct from Chord Progressions (which teaches pattern recognition) and Scales & Modes (which teaches full-section modal awareness).
 - Scales & Modes sub-module: recognizing when a section of music lives inside a specific mode (Dorian, Lydian, Mixolydian, harmonic/melodic minor). Section-level awareness. Focus on signature chords that reveal each mode — Dorian IV major, Lydian #IV, Mixolydian bVII.

@@ -2,6 +2,10 @@ import { playChordBlocked } from '../../lib/audio';
 import { parseSkillId, type SkillRecord } from '../skills/registry';
 import { QUALITY_INTERVALS } from '../shapes-and-patterns/catalog';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
+import {
+  playProgressionById,
+  playMotionById,
+} from '../ear-training/chord-progressions/diaryPlayback';
 
 // Diary entries include a small play button that previews the
 // musical element — a chord, interval, mode, or progression —
@@ -64,11 +68,29 @@ export async function playSkillAudio(skill: SkillRecord | undefined): Promise<vo
       return;
     }
 
+    // Chord progressions — full progression (`:item:`) or two-chord
+    // motion (`:motion:`). Both resolve their content (catalog entry
+    // / MOTION_DEFS table) inside the helper and play via the shared
+    // progressionTheory.playProgression engine.
+    if (parsed.moduleId === 'chord-progressions') {
+      if (parsed.subtype === 'item') {
+        await playProgressionById(parsed.itemId);
+        return;
+      }
+      if (parsed.subtype === 'motion') {
+        await playMotionById(parsed.itemId);
+        return;
+      }
+    }
+
     // Songs / harmonic-fluency cards / anything else: no preview
     // for now — those are handled by their own modules' audio paths.
     return;
-  } catch {
-    // Audio failure is non-fatal — the button's click just no-ops.
+  } catch (err) {
+    // Audio failure is non-fatal — the button's click just no-ops —
+    // but surface the error so silent failures don't hide in the
+    // catch forever (the reason the progressions bug went unnoticed).
+    console.warn('[diary-audio] playback failed', err);
   }
 }
 
