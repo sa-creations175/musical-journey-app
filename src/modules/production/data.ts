@@ -8,6 +8,7 @@ import {
   type ReferenceTrack,
 } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
+import { whenSyncReady } from '../../lib/sync/syncReady';
 import { PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
@@ -41,6 +42,7 @@ function uid(prefix: string): string {
  * prose, but only for starters the user hasn't edited.
  */
 export async function seedProductionIfNeeded(): Promise<void> {
+  await whenSyncReady();
   const now = Date.now();
 
   const [existingLessons, existingGlossary] = await Promise.all([

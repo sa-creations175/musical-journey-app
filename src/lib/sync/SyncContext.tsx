@@ -3,6 +3,8 @@ import { useAuth } from '../auth/useAuth';
 import { installSyncHooks } from './hooks';
 import { setCurrentUserId } from './currentUser';
 import { pullAll, drain, clearLocalCache, refreshFromCloud } from './engine';
+import { markSyncReady, resetSyncReady } from './syncReady';
+import './backfill'; // side-effect: registers window.__backfillUnsyncedRows
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
@@ -66,7 +68,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const pending = useLiveQuery(async () => db.syncQueue.count(), []) ?? 0;
 
   // Install hooks exactly once, before any user-triggered writes.
+  // Also reset the syncReady gate on every mount so a fresh sign-in
+  // cycle (after the previous sign-out unmounted us) starts in
+  // not-ready state — otherwise stale `isReady = true` from the prior
+  // session would let seeders run during the new initial pull.
   useEffect(() => {
+    resetSyncReady();
     if (hooksInstalledRef.current) return;
     installSyncHooks();
     hooksInstalledRef.current = true;
@@ -90,6 +97,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPhase('idle');
       setError(null);
+      resetSyncReady();
       void clearLocalCache();
       return;
     }
@@ -115,6 +123,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         const pending = await db.syncQueue.count();
         await pullAll(pending === 0 ? 'replace' : 'additive');
         setPhase('ready');
+        // Unblock seeders / migrations waiting on `whenSyncReady()`.
+        // Must come AFTER the replace-mode pull so anything they write
+        // lands in a quiet sync state (hooks enqueue normally, no
+        // in-flight pull to wipe orphans).
+        markSyncReady();
         // Final drain — any rows the replace-pull wrote that hadn't
         // settled to the cloud, plus anything enqueued during
         // hydration (shouldn't happen, but defensive).

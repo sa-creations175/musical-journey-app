@@ -1,5 +1,6 @@
 import { db, type HarmonicDiaryEntry, type SkillAnnotation } from '../../lib/db';
 import { canonicalSkillId } from '../skills/registry';
+import { whenSyncReady } from '../../lib/sync/syncReady';
 import { allStarters, inferConceptTags, starterToEntry } from './starters';
 
 /**
@@ -26,6 +27,7 @@ function entryUid(): string {
 // while we incrementally refactor them.
 
 export async function migrateLegacyAssociationsIfNeeded(): Promise<void> {
+  await whenSyncReady();
   const [existingEntries, progAssocs, modeAssocs, intervalDescs] = await Promise.all([
     db.harmonicDiaryEntries
       .where('legacySource').anyOf('progression', 'mode', 'interval')
@@ -124,6 +126,7 @@ export async function migrateLegacyAssociationsIfNeeded(): Promise<void> {
  * reference they can revisit.
  */
 export async function seedStartersIfNeeded(): Promise<void> {
+  await whenSyncReady();
   const [existing, existingAnnotations] = await Promise.all([
     db.harmonicDiaryEntries.toArray(),
     db.skillAnnotations.toArray(),

@@ -19,6 +19,7 @@ import { db, type Beat, type Song, type SongSection } from '../../lib/db';
 //   lyrics are seeded. The user can still edit anything.
 
 import { getPref, setPref } from '../../lib/userPrefs';
+import { whenSyncReady } from '../../lib/sync/syncReady';
 
 const SEED_PREF = 'repertoireSeedVersion';
 /**
@@ -546,6 +547,7 @@ export async function seedRepertoireIfNeeded(): Promise<void> {
   if (seedInFlight) return seedInFlight;
   seedInFlight = (async () => {
     try {
+      await whenSyncReady();
       const stored = await getPref<number>(SEED_PREF, 0);
       if (stored >= SEED_VERSION) return;
 
