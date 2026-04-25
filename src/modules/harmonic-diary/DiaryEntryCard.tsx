@@ -160,13 +160,18 @@ function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
 }
 
 /** Three buttons for chord, progression, and mode entries: ascending,
- *  blocked, descending. Each is a 44×44 touch target (Apple HIG
- *  minimum). Order matches the keyboard's left-to-right pitch axis
- *  (low → high) and Western reading direction — ascending on the left
- *  because lower notes sit physically on the left of a piano. */
+ *  blocked, descending. Order matches the keyboard's left-to-right
+ *  pitch axis (low → high) and Western reading direction — ascending
+ *  on the left because lower notes sit physically on the left of a
+ *  piano. Sizing is responsive: 36px / gap-0.5 on phones (mobile
+ *  cards are ~232px wide internally so 44px buttons leave almost no
+ *  room for the title), 44px / gap-1 on tablet+ where space is
+ *  ample. The mobile size is below Apple HIG's 44px minimum but
+ *  still finger-friendly; we accept the trade for keeping titles
+ *  legible on phone-width cards. */
 function PlayButtonGroup({ onPlay }: { onPlay: (mode: DiaryPlayMode) => void }) {
   return (
-    <div className="shrink-0 flex items-center gap-1">
+    <div className="shrink-0 flex items-center gap-0.5 sm:gap-1">
       <ModeButton onClick={() => onPlay('asc')} label="play ascending" glyph="↑" />
       <ModeButton onClick={() => onPlay('blocked')} label="play blocked" glyph="▤" />
       <ModeButton onClick={() => onPlay('desc')} label="play descending" glyph="↓" />
@@ -180,7 +185,7 @@ function ModeButton({ onClick, label, glyph }: { onClick: () => void; label: str
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="w-11 h-11 rounded-full flex items-center justify-center text-[14px] transition"
+      className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-[14px] transition"
       style={{
         color: 'var(--diary-text-muted)',
         border: '1px solid var(--diary-card-border)',

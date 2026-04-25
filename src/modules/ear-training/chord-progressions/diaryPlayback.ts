@@ -13,15 +13,15 @@ import { playNoteSequence, type NoteEvent } from '../../../lib/musicalPlayback';
 // middle register, seventh complexity so the chord colour matches how
 // the quizzes sound, bass-and-chords listening mode for a full preview.
 //
-// 60 BPM matches the diary's overall slow-ballad aesthetic — the
-// progression sits long enough that each chord registers, and arpeggio
-// notes get room to breathe (see DIARY_OVERLAP below). At 60 BPM each
-// "beat" in the catalog's durationPattern is a full second, so a
-// progression like 1-4-5 with [1,1,1] takes 3s blocked / arpeggiated;
-// the 12-bar blues' [4,4,4,4,2,2,2,2,1,1,1,1] preserves its turnaround
-// acceleration intact.
+// 50 BPM matches the user's tuned-by-ear pace from the source ear-
+// training modules — slower than typical drill tempos because the
+// diary is feeling-first, not skill-first. At 50 BPM each "beat" in
+// the catalog's durationPattern is 1.2 seconds, so a progression like
+// 1-4-5 with [1,1,1] takes 3.6s. The 12-bar blues'
+// [4,4,4,4,2,2,2,2,1,1,1,1] preserves its turnaround acceleration
+// intact at the slower pace.
 const DEFAULT_KEY = 'C';
-const DEFAULT_BPM = 60;
+const DEFAULT_BPM = 50;
 const DEFAULT_COMPLEXITY = 'seventh' as const;
 const DEFAULT_LISTENING = 'bass-chords' as const;
 const DEFAULT_TONIC_CONTEXT = 'singleNote' as const;
