@@ -14,6 +14,11 @@ import { GLOSSARY } from './content/glossary';
 import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
 import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
 
+/** Module-level in-flight guard — second concurrent caller awaits the
+ *  same in-flight promise instead of starting a parallel seed. Mirrors
+ *  the pattern in seedRepertoireIfNeeded / seedStartersIfNeeded. */
+let seedInFlight: Promise<void> | null = null;
+
 /** Flag set after the first time starter reference tracks are seeded.
  *  Once true we never re-seed, so the user's curation (deletes,
  *  archives, additions) is preserved across future builds. */
@@ -42,6 +47,18 @@ function uid(prefix: string): string {
  * prose, but only for starters the user hasn't edited.
  */
 export async function seedProductionIfNeeded(): Promise<void> {
+  if (seedInFlight) return seedInFlight;
+  seedInFlight = (async () => {
+    try {
+      await runProductionSeed();
+    } finally {
+      seedInFlight = null;
+    }
+  })();
+  return seedInFlight;
+}
+
+async function runProductionSeed(): Promise<void> {
   await whenSyncReady();
   const now = Date.now();
 

@@ -7,6 +7,7 @@ import Modal from '../../components/Modal';
 import DiaryEntryCard from './DiaryEntryCard';
 import DiaryEntryEditor from './DiaryEntryEditor';
 import { loadAllDiaryEntries, migrateLegacyAssociationsIfNeeded, seedStartersIfNeeded } from './data';
+import './reset'; // side-effect: registers window.__resetHarmonicDiary
 import { EMOTIONAL_TAGS, defaultStarterFor, quoteForToday } from './vocab';
 import { playSkillAudio } from './audio';
 
