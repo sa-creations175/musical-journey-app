@@ -379,7 +379,13 @@ const PLAY_TEMPLATES: Template[] = [
     const song = pickRandom(snap.recentSongs.slice(0, 5));
     if (!song) return null;
     const keyBit = song.key ? ` in ${song.key}` : '';
-    const stageBit = song.stage === 'comfortable' || song.stage === 'internalized' || song.stage === 'maintenance'
+    // "Sitting with" gates on stages where the user has gone past
+    // initial play-through into deeper engagement. Cross-key joins
+    // this set under the April 25 reorder where it sits between
+    // comfortable and internalized — a cross-key song has been
+    // sat with as much as a comfortable one. Internalized /
+    // maintenance songs naturally still qualify.
+    const stageBit = song.stage === 'comfortable' || song.stage === 'cross-key' || song.stage === 'internalized' || song.stage === 'maintenance'
       ? `You've been sitting with ${song.title}`
       : `You've been learning ${song.title}`;
     const genreBit = song.genre ? ` — ${song.genre}` : '';

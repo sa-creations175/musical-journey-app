@@ -848,13 +848,68 @@ export type AcquisitionStage =
   | 'acquired'
   | 'consolidated'
   | 'mastered';
+/**
+ * Canonical proficiency levels across three vocabularies. Eleven
+ * unique levels span:
+ *
+ *   skill scope (6)        — accuracy-band states for measured-
+ *                            accuracy modules (ear training, shapes
+ *                            & patterns, harmonic fluency):
+ *                            planting → sprouting → branching →
+ *                            rooted → seasoned → maintenance
+ *
+ *   song scope (5)         — Song Repertoire stage progression:
+ *                            learning → comfortable → cross-key →
+ *                            internalized → maintenance
+ *                            NOTE the order: cross-key precedes
+ *                            internalized. A song isn't truly
+ *                            internalized until it's been worked
+ *                            across multiple keys.
+ *
+ *   production scope (5)   — Production lessons:
+ *                            learning → comfortable →
+ *                            cross-context → internalized →
+ *                            maintenance
+ *
+ * Some level identifiers are shared across scopes (every scope ends
+ * in `maintenance`; song and production share learning / comfortable
+ * / internalized). The `(scope, level)` pair is the canonical key in
+ * the proficiencyDefinitions table — same level identifier in
+ * different scopes points to a different definition row.
+ *
+ * Multi-word identifiers use kebab-case (`cross-key`,
+ * `cross-context`) to match the existing RepertoireStage convention.
+ */
 export type ProficiencyLevel =
+  // Skill scope
+  | 'planting'
+  | 'sprouting'
+  | 'branching'
+  | 'rooted'
+  | 'seasoned'
+  // Song scope
   | 'learning'
   | 'comfortable'
+  | 'cross-key'
   | 'internalized'
-  | 'cross_key'
+  // Production scope (adds cross-context; learning / comfortable /
+  // internalized are shared with song scope)
+  | 'cross-context'
+  // Shared post-mastery state across all three scopes
   | 'maintenance';
-export type ProficiencyScope = 'song' | 'skill' | 'concept';
+/**
+ * Proficiency vocabulary scope. The `(scope, level)` pair is the
+ * canonical key — the same level string in different scopes points
+ * to different definitions.
+ *
+ *   song        — Song Repertoire stage progression
+ *   skill       — measured-accuracy module skills
+ *   production  — Production lessons
+ *   concept     — reserved for future glossary / concept tracking
+ *                 (kept in the union now so adding a row later
+ *                 doesn't churn types)
+ */
+export type ProficiencyScope = 'song' | 'skill' | 'production' | 'concept';
 export type PromptTier = 'high' | 'medium' | 'low';
 export type PromptStatus =
   | 'queued'
@@ -1564,6 +1619,70 @@ export class AppDB extends Dexie {
     // declared both columns as TEXT / JSONB-only with no CHECK
     // constraints, so Postgres already accepts the new values.
     this.version(17).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+    });
+    // v18 — checkpoint for the proficiency framework expansion in
+    // sub-phase 3 step 4: ProficiencyLevel widens to eleven unique
+    // levels across three vocabularies (skill / song / production)
+    // and ProficiencyScope adds 'production'. Both fields live in
+    // JSONB on the proficiency_definitions row, so the .stores()
+    // declaration is identical to v17 — the bump is a traceability
+    // marker for the type widening.
+    //
+    // Also: the song stage display_order in the
+    // proficiencyDefinitions seed reorders cross-key (was 4) → 3
+    // and internalized (was 3) → 4. No data migration on the
+    // songs.stage column itself: stage strings on existing rows
+    // are unchanged; only their meaning shifts under the new
+    // framework (a song labeled 'internalized' now means "memorized
+    // and felt in any key" instead of "memorized in original key").
+    // The user is the only consumer; existing 'internalized' songs
+    // may not meet the new definition and will be re-evaluated
+    // outside the system.
+    //
+    // No Postgres migration: proficiency_definitions.scope and
+    // .level are TEXT columns with no CHECK constraints in the
+    // 003 migration, so Postgres already accepts the new values.
+    this.version(18).stores({
       intervals: 'id, name, semitones',
       chordQualities: 'id, name, tier, family',
       chordShapes: 'id, chordId, key, inversion',

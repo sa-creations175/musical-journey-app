@@ -2,19 +2,31 @@ import type { RepertoireStage, SongPracticeLog } from '../../lib/db';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
+//
+// Order updated in sub-phase 3 step 4 (April 25, 2026): cross-key
+// now precedes internalized. Rationale: a song isn't truly
+// internalized until it's been worked across multiple keys —
+// "memorized in original key only" is still cross-key-incomplete.
+// The new internalized stage means "memorized and felt in any key".
+//
+// Existing songs.stage values are unchanged; only the meaning of
+// 'internalized' shifts. Existing internalized songs may not meet
+// the new definition and can be re-evaluated outside the system.
+// Color tokens (badge / dot below) follow the new order so the
+// visual progression matches.
 export const STAGES: RepertoireStage[] = [
   'learning',
   'comfortable',
-  'internalized',
   'cross-key',
+  'internalized',
   'maintenance',
 ];
 
 export const STAGE_LABEL: Record<RepertoireStage, string> = {
   'learning': 'Learning',
   'comfortable': 'Comfortable',
-  'internalized': 'Internalized',
   'cross-key': 'Cross-key',
+  'internalized': 'Internalized',
   'maintenance': 'Maintenance',
 };
 
@@ -22,8 +34,8 @@ export const STAGE_LABEL: Record<RepertoireStage, string> = {
 export const STAGE_TAGLINE: Record<RepertoireStage, string> = {
   'learning': 'building the shape',
   'comfortable': 'smoothing the flow',
-  'internalized': 'owning the song',
   'cross-key': 'stretching across keys',
+  'internalized': 'owning it in any key',
   'maintenance': 'keeping it warm',
 };
 
@@ -34,31 +46,35 @@ export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {
     'Focus on accuracy at slow tempo. Break sections apart. Aim for clean play-throughs before increasing tempo.',
   'comfortable':
     'Work at or near target tempo. Smooth flow across sections. Make sure transitions are seamless.',
-  'internalized':
-    'Maintain through regular replay. Explore voicings and small variations. Begin exploring emotional expression.',
   'cross-key':
-    'Take sections through other keys. Start with 5ths up/down and relative minor. Build understanding, not just finger patterns.',
+    'Take sections through other keys. Start with 5ths up/down and relative minor. Build understanding, not just finger patterns — the cross-key work is what sets up real internalization.',
+  'internalized':
+    'Now play it from memory, expressively, in any key it could come up in. Voicings, dynamics, feel — the song is yours. Cross-key work has built the foundation.',
   'maintenance':
     'Light-touch replay every 1–2 weeks. Keep the song at your fingertips for any performance moment.',
 };
 
 /** Tailwind badge classes. Reuses the established tier palette so the
  *  Repertoire badges feel visually related to Ear Training's tier pills.
- *  "Maintenance" borrows the info-blue because it reads as "steady"
- *  rather than "needs work". */
+ *  Color order tracks STAGES order: needswork → developing → fluent →
+ *  mastered → info. Cross-key and internalized swap colors versus
+ *  the original layout so the visual progression matches the new
+ *  ordering — `mastered` (deeper green) lives on the new final stage
+ *  before maintenance. "Maintenance" borrows the info-blue because
+ *  it reads as "steady" rather than "needs work". */
 export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
   'learning': 'bg-needswork/10 text-needswork border-needswork/30',
   'comfortable': 'bg-developing/10 text-developing border-developing/30',
-  'internalized': 'bg-fluent/10 text-fluent border-fluent/30',
-  'cross-key': 'bg-mastered/10 text-mastered border-mastered/30',
+  'cross-key': 'bg-fluent/10 text-fluent border-fluent/30',
+  'internalized': 'bg-mastered/10 text-mastered border-mastered/30',
   'maintenance': 'bg-info/10 text-info border-info/30',
 };
 
 export const STAGE_DOT_CLASS: Record<RepertoireStage, string> = {
   'learning': 'bg-needswork',
   'comfortable': 'bg-developing',
-  'internalized': 'bg-fluent',
-  'cross-key': 'bg-mastered',
+  'cross-key': 'bg-fluent',
+  'internalized': 'bg-mastered',
   'maintenance': 'bg-info',
 };
 
