@@ -1,5 +1,48 @@
 // Skill-tier classification, shared across quiz modules.
 // Tiers are derived from (rolling-window correct/total) + (days since last attempt).
+//
+// ─── Vocabulary status (Phase 1 sub-phase 6 audit, April 26, 2026) ───
+//
+// The labels in this file (mastered / fluent / developing / needsWork /
+// stale / untouched) are the LEGACY measured-accuracy vocabulary. The
+// canonical replacement is the garden vocabulary seeded into the
+// `proficiencyDefinitions` table for the `skill` scope:
+//
+//   planting     < 50%      First contact; building the representations
+//   sprouting    50–65%     Familiar but not yet stable
+//   branching    65–80%     Right more than wrong; getting dependable
+//   rooted       80–94%     Consistent across varied contexts
+//   seasoned     95%+       Internalized, automatic, freed up for flow
+//   maintenance  (post)     Earned; refresh occasionally
+//
+// Surfaces that still render Tier (and therefore have NOT yet been
+// reconciled to the canonical garden vocabulary):
+//
+//   - src/modules/skills/SkillsGrid.tsx        (filters, sort, badges)
+//   - src/modules/skills/SkillDetailPanel.tsx
+//   - src/modules/ear-training/intervals/FluencyTracker.tsx
+//   - src/modules/ear-training/chord-recognition/ChordFluencyTracker.tsx
+//   - src/modules/ear-training/chord-progressions/* fluency surfaces
+//   - src/modules/ear-training/scales-modes/* fluency surfaces
+//
+// Reconciliation is deferred to Phase 2, where:
+//
+//   1. Acquisition-stage detection lands (per Q8 — system-inferred
+//      acquisition state replacing user-declared mode toggles).
+//   2. Spacing state begins populating per item, with the algorithm
+//      consuming the band thresholds directly.
+//
+// At that point the band breakpoints (which differ subtly between
+// Tier and garden — Tier's "developing 50–79%" splits into the garden's
+// "sprouting 50–65%" + "branching 65–80%") need a single source of
+// truth. The plan is to introduce a `computeStage()` here that returns
+// the garden levels, retire `computeTier()`, and migrate the surfaces
+// listed above to render the new labels. Until then, Tier remains the
+// only accuracy-band classifier in production.
+//
+// The Goals form's `items_at_level` level dropdown is the only Phase 1
+// surface that renders the canonical garden vocabulary — see
+// src/modules/goals/GoalFormModal.tsx::LevelSelect.
 
 export type Tier = 'mastered' | 'fluent' | 'developing' | 'needsWork' | 'stale' | 'untouched';
 

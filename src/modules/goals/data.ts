@@ -21,10 +21,24 @@ let seedInFlight: Promise<void> | null = null;
  *       seasoned    95%+    Internalized, automatic, freed up for flow
  *       maintenance (post)  Earned; refresh occasionally
  *
- *     The skill bands themselves don't get computed in Phase 1 —
- *     spacing state populates in Phase 2 and the band derivation
- *     lives there. These rows exist now so goal-creation level
- *     pickers can offer the vocabulary.
+ *     Phase 1 sub-phase 6 audit (April 26, 2026): these garden-
+ *     vocabulary labels are seeded today but NOT yet rendered by
+ *     the skill-bearing surfaces. Skills Catalogue (SkillsGrid /
+ *     SkillDetailPanel) and the ear-training fluency trackers
+ *     still render the legacy Tier vocabulary (mastered / fluent /
+ *     developing / needsWork / stale / untouched) from
+ *     src/lib/tier.ts. The two vocabularies measure the same thing
+ *     with different labels and slightly different breakpoints.
+ *     The Goals form's `items_at_level` level dropdown is the only
+ *     Phase 1 surface that renders these garden labels.
+ *
+ *     Reconciliation is deferred to Phase 2, when acquisition-stage
+ *     detection (Q8) and spacing-state population start consuming
+ *     the band thresholds directly — at that point the migration
+ *     gets a single owner (the Phase 2 algorithm code) instead of
+ *     being a labeling-only churn pass on the existing surfaces.
+ *     See the header comment in src/lib/tier.ts for the full
+ *     surface list and migration plan.
  *
  *   song scope (5 levels) — whole-song progression for goal
  *     targeting. Phase 1 song-goal addendum vocabulary:
