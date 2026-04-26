@@ -67,6 +67,39 @@ export const SLOT_LABELS: Record<keyof DayProfileExpectedSessions, string> = {
   evening: 'Evening',
 };
 
+/**
+ * Visual treatment for each onboarding day profile — icon + accent
+ * color shade. Class strings are written out in full (rather than
+ * composed at runtime) so the Tailwind JIT picks them up. Render-
+ * time consumers apply them as a left-border accent on the profile
+ * card and a colored badge behind the icon.
+ *
+ * Color choices:
+ *   Standard — neutral slate (a typical day, no emphasis)
+ *   Light    — cool blue (smaller, low-energy)
+ *   Deep     — warm purple (extended, high-engagement)
+ */
+export const PROFILE_VISUALS: Record<
+  Exclude<DayProfileName, 'custom'>,
+  { icon: string; borderClass: string; badgeClass: string }
+> = {
+  standard: {
+    icon: '📅',
+    borderClass: 'border-l-slate-400 dark:border-l-slate-500',
+    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  },
+  light: {
+    icon: '🪶',
+    borderClass: 'border-l-sky-500 dark:border-l-sky-400',
+    badgeClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200',
+  },
+  deep: {
+    icon: '🔥',
+    borderClass: 'border-l-purple-600 dark:border-l-purple-400',
+    badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200',
+  },
+};
+
 /** Build a fresh DayProfile record carrying the Q9 default for the
  *  given profile name. The id follows the existing per-user-table
  *  pattern: a stable, scope-bearing slug so re-seeding upserts the

@@ -76,6 +76,22 @@ export default function Screen1Goals({ monthlyGoals }: Props) {
         onEdit={g => setEditingGoal(g)}
       />
 
+      {monthlyGoals.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Add as many goals as you'd like — tap Next when you're ready to
+            set up your practice days.
+          </p>
+          <button
+            type="button"
+            onClick={() => setExpanded('improve')}
+            className="self-start text-sm text-fluent hover:underline"
+          >
+            + Add another goal
+          </button>
+        </div>
+      )}
+
       {/* Full goal form for the "Set a custom goal" path and editing. */}
       <GoalFormModal
         open={customOpen || editingGoal !== null}

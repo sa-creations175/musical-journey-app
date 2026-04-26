@@ -109,7 +109,7 @@ export default function OnboardingFlow({ onExit }: Props) {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-6">
-      <header className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex items-center gap-3">
         <span
           aria-hidden
           className="inline-flex items-center justify-center w-8 h-8 rounded-md text-base font-medium"
@@ -130,11 +130,15 @@ export default function OnboardingFlow({ onExit }: Props) {
         >
           Skip the rest
         </button>
-      </header>
+      </div>
 
       <ProgressDots current={currentScreen} />
 
-      <main className="mt-4">
+      {/* Active screen body. Plain <div> rather than <main> — Layout
+          already provides the page-level <main>, and nesting is
+          invalid HTML5. Bottom padding leaves room for the sticky
+          nav so the last line of content isn't trapped under it. */}
+      <div className="mt-4 pb-24">
         {currentScreen === 1 && (
           <Screen1Goals monthlyGoals={monthlyGoals} />
         )}
@@ -144,9 +148,18 @@ export default function OnboardingFlow({ onExit }: Props) {
         {currentScreen === 3 && (
           <Screen3LongerRange allGoals={allActiveGoals} />
         )}
-      </main>
+      </div>
 
-      <footer className="mt-6 flex items-center justify-between gap-2">
+      {/* Sticky navigation bar — pinned to the bottom of the
+          scroll container so Back / Next are always reachable
+          regardless of screen length or scroll position. Solid
+          background + top border so it reads as a separate region
+          when content scrolls beneath it. */}
+      <div
+        role="navigation"
+        aria-label="Onboarding navigation"
+        className="sticky bottom-0 -mx-4 px-4 py-3 mt-6 bg-white/95 dark:bg-neutral-950/95 backdrop-blur border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-2"
+      >
         <button
           type="button"
           onClick={() => void handleBack()}
@@ -162,7 +175,7 @@ export default function OnboardingFlow({ onExit }: Props) {
         >
           {currentScreen === 3 ? 'Done' : 'Next →'}
         </button>
-      </footer>
+      </div>
     </div>
   );
 }

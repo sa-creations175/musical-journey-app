@@ -59,10 +59,15 @@ type FormMode =
   | { kind: 'edit'; goal: Goal };
 
 export default function Goals() {
+  // No default value — `goals` is `undefined` until the live query
+  // resolves the first time. The onboarding latch effect below uses
+  // that undefined sentinel to wait for a definitive answer before
+  // deciding whether to enter the flow. Downstream consumers of
+  // `goals` use `goals ?? []` defensively until the early-return
+  // below fires.
   const goals = useLiveQuery(
     () => db.goals.where('status').equals('active').toArray(),
     [],
-    [] as Goal[],
   );
   const proficiencyDefs = useLiveQuery(
     () => db.proficiencyDefinitions.toArray(),
@@ -100,12 +105,40 @@ export default function Goals() {
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
-  // In-memory dismiss for the onboarding flow. Resets on tab
-  // reload / route remount so the "re-fires whenever zero active
-  // goals exist" rule from the spec holds across sessions; per-
-  // visit the user can Skip the rest if they want to use Goals
-  // home for something else.
+  // Onboarding visibility is gated by two latched flags rather than
+  // a reactive expression on goals.length. We had a bug where adding
+  // a goal mid-flow flipped goals.length === 0 to false, which
+  // unmounted <OnboardingFlow> and dropped the user back on Goals
+  // home in the middle of Screen 1.
+  //
+  //   onboardingActive   — latches true on the first resolved
+  //                        render where the user has zero active
+  //                        goals. Stays true even as goals are
+  //                        added during the flow.
+  //   onboardingDismissed — set only by OnboardingFlow's onExit
+  //                        callback (Skip the rest / Done). The
+  //                        sole kill switch.
+  //
+  // Both reset on tab reload / route remount so the spec's
+  // "re-fires whenever zero active goals exist" rule holds across
+  // sessions.
+  //
+  // The latch lives in render-time setState rather than a useEffect
+  // (avoiding the cascading-render lint rule and an extra render).
+  // Per React docs, conditional setState during render is the
+  // canonical pattern for "storing information from previous
+  // renders" — the guard `!onboardingActive` prevents any loop.
+  const [onboardingActive, setOnboardingActive] = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+
+  if (
+    !onboardingActive
+    && !onboardingDismissed
+    && goals !== undefined
+    && goals.length === 0
+  ) {
+    setOnboardingActive(true);
+  }
 
   // Hydrate prefs once.
   useEffect(() => {
@@ -130,7 +163,7 @@ export default function Goals() {
     void setPref(PREF_HIDDEN_LAYERS, hiddenLayers);
   }, [hiddenLayers, hydrated]);
 
-  const goalsByScope = useMemo(() => groupByScope(goals), [goals]);
+  const goalsByScope = useMemo(() => groupByScope(goals ?? []), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));
 
   const toggleLayer = (scope: GoalScope) => {
@@ -147,10 +180,18 @@ export default function Goals() {
     });
   };
 
-  // Re-fire trigger: zero active goals AND user hasn't dismissed
-  // this session. Onboarding fully replaces the layered home — it
-  // owns its own header / nav / progress UI.
-  const showOnboarding = goals.length === 0 && !onboardingDismissed;
+  // Wait for the goals live query to resolve before deciding what
+  // to render — avoids briefly mounting either Goals home or
+  // OnboardingFlow against the default-empty result and then
+  // swapping. Render returns null for one frame; Dexie resolves
+  // local IndexedDB queries in single-digit ms.
+  if (goals === undefined) return null;
+
+  // Latched-active visibility. Once the user is in the flow, only
+  // explicit dismissal (onExit) flips it back off — so adding a
+  // goal in Screen 1 keeps them on the screen instead of unmounting
+  // OnboardingFlow mid-step.
+  const showOnboarding = onboardingActive && !onboardingDismissed;
   if (showOnboarding) {
     return <OnboardingFlow onExit={() => setOnboardingDismissed(true)} />;
   }
