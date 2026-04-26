@@ -67,7 +67,7 @@ The dashboard is the philosophical center. Every app opens to a dashboard first.
 
 **Overview group (top-level nav):**
 
-1. **Goals** (planned — Phase 1 of Practice Sessions build; see PRACTICE_SESSIONS_DESIGN.md)
+1. **Goals** (in active build — Phase 1 sub-phase 3) — foundational slate `#5a5e6e`
 2. **Dashboard** (home — with Skills Catalogue sub-item) — warm slate blue `#4a6b8a`
 3. **Skills Catalogue**
 4. **Practice Sessions** (planned — see PRACTICE_SESSIONS_DESIGN.md) — teal `#4a9088`
@@ -119,6 +119,7 @@ The dashboard is the philosophical center. Every app opens to a dashboard first.
 - **Practice Sessions + Goals Phase 1 build** (foundation: data model, sync, single-target Goals + onboarding, day profiles, Practice Sessions placeholder + manual logging, vacation mode, prompt orchestration plumbing — see PRACTICE_SESSIONS_DESIGN_3.md "Phase 1 Build Spec")
 
 **P2 — Real work, not urgent:**
+- **Song Repertoire progression redesign (Phase 1.5 — between sub-phase 6 and Phase 2).** Section × key matrix per song, with each cell having its own proficiency state. Validation tests for stage transitions ("3 clean run-throughs at performance tempo"). Cross-key target per song with sub-stage tracking. Designed in a dedicated session before build. See `SONG_PROGRESSION_DESIGN.md`.
 - Production Vocabulary flashcards
 - Audio: source-module consistency pass (where pedagogically appropriate)
 - Diary playback controls — transposition (per-entry or global key), possibly global tempo/register settings
@@ -272,6 +273,34 @@ This is "automation serves curation" applied repeatedly and consistently.
 
 ### Prompt prominence varies by signal availability (NEW — April 25, 2026)
 When the user's input is the *only* signal available (subjective rating of song practice, drill quality), the prompt is prominent. When the system already has objective data (ear training accuracy, flashcard correctness), the prompt is light or auto-collapsed. The app doesn't extract from users data it already has; it leans in where it doesn't.
+
+### Two proficiency vocabularies, three scopes (NEW — April 2026)
+The app uses two proficiency vocabularies, applied to items based on the cognitive structure of how mastery is measured:
+
+**Skill vocabulary (`scope: 'skill'`)** for measured-accuracy modules (Ear Training, Shapes & Patterns, Harmonic Fluency, future Production Vocabulary flashcards):
+
+| Level | Accuracy band | Description |
+|---|---|---|
+| Planting | < 50% | First contact; building the representation |
+| Sprouting | 50–65% | Recognizing sometimes; familiar but not yet stable |
+| Branching | 65–80% | Forming and consolidating; right more than wrong |
+| Rooted | 80–94% | Reasonably fluent; consistent across varied contexts |
+| Seasoned | 95%+ | Internalized, automatic; freed up for creative flow |
+| Maintenance | post-mastery | Earned status; revisit periodically to retain |
+
+**Song / Production vocabulary (`scope: 'song'` or `'production'`)** for self-assessed integrated learning (Song Repertoire, Production lessons):
+
+| Level | Description |
+|---|---|
+| Learning | Working through with reference material |
+| Comfortable | Plays/explains it through in original key/context without reference |
+| Cross-key (songs) / Cross-context (production) | Applies across multiple keys / styles / contexts |
+| Internalized | Memorized and felt; expressively in any key / naturally in thinking |
+| Maintenance | Solid; revisit periodically |
+
+The skill vocabulary uses the garden metaphor (Planting → Sprouting → Branching → Rooted → Seasoned) to encode order intuitively, even before users learn the accuracy bands. The song/production vocabulary uses self-assessment language because those domains aren't measured by accuracy percentages.
+
+Songs and production lessons share vocabulary because they share cognitive structure (self-assessed + time-investment-measured + integrated-multi-skill). They differ only in stage 3's word: songs use "Cross-key," production uses "Cross-context."
 
 ---
 
@@ -438,6 +467,8 @@ Replaces user-declared "acquisition mode." System infers `acquisition_stage` fro
 - **Direct .clear() on Dexie skips deleting hooks** — use bulkDelete([ids]) for sync-aware deletion
 - **Audit before fixing UI layout regressions** — tuning passes can reveal that the math was always wrong, not that the new code introduced a bug
 - **Empty catch blocks in audio dispatchers make bugs invisible** — always log on catch (April 2026)
+- **`db` not exposed globally in console by default.** Add a dev-only `if (import.meta.env.DEV) { (window as any).db = db; }` after the `db` export. Vite strips it from production builds. Useful for ad-hoc snapshot/inspection scripts during build work (April 2026).
+- **Pre-existing residual damage from old seeder races may be silently healed.** Production lessons / glossary / reference tracks were assumed empty per April 24 handoff but found fully populated when checked. Either self-healed via `/production` mount-effect at some point, or the original snapshot was misleading. Lesson: verify state before fixing it (April 2026).
 
 ---
 
@@ -454,7 +485,9 @@ Replaces user-declared "acquisition mode." System infers `acquisition_stage` fro
 - Multiple chord arrangements per phrase line
 - "My associations" field with "Save to Harmonic Diary" link
 
-**Stage framework:** Learning → Comfortable → Internalized → Cross-key → Maintenance
+**Stage framework (updated April 2026):** Learning → Comfortable → Cross-key → Internalized → Maintenance
+
+Cross-key precedes Internalized because a song isn't truly internalized until it's been worked through multiple keys. "Internalized in one key only" is actually still cross-key-incomplete. The reorder fixes a conceptual problem in the original ordering.
 
 This vocabulary is **canonical across the app** (April 2026 principle). Goals, Dashboard, Skills Catalogue, and Practice Sessions all use the same proficiency levels with the same definitions. See `proficiencyDefinitions` table in PRACTICE_SESSIONS_DESIGN.md.
 

@@ -124,6 +124,8 @@ It IS:
 
 Goals leads because its data feeds everything below it. Dashboard answers current state. Skills Catalogue is the inventory. Practice Sessions is the action layer.
 
+**Goals nav color: foundational slate `#5a5e6e`. Practice Sessions nav color: teal `#4a9088`. Both meta-layers above the learning modules.**
+
 ### Dependencies
 
 Practice Sessions reads from:
@@ -149,6 +151,15 @@ practiceSessions
   started_at, ended_at, planned_duration_min, actual_duration_min
   context: 'keys' | 'laptop' | 'phone' | 'mixed'
   time_of_day: 'morning' | 'midday' | 'evening' | 'late_night'
+    -- Time-of-day windows (April 2026):
+    --   late_night: 12am – 4am  (rolls up to previous calendar day's metrics)
+    --   morning:    4am – 12pm
+    --   midday:     12pm – 6pm
+    --   evening:    6pm – 12am
+    -- Day profiles only let users plan for morning / midday /
+    -- evening. Late-night sessions are logged when they happen,
+    -- labeled correctly by the auto-labeler, and roll up under
+    -- the previous calendar day's totals.
   session_role: 'opener' | 'middler' | 'closer' | 'only'
   session_intent: text | null  -- per-session intent (e.g., 'balanced', 'lean_to_goals', 'recover', 'push_on_X', or one of the abundance paths from Q3)
   hard_blocks: boolean
@@ -193,9 +204,9 @@ goals
   scope: 'lifetime' | 'two_to_three_year' | 'yearly' | 'quarterly' | 'monthly' | 'weekly'
     -- NOTE: no 'daily' scope. Daily intent emerges from algorithm, not stored. (Q1)
   description: text
-  target_metric: text | null
+  target_metric: text | null  -- e.g., 'items_at_level', 'hours_on_modules'
   target_value: number | null
-  target_unit: text | null
+  target_unit: text | null    -- e.g., 'cross-key' (when target_metric is 'items_at_level')
   current_value: number
   context_tag: 'keys' | 'laptop' | 'phone' | 'mixed' | null
   related_modules: text[]
@@ -207,10 +218,21 @@ goals
   is_umbrella: boolean (default false)  -- umbrella goals have sub-goals as children; their own metric may be null (Q6 multi-component refinement)
   created_at, updated_at, last_engaged_at
 
+-- 2-3 year replaces 3-5 year as the longest finite-horizon goal scope
+-- (April 2026). 3-5 years was too distant to plan honestly; the
+-- lifetime layer absorbs longer-range aspiration as text-only vision.
+--
+-- Measurable fields (target_metric, target_value, target_unit,
+-- target_date) are populated for horizons ≤ 1 year only (weekly
+-- through yearly). For 2-3 year and lifetime scopes, these fields
+-- are null; the goal is captured as text via description and
+-- optional related_modules / related_items only. See "Measurable
+-- horizons ≤ 1 year" principle.
+
 dayProfiles
   id, user_id
   name: 'standard' | 'light' | 'deep' | 'custom'
-  expected_sessions: jsonb  -- shape: {morning: {minutes, context, skip}, afternoon: {...}, evening: {...}}
+  expected_sessions: jsonb  -- shape: {morning: {minutes, context, skip}, midday: {...}, evening: {...}}
   is_default: boolean
   created_at, updated_at
 
@@ -223,12 +245,18 @@ vacationPeriods
 
 proficiencyDefinitions  -- read-only reference, seeded
   id
-  level: 'learning' | 'comfortable' | 'internalized' | 'cross_key' | 'maintenance'
-  scope: 'song' | 'skill' | 'concept'
+  level: text
+    -- skill scope:      'planting' | 'sprouting' | 'branching' | 'rooted' | 'seasoned' | 'maintenance'
+    -- song scope:       'learning' | 'comfortable' | 'cross-key' | 'internalized' | 'maintenance'
+    -- production scope: 'learning' | 'comfortable' | 'cross-context' | 'internalized' | 'maintenance'
+  scope: 'song' | 'skill' | 'production'
   short_label: text
   description: text
   example: text
   display_order: integer
+
+-- Seeded with 16 rows total: 5 song + 5 production + 6 skill (skill
+-- scope includes Maintenance as a separate row at display_order 6).
 
 prompts  -- centralized orchestration (Q10)
   id, user_id
@@ -300,6 +328,12 @@ Default memory type auto-assigned based on the module the item lives in. **No us
 | Just Play | expression |
 | Just Produce | expression |
 | Harmonic Diary | expression |
+
+### Implementation: runtime lookup function
+
+Memory type is a runtime lookup function `getMemoryType(moduleRef): MemoryType`, **not** a stored field on existing module item records. Lives in `src/lib/memoryType.ts`. Throws on unknown module refs (fail-fast). 12 canonical module refs covered, mapping to the four memory types per the table above. Mapping is frozen at runtime.
+
+Phase 2 (spacing state population) may migrate this to a stored field on `spacingState.memory_type` if the algorithm needs it cached per row. For Phase 1 / Phase 3 read paths, the runtime lookup is sufficient and avoids touching every module's existing data.
 
 ---
 
@@ -709,68 +743,108 @@ If user has zero goals + everything touched recently, alternative paths surface 
 
 **Layered display showing active goals across scopes.**
 
-Top → bottom:
-- Lifetime vision (single line if declared, "Not yet captured" with optional "Reflect" prompt if not)
-- 3-5 year vision
-- Yearly goal(s) — visible with progress indicators
-- Quarterly goal(s)
-- Monthly goal(s) — most prominently displayed (most actionable layer)
-- Weekly goal(s)
+Top → bottom (action-up, April 2026):
 
-Each layer collapsible. Most users spend most time on monthly + weekly.
+1. **This week** (Weekly)
+2. **This month** (Monthly)
+3. **This quarter** (Quarterly)
+4. **This year** (Yearly)
+5. **2 — 3 years**
+6. **Lifetime vision**
+
+Reasoning: most-frequently-checked layers get prime visual real estate. Long-horizon vision is grounding background, not daily check-in.
+
+Empty layers always remain visible with a placeholder line ("No quarterly goals yet" + "+ Add" link) and are individually collapsible. First-visit default: empty layers collapsed, populated layers expanded. Collapse state persists per-user. A separate "Customize layers" panel lets users fully hide layers they don't use.
 
 **No "daily" layer** — daily intent is generated by the session algorithm, not stored as a goal entity. (Q1)
 
-CTA: "Set a goal" or "Update goals."
+CTA: "+ Set a goal" (top button, opens form with no scope pre-set) or per-layer "+ Add" / "+ Reflect" (opens form with scope pre-filled).
 
 ### The Goals questionnaire (onboarding flow)
 
 **Progressive, not linear. This-month-first.**
 
-**First-launch flow:**
+The questionnaire fires whenever the user has zero active goals (not just on the first ever visit). Reasoning: goals are load-bearing for Practice Sessions; re-prompting goal-less users serves the app's function rather than being friction.
+
+Progress is tracked via userPref flag `goals.onboarding.lastCompletedScreen` (integer, 0–3). On return mid-flow, onboarding restarts at Screen 1 with any previously-created goals pre-filled as editable items. Each goal added via mini-form persists to the database immediately, so the accumulating list is the user's working set, fully editable as the user navigates.
+
+**Bidirectional navigation:**
+
+| Screen | Back | Next | Done | Skip the rest |
+|---|---|---|---|---|
+| 1 (this-month focus)         | —    | yes  | —    | yes |
+| 2 (day profiles)             | yes  | yes  | —    | yes |
+| 3 (longer-range, optional)   | yes  | —    | yes  | yes |
+
+Going back from Screen 2 returns to Screen 1 with all accumulated goals visible and editable. Same for Screen 3 → 2 → 1. "Skip the rest" exits onboarding entirely; user lands on Goals home with whatever they've created so far.
 
 **Screen 1:** "Welcome. Let's start small. What do you want to focus on **this month**?"
 
-User picks from prompts:
-- "Learn new songs" → "How many?" → "Which proficiency level should they reach? [Comfortable / Internalized / Cross-key — with definitions visible]"
+User picks from prompts (each card expands inline into a mini-form scoped to that prompt's fields; the "Custom" card opens the full goal-creation modal as an escape hatch):
+- "Learn new songs" → "How many?" → "Which proficiency level should they reach? [Comfortable / Cross-key / Internalized — with definitions visible]"
 - "Deepen existing songs" → which ones, to what level
-- "Improve a specific area" → multi-select dropdown of modules (with priority forced — pick top 1-2)
+- "Improve a specific area" → multi-select dropdown of modules (max 2) + monthly hour target (required) + optional improvement-text field; goal record uses `target_metric: 'hours_on_modules'`
 - "Spend X hours on Production lessons"
-- Custom (free text)
+- Custom (free text → opens full modal)
 
 **Screen 2:** "Now let's plan when you'll practice. What does your **typical** day look like?"
 
 Three sub-prompts (build the three day profiles):
-- "Your **Standard** day:" — Morning / Afternoon / Evening (time + context per slot, with skip toggle)
+- "Your **Standard** day:" — Morning / Midday / Evening (time + context per slot, with skip toggle)
 - "Your **Light** day:" — same three slots
 - "Your **Deep** day:" — same three slots
 
-Pre-filled with sensible defaults user can edit (per Q9 defaults table).
+Pre-filled with sensible defaults user can edit (per Q9 defaults table). Slot keys are `morning` / `midday` / `evening`; UI labels may display "Afternoon" if it reads better, but the underlying data key is `midday`.
 
 **Screen 3:** "Done — your monthly goals and day profiles are set."
 
-Optional CTA: "Want to set bigger-picture goals? We can capture your vision for this year, the next 3-5 years, and your lifetime musicianship dream. Skippable, comes back later if you want."
+Optional CTA: "Want to set bigger-picture goals? We can capture your vision for this year, the next 2-3 years, and your lifetime musicianship dream. Skippable, comes back later if you want."
 
-If user opts in:
-- Yearly: "By December 31, [year], what do you want to be able to do, know, or have internalized?" (open text + structured prompts)
-- 3-5 year: "Over the next 3-5 years, who do you want to become as a musician?" (open text)
-- Lifetime: "What's your overall vision for musicianship in your life?" (open text — purely aspirational)
-- Quarterly: derived from yearly with "What needs to happen this quarter to be on track?"
+If user opts in (longer-range prompts):
+- **Yearly:** "By December 31, [current year], what do you want to be able to do, know, or have internalized?"
+- **2-3 year:** "Over the next 2-3 years, who do you want to become as a musician?"
+- **Lifetime:** "What's your overall vision for musicianship in your life?"
+- **Quarterly:** "What needs to happen this quarter to be on track?"
 
 ### Goal creation form (any scope, single-target — Phase 1)
 
+#### Form modes by scope
+
+The goal creation form has two modes based on the picked scope:
+
+**Measurable mode** (scopes ≤ 1 year — weekly, monthly, quarterly, yearly): all fields shown, including target metric, target value, target unit, target date, context tag.
+
+**Vision mode** (scopes > 1 year — 2-3 year, lifetime): only description (required), related modules (optional), related items (optional), target date (optional, defaults to end-of-scope). Measurable fields hidden.
+
+Scope is editable. Changing scope from measurable to vision triggers a confirmation: *"Changing to this scope will clear the target metric, value, and unit. Continue?"* Reverse direction (vision → measurable) is fine — no warning needed; user fills measurable fields if desired.
+
+#### Target metric implementation
+
+The form uses a two-field representation for level-based goals: `target_metric: 'items_at_level'` + `target_unit: <level>`. The level dropdown's options are scope-derived from the `relatedItems` selections (mapping moduleId → scope: repertoire→song, production→production, everything else→skill). When `relatedItems` is empty, all three scopes show under `<optgroup>` headers. Mixed-scope goals show both scopes' levels under separate optgroups; the goal's level applies per-item-type.
+
+Other metrics (e.g., `hours_on_modules`) are flat numeric targets without level dropdowns. Future metrics plug into `metricCatalog.ts` without restructuring.
+
+#### Related Items search
+
+Single unified search input. Substring match against `SkillRecord.name` from `buildSkillRegistry()`. Results grouped by `moduleId` with module-color tag (12px square + module label) + item name + inline current proficiency level as a small badge to the right (or "Not yet started" if no state exists). Multi-select via checkboxes; selected items show as chips above the search input. Capped at 20 visible results; "Refine search to see more" hint when more match.
+
+Glossary terms are excluded from search (per existing convention; not Skills Catalogue items). The future Production Vocabulary flashcard deck will reify glossary terms as goal-targetable when it ships.
+
+#### Field reference
+
 Fields (varying based on scope):
 
-- **Description (open text)** — qualitative aspiration
-- **Scope** (yearly / quarterly / monthly / weekly) — typically pre-set
-- **Target metric** (dropdown — "Number of songs at level X", "Hours on module Y", "Skills mastered in module Z", "Custom")
-- **Target value** (numeric)
-- **Target date** (auto-set to end of scope period; editable)
-- **Context tag** (keys / laptop / phone / mixed) — affects feasibility checks
+- **Description (open text)** — qualitative aspiration (required)
+- **Scope** (weekly / monthly / quarterly / yearly / 2-3 year / lifetime) — pre-set when opened from a layer button, editable when opened from "+ Set a goal"
+- **Target metric** (dropdown — `items_at_level` / `hours_on_modules` / `count_completed` / `custom`) — measurable mode only
+- **Target value** (numeric) — measurable mode only
+- **Target unit** — measurable mode only; for `items_at_level` holds the picked level identifier; for `hours_on_modules` is `'hours'`; for `custom` is user-defined
+- **Target date** (auto-set to end of scope period; editable; optional in vision mode)
+- **Context tag** (keys / laptop / phone / mixed) — measurable mode only
 - **Related modules** (multi-select)
 - **Related items** (search across all skills/songs/lessons; multi-select; can leave empty)
-- **Parent goal** (optional — links to higher-scope goal — Q6)
-- **Numerical rollup toggle** (optional — only appears when parent goal is selected AND metrics match — Q6) — "Roll up progress to parent goal? [Yes] [No]"
+- **Parent goal** (optional — links to higher-scope goal — Q6; only shown when at least one candidate exists)
+- **Numerical rollup toggle** (optional — only appears when parent goal is selected — Q6) — "Roll up progress to parent goal? [Yes] [No]"
 
 **Smart suggestion at creation (Q6):** When user creates a goal and an existing parent goal could match (matching metric + matching proficiency level), system auto-suggests: "Roll up monthly progress to your yearly goal '25 songs at Comfortable+'? [Yes] [No]" with explanation: "Each song you complete toward this monthly goal will also count toward the yearly goal."
 
@@ -907,6 +981,19 @@ The `prompts` table exists from Phase 1. Even though Phase 1 only fires 2-3 prom
 **Scope: Foundation — data model, sync, basic Goals module, basic Practice Sessions home, prompt orchestration plumbing.**
 
 Phase 1 is intentionally light. Plumbing that everything else builds on. No session generator yet, no algorithm, no full spacing state population. Just: tables exist, sync works, user can declare single-target goals and see them, day profiles are set up, vacation mode works, manual session logging works, and the prompt orchestration layer is in place.
+
+### Sub-phase enumeration
+
+Phase 1 has 6 sub-phases:
+
+1. **Schema + sync** — Dexie + Supabase tables for `goals`, `dayProfiles`, `vacationPeriods`, `proficiencyDefinitions`, `practiceSessions`, `practiceBlocks`, `spacingState`, and prompt orchestration plumbing.
+2. **Memory type lookup** — `getMemoryType(moduleRef)` pure function with tests.
+3. **Goals module + onboarding** — Goals nav, layered home with collapse + Customize panel, goal creation modal with proficiency-aware metric dropdown, onboarding questionnaire with bidirectional navigation.
+4. **Practice Sessions home + manual logging** — Placeholder home, manual session logging form, vacation mode toggle.
+5. **Prompt orchestration** — Plumbing only, no Settings UI (deferred to Phase 7).
+6. **Proficiency vocabulary verification** — Audit existing surfaces (Song Repertoire, Skills Catalogue) and ensure they reference the canonical `proficiencyDefinitions` data.
+
+All sub-phases ship in order. Each commits independently. Sub-phase 3 is the largest and most user-visible.
 
 ### What ships in Phase 1
 
