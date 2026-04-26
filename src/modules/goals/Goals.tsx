@@ -1,23 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Goal, type GoalScope } from '../../lib/db';
+import { db, type Goal, type GoalScope, type ProficiencyDefinition } from '../../lib/db';
 import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
+import GoalFormModal from './GoalFormModal';
+import { seedProficiencyDefinitionsIfNeeded } from './data';
+import { describeGoalTarget } from './describeGoal';
 
 /**
  * Goals — page-level component.
  *
- * Phase 1 sub-phase 3 step 3: layered home with the six scopes in
- * action-up ordering, per-layer collapse with persistence, and a
- * Customize panel for hiding layers entirely.
+ * Phase 1 sub-phase 3 step 4: layered home plus the goal creation /
+ * edit modal. The "+ Set a goal" top button and per-layer
+ * "+ Add" / "+ Reflect" links open the modal in create mode (with
+ * the layer's scope pre-filled when applicable). Tapping any goal
+ * row in the home opens the modal in edit mode pre-populated with
+ * that goal's data; saving updates in place, deleting soft-deletes
+ * via status='abandoned'.
  *
- * The "+ Set a goal" top button and per-layer "+ Add" / "+ Reflect"
- * links open the goal creation form. Step 3 wires the *state* —
- * `formOpenForScope` records which scope (if any) the form should
- * pre-fill. Step 4 renders the actual form when this state is set;
- * for step 3, opening the form just toggles the state and we render
- * a temporary "form coming in step 4" placeholder.
+ * Onboarding (steps 5–9) wires its own resume-aware mini-flow on top
+ * of this same data layer.
  */
 
 export interface LayerDef {
@@ -33,7 +36,7 @@ export interface LayerDef {
 /**
  * Action-up ordering — the layer the user adjusts most often
  * (this week) sits at the top, longest-horizon vision at the
- * bottom. Goal creation forms can pre-fill scope from this list.
+ * bottom.
  */
 export const LAYERS: LayerDef[] = [
   { scope: 'weekly',            title: 'This week',       type: 'measurable',   emptyMessage: 'No weekly goals yet',    addLabel: '+ Add' },
@@ -44,13 +47,15 @@ export const LAYERS: LayerDef[] = [
   { scope: 'lifetime',          title: 'Lifetime vision', type: 'aspirational', emptyMessage: 'Not yet captured',       addLabel: '+ Reflect' },
 ];
 
-/** userPref key for per-scope collapse override. Absence falls
- *  back to the empty/populated heuristic. */
 const PREF_LAYER_COLLAPSE = 'goals.home.layerCollapse';
 type LayerCollapseOverrides = Partial<Record<GoalScope, 'collapsed' | 'expanded'>>;
 
-/** userPref key for layers fully hidden from the home view. */
 const PREF_HIDDEN_LAYERS = 'goals.home.hiddenLayers';
+
+type FormMode =
+  | { kind: 'closed' }
+  | { kind: 'create'; scope: GoalScope | null }
+  | { kind: 'edit'; goal: Goal };
 
 export default function Goals() {
   const goals = useLiveQuery(
@@ -58,12 +63,25 @@ export default function Goals() {
     [],
     [] as Goal[],
   );
+  const proficiencyDefs = useLiveQuery(
+    () => db.proficiencyDefinitions.toArray(),
+    [],
+    [] as ProficiencyDefinition[],
+  );
+
+  // Seed proficiency definitions on first mount. Lifecycle-aware
+  // (defers until sync is ready); idempotent on re-runs.
+  useEffect(() => {
+    void seedProficiencyDefinitionsIfNeeded().catch(err => {
+      console.warn('[goals] seedProficiencyDefinitionsIfNeeded failed', err);
+    });
+  }, []);
 
   const [collapseOverrides, setCollapseOverrides] = useState<LayerCollapseOverrides>({});
   const [hiddenLayers, setHiddenLayers] = useState<GoalScope[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
-  const [, setFormOpenForScope] = useState<GoalScope | null>(null);
+  const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
 
   // Hydrate prefs once.
   useEffect(() => {
@@ -78,25 +96,22 @@ export default function Goals() {
     })();
   }, []);
 
-  // Persist collapse overrides.
   useEffect(() => {
     if (!hydrated) return;
     void setPref(PREF_LAYER_COLLAPSE, collapseOverrides);
   }, [collapseOverrides, hydrated]);
 
-  // Persist hidden layers.
   useEffect(() => {
     if (!hydrated) return;
     void setPref(PREF_HIDDEN_LAYERS, hiddenLayers);
   }, [hiddenLayers, hydrated]);
 
-  const goalsByScope = groupByScope(goals);
+  const goalsByScope = useMemo(() => groupByScope(goals), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));
 
   const toggleLayer = (scope: GoalScope) => {
     setCollapseOverrides(prev => {
       const current = effectiveCollapsed(prev[scope], (goalsByScope.get(scope) ?? []).length > 0);
-      // Flip and record explicit override.
       return { ...prev, [scope]: current ? 'expanded' : 'collapsed' };
     });
   };
@@ -106,13 +121,6 @@ export default function Goals() {
       if (hidden) return prev.includes(scope) ? prev : [...prev, scope];
       return prev.filter(s => s !== scope);
     });
-  };
-
-  const openFormForScope = (scope: GoalScope | null) => {
-    setFormOpenForScope(scope);
-    // Step 4 renders the actual form; for step 3, surface a console
-    // breadcrumb so the wiring is verifiable in the meantime.
-    console.log('[goals] open form for scope', scope);
   };
 
   return (
@@ -146,7 +154,7 @@ export default function Goals() {
       <div className="mb-4">
         <button
           type="button"
-          onClick={() => openFormForScope(null)}
+          onClick={() => setFormMode({ kind: 'create', scope: null })}
           className="px-3 py-1.5 rounded-md text-sm font-medium text-white"
           style={{ backgroundColor: GOALS_META.accentHex }}
         >
@@ -166,9 +174,11 @@ export default function Goals() {
               key={layer.scope}
               layer={layer}
               goals={layerGoals}
+              proficiencyDefs={proficiencyDefs}
               collapsed={collapsed}
               onToggle={() => toggleLayer(layer.scope)}
-              onAdd={() => openFormForScope(layer.scope)}
+              onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
+              onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
             />
           );
         })}
@@ -186,6 +196,13 @@ export default function Goals() {
         hiddenLayers={hiddenLayers}
         onSetHidden={setLayerHidden}
       />
+
+      <GoalFormModal
+        open={formMode.kind !== 'closed'}
+        onClose={() => setFormMode({ kind: 'closed' })}
+        initialGoal={formMode.kind === 'edit' ? formMode.goal : null}
+        initialScope={formMode.kind === 'create' ? formMode.scope : null}
+      />
     </div>
   );
 }
@@ -195,15 +212,19 @@ export default function Goals() {
 function LayerSection({
   layer,
   goals,
+  proficiencyDefs,
   collapsed,
   onToggle,
   onAdd,
+  onEditGoal,
 }: {
   layer: LayerDef;
   goals: Goal[];
+  proficiencyDefs: ProficiencyDefinition[];
   collapsed: boolean;
   onToggle: () => void;
   onAdd: () => void;
+  onEditGoal: (goal: Goal) => void;
 }) {
   return (
     <section className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
@@ -237,12 +258,12 @@ function LayerSection({
           ) : (
             <ul className="flex flex-col gap-1.5">
               {goals.map(g => (
-                <li key={g.id} className="text-sm text-neutral-700 dark:text-neutral-200">
-                  {/* Step 3 renders a minimal row; the rich goal card
-                      with progress / edit / delete affordances lands
-                      in step 4. */}
-                  {g.description || <span className="italic text-neutral-500">(untitled goal)</span>}
-                </li>
+                <GoalRow
+                  key={g.id}
+                  goal={g}
+                  proficiencyDefs={proficiencyDefs}
+                  onEdit={() => onEditGoal(g)}
+                />
               ))}
               <li>
                 <button
@@ -258,6 +279,34 @@ function LayerSection({
         </div>
       )}
     </section>
+  );
+}
+
+function GoalRow({
+  goal,
+  proficiencyDefs,
+  onEdit,
+}: {
+  goal: Goal;
+  proficiencyDefs: ProficiencyDefinition[];
+  onEdit: () => void;
+}) {
+  const target = describeGoalTarget(goal, proficiencyDefs);
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
+      >
+        <div className="text-sm text-neutral-700 dark:text-neutral-200">
+          {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+        </div>
+        {target && (
+          <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
+        )}
+      </button>
+    </li>
   );
 }
 
@@ -298,12 +347,6 @@ function groupByScope(goals: Goal[]): Map<GoalScope, Goal[]> {
   return m;
 }
 
-/**
- * Resolve effective collapse state:
- *   - Explicit user override wins
- *   - Otherwise: empty layers default collapsed, populated layers
- *     default expanded
- */
 function effectiveCollapsed(
   override: 'collapsed' | 'expanded' | undefined,
   hasGoals: boolean,
