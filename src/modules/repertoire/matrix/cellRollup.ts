@@ -3,6 +3,7 @@ import {
   type SongCell,
   type SongCellRunThrough,
   type SongKey,
+  type SongKeyRunThrough,
   type SongKeyState,
 } from '../../../lib/db';
 
@@ -248,6 +249,156 @@ export async function saveAttemptsAndRollup(args: {
         await db.songCellRunThroughs.bulkPut(runThroughRows);
       }
       await db.songCells.put(updatedCell);
+      await db.songKeys.put(updatedSongKey);
+    },
+  );
+}
+
+// =====================================================================
+// Whole-song test helpers
+// =====================================================================
+//
+// Symmetric to the cell-level rollup but at the key level. The user
+// logs full-song run-throughs in the test modal; 3 consecutive clean
+// at-or-above-floor runs unlocks the comfortable → solid transition.
+// Same below-floor exclusion rule as cells (warm-up runs neither
+// advance nor reset the gate; above-tempo always counts).
+//
+// Streak storage: there's no consecutiveCleanCount field on songKeys
+// — the canonical streak is derived from the most recent
+// songKeyRunThroughs row (its consecutiveCleanCount column is the
+// post-attempt value). Empty log → streak 0.
+
+export interface KeyAttemptDraft {
+  id: string;
+  bpm: number;
+  wasClean: boolean;
+}
+
+/**
+ * Project the streak that will result from running the given attempts
+ * through this modal session. Caps at 3 (gate threshold). Always
+ * starts from 0 — sessions are discrete, the whole-song test is a
+ * fresh demonstration each time, no cross-session carry-over. The
+ * cell-level projection is reused (math is identical) but the
+ * key-flavoured wrapper hard-codes 0 to make the discrete-session
+ * contract explicit.
+ */
+export function projectKeyConsecutiveCleanCount(
+  attempts: ReadonlyArray<KeyAttemptDraft>,
+  performanceTempo: number | null,
+): number {
+  return projectConsecutiveCleanCount(0, attempts, performanceTempo);
+}
+
+/**
+ * Apply attempts to a key, producing the run-through rows ready to
+ * insert + the resulting streak count.
+ *
+ * Per-row `consecutiveCleanCount` is the streak value AFTER that
+ * specific attempt within THIS session. Sessions are discrete: each
+ * modal-open starts at 0, so the streak never carries across saves.
+ * This differs from the cell-level rollup (where consecutiveCleanCount
+ * persists on the cell row) — the whole-song test is a discrete
+ * demonstration, not ongoing practice. Below-floor attempts log
+ * honestly with the unchanged streak value (no advance, no reset).
+ */
+export function applyAttemptsToKey(
+  songKey: SongKey,
+  attempts: ReadonlyArray<KeyAttemptDraft>,
+  performanceTempo: number | null,
+  isRetest: boolean,
+  now: number,
+): { runThroughRows: SongKeyRunThrough[]; finalCount: number } {
+  let count = 0;
+  const rows: SongKeyRunThrough[] = attempts.map((a, i) => {
+    if (isInTempoRange(a.bpm, performanceTempo)) {
+      if (a.wasClean) count = Math.min(count + 1, 3);
+      else count = 0;
+    }
+    return {
+      id: `keyrun-${Math.random().toString(36).slice(2, 8)}-${(now + i).toString(36)}`,
+      songKeyId: songKey.id,
+      songId: songKey.songId,
+      wasClean: a.wasClean,
+      consecutiveCleanCount: count,
+      tempoBpm: Math.max(1, Math.floor(a.bpm)),
+      notes: null,
+      isRetest,
+      createdAt: now + i,
+    };
+  });
+  return { runThroughRows: rows, finalCount: count };
+}
+
+/**
+ * Persist the run-through inserts + (when markSolid) the songKeys
+ * promotion in a single Dexie transaction.
+ *
+ * Mark-solid semantics mirror Mark-comfortable for cells: caller
+ * passes `markSolid` true only when projected count ≥ 3 AND the
+ * user clicked the explicit button. We re-validate that here as a
+ * defensive belt — a stale projection from the modal shouldn't be
+ * able to flip a key to solid against the rules.
+ *
+ * keyState recompute: when the key isn't yet solid and the test
+ * passes, we set wholeSongTestPassedAt + solidAt and recompute
+ * keyState from the current cells (which should yield 'solid' when
+ * all cells are comfortable + test now passed).
+ */
+export async function saveKeyAttemptsAndRollup(args: {
+  songKey: SongKey;
+  attempts: ReadonlyArray<KeyAttemptDraft>;
+  markSolid: boolean;
+  performanceTempo: number | null;
+  isRetest: boolean;
+  siblingCells: ReadonlyArray<SongCell>;
+  expectedSectionCount: number;
+  now: number;
+}): Promise<void> {
+  const { runThroughRows, finalCount } = applyAttemptsToKey(
+    args.songKey,
+    args.attempts,
+    args.performanceTempo,
+    args.isRetest,
+    args.now,
+  );
+
+  const keyAlreadySolid = args.songKey.keyState === 'solid';
+  const shouldPromote =
+    args.markSolid && finalCount >= 3 && !keyAlreadySolid;
+
+  let updatedSongKey: SongKey = {
+    ...args.songKey,
+    lastEngagedAt: args.now,
+    updatedAt: args.now,
+  };
+
+  if (shouldPromote) {
+    const nextKeyState = computeKeyStateFromCells(
+      args.siblingCells,
+      args.expectedSectionCount,
+      args.now, // wholeSongTestPassedAt is being set right now
+    );
+    updatedSongKey = {
+      ...updatedSongKey,
+      wholeSongTestPassedAt: args.now,
+      // solidAt is the timestamp at which keyState first became
+      // 'solid'. Don't overwrite a prior solidAt if for some reason
+      // the key was solid before — but in this branch
+      // keyAlreadySolid is false, so solidAt should be null.
+      solidAt: args.songKey.solidAt ?? args.now,
+      keyState: nextKeyState,
+    };
+  }
+
+  await db.transaction(
+    'rw',
+    [db.songKeyRunThroughs, db.songKeys],
+    async () => {
+      if (runThroughRows.length > 0) {
+        await db.songKeyRunThroughs.bulkPut(runThroughRows);
+      }
       await db.songKeys.put(updatedSongKey);
     },
   );

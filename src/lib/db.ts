@@ -1284,16 +1284,21 @@ export interface SongCellRunThrough {
 /**
  * Append-only log of whole-song test run-throughs. Gates the
  * comfortable → solid transition at the key level: 3 consecutive
- * clean run-throughs required.
+ * clean run-throughs IN A SINGLE SESSION required. Test sessions are
+ * discrete (each modal-open starts at 0/3) — the user has to put
+ * three in a row in one sitting to pass.
  */
 export interface SongKeyRunThrough {
   id: string;
   songKeyId: string;
   songId: string;
   wasClean: boolean;
-  /** Streak value AFTER this run-through is applied (0 on a failed
-   *  run, prior+1 on a clean run, capped at 3). Stored for
-   *  audit-ability — the canonical streak lives on songKeys. */
+  /** Streak value AFTER this run-through is applied, within the
+   *  session that produced it (0 on a failed run, prior+1 on a clean
+   *  run, capped at 3). Discrete-session semantics: a row from one
+   *  session never sees a row from the previous one — the count
+   *  resets at every modal open. Stored for audit-ability so the
+   *  log can reconstruct how a session played out. */
   consecutiveCleanCount: number;
   tempoBpm: number | null;
   notes: string | null;

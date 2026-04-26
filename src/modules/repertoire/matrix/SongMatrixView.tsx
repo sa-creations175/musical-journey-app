@@ -5,6 +5,7 @@ import {
   type Song,
   type SongCell,
   type SongKey,
+  type SongKeyRunThrough,
   type SongMatrixSection,
 } from '../../../lib/db';
 import CellInteractionModal from './CellInteractionModal';
@@ -12,6 +13,8 @@ import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import SectionSetupBanner from './SectionSetupBanner';
 import SectionSetupModal from './SectionSetupModal';
+import WholeSongTestBanner from './WholeSongTestBanner';
+import WholeSongTestModal from './WholeSongTestModal';
 import { computeSongLevelState, songLevelStateLabel } from './songLevelState';
 
 /**
@@ -55,6 +58,16 @@ export default function SongMatrixView({ song, onClose }: Props) {
     [song.id],
     [] as SongCell[],
   );
+  // Whole-song test run-throughs — one query for all 12 keys,
+  // grouped/derived once below. sortBy('createdAt') so the latest
+  // row per key sits at the end of its group, ready to read for
+  // the streak. Reverse-sort would also work; this matches the
+  // append-only semantics of the log.
+  const songKeyRunThroughs = useLiveQuery(
+    () => db.songKeyRunThroughs.where('songId').equals(song.id).sortBy('createdAt'),
+    [song.id],
+    [] as SongKeyRunThrough[],
+  );
 
   // Modal lifecycle for the section setup flow lives here so the
   // banner can stay a stateless presentational component.
@@ -82,6 +95,14 @@ export default function SongMatrixView({ song, onClose }: Props) {
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
   const handleCellTap = useCallback((cellId: string) => setActiveCellId(cellId), []);
   const closeCellModal = useCallback(() => setActiveCellId(null), []);
+
+  // Whole-song test modal — same ID-only pattern. The banner and
+  // each KeyStrip's "Run test" button both call handleRunTest. Modal
+  // resolves songKey + sibling cells + starting streak from
+  // already-loaded data below.
+  const [activeTestKeyId, setActiveTestKeyId] = useState<string | null>(null);
+  const handleRunTest = useCallback((keyId: string) => setActiveTestKeyId(keyId), []);
+  const closeTestModal = useCallback(() => setActiveTestKeyId(null), []);
 
   const visibleSections = useMemo(
     () => sections.filter(s => !s.isArchived),
@@ -146,6 +167,46 @@ export default function SongMatrixView({ song, onClose }: Props) {
     [activeCell, songCells],
   );
 
+  // Whole-song test summaries — one map keyed by songKeyId. Just a
+  // total-attempt count: discrete-session semantics mean any latest
+  // streak from a prior session is meaningless to surface on the
+  // strip (next session resets to 0). The cumulative count tracks
+  // honest effort over time.
+  const testSummariesByKeyId = useMemo(() => {
+    const m = new Map<string, { totalAttempts: number }>();
+    for (const rt of songKeyRunThroughs) {
+      const prior = m.get(rt.songKeyId);
+      m.set(rt.songKeyId, {
+        totalAttempts: (prior?.totalAttempts ?? 0) + 1,
+      });
+    }
+    return m;
+  }, [songKeyRunThroughs]);
+
+  // Banner eligibility: keyState === 'comfortable' AND test never
+  // passed. Sorted by lastEngagedAt desc so the most recently worked
+  // key is the banner's primary action target — that's the one the
+  // user is most likely thinking about. Solid keys self-exclude
+  // because their wholeSongTestPassedAt is set.
+  const eligibleTestKeys = useMemo(
+    () => songKeys
+      .filter(k => k.keyState === 'comfortable' && k.wholeSongTestPassedAt === null)
+      .sort((a, b) => (b.lastEngagedAt ?? 0) - (a.lastEngagedAt ?? 0)),
+    [songKeys],
+  );
+
+  // Resolve the active test target + its sibling cells. Same
+  // briefly-undefined-after-save pattern as the cell modal.
+  const activeTestKey = activeTestKeyId
+    ? songKeys.find(k => k.id === activeTestKeyId) ?? null
+    : null;
+  const activeTestSiblingCells = useMemo(
+    () => activeTestKey
+      ? songCells.filter(c => c.songKeyId === activeTestKey.id)
+      : [],
+    [activeTestKey, songCells],
+  );
+
   return (
     <section className="space-y-4">
       <button
@@ -170,11 +231,18 @@ export default function SongMatrixView({ song, onClose }: Props) {
         <SectionSetupBanner onSetUp={() => setSetupOpen(true)} />
       )}
 
+      <WholeSongTestBanner
+        eligibleKeys={eligibleTestKeys}
+        onRunTest={handleRunTest}
+      />
+
       <MatrixGrid
         sections={sections}
         songKeys={songKeys}
         songCells={songCells}
+        testSummariesByKeyId={testSummariesByKeyId}
         onCellTap={handleCellTap}
+        onRunTest={handleRunTest}
       />
 
       <SectionSetupModal
@@ -204,6 +272,18 @@ export default function SongMatrixView({ song, onClose }: Props) {
           section={activeSection}
           song={song}
           siblingCells={activeSiblingCells}
+          totalSections={visibleSections.length}
+        />
+      )}
+
+      {activeTestKey && (
+        <WholeSongTestModal
+          key={activeTestKey.id}
+          open={true}
+          onClose={closeTestModal}
+          songKey={activeTestKey}
+          song={song}
+          siblingCells={activeTestSiblingCells}
           totalSections={visibleSections.length}
         />
       )}

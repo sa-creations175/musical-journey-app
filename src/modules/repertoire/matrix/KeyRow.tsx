@@ -24,10 +24,22 @@ interface Props {
    *  whose section setup hasn't run). */
   cellsBySectionId: ReadonlyMap<string, SongCell>;
   isOriginal: boolean;
+  /** Whole-song test summary for this key, when songKey !== null.
+   *  Derived upstream from songKeyRunThroughs so all 12 rows share
+   *  one query rather than each making its own. Discrete-session
+   *  semantics — only the cumulative attempt count is meaningful at
+   *  the strip level; in-session streak doesn't persist between
+   *  modal opens. */
+  testSummary?: { totalAttempts: number };
   /** Cell-tap callback fired by tappable cells (where a SongCell
    *  row exists). Null cells stay inert — there's nothing yet to
    *  log against. */
   onCellTap?: (cellId: string) => void;
+  /** Run-test callback fired by the inline strip's "Run test" button.
+   *  Surfaced only when keyState === 'comfortable' (the gate to Solid
+   *  is open). Solid keys don't expose the affordance until decay-
+   *  retest lands in a later step. */
+  onRunTest?: (songKeyId: string) => void;
 }
 
 export default function KeyRow({
@@ -36,7 +48,9 @@ export default function KeyRow({
   sections,
   cellsBySectionId,
   isOriginal,
+  testSummary,
   onCellTap,
+  onRunTest,
 }: Props) {
   const keyEngaged = songKey !== null;
   const keyState = songKey?.keyState ?? 'not_started';
@@ -72,6 +86,8 @@ export default function KeyRow({
         songKey={songKey}
         sections={sections}
         cellsBySectionId={cellsBySectionId}
+        testSummary={testSummary}
+        onRunTest={onRunTest}
       />
     </div>
   );
@@ -195,10 +211,14 @@ function KeyStrip({
   songKey,
   sections,
   cellsBySectionId,
+  testSummary,
+  onRunTest,
 }: {
   songKey: SongKey | null;
   sections: ReadonlyArray<SongMatrixSection>;
   cellsBySectionId: ReadonlyMap<string, SongCell>;
+  testSummary?: { totalAttempts: number };
+  onRunTest?: (songKeyId: string) => void;
 }) {
   const engaged = songKey !== null;
   const stateKey = songKey?.keyState ?? 'not_started';
@@ -216,6 +236,12 @@ function KeyStrip({
     ? Math.round((comfortableInKey / totalSections) * 100)
     : 0;
 
+  // Test affordance: visible only when the key is at comfortable —
+  // the gate to Solid. Solid keys don't show it (decay-retest is a
+  // later step); learning/not-started keys aren't yet eligible.
+  const showRunTest = stateKey === 'comfortable' && songKey !== null && onRunTest;
+  const totalAttempts = testSummary?.totalAttempts ?? 0;
+
   return (
     <div
       className={[
@@ -232,10 +258,45 @@ function KeyStrip({
       <span className="shrink-0 text-neutral-500 dark:text-neutral-400 tabular-nums">
         {totalSections === 0 ? 'No sections yet' : `${comfortableInKey}/${totalSections} sections`}
       </span>
+      {showRunTest && (
+        <TestStatus totalAttempts={totalAttempts} />
+      )}
       <span className="shrink-0 text-neutral-400 dark:text-neutral-500">
         {formatLastEngaged(songKey?.lastEngagedAt)}
       </span>
+      {showRunTest && (
+        <button
+          type="button"
+          onClick={() => onRunTest!(songKey!.id)}
+          className="shrink-0 px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium rounded bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Run test →
+        </button>
+      )}
     </div>
+  );
+}
+
+function TestStatus({
+  totalAttempts,
+}: {
+  totalAttempts: number;
+}) {
+  // No prior attempts — say so plainly. Once attempts exist, show
+  // the cumulative count for honest context. We deliberately don't
+  // show an "X/3 clean" indicator: the test is discrete-session,
+  // so any across-session streak is meaningless on the strip.
+  if (totalAttempts === 0) {
+    return (
+      <span className="shrink-0 text-neutral-400 dark:text-neutral-500 tabular-nums">
+        Untested
+      </span>
+    );
+  }
+  return (
+    <span className="shrink-0 text-neutral-500 dark:text-neutral-400 tabular-nums">
+      Tested {totalAttempts}×
+    </span>
   );
 }
 

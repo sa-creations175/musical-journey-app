@@ -34,12 +34,27 @@ interface Props {
   sections: ReadonlyArray<SongMatrixSection>;
   songKeys: ReadonlyArray<SongKey>;
   songCells: ReadonlyArray<SongCell>;
+  /** Map keyed by songKeyId → whole-song-test summary. Computed
+   *  once in SongMatrixView from the run-throughs query so all 12
+   *  rows share one read. Missing entries default to 0 attempts in
+   *  KeyStrip — same UX as no run-throughs ever logged. */
+  testSummariesByKeyId?: ReadonlyMap<string, { totalAttempts: number }>;
   /** Plumbed through to each KeyRow → CellSquare. Fires on cell
    *  tap when a cell record exists. */
   onCellTap?: (cellId: string) => void;
+  /** Plumbed through to each KeyRow → KeyStrip. Fires when the user
+   *  clicks "Run test" on a comfortable key's inline strip. */
+  onRunTest?: (songKeyId: string) => void;
 }
 
-export default function MatrixGrid({ sections, songKeys, songCells, onCellTap }: Props) {
+export default function MatrixGrid({
+  sections,
+  songKeys,
+  songCells,
+  testSummariesByKeyId,
+  onCellTap,
+  onRunTest,
+}: Props) {
   // Index incoming data once so each KeyRow gets O(1) lookups
   // rather than scanning the full songKeys / songCells arrays per
   // render.
@@ -86,6 +101,9 @@ export default function MatrixGrid({ sections, songKeys, songCells, onCellTap }:
           const cellsBySectionId = songKey
             ? (cellsByKeyId.get(songKey.id) ?? EMPTY_CELL_MAP)
             : EMPTY_CELL_MAP;
+          const testSummary = songKey
+            ? testSummariesByKeyId?.get(songKey.id)
+            : undefined;
           return (
             <KeyRow
               key={keyName}
@@ -94,7 +112,9 @@ export default function MatrixGrid({ sections, songKeys, songCells, onCellTap }:
               sections={visibleSections}
               cellsBySectionId={cellsBySectionId}
               isOriginal={originalKeyName === keyName}
+              testSummary={testSummary}
               onCellTap={onCellTap}
+              onRunTest={onRunTest}
             />
           );
         })}
