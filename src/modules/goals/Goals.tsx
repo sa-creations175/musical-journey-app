@@ -5,6 +5,7 @@ import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
+import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { describeGoalTarget } from './describeGoal';
 
@@ -99,6 +100,12 @@ export default function Goals() {
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
+  // In-memory dismiss for the onboarding flow. Resets on tab
+  // reload / route remount so the "re-fires whenever zero active
+  // goals exist" rule from the spec holds across sessions; per-
+  // visit the user can Skip the rest if they want to use Goals
+  // home for something else.
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // Hydrate prefs once.
   useEffect(() => {
@@ -139,6 +146,14 @@ export default function Goals() {
       return prev.filter(s => s !== scope);
     });
   };
+
+  // Re-fire trigger: zero active goals AND user hasn't dismissed
+  // this session. Onboarding fully replaces the layered home — it
+  // owns its own header / nav / progress UI.
+  const showOnboarding = goals.length === 0 && !onboardingDismissed;
+  if (showOnboarding) {
+    return <OnboardingFlow onExit={() => setOnboardingDismissed(true)} />;
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
