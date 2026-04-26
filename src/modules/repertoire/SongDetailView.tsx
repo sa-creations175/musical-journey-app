@@ -32,6 +32,7 @@ import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
 import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/notationPref';
+import SongMatrixView from './matrix/SongMatrixView';
 
 interface Props {
   songId: string | null;
@@ -137,6 +138,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [whyEditing, setWhyEditing] = useState(false);
   const [whyDraft, setWhyDraft] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
+  // Matrix view toggle (Phase 1.5 step 3a). Renders inline within
+  // Song Detail rather than via a new route — keeps song context
+  // unified, no nav restructure. Local state only; resets when the
+  // user navigates between songs.
+  const [showMatrix, setShowMatrix] = useState(false);
 
   const [titleDraft, setTitleDraft] = useState('');
   const [artistDraft, setArtistDraft] = useState('');
@@ -397,6 +403,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     );
   }
 
+  // Matrix view fully replaces the rest of Song Detail when open —
+  // its own ← song detail button on the matrix view returns here.
+  if (showMatrix) {
+    return (
+      <SongMatrixView song={song} onClose={() => setShowMatrix(false)} />
+    );
+  }
+
   const hasDescription = Boolean(song.description && song.description.trim().length > 0);
 
   return (
@@ -408,6 +422,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           className="text-neutral-500 hover:text-fluent"
         >
           ← back to active repertoire
+        </button>
+        <button
+          onClick={() => setShowMatrix(true)}
+          className="px-2.5 py-1 rounded-md border border-fluent/40 text-fluent hover:bg-fluent/10 hover:border-fluent text-xs font-medium"
+        >
+          view matrix →
         </button>
         {songs.length > 1 && (
           <label className="inline-flex items-center gap-2 text-neutral-500">
