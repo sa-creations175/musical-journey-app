@@ -7,6 +7,7 @@ import {
   type SongKey,
   type SongMatrixSection,
 } from '../../../lib/db';
+import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import SectionSetupBanner from './SectionSetupBanner';
 import SectionSetupModal from './SectionSetupModal';
@@ -64,6 +65,14 @@ export default function SongMatrixView({ song, onClose }: Props) {
   const [setupOpen, setSetupOpen] = useState(false);
   const closeSetup = useCallback(() => setSetupOpen(false), []);
 
+  // Cross-key follow-up modal — auto-fires once per mount when the
+  // song was migrated from legacy `stage: 'cross-key'`, sections
+  // exist, and no non-original songKeys rows exist yet. Same close-
+  // handler memoization rationale as closeSetup.
+  const [crossKeyOpen, setCrossKeyOpen] = useState(false);
+  const [crossKeyAutoFired, setCrossKeyAutoFired] = useState(false);
+  const closeCrossKey = useCallback(() => setCrossKeyOpen(false), []);
+
   const visibleSections = useMemo(
     () => sections.filter(s => !s.isArchived),
     [sections],
@@ -76,6 +85,34 @@ export default function SongMatrixView({ song, onClose }: Props) {
     () => computeSongLevelState(songKeys, songCells, visibleSections.length),
     [songKeys, songCells, visibleSections.length],
   );
+
+  // Cross-key follow-up eligibility — fires once per mount when:
+  //   - The song was migrated from legacy `stage: 'cross-key'`
+  //     (the only signal we have that the user was working other
+  //     keys before the matrix model existed).
+  //   - Sections exist (we need them to materialize cells against).
+  //   - songKeys still holds only the original-key row (defensive
+  //     guard against re-firing if the user already added keys).
+  //
+  // Render-time setState pattern (per React docs "storing
+  // information from previous renders"): once auto-fired, the
+  // guard `!crossKeyAutoFired` prevents any re-trigger for the
+  // rest of this mount, even if the user dismisses the modal.
+  // Re-mounting (navigate away and back) re-evaluates: skipped
+  // users with no non-original keys still match the eligibility,
+  // so the modal re-opens — that's the intentional "give them
+  // another chance" behaviour. A persistent opt-out can layer on
+  // later if it becomes annoying.
+  const eligibleForCrossKey =
+    song.stage === 'cross-key'
+    && visibleSections.length > 0
+    && songKeys.length === 1
+    && songKeys[0]?.isOriginalKey === true;
+
+  if (eligibleForCrossKey && !crossKeyAutoFired) {
+    setCrossKeyAutoFired(true);
+    setCrossKeyOpen(true);
+  }
 
   return (
     <section className="space-y-4">
@@ -113,6 +150,16 @@ export default function SongMatrixView({ song, onClose }: Props) {
         song={song}
         songKeys={songKeys}
       />
+
+      {originalKey && (
+        <CrossKeyFollowupModal
+          open={crossKeyOpen}
+          onClose={closeCrossKey}
+          song={song}
+          originalKey={originalKey.keyName}
+          visibleSections={visibleSections}
+        />
+      )}
     </section>
   );
 }

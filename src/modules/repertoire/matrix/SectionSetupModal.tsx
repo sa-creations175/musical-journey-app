@@ -7,11 +7,15 @@ import { db, type Song, type SongCell, type SongKey, type SongMatrixSection } fr
  * SONG_PROGRESSION_DESIGN_3.md "Section setup":
  *
  *   - Suggested chips (Intro / Verse / Pre-chorus / Chorus / Bridge
- *     / Outro / Coda) — toggle behavior: tap adds, tap again
- *     removes (matched on exact name)
+ *     / Outro / Coda) — tapping always adds a new draft of that
+ *     name. Multiple taps = multiple drafts (so a song with two
+ *     verses can be set up by tapping Verse twice; the user can
+ *     then rename each via click-to-edit if they want "Verse 1" /
+ *     "Verse 2"). The chip's ✓/+ state reflects whether at least
+ *     one draft of that name exists; removal is via the × on each
+ *     draft row, never via the chip itself.
  *   - Free-text field for custom names — always adds, never
- *     deduplicates (so users can have "Verse 1" and "Verse 2" if
- *     they want)
+ *     deduplicates
  *   - Up/down arrows to reorder
  *   - Click-to-edit on each draft name (Enter/blur commits, Esc
  *     cancels)
@@ -79,17 +83,14 @@ export default function SectionSetupModal({ open, onClose, song, songKeys }: Pro
 
   const draftNames = new Set(drafts.map(d => d.name));
 
-  const toggleChip = (name: string) => {
-    if (draftNames.has(name)) {
-      // Remove the first draft with this exact name. Free-text
-      // duplicates aren't affected by chip taps unless the chip
-      // name matches one of them (which is the user's intent if
-      // they typed it).
-      const idx = drafts.findIndex(d => d.name === name);
-      setDrafts(drafts.filter((_, i) => i !== idx));
-    } else {
-      setDrafts([...drafts, { draftId: makeDraftId(), name }]);
-    }
+  const addChip = (name: string) => {
+    // Always-add behavior: each chip tap appends a new draft with
+    // this exact name. Removal is via the × button on each draft
+    // row. Lets the user pick "Verse" twice for a song with two
+    // verses, then rename each draft if they want "Verse 1" /
+    // "Verse 2". Functional updater so rapid double-taps batch
+    // correctly.
+    setDrafts(prev => [...prev, { draftId: makeDraftId(), name }]);
   };
 
   const addCustom = () => {
@@ -232,7 +233,7 @@ export default function SectionSetupModal({ open, onClose, song, songKeys }: Pro
         <ChipRow
           chips={SUGGESTED_CHIPS}
           selectedNames={draftNames}
-          onToggle={toggleChip}
+          onAdd={addChip}
         />
 
         <CustomNameInput
@@ -263,11 +264,11 @@ export default function SectionSetupModal({ open, onClose, song, songKeys }: Pro
 function ChipRow({
   chips,
   selectedNames,
-  onToggle,
+  onAdd,
 }: {
   chips: ReadonlyArray<string>;
   selectedNames: ReadonlySet<string>;
-  onToggle: (name: string) => void;
+  onAdd: (name: string) => void;
 }) {
   return (
     <div>
@@ -281,7 +282,7 @@ function ChipRow({
             <button
               key={name}
               type="button"
-              onClick={() => onToggle(name)}
+              onClick={() => onAdd(name)}
               className={[
                 'text-xs px-2.5 py-1 rounded-md border transition',
                 selected
