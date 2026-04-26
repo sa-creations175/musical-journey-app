@@ -284,6 +284,19 @@ export interface SongPracticeLog {
   atTargetTempo?: boolean;
 }
 
+/**
+ * @deprecated **Obsolete pending Phase 1.5 cleanup.** Once the
+ * matrix UI ships and existing songs migrate into the new model,
+ * `songCells` (one row per section × key intersection) supersedes
+ * this table — `cell_state` + `consecutiveCleanCount` carry the
+ * per-cell tracking, and the per-key state lives on `songKeys`.
+ *
+ * Kept intact in v19 to avoid forcing a data-migration step before
+ * the matrix UI exists. Do NOT route new writes here. The drop
+ * lands as a separate Phase 1.5 step with an accompanying
+ * data-migration plan; see SONG_PROGRESSION_DESIGN_3.md "Migration
+ * spec" section.
+ */
 export interface SongCrossKeyProgress {
   /** Composite key: `${songId}:${sectionId}:${keyName}`. */
   id: string;
@@ -1145,6 +1158,170 @@ export interface PromptRecord {
   userDismissalCount: number;
 }
 
+// =================================================================
+// Song Progression Redesign (Phase 1.5 step 1)
+// =================================================================
+//
+// Six new tables backing the section × key matrix model. Full spec:
+// docs/SONG_PROGRESSION_DESIGN_3.md.
+//
+// Naming note (read this if you're confused about `SongMatrixSection`
+// vs `SongSection`): the design doc names its first table
+// `songSections`, but that name is already taken in this codebase by
+// the Repertoire module's lead-sheet layout (lyrics, phrases, chord
+// arrangements — see SongSection above). To ship Phase 1.5 step 1
+// without forcing a rename of the lead-sheet system, the matrix
+// metadata table goes by `songMatrixSections` here. The two are
+// deliberately separate concepts at separate abstraction levels;
+// a future unification pass may merge them.
+// =================================================================
+
+export interface SongMatrixSection {
+  id: string;
+  songId: string;
+  /** User-defined section name (Verse 1, Chorus, Bridge, Outro,
+   *  etc.). No canonical set — suggested chips are offered at
+   *  section setup time, custom names allowed alongside. */
+  name: string;
+  /** Display order in the matrix UI; updated on drag-to-reorder. */
+  displayOrder: number;
+  /** Soft delete flag. Archived sections are hidden from the matrix
+   *  but their cell history is preserved. State rollup excludes
+   *  archived sections; restoring re-includes them and key states
+   *  recalculate honestly. */
+  isArchived: boolean;
+  /** When this section was created via a "split" mutation, the
+   *  parent section's id. Preserves lineage. Null when the section
+   *  was created fresh by the user. */
+  splitFromSectionId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type SongKeyState = 'not_started' | 'learning' | 'comfortable' | 'solid';
+export type SongKeySolidDecayState = 'solid' | 'fading' | 'lapsed';
+
+export interface SongKey {
+  id: string;
+  songId: string;
+  /** "C", "G", "F#", "Bb", etc. — one of the 12 major keys. */
+  keyName: string;
+  /** Exactly one row per song has isOriginalKey=true at any time.
+   *  Reassignable; matrix data stays intact, only the designation
+   *  changes. */
+  isOriginalKey: boolean;
+  keyState: SongKeyState;
+  /** Set when keyState first transitions to 'solid'. Null otherwise. */
+  solidAt: number | null;
+  /** 'solid' (recently touched) → 'fading' (past 14-day warning) →
+   *  'lapsed' (past 30-day threshold, retest recommended). Null
+   *  while keyState !== 'solid'. */
+  solidDecayState: SongKeySolidDecayState | null;
+  lastDecayCheckAt: number | null;
+  /** Total sessions that have ever touched this key. */
+  livedWithSessionCount: number;
+  livedWithFirstSessionAt: number | null;
+  /** Rolling-window anchor; re-anchored on each new engagement. */
+  livedWithWindowStartAt: number | null;
+  /** Sessions touching this key inside the current rolling window. */
+  livedWithSessionsInWindow: number;
+  /** Most recent timestamp at which the whole-song test was passed
+   *  (3 consecutive clean run-throughs at tempo). */
+  wholeSongTestPassedAt: number | null;
+  /** Set true by the decay algorithm when retest is due. */
+  isRetestRecommended: boolean;
+  lastEngagedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type SongCellState = 'empty' | 'learning' | 'comfortable';
+
+export interface SongCell {
+  id: string;
+  songId: string;
+  /** FK → songMatrixSections.id */
+  sectionId: string;
+  /** FK → songKeys.id */
+  songKeyId: string;
+  cellState: SongCellState;
+  /** Set when cellState first transitions to 'comfortable'. */
+  comfortableAt: number | null;
+  /** Current streak toward the 3-run test (0–3). Resets to 0 on any
+   *  failed run-through; advances cellState to 'comfortable' when it
+   *  reaches 3. */
+  consecutiveCleanCount: number;
+  lastRunAt: number | null;
+  /** True if the most recent run-through was clean; null when no
+   *  run-through has been logged yet. */
+  lastRunWasClean: boolean | null;
+  notes: string | null;
+  lastEngagedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * Append-only log of cell run-throughs. Inserts drive cell-state
+ * advancement via the rollup logic in
+ * SONG_PROGRESSION_DESIGN_3.md "Rollup logic". Never updated after
+ * insert.
+ */
+export interface SongCellRunThrough {
+  id: string;
+  cellId: string;
+  songId: string;
+  sectionId: string;
+  songKeyId: string;
+  wasClean: boolean;
+  /** Tempo at which the run-through was attempted, or null when the
+   *  user logged without a tempo (e.g., from a free-form session). */
+  tempoBpm: number | null;
+  notes: string | null;
+  createdAt: number;
+}
+
+/**
+ * Append-only log of whole-song test run-throughs. Gates the
+ * comfortable → solid transition at the key level: 3 consecutive
+ * clean run-throughs required.
+ */
+export interface SongKeyRunThrough {
+  id: string;
+  songKeyId: string;
+  songId: string;
+  wasClean: boolean;
+  /** Streak value AFTER this run-through is applied (0 on a failed
+   *  run, prior+1 on a clean run, capped at 3). Stored for
+   *  audit-ability — the canonical streak lives on songKeys. */
+  consecutiveCleanCount: number;
+  tempoBpm: number | null;
+  notes: string | null;
+  /** True when this run-through is part of a prompted retest after
+   *  a decay lapse, false when it's part of initial Solid testing.
+   *  Important for Practice Sessions prioritization and the
+   *  meta-dashboard. */
+  isRetest: boolean;
+  createdAt: number;
+}
+
+/**
+ * One row per session per key. Any activity touching the song in
+ * a given key logs an engagement here; lived-with window logic
+ * runs on insert and writes back to songKeys.livedWithSessionsInWindow.
+ */
+export interface SongKeyEngagement {
+  id: string;
+  songKeyId: string;
+  songId: string;
+  /** Optional link to the practice session this engagement belongs
+   *  to. Null when logged directly from Song Repertoire without a
+   *  session context. */
+  practiceSessionId: string | null;
+  engagedAt: number;
+  createdAt: number;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -1187,6 +1364,13 @@ export class AppDB extends Dexie {
   proficiencyDefinitions!: Table<ProficiencyDefinition, string>;
   spacingState!: Table<SpacingState, string>;
   prompts!: Table<PromptRecord, string>;
+  // Song Progression Redesign — v19 (Phase 1.5 step 1)
+  songMatrixSections!: Table<SongMatrixSection, string>;
+  songKeys!: Table<SongKey, string>;
+  songCells!: Table<SongCell, string>;
+  songCellRunThroughs!: Table<SongCellRunThrough, string>;
+  songKeyRunThroughs!: Table<SongKeyRunThrough, string>;
+  songKeyEngagements!: Table<SongKeyEngagement, string>;
 
   constructor() {
     super('musical-journey');
@@ -1747,6 +1931,65 @@ export class AppDB extends Dexie {
       proficiencyDefinitions: 'id, level, displayOrder',
       spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
       prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+    });
+
+    // v19 — Phase 1.5 step 1: Song Progression Redesign schema.
+    // Six new tables backing the section × key matrix model.
+    // See docs/SONG_PROGRESSION_DESIGN_3.md and the Postgres
+    // mirror at supabase/migrations/004_song_progression_phase_1_5.sql.
+    //
+    // The v18 `songSections` (lead-sheet layout) stays in place
+    // unchanged; the matrix metadata table ships as
+    // `songMatrixSections` to dodge the name collision. The v18
+    // `songCrossKeyProgress` is also kept intact — see the
+    // @deprecated note on the SongCrossKeyProgress interface above.
+    this.version(19).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
     });
   }
 }

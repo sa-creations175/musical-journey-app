@@ -153,6 +153,60 @@ export const SYNC_TABLES: SyncTableConfig[] = [
       { dexie: 'surface', pg: 'surface' },
       { dexie: 'expiresAt', pg: 'expires_at' },
     ] },
+  // -----------------------------------------------------------------
+  // Song Progression Redesign — Phase 1.5 step 1.
+  // See docs/SONG_PROGRESSION_DESIGN_3.md for the full schema spec
+  // and supabase/migrations/004_song_progression_phase_1_5.sql for
+  // the Postgres mirror. `songMatrixSections` is the design doc's
+  // `songSections` renamed to dodge the existing v18 lead-sheet
+  // table — see the comment on SongMatrixSection in src/lib/db.ts.
+  // -----------------------------------------------------------------
+  { dexie: 'songMatrixSections', pg: 'song_matrix_sections', idField: 'id',
+    topLevel: [
+      { dexie: 'songId', pg: 'song_id' },
+      { dexie: 'displayOrder', pg: 'display_order' },
+      { dexie: 'isArchived', pg: 'is_archived' },
+    ] },
+  { dexie: 'songKeys', pg: 'song_keys', idField: 'id',
+    topLevel: [
+      { dexie: 'songId', pg: 'song_id' },
+      { dexie: 'keyName', pg: 'key_name' },
+      { dexie: 'isOriginalKey', pg: 'is_original_key' },
+      { dexie: 'keyState', pg: 'key_state' },
+      { dexie: 'solidDecayState', pg: 'solid_decay_state' },
+      { dexie: 'isRetestRecommended', pg: 'is_retest_recommended' },
+      { dexie: 'lastEngagedAt', pg: 'last_engaged_at' },
+    ] },
+  { dexie: 'songCells', pg: 'song_cells', idField: 'id',
+    topLevel: [
+      { dexie: 'songId', pg: 'song_id' },
+      { dexie: 'sectionId', pg: 'section_id' },
+      { dexie: 'songKeyId', pg: 'song_key_id' },
+      { dexie: 'cellState', pg: 'cell_state' },
+      { dexie: 'lastEngagedAt', pg: 'last_engaged_at' },
+    ] },
+  { dexie: 'songCellRunThroughs', pg: 'song_cell_run_throughs', idField: 'id',
+    topLevel: [
+      { dexie: 'cellId', pg: 'cell_id' },
+      { dexie: 'songId', pg: 'song_id' },
+      { dexie: 'sectionId', pg: 'section_id' },
+      { dexie: 'songKeyId', pg: 'song_key_id' },
+      { dexie: 'wasClean', pg: 'was_clean' },
+    ] },
+  { dexie: 'songKeyRunThroughs', pg: 'song_key_run_throughs', idField: 'id',
+    topLevel: [
+      { dexie: 'songKeyId', pg: 'song_key_id' },
+      { dexie: 'songId', pg: 'song_id' },
+      { dexie: 'wasClean', pg: 'was_clean' },
+      { dexie: 'isRetest', pg: 'is_retest' },
+    ] },
+  { dexie: 'songKeyEngagements', pg: 'song_key_engagements', idField: 'id',
+    topLevel: [
+      { dexie: 'songKeyId', pg: 'song_key_id' },
+      { dexie: 'songId', pg: 'song_id' },
+      { dexie: 'engagedAt', pg: 'engaged_at' },
+      { dexie: 'practiceSessionId', pg: 'practice_session_id' },
+    ] },
 ];
 
 /** Dexie table name → config lookup. */
