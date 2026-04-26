@@ -1,4 +1,5 @@
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
+import { computeSolidDecayState, daysSinceEngaged } from './solidDecay';
 
 /**
  * One row of the matrix: key name cell on the left (with the
@@ -31,14 +32,18 @@ interface Props {
    *  the strip level; in-session streak doesn't persist between
    *  modal opens. */
   testSummary?: { totalAttempts: number };
+  /** Wall-clock instant for live-derive decay. Captured at parent
+   *  mount, passed through verbatim so all 12 rows share a single
+   *  reference instant. */
+  now: number;
   /** Cell-tap callback fired by tappable cells (where a SongCell
    *  row exists). Null cells stay inert — there's nothing yet to
    *  log against. */
   onCellTap?: (cellId: string) => void;
-  /** Run-test callback fired by the inline strip's "Run test" button.
-   *  Surfaced only when keyState === 'comfortable' (the gate to Solid
-   *  is open). Solid keys don't expose the affordance until decay-
-   *  retest lands in a later step. */
+  /** Run-test callback fired by the inline strip's "Run test" /
+   *  "Run retest" button. Surfaced when keyState === 'comfortable'
+   *  (initial test) OR when the key is solid+lapsed (retest path —
+   *  the only way back to fresh-solid). */
   onRunTest?: (songKeyId: string) => void;
 }
 
@@ -49,6 +54,7 @@ export default function KeyRow({
   cellsBySectionId,
   isOriginal,
   testSummary,
+  now,
   onCellTap,
   onRunTest,
 }: Props) {
@@ -87,6 +93,7 @@ export default function KeyRow({
         sections={sections}
         cellsBySectionId={cellsBySectionId}
         testSummary={testSummary}
+        now={now}
         onRunTest={onRunTest}
       />
     </div>
@@ -212,12 +219,14 @@ function KeyStrip({
   sections,
   cellsBySectionId,
   testSummary,
+  now,
   onRunTest,
 }: {
   songKey: SongKey | null;
   sections: ReadonlyArray<SongMatrixSection>;
   cellsBySectionId: ReadonlyMap<string, SongCell>;
   testSummary?: { totalAttempts: number };
+  now: number;
   onRunTest?: (songKeyId: string) => void;
 }) {
   const engaged = songKey !== null;
@@ -236,10 +245,23 @@ function KeyStrip({
     ? Math.round((comfortableInKey / totalSections) * 100)
     : 0;
 
-  // Test affordance: visible only when the key is at comfortable —
-  // the gate to Solid. Solid keys don't show it (decay-retest is a
-  // later step); learning/not-started keys aren't yet eligible.
-  const showRunTest = stateKey === 'comfortable' && songKey !== null && onRunTest;
+  // Decay state is live-derived from the parent's mount-time `now`
+  // snapshot. The persisted solidDecayState column is for off-view
+  // consumers; in-view always asks the function.
+  const decayState = songKey
+    ? computeSolidDecayState(songKey, now)
+    : null;
+
+  // Test affordance: visible when the key is at comfortable (gate
+  // to Solid for the first time) OR when the key is solid+lapsed
+  // (retest is the only path back to fresh-solid). Fading keys are
+  // a heads-up only — no CTA, just the badge. Solid+not-lapsed has
+  // nothing to do here.
+  const showRunTest =
+    songKey !== null
+    && onRunTest !== undefined
+    && (stateKey === 'comfortable' || decayState === 'lapsed');
+  const isRetestCta = decayState === 'lapsed';
   const totalAttempts = testSummary?.totalAttempts ?? 0;
 
   return (
@@ -254,11 +276,14 @@ function KeyStrip({
       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium ${badge.className}`}>
         {badge.label}
       </span>
+      {songKey && (decayState === 'fading' || decayState === 'lapsed') && (
+        <DecayBadge state={decayState} daysSince={daysSinceEngaged(songKey, now)} />
+      )}
       <ProgressBar percent={percent} engaged={engaged} />
       <span className="shrink-0 text-neutral-500 dark:text-neutral-400 tabular-nums">
         {totalSections === 0 ? 'No sections yet' : `${comfortableInKey}/${totalSections} sections`}
       </span>
-      {showRunTest && (
+      {(stateKey === 'comfortable' || decayState === 'lapsed') && songKey && (
         <TestStatus totalAttempts={totalAttempts} />
       )}
       <span className="shrink-0 text-neutral-400 dark:text-neutral-500">
@@ -268,12 +293,48 @@ function KeyStrip({
         <button
           type="button"
           onClick={() => onRunTest!(songKey!.id)}
-          className="shrink-0 px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium rounded bg-blue-600 text-white hover:bg-blue-700"
+          className={[
+            'shrink-0 px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium rounded text-white',
+            isRetestCta
+              ? 'bg-red-600 hover:bg-red-700'
+              : 'bg-blue-600 hover:bg-blue-700',
+          ].join(' ')}
         >
-          Run test →
+          {isRetestCta ? 'Run retest →' : 'Run test →'}
         </button>
       )}
     </div>
+  );
+}
+
+function DecayBadge({
+  state,
+  daysSince,
+}: {
+  state: 'fading' | 'lapsed';
+  daysSince: number | null;
+}) {
+  // Days suffix only when we have a timestamp to compute it from.
+  // Defensive — solid keys should always have lastEngagedAt set,
+  // but the decay function tolerates missing values.
+  const suffix = daysSince != null ? ` ${daysSince}d` : '';
+  if (state === 'fading') {
+    return (
+      <span
+        className="shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+        title="Engagement clock past 14 days — heads-up only"
+      >
+        Fading{suffix}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
+      title="Past 30 days — retest recommended"
+    >
+      Lapsed{suffix}
+    </span>
   );
 }
 

@@ -1,4 +1,5 @@
 import type { SongCell, SongKey } from '../../../lib/db';
+import { computeSolidDecayState } from './solidDecay';
 
 /**
  * Song-level state per SONG_PROGRESSION_DESIGN_3.md lines 276-283.
@@ -57,14 +58,20 @@ function isLivedWith(key: SongKey): boolean {
   return key.livedWithSessionsInWindow >= 5;
 }
 
-function isSolidNotLapsed(key: SongKey): boolean {
-  return key.keyState === 'solid' && key.solidDecayState !== 'lapsed';
+/** Live-derive lapsed status — the persisted solidDecayState column
+ *  can lag behind real time during long unopened windows. In-view
+ *  callers always pass `now` so the rollup uses fresh truth rather
+ *  than the stale snapshot. */
+function isSolidNotLapsed(key: SongKey, now: number): boolean {
+  if (key.keyState !== 'solid') return false;
+  return computeSolidDecayState(key, now) !== 'lapsed';
 }
 
 export function computeSongLevelState(
   songKeys: ReadonlyArray<SongKey>,
   songCells: ReadonlyArray<SongCell>,
   totalSections: number,
+  now: number,
 ): SongLevelState {
   const originalKey = songKeys.find(k => k.isOriginalKey) ?? null;
   const nonOriginalKeyIds = new Set(
@@ -89,7 +96,7 @@ export function computeSongLevelState(
     ? Math.round((nonOriginalComfortable / crossKeyDenominator) * 100)
     : 0;
 
-  const solidKeys = songKeys.filter(isSolidNotLapsed);
+  const solidKeys = songKeys.filter(k => isSolidNotLapsed(k, now));
   const solidLivedWithKeys = solidKeys.filter(isLivedWith);
   const internalized = solidLivedWithKeys.length >= 3;
 

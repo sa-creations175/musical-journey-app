@@ -45,6 +45,12 @@ import {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Called after the save commits, before handleClose. Used by the
+   *  parent to bump its refreshKey so useLiveQuery re-fires — same
+   *  workaround as VacationManager. Without this, the parent's
+   *  songKeys array stays stale even though the row was persisted,
+   *  so KeyStrip's live-derive sees pre-save decay state. */
+  onSaved?: () => void;
   songKey: SongKey;
   song: Song;
   /** All cells for this songKey. The rollup needs them to recompute
@@ -53,15 +59,22 @@ interface Props {
   siblingCells: ReadonlyArray<SongCell>;
   /** Total non-archived sections for the song. */
   totalSections: number;
+  /** True when this is a retest after a decay lapse. Determined by
+   *  the parent from the key's live-derived decay state. Affects
+   *  title + rule reminder copy + the audit-log isRetest column. A
+   *  retest pass is the only way to clear the lapsed sticky state. */
+  isRetest: boolean;
 }
 
 export default function WholeSongTestModal({
   open,
   onClose,
+  onSaved,
   songKey,
   song,
   siblingCells,
   totalSections,
+  isRetest,
 }: Props) {
   const [attempts, setAttempts] = useState<KeyAttemptDraft[]>([]);
   const [bpmInput, setBpmInput] = useState<string>(String(song.tempo ?? ''));
@@ -81,8 +94,12 @@ export default function WholeSongTestModal({
     attempts,
     performanceTempo,
   );
-  const keyAlreadySolid = songKey.keyState === 'solid';
-  const canMarkSolid = !keyAlreadySolid && projectedCount >= 3;
+  // Mark solid is reachable on initial promotion (key not yet solid)
+  // AND on retest (key is solid but lapsed → re-pass clears the
+  // lapse). The only state where it stays disabled is "solid and not
+  // lapsed" — there's nothing to re-confirm in that case.
+  const canMarkSolid =
+    (songKey.keyState !== 'solid' || isRetest) && projectedCount >= 3;
   const hasContent = attempts.length > 0;
 
   const parsedBpm = parseInt(bpmInput, 10);
@@ -113,11 +130,12 @@ export default function WholeSongTestModal({
         attempts,
         markSolid,
         performanceTempo,
-        isRetest: false,
+        isRetest,
         siblingCells,
         expectedSectionCount: totalSections,
         now: Date.now(),
       });
+      onSaved?.();
       handleClose();
     } catch (err) {
       console.warn('[matrix] whole-song test save failed', err);
@@ -129,7 +147,7 @@ export default function WholeSongTestModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={`Whole-song test · ${songKey.keyName} · ${song.title}`}
+      title={`${isRetest ? 'Whole-song retest' : 'Whole-song test'} · ${songKey.keyName} · ${song.title}`}
       footer={
         <div className="flex items-center justify-between gap-2">
           <button
@@ -148,7 +166,7 @@ export default function WholeSongTestModal({
             >
               Save attempts
             </button>
-            {!keyAlreadySolid && (
+            {(songKey.keyState !== 'solid' || isRetest) && (
               <button
                 type="button"
                 onClick={() => void handleSave(true)}
@@ -156,7 +174,7 @@ export default function WholeSongTestModal({
                 className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 title={canMarkSolid ? undefined : 'Reach 3 consecutive clean run-throughs to enable'}
               >
-                Mark solid
+                {isRetest ? 'Mark solid (re-pass)' : 'Mark solid'}
               </button>
             )}
           </div>
@@ -166,13 +184,15 @@ export default function WholeSongTestModal({
       <div className="flex flex-col gap-4">
         <RuleReminder
           performanceTempo={performanceTempo}
-          keyAlreadySolid={keyAlreadySolid}
+          keyAlreadySolid={songKey.keyState === 'solid'}
+          isRetest={isRetest}
         />
 
         <StateHeader
           keyState={songKey.keyState}
           projectedCount={projectedCount}
-          keyAlreadySolid={keyAlreadySolid}
+          canMarkSolid={canMarkSolid}
+          isRetest={isRetest}
           performanceTempo={performanceTempo}
         />
 
@@ -199,11 +219,28 @@ export default function WholeSongTestModal({
 function RuleReminder({
   performanceTempo,
   keyAlreadySolid,
+  isRetest,
 }: {
   performanceTempo: number | null;
   keyAlreadySolid: boolean;
+  isRetest: boolean;
 }) {
+  const floorText = performanceTempo !== null
+    ? ` at or above ♩ ${performanceTempo - 10}`
+    : '';
+
+  if (isRetest) {
+    return (
+      <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-800 dark:text-red-200">
+        This key has lapsed since you last demonstrated it. Pass a retest to
+        clear the lapse: <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span>.
+        Engagement alone doesn't restore solid — only a passed retest does.
+      </div>
+    );
+  }
   if (keyAlreadySolid) {
+    // Solid + not lapsed + opened anyway (e.g., via a future "review"
+    // affordance). Re-attempts log to audit but don't change state.
     return (
       <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
         This key is already at <span className="font-medium">Solid</span>.
@@ -211,9 +248,6 @@ function RuleReminder({
       </div>
     );
   }
-  const floorText = performanceTempo !== null
-    ? ` at or above ♩ ${performanceTempo - 10}`
-    : '';
   return (
     <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
       Play through the full song in this key. Log each attempt as clean or
@@ -236,12 +270,14 @@ const KEY_STATE_BADGE: Record<SongKeyState, { label: string; className: string }
 function StateHeader({
   keyState,
   projectedCount,
-  keyAlreadySolid,
+  canMarkSolid,
+  isRetest,
   performanceTempo,
 }: {
   keyState: SongKeyState;
   projectedCount: number;
-  keyAlreadySolid: boolean;
+  canMarkSolid: boolean;
+  isRetest: boolean;
   performanceTempo: number | null;
 }) {
   const badge = KEY_STATE_BADGE[keyState];
@@ -250,10 +286,16 @@ function StateHeader({
     ? ` at or above ♩ ${performanceTempo - 10}`
     : '';
 
+  // Hint shows when there's a gate to reach. Initial promotion (key
+  // not solid) and retest (key solid + lapsed) both surface it;
+  // solid+not-lapsed has no gate to display.
+  const showHint = canMarkSolid || keyState !== 'solid' || isRetest;
+
   let hint: { text: string; tone: 'neutral' | 'ready' } | null = null;
-  if (!keyAlreadySolid) {
+  if (showHint) {
+    const readyText = isRetest ? 'Ready to mark solid (re-pass)' : 'Ready to mark solid';
     if (remaining === 0) {
-      hint = { text: 'Ready to mark solid', tone: 'ready' };
+      hint = { text: readyText, tone: 'ready' };
     } else if (remaining === 1) {
       hint = { text: `1 more clean run needed${gateSuffix}`, tone: 'neutral' };
     } else {

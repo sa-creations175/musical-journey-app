@@ -6,6 +6,7 @@ import {
   type SongKeyRunThrough,
   type SongKeyState,
 } from '../../../lib/db';
+import { decayStateAfterEngagement } from './solidDecay';
 
 /**
  * Cell-state machine helpers for the cell interaction modal.
@@ -234,9 +235,21 @@ export async function saveAttemptsAndRollup(args: {
     args.songKey.wholeSongTestPassedAt,
   );
 
+  // Decay snapshot writeback. Cell engagement is non-pass, so honor
+  // lapsed stickiness — only a passed retest clears 'lapsed'. Other
+  // decay states reset to 'solid' on engagement (clock resets).
+  const newDecayState = decayStateAfterEngagement(
+    args.songKey.solidDecayState,
+    newKeyState,
+  );
+  const newIsRetestRecommended = newDecayState === 'lapsed';
+
   const updatedSongKey: SongKey = {
     ...args.songKey,
     keyState: newKeyState,
+    solidDecayState: newDecayState,
+    isRetestRecommended: newIsRetestRecommended,
+    lastDecayCheckAt: args.now,
     lastEngagedAt: args.now,
     updatedAt: args.now,
   };
@@ -364,17 +377,21 @@ export async function saveKeyAttemptsAndRollup(args: {
     args.now,
   );
 
-  const keyAlreadySolid = args.songKey.keyState === 'solid';
-  const shouldPromote =
-    args.markSolid && finalCount >= 3 && !keyAlreadySolid;
+  // "Pass" semantics: the gate has been met AND the user opted in.
+  // Two flavors collapse to the same write logic — initial promotion
+  // (key wasn't solid) and retest pass (key was solid, possibly
+  // lapsed). In both cases wholeSongTestPassedAt + solidAt update
+  // and decay flags clear.
+  const passedGate = args.markSolid && finalCount >= 3;
 
   let updatedSongKey: SongKey = {
     ...args.songKey,
     lastEngagedAt: args.now,
+    lastDecayCheckAt: args.now,
     updatedAt: args.now,
   };
 
-  if (shouldPromote) {
+  if (passedGate) {
     const nextKeyState = computeKeyStateFromCells(
       args.siblingCells,
       args.expectedSectionCount,
@@ -383,12 +400,30 @@ export async function saveKeyAttemptsAndRollup(args: {
     updatedSongKey = {
       ...updatedSongKey,
       wholeSongTestPassedAt: args.now,
-      // solidAt is the timestamp at which keyState first became
-      // 'solid'. Don't overwrite a prior solidAt if for some reason
-      // the key was solid before — but in this branch
-      // keyAlreadySolid is false, so solidAt should be null.
+      // solidAt is the timestamp at which keyState FIRST became
+      // 'solid'. Preserve prior solidAt across retests — a retest
+      // refreshes the demonstration but doesn't reset "when did this
+      // key originally graduate." Falsy → set now (initial promotion).
       solidAt: args.songKey.solidAt ?? args.now,
       keyState: nextKeyState,
+      // Pass clears all decay flags. If the key was lapsed before,
+      // it's now freshly re-demonstrated. If it was just-promoted,
+      // these are no-ops (already null/false).
+      solidDecayState: nextKeyState === 'solid' ? 'solid' : null,
+      isRetestRecommended: false,
+    };
+  } else {
+    // Non-pass test save — same engagement-decay logic as a cell
+    // save. Lapsed sticks; other states reset to 'solid' on the
+    // clock-reset that lastEngagedAt = now produces.
+    const newDecayState = decayStateAfterEngagement(
+      args.songKey.solidDecayState,
+      args.songKey.keyState,
+    );
+    updatedSongKey = {
+      ...updatedSongKey,
+      solidDecayState: newDecayState,
+      isRetestRecommended: newDecayState === 'lapsed',
     };
   }
 

@@ -39,6 +39,10 @@ interface Props {
    *  rows share one read. Missing entries default to 0 attempts in
    *  KeyStrip — same UX as no run-throughs ever logged. */
   testSummariesByKeyId?: ReadonlyMap<string, { totalAttempts: number }>;
+  /** Wall-clock timestamp captured once at the parent mount. Passed
+   *  through so each KeyRow's decay live-derive uses a consistent
+   *  reference instant across the whole grid. */
+  now: number;
   /** Plumbed through to each KeyRow → CellSquare. Fires on cell
    *  tap when a cell record exists. */
   onCellTap?: (cellId: string) => void;
@@ -52,6 +56,7 @@ export default function MatrixGrid({
   songKeys,
   songCells,
   testSummariesByKeyId,
+  now,
   onCellTap,
   onRunTest,
 }: Props) {
@@ -113,6 +118,7 @@ export default function MatrixGrid({
               cellsBySectionId={cellsBySectionId}
               isOriginal={originalKeyName === keyName}
               testSummary={testSummary}
+              now={now}
               onCellTap={onCellTap}
               onRunTest={onRunTest}
             />

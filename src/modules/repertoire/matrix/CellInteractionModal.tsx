@@ -49,6 +49,12 @@ import {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Called after the save commits, before handleClose. Used by the
+   *  parent to bump its refreshKey so useLiveQuery re-fires — same
+   *  workaround as VacationManager. Without this, the parent's
+   *  songCells/songKeys arrays can stay stale even though the rows
+   *  were persisted. */
+  onSaved?: () => void;
   cell: SongCell;
   songKey: SongKey;
   section: SongMatrixSection;
@@ -64,6 +70,7 @@ interface Props {
 export default function CellInteractionModal({
   open,
   onClose,
+  onSaved,
   cell,
   songKey,
   section,
@@ -145,6 +152,7 @@ export default function CellInteractionModal({
         expectedSectionCount: totalSections,
         now: Date.now(),
       });
+      onSaved?.();
       handleClose();
     } catch (err) {
       console.warn('[matrix] cell save failed', err);

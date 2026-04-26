@@ -15,6 +15,7 @@ import SectionSetupBanner from './SectionSetupBanner';
 import SectionSetupModal from './SectionSetupModal';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
+import { computeSolidDecayState } from './solidDecay';
 import { computeSongLevelState, songLevelStateLabel } from './songLevelState';
 
 /**
@@ -43,19 +44,34 @@ interface Props {
 }
 
 export default function SongMatrixView({ song, onClose }: Props) {
+  // refreshKey is bumped after every save we route through this view
+  // (cell save, test save). It's added to all four useLiveQuery deps
+  // below so each write tears down and re-creates the live
+  // subscription, guaranteeing fresh data on the next render.
+  //
+  // Why this is necessary: useLiveQuery's auto-refresh-on-change
+  // doesn't fire reliably here — confirmed via the retest decay-
+  // badge bug, where solidDecayState was correctly written to 'solid'
+  // in IndexedDB but the parent's songKeys array stayed stale, so
+  // KeyStrip's live-derive saw the pre-save lapsed value. Same
+  // symptom and same workaround as VacationManager. Explicit
+  // refresh-on-write is a small, targeted band-aid until we figure
+  // out the root cause across the codebase.
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const sections = useLiveQuery(
     () => db.songMatrixSections.where('songId').equals(song.id).sortBy('displayOrder'),
-    [song.id],
+    [song.id, refreshKey],
     [] as SongMatrixSection[],
   );
   const songKeys = useLiveQuery(
     () => db.songKeys.where('songId').equals(song.id).toArray(),
-    [song.id],
+    [song.id, refreshKey],
     [] as SongKey[],
   );
   const songCells = useLiveQuery(
     () => db.songCells.where('songId').equals(song.id).toArray(),
-    [song.id],
+    [song.id, refreshKey],
     [] as SongCell[],
   );
   // Whole-song test run-throughs — one query for all 12 keys,
@@ -65,7 +81,7 @@ export default function SongMatrixView({ song, onClose }: Props) {
   // append-only semantics of the log.
   const songKeyRunThroughs = useLiveQuery(
     () => db.songKeyRunThroughs.where('songId').equals(song.id).sortBy('createdAt'),
-    [song.id],
+    [song.id, refreshKey],
     [] as SongKeyRunThrough[],
   );
 
@@ -112,10 +128,39 @@ export default function SongMatrixView({ song, onClose }: Props) {
     () => songKeys.find(k => k.isOriginalKey) ?? null,
     [songKeys],
   );
+  // Date.now() snapshot for live-derived decay. Captured via lazy
+  // useState initializer (purity rule disallows calling Date.now()
+  // during render). Re-stamped by bumpRefresh after every save so
+  // the live-derive reads against current time on the next render —
+  // matters when the just-saved row's lastEngagedAt is a fresh
+  // timestamp and we want decay state to reflect it (otherwise
+  // daysSince would be computed against a stale `now`).
+  const [now, setNow] = useState(() => Date.now());
+
+  // Mirrors VacationManager's bumpRefresh — pumps both the live-
+  // query cycle (refreshKey) and the live-derive clock (now) so any
+  // post-save consumer gets fresh data + fresh wall-clock reference.
+  // Modals call this after their save commits, before handleClose.
+  const bumpRefresh = useCallback(() => {
+    setRefreshKey(k => k + 1);
+    setNow(Date.now());
+  }, []);
+
   const songLevelState = useMemo(
-    () => computeSongLevelState(songKeys, songCells, visibleSections.length),
-    [songKeys, songCells, visibleSections.length],
+    () => computeSongLevelState(songKeys, songCells, visibleSections.length, now),
+    [songKeys, songCells, visibleSections.length, now],
   );
+
+  // Decay aggregates for the header pills. Walk songKeys once with
+  // live-derive — 12 keys max so memoization isn't worth the cache-
+  // invalidation noise (now changes every render).
+  let fadingKeyCount = 0;
+  let lapsedKeyCount = 0;
+  for (const k of songKeys) {
+    const state = computeSolidDecayState(k, now);
+    if (state === 'fading') fadingKeyCount++;
+    else if (state === 'lapsed') lapsedKeyCount++;
+  }
 
   // Cross-key follow-up eligibility — fires once per mount when:
   //   - The song was migrated from legacy `stage: 'cross-key'`
@@ -206,6 +251,10 @@ export default function SongMatrixView({ song, onClose }: Props) {
       : [],
     [activeTestKey, songCells],
   );
+  // Retest semantics: if the active key is currently lapsed, this is
+  // a retest. Pass-through to the modal for title/copy/audit-flag.
+  const activeTestIsRetest = activeTestKey !== null
+    && computeSolidDecayState(activeTestKey, now) === 'lapsed';
 
   return (
     <section className="space-y-4">
@@ -225,6 +274,8 @@ export default function SongMatrixView({ song, onClose }: Props) {
         learningPercent={songLevelState.learningPercent}
         crossKeyPercent={songLevelState.crossKeyPercent}
         solidKeyCount={songLevelState.solidKeyCount}
+        fadingKeyCount={fadingKeyCount}
+        lapsedKeyCount={lapsedKeyCount}
       />
 
       {visibleSections.length === 0 && (
@@ -241,6 +292,7 @@ export default function SongMatrixView({ song, onClose }: Props) {
         songKeys={songKeys}
         songCells={songCells}
         testSummariesByKeyId={testSummariesByKeyId}
+        now={now}
         onCellTap={handleCellTap}
         onRunTest={handleRunTest}
       />
@@ -267,6 +319,7 @@ export default function SongMatrixView({ song, onClose }: Props) {
           key={activeCell.id}
           open={true}
           onClose={closeCellModal}
+          onSaved={bumpRefresh}
           cell={activeCell}
           songKey={activeSongKey}
           section={activeSection}
@@ -281,10 +334,12 @@ export default function SongMatrixView({ song, onClose }: Props) {
           key={activeTestKey.id}
           open={true}
           onClose={closeTestModal}
+          onSaved={bumpRefresh}
           songKey={activeTestKey}
           song={song}
           siblingCells={activeTestSiblingCells}
           totalSections={visibleSections.length}
+          isRetest={activeTestIsRetest}
         />
       )}
     </section>
@@ -301,6 +356,8 @@ interface HeaderProps {
   learningPercent: number;
   crossKeyPercent: number;
   solidKeyCount: number;
+  fadingKeyCount: number;
+  lapsedKeyCount: number;
 }
 
 const STATE_PILL_CLASS: Record<HeaderProps['stateName'], string> = {
@@ -319,6 +376,8 @@ function Header({
   learningPercent,
   crossKeyPercent,
   solidKeyCount,
+  fadingKeyCount,
+  lapsedKeyCount,
 }: HeaderProps) {
   const tempoText = song.tempoLabel
     ? song.tempoLabel
@@ -366,6 +425,22 @@ function Header({
         {showCrossKeyPill && (
           <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-purple-100/60 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 tabular-nums">
             {crossKeyPercent}% cross-key
+          </span>
+        )}
+        {fadingKeyCount > 0 && (
+          <span
+            className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 tabular-nums"
+            title="Solid keys past 14 days without engagement"
+          >
+            {fadingKeyCount} fading
+          </span>
+        )}
+        {lapsedKeyCount > 0 && (
+          <span
+            className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 tabular-nums"
+            title="Solid keys past 30 days — retest recommended"
+          >
+            {lapsedKeyCount} lapsed
           </span>
         )}
       </div>
