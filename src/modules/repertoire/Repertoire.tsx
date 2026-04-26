@@ -4,6 +4,7 @@ import { db, type Song } from '../../lib/db';
 import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
+import { migrateSongsToMatrixIfNeeded } from './matrixMigration';
 import { seedRepertoireIfNeeded } from './seedSongs';
 import ActiveRepertoireView from './ActiveRepertoireView';
 import SongDetailView from './SongDetailView';
@@ -35,6 +36,17 @@ export default function Repertoire() {
   useEffect(() => {
     seedRepertoireIfNeeded().catch(err => {
       console.error('[repertoire] seed failed', err);
+    });
+  }, []);
+
+  // Phase 1.5 step 2 — auto-populate songKeys for every existing
+  // song so the section × key matrix has a starting state.
+  // Idempotent: re-runs are no-ops once every song has its
+  // original-key row. Lifecycle-aware: the helper awaits sync-ready
+  // before writing. See src/modules/repertoire/matrixMigration.ts.
+  useEffect(() => {
+    void migrateSongsToMatrixIfNeeded().catch(err => {
+      console.warn('[repertoire] matrix migration failed', err);
     });
   }, []);
 
