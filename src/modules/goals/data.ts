@@ -9,8 +9,8 @@ let seedInFlight: Promise<void> | null = null;
 /**
  * Canonical proficiency vocabulary, used everywhere the app surfaces
  * a mastery level: Goals, Song Repertoire, Skills Catalogue, Practice
- * Sessions. Sixteen rows across three vocabularies, expanded in
- * sub-phase 3 step 4 (April 25, 2026):
+ * Sessions. Nineteen rows across four scopes after the Phase 1
+ * song-goal addendum (April 26, 2026):
  *
  *   skill scope (6 levels) — for measured-accuracy modules. Bands
  *     map to recent-attempt accuracy:
@@ -26,23 +26,44 @@ let seedInFlight: Promise<void> | null = null;
  *     lives there. These rows exist now so goal-creation level
  *     pickers can offer the vocabulary.
  *
- *   song scope (5 levels) — Song Repertoire stage progression.
- *     Reordered in this commit so cross-key precedes internalized:
- *     a song isn't truly internalized until it's been worked across
- *     keys. The companion source of truth lives in
- *     src/modules/repertoire/stage.ts (STAGES array, taglines,
- *     guidance, badge colors).
+ *   song scope (5 levels) — whole-song progression for goal
+ *     targeting. Phase 1 song-goal addendum vocabulary:
+ *       learning      Working through sections in the original key
+ *       comfortable   Every section in the original key feels solid
+ *                     individually
+ *       solid         Whole song proven end-to-end at tempo in the
+ *                     original key
+ *       cross_key     Extending into keys beyond the original
+ *       internalized  Solid across multiple keys, lived with
+ *
+ *     No Maintenance row — Maintenance is a user-declared intent,
+ *     not a proficiency level (handled via a separate intent toggle
+ *     deferred to Phase 1.5). The legacy `RepertoireStage` type in
+ *     src/lib/db.ts still uses kebab `cross-key` for song-stage
+ *     tracking in the repertoire module; that vocabulary is reworked
+ *     wholesale in the Song Progression Redesign (Phase 1.5).
+ *
+ *   song_key scope (3 levels) — per-key progression for a single
+ *     song (Phase 1 song-goal addendum):
+ *       learning      Some sections comfortable, others still building
+ *       comfortable   Every section in this key is comfortable
+ *       solid         Whole song proven 3× clean at tempo in this key
+ *
+ *     No Maintenance row.
  *
  *   production scope (5 levels) — Production lessons. Mirrors song
  *     vocabulary except cross-key becomes cross-context (concepts
  *     applied across other lessons / songs / videos / genres rather
- *     than across musical keys).
+ *     than across musical keys). Maintenance retained — this scope
+ *     is unchanged by the song-goal addendum.
  *
- * Multi-word level identifiers use kebab-case (cross-key,
- * cross-context) to match the existing RepertoireStage convention.
+ * Identifier conventions: skill levels are single words; song and
+ * song_key levels use snake_case for multi-word values (`cross_key`)
+ * per the addendum; production keeps kebab `cross-context` until a
+ * future harmonization pass.
  *
- * Some levels (learning, comfortable, internalized, maintenance) are
- * shared across multiple scopes. The (scope, level) pair is the
+ * Some levels are shared across scopes (learning, comfortable, solid,
+ * internalized, maintenance). The (scope, level) pair is the
  * canonical key — the same level identifier in different scopes
  * points to a different definition row with its own description and
  * example. Rows are seeded once per user (matching the pattern of
@@ -106,51 +127,80 @@ const PROFICIENCY_SEED: ProficiencyDefinition[] = [
     displayOrder: 6,
   },
 
-  // ----- Song scope (5 rows) — reordered cross-key 4→3, internalized 3→4 -----
+  // ----- Song scope (5 rows) — Phase 1 song-goal addendum vocabulary -----
   {
     id: 'prof-song-learning',
     level: 'learning',
     scope: 'song',
-    shortLabel: 'Just starting',
-    description: 'Working through the basics, requires constant reference.',
-    example: 'Reading the chord chart for "Mirror" while playing.',
+    shortLabel: 'Just getting started',
+    description: 'Working through sections in the original key — not yet comfortable with all of them.',
+    example: 'Reading the chord chart for "Mirror" while playing some sections.',
     displayOrder: 1,
   },
   {
     id: 'prof-song-comfortable',
     level: 'comfortable',
     scope: 'song',
-    shortLabel: 'Can play it through',
-    description: 'Plays without stumbling in original key, no reference needed.',
-    example: 'Playing "Mirror" cleanly start to finish in C.',
+    shortLabel: 'Sections under your fingers',
+    description: 'Every section of the original key feels comfortable individually.',
+    example: 'Each section of "Mirror" plays cleanly on its own in C.',
     displayOrder: 2,
   },
   {
-    id: 'prof-song-cross-key',
-    level: 'cross-key',
+    id: 'prof-song-solid',
+    level: 'solid',
     scope: 'song',
-    shortLabel: 'Transposable',
-    description: 'Can play across multiple keys (still working it across them).',
-    example: 'Playing "Mirror" in F, G, and A on demand.',
+    shortLabel: 'Proven end-to-end',
+    description: 'Played the whole song through cleanly, multiple times, at tempo, in the original key.',
+    example: 'Playing "Mirror" start to finish at tempo in C, three times in a row.',
     displayOrder: 3,
+  },
+  {
+    id: 'prof-song-cross_key',
+    level: 'cross_key',
+    scope: 'song',
+    shortLabel: 'Taking it further',
+    description: 'Extending the song into new keys beyond the original.',
+    example: 'Working "Mirror" in F and G after Solid in C.',
+    displayOrder: 4,
   },
   {
     id: 'prof-song-internalized',
     level: 'internalized',
     scope: 'song',
-    shortLabel: 'Memorized and felt',
-    description: 'Plays from memory, expressively, in any key — the song is yours.',
-    example: 'Playing "Mirror" by heart with feeling, any key requested.',
-    displayOrder: 4,
+    shortLabel: 'Truly yours',
+    description: 'Solid across multiple keys, and lived with long enough that it plays from somewhere deeper than memory.',
+    example: '"Mirror" plays itself in any requested key, expressively, from feel.',
+    displayOrder: 5,
+  },
+
+  // ----- Song-key scope (3 rows) — Phase 1 song-goal addendum (per-key progression) -----
+  {
+    id: 'prof-song_key-learning',
+    level: 'learning',
+    scope: 'song_key',
+    shortLabel: 'Working on it',
+    description: 'Some sections are comfortable, others still being built.',
+    example: 'In F: chorus feels good, bridge still uncertain.',
+    displayOrder: 1,
   },
   {
-    id: 'prof-song-maintenance',
-    level: 'maintenance',
-    scope: 'song',
-    shortLabel: 'Solid, refresh occasionally',
-    description: 'Internalized; revisit periodically.',
-    example: '"Mirror" in active repertoire indefinitely.',
-    displayOrder: 5,
+    id: 'prof-song_key-comfortable',
+    level: 'comfortable',
+    scope: 'song_key',
+    shortLabel: 'Sections done',
+    description: 'Every section in this key is comfortable individually.',
+    example: 'Every section of "Mirror" plays cleanly on its own in F.',
+    displayOrder: 2,
+  },
+  {
+    id: 'prof-song_key-solid',
+    level: 'solid',
+    scope: 'song_key',
+    shortLabel: 'Whole song proven',
+    description: 'Played the full song through cleanly, 3 times in a row, at tempo, in this key.',
+    example: '"Mirror" start to finish at tempo in F, three times back-to-back.',
+    displayOrder: 3,
   },
 
   // ----- Production scope (5 rows) -----
@@ -202,23 +252,35 @@ const PROFICIENCY_SEED: ProficiencyDefinition[] = [
 ];
 
 /**
- * Seed the per-user proficiency_definitions table with the 16
- * canonical rows if (and only if) any are missing.
+ * Reconcile the per-user proficiency_definitions table to match the
+ * canonical PROFICIENCY_SEED. Three jobs in one pass:
  *
- * Lifecycle-aware: awaits whenSyncReady() before writing. Without
- * that, seed writes can land in local Dexie before the sync layer
- * is registered, leaving the cloud copy empty and getting wiped by
- * the next replace-mode pull. See the April 2026 seeder fix for
- * the underlying lesson.
+ *   1. Insert seed rows that don't yet exist (first-run seeding).
+ *   2. Update seed rows whose content has drifted (copy edits or
+ *      identifier changes propagate without manual intervention).
+ *   3. Delete rows that are no longer in the seed (e.g. the
+ *      `prof-song-maintenance` and `prof-song-cross-key` rows
+ *      removed by the Phase 1 song-goal addendum, April 26, 2026).
  *
- * Idempotent: existing rows are preserved; only missing rows are
- * added. Re-runs are safe — the user's data isn't touched once
- * seeded.
+ * Lifecycle-aware: awaits whenSyncReady() before writing so the
+ * reconciliation flows through the Dexie sync hooks to Supabase.
+ * Without that, seed writes can land in local Dexie before the sync
+ * layer is registered, leaving the cloud copy empty and getting
+ * wiped by the next replace-mode pull (see the April 2026 seeder
+ * fix for the underlying lesson).
  *
- * If you need to reseed after editing PROFICIENCY_SEED in dev,
- * delete the affected rows from the proficiencyDefinitions table
- * and call this function again. There's no auto-update for
- * already-seeded rows whose content drifted.
+ * Idempotent: re-running with the same seed is a no-op when the
+ * table already matches. The function is safe to call on every
+ * Goals mount.
+ *
+ * Sync semantics: bulkPut triggers Dexie's `creating` / `updating`
+ * hooks; bulkDelete triggers `deleting`. Both enqueue cloud
+ * operations via src/lib/sync/hooks.ts, so the reconciliation
+ * propagates to Supabase on the next sync.
+ *
+ * The proficiencyDefinitions table is per-user and read-only from
+ * the user's perspective — the seed is the source of truth. There
+ * are no user-authored rows to preserve.
  */
 export async function seedProficiencyDefinitionsIfNeeded(): Promise<void> {
   if (seedInFlight) return seedInFlight;
@@ -237,9 +299,17 @@ async function runProficiencySeed(): Promise<void> {
 
   const existing = await db.proficiencyDefinitions.toArray();
   const existingIds = new Set(existing.map(p => p.id));
+  const seedIds = new Set(PROFICIENCY_SEED.map(p => p.id));
 
-  const missing = PROFICIENCY_SEED.filter(p => !existingIds.has(p.id));
-  if (missing.length === 0) return;
+  const obsoleteIds = [...existingIds].filter(id => !seedIds.has(id));
+  if (obsoleteIds.length > 0) {
+    await db.proficiencyDefinitions.bulkDelete(obsoleteIds);
+  }
 
-  await db.proficiencyDefinitions.bulkPut(missing);
+  // bulkPut is unconditional — it covers both first-run inserts and
+  // content updates for already-seeded rows. The cost is one cloud
+  // upsert per row on every mount where content has drifted, which
+  // is rare; the alternative (diff-and-update) adds complexity for
+  // little gain on a 19-row table.
+  await db.proficiencyDefinitions.bulkPut(PROFICIENCY_SEED);
 }

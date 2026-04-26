@@ -849,8 +849,8 @@ export type AcquisitionStage =
   | 'consolidated'
   | 'mastered';
 /**
- * Canonical proficiency levels across three vocabularies. Eleven
- * unique levels span:
+ * Canonical proficiency levels across four scopes. Twelve unique
+ * levels span:
  *
  *   skill scope (6)        — accuracy-band states for measured-
  *                            accuracy modules (ear training, shapes
@@ -858,27 +858,42 @@ export type AcquisitionStage =
  *                            planting → sprouting → branching →
  *                            rooted → seasoned → maintenance
  *
- *   song scope (5)         — Song Repertoire stage progression:
- *                            learning → comfortable → cross-key →
- *                            internalized → maintenance
- *                            NOTE the order: cross-key precedes
- *                            internalized. A song isn't truly
- *                            internalized until it's been worked
- *                            across multiple keys.
+ *   song scope (5)         — whole-song progression as surfaced in
+ *                            goal targeting:
+ *                            learning → comfortable → solid →
+ *                            cross_key → internalized
+ *                            (Phase 1 song-goal addendum, April 26,
+ *                            2026: Maintenance removed — it's a
+ *                            user-declared intent, not a level;
+ *                            Solid inserted at order 3; cross-key
+ *                            renamed cross_key and pushed to order
+ *                            4.) NOTE: the legacy `RepertoireStage`
+ *                            type still uses kebab `cross-key` for
+ *                            song-stage tracking in the repertoire
+ *                            module — that vocabulary is reworked
+ *                            wholesale in Phase 1.5 (Song Progression
+ *                            Redesign).
+ *
+ *   song_key scope (3)     — per-key progression for a single song
+ *                            (introduced by the Phase 1 song-goal
+ *                            addendum):
+ *                            learning → comfortable → solid
+ *                            No Maintenance row.
  *
  *   production scope (5)   — Production lessons:
  *                            learning → comfortable →
  *                            cross-context → internalized →
  *                            maintenance
  *
- * Some level identifiers are shared across scopes (every scope ends
- * in `maintenance`; song and production share learning / comfortable
- * / internalized). The `(scope, level)` pair is the canonical key in
- * the proficiencyDefinitions table — same level identifier in
- * different scopes points to a different definition row.
+ * Some level identifiers are shared across scopes. The `(scope,
+ * level)` pair is the canonical key in the proficiencyDefinitions
+ * table — the same level identifier in different scopes points to a
+ * different definition row.
  *
- * Multi-word identifiers use kebab-case (`cross-key`,
- * `cross-context`) to match the existing RepertoireStage convention.
+ * Identifier conventions: skill levels are single words; song and
+ * song_key levels use snake_case for multi-word values (`cross_key`)
+ * per the addendum; production keeps kebab `cross-context` until a
+ * future redesign harmonizes it.
  */
 export type ProficiencyLevel =
   // Skill scope
@@ -887,29 +902,38 @@ export type ProficiencyLevel =
   | 'branching'
   | 'rooted'
   | 'seasoned'
-  // Song scope
+  // Song + song_key scopes
   | 'learning'
   | 'comfortable'
-  | 'cross-key'
+  | 'solid'
+  | 'cross_key'
   | 'internalized'
   // Production scope (adds cross-context; learning / comfortable /
   // internalized are shared with song scope)
   | 'cross-context'
-  // Shared post-mastery state across all three scopes
+  // Shared post-mastery state — skill and production scopes only;
+  // song and song_key scopes do not use Maintenance as a level
   | 'maintenance';
 /**
  * Proficiency vocabulary scope. The `(scope, level)` pair is the
  * canonical key — the same level string in different scopes points
  * to different definitions.
  *
- *   song        — Song Repertoire stage progression
+ *   song        — whole-song progression (goal targeting)
+ *   song_key    — per-key progression for one song (Phase 1
+ *                 song-goal addendum, April 26, 2026)
  *   skill       — measured-accuracy module skills
  *   production  — Production lessons
  *   concept     — reserved for future glossary / concept tracking
  *                 (kept in the union now so adding a row later
  *                 doesn't churn types)
  */
-export type ProficiencyScope = 'song' | 'skill' | 'production' | 'concept';
+export type ProficiencyScope =
+  | 'song'
+  | 'song_key'
+  | 'skill'
+  | 'production'
+  | 'concept';
 export type PromptTier = 'high' | 'medium' | 'low';
 export type PromptStatus =
   | 'queued'
