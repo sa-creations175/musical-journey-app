@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
@@ -8,6 +8,8 @@ import {
   type SongMatrixSection,
 } from '../../../lib/db';
 import MatrixGrid from './MatrixGrid';
+import SectionSetupBanner from './SectionSetupBanner';
+import SectionSetupModal from './SectionSetupModal';
 import { computeSongLevelState, songLevelStateLabel } from './songLevelState';
 
 /**
@@ -52,6 +54,16 @@ export default function SongMatrixView({ song, onClose }: Props) {
     [] as SongCell[],
   );
 
+  // Modal lifecycle for the section setup flow lives here so the
+  // banner can stay a stateless presentational component.
+  // closeSetup is memoized so the SectionSetupModal's handleClose
+  // (also memoized) stays stable across re-renders — Modal's
+  // focus-handling useEffect treats onClose as a dep and would
+  // otherwise re-fire on every keystroke, stealing focus from the
+  // modal's text inputs.
+  const [setupOpen, setSetupOpen] = useState(false);
+  const closeSetup = useCallback(() => setSetupOpen(false), []);
+
   const visibleSections = useMemo(
     () => sections.filter(s => !s.isArchived),
     [sections],
@@ -86,13 +98,20 @@ export default function SongMatrixView({ song, onClose }: Props) {
       />
 
       {visibleSections.length === 0 && (
-        <SectionSetupPlaceholder />
+        <SectionSetupBanner onSetUp={() => setSetupOpen(true)} />
       )}
 
       <MatrixGrid
         sections={sections}
         songKeys={songKeys}
         songCells={songCells}
+      />
+
+      <SectionSetupModal
+        open={setupOpen}
+        onClose={closeSetup}
+        song={song}
+        songKeys={songKeys}
       />
     </section>
   );
@@ -180,29 +199,3 @@ function Header({
   );
 }
 
-// -------------------------------------------------------------------
-
-function SectionSetupPlaceholder() {
-  return (
-    <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-      <div className="flex-1">
-        <div className="text-sm font-medium text-amber-900 dark:text-amber-100">
-          Set up sections to start using this song's matrix.
-        </div>
-        <div className="text-xs text-amber-800 dark:text-amber-200 mt-0.5">
-          The matrix tracks progress per section per key. Define your sections
-          (verse, chorus, bridge, etc.) once and the grid fills in as you
-          practise.
-        </div>
-      </div>
-      <button
-        type="button"
-        disabled
-        title="The section setup flow ships in the next update."
-        className="shrink-0 px-3 py-1.5 text-xs rounded-md border border-amber-700/60 dark:border-amber-300/60 text-amber-900/70 dark:text-amber-100/70 cursor-not-allowed"
-      >
-        Set up sections →
-      </button>
-    </div>
-  );
-}
