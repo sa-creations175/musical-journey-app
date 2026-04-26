@@ -7,6 +7,7 @@ import {
   type SongKey,
   type SongMatrixSection,
 } from '../../../lib/db';
+import CellInteractionModal from './CellInteractionModal';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import SectionSetupBanner from './SectionSetupBanner';
@@ -73,6 +74,15 @@ export default function SongMatrixView({ song, onClose }: Props) {
   const [crossKeyAutoFired, setCrossKeyAutoFired] = useState(false);
   const closeCrossKey = useCallback(() => setCrossKeyOpen(false), []);
 
+  // Cell interaction modal — opens on cell tap. The ID-only state
+  // lets the parent stay agnostic about cell internals; the modal
+  // resolves cell + songKey + section + siblings from props passed
+  // by this component below. handleCellTap memoized for stable
+  // reference passed down through MatrixGrid → KeyRow → CellSquare.
+  const [activeCellId, setActiveCellId] = useState<string | null>(null);
+  const handleCellTap = useCallback((cellId: string) => setActiveCellId(cellId), []);
+  const closeCellModal = useCallback(() => setActiveCellId(null), []);
+
   const visibleSections = useMemo(
     () => sections.filter(s => !s.isArchived),
     [sections],
@@ -114,6 +124,28 @@ export default function SongMatrixView({ song, onClose }: Props) {
     setCrossKeyOpen(true);
   }
 
+  // Resolve the active cell + its peers from already-loaded data.
+  // No additional queries — everything's in scope from the live
+  // queries above. activeCell can briefly be undefined right after
+  // a save closes the modal (activeCellId still set for one render
+  // before closeCellModal fires); the conditional render below
+  // handles both states cleanly.
+  const activeCell = activeCellId
+    ? songCells.find(c => c.id === activeCellId) ?? null
+    : null;
+  const activeSongKey = activeCell
+    ? songKeys.find(k => k.id === activeCell.songKeyId) ?? null
+    : null;
+  const activeSection = activeCell
+    ? sections.find(s => s.id === activeCell.sectionId) ?? null
+    : null;
+  const activeSiblingCells = useMemo(
+    () => activeCell
+      ? songCells.filter(c => c.songKeyId === activeCell.songKeyId)
+      : [],
+    [activeCell, songCells],
+  );
+
   return (
     <section className="space-y-4">
       <button
@@ -142,6 +174,7 @@ export default function SongMatrixView({ song, onClose }: Props) {
         sections={sections}
         songKeys={songKeys}
         songCells={songCells}
+        onCellTap={handleCellTap}
       />
 
       <SectionSetupModal
@@ -158,6 +191,20 @@ export default function SongMatrixView({ song, onClose }: Props) {
           song={song}
           originalKey={originalKey.keyName}
           visibleSections={visibleSections}
+        />
+      )}
+
+      {activeCell && activeSongKey && activeSection && (
+        <CellInteractionModal
+          key={activeCell.id}
+          open={true}
+          onClose={closeCellModal}
+          cell={activeCell}
+          songKey={activeSongKey}
+          section={activeSection}
+          song={song}
+          siblingCells={activeSiblingCells}
+          totalSections={visibleSections.length}
         />
       )}
     </section>

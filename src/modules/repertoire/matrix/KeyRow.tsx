@@ -24,6 +24,10 @@ interface Props {
    *  whose section setup hasn't run). */
   cellsBySectionId: ReadonlyMap<string, SongCell>;
   isOriginal: boolean;
+  /** Cell-tap callback fired by tappable cells (where a SongCell
+   *  row exists). Null cells stay inert — there's nothing yet to
+   *  log against. */
+  onCellTap?: (cellId: string) => void;
 }
 
 export default function KeyRow({
@@ -32,6 +36,7 @@ export default function KeyRow({
   sections,
   cellsBySectionId,
   isOriginal,
+  onCellTap,
 }: Props) {
   const keyEngaged = songKey !== null;
   const keyState = songKey?.keyState ?? 'not_started';
@@ -56,6 +61,7 @@ export default function KeyRow({
               key={section.id}
               cell={cellsBySectionId.get(section.id) ?? null}
               keyEngaged={keyEngaged}
+              onTap={onCellTap}
             />
           ))}
         </div>
@@ -114,49 +120,66 @@ function KeyNameCell({
 function CellSquare({
   cell,
   keyEngaged,
+  onTap,
 }: {
   cell: SongCell | null;
   keyEngaged: boolean;
+  onTap?: (cellId: string) => void;
 }) {
-  // Cell tap is inert in step 3a — pointer cursor only.
-  const base = 'flex-1 min-w-[44px] flex items-center justify-center text-sm border-r border-neutral-200 dark:border-neutral-800 last:border-r-0 cursor-pointer transition';
+  const base = 'flex-1 min-w-[44px] flex items-center justify-center text-sm border-r border-neutral-200 dark:border-neutral-800 last:border-r-0 transition';
 
   if (cell === null) {
+    // No cell record exists for this section × key intersection —
+    // either the key is fully untouched or it's engaged but cells
+    // haven't been materialised yet (an edge state that
+    // shouldn't occur post-3b/c since sections + cells co-create).
+    // Either way, nothing to log against, so the surface stays
+    // inert (no button, no tap handler).
     if (!keyEngaged) {
       return (
-        <div className={`${base} bg-neutral-100/40 dark:bg-neutral-900/40 text-neutral-300 dark:text-neutral-700`}>
+        <div className={`${base} bg-neutral-100/40 dark:bg-neutral-900/40 text-neutral-300 dark:text-neutral-700 cursor-default`}>
           —
         </div>
       );
     }
-    // Key engaged but no cell yet — happens for migrated keys until
-    // section setup runs (or for keys added via cross-key follow-up
-    // before cells get materialised). Renders the same as cellState
-    // === 'empty'.
     return (
-      <div className={`${base} bg-white dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500`}>
+      <div className={`${base} bg-white dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500 cursor-default`}>
         —
       </div>
     );
   }
 
-  switch (cell.cellState) {
-    case 'comfortable':
-      return (
-        <div className={`${base} bg-teal-500 text-white font-medium`}>✓</div>
-      );
-    case 'learning':
-      return (
-        <div className={`${base} bg-emerald-500/90 text-white font-medium`}>···</div>
-      );
-    case 'empty':
-    default:
-      return (
-        <div className={`${base} bg-white dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500`}>
-          —
-        </div>
-      );
-  }
+  // Tappable — rendered as a button so it carries the right
+  // semantics for screen readers and keyboard navigation (Enter /
+  // Space to activate). `onTap` is wired by SongMatrixView to
+  // open the cell interaction modal for this specific cell.
+  const stateClass = ((): string => {
+    switch (cell.cellState) {
+      case 'comfortable': return 'bg-teal-500 text-white font-medium hover:bg-teal-600';
+      case 'learning':    return 'bg-emerald-500/90 text-white font-medium hover:bg-emerald-600';
+      case 'empty':
+      default:            return 'bg-white dark:bg-neutral-950 text-neutral-400 dark:text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-900';
+    }
+  })();
+  const icon = ((): string => {
+    switch (cell.cellState) {
+      case 'comfortable': return '✓';
+      case 'learning':    return '···';
+      case 'empty':
+      default:            return '—';
+    }
+  })();
+
+  return (
+    <button
+      type="button"
+      onClick={() => onTap?.(cell.id)}
+      className={`${base} ${stateClass} cursor-pointer`}
+      aria-label={`${cell.cellState} cell — open to log`}
+    >
+      {icon}
+    </button>
+  );
 }
 
 // -------------------------------------------------------------------

@@ -34,9 +34,12 @@ interface Props {
   sections: ReadonlyArray<SongMatrixSection>;
   songKeys: ReadonlyArray<SongKey>;
   songCells: ReadonlyArray<SongCell>;
+  /** Plumbed through to each KeyRow → CellSquare. Fires on cell
+   *  tap when a cell record exists. */
+  onCellTap?: (cellId: string) => void;
 }
 
-export default function MatrixGrid({ sections, songKeys, songCells }: Props) {
+export default function MatrixGrid({ sections, songKeys, songCells, onCellTap }: Props) {
   // Index incoming data once so each KeyRow gets O(1) lookups
   // rather than scanning the full songKeys / songCells arrays per
   // render.
@@ -91,6 +94,7 @@ export default function MatrixGrid({ sections, songKeys, songCells }: Props) {
               sections={visibleSections}
               cellsBySectionId={cellsBySectionId}
               isOriginal={originalKeyName === keyName}
+              onCellTap={onCellTap}
             />
           );
         })}
