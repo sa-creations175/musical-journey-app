@@ -21,6 +21,7 @@ import SessionLog from './modules/session-log/SessionLog';
 import SkillsCatalogue from './modules/skills/SkillsCatalogue';
 import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 import Goals from './modules/goals/Goals';
+import PracticeSessions from './modules/practice/PracticeSessions';
 import { InstrumentProvider } from './lib/instrumentContext';
 import { Toaster } from './components/Toaster';
 import { AuthProvider } from './lib/auth/AuthContext';
@@ -39,6 +40,7 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="goals" element={<Goals />} />
+            <Route path="practice-sessions" element={<PracticeSessions />} />
             <Route path="harmonic-fluency" element={<HarmonicFluency />} />
             <Route path="harmonic-fluency/calendar" element={<HarmonicFluencyCalendar />} />
             <Route path="ear-training" element={<EarTraining />} />

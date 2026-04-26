@@ -55,8 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'overview',
     items: [
       // Goals leads the Overview group: it's the meta-layer that
-      // shapes everything the dashboard reflects. Practice Sessions
-      // will join this group in sub-phase 4.
+      // shapes everything the dashboard reflects.
       {
         id: 'goals',
         label: 'goals',
@@ -72,6 +71,15 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'skills catalogue', to: '/skills-catalogue' },
         ],
+      },
+      // Practice Sessions is the action-layer companion to Goals —
+      // Goals defines intent, Practice Sessions executes against it.
+      // Phase 1 ships placeholder + manual logging; the session
+      // generator + timer ship in later phases.
+      {
+        id: 'practice-sessions',
+        label: 'practice sessions',
+        to: '/practice-sessions',
       },
     ],
   },

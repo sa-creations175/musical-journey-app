@@ -108,16 +108,6 @@ export const MODULE_ORDER: ModuleMeta[] = [
     status: 'live',
   },
   {
-    id: 'practice-sessions',
-    label: 'practice sessions',
-    route: '/practice-sessions',
-    icon: '◐',
-    iconName: 'calendar',
-    accentToken: 'teal',
-    accentHex: '#4a9088',
-    status: 'planned',
-  },
-  {
     id: 'production',
     label: 'production',
     route: '/production',
@@ -159,6 +149,26 @@ export const GOALS_META: ModuleMeta = {
   icon: '◎',
   accentToken: 'fluent',
   accentHex: '#5a5e6e',
+  status: 'live',
+};
+
+/**
+ * Practice Sessions is the action-layer counterpart to Goals — it
+ * answers "what should I do right now?" the way Goals answers "what
+ * am I aiming at?" Like Goals and Dashboard, it sits in the Overview
+ * group rather than the learning-module rail, so it lives outside
+ * MODULE_ORDER (and therefore won't appear in the Goals form's
+ * modules picker or the Dashboard's modules-preview cards). Teal
+ * accent #4a9088 — the design-doc-locked color for Practice Sessions.
+ */
+export const PRACTICE_SESSIONS_META: ModuleMeta = {
+  id: 'practice-sessions',
+  label: 'practice sessions',
+  route: '/practice-sessions',
+  icon: '◐',
+  iconName: 'calendar',
+  accentToken: 'teal',
+  accentHex: '#4a9088',
   status: 'live',
 };
 
@@ -228,6 +238,7 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
 const BY_ID = new Map<string, ModuleMeta>([
   [DASHBOARD_META.id, DASHBOARD_META],
   [GOALS_META.id, GOALS_META],
+  [PRACTICE_SESSIONS_META.id, PRACTICE_SESSIONS_META],
   ...MODULE_ORDER.map(m => [m.id, m] as const),
   ...EAR_TRAINING_SUBMODULES.map(m => [m.id, m] as const),
 ]);
