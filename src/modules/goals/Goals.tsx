@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Goal, type GoalScope, type ProficiencyDefinition } from '../../lib/db';
+import { db, type Goal, type GoalScope, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
@@ -68,6 +68,23 @@ export default function Goals() {
     [],
     [] as ProficiencyDefinition[],
   );
+
+  // Songs back the song-mode goal preview on Goals home (e.g.
+  // "Take Mirror to Solid in C"). Cheap — songs is a small table.
+  // Skill IDs for songs follow `repertoire:song:<song.id>` per
+  // canonicalSkillId in src/modules/skills/registry.ts; we encode
+  // that prefix-stripping inside songLookup so callers don't need
+  // to reach into the registry.
+  const songs = useLiveQuery(
+    () => db.songs.toArray(),
+    [],
+    [] as Song[],
+  );
+  const songLookup = useMemo(() => {
+    const bySkillId = new Map<string, Song>();
+    for (const s of songs) bySkillId.set(`repertoire:song:${s.id}`, s);
+    return (skillId: string) => bySkillId.get(skillId);
+  }, [songs]);
 
   // Seed proficiency definitions on first mount. Lifecycle-aware
   // (defers until sync is ready); idempotent on re-runs.
@@ -175,6 +192,7 @@ export default function Goals() {
               layer={layer}
               goals={layerGoals}
               proficiencyDefs={proficiencyDefs}
+              songLookup={songLookup}
               collapsed={collapsed}
               onToggle={() => toggleLayer(layer.scope)}
               onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
@@ -213,6 +231,7 @@ function LayerSection({
   layer,
   goals,
   proficiencyDefs,
+  songLookup,
   collapsed,
   onToggle,
   onAdd,
@@ -221,6 +240,7 @@ function LayerSection({
   layer: LayerDef;
   goals: Goal[];
   proficiencyDefs: ProficiencyDefinition[];
+  songLookup: (skillId: string) => Song | undefined;
   collapsed: boolean;
   onToggle: () => void;
   onAdd: () => void;
@@ -262,6 +282,7 @@ function LayerSection({
                   key={g.id}
                   goal={g}
                   proficiencyDefs={proficiencyDefs}
+                  songLookup={songLookup}
                   onEdit={() => onEditGoal(g)}
                 />
               ))}
@@ -285,13 +306,15 @@ function LayerSection({
 function GoalRow({
   goal,
   proficiencyDefs,
+  songLookup,
   onEdit,
 }: {
   goal: Goal;
   proficiencyDefs: ProficiencyDefinition[];
+  songLookup: (skillId: string) => Song | undefined;
   onEdit: () => void;
 }) {
-  const target = describeGoalTarget(goal, proficiencyDefs);
+  const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
   return (
     <li>
       <button

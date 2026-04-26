@@ -1,4 +1,5 @@
-import type { Goal, ProficiencyDefinition } from '../../lib/db';
+import type { Goal, ProficiencyDefinition, Song } from '../../lib/db';
+import { describeSongGoalTarget, isSongMetric } from './songTarget';
 
 /**
  * Format a goal record as a short human-readable target string.
@@ -10,8 +11,8 @@ import type { Goal, ProficiencyDefinition } from '../../lib/db';
  * targetMetric / targetValue not set.
  *
  * Examples:
- *   targetMetric: 'items_at_level', targetValue: 3, targetUnit: 'cross-key'
- *     → "3 items at Cross-key"
+ *   targetMetric: 'items_at_level', targetValue: 3, targetUnit: 'rooted'
+ *     → "3 items at Reasonably fluent"
  *
  *   targetMetric: 'hours_on_modules', targetValue: 10, targetUnit: 'hours'
  *     → "10 hours on selected modules"
@@ -22,15 +23,32 @@ import type { Goal, ProficiencyDefinition } from '../../lib/db';
  *   targetMetric: 'custom', targetValue: 25, targetUnit: 'reps'
  *     → "25 reps"
  *
+ *   targetMetric: 'song_whole_at_level', targetUnit: 'solid'
+ *     → "Take Mirror to Solid in C" (when songLookup is supplied)
+ *     → "Take song to Solid in original key" (fallback)
+ *
  * `proficiencyDefinitions` is an optional lookup that lets the
  * formatter render the proper short_label for an `items_at_level`
  * goal whose targetUnit holds a level identifier. Without it, the
  * raw level string is used.
+ *
+ * `songLookup` is an optional callback that resolves a song record
+ * by id — used to render song-mode goal targets with the song's
+ * actual title and original key.
  */
 export function describeGoalTarget(
   goal: Goal,
   proficiencyDefinitions?: ReadonlyArray<ProficiencyDefinition>,
+  songLookup?: (songId: string) => Pick<Song, 'title' | 'key'> | undefined,
 ): string | null {
+  // Song-mode goals are non-numeric for some shapes (Solid in
+  // original key, Internalized, Key targets carry no targetValue),
+  // so they short-circuit before the generic null-targetValue check.
+  if (isSongMetric(goal.targetMetric)) {
+    const song = resolveSongFromGoal(goal, songLookup);
+    return describeSongGoalTarget(goal, song);
+  }
+
   if (!goal.targetMetric || goal.targetValue === null || goal.targetValue === undefined) {
     return null;
   }
@@ -75,4 +93,24 @@ function labelForLevel(
   if (!defs || defs.length === 0) return null;
   const match = defs.find(d => d.level === levelId);
   return match?.shortLabel ?? null;
+}
+
+/**
+ * Resolve a song-mode goal's underlying Song record. The form
+ * stores the song as a related-items skillId, so we look up the
+ * first relatedItem that the caller's songLookup can resolve.
+ * Returns undefined when no lookup was provided or the song record
+ * isn't reachable (deleted song, sync still pending, etc.) — the
+ * formatter falls back to a song-name-less phrasing.
+ */
+function resolveSongFromGoal(
+  goal: Goal,
+  songLookup?: (songId: string) => Pick<Song, 'title' | 'key'> | undefined,
+): Pick<Song, 'title' | 'key'> | undefined {
+  if (!songLookup) return undefined;
+  for (const id of goal.relatedItems) {
+    const found = songLookup(id);
+    if (found) return found;
+  }
+  return undefined;
 }

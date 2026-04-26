@@ -8,6 +8,7 @@ import {
   type GoalStatus,
   type PracticeSessionContext,
   type ProficiencyDefinition,
+  type Song,
 } from '../../lib/db';
 import { MODULE_ORDER, moduleMetaById } from '../../lib/moduleMeta';
 import RelatedItemsPicker from './RelatedItemsPicker';
@@ -18,6 +19,22 @@ import {
   type MetricType,
 } from './metricCatalog';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
+import {
+  CROSS_KEY_PERCENT_DEFAULT,
+  CROSS_KEY_PERCENT_MAX,
+  CROSS_KEY_PERCENT_MIN,
+  CROSS_KEY_PERCENT_STEP,
+  MAJOR_KEYS,
+  decodeSongTarget,
+  deriveWholeOptionTags,
+  encodeSongTarget,
+  isSolidAchieved,
+  isSongMetric,
+  previewSongTarget,
+  type SongGranularity,
+  type SongTargetSelection,
+  type SongWholeOption,
+} from './songTarget';
 
 /**
  * Goal creation / edit modal.
@@ -96,6 +113,14 @@ interface FormState {
   relatedItems: string[];
   parentGoalId: string;
   contributesNumericallyToParent: boolean;
+  /**
+   * Song-mode selection state (Phase 1 song-goal addendum). Only
+   * meaningful when the form's related items resolve to a single
+   * song; otherwise these fields are present-but-ignored. Persisted
+   * back to the Goal record's targetMetric/targetValue/targetUnit
+   * triple via songTarget.encodeSongTarget on save.
+   */
+  songTarget: SongTargetSelection;
 }
 
 function makeId(prefix: string): string {
@@ -166,6 +191,16 @@ function dateInputToMs(value: string): number | null {
   return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
 }
 
+function defaultSongTarget(): SongTargetSelection {
+  return {
+    granularity: 'whole',
+    wholeOption: null,
+    crossKeyPercent: CROSS_KEY_PERCENT_DEFAULT,
+    keyTarget: '',
+    keyState: 'comfortable',
+  };
+}
+
 function emptyFormState(scope: GoalScope, now: number = Date.now()): FormState {
   return {
     scope,
@@ -180,16 +215,25 @@ function emptyFormState(scope: GoalScope, now: number = Date.now()): FormState {
     relatedItems: [],
     parentGoalId: '',
     contributesNumericallyToParent: false,
+    songTarget: defaultSongTarget(),
   };
 }
 
 function fromGoal(goal: Goal): FormState {
+  // If the goal already encodes a song-mode target, prime the
+  // song selection so re-opening for edit shows the same picks.
+  // Otherwise leave the generic targetMetric/value/unit primed and
+  // the song selection at defaults.
+  const decoded = decodeSongTarget(goal);
+  const songInMetric = isSongMetric(goal.targetMetric);
   return {
     scope: goal.scope,
     description: goal.description,
-    targetMetric: (goal.targetMetric as MetricType | null) ?? '',
-    targetValue: goal.targetValue !== null && goal.targetValue !== undefined ? String(goal.targetValue) : '',
-    targetUnit: goal.targetUnit ?? '',
+    targetMetric: songInMetric ? '' : ((goal.targetMetric as MetricType | null) ?? ''),
+    targetValue: songInMetric || goal.targetValue === null || goal.targetValue === undefined
+      ? ''
+      : String(goal.targetValue),
+    targetUnit: songInMetric ? '' : (goal.targetUnit ?? ''),
     startDate: goal.startDate,
     targetDate: goal.targetDate,
     contextTag: goal.contextTag ?? '',
@@ -197,6 +241,7 @@ function fromGoal(goal: Goal): FormState {
     relatedItems: [...goal.relatedItems],
     parentGoalId: goal.parentGoalId ?? '',
     contributesNumericallyToParent: goal.contributesNumericallyToParent,
+    songTarget: decoded ?? defaultSongTarget(),
   };
 }
 
@@ -273,6 +318,37 @@ export default function GoalFormModal({
   // Derived: is the current scope a vision scope?
   const isVision = VISION_SCOPES.has(form.scope);
 
+  // Song-mode detection: when relatedItems is exactly one item and
+  // that item is a repertoire song, the form swaps the generic
+  // target fields for the addendum's granularity-aware song UI.
+  // Anything else (multi-item, non-song item, no items) → generic
+  // flow.
+  const songItemId = useMemo<string | null>(() => {
+    if (form.relatedItems.length !== 1) return null;
+    if (!registry) return null;
+    const skillId = form.relatedItems[0];
+    const rec = registry.find(r => r.skillId === skillId);
+    if (!rec || rec.moduleId !== 'repertoire') return null;
+    return rec.itemId;
+  }, [form.relatedItems, registry]);
+
+  const songRecord = useLiveQuery<Song | undefined>(
+    async () => {
+      if (!songItemId) return undefined;
+      return await db.songs.get(songItemId);
+    },
+    [songItemId],
+  );
+
+  const isSongMode = !isVision && songItemId !== null;
+  const songMissing = isSongMode && songItemId !== null && songRecord === undefined;
+  // Phase 1 only supports Whole song and Key granularities. Section
+  // granularity is shown but disabled until Phase 1.5 ships the
+  // section model. (Weekly-only constraint also applies once
+  // section data exists.)
+  const sectionAvailable = false; // flip in Phase 1.5
+  const sectionWeeklyEligible = form.scope === 'weekly';
+
   // Helper: does the form currently hold any measurable data the
   // user would lose if the scope flipped to vision?
   const hasMeasurableData =
@@ -316,6 +392,13 @@ export default function GoalFormModal({
 
   const cancelScopeChange = () => setPendingScopeChange(null);
 
+  // Encode the song target (when applicable) once, so both Save and
+  // the disabled-state of the Save button see the same answer.
+  const songEncoded = useMemo(
+    () => (isSongMode ? encodeSongTarget(form.songTarget) : null),
+    [isSongMode, form.songTarget],
+  );
+
   // Save handler — assembles the Goal record from form state and
   // upserts via Dexie. Sync hooks queue the cloud push.
   const handleSave = async () => {
@@ -324,28 +407,53 @@ export default function GoalFormModal({
       // Required everywhere; no point assembling a ghost goal.
       return;
     }
+    if (isSongMode && !songEncoded) {
+      // Song mode active but the user hasn't fully picked a target.
+      // The Save button should already be disabled; this guards
+      // against keyboard-submit (Enter inside an input).
+      return;
+    }
 
     const now = Date.now();
-    const valueNumeric = form.targetValue.trim() === ''
-      ? null
-      : Number(form.targetValue);
-    const validValue = valueNumeric !== null && Number.isFinite(valueNumeric);
-
     const visionMode = VISION_SCOPES.has(form.scope);
-    const targetMetric = visionMode ? null : (form.targetMetric === '' ? null : form.targetMetric);
-    const metricDef = targetMetric ? METRIC_BY_ID.get(targetMetric) ?? null : null;
 
-    let targetUnit: string | null = null;
-    if (!visionMode && metricDef) {
-      if (metricDef.needsLevel) {
-        // For items_at_level, targetUnit holds the level identifier.
-        targetUnit = form.targetUnit.trim() === '' ? null : form.targetUnit.trim();
-      } else if (metricDef.defaultUnit) {
-        targetUnit = metricDef.defaultUnit;
+    let targetMetric: string | null;
+    let targetValue: number | null;
+    let targetUnit: string | null;
+    let contextTag: PracticeSessionContext | null;
+
+    if (visionMode) {
+      targetMetric = null;
+      targetValue = null;
+      targetUnit = null;
+      contextTag = null;
+    } else if (isSongMode && songEncoded) {
+      targetMetric = songEncoded.targetMetric;
+      targetValue = songEncoded.targetValue;
+      targetUnit = songEncoded.targetUnit;
+      // Songs are always practiced at the keyboard. The generic
+      // context picker is hidden in song mode; we record 'keys' so
+      // downstream filtering by context still works.
+      contextTag = 'keys';
+    } else {
+      const valueNumeric = form.targetValue.trim() === '' ? null : Number(form.targetValue);
+      const validValue = valueNumeric !== null && Number.isFinite(valueNumeric);
+      targetMetric = form.targetMetric === '' ? null : form.targetMetric;
+      targetValue = validValue ? valueNumeric : null;
+
+      const metricDef = targetMetric ? METRIC_BY_ID.get(targetMetric) ?? null : null;
+      if (metricDef) {
+        if (metricDef.needsLevel) {
+          targetUnit = form.targetUnit.trim() === '' ? null : form.targetUnit.trim();
+        } else if (metricDef.defaultUnit) {
+          targetUnit = metricDef.defaultUnit;
+        } else {
+          targetUnit = form.targetUnit.trim() === '' ? null : form.targetUnit.trim();
+        }
       } else {
-        // custom — user-defined unit string
-        targetUnit = form.targetUnit.trim() === '' ? null : form.targetUnit.trim();
+        targetUnit = null;
       }
+      contextTag = form.contextTag === '' ? null : form.contextTag;
     }
 
     const baseRecord: Goal = {
@@ -353,10 +461,10 @@ export default function GoalFormModal({
       scope: form.scope,
       description: trimmedDesc,
       targetMetric,
-      targetValue: visionMode ? null : (validValue ? valueNumeric : null),
+      targetValue,
       targetUnit,
       currentValue: initialGoal?.currentValue ?? 0,
-      contextTag: visionMode ? null : (form.contextTag === '' ? null : form.contextTag),
+      contextTag,
       relatedModules: [...form.relatedModules],
       relatedItems: [...form.relatedItems],
       startDate: initialGoal?.startDate ?? form.startDate,
@@ -375,6 +483,8 @@ export default function GoalFormModal({
       console.warn('[goals] save failed', err);
     }
   };
+
+  const saveDisabled = form.description.trim() === '' || (isSongMode && !songEncoded);
 
   // Soft-delete: status='abandoned' so history remains. Goals home
   // queries status='active' so the goal disappears from the layered
@@ -438,7 +548,7 @@ export default function GoalFormModal({
             <button
               type="button"
               onClick={handleSave}
-              disabled={form.description.trim() === ''}
+              disabled={saveDisabled}
               className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {isEdit ? 'Save changes' : 'Create goal'}
@@ -484,8 +594,10 @@ export default function GoalFormModal({
           />
         </Field>
 
-        {/* Measurable fields — hidden in vision mode */}
-        {!isVision && (
+        {/* Measurable fields — hidden in vision mode. In song mode
+            the generic metric/value/unit/context block is replaced
+            by the addendum's granularity-aware song target UI. */}
+        {!isVision && !isSongMode && (
           <>
             <Field label="Target metric">
               <select
@@ -566,6 +678,17 @@ export default function GoalFormModal({
           </>
         )}
 
+        {isSongMode && (
+          <SongTargetSection
+            song={songRecord}
+            songMissing={songMissing}
+            selection={form.songTarget}
+            onChange={next => setForm(f => ({ ...f, songTarget: next }))}
+            sectionAvailable={sectionAvailable}
+            sectionWeeklyEligible={sectionWeeklyEligible}
+          />
+        )}
+
         {/* Target date — visible in all modes */}
         <Field label="Target date">
           <input
@@ -594,6 +717,12 @@ export default function GoalFormModal({
             onChange={v => setForm(f => ({ ...f, relatedItems: v }))}
           />
         </Field>
+
+        {/* Song-mode preview — addendum requires a natural-language
+            confirmation of what the goal will mean before Save. */}
+        {isSongMode && songRecord && (
+          <SongPreview selection={form.songTarget} song={songRecord} />
+        )}
 
         {/* Parent goal — only shown when at least one candidate exists */}
         {parentCandidates.length > 0 && (
@@ -802,3 +931,327 @@ function ModuleMultiSelect({
     </div>
   );
 }
+
+// -------------------------------------------------------------------
+// Song target UI (Phase 1 song-goal addendum, April 26, 2026)
+// -------------------------------------------------------------------
+
+function SongTargetSection({
+  song,
+  songMissing,
+  selection,
+  onChange,
+  sectionAvailable,
+  sectionWeeklyEligible,
+}: {
+  song: Song | undefined;
+  songMissing: boolean;
+  selection: SongTargetSelection;
+  onChange: (next: SongTargetSelection) => void;
+  sectionAvailable: boolean;
+  sectionWeeklyEligible: boolean;
+}) {
+  // The whole-song state tags depend on the song's RepertoireStage —
+  // best-effort mapping in Phase 1; precise tags arrive in Phase 1.5.
+  const wholeTags = useMemo(
+    () => deriveWholeOptionTags(song?.stage),
+    [song?.stage],
+  );
+  const solidLocked = isSolidAchieved(song?.stage);
+
+  if (songMissing) {
+    return (
+      <div className="rounded-md border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+        The selected song couldn't be loaded. Try removing it from related items and re-adding it.
+      </div>
+    );
+  }
+
+  const setGranularity = (g: SongGranularity) => {
+    if (g === selection.granularity) return;
+    // Reset target picks when granularity changes so the user
+    // re-confirms intent. Keys roll over (no need to retype).
+    onChange({ ...selection, granularity: g, wholeOption: null });
+  };
+
+  const setWholeOption = (opt: SongWholeOption) => {
+    onChange({ ...selection, wholeOption: opt });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Field label="Goal granularity">
+        <div className="flex gap-1.5" role="tablist" aria-label="Song goal granularity">
+          <GranularityButton
+            label="Whole song"
+            active={selection.granularity === 'whole'}
+            onClick={() => setGranularity('whole')}
+          />
+          <GranularityButton
+            label="Song section"
+            active={selection.granularity === 'section'}
+            disabled={!sectionAvailable || !sectionWeeklyEligible}
+            tooltip={
+              !sectionAvailable
+                ? 'Available with the Song Progression update'
+                : !sectionWeeklyEligible
+                  ? 'Only available for weekly goals'
+                  : undefined
+            }
+            onClick={() => setGranularity('section')}
+          />
+          <GranularityButton
+            label="Key"
+            active={selection.granularity === 'key'}
+            onClick={() => setGranularity('key')}
+          />
+        </div>
+      </Field>
+
+      {selection.granularity === 'whole' && (
+        <div className="flex flex-col gap-2">
+          <WholeTargetRow
+            title="Solid in original key"
+            hint={`Prove the whole song end-to-end in ${song?.key ?? 'the original key'}`}
+            tag={wholeTags.solid}
+            selected={selection.wholeOption === 'solid'}
+            disabled={solidLocked}
+            onSelect={() => setWholeOption('solid')}
+          />
+
+          <WholeTargetRow
+            title="Cross-key %"
+            hint="Reach a target % of sections comfortable across non-original keys"
+            tag={wholeTags.crossKey}
+            selected={selection.wholeOption === 'cross_key'}
+            onSelect={() => setWholeOption('cross_key')}
+          >
+            {selection.wholeOption === 'cross_key' && (
+              <div className="mt-2 flex items-center gap-3">
+                <input
+                  type="range"
+                  min={CROSS_KEY_PERCENT_MIN}
+                  max={CROSS_KEY_PERCENT_MAX}
+                  step={CROSS_KEY_PERCENT_STEP}
+                  value={selection.crossKeyPercent}
+                  onChange={e => onChange({
+                    ...selection,
+                    crossKeyPercent: Number(e.target.value),
+                  })}
+                  className="flex-1"
+                  aria-label="Cross-key percent"
+                />
+                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200 w-12 text-right">
+                  {selection.crossKeyPercent}%
+                </span>
+              </div>
+            )}
+          </WholeTargetRow>
+
+          <WholeTargetRow
+            title="Internalized"
+            hint="3+ keys at Solid + lived-with gate satisfied"
+            tag={wholeTags.internalized}
+            selected={selection.wholeOption === 'internalized'}
+            onSelect={() => setWholeOption('internalized')}
+          />
+        </div>
+      )}
+
+      {selection.granularity === 'key' && (
+        <KeyTarget selection={selection} onChange={onChange} />
+      )}
+
+      {selection.granularity === 'section' && (
+        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
+          Section-level goals arrive with the Song Progression update.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GranularityButton({
+  label,
+  active,
+  disabled,
+  tooltip,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  tooltip?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      aria-disabled={disabled || undefined}
+      title={tooltip}
+      onClick={disabled ? undefined : onClick}
+      className={[
+        'px-3 py-1.5 text-sm rounded-md border transition',
+        active
+          ? 'border-fluent bg-fluent/10 text-fluent'
+          : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200',
+        disabled ? 'opacity-40 cursor-not-allowed' : 'hover:border-fluent/60',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
+}
+
+function WholeTargetRow({
+  title,
+  hint,
+  tag,
+  selected,
+  disabled,
+  onSelect,
+  children,
+}: {
+  title: string;
+  hint: string;
+  tag: 'achieved' | 'current' | 'stretch' | null;
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+  children?: React.ReactNode;
+}) {
+  const interactive = !disabled;
+  return (
+    <div
+      role="button"
+      tabIndex={interactive ? 0 : -1}
+      aria-pressed={selected}
+      aria-disabled={disabled || undefined}
+      onClick={interactive ? onSelect : undefined}
+      onKeyDown={interactive ? e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      } : undefined}
+      className={[
+        'rounded-md border px-3 py-2 transition',
+        selected
+          ? 'border-fluent bg-fluent/5'
+          : 'border-neutral-200 dark:border-neutral-800',
+        interactive
+          ? 'cursor-pointer hover:border-fluent/60'
+          : 'cursor-not-allowed opacity-60',
+      ].join(' ')}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">{title}</span>
+        {tag && <StateTag tag={tag} />}
+      </div>
+      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{hint}</p>
+      {children}
+    </div>
+  );
+}
+
+function StateTag({ tag }: { tag: 'achieved' | 'current' | 'stretch' }) {
+  const styles: Record<typeof tag, string> = {
+    achieved: 'bg-neutral-200 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200',
+    current: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+    stretch: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
+  };
+  return (
+    <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${styles[tag]}`}>
+      {tag}
+    </span>
+  );
+}
+
+function KeyTarget({
+  selection,
+  onChange,
+}: {
+  selection: SongTargetSelection;
+  onChange: (next: SongTargetSelection) => void;
+}) {
+  return (
+    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-3 flex flex-col gap-3">
+      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+        Get a key to a specific state
+      </span>
+      <Field label="Key">
+        <select
+          value={selection.keyTarget}
+          onChange={e => onChange({ ...selection, keyTarget: e.target.value })}
+          className={inputClass()}
+        >
+          <option value="">Pick a key…</option>
+          {MAJOR_KEYS.map(k => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="State">
+        <div className="flex gap-1.5">
+          <KeyStateButton
+            label="Comfortable"
+            active={selection.keyState === 'comfortable'}
+            onClick={() => onChange({ ...selection, keyState: 'comfortable' })}
+          />
+          <KeyStateButton
+            label="Solid"
+            active={selection.keyState === 'solid'}
+            onClick={() => onChange({ ...selection, keyState: 'solid' })}
+          />
+        </div>
+      </Field>
+    </div>
+  );
+}
+
+function KeyStateButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        'px-3 py-1.5 text-sm rounded-md border transition',
+        active
+          ? 'border-fluent bg-fluent/10 text-fluent'
+          : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent/60',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SongPreview({
+  selection,
+  song,
+}: {
+  selection: SongTargetSelection;
+  song: Song;
+}) {
+  const text = previewSongTarget(selection, { title: song.title, key: song.key });
+  return (
+    <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-fluent mb-0.5">Preview</div>
+      <div className="text-sm text-neutral-800 dark:text-neutral-100">
+        {text ?? <span className="text-neutral-500 italic">Pick a target above to preview your goal.</span>}
+      </div>
+    </div>
+  );
+}
+
