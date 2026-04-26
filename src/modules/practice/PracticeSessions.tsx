@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
+import { recordEndOfMonth } from '../../lib/prompts';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
 import ManualLogForm from './ManualLogForm';
 import RecentSessionsList from './RecentSessionsList';
@@ -30,6 +32,17 @@ import VacationManager from './VacationManager';
  */
 
 export default function PracticeSessions() {
+  // Fire end-of-month bookkeeping on every mount of this page.
+  // recordEndOfMonth is idempotent per YYYY-MM key, so this no-ops
+  // mid-month after the prior month has already been logged. Phase 7
+  // surfaces the monthly review UI from these rows; Phase 1 just
+  // ensures the events exist for it to read.
+  useEffect(() => {
+    void recordEndOfMonth().catch(err => {
+      console.warn('[PracticeSessions] recordEndOfMonth failed', err);
+    });
+  }, []);
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <header className="mb-6 flex items-center gap-3">

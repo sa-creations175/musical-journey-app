@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type VacationPeriod } from '../../lib/db';
+import { recordVacationReturn } from '../../lib/prompts';
 
 /**
  * Vacation toggle (Q2 resolution): a user can declare a period off,
@@ -43,6 +44,21 @@ export default function VacationManager() {
 
   const periods = useLiveQuery(() => db.vacationPeriods.toArray(), [refreshKey]);
   const [planning, setPlanning] = useState(false);
+
+  // Log a vacation_return event for any period that has naturally
+  // ended (endDate < now) since the user last visited. Idempotent
+  // per periodId — recordVacationReturn no-ops on repeats — so it's
+  // safe to fire on every render where periods is fresh. Phase 7's
+  // welcome-back surface picks these up; Phase 1 just logs them.
+  useEffect(() => {
+    if (!periods) return;
+    const ended = periods.filter(p => p.endDate < now);
+    for (const p of ended) {
+      void recordVacationReturn(p.id, p.endDate).catch(err => {
+        console.warn('[VacationManager] recordVacationReturn failed', err);
+      });
+    }
+  }, [periods, now]);
 
   if (periods === undefined) return null;
 
@@ -91,10 +107,15 @@ function ActiveVacationCard({
       // which masked the failure here. .put() is unambiguous upsert
       // by primary key, the same pattern PlanForm and ManualLogForm
       // already use successfully on this codebase's tables.
+      const endedAt = Date.now();
       await db.vacationPeriods.put({
         ...period,
-        endDate: Date.now(),
+        endDate: endedAt,
       });
+      // Log the vacation_return event for Phase 7's welcome-back UI
+      // to pick up. Idempotent per periodId — safe even if the
+      // mount-time effect later observes the same period as ended.
+      await recordVacationReturn(period.id, endedAt);
       onChange();
     } catch (err) {
       console.warn('[practice] end vacation failed', err);

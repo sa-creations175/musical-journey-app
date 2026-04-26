@@ -2,57 +2,99 @@ import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Link } from 'react-router-dom';
 import { db } from '../../lib/db';
-import { getPref, setPref } from '../../lib/userPrefs';
+import {
+  PROMPT_TYPE,
+  ensureGoalsNudge,
+  markEngaged,
+  markShown,
+} from '../../lib/prompts';
 
 /**
  * Inline goals nudge for Practice Sessions home (Q7 resolution).
- * Surfaces only when the user has zero active goals AND hasn't
- * dismissed the nudge in the last three days. Non-blocking — the
- * rest of the page (manual logging, vacation toggle) works fine
- * without goals; this is a nudge, not a gate.
  *
- * Phase 1 implements the cadence locally via a userPref. Sub-phase
- * 5 wires this through the centralized prompts table (tier-aware
- * queueing, 3/day cap) — at which point this component becomes a
- * thin renderer over a queued prompt row instead of owning the
- * cadence logic itself.
+ * Behavior (sub-phase 5, simplified design):
+ *   - Banner shows on every Practice Sessions visit when the user
+ *     has zero active goals.
+ *   - "Maybe later" dismisses it for the current component mount
+ *     only — local React state, not persisted. Navigating away
+ *     and back resets the dismissal.
+ *   - When at least one active goal exists, the banner is
+ *     permanently gone (ensureGoalsNudge expires the live prompt
+ *     row when goals.length > 0).
+ *
+ * The prompts table still logs:
+ *   - one queued row per "no-goals state" (created by ensureGoalsNudge),
+ *   - flipped to 'shown' the first time this component renders it
+ *     (markShown — drives the orchestrator's daily-cap counting
+ *     and Phase 7 analytics),
+ *   - flipped to 'engaged' if the user clicks "Set up goals →".
+ *
+ * No 'dismissed' status is ever written for this prompt type —
+ * dismissal is session-local state, not a persisted signal.
  */
-
-const PREF_DISMISSED_AT = 'practice.goalsNudgeDismissedAt';
-const RE_PROMPT_AFTER_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
 export default function GoalsNudgeBanner() {
   const goals = useLiveQuery(
     () => db.goals.where('status').equals('active').toArray(),
     [],
   );
-  const [dismissedAt, setDismissedAt] = useState<number | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  // Mount-time timestamp for the cadence check. Date.now() during
-  // render isn't pure; useState's lazy initializer runs once.
-  const [now] = useState(() => Date.now());
+  const nudgePrompts = useLiveQuery(
+    () => db.prompts.where('promptType').equals(PROMPT_TYPE.SET_GOALS_NUDGE).toArray(),
+    [],
+  );
+  // Session-local dismiss flag. Resets when the component remounts
+  // (route change away and back), so the banner re-surfaces on the
+  // next visit if the user still has zero goals.
+  const [dismissed, setDismissed] = useState(false);
 
+  // Reconcile the prompt row whenever the goals count transitions.
+  // ensureGoalsNudge is idempotent: it expires live nudges when
+  // goals exist and enqueues a new one (or returns the existing
+  // live one) when none do. Dep is the count, not the array — the
+  // live query returns a new array reference on every refire but we
+  // only care about zero/non-zero transitions.
+  const goalsLength = goals?.length;
   useEffect(() => {
-    void getPref<number | null>(PREF_DISMISSED_AT, null).then(v => {
-      setDismissedAt(typeof v === 'number' ? v : null);
-      setHydrated(true);
+    if (goalsLength === undefined) return;
+    void ensureGoalsNudge().catch(err => {
+      console.warn('[GoalsNudgeBanner] ensureGoalsNudge failed', err);
     });
-  }, []);
+  }, [goalsLength]);
 
-  const handleDismiss = () => {
-    const dismissTs = Date.now();
-    setDismissedAt(dismissTs);
-    void setPref(PREF_DISMISSED_AT, dismissTs);
+  // Pick the live prompt to render: queued or shown.
+  const live = nudgePrompts?.find(p => p.status === 'queued' || p.status === 'shown') ?? null;
+
+  // Mark the prompt shown the first time the banner actually
+  // renders it. The mark is guarded inside markShown to only
+  // transition queued → shown, so re-renders within a session
+  // (where status is already 'shown') no-op.
+  const liveId = live?.id;
+  const liveStatus = live?.status;
+  useEffect(() => {
+    if (liveId && liveStatus === 'queued') {
+      void markShown(liveId).catch(err => {
+        console.warn('[GoalsNudgeBanner] markShown failed', err);
+      });
+    }
+  }, [liveId, liveStatus]);
+
+  // Wait for both queries to land before deciding — avoids the
+  // banner flashing in for one render before the prompts query
+  // resolves and ensure has had a chance to expire stale rows.
+  if (goals === undefined || nudgePrompts === undefined) return null;
+  if (!live) return null;
+  if (dismissed) return null;
+
+  const handleDismiss = () => setDismissed(true);
+
+  const handleEngage = () => {
+    // Fire-and-forget: the user is navigating away, no need to
+    // await. Marks the prompt 'engaged' for analytics — distinct
+    // from a dismissal because the user took the suggested action.
+    void markEngaged(live.id).catch(err => {
+      console.warn('[GoalsNudgeBanner] markEngaged failed', err);
+    });
   };
-
-  // Wait for both the live query and the pref to land before
-  // deciding — prevents a flash of the banner during initial load.
-  if (!hydrated) return null;
-  if (goals === undefined) return null;
-  if (goals.length > 0) return null;
-
-  const recentlyDismissed = dismissedAt !== null && (now - dismissedAt) < RE_PROMPT_AFTER_MS;
-  if (recentlyDismissed) return null;
 
   return (
     <div className="rounded-md border border-fluent/30 bg-fluent/5 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -75,6 +117,7 @@ export default function GoalsNudgeBanner() {
         </button>
         <Link
           to="/goals"
+          onClick={handleEngage}
           className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90"
         >
           Set up goals →
@@ -83,4 +126,3 @@ export default function GoalsNudgeBanner() {
     </div>
   );
 }
-
