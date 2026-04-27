@@ -264,7 +264,7 @@ function ModuleCardButton({
       type="button"
       onClick={() => onSelect(card.id)}
       aria-pressed={selected}
-      className={`text-left rounded-card border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 ${
+      className={`text-left flex flex-col items-start rounded-card border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 ${
         selected
           ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
           : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
