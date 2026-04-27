@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal, type GoalScope, type ProficiencyDefinition } from '../../../lib/db';
 import { describeGoalTarget } from '../describeGoal';
 import GoalFormModal from '../GoalFormModal';
+import GoalCreationFlow from '../GoalCreationFlow';
+import { isNewVocabMetric } from '../goalVocabulary';
 
 /**
  * Onboarding Screen 3 — longer-range opt-in (yearly / 2-3 year /
@@ -113,14 +115,44 @@ export default function Screen3LongerRange({ allGoals }: Props) {
         })}
       </div>
 
-      <GoalFormModal
-        open={createScope !== null || editingGoal !== null}
+      {/* Phase 1.6 step 15 entry-point routing — same pattern as
+          Goals.tsx: creates → new flow, edits → vocab-routed. The
+          new flow handles all six scopes including `two_to_three_year`
+          and `lifetime`; users picking those will pick a module +
+          target before saving (different rhythm from the legacy
+          text-only vision form, but the data model is richer). */}
+      <GoalCreationFlow
+        key={
+          editingGoal && isNewVocabMetric(editingGoal.targetMetric)
+            ? `edit-${editingGoal.id}`
+            : createScope !== null
+              ? 'create'
+              : 'closed'
+        }
+        open={
+          createScope !== null
+          || (editingGoal !== null && isNewVocabMetric(editingGoal.targetMetric))
+        }
         onClose={() => {
           setCreateScope(null);
           setEditingGoal(null);
         }}
-        initialGoal={editingGoal}
+        initialGoal={
+          editingGoal && isNewVocabMetric(editingGoal.targetMetric) ? editingGoal : null
+        }
         initialScope={editingGoal ? null : createScope}
+      />
+
+      <GoalFormModal
+        open={editingGoal !== null && !isNewVocabMetric(editingGoal.targetMetric)}
+        onClose={() => {
+          setCreateScope(null);
+          setEditingGoal(null);
+        }}
+        initialGoal={
+          editingGoal && !isNewVocabMetric(editingGoal.targetMetric) ? editingGoal : null
+        }
+        initialScope={null}
       />
     </div>
   );

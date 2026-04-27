@@ -34,7 +34,6 @@ import {
 } from './scopeMeta';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
-  SONG_METRIC,
   buildKeyStateHints,
   decodeSongTarget,
   encodeSongTarget,
@@ -42,6 +41,7 @@ import {
   type KeyStateHint,
   type SongTargetSelection,
 } from './songTarget';
+import { moduleForMetric } from './goalVocabulary';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
 import Field from './Field';
 import { inputClass } from './formStyles';
@@ -3059,30 +3059,6 @@ function encodeRecordsForDraft(
 }
 
 // ---- Decoders for edit mode ----------------------------------------
-
-/**
- * Map a saved goal's targetMetric to the goal-flow card it belongs
- * to. Returns null for old-vocabulary metrics (`items_at_level`,
- * `hours_on_modules`, `count_completed`, `custom`) — those goals
- * route to GoalFormModal in edit mode, not the new flow (option B
- * from the step 14 design call: two-modal coexistence).
- */
-function moduleForMetric(metric: string | null): ModuleCardId | null {
-  if (!metric) return null;
-  // Source-of-truth from songTarget's SONG_METRIC enum so the metric
-  // strings can never drift between encode and decode (they did once
-  // — WHOLE is 'song_whole_at_level' while KEY and SECTION end in
-  // '_at_state', a footgun if hardcoded here).
-  if (metric === SONG_METRIC.WHOLE || metric === SONG_METRIC.SECTION || metric === SONG_METRIC.KEY) {
-    return 'repertoire';
-  }
-  if (metric.startsWith('ear_training_'))     return 'ear-training';
-  if (metric.startsWith('harmonic_fluency_')) return 'harmonic-fluency';
-  if (metric.startsWith('shapes_'))           return 'shapes-and-patterns';
-  if (metric.startsWith('production_'))       return 'production';
-  if (metric === 'practice_days_per_cadence') return 'practice-consistency';
-  return null;
-}
 
 /**
  * True when this metric is the consistency-half of a multi-target

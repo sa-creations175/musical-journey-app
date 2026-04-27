@@ -5,6 +5,8 @@ import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
+import GoalCreationFlow from './GoalCreationFlow';
+import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { describeGoalTarget } from './describeGoal';
@@ -271,11 +273,47 @@ export default function Goals() {
         onSetHidden={setLayerHidden}
       />
 
-      <GoalFormModal
-        open={formMode.kind !== 'closed'}
+      {/* Phase 1.6 step 15 entry-point routing:
+            - All creates open GoalCreationFlow.
+            - Edits route by vocabulary: new-vocab metrics open
+              GoalCreationFlow (decoders preserve all state); old-
+              vocab metrics open GoalFormModal (still works, no
+              decoder support).
+          GoalFormModal stays mounted alongside GoalCreationFlow until
+          all old-vocab goals are aged out / migrated. The key prop on
+          GoalCreationFlow forces a fresh remount per open, so its
+          useState lazy initializer re-runs against the current
+          initialGoal / initialScope. */}
+      <GoalCreationFlow
+        key={
+          formMode.kind === 'edit' && isNewVocabMetric(formMode.goal.targetMetric)
+            ? `edit-${formMode.goal.id}`
+            : formMode.kind === 'create'
+              ? 'create'
+              : 'closed'
+        }
+        open={
+          formMode.kind === 'create'
+          || (formMode.kind === 'edit' && isNewVocabMetric(formMode.goal.targetMetric))
+        }
         onClose={() => setFormMode({ kind: 'closed' })}
-        initialGoal={formMode.kind === 'edit' ? formMode.goal : null}
+        initialGoal={
+          formMode.kind === 'edit' && isNewVocabMetric(formMode.goal.targetMetric)
+            ? formMode.goal
+            : null
+        }
         initialScope={formMode.kind === 'create' ? formMode.scope : null}
+      />
+
+      <GoalFormModal
+        open={formMode.kind === 'edit' && !isNewVocabMetric(formMode.goal.targetMetric)}
+        onClose={() => setFormMode({ kind: 'closed' })}
+        initialGoal={
+          formMode.kind === 'edit' && !isNewVocabMetric(formMode.goal.targetMetric)
+            ? formMode.goal
+            : null
+        }
+        initialScope={null}
       />
     </div>
   );
