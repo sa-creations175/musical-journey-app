@@ -368,7 +368,7 @@ function LayerSection({
               </button>
             </div>
           ) : (
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col">
               {goals.map(g => (
                 <GoalRow
                   key={g.id}
@@ -413,11 +413,16 @@ function GoalRow({
 }) {
   const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
   return (
-    <li className="flex items-start gap-2">
+    // TEMP step 14 layout: each row gets a subtle bottom divider
+    // so the dev-only "→ edit (new)" link on the right is
+    // unambiguously associated with the row above the divider.
+    // Reverts to the cleaner layout without dividers when the
+    // dev affordance is removed.
+    <li className="flex items-center gap-3 border-b border-neutral-100 dark:border-neutral-800/60 py-1 last:border-b-0">
       <button
         type="button"
         onClick={onEdit}
-        className="flex-1 min-w-0 text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
+        className="flex-1 min-w-0 text-left px-2 py-1 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
       >
         <div className="text-sm text-neutral-700 dark:text-neutral-200">
           {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
@@ -430,7 +435,7 @@ function GoalRow({
       <button
         type="button"
         onClick={onEditInNewFlow}
-        className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent dark:hover:text-fluent px-1.5 py-1 rounded border border-dashed border-neutral-300 dark:border-neutral-700 mt-0.5"
+        className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent dark:hover:text-fluent px-1.5 py-1 rounded border border-dashed border-neutral-300 dark:border-neutral-700"
       >
         → edit (new)
       </button>
