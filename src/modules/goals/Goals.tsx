@@ -16,7 +16,7 @@ import { describeGoalTarget } from './describeGoal';
  *
  * Phase 1 sub-phase 3 step 4: layered home plus the goal creation /
  * edit modal. The "+ Set a goal" top button and per-layer
- * "+ Add" / "+ Reflect" links open the modal in create mode (with
+ * "+ Add" / "+ Aspire" links open the modal in create mode (with
  * the layer's scope pre-filled when applicable). Tapping any goal
  * row in the home opens the modal in edit mode pre-populated with
  * that goal's data; saving updates in place, deleting soft-deletes
@@ -29,7 +29,7 @@ import { describeGoalTarget } from './describeGoal';
 export interface LayerDef {
   scope: GoalScope;
   title: string;
-  /** Drives "+ Add" (measurable, target-bearing) vs "+ Reflect"
+  /** Drives "+ Add" (measurable, target-bearing) vs "+ Aspire"
    *  (aspirational, open-text-first) link copy on empty states. */
   type: 'measurable' | 'aspirational';
   emptyMessage: string;
@@ -46,8 +46,8 @@ export const LAYERS: LayerDef[] = [
   { scope: 'monthly',           title: 'This month',      type: 'measurable',   emptyMessage: 'No monthly goals yet',   addLabel: '+ Add' },
   { scope: 'quarterly',         title: 'This quarter',    type: 'measurable',   emptyMessage: 'No quarterly goals yet', addLabel: '+ Add' },
   { scope: 'yearly',            title: 'This year',       type: 'measurable',   emptyMessage: 'No yearly goals yet',    addLabel: '+ Add' },
-  { scope: 'two_to_three_year', title: '2 — 3 years',     type: 'aspirational', emptyMessage: 'Not yet captured',       addLabel: '+ Reflect' },
-  { scope: 'lifetime',          title: 'Lifetime vision', type: 'aspirational', emptyMessage: 'Not yet captured',       addLabel: '+ Reflect' },
+  { scope: 'two_to_three_year', title: '2 — 3 years',     type: 'aspirational', emptyMessage: 'Not yet captured',       addLabel: '+ Aspire' },
+  { scope: 'lifetime',          title: 'Lifetime vision', type: 'aspirational', emptyMessage: 'Not yet captured',       addLabel: '+ Aspire' },
 ];
 
 const PREF_LAYER_COLLAPSE = 'goals.home.layerCollapse';
