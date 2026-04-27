@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Modal from '../../components/Modal';
 import type { Goal, GoalScope } from '../../lib/db';
+import { moduleMetaById, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 
 /**
  * Phase 1.6 — guided 5-step goal creation flow. Replaces
@@ -70,6 +71,19 @@ interface ModuleCard {
   name: string;
   description: string;
   example: string;
+}
+
+/**
+ * Canonical accent per card. Five values resolve through
+ * `moduleMetaById` so the goal flow stays in lockstep with sidebar /
+ * dashboard / catalogue if a hex is ever retuned. `practice-consistency`
+ * has no entry in the module registry — it borrows
+ * `PRACTICE_SESSIONS_META`'s teal because consistency goals are
+ * fulfilled by Practice Sessions.
+ */
+function accentHexForCard(id: ModuleCardId): string {
+  if (id === 'practice-consistency') return PRACTICE_SESSIONS_META.accentHex;
+  return moduleMetaById(id)?.accentHex ?? '#9ca3af';
 }
 
 // Order matches the spec's Step 1 table verbatim.
@@ -259,24 +273,42 @@ function ModuleCardButton({
   selected: boolean;
   onSelect: (id: ModuleCardId) => void;
 }) {
+  // Hex alpha suffixes mirror the existing Dashboard / SkillsCatalogue
+  // pattern: 33 (~20%) for the resting border tint, full hex on hover
+  // and selected, 0f (~6%) for the transient hover wash, 1a (~10%)
+  // for the sticky selected fill.
+  const accentHex = accentHexForCard(card.id);
+  const restBorder = `${accentHex}33`;
+  const fullBorder = accentHex;
+  const hoverBg = `${accentHex}0f`;
+  const selectedBg = `${accentHex}1a`;
+
   return (
     <button
       type="button"
       onClick={() => onSelect(card.id)}
       aria-pressed={selected}
-      className={`text-left flex flex-col items-start rounded-card border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40 ${
-        selected
-          ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-          : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
-      }`}
+      onMouseEnter={selected ? undefined : (e) => {
+        e.currentTarget.style.borderColor = fullBorder;
+        e.currentTarget.style.backgroundColor = hoverBg;
+      }}
+      onMouseLeave={selected ? undefined : (e) => {
+        e.currentTarget.style.borderColor = restBorder;
+        e.currentTarget.style.backgroundColor = '';
+      }}
+      style={{
+        borderColor: selected ? fullBorder : restBorder,
+        backgroundColor: selected ? selectedBg : undefined,
+      }}
+      className="text-left flex flex-col items-start rounded-card border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40"
     >
-      <div className="text-sm font-medium tracking-tight text-neutral-900 dark:text-neutral-100">
+      <div className="text-sm font-medium tracking-tight" style={{ color: accentHex }}>
         {card.name}
       </div>
       <div className="mt-1.5 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
         {card.description}
       </div>
-      <div className="mt-2 text-xs italic text-neutral-500 dark:text-neutral-500 leading-relaxed">
+      <div className="mt-2 text-xs italic text-neutral-500 dark:text-neutral-400 leading-relaxed">
         “{card.example}”
       </div>
     </button>
