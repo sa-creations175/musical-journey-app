@@ -22,6 +22,7 @@ import {
   type SongTargetSelection,
 } from './songTarget';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
+import Field from './Field';
 import { inputClass } from './formStyles';
 
 /**
@@ -153,15 +154,18 @@ const MODULE_CARDS: ModuleCard[] = [
 /**
  * Cumulative answers across the flow. Grows step-by-step.
  *
- * `songId` and `songTarget` are populated only when `moduleId === 'repertoire'`.
- * For other modules they remain at their defaults — module-specific
- * draft fields will be added per-module as their Step 2 surfaces land
- * in build steps 4–8.
+ * Module-specific slices are present-but-default when their module
+ * isn't selected. Switching modules in Step 1 resets these to defaults
+ * so stale picks don't carry over. As more modules land in build
+ * steps 5–8, additional slices appear here.
  */
 interface Draft {
   moduleId: ModuleCardId | null;
+  // Song Repertoire (build step 3)
   songId: string | null;
   songTarget: SongTargetSelection;
+  // Ear Training (build step 4)
+  earTraining: EarTrainingTarget;
 }
 
 /**
@@ -180,10 +184,50 @@ function defaultSongTarget(): SongTargetSelection {
   };
 }
 
+/**
+ * Ear-training step 2 selection. Either or both targets can be
+ * enabled — spec calls this out as "any combination selectable".
+ * The encoding-to-Goal-record transform lives in build step 11
+ * (single target) and step 13 (multi-target).
+ */
+interface EarTrainingTarget {
+  accuracyEnabled: boolean;
+  /** 'overall' = the whole module's accuracy; 'specific' = one
+   *  drill type + subtype combo. */
+  accuracyScope: 'overall' | 'specific';
+  /** Top-level drill identifier — null when scope is 'overall' or
+   *  not yet picked. */
+  drillTypeId: string | null;
+  /** Sub-category within the drill type. Resets when drillTypeId
+   *  changes. */
+  drillSubtypeId: string | null;
+  /** Target accuracy %. 50–95 in 5% steps. */
+  accuracyPercent: number;
+
+  consistencyEnabled: boolean;
+  /** X sessions per cadence. min 1, no upper cap. */
+  consistencyCount: number;
+  consistencyCadence: 'week' | 'month';
+}
+
+function defaultEarTraining(): EarTrainingTarget {
+  return {
+    accuracyEnabled: false,
+    accuracyScope: 'overall',
+    drillTypeId: null,
+    drillSubtypeId: null,
+    accuracyPercent: 75,
+    consistencyEnabled: false,
+    consistencyCount: 3,
+    consistencyCadence: 'week',
+  };
+}
+
 const EMPTY_DRAFT: Draft = {
   moduleId: null,
   songId: null,
   songTarget: defaultSongTarget(),
+  earTraining: defaultEarTraining(),
 };
 
 // ---- Per-step validity ---------------------------------------------
@@ -204,15 +248,30 @@ function isCurrentStepValid(stepId: StepDef['id'], draft: Draft): boolean {
 }
 
 function isStep2Valid(draft: Draft): boolean {
-  // TODO: Step 2 validity for the other five modules lands with their
-  // UI in build steps 4–8. Until then, only Song Repertoire enforces.
-  if (draft.moduleId !== 'repertoire') return true;
-  if (!draft.songId) return false;
-  const t = draft.songTarget;
-  if (t.granularity === 'whole') return t.wholeOption !== null;
-  if (t.granularity === 'key') return t.keyTarget !== '';
-  if (t.granularity === 'section') return t.sectionId !== '' && t.keyTarget !== '';
-  return false;
+  if (draft.moduleId === 'repertoire') {
+    if (!draft.songId) return false;
+    const t = draft.songTarget;
+    if (t.granularity === 'whole') return t.wholeOption !== null;
+    if (t.granularity === 'key') return t.keyTarget !== '';
+    if (t.granularity === 'section') return t.sectionId !== '' && t.keyTarget !== '';
+    return false;
+  }
+  if (draft.moduleId === 'ear-training') {
+    return isEarTrainingValid(draft.earTraining);
+  }
+  // TODO: Step 2 validity for the other four modules lands with their
+  // UI in build steps 5–8. Until then, default-true.
+  return true;
+}
+
+function isEarTrainingValid(t: EarTrainingTarget): boolean {
+  // At least one target must be enabled.
+  if (!t.accuracyEnabled && !t.consistencyEnabled) return false;
+  if (t.accuracyEnabled && t.accuracyScope === 'specific') {
+    if (!t.drillTypeId || !t.drillSubtypeId) return false;
+  }
+  if (t.consistencyEnabled && t.consistencyCount < 1) return false;
+  return true;
 }
 
 // ---- Component -----------------------------------------------------
@@ -266,6 +325,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
         // Switching modules invalidates module-specific state.
         songId: null,
         songTarget: defaultSongTarget(),
+        earTraining: defaultEarTraining(),
       };
     });
   };
@@ -408,6 +468,8 @@ function Step2View({
   switch (draft.moduleId) {
     case 'repertoire':
       return <Step2SongRepertoire draft={draft} onUpdate={onUpdate} />;
+    case 'ear-training':
+      return <Step2EarTraining draft={draft} onUpdate={onUpdate} />;
     case null:
       // Defensive — shouldn't be reachable since Step 1 gates Next on
       // module being set, but keeps types honest.
@@ -417,8 +479,8 @@ function Step2View({
         </div>
       );
     default:
-      // TODO: Step 2 surfaces for the other five modules land in build
-      // steps 4–8. Until then, placeholder so navigation works end-to-end.
+      // TODO: Step 2 surfaces for the other four modules land in build
+      // steps 5–8. Until then, placeholder so navigation works end-to-end.
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
           Step 2 for this module — coming soon.
@@ -810,6 +872,381 @@ async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string>
     await db.wantToLearn.delete(entry.id);
   });
   return songId;
+}
+
+// ---- Step 2 — Ear Training -----------------------------------------
+
+/**
+ * Drill-type catalog for the ear-training accuracy picker. IDs are
+ * stable identifiers the Practice Sessions algorithm (Phase 3) will
+ * read from saved goals; labels mirror what users see in the actual
+ * ear-training quiz UI verbatim — including casing — so the goal
+ * flow doesn't introduce a second vocabulary for the same thing.
+ *
+ * Casing is intentionally mixed: top-level drills are lowercase
+ * because the ear-training nav tabs are lowercase, but Chord
+ * Recognition's subtypes are title case because the chord-recognition
+ * quiz's section labels are title case. Honest to source-of-truth.
+ */
+interface DrillType {
+  id: string;
+  label: string;
+  subtypes: ReadonlyArray<{ id: string; label: string }>;
+}
+
+const EAR_TRAINING_DRILL_TYPES: ReadonlyArray<DrillType> = [
+  {
+    id: 'intervals',
+    label: 'intervals',
+    subtypes: [
+      { id: 'ascending',  label: 'ascending'  },
+      { id: 'descending', label: 'descending' },
+      { id: 'both',       label: 'both'       },
+    ],
+  },
+  {
+    id: 'chord-recognition',
+    label: 'chord recognition',
+    subtypes: [
+      { id: 'foundational', label: 'Foundational Triads' },
+      { id: 'seventh',      label: 'Seventh Chords'      },
+      { id: 'dominant',     label: 'Dominant Variations' },
+      { id: 'extensions',   label: 'Extensions & Colors' },
+    ],
+  },
+  {
+    id: 'chord-progressions',
+    label: 'chord progressions',
+    subtypes: [
+      { id: 'key-detection',    label: 'key detection'    },
+      { id: 'chord-motion',     label: 'chord motion'     },
+      { id: 'full-progression', label: 'full progression' },
+    ],
+  },
+  {
+    id: 'scales-modes',
+    label: 'scales & modes',
+    subtypes: [
+      { id: 'modes',                label: 'modes'                },
+      { id: 'minor-scale-variants', label: 'minor scale variants' },
+    ],
+  },
+];
+
+const ACCURACY_PCT_MIN = 50;
+const ACCURACY_PCT_MAX = 95;
+const ACCURACY_PCT_STEP = 5;
+
+function Step2EarTraining({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  const target = draft.earTraining;
+  const setTarget = (next: EarTrainingTarget) => onUpdate({ earTraining: next });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        Pick at least one target. You can combine accuracy and consistency on a single goal.
+      </p>
+      <AccuracyTargetCard target={target} onChange={setTarget} />
+      <ConsistencyTargetCard target={target} onChange={setTarget} />
+      <EarTrainingPreview target={target} />
+    </div>
+  );
+}
+
+function AccuracyTargetCard({
+  target,
+  onChange,
+}: {
+  target: EarTrainingTarget;
+  onChange: (next: EarTrainingTarget) => void;
+}) {
+  const drill = EAR_TRAINING_DRILL_TYPES.find(d => d.id === target.drillTypeId) ?? null;
+
+  const toggle = () => onChange({ ...target, accuracyEnabled: !target.accuracyEnabled });
+  const setScope = (scope: EarTrainingTarget['accuracyScope']) => {
+    if (scope === target.accuracyScope) return;
+    // Switching to 'overall' clears the cascade so we don't carry a
+    // stale specific pick. Switching to 'specific' leaves them empty
+    // for the user to fill in.
+    onChange({
+      ...target,
+      accuracyScope: scope,
+      drillTypeId: scope === 'overall' ? null : target.drillTypeId,
+      drillSubtypeId: scope === 'overall' ? null : target.drillSubtypeId,
+    });
+  };
+  const setDrillType = (id: string) => {
+    // Resetting subtype on type change — the previous subtype belongs
+    // to a different drill and would encode a nonsense combination.
+    onChange({ ...target, drillTypeId: id || null, drillSubtypeId: null });
+  };
+  const setDrillSubtype = (id: string) => {
+    onChange({ ...target, drillSubtypeId: id || null });
+  };
+  const setPercent = (p: number) => {
+    onChange({ ...target, accuracyPercent: p });
+  };
+
+  return (
+    <ToggleCard
+      title="Accuracy target"
+      hint="Reach a target accuracy percentage."
+      enabled={target.accuracyEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label="Overall accuracy"
+            active={target.accuracyScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="Specific drill type"
+            active={target.accuracyScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      {target.accuracyScope === 'specific' && (
+        <>
+          <Field label="Drill type">
+            <select
+              value={target.drillTypeId ?? ''}
+              onChange={e => setDrillType(e.target.value)}
+              className={inputClass()}
+            >
+              <option value="">Pick a drill type…</option>
+              {EAR_TRAINING_DRILL_TYPES.map(d => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </select>
+          </Field>
+          {drill && (
+            <Field label="Subtype">
+              <select
+                value={target.drillSubtypeId ?? ''}
+                onChange={e => setDrillSubtype(e.target.value)}
+                className={inputClass()}
+              >
+                <option value="">Pick a subtype…</option>
+                {drill.subtypes.map(s => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
+      <Field label={`Accuracy: ${target.accuracyPercent}%`}>
+        <input
+          type="range"
+          min={ACCURACY_PCT_MIN}
+          max={ACCURACY_PCT_MAX}
+          step={ACCURACY_PCT_STEP}
+          value={target.accuracyPercent}
+          onChange={e => setPercent(Number(e.target.value))}
+          className="w-full"
+          aria-label="Target accuracy percentage"
+        />
+      </Field>
+    </ToggleCard>
+  );
+}
+
+function ConsistencyTargetCard({
+  target,
+  onChange,
+}: {
+  target: EarTrainingTarget;
+  onChange: (next: EarTrainingTarget) => void;
+}) {
+  const toggle = () => onChange({ ...target, consistencyEnabled: !target.consistencyEnabled });
+  const setCount = (n: number) => {
+    // Allow empty string to read as 0 from the input; clamp at 1
+    // floor on save / preview but keep the raw value for editing fluency.
+    onChange({ ...target, consistencyCount: Number.isFinite(n) ? n : 0 });
+  };
+  const setCadence = (c: EarTrainingTarget['consistencyCadence']) => {
+    if (c === target.consistencyCadence) return;
+    onChange({ ...target, consistencyCadence: c });
+  };
+
+  return (
+    <ToggleCard
+      title="Consistency target"
+      hint="Show up regularly — sessions per week or month."
+      enabled={target.consistencyEnabled}
+      onToggle={toggle}
+    >
+      <div className="flex items-end gap-2">
+        <Field label="Sessions">
+          <input
+            type="number"
+            min={1}
+            value={target.consistencyCount === 0 ? '' : target.consistencyCount}
+            onChange={e => setCount(Number(e.target.value))}
+            className={`${inputClass()} w-20`}
+            aria-label="Sessions per cadence"
+          />
+        </Field>
+        <div className="flex gap-1.5 pb-[2px]">
+          <PillButton
+            label="per week"
+            active={target.consistencyCadence === 'week'}
+            onClick={() => setCadence('week')}
+          />
+          <PillButton
+            label="per month"
+            active={target.consistencyCadence === 'month'}
+            onClick={() => setCadence('month')}
+          />
+        </div>
+      </div>
+    </ToggleCard>
+  );
+}
+
+function ToggleCard({
+  title,
+  hint,
+  enabled,
+  onToggle,
+  children,
+}: {
+  title: string;
+  hint: string;
+  enabled: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`rounded-md border transition ${
+        enabled
+          ? 'border-fluent/40 bg-fluent/5'
+          : 'border-neutral-200 dark:border-neutral-800'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={enabled}
+        aria-expanded={enabled}
+        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/40 rounded-t-md"
+      >
+        <CheckboxIndicator checked={enabled} />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+            {title}
+          </div>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400">
+            {hint}
+          </div>
+        </div>
+      </button>
+      {enabled && (
+        <div className="px-3 pb-3 pt-2 border-t border-fluent/30 flex flex-col gap-3">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CheckboxIndicator({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`h-4 w-4 shrink-0 rounded border flex items-center justify-center transition ${
+        checked
+          ? 'bg-fluent border-fluent text-white'
+          : 'border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-900'
+      }`}
+    >
+      {checked && (
+        <svg viewBox="0 0 10 10" className="w-2.5 h-2.5 fill-current">
+          <path d="M3.7 7.5 L1 4.8 L1.9 3.9 L3.7 5.7 L8.1 1.3 L9 2.2 Z" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+function PillButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        'px-3 py-1.5 text-sm rounded-md border transition',
+        active
+          ? 'border-fluent bg-fluent/10 text-fluent'
+          : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent/60',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
+}
+
+function EarTrainingPreview({ target }: { target: EarTrainingTarget }) {
+  const text = previewEarTrainingTarget(target);
+  return (
+    <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-fluent mb-0.5">Preview</div>
+      <div className="text-sm text-neutral-800 dark:text-neutral-100">
+        {text ?? <span className="text-neutral-500 italic">Pick a target above to preview your goal.</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Natural-language preview rendering. Matches spec example phrasing:
+ *   accuracy-only / overall:   "Improve my overall ear training accuracy to 75%"
+ *   accuracy-only / specific:  "Reach 80% accuracy on chord recognition — Seventh Chords"
+ *   consistency-only:          "Practice ear training at least 4 times a week"
+ *   both combined:             "<accuracy clause> and practice at least 3 times a week"
+ *
+ * Module name is included only on the leading clause for natural read.
+ */
+function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
+  const parts: string[] = [];
+  if (target.accuracyEnabled) {
+    if (target.accuracyScope === 'overall') {
+      parts.push(`Improve my overall ear training accuracy to ${target.accuracyPercent}%`);
+    } else {
+      const drill = EAR_TRAINING_DRILL_TYPES.find(d => d.id === target.drillTypeId);
+      const subtype = drill?.subtypes.find(s => s.id === target.drillSubtypeId);
+      if (!drill || !subtype) return null;
+      parts.push(`Reach ${target.accuracyPercent}% accuracy on ${drill.label} — ${subtype.label}`);
+    }
+  }
+  if (target.consistencyEnabled) {
+    if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
+    const verb = parts.length === 0 ? 'Practice ear training' : 'practice';
+    const times = target.consistencyCount === 1 ? 'time' : 'times';
+    const cadence = target.consistencyCadence;
+    parts.push(`${verb} at least ${target.consistencyCount} ${times} a ${cadence}`);
+  }
+  if (parts.length === 0) return null;
+  return parts.join(' and ');
 }
 
 // ---- Dot indicator -------------------------------------------------
