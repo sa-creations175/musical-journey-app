@@ -606,7 +606,6 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
       }
 
       const records = encodeRecordsForDraft(draft, songRecord, sectionNamesById);
-      console.log('[goal-flow] encoded records:', records, 'from draft:', draft);
       if (records.length === 0) {
         console.warn('[goal-flow] no records to save; aborting');
         setSaving(false);
@@ -649,7 +648,6 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
           isUmbrella: false,
           lastEngagedAt: now,
         };
-        console.log('[goal-flow] saving goal:', goal);
         await db.goals.put(goal);
       }
 
