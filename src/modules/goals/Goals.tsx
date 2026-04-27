@@ -226,7 +226,7 @@ export default function Goals() {
         </button>
       </header>
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4">
         <button
           type="button"
           onClick={() => setFormMode({ kind: 'create', scope: null })}
@@ -234,21 +234,6 @@ export default function Goals() {
           style={{ backgroundColor: GOALS_META.accentHex }}
         >
           + Set a goal
-        </button>
-        {/* TEMP: dev-only goal-wipe affordance for Phase 1.6 verification.
-            Clears db.goals and suppresses onboarding (which would otherwise
-            re-fire when goals.length goes to 0). Removed before push. */}
-        <button
-          type="button"
-          onClick={async () => {
-            if (!confirm('Clear ALL goals from the database? This cannot be undone.')) return;
-            setFormMode({ kind: 'closed' });
-            await db.goals.clear();
-            setOnboardingDismissed(true);
-          }}
-          className="px-3 py-1.5 rounded-md text-xs font-medium border border-dashed border-needswork/60 text-needswork hover:bg-needswork/10"
-        >
-          Clear all goals (dev)
         </button>
       </div>
 
