@@ -5,6 +5,7 @@ import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
+import GoalCreationFlow from './GoalCreationFlow'; // TEMP: edit-mode verification — remove with the dev-only entry points below
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { describeGoalTarget } from './describeGoal';
@@ -105,6 +106,12 @@ export default function Goals() {
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
+  // TEMP: dev-only entry points for the new GoalCreationFlow — toolbar
+  // button opens create mode, per-row "→ edit (new)" link opens edit
+  // mode. Both routes go through the same modal mount below.
+  const [tryNewFlowMode, setTryNewFlowMode] = useState<
+    { kind: 'closed' } | { kind: 'create' } | { kind: 'edit'; goal: Goal }
+  >({ kind: 'closed' });
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which
@@ -224,7 +231,7 @@ export default function Goals() {
         </button>
       </header>
 
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-2">
         <button
           type="button"
           onClick={() => setFormMode({ kind: 'create', scope: null })}
@@ -232,6 +239,14 @@ export default function Goals() {
           style={{ backgroundColor: GOALS_META.accentHex }}
         >
           + Set a goal
+        </button>
+        {/* TEMP: shell verification — remove this button once Phase 1.6 step 14 is verified */}
+        <button
+          type="button"
+          onClick={() => setTryNewFlowMode({ kind: 'create' })}
+          className="px-3 py-1.5 rounded-md text-sm font-medium border border-dashed border-neutral-400 text-neutral-700 dark:text-neutral-200"
+        >
+          Try new flow (dev)
         </button>
       </div>
 
@@ -253,6 +268,7 @@ export default function Goals() {
               onToggle={() => toggleLayer(layer.scope)}
               onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
               onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
+              onEditInNewFlow={goal => setTryNewFlowMode({ kind: 'edit', goal })}
             />
           );
         })}
@@ -277,6 +293,14 @@ export default function Goals() {
         initialGoal={formMode.kind === 'edit' ? formMode.goal : null}
         initialScope={formMode.kind === 'create' ? formMode.scope : null}
       />
+
+      {/* TEMP: edit-mode verification — remove this mount once verified */}
+      <GoalCreationFlow
+        open={tryNewFlowMode.kind !== 'closed'}
+        onClose={() => setTryNewFlowMode({ kind: 'closed' })}
+        initialGoal={tryNewFlowMode.kind === 'edit' ? tryNewFlowMode.goal : null}
+        initialScope={null}
+      />
     </div>
   );
 }
@@ -292,6 +316,7 @@ function LayerSection({
   onToggle,
   onAdd,
   onEditGoal,
+  onEditInNewFlow,
 }: {
   layer: LayerDef;
   goals: Goal[];
@@ -301,6 +326,9 @@ function LayerSection({
   onToggle: () => void;
   onAdd: () => void;
   onEditGoal: (goal: Goal) => void;
+  /** TEMP: dev-only edit-in-new-flow link prop. Removed with the
+   *  per-row link once Phase 1.6 step 14 is verified. */
+  onEditInNewFlow: (goal: Goal) => void;
 }) {
   return (
     <section className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
@@ -340,6 +368,7 @@ function LayerSection({
                   proficiencyDefs={proficiencyDefs}
                   songLookup={songLookup}
                   onEdit={() => onEditGoal(g)}
+                  onEditInNewFlow={() => onEditInNewFlow(g)}
                 />
               ))}
               <li>
@@ -364,19 +393,23 @@ function GoalRow({
   proficiencyDefs,
   songLookup,
   onEdit,
+  onEditInNewFlow,
 }: {
   goal: Goal;
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEdit: () => void;
+  /** TEMP: dev-only — opens the goal in the new GoalCreationFlow's
+   *  edit mode. Removed once Phase 1.6 step 14 is verified. */
+  onEditInNewFlow: () => void;
 }) {
   const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
   return (
-    <li>
+    <li className="flex items-start gap-2">
       <button
         type="button"
         onClick={onEdit}
-        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
+        className="flex-1 min-w-0 text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
       >
         <div className="text-sm text-neutral-700 dark:text-neutral-200">
           {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
@@ -384,6 +417,14 @@ function GoalRow({
         {target && (
           <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
         )}
+      </button>
+      {/* TEMP: shell verification — remove this link once Phase 1.6 step 14 is verified */}
+      <button
+        type="button"
+        onClick={onEditInNewFlow}
+        className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent dark:hover:text-fluent px-1.5 py-1 rounded border border-dashed border-neutral-300 dark:border-neutral-700 mt-0.5"
+      >
+        → edit (new)
       </button>
     </li>
   );
