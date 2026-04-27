@@ -5,7 +5,6 @@ import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
-import GoalCreationFlow from './GoalCreationFlow'; // TEMP: shell verification — remove with the dev-only button below
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { describeGoalTarget } from './describeGoal';
@@ -106,7 +105,6 @@ export default function Goals() {
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
-  const [tryNewFlowOpen, setTryNewFlowOpen] = useState(false); // TEMP: shell verification — remove
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which
@@ -226,7 +224,7 @@ export default function Goals() {
         </button>
       </header>
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4">
         <button
           type="button"
           onClick={() => setFormMode({ kind: 'create', scope: null })}
@@ -234,14 +232,6 @@ export default function Goals() {
           style={{ backgroundColor: GOALS_META.accentHex }}
         >
           + Set a goal
-        </button>
-        {/* TEMP: shell verification — remove this button once Phase 1.6 step 10 is verified */}
-        <button
-          type="button"
-          onClick={() => setTryNewFlowOpen(true)}
-          className="px-3 py-1.5 rounded-md text-sm font-medium border border-dashed border-neutral-400 text-neutral-700 dark:text-neutral-200"
-        >
-          Try new flow (dev)
         </button>
       </div>
 
@@ -286,12 +276,6 @@ export default function Goals() {
         onClose={() => setFormMode({ kind: 'closed' })}
         initialGoal={formMode.kind === 'edit' ? formMode.goal : null}
         initialScope={formMode.kind === 'create' ? formMode.scope : null}
-      />
-
-      {/* TEMP: shell verification — remove this mount once verified */}
-      <GoalCreationFlow
-        open={tryNewFlowOpen}
-        onClose={() => setTryNewFlowOpen(false)}
       />
     </div>
   );
