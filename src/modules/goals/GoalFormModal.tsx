@@ -9,6 +9,9 @@ import {
   type PracticeSessionContext,
   type ProficiencyDefinition,
   type Song,
+  type SongCell,
+  type SongKey,
+  type SongMatrixSection,
 } from '../../lib/db';
 import { MODULE_ORDER, moduleMetaById } from '../../lib/moduleMeta';
 import RelatedItemsPicker from './RelatedItemsPicker';
@@ -19,18 +22,21 @@ import {
   type MetricType,
 } from './metricCatalog';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
+import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   CROSS_KEY_PERCENT_MAX,
   CROSS_KEY_PERCENT_MIN,
   CROSS_KEY_PERCENT_STEP,
   MAJOR_KEYS,
+  buildKeyStateHints,
   decodeSongTarget,
-  deriveWholeOptionTags,
+  deriveWholeOptionTagsFromMatrix,
   encodeSongTarget,
-  isSolidAchieved,
+  isSolidLockedFromMatrix,
   isSongMetric,
   previewSongTarget,
+  type KeyStateHint,
   type SongGranularity,
   type SongTargetSelection,
   type SongWholeOption,
@@ -198,6 +204,7 @@ function defaultSongTarget(): SongTargetSelection {
     crossKeyPercent: CROSS_KEY_PERCENT_DEFAULT,
     keyTarget: '',
     keyState: 'comfortable',
+    sectionId: '',
   };
 }
 
@@ -342,12 +349,75 @@ export default function GoalFormModal({
 
   const isSongMode = !isVision && songItemId !== null;
   const songMissing = isSongMode && songItemId !== null && songRecord === undefined;
-  // Phase 1 only supports Whole song and Key granularities. Section
-  // granularity is shown but disabled until Phase 1.5 ships the
-  // section model. (Weekly-only constraint also applies once
-  // section data exists.)
-  const sectionAvailable = false; // flip in Phase 1.5
+
+  // Matrix live queries — feeds the section picker, key-state hints,
+  // and matrix-aware whole-song option tags. All scoped to the
+  // resolved song; gated on songItemId so we don't fan out queries
+  // for non-song goals. Generic dropped per the codebase pattern —
+  // the default-value cast carries the type for the consumers.
+  const matrixSongKeys = useLiveQuery(
+    () => {
+      if (!songItemId) return [] as SongKey[];
+      return db.songKeys.where('songId').equals(songItemId).toArray();
+    },
+    [songItemId],
+    [] as SongKey[],
+  );
+  const matrixSongCells = useLiveQuery(
+    () => {
+      if (!songItemId) return [] as SongCell[];
+      return db.songCells.where('songId').equals(songItemId).toArray();
+    },
+    [songItemId],
+    [] as SongCell[],
+  );
+  const matrixSections = useLiveQuery(
+    () => {
+      if (!songItemId) return [] as SongMatrixSection[];
+      return db.songMatrixSections.where('songId').equals(songItemId).sortBy('displayOrder');
+    },
+    [songItemId],
+    [] as SongMatrixSection[],
+  );
+
+  // Date.now() snapshot for live-derived decay. Lazy useState
+  // initializer satisfies the purity rule. Stays at mount-time —
+  // fine for daily-resolution decay; if the user keeps the form
+  // open past a threshold, a re-mount will refresh.
+  const [now] = useState(() => Date.now());
+
+  // Section granularity is now lit up — available whenever the song
+  // has at least one non-archived section. Per Phase 1 design, also
+  // gated on weekly scope (granularity is too tactical for longer
+  // horizons).
+  const visibleMatrixSections = useMemo(
+    () => matrixSections.filter(s => !s.isArchived),
+    [matrixSections],
+  );
+  const sectionAvailable = visibleMatrixSections.length > 0;
   const sectionWeeklyEligible = form.scope === 'weekly';
+
+  // Matrix-derived song level + per-key hints. Computed only when in
+  // song mode so non-song goals don't pay the cost.
+  const songLevelState = useMemo(
+    () => isSongMode
+      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now)
+      : null,
+    [isSongMode, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now],
+  );
+  const originalMatrixKey = useMemo(
+    () => matrixSongKeys.find(k => k.isOriginalKey) ?? null,
+    [matrixSongKeys],
+  );
+  const keyStateHints = useMemo(
+    () => isSongMode ? buildKeyStateHints(matrixSongKeys, now) : new Map<string, KeyStateHint>(),
+    [isSongMode, matrixSongKeys, now],
+  );
+  const sectionNamesById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of visibleMatrixSections) m.set(s.id, s.name);
+    return m;
+  }, [visibleMatrixSections]);
 
   // Helper: does the form currently hold any measurable data the
   // user would lose if the scope flipped to vision?
@@ -686,6 +756,11 @@ export default function GoalFormModal({
             onChange={next => setForm(f => ({ ...f, songTarget: next }))}
             sectionAvailable={sectionAvailable}
             sectionWeeklyEligible={sectionWeeklyEligible}
+            songLevelState={songLevelState}
+            originalMatrixKey={originalMatrixKey}
+            visibleMatrixSections={visibleMatrixSections}
+            keyStateHints={keyStateHints}
+            now={now}
           />
         )}
 
@@ -721,7 +796,11 @@ export default function GoalFormModal({
         {/* Song-mode preview — addendum requires a natural-language
             confirmation of what the goal will mean before Save. */}
         {isSongMode && songRecord && (
-          <SongPreview selection={form.songTarget} song={songRecord} />
+          <SongPreview
+            selection={form.songTarget}
+            song={songRecord}
+            sectionNamesById={sectionNamesById}
+          />
         )}
 
         {/* Parent goal — only shown when at least one candidate exists */}
@@ -943,6 +1022,11 @@ function SongTargetSection({
   onChange,
   sectionAvailable,
   sectionWeeklyEligible,
+  songLevelState,
+  originalMatrixKey,
+  visibleMatrixSections,
+  keyStateHints,
+  now,
 }: {
   song: Song | undefined;
   songMissing: boolean;
@@ -950,14 +1034,24 @@ function SongTargetSection({
   onChange: (next: SongTargetSelection) => void;
   sectionAvailable: boolean;
   sectionWeeklyEligible: boolean;
+  songLevelState: ReturnType<typeof computeSongLevelState> | null;
+  originalMatrixKey: SongKey | null;
+  visibleMatrixSections: ReadonlyArray<SongMatrixSection>;
+  keyStateHints: ReadonlyMap<string, KeyStateHint>;
+  now: number;
 }) {
-  // The whole-song state tags depend on the song's RepertoireStage —
-  // best-effort mapping in Phase 1; precise tags arrive in Phase 1.5.
+  // Whole-song option tags derived from matrix data — replaces the
+  // legacy RepertoireStage approximation.
   const wholeTags = useMemo(
-    () => deriveWholeOptionTags(song?.stage),
-    [song?.stage],
+    () => songLevelState
+      ? deriveWholeOptionTagsFromMatrix(songLevelState.state, originalMatrixKey, now)
+      : { solid: null, crossKey: null, internalized: 'stretch' as const },
+    [songLevelState, originalMatrixKey, now],
   );
-  const solidLocked = isSolidAchieved(song?.stage);
+  const solidLocked = isSolidLockedFromMatrix(originalMatrixKey, now);
+  const originalKeyIsLapsed = originalMatrixKey !== null
+    && originalMatrixKey.keyState === 'solid'
+    && wholeTags.solid === 'current'; // matrix helper assigns 'current' to lapsed-solid
 
   if (songMissing) {
     return (
@@ -978,6 +1072,14 @@ function SongTargetSection({
     onChange({ ...selection, wholeOption: opt });
   };
 
+  // Soft warning for cross-key % when the user picks a value below
+  // the song's current cross-key %. Honest, not blocking — user can
+  // still save (e.g., they may want to re-stamp or split a goal).
+  const currentCrossKeyPercent = songLevelState?.crossKeyPercent ?? 0;
+  const crossKeyAlreadyAt = selection.granularity === 'whole'
+    && selection.wholeOption === 'cross_key'
+    && currentCrossKeyPercent >= selection.crossKeyPercent;
+
   return (
     <div className="flex flex-col gap-3">
       <Field label="Goal granularity">
@@ -993,7 +1095,7 @@ function SongTargetSection({
             disabled={!sectionAvailable || !sectionWeeklyEligible}
             tooltip={
               !sectionAvailable
-                ? 'Available with the Song Progression update'
+                ? 'Set up sections in the matrix view first'
                 : !sectionWeeklyEligible
                   ? 'Only available for weekly goals'
                   : undefined
@@ -1016,6 +1118,9 @@ function SongTargetSection({
             tag={wholeTags.solid}
             selected={selection.wholeOption === 'solid'}
             disabled={solidLocked}
+            note={originalKeyIsLapsed
+              ? `${song?.key ?? 'Original key'} is currently lapsed — pass a retest to clear.`
+              : undefined}
             onSelect={() => setWholeOption('solid')}
           />
 
@@ -1027,24 +1132,31 @@ function SongTargetSection({
             onSelect={() => setWholeOption('cross_key')}
           >
             {selection.wholeOption === 'cross_key' && (
-              <div className="mt-2 flex items-center gap-3">
-                <input
-                  type="range"
-                  min={CROSS_KEY_PERCENT_MIN}
-                  max={CROSS_KEY_PERCENT_MAX}
-                  step={CROSS_KEY_PERCENT_STEP}
-                  value={selection.crossKeyPercent}
-                  onChange={e => onChange({
-                    ...selection,
-                    crossKeyPercent: Number(e.target.value),
-                  })}
-                  className="flex-1"
-                  aria-label="Cross-key percent"
-                />
-                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200 w-12 text-right">
-                  {selection.crossKeyPercent}%
-                </span>
-              </div>
+              <>
+                <div className="mt-2 flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={CROSS_KEY_PERCENT_MIN}
+                    max={CROSS_KEY_PERCENT_MAX}
+                    step={CROSS_KEY_PERCENT_STEP}
+                    value={selection.crossKeyPercent}
+                    onChange={e => onChange({
+                      ...selection,
+                      crossKeyPercent: Number(e.target.value),
+                    })}
+                    className="flex-1"
+                    aria-label="Cross-key percent"
+                  />
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200 w-12 text-right">
+                    {selection.crossKeyPercent}%
+                  </span>
+                </div>
+                {crossKeyAlreadyAt && (
+                  <div className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                    Already at {currentCrossKeyPercent}% cross-key — pick a higher target?
+                  </div>
+                )}
+              </>
             )}
           </WholeTargetRow>
 
@@ -1059,13 +1171,20 @@ function SongTargetSection({
       )}
 
       {selection.granularity === 'key' && (
-        <KeyTarget selection={selection} onChange={onChange} />
+        <KeyTarget
+          selection={selection}
+          onChange={onChange}
+          keyStateHints={keyStateHints}
+        />
       )}
 
       {selection.granularity === 'section' && (
-        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
-          Section-level goals arrive with the Song Progression update.
-        </div>
+        <SectionTarget
+          selection={selection}
+          onChange={onChange}
+          sections={visibleMatrixSections}
+          keyStateHints={keyStateHints}
+        />
       )}
     </div>
   );
@@ -1111,6 +1230,7 @@ function WholeTargetRow({
   tag,
   selected,
   disabled,
+  note,
   onSelect,
   children,
 }: {
@@ -1119,6 +1239,9 @@ function WholeTargetRow({
   tag: 'achieved' | 'current' | 'stretch' | null;
   selected: boolean;
   disabled?: boolean;
+  /** Optional inline note shown below the hint — used for the
+   *  "currently lapsed" disclosure on the Solid row. */
+  note?: string;
   onSelect: () => void;
   children?: React.ReactNode;
 }) {
@@ -1151,6 +1274,9 @@ function WholeTargetRow({
         {tag && <StateTag tag={tag} />}
       </div>
       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{hint}</p>
+      {note && (
+        <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">{note}</p>
+      )}
       {children}
     </div>
   );
@@ -1172,10 +1298,37 @@ function StateTag({ tag }: { tag: 'achieved' | 'current' | 'stretch' }) {
 function KeyTarget({
   selection,
   onChange,
+  keyStateHints,
 }: {
   selection: SongTargetSelection;
   onChange: (next: SongTargetSelection) => void;
+  keyStateHints: ReadonlyMap<string, KeyStateHint>;
 }) {
+  // Live context for the currently-picked key — surfaces the same
+  // info the matrix view shows, so the user doesn't have to round-
+  // trip to confirm what state the key is already at.
+  const pickedHint = selection.keyTarget
+    ? keyStateHints.get(selection.keyTarget) ?? null
+    : null;
+  // Lapsed targets are allowed (they imply "run the retest") but
+  // surfaced inline so the user understands what they're committing
+  // to.
+  const lapsedNote = pickedHint?.isLapsed && selection.keyState === 'solid'
+    ? `${selection.keyTarget} is currently lapsed — pass a retest to clear.`
+    : null;
+  // Already-at-target check: if the picked state is already met,
+  // soft-warn (not blocking — user might want to set a re-confirmation
+  // goal). Comfortable is met when state is comfortable or solid;
+  // Solid is met only when state === 'solid' (not lapsed).
+  const alreadyAt = (() => {
+    if (!pickedHint) return false;
+    if (selection.keyState === 'comfortable') {
+      return pickedHint.state === 'comfortable' || pickedHint.state === 'solid';
+    }
+    // 'solid'
+    return pickedHint.state === 'solid' && !pickedHint.isLapsed;
+  })();
+
   return (
     <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-3 flex flex-col gap-3">
       <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
@@ -1188,9 +1341,14 @@ function KeyTarget({
           className={inputClass()}
         >
           <option value="">Pick a key…</option>
-          {MAJOR_KEYS.map(k => (
-            <option key={k} value={k}>{k}</option>
-          ))}
+          {MAJOR_KEYS.map(k => {
+            const hint = keyStateHints.get(k);
+            return (
+              <option key={k} value={k}>
+                {k}{hint ? ` — ${formatKeyHint(hint)}` : ' — untouched'}
+              </option>
+            );
+          })}
         </select>
       </Field>
       <Field label="State">
@@ -1207,6 +1365,103 @@ function KeyTarget({
           />
         </div>
       </Field>
+      {lapsedNote && (
+        <div className="text-[11px] text-amber-700 dark:text-amber-300">{lapsedNote}</div>
+      )}
+      {alreadyAt && !lapsedNote && (
+        <div className="text-[11px] text-amber-700 dark:text-amber-300">
+          {selection.keyTarget} is already at {selection.keyState === 'solid' ? 'Solid' : 'Comfortable'} — pick a different target?
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Display string for the key-picker dropdown's per-key context.
+ * "Solid · lapsed" / "Solid" / "Comfortable" / "Learning" / "untouched".
+ */
+function formatKeyHint(hint: KeyStateHint): string {
+  if (hint.state === 'solid') return hint.isLapsed ? 'Solid · lapsed' : 'Solid';
+  if (hint.state === 'comfortable') return 'Comfortable';
+  if (hint.state === 'learning') return 'Learning';
+  return 'untouched';
+}
+
+function SectionTarget({
+  selection,
+  onChange,
+  sections,
+  keyStateHints,
+}: {
+  selection: SongTargetSelection;
+  onChange: (next: SongTargetSelection) => void;
+  sections: ReadonlyArray<SongMatrixSection>;
+  keyStateHints: ReadonlyMap<string, KeyStateHint>;
+}) {
+  // Same lapsed/already-at logic as KeyTarget — section goals
+  // implicitly act on the picked key, so the same hints apply at
+  // the key level. We don't show per-cell state because cells aren't
+  // surfaced in this picker (would need cellsBySectionId; out of
+  // scope here).
+  const pickedHint = selection.keyTarget
+    ? keyStateHints.get(selection.keyTarget) ?? null
+    : null;
+  const lapsedNote = pickedHint?.isLapsed && selection.keyState === 'solid'
+    ? `${selection.keyTarget} is currently lapsed — pass a retest to clear.`
+    : null;
+
+  return (
+    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-3 flex flex-col gap-3">
+      <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+        Get one section to a specific state
+      </span>
+      <Field label="Section">
+        <select
+          value={selection.sectionId}
+          onChange={e => onChange({ ...selection, sectionId: e.target.value })}
+          className={inputClass()}
+        >
+          <option value="">Pick a section…</option>
+          {sections.map(s => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Key">
+        <select
+          value={selection.keyTarget}
+          onChange={e => onChange({ ...selection, keyTarget: e.target.value })}
+          className={inputClass()}
+        >
+          <option value="">Pick a key…</option>
+          {MAJOR_KEYS.map(k => {
+            const hint = keyStateHints.get(k);
+            return (
+              <option key={k} value={k}>
+                {k}{hint ? ` — ${formatKeyHint(hint)}` : ' — untouched'}
+              </option>
+            );
+          })}
+        </select>
+      </Field>
+      <Field label="State">
+        <div className="flex gap-1.5">
+          <KeyStateButton
+            label="Comfortable"
+            active={selection.keyState === 'comfortable'}
+            onClick={() => onChange({ ...selection, keyState: 'comfortable' })}
+          />
+          <KeyStateButton
+            label="Solid"
+            active={selection.keyState === 'solid'}
+            onClick={() => onChange({ ...selection, keyState: 'solid' })}
+          />
+        </div>
+      </Field>
+      {lapsedNote && (
+        <div className="text-[11px] text-amber-700 dark:text-amber-300">{lapsedNote}</div>
+      )}
     </div>
   );
 }
@@ -1240,11 +1495,17 @@ function KeyStateButton({
 function SongPreview({
   selection,
   song,
+  sectionNamesById,
 }: {
   selection: SongTargetSelection;
   song: Song;
+  sectionNamesById: ReadonlyMap<string, string>;
 }) {
-  const text = previewSongTarget(selection, { title: song.title, key: song.key });
+  const text = previewSongTarget(selection, {
+    title: song.title,
+    key: song.key,
+    sectionNamesById,
+  });
   return (
     <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-fluent mb-0.5">Preview</div>

@@ -1,10 +1,12 @@
-import type { Goal, RepertoireStage, Song } from '../../lib/db';
+import type { Goal, Song, SongKey } from '../../lib/db';
+import { computeSolidDecayState } from '../repertoire/matrix/solidDecay';
+import type { SongLevelStateName } from '../repertoire/matrix/songLevelState';
 
 /**
- * Song-goal targeting helpers (Phase 1 song-goal addendum, April 26,
- * 2026). When a goal's related items resolve to a single song, the
- * form swaps the generic items_at_level flow for granularity-aware
- * song targeting (whole song / song section / key).
+ * Song-goal targeting helpers. When a goal's related items resolve
+ * to a single song, the form swaps the generic items_at_level flow
+ * for granularity-aware song targeting (whole song / song section /
+ * key).
  *
  * The targeting choice maps onto the existing Goal record fields
  * (`targetMetric`, `targetValue`, `targetUnit`) — no schema change.
@@ -21,12 +23,21 @@ import type { Goal, RepertoireStage, Song } from '../../lib/db';
  *   song_key_at_state               null          '<KEY>:<state>'
  *                                                  e.g. 'F:comfortable'
  *   song_section_at_state           null          '<sectionId>:<KEY>:<state>'
- *                                                  (Phase 1.5 — UI disabled
- *                                                   in Phase 1)
+ *                                                  e.g.
+ *                                                  'sec-7c3:F:comfortable'
  *
  * KEY uses the same human-readable shape stored on Song.key
  * ('C', 'F', 'Bb', 'F#', etc.). State is one of 'comfortable' or
  * 'solid' for key/section scopes.
+ *
+ * Phase 1.5 step 7 update: the previous Phase 1 helpers
+ * (`deriveWholeOptionTags`, `isSolidAchieved`) read from the legacy
+ * RepertoireStage — a best-effort approximation that drifted from
+ * truth post-migration. Replaced here by `deriveWholeOptionTagsFromMatrix`
+ * + `isSolidLockedFromMatrix`, which read directly from the matrix
+ * data (songKeys + songLevelState + live decay). Section granularity
+ * is also lit up in the same step: encode/decode + preview now know
+ * how to round-trip section-level targets through Goal records.
  */
 
 // ---- Metric IDs ----------------------------------------------------
@@ -63,57 +74,106 @@ export const CROSS_KEY_PERCENT_MAX = 100;
 export const CROSS_KEY_PERCENT_STEP = 5;
 export const CROSS_KEY_PERCENT_DEFAULT = 50;
 
-// ---- State-tag derivation (best-effort from RepertoireStage) -------
+// ---- State-tag derivation (matrix-aware) ---------------------------
 
-/**
- * Phase 1 maps the legacy `RepertoireStage` (`learning` / `comfortable`
- * / `cross-key` / `internalized` / `maintenance`) to the addendum's
- * five-level song vocabulary as faithfully as possible:
- *
- *   learning      → still working sections; below Solid
- *   comfortable   → ambiguous (sections may be solid OR whole-song
- *                   may be solid); treated as below Solid for tag
- *                   purposes so users aren't blocked from setting a
- *                   Solid-in-original-key goal
- *   cross-key     → at or beyond Solid; user is currently working
- *                   across keys (Cross-key is "current")
- *   internalized  → at or beyond Cross-key 100%
- *   maintenance   → at or beyond Internalized
- *
- * The Song Progression Redesign (Phase 1.5) replaces this best-effort
- * mapping with a precise model. Until then, this is the honest read
- * we can offer.
- */
 export type SongStateTag = 'achieved' | 'current' | 'stretch' | null;
 
-interface WholeOptionTags {
+export interface WholeOptionTags {
   solid: SongStateTag;
   crossKey: SongStateTag;
   internalized: SongStateTag;
 }
 
-export function deriveWholeOptionTags(stage: RepertoireStage | undefined): WholeOptionTags {
-  switch (stage) {
-    case 'maintenance':
-    case 'internalized':
-      return { solid: 'achieved', crossKey: 'achieved', internalized: 'achieved' };
-    case 'cross-key':
-      // At Solid; actively working across keys; Internalized is far off.
-      return { solid: 'achieved', crossKey: 'current', internalized: 'stretch' };
-    case 'learning':
-    case 'comfortable':
-    case undefined:
-    default:
-      // Below Solid; everything is forward-looking. Solid is the
-      // honest next milestone (no tag); Internalized is a stretch.
-      return { solid: null, crossKey: null, internalized: 'stretch' };
+/**
+ * Live-derive the whole-song option tags from matrix data. Replaces
+ * the legacy RepertoireStage approximation.
+ *
+ *   Solid-in-original-key:
+ *     'achieved' when the original key is solid AND not lapsed.
+ *     'current' when solid + lapsed (the user has demonstrated solid
+ *     in the past but needs a retest pass — setting this goal is
+ *     equivalent to "run the retest").
+ *     null otherwise.
+ *
+ *   Cross-key:
+ *     'achieved' when songLevelState is 'cross_key' or 'internalized'.
+ *     'current' when at 'solid' (next natural milestone is cross-key).
+ *     null otherwise.
+ *
+ *   Internalized:
+ *     'achieved' when at 'internalized'.
+ *     'current' when at 'solid' or 'cross_key' (working toward it).
+ *     'stretch' when below.
+ *
+ * `originalKey` is the songKeys row with isOriginalKey=true; null
+ * when no such row exists yet (untouched migrated song with no
+ * promoted original-key data). All-null tags result in that case.
+ */
+export function deriveWholeOptionTagsFromMatrix(
+  songLevelState: SongLevelStateName,
+  originalKey: SongKey | null,
+  now: number,
+): WholeOptionTags {
+  const originalKeyIsLapsed = originalKey !== null
+    && computeSolidDecayState(originalKey, now) === 'lapsed';
+
+  let solidTag: SongStateTag = null;
+  if (originalKey?.keyState === 'solid') {
+    solidTag = originalKeyIsLapsed ? 'current' : 'achieved';
   }
+
+  let crossKeyTag: SongStateTag = null;
+  if (songLevelState === 'cross_key' || songLevelState === 'internalized') {
+    crossKeyTag = 'achieved';
+  } else if (songLevelState === 'solid') {
+    crossKeyTag = 'current';
+  }
+
+  let internalizedTag: SongStateTag;
+  if (songLevelState === 'internalized') internalizedTag = 'achieved';
+  else if (songLevelState === 'solid' || songLevelState === 'cross_key') internalizedTag = 'current';
+  else internalizedTag = 'stretch';
+
+  return { solid: solidTag, crossKey: crossKeyTag, internalized: internalizedTag };
 }
 
-/** Whether a Solid-in-original-key target should be unselectable
- *  because the song is already there. */
-export function isSolidAchieved(stage: RepertoireStage | undefined): boolean {
-  return stage === 'cross-key' || stage === 'internalized' || stage === 'maintenance';
+/**
+ * Lock the Solid-in-original-key option only when the user is
+ * already there and not lapsed. Lapsed solid is unlocked because
+ * setting "Take to Solid" implicitly = run the retest, which is a
+ * meaningful goal.
+ */
+export function isSolidLockedFromMatrix(
+  originalKey: SongKey | null,
+  now: number,
+): boolean {
+  if (!originalKey || originalKey.keyState !== 'solid') return false;
+  return computeSolidDecayState(originalKey, now) !== 'lapsed';
+}
+
+/**
+ * Per-key state hints for the key/section pickers. Keys not yet in
+ * songKeys map to 'untouched'; otherwise the live-derived view of
+ * keyState (with lapsed surfaced as a flag, since lapsed keys are
+ * still keyState='solid' under the hood).
+ */
+export interface KeyStateHint {
+  state: 'untouched' | 'learning' | 'comfortable' | 'solid';
+  isLapsed: boolean;
+}
+
+export function buildKeyStateHints(
+  songKeys: ReadonlyArray<SongKey>,
+  now: number,
+): Map<string, KeyStateHint> {
+  const m = new Map<string, KeyStateHint>();
+  for (const k of songKeys) {
+    const decay = computeSolidDecayState(k, now);
+    const state: KeyStateHint['state'] =
+      k.keyState === 'not_started' ? 'untouched' : k.keyState;
+    m.set(k.keyName, { state, isLapsed: decay === 'lapsed' });
+  }
+  return m;
 }
 
 // ---- Encode (form state → Goal fields) -----------------------------
@@ -122,9 +182,13 @@ export interface SongTargetSelection {
   granularity: SongGranularity;
   wholeOption: SongWholeOption | null;
   crossKeyPercent: number;
-  /** Concrete major key, e.g. 'F'. Empty string when unset. */
+  /** Concrete major key, e.g. 'F'. Empty string when unset. Used for
+   *  both 'key' and 'section' granularities. */
   keyTarget: string;
   keyState: SongKeyState;
+  /** Section ID for 'section' granularity. Empty string when unset
+   *  or when granularity is 'whole' / 'key'. */
+  sectionId: string;
 }
 
 export interface EncodedSongTarget {
@@ -161,7 +225,14 @@ export function encodeSongTarget(sel: SongTargetSelection): EncodedSongTarget | 
       targetUnit: `${sel.keyTarget}:${sel.keyState}`,
     };
   }
-  // section: UI is disabled in Phase 1; never reaches here.
+  if (sel.granularity === 'section') {
+    if (!sel.sectionId || !sel.keyTarget) return null;
+    return {
+      targetMetric: SONG_METRIC.SECTION,
+      targetValue: null,
+      targetUnit: `${sel.sectionId}:${sel.keyTarget}:${sel.keyState}`,
+    };
+  }
   return null;
 }
 
@@ -208,8 +279,16 @@ export function decodeSongTarget(goal: Goal): SongTargetSelection | null {
     });
   }
 
-  // SECTION: ignored in Phase 1 (no UI). Caller will fall back to
-  // generic display in describeGoal.
+  if (goal.targetMetric === SONG_METRIC.SECTION) {
+    const [sectionId, key, state] = (goal.targetUnit ?? '').split(':');
+    return baseSelection({
+      granularity: 'section',
+      sectionId: sectionId ?? '',
+      keyTarget: key ?? '',
+      keyState: state === 'solid' ? 'solid' : 'comfortable',
+    });
+  }
+
   return null;
 }
 
@@ -220,6 +299,7 @@ function baseSelection(over: Partial<SongTargetSelection>): SongTargetSelection 
     crossKeyPercent: CROSS_KEY_PERCENT_DEFAULT,
     keyTarget: '',
     keyState: 'comfortable',
+    sectionId: '',
     ...over,
   };
 }
@@ -229,18 +309,23 @@ function baseSelection(over: Partial<SongTargetSelection>): SongTargetSelection 
 interface PreviewSong {
   title: string;
   key?: string;
+  /** Section names indexed by id. Required for section-level
+   *  preview; ignored otherwise. Falls back to "a section" when
+   *  the id can't be resolved. */
+  sectionNamesById?: ReadonlyMap<string, string>;
 }
 
 /**
  * Render the natural-language preview for a song-mode goal. Returns
  * null when the selection isn't fully specified.
  *
- * Examples (per addendum):
+ * Examples:
  *   "Take Mirror to Solid in C"
  *   "Take Mirror to Cross-key 50%"
  *   "Take Mirror to Internalized"
  *   "Get Mirror Comfortable in F"
  *   "Get Mirror Solid in F"
+ *   "Get the Bridge of Mirror Comfortable in F"
  */
 export function previewSongTarget(
   sel: SongTargetSelection,
@@ -266,6 +351,12 @@ export function previewSongTarget(
     if (!sel.keyTarget) return null;
     const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
     return `Get ${title} ${stateLabel} in ${sel.keyTarget}`;
+  }
+  if (sel.granularity === 'section') {
+    if (!sel.sectionId || !sel.keyTarget) return null;
+    const sectionName = song.sectionNamesById?.get(sel.sectionId) ?? 'a section';
+    const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
+    return `Get the ${sectionName} of ${title} ${stateLabel} in ${sel.keyTarget}`;
   }
   return null;
 }
@@ -297,6 +388,10 @@ export function describeSongGoalTarget(
   if (sel.granularity === 'key' && sel.keyTarget) {
     const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
     return `Get song ${stateLabel} in ${sel.keyTarget}`;
+  }
+  if (sel.granularity === 'section' && sel.sectionId && sel.keyTarget) {
+    const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
+    return `Get a section of song ${stateLabel} in ${sel.keyTarget}`;
   }
   return null;
 }
