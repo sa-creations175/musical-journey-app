@@ -196,7 +196,20 @@ interface Draft {
   /** Epoch ms. Null until scope is picked; auto-populates per
    *  scope and is user-editable thereafter. */
   targetDate: number | null;
+  // Step 3.5 — parent goal (build step 10)
+  parentGoal: ParentGoalChoice;
 }
+
+/**
+ * Discriminated union for the parent-goal selection in Step 3.5.
+ * The "unset" state distinguishes "user hasn't decided yet" from
+ * "user explicitly chose no parent" — Step 3.5 validity gates Next
+ * on a non-unset choice so the user can't skip the question.
+ */
+type ParentGoalChoice =
+  | { kind: 'unset' }
+  | { kind: 'none' }
+  | { kind: 'linked'; goalId: string };
 
 /**
  * Mirrors `defaultSongTarget` in GoalFormModal. Duplicated rather
@@ -409,6 +422,7 @@ const EMPTY_DRAFT: Draft = {
   practiceConsistency: defaultPracticeConsistency(),
   scope: null,
   targetDate: null,
+  parentGoal: { kind: 'unset' },
 };
 
 /**
@@ -446,8 +460,10 @@ function isCurrentStepValid(stepId: StepDef['id'], draft: Draft): boolean {
       return isStep2Valid(draft);
     case '3':
       return draft.scope !== null && draft.targetDate !== null;
-    // TODO: real gates land in step 10 (parent goal) alongside its UI.
     case '3.5':
+      // Step 3.5 forces an explicit choice — "No parent goal" counts
+      // as a valid selection, but the user must actively pick.
+      return draft.parentGoal.kind !== 'unset';
     case '4':
     default:
       return true;
@@ -601,6 +617,8 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
         // reset so the next module starts clean.
         scope: null,
         targetDate: null,
+        // Parent goal eligibility depends on scope, which just reset.
+        parentGoal: { kind: 'unset' },
       };
     });
   };
@@ -650,6 +668,8 @@ function renderStep(
       return <Step2View draft={draft} onUpdate={updateDraft} />;
     case '3':
       return <Step3View draft={draft} onUpdate={updateDraft} />;
+    case '3.5':
+      return <Step3HalfView draft={draft} onUpdate={updateDraft} />;
     default:
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -2348,10 +2368,13 @@ function Step3View({
     if (sectionLocked && scope !== 'weekly') return;
     if (scope === draft.scope) return;
     // Auto-populate target date on scope change. User can override
-    // via the date input below.
+    // via the date input below. Also reset the parent-goal choice —
+    // parent eligibility filters by scope, so a previously valid
+    // parent may no longer be eligible after the scope changes.
     onUpdate({
       scope,
       targetDate: defaultTargetDate(scope),
+      parentGoal: { kind: 'unset' },
     });
   };
 
@@ -2427,6 +2450,192 @@ function ScopeCard({
       ].join(' ')}
     >
       {label}
+    </button>
+  );
+}
+
+// ---- Step 3.5 — parent goal ----------------------------------------
+
+/**
+ * Map the goal-flow card identifier to the matching ModuleId in
+ * `relatedModules` arrays on existing Goal records. Returns null
+ * for `practice-consistency`, which has no module-registry
+ * counterpart — those goals are matched purely on scope, no module
+ * filter.
+ */
+function moduleIdForCard(id: ModuleCardId | null): string | null {
+  if (id === null) return null;
+  if (id === 'practice-consistency') return null;
+  return id;
+}
+
+/**
+ * Partition the eligible parent-goal pool into "Suggested" (module
+ * match against the child's module) and "All" (eligible by scope but
+ * no module match). Both arrays sorted by scope, broader first, so
+ * yearly suggestions outrank quarterly and so on.
+ */
+function splitParentCandidates(
+  goals: ReadonlyArray<Goal>,
+  childScope: GoalScope,
+  childModule: ModuleCardId | null,
+): { suggested: Goal[]; rest: Goal[] } {
+  const childScopeIdx = SCOPE_ORDER.indexOf(childScope);
+  const eligible = goals.filter(g => SCOPE_ORDER.indexOf(g.scope) > childScopeIdx);
+  const moduleKey = moduleIdForCard(childModule);
+
+  const suggested: Goal[] = [];
+  const rest: Goal[] = [];
+  for (const g of eligible) {
+    if (moduleKey && g.relatedModules.includes(moduleKey)) {
+      suggested.push(g);
+    } else {
+      rest.push(g);
+    }
+  }
+  const broaderFirst = (a: Goal, b: Goal) =>
+    SCOPE_ORDER.indexOf(b.scope) - SCOPE_ORDER.indexOf(a.scope);
+  suggested.sort(broaderFirst);
+  rest.sort(broaderFirst);
+  return { suggested, rest };
+}
+
+function parentGoalCardLabel(g: Goal): string {
+  const desc = g.description.trim();
+  if (desc.length > 0) return desc;
+  return `(untitled ${SCOPE_LABEL[g.scope]} goal)`;
+}
+
+function Step3HalfView({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  const allGoals = useLiveQuery(
+    () => db.goals.where('status').equals('active').toArray(),
+    [],
+    [] as Goal[],
+  );
+
+  const { suggested, rest } = useMemo(() => {
+    if (!draft.scope) return { suggested: [] as Goal[], rest: [] as Goal[] };
+    return splitParentCandidates(allGoals, draft.scope, draft.moduleId);
+  }, [allGoals, draft.scope, draft.moduleId]);
+
+  const setNone = () => onUpdate({ parentGoal: { kind: 'none' } });
+  const setLinked = (goalId: string) => onUpdate({ parentGoal: { kind: 'linked', goalId } });
+
+  const noneSelected = draft.parentGoal.kind === 'none';
+  const linkedId = draft.parentGoal.kind === 'linked' ? draft.parentGoal.goalId : null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        Most goals roll up into a yearly umbrella. Pick a parent or mark this as standalone.
+      </p>
+
+      <ParentChoiceCard
+        title="No parent goal"
+        subtitle="This is a standalone goal."
+        active={noneSelected}
+        onClick={setNone}
+      />
+
+      {suggested.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            Suggested
+          </div>
+          {suggested.map(g => (
+            <ParentChoiceCard
+              key={g.id}
+              title={parentGoalCardLabel(g)}
+              subtitle={SCOPE_LABEL[g.scope]}
+              active={linkedId === g.id}
+              onClick={() => setLinked(g.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {rest.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            {suggested.length > 0 ? 'All goals' : 'Available goals'}
+          </div>
+          {rest.map(g => (
+            <ParentChoiceCard
+              key={g.id}
+              title={parentGoalCardLabel(g)}
+              subtitle={SCOPE_LABEL[g.scope]}
+              active={linkedId === g.id}
+              onClick={() => setLinked(g.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {suggested.length === 0 && rest.length === 0 && (
+        <div className="text-xs text-neutral-500 dark:text-neutral-400 italic px-1">
+          No broader-scope goals exist yet — only "No parent goal" is available.
+        </div>
+      )}
+
+      {/* Create-new-parent shortcut. The exact flow (nested modal vs.
+          deferred creation) is TBD per the spec — for now this surfaces
+          the affordance with a tooltip so the UX intent is visible
+          without committing to an implementation. */}
+      <button
+        type="button"
+        disabled
+        title="Coming soon — for now, save this goal then add a parent goal separately."
+        className="self-start text-xs text-neutral-500 dark:text-neutral-400 px-3 py-1.5 rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 cursor-not-allowed opacity-60"
+      >
+        + Create new parent goal
+      </button>
+    </div>
+  );
+}
+
+function ParentChoiceCard({
+  title,
+  subtitle,
+  active,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        'flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition',
+        active
+          ? 'border-fluent bg-fluent/10'
+          : 'border-neutral-200 dark:border-neutral-800 hover:border-fluent/60',
+      ].join(' ')}
+    >
+      <span className={[
+        'text-sm font-medium truncate',
+        active ? 'text-fluent' : 'text-neutral-800 dark:text-neutral-100',
+      ].join(' ')}>
+        {title}
+      </span>
+      <span className={[
+        'shrink-0 text-[10px] uppercase tracking-wide',
+        active
+          ? 'text-fluent/80'
+          : 'text-neutral-500 dark:text-neutral-400',
+      ].join(' ')}>
+        {subtitle}
+      </span>
     </button>
   );
 }
