@@ -27,3 +27,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Doc bundle archives (source-of-truth lives in the loose .md files)
+docs/*.zip
