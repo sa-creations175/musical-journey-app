@@ -26,6 +26,13 @@ import {
 import { PRODUCTION_PATHS } from '../production/content/paths';
 import { lessonsByPath } from '../production/content/lessons';
 import {
+  SCOPE_ORDER,
+  SCOPE_LABEL,
+  defaultTargetDate,
+  dateInputValue,
+  dateInputToMs,
+} from './scopeMeta';
+import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
   type KeyStateHint,
@@ -184,6 +191,11 @@ interface Draft {
   production: ProductionTarget;
   // Practice consistency (build step 8)
   practiceConsistency: PracticeConsistencyTarget;
+  // Step 3 — timeframe (build step 9)
+  scope: GoalScope | null;
+  /** Epoch ms. Null until scope is picked; auto-populates per
+   *  scope and is user-editable thereafter. */
+  targetDate: number | null;
 }
 
 /**
@@ -395,7 +407,34 @@ const EMPTY_DRAFT: Draft = {
   shapesPatterns: defaultShapesPatterns(),
   production: defaultProduction(),
   practiceConsistency: defaultPracticeConsistency(),
+  scope: null,
+  targetDate: null,
 };
+
+/**
+ * Build the initial Draft for a fresh open. When `initialScope` is
+ * provided (the parent opened the flow with a layer pre-selected, e.g.
+ * the per-layer "+ Add" affordance), pre-fill scope + targetDate so
+ * Step 3 lands on that scope. Otherwise EMPTY_DRAFT.
+ */
+function buildInitialDraft(initialScope: GoalScope | null | undefined): Draft {
+  if (!initialScope) return EMPTY_DRAFT;
+  return {
+    ...EMPTY_DRAFT,
+    scope: initialScope,
+    targetDate: defaultTargetDate(initialScope),
+  };
+}
+
+/**
+ * True when the user picked a song goal at section granularity in
+ * Step 2. Section goals are weekly-only per spec — Step 3 forces
+ * scope=weekly and disables the other scope cards in this case.
+ */
+function isSectionGoal(draft: Draft): boolean {
+  return draft.moduleId === 'repertoire'
+    && draft.songTarget.granularity === 'section';
+}
 
 // ---- Per-step validity ---------------------------------------------
 
@@ -405,8 +444,9 @@ function isCurrentStepValid(stepId: StepDef['id'], draft: Draft): boolean {
       return draft.moduleId !== null;
     case '2':
       return isStep2Valid(draft);
-    // TODO: real gates land in steps 9 / 10 alongside each step's UI.
     case '3':
+      return draft.scope !== null && draft.targetDate !== null;
+    // TODO: real gates land in step 10 (parent goal) alongside its UI.
     case '3.5':
     case '4':
     default:
@@ -489,21 +529,23 @@ function isPracticeConsistencyValid(t: PracticeConsistencyTarget): boolean {
 
 // ---- Component -----------------------------------------------------
 
-export default function GoalCreationFlow({ open, onClose }: Props) {
-  // `initialGoal` and `initialScope` are declared on Props so
-  // consumers can pass them today, but not yet read here. Wired in
-  // step 9 (scope pre-fill) and step 14 (edit-mode landing step).
+export default function GoalCreationFlow({ open, onClose, initialScope }: Props) {
+  // `initialGoal` is declared on Props so consumers can pass it
+  // today, but not yet read here — wired in step 14 (edit-mode
+  // landing step). `initialScope` is consumed below to pre-fill
+  // Step 3 when the parent opens the flow with a layer pre-selected
+  // (e.g. the per-layer "+ Add" affordance).
   const [stepIndex, setStepIndex] = useState(0);
-  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<Draft>(() => buildInitialDraft(initialScope));
 
   // Wrap the parent's onClose so every close path resets to Step 1
-  // with an empty draft. Routed to: Modal's Esc/backdrop/X (via the
-  // onClose prop below), Back on Step 1 (via goBack), and Save (via
-  // goNext on the last step). Re-opening always lands on Step 1
-  // with no carry-over state.
+  // with the freshly-rebuilt initial draft (preserving initialScope
+  // pre-fill). Routed to: Modal's Esc/backdrop/X (via the onClose
+  // prop below), Back on Step 1 (via goBack), and Save (via goNext
+  // on the last step). Re-opening always lands on Step 1.
   const handleClose = () => {
     setStepIndex(0);
-    setDraft(EMPTY_DRAFT);
+    setDraft(buildInitialDraft(initialScope));
     onClose();
   };
   const step = STEPS[stepIndex];
@@ -522,9 +564,20 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
       // TODO: real save in step 11. Shell just dismisses; handleClose
       // resets stepIndex and draft.
       handleClose();
-    } else {
-      setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
+      return;
     }
+    // Cross-step coupling: leaving Step 2 with a section-granularity
+    // song goal forces scope to weekly per spec. Done here (rather
+    // than reactively in Step 2) so the user explicitly commits
+    // to advancing before the scope is locked.
+    if (step.id === '2' && isSectionGoal(draft) && draft.scope !== 'weekly') {
+      setDraft(d => ({
+        ...d,
+        scope: 'weekly',
+        targetDate: defaultTargetDate('weekly'),
+      }));
+    }
+    setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
   };
 
   const selectModule = (id: ModuleCardId) => {
@@ -543,6 +596,11 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
         shapesPatterns: defaultShapesPatterns(),
         production: defaultProduction(),
         practiceConsistency: defaultPracticeConsistency(),
+        // Scope + targetDate are also module-agnostic but section-
+        // locked weekly may have been forced by a prior selection;
+        // reset so the next module starts clean.
+        scope: null,
+        targetDate: null,
       };
     });
   };
@@ -590,6 +648,8 @@ function renderStep(
       return <Step1ModuleCards selectedId={draft.moduleId} onSelect={selectModule} />;
     case '2':
       return <Step2View draft={draft} onUpdate={updateDraft} />;
+    case '3':
+      return <Step3View draft={draft} onUpdate={updateDraft} />;
     default:
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -2267,6 +2327,108 @@ function previewPracticeConsistencyTarget(target: PracticeConsistencyTarget): st
   const dayWord = target.days === 1 ? 'day' : 'days';
   const period = target.cadence === 'week' ? 'a week' : 'this month';
   return `Practice at least ${target.days} ${dayWord} ${period}`;
+}
+
+// ---- Step 3 — timeframe --------------------------------------------
+
+function Step3View({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  // Section goals are weekly-only per spec. The five non-weekly
+  // cards render disabled with a tooltip; clicking them is a no-op.
+  // goNext from Step 2 already forces scope=weekly for section goals,
+  // so by the time this view renders the lock is already in effect.
+  const sectionLocked = isSectionGoal(draft);
+
+  const setScope = (scope: GoalScope) => {
+    if (sectionLocked && scope !== 'weekly') return;
+    if (scope === draft.scope) return;
+    // Auto-populate target date on scope change. User can override
+    // via the date input below.
+    onUpdate({
+      scope,
+      targetDate: defaultTargetDate(scope),
+    });
+  };
+
+  const setTargetDate = (value: string) => {
+    const ms = dateInputToMs(value);
+    onUpdate({ targetDate: ms });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        {sectionLocked
+          ? 'Section goals are weekly only.'
+          : 'Pick a horizon. Target date auto-populates and can be edited below.'}
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {SCOPE_ORDER.map(scope => {
+          const disabled = sectionLocked && scope !== 'weekly';
+          return (
+            <ScopeCard
+              key={scope}
+              label={SCOPE_LABEL[scope]}
+              active={draft.scope === scope}
+              disabled={disabled}
+              onClick={() => setScope(scope)}
+              tooltip={disabled ? 'Section goals are weekly only' : undefined}
+            />
+          );
+        })}
+      </div>
+      <Field label="Target date">
+        <input
+          type="date"
+          value={draft.targetDate !== null ? dateInputValue(draft.targetDate) : ''}
+          onChange={e => setTargetDate(e.target.value)}
+          className={inputClass()}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function ScopeCard({
+  label,
+  active,
+  disabled,
+  tooltip,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  disabled: boolean;
+  tooltip?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      title={tooltip}
+      className={[
+        'rounded-md border px-3 py-3 transition text-center text-sm font-medium',
+        active
+          ? 'border-fluent bg-fluent/10 text-fluent'
+          : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200',
+        disabled
+          ? 'opacity-40 cursor-not-allowed'
+          : !active
+            ? 'hover:border-fluent/60 cursor-pointer'
+            : 'cursor-pointer',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
 }
 
 // ---- Dot indicator -------------------------------------------------
