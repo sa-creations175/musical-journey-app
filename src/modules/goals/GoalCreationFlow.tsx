@@ -35,12 +35,15 @@ import {
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
+  encodeSongTarget,
+  previewSongTarget,
   type KeyStateHint,
   type SongTargetSelection,
 } from './songTarget';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
 import Field from './Field';
 import { inputClass } from './formStyles';
+import type { PracticeSessionContext } from '../../lib/db';
 
 /**
  * Phase 1.6 — guided 5-step goal creation flow. Replaces
@@ -553,6 +556,7 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
   // (e.g. the per-layer "+ Add" affordance).
   const [stepIndex, setStepIndex] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => buildInitialDraft(initialScope));
+  const [saving, setSaving] = useState(false);
 
   // Wrap the parent's onClose so every close path resets to Step 1
   // with the freshly-rebuilt initial draft (preserving initialScope
@@ -562,7 +566,88 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
   const handleClose = () => {
     setStepIndex(0);
     setDraft(buildInitialDraft(initialScope));
+    setSaving(false);
     onClose();
+  };
+
+  /**
+   * Assemble the encoded records into Goal rows and persist via
+   * `db.goals.put`. Multi-target draft → two rows that share their
+   * parent_goal_id (the user's chosen parent if any, else null) per
+   * the spec's "two linked records" decision.
+   *
+   * Async because we await-fetch the song record + matrix sections
+   * for song goals (description rendering depends on them) and the
+   * dexie writes themselves.
+   */
+  const handleSave = async () => {
+    if (saving) return;
+    if (!draft.moduleId || !draft.scope || draft.targetDate === null) return;
+    setSaving(true);
+    try {
+      // Fetch song-only context up front so the same data feeds both
+      // description and encoder. For non-song modules these are
+      // empty/no-ops.
+      let songRecord: Song | undefined;
+      let sectionNamesById: ReadonlyMap<string, string> = new Map();
+      if (draft.moduleId === 'repertoire' && draft.songId) {
+        songRecord = await db.songs.get(draft.songId);
+        if (!songRecord) {
+          // Song was deleted between Step 2 and Save — abort silently
+          // and let the user re-pick on next open.
+          console.warn('[goal-flow] song missing on save; aborting');
+          setSaving(false);
+          return;
+        }
+        const sections = await db.songMatrixSections.where('songId').equals(draft.songId).toArray();
+        sectionNamesById = new Map(
+          sections.filter(s => !s.isArchived).map(s => [s.id, s.name]),
+        );
+      }
+
+      const records = encodeRecordsForDraft(draft, songRecord, sectionNamesById);
+      if (records.length === 0) {
+        console.warn('[goal-flow] no records to save; aborting');
+        setSaving(false);
+        return;
+      }
+
+      const now = Date.now();
+      const parentGoalId = draft.parentGoal.kind === 'linked' ? draft.parentGoal.goalId : null;
+      const contextTag = contextForModule(draft.moduleId);
+      const relatedModules = relatedModulesForCard(draft.moduleId);
+      const relatedItems = draft.songId ? [draft.songId] : [];
+
+      // Multi-target: two records share parent_goal_id (per spec) but
+      // are otherwise independent rows. Single-target: one record.
+      for (const record of records) {
+        const goal: Goal = {
+          id: uid('goal'),
+          scope: draft.scope,
+          description: record.description,
+          targetMetric: record.targetMetric,
+          targetValue: record.targetValue,
+          targetUnit: record.targetUnit,
+          currentValue: 0,
+          contextTag,
+          relatedModules,
+          relatedItems,
+          startDate: now,
+          targetDate: draft.targetDate,
+          status: 'active',
+          parentGoalId,
+          contributesNumericallyToParent: false,
+          isUmbrella: false,
+          lastEngagedAt: now,
+        };
+        await db.goals.put(goal);
+      }
+
+      handleClose();
+    } catch (err) {
+      console.warn('[goal-flow] save failed', err);
+      setSaving(false);
+    }
   };
   const step = STEPS[stepIndex];
   const isFirst = stepIndex === 0;
@@ -575,11 +660,9 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
   };
 
   const goNext = () => {
-    if (!canAdvance) return;
+    if (!canAdvance || saving) return;
     if (isLast) {
-      // TODO: real save in step 11. Shell just dismisses; handleClose
-      // resets stepIndex and draft.
-      handleClose();
+      void handleSave();
       return;
     }
     // Cross-step coupling: leaving Step 2 with a section-granularity
@@ -640,10 +723,10 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
       <button
         type="button"
         onClick={goNext}
-        disabled={!canAdvance}
+        disabled={!canAdvance || saving}
         className="px-4 py-2 text-sm rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {isLast ? 'Save goal' : 'Next'}
+        {isLast ? (saving ? 'Saving…' : 'Save goal') : 'Next'}
       </button>
     </div>
   );
@@ -670,6 +753,8 @@ function renderStep(
       return <Step3View draft={draft} onUpdate={updateDraft} />;
     case '3.5':
       return <Step3HalfView draft={draft} onUpdate={updateDraft} />;
+    case '4':
+      return <Step4View draft={draft} />;
     default:
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -2637,6 +2722,398 @@ function ParentChoiceCard({
         {subtitle}
       </span>
     </button>
+  );
+}
+
+// ---- Step 4 — review + save ----------------------------------------
+
+/**
+ * Map a goal-flow card identifier to the moduleId(s) we stamp into
+ * a Goal record's `relatedModules`. Five card ids match registry
+ * module ids 1:1; `practice-consistency` has no module-registry
+ * counterpart so its goals carry no related module.
+ */
+function relatedModulesForCard(id: ModuleCardId | null): string[] {
+  if (id === null) return [];
+  if (id === 'practice-consistency') return [];
+  return [id];
+}
+
+/**
+ * Default practice context inferred from the chosen module per the
+ * spec's "Context inferred from module" rule. Practice consistency
+ * has no specific context — it's a meta-target across all modules,
+ * so contextTag stays null.
+ */
+function contextForModule(id: ModuleCardId | null): PracticeSessionContext | null {
+  switch (id) {
+    case 'repertoire':           return 'keys';   // physical keyboard
+    case 'shapes-and-patterns':  return 'keys';   // physical keyboard
+    case 'ear-training':         return 'mixed';  // laptop or phone
+    case 'harmonic-fluency':     return 'mixed';  // keyboard / laptop / phone
+    case 'production':           return 'laptop'; // DAW
+    case 'practice-consistency': return null;
+    case null:                   return null;
+  }
+}
+
+/**
+ * True when the active module's draft has both target slices enabled
+ * — accuracy + consistency for ear-training / harmonic-fluency,
+ * proficiency + consistency for shapes & patterns, completion + time
+ * for production. Drives the "Multi-target" pill on Step 4 and the
+ * two-records branch in encodeRecordsForDraft.
+ */
+function isMultiTarget(draft: Draft): boolean {
+  switch (draft.moduleId) {
+    case 'ear-training':         return draft.earTraining.accuracyEnabled && draft.earTraining.consistencyEnabled;
+    case 'harmonic-fluency':     return draft.harmonicFluency.accuracyEnabled && draft.harmonicFluency.consistencyEnabled;
+    case 'shapes-and-patterns':  return draft.shapesPatterns.proficiencyEnabled && draft.shapesPatterns.consistencyEnabled;
+    case 'production':           return draft.production.completionEnabled && draft.production.consistencyEnabled;
+    default:                     return false;
+  }
+}
+
+function moduleLabelForCard(id: ModuleCardId): string {
+  return MODULE_CARDS.find(c => c.id === id)?.name ?? id;
+}
+
+function formatTargetDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// ---- Per-record encoding -------------------------------------------
+
+/**
+ * One row that becomes a Goal record at save time. For multi-target
+ * goals (ear-training accuracy + consistency, etc.), the encoder
+ * returns two entries; siblings share parent_goal_id at save time
+ * per the spec's "two linked records sharing parent_goal_id" rule.
+ */
+interface EncodedRecord {
+  /** Sliced natural-language description for this specific record.
+   *  Multi-target goals slice the combined preview so each record's
+   *  description honestly reflects only its own target metric. */
+  description: string;
+  targetMetric: string;
+  targetValue: number | null;
+  targetUnit: string | null;
+}
+
+function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
+  const records: EncodedRecord[] = [];
+  if (t.accuracyEnabled) {
+    const sliced = previewEarTrainingTarget({ ...t, consistencyEnabled: false });
+    if (sliced) {
+      if (t.accuracyScope === 'overall') {
+        records.push({
+          description: sliced,
+          targetMetric: 'ear_training_accuracy_overall',
+          targetValue: t.accuracyPercent,
+          targetUnit: null,
+        });
+      } else if (t.drillTypeId && t.drillSubtypeId) {
+        records.push({
+          description: sliced,
+          targetMetric: 'ear_training_accuracy_specific',
+          targetValue: t.accuracyPercent,
+          targetUnit: `${t.drillTypeId}:${t.drillSubtypeId}`,
+        });
+      }
+    }
+  }
+  if (t.consistencyEnabled && t.consistencyCount >= 1) {
+    const sliced = previewEarTrainingTarget({ ...t, accuracyEnabled: false });
+    if (sliced) {
+      records.push({
+        description: sliced,
+        targetMetric: 'ear_training_sessions_per_cadence',
+        targetValue: t.consistencyCount,
+        targetUnit: t.consistencyCadence,
+      });
+    }
+  }
+  return records;
+}
+
+function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
+  const records: EncodedRecord[] = [];
+  if (t.accuracyEnabled) {
+    const sliced = previewHarmonicFluencyTarget({ ...t, consistencyEnabled: false });
+    if (sliced) {
+      if (t.accuracyScope === 'overall') {
+        records.push({
+          description: sliced,
+          targetMetric: 'harmonic_fluency_accuracy_overall',
+          targetValue: t.accuracyPercent,
+          targetUnit: null,
+        });
+      } else if (t.categoryId) {
+        records.push({
+          description: sliced,
+          targetMetric: 'harmonic_fluency_accuracy_specific',
+          targetValue: t.accuracyPercent,
+          targetUnit: t.categoryId,
+        });
+      }
+    }
+  }
+  if (t.consistencyEnabled && t.consistencyCount >= 1) {
+    const sliced = previewHarmonicFluencyTarget({ ...t, accuracyEnabled: false });
+    if (sliced) {
+      records.push({
+        description: sliced,
+        targetMetric: 'harmonic_fluency_sessions_per_cadence',
+        targetValue: t.consistencyCount,
+        targetUnit: t.consistencyCadence,
+      });
+    }
+  }
+  return records;
+}
+
+function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
+  const records: EncodedRecord[] = [];
+  if (t.proficiencyEnabled && t.activityArea) {
+    const sliced = previewShapesPatternsTarget({ ...t, consistencyEnabled: false });
+    if (sliced) {
+      if (t.proficiencyScope === 'overall') {
+        records.push({
+          description: sliced,
+          targetMetric: 'shapes_proficiency_overall',
+          targetValue: null,
+          targetUnit: `${t.activityArea}:${t.proficiencyLevel}`,
+        });
+      } else if (t.shapeId && t.keyTarget) {
+        records.push({
+          description: sliced,
+          targetMetric: 'shapes_proficiency_specific',
+          targetValue: null,
+          targetUnit: `${t.activityArea}:${t.shapeId}:${t.keyTarget}:${t.proficiencyLevel}`,
+        });
+      }
+    }
+  }
+  if (t.consistencyEnabled && t.consistencyCount >= 1) {
+    const sliced = previewShapesPatternsTarget({ ...t, proficiencyEnabled: false });
+    if (sliced) {
+      records.push({
+        description: sliced,
+        targetMetric: 'shapes_minutes_per_cadence',
+        targetValue: t.consistencyCount,
+        targetUnit: t.consistencyCadence,
+      });
+    }
+  }
+  return records;
+}
+
+function encodeProduction(t: ProductionTarget): EncodedRecord[] {
+  const records: EncodedRecord[] = [];
+  if (t.completionEnabled) {
+    const sliced = previewProductionTarget({ ...t, consistencyEnabled: false });
+    if (sliced) {
+      if (t.completionScope === 'path' && t.pathId) {
+        records.push({
+          description: sliced,
+          targetMetric: 'production_path_completion',
+          targetValue: null,
+          targetUnit: t.pathId,
+        });
+      } else if (t.completionScope === 'count' && t.lessonCount >= 1) {
+        records.push({
+          description: sliced,
+          targetMetric: 'production_lessons_count',
+          targetValue: t.lessonCount,
+          targetUnit: 'lessons',
+        });
+      }
+    }
+  }
+  if (t.consistencyEnabled && t.consistencyCount >= 1) {
+    const sliced = previewProductionTarget({ ...t, completionEnabled: false });
+    if (sliced) {
+      records.push({
+        description: sliced,
+        targetMetric: 'production_hours_per_cadence',
+        targetValue: t.consistencyCount,
+        targetUnit: t.consistencyCadence,
+      });
+    }
+  }
+  return records;
+}
+
+function encodePracticeConsistency(t: PracticeConsistencyTarget): EncodedRecord[] {
+  if (t.days < 1) return [];
+  const sliced = previewPracticeConsistencyTarget(t);
+  if (!sliced) return [];
+  return [{
+    description: sliced,
+    targetMetric: 'practice_days_per_cadence',
+    targetValue: t.days,
+    targetUnit: t.cadence,
+  }];
+}
+
+function encodeSongRecord(
+  draft: Draft,
+  songRecord: Song,
+  sectionNamesById: ReadonlyMap<string, string>,
+): EncodedRecord[] {
+  const encoded = encodeSongTarget(draft.songTarget);
+  if (!encoded) return [];
+  const description = previewSongTarget(draft.songTarget, {
+    title: songRecord.title,
+    key: songRecord.key,
+    sectionNamesById,
+  });
+  if (!description) return [];
+  return [{
+    description,
+    targetMetric: encoded.targetMetric,
+    targetValue: encoded.targetValue,
+    targetUnit: encoded.targetUnit,
+  }];
+}
+
+/**
+ * Dispatch to the per-module encoder. Returns the array of records
+ * to write — 1 entry for single-target goals, 2 for multi-target
+ * (one row per metric). Caller wraps each into a full Goal record
+ * with shared metadata (scope, targetDate, parentGoalId, etc.) at
+ * save time.
+ */
+function encodeRecordsForDraft(
+  draft: Draft,
+  songRecord: Song | undefined,
+  sectionNamesById: ReadonlyMap<string, string>,
+): EncodedRecord[] {
+  switch (draft.moduleId) {
+    case 'repertoire':
+      if (!songRecord) return [];
+      return encodeSongRecord(draft, songRecord, sectionNamesById);
+    case 'ear-training':         return encodeEarTraining(draft.earTraining);
+    case 'harmonic-fluency':     return encodeHarmonicFluency(draft.harmonicFluency);
+    case 'shapes-and-patterns':  return encodeShapesPatterns(draft.shapesPatterns);
+    case 'production':           return encodeProduction(draft.production);
+    case 'practice-consistency': return encodePracticeConsistency(draft.practiceConsistency);
+    default:                     return [];
+  }
+}
+
+/**
+ * Combined natural-language preview for the review block. Multi-
+ * target goals render as the two slices joined with "and"; single-
+ * target goals render their preview as-is. Reuses the per-module
+ * preview helpers we already use elsewhere in the flow.
+ */
+function computeGoalDescription(
+  draft: Draft,
+  songRecord: Song | undefined,
+  sectionNamesById: ReadonlyMap<string, string>,
+): string | null {
+  switch (draft.moduleId) {
+    case 'repertoire':
+      if (!songRecord) return null;
+      return previewSongTarget(draft.songTarget, {
+        title: songRecord.title,
+        key: songRecord.key,
+        sectionNamesById,
+      });
+    case 'ear-training':         return previewEarTrainingTarget(draft.earTraining);
+    case 'harmonic-fluency':     return previewHarmonicFluencyTarget(draft.harmonicFluency);
+    case 'shapes-and-patterns':  return previewShapesPatternsTarget(draft.shapesPatterns);
+    case 'production':           return previewProductionTarget(draft.production);
+    case 'practice-consistency': return previewPracticeConsistencyTarget(draft.practiceConsistency);
+    default:                     return null;
+  }
+}
+
+// ---- Step 4 view ---------------------------------------------------
+
+function Step4View({ draft }: { draft: Draft }) {
+  // Async wrappers normalise the return type for useLiveQuery — the
+  // conditional `db.x.get(...)` paths return PromiseExtended which
+  // TypeScript struggles to unify with a sync `undefined` fallback.
+  const songRecord = useLiveQuery(
+    async () => {
+      if (!draft.songId) return undefined;
+      return await db.songs.get(draft.songId);
+    },
+    [draft.songId],
+    undefined as Song | undefined,
+  );
+  const matrixSections = useLiveQuery(
+    () => {
+      if (!draft.songId) return [] as SongMatrixSection[];
+      return db.songMatrixSections.where('songId').equals(draft.songId).toArray();
+    },
+    [draft.songId],
+    [] as SongMatrixSection[],
+  );
+  const parentGoalRecord = useLiveQuery(
+    async () => {
+      if (draft.parentGoal.kind !== 'linked') return undefined;
+      return await db.goals.get(draft.parentGoal.goalId);
+    },
+    [draft.parentGoal],
+    undefined as Goal | undefined,
+  );
+
+  const sectionNamesById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of matrixSections.filter(s => !s.isArchived)) m.set(s.id, s.name);
+    return m;
+  }, [matrixSections]);
+
+  const description = useMemo(
+    () => computeGoalDescription(draft, songRecord, sectionNamesById),
+    [draft, songRecord, sectionNamesById],
+  );
+
+  const moduleLabel = draft.moduleId !== null ? moduleLabelForCard(draft.moduleId) : null;
+  const moduleAccent = draft.moduleId !== null ? accentHexForCard(draft.moduleId) : null;
+  const parentLabel = parentGoalRecord
+    ? (parentGoalRecord.description.trim() || `(untitled ${SCOPE_LABEL[parentGoalRecord.scope]} goal)`)
+    : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-md border border-fluent/30 bg-fluent/5 px-4 py-4">
+        <div className="text-[10px] uppercase tracking-wide text-fluent mb-1">Your goal</div>
+        <div className="text-base font-medium text-neutral-800 dark:text-neutral-100 leading-snug">
+          {description ?? <span className="text-neutral-500 italic">Goal description unavailable.</span>}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {moduleLabel && moduleAccent && (
+          <span
+            className="rounded-md px-2.5 py-1 text-xs font-medium"
+            style={{
+              color: moduleAccent,
+              backgroundColor: `${moduleAccent}1a`,
+              border: `1px solid ${moduleAccent}33`,
+            }}
+          >
+            {moduleLabel}
+          </span>
+        )}
+        {draft.scope && <ReviewPill>{SCOPE_LABEL[draft.scope]}</ReviewPill>}
+        {draft.targetDate !== null && <ReviewPill>{formatTargetDate(draft.targetDate)}</ReviewPill>}
+        {parentLabel && <ReviewPill>Parent: {parentLabel}</ReviewPill>}
+        {draft.parentGoal.kind === 'none' && <ReviewPill>Standalone</ReviewPill>}
+        {isMultiTarget(draft) && <ReviewPill>Multi-target</ReviewPill>}
+      </div>
+    </div>
+  );
+}
+
+function ReviewPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 px-2.5 py-1 text-xs text-neutral-700 dark:text-neutral-200">
+      {children}
+    </span>
   );
 }
 
