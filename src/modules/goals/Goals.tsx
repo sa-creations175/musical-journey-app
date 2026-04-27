@@ -294,8 +294,16 @@ export default function Goals() {
         initialScope={formMode.kind === 'create' ? formMode.scope : null}
       />
 
-      {/* TEMP: edit-mode verification — remove this mount once verified */}
+      {/* TEMP: edit-mode verification — remove this mount once verified.
+          Keying by mode forces a full remount when the user switches
+          between create / edit / different-edit, so GoalCreationFlow's
+          useState lazy initializer re-runs with the current initialGoal.
+          Without the key the draft state stays stuck on whatever
+          handleClose last reset it to (the bug step 14 verification
+          surfaced — clicking edit on the consistency row of a multi-
+          target pair showed the previously-decoded accuracy slice). */}
       <GoalCreationFlow
+        key={tryNewFlowMode.kind === 'edit' ? `edit-${tryNewFlowMode.goal.id}` : tryNewFlowMode.kind}
         open={tryNewFlowMode.kind !== 'closed'}
         onClose={() => setTryNewFlowMode({ kind: 'closed' })}
         initialGoal={tryNewFlowMode.kind === 'edit' ? tryNewFlowMode.goal : null}
