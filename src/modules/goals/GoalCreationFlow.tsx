@@ -2215,7 +2215,16 @@ function Step2PracticeConsistency({
         How many days a week or month do you want to practice?
       </p>
       <div className="rounded-md border border-fluent/40 bg-fluent/5 px-3 py-3 flex items-end gap-2">
-        <Field label="Days">
+        {/* Manual div + span instead of <Field> (which wraps in
+            <label>). Wrapping a number input in a <label> that's a
+            flex sibling to focusable buttons can cause Safari to
+            redirect focus when the input clears — especially with
+            min={1} constraint validation tripping on empty value.
+            Same pattern SongPicker uses. */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+            Days
+          </span>
           <input
             type="number"
             min={1}
@@ -2224,7 +2233,7 @@ function Step2PracticeConsistency({
             className={`${inputClass()} w-20`}
             aria-label="Days per cadence"
           />
-        </Field>
+        </div>
         <div className="flex gap-1.5 pb-[2px]">
           <PillButton
             label="per week"
