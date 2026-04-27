@@ -23,6 +23,8 @@ import {
   VOICE_LEADING_PATTERNS,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
+import { PRODUCTION_PATHS } from '../production/content/paths';
+import { lessonsByPath } from '../production/content/lessons';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
@@ -178,6 +180,8 @@ interface Draft {
   harmonicFluency: HarmonicFluencyTarget;
   // Shapes & Patterns (build step 6)
   shapesPatterns: ShapesPatternsTarget;
+  // Production (build step 7)
+  production: ProductionTarget;
 }
 
 /**
@@ -318,6 +322,46 @@ function defaultShapesPatterns(): ShapesPatternsTarget {
   };
 }
 
+/**
+ * Production step 2 selection. Two combinable targets:
+ *   - Completion: either finish a specific path, or count up X new
+ *     lessons. The two completion scopes are mutually exclusive
+ *     within the completion target.
+ *   - Time: hours per week or month. Reuses the consistency field
+ *     names so the generic ConsistencyTargetCard can render it
+ *     (with unitLabel="Hours" + a renamed cardTitle).
+ *
+ * Lesson count is intentionally not capped — the catalog has 56
+ * total today but the user may set a goal beyond what's authored
+ * if they're planning ahead.
+ */
+interface ProductionTarget {
+  completionEnabled: boolean;
+  completionScope: 'path' | 'count';
+  /** Path id from PRODUCTION_PATHS — required when scope === 'path'. */
+  pathId: string | null;
+  /** Lesson count — meaningful when scope === 'count'. */
+  lessonCount: number;
+
+  consistencyEnabled: boolean;
+  /** Hours per cadence — same field name as count-based consistency
+   *  on other modules so the generic card can reuse it. */
+  consistencyCount: number;
+  consistencyCadence: 'week' | 'month';
+}
+
+function defaultProduction(): ProductionTarget {
+  return {
+    completionEnabled: false,
+    completionScope: 'path',
+    pathId: null,
+    lessonCount: 4,
+    consistencyEnabled: false,
+    consistencyCount: 2,
+    consistencyCadence: 'week',
+  };
+}
+
 const EMPTY_DRAFT: Draft = {
   moduleId: null,
   songId: null,
@@ -325,6 +369,7 @@ const EMPTY_DRAFT: Draft = {
   earTraining: defaultEarTraining(),
   harmonicFluency: defaultHarmonicFluency(),
   shapesPatterns: defaultShapesPatterns(),
+  production: defaultProduction(),
 };
 
 // ---- Per-step validity ---------------------------------------------
@@ -362,8 +407,11 @@ function isStep2Valid(draft: Draft): boolean {
   if (draft.moduleId === 'shapes-and-patterns') {
     return isShapesPatternsValid(draft.shapesPatterns);
   }
-  // TODO: Step 2 validity for the other two modules lands with their
-  // UI in build steps 7–8. Until then, default-true.
+  if (draft.moduleId === 'production') {
+    return isProductionValid(draft.production);
+  }
+  // TODO: Step 2 validity for practice-consistency lands in build
+  // step 8. Until then, default-true.
   return true;
 }
 
@@ -394,6 +442,16 @@ function isShapesPatternsValid(t: ShapesPatternsTarget): boolean {
       if (!t.shapeId) return false;
       if (!t.keyTarget) return false;
     }
+  }
+  if (t.consistencyEnabled && t.consistencyCount < 1) return false;
+  return true;
+}
+
+function isProductionValid(t: ProductionTarget): boolean {
+  if (!t.completionEnabled && !t.consistencyEnabled) return false;
+  if (t.completionEnabled) {
+    if (t.completionScope === 'path' && !t.pathId) return false;
+    if (t.completionScope === 'count' && t.lessonCount < 1) return false;
   }
   if (t.consistencyEnabled && t.consistencyCount < 1) return false;
   return true;
@@ -453,6 +511,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
         earTraining: defaultEarTraining(),
         harmonicFluency: defaultHarmonicFluency(),
         shapesPatterns: defaultShapesPatterns(),
+        production: defaultProduction(),
       };
     });
   };
@@ -601,6 +660,8 @@ function Step2View({
       return <Step2HarmonicFluency draft={draft} onUpdate={onUpdate} />;
     case 'shapes-and-patterns':
       return <Step2ShapesPatterns draft={draft} onUpdate={onUpdate} />;
+    case 'production':
+      return <Step2Production draft={draft} onUpdate={onUpdate} />;
     case null:
       // Defensive — shouldn't be reachable since Step 1 gates Next on
       // module being set, but keeps types honest.
@@ -610,8 +671,8 @@ function Step2View({
         </div>
       );
     default:
-      // TODO: Step 2 surfaces for the other two modules land in build
-      // steps 7–8. Until then, placeholder so navigation works end-to-end.
+      // TODO: Step 2 surface for practice-consistency lands in build
+      // step 8. Until then, placeholder so navigation works end-to-end.
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
           Step 2 for this module — coming soon.
@@ -1208,16 +1269,21 @@ function ConsistencyTargetCard<T extends ConsistencyFields>({
   onChange,
   unitLabel = 'Sessions',
   hint = 'Show up regularly — sessions per week or month.',
+  cardTitle = 'Consistency target',
 }: {
   target: T;
   onChange: (next: T) => void;
   /** Field label and ARIA label for the count input. Defaults to
    *  "Sessions" — modules that consume minutes (e.g., Shapes &
-   *  Patterns) override with "Minutes". */
+   *  Patterns) or hours (e.g., Production) override accordingly. */
   unitLabel?: string;
   /** Card-header hint text. Defaults to the sessions phrasing;
    *  override per module to keep the unit honest. */
   hint?: string;
+  /** Card-header title. Defaults to "Consistency target" — Production
+   *  overrides with "Time target" since hours-as-time reads more
+   *  naturally there. */
+  cardTitle?: string;
 }) {
   const toggle = () => onChange({ ...target, consistencyEnabled: !target.consistencyEnabled });
   const setCount = (n: number) => {
@@ -1232,7 +1298,7 @@ function ConsistencyTargetCard<T extends ConsistencyFields>({
 
   return (
     <ToggleCard
-      title="Consistency target"
+      title={cardTitle}
       hint={hint}
       enabled={target.consistencyEnabled}
       onToggle={toggle}
@@ -1910,6 +1976,144 @@ function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | nul
     const verb = parts.length === 0 ? 'Practice shapes & patterns' : 'practice';
     const minutesWord = target.consistencyCount === 1 ? 'minute' : 'minutes';
     parts.push(`${verb} at least ${target.consistencyCount} ${minutesWord} a ${target.consistencyCadence}`);
+  }
+  if (parts.length === 0) return null;
+  return parts.join(' and ');
+}
+
+// ---- Step 2 — Production -------------------------------------------
+
+function Step2Production({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  const target = draft.production;
+  const setTarget = (next: ProductionTarget) => onUpdate({ production: next });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        Pick at least one target. You can combine completion and time on a single goal.
+      </p>
+      <ProductionCompletionCard target={target} onChange={setTarget} />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        cardTitle="Time target"
+        unitLabel="Hours"
+        hint="How much time at the workstation per week or month."
+      />
+      <TargetPreview text={previewProductionTarget(target)} />
+    </div>
+  );
+}
+
+function ProductionCompletionCard({
+  target,
+  onChange,
+}: {
+  target: ProductionTarget;
+  onChange: (next: ProductionTarget) => void;
+}) {
+  const toggle = () => onChange({ ...target, completionEnabled: !target.completionEnabled });
+  const setScope = (scope: ProductionTarget['completionScope']) => {
+    if (scope === target.completionScope) return;
+    // Switching scope leaves the other scope's field intact so a
+    // user toggling back and forth doesn't lose work — only the
+    // active scope's field is consulted at save time.
+    onChange({ ...target, completionScope: scope });
+  };
+  const setPath = (id: string) => onChange({ ...target, pathId: id || null });
+  const setLessonCount = (n: number) => {
+    onChange({ ...target, lessonCount: Number.isFinite(n) ? n : 0 });
+  };
+
+  return (
+    <ToggleCard
+      title="Completion target"
+      hint="Finish a path, or rack up new lessons."
+      enabled={target.completionEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label="Complete a path"
+            active={target.completionScope === 'path'}
+            onClick={() => setScope('path')}
+          />
+          <PillButton
+            label="Complete X lessons"
+            active={target.completionScope === 'count'}
+            onClick={() => setScope('count')}
+          />
+        </div>
+      </Field>
+      {target.completionScope === 'path' && (
+        <Field label="Path">
+          <select
+            value={target.pathId ?? ''}
+            onChange={e => setPath(e.target.value)}
+            className={inputClass()}
+          >
+            <option value="">Pick a path…</option>
+            {PRODUCTION_PATHS.map(p => {
+              const count = lessonsByPath(p.id).length;
+              return (
+                <option key={p.id} value={p.id}>
+                  {p.title} ({count} lessons)
+                </option>
+              );
+            })}
+          </select>
+        </Field>
+      )}
+      {target.completionScope === 'count' && (
+        <Field label="Lessons">
+          <input
+            type="number"
+            min={1}
+            value={target.lessonCount === 0 ? '' : target.lessonCount}
+            onChange={e => setLessonCount(Number(e.target.value))}
+            className={`${inputClass()} w-20`}
+            aria-label="New lessons to complete"
+          />
+        </Field>
+      )}
+    </ToggleCard>
+  );
+}
+
+/**
+ * Spec preview phrasing:
+ *   completion / path:    "Complete the Workflow Foundations path"
+ *   completion / count:   "Complete 4 new production lessons"
+ *   time-only:            "Practice production at least 2 hours a week"
+ *   both (path + time):   "Complete the Workflow Foundations path and practice at least 2 hours a week"
+ *   both (count + time):  "Complete 4 new production lessons and practice at least 2 hours a week"
+ */
+function previewProductionTarget(target: ProductionTarget): string | null {
+  const parts: string[] = [];
+  if (target.completionEnabled) {
+    if (target.completionScope === 'path') {
+      if (!target.pathId) return null;
+      const path = PRODUCTION_PATHS.find(p => p.id === target.pathId);
+      if (!path) return null;
+      parts.push(`Complete the ${path.title} path`);
+    } else {
+      if (target.lessonCount < 1) return null;
+      const word = target.lessonCount === 1 ? 'lesson' : 'lessons';
+      parts.push(`Complete ${target.lessonCount} new production ${word}`);
+    }
+  }
+  if (target.consistencyEnabled) {
+    if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
+    const verb = parts.length === 0 ? 'Practice production' : 'practice';
+    const hoursWord = target.consistencyCount === 1 ? 'hour' : 'hours';
+    parts.push(`${verb} at least ${target.consistencyCount} ${hoursWord} a ${target.consistencyCadence}`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
