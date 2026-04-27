@@ -17,6 +17,13 @@ import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
+  CHORD_QUALITIES,
+  KEYS as SHAPES_KEYS,
+  SCALES,
+  VOICE_LEADING_PATTERNS,
+  type QualityKind,
+} from '../shapes-and-patterns/catalog';
+import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
   type KeyStateHint,
@@ -169,6 +176,8 @@ interface Draft {
   earTraining: EarTrainingTarget;
   // Harmonic Fluency (build step 5)
   harmonicFluency: HarmonicFluencyTarget;
+  // Shapes & Patterns (build step 6)
+  shapesPatterns: ShapesPatternsTarget;
 }
 
 /**
@@ -258,12 +267,64 @@ function defaultHarmonicFluency(): HarmonicFluencyTarget {
   };
 }
 
+/**
+ * Shapes & Patterns step 2 selection. Per
+ * docs/SHAPES_PROFICIENCY_DESIGN.md, shapes use song vocabulary
+ * (Learning → Comfortable → Solid → Internalized) and are tracked
+ * per shape × key. Three activity areas are in scope (Mental
+ * Visualization is excluded — different cognitive structure).
+ *
+ * Consistency uses the same three field names as ear-training /
+ * harmonic-fluency so it can share the generic ConsistencyTargetCard.
+ * The unit semantically is minutes (the card receives a unitLabel
+ * override). Sessions-based consistency is deferred per the build-
+ * step instruction.
+ */
+type ShapesActivityArea = 'scale_drills' | 'chord_shape_drills' | 'voice_leading';
+type ShapesProficiencyLevel = 'learning' | 'comfortable' | 'solid' | 'internalized';
+
+interface ShapesPatternsTarget {
+  proficiencyEnabled: boolean;
+  proficiencyScope: 'overall' | 'specific';
+  /** Required for both 'overall' (scopes the rollup) and 'specific'. */
+  activityArea: ShapesActivityArea | null;
+  /** Catalog id from CHORD_QUALITIES / SCALES / VOICE_LEADING_PATTERNS.
+   *  Required only for 'specific'. */
+  shapeId: string | null;
+  /** 'all' = the shape across all 12 keys; otherwise one of the 12
+   *  major keys. Only meaningful for 'specific'. */
+  keyTarget: 'all' | string;
+  proficiencyLevel: ShapesProficiencyLevel;
+
+  consistencyEnabled: boolean;
+  /** Minutes per cadence — same field name as session-count consistency
+   *  on other targets so the generic card can reuse the field. */
+  consistencyCount: number;
+  consistencyCadence: 'week' | 'month';
+}
+
+function defaultShapesPatterns(): ShapesPatternsTarget {
+  return {
+    proficiencyEnabled: false,
+    proficiencyScope: 'overall',
+    activityArea: null,
+    shapeId: null,
+    keyTarget: 'all',
+    proficiencyLevel: 'comfortable',
+    consistencyEnabled: false,
+    // 20 mins/week mirrors the spec preview example.
+    consistencyCount: 20,
+    consistencyCadence: 'week',
+  };
+}
+
 const EMPTY_DRAFT: Draft = {
   moduleId: null,
   songId: null,
   songTarget: defaultSongTarget(),
   earTraining: defaultEarTraining(),
   harmonicFluency: defaultHarmonicFluency(),
+  shapesPatterns: defaultShapesPatterns(),
 };
 
 // ---- Per-step validity ---------------------------------------------
@@ -298,8 +359,11 @@ function isStep2Valid(draft: Draft): boolean {
   if (draft.moduleId === 'harmonic-fluency') {
     return isHarmonicFluencyValid(draft.harmonicFluency);
   }
-  // TODO: Step 2 validity for the other three modules lands with their
-  // UI in build steps 6–8. Until then, default-true.
+  if (draft.moduleId === 'shapes-and-patterns') {
+    return isShapesPatternsValid(draft.shapesPatterns);
+  }
+  // TODO: Step 2 validity for the other two modules lands with their
+  // UI in build steps 7–8. Until then, default-true.
   return true;
 }
 
@@ -317,6 +381,19 @@ function isHarmonicFluencyValid(t: HarmonicFluencyTarget): boolean {
   if (!t.accuracyEnabled && !t.consistencyEnabled) return false;
   if (t.accuracyEnabled && t.accuracyScope === 'specific') {
     if (!t.categoryId) return false;
+  }
+  if (t.consistencyEnabled && t.consistencyCount < 1) return false;
+  return true;
+}
+
+function isShapesPatternsValid(t: ShapesPatternsTarget): boolean {
+  if (!t.proficiencyEnabled && !t.consistencyEnabled) return false;
+  if (t.proficiencyEnabled) {
+    if (!t.activityArea) return false;
+    if (t.proficiencyScope === 'specific') {
+      if (!t.shapeId) return false;
+      if (!t.keyTarget) return false;
+    }
   }
   if (t.consistencyEnabled && t.consistencyCount < 1) return false;
   return true;
@@ -375,6 +452,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
         songTarget: defaultSongTarget(),
         earTraining: defaultEarTraining(),
         harmonicFluency: defaultHarmonicFluency(),
+        shapesPatterns: defaultShapesPatterns(),
       };
     });
   };
@@ -521,6 +599,8 @@ function Step2View({
       return <Step2EarTraining draft={draft} onUpdate={onUpdate} />;
     case 'harmonic-fluency':
       return <Step2HarmonicFluency draft={draft} onUpdate={onUpdate} />;
+    case 'shapes-and-patterns':
+      return <Step2ShapesPatterns draft={draft} onUpdate={onUpdate} />;
     case null:
       // Defensive — shouldn't be reachable since Step 1 gates Next on
       // module being set, but keeps types honest.
@@ -530,8 +610,8 @@ function Step2View({
         </div>
       );
     default:
-      // TODO: Step 2 surfaces for the other three modules land in build
-      // steps 6–8. Until then, placeholder so navigation works end-to-end.
+      // TODO: Step 2 surfaces for the other two modules land in build
+      // steps 7–8. Until then, placeholder so navigation works end-to-end.
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
           Step 2 for this module — coming soon.
@@ -1126,9 +1206,18 @@ interface ConsistencyFields {
 function ConsistencyTargetCard<T extends ConsistencyFields>({
   target,
   onChange,
+  unitLabel = 'Sessions',
+  hint = 'Show up regularly — sessions per week or month.',
 }: {
   target: T;
   onChange: (next: T) => void;
+  /** Field label and ARIA label for the count input. Defaults to
+   *  "Sessions" — modules that consume minutes (e.g., Shapes &
+   *  Patterns) override with "Minutes". */
+  unitLabel?: string;
+  /** Card-header hint text. Defaults to the sessions phrasing;
+   *  override per module to keep the unit honest. */
+  hint?: string;
 }) {
   const toggle = () => onChange({ ...target, consistencyEnabled: !target.consistencyEnabled });
   const setCount = (n: number) => {
@@ -1144,19 +1233,19 @@ function ConsistencyTargetCard<T extends ConsistencyFields>({
   return (
     <ToggleCard
       title="Consistency target"
-      hint="Show up regularly — sessions per week or month."
+      hint={hint}
       enabled={target.consistencyEnabled}
       onToggle={toggle}
     >
       <div className="flex items-end gap-2">
-        <Field label="Sessions">
+        <Field label={unitLabel}>
           <input
             type="number"
             min={1}
             value={target.consistencyCount === 0 ? '' : target.consistencyCount}
             onChange={e => setCount(Number(e.target.value))}
             className={`${inputClass()} w-20`}
-            aria-label="Sessions per cadence"
+            aria-label={`${unitLabel} per cadence`}
           />
         </Field>
         <div className="flex gap-1.5 pb-[2px]">
@@ -1552,6 +1641,278 @@ function CategoryPillButton({
       {label}
     </button>
   );
+}
+
+// ---- Step 2 — Shapes & Patterns ------------------------------------
+
+interface ShapesActivityAreaDef {
+  id: ShapesActivityArea;
+  label: string;
+}
+
+const SHAPES_ACTIVITY_AREAS: ReadonlyArray<ShapesActivityAreaDef> = [
+  { id: 'scale_drills',       label: 'Scale Drills' },
+  { id: 'chord_shape_drills', label: 'Chord Shape Drills' },
+  { id: 'voice_leading',      label: 'Voice-Leading' },
+];
+
+function activityAreaLabel(area: ShapesActivityArea): string {
+  return SHAPES_ACTIVITY_AREAS.find(a => a.id === area)?.label ?? area;
+}
+
+const SHAPES_LEVELS: ReadonlyArray<{ id: ShapesProficiencyLevel; label: string }> = [
+  { id: 'learning',     label: 'Learning'     },
+  { id: 'comfortable',  label: 'Comfortable'  },
+  { id: 'solid',        label: 'Solid'        },
+  { id: 'internalized', label: 'Internalized' },
+];
+
+function levelLabel(level: ShapesProficiencyLevel): string {
+  return SHAPES_LEVELS.find(l => l.id === level)?.label ?? level;
+}
+
+const CHORD_QUALITY_KIND_LABELS: Record<QualityKind, string> = {
+  triad:     'Triads',
+  seventh:   'Seventh chords',
+  extension: 'Extensions',
+  special:   'Special',
+};
+const CHORD_QUALITY_KIND_ORDER: ReadonlyArray<QualityKind> = ['triad', 'seventh', 'extension', 'special'];
+
+/**
+ * Resolve the display label for a shape id within an activity area.
+ * Returns null when the id can't be found in the relevant catalog —
+ * defensive against stale draft state if a shape ever gets removed
+ * from the catalog.
+ */
+function shapeLabel(area: ShapesActivityArea, shapeId: string): string | null {
+  if (area === 'scale_drills') {
+    return SCALES.find(s => s.id === shapeId)?.label ?? null;
+  }
+  if (area === 'chord_shape_drills') {
+    return CHORD_QUALITIES.find(c => c.id === shapeId)?.label ?? null;
+  }
+  if (area === 'voice_leading') {
+    return VOICE_LEADING_PATTERNS.find(p => p.id === shapeId)?.label ?? null;
+  }
+  return null;
+}
+
+function Step2ShapesPatterns({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  const target = draft.shapesPatterns;
+  const setTarget = (next: ShapesPatternsTarget) => onUpdate({ shapesPatterns: next });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        Pick at least one target. You can combine proficiency and consistency on a single goal.
+      </p>
+      <ShapesProficiencyCard target={target} onChange={setTarget} />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        unitLabel="Minutes"
+        hint="Show up regularly — minutes per week or month."
+      />
+      <TargetPreview text={previewShapesPatternsTarget(target)} />
+    </div>
+  );
+}
+
+function ShapesProficiencyCard({
+  target,
+  onChange,
+}: {
+  target: ShapesPatternsTarget;
+  onChange: (next: ShapesPatternsTarget) => void;
+}) {
+  const toggle = () => onChange({ ...target, proficiencyEnabled: !target.proficiencyEnabled });
+  const setScope = (scope: ShapesPatternsTarget['proficiencyScope']) => {
+    if (scope === target.proficiencyScope) return;
+    // Clear specific-only fields when collapsing back to overall;
+    // leaving the activity area + level intact since they're shared.
+    onChange({
+      ...target,
+      proficiencyScope: scope,
+      shapeId: scope === 'overall' ? null : target.shapeId,
+      keyTarget: scope === 'overall' ? 'all' : target.keyTarget,
+    });
+  };
+  const setActivityArea = (area: ShapesActivityArea | '') => {
+    // Switching activity area invalidates the shape id (different
+    // catalog) and resets the key picker to its default.
+    onChange({
+      ...target,
+      activityArea: area === '' ? null : area,
+      shapeId: null,
+      keyTarget: 'all',
+    });
+  };
+  const setShape = (id: string) => onChange({ ...target, shapeId: id || null });
+  const setKey = (k: string) => onChange({ ...target, keyTarget: k });
+  const setLevel = (level: ShapesProficiencyLevel) => onChange({ ...target, proficiencyLevel: level });
+
+  return (
+    <ToggleCard
+      title="Proficiency target"
+      hint="Reach a target level on a shape — or across an activity area."
+      enabled={target.proficiencyEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label="Overall (activity area)"
+            active={target.proficiencyScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="Specific shape"
+            active={target.proficiencyScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      <Field label="Activity area">
+        <select
+          value={target.activityArea ?? ''}
+          onChange={e => setActivityArea(e.target.value as ShapesActivityArea | '')}
+          className={inputClass()}
+        >
+          <option value="">Pick an activity area…</option>
+          {SHAPES_ACTIVITY_AREAS.map(a => (
+            <option key={a.id} value={a.id}>{a.label}</option>
+          ))}
+        </select>
+      </Field>
+      {target.proficiencyScope === 'specific' && target.activityArea && (
+        <Field label="Shape">
+          <select
+            value={target.shapeId ?? ''}
+            onChange={e => setShape(e.target.value)}
+            className={inputClass()}
+          >
+            <option value="">Pick a shape…</option>
+            <ShapeOptionsForArea area={target.activityArea} />
+          </select>
+        </Field>
+      )}
+      {target.proficiencyScope === 'specific' && target.shapeId && (
+        <Field label="Key">
+          <select
+            value={target.keyTarget}
+            onChange={e => setKey(e.target.value)}
+            className={inputClass()}
+          >
+            <option value="all">All 12 keys</option>
+            {SHAPES_KEYS.map(k => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
+        </Field>
+      )}
+      <Field label="Target level">
+        <div className="flex flex-wrap gap-1.5">
+          {SHAPES_LEVELS.map(l => (
+            <PillButton
+              key={l.id}
+              label={l.label}
+              active={target.proficiencyLevel === l.id}
+              onClick={() => setLevel(l.id)}
+            />
+          ))}
+        </div>
+      </Field>
+    </ToggleCard>
+  );
+}
+
+/**
+ * Returns the <option> elements for the shape dropdown given an
+ * activity area. Chord shapes get optgroups (29 entries — flat would
+ * be hard to scan); scales and voice-leading patterns are short
+ * enough to render flat.
+ */
+function ShapeOptionsForArea({ area }: { area: ShapesActivityArea }) {
+  if (area === 'scale_drills') {
+    return (
+      <>
+        {SCALES.map(s => (
+          <option key={s.id} value={s.id}>{s.label}</option>
+        ))}
+      </>
+    );
+  }
+  if (area === 'voice_leading') {
+    return (
+      <>
+        {VOICE_LEADING_PATTERNS.map(p => (
+          <option key={p.id} value={p.id}>{p.label}</option>
+        ))}
+      </>
+    );
+  }
+  // chord_shape_drills — group by quality kind for legibility.
+  return (
+    <>
+      {CHORD_QUALITY_KIND_ORDER.map(kind => {
+        const entries = CHORD_QUALITIES.filter(c => c.kind === kind);
+        if (entries.length === 0) return null;
+        return (
+          <optgroup key={kind} label={CHORD_QUALITY_KIND_LABELS[kind]}>
+            {entries.map(c => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </optgroup>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Spec preview phrasing:
+ *   proficiency / overall:    "Improve my overall Chord Shape Drills proficiency to Comfortable across all keys"
+ *   proficiency / specific:   "Reach Comfortable proficiency level on Major 7 in C"
+ *                             "Reach Solid proficiency level on Major scale in all 12 keys"
+ *   consistency-only:         "Practice shapes & patterns at least 20 minutes a week"
+ *   both:                     "<proficiency> and practice at least 20 minutes a week"
+ *
+ * Scale shapes get a " scale" suffix in the preview so labels like
+ * "Major" / "Natural Minor" read as a complete noun ("Reach … on
+ * Major scale in C"). Chord and voice-leading labels are already
+ * complete nouns in the catalog so no suffix is added.
+ */
+function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | null {
+  const parts: string[] = [];
+  if (target.proficiencyEnabled) {
+    if (!target.activityArea) return null;
+    const level = levelLabel(target.proficiencyLevel);
+    if (target.proficiencyScope === 'overall') {
+      parts.push(`Improve my overall ${activityAreaLabel(target.activityArea)} proficiency to ${level} across all keys`);
+    } else {
+      if (!target.shapeId) return null;
+      const label = shapeLabel(target.activityArea, target.shapeId);
+      if (!label) return null;
+      const fullShape = target.activityArea === 'scale_drills' ? `${label} scale` : label;
+      const keyText = target.keyTarget === 'all' ? 'all 12 keys' : target.keyTarget;
+      parts.push(`Reach ${level} proficiency level on ${fullShape} in ${keyText}`);
+    }
+  }
+  if (target.consistencyEnabled) {
+    if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
+    const verb = parts.length === 0 ? 'Practice shapes & patterns' : 'practice';
+    const minutesWord = target.consistencyCount === 1 ? 'minute' : 'minutes';
+    parts.push(`${verb} at least ${target.consistencyCount} ${minutesWord} a ${target.consistencyCadence}`);
+  }
+  if (parts.length === 0) return null;
+  return parts.join(' and ');
 }
 
 // ---- Dot indicator -------------------------------------------------
