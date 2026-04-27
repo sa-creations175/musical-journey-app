@@ -1,20 +1,40 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
-import type { Goal, GoalScope } from '../../lib/db';
+import {
+  db,
+  type Goal,
+  type GoalScope,
+  type Song,
+  type SongCell,
+  type SongKey,
+  type SongMatrixSection,
+} from '../../lib/db';
 import { moduleMetaById, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
+import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
+import {
+  CROSS_KEY_PERCENT_DEFAULT,
+  buildKeyStateHints,
+  type KeyStateHint,
+  type SongTargetSelection,
+} from './songTarget';
+import SongTargetSection, { SongPreview } from './SongTargetSection';
+import Field from './Field';
+import { inputClass } from './formStyles';
 
 /**
  * Phase 1.6 — guided 5-step goal creation flow. Replaces
  * `GoalFormModal` once all build steps land.
  *
  * Built so far:
- *   Step 1 — module cards (this commit)
- *   Shell — navigation, 5-dot indicator, back/next (previous commit)
+ *   Step 1 — module cards
+ *   Step 2 — Song Repertoire target surface (this commit)
+ *   Shell — navigation, 5-dot indicator, back/next
  *
- * Still to land: target surfaces (Phase 1.6 build steps 3–8), scope
- * cards (step 9), parent goal picker (step 10), save logic (step 11),
- * multi-target encoding (step 13), edit mode (step 14), entry-point
- * swap (step 15).
+ * Still to land: Step 2 for the other five modules (build steps 4–8),
+ * scope cards (step 9), parent goal picker (step 10), save logic
+ * (step 11), multi-target encoding (step 13), edit mode (step 14),
+ * entry-point swap (step 15).
  *
  * See docs/GOAL_MODAL_REDESIGN.md for the full spec.
  */
@@ -129,16 +149,39 @@ const MODULE_CARDS: ModuleCard[] = [
 // ---- Draft state ---------------------------------------------------
 
 /**
- * Cumulative answers across the flow. Grows step-by-step — only
- * `moduleId` is meaningful today. Future steps add target,
- * timeframe, parent goal, and note fields.
+ * Cumulative answers across the flow. Grows step-by-step.
+ *
+ * `songId` and `songTarget` are populated only when `moduleId === 'repertoire'`.
+ * For other modules they remain at their defaults — module-specific
+ * draft fields will be added per-module as their Step 2 surfaces land
+ * in build steps 4–8.
  */
 interface Draft {
   moduleId: ModuleCardId | null;
+  songId: string | null;
+  songTarget: SongTargetSelection;
+}
+
+/**
+ * Mirrors `defaultSongTarget` in GoalFormModal. Duplicated rather
+ * than shared because the duplication resolves when GoalFormModal
+ * goes away in build step 15.
+ */
+function defaultSongTarget(): SongTargetSelection {
+  return {
+    granularity: 'whole',
+    wholeOption: null,
+    crossKeyPercent: CROSS_KEY_PERCENT_DEFAULT,
+    keyTarget: '',
+    keyState: 'comfortable',
+    sectionId: '',
+  };
 }
 
 const EMPTY_DRAFT: Draft = {
   moduleId: null,
+  songId: null,
+  songTarget: defaultSongTarget(),
 };
 
 // ---- Per-step validity ---------------------------------------------
@@ -147,14 +190,27 @@ function isCurrentStepValid(stepId: StepDef['id'], draft: Draft): boolean {
   switch (stepId) {
     case '1':
       return draft.moduleId !== null;
-    // TODO: real gates land in steps 3–10 alongside each step's UI.
     case '2':
+      return isStep2Valid(draft);
+    // TODO: real gates land in steps 9 / 10 alongside each step's UI.
     case '3':
     case '3.5':
     case '4':
     default:
       return true;
   }
+}
+
+function isStep2Valid(draft: Draft): boolean {
+  // TODO: Step 2 validity for the other five modules lands with their
+  // UI in build steps 4–8. Until then, only Song Repertoire enforces.
+  if (draft.moduleId !== 'repertoire') return true;
+  if (!draft.songId) return false;
+  const t = draft.songTarget;
+  if (t.granularity === 'whole') return t.wholeOption !== null;
+  if (t.granularity === 'key') return t.keyTarget !== '';
+  if (t.granularity === 'section') return t.sectionId !== '' && t.keyTarget !== '';
+  return false;
 }
 
 // ---- Component -----------------------------------------------------
@@ -193,7 +249,22 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
   };
 
   const selectModule = (id: ModuleCardId) => {
-    setDraft(d => ({ ...d, moduleId: id }));
+    setDraft(d => {
+      // No-op when re-selecting the same module — preserves any
+      // module-specific selections the user has already made.
+      if (d.moduleId === id) return d;
+      return {
+        ...d,
+        moduleId: id,
+        // Switching modules invalidates module-specific state.
+        songId: null,
+        songTarget: defaultSongTarget(),
+      };
+    });
+  };
+
+  const updateDraft = (patch: Partial<Draft>) => {
+    setDraft(d => ({ ...d, ...patch }));
   };
 
   const footer = (
@@ -219,7 +290,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title={step.title} footer={footer}>
-      {renderStep(step, draft, selectModule)}
+      {renderStep(step, draft, selectModule, updateDraft)}
     </Modal>
   );
 }
@@ -228,10 +299,13 @@ function renderStep(
   step: StepDef,
   draft: Draft,
   selectModule: (id: ModuleCardId) => void,
+  updateDraft: (patch: Partial<Draft>) => void,
 ) {
   switch (step.id) {
     case '1':
       return <Step1ModuleCards selectedId={draft.moduleId} onSelect={selectModule} />;
+    case '2':
+      return <Step2View draft={draft} onUpdate={updateDraft} />;
     default:
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
@@ -312,6 +386,257 @@ function ModuleCardButton({
         “{card.example}”
       </div>
     </button>
+  );
+}
+
+// ---- Step 2 dispatcher ---------------------------------------------
+
+function Step2View({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  switch (draft.moduleId) {
+    case 'repertoire':
+      return <Step2SongRepertoire draft={draft} onUpdate={onUpdate} />;
+    case null:
+      // Defensive — shouldn't be reachable since Step 1 gates Next on
+      // module being set, but keeps types honest.
+      return (
+        <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
+          Pick a module first.
+        </div>
+      );
+    default:
+      // TODO: Step 2 surfaces for the other five modules land in build
+      // steps 4–8. Until then, placeholder so navigation works end-to-end.
+      return (
+        <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
+          Step 2 for this module — coming soon.
+        </div>
+      );
+  }
+}
+
+// ---- Step 2 — Song Repertoire --------------------------------------
+
+function Step2SongRepertoire({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  // Live song list for the picker. Showing all songs (no archive
+  // flag exists on Song today) — search filters client-side.
+  const allSongs = useLiveQuery(
+    () => db.songs.toArray(),
+    [],
+    [] as Song[],
+  );
+  const songRecord = useMemo(
+    () => draft.songId ? allSongs.find(s => s.id === draft.songId) : undefined,
+    [allSongs, draft.songId],
+  );
+  // True only when we know the song list has loaded but the picked
+  // song isn't in it (e.g., deleted between sessions). While the
+  // initial query is pending `allSongs` is the empty-array default,
+  // so we'd false-positive without the loaded-check.
+  const songMissing = draft.songId !== null && allSongs.length > 0 && !songRecord;
+
+  // Matrix queries — only meaningful with a song picked. Returning
+  // empty-array defaults keeps the hook order stable.
+  const matrixSongKeys = useLiveQuery(
+    () => {
+      if (!draft.songId) return [] as SongKey[];
+      return db.songKeys.where('songId').equals(draft.songId).toArray();
+    },
+    [draft.songId],
+    [] as SongKey[],
+  );
+  const matrixSongCells = useLiveQuery(
+    () => {
+      if (!draft.songId) return [] as SongCell[];
+      return db.songCells.where('songId').equals(draft.songId).toArray();
+    },
+    [draft.songId],
+    [] as SongCell[],
+  );
+  const matrixSections = useLiveQuery(
+    () => {
+      if (!draft.songId) return [] as SongMatrixSection[];
+      return db.songMatrixSections.where('songId').equals(draft.songId).sortBy('displayOrder');
+    },
+    [draft.songId],
+    [] as SongMatrixSection[],
+  );
+
+  // Mount-time decay snapshot — matches GoalFormModal's pattern.
+  // Re-mounting via Step 1 → Step 2 navigation refreshes it, which
+  // is fine for daily-resolution decay.
+  const [now] = useState(() => Date.now());
+
+  const visibleMatrixSections = useMemo(
+    () => matrixSections.filter(s => !s.isArchived),
+    [matrixSections],
+  );
+  const sectionAvailable = visibleMatrixSections.length > 0;
+  // TODO (build step 9): wire to draft.scope once Step 3 lands.
+  // Section granularity is gated on weekly scope per spec; until
+  // scope is collected, treat the slot as eligible so users can
+  // pick section now and we'll validate at Step 3 / Step 4.
+  const sectionWeeklyEligible = true;
+
+  const songLevelState = useMemo(
+    () => songRecord
+      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now)
+      : null,
+    [songRecord, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now],
+  );
+  const originalMatrixKey = useMemo(
+    () => matrixSongKeys.find(k => k.isOriginalKey) ?? null,
+    [matrixSongKeys],
+  );
+  const keyStateHints = useMemo(
+    () => songRecord
+      ? buildKeyStateHints(matrixSongKeys, now)
+      : new Map<string, KeyStateHint>(),
+    [songRecord, matrixSongKeys, now],
+  );
+  const sectionNamesById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of visibleMatrixSections) m.set(s.id, s.name);
+    return m;
+  }, [visibleMatrixSections]);
+
+  const setSongTarget = (next: SongTargetSelection) => {
+    onUpdate({ songTarget: next });
+  };
+  const setSongId = (id: string | null) => {
+    // Clear target when song changes — different song, different
+    // matrix data, and the previously-picked section ID may not
+    // exist on the new song.
+    onUpdate({
+      songId: id,
+      songTarget: defaultSongTarget(),
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SongPicker
+        songs={allSongs}
+        selectedSongId={draft.songId}
+        onSelect={setSongId}
+      />
+      {draft.songId && songRecord && (
+        <>
+          <SongTargetSection
+            song={songRecord}
+            songMissing={songMissing}
+            selection={draft.songTarget}
+            onChange={setSongTarget}
+            sectionAvailable={sectionAvailable}
+            sectionWeeklyEligible={sectionWeeklyEligible}
+            songLevelState={songLevelState}
+            originalMatrixKey={originalMatrixKey}
+            visibleMatrixSections={visibleMatrixSections}
+            keyStateHints={keyStateHints}
+            now={now}
+          />
+          <SongPreview
+            selection={draft.songTarget}
+            song={songRecord}
+            sectionNamesById={sectionNamesById}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+const SONG_PICKER_MAX_RESULTS = 20;
+
+function SongPicker({
+  songs,
+  selectedSongId,
+  onSelect,
+}: {
+  songs: ReadonlyArray<Song>;
+  selectedSongId: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const selectedSong = selectedSongId ? songs.find(s => s.id === selectedSongId) : undefined;
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [] as Song[];
+    return songs
+      .filter(s => s.title.toLowerCase().includes(q))
+      .slice(0, SONG_PICKER_MAX_RESULTS);
+  }, [songs, query]);
+
+  if (selectedSong) {
+    return (
+      <Field label="Song">
+        <div className="flex items-center justify-between gap-2 rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
+              {selectedSong.title}
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+              {selectedSong.artist}{selectedSong.key ? ` • ${selectedSong.key}` : ''}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { onSelect(null); setQuery(''); }}
+            className="shrink-0 text-xs text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+          >
+            Change
+          </button>
+        </div>
+      </Field>
+    );
+  }
+
+  return (
+    <Field label="Song">
+      <input
+        type="text"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search songs by title…"
+        className={inputClass()}
+      />
+      {matches.length > 0 && (
+        <div className="mt-1.5 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 max-h-60 overflow-y-auto">
+          {matches.map(song => (
+            <button
+              key={song.id}
+              type="button"
+              onClick={() => onSelect(song.id)}
+              className="text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/60 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+            >
+              <div className="font-medium text-neutral-800 dark:text-neutral-100 truncate">
+                {song.title}
+              </div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                {song.artist}{song.key ? ` • ${song.key}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {query.trim() && matches.length === 0 && (
+        <div className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+          No songs match “{query}”.
+        </div>
+      )}
+    </Field>
   );
 }
 
