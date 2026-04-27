@@ -2018,6 +2018,18 @@ function ProductionCompletionCard({
   target: ProductionTarget;
   onChange: (next: ProductionTarget) => void;
 }) {
+  // Local string state for the lesson-count input. Decouples the
+  // displayed text from the parsed number in the draft, which fixes
+  // a Safari quirk where a controlled type="number" input can drop
+  // focus when its value alternates between '' and a number on each
+  // keystroke (clearing the field). Stays in sync because the only
+  // mutator is `handleLessonInput` below; external resets remount
+  // this component (modal close / module switch) so the initializer
+  // re-runs against the fresh target.
+  const [lessonText, setLessonText] = useState(
+    target.lessonCount === 0 ? '' : String(target.lessonCount),
+  );
+
   const toggle = () => onChange({ ...target, completionEnabled: !target.completionEnabled });
   const setScope = (scope: ProductionTarget['completionScope']) => {
     if (scope === target.completionScope) return;
@@ -2027,8 +2039,16 @@ function ProductionCompletionCard({
     onChange({ ...target, completionScope: scope });
   };
   const setPath = (id: string) => onChange({ ...target, pathId: id || null });
-  const setLessonCount = (n: number) => {
-    onChange({ ...target, lessonCount: Number.isFinite(n) ? n : 0 });
+  const handleLessonInput = (text: string) => {
+    setLessonText(text);
+    if (text === '') {
+      onChange({ ...target, lessonCount: 0 });
+      return;
+    }
+    const n = Number(text);
+    if (Number.isFinite(n)) {
+      onChange({ ...target, lessonCount: n });
+    }
   };
 
   return (
@@ -2076,8 +2096,8 @@ function ProductionCompletionCard({
           <input
             type="number"
             min={1}
-            value={target.lessonCount === 0 ? '' : target.lessonCount}
-            onChange={e => setLessonCount(Number(e.target.value))}
+            value={lessonText}
+            onChange={e => handleLessonInput(e.target.value)}
             className={`${inputClass()} w-20`}
             aria-label="New lessons to complete"
           />
@@ -2088,12 +2108,19 @@ function ProductionCompletionCard({
 }
 
 /**
- * Spec preview phrasing:
+ * Preview phrasing:
  *   completion / path:    "Complete the Workflow Foundations path"
  *   completion / count:   "Complete 4 new production lessons"
- *   time-only:            "Practice production at least 2 hours a week"
- *   both (path + time):   "Complete the Workflow Foundations path and practice at least 2 hours a week"
- *   both (count + time):  "Complete 4 new production lessons and practice at least 2 hours a week"
+ *   time-only:            "Spend at least 2 hours a week on production"
+ *   both (path + time):   "Complete the Workflow Foundations path and spend at least 2 hours a week on production"
+ *   both (count + time):  "Complete 4 new production lessons and spend at least 2 hours a week on production"
+ *
+ * Time clause uses "spend … on production" rather than the
+ * "practice production" verb the other modules use — production
+ * work is at-the-workstation time, which "spend" reads more
+ * naturally for than "practice". Module name moves to a trailing
+ * "on production" so the verb stays clean in both standalone and
+ * combined cases.
  */
 function previewProductionTarget(target: ProductionTarget): string | null {
   const parts: string[] = [];
@@ -2111,9 +2138,9 @@ function previewProductionTarget(target: ProductionTarget): string | null {
   }
   if (target.consistencyEnabled) {
     if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
-    const verb = parts.length === 0 ? 'Practice production' : 'practice';
+    const verb = parts.length === 0 ? 'Spend' : 'spend';
     const hoursWord = target.consistencyCount === 1 ? 'hour' : 'hours';
-    parts.push(`${verb} at least ${target.consistencyCount} ${hoursWord} a ${target.consistencyCadence}`);
+    parts.push(`${verb} at least ${target.consistencyCount} ${hoursWord} a ${target.consistencyCadence} on production`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
