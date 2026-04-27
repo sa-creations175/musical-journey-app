@@ -19,7 +19,6 @@ import {
   type SongTargetSelection,
 } from './songTarget';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
-import Field from './Field';
 import { inputClass } from './formStyles';
 
 /**
@@ -579,9 +578,16 @@ function SongPicker({
       .slice(0, SONG_PICKER_MAX_RESULTS);
   }, [songs, query]);
 
-  if (selectedSong) {
-    return (
-      <Field label="Song">
+  // Custom div+span structure rather than the shared Field component
+  // (which wraps in <label>) — labelling an input + a list of buttons
+  // with one <label> can cause browsers to delegate the button clicks
+  // to the input via the labeled-control activation behavior.
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+        Song
+      </span>
+      {selectedSong ? (
         <div className="flex items-center justify-between gap-2 rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
           <div className="min-w-0">
             <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
@@ -599,44 +605,42 @@ function SongPicker({
             Change
           </button>
         </div>
-      </Field>
-    );
-  }
-
-  return (
-    <Field label="Song">
-      <input
-        type="text"
-        value={query}
-        onChange={e => setQuery(e.target.value)}
-        placeholder="Search songs by title…"
-        className={inputClass()}
-      />
-      {matches.length > 0 && (
-        <div className="mt-1.5 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 max-h-60 overflow-y-auto">
-          {matches.map(song => (
-            <button
-              key={song.id}
-              type="button"
-              onClick={() => onSelect(song.id)}
-              className="text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/60 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
-            >
-              <div className="font-medium text-neutral-800 dark:text-neutral-100 truncate">
-                {song.title}
-              </div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-                {song.artist}{song.key ? ` • ${song.key}` : ''}
-              </div>
-            </button>
-          ))}
-        </div>
+      ) : (
+        <>
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search songs by title…"
+            className={inputClass()}
+          />
+          {matches.length > 0 && (
+            <div className="mt-1.5 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 max-h-60 overflow-y-auto">
+              {matches.map(song => (
+                <button
+                  key={song.id}
+                  type="button"
+                  onClick={() => onSelect(song.id)}
+                  className="text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/60 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+                >
+                  <div className="font-medium text-neutral-800 dark:text-neutral-100 truncate">
+                    {song.title}
+                  </div>
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                    {song.artist}{song.key ? ` • ${song.key}` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {query.trim() && matches.length === 0 && (
+            <div className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+              No songs match “{query}”.
+            </div>
+          )}
+        </>
       )}
-      {query.trim() && matches.length === 0 && (
-        <div className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-          No songs match “{query}”.
-        </div>
-      )}
-    </Field>
+    </div>
   );
 }
 

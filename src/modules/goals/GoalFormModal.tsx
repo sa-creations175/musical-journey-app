@@ -467,10 +467,6 @@ export default function GoalFormModal({
   // upserts via Dexie. Sync hooks queue the cloud push.
   const handleSave = async () => {
     const trimmedDesc = form.description.trim();
-    if (trimmedDesc.length === 0) {
-      // Required everywhere; no point assembling a ghost goal.
-      return;
-    }
     if (isSongMode && !songEncoded) {
       // Song mode active but the user hasn't fully picked a target.
       // The Save button should already be disabled; this guards
@@ -548,7 +544,7 @@ export default function GoalFormModal({
     }
   };
 
-  const saveDisabled = form.description.trim() === '' || (isSongMode && !songEncoded);
+  const saveDisabled = isSongMode && !songEncoded;
 
   // Soft-delete: status='abandoned' so history remains. Goals home
   // queries status='active' so the goal disappears from the layered
@@ -641,7 +637,7 @@ export default function GoalFormModal({
         </Field>
 
         {/* Description */}
-        <Field label="Description" required>
+        <Field label="Description">
           <textarea
             value={form.description}
             onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
