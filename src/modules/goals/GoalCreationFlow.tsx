@@ -606,6 +606,7 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
       }
 
       const records = encodeRecordsForDraft(draft, songRecord, sectionNamesById);
+      console.log('[goal-flow] encoded records:', records, 'from draft:', draft);
       if (records.length === 0) {
         console.warn('[goal-flow] no records to save; aborting');
         setSaving(false);
@@ -621,6 +622,14 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
       // Multi-target: two records share parent_goal_id (per spec) but
       // are otherwise independent rows. Single-target: one record.
       for (const record of records) {
+        // Defensive: if the encoder produced a malformed record,
+        // skip with a loud error rather than persisting junk into
+        // db.goals. This guard caught a real bug during step 11
+        // verification — kept here as a regression alarm.
+        if (!record.description || !record.targetMetric) {
+          console.error('[goal-flow] BUG: encoder produced malformed record', { record, draft });
+          continue;
+        }
         const goal: Goal = {
           id: uid('goal'),
           scope: draft.scope,
@@ -640,6 +649,7 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
           isUmbrella: false,
           lastEngagedAt: now,
         };
+        console.log('[goal-flow] saving goal:', goal);
         await db.goals.put(goal);
       }
 
