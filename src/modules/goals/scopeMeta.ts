@@ -32,9 +32,13 @@ export const VISION_SCOPES = new Set<GoalScope>(['two_to_three_year', 'lifetime'
 
 function endOfWeek(now: number): number {
   const d = new Date(now);
-  const dayOfWeek = d.getDay(); // 0 = Sunday
-  const daysUntilSunday = (7 - dayOfWeek) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilSunday);
+  // 0=Sun, 1=Mon, ..., 6=Sat. The coming Sunday is `7 - dayOfWeek`
+  // days away — except when today *is* Sunday, in which case "end of
+  // this week" reads more naturally as the upcoming Sunday (7 days
+  // out) rather than today, so push forward by a full week.
+  const dayOfWeek = d.getDay();
+  const daysToAdd = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
+  d.setDate(d.getDate() + daysToAdd);
   d.setHours(23, 59, 59, 999);
   return d.getTime();
 }
@@ -62,8 +66,10 @@ function endOfYear(now: number): number {
 }
 
 /** Sensible target-date default per scope. End-of-period for the
- *  measurable scopes; rough horizon adds for vision scopes. User
- *  can override via the date input. */
+ *  measurable scopes; +2 years for the medium-vision scope; a fixed
+ *  end-of-century anchor (Jan 1, 2100) for Lifetime so the default
+ *  doesn't drift forward day-by-day with `now`. User can override
+ *  via the date input on Step 3. */
 export function defaultTargetDate(scope: GoalScope, now: number = Date.now()): number {
   switch (scope) {
     case 'weekly':            return endOfWeek(now);
@@ -71,7 +77,7 @@ export function defaultTargetDate(scope: GoalScope, now: number = Date.now()): n
     case 'quarterly':         return endOfQuarter(now);
     case 'yearly':            return endOfYear(now);
     case 'two_to_three_year': return now + 2 * 365 * 24 * 60 * 60 * 1000;
-    case 'lifetime':          return now + 30 * 365 * 24 * 60 * 60 * 1000;
+    case 'lifetime':          return new Date(2100, 0, 1, 23, 59, 59, 999).getTime();
   }
 }
 
