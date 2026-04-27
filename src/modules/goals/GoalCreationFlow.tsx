@@ -182,6 +182,8 @@ interface Draft {
   shapesPatterns: ShapesPatternsTarget;
   // Production (build step 7)
   production: ProductionTarget;
+  // Practice consistency (build step 8)
+  practiceConsistency: PracticeConsistencyTarget;
 }
 
 /**
@@ -362,6 +364,28 @@ function defaultProduction(): ProductionTarget {
   };
 }
 
+/**
+ * Practice consistency step 2 selection. Single-target — the entire
+ * card IS the consistency goal, so no enable/disable toggle. Unit is
+ * days (not sessions / minutes / hours), since the question is "how
+ * often will you show up at all".
+ *
+ * Cadence phrasing in the preview differs by unit: "a week" reads as
+ * a recurring weekly target, "this month" reads as a one-shot monthly
+ * count — semantically distinct intents the wording honors.
+ */
+interface PracticeConsistencyTarget {
+  days: number;
+  cadence: 'week' | 'month';
+}
+
+function defaultPracticeConsistency(): PracticeConsistencyTarget {
+  return {
+    days: 4,
+    cadence: 'week',
+  };
+}
+
 const EMPTY_DRAFT: Draft = {
   moduleId: null,
   songId: null,
@@ -370,6 +394,7 @@ const EMPTY_DRAFT: Draft = {
   harmonicFluency: defaultHarmonicFluency(),
   shapesPatterns: defaultShapesPatterns(),
   production: defaultProduction(),
+  practiceConsistency: defaultPracticeConsistency(),
 };
 
 // ---- Per-step validity ---------------------------------------------
@@ -410,8 +435,9 @@ function isStep2Valid(draft: Draft): boolean {
   if (draft.moduleId === 'production') {
     return isProductionValid(draft.production);
   }
-  // TODO: Step 2 validity for practice-consistency lands in build
-  // step 8. Until then, default-true.
+  if (draft.moduleId === 'practice-consistency') {
+    return isPracticeConsistencyValid(draft.practiceConsistency);
+  }
   return true;
 }
 
@@ -455,6 +481,10 @@ function isProductionValid(t: ProductionTarget): boolean {
   }
   if (t.consistencyEnabled && t.consistencyCount < 1) return false;
   return true;
+}
+
+function isPracticeConsistencyValid(t: PracticeConsistencyTarget): boolean {
+  return t.days >= 1;
 }
 
 // ---- Component -----------------------------------------------------
@@ -512,6 +542,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
         harmonicFluency: defaultHarmonicFluency(),
         shapesPatterns: defaultShapesPatterns(),
         production: defaultProduction(),
+        practiceConsistency: defaultPracticeConsistency(),
       };
     });
   };
@@ -662,20 +693,16 @@ function Step2View({
       return <Step2ShapesPatterns draft={draft} onUpdate={onUpdate} />;
     case 'production':
       return <Step2Production draft={draft} onUpdate={onUpdate} />;
+    case 'practice-consistency':
+      return <Step2PracticeConsistency draft={draft} onUpdate={onUpdate} />;
     case null:
-      // Defensive — shouldn't be reachable since Step 1 gates Next on
-      // module being set, but keeps types honest.
+    default:
+      // Defensive — `null` shouldn't be reachable since Step 1 gates
+      // Next on module being set, and the six concrete cases above
+      // exhaust ModuleCardId. The default arm keeps types honest.
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
           Pick a module first.
-        </div>
-      );
-    default:
-      // TODO: Step 2 surface for practice-consistency lands in build
-      // step 8. Until then, placeholder so navigation works end-to-end.
-      return (
-        <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
-          Step 2 for this module — coming soon.
         </div>
       );
   }
@@ -2144,6 +2171,93 @@ function previewProductionTarget(target: ProductionTarget): string | null {
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
+}
+
+// ---- Step 2 — Practice consistency ---------------------------------
+
+function Step2PracticeConsistency({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  const target = draft.practiceConsistency;
+  const setTarget = (next: PracticeConsistencyTarget) => onUpdate({ practiceConsistency: next });
+
+  // Local string state for the days input — same Safari focus fix
+  // pattern as Production's lesson-count input. The number-typed
+  // input loses its cursor when value transitions between '' and a
+  // number; storing the displayed text separately keeps focus stable.
+  const [daysText, setDaysText] = useState(
+    target.days === 0 ? '' : String(target.days),
+  );
+
+  const handleDaysInput = (text: string) => {
+    setDaysText(text);
+    if (text === '') {
+      setTarget({ ...target, days: 0 });
+      return;
+    }
+    const n = Number(text);
+    if (Number.isFinite(n)) {
+      setTarget({ ...target, days: n });
+    }
+  };
+  const setCadence = (c: 'week' | 'month') => {
+    if (c === target.cadence) return;
+    setTarget({ ...target, cadence: c });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        How many days a week or month do you want to practice?
+      </p>
+      <div className="rounded-md border border-fluent/40 bg-fluent/5 px-3 py-3 flex items-end gap-2">
+        <Field label="Days">
+          <input
+            type="number"
+            min={1}
+            value={daysText}
+            onChange={e => handleDaysInput(e.target.value)}
+            className={`${inputClass()} w-20`}
+            aria-label="Days per cadence"
+          />
+        </Field>
+        <div className="flex gap-1.5 pb-[2px]">
+          <PillButton
+            label="per week"
+            active={target.cadence === 'week'}
+            onClick={() => setCadence('week')}
+          />
+          <PillButton
+            label="per month"
+            active={target.cadence === 'month'}
+            onClick={() => setCadence('month')}
+          />
+        </div>
+      </div>
+      <TargetPreview text={previewPracticeConsistencyTarget(target)} />
+    </div>
+  );
+}
+
+/**
+ * Preview phrasing:
+ *   per week:   "Practice at least 4 days a week"
+ *   per month:  "Practice at least 20 days this month"
+ *   singular:   "Practice at least 1 day a week"
+ *
+ * The cadence phrasing intentionally differs by unit: "a week"
+ * reads as a recurring weekly target, "this month" reads as a
+ * one-shot monthly count.
+ */
+function previewPracticeConsistencyTarget(target: PracticeConsistencyTarget): string | null {
+  if (target.days < 1) return null;
+  const dayWord = target.days === 1 ? 'day' : 'days';
+  const period = target.cadence === 'week' ? 'a week' : 'this month';
+  return `Practice at least ${target.days} ${dayWord} ${period}`;
 }
 
 // ---- Dot indicator -------------------------------------------------
