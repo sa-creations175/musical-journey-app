@@ -2,9 +2,9 @@
 
 Living design doc capturing the redesigned goal creation flow. Replaces the current single-screen modal with a guided 4-step conversation. Built as Phase 1.6 after Phase 1.5 completes.
 
-Last updated: April 26, 2026 (full design session complete)
+Last updated: April 26, 2026 (open questions resolved — all 3 design decisions locked)
 
-**Status:** Fully designed. Ready for build as Phase 1.6. Current modal (Phase 1 / Phase 1.5 step 7) stays in place until this ships.
+**Status:** Fully designed. All open questions resolved. Ready for build as Phase 1.6. Current modal (Phase 1 / Phase 1.5 step 7) stays in place until this ships.
 
 ---
 
@@ -16,6 +16,7 @@ The redesign treats goal creation as a guided conversation:
 - **Module first** — what do you want to work on? Module cards that help users realize what they want, not assume they already know
 - **Target second** — what does success look like? Module-specific questions that derive the data model fields from natural answers
 - **Timeframe third** — when do you want to achieve this?
+- **Parent goal** — does this goal roll up into a bigger arc?
 - **Review + save** — natural language preview before committing
 
 The user never sees "target metric" or "target unit." Those are encoded behind the scenes from their answers.
@@ -38,7 +39,7 @@ The user never sees "target metric" or "target unit." Those are encoded behind t
 
 ---
 
-## The 4-step flow
+## The 5-step flow
 
 ### Step 1 — "What do you want to work on?"
 
@@ -267,6 +268,22 @@ Note: Song section goals (from Song Repertoire Step 2) automatically pre-select 
 
 ---
 
+### Step 3.5 — "Does this goal roll up into a bigger one?"
+
+Always present — not conditional on whether parent goals exist.
+
+**Suggested parent goals:** App surfaces likely matches filtered by module. E.g., if the user just created a song goal, yearly umbrella goals for Song Repertoire appear at the top. Suggestions are ordered by plausibility (module match + scope — yearly goals suggested for monthly/weekly children, etc.).
+
+**Full list available:** User can browse all existing goals beyond the suggestions.
+
+**No parent goal:** Always an option — explicit "This is a standalone goal" selection.
+
+**Create new parent goal:** Shortcut to start a new goal flow for a broader umbrella, then return and link. (Exact flow TBD at build time — may open a nested modal or queue the parent creation after save.)
+
+**Why always present:** Most goals in this app link to a yearly umbrella. A yearly "25 songs at Comfortable" goal will be the parent of every song goal added. A yearly "all chord shapes in all keys at Comfortable" goal will be the parent of every shapes goal. Treating parent linking as an edge case would mean manually re-linking constantly.
+
+---
+
 ### Step 4 — Review + optional note + Save
 
 **Review block (prominent, top of step):**
@@ -286,9 +303,10 @@ Note: Song section goals (from Song Repertoire Step 2) automatically pre-select 
 
 ## Navigation
 
-- Step indicator: 4 dots at the bottom, current step elongated in teal
+- Step indicator: 5 dots at the bottom, current step elongated in teal
 - Back button on left of each step (Step 1 Back → dismisses modal)
 - Next button on right (disabled until step is complete)
+- Step 3.5 always present — "No parent goal" counts as a valid selection enabling Next
 - Step 4 replaces Next with Save goal
 - No "Skip" — every step is required except the note in Step 4
 
@@ -340,25 +358,16 @@ Phase 1.5 step 7 (matrix-aware song goal targeting) ships as-is. Phase 1.6 repla
 
 ---
 
-## What still needs design before build
+## Design decisions (resolved April 26, 2026)
 
-1. **Multi-target encoding** — how accuracy + consistency targets on one goal are stored (two linked records vs compound field). Decide at build time.
-2. **Editing an existing goal** — does the guided flow re-open in edit mode? Or is the current edit-in-modal pattern kept? Likely: edit opens the guided flow pre-filled at the relevant step.
-3. **Parent goal linking** — the current modal has a parent goal field for umbrella goals (Phase 2 feature). Where does this live in the new flow? Likely: an optional step between Step 3 and Step 4 that surfaces when a candidate parent goal exists.
-4. **Shapes & Patterns step 2 full spec** — depends on the Shapes & Patterns Proficiency Redesign (Phase 1.6 prerequisite).
+### 1. Multi-target encoding
+Two linked goal records sharing a `parent_goal_id` — one row per target metric. One goal row with accuracy target, one with consistency target, both pointing to the same parent. Keeps every goal row to a single target metric, making querying clean everywhere goals are read (Practice Sessions weighting, dashboard rollups, etc.).
 
----
+### 2. Editing an existing goal
+Guided flow re-opens pre-filled, dropping the user directly into the relevant step rather than always starting at Step 1. No separate edit surface — the guided flow is the single source of truth for goal creation and editing. Encoding logic from `songTarget.ts` reused.
 
-## Shapes & Patterns Proficiency Design Note
-
-Locked decisions (April 26, 2026) — full design session deferred:
-
-- **Vocabulary:** Song vocabulary (Learning → Comfortable → Solid → Internalized), not garden vocabulary
-- **Tracking unit:** Per shape per key — each combination tracked independently
-- **Proficiency gate:** Combination of time logged + BPM achieved (exact thresholds TBD in dedicated design session)
-- **Goal example language:** "I want to reach Comfortable proficiency level on major 7th inversions in 6 keys"
-
-Full design session needed before Phase 1.6 build starts — covers gate definitions, schema, UI for logging a shapes practice block, and migration of existing data.
+### 3. Parent goal linking — Step 3.5
+Always-present dedicated step between timeframe and review. Surfaces module-filtered suggestions prominently, full list available below, "No parent goal" always selectable, "Create new parent goal" shortcut available. Step is always shown because most goals in this app roll up into yearly umbrella goals — treating it as an edge case would mean constant manual re-linking.
 
 ---
 
@@ -366,21 +375,24 @@ Full design session needed before Phase 1.6 build starts — covers gate definit
 
 Phase 1.6 — builds after Phase 1.5 completes:
 
-**Prerequisites:**
-- Phase 1.5 fully complete and pushed
-- Shapes & Patterns Proficiency Design session complete (for Step 2 — Shapes & Patterns)
+**Prerequisites:** ✅ Both met as of April 26, 2026
+- Phase 1.5 fully complete and pushed ✅
+- Shapes & Patterns Proficiency Design session complete ✅
 
 **Build steps (in order):**
-1. New `GoalCreationFlow` component — 4-step shell with navigation, dot indicator, back/next
+1. New `GoalCreationFlow` component — 5-step shell with navigation, dot indicator, back/next
 2. Step 1 — module cards (6 cards, selection state)
 3. Step 2 — Song Repertoire (reuses `SongTargetSection` logic from step 7, new wrapping UI)
 4. Step 2 — Ear Training (accuracy + consistency targets, cascading drill type picker)
 5. Step 2 — Harmonic Fluency (accuracy + consistency targets, grouped category cards)
-6. Step 2 — Shapes & Patterns (proficiency + consistency targets — requires Shapes design session first)
+6. Step 2 — Shapes & Patterns (proficiency + consistency targets — see SHAPES_PROFICIENCY_DESIGN.md)
 7. Step 2 — Production (completion + time targets, path picker)
 8. Step 2 — Practice consistency (frequency picker)
 9. Step 3 — scope cards + target date
-10. Step 4 — review block + optional note + save
-11. Wire context inference
-12. Replace `GoalFormModal` entry points with new flow
-13. Verify all existing goal types decode correctly in edit mode
+10. Step 3.5 — parent goal linking (module-filtered suggestions, full list, no-parent option, create-new shortcut)
+11. Step 4 — review block + optional note + save
+12. Wire context inference
+13. Wire multi-target encoding (two linked records sharing parent_goal_id)
+14. Wire edit mode (pre-filled flow dropping into relevant step)
+15. Replace `GoalFormModal` entry points with new flow
+16. Verify all existing goal types decode correctly in edit mode
