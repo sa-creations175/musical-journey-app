@@ -43,6 +43,11 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
   // `initialGoal` and `initialScope` are declared on Props so
   // consumers can pass them today, but not yet read here. Wired in
   // step 9 (scope pre-fill) and step 14 (edit-mode landing step).
+  // TODO (step 11): reset stepIndex (and the draft state that lands
+  // alongside it) when the modal is closed externally — Esc, backdrop
+  // click, or the X button. Currently re-opening lands on whatever
+  // step the user was on at close. Harmless in the shell since there
+  // is no payload to lose; revisit when draft state arrives.
   const [stepIndex, setStepIndex] = useState(0);
   const step = STEPS[stepIndex];
   const isFirst = stepIndex === 0;
