@@ -15,6 +15,7 @@ import {
 import { moduleMetaById, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
+import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
@@ -166,6 +167,8 @@ interface Draft {
   songTarget: SongTargetSelection;
   // Ear Training (build step 4)
   earTraining: EarTrainingTarget;
+  // Harmonic Fluency (build step 5)
+  harmonicFluency: HarmonicFluencyTarget;
 }
 
 /**
@@ -223,11 +226,44 @@ function defaultEarTraining(): EarTrainingTarget {
   };
 }
 
+/**
+ * Harmonic-fluency step 2 selection. Same accuracy + consistency
+ * shape as ear training; the only structural difference is that
+ * "specific" accuracy targets a single flashcard category (no
+ * cascading subtype), with the 12 categories grouped into 4 sections
+ * for the picker UI.
+ */
+interface HarmonicFluencyTarget {
+  accuracyEnabled: boolean;
+  accuracyScope: 'overall' | 'specific';
+  /** Single flashcard category id from `harmonic-fluency/catalog`.
+   *  Null when scope is 'overall' or unselected. */
+  categoryId: FlashcardCategory | null;
+  accuracyPercent: number;
+
+  consistencyEnabled: boolean;
+  consistencyCount: number;
+  consistencyCadence: 'week' | 'month';
+}
+
+function defaultHarmonicFluency(): HarmonicFluencyTarget {
+  return {
+    accuracyEnabled: false,
+    accuracyScope: 'overall',
+    categoryId: null,
+    accuracyPercent: 75,
+    consistencyEnabled: false,
+    consistencyCount: 3,
+    consistencyCadence: 'week',
+  };
+}
+
 const EMPTY_DRAFT: Draft = {
   moduleId: null,
   songId: null,
   songTarget: defaultSongTarget(),
   earTraining: defaultEarTraining(),
+  harmonicFluency: defaultHarmonicFluency(),
 };
 
 // ---- Per-step validity ---------------------------------------------
@@ -259,8 +295,11 @@ function isStep2Valid(draft: Draft): boolean {
   if (draft.moduleId === 'ear-training') {
     return isEarTrainingValid(draft.earTraining);
   }
-  // TODO: Step 2 validity for the other four modules lands with their
-  // UI in build steps 5–8. Until then, default-true.
+  if (draft.moduleId === 'harmonic-fluency') {
+    return isHarmonicFluencyValid(draft.harmonicFluency);
+  }
+  // TODO: Step 2 validity for the other three modules lands with their
+  // UI in build steps 6–8. Until then, default-true.
   return true;
 }
 
@@ -269,6 +308,15 @@ function isEarTrainingValid(t: EarTrainingTarget): boolean {
   if (!t.accuracyEnabled && !t.consistencyEnabled) return false;
   if (t.accuracyEnabled && t.accuracyScope === 'specific') {
     if (!t.drillTypeId || !t.drillSubtypeId) return false;
+  }
+  if (t.consistencyEnabled && t.consistencyCount < 1) return false;
+  return true;
+}
+
+function isHarmonicFluencyValid(t: HarmonicFluencyTarget): boolean {
+  if (!t.accuracyEnabled && !t.consistencyEnabled) return false;
+  if (t.accuracyEnabled && t.accuracyScope === 'specific') {
+    if (!t.categoryId) return false;
   }
   if (t.consistencyEnabled && t.consistencyCount < 1) return false;
   return true;
@@ -326,6 +374,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
         songId: null,
         songTarget: defaultSongTarget(),
         earTraining: defaultEarTraining(),
+        harmonicFluency: defaultHarmonicFluency(),
       };
     });
   };
@@ -470,6 +519,8 @@ function Step2View({
       return <Step2SongRepertoire draft={draft} onUpdate={onUpdate} />;
     case 'ear-training':
       return <Step2EarTraining draft={draft} onUpdate={onUpdate} />;
+    case 'harmonic-fluency':
+      return <Step2HarmonicFluency draft={draft} onUpdate={onUpdate} />;
     case null:
       // Defensive — shouldn't be reachable since Step 1 gates Next on
       // module being set, but keeps types honest.
@@ -479,8 +530,8 @@ function Step2View({
         </div>
       );
     default:
-      // TODO: Step 2 surfaces for the other four modules land in build
-      // steps 5–8. Until then, placeholder so navigation works end-to-end.
+      // TODO: Step 2 surfaces for the other three modules land in build
+      // steps 6–8. Until then, placeholder so navigation works end-to-end.
       return (
         <div className="min-h-[200px] flex items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
           Step 2 for this module — coming soon.
@@ -1060,12 +1111,24 @@ function AccuracyTargetCard({
   );
 }
 
-function ConsistencyTargetCard({
+/**
+ * Generic over any target shape that carries the standard consistency
+ * triple. Both EarTrainingTarget and HarmonicFluencyTarget satisfy
+ * this — and any future module's accuracy+consistency target can
+ * reuse the card by adopting the same field names.
+ */
+interface ConsistencyFields {
+  consistencyEnabled: boolean;
+  consistencyCount: number;
+  consistencyCadence: 'week' | 'month';
+}
+
+function ConsistencyTargetCard<T extends ConsistencyFields>({
   target,
   onChange,
 }: {
-  target: EarTrainingTarget;
-  onChange: (next: EarTrainingTarget) => void;
+  target: T;
+  onChange: (next: T) => void;
 }) {
   const toggle = () => onChange({ ...target, consistencyEnabled: !target.consistencyEnabled });
   const setCount = (n: number) => {
@@ -1073,7 +1136,7 @@ function ConsistencyTargetCard({
     // floor on save / preview but keep the raw value for editing fluency.
     onChange({ ...target, consistencyCount: Number.isFinite(n) ? n : 0 });
   };
-  const setCadence = (c: EarTrainingTarget['consistencyCadence']) => {
+  const setCadence = (c: 'week' | 'month') => {
     if (c === target.consistencyCadence) return;
     onChange({ ...target, consistencyCadence: c });
   };
@@ -1206,7 +1269,17 @@ function PillButton({
 }
 
 function EarTrainingPreview({ target }: { target: EarTrainingTarget }) {
-  const text = previewEarTrainingTarget(target);
+  return <TargetPreview text={previewEarTrainingTarget(target)} />;
+}
+
+/**
+ * Shared preview block — fluent-tinted card with the natural-language
+ * goal text, or an empty-state hint. Used by the per-module previews
+ * (ear training, harmonic fluency, and future modules) so the
+ * presentation stays identical across surfaces while each owns its
+ * own text-rendering helper.
+ */
+function TargetPreview({ text }: { text: string | null }) {
   return (
     <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-fluent mb-0.5">Preview</div>
@@ -1244,6 +1317,177 @@ function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
     const times = target.consistencyCount === 1 ? 'time' : 'times';
     const cadence = target.consistencyCadence;
     parts.push(`${verb} at least ${target.consistencyCount} ${times} a ${cadence}`);
+  }
+  if (parts.length === 0) return null;
+  return parts.join(' and ');
+}
+
+// ---- Step 2 — Harmonic Fluency -------------------------------------
+
+/**
+ * 12 flashcard categories grouped into 4 sections per the spec.
+ * Group titles are spec-locked; category IDs and labels resolve
+ * through `harmonic-fluency/catalog` so the goal flow stays in
+ * lockstep with the existing module's vocabulary if a label is ever
+ * retuned.
+ */
+interface HarmonicFluencyGroup {
+  id: string;
+  title: string;
+  categories: ReadonlyArray<FlashcardCategory>;
+}
+
+const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
+  {
+    id: 'foundational',
+    title: 'Foundational / Math',
+    categories: ['scale-degree-math', 'named-notes', 'key-signatures'],
+  },
+  {
+    id: 'chord-knowledge',
+    title: 'Chord Knowledge',
+    categories: ['diatonic-qualities', 'chord-construction', 'slash-chords'],
+  },
+  {
+    id: 'functional-applied',
+    title: 'Functional / Applied',
+    categories: ['functional-harmony', 'reverse-key-pivots', 'progressions'],
+  },
+  {
+    id: 'ear-recognition',
+    title: 'Ear & Recognition',
+    categories: ['modes', 'intervals', 'ear-theory'],
+  },
+];
+
+function Step2HarmonicFluency({
+  draft,
+  onUpdate,
+}: {
+  draft: Draft;
+  onUpdate: (patch: Partial<Draft>) => void;
+}) {
+  const target = draft.harmonicFluency;
+  const setTarget = (next: HarmonicFluencyTarget) => onUpdate({ harmonicFluency: next });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+        Pick at least one target. You can combine accuracy and consistency on a single goal.
+      </p>
+      <HarmonicFluencyAccuracyCard target={target} onChange={setTarget} />
+      <ConsistencyTargetCard target={target} onChange={setTarget} />
+      <TargetPreview text={previewHarmonicFluencyTarget(target)} />
+    </div>
+  );
+}
+
+function HarmonicFluencyAccuracyCard({
+  target,
+  onChange,
+}: {
+  target: HarmonicFluencyTarget;
+  onChange: (next: HarmonicFluencyTarget) => void;
+}) {
+  const toggle = () => onChange({ ...target, accuracyEnabled: !target.accuracyEnabled });
+  const setScope = (scope: HarmonicFluencyTarget['accuracyScope']) => {
+    if (scope === target.accuracyScope) return;
+    onChange({
+      ...target,
+      accuracyScope: scope,
+      categoryId: scope === 'overall' ? null : target.categoryId,
+    });
+  };
+  const setCategory = (id: FlashcardCategory) => {
+    onChange({ ...target, categoryId: id });
+  };
+  const setPercent = (p: number) => {
+    onChange({ ...target, accuracyPercent: p });
+  };
+
+  return (
+    <ToggleCard
+      title="Accuracy target"
+      hint="Reach a target accuracy percentage."
+      enabled={target.accuracyEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label="Overall accuracy"
+            active={target.accuracyScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="Specific category"
+            active={target.accuracyScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      {target.accuracyScope === 'specific' && (
+        <div className="flex flex-col gap-3">
+          {HARMONIC_FLUENCY_GROUPS.map(group => (
+            <div key={group.id}>
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1.5">
+                {group.title}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                {group.categories.map(catId => (
+                  <PillButton
+                    key={catId}
+                    label={CATEGORY_LABELS[catId]}
+                    active={target.categoryId === catId}
+                    onClick={() => setCategory(catId)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Field label={`Accuracy: ${target.accuracyPercent}%`}>
+        <input
+          type="range"
+          min={ACCURACY_PCT_MIN}
+          max={ACCURACY_PCT_MAX}
+          step={ACCURACY_PCT_STEP}
+          value={target.accuracyPercent}
+          onChange={e => setPercent(Number(e.target.value))}
+          className="w-full"
+          aria-label="Target accuracy percentage"
+        />
+      </Field>
+    </ToggleCard>
+  );
+}
+
+/**
+ * Spec preview phrasing:
+ *   accuracy / overall:    "Improve my overall harmonic fluency accuracy to 75%"
+ *   accuracy / specific:   "Reach 80% accuracy on Scale Degree Math"
+ *   consistency-only:      "Practice harmonic fluency at least 3 times a week"
+ *   both:                  "<accuracy> and practice at least 3 times a week"
+ *
+ * No subtype dash — categories are leaf labels.
+ */
+function previewHarmonicFluencyTarget(target: HarmonicFluencyTarget): string | null {
+  const parts: string[] = [];
+  if (target.accuracyEnabled) {
+    if (target.accuracyScope === 'overall') {
+      parts.push(`Improve my overall harmonic fluency accuracy to ${target.accuracyPercent}%`);
+    } else {
+      if (!target.categoryId) return null;
+      const label = CATEGORY_LABELS[target.categoryId];
+      parts.push(`Reach ${target.accuracyPercent}% accuracy on ${label}`);
+    }
+  }
+  if (target.consistencyEnabled) {
+    if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
+    const verb = parts.length === 0 ? 'Practice harmonic fluency' : 'practice';
+    const times = target.consistencyCount === 1 ? 'time' : 'times';
+    parts.push(`${verb} at least ${target.consistencyCount} ${times} a ${target.consistencyCadence}`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
