@@ -2354,7 +2354,16 @@ function ProductionCompletionCard({
         </Field>
       )}
       {target.completionScope === 'count' && (
-        <Field label="Lessons">
+        // Manual div + span instead of <Field> (which wraps in
+        // <label>) — wrapping a controlled type="number" input in a
+        // <label> can cause Safari to redirect focus when the value
+        // transitions to empty, especially with min={1} constraint
+        // validation tripping. Same fix as the Practice consistency
+        // days input.
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+            Lessons
+          </span>
           <input
             type="number"
             min={1}
@@ -2363,7 +2372,7 @@ function ProductionCompletionCard({
             className={`${inputClass()} w-20`}
             aria-label="New lessons to complete"
           />
-        </Field>
+        </div>
       )}
     </ToggleCard>
   );
