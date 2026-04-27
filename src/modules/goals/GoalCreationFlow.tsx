@@ -743,7 +743,13 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
       return {
         ...d,
         moduleId: id,
-        // Switching modules invalidates module-specific state.
+        // Switching modules invalidates module-specific state. Scope,
+        // targetDate, and parentGoal are module-agnostic — keep them
+        // across module switches so initialScope pre-fill (and any
+        // user-set scope / parent picks) survive a Step-1 module
+        // change. Section-locked weekly is handled at goNext time
+        // when the user actually picks a section + advances, not
+        // pre-emptively reset on module change.
         songId: null,
         songTarget: defaultSongTarget(),
         earTraining: defaultEarTraining(),
@@ -751,13 +757,6 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
         shapesPatterns: defaultShapesPatterns(),
         production: defaultProduction(),
         practiceConsistency: defaultPracticeConsistency(),
-        // Scope + targetDate are also module-agnostic but section-
-        // locked weekly may have been forced by a prior selection;
-        // reset so the next module starts clean.
-        scope: null,
-        targetDate: null,
-        // Parent goal eligibility depends on scope, which just reset.
-        parentGoal: { kind: 'unset' },
       };
     });
   };
@@ -787,8 +786,23 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
     </div>
   );
 
+  // Scope banner: persistent context strip across all five steps when
+  // the flow was opened from a scope-aware entry point (per-layer
+  // "+ Add" / "+ Reflect"). Tracks the current draft.scope so it
+  // updates if the user changes scope on Step 3 — the banner exists
+  // because we opened in a scope-pre-filled context, but it always
+  // reads the live current scope so the user knows where they stand.
+  // Hidden when the flow was opened from the general "+ Set a goal"
+  // button (initialScope is null).
+  const showScopeBanner = !!initialScope && draft.scope !== null;
+
   return (
     <Modal open={open} onClose={handleClose} title={step.title} footer={footer}>
+      {showScopeBanner && (
+        <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2 mb-3 text-xs font-medium text-fluent">
+          Setting up a {SCOPE_LABEL[draft.scope!]} goal
+        </div>
+      )}
       {renderStep(step, draft, selectModule, updateDraft)}
     </Modal>
   );
