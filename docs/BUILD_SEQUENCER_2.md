@@ -2,7 +2,7 @@
 
 Single source of truth for build order, current state, and which docs to reference per phase. Paste this at the start of every Claude Code session alongside WORKING_WITH_CLAUDE.md.
 
-Last updated: April 26, 2026
+Last updated: April 27, 2026
 
 ---
 
@@ -10,9 +10,11 @@ Last updated: April 26, 2026
 
 **Phase 1 — COMPLETE.** All 6 sub-phases shipped and verified. Pushed to origin/main.
 
-**Phase 1.5 — IN PROGRESS.** Steps 1–7 committed. Step 7 (goal modal song-specific branch) committed but the broader goal modal is being redesigned in Phase 1.6. Phase 1.5 is otherwise complete — push to main and move to Phase 1.6.
+**Phase 1.5 — COMPLETE.** All 7 steps shipped and pushed to origin/main.
 
-**Active next step:** Push Phase 1.5 remaining commits to main, then start Phase 1.6.
+**Phase 1.6 — COMPLETE.** All 16 build steps shipped, verified end-to-end, and pushed to origin/main. The new `GoalCreationFlow` is live in production paths (Goals home + onboarding Screen 3); legacy `GoalFormModal` stays mounted alongside for old-vocab edits.
+
+**Active next step:** Phase 2 — Practice Sessions spacing state + multi-component goals.
 
 ---
 
@@ -24,7 +26,7 @@ All 6 sub-phases shipped and verified. Pushed to origin/main.
 
 ---
 
-### Phase 1.5 — Song Progression Redesign (NEAR COMPLETE — push to main)
+### Phase 1.5 — Song Progression Redesign ✅ COMPLETE
 
 **Reference docs:**
 - `SONG_PROGRESSION_DESIGN_3.md` — full spec
@@ -38,7 +40,7 @@ All 6 sub-phases shipped and verified. Pushed to origin/main.
 6. ✅ Solid decay + retest flow — fading/lapsed badges, retest modal, decay stickiness
 7. ✅ Goal creation modal updates — matrix-aware song goal targeting (song-specific branch only)
 
-**Action:** Push all Phase 1.5 commits to origin/main before starting Phase 1.6.
+All 7 steps pushed to origin/main.
 
 **Known deferred items from Phase 1.5:**
 - Cell interaction modal per-attempt mode toggle (P3 polish)
@@ -54,48 +56,53 @@ All 6 sub-phases shipped and verified. Pushed to origin/main.
 
 ---
 
-### Phase 1.6 — Goal Modal Redesign + Shapes & Patterns Proficiency (NEXT)
+### Phase 1.6 — Goal Modal Redesign + Shapes & Patterns Proficiency ✅ COMPLETE
 
 **Reference docs:**
-- `GOAL_MODAL_REDESIGN.md` — full spec for the new guided 4-step goal creation flow
-- Shapes & Patterns Proficiency Design session needed FIRST (see below)
+- `GOAL_MODAL_REDESIGN.md` — final spec (5-step flow, parent goal step, design questions resolved)
+- `SHAPES_PROFICIENCY_DESIGN.md` — Shapes & Patterns proficiency model
 
-**Prerequisites before build starts:**
-1. Phase 1.5 pushed to main
-2. Shapes & Patterns Proficiency dedicated design session complete — covers gate definitions (time + BPM thresholds), schema for logging practice blocks per shape per key, UI for logging, and migration of existing data
+**What Phase 1.6 shipped:**
+- New `GoalCreationFlow` — guided 5-step conversation in `src/modules/goals/GoalCreationFlow.tsx`
+- Step 1: module cards (6 modules in 3×2 grid with canonical accent colors)
+- Step 2: module-specific target surfaces — all 6 modules built
+- Step 3: scope cards + target date with `initialScope` pre-fill and persistent scope banner
+- Step 3.5: parent goal picker (vocabulary-aware suggestions + "No parent goal" + "Create new parent goal" placeholder)
+- Step 4: review block with metadata pills + multi-target indicator + save
+- Context inference (`contextForModule`) wired into save
+- Multi-target encoding: two records sharing `parent_goal_id` per the spec design call
+- Edit mode: full decoder set + key-on-mount remount pattern
+- Entry-point swap: vocabulary-routed (new vocab → new flow, old vocab → legacy `GoalFormModal`)
+- Both modals coexist on Goals home + onboarding Screen 3 until old-vocab goals age out / migrate
 
-**What Phase 1.6 ships:**
-- New `GoalCreationFlow` — 4-step guided conversation replacing the current `GoalFormModal`
-- Step 1: module cards (6 modules)
-- Step 2: module-specific target surfaces (Song Repertoire, Ear Training, Harmonic Fluency, Shapes & Patterns, Production, Practice consistency)
-- Step 3: scope cards + target date
-- Step 4: review block + optional note + save
-- Context inference from module (no separate context question)
-- Replaces all `GoalFormModal` entry points
+**Build steps (all shipped, in order):**
+1. ✅ `GoalCreationFlow` shell — 5-step navigation, dot indicator, back/next
+2. ✅ Step 1 — module cards (with accent colors)
+3. ✅ Step 2 — Song Repertoire (extracted SongTargetSection, want-to-learn promote)
+4. ✅ Step 2 — Ear Training
+5. ✅ Step 2 — Harmonic Fluency (with 4-group accent palette)
+6. ✅ Step 2 — Shapes & Patterns
+7. ✅ Step 2 — Production
+8. ✅ Step 2 — Practice consistency
+9. ✅ Step 3 — scope cards + target date (extracted scopeMeta)
+10. ✅ Step 3.5 — parent goal picker
+11+12+13. ✅ Step 4 review + save logic + multi-target encoding + context inference (combined commit)
+14. ✅ Edit mode — decoders + key-on-mount remount
+15. ✅ Entry-point swap — vocabulary routing + persistent scope banner + "+ Reflect" → "+ Aspire"
+16. ✅ Final verification — all new-vocab metrics decode correctly in edit mode
 
-**What Phase 1.6 does NOT touch:**
-- The underlying goal schema (unchanged)
-- `songTarget.ts` encoding logic (reused, not replaced)
-- Goals home, onboarding, layered display (unchanged)
-
-**Build steps (in order, each commits independently):**
-1. `GoalCreationFlow` shell — 4-step navigation, dot indicator, back/next
-2. Step 1 — module cards
-3. Step 2 — Song Repertoire (reuses existing SongTargetSection logic)
-4. Step 2 — Ear Training
-5. Step 2 — Harmonic Fluency
-6. Step 2 — Shapes & Patterns (requires Shapes design session prerequisite)
-7. Step 2 — Production
-8. Step 2 — Practice consistency
-9. Step 3 — scope cards + target date
-10. Step 4 — review + optional note + save
-11. Wire context inference
-12. Replace GoalFormModal entry points
-13. Verify edit mode for all existing goal types
+**Known deferred items from Phase 1.6 (captured in user-memory notes for after Phase 1.6 ships):**
+- Song section multi-select (multiple sections in one pass, save as siblings)
+- Cross-key % slider tied to the song's actual keys × sections (not generic 0–100%)
+- "+ Add" / "+ Aspire" link should sit at top of each layer instead of bottom
+- Vision-scope goals (Lifetime, 2–3 years) should swap structured target picker for freeform text per module
+- End-of-period goal warning (e.g., monthly goal created on April 27 with only 3 days left)
+- Onboarding Screen3 vision-scope creates still walk through the new flow's structured pickers — may want to special-case back to legacy text-only modal
+- Legacy `GoalFormModal` stays mounted alongside the new flow until all old-vocab goals are aged out / migrated
 
 ---
 
-### Phase 2 — Practice Sessions spacing state + multi-component goals
+### Phase 2 — Practice Sessions spacing state + multi-component goals (NEXT)
 
 **Reference docs:**
 - `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 2 section
@@ -105,7 +112,7 @@ All 6 sub-phases shipped and verified. Pushed to origin/main.
 - Multi-component (umbrella) goal UI
 - Goal progress automation — auto-update `current_value` from spacing state
 
-**Dependency:** Phase 1.6 complete.
+**Dependency:** Phase 1.6 complete ✅.
 
 ---
 
@@ -215,11 +222,11 @@ All 6 sub-phases shipped and verified. Pushed to origin/main.
 
 ## Deferred design sessions needed (not yet scheduled)
 
-**Shapes & Patterns Proficiency Redesign** — prerequisite for Phase 1.6 Step 2 (Shapes & Patterns). Decisions locked April 26: song vocabulary, per-shape-per-key tracking, time + BPM gate. Full design session needed for: gate thresholds, schema, logging UI, migration.
-
 **Section mutations** — rename, reorder, split, archive, restore for song matrix sections. Deferred from Phase 1.5. Add as a Phase 1.5 cleanup step before Phase 2.
 
 **Original key reassignment UI** — user can change which key is designated as original. Schema supports it; UI not built. Add as a Phase 1.5 cleanup step.
+
+**Vision-scope freeform text in new flow** — Lifetime / 2–3 year goals should swap the structured target picker for an open-text field per module (legacy `GoalFormModal` had a vision-mode variant; new flow currently doesn't). Captured as a Phase 1.6 deferred item.
 
 ---
 
