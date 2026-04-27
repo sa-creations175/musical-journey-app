@@ -35,6 +35,7 @@ import {
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
+  decodeSongTarget,
   encodeSongTarget,
   previewSongTarget,
   type KeyStateHint,
@@ -429,18 +430,33 @@ const EMPTY_DRAFT: Draft = {
 };
 
 /**
- * Build the initial Draft for a fresh open. When `initialScope` is
- * provided (the parent opened the flow with a layer pre-selected, e.g.
- * the per-layer "+ Add" affordance), pre-fill scope + targetDate so
- * Step 3 lands on that scope. Otherwise EMPTY_DRAFT.
+ * Build the initial Draft for a fresh open.
+ *
+ *   - `initialGoal` set: edit mode. Decode the goal back into a Draft
+ *     via decodeGoalToDraft (covers all new-vocabulary metrics). Old-
+ *     vocabulary goals (`items_at_level` etc.) decode as null — caller
+ *     should route them to GoalFormModal instead, but the EMPTY_DRAFT
+ *     fallback keeps the new flow rendering safely if a stray edit
+ *     attempt sneaks through.
+ *   - `initialScope` set (and no `initialGoal`): create mode with the
+ *     scope + target date pre-filled. Step 3 lands on that scope.
+ *   - Neither set: empty draft, fresh create.
  */
-function buildInitialDraft(initialScope: GoalScope | null | undefined): Draft {
-  if (!initialScope) return EMPTY_DRAFT;
-  return {
-    ...EMPTY_DRAFT,
-    scope: initialScope,
-    targetDate: defaultTargetDate(initialScope),
-  };
+function buildInitialDraft(
+  initialScope: GoalScope | null | undefined,
+  initialGoal: Goal | null | undefined,
+): Draft {
+  if (initialGoal) {
+    return decodeGoalToDraft(initialGoal) ?? EMPTY_DRAFT;
+  }
+  if (initialScope) {
+    return {
+      ...EMPTY_DRAFT,
+      scope: initialScope,
+      targetDate: defaultTargetDate(initialScope),
+    };
+  }
+  return EMPTY_DRAFT;
 }
 
 /**
@@ -548,24 +564,25 @@ function isPracticeConsistencyValid(t: PracticeConsistencyTarget): boolean {
 
 // ---- Component -----------------------------------------------------
 
-export default function GoalCreationFlow({ open, onClose, initialScope }: Props) {
-  // `initialGoal` is declared on Props so consumers can pass it
-  // today, but not yet read here — wired in step 14 (edit-mode
-  // landing step). `initialScope` is consumed below to pre-fill
-  // Step 3 when the parent opens the flow with a layer pre-selected
-  // (e.g. the per-layer "+ Add" affordance).
+export default function GoalCreationFlow({ open, onClose, initialScope, initialGoal }: Props) {
+  // `initialScope` pre-fills Step 3 when the parent opens the flow
+  // with a layer pre-selected (e.g. per-layer "+ Add"). `initialGoal`
+  // (Phase 1.6 step 14) opens the flow in edit mode, decoding the
+  // goal back into a Draft so all five steps land pre-filled.
   const [stepIndex, setStepIndex] = useState(0);
-  const [draft, setDraft] = useState<Draft>(() => buildInitialDraft(initialScope));
+  const [draft, setDraft] = useState<Draft>(() => buildInitialDraft(initialScope, initialGoal));
   const [saving, setSaving] = useState(false);
+
+  const isEditing = !!initialGoal;
 
   // Wrap the parent's onClose so every close path resets to Step 1
   // with the freshly-rebuilt initial draft (preserving initialScope
-  // pre-fill). Routed to: Modal's Esc/backdrop/X (via the onClose
-  // prop below), Back on Step 1 (via goBack), and Save (via goNext
-  // on the last step). Re-opening always lands on Step 1.
+  // / initialGoal pre-fill). Routed to: Modal's Esc/backdrop/X (via
+  // the onClose prop below), Back on Step 1 (via goBack), and Save
+  // (via goNext on the last step). Re-opening always lands on Step 1.
   const handleClose = () => {
     setStepIndex(0);
-    setDraft(buildInitialDraft(initialScope));
+    setDraft(buildInitialDraft(initialScope, initialGoal));
     setSaving(false);
     onClose();
   };
@@ -618,6 +635,21 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
       const relatedModules = relatedModulesForCard(draft.moduleId);
       const relatedItems = draft.songId ? [draft.songId] : [];
 
+      // Edit-mode bookkeeping: in edit mode we want to update the
+      // original record in place (preserving id, currentValue,
+      // startDate, lastEngagedAt) rather than create a new one.
+      // When a multi-target draft produces 2 records, match the
+      // original to the record whose slice kind (accuracy /
+      // proficiency / completion vs. consistency-period) matches —
+      // the OTHER record gets a new id. If no record matches the
+      // original's slice kind (the user swapped slices entirely),
+      // delete the original after writing the new records to avoid
+      // an orphan.
+      const originalIsConsistency = isEditing
+        ? isConsistencySlice(initialGoal!.targetMetric)
+        : false;
+      let originalIdReused = false;
+
       // Multi-target: two records share parent_goal_id (per spec) but
       // are otherwise independent rows. Single-target: one record.
       for (const record of records) {
@@ -629,26 +661,41 @@ export default function GoalCreationFlow({ open, onClose, initialScope }: Props)
           console.error('[goal-flow] BUG: encoder produced malformed record', { record, draft });
           continue;
         }
+        const recordIsConsistency = isConsistencySlice(record.targetMetric);
+        const reuseOriginalId =
+          isEditing && !originalIdReused && recordIsConsistency === originalIsConsistency;
+
         const goal: Goal = {
-          id: uid('goal'),
+          id: reuseOriginalId ? initialGoal!.id : uid('goal'),
           scope: draft.scope,
           description: record.description,
           targetMetric: record.targetMetric,
           targetValue: record.targetValue,
           targetUnit: record.targetUnit,
-          currentValue: 0,
+          currentValue: reuseOriginalId ? initialGoal!.currentValue : 0,
           contextTag,
           relatedModules,
           relatedItems,
-          startDate: now,
+          startDate: reuseOriginalId ? initialGoal!.startDate : now,
           targetDate: draft.targetDate,
-          status: 'active',
+          status: reuseOriginalId ? initialGoal!.status : 'active',
           parentGoalId,
-          contributesNumericallyToParent: false,
-          isUmbrella: false,
-          lastEngagedAt: now,
+          contributesNumericallyToParent: reuseOriginalId
+            ? initialGoal!.contributesNumericallyToParent
+            : false,
+          isUmbrella: reuseOriginalId ? initialGoal!.isUmbrella : false,
+          lastEngagedAt: reuseOriginalId ? initialGoal!.lastEngagedAt : now,
         };
+        if (reuseOriginalId) originalIdReused = true;
         await db.goals.put(goal);
+      }
+
+      // Slice swap during edit: the user toggled off the slice the
+      // original belonged to and replaced it with the other slice.
+      // No record matched the original — delete it so the goal's
+      // identity is honored (the new record(s) become the goal).
+      if (isEditing && !originalIdReused) {
+        await db.goals.delete(initialGoal!.id);
       }
 
       handleClose();
@@ -3007,6 +3054,186 @@ function encodeRecordsForDraft(
     case 'production':           return encodeProduction(draft.production);
     case 'practice-consistency': return encodePracticeConsistency(draft.practiceConsistency);
     default:                     return [];
+  }
+}
+
+// ---- Decoders for edit mode ----------------------------------------
+
+/**
+ * Map a saved goal's targetMetric to the goal-flow card it belongs
+ * to. Returns null for old-vocabulary metrics (`items_at_level`,
+ * `hours_on_modules`, `count_completed`, `custom`) — those goals
+ * route to GoalFormModal in edit mode, not the new flow (option B
+ * from the step 14 design call: two-modal coexistence).
+ */
+function moduleForMetric(metric: string | null): ModuleCardId | null {
+  if (!metric) return null;
+  if (metric === 'song_whole_at_state' || metric === 'song_section_at_state' || metric === 'song_key_at_state') {
+    return 'repertoire';
+  }
+  if (metric.startsWith('ear_training_'))     return 'ear-training';
+  if (metric.startsWith('harmonic_fluency_')) return 'harmonic-fluency';
+  if (metric.startsWith('shapes_'))           return 'shapes-and-patterns';
+  if (metric.startsWith('production_'))       return 'production';
+  if (metric === 'practice_days_per_cadence') return 'practice-consistency';
+  return null;
+}
+
+/**
+ * True when this metric is the consistency-half of a multi-target
+ * pair. Used at edit save time to match the encoder's output back
+ * to the original Goal record by slice kind, so we update in place
+ * rather than orphan the original.
+ */
+function isConsistencySlice(metric: string | null): boolean {
+  if (!metric) return false;
+  return metric.endsWith('_per_cadence');
+}
+
+function decodeEarTraining(goal: Goal): EarTrainingTarget {
+  const t = defaultEarTraining();
+  if (goal.targetMetric === 'ear_training_accuracy_overall') {
+    t.accuracyEnabled = true;
+    t.accuracyScope = 'overall';
+    t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
+  } else if (goal.targetMetric === 'ear_training_accuracy_specific') {
+    t.accuracyEnabled = true;
+    t.accuracyScope = 'specific';
+    t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
+    const [drillTypeId, drillSubtypeId] = (goal.targetUnit ?? '').split(':');
+    t.drillTypeId = drillTypeId || null;
+    t.drillSubtypeId = drillSubtypeId || null;
+  } else if (goal.targetMetric === 'ear_training_sessions_per_cadence') {
+    t.consistencyEnabled = true;
+    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+  }
+  return t;
+}
+
+function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
+  const t = defaultHarmonicFluency();
+  if (goal.targetMetric === 'harmonic_fluency_accuracy_overall') {
+    t.accuracyEnabled = true;
+    t.accuracyScope = 'overall';
+    t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
+  } else if (goal.targetMetric === 'harmonic_fluency_accuracy_specific') {
+    t.accuracyEnabled = true;
+    t.accuracyScope = 'specific';
+    t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
+    t.categoryId = (goal.targetUnit as FlashcardCategory) || null;
+  } else if (goal.targetMetric === 'harmonic_fluency_sessions_per_cadence') {
+    t.consistencyEnabled = true;
+    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+  }
+  return t;
+}
+
+function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
+  const t = defaultShapesPatterns();
+  if (goal.targetMetric === 'shapes_proficiency_overall') {
+    t.proficiencyEnabled = true;
+    t.proficiencyScope = 'overall';
+    const [area, level] = (goal.targetUnit ?? '').split(':');
+    if (area === 'scale_drills' || area === 'chord_shape_drills' || area === 'voice_leading') {
+      t.activityArea = area;
+    }
+    if (level === 'learning' || level === 'comfortable' || level === 'solid' || level === 'internalized') {
+      t.proficiencyLevel = level;
+    }
+  } else if (goal.targetMetric === 'shapes_proficiency_specific') {
+    t.proficiencyEnabled = true;
+    t.proficiencyScope = 'specific';
+    const [area, shapeId, keyTarget, level] = (goal.targetUnit ?? '').split(':');
+    if (area === 'scale_drills' || area === 'chord_shape_drills' || area === 'voice_leading') {
+      t.activityArea = area;
+    }
+    t.shapeId = shapeId || null;
+    t.keyTarget = keyTarget || 'all';
+    if (level === 'learning' || level === 'comfortable' || level === 'solid' || level === 'internalized') {
+      t.proficiencyLevel = level;
+    }
+  } else if (goal.targetMetric === 'shapes_minutes_per_cadence') {
+    t.consistencyEnabled = true;
+    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+  }
+  return t;
+}
+
+function decodeProduction(goal: Goal): ProductionTarget {
+  const t = defaultProduction();
+  if (goal.targetMetric === 'production_path_completion') {
+    t.completionEnabled = true;
+    t.completionScope = 'path';
+    t.pathId = goal.targetUnit ?? null;
+  } else if (goal.targetMetric === 'production_lessons_count') {
+    t.completionEnabled = true;
+    t.completionScope = 'count';
+    t.lessonCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.lessonCount;
+  } else if (goal.targetMetric === 'production_hours_per_cadence') {
+    t.consistencyEnabled = true;
+    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+  }
+  return t;
+}
+
+function decodePracticeConsistency(goal: Goal): PracticeConsistencyTarget {
+  const t = defaultPracticeConsistency();
+  if (goal.targetMetric === 'practice_days_per_cadence') {
+    t.days = typeof goal.targetValue === 'number' ? goal.targetValue : t.days;
+    t.cadence = goal.targetUnit === 'month' ? 'month' : 'week';
+  }
+  return t;
+}
+
+/**
+ * Decode a saved Goal record back into a fully-populated Draft.
+ * Returns null for old-vocabulary goals — caller falls back to
+ * EMPTY_DRAFT (or, in step 15's entry-point swap, routes to
+ * GoalFormModal instead of the new flow).
+ *
+ * Each module decoder populates only the slice that matches the
+ * goal's targetMetric. Multi-target goals (saved as two records
+ * sharing parent_goal_id) are edited independently per the step 14
+ * design call — clicking one record opens it as a single-target
+ * draft showing only that slice.
+ */
+function decodeGoalToDraft(goal: Goal): Draft | null {
+  const moduleId = moduleForMetric(goal.targetMetric);
+  if (!moduleId) return null;
+
+  const baseDraft: Draft = {
+    ...EMPTY_DRAFT,
+    moduleId,
+    scope: goal.scope,
+    targetDate: goal.targetDate,
+    parentGoal: goal.parentGoalId
+      ? { kind: 'linked', goalId: goal.parentGoalId }
+      : { kind: 'none' },
+  };
+
+  switch (moduleId) {
+    case 'repertoire': {
+      const decoded = decodeSongTarget(goal);
+      return {
+        ...baseDraft,
+        songId: goal.relatedItems[0] ?? null,
+        songTarget: decoded ?? defaultSongTarget(),
+      };
+    }
+    case 'ear-training':
+      return { ...baseDraft, earTraining: decodeEarTraining(goal) };
+    case 'harmonic-fluency':
+      return { ...baseDraft, harmonicFluency: decodeHarmonicFluency(goal) };
+    case 'shapes-and-patterns':
+      return { ...baseDraft, shapesPatterns: decodeShapesPatterns(goal) };
+    case 'production':
+      return { ...baseDraft, production: decodeProduction(goal) };
+    case 'practice-consistency':
+      return { ...baseDraft, practiceConsistency: decodePracticeConsistency(goal) };
   }
 }
 
