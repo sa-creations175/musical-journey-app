@@ -218,30 +218,35 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
   // `initialGoal` and `initialScope` are declared on Props so
   // consumers can pass them today, but not yet read here. Wired in
   // step 9 (scope pre-fill) and step 14 (edit-mode landing step).
-  // TODO (step 11): reset stepIndex AND draft when the modal is
-  // closed externally — Esc, backdrop click, or the X button.
-  // Currently re-opening lands on whatever step the user was on at
-  // close, with whatever they had selected. Revisit when the rest
-  // of draft state lands.
   const [stepIndex, setStepIndex] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+
+  // Wrap the parent's onClose so every close path resets to Step 1
+  // with an empty draft. Routed to: Modal's Esc/backdrop/X (via the
+  // onClose prop below), Back on Step 1 (via goBack), and Save (via
+  // goNext on the last step). Re-opening always lands on Step 1
+  // with no carry-over state.
+  const handleClose = () => {
+    setStepIndex(0);
+    setDraft(EMPTY_DRAFT);
+    onClose();
+  };
   const step = STEPS[stepIndex];
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === STEPS.length - 1;
   const canAdvance = isCurrentStepValid(step.id, draft);
 
   const goBack = () => {
-    if (isFirst) onClose();
+    if (isFirst) handleClose();
     else setStepIndex(i => Math.max(0, i - 1));
   };
 
   const goNext = () => {
     if (!canAdvance) return;
     if (isLast) {
-      // TODO: real save in step 11. Shell just dismisses.
-      onClose();
-      setStepIndex(0);
-      setDraft(EMPTY_DRAFT);
+      // TODO: real save in step 11. Shell just dismisses; handleClose
+      // resets stepIndex and draft.
+      handleClose();
     } else {
       setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
     }
@@ -288,7 +293,7 @@ export default function GoalCreationFlow({ open, onClose }: Props) {
   );
 
   return (
-    <Modal open={open} onClose={onClose} title={step.title} footer={footer}>
+    <Modal open={open} onClose={handleClose} title={step.title} footer={footer}>
       {renderStep(step, draft, selectModule, updateDraft)}
     </Modal>
   );
