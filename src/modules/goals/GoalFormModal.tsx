@@ -35,6 +35,14 @@ import {
 import Field from './Field';
 import { inputClass } from './formStyles';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
+import {
+  SCOPE_ORDER,
+  SCOPE_LABEL,
+  VISION_SCOPES,
+  defaultTargetDate,
+  dateInputValue,
+  dateInputToMs,
+} from './scopeMeta';
 
 /**
  * Goal creation / edit modal.
@@ -67,26 +75,6 @@ import SongTargetSection, { SongPreview } from './SongTargetSection';
  * in Phase 7 (this form just exposes the manual parent dropdown +
  * rollup toggle).
  */
-
-const SCOPE_ORDER: GoalScope[] = [
-  'weekly',
-  'monthly',
-  'quarterly',
-  'yearly',
-  'two_to_three_year',
-  'lifetime',
-];
-
-const SCOPE_LABEL: Record<GoalScope, string> = {
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  yearly: 'Yearly',
-  two_to_three_year: '2 — 3 year',
-  lifetime: 'Lifetime',
-};
-
-const VISION_SCOPES = new Set<GoalScope>(['two_to_three_year', 'lifetime']);
 
 const CONTEXT_OPTIONS: PracticeSessionContext[] = ['keys', 'laptop', 'phone', 'mixed'];
 
@@ -125,70 +113,6 @@ interface FormState {
 
 function makeId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
-}
-
-function endOfWeek(now: number): number {
-  const d = new Date(now);
-  const dayOfWeek = d.getDay(); // 0 = Sunday
-  const daysUntilSunday = (7 - dayOfWeek) % 7 || 7;
-  d.setDate(d.getDate() + daysUntilSunday);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-
-function endOfMonth(now: number): number {
-  const d = new Date(now);
-  d.setMonth(d.getMonth() + 1, 0);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-
-function endOfQuarter(now: number): number {
-  const d = new Date(now);
-  const q = Math.floor(d.getMonth() / 3);
-  d.setMonth(q * 3 + 3, 0);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-
-function endOfYear(now: number): number {
-  const d = new Date(now);
-  d.setFullYear(d.getFullYear(), 11, 31);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
-}
-
-function defaultTargetDate(scope: GoalScope, now: number = Date.now()): number {
-  switch (scope) {
-    case 'weekly':            return endOfWeek(now);
-    case 'monthly':           return endOfMonth(now);
-    case 'quarterly':         return endOfQuarter(now);
-    case 'yearly':            return endOfYear(now);
-    case 'two_to_three_year': return now + 2 * 365 * 24 * 60 * 60 * 1000;
-    case 'lifetime':          return now + 30 * 365 * 24 * 60 * 60 * 1000;
-  }
-}
-
-/** Render an epoch-ms timestamp into the YYYY-MM-DD shape an
- *  `<input type="date">` consumes / emits. */
-function dateInputValue(ms: number): string {
-  const d = new Date(ms);
-  const yyyy = d.getFullYear().toString().padStart(4, '0');
-  const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-  const dd = d.getDate().toString().padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function dateInputToMs(value: string): number | null {
-  if (!value) return null;
-  const parts = value.split('-');
-  if (parts.length !== 3) return null;
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
-  const d = Number(parts[2]);
-  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
-  // End-of-day so date comparisons read intuitively.
-  return new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
 }
 
 function defaultSongTarget(): SongTargetSelection {
