@@ -9,9 +9,12 @@ import {
   type SongCell,
   type SongKey,
   type SongMatrixSection,
+  type SongSection,
+  type WantToLearnEntry,
 } from '../../lib/db';
 import { moduleMetaById, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
+import { DEFAULT_STAGE } from '../repertoire/stage';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
@@ -433,12 +436,17 @@ function Step2SongRepertoire({
   draft: Draft;
   onUpdate: (patch: Partial<Draft>) => void;
 }) {
-  // Live song list for the picker. Showing all songs (no archive
-  // flag exists on Song today) — search filters client-side.
+  // Live song list + want-to-learn backlog for the picker. Both
+  // tables are small; client-side filter / sort.
   const allSongs = useLiveQuery(
     () => db.songs.toArray(),
     [],
     [] as Song[],
+  );
+  const wantToLearn = useLiveQuery(
+    () => db.wantToLearn.toArray(),
+    [],
+    [] as WantToLearnEntry[],
   );
   const songRecord = useMemo(
     () => draft.songId ? allSongs.find(s => s.id === draft.songId) : undefined,
@@ -532,6 +540,7 @@ function Step2SongRepertoire({
     <div className="flex flex-col gap-4">
       <SongPicker
         songs={allSongs}
+        wantToLearn={wantToLearn}
         selectedSongId={draft.songId}
         onSelect={setSongId}
       />
@@ -561,38 +570,100 @@ function Step2SongRepertoire({
   );
 }
 
-const SONG_PICKER_MAX_RESULTS = 20;
-
 function SongPicker({
   songs,
+  wantToLearn,
   selectedSongId,
   onSelect,
 }: {
   songs: ReadonlyArray<Song>;
+  wantToLearn: ReadonlyArray<WantToLearnEntry>;
   selectedSongId: string | null;
   onSelect: (id: string | null) => void;
 }) {
   const [query, setQuery] = useState('');
+  const [pendingPromote, setPendingPromote] = useState<WantToLearnEntry | null>(null);
+  const [promoting, setPromoting] = useState(false);
   const selectedSong = selectedSongId ? songs.find(s => s.id === selectedSongId) : undefined;
 
-  const matches = useMemo(() => {
+  const filteredSongs = useMemo(() => {
+    const sorted = [...songs].sort((a, b) => a.title.localeCompare(b.title));
     const q = query.trim().toLowerCase();
-    if (!q) return [] as Song[];
-    return songs
-      .filter(s => s.title.toLowerCase().includes(q))
-      .slice(0, SONG_PICKER_MAX_RESULTS);
+    if (!q) return sorted;
+    return sorted.filter(s => s.title.toLowerCase().includes(q));
   }, [songs, query]);
+
+  const filteredWants = useMemo(() => {
+    const sorted = [...wantToLearn].sort((a, b) => a.title.localeCompare(b.title));
+    const q = query.trim().toLowerCase();
+    if (!q) return sorted;
+    return sorted.filter(w => w.title.toLowerCase().includes(q));
+  }, [wantToLearn, query]);
 
   // Custom div+span structure rather than the shared Field component
   // (which wraps in <label>) — labelling an input + a list of buttons
   // with one <label> can cause browsers to delegate the button clicks
   // to the input via the labeled-control activation behavior.
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
-        Song
-      </span>
-      {selectedSong ? (
+
+  // Pending-promote intermediate state — surfaced when a Want-to-Learn
+  // entry is clicked. Explicit consent before the row gets converted
+  // to an active Song. Mirrors the existing AddSongModal / WantToLearnView
+  // promote pattern: setting a goal is itself a strong commitment, but
+  // we still ask before mutating the source-of-truth.
+  if (pendingPromote && !selectedSong) {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">Song</span>
+        <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-3 flex flex-col gap-2">
+          <div>
+            <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+              {pendingPromote.title}
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">
+              {pendingPromote.artist}
+            </div>
+          </div>
+          <p className="text-xs text-neutral-600 dark:text-neutral-400">
+            This song is in Want to Learn. Setting a goal will move it to your active repertoire.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                setPromoting(true);
+                try {
+                  const newId = await promoteWantToLearnEntry(pendingPromote);
+                  setPendingPromote(null);
+                  setQuery('');
+                  onSelect(newId);
+                } catch (err) {
+                  console.warn('[goal-flow] promote failed', err);
+                  setPromoting(false);
+                }
+              }}
+              disabled={promoting}
+              className="px-3 py-1.5 text-xs rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {promoting ? 'Moving…' : 'Move and continue'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPendingPromote(null)}
+              disabled={promoting}
+              className="px-3 py-1.5 text-xs rounded-md border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 disabled:opacity-40"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedSong) {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">Song</span>
         <div className="flex items-center justify-between gap-2 rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2">
           <div className="min-w-0">
             <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
@@ -610,43 +681,135 @@ function SongPicker({
             Change
           </button>
         </div>
-      ) : (
-        <>
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search songs by title…"
-            className={inputClass()}
-          />
-          {matches.length > 0 && (
-            <div className="mt-1.5 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 max-h-60 overflow-y-auto">
-              {matches.map(song => (
-                <button
-                  key={song.id}
-                  type="button"
-                  onClick={() => onSelect(song.id)}
-                  className="text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/60 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
-                >
-                  <div className="font-medium text-neutral-800 dark:text-neutral-100 truncate">
-                    {song.title}
-                  </div>
-                  <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-                    {song.artist}{song.key ? ` • ${song.key}` : ''}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-          {query.trim() && matches.length === 0 && (
-            <div className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
-              No songs match “{query}”.
-            </div>
-          )}
-        </>
-      )}
+      </div>
+    );
+  }
+
+  // Default browse view — both sections always visible, search
+  // filters in place.
+  const noResults = filteredSongs.length === 0 && filteredWants.length === 0;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">Song</span>
+      <input
+        type="text"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Search songs by title…"
+        className={inputClass()}
+      />
+      <div className="mt-1.5 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 max-h-72 overflow-y-auto">
+        {filteredSongs.length > 0 && (
+          <>
+            <SongPickerSectionHeader>Active repertoire</SongPickerSectionHeader>
+            {filteredSongs.map(song => (
+              <SongPickerRow
+                key={song.id}
+                title={song.title}
+                subtitle={`${song.artist}${song.key ? ` • ${song.key}` : ''}`}
+                onClick={() => onSelect(song.id)}
+              />
+            ))}
+          </>
+        )}
+        {filteredWants.length > 0 && (
+          <>
+            <SongPickerSectionHeader>Want to learn</SongPickerSectionHeader>
+            {filteredWants.map(entry => (
+              <SongPickerRow
+                key={entry.id}
+                title={entry.title}
+                subtitle={entry.artist}
+                onClick={() => setPendingPromote(entry)}
+              />
+            ))}
+          </>
+        )}
+        {noResults && (
+          <div className="px-3 py-4 text-xs text-neutral-500 dark:text-neutral-400 italic">
+            {query.trim() ? `No songs match “${query}”.` : 'No songs in your library yet.'}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function SongPickerSectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800">
+      {children}
+    </div>
+  );
+}
+
+function SongPickerRow({
+  title,
+  subtitle,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800/60 border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+    >
+      <div className="font-medium text-neutral-800 dark:text-neutral-100 truncate">
+        {title}
+      </div>
+      <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+        {subtitle}
+      </div>
+    </button>
+  );
+}
+
+function uid(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
+}
+
+/**
+ * Promote a Want-to-Learn entry into an active Song record. Mirrors
+ * the existing flow in `WantToLearnView.promote` and `AddSongModal`'s
+ * Path A: creates a Song row with the entry's title / artist / why,
+ * seeds three default sections (Verse / Chorus / Bridge) so the
+ * old-schema sections aren't empty, and deletes the source entry —
+ * all in one transaction so a partial failure doesn't strand data.
+ *
+ * Returns the new song's id so the caller can immediately wire it
+ * into the goal's selection.
+ */
+async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string> {
+  const now = Date.now();
+  const songId = uid('song');
+  const song: Song = {
+    id: songId,
+    title: entry.title,
+    artist: entry.artist,
+    description: entry.why,
+    stage: DEFAULT_STAGE,
+    audioLinks: entry.link ? [entry.link] : [],
+    youtubeLink: entry.link?.includes('youtube') ? entry.link : undefined,
+    spotifyLink: entry.link?.includes('spotify') ? entry.link : undefined,
+    addedDate: now,
+  };
+  const sections: SongSection[] = ['Verse', 'Chorus', 'Bridge'].map((name, idx) => ({
+    id: uid('section'),
+    songId,
+    name,
+    order: idx,
+    lyrics: '',
+  }));
+  await db.transaction('rw', [db.songs, db.songSections, db.wantToLearn], async () => {
+    await db.songs.add(song);
+    await db.songSections.bulkAdd(sections);
+    await db.wantToLearn.delete(entry.id);
+  });
+  return songId;
 }
 
 // ---- Dot indicator -------------------------------------------------
