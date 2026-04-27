@@ -12,7 +12,7 @@ import {
   type SongSection,
   type WantToLearnEntry,
 } from '../../lib/db';
-import { moduleMetaById, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
+import { moduleMetaById, PRACTICE_SESSIONS_META, DASHBOARD_META } from '../../lib/moduleMeta';
 import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
@@ -1334,6 +1334,14 @@ function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
 interface HarmonicFluencyGroup {
   id: string;
   title: string;
+  /** Subtle accent borrowed from an existing module's canonical hex —
+   *  resolved through moduleMetaById / *_META exports so the goal flow
+   *  stays in lockstep with the rest of the app if a hex is retuned.
+   *  Used for the group header text and the resting border tint of
+   *  each category card. Selected state stays fluent (HF's parent
+   *  accent) so the chosen category reads as "selected for this
+   *  harmonic fluency goal" rather than "selected within group". */
+  accentHex: string;
   categories: ReadonlyArray<FlashcardCategory>;
 }
 
@@ -1341,21 +1349,25 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
   {
     id: 'foundational',
     title: 'Foundational / Math',
+    accentHex: DASHBOARD_META.accentHex,                                // slate-blue
     categories: ['scale-degree-math', 'named-notes', 'key-signatures'],
   },
   {
     id: 'chord-knowledge',
     title: 'Chord Knowledge',
+    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b',    // deep rose
     categories: ['diatonic-qualities', 'chord-construction', 'slash-chords'],
   },
   {
     id: 'functional-applied',
     title: 'Functional / Applied',
+    accentHex: PRACTICE_SESSIONS_META.accentHex,                        // teal
     categories: ['functional-harmony', 'reverse-key-pivots', 'progressions'],
   },
   {
     id: 'ear-recognition',
     title: 'Ear & Recognition',
+    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752',  // forest green — direct semantic match
     categories: ['modes', 'intervals', 'ear-theory'],
   },
 ];
@@ -1430,14 +1442,18 @@ function HarmonicFluencyAccuracyCard({
         <div className="flex flex-col gap-3">
           {HARMONIC_FLUENCY_GROUPS.map(group => (
             <div key={group.id}>
-              <div className="text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1.5">
+              <div
+                className="text-[10px] uppercase tracking-wide mb-1.5"
+                style={{ color: group.accentHex }}
+              >
                 {group.title}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                 {group.categories.map(catId => (
-                  <PillButton
+                  <CategoryPillButton
                     key={catId}
                     label={CATEGORY_LABELS[catId]}
+                    accentHex={group.accentHex}
                     active={target.categoryId === catId}
                     onClick={() => setCategory(catId)}
                   />
@@ -1491,6 +1507,51 @@ function previewHarmonicFluencyTarget(target: HarmonicFluencyTarget): string | n
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
+}
+
+/**
+ * Accent-aware variant of PillButton for the Harmonic Fluency group
+ * grid. At rest: 33-alpha border in the group's accent hex (subtle
+ * differentiation between the four sections). Hover: full accent.
+ * Selected: full fluent (parent module accent) — the chosen category
+ * reads as "selected for this HF goal" rather than "selected within
+ * its group", and gives all 12 buttons a single shared selected
+ * treatment regardless of which group they belong to.
+ */
+function CategoryPillButton({
+  label,
+  accentHex,
+  active,
+  onClick,
+}: {
+  label: string;
+  accentHex: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const restBorder = `${accentHex}33`;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      onMouseEnter={active ? undefined : (e) => {
+        e.currentTarget.style.borderColor = accentHex;
+      }}
+      onMouseLeave={active ? undefined : (e) => {
+        e.currentTarget.style.borderColor = restBorder;
+      }}
+      style={active ? undefined : { borderColor: restBorder }}
+      className={[
+        'px-3 py-1.5 text-sm rounded-md border transition text-left',
+        active
+          ? 'border-fluent bg-fluent/10 text-fluent'
+          : 'text-neutral-700 dark:text-neutral-200',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
 }
 
 // ---- Dot indicator -------------------------------------------------
