@@ -34,6 +34,7 @@ import {
 } from './scopeMeta';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
+  SONG_METRIC,
   buildKeyStateHints,
   decodeSongTarget,
   encodeSongTarget,
@@ -3068,7 +3069,11 @@ function encodeRecordsForDraft(
  */
 function moduleForMetric(metric: string | null): ModuleCardId | null {
   if (!metric) return null;
-  if (metric === 'song_whole_at_state' || metric === 'song_section_at_state' || metric === 'song_key_at_state') {
+  // Source-of-truth from songTarget's SONG_METRIC enum so the metric
+  // strings can never drift between encode and decode (they did once
+  // — WHOLE is 'song_whole_at_level' while KEY and SECTION end in
+  // '_at_state', a footgun if hardcoded here).
+  if (metric === SONG_METRIC.WHOLE || metric === SONG_METRIC.SECTION || metric === SONG_METRIC.KEY) {
     return 'repertoire';
   }
   if (metric.startsWith('ear_training_'))     return 'ear-training';
