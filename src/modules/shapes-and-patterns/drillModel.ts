@@ -14,6 +14,7 @@ import {
   SCALES,
   VOICE_LEADING_PATTERNS,
 } from './catalog';
+import { recordEngagement } from '../../lib/spacingState';
 
 /** Minimum seconds a drill session must run to count as a rep. */
 export const MIN_REP_SECONDS = 30;
@@ -167,9 +168,57 @@ export interface LogSessionInput {
 }
 
 /**
+ * Map the existing 4-point feel scale onto the 3-categorical rating
+ * vocabulary spacingState consumes. The cut-line is at "competent or
+ * better" (≥ 3): the design's promotion rule is "last 3 ratings all
+ * in {flying, cruising}", and "working on it" is honestly below the
+ * acquired-level competency bar.
+ *
+ *   1 (struggled)      → crawling
+ *   2 (working on it)  → crawling
+ *   3 (clean)          → cruising
+ *   4 (in flow)        → flying
+ */
+function feelToRating(feel: DrillSession['feelRating']): 'flying' | 'cruising' | 'crawling' {
+  if (feel >= 4) return 'flying';
+  if (feel >= 3) return 'cruising';
+  return 'crawling';
+}
+
+/**
+ * Build a spacingState itemRef from a skill descriptor. Returns null
+ * for mental-viz — Mental Visualization is excluded from spacingState
+ * rows by design (it's a different cognitive mode for internalising
+ * existing shapes, not a separate catalog item; counts toward
+ * consistency goals but not breadth/depth/mastery).
+ *
+ * Format mirrors the Phase 2 Decision-1 table:
+ *   chord-shape   → `chord-shape:${quality}:${keyName}`
+ *   scale         → `scale:${scale}:${keyName}`
+ *   voice-leading → `vl:${patternId}:${keyName}`
+ *   mental-viz    → null (skip)
+ */
+function itemRefForSkill(skill: DrillSkill): string | null {
+  switch (skill.kind) {
+    case 'chord-shape':   return `chord-shape:${skill.quality}:${skill.keyName}`;
+    case 'scale':         return `scale:${skill.scale}:${skill.keyName}`;
+    case 'voice-leading': return `vl:${skill.patternId}:${skill.keyName}`;
+    case 'mental-viz':    return null;
+  }
+}
+
+/**
  * Log a completed drill session: write the session row AND update
  * the drill-type aggregates in the same transaction so the heat
  * grid can trust those counts without summing sessions on render.
+ *
+ * After the transaction commits, also record a spacingState
+ * engagement (rating signal, not attempt — Shapes & Patterns is
+ * procedural). The spacingState write is deliberately outside the
+ * transaction: a failure there must not roll back the drill session,
+ * and including spacingState in the write set would couple two
+ * concerns. Mental-viz sessions still log here but do not produce
+ * spacingState rows (see itemRefForSkill).
  */
 export async function logSession(input: LogSessionInput): Promise<DrillSession> {
   const session: DrillSession = {
@@ -189,6 +238,15 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
       lastPracticedAt: session.timestamp,
     });
   });
+  const itemRef = itemRefForSkill(input.skill);
+  if (itemRef !== null) {
+    await recordEngagement({
+      itemRef,
+      moduleRef: 'shapes-and-patterns',
+      signal: { kind: 'rating', rating: feelToRating(input.feelRating) },
+      timestamp: session.timestamp,
+    });
+  }
   return session;
 }
 
