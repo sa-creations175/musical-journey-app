@@ -197,6 +197,7 @@ All 7 steps pushed to origin/main.
 - Audio consistency pass
 - Mode playback fix
 - Diary features
+- **Deprecate PracticeLogModal + remove "+ log a practice session" button** — once the Song Practice Timer ships (see deferred design sessions), the timer's end-session handler becomes the canonical session boundary for Song Repertoire. PracticeLogModal is currently wired to spacingState as a stopgap (Phase 2 1f); when the timer flow ships, move the recordEngagement call to the timer's end-session handler and remove the modal + its trigger button on `SongDetailView`.
 - P3 polish items
 
 **Dependency:** Phases 1–6 complete or substantially stable.
@@ -227,6 +228,14 @@ All 7 steps pushed to origin/main.
 **Original key reassignment UI** — user can change which key is designated as original. Schema supports it; UI not built. Add as a Phase 1.5 cleanup step.
 
 **Vision-scope freeform text in new flow** — Lifetime / 2–3 year goals should swap the structured target picker for an open-text field per module (legacy `GoalFormModal` had a vision-mode variant; new flow currently doesn't). Captured as a Phase 1.6 deferred item.
+
+**Song Practice Timer** — replace the "+ log a practice session" button on `SongDetailView` with a Start/End session timer that wraps matrix work. Timer becomes the canonical session boundary for Song Repertoire: matrix interactions during the active window are the practice; the end-session handler prompts for feel rating (1–5) and writes both `songPracticeLog` + `recordEngagement` for spacingState. Decisions to lock down before build:
+- State persistence (in-memory only vs. Dexie/userPrefs for crash recovery)
+- Global session banner placement (where it lives when the user navigates away from the song page)
+- One-active-session-at-a-time vs. per-song concurrent
+- Reload behavior — "you had a session running yesterday, save or discard?"
+- How sections/keys touched are derived from matrix activity in the session window
+Deprecates PracticeLogModal once shipped (see Phase 7 cleanup item).
 
 ---
 

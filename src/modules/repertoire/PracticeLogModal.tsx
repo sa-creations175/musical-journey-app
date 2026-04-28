@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { db, type Song, type SongSection } from '../../lib/db';
 import Modal from '../../components/Modal';
+import { recordEngagement } from '../../lib/spacingState';
 
 interface Props {
   song: Song;
@@ -18,6 +19,27 @@ const FEELS: Array<{ value: 1 | 2 | 3 | 4 | 5; label: string; emoji: string }> =
   { value: 4, label: 'in flow',        emoji: '🎶' },
   { value: 5, label: 'breakthrough',   emoji: '✨' },
 ];
+
+/**
+ * Map the 5-point feel scale onto the 3-categorical rating vocabulary
+ * spacingState consumes. Integration memory (songs) calibrates more
+ * leniently than procedural (Shapes & Patterns 4-point): "in flow" (4)
+ * is still cruising, not flying — flying is reserved for genuine
+ * breakthrough sessions (5). Promotion threshold remains "last 3
+ * ratings all in {flying, cruising}", so 3-or-better keeps the streak
+ * alive.
+ *
+ *   1 (struggled)      → crawling
+ *   2 (working on it)  → crawling
+ *   3 (comfortable)    → cruising
+ *   4 (in flow)        → cruising
+ *   5 (breakthrough)   → flying
+ */
+function feelToRating(feel: 1 | 2 | 3 | 4 | 5): 'flying' | 'cruising' | 'crawling' {
+  if (feel >= 5) return 'flying';
+  if (feel >= 3) return 'cruising';
+  return 'crawling';
+}
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
@@ -156,6 +178,18 @@ export default function PracticeLogModal({ song, sections, onClose, onLogged }: 
             }
           }
         }
+      });
+      // spacingState engagement (whole-song level for Phase 2 — cell-
+      // level granularity ships in Phase 3). Outside the transaction
+      // by design: a spacingState write failure must not roll back
+      // the practice log. Multi-section / multi-key sessions still
+      // produce a single engagement on songId — the user's overall
+      // feel rating represents the whole session.
+      await recordEngagement({
+        itemRef: song.id,
+        moduleRef: 'repertoire',
+        signal: { kind: 'rating', rating: feelToRating(feel) },
+        timestamp: now,
       });
       onLogged();
     } finally {
