@@ -370,6 +370,24 @@ type ShapesActivityArea = 'scale_drills' | 'chord_shape_drills' | 'voice_leading
 type ShapesProficiencyLevel = 'learning' | 'comfortable' | 'solid' | 'internalized';
 
 interface ShapesPatternsTarget {
+  /** Phase 2 2d — coverage (breadth) target: reach `acquired`
+   *  acquisition stage on every shape × key combination in the
+   *  module, or one or more chosen sub-areas. Mental Visualization
+   *  is excluded from the denominator (matches 1e wiring + design
+   *  doc §6 — different cognitive structure, counts toward
+   *  consistency only). */
+  coverageEnabled: boolean;
+  /** 'overall' = all 408 items across the three sub-areas (one
+   *  record); 'specific' = one or more of the three sub-areas
+   *  (chord_shape_drills / scale_drills / voice_leading), with one
+   *  child record per picked area sharing parent_goal_id via the
+   *  auto-umbrella encoding from 2b's handleSave. */
+  coverageScope: 'overall' | 'specific';
+  /** Activity-area ids from SHAPES_COVERAGE_GROUPS (a subset of
+   *  ShapesActivityArea — mental-viz is not a coverage option).
+   *  Empty array when scope is 'overall' or no area is yet picked. */
+  coverageGroupIds: ShapesActivityArea[];
+
   proficiencyEnabled: boolean;
   proficiencyScope: 'overall' | 'specific';
   /** Required for both 'overall' (scopes the rollup) and 'specific'. */
@@ -391,6 +409,9 @@ interface ShapesPatternsTarget {
 
 function defaultShapesPatterns(): ShapesPatternsTarget {
   return {
+    coverageEnabled: false,
+    coverageScope: 'overall',
+    coverageGroupIds: [],
     proficiencyEnabled: false,
     proficiencyScope: 'overall',
     activityArea: null,
@@ -598,7 +619,10 @@ function isHarmonicFluencyValid(t: HarmonicFluencyTarget): boolean {
 }
 
 function isShapesPatternsValid(t: ShapesPatternsTarget): boolean {
-  if (!t.proficiencyEnabled && !t.consistencyEnabled) return false;
+  if (!t.coverageEnabled && !t.proficiencyEnabled && !t.consistencyEnabled) return false;
+  if (t.coverageEnabled && t.coverageScope === 'specific') {
+    if (t.coverageGroupIds.length < 1) return false;
+  }
   if (t.proficiencyEnabled) {
     if (!t.activityArea) return false;
     if (t.proficiencyScope === 'specific') {
@@ -2394,6 +2418,50 @@ function shapeLabel(area: ShapesActivityArea, shapeId: string): string | null {
   return null;
 }
 
+/**
+ * Coverage-target groups for Shapes & Patterns. Each group's
+ * `denominator` is the count of distinct shape × key combinations
+ * the user must reach `acquired` stage on for that group to count
+ * as covered.
+ *
+ *   chord_shape_drills = 29 qualities × 12 keys = 348
+ *   scale_drills       =  2 scales    × 12 keys = 24
+ *   voice_leading      =  3 patterns  × 12 keys = 36
+ *   total                                       = 408
+ *
+ * Mental Visualization is intentionally excluded from this list:
+ * per design doc §6 it counts toward consistency only ("a different
+ * cognitive mode for internalizing existing shapes"), and per 1e's
+ * live wiring it does not produce spacingState rows. Excluding it
+ * here keeps the coverage denominator honest against the spacing
+ * data the algorithm will consume.
+ *
+ * Single S&P module accent for all 3 pills — S&P doesn't have
+ * pre-existing per-area accent definitions (unlike HF's
+ * HARMONIC_FLUENCY_GROUPS which already used borrowed colors for
+ * the accuracy-specific picker), and 3 pills with clear labels read
+ * cleanly without needing per-pill differentiation.
+ *
+ * TODO 2/3: replace these hardcoded denominators with the live
+ * `moduleItemCounts` helper when step 3 ships, so catalog churn
+ * (new chord qualities, new scales, new voice-leading patterns)
+ * updates the denominators automatically.
+ */
+interface ShapesCoverageGroup {
+  id: ShapesActivityArea;
+  label: string;
+  denominator: number;
+}
+
+const SHAPES_COVERAGE_GROUPS: ReadonlyArray<ShapesCoverageGroup> = [
+  { id: 'chord_shape_drills', label: 'chord shape drills', denominator: 348 },
+  { id: 'scale_drills',       label: 'scale drills',       denominator: 24  },
+  { id: 'voice_leading',      label: 'voice-leading',      denominator: 36  },
+];
+
+const SHAPES_TOTAL_ITEMS = SHAPES_COVERAGE_GROUPS
+  .reduce((sum, g) => sum + g.denominator, 0);
+
 function Step2ShapesPatterns({
   draft,
   onUpdate,
@@ -2407,8 +2475,9 @@ function Step2ShapesPatterns({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        Pick at least one target. You can combine proficiency and consistency on a single goal.
+        Pick at least one target. You can combine coverage, proficiency, and consistency on a single goal.
       </p>
+      <ShapesPatternsCoverageCard target={target} onChange={setTarget} />
       <ShapesProficiencyCard target={target} onChange={setTarget} />
       <ConsistencyTargetCard
         target={target}
@@ -2418,6 +2487,75 @@ function Step2ShapesPatterns({
       />
       <TargetPreview text={previewShapesPatternsTarget(target)} />
     </div>
+  );
+}
+
+function ShapesPatternsCoverageCard({
+  target,
+  onChange,
+}: {
+  target: ShapesPatternsTarget;
+  onChange: (next: ShapesPatternsTarget) => void;
+}) {
+  const shapesAccent =
+    moduleMetaById('shapes-and-patterns')?.accentHex ?? '#7a5aa8';
+  const toggle = () => onChange({ ...target, coverageEnabled: !target.coverageEnabled });
+  const setScope = (scope: ShapesPatternsTarget['coverageScope']) => {
+    if (scope === target.coverageScope) return;
+    // Same reset semantics as 2b/2c coverage cards: switching to
+    // 'overall' clears the area picks; switching to 'specific'
+    // leaves them empty for the user to fill in.
+    onChange({
+      ...target,
+      coverageScope: scope,
+      coverageGroupIds: scope === 'overall' ? [] : target.coverageGroupIds,
+    });
+  };
+  const toggleGroup = (id: ShapesActivityArea) => {
+    const next = target.coverageGroupIds.includes(id)
+      ? target.coverageGroupIds.filter(x => x !== id)
+      : [...target.coverageGroupIds, id];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  return (
+    <ToggleCard
+      title="Coverage target"
+      hint="Reach the acquired stage on every shape × key combination in the module — or one or more chosen areas. Mental Visualization is excluded from coverage; it counts toward consistency only."
+      enabled={target.coverageEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label={`All of shapes & patterns (${SHAPES_TOTAL_ITEMS} items)`}
+            active={target.coverageScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="One or more areas"
+            active={target.coverageScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      {target.coverageScope === 'specific' && (
+        <Field label="Areas (pick one or more)">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+            {SHAPES_COVERAGE_GROUPS.map(group => (
+              <CategoryPillButton
+                key={group.id}
+                label={`${group.label} (${group.denominator} items)`}
+                accentHex={shapesAccent}
+                active={target.coverageGroupIds.includes(group.id)}
+                onClick={() => toggleGroup(group.id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        </Field>
+      )}
+    </ToggleCard>
   );
 }
 
@@ -2587,6 +2725,20 @@ function ShapeOptionsForArea({ area }: { area: ShapesActivityArea }) {
  */
 function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | null {
   const parts: string[] = [];
+  if (target.coverageEnabled) {
+    if (target.coverageScope === 'overall') {
+      parts.push(`Cover all ${SHAPES_TOTAL_ITEMS} shapes & patterns items (acquired)`);
+    } else {
+      const picked = SHAPES_COVERAGE_GROUPS.filter(g =>
+        target.coverageGroupIds.includes(g.id),
+      );
+      if (picked.length === 0) return parts.length > 0 ? parts.join(' and ') : null;
+      const totalDenominator = picked.reduce((sum, g) => sum + g.denominator, 0);
+      const labelList = joinAnd(picked.map(g => g.label));
+      const itemPhrase = picked.length === 1 ? `items in ${labelList}` : `items across ${labelList}`;
+      parts.push(`Cover all ${totalDenominator} ${itemPhrase} (acquired)`);
+    }
+  }
   if (target.proficiencyEnabled) {
     if (!target.activityArea) return null;
     const level = levelLabel(target.proficiencyLevel);
@@ -3391,6 +3543,35 @@ function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
 
 function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
+  // Coverage emitted FIRST so multi-target goals list breadth before
+  // proficiency + consistency — matches the design doc dimension
+  // order (Breadth → Depth → Mastery → Consistency).
+  if (t.coverageEnabled) {
+    if (t.coverageScope === 'overall') {
+      records.push({
+        description: `Cover all ${SHAPES_TOTAL_ITEMS} shapes & patterns items (acquired)`,
+        targetMetric: COVERAGE_OVERALL_METRIC.SHAPES,
+        targetValue: SHAPES_TOTAL_ITEMS,
+        targetUnit: 'items',
+      });
+    } else {
+      // Multi-pick: each picked area becomes its own child record.
+      // The save loop in handleSave wraps them under a shared
+      // parent_goal_id (auto-umbrella encoding from 2b's handleSave
+      // edit). On edit, each child is opened independently per the
+      // single-target-per-record convention.
+      for (const groupId of t.coverageGroupIds) {
+        const group = SHAPES_COVERAGE_GROUPS.find(g => g.id === groupId);
+        if (!group) continue;
+        records.push({
+          description: `Cover all ${group.denominator} items in ${group.label} (acquired)`,
+          targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+          targetValue: group.denominator,
+          targetUnit: group.id,
+        });
+      }
+    }
+  }
   if (t.proficiencyEnabled && t.activityArea) {
     const sliced = previewShapesPatternsTarget({ ...t, consistencyEnabled: false });
     if (sliced) {
@@ -3599,7 +3780,21 @@ function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
 
 function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
   const t = defaultShapesPatterns();
-  if (goal.targetMetric === 'shapes_proficiency_overall') {
+  if (goal.targetMetric === COVERAGE_OVERALL_METRIC.SHAPES) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'overall';
+    t.coverageGroupIds = [];
+  } else if (goal.targetMetric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'specific';
+    // Edit mode is per-record — only the clicked sibling's area id
+    // is restored. Adding more areas in the multi-pick UI on edit
+    // creates new siblings on save (Behavior C from 2b's analysis).
+    const area = goal.targetUnit;
+    if (area === 'scale_drills' || area === 'chord_shape_drills' || area === 'voice_leading') {
+      t.coverageGroupIds = [area];
+    }
+  } else if (goal.targetMetric === 'shapes_proficiency_overall') {
     t.proficiencyEnabled = true;
     t.proficiencyScope = 'overall';
     const [area, level] = (goal.targetUnit ?? '').split(':');
