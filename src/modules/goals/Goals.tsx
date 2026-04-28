@@ -9,6 +9,7 @@ import GoalCreationFlow from './GoalCreationFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
+import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
 import { describeGoalTarget } from './describeGoal';
 
 /**
@@ -99,6 +100,16 @@ export default function Goals() {
   useEffect(() => {
     void seedProficiencyDefinitionsIfNeeded().catch(err => {
       console.warn('[goals] seedProficiencyDefinitionsIfNeeded failed', err);
+    });
+  }, []);
+
+  // Phase 2 1h — one-time spacingState backfill from existing user
+  // history. Pref-gated (PREF_SPACING_STATE_BACKFILL_V1) so it runs
+  // exactly once. Mounted on Goals because that's where coverage
+  // progress first becomes relevant.
+  useEffect(() => {
+    void backfillSpacingStateIfNeeded().catch(err => {
+      console.warn('[goals] backfillSpacingStateIfNeeded failed', err);
     });
   }, []);
 
