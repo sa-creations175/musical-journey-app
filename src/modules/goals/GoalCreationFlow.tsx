@@ -439,6 +439,25 @@ function defaultShapesPatterns(): ShapesPatternsTarget {
  * if they're planning ahead.
  */
 interface ProductionTarget {
+  /** Phase 2 2e — coverage (breadth) target: reach `acquired`
+   *  acquisition stage on every lesson in the module, or one or
+   *  more chosen paths. Semantically overlaps with the existing
+   *  `production_path_completion` (which targets all lessons in a
+   *  path reaching mastery, mirrored to spacingState by 1g's
+   *  assertSpacingStage), but adds multi-path encoding via the
+   *  auto-umbrella from 2b — the existing single-path scope can't
+   *  express "cover paths A and B." Both metrics coexist; users
+   *  pick whichever fits their phrasing. */
+  coverageEnabled: boolean;
+  /** 'overall' = all 56 lessons across the six paths (one record);
+   *  'specific' = one or more of the six paths, with one child
+   *  record per picked path sharing parent_goal_id via the
+   *  auto-umbrella encoding from 2b's handleSave. */
+  coverageScope: 'overall' | 'specific';
+  /** Path ids from PRODUCTION_COVERAGE_GROUPS. Empty array when
+   *  scope is 'overall' or no path is yet picked. */
+  coverageGroupIds: string[];
+
   completionEnabled: boolean;
   completionScope: 'path' | 'count';
   /** Path id from PRODUCTION_PATHS — required when scope === 'path'. */
@@ -455,6 +474,9 @@ interface ProductionTarget {
 
 function defaultProduction(): ProductionTarget {
   return {
+    coverageEnabled: false,
+    coverageScope: 'overall',
+    coverageGroupIds: [],
     completionEnabled: false,
     completionScope: 'path',
     pathId: null,
@@ -635,7 +657,10 @@ function isShapesPatternsValid(t: ShapesPatternsTarget): boolean {
 }
 
 function isProductionValid(t: ProductionTarget): boolean {
-  if (!t.completionEnabled && !t.consistencyEnabled) return false;
+  if (!t.coverageEnabled && !t.completionEnabled && !t.consistencyEnabled) return false;
+  if (t.coverageEnabled && t.coverageScope === 'specific') {
+    if (t.coverageGroupIds.length < 1) return false;
+  }
   if (t.completionEnabled) {
     if (t.completionScope === 'path' && !t.pathId) return false;
     if (t.completionScope === 'count' && t.lessonCount < 1) return false;
@@ -2765,6 +2790,52 @@ function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | nul
 
 // ---- Step 2 — Production -------------------------------------------
 
+/**
+ * Coverage-target groups for Production. Each group's `denominator`
+ * is the count of lessons in that path the user must reach
+ * `acquired` stage on for that path to count as covered (per 1g's
+ * mastery-to-spacingState mapping: marking lessons as 'completed'
+ * or 'mastered' produces acquired+ spacingState rows).
+ *
+ *   workflow-foundations    = 8
+ *   language-of-production  = 8
+ *   vocal-production        = 8
+ *   genre-productions       = 22
+ *   arrangement             = 5
+ *   business                = 5
+ *   total                   = 56
+ *
+ * Single Production module accent on all 6 pills — Production paths
+ * don't have pre-existing per-path accent definitions, and 6 pills
+ * with clear lowercase labels read cleanly without per-pill
+ * differentiation. Same choice as 2d's S&P card.
+ *
+ * TODO 2/3: replace these hardcoded denominators with the live
+ * `moduleItemCounts` helper (or `lessonsByPath(id).length` directly)
+ * when step 3 ships, so authoring new lessons updates the
+ * denominators automatically. lessonsByPath is already imported in
+ * this file but we hardcode here for uniformity with 2b/2c/2d's
+ * pattern — step 3's swap will be a single coordinated refactor
+ * across all four modules.
+ */
+interface ProductionCoverageGroup {
+  id: string;
+  label: string;
+  denominator: number;
+}
+
+const PRODUCTION_COVERAGE_GROUPS: ReadonlyArray<ProductionCoverageGroup> = [
+  { id: 'workflow-foundations',   label: 'workflow foundations',     denominator: 8  },
+  { id: 'language-of-production', label: 'the language of production', denominator: 8  },
+  { id: 'vocal-production',       label: 'vocal production',         denominator: 8  },
+  { id: 'genre-productions',      label: 'genre productions',        denominator: 22 },
+  { id: 'arrangement',            label: 'arrangement & song structure', denominator: 5  },
+  { id: 'business',               label: 'the business of music',    denominator: 5  },
+];
+
+const PRODUCTION_TOTAL_LESSONS = PRODUCTION_COVERAGE_GROUPS
+  .reduce((sum, g) => sum + g.denominator, 0);
+
 function Step2Production({
   draft,
   onUpdate,
@@ -2778,8 +2849,9 @@ function Step2Production({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        Pick at least one target. You can combine completion and time on a single goal.
+        Pick at least one target. You can combine coverage, completion, and time on a single goal.
       </p>
+      <ProductionCoverageCard target={target} onChange={setTarget} />
       <ProductionCompletionCard target={target} onChange={setTarget} />
       <ConsistencyTargetCard
         target={target}
@@ -2790,6 +2862,72 @@ function Step2Production({
       />
       <TargetPreview text={previewProductionTarget(target)} />
     </div>
+  );
+}
+
+function ProductionCoverageCard({
+  target,
+  onChange,
+}: {
+  target: ProductionTarget;
+  onChange: (next: ProductionTarget) => void;
+}) {
+  const productionAccent =
+    moduleMetaById('production')?.accentHex ?? '#d4885a';
+  const toggle = () => onChange({ ...target, coverageEnabled: !target.coverageEnabled });
+  const setScope = (scope: ProductionTarget['coverageScope']) => {
+    if (scope === target.coverageScope) return;
+    onChange({
+      ...target,
+      coverageScope: scope,
+      coverageGroupIds: scope === 'overall' ? [] : target.coverageGroupIds,
+    });
+  };
+  const toggleGroup = (id: string) => {
+    const next = target.coverageGroupIds.includes(id)
+      ? target.coverageGroupIds.filter(x => x !== id)
+      : [...target.coverageGroupIds, id];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  return (
+    <ToggleCard
+      title="Coverage target"
+      hint="Reach the acquired stage on every lesson in the module — or one or more chosen paths."
+      enabled={target.coverageEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label={`All of production (${PRODUCTION_TOTAL_LESSONS} lessons)`}
+            active={target.coverageScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="One or more paths"
+            active={target.coverageScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      {target.coverageScope === 'specific' && (
+        <Field label="Paths (pick one or more)">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+            {PRODUCTION_COVERAGE_GROUPS.map(group => (
+              <CategoryPillButton
+                key={group.id}
+                label={`${group.label} (${group.denominator} lessons)`}
+                accentHex={productionAccent}
+                active={target.coverageGroupIds.includes(group.id)}
+                onClick={() => toggleGroup(group.id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        </Field>
+      )}
+    </ToggleCard>
   );
 }
 
@@ -2913,8 +3051,25 @@ function ProductionCompletionCard({
  * "on production" so the verb stays clean in both standalone and
  * combined cases.
  */
+function previewProductionTargetCoverage(target: ProductionTarget): string | null {
+  if (!target.coverageEnabled) return null;
+  if (target.coverageScope === 'overall') {
+    return `Cover all ${PRODUCTION_TOTAL_LESSONS} production lessons (acquired)`;
+  }
+  const picked = PRODUCTION_COVERAGE_GROUPS.filter(g =>
+    target.coverageGroupIds.includes(g.id),
+  );
+  if (picked.length === 0) return null;
+  const totalDenominator = picked.reduce((sum, g) => sum + g.denominator, 0);
+  const labelList = joinAnd(picked.map(g => g.label));
+  const lessonPhrase = picked.length === 1 ? `lessons in ${labelList}` : `lessons across ${labelList}`;
+  return `Cover all ${totalDenominator} ${lessonPhrase} (acquired)`;
+}
+
 function previewProductionTarget(target: ProductionTarget): string | null {
   const parts: string[] = [];
+  const coverage = previewProductionTargetCoverage(target);
+  if (coverage) parts.push(coverage);
   if (target.completionEnabled) {
     if (target.completionScope === 'path') {
       if (!target.pathId) return null;
@@ -3443,7 +3598,17 @@ function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
     }
   }
   if (t.accuracyEnabled) {
-    const sliced = previewEarTrainingTarget({ ...t, consistencyEnabled: false });
+    // Slice clones disable ALL other slices (coverage + consistency)
+    // so the per-record description is just the accuracy text. The
+    // earlier 2b shipped without disabling coverage here, which let
+    // accuracy records inherit "Cover all X items… and improve
+    // accuracy to Y%" when both were enabled — fixed here as part
+    // of 2e.
+    const sliced = previewEarTrainingTarget({
+      ...t,
+      coverageEnabled: false,
+      consistencyEnabled: false,
+    });
     if (sliced) {
       if (t.accuracyScope === 'overall') {
         records.push({
@@ -3463,7 +3628,11 @@ function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
     }
   }
   if (t.consistencyEnabled && t.consistencyCount >= 1) {
-    const sliced = previewEarTrainingTarget({ ...t, accuracyEnabled: false });
+    const sliced = previewEarTrainingTarget({
+      ...t,
+      coverageEnabled: false,
+      accuracyEnabled: false,
+    });
     if (sliced) {
       records.push({
         description: sliced,
@@ -3508,7 +3677,11 @@ function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
     }
   }
   if (t.accuracyEnabled) {
-    const sliced = previewHarmonicFluencyTarget({ ...t, consistencyEnabled: false });
+    const sliced = previewHarmonicFluencyTarget({
+      ...t,
+      coverageEnabled: false,
+      consistencyEnabled: false,
+    });
     if (sliced) {
       if (t.accuracyScope === 'overall') {
         records.push({
@@ -3528,7 +3701,11 @@ function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
     }
   }
   if (t.consistencyEnabled && t.consistencyCount >= 1) {
-    const sliced = previewHarmonicFluencyTarget({ ...t, accuracyEnabled: false });
+    const sliced = previewHarmonicFluencyTarget({
+      ...t,
+      coverageEnabled: false,
+      accuracyEnabled: false,
+    });
     if (sliced) {
       records.push({
         description: sliced,
@@ -3573,7 +3750,11 @@ function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
     }
   }
   if (t.proficiencyEnabled && t.activityArea) {
-    const sliced = previewShapesPatternsTarget({ ...t, consistencyEnabled: false });
+    const sliced = previewShapesPatternsTarget({
+      ...t,
+      coverageEnabled: false,
+      consistencyEnabled: false,
+    });
     if (sliced) {
       if (t.proficiencyScope === 'overall') {
         records.push({
@@ -3593,7 +3774,11 @@ function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
     }
   }
   if (t.consistencyEnabled && t.consistencyCount >= 1) {
-    const sliced = previewShapesPatternsTarget({ ...t, proficiencyEnabled: false });
+    const sliced = previewShapesPatternsTarget({
+      ...t,
+      coverageEnabled: false,
+      proficiencyEnabled: false,
+    });
     if (sliced) {
       records.push({
         description: sliced,
@@ -3608,8 +3793,46 @@ function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
 
 function encodeProduction(t: ProductionTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
+  // Coverage emitted FIRST so multi-target goals list breadth before
+  // completion + consistency — matches the design doc dimension
+  // order (Breadth → Depth → Mastery → Consistency).
+  if (t.coverageEnabled) {
+    if (t.coverageScope === 'overall') {
+      records.push({
+        description: `Cover all ${PRODUCTION_TOTAL_LESSONS} production lessons (acquired)`,
+        targetMetric: COVERAGE_OVERALL_METRIC.PRODUCTION,
+        targetValue: PRODUCTION_TOTAL_LESSONS,
+        // Production-specific: 'lessons' is the natural unit (vs.
+        // 'items' for the other modules). Honest about the domain.
+        targetUnit: 'lessons',
+      });
+    } else {
+      // Multi-pick: each picked path becomes its own child record.
+      // The save loop in handleSave wraps them under a shared
+      // parent_goal_id (auto-umbrella encoding from 2b).
+      for (const groupId of t.coverageGroupIds) {
+        const group = PRODUCTION_COVERAGE_GROUPS.find(g => g.id === groupId);
+        if (!group) continue;
+        records.push({
+          description: `Cover all ${group.denominator} lessons in ${group.label} (acquired)`,
+          targetMetric: COVERAGE_SPECIFIC_METRIC.PRODUCTION,
+          targetValue: group.denominator,
+          targetUnit: group.id,
+        });
+      }
+    }
+  }
   if (t.completionEnabled) {
-    const sliced = previewProductionTarget({ ...t, consistencyEnabled: false });
+    // Slice the preview to JUST the completion text — without this,
+    // the description would lead with the coverage preview when both
+    // are enabled, violating the "one description per record"
+    // contract. Disabling coverage + consistency in the cloned target
+    // gets a clean completion-only preview.
+    const sliced = previewProductionTarget({
+      ...t,
+      coverageEnabled: false,
+      consistencyEnabled: false,
+    });
     if (sliced) {
       if (t.completionScope === 'path' && t.pathId) {
         records.push({
@@ -3629,7 +3852,11 @@ function encodeProduction(t: ProductionTarget): EncodedRecord[] {
     }
   }
   if (t.consistencyEnabled && t.consistencyCount >= 1) {
-    const sliced = previewProductionTarget({ ...t, completionEnabled: false });
+    const sliced = previewProductionTarget({
+      ...t,
+      coverageEnabled: false,
+      completionEnabled: false,
+    });
     if (sliced) {
       records.push({
         description: sliced,
@@ -3826,7 +4053,18 @@ function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
 
 function decodeProduction(goal: Goal): ProductionTarget {
   const t = defaultProduction();
-  if (goal.targetMetric === 'production_path_completion') {
+  if (goal.targetMetric === COVERAGE_OVERALL_METRIC.PRODUCTION) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'overall';
+    t.coverageGroupIds = [];
+  } else if (goal.targetMetric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'specific';
+    // Edit mode is per-record — only the clicked sibling's path id
+    // is restored. Adding more paths in the multi-pick UI on edit
+    // creates new siblings on save (Behavior C from 2b's analysis).
+    t.coverageGroupIds = goal.targetUnit ? [goal.targetUnit] : [];
+  } else if (goal.targetMetric === 'production_path_completion') {
     t.completionEnabled = true;
     t.completionScope = 'path';
     t.pathId = goal.targetUnit ?? null;
