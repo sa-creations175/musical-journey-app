@@ -311,6 +311,21 @@ function defaultEarTraining(): EarTrainingTarget {
  * for the picker UI.
  */
 interface HarmonicFluencyTarget {
+  /** Phase 2 2c — coverage (breadth) target: reach `acquired`
+   *  acquisition stage on every flashcard in the module, or one or
+   *  more chosen design-doc groups. Independent of accuracy and
+   *  consistency; a goal can combine any subset of the three. */
+  coverageEnabled: boolean;
+  /** 'overall' = all 302 cards across the four groups (one record);
+   *  'specific' = one or more of the four groups (one record per
+   *  picked group, all sharing parent_goal_id via the auto-umbrella
+   *  encoding in handleSave). */
+  coverageScope: 'overall' | 'specific';
+  /** Group ids from HARMONIC_FLUENCY_COVERAGE_GROUPS. Empty array
+   *  when scope is 'overall' or no group is yet picked. Multi-pick:
+   *  each picked group becomes its own child record on save. */
+  coverageGroupIds: string[];
+
   accuracyEnabled: boolean;
   accuracyScope: 'overall' | 'specific';
   /** Single flashcard category id from `harmonic-fluency/catalog`.
@@ -325,6 +340,9 @@ interface HarmonicFluencyTarget {
 
 function defaultHarmonicFluency(): HarmonicFluencyTarget {
   return {
+    coverageEnabled: false,
+    coverageScope: 'overall',
+    coverageGroupIds: [],
     accuracyEnabled: false,
     accuracyScope: 'overall',
     categoryId: null,
@@ -568,7 +586,10 @@ function isEarTrainingValid(t: EarTrainingTarget): boolean {
 }
 
 function isHarmonicFluencyValid(t: HarmonicFluencyTarget): boolean {
-  if (!t.accuracyEnabled && !t.consistencyEnabled) return false;
+  if (!t.coverageEnabled && !t.accuracyEnabled && !t.consistencyEnabled) return false;
+  if (t.coverageEnabled && t.coverageScope === 'specific') {
+    if (t.coverageGroupIds.length < 1) return false;
+  }
   if (t.accuracyEnabled && t.accuracyScope === 'specific') {
     if (!t.categoryId) return false;
   }
@@ -1979,6 +2000,47 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
   },
 ];
 
+/**
+ * Coverage-target groups for harmonic fluency. Each group's
+ * `denominator` is the count of distinct flashcards the user must
+ * reach `acquired` stage on for that group to count as covered.
+ *
+ * Counts are sums across the categories that make up each group
+ * (categories are still listed in HARMONIC_FLUENCY_GROUPS for the
+ * accuracy-specific picker — coverage uses the whole-group level
+ * instead, which is a different concern, so the two constants are
+ * kept separate).
+ *
+ *   foundational       = sdm 84 + nn 24 + ks 22 = 130
+ *   chord-knowledge    = dq 20 + cc 20 + sc 15  = 55
+ *   functional-applied = fh 19 + rkp 24 + pr 20 = 63
+ *   ear-recognition    = mo 19 + iv 20 + et 15  = 54
+ *   total                                        = 302
+ *
+ * Accent colors mirror HARMONIC_FLUENCY_GROUPS so the coverage pills
+ * read the same as the existing accuracy-specific picker.
+ *
+ * TODO 2/3: replace these hardcoded denominators with the live
+ * `moduleItemCounts` helper when step 3 ships, so catalog churn
+ * (new categories, retuned cards) updates automatically.
+ */
+interface HarmonicFluencyCoverageGroup {
+  id: string;
+  label: string;
+  denominator: number;
+  accentHex: string;
+}
+
+const HARMONIC_FLUENCY_COVERAGE_GROUPS: ReadonlyArray<HarmonicFluencyCoverageGroup> = [
+  { id: 'foundational',       label: 'foundational / math',  denominator: 130, accentHex: DASHBOARD_META.accentHex },
+  { id: 'chord-knowledge',    label: 'chord knowledge',      denominator: 55,  accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
+  { id: 'functional-applied', label: 'functional / applied', denominator: 63,  accentHex: PRACTICE_SESSIONS_META.accentHex },
+  { id: 'ear-recognition',    label: 'ear & recognition',    denominator: 54,  accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
+];
+
+const HARMONIC_FLUENCY_TOTAL_ITEMS = HARMONIC_FLUENCY_COVERAGE_GROUPS
+  .reduce((sum, g) => sum + g.denominator, 0);
+
 function Step2HarmonicFluency({
   draft,
   onUpdate,
@@ -1992,12 +2054,80 @@ function Step2HarmonicFluency({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        Pick at least one target. You can combine accuracy and consistency on a single goal.
+        Pick at least one target. You can combine coverage, accuracy, and consistency on a single goal.
       </p>
+      <HarmonicFluencyCoverageCard target={target} onChange={setTarget} />
       <HarmonicFluencyAccuracyCard target={target} onChange={setTarget} />
       <ConsistencyTargetCard target={target} onChange={setTarget} />
       <TargetPreview text={previewHarmonicFluencyTarget(target)} />
     </div>
+  );
+}
+
+function HarmonicFluencyCoverageCard({
+  target,
+  onChange,
+}: {
+  target: HarmonicFluencyTarget;
+  onChange: (next: HarmonicFluencyTarget) => void;
+}) {
+  const toggle = () => onChange({ ...target, coverageEnabled: !target.coverageEnabled });
+  const setScope = (scope: HarmonicFluencyTarget['coverageScope']) => {
+    if (scope === target.coverageScope) return;
+    // Same reset semantics as ear-training's coverage card: switching
+    // to 'overall' clears the group picks; switching to 'specific'
+    // leaves them empty for the user to fill in.
+    onChange({
+      ...target,
+      coverageScope: scope,
+      coverageGroupIds: scope === 'overall' ? [] : target.coverageGroupIds,
+    });
+  };
+  const toggleGroup = (id: string) => {
+    const next = target.coverageGroupIds.includes(id)
+      ? target.coverageGroupIds.filter(x => x !== id)
+      : [...target.coverageGroupIds, id];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  return (
+    <ToggleCard
+      title="Coverage target"
+      hint="Reach the acquired stage on every flashcard in the module — or one or more chosen groups."
+      enabled={target.coverageEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label={`All of harmonic fluency (${HARMONIC_FLUENCY_TOTAL_ITEMS} items)`}
+            active={target.coverageScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="One or more groups"
+            active={target.coverageScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      {target.coverageScope === 'specific' && (
+        <Field label="Groups (pick one or more)">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {HARMONIC_FLUENCY_COVERAGE_GROUPS.map(group => (
+              <CategoryPillButton
+                key={group.id}
+                label={`${group.label} (${group.denominator} items)`}
+                accentHex={group.accentHex}
+                active={target.coverageGroupIds.includes(group.id)}
+                onClick={() => toggleGroup(group.id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        </Field>
+      )}
+    </ToggleCard>
   );
 }
 
@@ -2097,6 +2227,20 @@ function HarmonicFluencyAccuracyCard({
  */
 function previewHarmonicFluencyTarget(target: HarmonicFluencyTarget): string | null {
   const parts: string[] = [];
+  if (target.coverageEnabled) {
+    if (target.coverageScope === 'overall') {
+      parts.push(`Cover all ${HARMONIC_FLUENCY_TOTAL_ITEMS} harmonic fluency items (acquired)`);
+    } else {
+      const picked = HARMONIC_FLUENCY_COVERAGE_GROUPS.filter(g =>
+        target.coverageGroupIds.includes(g.id),
+      );
+      if (picked.length === 0) return parts.length > 0 ? parts.join(' and ') : null;
+      const totalDenominator = picked.reduce((sum, g) => sum + g.denominator, 0);
+      const labelList = joinAnd(picked.map(g => g.label));
+      const itemPhrase = picked.length === 1 ? `items in ${labelList}` : `items across ${labelList}`;
+      parts.push(`Cover all ${totalDenominator} ${itemPhrase} (acquired)`);
+    }
+  }
   if (target.accuracyEnabled) {
     if (target.accuracyScope === 'overall') {
       parts.push(`Improve my overall harmonic fluency accuracy to ${target.accuracyPercent}%`);
@@ -2130,12 +2274,46 @@ function CategoryPillButton({
   accentHex,
   active,
   onClick,
+  selectedStyle = 'fluent',
 }: {
   label: string;
   accentHex: string;
   active: boolean;
   onClick: () => void;
+  /** 'fluent' (default): selected pills use the global fluent accent
+   *  regardless of `accentHex`. Used by the HF accuracy-specific
+   *  picker — the chosen category reads as "selected for this goal",
+   *  not "selected within its group", giving all 12 buttons a single
+   *  shared selected treatment.
+   *
+   *  'accent': selected pills use `accentHex` directly (border, tint,
+   *  text). Used by the coverage pickers where the GROUP IS the
+   *  entity being selected, so the group's identity should persist
+   *  visibly in both selected and unselected states. Unselected
+   *  pills also use `accentHex` at full opacity (vs. the 33-alpha
+   *  rest border in 'fluent' mode) so per-group color is clear at
+   *  4-pill scale rather than washed out. */
+  selectedStyle?: 'fluent' | 'accent';
 }) {
+  if (selectedStyle === 'accent') {
+    const tint = `${accentHex}1a`;
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        style={active
+          ? { borderColor: accentHex, backgroundColor: tint, color: accentHex }
+          : { borderColor: accentHex, color: accentHex }
+        }
+        className="px-3 py-1.5 text-sm rounded-md border transition text-left"
+      >
+        {label}
+      </button>
+    );
+  }
+
+  // 'fluent' branch — original behavior, unchanged.
   const restBorder = `${accentHex}33`;
   return (
     <button
@@ -3148,6 +3326,35 @@ function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
 
 function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
+  // Coverage emitted FIRST so multi-target goals list breadth before
+  // accuracy + consistency — matches the design doc dimension order
+  // (Breadth → Depth → Mastery → Consistency).
+  if (t.coverageEnabled) {
+    if (t.coverageScope === 'overall') {
+      records.push({
+        description: `Cover all ${HARMONIC_FLUENCY_TOTAL_ITEMS} harmonic fluency items (acquired)`,
+        targetMetric: COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY,
+        targetValue: HARMONIC_FLUENCY_TOTAL_ITEMS,
+        targetUnit: 'items',
+      });
+    } else {
+      // Multi-pick: each picked group becomes its own child record.
+      // The save loop in handleSave wraps them under a shared
+      // parent_goal_id (auto-umbrella encoding from 2b's handleSave
+      // edit). On edit, each child is opened independently per the
+      // single-target-per-record convention.
+      for (const groupId of t.coverageGroupIds) {
+        const group = HARMONIC_FLUENCY_COVERAGE_GROUPS.find(g => g.id === groupId);
+        if (!group) continue;
+        records.push({
+          description: `Cover all ${group.denominator} items in ${group.label} (acquired)`,
+          targetMetric: COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY,
+          targetValue: group.denominator,
+          targetUnit: group.id,
+        });
+      }
+    }
+  }
   if (t.accuracyEnabled) {
     const sliced = previewHarmonicFluencyTarget({ ...t, consistencyEnabled: false });
     if (sliced) {
@@ -3362,7 +3569,18 @@ function decodeEarTraining(goal: Goal): EarTrainingTarget {
 
 function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
   const t = defaultHarmonicFluency();
-  if (goal.targetMetric === 'harmonic_fluency_accuracy_overall') {
+  if (goal.targetMetric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'overall';
+    t.coverageGroupIds = [];
+  } else if (goal.targetMetric === COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'specific';
+    // Edit mode is per-record — only the clicked sibling's group id
+    // is restored. Adding more groups in the multi-pick UI on edit
+    // creates new siblings on save (Behavior C from 2b's analysis).
+    t.coverageGroupIds = goal.targetUnit ? [goal.targetUnit] : [];
+  } else if (goal.targetMetric === 'harmonic_fluency_accuracy_overall') {
     t.accuracyEnabled = true;
     t.accuracyScope = 'overall';
     t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
