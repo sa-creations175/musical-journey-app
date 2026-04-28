@@ -42,6 +42,10 @@ import {
   type SongTargetSelection,
 } from './songTarget';
 import { moduleForMetric } from './goalVocabulary';
+import {
+  COVERAGE_OVERALL_METRIC,
+  COVERAGE_SPECIFIC_METRIC,
+} from './coverageMetrics';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
 import Field from './Field';
 import { inputClass } from './formStyles';
@@ -126,6 +130,16 @@ interface ModuleCard {
  * `PRACTICE_SESSIONS_META`'s teal because consistency goals are
  * fulfilled by Practice Sessions.
  */
+/** Format a list of strings as natural English: "a", "a and b",
+ *  "a, b, and c". Oxford comma. Used by preview-text builders that
+ *  need to read multi-pick selections back to the user. */
+function joinAnd(parts: ReadonlyArray<string>): string {
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+}
+
 function accentHexForCard(id: ModuleCardId): string {
   if (id === 'practice-consistency') return PRACTICE_SESSIONS_META.accentHex;
   return moduleMetaById(id)?.accentHex ?? '#9ca3af';
@@ -239,6 +253,21 @@ function defaultSongTarget(): SongTargetSelection {
  * (single target) and step 13 (multi-target).
  */
 interface EarTrainingTarget {
+  /** Phase 2 2b — coverage (breadth) target: reach `acquired`
+   *  acquisition stage on every item in the module, or one chosen
+   *  group. Independent of accuracy and consistency; a goal can
+   *  combine any subset of the three. */
+  coverageEnabled: boolean;
+  /** 'overall' = all 143 items across the four groups (one record);
+   *  'specific' = one or more of the four groups (one record per
+   *  picked group, all sharing parent_goal_id via the existing
+   *  multi-target umbrella encoding from Phase 1.6). */
+  coverageScope: 'overall' | 'specific';
+  /** Group ids from EAR_TRAINING_COVERAGE_GROUPS. Empty array when
+   *  scope is 'overall' or no group is yet picked. Multi-pick: each
+   *  picked group becomes its own child record on save. */
+  coverageGroupIds: string[];
+
   accuracyEnabled: boolean;
   /** 'overall' = the whole module's accuracy; 'specific' = one
    *  drill type + subtype combo. */
@@ -260,6 +289,9 @@ interface EarTrainingTarget {
 
 function defaultEarTraining(): EarTrainingTarget {
   return {
+    coverageEnabled: false,
+    coverageScope: 'overall',
+    coverageGroupIds: [],
     accuracyEnabled: false,
     accuracyScope: 'overall',
     drillTypeId: null,
@@ -427,7 +459,12 @@ const EMPTY_DRAFT: Draft = {
   practiceConsistency: defaultPracticeConsistency(),
   scope: null,
   targetDate: null,
-  parentGoal: { kind: 'unset' },
+  // Default to standalone — the safer default. Picking a parent is
+  // an opt-in upgrade, not a required step. (Phase 2 2b hardening:
+  // earlier behavior was 'unset', which forced a click in Step 3.5
+  // and made it easy to accidentally click an auto-suggested
+  // umbrella when the user really wanted standalone.)
+  parentGoal: { kind: 'none' },
 };
 
 /**
@@ -519,7 +556,10 @@ function isStep2Valid(draft: Draft): boolean {
 
 function isEarTrainingValid(t: EarTrainingTarget): boolean {
   // At least one target must be enabled.
-  if (!t.accuracyEnabled && !t.consistencyEnabled) return false;
+  if (!t.coverageEnabled && !t.accuracyEnabled && !t.consistencyEnabled) return false;
+  if (t.coverageEnabled && t.coverageScope === 'specific') {
+    if (t.coverageGroupIds.length < 1) return false;
+  }
   if (t.accuracyEnabled && t.accuracyScope === 'specific') {
     if (!t.drillTypeId || !t.drillSubtypeId) return false;
   }
@@ -631,10 +671,53 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
       }
 
       const now = Date.now();
-      const parentGoalId = draft.parentGoal.kind === 'linked' ? draft.parentGoal.goalId : null;
+      const userPickedParentId = draft.parentGoal.kind === 'linked' ? draft.parentGoal.goalId : null;
       const contextTag = contextForModule(draft.moduleId);
       const relatedModules = relatedModulesForCard(draft.moduleId);
       const relatedItems = draft.songId ? [draft.songId] : [];
+
+      // Multi-target encoding contract: sibling records produced from
+      // a single draft (accuracy + consistency, multi-pick coverage
+      // groups, etc.) MUST share a parent_goal_id so they're queryable
+      // as one conceptual goal. Phase 1.6 Step 3.5 added the parent
+      // picker (link-to-existing or standalone) but never implemented
+      // auto-creation of a fresh umbrella for the standalone-multi
+      // case — leaving siblings as orphan goals with parentGoalId
+      // null, which breaks the contract stated in this file's
+      // decodeGoalToDraft docblock and in BUILD_SEQUENCER_2.md.
+      // Phase 2 2b's multi-pick coverage made the gap visible; the
+      // fix lands here so it covers the existing accuracy+consistency
+      // case too. Edit mode: if a goal that was previously single-
+      // target gets a second slice added on edit, an umbrella is
+      // auto-created and both records (the reused-id original and
+      // the new sibling) end up under it.
+      let effectiveParentGoalId = userPickedParentId;
+      if (effectiveParentGoalId === null && records.length > 1) {
+        const umbrellaId = uid('goal');
+        const umbrellaDescription =
+          computeGoalDescription(draft, songRecord, sectionNamesById)
+          ?? records[0].description;
+        await db.goals.add({
+          id: umbrellaId,
+          scope: draft.scope,
+          description: umbrellaDescription,
+          targetMetric: null,
+          targetValue: null,
+          targetUnit: null,
+          currentValue: 0,
+          contextTag,
+          relatedModules,
+          relatedItems,
+          startDate: now,
+          targetDate: draft.targetDate,
+          status: 'active',
+          parentGoalId: null,
+          contributesNumericallyToParent: false,
+          isUmbrella: true,
+          lastEngagedAt: now,
+        });
+        effectiveParentGoalId = umbrellaId;
+      }
 
       // Edit-mode bookkeeping: in edit mode we want to update the
       // original record in place (preserving id, currentValue,
@@ -680,7 +763,7 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
           startDate: reuseOriginalId ? initialGoal!.startDate : now,
           targetDate: draft.targetDate,
           status: reuseOriginalId ? initialGoal!.status : 'active',
-          parentGoalId,
+          parentGoalId: effectiveParentGoalId,
           contributesNumericallyToParent: reuseOriginalId
             ? initialGoal!.contributesNumericallyToParent
             : false,
@@ -1391,6 +1474,30 @@ const ACCURACY_PCT_MIN = 50;
 const ACCURACY_PCT_MAX = 95;
 const ACCURACY_PCT_STEP = 5;
 
+/**
+ * Coverage-target groups for ear training. Each group's `denominator`
+ * is the count of distinct catalog items the user must reach
+ * `acquired` stage on for that group to count as covered.
+ *
+ * Counts mirror the Phase 2 audit: 26 intervals (13 × 2 directions) +
+ * 30 chord-recognition + 69 chord-progressions + 18 scales-modes
+ * (9 modes × 2 tabs) = 143 total.
+ *
+ * TODO 2/3: replace these hardcoded denominators with the live
+ * `moduleItemCounts` helper when step 3 ships, so content additions
+ * (new modes, new chord progressions) update automatically. The
+ * helper's single source of truth lives in the catalogs.
+ */
+const EAR_TRAINING_COVERAGE_GROUPS = [
+  { id: 'intervals',          label: 'intervals',          denominator: 26 },
+  { id: 'chord-recognition',  label: 'chord recognition',  denominator: 30 },
+  { id: 'chord-progressions', label: 'chord progressions', denominator: 69 },
+  { id: 'scales-modes',       label: 'scales & modes',     denominator: 18 },
+] as const;
+
+const EAR_TRAINING_TOTAL_ITEMS = EAR_TRAINING_COVERAGE_GROUPS
+  .reduce((sum, g) => sum + g.denominator, 0);
+
 function Step2EarTraining({
   draft,
   onUpdate,
@@ -1404,12 +1511,81 @@ function Step2EarTraining({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        Pick at least one target. You can combine accuracy and consistency on a single goal.
+        Pick at least one target. You can combine coverage, accuracy, and consistency on a single goal.
       </p>
+      <EarTrainingCoverageCard target={target} onChange={setTarget} />
       <AccuracyTargetCard target={target} onChange={setTarget} />
       <ConsistencyTargetCard target={target} onChange={setTarget} />
       <EarTrainingPreview target={target} />
     </div>
+  );
+}
+
+function EarTrainingCoverageCard({
+  target,
+  onChange,
+}: {
+  target: EarTrainingTarget;
+  onChange: (next: EarTrainingTarget) => void;
+}) {
+  const earTrainingAccent =
+    moduleMetaById('ear-training')?.accentHex ?? '#5a8752';
+  const toggle = () => onChange({ ...target, coverageEnabled: !target.coverageEnabled });
+  const setScope = (scope: EarTrainingTarget['coverageScope']) => {
+    if (scope === target.coverageScope) return;
+    // Switching to 'overall' clears the group picks so we don't carry
+    // stale specific selections. Switching to 'specific' leaves them
+    // empty for the user to fill in.
+    onChange({
+      ...target,
+      coverageScope: scope,
+      coverageGroupIds: scope === 'overall' ? [] : target.coverageGroupIds,
+    });
+  };
+  const toggleGroup = (id: string) => {
+    const next = target.coverageGroupIds.includes(id)
+      ? target.coverageGroupIds.filter(x => x !== id)
+      : [...target.coverageGroupIds, id];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  return (
+    <ToggleCard
+      title="Coverage target"
+      hint="Reach the acquired stage on every item in the module — or one or more chosen groups."
+      enabled={target.coverageEnabled}
+      onToggle={toggle}
+    >
+      <Field label="Scope">
+        <div className="flex gap-1.5">
+          <PillButton
+            label={`All of ear training (${EAR_TRAINING_TOTAL_ITEMS} items)`}
+            active={target.coverageScope === 'overall'}
+            onClick={() => setScope('overall')}
+          />
+          <PillButton
+            label="One or more groups"
+            active={target.coverageScope === 'specific'}
+            onClick={() => setScope('specific')}
+          />
+        </div>
+      </Field>
+      {target.coverageScope === 'specific' && (
+        <Field label="Groups (pick one or more)">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {EAR_TRAINING_COVERAGE_GROUPS.map(group => (
+              <CategoryPillButton
+                key={group.id}
+                label={`${group.label} (${group.denominator} items)`}
+                accentHex={earTrainingAccent}
+                active={target.coverageGroupIds.includes(group.id)}
+                onClick={() => toggleGroup(group.id)}
+              />
+            ))}
+          </div>
+        </Field>
+      )}
+    </ToggleCard>
   );
 }
 
@@ -1718,6 +1894,20 @@ function TargetPreview({ text }: { text: string | null }) {
  */
 function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
   const parts: string[] = [];
+  if (target.coverageEnabled) {
+    if (target.coverageScope === 'overall') {
+      parts.push(`Cover all ${EAR_TRAINING_TOTAL_ITEMS} ear training items (acquired)`);
+    } else {
+      const picked = EAR_TRAINING_COVERAGE_GROUPS.filter(g =>
+        target.coverageGroupIds.includes(g.id),
+      );
+      if (picked.length === 0) return parts.length > 0 ? parts.join(' and ') : null;
+      const totalDenominator = picked.reduce((sum, g) => sum + g.denominator, 0);
+      const labelList = joinAnd(picked.map(g => g.label));
+      const itemPhrase = picked.length === 1 ? `items in ${labelList}` : `items across ${labelList}`;
+      parts.push(`Cover all ${totalDenominator} ${itemPhrase} (acquired)`);
+    }
+  }
   if (target.accuracyEnabled) {
     if (target.accuracyScope === 'overall') {
       parts.push(`Improve my overall ear training accuracy to ${target.accuracyPercent}%`);
@@ -2534,11 +2724,13 @@ function Step3View({
     // Auto-populate target date on scope change. User can override
     // via the date input below. Also reset the parent-goal choice —
     // parent eligibility filters by scope, so a previously valid
-    // parent may no longer be eligible after the scope changes.
+    // parent may no longer be eligible after the scope changes. The
+    // reset target is 'none' (standalone), matching the EMPTY_DRAFT
+    // default, so the safe choice survives the scope change.
     onUpdate({
       scope,
       targetDate: defaultTargetDate(scope),
-      parentGoal: { kind: 'unset' },
+      parentGoal: { kind: 'none' },
     });
   };
 
@@ -2702,10 +2894,17 @@ function Step3HalfView({
 
       <ParentChoiceCard
         title="No parent goal"
-        subtitle="This is a standalone goal."
+        subtitle="Default · standalone"
         active={noneSelected}
         onClick={setNone}
       />
+
+      {(suggested.length > 0 || rest.length > 0) && (
+        <div
+          className="border-t border-neutral-200 dark:border-neutral-800 my-1"
+          aria-hidden="true"
+        />
+      )}
 
       {suggested.length > 0 && (
         <div className="flex flex-col gap-1.5">
@@ -2881,6 +3080,38 @@ interface EncodedRecord {
 
 function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
+  // Coverage emitted FIRST so multi-target goals list breadth before
+  // accuracy + consistency — matches the design doc dimension order
+  // (Breadth → Depth → Mastery → Consistency).
+  if (t.coverageEnabled) {
+    if (t.coverageScope === 'overall') {
+      records.push({
+        description: `Cover all ${EAR_TRAINING_TOTAL_ITEMS} ear training items (acquired)`,
+        targetMetric: COVERAGE_OVERALL_METRIC.EAR_TRAINING,
+        targetValue: EAR_TRAINING_TOTAL_ITEMS,
+        targetUnit: 'items',
+      });
+    } else {
+      // Multi-pick: each picked group becomes its own child record.
+      // The save loop in handleSave wraps them under a shared
+      // parent_goal_id (existing umbrella encoding from Phase 1.6).
+      // On edit, each child is opened independently per the
+      // single-target-per-record convention (decodeGoalToDraft
+      // docblock). See save-on-edit analysis: behavior is C
+      // (add-as-siblings) for any new picks, untouched siblings
+      // are preserved.
+      for (const groupId of t.coverageGroupIds) {
+        const group = EAR_TRAINING_COVERAGE_GROUPS.find(g => g.id === groupId);
+        if (!group) continue;
+        records.push({
+          description: `Cover all ${group.denominator} items in ${group.label} (acquired)`,
+          targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+          targetValue: group.denominator,
+          targetUnit: group.id,
+        });
+      }
+    }
+  }
   if (t.accuracyEnabled) {
     const sliced = previewEarTrainingTarget({ ...t, consistencyEnabled: false });
     if (sliced) {
@@ -3096,7 +3327,21 @@ function isConsistencySlice(metric: string | null): boolean {
 
 function decodeEarTraining(goal: Goal): EarTrainingTarget {
   const t = defaultEarTraining();
-  if (goal.targetMetric === 'ear_training_accuracy_overall') {
+  if (goal.targetMetric === COVERAGE_OVERALL_METRIC.EAR_TRAINING) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'overall';
+    t.coverageGroupIds = [];
+  } else if (goal.targetMetric === COVERAGE_SPECIFIC_METRIC.EAR_TRAINING) {
+    t.coverageEnabled = true;
+    t.coverageScope = 'specific';
+    // Edit mode is per-record (see decodeGoalToDraft docblock), so
+    // we only see the clicked sibling's group id here. The user can
+    // add more groups in the multi-pick UI to create new siblings on
+    // save, or uncheck this one + check another to swap (the original
+    // record id is reused for the first encoded record per the save
+    // loop's classification-matching logic).
+    t.coverageGroupIds = goal.targetUnit ? [goal.targetUnit] : [];
+  } else if (goal.targetMetric === 'ear_training_accuracy_overall') {
     t.accuracyEnabled = true;
     t.accuracyScope = 'overall';
     t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
