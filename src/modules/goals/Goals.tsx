@@ -11,6 +11,9 @@ import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
 import { describeGoalTarget } from './describeGoal';
+import { supabase } from '../../lib/supabase';
+import { getCurrentUserId } from '../../lib/sync/currentUser';
+import { beginPull, endPull } from '../../lib/sync/pullLock';
 
 /**
  * Goals — page-level component.
@@ -248,18 +251,48 @@ export default function Goals() {
         </button>
         {/* Dev-only goal-wipe affordance for Phase 2 step 2 verification.
             Restored from the Phase 1.6 step 15 pattern; tree-shaken out
-            of production builds via the import.meta.env.DEV guard
-            (Vite folds the const true/false at build time). Remove
-            once step 2 verification is fully done — same lifecycle as
-            the original 1.6 step 15 utility. Suppresses onboarding so
-            it doesn't re-fire when goals.length drops to 0. */}
+            of production builds via the import.meta.env.DEV guard.
+            Remove once step 2 verification is fully done.
+
+            Sync correctness: db.goals.clear() alone is NOT enough —
+            sync is bidirectional, and pullAll() on focus/reconnect
+            will repopulate local goals from Supabase via bulkPut, so
+            "cleared" goals reappear. The full wipe needs three steps:
+              1. Delete from Supabase first (so subsequent pulls have
+                 nothing to bring back).
+              2. Suppress concurrent pulls via beginPull/endPull while
+                 local clear runs.
+              3. Clear local table AND the syncQueue rows for goals
+                 (otherwise pending writes from prior creates drain
+                 to a now-empty cloud and re-create cloud rows). */}
         {import.meta.env.DEV && (
           <button
             type="button"
             onClick={async () => {
-              if (!confirm('Clear ALL goals from the database? This cannot be undone.')) return;
+              if (!confirm('Clear ALL goals from local database AND Supabase? This cannot be undone.')) return;
               setFormMode({ kind: 'closed' });
-              await db.goals.clear();
+              const userId = getCurrentUserId();
+              if (userId) {
+                const { error } = await supabase
+                  .from('goals')
+                  .delete()
+                  .eq('user_id', userId);
+                if (error) {
+                  console.warn('[goals dev-wipe] cloud delete failed', error);
+                  // Bail out — clearing local without clearing cloud
+                  // would just trigger the repopulation race we're
+                  // trying to avoid.
+                  alert(`Cloud delete failed: ${error.message}. Local NOT cleared. See console.`);
+                  return;
+                }
+              }
+              beginPull();
+              try {
+                await db.goals.clear();
+                await db.syncQueue.where('tableName').equals('goals').delete();
+              } finally {
+                endPull();
+              }
               setOnboardingDismissed(true);
             }}
             className="px-3 py-1.5 rounded-md text-xs font-medium border border-dashed border-needswork/60 text-needswork hover:bg-needswork/10"
