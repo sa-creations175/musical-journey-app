@@ -11,6 +11,7 @@ import {
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import { TIER_WEIGHT, computeTier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
+import { recordEngagement } from '../../../lib/spacingState';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
@@ -189,12 +190,20 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
     const correct = choice.id === active.id;
     setSelectedId(choice.id);
     setSubmitted(true);
+    const timestamp = Date.now();
+    const itemRef = scaleItemId(active);
     await db.attempts.add({
       moduleId: MODULE_ID,
-      itemId: scaleItemId(active),
+      itemId: itemRef,
       correct,
-      timestamp: Date.now(),
+      timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+    });
+    await recordEngagement({
+      itemRef,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct },
+      timestamp,
     });
     await updateDailySummary(MODULE_ID);
     setRunState('reveal');

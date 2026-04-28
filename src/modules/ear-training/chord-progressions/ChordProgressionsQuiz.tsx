@@ -10,6 +10,7 @@ import {
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import { TIER_WEIGHT, computeTier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
+import { recordEngagement } from '../../../lib/spacingState';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import {
   defaultSpeed,
@@ -418,6 +419,21 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
       }
     });
     await db.attempts.bulkAdd(records);
+    // One spacingState engagement per chord position. The -inversion
+    // sub-records are sub-skill grades, not catalog items, so they
+    // don't get spacingState rows (see Phase 2 1c report). Calls are
+    // serial: recordEngagement reads-then-writes, so concurrent calls
+    // on the same row would race.
+    for (let i = 0; i < answers.length; i++) {
+      const user = splitAnswer(answers[i]!);
+      const correctSplit = splitAnswer(active!.numerals[i]);
+      await recordEngagement({
+        itemRef: active!.id,
+        moduleRef: MODULE_ID,
+        signal: { kind: 'attempt', correct: user.chord === correctSplit.chord },
+        timestamp: now + i,
+      });
+    }
     await updateDailySummary(MODULE_ID);
     setSubmitted(true);
 
@@ -437,12 +453,23 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
       const isCorrect = choiceId === active.id;
       setPatternAnswered(choiceId);
       setPatternCorrect(isCorrect);
+      const timestamp = Date.now();
       await db.attempts.add({
         moduleId: MODULE_ID,
         itemId: `${active.id}-pattern`,
         correct: isCorrect,
-        timestamp: Date.now(),
+        timestamp,
         ...(focusProtected ? { excludeFromFluency: true } : {}),
+      });
+      // Pattern recognition is a different angle on the same catalog
+      // item — credit the engagement against the progression itself
+      // (not the `-pattern` sub-id, which stays as a sub-skill attempt
+      // record only).
+      await recordEngagement({
+        itemRef: active.id,
+        moduleRef: MODULE_ID,
+        signal: { kind: 'attempt', correct: isCorrect },
+        timestamp,
       });
     }
     setReplayedInReveal(false);

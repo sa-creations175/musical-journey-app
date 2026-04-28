@@ -16,6 +16,7 @@ import { getPref, setPref } from '../../../lib/userPrefs';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import { TIER_WEIGHT, computeTier, type Tier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
+import { recordEngagement } from '../../../lib/spacingState';
 import { defaultSpeed, focusSelectionKey, speedPrefKey } from '../../../lib/goalConfig';
 import ItemSelectionPanel, {
   type FilterConfig,
@@ -216,12 +217,19 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     const isCorrect = chosen.id === current.chord.id;
     setSelectedId(chosen.id);
     setAnswered(true);
+    const timestamp = Date.now();
     await db.attempts.add({
       moduleId: MODULE_ID,
       itemId: current.chord.id,
       correct: isCorrect,
-      timestamp: Date.now(),
+      timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+    });
+    await recordEngagement({
+      itemRef: current.chord.id,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct: isCorrect },
+      timestamp,
     });
     await updateDailySummary(MODULE_ID);
   };
