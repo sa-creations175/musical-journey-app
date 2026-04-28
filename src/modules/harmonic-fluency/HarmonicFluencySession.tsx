@@ -7,6 +7,7 @@ import LinearScaleStrip from './LinearScaleStrip';
 import { degreeNote, parseKeyRoot } from './catalog';
 import type { Flashcard, FlashcardCategory } from './catalog';
 import { recordAttempt, toggleFlag } from './spacedRepetition';
+import { recordEngagement } from '../../lib/spacingState';
 import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 
@@ -133,6 +134,12 @@ export default function HarmonicFluencySession({
       ...(focusProtected ? { excludeFromFluency: true } : {}),
     };
     await db.attempts.add(record);
+    await recordEngagement({
+      itemRef: card.id,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct: isCorrect },
+      timestamp: record.timestamp,
+    });
     if (!focusProtected) {
       await recordAttempt(card.id, isCorrect);
     }
