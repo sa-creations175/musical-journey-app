@@ -237,7 +237,7 @@ export default function Goals() {
         </button>
       </header>
 
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-2">
         <button
           type="button"
           onClick={() => setFormMode({ kind: 'create', scope: null })}
@@ -246,6 +246,27 @@ export default function Goals() {
         >
           + Set a goal
         </button>
+        {/* Dev-only goal-wipe affordance for Phase 2 step 2 verification.
+            Restored from the Phase 1.6 step 15 pattern; tree-shaken out
+            of production builds via the import.meta.env.DEV guard
+            (Vite folds the const true/false at build time). Remove
+            once step 2 verification is fully done — same lifecycle as
+            the original 1.6 step 15 utility. Suppresses onboarding so
+            it doesn't re-fire when goals.length drops to 0. */}
+        {import.meta.env.DEV && (
+          <button
+            type="button"
+            onClick={async () => {
+              if (!confirm('Clear ALL goals from the database? This cannot be undone.')) return;
+              setFormMode({ kind: 'closed' });
+              await db.goals.clear();
+              setOnboardingDismissed(true);
+            }}
+            className="px-3 py-1.5 rounded-md text-xs font-medium border border-dashed border-needswork/60 text-needswork hover:bg-needswork/10"
+          >
+            Clear all goals (dev)
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col">
