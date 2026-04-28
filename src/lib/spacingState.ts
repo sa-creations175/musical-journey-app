@@ -250,3 +250,67 @@ export async function recordEngagement(
   await db.spacingState.put(updated);
   return updated;
 }
+
+/**
+ * Direct stage assertion — bypasses the signal/transition system used
+ * by `recordEngagement`. Exists because some modules (notably
+ * Production) express the user's progress as discrete state
+ * declarations (e.g. a mastery enum) rather than per-rep signals; the
+ * honest mirror is to write the corresponding acquisitionStage
+ * directly. Glossary "got it" buttons would use the same path if
+ * they ever ride to spacingState.
+ *
+ * Semantics:
+ *   stage = null      → delete the row if it exists; no-op if not.
+ *                       Matches the canonical "absence = new" rule.
+ *   stage = non-null  → upsert the row at the given stage. Bumps
+ *                       lastEngagedAt. Does NOT append to
+ *                       performanceHistory — this is a deliberate
+ *                       assertion, not a per-rep signal event.
+ *
+ * Can promote AND demote. The signal-driven `recordEngagement` only
+ * advances upward by design (decay belongs to the spacing curve);
+ * `assertSpacingStage` honors deliberate downward transitions because
+ * the user is the source of truth for explicit state declarations
+ * (e.g. resetting a lesson back to "not started").
+ *
+ * Throws when `moduleRef` is not in `MODULE_MEMORY_TYPES`. Same
+ * fail-fast contract as `recordEngagement` — an unknown ref is a
+ * programming error.
+ */
+export async function assertSpacingStage(
+  itemRef: string,
+  moduleRef: string,
+  stage: AcquisitionStage | null,
+): Promise<void> {
+  const memoryType = getMemoryType(moduleRef);
+  const existing = await getSpacingState(itemRef, moduleRef);
+
+  if (stage === null) {
+    if (existing) await db.spacingState.delete(existing.id);
+    return;
+  }
+
+  const t = Date.now();
+  if (!existing) {
+    const row: SpacingState = {
+      id: crypto.randomUUID(),
+      itemRef,
+      moduleRef,
+      memoryType,
+      acquisitionStage: stage,
+      currentIntervalDays: 0,
+      lastEngagedAt: t,
+      nextDueAt: null,
+      performanceHistory: [],
+    };
+    await db.spacingState.add(row);
+    return;
+  }
+
+  await db.spacingState.put({
+    ...existing,
+    acquisitionStage: stage,
+    lastEngagedAt: t,
+  });
+}

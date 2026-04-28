@@ -23,6 +23,7 @@ import {
   nextStageExpression,
   computeNextStage,
   recordEngagement,
+  assertSpacingStage,
   getSpacingState,
   type PerformanceEntry,
 } from '../spacingState';
@@ -395,5 +396,98 @@ describe('getSpacingState', () => {
     expect(intervalRow).toBeDefined();
     expect(chordRow).toBeDefined();
     expect(intervalRow!.id).not.toBe(chordRow!.id);
+  });
+});
+
+// -------------------------------------------------------------------
+// assertSpacingStage — direct stage assertion path
+// -------------------------------------------------------------------
+
+describe('assertSpacingStage — creating rows', () => {
+  it('creates a row at the given stage when none exists', async () => {
+    await assertSpacingStage('lesson-wf-01', 'production', 'acquired');
+    const row = await getSpacingState('lesson-wf-01', 'production');
+    expect(row).toBeDefined();
+    expect(row!.acquisitionStage).toBe('acquired');
+    expect(row!.memoryType).toBe('integration');
+    expect(row!.itemRef).toBe('lesson-wf-01');
+    expect(row!.moduleRef).toBe('production');
+  });
+
+  it('creates an empty performanceHistory (state assertion is not a signal event)', async () => {
+    await assertSpacingStage('lesson-wf-01', 'production', 'acquiring');
+    const row = await getSpacingState('lesson-wf-01', 'production');
+    expect(row!.performanceHistory).toEqual([]);
+  });
+
+  it('sets lastEngagedAt to a positive timestamp', async () => {
+    await assertSpacingStage('lesson-wf-01', 'production', 'acquired');
+    const row = await getSpacingState('lesson-wf-01', 'production');
+    expect(row!.lastEngagedAt).toBeGreaterThan(0);
+  });
+});
+
+describe('assertSpacingStage — updating existing rows', () => {
+  it('upserts (does not duplicate) when called twice', async () => {
+    await assertSpacingStage('lesson-wf-01', 'production', 'acquiring');
+    await assertSpacingStage('lesson-wf-01', 'production', 'mastered');
+    const all = await db.spacingState.toArray();
+    expect(all).toHaveLength(1);
+    expect(all[0].acquisitionStage).toBe('mastered');
+  });
+
+  it('demotes an existing row when called with a lower stage', async () => {
+    await assertSpacingStage('lesson-wf-01', 'production', 'mastered');
+    await assertSpacingStage('lesson-wf-01', 'production', 'acquiring');
+    const row = await getSpacingState('lesson-wf-01', 'production');
+    expect(row!.acquisitionStage).toBe('acquiring');
+  });
+
+  it('preserves performanceHistory across stage assertions (does not clobber)', async () => {
+    // Seed via recordEngagement so the row has real history.
+    await recordEngagement({
+      itemRef: 'song-id-x',
+      moduleRef: 'repertoire',
+      signal: { kind: 'rating', rating: 'flying' },
+    });
+    const before = await getSpacingState('song-id-x', 'repertoire');
+    expect(before!.performanceHistory).toHaveLength(1);
+
+    await assertSpacingStage('song-id-x', 'repertoire', 'acquired');
+
+    const after = await getSpacingState('song-id-x', 'repertoire');
+    expect(after!.performanceHistory).toHaveLength(1);
+    expect(after!.acquisitionStage).toBe('acquired');
+  });
+});
+
+describe('assertSpacingStage — null stage deletes', () => {
+  it('deletes the row when called with null', async () => {
+    await assertSpacingStage('lesson-wf-01', 'production', 'acquired');
+    await assertSpacingStage('lesson-wf-01', 'production', null);
+    const row = await getSpacingState('lesson-wf-01', 'production');
+    expect(row).toBeUndefined();
+  });
+
+  it('null on an absent row is a no-op (does not throw)', async () => {
+    await expect(
+      assertSpacingStage('never-touched', 'production', null),
+    ).resolves.toBeUndefined();
+    const all = await db.spacingState.toArray();
+    expect(all).toHaveLength(0);
+  });
+});
+
+describe('assertSpacingStage — moduleRef validation', () => {
+  it('throws on an unknown moduleRef (delegated to getMemoryType)', async () => {
+    await expect(
+      assertSpacingStage('x', 'not-a-real-module', 'acquired'),
+    ).rejects.toThrow(/unknown moduleRef/);
+  });
+
+  it('validates even when the operation is a delete (fail-fast)', async () => {
+    await expect(
+      assertSpacingStage('x', 'not-a-real-module', null),
+    ).rejects.toThrow(/unknown moduleRef/);
   });
 });

@@ -1,5 +1,6 @@
 import {
   db,
+  type AcquisitionStage,
   type GlossaryMastery,
   type LessonReferenceTrack,
   type ProductionLesson,
@@ -9,10 +10,34 @@ import {
 } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { whenSyncReady } from '../../lib/sync/syncReady';
+import { assertSpacingStage } from '../../lib/spacingState';
 import { PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
 import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
+
+/**
+ * Mapping from Production's mastery enum to the unified spacingState
+ * acquisition stage. Production lessons don't have per-rep rating
+ * signals — the user declares state directly via the mastery buttons,
+ * so spacingState mirrors that declaration rather than going through
+ * recordEngagement's signal-driven transition logic.
+ *
+ *   not-started → null    (delete row — canonical "absence = new")
+ *   in-progress → acquiring
+ *   completed   → acquired   (initial competency demonstrated)
+ *   mastered    → mastered   (user-declared full ownership)
+ *
+ * If consolidated/mastered ever needs to be distinguished for
+ * Production specifically, that's a future design call captured in
+ * BUILD_SEQUENCER_2.md.
+ */
+const STAGE_FOR_MASTERY: Record<ProductionLessonMastery, AcquisitionStage | null> = {
+  'not-started': null,
+  'in-progress': 'acquiring',
+  'completed':   'acquired',
+  'mastered':    'mastered',
+};
 
 /** Module-level in-flight guard — second concurrent caller awaits the
  *  same in-flight promise instead of starting a parallel seed. Mirrors
@@ -226,6 +251,10 @@ export async function updateLessonMastery(
       : null,
     updatedAt: now,
   });
+  // Mirror the mastery state into spacingState. Outside the existing
+  // update pattern by design — assertSpacingStage failure must not
+  // roll back the productionLessons mutation.
+  await assertSpacingStage(lessonId, 'production', STAGE_FOR_MASTERY[mastery]);
 }
 
 export async function recordLessonOpen(
