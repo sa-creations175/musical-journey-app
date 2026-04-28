@@ -12,6 +12,7 @@ import { getPref, setPref } from '../../../lib/userPrefs';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import { TIER_WEIGHT, computeTier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
+import { recordEngagement } from '../../../lib/spacingState';
 import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
@@ -171,6 +172,12 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
       ...(focusProtected ? { excludeFromFluency: true } : {}),
     };
     await db.attempts.add(record);
+    await recordEngagement({
+      itemRef: `${current.interval.id}:${current.direction}`,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct: isCorrect },
+      timestamp: record.timestamp,
+    });
     await updateDailySummary(MODULE_ID);
   };
 
