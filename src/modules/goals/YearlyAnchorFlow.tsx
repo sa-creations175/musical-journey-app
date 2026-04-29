@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Modal from '../../components/Modal';
 import type { Goal } from '../../lib/db';
-import { earTrainingCounts, harmonicFluencyCounts } from '../../lib/moduleItemCounts';
+import { earTrainingCounts, harmonicFluencyCounts, shapesCounts } from '../../lib/moduleItemCounts';
 import { DASHBOARD_META, PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import {
   AccuracySlider,
@@ -127,11 +127,11 @@ export interface AnchorDraft {
   name: string | null;
   /** Per-module dimension state. Sparse object — only the slot
    *  matching `moduleId` is populated. Mirrors GoalCreationFlow's
-   *  module-keyed sub-target pattern. 5c.1–5c.2 ship the ET + HF
-   *  slots; 5c.3–5c.6 land the rest. */
+   *  module-keyed sub-target pattern. 5c.1–5c.3 ship the ET / HF /
+   *  S&P slots; 5c.4–5c.6 land the rest. */
   earTraining?:     EarTrainingAnchor;
   harmonicFluency?: HarmonicFluencyAnchor;
-  // shapesPatterns?:     ShapesPatternsAnchor;        // 5c.3
+  shapesPatterns?:  ShapesPatternsAnchor;
   // songRepertoire?:     SongRepertoireAnchor;        // 5c.4
   // production?:         ProductionAnchor;            // 5c.5
   // practiceConsistency?: PracticeConsistencyAnchor;  // 5c.6
@@ -263,6 +263,70 @@ function isHarmonicFluencyValid(hf: HarmonicFluencyAnchor): boolean {
   return true;
 }
 
+// =====================================================================
+// Shapes & Patterns dimension state
+// =====================================================================
+
+/** Activity area identifiers for S&P coverage / depth / mastery.
+ *  Snake_case to match the existing convention in `coverageMetrics.ts`,
+ *  `progress.ts`, and `goal.targetUnit` storage on existing S&P
+ *  coverage_specific goals. Mental Visualization is intentionally
+ *  not represented — per the April 27 design call, it counts toward
+ *  consistency only, not breadth/depth/mastery. Step 1e wires this
+ *  into `itemRefForSkill` returning null. */
+export type ShapesAreaId = 'chord_shape_drills' | 'scale_drills' | 'voice_leading';
+
+interface ShapesPatternsAnchor {
+  breadth: BreadthState;
+  /** Areas the user wants to reach Solid in across all 12 keys.
+   *  Pre-filtered to Breadth scope. Empty is a valid resting state
+   *  ("no Depth ambition declared this year"). */
+  depth: { areaIds: ShapesAreaId[] };
+  /** Areas the user wants to truly own at the `mastered` stage.
+   *  v1 ships area-level multi-select per the locked design call —
+   *  the design doc's item-level picker is filed as a Step 5b
+   *  follow-up. Pre-filtered to Breadth scope, same coupling rule
+   *  as Depth. Independent of Depth — a user can declare Mastery
+   *  ambition on areas they did not target for Depth (uncommon but
+   *  coherent: "I want to truly own chord shapes; voice-leading
+   *  doesn't need Solid first"). */
+  mastery: { areaIds: ShapesAreaId[] };
+  /** Consistency unit for S&P is minutes per cadence (vs. ET / HF's
+   *  sessions). Mental Visualization activity DOES count toward this
+   *  even though it's excluded from the breadth/depth/mastery shape
+   *  — its sessions still write to drillSessions and the consistency
+   *  reader (Step 4b+) sums all S&P drill time. */
+  consistency: { count: number; cadence: ConsistencyCadence };
+}
+
+const SHAPES_AREA_LABELS: Record<ShapesAreaId, string> = {
+  'chord_shape_drills': 'chord shape drills',
+  'scale_drills':       'scale drills',
+  'voice_leading':      'voice-leading',
+};
+
+const SHAPES_AREA_IDS: ReadonlyArray<ShapesAreaId> = [
+  'chord_shape_drills',
+  'scale_drills',
+  'voice_leading',
+];
+
+function defaultShapesPatterns(): ShapesPatternsAnchor {
+  return {
+    breadth: { kind: 'all' },
+    depth: { areaIds: [] },
+    mastery: { areaIds: [] },
+    // 30 min/week as a "casual but real" entry point — roughly 5 min
+    // per session over 6 days. Crank-up via the input.
+    consistency: { count: 30, cadence: 'week' },
+  };
+}
+
+function isShapesPatternsValid(sp: ShapesPatternsAnchor): boolean {
+  if (sp.breadth.kind === 'subset' && sp.breadth.groupIds.length === 0) return false;
+  return true;
+}
+
 function buildInitialDraft(
   moduleId: AnchorModuleId,
   initialAnchor: Goal | null | undefined,
@@ -276,11 +340,13 @@ function buildInitialDraft(
     name: initialAnchor?.description ?? null,
   };
   // Seed the per-module slot for the chosen module. Other modules
-  // land in 5c.3–5c.6.
+  // land in 5c.4–5c.6.
   if (moduleId === 'ear-training') {
     draft.earTraining = defaultEarTraining();
   } else if (moduleId === 'harmonic-fluency') {
     draft.harmonicFluency = defaultHarmonicFluency();
+  } else if (moduleId === 'shapes-and-patterns') {
+    draft.shapesPatterns = defaultShapesPatterns();
   }
   return draft;
 }
@@ -365,7 +431,7 @@ export default function YearlyAnchorFlow({
   const isLast = screenIndex === SCREENS.length - 1;
   /** Per-screen advance gate. Screen 1's gate routes through the
    *  active module's validator; Screen 2's Save shares the gate.
-   *  When a module's slot isn't yet populated (5c.3–5c.6 land the
+   *  When a module's slot isn't yet populated (5c.4–5c.6 land the
    *  rest), we let the user advance so the shell is reachable end-
    *  to-end during the build. */
   const canAdvance = (() => {
@@ -374,6 +440,9 @@ export default function YearlyAnchorFlow({
     }
     if (moduleId === 'harmonic-fluency' && draft.harmonicFluency) {
       return isHarmonicFluencyValid(draft.harmonicFluency);
+    }
+    if (moduleId === 'shapes-and-patterns' && draft.shapesPatterns) {
+      return isShapesPatternsValid(draft.shapesPatterns);
     }
     return true;
   })();
@@ -484,7 +553,15 @@ function ScreenIntent({
           onChange={next => onUpdate({ harmonicFluency: next })}
         />
       )}
-      {draft.moduleId !== 'ear-training' && draft.moduleId !== 'harmonic-fluency' && (
+      {draft.moduleId === 'shapes-and-patterns' && draft.shapesPatterns && (
+        <Screen1ShapesPatterns
+          state={draft.shapesPatterns}
+          onChange={next => onUpdate({ shapesPatterns: next })}
+        />
+      )}
+      {draft.moduleId !== 'ear-training'
+        && draft.moduleId !== 'harmonic-fluency'
+        && draft.moduleId !== 'shapes-and-patterns' && (
         <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
           Dimension questions for {moduleName} land in a later 5c substep.
           {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
@@ -768,6 +845,184 @@ function Screen1HarmonicFluency({
           count={state.consistency.count}
           cadence={state.consistency.cadence}
           onChange={next => onChange({ ...state, consistency: next })}
+        />
+      </DimensionSection>
+    </div>
+  );
+}
+
+// =====================================================================
+// Shapes & Patterns — dimension surface
+// =====================================================================
+
+/**
+ * Shapes & Patterns dimension surface. First divergence from the
+ * ET / HF pattern:
+ *
+ *   - **Depth is a multi-pick area selector**, not an accuracy
+ *     slider. The question is "Which areas do you want to reach
+ *     Solid in across all 12 keys?" — area-level, not module-wide
+ *     percent.
+ *
+ *   - **Mastery is also area-level for v1** (per the locked Q5
+ *     answer). The design doc's item-level "specific shapes you
+ *     want to truly own" picker is filed as a Step 5b follow-up.
+ *
+ *   - **Both Depth and Mastery are pre-filtered to Breadth**, using
+ *     the same `pruneMasteryToBreadth` helper as ET / HF. The
+ *     coordinated `setBreadth` updater prunes both in the same
+ *     state update so neither dimension can hold area ids that fell
+ *     outside the active Breadth scope.
+ *
+ *   - **Consistency unit is minutes/week**, not sessions, mirroring
+ *     S&P's session-time tracking (drillSessions write durations).
+ *     Mental Visualization activity DOES count toward this even
+ *     though it's excluded from breadth/depth/mastery.
+ *
+ * Single S&P module accent for all three pills — same call as
+ * GoalCreationFlow's S&P coverage picker (3 pills with clear
+ * labels read cleanly without per-pill differentiation).
+ */
+function Screen1ShapesPatterns({
+  state,
+  onChange,
+}: {
+  state: ShapesPatternsAnchor;
+  onChange: (next: ShapesPatternsAnchor) => void;
+}) {
+  const counts = shapesCounts();
+  const spAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
+
+  const breadthGroupOptions: BreadthGroupOption[] = SHAPES_AREA_IDS.map(id => ({
+    id,
+    label: SHAPES_AREA_LABELS[id],
+    accentHex: spAccent,
+  }));
+
+  // Coordinated updater: prune BOTH Depth and Mastery when Breadth
+  // changes. Re-uses pruneMasteryToBreadth — its name is a leftover
+  // from the ET/HF case but its behavior is generic over any string-
+  // id list. If a fourth coupled-prune consumer appears, rename to
+  // pruneIdsToBreadth across all callers.
+  const setBreadth = (nextBreadth: BreadthState) => {
+    const prunedDepth = pruneMasteryToBreadth(
+      nextBreadth,
+      state.depth.areaIds,
+    ) as ShapesAreaId[];
+    const prunedMastery = pruneMasteryToBreadth(
+      nextBreadth,
+      state.mastery.areaIds,
+    ) as ShapesAreaId[];
+    onChange({
+      ...state,
+      breadth: nextBreadth,
+      depth: { areaIds: prunedDepth },
+      mastery: { areaIds: prunedMastery },
+    });
+  };
+
+  const visibleAreas: ReadonlyArray<ShapesAreaId> =
+    state.breadth.kind === 'all'
+      ? SHAPES_AREA_IDS
+      : SHAPES_AREA_IDS.filter(id => state.breadth.kind === 'subset' && state.breadth.groupIds.includes(id));
+
+  const toggleDepthArea = (id: ShapesAreaId) => {
+    const has = state.depth.areaIds.includes(id);
+    const next = has
+      ? state.depth.areaIds.filter(g => g !== id)
+      : [...state.depth.areaIds, id];
+    onChange({ ...state, depth: { areaIds: next } });
+  };
+
+  const toggleMasteryArea = (id: ShapesAreaId) => {
+    const has = state.mastery.areaIds.includes(id);
+    const next = has
+      ? state.mastery.areaIds.filter(g => g !== id)
+      : [...state.mastery.areaIds, id];
+    onChange({ ...state, mastery: { areaIds: next } });
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <DimensionSection
+        title="Breadth"
+        question={`Do you want to work toward Comfortable across all ${counts.total} shapes this year? (Mental Visualization is excluded — it counts toward consistency only.)`}
+      >
+        <BreadthYesNoPicker
+          yesLabel={`Yes — work toward Comfortable across all ${counts.total} shapes`}
+          noLabel="No — just specific areas"
+          groups={breadthGroupOptions}
+          value={state.breadth}
+          onChange={setBreadth}
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Depth"
+        question={
+          state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
+            ? 'Pick at least one area above to choose where to push depth.'
+            : 'Which areas do you want to reach Solid in across all 12 keys?'
+        }
+      >
+        {visibleAreas.length === 0 ? (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            No areas available — pick a Breadth selection above first.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {visibleAreas.map(id => (
+              <CategoryPillButton
+                key={id}
+                label={SHAPES_AREA_LABELS[id]}
+                accentHex={spAccent}
+                active={state.depth.areaIds.includes(id)}
+                onClick={() => toggleDepthArea(id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        )}
+      </DimensionSection>
+
+      <DimensionSection
+        title="Mastery"
+        question={
+          state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
+            ? 'Pick at least one area above to choose what to truly own.'
+            : 'Are there specific areas you want to truly own — Solid in all 12 keys, no hesitation? (v1 ships area-level; per-shape picker coming later.)'
+        }
+      >
+        {visibleAreas.length === 0 ? (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            No areas available — pick a Breadth selection above first.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {visibleAreas.map(id => (
+              <CategoryPillButton
+                key={id}
+                label={SHAPES_AREA_LABELS[id]}
+                accentHex={spAccent}
+                active={state.mastery.areaIds.includes(id)}
+                onClick={() => toggleMasteryArea(id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        )}
+      </DimensionSection>
+
+      <DimensionSection
+        title="Consistency"
+        question="How many minutes a week do you want to practice Shapes & Patterns?"
+      >
+        <ConsistencyControl
+          unit="minutes"
+          count={state.consistency.count}
+          cadence={state.consistency.cadence}
+          onChange={next => onChange({ ...state, consistency: next })}
+          min={5}
         />
       </DimensionSection>
     </div>
