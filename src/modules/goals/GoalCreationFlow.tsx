@@ -46,6 +46,12 @@ import {
   COVERAGE_OVERALL_METRIC,
   COVERAGE_SPECIFIC_METRIC,
 } from './coverageMetrics';
+import {
+  earTrainingCounts,
+  harmonicFluencyCounts,
+  shapesCounts,
+  productionCounts,
+} from '../../lib/moduleItemCounts';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
 import Field from './Field';
 import { inputClass } from './formStyles';
@@ -1549,24 +1555,21 @@ const ACCURACY_PCT_STEP = 5;
  * is the count of distinct catalog items the user must reach
  * `acquired` stage on for that group to count as covered.
  *
- * Counts mirror the Phase 2 audit: 26 intervals (13 × 2 directions) +
- * 30 chord-recognition + 69 chord-progressions + 18 scales-modes
- * (9 modes × 2 tabs) = 143 total.
- *
- * TODO 2/3: replace these hardcoded denominators with the live
- * `moduleItemCounts` helper when step 3 ships, so content additions
- * (new modes, new chord progressions) update automatically. The
- * helper's single source of truth lives in the catalogs.
+ * Live denominators come from `earTrainingCounts()` (Phase 2 step 3):
+ * 26 intervals (13 × 2 directions) + 30 chord-recognition + 69
+ * chord-progressions + 18 scales-modes (9 modes × 2 tabs) = 143
+ * total. Catalog growth (new modes, new chord progressions) flows
+ * through here automatically.
  */
+const ET_COUNTS = earTrainingCounts();
 const EAR_TRAINING_COVERAGE_GROUPS = [
-  { id: 'intervals',          label: 'intervals',          denominator: 26 },
-  { id: 'chord-recognition',  label: 'chord recognition',  denominator: 30 },
-  { id: 'chord-progressions', label: 'chord progressions', denominator: 69 },
-  { id: 'scales-modes',       label: 'scales & modes',     denominator: 18 },
+  { id: 'intervals',          label: 'intervals',          denominator: ET_COUNTS.intervals },
+  { id: 'chord-recognition',  label: 'chord recognition',  denominator: ET_COUNTS.chordRecognition },
+  { id: 'chord-progressions', label: 'chord progressions', denominator: ET_COUNTS.chordProgressions },
+  { id: 'scales-modes',       label: 'scales & modes',     denominator: ET_COUNTS.scalesModes },
 ] as const;
 
-const EAR_TRAINING_TOTAL_ITEMS = EAR_TRAINING_COVERAGE_GROUPS
-  .reduce((sum, g) => sum + g.denominator, 0);
+const EAR_TRAINING_TOTAL_ITEMS = ET_COUNTS.total;
 
 function Step2EarTraining({
   draft,
@@ -2069,9 +2072,10 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
  * Accent colors mirror HARMONIC_FLUENCY_GROUPS so the coverage pills
  * read the same as the existing accuracy-specific picker.
  *
- * TODO 2/3: replace these hardcoded denominators with the live
- * `moduleItemCounts` helper when step 3 ships, so catalog churn
- * (new categories, retuned cards) updates automatically.
+ * Live denominators come from `harmonicFluencyCounts().byGroup`
+ * (Phase 2 step 3); the helper owns the group → category mapping.
+ * Catalog churn (new categories, retuned cards) flows through
+ * automatically.
  */
 interface HarmonicFluencyCoverageGroup {
   id: string;
@@ -2080,15 +2084,15 @@ interface HarmonicFluencyCoverageGroup {
   accentHex: string;
 }
 
+const HF_COUNTS = harmonicFluencyCounts();
 const HARMONIC_FLUENCY_COVERAGE_GROUPS: ReadonlyArray<HarmonicFluencyCoverageGroup> = [
-  { id: 'foundational',       label: 'foundational / math',  denominator: 130, accentHex: DASHBOARD_META.accentHex },
-  { id: 'chord-knowledge',    label: 'chord knowledge',      denominator: 55,  accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
-  { id: 'functional-applied', label: 'functional / applied', denominator: 63,  accentHex: PRACTICE_SESSIONS_META.accentHex },
-  { id: 'ear-recognition',    label: 'ear & recognition',    denominator: 54,  accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
+  { id: 'foundational',       label: 'foundational / math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
+  { id: 'chord-knowledge',    label: 'chord knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
+  { id: 'functional-applied', label: 'functional / applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
+  { id: 'ear-recognition',    label: 'ear & recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
 ];
 
-const HARMONIC_FLUENCY_TOTAL_ITEMS = HARMONIC_FLUENCY_COVERAGE_GROUPS
-  .reduce((sum, g) => sum + g.denominator, 0);
+const HARMONIC_FLUENCY_TOTAL_ITEMS = HF_COUNTS.total;
 
 function Step2HarmonicFluency({
   draft,
@@ -2467,10 +2471,10 @@ function shapeLabel(area: ShapesActivityArea, shapeId: string): string | null {
  * the accuracy-specific picker), and 3 pills with clear labels read
  * cleanly without needing per-pill differentiation.
  *
- * TODO 2/3: replace these hardcoded denominators with the live
- * `moduleItemCounts` helper when step 3 ships, so catalog churn
- * (new chord qualities, new scales, new voice-leading patterns)
- * updates the denominators automatically.
+ * Live denominators come from `shapesCounts()` (Phase 2 step 3);
+ * catalog growth (new chord qualities, new scales, new voice-leading
+ * patterns) flows through automatically. Mental Visualization stays
+ * out of `shapesCounts.total` per the helper's contract.
  */
 interface ShapesCoverageGroup {
   id: ShapesActivityArea;
@@ -2478,14 +2482,14 @@ interface ShapesCoverageGroup {
   denominator: number;
 }
 
+const SP_COUNTS = shapesCounts();
 const SHAPES_COVERAGE_GROUPS: ReadonlyArray<ShapesCoverageGroup> = [
-  { id: 'chord_shape_drills', label: 'chord shape drills', denominator: 348 },
-  { id: 'scale_drills',       label: 'scale drills',       denominator: 24  },
-  { id: 'voice_leading',      label: 'voice-leading',      denominator: 36  },
+  { id: 'chord_shape_drills', label: 'chord shape drills', denominator: SP_COUNTS.chordShapeDrills },
+  { id: 'scale_drills',       label: 'scale drills',       denominator: SP_COUNTS.scaleDrills      },
+  { id: 'voice_leading',      label: 'voice-leading',      denominator: SP_COUNTS.voiceLeading     },
 ];
 
-const SHAPES_TOTAL_ITEMS = SHAPES_COVERAGE_GROUPS
-  .reduce((sum, g) => sum + g.denominator, 0);
+const SHAPES_TOTAL_ITEMS = SP_COUNTS.total;
 
 function Step2ShapesPatterns({
   draft,
@@ -2810,13 +2814,11 @@ function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | nul
  * with clear lowercase labels read cleanly without per-pill
  * differentiation. Same choice as 2d's S&P card.
  *
- * TODO 2/3: replace these hardcoded denominators with the live
- * `moduleItemCounts` helper (or `lessonsByPath(id).length` directly)
- * when step 3 ships, so authoring new lessons updates the
- * denominators automatically. lessonsByPath is already imported in
- * this file but we hardcode here for uniformity with 2b/2c/2d's
- * pattern — step 3's swap will be a single coordinated refactor
- * across all four modules.
+ * Live denominators come from `productionCounts().byPath` (Phase 2
+ * step 3); authoring new lessons updates the denominators
+ * automatically. The helper wraps `lessonsByPath(id).length`
+ * internally so all four coverage modules read counts through one
+ * uniform API.
  */
 interface ProductionCoverageGroup {
   id: string;
@@ -2824,17 +2826,17 @@ interface ProductionCoverageGroup {
   denominator: number;
 }
 
+const PROD_COUNTS = productionCounts();
 const PRODUCTION_COVERAGE_GROUPS: ReadonlyArray<ProductionCoverageGroup> = [
-  { id: 'workflow-foundations',   label: 'workflow foundations',     denominator: 8  },
-  { id: 'language-of-production', label: 'the language of production', denominator: 8  },
-  { id: 'vocal-production',       label: 'vocal production',         denominator: 8  },
-  { id: 'genre-productions',      label: 'genre productions',        denominator: 22 },
-  { id: 'arrangement',            label: 'arrangement & song structure', denominator: 5  },
-  { id: 'business',               label: 'the business of music',    denominator: 5  },
+  { id: 'workflow-foundations',   label: 'workflow foundations',         denominator: PROD_COUNTS.byPath['workflow-foundations']   ?? 0 },
+  { id: 'language-of-production', label: 'the language of production',   denominator: PROD_COUNTS.byPath['language-of-production'] ?? 0 },
+  { id: 'vocal-production',       label: 'vocal production',             denominator: PROD_COUNTS.byPath['vocal-production']       ?? 0 },
+  { id: 'genre-productions',      label: 'genre productions',            denominator: PROD_COUNTS.byPath['genre-productions']      ?? 0 },
+  { id: 'arrangement',            label: 'arrangement & song structure', denominator: PROD_COUNTS.byPath['arrangement']            ?? 0 },
+  { id: 'business',               label: 'the business of music',        denominator: PROD_COUNTS.byPath['business']               ?? 0 },
 ];
 
-const PRODUCTION_TOTAL_LESSONS = PRODUCTION_COVERAGE_GROUPS
-  .reduce((sum, g) => sum + g.denominator, 0);
+const PRODUCTION_TOTAL_LESSONS = PROD_COUNTS.total;
 
 function Step2Production({
   draft,
