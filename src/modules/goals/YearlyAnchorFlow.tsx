@@ -7,6 +7,7 @@ import {
   AccuracySlider,
   BreadthYesNoPicker,
   ConsistencyControl,
+  CountInput,
   DimensionSection,
   pruneMasteryToBreadth,
   type BreadthGroupOption,
@@ -127,12 +128,12 @@ export interface AnchorDraft {
   name: string | null;
   /** Per-module dimension state. Sparse object — only the slot
    *  matching `moduleId` is populated. Mirrors GoalCreationFlow's
-   *  module-keyed sub-target pattern. 5c.1–5c.3 ship the ET / HF /
-   *  S&P slots; 5c.4–5c.6 land the rest. */
+   *  module-keyed sub-target pattern. 5c.1–5c.4 ship the ET / HF /
+   *  S&P / Songs slots; 5c.5–5c.6 land the rest. */
   earTraining?:     EarTrainingAnchor;
   harmonicFluency?: HarmonicFluencyAnchor;
   shapesPatterns?:  ShapesPatternsAnchor;
-  // songRepertoire?:     SongRepertoireAnchor;        // 5c.4
+  songRepertoire?:  SongRepertoireAnchor;
   // production?:         ProductionAnchor;            // 5c.5
   // practiceConsistency?: PracticeConsistencyAnchor;  // 5c.6
 }
@@ -327,6 +328,96 @@ function isShapesPatternsValid(sp: ShapesPatternsAnchor): boolean {
   return true;
 }
 
+// =====================================================================
+// Song Repertoire dimension state
+// =====================================================================
+
+/**
+ * Songs is the biggest divergence so far. No group multi-pick — the
+ * three dimensions are independent count inputs that map to the
+ * canonical proficiency levels in escalating order:
+ *
+ *   Breadth  (Comfortable)  — "How many songs do you want to know
+ *                              how to play by year end?"
+ *   Depth    (Solid)        — "How many songs do you want to be
+ *                              performance-ready?"
+ *   Mastery  (Internalized) — "How many songs do you want to own so
+ *                              deeply you could make someone cry,
+ *                              yourself included?"
+ *   Consistency             — sessions per cadence, same shape as
+ *                              every other module.
+ *
+ * Cumulative validation: levels are nested — every Internalized
+ * song is also Solid, and every Solid song is also Comfortable. The
+ * design call is a **gentle non-blocking nudge** if the numbers
+ * violate that ordering. Fires when masteryCount > depthCount or
+ * depthCount > breadthCount; surfaces as an amber tip below the
+ * count inputs. Save is never blocked.
+ */
+interface SongRepertoireAnchor {
+  /** Songs at Comfortable. */
+  breadthCount: number;
+  /** Songs at Solid. */
+  depthCount: number;
+  /** Songs at Internalized. */
+  masteryCount: number;
+  consistency: { count: number; cadence: ConsistencyCadence };
+}
+
+function defaultSongRepertoire(): SongRepertoireAnchor {
+  return {
+    breadthCount: 0,
+    depthCount: 0,
+    masteryCount: 0,
+    consistency: { count: 4, cadence: 'week' },
+  };
+}
+
+/**
+ * Songs has no hard validation gate. CountInput clamps negatives.
+ * Defaults pre-fill Consistency at 4/week so the user is always
+ * "ready" to advance — even with all-zero counts the user can
+ * commit to "this year is consistency-only, no specific song
+ * targets." The cumulative-ordering check is a separate non-
+ * blocking nudge (`songCumulativeNudge`) surfaced inline in the
+ * UI; it does NOT participate in `canAdvance`.
+ */
+function isSongRepertoireValid(_sr: SongRepertoireAnchor): boolean {
+  return true;
+}
+
+/**
+ * Returns a non-blocking nudge string when the cumulative ordering
+ * (Internalized ≤ Solid ≤ Comfortable) is violated, or null when
+ * the numbers are coherent. Pure function; testable without React.
+ *
+ * Edge cases that are NOT a violation:
+ *   - All zeros (user hasn't filled in)
+ *   - Equal values (5/5/5 means "all 5 songs at every level" —
+ *     unusual but coherent; the user is committing to a single set
+ *     they want to bring to Internalized)
+ *   - Partial fills with zeros at the deeper levels (5/3/0 — three
+ *     of the five comfortable songs targeted for Solid, none for
+ *     Internalized this year)
+ *
+ * Single combined message rather than per-violation — the design
+ * call ("gentle non-blocking nudge") wants one tip, not a stack of
+ * scolding lines.
+ */
+export function songCumulativeNudge(
+  sr: SongRepertoireAnchor,
+): string | null {
+  const { breadthCount: c, depthCount: s, masteryCount: i } = sr;
+  const violated = i > s || s > c;
+  if (!violated) return null;
+  return (
+    `Heads up — Internalized songs are usually a subset of Solid, ` +
+    `which are a subset of Comfortable. Your numbers ` +
+    `(${c} comfortable / ${s} solid / ${i} internalized) suggest ` +
+    `otherwise.`
+  );
+}
+
 function buildInitialDraft(
   moduleId: AnchorModuleId,
   initialAnchor: Goal | null | undefined,
@@ -340,13 +431,15 @@ function buildInitialDraft(
     name: initialAnchor?.description ?? null,
   };
   // Seed the per-module slot for the chosen module. Other modules
-  // land in 5c.4–5c.6.
+  // land in 5c.5–5c.6.
   if (moduleId === 'ear-training') {
     draft.earTraining = defaultEarTraining();
   } else if (moduleId === 'harmonic-fluency') {
     draft.harmonicFluency = defaultHarmonicFluency();
   } else if (moduleId === 'shapes-and-patterns') {
     draft.shapesPatterns = defaultShapesPatterns();
+  } else if (moduleId === 'repertoire') {
+    draft.songRepertoire = defaultSongRepertoire();
   }
   return draft;
 }
@@ -431,7 +524,7 @@ export default function YearlyAnchorFlow({
   const isLast = screenIndex === SCREENS.length - 1;
   /** Per-screen advance gate. Screen 1's gate routes through the
    *  active module's validator; Screen 2's Save shares the gate.
-   *  When a module's slot isn't yet populated (5c.4–5c.6 land the
+   *  When a module's slot isn't yet populated (5c.5–5c.6 land the
    *  rest), we let the user advance so the shell is reachable end-
    *  to-end during the build. */
   const canAdvance = (() => {
@@ -443,6 +536,9 @@ export default function YearlyAnchorFlow({
     }
     if (moduleId === 'shapes-and-patterns' && draft.shapesPatterns) {
       return isShapesPatternsValid(draft.shapesPatterns);
+    }
+    if (moduleId === 'repertoire' && draft.songRepertoire) {
+      return isSongRepertoireValid(draft.songRepertoire);
     }
     return true;
   })();
@@ -559,9 +655,16 @@ function ScreenIntent({
           onChange={next => onUpdate({ shapesPatterns: next })}
         />
       )}
+      {draft.moduleId === 'repertoire' && draft.songRepertoire && (
+        <Screen1SongRepertoire
+          state={draft.songRepertoire}
+          onChange={next => onUpdate({ songRepertoire: next })}
+        />
+      )}
       {draft.moduleId !== 'ear-training'
         && draft.moduleId !== 'harmonic-fluency'
-        && draft.moduleId !== 'shapes-and-patterns' && (
+        && draft.moduleId !== 'shapes-and-patterns'
+        && draft.moduleId !== 'repertoire' && (
         <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
           Dimension questions for {moduleName} land in a later 5c substep.
           {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
@@ -1023,6 +1126,104 @@ function Screen1ShapesPatterns({
           cadence={state.consistency.cadence}
           onChange={next => onChange({ ...state, consistency: next })}
           min={5}
+        />
+      </DimensionSection>
+    </div>
+  );
+}
+
+// =====================================================================
+// Song Repertoire — dimension surface
+// =====================================================================
+
+/**
+ * Song Repertoire dimension surface. The biggest divergence from
+ * ET / HF / S&P:
+ *
+ *   - **No group multi-pick.** Each dimension is a single count
+ *     input that maps to a canonical proficiency level
+ *     (Comfortable / Solid / Internalized).
+ *
+ *   - **Order matches escalating ownership** (Breadth → Depth →
+ *     Mastery → Consistency) per the design doc — different from
+ *     the ET / HF / S&P "Breadth → Mastery → Depth" order. Songs
+ *     read most naturally as "play it / perform it / own it" from
+ *     top to bottom.
+ *
+ *   - **Cumulative-ordering soft nudge.** Internalized ≤ Solid ≤
+ *     Comfortable per the spec. Renders an amber non-blocking tip
+ *     beneath the count inputs when the numbers violate. Save is
+ *     never blocked — the design call wants gentle guidance, not a
+ *     scolding gate.
+ *
+ *   - **No coordinated state coupling** — counts are independent.
+ *     Editing Comfortable does not auto-adjust Solid or
+ *     Internalized.
+ */
+function Screen1SongRepertoire({
+  state,
+  onChange,
+}: {
+  state: SongRepertoireAnchor;
+  onChange: (next: SongRepertoireAnchor) => void;
+}) {
+  const nudge = songCumulativeNudge(state);
+  return (
+    <div className="flex flex-col gap-5">
+      <DimensionSection
+        title="Breadth (Comfortable)"
+        question="How many songs do you want to know how to play by year end? You know how to play them."
+      >
+        <CountInput
+          label="Songs at Comfortable"
+          value={state.breadthCount}
+          onChange={n => onChange({ ...state, breadthCount: n })}
+          suffix="songs"
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Depth (Solid)"
+        question="How many songs do you want to be performance-ready? Impress your friends, family, and loved ones."
+      >
+        <CountInput
+          label="Songs at Solid"
+          value={state.depthCount}
+          onChange={n => onChange({ ...state, depthCount: n })}
+          suffix="songs"
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Mastery (Internalized)"
+        question="How many songs do you want to own so deeply you could make someone cry, yourself included? You know them with your eyes closed."
+      >
+        <CountInput
+          label="Songs at Internalized"
+          value={state.masteryCount}
+          onChange={n => onChange({ ...state, masteryCount: n })}
+          suffix="songs"
+        />
+      </DimensionSection>
+
+      {nudge && (
+        <div
+          role="note"
+          className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+        >
+          {nudge}
+        </div>
+      )}
+
+      <DimensionSection
+        title="Consistency"
+        question="How often do you want to cultivate your Song Repertoire?"
+      >
+        <ConsistencyControl
+          unit="sessions"
+          count={state.consistency.count}
+          cadence={state.consistency.cadence}
+          onChange={next => onChange({ ...state, consistency: next })}
         />
       </DimensionSection>
     </div>
