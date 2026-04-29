@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import Modal from '../../components/Modal';
 import type { Goal } from '../../lib/db';
-import { earTrainingCounts, harmonicFluencyCounts, shapesCounts } from '../../lib/moduleItemCounts';
+import { earTrainingCounts, harmonicFluencyCounts, productionCounts, shapesCounts } from '../../lib/moduleItemCounts';
 import { DASHBOARD_META, PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import {
   AccuracySlider,
@@ -128,13 +128,14 @@ export interface AnchorDraft {
   name: string | null;
   /** Per-module dimension state. Sparse object — only the slot
    *  matching `moduleId` is populated. Mirrors GoalCreationFlow's
-   *  module-keyed sub-target pattern. 5c.1–5c.4 ship the ET / HF /
-   *  S&P / Songs slots; 5c.5–5c.6 land the rest. */
+   *  module-keyed sub-target pattern. 5c.1–5c.5 ship the ET / HF /
+   *  S&P / Songs / Production slots; 5c.6 lands Practice
+   *  consistency to close the substep series. */
   earTraining?:     EarTrainingAnchor;
   harmonicFluency?: HarmonicFluencyAnchor;
   shapesPatterns?:  ShapesPatternsAnchor;
   songRepertoire?:  SongRepertoireAnchor;
-  // production?:         ProductionAnchor;            // 5c.5
+  production?:      ProductionAnchor;
   // practiceConsistency?: PracticeConsistencyAnchor;  // 5c.6
 }
 
@@ -404,6 +405,81 @@ function isSongRepertoireValid(_sr: SongRepertoireAnchor): boolean {
  * call ("gentle non-blocking nudge") wants one tip, not a stack of
  * scolding lines.
  */
+// =====================================================================
+// Production dimension state
+// =====================================================================
+
+/** Path identifiers for Production coverage / depth. Match the
+ *  PRODUCTION_PATHS const in `src/modules/production/content/paths.ts`
+ *  AND the kebab-case `targetUnit` storage on existing Production
+ *  coverage_specific goals. Keeps the yearly anchor surface
+ *  interchangeable with the standalone coverage goal at the wire-
+ *  format level. */
+export type ProductionPathId =
+  | 'workflow-foundations'
+  | 'language-of-production'
+  | 'vocal-production'
+  | 'genre-productions'
+  | 'arrangement'
+  | 'business';
+
+/**
+ * Production runs **3 questions only** — Breadth / Depth /
+ * Consistency. Mastery is deliberately omitted: the depth/mastery
+ * distinction is deferred until more firsthand experience with the
+ * lesson material exists (per the April 27 design call). The
+ * yearlyAnchorMetrics.ts vocabulary mirrors this — there is no
+ * production_mastery_at_mastered metric.
+ */
+interface ProductionAnchor {
+  breadth: BreadthState;
+  /** Paths the user wants to go deepest on. Pre-filtered to Breadth
+   *  scope, same coupling rule as S&P's areas. Empty is a valid
+   *  resting state. */
+  depth: { pathIds: ProductionPathId[] };
+  /** Consistency unit for Production is hours per cadence (vs. ET /
+   *  HF's sessions, S&P's minutes). Production sessions are
+   *  meaningfully longer-form than ET/HF/S&P — a Genre Production
+   *  arc lesson is ~25–40 minutes, multiple sessions chain. Hours
+   *  reads more honestly than counting "sessions." */
+  consistency: { count: number; cadence: ConsistencyCadence };
+}
+
+const PRODUCTION_PATH_LABELS: Record<ProductionPathId, string> = {
+  'workflow-foundations':    'workflow foundations',
+  'language-of-production':  'the language of production',
+  'vocal-production':        'vocal production',
+  'genre-productions':       'genre productions',
+  'arrangement':             'arrangement & song structure',
+  'business':                'the business of music',
+};
+
+const PRODUCTION_PATH_IDS: ReadonlyArray<ProductionPathId> = [
+  'workflow-foundations',
+  'language-of-production',
+  'vocal-production',
+  'genre-productions',
+  'arrangement',
+  'business',
+];
+
+function defaultProduction(): ProductionAnchor {
+  return {
+    breadth: { kind: 'all' },
+    depth: { pathIds: [] },
+    // 2 hours/week as a "real but accessible" entry point — the
+    // lesson material is dense enough that 1 hour rarely covers a
+    // single deep-dive lesson, and 2 hours per week sustains a
+    // single arc per month.
+    consistency: { count: 2, cadence: 'week' },
+  };
+}
+
+function isProductionValid(p: ProductionAnchor): boolean {
+  if (p.breadth.kind === 'subset' && p.breadth.groupIds.length === 0) return false;
+  return true;
+}
+
 export function songCumulativeNudge(
   sr: SongRepertoireAnchor,
 ): string | null {
@@ -430,8 +506,8 @@ function buildInitialDraft(
     moduleId,
     name: initialAnchor?.description ?? null,
   };
-  // Seed the per-module slot for the chosen module. Other modules
-  // land in 5c.5–5c.6.
+  // Seed the per-module slot for the chosen module. Practice
+  // consistency lands in 5c.6.
   if (moduleId === 'ear-training') {
     draft.earTraining = defaultEarTraining();
   } else if (moduleId === 'harmonic-fluency') {
@@ -440,6 +516,8 @@ function buildInitialDraft(
     draft.shapesPatterns = defaultShapesPatterns();
   } else if (moduleId === 'repertoire') {
     draft.songRepertoire = defaultSongRepertoire();
+  } else if (moduleId === 'production') {
+    draft.production = defaultProduction();
   }
   return draft;
 }
@@ -539,6 +617,9 @@ export default function YearlyAnchorFlow({
     }
     if (moduleId === 'repertoire' && draft.songRepertoire) {
       return isSongRepertoireValid(draft.songRepertoire);
+    }
+    if (moduleId === 'production' && draft.production) {
+      return isProductionValid(draft.production);
     }
     return true;
   })();
@@ -661,10 +742,17 @@ function ScreenIntent({
           onChange={next => onUpdate({ songRepertoire: next })}
         />
       )}
+      {draft.moduleId === 'production' && draft.production && (
+        <Screen1Production
+          state={draft.production}
+          onChange={next => onUpdate({ production: next })}
+        />
+      )}
       {draft.moduleId !== 'ear-training'
         && draft.moduleId !== 'harmonic-fluency'
         && draft.moduleId !== 'shapes-and-patterns'
-        && draft.moduleId !== 'repertoire' && (
+        && draft.moduleId !== 'repertoire'
+        && draft.moduleId !== 'production' && (
         <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
           Dimension questions for {moduleName} land in a later 5c substep.
           {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
@@ -1221,6 +1309,130 @@ function Screen1SongRepertoire({
       >
         <ConsistencyControl
           unit="sessions"
+          count={state.consistency.count}
+          cadence={state.consistency.cadence}
+          onChange={next => onChange({ ...state, consistency: next })}
+        />
+      </DimensionSection>
+    </div>
+  );
+}
+
+// =====================================================================
+// Production — dimension surface
+// =====================================================================
+
+/**
+ * Production dimension surface. Three sections only —
+ * Breadth → Depth → Consistency. Mastery is deliberately omitted
+ * per the April 27 design call (depth/mastery distinction deferred
+ * until more firsthand experience with the lesson material).
+ *
+ *   - Breadth follows the ET / HF / S&P pattern: Yes / No → if No,
+ *     pick from 6 paths.
+ *   - Depth is a multi-pick path selector pre-filtered to Breadth,
+ *     mirroring S&P's Depth shape.
+ *   - Consistency unit is **hours** (not sessions or minutes) —
+ *     Production sessions are longer-form than ET / HF / S&P (a
+ *     Genre Production arc lesson is ~25–40 minutes; multiple
+ *     sessions chain). Hours reads more honestly.
+ *
+ * Single Production module accent on all 6 pills — same call as
+ * GoalCreationFlow's Production coverage picker.
+ */
+function Screen1Production({
+  state,
+  onChange,
+}: {
+  state: ProductionAnchor;
+  onChange: (next: ProductionAnchor) => void;
+}) {
+  const counts = productionCounts();
+  const productionAccent = moduleMetaById('production')?.accentHex ?? '#3a4875';
+
+  const breadthGroupOptions: BreadthGroupOption[] = PRODUCTION_PATH_IDS.map(id => ({
+    id,
+    label: PRODUCTION_PATH_LABELS[id],
+    accentHex: productionAccent,
+  }));
+
+  // Coordinated updater: prune Depth when Breadth changes. Same
+  // reuse of pruneMasteryToBreadth as S&P (function is generic over
+  // any string-id list).
+  const setBreadth = (nextBreadth: BreadthState) => {
+    const prunedDepth = pruneMasteryToBreadth(
+      nextBreadth,
+      state.depth.pathIds,
+    ) as ProductionPathId[];
+    onChange({
+      ...state,
+      breadth: nextBreadth,
+      depth: { pathIds: prunedDepth },
+    });
+  };
+
+  const visiblePaths: ReadonlyArray<ProductionPathId> =
+    state.breadth.kind === 'all'
+      ? PRODUCTION_PATH_IDS
+      : PRODUCTION_PATH_IDS.filter(id => state.breadth.kind === 'subset' && state.breadth.groupIds.includes(id));
+
+  const toggleDepthPath = (id: ProductionPathId) => {
+    const has = state.depth.pathIds.includes(id);
+    const next = has
+      ? state.depth.pathIds.filter(p => p !== id)
+      : [...state.depth.pathIds, id];
+    onChange({ ...state, depth: { pathIds: next } });
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <DimensionSection
+        title="Breadth"
+        question={`Do you want to work through all ${counts.total} production lessons this year?`}
+      >
+        <BreadthYesNoPicker
+          yesLabel={`Yes — work through all ${counts.total} lessons`}
+          noLabel="No — just specific paths"
+          groups={breadthGroupOptions}
+          value={state.breadth}
+          onChange={setBreadth}
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Depth"
+        question={
+          state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
+            ? 'Pick at least one path above to choose where to go deepest.'
+            : 'Which paths do you want to go deepest on?'
+        }
+      >
+        {visiblePaths.length === 0 ? (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            No paths available — pick a Breadth selection above first.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {visiblePaths.map(id => (
+              <CategoryPillButton
+                key={id}
+                label={PRODUCTION_PATH_LABELS[id]}
+                accentHex={productionAccent}
+                active={state.depth.pathIds.includes(id)}
+                onClick={() => toggleDepthPath(id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        )}
+      </DimensionSection>
+
+      <DimensionSection
+        title="Consistency"
+        question="How many hours a week do you want to spend on production?"
+      >
+        <ConsistencyControl
+          unit="hours"
           count={state.consistency.count}
           cadence={state.consistency.cadence}
           onChange={next => onChange({ ...state, consistency: next })}
