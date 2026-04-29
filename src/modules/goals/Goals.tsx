@@ -6,6 +6,7 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
+import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
@@ -121,6 +122,12 @@ export default function Goals() {
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
+  /** Phase 2 step 5f — YearlyAnchorFlow open state.
+   *  Driven by GoalCreationFlow's onRequestYearlyAnchor callback
+   *  (the user picked "Set yearly anchor first" on the
+   *  interstitial). When non-null, the flow is mounted open with
+   *  the picked module. */
+  const [anchorMode, setAnchorMode] = useState<{ moduleId: AnchorModuleId } | null>(null);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which
@@ -368,6 +375,24 @@ export default function Goals() {
             : null
         }
         initialScope={formMode.kind === 'create' ? formMode.scope : null}
+        onRequestYearlyAnchor={(moduleId) => {
+          // GoalCreationFlow has already self-closed by the time
+          // this fires; just open the anchor flow.
+          setAnchorMode({ moduleId: moduleId as AnchorModuleId });
+        }}
+      />
+
+      {/* Phase 2 step 5f — YearlyAnchorFlow mount.
+            Opens when the user picks "Set yearly anchor first" on
+            the GoalCreationFlow trigger interstitial. The user's
+            in-progress goal draft is discarded; saving the anchor
+            closes this flow and returns the user to the Goals home
+            (Phase 7 polish: resume goal creation after save). */}
+      <YearlyAnchorFlow
+        key={anchorMode ? `anchor-${anchorMode.moduleId}` : 'anchor-closed'}
+        open={anchorMode !== null}
+        onClose={() => setAnchorMode(null)}
+        moduleId={anchorMode?.moduleId ?? 'ear-training'}
       />
 
       <GoalFormModal

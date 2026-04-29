@@ -52,6 +52,8 @@ import {
   shapesCounts,
   productionCounts,
 } from '../../lib/moduleItemCounts';
+import YearlyAnchorInterstitial from './YearlyAnchorInterstitial';
+import { anchorExistsForModule } from './yearlyAnchorTrigger';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
 import Field from './Field';
 import { inputClass } from './formStyles';
@@ -84,6 +86,15 @@ interface Props {
   /** When set (and `initialGoal` is null), opens in new-goal mode
    *  with this scope pre-filled. Consumed by Step 3 in step 9. */
   initialScope?: GoalScope | null;
+  /** Phase 2 step 5f — trigger callback. When the user picks a
+   *  module on Step 1 and no active yearly anchor exists for it,
+   *  GoalCreationFlow surfaces a YearlyAnchorInterstitial. If the
+   *  user picks "Set yearly anchor first," this callback fires with
+   *  the picked moduleId; the parent should close GoalCreationFlow
+   *  and open YearlyAnchorFlow with that moduleId. Optional: when
+   *  not provided, the trigger is suppressed entirely (e.g. for
+   *  legacy mount points that haven't been wired yet). */
+  onRequestYearlyAnchor?: (moduleId: ModuleCardId) => void;
 }
 
 // ---- Steps ---------------------------------------------------------
@@ -681,7 +692,13 @@ function isPracticeConsistencyValid(t: PracticeConsistencyTarget): boolean {
 
 // ---- Component -----------------------------------------------------
 
-export default function GoalCreationFlow({ open, onClose, initialScope, initialGoal }: Props) {
+export default function GoalCreationFlow({
+  open,
+  onClose,
+  initialScope,
+  initialGoal,
+  onRequestYearlyAnchor,
+}: Props) {
   // `initialScope` pre-fills Step 3 when the parent opens the flow
   // with a layer pre-selected (e.g. per-layer "+ Add"). `initialGoal`
   // (Phase 1.6 step 14) opens the flow in edit mode, decoding the
@@ -689,6 +706,20 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
   const [stepIndex, setStepIndex] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => buildInitialDraft(initialScope, initialGoal));
   const [saving, setSaving] = useState(false);
+
+  // Phase 2 step 5f — trigger interstitial.
+  //
+  // `interstitialModuleId` is non-null while the YearlyAnchorInterstitial
+  // is open, holding the module id the user picked on Step 1.
+  // `dismissedAnchorModules` is a per-session set of module ids the
+  // user has already chosen "Skip" for — keeps a refire from
+  // happening if they Back to Step 1 and click Next again on the
+  // same module. Cleared on every modal close so reopening always
+  // re-checks.
+  const [interstitialModuleId, setInterstitialModuleId] = useState<ModuleCardId | null>(null);
+  const [dismissedAnchorModules, setDismissedAnchorModules] = useState<ReadonlySet<ModuleCardId>>(
+    () => new Set(),
+  );
 
   const isEditing = !!initialGoal;
 
@@ -701,6 +732,8 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
     setStepIndex(0);
     setDraft(buildInitialDraft(initialScope, initialGoal));
     setSaving(false);
+    setInterstitialModuleId(null);
+    setDismissedAnchorModules(new Set());
     onClose();
   };
 
@@ -880,6 +913,37 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
       void handleSave();
       return;
     }
+    // Phase 2 step 5f — trigger the YearlyAnchorInterstitial when
+    // leaving Step 1 with a module that has no active yearly anchor.
+    // Per the locked design call: only when create-mode (edit mode
+    // means an existing goal is being amended, not a new top-down
+    // intent), only when the parent has provided a callback (legacy
+    // mounts opt out by omitting it), and only the first time the
+    // user advances on this module per session (Skip-once).
+    if (
+      step.id === '1'
+      && !isEditing
+      && draft.moduleId !== null
+      && onRequestYearlyAnchor
+      && !dismissedAnchorModules.has(draft.moduleId)
+    ) {
+      const moduleId = draft.moduleId;
+      // Imperative async check — avoids a click-race against
+      // useLiveQuery's first paint. While the check is in flight
+      // the Next button stays available; users will rarely click
+      // through fast enough to outrun a sub-millisecond Dexie
+      // count, but if they did, the interstitial would just open
+      // a hair late. Acceptable.
+      void anchorExistsForModule(moduleId).then(exists => {
+        if (!exists) {
+          setInterstitialModuleId(moduleId);
+        } else {
+          // Anchor exists — advance straight through.
+          setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
+        }
+      });
+      return;
+    }
     // Cross-step coupling: leaving Step 2 with a section-granularity
     // song goal forces scope to weekly per spec. Done here (rather
     // than reactively in Step 2) so the user explicitly commits
@@ -891,6 +955,37 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
         targetDate: defaultTargetDate('weekly'),
       }));
     }
+    setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
+  };
+
+  /** Interstitial action: user picked "Set yearly anchor first."
+   *  Close GoalCreationFlow + delegate to the parent callback to
+   *  open YearlyAnchorFlow with the picked module. The user's in-
+   *  progress goal draft is discarded; Phase 7 polish may preserve
+   *  it across the anchor flow. */
+  const onInterstitialSetAnchor = () => {
+    if (!interstitialModuleId || !onRequestYearlyAnchor) return;
+    const moduleId = interstitialModuleId;
+    setInterstitialModuleId(null);
+    handleClose();
+    onRequestYearlyAnchor(moduleId);
+  };
+
+  /** Interstitial action: user picked "Skip — just create this
+   *  goal." Dismiss the prompt for this module within the current
+   *  session and advance to Step 2. */
+  const onInterstitialSkip = () => {
+    if (!interstitialModuleId) {
+      setInterstitialModuleId(null);
+      return;
+    }
+    const moduleId = interstitialModuleId;
+    setDismissedAnchorModules(prev => {
+      const next = new Set(prev);
+      next.add(moduleId);
+      return next;
+    });
+    setInterstitialModuleId(null);
     setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
   };
 
@@ -956,14 +1051,27 @@ export default function GoalCreationFlow({ open, onClose, initialScope, initialG
   const showScopeBanner = !!initialScope && draft.scope !== null;
 
   return (
-    <Modal open={open} onClose={handleClose} title={step.title} footer={footer}>
-      {showScopeBanner && (
-        <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2 mb-3 text-xs font-medium text-fluent">
-          Setting up a {SCOPE_LABEL[draft.scope!]} goal
-        </div>
-      )}
-      {renderStep(step, draft, selectModule, updateDraft)}
-    </Modal>
+    <>
+      <Modal open={open} onClose={handleClose} title={step.title} footer={footer}>
+        {showScopeBanner && (
+          <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2 mb-3 text-xs font-medium text-fluent">
+            Setting up a {SCOPE_LABEL[draft.scope!]} goal
+          </div>
+        )}
+        {renderStep(step, draft, selectModule, updateDraft)}
+      </Modal>
+      {/* Phase 2 step 5f — yearly anchor trigger.
+            Modal-on-modal interstitial fires when leaving Step 1
+            with a module that has no active yearly anchor. Renders
+            outside the GoalCreationFlow modal so its body-scroll
+            lock and Esc handler take precedence. */}
+      <YearlyAnchorInterstitial
+        open={interstitialModuleId !== null}
+        moduleId={interstitialModuleId}
+        onSetAnchor={onInterstitialSetAnchor}
+        onSkip={onInterstitialSkip}
+      />
+    </>
   );
 }
 
