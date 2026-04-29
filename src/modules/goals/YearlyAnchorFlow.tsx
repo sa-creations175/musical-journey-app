@@ -1,6 +1,19 @@
 import { useState } from 'react';
 import Modal from '../../components/Modal';
 import type { Goal } from '../../lib/db';
+import { earTrainingCounts } from '../../lib/moduleItemCounts';
+import { moduleMetaById } from '../../lib/moduleMeta';
+import {
+  AccuracySlider,
+  BreadthYesNoPicker,
+  ConsistencyControl,
+  DimensionSection,
+  pruneMasteryToBreadth,
+  type BreadthGroupOption,
+  type BreadthState,
+  type ConsistencyCadence,
+} from './yearlyAnchorDimensions';
+import { CategoryPillButton } from './GoalCreationFlow';
 
 /**
  * Phase 2 step 5b — YearlyAnchorFlow shell.
@@ -112,12 +125,88 @@ export interface AnchorDraft {
    *  Screen 2. Null until 5d wires the editable input — the resolved
    *  name at save time falls back to the auto default. */
   name: string | null;
-  // Dimension slots land in 5c. Kept here as a placeholder so the
-  // Draft shape is recognisable to anyone reading the file mid-build.
-  // breadth?: BreadthState;
-  // mastery?: MasteryState;
-  // depth?: DepthState;
-  // consistency?: ConsistencyState;
+  /** Per-module dimension state. Sparse object — only the slot
+   *  matching `moduleId` is populated. Mirrors GoalCreationFlow's
+   *  module-keyed sub-target pattern. 5c.1 ships the ET slot; 5c.2–
+   *  5c.6 land the rest. */
+  earTraining?: EarTrainingAnchor;
+  // harmonicFluency?:    HarmonicFluencyAnchor;       // 5c.2
+  // shapesPatterns?:     ShapesPatternsAnchor;        // 5c.3
+  // songRepertoire?:     SongRepertoireAnchor;        // 5c.4
+  // production?:         ProductionAnchor;            // 5c.5
+  // practiceConsistency?: PracticeConsistencyAnchor;  // 5c.6
+}
+
+// =====================================================================
+// Ear Training dimension state
+// =====================================================================
+
+/** Group identifiers for ET coverage / mastery. Match the spacingState
+ *  moduleRefs (intervals, chord-recognition, chord-progressions,
+ *  scales-modes) so progress reads route cleanly through Step 4's
+ *  `getCoverageCount(metric, subArea)` — see comments in
+ *  `progress.ts` for the moduleRef ↔ sub-area equivalence. */
+export type EarTrainingGroupId =
+  | 'intervals'
+  | 'chord-recognition'
+  | 'chord-progressions'
+  | 'scales-modes';
+
+interface EarTrainingAnchor {
+  breadth: BreadthState;
+  /** Mastery's groupIds are always pruned to Breadth's scope by the
+   *  coordinated `setBreadth` updater in Screen1EarTraining. State
+   *  invariant: if breadth.kind === 'subset', every mastery groupId
+   *  appears in breadth.groupIds. */
+  mastery: { groupIds: EarTrainingGroupId[] };
+  depth: { accuracyPercent: number };
+  consistency: { count: number; cadence: ConsistencyCadence };
+}
+
+const ET_GROUP_LABELS: Record<EarTrainingGroupId, string> = {
+  'intervals':          'intervals',
+  'chord-recognition':  'chord recognition',
+  'chord-progressions': 'chord progressions',
+  'scales-modes':       'scales & modes',
+};
+
+const ET_GROUP_IDS: ReadonlyArray<EarTrainingGroupId> = [
+  'intervals',
+  'chord-recognition',
+  'chord-progressions',
+  'scales-modes',
+];
+
+function defaultEarTraining(): EarTrainingAnchor {
+  return {
+    breadth: { kind: 'all' },
+    mastery: { groupIds: [] },
+    depth: { accuracyPercent: 80 },
+    consistency: { count: 4, cadence: 'week' },
+  };
+}
+
+/**
+ * True when the ET anchor has at least one populated dimension —
+ * enough to advance to Screen 2 and save. "Populated" means the
+ * user has expressed a non-default intention; defaults that the
+ * user never touched do not count as populated. We treat the
+ * default Depth (80%) and Consistency (4 / week) as the user's
+ * accepted defaults — they signal "yes, ship these." Empty subset
+ * Breadth (the user toggled to "No" but hasn't picked any group
+ * yet) does NOT count as populated and the upstream gate blocks
+ * advance until they pick one.
+ *
+ * Spec call: at least one dimension populated. With defaults pre-
+ * filled for Depth and Consistency, the user is always "ready" once
+ * the file mounts unless they actively toggled to a Breadth subset
+ * with no picks. That's the desired ergonomics — empty defaults
+ * commit the user to "yes, the defaults are fine."
+ */
+function isEarTrainingValid(et: EarTrainingAnchor): boolean {
+  // Block: user toggled Breadth to subset but hasn't picked any group.
+  if (et.breadth.kind === 'subset' && et.breadth.groupIds.length === 0) return false;
+  return true;
 }
 
 function buildInitialDraft(
@@ -128,10 +217,16 @@ function buildInitialDraft(
   // name (its description, since umbrellas store the user-visible
   // name there). Create mode: name stays null and the auto default
   // resolves at save time.
-  return {
+  const draft: AnchorDraft = {
     moduleId,
     name: initialAnchor?.description ?? null,
   };
+  // Seed the per-module slot for the chosen module. Other modules
+  // land in 5c.2–5c.6.
+  if (moduleId === 'ear-training') {
+    draft.earTraining = defaultEarTraining();
+  }
+  return draft;
 }
 
 // ---- Props -----------------------------------------------------------
@@ -212,10 +307,17 @@ export default function YearlyAnchorFlow({
   const screen = SCREENS[screenIndex];
   const isFirst = screenIndex === 0;
   const isLast = screenIndex === SCREENS.length - 1;
-  /** Per-screen advance gate. Screen 1 always passes for now; 5c will
-   *  wire per-dimension validation (e.g. consistency requires a count
-   *  ≥ 1 to advance). Screen 2's Save is gated by the same flag. */
-  const canAdvance = true;
+  /** Per-screen advance gate. Screen 1's gate routes through the
+   *  active module's validator; Screen 2's Save shares the gate.
+   *  When a module's slot isn't yet populated (only ear-training in
+   *  5c.1 — others in 5c.2–5c.6), we let the user advance so the
+   *  shell is reachable end-to-end during the build. */
+  const canAdvance = (() => {
+    if (moduleId === 'ear-training' && draft.earTraining) {
+      return isEarTrainingValid(draft.earTraining);
+    }
+    return true;
+  })();
 
   const goBack = () => {
     if (isFirst) handleClose();
@@ -283,21 +385,20 @@ export default function YearlyAnchorFlow({
 // =====================================================================
 
 /**
- * Screen 1 placeholder. 5c wires the four dimension components per
- * module:
- *   ET / HF / S&P → Breadth (yes/no + group selector)
- *                   → Mastery (multi-select pre-filtered to breadth)
- *                   → Depth (accuracy slider or proficiency level)
- *                   → Consistency (count + per-week / per-month)
- *   Songs        → Breadth (count at Comfortable)
- *                   → Depth (count at Solid)
- *                   → Mastery (count at Internalized)
- *                   → Consistency
- *   Production   → Breadth / Depth / Consistency (3 questions only)
- *   Practice consistency → Weekly floor / Monthly floor / Aspiration
+ * Per-module router. Each module's dimension surface is its own
+ * component below; this wrapper picks the right one and renders the
+ * shared intro paragraph above it. Modules whose dimensions land in
+ * later substeps fall through to a 5c.x placeholder so the shell
+ * stays reachable end-to-end during the build.
+ *
+ * Dimension order on Screen 1 matches the design call:
+ *   Breadth → Mastery → Depth → Consistency
+ * (Production omits Mastery; Songs swaps to count-based dimensions;
+ *  Practice consistency uses a different 3-question shape entirely.)
  */
 function ScreenIntent({
   draft,
+  onUpdate,
   isEditing,
 }: {
   draft: AnchorDraft;
@@ -306,16 +407,161 @@ function ScreenIntent({
 }) {
   const moduleName = MODULE_DISPLAY_NAME[draft.moduleId];
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <p className="text-sm text-neutral-600 dark:text-neutral-300">
         A yearly anchor sets your full intention for {moduleName}. It's a small
         cluster of goals that together describe what you want to cover, how
         deeply, and how often.
       </p>
-      <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
-        Dimension questions land in step 5c.
-        {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
-      </div>
+      {draft.moduleId === 'ear-training' && draft.earTraining && (
+        <Screen1EarTraining
+          state={draft.earTraining}
+          onChange={next => onUpdate({ earTraining: next })}
+        />
+      )}
+      {draft.moduleId !== 'ear-training' && (
+        <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
+          Dimension questions for {moduleName} land in a later 5c substep.
+          {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
+// Ear Training — dimension surface
+// =====================================================================
+
+/**
+ * Ear Training dimension surface. Four sections in
+ * Breadth → Mastery → Depth → Consistency order. Mastery's group
+ * options are pre-filtered to the Breadth selection; the
+ * coordinated `setBreadth` updater also prunes Mastery's selected
+ * groupIds when Breadth narrows so state stays truthful at all
+ * times (per the locked design — pruning is destructive; widening
+ * Breadth back to "all" does not restore previously-pruned
+ * selections).
+ *
+ * Live denominators come from `earTrainingCounts()` (Step 3) so the
+ * Breadth question's "all 143 items" wording flows from the catalog
+ * rather than hardcoded copy. Mastery, Depth, and Consistency all
+ * use shared primitives from `yearlyAnchorDimensions.tsx`.
+ */
+function Screen1EarTraining({
+  state,
+  onChange,
+}: {
+  state: EarTrainingAnchor;
+  onChange: (next: EarTrainingAnchor) => void;
+}) {
+  const counts = earTrainingCounts();
+  // Single ET module accent for the breadth pills. ET groups don't
+  // have pre-existing per-group accent definitions (unlike HF, which
+  // maps each of the 4 groups to a borrowed module color); single-
+  // accent reads cleanly at 4-pill scale.
+  const etAccent = moduleMetaById('ear-training')?.accentHex ?? '#5a8752';
+
+  const breadthGroupOptions: BreadthGroupOption[] = ET_GROUP_IDS.map(id => ({
+    id,
+    label: ET_GROUP_LABELS[id],
+    accentHex: etAccent,
+  }));
+
+  // Coordinated updater: when Breadth changes, Mastery's selected
+  // groupIds are pruned to the new Breadth scope in the same call.
+  // pruneMasteryToBreadth is unit-tested in
+  // yearlyAnchorDimensions.test.ts.
+  const setBreadth = (nextBreadth: BreadthState) => {
+    const prunedMasteryIds = pruneMasteryToBreadth(
+      nextBreadth,
+      state.mastery.groupIds,
+    ) as EarTrainingGroupId[];
+    onChange({
+      ...state,
+      breadth: nextBreadth,
+      mastery: { groupIds: prunedMasteryIds },
+    });
+  };
+
+  // Mastery's visible options are filtered to Breadth's scope.
+  const visibleMasteryGroups: ReadonlyArray<EarTrainingGroupId> =
+    state.breadth.kind === 'all'
+      ? ET_GROUP_IDS
+      : ET_GROUP_IDS.filter(id => state.breadth.kind === 'subset' && state.breadth.groupIds.includes(id));
+
+  const toggleMasteryGroup = (id: EarTrainingGroupId) => {
+    const has = state.mastery.groupIds.includes(id);
+    const next = has
+      ? state.mastery.groupIds.filter(g => g !== id)
+      : [...state.mastery.groupIds, id];
+    onChange({ ...state, mastery: { groupIds: next } });
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <DimensionSection
+        title="Breadth"
+        question={`Do you want to work through all ${counts.total} ear training items this year?`}
+      >
+        <BreadthYesNoPicker
+          yesLabel={`Yes — work through all ${counts.total} items`}
+          noLabel="No — just specific groups"
+          groups={breadthGroupOptions}
+          value={state.breadth}
+          onChange={setBreadth}
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Mastery"
+        question={
+          state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
+            ? 'Pick at least one group above to choose what to master.'
+            : 'Are there specific groups you want to truly master?'
+        }
+      >
+        {visibleMasteryGroups.length === 0 ? (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            No groups available — pick a Breadth selection above first.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {visibleMasteryGroups.map(id => (
+              <CategoryPillButton
+                key={id}
+                label={ET_GROUP_LABELS[id]}
+                accentHex={etAccent}
+                active={state.mastery.groupIds.includes(id)}
+                onClick={() => toggleMasteryGroup(id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        )}
+      </DimensionSection>
+
+      <DimensionSection
+        title="Depth"
+        question="What overall accuracy level do you want to reach across all of Ear Training by year end?"
+      >
+        <AccuracySlider
+          value={state.depth.accuracyPercent}
+          onChange={p => onChange({ ...state, depth: { accuracyPercent: p } })}
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Consistency"
+        question="How many times per week do you want to practice Ear Training?"
+      >
+        <ConsistencyControl
+          unit="sessions"
+          count={state.consistency.count}
+          cadence={state.consistency.cadence}
+          onChange={next => onChange({ ...state, consistency: next })}
+        />
+      </DimensionSection>
     </div>
   );
 }

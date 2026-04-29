@@ -2322,7 +2322,7 @@ function previewHarmonicFluencyTarget(target: HarmonicFluencyTarget): string | n
  * its group", and gives all 12 buttons a single shared selected
  * treatment regardless of which group they belong to.
  */
-function CategoryPillButton({
+export function CategoryPillButton({
   label,
   accentHex,
   active,
