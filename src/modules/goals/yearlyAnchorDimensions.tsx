@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import Field from './Field';
 import { inputClass } from './formStyles';
 import { CategoryPillButton } from './GoalCreationFlow';
@@ -86,18 +87,30 @@ export function pruneMasteryToBreadth(
  * optional question copy + content slot. First-of-type drops the
  * top border + padding so the section sits flush under the screen
  * header.
+ *
+ * Accepts an optional `id` ("breadth" / "mastery" / "depth" /
+ * "consistency" / "weeklyFloor" / "monthlyFloor" / "aspiration")
+ * which is mounted as `id="anchor-dim-${id}"` on the section
+ * element. `useFocusDimension` reads this attribute via
+ * getElementById to scroll the matching section into view when
+ * Screen 2's per-dimension Edit link routes back to Screen 1.
  */
 export function DimensionSection({
   title,
   question,
+  id,
   children,
 }: {
   title: string;
   question?: string;
+  id?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-neutral-200 dark:border-neutral-800 pt-5 first:border-t-0 first:pt-0">
+    <section
+      id={id ? `anchor-dim-${id}` : undefined}
+      className="border-t border-neutral-200 dark:border-neutral-800 pt-5 first:border-t-0 first:pt-0 scroll-mt-20"
+    >
       <h3 className="text-base font-medium text-neutral-800 dark:text-neutral-100 mb-1">
         {title}
       </h3>
@@ -109,6 +122,25 @@ export function DimensionSection({
       {children}
     </section>
   );
+}
+
+/**
+ * Scrolls the dimension section matching `focusDimension` into view
+ * on mount and whenever `focusDimension` changes. Resolution is by
+ * DOM id (`anchor-dim-${focusDimension}`) — DimensionSection mounts
+ * the matching id attribute. `scroll-mt-20` on the section accounts
+ * for the modal header.
+ *
+ * No-op when focusDimension is null/undefined or no matching element
+ * exists. Behavior is `smooth` so the navigation reads as
+ * intentional, not jarring.
+ */
+export function useFocusDimension(focusDimension: string | null | undefined): void {
+  useEffect(() => {
+    if (!focusDimension) return;
+    const el = document.getElementById(`anchor-dim-${focusDimension}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusDimension]);
 }
 
 // =====================================================================

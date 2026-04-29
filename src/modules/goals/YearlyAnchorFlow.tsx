@@ -10,11 +10,18 @@ import {
   CountInput,
   DimensionSection,
   pruneMasteryToBreadth,
+  useFocusDimension,
   type BreadthGroupOption,
   type BreadthState,
   type ConsistencyCadence,
 } from './yearlyAnchorDimensions';
+import {
+  defaultAnchorName,
+  dimensionRowsFor,
+  summarizeAnchor,
+} from './yearlyAnchorReview';
 import { CategoryPillButton } from './GoalCreationFlow';
+import { inputClass } from './formStyles';
 
 /**
  * Phase 2 step 5b — YearlyAnchorFlow shell.
@@ -81,7 +88,7 @@ export type AnchorModuleId =
   | 'production'
   | 'practice-consistency';
 
-const MODULE_DISPLAY_NAME: Record<AnchorModuleId, string> = {
+export const MODULE_DISPLAY_NAME: Record<AnchorModuleId, string> = {
   'ear-training':         'Ear Training',
   'harmonic-fluency':     'Harmonic Fluency',
   'repertoire':           'Song Repertoire',
@@ -101,15 +108,23 @@ const SCREENS: ReadonlyArray<{ id: ScreenId }> = [
 
 /**
  * Dimensions expressed on Screen 1, in the on-screen order specified
- * by the design doc. Screen 2's per-dimension Edit links (5d) take
- * one of these as a `focusDimension` prop so navigation back lands on
+ * by the design doc. Screen 2's per-dimension Edit links take one
+ * of these as a `focusDimension` prop so navigation back lands on
  * the right scrolled-into-view section.
  *
- * Production omits 'mastery' (depth/mastery merged) — handled in 5c
- * by branching on moduleId. Practice consistency's three questions
- * (weekly / monthly / aspiration) ride under the 'consistency' label.
+ * Production omits 'mastery' (depth/mastery merged). Practice
+ * consistency uses its own three: weeklyFloor / monthlyFloor /
+ * aspiration — they're widened into this union so the focus
+ * machinery is uniform across all six modules.
  */
-export type AnchorDimension = 'breadth' | 'mastery' | 'depth' | 'consistency';
+export type AnchorDimension =
+  | 'breadth'
+  | 'mastery'
+  | 'depth'
+  | 'consistency'
+  | 'weeklyFloor'
+  | 'monthlyFloor'
+  | 'aspiration';
 
 // ---- Draft state -----------------------------------------------------
 
@@ -153,7 +168,7 @@ export type EarTrainingGroupId =
   | 'chord-progressions'
   | 'scales-modes';
 
-interface EarTrainingAnchor {
+export interface EarTrainingAnchor {
   breadth: BreadthState;
   /** Mastery's groupIds are always pruned to Breadth's scope by the
    *  coordinated `setBreadth` updater in Screen1EarTraining. State
@@ -164,7 +179,7 @@ interface EarTrainingAnchor {
   consistency: { count: number; cadence: ConsistencyCadence };
 }
 
-const ET_GROUP_LABELS: Record<EarTrainingGroupId, string> = {
+export const ET_GROUP_LABELS: Record<EarTrainingGroupId, string> = {
   'intervals':          'intervals',
   'chord-recognition':  'chord recognition',
   'chord-progressions': 'chord progressions',
@@ -227,7 +242,7 @@ export type HarmonicFluencyGroupId =
   | 'functional-applied'
   | 'ear-recognition';
 
-interface HarmonicFluencyAnchor {
+export interface HarmonicFluencyAnchor {
   breadth: BreadthState;
   /** Mastery's groupIds are pruned to Breadth's scope by the
    *  coordinated `setBreadth` updater. Same invariant as ET. */
@@ -236,7 +251,7 @@ interface HarmonicFluencyAnchor {
   consistency: { count: number; cadence: ConsistencyCadence };
 }
 
-const HF_GROUP_LABELS: Record<HarmonicFluencyGroupId, string> = {
+export const HF_GROUP_LABELS: Record<HarmonicFluencyGroupId, string> = {
   'foundational':       'foundational / math',
   'chord-knowledge':    'chord knowledge',
   'functional-applied': 'functional / applied',
@@ -277,7 +292,7 @@ function isHarmonicFluencyValid(hf: HarmonicFluencyAnchor): boolean {
  *  into `itemRefForSkill` returning null. */
 export type ShapesAreaId = 'chord_shape_drills' | 'scale_drills' | 'voice_leading';
 
-interface ShapesPatternsAnchor {
+export interface ShapesPatternsAnchor {
   breadth: BreadthState;
   /** Areas the user wants to reach Solid in across all 12 keys.
    *  Pre-filtered to Breadth scope. Empty is a valid resting state
@@ -300,7 +315,7 @@ interface ShapesPatternsAnchor {
   consistency: { count: number; cadence: ConsistencyCadence };
 }
 
-const SHAPES_AREA_LABELS: Record<ShapesAreaId, string> = {
+export const SHAPES_AREA_LABELS: Record<ShapesAreaId, string> = {
   'chord_shape_drills': 'chord shape drills',
   'scale_drills':       'scale drills',
   'voice_leading':      'voice-leading',
@@ -354,7 +369,7 @@ function isShapesPatternsValid(sp: ShapesPatternsAnchor): boolean {
  * depthCount > breadthCount; surfaces as an amber tip below the
  * count inputs. Save is never blocked.
  */
-interface SongRepertoireAnchor {
+export interface SongRepertoireAnchor {
   /** Songs at Comfortable. */
   breadthCount: number;
   /** Songs at Solid. */
@@ -430,7 +445,7 @@ export type ProductionPathId =
  * yearlyAnchorMetrics.ts vocabulary mirrors this — there is no
  * production_mastery_at_mastered metric.
  */
-interface ProductionAnchor {
+export interface ProductionAnchor {
   breadth: BreadthState;
   /** Paths the user wants to go deepest on. Pre-filtered to Breadth
    *  scope, same coupling rule as S&P's areas. Empty is a valid
@@ -444,7 +459,7 @@ interface ProductionAnchor {
   consistency: { count: number; cadence: ConsistencyCadence };
 }
 
-const PRODUCTION_PATH_LABELS: Record<ProductionPathId, string> = {
+export const PRODUCTION_PATH_LABELS: Record<ProductionPathId, string> = {
   'workflow-foundations':    'workflow foundations',
   'language-of-production':  'the language of production',
   'vocal-production':        'vocal production',
@@ -500,7 +515,7 @@ function isProductionValid(p: ProductionAnchor): boolean {
  * vacations — the user might miss two weeks but still hit their
  * monthly target.
  */
-interface PracticeConsistencyAnchor {
+export interface PracticeConsistencyAnchor {
   weeklyFloor: number;   // days per week
   monthlyFloor: number;  // days per month
   aspiration: number;    // ideal days per week
@@ -640,22 +655,21 @@ export default function YearlyAnchorFlow({
   onClose,
   moduleId,
   initialAnchor,
-  // focusDimension is plumbed through but not yet consumed — 5d wires
-  // the scroll-into-view behavior. Renamed here to silence the
-  // unused-var lint without burying the prop.
-  focusDimension: _focusDimension,
+  focusDimension: initialFocusDimension,
 }: Props) {
   const [screenIndex, setScreenIndex] = useState(0);
   const [draft, setDraft] = useState<AnchorDraft>(() =>
     buildInitialDraft(moduleId, initialAnchor),
   );
   const [saving, setSaving] = useState(false);
-
-  // `isEditing` (`!!initialAnchor`) is computed in 5d when the
-  // review screen wires the auto-name's create-vs-edit copy
-  // ("New Ear Training 2026" vs the umbrella's stored description).
-  // Removed for now to keep the shell lint-clean; lands again with
-  // the 5d wiring.
+  /** Active focus target for Screen 1's scroll-into-view behavior.
+   *  Set by Screen 2's per-dimension Edit links, and seeded from the
+   *  optional `focusDimension` prop on first mount. Cleared when the
+   *  user advances Screen 1 → Screen 2 (so a subsequent Back doesn't
+   *  re-trigger the scroll). */
+  const [focusDim, setFocusDim] = useState<AnchorDimension | null>(
+    initialFocusDimension ?? null,
+  );
 
   /**
    * Wrap the parent's onClose so every close path resets the flow
@@ -668,6 +682,7 @@ export default function YearlyAnchorFlow({
     setScreenIndex(0);
     setDraft(buildInitialDraft(moduleId, initialAnchor));
     setSaving(false);
+    setFocusDim(null);
     onClose();
   };
 
@@ -732,7 +747,20 @@ export default function YearlyAnchorFlow({
       void handleSave();
       return;
     }
+    // Clear focus on Screen 1 → Screen 2 advance so the next Back
+    // navigation (or the next Edit-link click) starts from a clean
+    // state rather than re-triggering the previous scroll.
+    setFocusDim(null);
     setScreenIndex(i => Math.min(SCREENS.length - 1, i + 1));
+  };
+
+  /** Edit-link handler from Screen 2: focus a dimension and route
+   *  back to Screen 1. The useFocusDimension hook on the active
+   *  Screen 1 component reacts to focusDim and scrolls the matching
+   *  DimensionSection into view. */
+  const goToDimension = (dim: AnchorDimension) => {
+    setFocusDim(dim);
+    setScreenIndex(0);
   };
 
   const updateDraft = (patch: Partial<AnchorDraft>) => {
@@ -774,9 +802,9 @@ export default function YearlyAnchorFlow({
   return (
     <Modal open={open} onClose={handleClose} title={title} footer={footer}>
       {screen.id === 'intent' ? (
-        <ScreenIntent draft={draft} onUpdate={updateDraft} />
+        <ScreenIntent draft={draft} onUpdate={updateDraft} focusDimension={focusDim} />
       ) : (
-        <ScreenReview draft={draft} onUpdate={updateDraft} />
+        <ScreenReview draft={draft} onUpdate={updateDraft} onEditDimension={goToDimension} />
       )}
     </Modal>
   );
@@ -800,9 +828,11 @@ export default function YearlyAnchorFlow({
 function ScreenIntent({
   draft,
   onUpdate,
+  focusDimension,
 }: {
   draft: AnchorDraft;
   onUpdate: (patch: Partial<AnchorDraft>) => void;
+  focusDimension: AnchorDimension | null;
 }) {
   const moduleName = MODULE_DISPLAY_NAME[draft.moduleId];
   return (
@@ -816,36 +846,42 @@ function ScreenIntent({
         <Screen1EarTraining
           state={draft.earTraining}
           onChange={next => onUpdate({ earTraining: next })}
+          focusDimension={focusDimension}
         />
       )}
       {draft.moduleId === 'harmonic-fluency' && draft.harmonicFluency && (
         <Screen1HarmonicFluency
           state={draft.harmonicFluency}
           onChange={next => onUpdate({ harmonicFluency: next })}
+          focusDimension={focusDimension}
         />
       )}
       {draft.moduleId === 'shapes-and-patterns' && draft.shapesPatterns && (
         <Screen1ShapesPatterns
           state={draft.shapesPatterns}
           onChange={next => onUpdate({ shapesPatterns: next })}
+          focusDimension={focusDimension}
         />
       )}
       {draft.moduleId === 'repertoire' && draft.songRepertoire && (
         <Screen1SongRepertoire
           state={draft.songRepertoire}
           onChange={next => onUpdate({ songRepertoire: next })}
+          focusDimension={focusDimension}
         />
       )}
       {draft.moduleId === 'production' && draft.production && (
         <Screen1Production
           state={draft.production}
           onChange={next => onUpdate({ production: next })}
+          focusDimension={focusDimension}
         />
       )}
       {draft.moduleId === 'practice-consistency' && draft.practiceConsistency && (
         <Screen1PracticeConsistency
           state={draft.practiceConsistency}
           onChange={next => onUpdate({ practiceConsistency: next })}
+          focusDimension={focusDimension}
         />
       )}
     </div>
@@ -874,10 +910,13 @@ function ScreenIntent({
 function Screen1EarTraining({
   state,
   onChange,
+  focusDimension,
 }: {
   state: EarTrainingAnchor;
   onChange: (next: EarTrainingAnchor) => void;
+  focusDimension: AnchorDimension | null;
 }) {
+  useFocusDimension(focusDimension);
   const counts = earTrainingCounts();
   // Single ET module accent for the breadth pills. ET groups don't
   // have pre-existing per-group accent definitions (unlike HF, which
@@ -925,6 +964,7 @@ function Screen1EarTraining({
     <div className="flex flex-col gap-5">
       <DimensionSection
         title="Breadth"
+        id="breadth"
         question={`Do you want to work through all ${counts.total} ear training items this year?`}
       >
         <BreadthYesNoPicker
@@ -938,6 +978,7 @@ function Screen1EarTraining({
 
       <DimensionSection
         title="Mastery"
+        id="mastery"
         question={
           state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
             ? 'Pick at least one group above to choose what to master.'
@@ -966,6 +1007,7 @@ function Screen1EarTraining({
 
       <DimensionSection
         title="Depth"
+        id="depth"
         question="What overall accuracy level do you want to reach across all of Ear Training by year end?"
       >
         <AccuracySlider
@@ -976,6 +1018,7 @@ function Screen1EarTraining({
 
       <DimensionSection
         title="Consistency"
+        id="consistency"
         question="How many times per week do you want to practice Ear Training?"
       >
         <ConsistencyControl
@@ -1016,10 +1059,13 @@ function Screen1EarTraining({
 function Screen1HarmonicFluency({
   state,
   onChange,
+  focusDimension,
 }: {
   state: HarmonicFluencyAnchor;
   onChange: (next: HarmonicFluencyAnchor) => void;
+  focusDimension: AnchorDimension | null;
 }) {
+  useFocusDimension(focusDimension);
   const counts = harmonicFluencyCounts();
 
   // Per-group accent palette — mirrors the existing
@@ -1068,6 +1114,7 @@ function Screen1HarmonicFluency({
     <div className="flex flex-col gap-5">
       <DimensionSection
         title="Breadth"
+        id="breadth"
         question={`Do you want to work through all ${counts.total} harmonic fluency cards this year?`}
       >
         <BreadthYesNoPicker
@@ -1081,6 +1128,7 @@ function Screen1HarmonicFluency({
 
       <DimensionSection
         title="Mastery"
+        id="mastery"
         question={
           state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
             ? 'Pick at least one group above to choose what to master.'
@@ -1109,6 +1157,7 @@ function Screen1HarmonicFluency({
 
       <DimensionSection
         title="Depth"
+        id="depth"
         question="What overall accuracy level do you want to reach across all of Harmonic Fluency by year end?"
       >
         <AccuracySlider
@@ -1119,6 +1168,7 @@ function Screen1HarmonicFluency({
 
       <DimensionSection
         title="Consistency"
+        id="consistency"
         question="How many times per week do you want to practice Harmonic Fluency?"
       >
         <ConsistencyControl
@@ -1167,10 +1217,13 @@ function Screen1HarmonicFluency({
 function Screen1ShapesPatterns({
   state,
   onChange,
+  focusDimension,
 }: {
   state: ShapesPatternsAnchor;
   onChange: (next: ShapesPatternsAnchor) => void;
+  focusDimension: AnchorDimension | null;
 }) {
+  useFocusDimension(focusDimension);
   const counts = shapesCounts();
   const spAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
 
@@ -1227,6 +1280,7 @@ function Screen1ShapesPatterns({
     <div className="flex flex-col gap-5">
       <DimensionSection
         title="Breadth"
+        id="breadth"
         question={`Do you want to work toward Comfortable across all ${counts.total} shapes this year? (Mental Visualization is excluded — it counts toward consistency only.)`}
       >
         <BreadthYesNoPicker
@@ -1240,6 +1294,7 @@ function Screen1ShapesPatterns({
 
       <DimensionSection
         title="Depth"
+        id="depth"
         question={
           state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
             ? 'Pick at least one area above to choose where to push depth.'
@@ -1268,6 +1323,7 @@ function Screen1ShapesPatterns({
 
       <DimensionSection
         title="Mastery"
+        id="mastery"
         question={
           state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
             ? 'Pick at least one area above to choose what to truly own.'
@@ -1296,6 +1352,7 @@ function Screen1ShapesPatterns({
 
       <DimensionSection
         title="Consistency"
+        id="consistency"
         question="How many minutes a week do you want to practice Shapes & Patterns?"
       >
         <ConsistencyControl
@@ -1341,15 +1398,19 @@ function Screen1ShapesPatterns({
 function Screen1SongRepertoire({
   state,
   onChange,
+  focusDimension,
 }: {
   state: SongRepertoireAnchor;
   onChange: (next: SongRepertoireAnchor) => void;
+  focusDimension: AnchorDimension | null;
 }) {
+  useFocusDimension(focusDimension);
   const nudge = songCumulativeNudge(state);
   return (
     <div className="flex flex-col gap-5">
       <DimensionSection
         title="Breadth (Comfortable)"
+        id="breadth"
         question="How many songs do you want to know how to play by year end? You know how to play them."
       >
         <CountInput
@@ -1362,6 +1423,7 @@ function Screen1SongRepertoire({
 
       <DimensionSection
         title="Depth (Solid)"
+        id="depth"
         question="How many songs do you want to be performance-ready? Impress your friends, family, and loved ones."
       >
         <CountInput
@@ -1374,6 +1436,7 @@ function Screen1SongRepertoire({
 
       <DimensionSection
         title="Mastery (Internalized)"
+        id="mastery"
         question="How many songs do you want to own so deeply you could make someone cry, yourself included? You know them with your eyes closed."
       >
         <CountInput
@@ -1395,6 +1458,7 @@ function Screen1SongRepertoire({
 
       <DimensionSection
         title="Consistency"
+        id="consistency"
         question="How often do you want to cultivate your Song Repertoire?"
       >
         <ConsistencyControl
@@ -1433,10 +1497,13 @@ function Screen1SongRepertoire({
 function Screen1Production({
   state,
   onChange,
+  focusDimension,
 }: {
   state: ProductionAnchor;
   onChange: (next: ProductionAnchor) => void;
+  focusDimension: AnchorDimension | null;
 }) {
+  useFocusDimension(focusDimension);
   const counts = productionCounts();
   const productionAccent = moduleMetaById('production')?.accentHex ?? '#3a4875';
 
@@ -1478,6 +1545,7 @@ function Screen1Production({
     <div className="flex flex-col gap-5">
       <DimensionSection
         title="Breadth"
+        id="breadth"
         question={`Do you want to work through all ${counts.total} production lessons this year?`}
       >
         <BreadthYesNoPicker
@@ -1491,6 +1559,7 @@ function Screen1Production({
 
       <DimensionSection
         title="Depth"
+        id="depth"
         question={
           state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
             ? 'Pick at least one path above to choose where to go deepest.'
@@ -1519,6 +1588,7 @@ function Screen1Production({
 
       <DimensionSection
         title="Consistency"
+        id="consistency"
         question="How many hours a week do you want to spend on production?"
       >
         <ConsistencyControl
@@ -1558,15 +1628,19 @@ function Screen1Production({
 function Screen1PracticeConsistency({
   state,
   onChange,
+  focusDimension,
 }: {
   state: PracticeConsistencyAnchor;
   onChange: (next: PracticeConsistencyAnchor) => void;
+  focusDimension: AnchorDimension | null;
 }) {
+  useFocusDimension(focusDimension);
   const nudge = practiceConsistencyNudge(state);
   return (
     <div className="flex flex-col gap-5">
       <DimensionSection
         title="Weekly floor"
+        id="weeklyFloor"
         question="What's the minimum number of days per week you want to practice?"
       >
         <CountInput
@@ -1581,6 +1655,7 @@ function Screen1PracticeConsistency({
 
       <DimensionSection
         title="Monthly floor"
+        id="monthlyFloor"
         question="What's the minimum days per month you want to practice? (Safety net for bad weeks and vacations.)"
       >
         <CountInput
@@ -1595,6 +1670,7 @@ function Screen1PracticeConsistency({
 
       <DimensionSection
         title="Aspiration"
+        id="aspiration"
         question="What's your ideal? (Feeds session-recommendation ambition.)"
       >
         <CountInput
@@ -1624,27 +1700,102 @@ function Screen1PracticeConsistency({
 // =====================================================================
 
 /**
- * Screen 2 placeholder. 5d wires the auto-generated name (editable
- * inline at top), four dimension review rows with per-dimension Edit
- * links, and the natural-language summary block at the bottom with
- * the left accent border.
+ * Screen 2 — Review your yearly anchor.
+ *
+ * Three pieces stacked top-to-bottom:
+ *
+ *   1. **Editable name input.** Auto-generated default
+ *      (`defaultAnchorName(moduleId, year)` → "Ear Training 2026")
+ *      shown as the placeholder; the user can type their own. Empty
+ *      input falls back to the default at save time.
+ *
+ *   2. **Per-dimension review rows.** One row per populated
+ *      dimension showing the dimension title, its current value
+ *      (humanized), and an Edit link that routes back to Screen 1
+ *      with that dimension scrolled into view. `dimensionRowsFor`
+ *      handles the per-module shape variations (4 rows for ET / HF
+ *      / S&P / Songs; 3 for Production and Practice consistency).
+ *
+ *   3. **Natural-language summary.** A "By Dec 31, [year], you want
+ *      to …" paragraph describing the whole anchor in connected
+ *      prose. Presented in a left-accent-bordered card, mirroring
+ *      the design doc example.
+ *
+ * Save itself lives in the parent component (`handleSave`) so this
+ * surface is purely review-and-edit; advancing/saving happens via
+ * the modal footer's "Save anchor" button.
  */
 function ScreenReview({
   draft,
+  onUpdate,
+  onEditDimension,
 }: {
   draft: AnchorDraft;
   onUpdate: (patch: Partial<AnchorDraft>) => void;
+  onEditDimension: (dim: AnchorDimension) => void;
 }) {
-  const moduleName = MODULE_DISPLAY_NAME[draft.moduleId];
+  const year = new Date().getFullYear();
+  const placeholder = defaultAnchorName(draft.moduleId, year);
+  const resolvedName = draft.name?.trim() ? draft.name : placeholder;
+  const rows = dimensionRowsFor(draft);
+  const summary = summarizeAnchor(draft, year, resolvedName);
+
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-neutral-600 dark:text-neutral-300">
-        Review your {moduleName} anchor before saving.
-      </p>
-      <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
-        Auto-generated name + per-dimension review rows + natural-language
-        summary land in step 5d.
+    <div className="flex flex-col gap-5">
+      {/* 1. Editable umbrella name */}
+      <div>
+        <label
+          className="block text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400 mb-1"
+          htmlFor="anchor-name-input"
+        >
+          Anchor name
+        </label>
+        <input
+          id="anchor-name-input"
+          type="text"
+          value={draft.name ?? ''}
+          placeholder={placeholder}
+          onChange={e => onUpdate({ name: e.target.value })}
+          className={`${inputClass} w-full text-base`}
+          aria-label="Anchor name"
+        />
       </div>
+
+      {/* 2. Per-dimension review rows */}
+      <div className="flex flex-col">
+        {rows.map(row => (
+          <div
+            key={row.dimension}
+            className="flex items-start justify-between gap-3 border-t border-neutral-200 dark:border-neutral-800 py-3 first:border-t-0 first:pt-0"
+          >
+            <div className="min-w-0">
+              <div className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                {row.title}
+              </div>
+              <div className="text-sm text-neutral-800 dark:text-neutral-100 mt-0.5">
+                {row.value}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onEditDimension(row.dimension)}
+              className="text-sm text-teal-700 dark:text-teal-300 hover:underline shrink-0 mt-0.5"
+            >
+              Edit
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* 3. Natural-language summary with left accent border */}
+      {summary && (
+        <div
+          role="note"
+          className="border-l-4 border-teal-500 bg-teal-50 dark:bg-teal-950/30 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-100"
+        >
+          {summary}
+        </div>
+      )}
     </div>
   );
 }
