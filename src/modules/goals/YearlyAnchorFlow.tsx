@@ -1027,6 +1027,127 @@ function encodePracticeConsistencyDimensions(pc: PracticeConsistencyAnchor): Dim
 }
 
 /**
+ * Options for `saveAnchor` — exposed so deterministic tests can
+ * pin timestamps + ids without monkey-patching `Date.now` or
+ * `Math.random`. Production callers (the React component's
+ * `handleSave`) pass only `initialAnchor`.
+ */
+export interface SaveAnchorOpts {
+  /** When set, save is in edit-mode: umbrella id is reused,
+   *  startDate / status / lastEngagedAt / currentValue carry over,
+   *  and existing children of this umbrella are deleted before
+   *  the new dimension records are written. */
+  initialAnchor?: Goal | null;
+  /** Override "now" timestamp. Default `Date.now()`. */
+  now?: number;
+  /** Override the year for `targetDate` and the auto-generated
+   *  default name. Default `new Date().getFullYear()`. */
+  year?: number;
+  /** Override id generation for deterministic test ids. Default
+   *  uses the file-local `uid` helper. */
+  uidFactory?: (prefix: string) => string;
+}
+
+/** Returned by `saveAnchor` so callers (and tests) can inspect the
+ *  exact rows that landed in `db.goals`. */
+export interface SaveAnchorResult {
+  umbrella: Goal;
+  children: Goal[];
+}
+
+/**
+ * Pure-ish save: encodes the draft, opens a transaction, writes the
+ * umbrella + children, and (in edit mode) deletes the previous
+ * children. Returns the written rows.
+ *
+ * Returns `null` when the draft produces zero dimension records
+ * (e.g. an entirely-empty Practice consistency anchor with no
+ * questions answered, or a draft whose module slot is missing).
+ * The caller should treat null as "nothing to save"; the React
+ * `handleSave` warn-and-aborts on null so the user doesn't see a
+ * false "saved" toast.
+ */
+export async function saveAnchor(
+  draft: AnchorDraft,
+  opts: SaveAnchorOpts = {},
+): Promise<SaveAnchorResult | null> {
+  const year = opts.year ?? new Date().getFullYear();
+  const now = opts.now ?? Date.now();
+  const idFor = opts.uidFactory ?? uid;
+  const targetDate = endOfYearMs(year);
+  const initialAnchor = opts.initialAnchor ?? null;
+  const isEditing = !!initialAnchor;
+
+  const specs = encodeDimensionRecords(draft);
+  if (specs.length === 0) return null;
+
+  const umbrellaId = isEditing ? initialAnchor!.id : idFor('goal');
+  const resolvedName = (draft.name?.trim()) || defaultAnchorName(draft.moduleId, year);
+  const startDate = isEditing ? initialAnchor!.startDate : now;
+
+  const umbrella: Goal = {
+    id: umbrellaId,
+    scope: 'yearly',
+    description: resolvedName,
+    targetMetric: null,
+    targetValue: null,
+    targetUnit: null,
+    currentValue: isEditing ? initialAnchor!.currentValue : 0,
+    contextTag: null,
+    relatedModules: [draft.moduleId],
+    relatedItems: [],
+    startDate,
+    targetDate,
+    status: isEditing ? initialAnchor!.status : 'active',
+    parentGoalId: null,
+    contributesNumericallyToParent: false,
+    isUmbrella: true,
+    lastEngagedAt: isEditing ? initialAnchor!.lastEngagedAt : now,
+  };
+
+  const children: Goal[] = specs.map(spec => ({
+    id: idFor('goal'),
+    scope: 'yearly',
+    description: spec.description,
+    targetMetric: spec.targetMetric,
+    targetValue: spec.targetValue,
+    targetUnit: spec.targetUnit,
+    currentValue: 0,
+    contextTag: null,
+    relatedModules: [draft.moduleId],
+    relatedItems: spec.relatedItems,
+    startDate,
+    targetDate,
+    status: 'active',
+    parentGoalId: umbrellaId,
+    contributesNumericallyToParent: false,
+    isUmbrella: false,
+    lastEngagedAt: null,
+  }));
+
+  // Read existing child ids OUTSIDE the transaction so the read
+  // isn't gated by the rw-lock. The result is small (≤ 4 typically)
+  // and we re-confirm via parentGoalId equality on delete inside
+  // the transaction.
+  const existingChildIds: string[] = isEditing
+    ? (await db.goals.where('parentGoalId').equals(umbrellaId).toArray())
+        .map(c => c.id)
+    : [];
+
+  await db.transaction('rw', db.goals, async () => {
+    for (const id of existingChildIds) {
+      await db.goals.delete(id);
+    }
+    await db.goals.put(umbrella);
+    for (const child of children) {
+      await db.goals.put(child);
+    }
+  });
+
+  return { umbrella, children };
+}
+
+/**
  * Top-level dispatcher. Returns the per-dimension record specs for
  * the active module slot on the draft. Save logic layers shared
  * fields (id, parentGoalId, dates, status) over each spec.
@@ -1140,81 +1261,12 @@ export default function YearlyAnchorFlow({
     if (!canAdvance) return;
     setSaving(true);
     try {
-      const year = new Date().getFullYear();
-      const now = Date.now();
-      const targetDate = endOfYearMs(year);
-      const isEditing = !!initialAnchor;
-      const umbrellaId = isEditing ? initialAnchor!.id : uid('goal');
-      const resolvedName = (draft.name?.trim()) || defaultAnchorName(draft.moduleId, year);
-      const startDate = isEditing ? initialAnchor!.startDate : now;
-
-      const specs = encodeDimensionRecords(draft);
-      if (specs.length === 0) {
+      const result = await saveAnchor(draft, { initialAnchor });
+      if (!result) {
         console.warn('[yearly-anchor] no dimension records produced; aborting save');
         setSaving(false);
         return;
       }
-
-      const umbrella: Goal = {
-        id: umbrellaId,
-        scope: 'yearly',
-        description: resolvedName,
-        targetMetric: null,
-        targetValue: null,
-        targetUnit: null,
-        currentValue: isEditing ? initialAnchor!.currentValue : 0,
-        contextTag: null,
-        relatedModules: [draft.moduleId],
-        relatedItems: [],
-        startDate,
-        targetDate,
-        status: isEditing ? initialAnchor!.status : 'active',
-        parentGoalId: null,
-        contributesNumericallyToParent: false,
-        isUmbrella: true,
-        lastEngagedAt: isEditing ? initialAnchor!.lastEngagedAt : now,
-      };
-
-      const children: Goal[] = specs.map(spec => ({
-        id: uid('goal'),
-        scope: 'yearly',
-        description: spec.description,
-        targetMetric: spec.targetMetric,
-        targetValue: spec.targetValue,
-        targetUnit: spec.targetUnit,
-        currentValue: 0,
-        contextTag: null,
-        relatedModules: [draft.moduleId],
-        relatedItems: spec.relatedItems,
-        startDate,
-        targetDate,
-        status: 'active',
-        parentGoalId: umbrellaId,
-        contributesNumericallyToParent: false,
-        isUmbrella: false,
-        lastEngagedAt: null,
-      }));
-
-      // Edit mode: collect existing children for deletion. Done
-      // outside the transaction so the read isn't gated by the
-      // write-mode lock — the resulting list is small (≤ 4 rows
-      // typically) and we re-confirm membership inside the
-      // transaction by parentGoalId equality.
-      const existingChildIds: string[] = isEditing
-        ? (await db.goals.where('parentGoalId').equals(umbrellaId).toArray())
-            .map(c => c.id)
-        : [];
-
-      await db.transaction('rw', db.goals, async () => {
-        for (const id of existingChildIds) {
-          await db.goals.delete(id);
-        }
-        await db.goals.put(umbrella);
-        for (const child of children) {
-          await db.goals.put(child);
-        }
-      });
-
       handleClose();
     } catch (err) {
       console.warn('[yearly-anchor] save failed', err);
