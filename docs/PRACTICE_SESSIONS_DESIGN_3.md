@@ -2,11 +2,18 @@
 
 Living design doc capturing the architecture, philosophy, algorithmic logic, and UI specifications for the Practice Sessions module. This document is the canonical reference for building this module.
 
-Last updated: April 25, 2026 (full design review completed; all 10 prior open questions resolved; significant architectural simplifications)
+Last updated: April 28, 2026 (Phase 2 design session completed Apr 27–28; activity tracking framework + yearly anchor flows + coverage goal type added)
 
 **Phase 1 scope refinements (April 25, 2026, post-review):**
 - Settings prompt-management UI (queue inspection + category mute toggles) **deferred to Phase 7**. Orchestration logic (queueing, tier prioritization, daily cap, suppression rules) still ships in Phase 1 — verified via dev console / programmatic checks.
 - Memory type implemented as a **runtime lookup function (`getMemoryType(moduleRef)`) in Phase 1**, not a stored field on item records. Phase 2 can migrate to a stored field if and when spacing state begins consuming the value.
+
+**Phase 2 design additions (April 27–28, 2026):**
+- **Activity tracking framework** — per-module activity units, 10-card / 10-minute session floor for consistency goals. New section below.
+- **Coverage goal type** — targets `acquired` stage; minimum bar for genuine coverage. 8 metric IDs in `coverageMetrics.ts`. Shipped in Phase 2 Steps 2a–2e.
+- **Yearly anchor flows** — Breadth / Depth / Mastery / Consistency framework per module; new dedicated YearlyAnchorFlow component. New section below.
+- **Goals home — two views** — segmented pill toggle (by timeframe / by module). By-module view introduces current-period + 7-day lookahead rule.
+- **Goal row** — collapsed = natural-language; expanded = scope-adaptive activity chart + progress bar + edit/delete.
 
 ---
 
@@ -334,6 +341,53 @@ Default memory type auto-assigned based on the module the item lives in. **No us
 Memory type is a runtime lookup function `getMemoryType(moduleRef): MemoryType`, **not** a stored field on existing module item records. Lives in `src/lib/memoryType.ts`. Throws on unknown module refs (fail-fast). 12 canonical module refs covered, mapping to the four memory types per the table above. Mapping is frozen at runtime.
 
 Phase 2 (spacing state population) may migrate this to a stored field on `spacingState.memory_type` if the algorithm needs it cached per row. For Phase 1 / Phase 3 read paths, the runtime lookup is sufficient and avoids touching every module's existing data.
+
+---
+
+## Activity tracking framework (NEW — April 27, 2026)
+
+**Core principle:** Activity is the leading indicator; goal completion is the lagging indicator. Both matter, both shown separately on every expanded goal row. Showing only completion makes good weeks invisible until they bear fruit; showing only activity disconnects effort from outcome.
+
+### Activity units per module
+
+Each module has one canonical activity unit:
+
+| Module | Activity unit | How it's measured |
+|---|---|---|
+| Ear Training | cards reviewed | counted on each focus-protected attempt |
+| Harmonic Fluency | cards reviewed | counted on each rated flashcard answer |
+| Song Repertoire | minutes | derived from practice block start/end (Song Practice Timer, deferred design) |
+| Shapes & Patterns | minutes | derived from drillSession start/end |
+| Production | minutes | derived from lesson session timing |
+| Harmonic Diary | excluded | not part of activity tracking or Practice Sessions for now |
+
+Harmonic Diary's exclusion is provisional — revisit if a real use case for treating it as practice activity emerges. For now it sits outside the framework as a contemplative-only surface.
+
+### Session floor (consistency-goal threshold)
+
+For consistency goals, a "real session" requires:
+- **10 cards reviewed** for card modules (Ear Training, Harmonic Fluency)
+- **10 minutes** for time modules (Song Repertoire, Shapes & Patterns, Production)
+
+Easy to remember (10/10), consistent across the app. Anything above zero still appears on the activity chart — the floor only gates whether a day "counts" toward consistency, not whether activity is shown.
+
+**High-intensity marker:** days in the personal top-20% of historical activity get a numeric label on top of the bar (card count or minute count). Self-scaling — intensity is always relative to personal history, never a fixed external standard.
+
+### Consistency goal defaults
+
+- **Per-week** is the default scope across all modules
+- **Per-month** toggle is available on every module
+- Production may lean monthly in real use; the default still ships per-week
+
+### Activity chart shape by scope
+
+| Goal scope | Chart shape | Future state |
+|---|---|---|
+| Weekly | 7-day bar chart (M T W T F S S) | future days faded |
+| Monthly | dot grid, 7 columns × weeks of month (calendar-style) | future days faded |
+| Yearly | 12-month bar chart (J F M A M J J A S O N D) | future months faded |
+
+A subtle horizontal **average line** overlays each chart showing personal-history average session size — quick at-a-glance "is this week typical for me?" reference.
 
 ---
 
@@ -858,10 +912,9 @@ When metrics don't match: "These goals are related but track different metrics. 
 - Most users won't expand goals in their first month
 - Phase 2 ships before the typical mid-year expansion scenario hits
 
-When Phase 2 lands, multi-component goal creation will:
-- Add "Single target / Multi-component" picker at goal creation
-- Multi-component path: user names umbrella ("Songs by year-end"), then adds child targets one by one
-- Mid-year expansion: user can convert single-target goals into multi-component umbrellas by adding a new sibling target — original target preserved as first child (Q6 resolution: preservation always)
+**Phase 2 implementation status (Apr 28):** Coverage goals (Steps 2a–2e) are the first multi-component goals shipped. When the user selects 2+ groups/areas/paths in a coverage picker, GoalCreationFlow auto-creates the umbrella + N children sharing `parent_goal_id`. Step 3.5 was hardened to default `kind: 'none'` (standalone) so non-coverage goals don't accidentally pick up a parent. The "Create new parent goal" branch of Step 3.5 remains placeholder; yearly umbrella creation moves to the dedicated YearlyAnchorFlow (below).
+
+**Mid-year umbrella expansion deferred indefinitely** (Apr 28 decision): no legacy goals exist; all new users go through YearlyAnchorFlow for yearly intentions. Revisit only if a real use case emerges. See "Yearly Anchor Flow" section below for the full spec.
 
 ### Goal progress updates
 
@@ -887,6 +940,181 @@ Anywhere proficiency appears, same vocabulary applies:
 | Maintenance | Solid, just refresh occasionally | Internalized + Cross-key; revisit periodically | "Mirror" in active repertoire indefinitely |
 
 This table seeds the `proficiencyDefinitions` table. Goal-setting UI shows the table (or relevant rows) when asking user to pick a target level.
+
+---
+
+## Goals home — two views (NEW — April 27, 2026)
+
+A segmented pill toggle just below the "My music goals" header switches between:
+
+- **By timeframe** (default, action view) — "What am I focused on right now?" Weekly scope open by default, longer ranges collapsed. Goals grouped by module within each scope layer using canonical accent colors. Module subheaders appear in nav order.
+- **By module** (intentional view) — "What am I building and how does it connect?" Module is top-level; scope lives underneath (yearly umbrella → monthly → weekly). Full parent/child hierarchy visible.
+
+### By-module view: current period + 7-day lookahead rule
+
+Show current active periods only — current week, current month, current year anchor — plus anything starting within the next 7 days. The 7-day lookahead is a tunable parameter; revisit after real use. No upcoming-beyond-7-days; no past (past lives in Practice History, Phase 7).
+
+### By-module view: collapse behavior
+
+- Default state: umbrella goals expanded, children collapsed.
+- Tapping the umbrella collapses the entire subtree.
+- Tapping a child level collapses that level and its children independently.
+
+### By-module view: backstop prompt
+
+Where a yearly umbrella would live for a module that has no anchor yet, render a soft dashed prompt — "Set a yearly anchor for [Module]". Permanent until set.
+
+### Goal row design
+
+**Collapsed state:** natural-language goal description only — same wording as the review/save page of goal creation flow.
+
+**Expanded state (tap to expand inline):**
+- **Activity chart** — scope-adaptive (see Activity tracking framework section above):
+  - Weekly → 7-day bar chart
+  - Monthly → dot grid (calendar-style)
+  - Yearly → 12-month bar chart
+- Subtle horizontal **average line** (personal-history average session)
+- **High-intensity marker** — top-20% bars get a numeric label on top
+- Future days/months always faded
+- **Progress bar** below — module accent color, fraction or percentage. Bar appears only when `current_value > 0`; "Not started" label otherwise (don't show nothing as something).
+- Edit + Delete actions
+
+**Summary counts placement** (counts at top vs. inline per scope header) — deferred to full mockup review.
+
+---
+
+## Yearly Anchor Flow (NEW — April 27, 2026)
+
+A **yearly anchor** captures the user's complete intention for a module across one calendar year. It is *not* one goal — it is a small goal cluster (up to 4 children) all feeding one yearly umbrella, together expressing four dimensions:
+
+1. **Breadth** — what do you want to *cover*?
+2. **Depth** — how *well* do you want to know it?
+3. **Mastery** — what do you want to *truly own*?
+4. **Consistency** — how *often* will you show up?
+
+Order presented to the user on Screen 1: **Breadth → Mastery → Depth → Consistency** (Mastery sits next to Breadth because they answer the same scope question — what subset is in play).
+
+### Data structure
+
+- One **umbrella record** — the named container (e.g. "Ear Training 2026"). Auto-generated name editable inline on Screen 2.
+- Multiple **dimension records** underneath — one row per dimension answer the user filled in, scope = `yearly`, parent = umbrella.
+- Weekly / monthly **child goals** created later link via `parent_goal_id` to whichever dimension row they feed.
+
+### Trigger and backstop
+
+- **Trigger:** First time a user creates a goal for a module that has no yearly anchor yet, the goal-creation entry point nudges into YearlyAnchorFlow first. One-time per module — once a yearly anchor exists, the nudge never fires again for that module.
+- **Backstop:** In the by-module view, a soft dashed prompt — "Set a yearly anchor for [Module]" — appears where the umbrella would live if none exists. Permanent until set.
+
+### Nudge language (per module example)
+
+Each module's nudge includes a module-specific example written in canonical vocabulary, pitched at the broadest level:
+
+| Module | Example nudge text |
+|---|---|
+| Ear Training | "I want to reach 85% accuracy across all 4 ear training groups by the end of this year." |
+| Harmonic Fluency | "I want to reach 80% accuracy across all 12 harmonic fluency categories by the end of this year." |
+| Song Repertoire | "I want to reach Comfortable proficiency with 25 songs by the end of this year." |
+| Shapes & Patterns | "I want to reach Comfortable proficiency on major and minor chord shapes across all 12 keys by the end of this year." |
+| Production | "I want to complete 2 full production paths by the end of this year." |
+| Practice consistency | (one question only — no example needed) |
+
+### YearlyAnchorFlow UI — two screens
+
+**Screen 1 — Set your intention.**
+- Brief explanation at top: "A yearly anchor sets your full intention for [Module]. It's a small cluster of goals that together describe what you want to cover, how deeply, and how often."
+- All four dimension questions on one scrollable screen, in **Breadth → Mastery → Depth → Consistency** order
+- **Breadth:** Yes/No question. If No, group/area/path selector reveals inline (same cards used elsewhere in goal creation, no dropdown)
+- **Mastery:** multi-select group cards, **pre-filtered to the breadth selection**
+- **Depth:** accuracy % slider (card modules) or proficiency level (others)
+- **Consistency:** number input, per-week default, per-month toggle
+- Step indicator (dot 1 of 2) at bottom
+- All counts pulled live from data (per "Live item counts, never hardcoded" principle)
+
+**Screen 2 — Review.**
+- Auto-generated umbrella name editable inline at top (e.g. "Ear Training 2026")
+- Four dimension rows below, each with an individual Edit link that returns to Screen 1 with that dimension scrolled into view
+- Natural-language summary at bottom with left accent border, e.g. "By Dec 31, 2026, you want to cover all 134 ear training cards, master the Chord Recognition and Chord Progressions groups, hit 85% overall accuracy, and practice 4× per week."
+- Back + Save anchor buttons
+
+### Module-by-module dimension specs
+
+#### Ear Training
+
+1. **Breadth** — "Do you want to work through all [N] ear training cards this year?" → Yes / No → if No: which of the 4 groups (Intervals / Chord Recognition / Chord Progressions / Scales & Modes)?
+2. **Mastery** — "Are there specific groups you want to truly master?" → multi-select from 4 groups, pre-filtered to breadth selection.
+3. **Depth** — "What overall accuracy level do you want to reach across all of Ear Training by year end?" → accuracy % slider 50–95%.
+4. **Consistency** — "How many times per week do you want to practice Ear Training?" → per-week default, per-month toggle.
+
+Live denominator note: Ear Training breadth is 143 spacingState rows (26 intervals + 30 chord recognition + 69 chord progressions + 18 scales×modes-tabs), not the 134-card surface count. The user-facing wording uses the 134 card count; the spacingState math uses 143 rows.
+
+#### Harmonic Fluency
+
+1. **Breadth** — "Do you want to work through all 302 harmonic fluency cards this year?" → Yes / No → if No: which of the 4 groups?
+   - **Foundational / Math** — "The building blocks — scale degrees, note names across keys, and key relationships. The grammar of music theory."
+   - **Chord Knowledge** — "How chords are built, named, and used — from diatonic qualities to slash chords and inversions."
+   - **Functional / Applied** — "How harmony moves — chord function, key pivots, and the vocabulary of chord progressions."
+   - **Ear & Recognition** — "Connecting what you hear to what you know — modes, intervals, and bridging ear training with theory."
+2. **Mastery** — "Are there specific areas you want to truly master?" → multi-select from 4 groups, pre-filtered to breadth selection.
+3. **Depth** — "What overall accuracy level do you want to reach across all of Harmonic Fluency by year end?" → accuracy % slider 50–95%.
+4. **Consistency** — per-week default, per-month toggle.
+
+Open issue (deferred to Phase 7 polish): the 4-group structure exists in the goal creation flow but not yet in the module UI or nav. Add to design backlog.
+
+#### Song Repertoire
+
+Dimensions map to proficiency levels, escalating in depth of ownership:
+
+1. **Breadth (Comfortable)** — "How many songs do you want to know how to play by year end? You know how to play them."
+2. **Depth (Solid)** — "How many songs do you want to be performance-ready? Impress your friends, family, and loved ones."
+3. **Mastery (Internalized)** — "How many songs do you want to own so deeply you could make someone cry, yourself included? You know them with your eyes closed."
+4. **Consistency** — "How often do you want to cultivate your Song Repertoire?" → per-week default, per-month toggle.
+
+**Validation:** Internalized ≤ Solid ≤ Comfortable. Levels are cumulative — Internalized implies Solid which implies Comfortable. Gentle non-blocking nudge on save if numbers violate the ordering.
+
+#### Shapes & Patterns
+
+Mental Visualization is a different cognitive mode for internalizing shapes that already exist elsewhere in the module. It is excluded from breadth/depth/mastery counts but counts as valid activity toward consistency goals.
+
+1. **Breadth** — "Do you want to work toward Comfortable across all [X] shapes this year?" (X = live count from Chord Shape Drills + Scale Drills + Voice-Leading only) → Yes / No → if No: which areas?
+2. **Depth** — "Which areas do you want to reach Solid in across all 12 keys?" → multi-select from activity areas, pre-filtered to breadth selection.
+3. **Mastery** — "Are there specific shapes you want to truly own — Solid in all 12 keys, no hesitation?" → item-level picker within selected areas.
+4. **Consistency** — "How many minutes a week do you want to practice Shapes & Patterns?" → per-week default, per-month toggle.
+
+Live denominator: 348 chord shape drills (29 × 12) + 24 scale drills (2 × 12) + 36 voice-leading drills (3 × 12) = **408 shapes**.
+
+#### Production (3 questions, depth/mastery merged)
+
+Depth/mastery distinction deferred until more firsthand experience with the material exists.
+
+1. **Breadth** — "Do you want to work through all 56 production lessons this year?" → Yes / No → if No: which paths?
+2. **Depth** — "Which paths do you want to go deepest on?" → multi-select from paths within breadth selection.
+3. **Consistency** — "How many hours a week do you want to spend on production?" → per-week default, per-month toggle.
+
+#### Practice consistency (meta-habit, 3 questions)
+
+Not tied to a single module — captures the user's overall practice cadence floor and ceiling.
+
+1. **Weekly floor** — "What's the minimum number of days per week you want to practice?" → default suggestion: 4.
+2. **Monthly floor** — "What's the minimum days per month you want to practice?" → default suggestion: 18 (4 weeks × 4 days + buffer).
+3. **Aspiration** — "What's your ideal?" → 5–7 per week.
+
+Floor feeds the consistency goal threshold and the algorithm's behind-schedule detection. Aspiration feeds session-recommendation ambition. Monthly floor is the safety net for bad weeks and vacations.
+
+### Relationship to GoalCreationFlow
+
+- **GoalCreationFlow** continues to handle standalone goals at any non-yearly scope (weekly, monthly, quarterly). It also continues to handle coverage goals at non-yearly scopes (Step 2a–2e wiring).
+- **YearlyAnchorFlow** handles yearly umbrellas with their dimension cluster. It bypasses Step 3.5 entirely — the flow IS the umbrella creation, no parent picker needed.
+- Step 3.5 stays put for regular standalone goals that genuinely need a parent picker; defaults to `kind: 'none'` so the most common path (no parent) is fastest.
+
+### Schema implications
+
+YearlyAnchorFlow writes one umbrella + up to 4 dimension records, all with `scope: 'yearly'` and shared `parent_goal_id` pointing at the umbrella. The umbrella has `is_umbrella: true`. Dimension records use existing target metrics:
+- Breadth → coverage metric (`{module}_coverage_at_acquired` or `..._specific`)
+- Depth → accuracy metric or proficiency-count metric per module
+- Mastery → coverage at higher stage (`mastered`) or proficiency-count metric
+- Consistency → `consistency_sessions_per_week` (or `_per_month` when toggled)
+
+No schema change needed beyond existing Phase 1 schema — all four target-metric shapes already exist or compose from existing helpers.
 
 ---
 
@@ -1172,12 +1400,17 @@ All 10 prior open questions resolved in a thorough design review. Recording reso
 ### Phase 1: Foundation (next build)
 Data model, sync, single-target Goals module + onboarding, day profiles, Practice Sessions placeholder + manual logging, vacation mode (decay-honoring), prompt orchestration plumbing, proficiency vocabulary canonical. Spec'd above.
 
-### Phase 2: Multi-component goals + spacing state expansion
-- Multi-component (umbrella) goal UI
-- Mid-year goal expansion flow
-- Spacing state populated for all existing items
-- Acquisition stage detection logic activated (signal-based advancement of `acquisition_stage`)
-- Per-item due dates surface in Skills Catalogue
+### Phase 2: Multi-component goals + spacing state + coverage goals + YearlyAnchorFlow
+**In progress as of April 28, 2026 — Steps 1 + 2 shipped; Steps 3–6 remaining.** See `BUILD_SEQUENCER_2.md` Phase 2 for substep enumeration.
+- ✅ Spacing state populated across all 8 modules via per-module engagement wiring + one-time backfill (Step 1a–1h)
+- ✅ Coverage goal type live across all 5 measurable modules via GoalCreationFlow multi-pick wiring (Step 2a–2e); auto-creates umbrella + N children
+- ⏭️ Live denominator helper (`moduleItemCounts`) replacing TODO 2/3 hardcoded counts (Step 3)
+- ⏭️ Coverage / accuracy progress helpers — auto-update `current_value` from spacing state (Step 4)
+- ⏭️ YearlyAnchorFlow UI — dedicated two-screen flow, separate from GoalCreationFlow (Step 5)
+- ⏭️ Goals home redesign — by-timeframe + by-module views, expanded goal row with activity chart + progress bar (Step 6)
+- Acquisition stage detection logic activation deferred to Phase 3 (algorithm consumes the field there)
+- Per-item due dates surface in Skills Catalogue deferred to Phase 7 polish
+- **Mid-year umbrella expansion deferred indefinitely** (no legacy goals exist)
 
 ### Phase 3: Basic session generator
 - Algorithm steps 1-9 with goal-alignment + acquisition-state weighting
