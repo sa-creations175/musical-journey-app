@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import Modal from '../../components/Modal';
 import type { Goal } from '../../lib/db';
-import { earTrainingCounts } from '../../lib/moduleItemCounts';
-import { moduleMetaById } from '../../lib/moduleMeta';
+import { earTrainingCounts, harmonicFluencyCounts } from '../../lib/moduleItemCounts';
+import { DASHBOARD_META, PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import {
   AccuracySlider,
   BreadthYesNoPicker,
@@ -127,10 +127,10 @@ export interface AnchorDraft {
   name: string | null;
   /** Per-module dimension state. Sparse object — only the slot
    *  matching `moduleId` is populated. Mirrors GoalCreationFlow's
-   *  module-keyed sub-target pattern. 5c.1 ships the ET slot; 5c.2–
-   *  5c.6 land the rest. */
-  earTraining?: EarTrainingAnchor;
-  // harmonicFluency?:    HarmonicFluencyAnchor;       // 5c.2
+   *  module-keyed sub-target pattern. 5c.1–5c.2 ship the ET + HF
+   *  slots; 5c.3–5c.6 land the rest. */
+  earTraining?:     EarTrainingAnchor;
+  harmonicFluency?: HarmonicFluencyAnchor;
   // shapesPatterns?:     ShapesPatternsAnchor;        // 5c.3
   // songRepertoire?:     SongRepertoireAnchor;        // 5c.4
   // production?:         ProductionAnchor;            // 5c.5
@@ -209,6 +209,60 @@ function isEarTrainingValid(et: EarTrainingAnchor): boolean {
   return true;
 }
 
+// =====================================================================
+// Harmonic Fluency dimension state
+// =====================================================================
+
+/** Group identifiers for HF coverage / mastery. Mirror the four
+ *  groups GoalCreationFlow already exposes via the
+ *  HARMONIC_FLUENCY_COVERAGE_GROUPS constant — same kebab-case ids
+ *  stored in `targetUnit` for HF coverage_specific goals — so any
+ *  future progress read can treat the two surfaces interchangeably.
+ *  Keys also match `HF_GROUP_CATEGORIES` in `progress.ts` so the
+ *  Step 4 progress router resolves them with no translation. */
+export type HarmonicFluencyGroupId =
+  | 'foundational'
+  | 'chord-knowledge'
+  | 'functional-applied'
+  | 'ear-recognition';
+
+interface HarmonicFluencyAnchor {
+  breadth: BreadthState;
+  /** Mastery's groupIds are pruned to Breadth's scope by the
+   *  coordinated `setBreadth` updater. Same invariant as ET. */
+  mastery: { groupIds: HarmonicFluencyGroupId[] };
+  depth: { accuracyPercent: number };
+  consistency: { count: number; cadence: ConsistencyCadence };
+}
+
+const HF_GROUP_LABELS: Record<HarmonicFluencyGroupId, string> = {
+  'foundational':       'foundational / math',
+  'chord-knowledge':    'chord knowledge',
+  'functional-applied': 'functional / applied',
+  'ear-recognition':    'ear & recognition',
+};
+
+const HF_GROUP_IDS: ReadonlyArray<HarmonicFluencyGroupId> = [
+  'foundational',
+  'chord-knowledge',
+  'functional-applied',
+  'ear-recognition',
+];
+
+function defaultHarmonicFluency(): HarmonicFluencyAnchor {
+  return {
+    breadth: { kind: 'all' },
+    mastery: { groupIds: [] },
+    depth: { accuracyPercent: 80 },
+    consistency: { count: 4, cadence: 'week' },
+  };
+}
+
+function isHarmonicFluencyValid(hf: HarmonicFluencyAnchor): boolean {
+  if (hf.breadth.kind === 'subset' && hf.breadth.groupIds.length === 0) return false;
+  return true;
+}
+
 function buildInitialDraft(
   moduleId: AnchorModuleId,
   initialAnchor: Goal | null | undefined,
@@ -222,9 +276,11 @@ function buildInitialDraft(
     name: initialAnchor?.description ?? null,
   };
   // Seed the per-module slot for the chosen module. Other modules
-  // land in 5c.2–5c.6.
+  // land in 5c.3–5c.6.
   if (moduleId === 'ear-training') {
     draft.earTraining = defaultEarTraining();
+  } else if (moduleId === 'harmonic-fluency') {
+    draft.harmonicFluency = defaultHarmonicFluency();
   }
   return draft;
 }
@@ -309,12 +365,15 @@ export default function YearlyAnchorFlow({
   const isLast = screenIndex === SCREENS.length - 1;
   /** Per-screen advance gate. Screen 1's gate routes through the
    *  active module's validator; Screen 2's Save shares the gate.
-   *  When a module's slot isn't yet populated (only ear-training in
-   *  5c.1 — others in 5c.2–5c.6), we let the user advance so the
-   *  shell is reachable end-to-end during the build. */
+   *  When a module's slot isn't yet populated (5c.3–5c.6 land the
+   *  rest), we let the user advance so the shell is reachable end-
+   *  to-end during the build. */
   const canAdvance = (() => {
     if (moduleId === 'ear-training' && draft.earTraining) {
       return isEarTrainingValid(draft.earTraining);
+    }
+    if (moduleId === 'harmonic-fluency' && draft.harmonicFluency) {
+      return isHarmonicFluencyValid(draft.harmonicFluency);
     }
     return true;
   })();
@@ -419,7 +478,13 @@ function ScreenIntent({
           onChange={next => onUpdate({ earTraining: next })}
         />
       )}
-      {draft.moduleId !== 'ear-training' && (
+      {draft.moduleId === 'harmonic-fluency' && draft.harmonicFluency && (
+        <Screen1HarmonicFluency
+          state={draft.harmonicFluency}
+          onChange={next => onUpdate({ harmonicFluency: next })}
+        />
+      )}
+      {draft.moduleId !== 'ear-training' && draft.moduleId !== 'harmonic-fluency' && (
         <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
           Dimension questions for {moduleName} land in a later 5c substep.
           {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
@@ -554,6 +619,149 @@ function Screen1EarTraining({
       <DimensionSection
         title="Consistency"
         question="How many times per week do you want to practice Ear Training?"
+      >
+        <ConsistencyControl
+          unit="sessions"
+          count={state.consistency.count}
+          cadence={state.consistency.cadence}
+          onChange={next => onChange({ ...state, consistency: next })}
+        />
+      </DimensionSection>
+    </div>
+  );
+}
+
+// =====================================================================
+// Harmonic Fluency — dimension surface
+// =====================================================================
+
+/**
+ * Harmonic Fluency dimension surface. Same four-section shape as
+ * Ear Training (Breadth → Mastery → Depth → Consistency) but with
+ * HF's four groups (Foundational / Math, Chord Knowledge,
+ * Functional / Applied, Ear & Recognition) and per-group accent
+ * colors so the picker reads the same as GoalCreationFlow's
+ * existing accuracy-specific HF picker. Slate-blue / deep-rose /
+ * teal / forest-green — borrowed from sibling modules so each group
+ * carries its own visual identity at 4-pill scale.
+ *
+ * Coordinated breadth/mastery pruning, validation, and live
+ * denominator from harmonicFluencyCounts() (Step 3) all mirror the
+ * ET surface — only the group set + accents differ.
+ *
+ * Note: the design doc lists per-group descriptions
+ * ("Foundational / Math — The building blocks…"). Those are not
+ * surfaced on Screen 1 today (4 pills with clear labels read
+ * cleanly without expanded copy); filed as Phase 7 polish if
+ * onboarding signals the need.
+ */
+function Screen1HarmonicFluency({
+  state,
+  onChange,
+}: {
+  state: HarmonicFluencyAnchor;
+  onChange: (next: HarmonicFluencyAnchor) => void;
+}) {
+  const counts = harmonicFluencyCounts();
+
+  // Per-group accent palette — mirrors the existing
+  // HARMONIC_FLUENCY_COVERAGE_GROUPS in GoalCreationFlow.tsx so the
+  // two surfaces stay in lockstep visually. If a hex is ever retuned
+  // in moduleMeta the change flows through here.
+  const HF_GROUP_ACCENTS: Record<HarmonicFluencyGroupId, string> = {
+    'foundational':       DASHBOARD_META.accentHex,                                        // slate-blue
+    'chord-knowledge':    moduleMetaById('repertoire')?.accentHex      ?? '#a8556b',        // deep rose
+    'functional-applied': PRACTICE_SESSIONS_META.accentHex,                                // teal
+    'ear-recognition':    moduleMetaById('ear-training')?.accentHex    ?? '#5a8752',        // forest green
+  };
+
+  const breadthGroupOptions: BreadthGroupOption[] = HF_GROUP_IDS.map(id => ({
+    id,
+    label: HF_GROUP_LABELS[id],
+    accentHex: HF_GROUP_ACCENTS[id],
+  }));
+
+  const setBreadth = (nextBreadth: BreadthState) => {
+    const prunedMasteryIds = pruneMasteryToBreadth(
+      nextBreadth,
+      state.mastery.groupIds,
+    ) as HarmonicFluencyGroupId[];
+    onChange({
+      ...state,
+      breadth: nextBreadth,
+      mastery: { groupIds: prunedMasteryIds },
+    });
+  };
+
+  const visibleMasteryGroups: ReadonlyArray<HarmonicFluencyGroupId> =
+    state.breadth.kind === 'all'
+      ? HF_GROUP_IDS
+      : HF_GROUP_IDS.filter(id => state.breadth.kind === 'subset' && state.breadth.groupIds.includes(id));
+
+  const toggleMasteryGroup = (id: HarmonicFluencyGroupId) => {
+    const has = state.mastery.groupIds.includes(id);
+    const next = has
+      ? state.mastery.groupIds.filter(g => g !== id)
+      : [...state.mastery.groupIds, id];
+    onChange({ ...state, mastery: { groupIds: next } });
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      <DimensionSection
+        title="Breadth"
+        question={`Do you want to work through all ${counts.total} harmonic fluency cards this year?`}
+      >
+        <BreadthYesNoPicker
+          yesLabel={`Yes — work through all ${counts.total} cards`}
+          noLabel="No — just specific groups"
+          groups={breadthGroupOptions}
+          value={state.breadth}
+          onChange={setBreadth}
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Mastery"
+        question={
+          state.breadth.kind === 'subset' && state.breadth.groupIds.length === 0
+            ? 'Pick at least one group above to choose what to master.'
+            : 'Are there specific areas you want to truly master?'
+        }
+      >
+        {visibleMasteryGroups.length === 0 ? (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            No groups available — pick a Breadth selection above first.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {visibleMasteryGroups.map(id => (
+              <CategoryPillButton
+                key={id}
+                label={HF_GROUP_LABELS[id]}
+                accentHex={HF_GROUP_ACCENTS[id]}
+                active={state.mastery.groupIds.includes(id)}
+                onClick={() => toggleMasteryGroup(id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+        )}
+      </DimensionSection>
+
+      <DimensionSection
+        title="Depth"
+        question="What overall accuracy level do you want to reach across all of Harmonic Fluency by year end?"
+      >
+        <AccuracySlider
+          value={state.depth.accuracyPercent}
+          onChange={p => onChange({ ...state, depth: { accuracyPercent: p } })}
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Consistency"
+        question="How many times per week do you want to practice Harmonic Fluency?"
       >
         <ConsistencyControl
           unit="sessions"
