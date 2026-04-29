@@ -128,15 +128,14 @@ export interface AnchorDraft {
   name: string | null;
   /** Per-module dimension state. Sparse object — only the slot
    *  matching `moduleId` is populated. Mirrors GoalCreationFlow's
-   *  module-keyed sub-target pattern. 5c.1–5c.5 ship the ET / HF /
-   *  S&P / Songs / Production slots; 5c.6 lands Practice
-   *  consistency to close the substep series. */
-  earTraining?:     EarTrainingAnchor;
-  harmonicFluency?: HarmonicFluencyAnchor;
-  shapesPatterns?:  ShapesPatternsAnchor;
-  songRepertoire?:  SongRepertoireAnchor;
-  production?:      ProductionAnchor;
-  // practiceConsistency?: PracticeConsistencyAnchor;  // 5c.6
+   *  module-keyed sub-target pattern. 5c.1–5c.6 ship all six
+   *  modules' slots. */
+  earTraining?:         EarTrainingAnchor;
+  harmonicFluency?:     HarmonicFluencyAnchor;
+  shapesPatterns?:      ShapesPatternsAnchor;
+  songRepertoire?:      SongRepertoireAnchor;
+  production?:          ProductionAnchor;
+  practiceConsistency?: PracticeConsistencyAnchor;
 }
 
 // =====================================================================
@@ -480,6 +479,96 @@ function isProductionValid(p: ProductionAnchor): boolean {
   return true;
 }
 
+// =====================================================================
+// Practice Consistency dimension state (meta-habit)
+// =====================================================================
+
+/**
+ * Practice consistency is a **meta-habit** — it doesn't anchor a
+ * specific learning module, it anchors the rhythm of practice
+ * itself across all modules. Three independent questions, no
+ * breadth/depth/mastery shape:
+ *
+ *   Weekly floor  — minimum days per week the user wants to practice
+ *   Monthly floor — minimum days per month (safety net for bad
+ *                   weeks and vacations)
+ *   Aspiration    — ideal days per week
+ *
+ * The floor feeds the consistency goal threshold and the algorithm's
+ * behind-schedule detection. Aspiration feeds session-recommendation
+ * ambition. Monthly floor is the safety net for bad weeks and
+ * vacations — the user might miss two weeks but still hit their
+ * monthly target.
+ */
+interface PracticeConsistencyAnchor {
+  weeklyFloor: number;   // days per week
+  monthlyFloor: number;  // days per month
+  aspiration: number;    // ideal days per week
+}
+
+function defaultPracticeConsistency(): PracticeConsistencyAnchor {
+  // Defaults from the design doc spec:
+  //   weekly floor   = 4 days/week
+  //   monthly floor  = 18 days/month (4 weeks × 4 days + buffer)
+  //   aspiration     = 5 days/week (within the spec's 5–7 range)
+  return {
+    weeklyFloor: 4,
+    monthlyFloor: 18,
+    aspiration: 5,
+  };
+}
+
+/**
+ * Practice consistency has no hard validation gate. Defaults pre-
+ * fill all three floors and the aspiration so the user is always
+ * "ready" to advance. CountInput clamps negatives. The cumulative-
+ * ordering check (aspiration ≥ weeklyFloor recommended) is a
+ * separate non-blocking nudge surfaced inline in the UI; it does
+ * NOT participate in canAdvance.
+ */
+function isPracticeConsistencyValid(_pc: PracticeConsistencyAnchor): boolean {
+  return true;
+}
+
+/**
+ * Returns a non-blocking nudge string when the floors and
+ * aspiration are inconsistent, or null when they're coherent.
+ * Pure function; testable without React. Two violation classes:
+ *
+ *   1. aspiration < weeklyFloor — the user's "ideal" is below their
+ *      "minimum"; the floor IS the aspiration in that case, which
+ *      probably isn't what the user meant.
+ *
+ *   2. monthlyFloor < weeklyFloor × 4 — the monthly floor wouldn't
+ *      survive even four weeks of hitting the weekly floor exactly.
+ *      Almost certainly off by accident; the safety-net framing
+ *      breaks down here.
+ *
+ * Single combined message rather than per-violation, mirroring
+ * songCumulativeNudge's design call.
+ */
+export function practiceConsistencyNudge(
+  pc: PracticeConsistencyAnchor,
+): string | null {
+  const aspirationBelowFloor = pc.aspiration < pc.weeklyFloor;
+  const monthlyFloorTooLow   = pc.monthlyFloor < pc.weeklyFloor * 4;
+  if (!aspirationBelowFloor && !monthlyFloorTooLow) return null;
+
+  const issues: string[] = [];
+  if (aspirationBelowFloor) {
+    issues.push(
+      `your aspiration (${pc.aspiration}/week) is below your weekly floor (${pc.weeklyFloor}/week)`,
+    );
+  }
+  if (monthlyFloorTooLow) {
+    issues.push(
+      `your monthly floor (${pc.monthlyFloor}/month) is below ` +
+      `${pc.weeklyFloor} × 4 = ${pc.weeklyFloor * 4} days`,
+    );
+  }
+  return `Heads up — ${issues.join(' and ')}. Floor is a safety net, aspiration is the ideal — usually aspiration ≥ floor.`;
+}
+
 export function songCumulativeNudge(
   sr: SongRepertoireAnchor,
 ): string | null {
@@ -506,8 +595,7 @@ function buildInitialDraft(
     moduleId,
     name: initialAnchor?.description ?? null,
   };
-  // Seed the per-module slot for the chosen module. Practice
-  // consistency lands in 5c.6.
+  // Seed the per-module slot for the chosen module.
   if (moduleId === 'ear-training') {
     draft.earTraining = defaultEarTraining();
   } else if (moduleId === 'harmonic-fluency') {
@@ -518,6 +606,8 @@ function buildInitialDraft(
     draft.songRepertoire = defaultSongRepertoire();
   } else if (moduleId === 'production') {
     draft.production = defaultProduction();
+  } else if (moduleId === 'practice-consistency') {
+    draft.practiceConsistency = defaultPracticeConsistency();
   }
   return draft;
 }
@@ -561,7 +651,11 @@ export default function YearlyAnchorFlow({
   );
   const [saving, setSaving] = useState(false);
 
-  const isEditing = !!initialAnchor;
+  // `isEditing` (`!!initialAnchor`) is computed in 5d when the
+  // review screen wires the auto-name's create-vs-edit copy
+  // ("New Ear Training 2026" vs the umbrella's stored description).
+  // Removed for now to keep the shell lint-clean; lands again with
+  // the 5d wiring.
 
   /**
    * Wrap the parent's onClose so every close path resets the flow
@@ -621,6 +715,9 @@ export default function YearlyAnchorFlow({
     if (moduleId === 'production' && draft.production) {
       return isProductionValid(draft.production);
     }
+    if (moduleId === 'practice-consistency' && draft.practiceConsistency) {
+      return isPracticeConsistencyValid(draft.practiceConsistency);
+    }
     return true;
   })();
 
@@ -677,7 +774,7 @@ export default function YearlyAnchorFlow({
   return (
     <Modal open={open} onClose={handleClose} title={title} footer={footer}>
       {screen.id === 'intent' ? (
-        <ScreenIntent draft={draft} onUpdate={updateDraft} isEditing={isEditing} />
+        <ScreenIntent draft={draft} onUpdate={updateDraft} />
       ) : (
         <ScreenReview draft={draft} onUpdate={updateDraft} />
       )}
@@ -692,9 +789,8 @@ export default function YearlyAnchorFlow({
 /**
  * Per-module router. Each module's dimension surface is its own
  * component below; this wrapper picks the right one and renders the
- * shared intro paragraph above it. Modules whose dimensions land in
- * later substeps fall through to a 5c.x placeholder so the shell
- * stays reachable end-to-end during the build.
+ * shared intro paragraph above it. All six modules now have surfaces
+ * (5c.1–5c.6 complete) so the placeholder fall-through is gone.
  *
  * Dimension order on Screen 1 matches the design call:
  *   Breadth → Mastery → Depth → Consistency
@@ -704,11 +800,9 @@ export default function YearlyAnchorFlow({
 function ScreenIntent({
   draft,
   onUpdate,
-  isEditing,
 }: {
   draft: AnchorDraft;
   onUpdate: (patch: Partial<AnchorDraft>) => void;
-  isEditing: boolean;
 }) {
   const moduleName = MODULE_DISPLAY_NAME[draft.moduleId];
   return (
@@ -748,15 +842,11 @@ function ScreenIntent({
           onChange={next => onUpdate({ production: next })}
         />
       )}
-      {draft.moduleId !== 'ear-training'
-        && draft.moduleId !== 'harmonic-fluency'
-        && draft.moduleId !== 'shapes-and-patterns'
-        && draft.moduleId !== 'repertoire'
-        && draft.moduleId !== 'production' && (
-        <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 p-4 text-sm text-neutral-500 dark:text-neutral-400">
-          Dimension questions for {moduleName} land in a later 5c substep.
-          {isEditing && <span className="block mt-2 text-xs">Edit mode active.</span>}
-        </div>
+      {draft.moduleId === 'practice-consistency' && draft.practiceConsistency && (
+        <Screen1PracticeConsistency
+          state={draft.practiceConsistency}
+          onChange={next => onUpdate({ practiceConsistency: next })}
+        />
       )}
     </div>
   );
@@ -1438,6 +1528,93 @@ function Screen1Production({
           onChange={next => onChange({ ...state, consistency: next })}
         />
       </DimensionSection>
+    </div>
+  );
+}
+
+// =====================================================================
+// Practice Consistency — dimension surface (meta-habit)
+// =====================================================================
+
+/**
+ * Practice Consistency dimension surface. Different from every
+ * other module — it's a meta-habit, not a learning module. Three
+ * independent count inputs, no breadth/depth/mastery shape:
+ *
+ *   Weekly floor  — minimum days/week
+ *   Monthly floor — minimum days/month (safety net for bad weeks)
+ *   Aspiration    — ideal days/week
+ *
+ * No coordinated state coupling. The cumulative-coherence nudge
+ * (`practiceConsistencyNudge`) fires when:
+ *
+ *   1. aspiration < weeklyFloor  — "ideal" below "minimum"
+ *   2. monthlyFloor < weeklyFloor × 4  — monthly safety-net wouldn't
+ *      survive four weeks at the weekly floor
+ *
+ * Renders as a single combined amber tip below the inputs. Save is
+ * never blocked.
+ */
+function Screen1PracticeConsistency({
+  state,
+  onChange,
+}: {
+  state: PracticeConsistencyAnchor;
+  onChange: (next: PracticeConsistencyAnchor) => void;
+}) {
+  const nudge = practiceConsistencyNudge(state);
+  return (
+    <div className="flex flex-col gap-5">
+      <DimensionSection
+        title="Weekly floor"
+        question="What's the minimum number of days per week you want to practice?"
+      >
+        <CountInput
+          label="Weekly floor"
+          value={state.weeklyFloor}
+          onChange={n => onChange({ ...state, weeklyFloor: n })}
+          min={0}
+          max={7}
+          suffix="days/week"
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Monthly floor"
+        question="What's the minimum days per month you want to practice? (Safety net for bad weeks and vacations.)"
+      >
+        <CountInput
+          label="Monthly floor"
+          value={state.monthlyFloor}
+          onChange={n => onChange({ ...state, monthlyFloor: n })}
+          min={0}
+          max={31}
+          suffix="days/month"
+        />
+      </DimensionSection>
+
+      <DimensionSection
+        title="Aspiration"
+        question="What's your ideal? (Feeds session-recommendation ambition.)"
+      >
+        <CountInput
+          label="Aspiration"
+          value={state.aspiration}
+          onChange={n => onChange({ ...state, aspiration: n })}
+          min={0}
+          max={7}
+          suffix="days/week"
+        />
+      </DimensionSection>
+
+      {nudge && (
+        <div
+          role="note"
+          className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 px-3 py-2 text-sm text-amber-800 dark:text-amber-200"
+        >
+          {nudge}
+        </div>
+      )}
     </div>
   );
 }
