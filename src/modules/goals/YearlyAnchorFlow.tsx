@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Modal from '../../components/Modal';
-import type { Goal } from '../../lib/db';
+import { db, type Goal } from '../../lib/db';
 import { earTrainingCounts, harmonicFluencyCounts, productionCounts, shapesCounts } from '../../lib/moduleItemCounts';
 import { DASHBOARD_META, PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import {
@@ -22,6 +22,15 @@ import {
 } from './yearlyAnchorReview';
 import { CategoryPillButton } from './GoalCreationFlow';
 import { inputClass } from './formStyles';
+import {
+  COVERAGE_OVERALL_METRIC,
+  COVERAGE_SPECIFIC_METRIC,
+} from './coverageMetrics';
+import {
+  MASTERY_OVERALL_METRIC,
+  MASTERY_SPECIFIC_METRIC,
+} from './yearlyAnchorMetrics';
+import { SONG_METRIC } from './songTarget';
 
 /**
  * Phase 2 step 5b — YearlyAnchorFlow shell.
@@ -627,6 +636,423 @@ function buildInitialDraft(
   return draft;
 }
 
+// =====================================================================
+// Save: encoder + metric IDs
+// =====================================================================
+
+/**
+ * New metric ids that YearlyAnchorFlow introduces alongside the
+ * existing coverage / accuracy / proficiency vocabulary. Declared
+ * here rather than in a separate vocabulary file because they're
+ * consumed only by this flow's encoder; promote to a shared module
+ * if a third consumer (Step 6 goal-row UI is the natural candidate)
+ * needs them.
+ *
+ * `goalVocabulary.moduleForMetric` is extended in this commit to
+ * route both prefixes (`practice_*`, `repertoire_*`) so the
+ * existing entry-point selector keeps working without per-id
+ * tweaks.
+ */
+const SONG_REPERTOIRE_SESSIONS_PER_CADENCE = 'repertoire_sessions_per_cadence';
+const PRACTICE_WEEKLY_FLOOR_DAYS           = 'practice_weekly_floor_days';
+const PRACTICE_MONTHLY_FLOOR_DAYS          = 'practice_monthly_floor_days';
+const PRACTICE_ASPIRATION_DAYS_PER_WEEK    = 'practice_aspiration_days_per_week';
+
+/**
+ * Goal-record fields the encoder produces per dimension. The save
+ * loop layers in shared fields (id, scope, parentGoalId, dates,
+ * status, etc.) so this spec stays focused on what's dimension-
+ * specific.
+ */
+export interface DimensionRecordSpec {
+  description: string;
+  targetMetric: string;
+  targetValue: number | null;
+  targetUnit: string | null;
+  /** Multi-pick groups / areas / paths landing in `goal.relatedItems`.
+   *  Per the locked design call: one row per dimension, multi-pick
+   *  ids live in relatedItems[] rather than splitting into N sibling
+   *  records. */
+  relatedItems: string[];
+}
+
+function uid(prefix: string): string {
+  return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
+}
+
+/** End of `year` in local time (Dec 31 23:59:59.999). The save uses
+ *  this as the umbrella's targetDate so the anchor expires on the
+ *  last moment of the calendar year. */
+export function endOfYearMs(year: number): number {
+  return new Date(year, 11, 31, 23, 59, 59, 999).getTime();
+}
+
+/** Returns true when the user picked every group in the module's
+ *  full set — used to decide between the `_overall` and
+ *  `_specific` metric variants for Mastery dimensions whose
+ *  membership signal is "all groupIds present" rather than an
+ *  explicit kind discriminator. */
+function arrayCoversFullSet<T extends string>(
+  picked: ReadonlyArray<T>,
+  full:   ReadonlyArray<T>,
+): boolean {
+  if (picked.length !== full.length) return false;
+  const set = new Set(picked);
+  for (const id of full) if (!set.has(id)) return false;
+  return true;
+}
+
+// =====================================================================
+// Encoder per module
+// =====================================================================
+
+function encodeEarTrainingDimensions(et: EarTrainingAnchor): DimensionRecordSpec[] {
+  const records: DimensionRecordSpec[] = [];
+  const counts = earTrainingCounts();
+  const groupCount = (id: EarTrainingGroupId): number => {
+    if (id === 'intervals')          return counts.intervals;
+    if (id === 'chord-recognition')  return counts.chordRecognition;
+    if (id === 'chord-progressions') return counts.chordProgressions;
+    return counts.scalesModes;
+  };
+
+  // ---- Breadth ----
+  if (et.breadth.kind === 'all') {
+    records.push({
+      description: `Cover all ${counts.total} ear training items by year-end`,
+      targetMetric: COVERAGE_OVERALL_METRIC.EAR_TRAINING,
+      targetValue: counts.total,
+      targetUnit: 'items',
+      relatedItems: [],
+    });
+  } else if (et.breadth.groupIds.length > 0) {
+    const ids = et.breadth.groupIds as EarTrainingGroupId[];
+    const sum = ids.reduce((s, id) => s + groupCount(id), 0);
+    const labels = ids.map(id => ET_GROUP_LABELS[id]).join(' + ');
+    records.push({
+      description: `Cover ${sum} items in ${labels} by year-end`,
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetValue: sum,
+      targetUnit: ids[0],
+      relatedItems: ids,
+    });
+  }
+
+  // ---- Mastery ----
+  if (et.mastery.groupIds.length > 0) {
+    const isAll = arrayCoversFullSet(et.mastery.groupIds, ET_GROUP_IDS);
+    const sum = et.mastery.groupIds.reduce((s, id) => s + groupCount(id), 0);
+    const labels = et.mastery.groupIds.map(id => ET_GROUP_LABELS[id]).join(' + ');
+    records.push({
+      description: isAll
+        ? `Master all ${counts.total} ear training items by year-end`
+        : `Master ${sum} items in ${labels} by year-end`,
+      targetMetric: isAll ? MASTERY_OVERALL_METRIC.EAR_TRAINING : MASTERY_SPECIFIC_METRIC.EAR_TRAINING,
+      targetValue: isAll ? counts.total : sum,
+      targetUnit: isAll ? 'items' : et.mastery.groupIds[0],
+      relatedItems: isAll ? [] : et.mastery.groupIds,
+    });
+  }
+
+  // ---- Depth ----
+  records.push({
+    description: `Reach ${et.depth.accuracyPercent}% overall accuracy across Ear Training by year-end`,
+    targetMetric: 'ear_training_accuracy_overall',
+    targetValue: et.depth.accuracyPercent,
+    targetUnit: '%',
+    relatedItems: [],
+  });
+
+  // ---- Consistency ----
+  records.push({
+    description: `Practice Ear Training ${et.consistency.count}× per ${et.consistency.cadence}`,
+    targetMetric: 'ear_training_sessions_per_cadence',
+    targetValue: et.consistency.count,
+    targetUnit: et.consistency.cadence,
+    relatedItems: [],
+  });
+
+  return records;
+}
+
+function encodeHarmonicFluencyDimensions(hf: HarmonicFluencyAnchor): DimensionRecordSpec[] {
+  const records: DimensionRecordSpec[] = [];
+  const counts = harmonicFluencyCounts();
+  const groupCount = (id: HarmonicFluencyGroupId): number => counts.byGroup[id as keyof typeof counts.byGroup] ?? 0;
+
+  if (hf.breadth.kind === 'all') {
+    records.push({
+      description: `Cover all ${counts.total} harmonic fluency cards by year-end`,
+      targetMetric: COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY,
+      targetValue: counts.total,
+      targetUnit: 'cards',
+      relatedItems: [],
+    });
+  } else if (hf.breadth.groupIds.length > 0) {
+    const ids = hf.breadth.groupIds as HarmonicFluencyGroupId[];
+    const sum = ids.reduce((s, id) => s + groupCount(id), 0);
+    const labels = ids.map(id => HF_GROUP_LABELS[id]).join(' + ');
+    records.push({
+      description: `Cover ${sum} cards in ${labels} by year-end`,
+      targetMetric: COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY,
+      targetValue: sum,
+      targetUnit: ids[0],
+      relatedItems: ids,
+    });
+  }
+
+  if (hf.mastery.groupIds.length > 0) {
+    const isAll = arrayCoversFullSet(hf.mastery.groupIds, HF_GROUP_IDS);
+    const sum = hf.mastery.groupIds.reduce((s, id) => s + groupCount(id), 0);
+    const labels = hf.mastery.groupIds.map(id => HF_GROUP_LABELS[id]).join(' + ');
+    records.push({
+      description: isAll
+        ? `Master all ${counts.total} harmonic fluency cards by year-end`
+        : `Master ${sum} cards in ${labels} by year-end`,
+      targetMetric: isAll ? MASTERY_OVERALL_METRIC.HARMONIC_FLUENCY : MASTERY_SPECIFIC_METRIC.HARMONIC_FLUENCY,
+      targetValue: isAll ? counts.total : sum,
+      targetUnit: isAll ? 'cards' : hf.mastery.groupIds[0],
+      relatedItems: isAll ? [] : hf.mastery.groupIds,
+    });
+  }
+
+  records.push({
+    description: `Reach ${hf.depth.accuracyPercent}% overall accuracy across Harmonic Fluency by year-end`,
+    targetMetric: 'harmonic_fluency_accuracy_overall',
+    targetValue: hf.depth.accuracyPercent,
+    targetUnit: '%',
+    relatedItems: [],
+  });
+
+  records.push({
+    description: `Practice Harmonic Fluency ${hf.consistency.count}× per ${hf.consistency.cadence}`,
+    targetMetric: 'harmonic_fluency_sessions_per_cadence',
+    targetValue: hf.consistency.count,
+    targetUnit: hf.consistency.cadence,
+    relatedItems: [],
+  });
+
+  return records;
+}
+
+function encodeShapesDimensions(sp: ShapesPatternsAnchor): DimensionRecordSpec[] {
+  const records: DimensionRecordSpec[] = [];
+  const counts = shapesCounts();
+  const areaCount = (id: ShapesAreaId): number => {
+    if (id === 'chord_shape_drills') return counts.chordShapeDrills;
+    if (id === 'scale_drills')        return counts.scaleDrills;
+    return counts.voiceLeading;
+  };
+
+  if (sp.breadth.kind === 'all') {
+    records.push({
+      description: `Cover all ${counts.total} shapes by year-end`,
+      targetMetric: COVERAGE_OVERALL_METRIC.SHAPES,
+      targetValue: counts.total,
+      targetUnit: 'shapes',
+      relatedItems: [],
+    });
+  } else if (sp.breadth.groupIds.length > 0) {
+    const ids = sp.breadth.groupIds as ShapesAreaId[];
+    const sum = ids.reduce((s, id) => s + areaCount(id), 0);
+    const labels = ids.map(id => SHAPES_AREA_LABELS[id]).join(' + ');
+    records.push({
+      description: `Cover ${sum} shapes in ${labels} by year-end`,
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetValue: sum,
+      targetUnit: ids[0],
+      relatedItems: ids,
+    });
+  }
+
+  // S&P Depth: "Reach Solid in {areas}". Encoded with the existing
+  // shapes_proficiency_overall metric, targetUnit carrying the
+  // area:level pair. Multi-area picks ride in relatedItems[] per
+  // the locked one-row-per-dimension design call.
+  if (sp.depth.areaIds.length > 0) {
+    const labels = sp.depth.areaIds.map(id => SHAPES_AREA_LABELS[id]).join(' + ');
+    records.push({
+      description: `Reach Solid in ${labels} across all 12 keys by year-end`,
+      targetMetric: 'shapes_proficiency_overall',
+      targetValue: null,
+      targetUnit: `${sp.depth.areaIds[0]}:solid`,
+      relatedItems: sp.depth.areaIds,
+    });
+  }
+
+  if (sp.mastery.areaIds.length > 0) {
+    const isAll = arrayCoversFullSet(sp.mastery.areaIds, SHAPES_AREA_IDS);
+    const sum = sp.mastery.areaIds.reduce((s, id) => s + areaCount(id), 0);
+    const labels = sp.mastery.areaIds.map(id => SHAPES_AREA_LABELS[id]).join(' + ');
+    records.push({
+      description: isAll
+        ? `Truly own all ${counts.total} shapes by year-end`
+        : `Truly own ${sum} shapes in ${labels} by year-end`,
+      targetMetric: isAll ? MASTERY_OVERALL_METRIC.SHAPES : MASTERY_SPECIFIC_METRIC.SHAPES,
+      targetValue: isAll ? counts.total : sum,
+      targetUnit: isAll ? 'shapes' : sp.mastery.areaIds[0],
+      relatedItems: isAll ? [] : sp.mastery.areaIds,
+    });
+  }
+
+  records.push({
+    description: `Practice Shapes & Patterns ${sp.consistency.count} minutes per ${sp.consistency.cadence}`,
+    targetMetric: 'shapes_minutes_per_cadence',
+    targetValue: sp.consistency.count,
+    targetUnit: sp.consistency.cadence,
+    relatedItems: [],
+  });
+
+  return records;
+}
+
+function encodeSongRepertoireDimensions(sr: SongRepertoireAnchor): DimensionRecordSpec[] {
+  const records: DimensionRecordSpec[] = [];
+
+  if (sr.breadthCount > 0) {
+    records.push({
+      description: `Reach Comfortable on ${sr.breadthCount} song${sr.breadthCount === 1 ? '' : 's'} by year-end`,
+      targetMetric: SONG_METRIC.WHOLE,
+      targetValue: sr.breadthCount,
+      targetUnit: 'comfortable',
+      relatedItems: [],
+    });
+  }
+  if (sr.depthCount > 0) {
+    records.push({
+      description: `Reach Solid on ${sr.depthCount} song${sr.depthCount === 1 ? '' : 's'} by year-end`,
+      targetMetric: SONG_METRIC.WHOLE,
+      targetValue: sr.depthCount,
+      targetUnit: 'solid',
+      relatedItems: [],
+    });
+  }
+  if (sr.masteryCount > 0) {
+    records.push({
+      description: `Reach Internalized on ${sr.masteryCount} song${sr.masteryCount === 1 ? '' : 's'} by year-end`,
+      targetMetric: SONG_METRIC.WHOLE,
+      targetValue: sr.masteryCount,
+      targetUnit: 'internalized',
+      relatedItems: [],
+    });
+  }
+  records.push({
+    description: `Cultivate Song Repertoire ${sr.consistency.count}× per ${sr.consistency.cadence}`,
+    targetMetric: SONG_REPERTOIRE_SESSIONS_PER_CADENCE,
+    targetValue: sr.consistency.count,
+    targetUnit: sr.consistency.cadence,
+    relatedItems: [],
+  });
+
+  return records;
+}
+
+function encodeProductionDimensions(p: ProductionAnchor): DimensionRecordSpec[] {
+  const records: DimensionRecordSpec[] = [];
+  const counts = productionCounts();
+  const pathCount = (id: ProductionPathId): number => counts.byPath[id] ?? 0;
+
+  if (p.breadth.kind === 'all') {
+    records.push({
+      description: `Work through all ${counts.total} production lessons by year-end`,
+      targetMetric: COVERAGE_OVERALL_METRIC.PRODUCTION,
+      targetValue: counts.total,
+      targetUnit: 'lessons',
+      relatedItems: [],
+    });
+  } else if (p.breadth.groupIds.length > 0) {
+    const ids = p.breadth.groupIds as ProductionPathId[];
+    const sum = ids.reduce((s, id) => s + pathCount(id), 0);
+    const labels = ids.map(id => PRODUCTION_PATH_LABELS[id]).join(' + ');
+    records.push({
+      description: `Work through ${sum} lessons in ${labels} by year-end`,
+      targetMetric: COVERAGE_SPECIFIC_METRIC.PRODUCTION,
+      targetValue: sum,
+      targetUnit: ids[0],
+      relatedItems: ids,
+    });
+  }
+
+  // Production Depth: "Go deepest on {paths}". Reuses
+  // production_path_completion (existing metric for path-level
+  // depth goals) with relatedItems carrying multi-pick paths per
+  // the one-row-per-dimension design call.
+  if (p.depth.pathIds.length > 0) {
+    const sum = p.depth.pathIds.reduce((s, id) => s + pathCount(id), 0);
+    const labels = p.depth.pathIds.map(id => PRODUCTION_PATH_LABELS[id]).join(' + ');
+    records.push({
+      description: `Go deepest on ${labels} (${sum} lessons) by year-end`,
+      targetMetric: 'production_path_completion',
+      targetValue: sum,
+      targetUnit: p.depth.pathIds[0],
+      relatedItems: p.depth.pathIds,
+    });
+  }
+
+  records.push({
+    description: `Spend ${p.consistency.count} hours per ${p.consistency.cadence} on Production`,
+    targetMetric: 'production_hours_per_cadence',
+    targetValue: p.consistency.count,
+    targetUnit: p.consistency.cadence,
+    relatedItems: [],
+  });
+
+  return records;
+}
+
+function encodePracticeConsistencyDimensions(pc: PracticeConsistencyAnchor): DimensionRecordSpec[] {
+  return [
+    {
+      description: `Hold a weekly floor of ${pc.weeklyFloor} day${pc.weeklyFloor === 1 ? '' : 's'} per week`,
+      targetMetric: PRACTICE_WEEKLY_FLOOR_DAYS,
+      targetValue: pc.weeklyFloor,
+      targetUnit: 'days/week',
+      relatedItems: [],
+    },
+    {
+      description: `Hold a monthly floor of ${pc.monthlyFloor} day${pc.monthlyFloor === 1 ? '' : 's'} per month`,
+      targetMetric: PRACTICE_MONTHLY_FLOOR_DAYS,
+      targetValue: pc.monthlyFloor,
+      targetUnit: 'days/month',
+      relatedItems: [],
+    },
+    {
+      description: `Aspire to ${pc.aspiration} day${pc.aspiration === 1 ? '' : 's'} per week`,
+      targetMetric: PRACTICE_ASPIRATION_DAYS_PER_WEEK,
+      targetValue: pc.aspiration,
+      targetUnit: 'days/week',
+      relatedItems: [],
+    },
+  ];
+}
+
+/**
+ * Top-level dispatcher. Returns the per-dimension record specs for
+ * the active module slot on the draft. Save logic layers shared
+ * fields (id, parentGoalId, dates, status) over each spec.
+ */
+export function encodeDimensionRecords(draft: AnchorDraft): DimensionRecordSpec[] {
+  if (draft.moduleId === 'ear-training' && draft.earTraining) {
+    return encodeEarTrainingDimensions(draft.earTraining);
+  }
+  if (draft.moduleId === 'harmonic-fluency' && draft.harmonicFluency) {
+    return encodeHarmonicFluencyDimensions(draft.harmonicFluency);
+  }
+  if (draft.moduleId === 'shapes-and-patterns' && draft.shapesPatterns) {
+    return encodeShapesDimensions(draft.shapesPatterns);
+  }
+  if (draft.moduleId === 'repertoire' && draft.songRepertoire) {
+    return encodeSongRepertoireDimensions(draft.songRepertoire);
+  }
+  if (draft.moduleId === 'production' && draft.production) {
+    return encodeProductionDimensions(draft.production);
+  }
+  if (draft.moduleId === 'practice-consistency' && draft.practiceConsistency) {
+    return encodePracticeConsistencyDimensions(draft.practiceConsistency);
+  }
+  return [];
+}
+
 // ---- Props -----------------------------------------------------------
 
 interface Props {
@@ -687,18 +1113,108 @@ export default function YearlyAnchorFlow({
   };
 
   /**
-   * Save logic placeholder — 5e will write the umbrella + N
-   * dimension records in a single transaction. For 5b we close
-   * cleanly so the shell is testable end-to-end. The `saving` flag
-   * exists from day one so 5e doesn't need to retrofit the loading
-   * state into the button.
+   * Save the anchor: one umbrella + N dimension records, written in
+   * a single transaction so a partial failure leaves no orphaned
+   * children and no half-anchored umbrella.
+   *
+   * Create mode (no `initialAnchor`):
+   *   - umbrella id is freshly generated
+   *   - dimension records all get fresh ids and parentGoalId =
+   *     umbrella id
+   *
+   * Edit mode (`initialAnchor` is the existing umbrella):
+   *   - umbrella id is REUSED (preserves any cross-app references)
+   *   - currentValue / startDate / lastEngagedAt carry over
+   *   - existing children are deleted and recreated from the current
+   *     draft. Destructive on edit, but simpler than diff-and-patch
+   *     and robust to dimension-shape changes (e.g. user adds a
+   *     Mastery row that didn't exist before, or removes one). The
+   *     children's currentValue resets to 0 — Phase 5's auto-progress
+   *     will recompute from spacingState on next render.
+   *
+   * The umbrella name (`draft.name`) is preserved as typed; an empty
+   * value falls back to `defaultAnchorName(moduleId, year)`.
    */
   const handleSave = async () => {
     if (saving) return;
+    if (!canAdvance) return;
     setSaving(true);
     try {
-      // 5e: write umbrella + dimension records here.
-      console.warn('[yearly-anchor] save not yet implemented (Step 5e)', { draft });
+      const year = new Date().getFullYear();
+      const now = Date.now();
+      const targetDate = endOfYearMs(year);
+      const isEditing = !!initialAnchor;
+      const umbrellaId = isEditing ? initialAnchor!.id : uid('goal');
+      const resolvedName = (draft.name?.trim()) || defaultAnchorName(draft.moduleId, year);
+      const startDate = isEditing ? initialAnchor!.startDate : now;
+
+      const specs = encodeDimensionRecords(draft);
+      if (specs.length === 0) {
+        console.warn('[yearly-anchor] no dimension records produced; aborting save');
+        setSaving(false);
+        return;
+      }
+
+      const umbrella: Goal = {
+        id: umbrellaId,
+        scope: 'yearly',
+        description: resolvedName,
+        targetMetric: null,
+        targetValue: null,
+        targetUnit: null,
+        currentValue: isEditing ? initialAnchor!.currentValue : 0,
+        contextTag: null,
+        relatedModules: [draft.moduleId],
+        relatedItems: [],
+        startDate,
+        targetDate,
+        status: isEditing ? initialAnchor!.status : 'active',
+        parentGoalId: null,
+        contributesNumericallyToParent: false,
+        isUmbrella: true,
+        lastEngagedAt: isEditing ? initialAnchor!.lastEngagedAt : now,
+      };
+
+      const children: Goal[] = specs.map(spec => ({
+        id: uid('goal'),
+        scope: 'yearly',
+        description: spec.description,
+        targetMetric: spec.targetMetric,
+        targetValue: spec.targetValue,
+        targetUnit: spec.targetUnit,
+        currentValue: 0,
+        contextTag: null,
+        relatedModules: [draft.moduleId],
+        relatedItems: spec.relatedItems,
+        startDate,
+        targetDate,
+        status: 'active',
+        parentGoalId: umbrellaId,
+        contributesNumericallyToParent: false,
+        isUmbrella: false,
+        lastEngagedAt: null,
+      }));
+
+      // Edit mode: collect existing children for deletion. Done
+      // outside the transaction so the read isn't gated by the
+      // write-mode lock — the resulting list is small (≤ 4 rows
+      // typically) and we re-confirm membership inside the
+      // transaction by parentGoalId equality.
+      const existingChildIds: string[] = isEditing
+        ? (await db.goals.where('parentGoalId').equals(umbrellaId).toArray())
+            .map(c => c.id)
+        : [];
+
+      await db.transaction('rw', db.goals, async () => {
+        for (const id of existingChildIds) {
+          await db.goals.delete(id);
+        }
+        await db.goals.put(umbrella);
+        for (const child of children) {
+          await db.goals.put(child);
+        }
+      });
+
       handleClose();
     } catch (err) {
       console.warn('[yearly-anchor] save failed', err);

@@ -38,11 +38,20 @@ export function moduleForMetric(metric: string | null): GoalFlowModuleId | null 
   if (metric === SONG_METRIC.WHOLE || metric === SONG_METRIC.SECTION || metric === SONG_METRIC.KEY) {
     return 'repertoire';
   }
+  // YearlyAnchorFlow's Songs consistency dimension introduces
+  // `repertoire_sessions_per_cadence`. Prefix-route it through the
+  // same module bucket as the existing song_* metrics so any future
+  // consumer gets a consistent answer.
+  if (metric.startsWith('repertoire_'))       return 'repertoire';
   if (metric.startsWith('ear_training_'))     return 'ear-training';
   if (metric.startsWith('harmonic_fluency_')) return 'harmonic-fluency';
   if (metric.startsWith('shapes_'))           return 'shapes-and-patterns';
   if (metric.startsWith('production_'))       return 'production';
-  if (metric === 'practice_days_per_cadence') return 'practice-consistency';
+  // Practice consistency was an exact-match metric; YearlyAnchorFlow
+  // adds three sibling metrics (`practice_weekly_floor_days`,
+  // `practice_monthly_floor_days`, `practice_aspiration_days_per_week`)
+  // for its three meta-habit questions. Prefix-route covers all four.
+  if (metric.startsWith('practice_'))         return 'practice-consistency';
   return null;
 }
 
