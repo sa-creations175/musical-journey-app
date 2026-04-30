@@ -48,6 +48,12 @@ import {
   defaultAnchorName,
   isLegacyAnchorName,
 } from './yearlyAnchorReview';
+import {
+  parseGoalsView,
+  PREF_GOALS_ACTIVE_VIEW,
+  DEFAULT_GOALS_VIEW,
+  type GoalsView,
+} from './goalsView';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -155,6 +161,7 @@ export default function Goals() {
 
   const [collapseOverrides, setCollapseOverrides] = useState<LayerCollapseOverrides>({});
   const [hiddenLayers, setHiddenLayers] = useState<GoalScope[]>([]);
+  const [activeView, setActiveView] = useState<GoalsView>(DEFAULT_GOALS_VIEW);
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
@@ -202,12 +209,14 @@ export default function Goals() {
   // Hydrate prefs once.
   useEffect(() => {
     (async () => {
-      const [collapse, hidden] = await Promise.all([
+      const [collapse, hidden, view] = await Promise.all([
         getPref<LayerCollapseOverrides>(PREF_LAYER_COLLAPSE, {}),
         getPref<GoalScope[]>(PREF_HIDDEN_LAYERS, []),
+        getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW),
       ]);
       setCollapseOverrides(collapse ?? {});
       setHiddenLayers(Array.isArray(hidden) ? hidden : []);
+      setActiveView(parseGoalsView(view));
       setHydrated(true);
     })();
   }, []);
@@ -221,6 +230,11 @@ export default function Goals() {
     if (!hydrated) return;
     void setPref(PREF_HIDDEN_LAYERS, hiddenLayers);
   }, [hiddenLayers, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void setPref(PREF_GOALS_ACTIVE_VIEW, activeView);
+  }, [activeView, hydrated]);
 
   const goalsByScope = useMemo(() => groupByScope(goals ?? []), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));
@@ -282,6 +296,8 @@ export default function Goals() {
           <span className="hidden sm:inline">Customize</span>
         </button>
       </header>
+
+      <ViewToggle value={activeView} onChange={setActiveView} />
 
       <div className="mb-4 flex items-center gap-2">
         <button
@@ -345,33 +361,37 @@ export default function Goals() {
         )}
       </div>
 
-      <div className="flex flex-col">
-        {visibleLayers.map(layer => {
-          const layerGoals = goalsByScope.get(layer.scope) ?? [];
-          const collapsed = effectiveCollapsed(
-            collapseOverrides[layer.scope],
-            layerGoals.length > 0,
-          );
-          return (
-            <LayerSection
-              key={layer.scope}
-              layer={layer}
-              goals={layerGoals}
-              proficiencyDefs={proficiencyDefs}
-              songLookup={songLookup}
-              collapsed={collapsed}
-              onToggle={() => toggleLayer(layer.scope)}
-              onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
-              onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
-            />
-          );
-        })}
-        {visibleLayers.length === 0 && (
-          <p className="text-sm text-neutral-500 italic py-8 text-center">
-            All layers are hidden. Use Customize to bring them back.
-          </p>
-        )}
-      </div>
+      {activeView === 'timeframe' ? (
+        <div className="flex flex-col">
+          {visibleLayers.map(layer => {
+            const layerGoals = goalsByScope.get(layer.scope) ?? [];
+            const collapsed = effectiveCollapsed(
+              collapseOverrides[layer.scope],
+              layerGoals.length > 0,
+            );
+            return (
+              <LayerSection
+                key={layer.scope}
+                layer={layer}
+                goals={layerGoals}
+                proficiencyDefs={proficiencyDefs}
+                songLookup={songLookup}
+                collapsed={collapsed}
+                onToggle={() => toggleLayer(layer.scope)}
+                onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
+                onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
+              />
+            );
+          })}
+          {visibleLayers.length === 0 && (
+            <p className="text-sm text-neutral-500 italic py-8 text-center">
+              All layers are hidden. Use Customize to bring them back.
+            </p>
+          )}
+        </div>
+      ) : (
+        <ByModulePlaceholder />
+      )}
 
       <CustomizeLayersModal
         open={customizeOpen}
@@ -1135,6 +1155,72 @@ function UmbrellaRow({
 }
 
 // -------------------------------------------------------------------
+
+/**
+ * Phase 2 step 6d — segmented pill toggle below the page header.
+ * Switches the Goals home between the timeframe and module
+ * views. Active segment fills with the Goals accent; inactive
+ * is text-only with a subtle hover state.
+ *
+ * State is lifted to the page-level component (persisted via
+ * userPref `goals.home.activeView`) so the rendered view
+ * survives reloads.
+ */
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: GoalsView;
+  onChange: (next: GoalsView) => void;
+}) {
+  const segment = (id: GoalsView, label: string) => {
+    const active = value === id;
+    return (
+      <button
+        type="button"
+        onClick={() => onChange(id)}
+        aria-pressed={active}
+        className="px-3 py-1 text-xs rounded-md transition"
+        style={
+          active
+            ? { backgroundColor: GOALS_META.accentHex, color: 'white' }
+            : { color: undefined }
+        }
+      >
+        {label}
+      </button>
+    );
+  };
+  return (
+    <div
+      role="tablist"
+      aria-label="Goals view"
+      className="mb-4 inline-flex items-center gap-1 p-0.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40"
+    >
+      {segment('timeframe', 'By timeframe')}
+      {segment('module', 'By module')}
+    </div>
+  );
+}
+
+/**
+ * Phase 2 step 6d — placeholder for the by-module view.
+ * Kept intentionally simple in 6d: the toggle persistence and
+ * conditional rendering are the architectural commit. The real
+ * by-module hierarchy + dashed-anchor backstop ship in step 6f.
+ */
+function ByModulePlaceholder() {
+  return (
+    <div className="py-12 text-center space-y-2">
+      <p className="text-sm text-neutral-500">
+        By-module view arrives in step 6f.
+      </p>
+      <p className="text-xs text-neutral-400">
+        Switch back to <span className="font-medium">By timeframe</span> to see your goals.
+      </p>
+    </div>
+  );
+}
 
 function Chevron({ open }: { open: boolean }) {
   return (
