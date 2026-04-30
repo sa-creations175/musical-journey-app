@@ -69,29 +69,38 @@ export function WeeklyBars(props: WeeklyBarsProps) {
   const today = props.today ?? new Date();
   const max = Math.max(1, ...props.values);
   const top = pickTopPercentileIndices(props.values, 20);
+  const showAvg = props.averageCount !== undefined && props.averageCount > 0;
 
   return (
-    <div className="relative h-20 flex items-end gap-1 px-1">
-      {props.averageCount !== undefined && props.averageCount > 0 && (
-        <AverageLine value={props.averageCount} max={max} />
+    <div className="h-20 flex">
+      {showAvg && (
+        <AverageGutter
+          value={props.averageCount!}
+          max={max}
+          label={`Avg ${formatNumber(props.averageCount!)} ${props.unit}`}
+          title={`Avg: ${formatNumber(props.averageCount!)} ${props.unit}/day`}
+        />
       )}
-      {props.values.map((v, i) => {
-        const date = new Date(props.weekStart);
-        date.setDate(date.getDate() + i);
-        const future = isFutureDay(date, today);
-        return (
-          <BarColumn
-            key={i}
-            value={v}
-            max={max}
-            label={WEEKDAY_LABELS[i]}
-            showCount={top.has(i)}
-            faded={future}
-            accentHex={props.accentHex}
-            unit={props.unit}
-          />
-        );
-      })}
+      <div className="relative flex-1 flex items-end gap-1 pr-1">
+        {showAvg && <AverageLine value={props.averageCount!} max={max} />}
+        {props.values.map((v, i) => {
+          const date = new Date(props.weekStart);
+          date.setDate(date.getDate() + i);
+          const future = isFutureDay(date, today);
+          return (
+            <BarColumn
+              key={i}
+              value={v}
+              max={max}
+              label={WEEKDAY_LABELS[i]}
+              showCount={top.has(i)}
+              faded={future}
+              accentHex={props.accentHex}
+              unit={props.unit}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -108,27 +117,36 @@ export function YearlyBars(props: YearlyBarsProps) {
   const today = props.today ?? new Date();
   const max = Math.max(1, ...props.values);
   const top = pickTopPercentileIndices(props.values, 20);
+  const showAvg = props.averageCount !== undefined && props.averageCount > 0;
 
   return (
-    <div className="relative h-20 flex items-end gap-[3px] px-1">
-      {props.averageCount !== undefined && props.averageCount > 0 && (
-        <AverageLine value={props.averageCount} max={max} />
+    <div className="h-20 flex">
+      {showAvg && (
+        <AverageGutter
+          value={props.averageCount!}
+          max={max}
+          label={`Avg ${formatNumber(props.averageCount!)} ${props.unit}`}
+          title={`Avg: ${formatNumber(props.averageCount!)} ${props.unit}/month`}
+        />
       )}
-      {props.values.map((v, i) => {
-        const future = isFutureMonth(props.year, i, today);
-        return (
-          <BarColumn
-            key={i}
-            value={v}
-            max={max}
-            label={MONTH_LABELS[i]}
-            showCount={top.has(i)}
-            faded={future}
-            accentHex={props.accentHex}
-            unit={props.unit}
-          />
-        );
-      })}
+      <div className="relative flex-1 flex items-end gap-[3px] pr-1">
+        {showAvg && <AverageLine value={props.averageCount!} max={max} />}
+        {props.values.map((v, i) => {
+          const future = isFutureMonth(props.year, i, today);
+          return (
+            <BarColumn
+              key={i}
+              value={v}
+              max={max}
+              label={MONTH_LABELS[i]}
+              showCount={top.has(i)}
+              faded={future}
+              accentHex={props.accentHex}
+              unit={props.unit}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -274,19 +292,67 @@ function BarColumn({
   );
 }
 
+/**
+ * The dashed average line itself, anchored inside the bars area.
+ * No label — the label lives in <AverageGutter> outside the bars
+ * area entirely so it never collides with bars or top-20% labels.
+ */
 function AverageLine({ value, max }: { value: number; max: number }) {
-  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  const pct = avgBottomPercent(value, max);
   return (
     <div
-      className="absolute left-1 right-1 border-t border-dashed border-neutral-400 dark:border-neutral-500 pointer-events-none"
-      // Bars grow upward from items-end, so anchor from the
-      // bottom by inverting the percentage. Account for the
-      // weekday-label gutter so the line sits at the right
-      // visual height.
-      style={{ bottom: `calc(${pct}% * 0.78 + 14px)` }}
+      className="absolute left-0 right-0 border-t border-dashed border-neutral-400 dark:border-neutral-500 pointer-events-none"
+      style={{ bottom: pct }}
       aria-hidden
     />
   );
+}
+
+/**
+ * Reserved left-side strip that holds the average line's label.
+ * Pulling the label out of the bars area entirely is the
+ * architecturally clean fix for readability — clean whitespace,
+ * never collides with bars or top-20% number labels.
+ *
+ * Vertically aligned to the dashed line by sharing the same
+ * bottom-percentage calculation. `transform: translateY(50%)`
+ * centers the label's vertical midpoint on the line.
+ */
+function AverageGutter({
+  value,
+  max,
+  label,
+  title,
+}: {
+  value: number;
+  max: number;
+  label: string;
+  title: string;
+}) {
+  const pct = avgBottomPercent(value, max);
+  return (
+    <div className="relative w-16 shrink-0 pl-1 pr-1.5">
+      <span
+        className="absolute right-1.5 text-[9px] tabular-nums text-neutral-500 dark:text-neutral-400 whitespace-nowrap"
+        style={{ bottom: pct, transform: 'translateY(50%)' }}
+        title={title}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Shared bottom-percentage calculation for the dashed line and
+ * its gutter label. The 0.78 factor + 14px offset account for
+ * the weekday/month-label strip at the bottom of each BarColumn,
+ * which the percentage-of-container math doesn't know about
+ * directly.
+ */
+function avgBottomPercent(value: number, max: number): string {
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  return `calc(${pct}% * 0.78 + 14px)`;
 }
 
 // ───── helpers ──────────────────────────────────────────────────
