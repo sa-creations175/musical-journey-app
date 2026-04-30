@@ -515,9 +515,24 @@ type FeasibilityModule = keyof typeof ITEMS_PER_SESSION;
  *  unrecoverable. */
 export const AT_RISK_RATIO = 0.85;
 
+/**
+ * Single unified message rendered in place of a status pill
+ * for any unrecoverable measurable goal — coverage, accuracy,
+ * consistency, song-whole. Replaces per-branch calculated
+ * unrecoverable strings (the math is still computed for
+ * Phase 3 reasoning surfaces; the user-facing recommendation
+ * is now this fixed sentence).
+ *
+ * Distinct from ASPIRATIONAL_PLACEHOLDERS — that pool only
+ * applies to aspirational-scope goals (2-3 year, lifetime)
+ * which have no measurable target.
+ */
+export const UNRECOVERABLE_MESSAGE =
+  "Didn't hit this one. Adjust the goal to match where you are now — and keep going.";
+
 /** Pool of motivational placeholders shown in place of a status
- *  pill on aspirational scopes (2–3 year, lifetime). Randomly
- *  selected per call. */
+ *  pill on aspirational scopes (2–3 year, lifetime). Goal-id
+ *  seeded so the same goal always shows the same phrase. */
 export const ASPIRATIONAL_PLACEHOLDERS: ReadonlyArray<string> = [
   'Your daily wins compound into the greatness outlined here.',
   'Every session moves you closer to this vision.',
@@ -787,11 +802,9 @@ function recommendCoverage(args: {
     const itemsPerWeekNeeded = Math.ceil(remainingItems / weeksLeft);
     return `Need about ${itemsPerWeekNeeded} ${u} per week to hit ${args.target} by ${dateStr}.`;
   }
-  // unrecoverable
-  if (args.daysRemaining <= 0) {
-    return `Deadline passed — reached ${args.currentValue} of ${args.target} ${u}.`;
-  }
-  return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} ${u} by ${dateStr}.`;
+  // unrecoverable — unified message replaces per-deadline
+  // calculated strings (see UNRECOVERABLE_MESSAGE).
+  return UNRECOVERABLE_MESSAGE;
 }
 
 // ── Song coverage branch (song_whole_at_level) ───────────────
@@ -900,11 +913,8 @@ function recommendSongWhole(args: {
     const songsWord = songsPerWeek === 1 ? 'song' : 'songs';
     return `Need about ${songsPerWeek} ${songsWord} to reach ${stage} per week to hit ${args.target} by ${dateStr}.`;
   }
-  // unrecoverable
-  if (args.daysRemaining <= 0) {
-    return `Deadline passed — reached ${args.currentValue} of ${args.target} songs at ${stage}.`;
-  }
-  return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} songs at ${stage} by ${dateStr}.`;
+  // unrecoverable — unified message.
+  return UNRECOVERABLE_MESSAGE;
 }
 
 // ── Accuracy branch ──────────────────────────────────────────
@@ -1006,10 +1016,8 @@ function recommendAccuracy(args: {
     const daysWord = args.daysRemaining === 1 ? 'day' : 'days';
     return `${args.daysRemaining} ${daysWord} left to close a ${roundPercent(gap)}-point gap. Keep practicing to close the gap before ${dateStr}.`;
   }
-  // unrecoverable — only fires when the deadline has passed (the
-  // pre-deadline gap-only branch is gone now that critical
-  // requires the late-stage window).
-  return `Deadline passed — accuracy reached ${roundPercent(args.current)}%, target was ${roundPercent(args.target)}%.`;
+  // unrecoverable — unified message.
+  return UNRECOVERABLE_MESSAGE;
 }
 
 function roundPercent(n: number): number {
@@ -1127,17 +1135,8 @@ function recommendConsistency(args: {
     }
     return `Need ${args.sessionsRemaining} more session${args.sessionsRemaining === 1 ? '' : 's'} in the next ${args.daysRemaining} day${args.daysRemaining === 1 ? '' : 's'}.`;
   }
-  // unrecoverable
-  if (args.daysRemaining <= 0) {
-    return `Deadline passed — reached ${args.current} of ${args.target} sessions.`;
-  }
-  // Future deadline but sessions can't fit — show what it would
-  // take rather than declaring impossibility, so the user sees
-  // a real number to react to.
-  const sessionsPerDay = Math.ceil(args.sessionsRemaining / args.daysRemaining);
-  const sessionsWord = sessionsPerDay === 1 ? 'session' : 'sessions';
-  const daysWord = args.daysRemaining === 1 ? 'day' : 'days';
-  return `${args.current} of ${args.target} sessions with ${args.daysRemaining} ${daysWord} left — you'd need ${sessionsPerDay} ${sessionsWord} per day to reach your target.`;
+  // unrecoverable — unified message.
+  return UNRECOVERABLE_MESSAGE;
 }
 
 /**

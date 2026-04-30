@@ -30,6 +30,7 @@ import {
   DEFAULT_DAY_PROFILE_MIX,
   loadDayProfileMix,
   rollupChildFeasibilities,
+  UNRECOVERABLE_MESSAGE,
   type GoalFeasibility,
 } from '../progress';
 
@@ -221,9 +222,7 @@ describe('song_whole_at_level — coverage with stage injection', () => {
     }
   });
 
-  it('unrecoverable / future deadline injects stage in "Even at full pace"', () => {
-    // 4 weeks × 0.25 × 2 = 2 doubled projection vs target 25 →
-    // unrecoverable (doubling doesn't reach target).
+  it('unrecoverable / future deadline returns the unified message', () => {
     const fourWeeksOut = TODAY.getTime() + 28 * DAY;
     const out = getGoalFeasibility(
       songGoal(25, 'solid', fourWeeksOut),
@@ -231,12 +230,11 @@ describe('song_whole_at_level — coverage with stage injection', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('unrecoverable');
-      expect(out.recommendation).toMatch(/Even at full pace/);
-      expect(out.recommendation).toMatch(/of 25 songs at Solid by/);
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 
-  it('unrecoverable / deadline passed injects stage in deadline-passed line', () => {
+  it('unrecoverable / deadline passed returns the unified message', () => {
     const yesterday = TODAY.getTime() - DAY;
     const out = getGoalFeasibility(
       songGoal(25, 'internalized', yesterday),
@@ -244,9 +242,7 @@ describe('song_whole_at_level — coverage with stage injection', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('unrecoverable');
-      expect(out.recommendation).toMatch(
-        /Deadline passed — reached 8 of 25 songs at Internalized\./,
-      );
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 
@@ -400,16 +396,15 @@ describe('accuracy goals — gap + critical-window status', () => {
     }
   });
 
-  it('unrecoverable recommendation acknowledges deadline passed', () => {
+  it('unrecoverable recommendation returns the unified message', () => {
     const yesterday = TODAY.getTime() - DAY;
     const out = getGoalFeasibility(
       yearlyAccuracyGoal(85, yesterday),
       { currentValue: 60, today: TODAY },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/Deadline passed/);
-      expect(out.recommendation).toMatch(/reached 60%/);
-      expect(out.recommendation).toMatch(/target was 85%/);
+      expect(out.status).toBe('unrecoverable');
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 });
@@ -522,7 +517,7 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
     }
   });
 
-  it('unrecoverable (future deadline) shows sessions-per-day needed instead of "won\'t fit"', () => {
+  it('unrecoverable (future deadline) returns the unified message', () => {
     const may2 = new Date(2026, 4, 2, 12);
     const out = getGoalFeasibility(
       weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
@@ -530,13 +525,11 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('unrecoverable');
-      // 4 sessions / 2 days = 2 sessions per day
-      expect(out.recommendation).toMatch(/you'd need 2 sessions per day/);
-      expect(out.recommendation).not.toMatch(/won't fit/);
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 
-  it('deadline-passed recommendation uses "X of Y sessions" prose (no bare fraction)', () => {
+  it('unrecoverable (deadline passed) returns the unified message', () => {
     const past = new Date(2026, 3, 1).getTime();
     const past2 = new Date(2026, 3, 8).getTime();
     const out = getGoalFeasibility(
@@ -544,8 +537,8 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
       { currentValue: 2, today: TODAY },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/Deadline passed — reached 2 of 4 sessions\./);
-      expect(out.recommendation).not.toMatch(/2\/4/);
+      expect(out.status).toBe('unrecoverable');
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 });
@@ -692,7 +685,7 @@ describe('recommendations are calculated, not templated', () => {
     }
   });
 
-  it('unrecoverable (future deadline) uses "Even at full pace" + module unit', () => {
+  it('unrecoverable (future deadline) returns the unified message', () => {
     const oneWeekOut = TODAY.getTime() + 7 * DAY;
     const out = getGoalFeasibility(
       etCoverageGoal(500, oneWeekOut),
@@ -704,49 +697,44 @@ describe('recommendations are calculated, not templated', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('unrecoverable');
-      expect(out.recommendation).toMatch(/Even at full pace/);
-      expect(out.recommendation).toMatch(/of 500 cards/);
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 
-  it('coverage strings use "shapes" for Shapes & Patterns (not the activity unit "minutes")', () => {
-    // Activity unit for Shapes is "minutes" (what you do per
-    // session) but the COVERAGE unit is "shapes" (what's being
-    // counted toward the target). The two diverge here — pin
-    // the coverage unit explicitly.
-    const oneWeekOut = TODAY.getTime() + 7 * DAY;
+  it('coverage strings use "shapes" for Shapes & Patterns (in non-unrecoverable states)', () => {
+    // Activity unit for Shapes is "minutes" but COVERAGE unit
+    // is "shapes". Default mix yields 103 shapes/week — over
+    // ~35 weeks projected ~3600 vs target 408 → on_track. The
+    // on_track string mentions "all 408 shapes".
     const goal = mkGoal({
       scope: 'yearly',
       targetMetric: 'shapes_coverage_at_acquired',
       targetValue: 408,
-      targetDate: oneWeekOut,
+      targetDate: DEC_31,
     });
     const out = getGoalFeasibility(goal, {
       currentValue: 0,
       today: TODAY,
-      mix: { standard: 0, deep: 0, light: 1 }, // sparse → unrecoverable
     });
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/of 408 shapes/);
+      expect(out.recommendation).toMatch(/shapes/);
       expect(out.recommendation).not.toMatch(/minutes/);
     }
   });
 
-  it('coverage strings use "lessons" for Production', () => {
-    const oneWeekOut = TODAY.getTime() + 7 * DAY;
+  it('coverage strings use "lessons" for Production (in non-unrecoverable states)', () => {
     const goal = mkGoal({
       scope: 'yearly',
       targetMetric: 'production_coverage_at_acquired',
       targetValue: 56,
-      targetDate: oneWeekOut,
+      targetDate: DEC_31,
     });
     const out = getGoalFeasibility(goal, {
       currentValue: 0,
       today: TODAY,
-      mix: { standard: 0, deep: 0, light: 1 },
     });
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/of 56 lessons/);
+      expect(out.recommendation).toMatch(/lessons/);
       expect(out.recommendation).not.toMatch(/minutes/);
     }
   });
@@ -782,16 +770,15 @@ describe('recommendations are calculated, not templated', () => {
     }
   });
 
-  it('unrecoverable (deadline passed) recommendation uses "X of Y unit" prose', () => {
+  it('unrecoverable (deadline passed) returns the unified message', () => {
     const yesterday = TODAY.getTime() - 1 * DAY;
     const out = getGoalFeasibility(
       etCoverageGoal(100, yesterday),
       { currentValue: 47, today: TODAY },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/47 of 100 cards/);
-      expect(out.recommendation).toMatch(/Deadline passed/i);
-      expect(out.recommendation).not.toMatch(/47\/100/);
+      expect(out.status).toBe('unrecoverable');
+      expect(out.recommendation).toBe(UNRECOVERABLE_MESSAGE);
     }
   });
 });
@@ -837,6 +824,90 @@ describe('day-profile mix', () => {
 describe('AT_RISK_RATIO', () => {
   it('is exported and equals 0.85 (sign-off in step 6h.2 review)', () => {
     expect(AT_RISK_RATIO).toBe(0.85);
+  });
+});
+
+// ── Unified unrecoverable message ────────────────────────────
+
+describe('UNRECOVERABLE_MESSAGE', () => {
+  it('is the documented unified sentence', () => {
+    expect(UNRECOVERABLE_MESSAGE).toBe(
+      "Didn't hit this one. Adjust the goal to match where you are now — and keep going.",
+    );
+  });
+
+  it('every measurable branch returns it for unrecoverable status', () => {
+    // One representative unrecoverable scenario per branch.
+    // Coverage:
+    const oneWeekOut = TODAY.getTime() + 7 * DAY;
+    const cov = getGoalFeasibility(
+      etCoverageGoal(500, oneWeekOut),
+      {
+        currentValue: 0,
+        today: TODAY,
+        mix: { standard: 0, deep: 0, light: 1 },
+      },
+    );
+    if (cov.kind === 'measurable') {
+      expect(cov.status).toBe('unrecoverable');
+      expect(cov.recommendation).toBe(UNRECOVERABLE_MESSAGE);
+    }
+
+    // Song-whole:
+    const fourWeeksOut = TODAY.getTime() + 28 * DAY;
+    const song = getGoalFeasibility(
+      mkGoal({
+        scope: 'yearly',
+        targetMetric: 'song_whole_at_level',
+        targetValue: 25,
+        targetUnit: 'comfortable',
+        targetDate: fourWeeksOut,
+      }),
+      { currentValue: 0, today: TODAY },
+    );
+    if (song.kind === 'measurable') {
+      expect(song.status).toBe('unrecoverable');
+      expect(song.recommendation).toBe(UNRECOVERABLE_MESSAGE);
+    }
+
+    // Accuracy (deadline passed):
+    const yesterday = TODAY.getTime() - DAY;
+    const acc = getGoalFeasibility(
+      mkGoal({
+        scope: 'yearly',
+        targetMetric: 'ear_training_accuracy_overall',
+        targetValue: 85,
+        startDate: new Date(2026, 0, 1).getTime(),
+        targetDate: yesterday,
+      }),
+      { currentValue: 60, today: TODAY },
+    );
+    if (acc.kind === 'measurable') {
+      expect(acc.status).toBe('unrecoverable');
+      expect(acc.recommendation).toBe(UNRECOVERABLE_MESSAGE);
+    }
+
+    // Consistency (deadline passed):
+    const past = new Date(2026, 3, 1).getTime();
+    const past2 = new Date(2026, 3, 8).getTime();
+    const con = getGoalFeasibility(
+      mkGoal({
+        scope: 'weekly',
+        targetMetric: 'ear_training_sessions_per_week',
+        targetValue: 4,
+        startDate: past,
+        targetDate: past2,
+      }),
+      { currentValue: 2, today: TODAY },
+    );
+    if (con.kind === 'measurable') {
+      expect(con.status).toBe('unrecoverable');
+      expect(con.recommendation).toBe(UNRECOVERABLE_MESSAGE);
+    }
+  });
+
+  it('is distinct from the aspirational pool (not a member)', () => {
+    expect(ASPIRATIONAL_PLACEHOLDERS).not.toContain(UNRECOVERABLE_MESSAGE);
   });
 });
 
