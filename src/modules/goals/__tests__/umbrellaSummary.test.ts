@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import type { Goal } from '../../../lib/db';
 import {
   dimensionForGoal,
+  dimensionDisplayLabel,
   umbrellaSubtitle,
   findChildren,
   umbrellaModuleId,
@@ -111,14 +112,24 @@ describe('dimensionForGoal', () => {
 });
 
 describe('umbrellaSubtitle', () => {
-  it('joins distinct dimensions in the order children are passed', () => {
+  it('joins distinct dimensions in the order children are passed (with display-label mapping)', () => {
     const children = [
       mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' }), // Breadth
       mkGoal({ targetMetric: 'ear_training_mastery_at_mastered' }),  // Mastery
-      mkGoal({ targetMetric: 'ear_training_accuracy_overall' }),     // Depth
+      mkGoal({ targetMetric: 'ear_training_accuracy_overall' }),     // Depth → Accuracy (ET)
       mkGoal({ targetMetric: 'ear_training_sessions_per_week' }),    // Consistency
     ];
-    expect(umbrellaSubtitle(children)).toBe('Breadth · Mastery · Depth · Consistency');
+    expect(umbrellaSubtitle(children)).toBe(
+      'Breadth · Mastery · Accuracy · Consistency',
+    );
+  });
+
+  it('renders Depth as Proficiency for time-module children', () => {
+    const children = [
+      mkGoal({ targetMetric: 'shapes_coverage_at_acquired' }),       // Breadth
+      mkGoal({ targetMetric: 'shapes_accuracy_overall' }),           // Depth → Proficiency
+    ];
+    expect(umbrellaSubtitle(children)).toBe('Breadth · Proficiency');
   });
 
   it('dedupes when multiple children share a dimension', () => {
@@ -216,6 +227,30 @@ describe('umbrellaModuleId', () => {
   it('returns null when no child has a derivable module', () => {
     const children = [mkGoal({ targetMetric: null })];
     expect(umbrellaModuleId(children)).toBeNull();
+  });
+});
+
+describe('dimensionDisplayLabel', () => {
+  it('renames Depth → Accuracy for card modules', () => {
+    expect(dimensionDisplayLabel('Depth', 'ear-training')).toBe('Accuracy');
+    expect(dimensionDisplayLabel('Depth', 'harmonic-fluency')).toBe('Accuracy');
+  });
+
+  it('renames Depth → Proficiency for time/proficiency modules', () => {
+    expect(dimensionDisplayLabel('Depth', 'repertoire')).toBe('Proficiency');
+    expect(dimensionDisplayLabel('Depth', 'shapes-and-patterns')).toBe('Proficiency');
+    expect(dimensionDisplayLabel('Depth', 'production')).toBe('Proficiency');
+  });
+
+  it('defaults Depth → Proficiency when moduleId is null or practice-consistency', () => {
+    expect(dimensionDisplayLabel('Depth', null)).toBe('Proficiency');
+    expect(dimensionDisplayLabel('Depth', 'practice-consistency')).toBe('Proficiency');
+  });
+
+  it('passes Breadth, Mastery, and Consistency through unchanged', () => {
+    expect(dimensionDisplayLabel('Breadth', 'ear-training')).toBe('Breadth');
+    expect(dimensionDisplayLabel('Mastery', 'shapes-and-patterns')).toBe('Mastery');
+    expect(dimensionDisplayLabel('Consistency', null)).toBe('Consistency');
   });
 });
 

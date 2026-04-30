@@ -34,6 +34,30 @@ import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 export type GoalDimension = 'Breadth' | 'Mastery' | 'Depth' | 'Consistency';
 
 /**
+ * Display-time mapping from canonical dimension to user-facing
+ * label. Pure substitution — never touches stored data.
+ *
+ * "Depth" is too abstract above an accuracy-or-proficiency goal,
+ * so it gets renamed by module:
+ *   - card modules (ET, HF) → "Accuracy"
+ *   - time / proficiency modules (Songs, Shapes, Production) → "Proficiency"
+ *   - unknown / practice-consistency / cross-module → "Proficiency"
+ *     (defensive default; Depth shouldn't surface there in practice)
+ *
+ * Other dimensions display their canonical label unchanged.
+ */
+export function dimensionDisplayLabel(
+  dimension: GoalDimension,
+  moduleId: GoalFlowModuleId | null,
+): string {
+  if (dimension !== 'Depth') return dimension;
+  if (moduleId === 'ear-training' || moduleId === 'harmonic-fluency') {
+    return 'Accuracy';
+  }
+  return 'Proficiency';
+}
+
+/**
  * Classify a goal by dimension. Returns null for goals that
  * don't fit the four-dimension framework (most non-yearly-anchor
  * goals — they're standalone targets, not framework slots).
@@ -62,22 +86,29 @@ export function dimensionForGoal(goal: Goal): GoalDimension | null {
 
 /**
  * Build the umbrella subtitle from its children's dimensions.
+ *
  * Each dimension appears at most once, in the order it first
  * appears as we walk the children list — the user sees the
  * subtitle in the same order their children render below.
  *
- * Returns null when no child has a classifiable dimension;
- * caller renders no subtitle (placeholder for a Step 7 child-
- * count fallback if useful).
+ * Display labels go through `dimensionDisplayLabel` so the
+ * subtitle stays in sync with the per-child labels (e.g. ET
+ * children show "Accuracy", subtitle says "Accuracy" too — not
+ * "Depth").
+ *
+ * Returns null when no child has a classifiable dimension.
  */
 export function umbrellaSubtitle(children: ReadonlyArray<Goal>): string | null {
-  const seen = new Set<GoalDimension>();
-  const order: GoalDimension[] = [];
+  const seen = new Set<string>();
+  const order: string[] = [];
   for (const c of children) {
     const dim = dimensionForGoal(c);
-    if (dim && !seen.has(dim)) {
-      seen.add(dim);
-      order.push(dim);
+    if (!dim) continue;
+    const moduleId = moduleForMetric(c.targetMetric);
+    const label = dimensionDisplayLabel(dim, moduleId);
+    if (!seen.has(label)) {
+      seen.add(label);
+      order.push(label);
     }
   }
   if (order.length === 0) return null;

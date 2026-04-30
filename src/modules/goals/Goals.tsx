@@ -36,13 +36,13 @@ import {
 // that 6c reads from the live data layer.
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import {
+  dimensionDisplayLabel,
   dimensionForGoal,
   findChildren,
   isConcatenatedChildSummary,
   isCrossModuleUmbrella,
   umbrellaModuleId,
   umbrellaSubtitle,
-  type GoalDimension,
 } from './umbrellaSummary';
 import {
   defaultAnchorName,
@@ -572,11 +572,13 @@ function GoalRow({
   songLookup: (skillId: string) => Song | undefined;
   onEdit: () => void;
   /** When this row is a child of an umbrella, surfaces the
-   *  dimension label ("Breadth" / "Mastery" / "Depth" /
-   *  "Consistency") above the description so the user has
-   *  per-child framework context without re-reading the
-   *  umbrella's subtitle. Null = no label rendered. */
-  dimensionLabel?: GoalDimension | null;
+   *  user-facing dimension label above the description (e.g.
+   *  "Breadth", "Mastery", "Accuracy" for ET/HF Depth goals,
+   *  "Proficiency" for time-module Depth goals, "Consistency").
+   *  Caller maps the canonical dimension via
+   *  `dimensionDisplayLabel` before passing in. Null = no
+   *  label rendered. */
+  dimensionLabel?: string | null;
   /** Module accent for the dimension label. Falls back to the
    *  Goals page accent when not provided. */
   dimensionAccentHex?: string;
@@ -949,7 +951,11 @@ function UmbrellaRow({
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  // Default expanded — umbrella's own panel + children list both
+  // visible. Tapping the umbrella header collapses the entire
+  // subtree (panel + children disappear together). Children
+  // remain individually collapsible inside the subtree.
+  const [expanded, setExpanded] = useState(true);
   const subtitle = umbrellaSubtitle(childGoals);
   const showSlots = shouldShowSlots(layerType);
   const sharedModule = umbrellaModuleId(childGoals);
@@ -1031,6 +1037,13 @@ function UmbrellaRow({
 
       {expanded && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
+          {/* Chart subtitle — only on the umbrella row. Children
+              don't need it because their own unit gutter
+              ("cards reviewed" / "minutes practiced") makes the
+              data shape self-evident. */}
+          <div className="text-[11px] text-neutral-500 italic mt-1">
+            Activity toward this goal
+          </div>
           <div data-activity-area>
             {isCrossModule ? (
               <ActivityChart
@@ -1083,23 +1096,28 @@ function UmbrellaRow({
         </div>
       )}
 
-      {childGoals.length > 0 && (
+      {expanded && childGoals.length > 0 && (
         <ul
           className="pl-4 mt-1.5 ml-2 flex flex-col gap-1.5 border-l border-neutral-200 dark:border-neutral-800"
           data-umbrella-children
         >
-          {childGoals.map(c => (
-            <GoalRow
-              key={c.id}
-              goal={c}
-              layerType={layerType}
-              proficiencyDefs={proficiencyDefs}
-              songLookup={songLookup}
-              onEdit={() => onEditGoal(c)}
-              dimensionLabel={dimensionForGoal(c)}
-              dimensionAccentHex={moduleAccent}
-            />
-          ))}
+          {childGoals.map(c => {
+            const dim = dimensionForGoal(c);
+            const childModule = moduleForMetric(c.targetMetric);
+            const label = dim ? dimensionDisplayLabel(dim, childModule) : null;
+            return (
+              <GoalRow
+                key={c.id}
+                goal={c}
+                layerType={layerType}
+                proficiencyDefs={proficiencyDefs}
+                songLookup={songLookup}
+                onEdit={() => onEditGoal(c)}
+                dimensionLabel={label}
+                dimensionAccentHex={moduleAccent}
+              />
+            );
+          })}
         </ul>
       )}
     </li>
