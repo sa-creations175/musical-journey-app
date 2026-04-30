@@ -11,36 +11,48 @@ import {
 } from '../FeasibilityPill';
 
 describe('pillConfig', () => {
-  it('on_track maps to a green ✓ pill labeled "On track"', () => {
-    const cfg = pillConfig('on_track')!;
-    expect(cfg.icon).toBe('✓');
-    expect(cfg.label).toBe('On track');
-    expect(cfg.textClass).toContain('fluent');
-    expect(cfg.borderClass).toContain('fluent');
+  it('on_track → "On track" with green palette', () => {
+    expect(pillConfig('on_track')).toEqual({
+      label: 'On track',
+      bg: '#EAF3DE',
+      text: '#3B6D11',
+    });
   });
 
-  it('at_risk maps to a developing-orange ⚠ pill', () => {
-    const cfg = pillConfig('at_risk')!;
-    expect(cfg.icon).toBe('⚠');
-    expect(cfg.label).toBe('At risk');
-    expect(cfg.textClass).toContain('developing');
-    expect(cfg.borderClass).toContain('developing');
+  it('at_risk → "Pick up pace" with yellow/amber palette', () => {
+    expect(pillConfig('at_risk')).toEqual({
+      label: 'Pick up pace',
+      bg: '#FAEEDA',
+      text: '#854F0B',
+    });
   });
 
-  it('critical maps to a needswork-red ✗ pill', () => {
-    const cfg = pillConfig('critical')!;
-    expect(cfg.icon).toBe('✗');
-    expect(cfg.label).toBe('Critical');
-    expect(cfg.textClass).toContain('needswork');
-    expect(cfg.borderClass).toContain('needswork');
+  it('critical → "Act now" with orange palette', () => {
+    expect(pillConfig('critical')).toEqual({
+      label: 'Act now',
+      bg: '#FAECE7',
+      text: '#993C1D',
+    });
   });
 
-  it('unrecoverable maps to a neutral-gray ⊘ pill', () => {
-    const cfg = pillConfig('unrecoverable')!;
-    expect(cfg.icon).toBe('⊘');
-    expect(cfg.label).toBe('Unrecoverable');
-    expect(cfg.textClass).toContain('neutral');
-    expect(cfg.borderClass).toContain('neutral');
+  it('unrecoverable → "Unrecoverable" with neutral gray palette', () => {
+    expect(pillConfig('unrecoverable')).toEqual({
+      label: 'Unrecoverable',
+      bg: '#F1EFE8',
+      text: '#5F5E5A',
+    });
+  });
+
+  it('no red anywhere in the palette (no #E2 / #DC / #B9 hex roots)', () => {
+    // Sweep all four configs — guards against a regression that
+    // reintroduces red. The new design uses orange for urgency
+    // and gray for past — red reads as too final.
+    const statuses = ['on_track', 'at_risk', 'critical', 'unrecoverable'] as const;
+    for (const s of statuses) {
+      const cfg = pillConfig(s)!;
+      expect(cfg.bg.toLowerCase()).not.toMatch(/^#(e[0-3]|dc|b9)/);
+      expect(cfg.text.toLowerCase()).not.toMatch(/^#(e[0-3]|dc|b9)/);
+    }
   });
 
   it('null returns null (caller renders the inert dashed slot)', () => {

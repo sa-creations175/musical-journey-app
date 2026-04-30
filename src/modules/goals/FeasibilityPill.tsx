@@ -18,16 +18,24 @@ import type {
  */
 
 interface PillConfig {
-  icon: string;
+  /** Action-oriented label displayed inside the pill. Color
+   *  carries the urgency; the label adds the verb. */
   label: string;
-  textClass: string;
-  borderClass: string;
+  /** Inline background hex — outside the Tailwind semantic
+   *  palette by design (no red anywhere; gray for past, orange
+   *  for urgent, no alarming finality). */
+  bg: string;
+  /** Inline text color hex; paired with `bg` for contrast. */
+  text: string;
 }
 
 /**
  * Pure status → display mapping. Returns null when the input
  * has no actionable status (caller renders the inert dashed
- * placeholder instead).
+ * placeholder instead). Hex colors are inline because they sit
+ * outside the existing semantic palette by design — gray reads
+ * as "in the past" rather than alarming, orange reads as urgent
+ * without red's finality.
  */
 export function pillConfig(
   status: GoalFeasibilityStatus | null,
@@ -35,33 +43,13 @@ export function pillConfig(
   if (status === null) return null;
   switch (status) {
     case 'on_track':
-      return {
-        icon: '✓',
-        label: 'On track',
-        textClass: 'text-fluent',
-        borderClass: 'border-fluent',
-      };
+      return { label: 'On track',     bg: '#EAF3DE', text: '#3B6D11' };
     case 'at_risk':
-      return {
-        icon: '⚠',
-        label: 'At risk',
-        textClass: 'text-developing',
-        borderClass: 'border-developing',
-      };
+      return { label: 'Pick up pace', bg: '#FAEEDA', text: '#854F0B' };
     case 'critical':
-      return {
-        icon: '✗',
-        label: 'Critical',
-        textClass: 'text-needswork',
-        borderClass: 'border-needswork',
-      };
+      return { label: 'Act now',      bg: '#FAECE7', text: '#993C1D' };
     case 'unrecoverable':
-      return {
-        icon: '⊘',
-        label: 'Unrecoverable',
-        textClass: 'text-neutral-400 dark:text-neutral-500',
-        borderClass: 'border-neutral-300 dark:border-neutral-700',
-      };
+      return { label: 'Unrecoverable', bg: '#F1EFE8', text: '#5F5E5A' };
   }
 }
 
@@ -83,10 +71,10 @@ export function resolveUmbrellaStatus(
 // ── Components ────────────────────────────────────────────────
 
 const PILL_BASE_CLASSES =
-  'inline-flex items-center justify-center text-xs rounded-full px-2 py-0.5 min-w-[3.5rem] h-5';
+  'inline-flex items-center justify-center text-xs rounded-full px-2 py-0.5 h-5 whitespace-nowrap font-medium';
 
 const INERT_CLASSES =
-  'text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700';
+  'min-w-[3.5rem] text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700';
 
 /**
  * Standalone-goal pill — derives status from the goal's
@@ -130,9 +118,10 @@ function StatusPill({ status }: { status: GoalFeasibilityStatus }) {
       role="status"
       aria-label={cfg.label}
       title={cfg.label}
-      className={`${PILL_BASE_CLASSES} border ${cfg.textClass} ${cfg.borderClass}`}
+      className={PILL_BASE_CLASSES}
+      style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
-      <span aria-hidden>{cfg.icon}</span>
+      {cfg.label}
     </span>
   );
 }
