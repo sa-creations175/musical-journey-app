@@ -521,8 +521,29 @@ export function getGoalFeasibility(
     return coverageFeasibility(goal, ctx, metric);
   }
 
-  // Accuracy / consistency / item-count branches — step 7b.
+  if (isAccuracyMetric(metric)) {
+    return accuracyFeasibility(goal, ctx);
+  }
+
+  if (isConsistencyMetric(metric)) {
+    return consistencyFeasibility(goal, ctx);
+  }
+
+  // Item-count branches (song_whole_at_level / count_completed)
+  // need module-specific rate data we don't track yet — they
+  // intentionally stay 'unknown' until that data lands.
   return { kind: 'unknown' };
+}
+
+/** Accuracy metrics — `*_accuracy_overall` and `*_accuracy_specific`. */
+function isAccuracyMetric(metric: string): boolean {
+  return metric.includes('_accuracy_');
+}
+
+/** Consistency metrics — `*_sessions_per_week`, `*_sessions_per_month`,
+ *  and the practice-consistency umbrella's `practice_*` flavors. */
+function isConsistencyMetric(metric: string): boolean {
+  return metric.includes('_sessions_per_') || metric.startsWith('practice_');
 }
 
 function coverageFeasibility(
@@ -654,6 +675,213 @@ function recommendCoverage(args: {
     return `Deadline passed — reached ${args.currentValue}/${args.target}.`;
   }
   return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} items by ${dateStr}.`;
+}
+
+// ── Accuracy branch ──────────────────────────────────────────
+
+/** Percentage-point gap thresholds for accuracy goals. Accuracy
+ *  is a present-state metric (no projection — improvement rates
+ *  are too noisy at the ranges goals operate in), so the math
+ *  is gap-based rather than rate-based. Tunable from real use. */
+export const ACCURACY_GAP_AT_RISK = 5;     // ≤ 5pp below target
+export const ACCURACY_GAP_CRITICAL = 15;   // ≤ 15pp below target
+
+function accuracyFeasibility(
+  goal: Goal,
+  ctx: GoalFeasibilityContext,
+): GoalFeasibility {
+  const target = goal.targetValue;
+  if (target === null || target === undefined) {
+    return { kind: 'unknown' };
+  }
+  const current = ctx.currentValue;
+  const daysRemaining = Math.max(
+    0,
+    Math.ceil((goal.targetDate - ctx.today.getTime()) / DAY_MS),
+  );
+
+  const status = classifyAccuracyStatus(current, target, daysRemaining);
+  const recommendation = recommendAccuracy({
+    status,
+    current,
+    target,
+    daysRemaining,
+    targetDate: new Date(goal.targetDate),
+  });
+
+  return {
+    kind: 'measurable',
+    status,
+    projected: current, // accuracy: projection = current state
+    target,
+    currentValue: current,
+    daysRemaining,
+    recommendation,
+  };
+}
+
+function classifyAccuracyStatus(
+  current: number,
+  target: number,
+  daysRemaining: number,
+): GoalFeasibilityStatus {
+  if (current >= target) return 'on_track';
+  if (daysRemaining <= 0) return 'unrecoverable';
+  const gap = target - current;
+  if (gap <= ACCURACY_GAP_AT_RISK) return 'at_risk';
+  if (gap <= ACCURACY_GAP_CRITICAL) return 'critical';
+  return 'unrecoverable';
+}
+
+function recommendAccuracy(args: {
+  status: GoalFeasibilityStatus;
+  current: number;
+  target: number;
+  daysRemaining: number;
+  targetDate: Date;
+}): string {
+  const dateStr = args.targetDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const gap = Math.max(0, args.target - args.current);
+
+  if (args.status === 'on_track') {
+    return `On pace — accuracy is ${roundPercent(args.current)}%, target ${roundPercent(args.target)}%.`;
+  }
+  if (args.status === 'at_risk') {
+    return `Accuracy is ${roundPercent(args.current)}% — ${roundPercent(gap)} points below the ${roundPercent(args.target)}% target.`;
+  }
+  if (args.status === 'critical') {
+    return `Accuracy is ${roundPercent(args.current)}% — ${roundPercent(gap)} points below the ${roundPercent(args.target)}% target. Push consistency before ${dateStr}.`;
+  }
+  // unrecoverable
+  if (args.daysRemaining <= 0) {
+    return `Deadline passed — accuracy reached ${roundPercent(args.current)}%, target ${roundPercent(args.target)}%.`;
+  }
+  return `Accuracy is ${roundPercent(args.current)}% — ${roundPercent(gap)} points below the ${roundPercent(args.target)}% target, well off pace.`;
+}
+
+function roundPercent(n: number): number {
+  // Accept values in either 0-1 or 0-100 scale: caller normalizes.
+  // Round to whole percent for clean display.
+  return Math.round(n);
+}
+
+// ── Consistency branch ───────────────────────────────────────
+
+/** Pace-ratio threshold for consistency at_risk (matches
+ *  AT_RISK_RATIO so the at_risk band is defined identically
+ *  across goal types). */
+export const CONSISTENCY_AT_RISK_RATIO = AT_RISK_RATIO;
+
+function consistencyFeasibility(
+  goal: Goal,
+  ctx: GoalFeasibilityContext,
+): GoalFeasibility {
+  const target = goal.targetValue;
+  if (target === null || target === undefined) {
+    return { kind: 'unknown' };
+  }
+
+  const todayMs = ctx.today.getTime();
+  const periodStart = goal.startDate;
+  const periodEnd = goal.targetDate;
+  const daysTotal = Math.max(1, Math.ceil((periodEnd - periodStart) / DAY_MS));
+  const daysPassed = Math.max(
+    0,
+    Math.min(daysTotal, Math.ceil((todayMs - periodStart) / DAY_MS)),
+  );
+  const daysRemaining = Math.max(0, daysTotal - daysPassed);
+
+  const expectedSoFar = target * (daysPassed / daysTotal);
+  const sessionsRemaining = Math.max(0, target - ctx.currentValue);
+
+  const status = classifyConsistencyStatus({
+    current: ctx.currentValue,
+    target,
+    expectedSoFar,
+    sessionsRemaining,
+    daysRemaining,
+  });
+
+  const recommendation = recommendConsistency({
+    status,
+    current: ctx.currentValue,
+    target,
+    sessionsRemaining,
+    daysRemaining,
+    targetDate: new Date(goal.targetDate),
+  });
+
+  return {
+    kind: 'measurable',
+    status,
+    projected: Math.round(ctx.currentValue),
+    target,
+    currentValue: ctx.currentValue,
+    daysRemaining,
+    recommendation,
+  };
+}
+
+function classifyConsistencyStatus(args: {
+  current: number;
+  target: number;
+  expectedSoFar: number;
+  sessionsRemaining: number;
+  daysRemaining: number;
+}): GoalFeasibilityStatus {
+  if (args.current >= args.target) return 'on_track';
+
+  // Pace ratio: have we logged what we'd expect by now?
+  // Guards divide-by-zero at the start of the period (when
+  // expectedSoFar == 0) by treating a zero-expected window as
+  // on_track until the first day passes.
+  const ratio =
+    args.expectedSoFar > 0
+      ? args.current / args.expectedSoFar
+      : 1;
+
+  if (ratio >= 1) return 'on_track';
+  if (args.daysRemaining <= 0) return 'unrecoverable';
+  if (ratio >= CONSISTENCY_AT_RISK_RATIO) return 'at_risk';
+
+  // Below at_risk: can the remaining sessions still fit the
+  // remaining days? At most 1 session/day is realistic for
+  // consistency goals — a session is by definition a discrete
+  // practice period.
+  if (args.sessionsRemaining <= args.daysRemaining) return 'critical';
+  return 'unrecoverable';
+}
+
+function recommendConsistency(args: {
+  status: GoalFeasibilityStatus;
+  current: number;
+  target: number;
+  sessionsRemaining: number;
+  daysRemaining: number;
+  targetDate: Date;
+}): string {
+  const dateStr = args.targetDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+
+  if (args.status === 'on_track') {
+    return `On pace — ${args.current} of ${args.target} sessions logged.`;
+  }
+  if (args.status === 'at_risk') {
+    return `${args.current} of ${args.target} sessions so far — slightly behind pace.`;
+  }
+  if (args.status === 'critical') {
+    return `Need ${args.sessionsRemaining} more session${args.sessionsRemaining === 1 ? '' : 's'} in the next ${args.daysRemaining} day${args.daysRemaining === 1 ? '' : 's'}.`;
+  }
+  // unrecoverable
+  if (args.daysRemaining <= 0) {
+    return `Deadline passed — reached ${args.current}/${args.target} sessions.`;
+  }
+  return `${args.current} of ${args.target} sessions with ${args.daysRemaining} day${args.daysRemaining === 1 ? '' : 's'} left — won't fit by ${dateStr}.`;
 }
 
 /**

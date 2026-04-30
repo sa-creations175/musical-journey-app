@@ -130,28 +130,199 @@ describe('routing — non-coverage metrics fall through', () => {
     expect(out.kind).toBe('unknown');
   });
 
-  it('returns unknown for accuracy metrics (handled in 7b)', () => {
+  it('returns unknown for item-count metrics (deferred — needs per-module rate data)', () => {
     const out = getGoalFeasibility(
       mkGoal({
         scope: 'yearly',
-        targetMetric: 'ear_training_accuracy_overall',
-        targetValue: 85,
+        targetMetric: 'song_whole_at_level',
+        targetValue: 25,
+        targetUnit: 'comfortable',
       }),
-      { currentValue: 70, today: TODAY },
+      { currentValue: 8, today: TODAY },
     );
     expect(out.kind).toBe('unknown');
   });
+});
 
-  it('returns unknown for consistency metrics (handled in 7b)', () => {
+// ── Accuracy branch ──────────────────────────────────────────
+
+function etAccuracyGoal(target: number, targetDate: number): Goal {
+  return mkGoal({
+    scope: 'yearly',
+    targetMetric: 'ear_training_accuracy_overall',
+    targetValue: target,
+    targetDate,
+  });
+}
+
+describe('accuracy goals — gap-based status (no projection)', () => {
+  it('on_track when current accuracy meets or exceeds target', () => {
     const out = getGoalFeasibility(
-      mkGoal({
-        scope: 'yearly',
-        targetMetric: 'ear_training_sessions_per_week',
-        targetValue: 4,
-      }),
+      etAccuracyGoal(85, DEC_31),
+      { currentValue: 87, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('on_track');
+  });
+
+  it('at_risk when within 5 points of target', () => {
+    const out = getGoalFeasibility(
+      etAccuracyGoal(85, DEC_31),
+      { currentValue: 82, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('at_risk');
+  });
+
+  it('critical when 5–15 points below target', () => {
+    const out = getGoalFeasibility(
+      etAccuracyGoal(85, DEC_31),
+      { currentValue: 75, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('critical');
+  });
+
+  it('unrecoverable when more than 15 points below target', () => {
+    const out = getGoalFeasibility(
+      etAccuracyGoal(85, DEC_31),
+      { currentValue: 60, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
+  });
+
+  it('unrecoverable when deadline passed and target unmet', () => {
+    const yesterday = TODAY.getTime() - DAY;
+    const out = getGoalFeasibility(
+      etAccuracyGoal(85, yesterday),
+      { currentValue: 80, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
+  });
+
+  it('on_track even when deadline passed if current ≥ target', () => {
+    const yesterday = TODAY.getTime() - DAY;
+    const out = getGoalFeasibility(
+      etAccuracyGoal(85, yesterday),
+      { currentValue: 87, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('on_track');
+  });
+
+  it('recommendation includes percentages and the gap', () => {
+    const out = getGoalFeasibility(
+      etAccuracyGoal(85, DEC_31),
+      { currentValue: 75, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/75%/);
+      expect(out.recommendation).toMatch(/85%/);
+      expect(out.recommendation).toMatch(/10 points below/);
+    }
+  });
+});
+
+// ── Consistency branch ───────────────────────────────────────
+
+function weeklyConsistencyGoal(
+  target: number,
+  startDate: number,
+  targetDate: number,
+): Goal {
+  return mkGoal({
+    scope: 'weekly',
+    targetMetric: 'ear_training_sessions_per_week',
+    targetValue: target,
+    startDate,
+    targetDate,
+  });
+}
+
+describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
+  // Period: Mon Apr 27 → Tue May 5 2026 (8 days). TODAY is Thu
+  // Apr 30 noon → daysPassed = 4 (ceil), daysRemaining = 4.
+  const PERIOD_START = new Date(2026, 3, 27).getTime();
+  const PERIOD_END = new Date(2026, 4, 5).getTime();
+
+  it('on_track when current already meets target', () => {
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
+      { currentValue: 4, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('on_track');
+  });
+
+  it('on_track when ahead of expected pace', () => {
+    // expectedSoFar = 4 × 4/8 = 2; current 3 → ratio 1.5.
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
+      { currentValue: 3, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('on_track');
+  });
+
+  it('at_risk when slightly behind pace', () => {
+    // 20-day period (Apr 20 → May 10), TODAY = Apr 30 noon →
+    // daysPassed = 11, daysTotal = 20. target 20, current 10
+    // → expectedSoFar = 11, ratio = 10/11 = 0.91 → at_risk.
+    const start = new Date(2026, 3, 20).getTime();
+    const end = new Date(2026, 4, 10).getTime();
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(20, start, end),
+      { currentValue: 10, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('at_risk');
+  });
+
+  it('critical when behind pace but remaining sessions still fit remaining days', () => {
+    // 8-day period, daysPassed=4, daysRemaining=4. target 4,
+    // current 0 → ratio 0, sessionsRemaining=4 ≤ 4 → critical.
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('critical');
+  });
+
+  it('unrecoverable when remaining sessions cannot fit remaining days', () => {
+    // TODAY → Sat May 2 noon → daysPassed=6, daysRemaining=2.
+    // target 4, current 0: need 4 in 2 days → unrecoverable.
+    const may2 = new Date(2026, 4, 2, 12);
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
+      { currentValue: 0, today: may2 },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
+  });
+
+  it('unrecoverable when deadline passed and target unmet', () => {
+    const past = new Date(2026, 3, 1).getTime();   // Apr 1
+    const past2 = new Date(2026, 3, 8).getTime();  // Apr 8
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, past, past2),
       { currentValue: 2, today: TODAY },
     );
-    expect(out.kind).toBe('unknown');
+    if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
+  });
+
+  it('critical recommendation specifies sessions and days', () => {
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/Need 4 more sessions in the next 4 days/);
+    }
+  });
+
+  it('recommendation pluralizes sessions/days correctly (singular case)', () => {
+    // May 3 noon → daysPassed=ceil(6.5)=7, daysRemaining=1.
+    // target=2, current=1 → 1 session needed in 1 day.
+    const may3 = new Date(2026, 4, 3, 12);
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(2, PERIOD_START, PERIOD_END),
+      { currentValue: 1, today: may3 },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/Need 1 more session in the next 1 day\./);
+    }
   });
 });
 
