@@ -490,6 +490,35 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
     if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
   });
 
+  it('Thursday: 4 days remaining (today inclusive — Thu/Fri/Sat/Sun)', () => {
+    // Pins the daysRemaining math against the user-reported
+    // off-by-one. TODAY is Apr 30 noon (Thursday); a weekly
+    // goal at noon should still count Thursday as a remaining
+    // day. Sessions can be logged today.
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(3, PERIOD_START, PERIOD_END),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.daysRemaining).toBe(4);
+    }
+  });
+
+  it('Thursday with 0 of 3 sessions reads critical (3 ≤ 4 days), not unrecoverable', () => {
+    // Pins the strict-greater-than rule for unrecoverable:
+    // sessionsRemaining > daysRemaining → unrecoverable.
+    // 3 ≤ 4 → critical. Pace ratio ≈ 0 (well below 0.85), so
+    // it skips at_risk straight to critical.
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(3, PERIOD_START, PERIOD_END),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('critical');
+      expect(out.recommendation).toBe('Need 3 more sessions this week.');
+    }
+  });
+
   it('weekly critical recommendation uses "this week" framing', () => {
     const out = getGoalFeasibility(
       weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),

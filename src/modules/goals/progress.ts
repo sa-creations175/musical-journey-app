@@ -1073,17 +1073,35 @@ function currentConsistencyWindow(
     start = new Date(today.getFullYear(), today.getMonth(), 1);
     end = new Date(today.getFullYear(), today.getMonth() + 1, 1);
   }
+
+  // Pace math uses continuous-time elapsedFraction so the
+  // at_risk band crosses cleanly through the day rather than
+  // jumping at midnight.
   const totalMs = end.getTime() - start.getTime();
   const elapsedMs = Math.max(
     0,
     Math.min(totalMs, today.getTime() - start.getTime()),
   );
-  const remainingMs = Math.max(0, end.getTime() - today.getTime());
+  const elapsedFraction = totalMs > 0 ? elapsedMs / totalMs : 1;
+
+  // daysRemaining is a whole-day count INCLUDING today — a
+  // Thursday at any clock time has 4 days remaining
+  // (Thu/Fri/Sat/Sun) since the user can still log a session
+  // on Thursday. Computed from start-of-today (00:00) to the
+  // window's end so the count is independent of current hour.
+  const startOfToday = new Date(today);
+  startOfToday.setHours(0, 0, 0, 0);
+  const remainingDayMs = Math.max(
+    0,
+    end.getTime() - startOfToday.getTime(),
+  );
+  const daysRemaining = Math.max(0, Math.round(remainingDayMs / DAY_MS));
+
   return {
     start: start.getTime(),
     end: end.getTime(),
-    elapsedFraction: totalMs > 0 ? elapsedMs / totalMs : 1,
-    daysRemaining: Math.max(0, Math.ceil(remainingMs / DAY_MS)),
+    elapsedFraction,
+    daysRemaining,
   };
 }
 
