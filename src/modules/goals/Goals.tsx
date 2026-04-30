@@ -238,6 +238,8 @@ export default function Goals() {
         getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW),
         getPref<unknown>(PREF_GOALS_ROW_COLLAPSE, {}),
       ]);
+      // TEMP step 6g.1 diagnostic — revert once persistence verified.
+      console.log('[goals.rowCollapse] hydrate read:', rows);
       setCollapseOverrides(collapse ?? {});
       setHiddenLayers(Array.isArray(hidden) ? hidden : []);
       setActiveView(parseGoalsView(view));
@@ -263,6 +265,8 @@ export default function Goals() {
 
   useEffect(() => {
     if (!hydrated) return;
+    // TEMP step 6g.1 diagnostic — revert once persistence verified.
+    console.log('[goals.rowCollapse] persist write:', rowCollapse);
     void setPref(PREF_GOALS_ROW_COLLAPSE, rowCollapse);
   }, [rowCollapse, hydrated]);
 
@@ -272,8 +276,15 @@ export default function Goals() {
   // so every row consults the same source of truth.
   const isRowExpanded = (goalId: string, isUmbrella: boolean) =>
     resolveRowExpanded(rowCollapse, goalId, isUmbrella);
-  const onToggleRow = (goalId: string, isUmbrella: boolean) =>
-    setRowCollapse(s => toggleRowExpanded(s, goalId, isUmbrella));
+  const onToggleRow = (goalId: string, isUmbrella: boolean) => {
+    // TEMP step 6g.1 diagnostic — revert once persistence verified.
+    console.log('[goals.rowCollapse] toggle invoked:', { goalId, isUmbrella });
+    setRowCollapse(s => {
+      const next = toggleRowExpanded(s, goalId, isUmbrella);
+      console.log('[goals.rowCollapse] toggle next state:', next);
+      return next;
+    });
+  };
 
   const goalsByScope = useMemo(() => groupByScope(goals ?? []), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));
