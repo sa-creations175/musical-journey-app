@@ -50,9 +50,8 @@ import {
   isLegacyAnchorName,
 } from './yearlyAnchorReview';
 import {
-  parseGoalsView,
-  PREF_GOALS_ACTIVE_VIEW,
-  DEFAULT_GOALS_VIEW,
+  loadGoalsView,
+  saveGoalsView,
   type GoalsView,
 } from './goalsView';
 import {
@@ -183,7 +182,10 @@ export default function Goals() {
 
   const [collapseOverrides, setCollapseOverrides] = useState<LayerCollapseOverrides>({});
   const [hiddenLayers, setHiddenLayers] = useState<GoalScope[]>([]);
-  const [activeView, setActiveView] = useState<GoalsView>(DEFAULT_GOALS_VIEW);
+  // Lazy initializer reads localStorage on first render — same
+  // synchronous-no-race pattern as rowCollapse. No hydrate effect
+  // needed; first paint already reflects the persisted choice.
+  const [activeView, setActiveView] = useState<GoalsView>(() => loadGoalsView());
   // Lazy initializer reads localStorage on first render — synchronous,
   // so the very first paint already reflects the persisted state. No
   // hydrate effect needed for this pref (unlike the userPrefs-backed
@@ -236,19 +238,18 @@ export default function Goals() {
     setOnboardingActive(true);
   }
 
-  // Hydrate userPrefs-backed state once. rowCollapse is NOT in this
-  // path — it's already populated synchronously from localStorage
-  // via the useState lazy initializer.
+  // Hydrate userPrefs-backed state once. activeView and rowCollapse
+  // are NOT in this path — they're populated synchronously from
+  // localStorage via useState lazy initializers (sidesteps the
+  // userPrefs sync race that wiped writes on rapid reload).
   useEffect(() => {
     (async () => {
-      const [collapse, hidden, view] = await Promise.all([
+      const [collapse, hidden] = await Promise.all([
         getPref<LayerCollapseOverrides>(PREF_LAYER_COLLAPSE, {}),
         getPref<GoalScope[]>(PREF_HIDDEN_LAYERS, []),
-        getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW),
       ]);
       setCollapseOverrides(collapse ?? {});
       setHiddenLayers(Array.isArray(hidden) ? hidden : []);
-      setActiveView(parseGoalsView(view));
       setHydrated(true);
     })();
   }, []);
@@ -263,10 +264,13 @@ export default function Goals() {
     void setPref(PREF_HIDDEN_LAYERS, hiddenLayers);
   }, [hiddenLayers, hydrated]);
 
+  // Persist activeView synchronously to localStorage on every
+  // change. No hydrated-flag gate needed — the lazy initializer
+  // ensures the first render's state already matches storage,
+  // so the first effect run is a harmless idempotent write.
   useEffect(() => {
-    if (!hydrated) return;
-    void setPref(PREF_GOALS_ACTIVE_VIEW, activeView);
-  }, [activeView, hydrated]);
+    saveGoalsView(activeView);
+  }, [activeView]);
 
   // Persist rowCollapse to localStorage on every change. Synchronous
   // write, no race conditions, no sync layer to fight.

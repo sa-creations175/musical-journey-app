@@ -14,11 +14,10 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db, type Goal } from '../../../lib/db';
-import { getPref, setPref } from '../../../lib/userPrefs';
 import {
-  parseGoalsView,
-  PREF_GOALS_ACTIVE_VIEW,
-  DEFAULT_GOALS_VIEW,
+  loadGoalsView,
+  saveGoalsView,
+  STORAGE_KEY_GOALS_ACTIVE_VIEW,
 } from '../goalsView';
 import {
   isCurrentOrUpcoming,
@@ -71,22 +70,25 @@ beforeEach(async () => {
 // View toggle pref round-trip
 // -------------------------------------------------------------
 
-describe('view toggle pref', () => {
-  it('falls back to timeframe on first visit', async () => {
-    const raw = await getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW);
-    expect(parseGoalsView(raw)).toBe('timeframe');
+describe('view toggle (localStorage)', () => {
+  it('falls back to timeframe on first visit', () => {
+    expect(loadGoalsView()).toBe('timeframe');
   });
 
-  it('persists module view across re-read', async () => {
-    await setPref(PREF_GOALS_ACTIVE_VIEW, 'module');
-    const raw = await getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW);
-    expect(parseGoalsView(raw)).toBe('module');
+  it('persists module view across re-read', () => {
+    saveGoalsView('module');
+    expect(loadGoalsView()).toBe('module');
   });
 
-  it('snaps a corrupt write back to the timeframe default', async () => {
-    await setPref(PREF_GOALS_ACTIVE_VIEW, 'legacy-grid');
-    const raw = await getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW);
-    expect(parseGoalsView(raw)).toBe('timeframe');
+  it('snaps a corrupt write back to the timeframe default', () => {
+    localStorage.setItem(STORAGE_KEY_GOALS_ACTIVE_VIEW, 'legacy-grid');
+    expect(loadGoalsView()).toBe('timeframe');
+  });
+
+  it('does NOT route through userPrefs / Dexie (regression guard)', async () => {
+    saveGoalsView('module');
+    const dexieRow = await db.userPrefs.get(STORAGE_KEY_GOALS_ACTIVE_VIEW);
+    expect(dexieRow).toBeUndefined();
   });
 });
 
