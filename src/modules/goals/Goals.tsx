@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Goal, type GoalScope, type ProficiencyDefinition, type Song } from '../../lib/db';
+import { db, type Goal, type GoalScope, type GoalStatus, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
@@ -12,6 +12,12 @@ import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
 import { describeGoalTarget } from './describeGoal';
+import {
+  progressSlotState,
+  progressSlotText,
+  progressSlotPercent,
+  shouldShowSlots,
+} from './goalRowSlots';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -465,6 +471,7 @@ function LayerSection({
                 <GoalRow
                   key={g.id}
                   goal={g}
+                  layerType={layer.type}
                   proficiencyDefs={proficiencyDefs}
                   songLookup={songLookup}
                   onEdit={() => onEditGoal(g)}
@@ -487,32 +494,175 @@ function LayerSection({
   );
 }
 
+/**
+ * Phase 2 step 6a — GoalRow with reserved progress + feasibility
+ * slots and a collapsed / expanded anatomy.
+ *
+ * Collapsed (default): description + target preview + progress
+ * slot + feasibility slot — all glanceable in one tap target.
+ *
+ * Expanded: activity-chart placeholder (filled in 6b/6c) +
+ * progress bar block + feasibility detail block + a divider, then
+ * Edit / Delete actions. The divider keeps the data display
+ * visually separate from the row-level actions.
+ *
+ * Both slots render in collapsed AND expanded states for
+ * aspirational layers (`two_to_three_year`, `lifetime`) the slots
+ * are skipped entirely — those layers are open-text reflections
+ * with no measurable progress.
+ *
+ * Slot DOM hooks (`data-progress-slot`, `data-feasibility-slot`,
+ * `data-activity-area`) are stable selectors Step 7 can target
+ * without retrofitting the layout.
+ */
 function GoalRow({
   goal,
+  layerType,
   proficiencyDefs,
   songLookup,
   onEdit,
 }: {
   goal: Goal;
+  layerType: LayerDef['type'];
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEdit: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
+  const slotState = progressSlotState(goal, layerType);
+  const showSlots = shouldShowSlots(layerType);
+  const progressText = progressSlotText(slotState);
+  const progressPct = progressSlotPercent(slotState);
+
+  const handleDelete = async () => {
+    if (!confirm('Delete this goal? This moves it to abandoned status.')) return;
+    try {
+      await db.goals.update(goal.id, {
+        status: 'abandoned' satisfies GoalStatus,
+      });
+    } catch (err) {
+      console.warn('[goals] delete failed', err);
+    }
+  };
+
   return (
-    <li>
+    <li data-testid="goal-row">
       <button
         type="button"
-        onClick={onEdit}
-        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
+        onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
+        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
       >
-        <div className="text-sm text-neutral-700 dark:text-neutral-200">
-          {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-neutral-700 dark:text-neutral-200">
+            {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+          </div>
+          {target && (
+            <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
+          )}
         </div>
-        {target && (
-          <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
+
+        {showSlots && (
+          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            <span
+              data-progress-slot
+              className="text-xs tabular-nums text-neutral-600 dark:text-neutral-300 min-w-[3.5rem] text-right"
+            >
+              {progressText}
+            </span>
+            <span
+              data-feasibility-slot
+              aria-hidden
+              className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
+              title="Feasibility — coming in step 7"
+            >
+              —
+            </span>
+          </div>
         )}
       </button>
+
+      {expanded && (
+        <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
+          {/* Activity chart slot — wired in step 6b/6c. Reserved
+              height keeps the expanded row from jumping when real
+              chart components mount. */}
+          <div
+            data-activity-area
+            className="h-20 rounded border border-dashed border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-[11px] uppercase tracking-wide text-neutral-400"
+            aria-hidden
+          >
+            activity chart — step 6b
+          </div>
+
+          {showSlots && (
+            <div data-progress-slot data-variant="expanded" className="space-y-1">
+              {slotState.kind === 'in-progress' && progressPct !== null && (
+                <>
+                  <div className="h-2 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${progressPct}%`,
+                        backgroundColor: GOALS_META.accentHex,
+                      }}
+                    />
+                  </div>
+                  <div className="text-xs text-neutral-500 tabular-nums">
+                    {progressText}
+                  </div>
+                </>
+              )}
+              {slotState.kind === 'not-started' && (
+                <div className="text-xs text-neutral-500 italic">Not started</div>
+              )}
+              {slotState.kind === 'umbrella' && (
+                <div className="text-xs text-neutral-500 italic">
+                  Rolls up from sub-goals
+                </div>
+              )}
+            </div>
+          )}
+
+          {showSlots && (
+            <div
+              data-feasibility-slot
+              data-variant="expanded"
+              className="text-xs text-neutral-400 italic"
+              aria-hidden
+            >
+              Feasibility status arrives in step 7
+            </div>
+          )}
+
+          {/* Divider — keeps actions visually distinct from data display. */}
+          <hr className="border-neutral-200 dark:border-neutral-800" />
+
+          <div className="flex items-center gap-2" data-testid="goal-row-actions">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              className="text-xs px-2.5 py-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleDelete();
+              }}
+              className="text-xs px-2.5 py-1 rounded text-needswork hover:bg-needswork/10"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
     </li>
   );
 }
