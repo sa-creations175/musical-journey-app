@@ -8,6 +8,7 @@ import {
   dimensionDisplayLabel,
   umbrellaSubtitle,
   findChildren,
+  findAllChildren,
   umbrellaModuleId,
   isCrossModuleUmbrella,
   isConcatenatedChildSummary,
@@ -195,6 +196,25 @@ describe('findChildren', () => {
     const umbrella = mkGoal({ id: 'u1', scope: 'yearly', isUmbrella: true });
     const out = findChildren(umbrella, [umbrella]);
     expect(out).toEqual([]);
+  });
+});
+
+describe('findAllChildren', () => {
+  it('includes children at any scope, not just the umbrella scope', () => {
+    const umbrella = mkGoal({ id: 'u1', scope: 'yearly', isUmbrella: true });
+    const all = [
+      umbrella,
+      mkGoal({ id: 'c1', scope: 'yearly',  parentGoalId: 'u1' }),
+      mkGoal({ id: 'c2', scope: 'monthly', parentGoalId: 'u1' }),
+      mkGoal({ id: 'c3', scope: 'weekly',  parentGoalId: 'u1' }),
+      mkGoal({ id: 'c4', scope: 'yearly',  parentGoalId: 'other' }),
+    ];
+    expect(findAllChildren(umbrella, all).map(c => c.id)).toEqual(['c1', 'c2', 'c3']);
+  });
+
+  it('does not include the umbrella in its own children list', () => {
+    const umbrella = mkGoal({ id: 'u1', isUmbrella: true });
+    expect(findAllChildren(umbrella, [umbrella])).toEqual([]);
   });
 });
 

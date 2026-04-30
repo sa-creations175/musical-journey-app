@@ -38,6 +38,7 @@ import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import {
   dimensionDisplayLabel,
   dimensionForGoal,
+  findAllChildren,
   findChildren,
   isConcatenatedChildSummary,
   isCrossModuleUmbrella,
@@ -54,7 +55,11 @@ import {
   DEFAULT_GOALS_VIEW,
   type GoalsView,
 } from './goalsView';
-import { groupByModule } from './goalsByModule';
+import {
+  groupByModule,
+  isCurrentOrUpcoming,
+  ORDERED_GOAL_MODULES,
+} from './goalsByModule';
 import { MODULE_DISPLAY_NAME } from './YearlyAnchorFlow';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
@@ -392,7 +397,15 @@ export default function Goals() {
           )}
         </div>
       ) : (
-        <ByModulePlaceholder />
+        <ByModuleView
+          goals={goals}
+          proficiencyDefs={proficiencyDefs}
+          songLookup={songLookup}
+          onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
+          onSetYearlyAnchor={moduleId =>
+            setAnchorMode({ moduleId: moduleId as AnchorModuleId })
+          }
+        />
       )}
 
       <CustomizeLayersModal
@@ -1239,21 +1252,186 @@ function ViewToggle({
 }
 
 /**
- * Phase 2 step 6d — placeholder for the by-module view.
- * Kept intentionally simple in 6d: the toggle persistence and
- * conditional rendering are the architectural commit. The real
- * by-module hierarchy + dashed-anchor backstop ship in step 6f.
+ * Phase 2 step 6f — by-module view.
+ *
+ * Module is top-level. Each module section shows either its
+ * yearly umbrella (with full child hierarchy via findAllChildren)
+ * or a dashed YearlyAnchorBackstop prompting the user to set one.
+ * Standalone non-umbrella goals at lower scopes within the same
+ * module render below the umbrella row.
+ *
+ * Goals are filtered to the current period + 7-day lookahead
+ * window per spec — no past, no farther future. Aspirational
+ * scopes are excluded (they live in by-timeframe's 2-3 year /
+ * lifetime layers).
+ *
+ * Step 6g adds the per-section collapse state + persistence on
+ * top of this structure.
  */
-function ByModulePlaceholder() {
+function ByModuleView({
+  goals,
+  proficiencyDefs,
+  songLookup,
+  onEditGoal,
+  onSetYearlyAnchor,
+}: {
+  goals: Goal[];
+  proficiencyDefs: ProficiencyDefinition[];
+  songLookup: (skillId: string) => Song | undefined;
+  onEditGoal: (g: Goal) => void;
+  onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
+}) {
+  // Stable across re-renders within one mount; matches the
+  // pattern used by LiveActivityChart elsewhere.
+  const today = useMemo(() => new Date(), []);
+  const filtered = useMemo(
+    () => goals.filter(g => isCurrentOrUpcoming(g, today)),
+    [goals, today],
+  );
+
   return (
-    <div className="py-12 text-center space-y-2">
-      <p className="text-sm text-neutral-500">
-        By-module view arrives in step 6f.
-      </p>
-      <p className="text-xs text-neutral-400">
-        Switch back to <span className="font-medium">By timeframe</span> to see your goals.
-      </p>
+    <div className="flex flex-col gap-6">
+      {ORDERED_GOAL_MODULES.map(moduleId => (
+        <ByModuleSection
+          key={moduleId}
+          moduleId={moduleId}
+          allGoals={filtered}
+          proficiencyDefs={proficiencyDefs}
+          songLookup={songLookup}
+          onEditGoal={onEditGoal}
+          onSetYearlyAnchor={onSetYearlyAnchor}
+        />
+      ))}
     </div>
+  );
+}
+
+/**
+ * One module's section in the by-module view: header in module
+ * accent, then either the yearly umbrella row (with full child
+ * hierarchy) or the dashed YearlyAnchorBackstop. Standalone
+ * non-umbrella goals inside the module render flat below.
+ */
+function ByModuleSection({
+  moduleId,
+  allGoals,
+  proficiencyDefs,
+  songLookup,
+  onEditGoal,
+  onSetYearlyAnchor,
+}: {
+  moduleId: GoalFlowModuleId;
+  allGoals: Goal[];
+  proficiencyDefs: ProficiencyDefinition[];
+  songLookup: (skillId: string) => Song | undefined;
+  onEditGoal: (g: Goal) => void;
+  onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
+}) {
+  // A goal belongs to this module when its derived module
+  // matches. Non-umbrella → moduleForMetric. Umbrella → same
+  // function over its children via umbrellaModuleId.
+  const moduleGoals = allGoals.filter(g => {
+    if (g.isUmbrella) {
+      return umbrellaModuleId(findAllChildren(g, allGoals)) === moduleId;
+    }
+    return moduleForMetric(g.targetMetric) === moduleId;
+  });
+
+  const yearlyUmbrella = moduleGoals.find(
+    g => g.isUmbrella && g.scope === 'yearly',
+  );
+
+  // "Standalone" = not the umbrella itself and not parented to
+  // it. (Parented goals already render under <UmbrellaRow> via
+  // findAllChildren.)
+  const standalone = moduleGoals.filter(
+    g =>
+      g.id !== yearlyUmbrella?.id &&
+      (yearlyUmbrella ? g.parentGoalId !== yearlyUmbrella.id : true),
+  );
+
+  const meta = moduleMetaById(moduleId);
+  const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+
+  return (
+    <section>
+      <h2
+        className="text-sm font-medium uppercase tracking-wide mb-2"
+        style={{ color: meta?.accentHex }}
+      >
+        {label}
+      </h2>
+
+      {yearlyUmbrella ? (
+        <ul className="flex flex-col gap-1.5">
+          <UmbrellaRow
+            umbrella={yearlyUmbrella}
+            childGoals={findAllChildren(yearlyUmbrella, allGoals)}
+            layerType="measurable"
+            proficiencyDefs={proficiencyDefs}
+            songLookup={songLookup}
+            onEditGoal={onEditGoal}
+          />
+        </ul>
+      ) : (
+        <YearlyAnchorBackstop
+          moduleId={moduleId}
+          onClick={() => onSetYearlyAnchor(moduleId)}
+        />
+      )}
+
+      {standalone.length > 0 && (
+        <ul className="flex flex-col gap-1.5 mt-2">
+          {standalone.map(g =>
+            g.isUmbrella ? (
+              <UmbrellaRow
+                key={g.id}
+                umbrella={g}
+                childGoals={findAllChildren(g, allGoals)}
+                layerType="measurable"
+                proficiencyDefs={proficiencyDefs}
+                songLookup={songLookup}
+                onEditGoal={onEditGoal}
+              />
+            ) : (
+              <GoalRow
+                key={g.id}
+                goal={g}
+                layerType="measurable"
+                proficiencyDefs={proficiencyDefs}
+                songLookup={songLookup}
+                onEdit={() => onEditGoal(g)}
+              />
+            ),
+          )}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Dashed prompt that lives in a module section when no yearly
+ * umbrella exists. Permanent until the user sets one. Tap opens
+ * YearlyAnchorFlow with the module pre-filled.
+ */
+function YearlyAnchorBackstop({
+  moduleId,
+  onClick,
+}: {
+  moduleId: GoalFlowModuleId;
+  onClick: () => void;
+}) {
+  const meta = moduleMetaById(moduleId);
+  const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left px-3 py-3 rounded border border-dashed border-neutral-300 dark:border-neutral-700 text-sm text-neutral-500 italic hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
+    >
+      Set a yearly anchor for {label}
+    </button>
   );
 }
 

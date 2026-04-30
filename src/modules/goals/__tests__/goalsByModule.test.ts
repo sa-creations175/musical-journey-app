@@ -15,7 +15,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { Goal } from '../../../lib/db';
-import { groupByModule } from '../goalsByModule';
+import {
+  groupByModule,
+  isCurrentOrUpcoming,
+  ORDERED_GOAL_MODULES,
+} from '../goalsByModule';
 
 function mkGoal(overrides: Partial<Goal> = {}): Goal {
   return {
@@ -150,5 +154,115 @@ describe('groupByModule', () => {
     const c = mkGoal({ id: 'c', targetMetric: 'ear_training_sessions_per_week' });
     const out = groupByModule([a, b, c], [a, b, c]);
     expect(out[0].goals.map(g => g.id)).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('ORDERED_GOAL_MODULES', () => {
+  it('lists the five live goal-flow modules in nav order plus practice-consistency last', () => {
+    expect(ORDERED_GOAL_MODULES).toEqual([
+      'harmonic-fluency',
+      'ear-training',
+      'shapes-and-patterns',
+      'repertoire',
+      'production',
+      'practice-consistency',
+    ]);
+  });
+});
+
+describe('isCurrentOrUpcoming', () => {
+  const TODAY = new Date(2026, 3, 29, 12); // April 29 2026, noon
+  const day = 86_400_000;
+
+  it('includes a current weekly goal (started in the past, ends in the future)', () => {
+    const g = mkGoal({
+      scope: 'weekly',
+      startDate: TODAY.getTime() - 2 * day,
+      targetDate: TODAY.getTime() + 4 * day,
+    });
+    expect(isCurrentOrUpcoming(g, TODAY)).toBe(true);
+  });
+
+  it('includes a goal that starts within the lookahead window', () => {
+    const g = mkGoal({
+      scope: 'weekly',
+      startDate: TODAY.getTime() + 3 * day,
+      targetDate: TODAY.getTime() + 10 * day,
+    });
+    expect(isCurrentOrUpcoming(g, TODAY)).toBe(true);
+  });
+
+  it('excludes a goal whose targetDate has already passed', () => {
+    const g = mkGoal({
+      scope: 'weekly',
+      startDate: TODAY.getTime() - 14 * day,
+      targetDate: TODAY.getTime() - 1 * day,
+    });
+    expect(isCurrentOrUpcoming(g, TODAY)).toBe(false);
+  });
+
+  it('excludes a goal that starts beyond the lookahead window', () => {
+    const g = mkGoal({
+      scope: 'weekly',
+      startDate: TODAY.getTime() + 14 * day,
+      targetDate: TODAY.getTime() + 21 * day,
+    });
+    expect(isCurrentOrUpcoming(g, TODAY)).toBe(false);
+  });
+
+  it('excludes aspirational scopes regardless of dates', () => {
+    expect(
+      isCurrentOrUpcoming(
+        mkGoal({
+          scope: 'two_to_three_year',
+          startDate: TODAY.getTime() - day,
+          targetDate: TODAY.getTime() + 365 * day,
+        }),
+        TODAY,
+      ),
+    ).toBe(false);
+    expect(
+      isCurrentOrUpcoming(
+        mkGoal({
+          scope: 'lifetime',
+          startDate: TODAY.getTime() - day,
+          targetDate: TODAY.getTime() + 365 * day,
+        }),
+        TODAY,
+      ),
+    ).toBe(false);
+  });
+
+  it('includes quarterly and yearly scopes alongside weekly/monthly', () => {
+    expect(
+      isCurrentOrUpcoming(
+        mkGoal({
+          scope: 'quarterly',
+          startDate: TODAY.getTime() - 30 * day,
+          targetDate: TODAY.getTime() + 60 * day,
+        }),
+        TODAY,
+      ),
+    ).toBe(true);
+    expect(
+      isCurrentOrUpcoming(
+        mkGoal({
+          scope: 'yearly',
+          startDate: TODAY.getTime() - 100 * day,
+          targetDate: TODAY.getTime() + 200 * day,
+        }),
+        TODAY,
+      ),
+    ).toBe(true);
+  });
+
+  it('respects a custom lookaheadDays value', () => {
+    const g = mkGoal({
+      scope: 'weekly',
+      startDate: TODAY.getTime() + 14 * day,
+      targetDate: TODAY.getTime() + 21 * day,
+    });
+    expect(isCurrentOrUpcoming(g, TODAY, 7)).toBe(false);
+    expect(isCurrentOrUpcoming(g, TODAY, 21)).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import type { Goal } from '../../lib/db';
+import type { Goal, GoalScope } from '../../lib/db';
 import { MODULE_ORDER } from '../../lib/moduleMeta';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import { findChildren, umbrellaModuleId } from './umbrellaSummary';
@@ -53,6 +53,58 @@ const GOAL_FLOW_MODULE_IDS: ReadonlySet<GoalFlowModuleId> = new Set([
   'production',
   'practice-consistency',
 ]);
+
+/**
+ * Canonical iteration order for the by-module view: MODULE_ORDER
+ * filtered to goal-flow modules, then practice-consistency at
+ * the end. Stable across the app so subheaders + module
+ * sections stay in sync.
+ */
+export const ORDERED_GOAL_MODULES: ReadonlyArray<GoalFlowModuleId> = [
+  ...MODULE_ORDER
+    .filter(m => GOAL_FLOW_MODULE_IDS.has(m.id as GoalFlowModuleId))
+    .map(m => m.id as GoalFlowModuleId),
+  ...TAIL_GOAL_MODULES,
+];
+
+/** Scopes that participate in the by-module current-period
+ *  filter. 2-3 year and lifetime are open-text reflections;
+ *  they don't fit the "current week / month / year" model and
+ *  live in the by-timeframe view's aspirational layers instead. */
+const MEASURABLE_SCOPES: ReadonlySet<GoalScope> = new Set([
+  'weekly',
+  'monthly',
+  'quarterly',
+  'yearly',
+]);
+
+/**
+ * Predicate for the by-module view's current-period + 7-day
+ * lookahead filter.
+ *
+ * A goal qualifies when:
+ *   - its scope is measurable (weekly / monthly / quarterly /
+ *     yearly) — aspirational scopes are out of scope here
+ *   - its targetDate is still in the future
+ *   - its startDate is at most `lookaheadDays` from today (so we
+ *     surface goals starting next week alongside current ones,
+ *     but nothing beyond that window)
+ *
+ * Past goals (targetDate already elapsed) live in Practice
+ * History (Phase 7), not in the active home view.
+ *
+ * `lookaheadDays` defaults to 7 per spec; tunable parameter for
+ * later calibration.
+ */
+export function isCurrentOrUpcoming(
+  goal: Goal,
+  today: Date,
+  lookaheadDays = 7,
+): boolean {
+  if (!MEASURABLE_SCOPES.has(goal.scope)) return false;
+  const cutoff = today.getTime() + lookaheadDays * 86_400_000;
+  return goal.startDate <= cutoff && goal.targetDate > today.getTime();
+}
 
 /**
  * Group `topLevel` goals by their module, preserving nav order

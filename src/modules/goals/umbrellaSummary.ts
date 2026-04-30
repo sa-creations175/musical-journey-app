@@ -133,6 +133,23 @@ export function findChildren(
 }
 
 /**
+ * Cross-scope variant of findChildren — returns every goal whose
+ * parentGoalId points at the umbrella regardless of scope. Used
+ * by the by-module view, which renders the full yearly →
+ * monthly → weekly hierarchy under the yearly umbrella. The
+ * by-timeframe view stays on the same-scope variant since each
+ * scope layer only contains its own scope.
+ */
+export function findAllChildren(
+  umbrella: Goal,
+  allGoals: ReadonlyArray<Goal>,
+): Goal[] {
+  return allGoals.filter(
+    g => g.parentGoalId === umbrella.id && g.id !== umbrella.id,
+  );
+}
+
+/**
  * Single module for the umbrella's chart, derived from its
  * children. Returns:
  *   - the shared moduleId when every child agrees
