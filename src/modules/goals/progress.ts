@@ -679,12 +679,17 @@ function recommendCoverage(args: {
 
 // ── Accuracy branch ──────────────────────────────────────────
 
-/** Percentage-point gap thresholds for accuracy goals. Accuracy
- *  is a present-state metric (no projection — improvement rates
- *  are too noisy at the ranges goals operate in), so the math
- *  is gap-based rather than rate-based. Tunable from real use. */
-export const ACCURACY_GAP_AT_RISK = 5;     // ≤ 5pp below target
-export const ACCURACY_GAP_CRITICAL = 15;   // ≤ 15pp below target
+/** Percentage-point gap below target that triggers `at_risk`.
+ *  Accuracy improvement rates are too noisy at goal horizons,
+ *  so the math is gap-based rather than rate-based. Tunable. */
+export const ACCURACY_GAP_AT_RISK = 5;
+
+/** Fraction of a goal's period that constitutes the "critical
+ *  window" — the late-stage time pressure that bumps a stubborn
+ *  gap from `at_risk` to `critical`. 0.20 = last 20% of the
+ *  period (last ~73 days of a yearly, last ~6 of a monthly,
+ *  last ~1.4 of a weekly). Tunable. */
+export const ACCURACY_CRITICAL_WINDOW_PCT = 0.20;
 
 function accuracyFeasibility(
   goal: Goal,
@@ -695,12 +700,22 @@ function accuracyFeasibility(
     return { kind: 'unknown' };
   }
   const current = ctx.currentValue;
+  const todayMs = ctx.today.getTime();
   const daysRemaining = Math.max(
     0,
-    Math.ceil((goal.targetDate - ctx.today.getTime()) / DAY_MS),
+    Math.ceil((goal.targetDate - todayMs) / DAY_MS),
+  );
+  const totalDays = Math.max(
+    1,
+    Math.ceil((goal.targetDate - goal.startDate) / DAY_MS),
   );
 
-  const status = classifyAccuracyStatus(current, target, daysRemaining);
+  const status = classifyAccuracyStatus(
+    current,
+    target,
+    daysRemaining,
+    totalDays,
+  );
   const recommendation = recommendAccuracy({
     status,
     current,
@@ -724,13 +739,15 @@ function classifyAccuracyStatus(
   current: number,
   target: number,
   daysRemaining: number,
+  totalDays: number,
 ): GoalFeasibilityStatus {
   if (current >= target) return 'on_track';
   if (daysRemaining <= 0) return 'unrecoverable';
   const gap = target - current;
-  if (gap <= ACCURACY_GAP_AT_RISK) return 'at_risk';
-  if (gap <= ACCURACY_GAP_CRITICAL) return 'critical';
-  return 'unrecoverable';
+  const inCriticalWindow =
+    daysRemaining <= Math.max(1, Math.ceil(totalDays * ACCURACY_CRITICAL_WINDOW_PCT));
+  if (gap > ACCURACY_GAP_AT_RISK && inCriticalWindow) return 'critical';
+  return 'at_risk';
 }
 
 function recommendAccuracy(args: {
@@ -753,13 +770,16 @@ function recommendAccuracy(args: {
     return `Accuracy is ${roundPercent(args.current)}% — ${roundPercent(gap)} points below the ${roundPercent(args.target)}% target.`;
   }
   if (args.status === 'critical') {
-    return `Accuracy is ${roundPercent(args.current)}% — ${roundPercent(gap)} points below the ${roundPercent(args.target)}% target. Push consistency before ${dateStr}.`;
+    // Time-pressure framing — days remaining + gap up front, then
+    // an action phrase. Replaces the prior "Push consistency"
+    // wording so the user reads the urgency, not just a status.
+    const daysWord = args.daysRemaining === 1 ? 'day' : 'days';
+    return `${args.daysRemaining} ${daysWord} left to close a ${roundPercent(gap)}-point gap. Keep practicing to close the gap before ${dateStr}.`;
   }
-  // unrecoverable
-  if (args.daysRemaining <= 0) {
-    return `Deadline passed — accuracy reached ${roundPercent(args.current)}%, target ${roundPercent(args.target)}%.`;
-  }
-  return `Accuracy is ${roundPercent(args.current)}% — ${roundPercent(gap)} points below the ${roundPercent(args.target)}% target, well off pace.`;
+  // unrecoverable — only fires when the deadline has passed (the
+  // pre-deadline gap-only branch is gone now that critical
+  // requires the late-stage window).
+  return `Deadline passed — accuracy reached ${roundPercent(args.current)}%, target was ${roundPercent(args.target)}%.`;
 }
 
 function roundPercent(n: number): number {

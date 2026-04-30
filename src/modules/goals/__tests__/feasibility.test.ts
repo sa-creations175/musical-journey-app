@@ -155,43 +155,87 @@ function etAccuracyGoal(target: number, targetDate: number): Goal {
   });
 }
 
-describe('accuracy goals — gap-based status (no projection)', () => {
+describe('accuracy goals — gap + critical-window status', () => {
+  // Yearly goal startDate roughly Jan 1 2026 (full-year period).
+  // TODAY (Apr 30) is well outside the last 20% (≈Oct 19).
+  const YEARLY_START = new Date(2026, 0, 1).getTime();
+
+  function yearlyAccuracyGoal(target: number, targetDate: number): Goal {
+    return mkGoal({
+      scope: 'yearly',
+      targetMetric: 'ear_training_accuracy_overall',
+      targetValue: target,
+      startDate: YEARLY_START,
+      targetDate,
+    });
+  }
+
   it('on_track when current accuracy meets or exceeds target', () => {
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, DEC_31),
+      yearlyAccuracyGoal(85, DEC_31),
       { currentValue: 87, today: TODAY },
     );
     if (out.kind === 'measurable') expect(out.status).toBe('on_track');
   });
 
-  it('at_risk when within 5 points of target', () => {
+  it('at_risk when within 5 points and outside the critical window', () => {
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, DEC_31),
+      yearlyAccuracyGoal(85, DEC_31),
       { currentValue: 82, today: TODAY },
     );
     if (out.kind === 'measurable') expect(out.status).toBe('at_risk');
   });
 
-  it('critical when 5–15 points below target', () => {
+  it('at_risk when gap > 5pp BUT outside the critical window (lots of period left)', () => {
+    // Apr 30 of a Jan 1–Dec 31 period: ~245 days remaining of
+    // 365. Far outside the last 20% (~73 days). Gap-only
+    // wouldn't recover, but time pressure isn't yet on.
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, DEC_31),
+      yearlyAccuracyGoal(85, DEC_31),
+      { currentValue: 60, today: TODAY },
+    );
+    if (out.kind === 'measurable') expect(out.status).toBe('at_risk');
+  });
+
+  it('critical when gap > 5pp AND inside the critical window', () => {
+    // 30-day period ending in 5 days → in the last 20%.
+    // Gap of 10pp + late-stage time pressure → critical.
+    const periodStart = TODAY.getTime() - 25 * DAY;
+    const periodEnd = TODAY.getTime() + 5 * DAY;
+    const out = getGoalFeasibility(
+      mkGoal({
+        scope: 'monthly',
+        targetMetric: 'ear_training_accuracy_overall',
+        targetValue: 85,
+        startDate: periodStart,
+        targetDate: periodEnd,
+      }),
       { currentValue: 75, today: TODAY },
     );
     if (out.kind === 'measurable') expect(out.status).toBe('critical');
   });
 
-  it('unrecoverable when more than 15 points below target', () => {
+  it('at_risk when in critical window BUT gap ≤ 5pp', () => {
+    // Late stage but small gap — still at_risk, not critical.
+    const periodStart = TODAY.getTime() - 25 * DAY;
+    const periodEnd = TODAY.getTime() + 5 * DAY;
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, DEC_31),
-      { currentValue: 60, today: TODAY },
+      mkGoal({
+        scope: 'monthly',
+        targetMetric: 'ear_training_accuracy_overall',
+        targetValue: 85,
+        startDate: periodStart,
+        targetDate: periodEnd,
+      }),
+      { currentValue: 82, today: TODAY },
     );
-    if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
+    if (out.kind === 'measurable') expect(out.status).toBe('at_risk');
   });
 
-  it('unrecoverable when deadline passed and target unmet', () => {
+  it('unrecoverable when deadline passed and target unmet (regardless of gap)', () => {
     const yesterday = TODAY.getTime() - DAY;
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, yesterday),
+      yearlyAccuracyGoal(85, yesterday),
       { currentValue: 80, today: TODAY },
     );
     if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
@@ -200,21 +244,55 @@ describe('accuracy goals — gap-based status (no projection)', () => {
   it('on_track even when deadline passed if current ≥ target', () => {
     const yesterday = TODAY.getTime() - DAY;
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, yesterday),
+      yearlyAccuracyGoal(85, yesterday),
       { currentValue: 87, today: TODAY },
     );
     if (out.kind === 'measurable') expect(out.status).toBe('on_track');
   });
 
-  it('recommendation includes percentages and the gap', () => {
+  it('critical recommendation surfaces days-remaining + gap up front', () => {
+    const periodStart = TODAY.getTime() - 25 * DAY;
+    const periodEnd = TODAY.getTime() + 5 * DAY;
     const out = getGoalFeasibility(
-      etAccuracyGoal(85, DEC_31),
+      mkGoal({
+        scope: 'monthly',
+        targetMetric: 'ear_training_accuracy_overall',
+        targetValue: 85,
+        startDate: periodStart,
+        targetDate: periodEnd,
+      }),
       { currentValue: 75, today: TODAY },
     );
     if (out.kind === 'measurable') {
+      expect(out.status).toBe('critical');
+      expect(out.recommendation).toMatch(/^\d+ days? left to close a \d+-point gap\./);
+      expect(out.recommendation).toMatch(/Keep practicing to close the gap/);
+    }
+  });
+
+  it('at_risk recommendation states the gap', () => {
+    const out = getGoalFeasibility(
+      yearlyAccuracyGoal(85, DEC_31),
+      { currentValue: 75, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('at_risk');
       expect(out.recommendation).toMatch(/75%/);
       expect(out.recommendation).toMatch(/85%/);
       expect(out.recommendation).toMatch(/10 points below/);
+    }
+  });
+
+  it('unrecoverable recommendation acknowledges deadline passed', () => {
+    const yesterday = TODAY.getTime() - DAY;
+    const out = getGoalFeasibility(
+      yearlyAccuracyGoal(85, yesterday),
+      { currentValue: 60, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/Deadline passed/);
+      expect(out.recommendation).toMatch(/reached 60%/);
+      expect(out.recommendation).toMatch(/target was 85%/);
     }
   });
 });
