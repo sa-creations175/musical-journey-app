@@ -565,6 +565,7 @@ function GoalRow({
   onEdit,
   dimensionLabel,
   dimensionAccentHex,
+  omitActivityChart,
 }: {
   goal: Goal;
   layerType: LayerDef['type'];
@@ -579,6 +580,12 @@ function GoalRow({
    *  `dimensionDisplayLabel` before passing in. Null = no
    *  label rendered. */
   dimensionLabel?: string | null;
+  /** When true, the expanded panel skips the activity chart
+   *  entirely. Used by UmbrellaRow for its children — they
+   *  share the umbrella's module, so their charts would be
+   *  identical to the umbrella's. Standalone goals (no parent
+   *  umbrella) keep their chart. */
+  omitActivityChart?: boolean;
   /** Module accent for the dimension label. Falls back to the
    *  Goals page accent when not provided. */
   dimensionAccentHex?: string;
@@ -652,9 +659,11 @@ function GoalRow({
               step 6b. Step 6c swaps the mock generator for the
               live getDailyActivity helper without disturbing the
               <ActivityChart> contract. */}
-          <div data-activity-area>
-            <LiveActivityChart goal={goal} />
-          </div>
+          {!omitActivityChart && (
+            <div data-activity-area>
+              <LiveActivityChart goal={goal} />
+            </div>
+          )}
 
           {showSlots && (
             <div data-progress-slot data-variant="expanded" className="space-y-1">
@@ -1115,6 +1124,7 @@ function UmbrellaRow({
                 onEdit={() => onEditGoal(c)}
                 dimensionLabel={label}
                 dimensionAccentHex={moduleAccent}
+                omitActivityChart
               />
             );
           })}
