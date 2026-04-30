@@ -505,9 +505,13 @@ export function getGoalFeasibility(
 ): GoalFeasibility {
   // Aspirational scopes — open-text reflections, no measurable
   // target. Always render a motivational placeholder instead of
-  // computing a status.
+  // computing a status. Phrase is seeded by goal.id so the same
+  // goal always shows the same phrase across renders.
   if (goal.scope === 'two_to_three_year' || goal.scope === 'lifetime') {
-    return { kind: 'aspirational', message: pickAspirationalPlaceholder() };
+    return {
+      kind: 'aspirational',
+      message: pickAspirationalPlaceholder(goal.id),
+    };
   }
 
   const metric = goal.targetMetric;
@@ -632,10 +636,13 @@ function recommendCoverage(args: {
   const remainingItems = Math.max(0, args.target - args.currentValue);
 
   if (args.status === 'on_track') {
-    return `On pace — projected ${args.projected}/${args.target} by ${dateStr}.`;
+    // Projected ≥ target — "X/Y" with X > Y reads inverted, so
+    // drop the projected number entirely and frame around the
+    // target itself.
+    return `On pace — projected to cover all ${args.target} items by ${dateStr}.`;
   }
   if (args.status === 'at_risk') {
-    return `At current pace, projected ${args.projected}/${args.target} by ${dateStr}.`;
+    return `At current pace, projected to cover ${args.projected} of ${args.target} items by ${dateStr}.`;
   }
   if (args.status === 'critical') {
     const weeksLeft = Math.max(1, Math.ceil(args.daysRemaining / 7));
@@ -646,10 +653,21 @@ function recommendCoverage(args: {
   if (args.daysRemaining <= 0) {
     return `Deadline passed — reached ${args.currentValue}/${args.target}.`;
   }
-  return `At full pace, projected ${args.doubledProjected}/${args.target} by ${dateStr}.`;
+  return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} items by ${dateStr}.`;
 }
 
-function pickAspirationalPlaceholder(): string {
-  const i = Math.floor(Math.random() * ASPIRATIONAL_PLACEHOLDERS.length);
-  return ASPIRATIONAL_PLACEHOLDERS[i];
+/**
+ * Deterministic pick from the placeholder pool keyed on goal.id.
+ * The same goal always gets the same phrase across renders, but
+ * different goals distribute across the pool. Simple djb2-style
+ * hash — speed and distribution good enough for a 5-element pool.
+ */
+function pickAspirationalPlaceholder(goalId: string): string {
+  let hash = 5381;
+  for (let i = 0; i < goalId.length; i++) {
+    hash = ((hash << 5) + hash + goalId.charCodeAt(i)) | 0;
+  }
+  const idx =
+    Math.abs(hash) % ASPIRATIONAL_PLACEHOLDERS.length;
+  return ASPIRATIONAL_PLACEHOLDERS[idx];
 }

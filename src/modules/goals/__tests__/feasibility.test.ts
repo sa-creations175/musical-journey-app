@@ -81,16 +81,41 @@ describe('aspirational scopes', () => {
 
   it('returns one of the five canonical placeholder strings', () => {
     expect(ASPIRATIONAL_PLACEHOLDERS).toHaveLength(5);
-    // Sample 25 picks; every result must be in the pool.
-    for (let i = 0; i < 25; i++) {
+    const out = getGoalFeasibility(
+      mkGoal({ id: 'g-aspire', scope: 'lifetime' }),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'aspirational') {
+      expect(ASPIRATIONAL_PLACEHOLDERS).toContain(out.message);
+    }
+  });
+
+  it('seeds the placeholder by goal.id — same goal, same phrase across renders', () => {
+    const goal = mkGoal({ id: 'g-stable', scope: 'lifetime' });
+    const ctx = { currentValue: 0, today: TODAY };
+    const a = getGoalFeasibility(goal, ctx);
+    const b = getGoalFeasibility(goal, ctx);
+    const c = getGoalFeasibility(goal, ctx);
+    if (a.kind === 'aspirational' && b.kind === 'aspirational' && c.kind === 'aspirational') {
+      expect(a.message).toBe(b.message);
+      expect(b.message).toBe(c.message);
+    }
+  });
+
+  it('different goal ids can land on different placeholders', () => {
+    // The hash distributes across the 5-element pool. We don't
+    // require every id to differ (collisions exist in any hash)
+    // but at least two of these specific ids should diverge.
+    const ids = ['g-1', 'g-2', 'g-3', 'g-4', 'g-5', 'g-6', 'g-7', 'g-8'];
+    const messages = new Set<string>();
+    for (const id of ids) {
       const out = getGoalFeasibility(
-        mkGoal({ scope: 'lifetime' }),
+        mkGoal({ id, scope: 'lifetime' }),
         { currentValue: 0, today: TODAY },
       );
-      if (out.kind === 'aspirational') {
-        expect(ASPIRATIONAL_PLACEHOLDERS).toContain(out.message);
-      }
+      if (out.kind === 'aspirational') messages.add(out.message);
     }
+    expect(messages.size).toBeGreaterThan(1);
   });
 });
 
@@ -248,14 +273,45 @@ describe('coverage status tiers (ET, default mix = 150 items/week)', () => {
 // ── Recommendations contain real numbers ────────────────────
 
 describe('recommendations are calculated, not templated', () => {
-  it('on_track recommendation includes projected and target', () => {
+  it('on_track recommendation frames around target only (no inverted X/Y)', () => {
     const out = getGoalFeasibility(
       etCoverageGoal(143, DEC_31),
       { currentValue: 50, today: TODAY },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/\d+\/143/);
       expect(out.recommendation).toMatch(/On pace/i);
+      expect(out.recommendation).toMatch(/all 143 items/);
+      // No "X/Y" form when X would exceed Y — that read inverted.
+      expect(out.recommendation).not.toMatch(/\d+\/\d+/);
+    }
+  });
+
+  it('at_risk recommendation uses prose "X of Y items" form', () => {
+    const sixWeeksOut = TODAY.getTime() + 42 * DAY;
+    const out = getGoalFeasibility(
+      etCoverageGoal(1000, sixWeeksOut),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('at_risk');
+      expect(out.recommendation).toMatch(/projected to cover \d+ of 1000 items/);
+    }
+  });
+
+  it('unrecoverable (future deadline) recommendation uses "Even at full pace" framing', () => {
+    const oneWeekOut = TODAY.getTime() + 7 * DAY;
+    const out = getGoalFeasibility(
+      etCoverageGoal(500, oneWeekOut),
+      {
+        currentValue: 0,
+        today: TODAY,
+        mix: { standard: 0, deep: 0, light: 1 }, // 10/week, well below
+      },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('unrecoverable');
+      expect(out.recommendation).toMatch(/Even at full pace/);
+      expect(out.recommendation).toMatch(/of 500 items/);
     }
   });
 
