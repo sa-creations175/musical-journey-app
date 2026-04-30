@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal, type GoalScope, type GoalStatus, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
@@ -54,6 +54,8 @@ import {
   DEFAULT_GOALS_VIEW,
   type GoalsView,
 } from './goalsView';
+import { groupByModule } from './goalsByModule';
+import { MODULE_DISPLAY_NAME } from './YearlyAnchorFlow';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -517,28 +519,35 @@ function LayerSection({
             </div>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {topLevelGoals(goals).map(g =>
-                g.isUmbrella ? (
-                  <UmbrellaRow
-                    key={g.id}
-                    umbrella={g}
-                    childGoals={findChildren(g, goals)}
-                    layerType={layer.type}
-                    proficiencyDefs={proficiencyDefs}
-                    songLookup={songLookup}
-                    onEditGoal={onEditGoal}
-                  />
-                ) : (
-                  <GoalRow
-                    key={g.id}
-                    goal={g}
-                    layerType={layer.type}
-                    proficiencyDefs={proficiencyDefs}
-                    songLookup={songLookup}
-                    onEdit={() => onEditGoal(g)}
-                  />
-                ),
-              )}
+              {groupByModule(topLevelGoals(goals), goals).map(group => (
+                <Fragment key={group.moduleId ?? '__no-module'}>
+                  {group.moduleId && (
+                    <ModuleSubheader moduleId={group.moduleId} />
+                  )}
+                  {group.goals.map(g =>
+                    g.isUmbrella ? (
+                      <UmbrellaRow
+                        key={g.id}
+                        umbrella={g}
+                        childGoals={findChildren(g, goals)}
+                        layerType={layer.type}
+                        proficiencyDefs={proficiencyDefs}
+                        songLookup={songLookup}
+                        onEditGoal={onEditGoal}
+                      />
+                    ) : (
+                      <GoalRow
+                        key={g.id}
+                        goal={g}
+                        layerType={layer.type}
+                        proficiencyDefs={proficiencyDefs}
+                        songLookup={songLookup}
+                        onEdit={() => onEditGoal(g)}
+                      />
+                    ),
+                  )}
+                </Fragment>
+              ))}
               <li>
                 <button
                   type="button"
@@ -1155,6 +1164,32 @@ function UmbrellaRow({
 }
 
 // -------------------------------------------------------------------
+
+/**
+ * Phase 2 step 6e — module subheader inside a timeframe layer.
+ *
+ * Small uppercase label in the module's accent color, marking
+ * the start of that module's goal cluster within the scope.
+ * Practice consistency has no ModuleMeta entry (it's a meta-
+ * habit, not a learning module) so we fall back to the YearlyAnchor
+ * display name + neutral text color.
+ *
+ * Renders as an <li> inside the layer's <ul> so the surrounding
+ * gap-1.5 spacing applies cleanly between subheader and first
+ * goal row.
+ */
+function ModuleSubheader({ moduleId }: { moduleId: GoalFlowModuleId }) {
+  const meta = moduleMetaById(moduleId);
+  const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+  return (
+    <li
+      className="text-[10px] uppercase tracking-wide font-medium pt-1.5 first:pt-0"
+      style={{ color: meta?.accentHex }}
+    >
+      {label}
+    </li>
+  );
+}
 
 /**
  * Phase 2 step 6d — segmented pill toggle below the page header.
