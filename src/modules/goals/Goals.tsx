@@ -733,17 +733,17 @@ function GoalRow({
           )}
         </div>
 
-        {showSlots && (
-          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+        <div className="flex items-center gap-2 shrink-0 pt-0.5">
+          {showSlots && (
             <span
               data-progress-slot
               className="text-xs tabular-nums text-neutral-600 dark:text-neutral-300 min-w-[3.5rem] text-right"
             >
               {progressText}
             </span>
-            <FeasibilityPill feasibility={feasibility} />
-          </div>
-        )}
+          )}
+          <FeasibilityPill feasibility={feasibility} />
+        </div>
       </button>
 
       {expanded && (

@@ -54,6 +54,23 @@ export function pillConfig(
 }
 
 /**
+ * Pill shown on aspirational-scope goals (2-3 year / lifetime).
+ * These have no numeric projection but they're being actively
+ * worked toward through shorter-term goals beneath them — the
+ * "Progressing" label captures that forward momentum honestly
+ * without pretending there's a measurable target behind it.
+ *
+ * Soft teal so it reads alongside the green/yellow/orange/gray
+ * status palette as a distinct fifth tier without competing
+ * for urgency.
+ */
+export const PROGRESSING_PILL: PillConfig = {
+  label: 'Progressing',
+  bg: '#E1F5EE',
+  text: '#0F6E56',
+};
+
+/**
  * Resolve an umbrella's effective collapsed-pill status from
  * its rollup. Worst-case status wins for actionable children
  * (rollup.status); when no actionable children exist BUT some
@@ -77,20 +94,25 @@ const INERT_CLASSES =
   'min-w-[3.5rem] text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700';
 
 /**
- * Standalone-goal pill — derives status from the goal's
- * feasibility kind/status. Aspirational and 'unknown' render as
- * inert (collapsed view doesn't surface the placeholder
- * message; that's a 7e expanded-detail concern).
+ * Standalone-goal pill — dispatches on feasibility kind:
+ *   - 'measurable'   → status pill via pillConfig
+ *   - 'aspirational' → soft-teal "Progressing" pill (long-
+ *                      horizon goals are progressing toward
+ *                      through shorter-term children even
+ *                      though there's no numeric projection)
+ *   - 'unknown' / null → inert dashed em-dash
  */
 export function FeasibilityPill({
   feasibility,
 }: {
   feasibility: GoalFeasibility | null;
 }) {
-  if (!feasibility || feasibility.kind !== 'measurable') {
-    return <InertSlot />;
+  if (!feasibility) return <InertSlot />;
+  if (feasibility.kind === 'aspirational') {
+    return <ConfigPill cfg={PROGRESSING_PILL} dataStatus="aspirational" />;
   }
-  return <StatusPill status={feasibility.status} />;
+  if (feasibility.kind !== 'measurable') return <InertSlot />;
+  return <ConfigPill cfg={pillConfig(feasibility.status)!} dataStatus={feasibility.status} />;
 }
 
 /**
@@ -106,15 +128,20 @@ export function UmbrellaFeasibilityPill({
 }) {
   const status = resolveUmbrellaStatus(rollup);
   if (status === null) return <InertSlot />;
-  return <StatusPill status={status} />;
+  return <ConfigPill cfg={pillConfig(status)!} dataStatus={status} />;
 }
 
-function StatusPill({ status }: { status: GoalFeasibilityStatus }) {
-  const cfg = pillConfig(status)!;
+function ConfigPill({
+  cfg,
+  dataStatus,
+}: {
+  cfg: PillConfig;
+  dataStatus: string;
+}) {
   return (
     <span
       data-feasibility-slot
-      data-status={status}
+      data-status={dataStatus}
       role="status"
       aria-label={cfg.label}
       title={cfg.label}

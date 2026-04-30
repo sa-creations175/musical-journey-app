@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   pillConfig,
   resolveUmbrellaStatus,
+  PROGRESSING_PILL,
 } from '../FeasibilityPill';
 
 describe('pillConfig', () => {
@@ -57,6 +58,26 @@ describe('pillConfig', () => {
 
   it('null returns null (caller renders the inert dashed slot)', () => {
     expect(pillConfig(null)).toBeNull();
+  });
+});
+
+describe('PROGRESSING_PILL (aspirational scope)', () => {
+  it('uses the documented soft-teal palette and "Progressing" label', () => {
+    expect(PROGRESSING_PILL).toEqual({
+      label: 'Progressing',
+      bg: '#E1F5EE',
+      text: '#0F6E56',
+    });
+  });
+
+  it('is distinct from every status pillConfig (different label and colors)', () => {
+    const statuses = ['on_track', 'at_risk', 'critical', 'unrecoverable'] as const;
+    for (const s of statuses) {
+      const cfg = pillConfig(s)!;
+      expect(cfg.label).not.toBe(PROGRESSING_PILL.label);
+      expect(cfg.bg).not.toBe(PROGRESSING_PILL.bg);
+      expect(cfg.text).not.toBe(PROGRESSING_PILL.text);
+    }
   });
 });
 
