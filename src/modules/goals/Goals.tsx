@@ -18,6 +18,8 @@ import {
   progressSlotPercent,
   shouldShowSlots,
 } from './goalRowSlots';
+import { ActivityChart } from './activity/ActivityChart';
+import { mockForGoal } from './activity/mockActivityData';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -585,15 +587,12 @@ function GoalRow({
 
       {expanded && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
-          {/* Activity chart slot — wired in step 6b/6c. Reserved
-              height keeps the expanded row from jumping when real
-              chart components mount. */}
-          <div
-            data-activity-area
-            className="h-20 rounded border border-dashed border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-[11px] uppercase tracking-wide text-neutral-400"
-            aria-hidden
-          >
-            activity chart — step 6b
+          {/* Activity chart slot — populated with mock data in
+              step 6b. Step 6c swaps the mock generator for the
+              live getDailyActivity helper without disturbing the
+              <ActivityChart> contract. */}
+          <div data-activity-area>
+            <MockActivityChart goal={goal} />
           </div>
 
           {showSlots && (
@@ -665,6 +664,71 @@ function GoalRow({
       )}
     </li>
   );
+}
+
+/**
+ * Phase 2 step 6b — wraps the scope-adaptive ActivityChart with
+ * deterministic mock data. The wrapper exists so step 6c can
+ * swap the mock generator for a live data source (Dexie live
+ * query against attempts / drillSessions / songPracticeLog /
+ * lesson sessions) without changing the <GoalRow> call site.
+ *
+ * Uses a per-render `today` so the chart future-fades correctly
+ * when the user opens Goals across midnight (rare but cheap to
+ * be right about).
+ */
+function MockActivityChart({ goal }: { goal: Goal }) {
+  const today = new Date();
+  const data = useMemo(() => mockForGoal(goal, today), [goal.id, goal.scope]);
+  // Module accent: 6e wires per-goal-module accent. For now,
+  // share the Goals module accent so the chart visually anchors
+  // to the page until module bucketing lands.
+  const accent = GOALS_META.accentHex;
+  if (data.kind === 'weekly') {
+    return (
+      <ActivityChart
+        scope="weekly"
+        weekly={{
+          values: data.values,
+          weekStart: data.weekStart,
+          averageCount: data.averageCount,
+          unit: 'cards',
+          accentHex: accent,
+          today,
+        }}
+      />
+    );
+  }
+  if (data.kind === 'monthly') {
+    return (
+      <ActivityChart
+        scope="monthly"
+        monthly={{
+          values: data.values,
+          averageCount: data.averageCount,
+          unit: 'cards',
+          accentHex: accent,
+          today,
+        }}
+      />
+    );
+  }
+  if (data.kind === 'yearly') {
+    return (
+      <ActivityChart
+        scope="yearly"
+        yearly={{
+          values: data.values,
+          year: data.year,
+          averageCount: data.averageCount,
+          unit: 'cards',
+          accentHex: accent,
+          today,
+        }}
+      />
+    );
+  }
+  return <ActivityChart scope={goal.scope} />;
 }
 
 // -------------------------------------------------------------------
