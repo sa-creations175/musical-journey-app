@@ -42,7 +42,8 @@ import {
   isCoverageSpecificMetric,
   type CoverageMetric,
 } from './coverageMetrics';
-import { moduleForMetric } from './goalVocabulary';
+import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
+import { activityUnitForModule } from './activity/dailyActivity';
 
 // =====================================================================
 // Constants
@@ -592,6 +593,7 @@ function coverageFeasibility(
     currentValue: ctx.currentValue,
     daysRemaining,
     targetDate: new Date(goal.targetDate),
+    unit: activityUnitForModule(moduleId as GoalFlowModuleId),
   });
 
   return {
@@ -639,7 +641,8 @@ function weeklyPace(
  * Compose a numbers-driven recommendation string per status.
  * Always includes real values (target, projected, date, items
  * needed per week) — no templated phrases divorced from the
- * actual goal state.
+ * actual goal state. Unit derived from `activityUnitForModule`
+ * so card modules read "cards" and time modules read "minutes".
  */
 function recommendCoverage(args: {
   status: GoalFeasibilityStatus;
@@ -649,32 +652,34 @@ function recommendCoverage(args: {
   currentValue: number;
   daysRemaining: number;
   targetDate: Date;
+  unit: 'cards' | 'minutes';
 }): string {
   const dateStr = args.targetDate.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   });
   const remainingItems = Math.max(0, args.target - args.currentValue);
+  const u = args.unit;
 
   if (args.status === 'on_track') {
     // Projected ≥ target — "X/Y" with X > Y reads inverted, so
     // drop the projected number entirely and frame around the
     // target itself.
-    return `On pace — projected to cover all ${args.target} items by ${dateStr}.`;
+    return `On pace — projected to cover all ${args.target} ${u} by ${dateStr}.`;
   }
   if (args.status === 'at_risk') {
-    return `At current pace, projected to cover ${args.projected} of ${args.target} items by ${dateStr}.`;
+    return `At current pace, projected to cover ${args.projected} of ${args.target} ${u} by ${dateStr}.`;
   }
   if (args.status === 'critical') {
     const weeksLeft = Math.max(1, Math.ceil(args.daysRemaining / 7));
     const itemsPerWeekNeeded = Math.ceil(remainingItems / weeksLeft);
-    return `Need about ${itemsPerWeekNeeded} items per week to hit ${args.target} by ${dateStr}.`;
+    return `Need about ${itemsPerWeekNeeded} ${u} per week to hit ${args.target} by ${dateStr}.`;
   }
   // unrecoverable
   if (args.daysRemaining <= 0) {
-    return `Deadline passed — reached ${args.currentValue}/${args.target}.`;
+    return `Deadline passed — reached ${args.currentValue} of ${args.target} ${u}.`;
   }
-  return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} items by ${dateStr}.`;
+  return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} ${u} by ${dateStr}.`;
 }
 
 // ── Accuracy branch ──────────────────────────────────────────
@@ -883,11 +888,6 @@ function recommendConsistency(args: {
   daysRemaining: number;
   targetDate: Date;
 }): string {
-  const dateStr = args.targetDate.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-
   if (args.status === 'on_track') {
     return `On pace — ${args.current} of ${args.target} sessions logged.`;
   }
@@ -895,13 +895,24 @@ function recommendConsistency(args: {
     return `${args.current} of ${args.target} sessions so far — slightly behind pace.`;
   }
   if (args.status === 'critical') {
+    // Singular case (1 session, 1 day) reads more naturally as
+    // "today" than "in the next 1 day".
+    if (args.sessionsRemaining === 1 && args.daysRemaining === 1) {
+      return `Need 1 more session today to stay on track.`;
+    }
     return `Need ${args.sessionsRemaining} more session${args.sessionsRemaining === 1 ? '' : 's'} in the next ${args.daysRemaining} day${args.daysRemaining === 1 ? '' : 's'}.`;
   }
   // unrecoverable
   if (args.daysRemaining <= 0) {
-    return `Deadline passed — reached ${args.current}/${args.target} sessions.`;
+    return `Deadline passed — reached ${args.current} of ${args.target} sessions.`;
   }
-  return `${args.current} of ${args.target} sessions with ${args.daysRemaining} day${args.daysRemaining === 1 ? '' : 's'} left — won't fit by ${dateStr}.`;
+  // Future deadline but sessions can't fit — show what it would
+  // take rather than declaring impossibility, so the user sees
+  // a real number to react to.
+  const sessionsPerDay = Math.ceil(args.sessionsRemaining / args.daysRemaining);
+  const sessionsWord = sessionsPerDay === 1 ? 'session' : 'sessions';
+  const daysWord = args.daysRemaining === 1 ? 'day' : 'days';
+  return `${args.current} of ${args.target} sessions with ${args.daysRemaining} ${daysWord} left — you'd need ${sessionsPerDay} ${sessionsWord} per day to reach your target.`;
 }
 
 /**

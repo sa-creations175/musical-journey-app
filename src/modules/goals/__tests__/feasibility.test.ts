@@ -146,15 +146,6 @@ describe('routing — non-coverage metrics fall through', () => {
 
 // ── Accuracy branch ──────────────────────────────────────────
 
-function etAccuracyGoal(target: number, targetDate: number): Goal {
-  return mkGoal({
-    scope: 'yearly',
-    targetMetric: 'ear_training_accuracy_overall',
-    targetValue: target,
-    targetDate,
-  });
-}
-
 describe('accuracy goals — gap + critical-window status', () => {
   // Yearly goal startDate roughly Jan 1 2026 (full-year period).
   // TODAY (Apr 30) is well outside the last 20% (≈Oct 19).
@@ -390,16 +381,45 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
     }
   });
 
-  it('recommendation pluralizes sessions/days correctly (singular case)', () => {
+  it('critical singular case reads "today" instead of "in the next 1 day"', () => {
     // May 3 noon → daysPassed=ceil(6.5)=7, daysRemaining=1.
-    // target=2, current=1 → 1 session needed in 1 day.
+    // target=2, current=1 → 1 session needed today.
     const may3 = new Date(2026, 4, 3, 12);
     const out = getGoalFeasibility(
       weeklyConsistencyGoal(2, PERIOD_START, PERIOD_END),
       { currentValue: 1, today: may3 },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/Need 1 more session in the next 1 day\./);
+      expect(out.recommendation).toBe(
+        'Need 1 more session today to stay on track.',
+      );
+    }
+  });
+
+  it('unrecoverable (future deadline) shows sessions-per-day needed instead of "won\'t fit"', () => {
+    const may2 = new Date(2026, 4, 2, 12);
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
+      { currentValue: 0, today: may2 },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('unrecoverable');
+      // 4 sessions / 2 days = 2 sessions per day
+      expect(out.recommendation).toMatch(/you'd need 2 sessions per day/);
+      expect(out.recommendation).not.toMatch(/won't fit/);
+    }
+  });
+
+  it('deadline-passed recommendation uses "X of Y sessions" prose (no bare fraction)', () => {
+    const past = new Date(2026, 3, 1).getTime();
+    const past2 = new Date(2026, 3, 8).getTime();
+    const out = getGoalFeasibility(
+      weeklyConsistencyGoal(4, past, past2),
+      { currentValue: 2, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/Deadline passed — reached 2 of 4 sessions\./);
+      expect(out.recommendation).not.toMatch(/2\/4/);
     }
   });
 });
@@ -529,13 +549,12 @@ describe('recommendations are calculated, not templated', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.recommendation).toMatch(/On pace/i);
-      expect(out.recommendation).toMatch(/all 143 items/);
-      // No "X/Y" form when X would exceed Y — that read inverted.
+      expect(out.recommendation).toMatch(/all 143 cards/);
       expect(out.recommendation).not.toMatch(/\d+\/\d+/);
     }
   });
 
-  it('at_risk recommendation uses prose "X of Y items" form', () => {
+  it('at_risk recommendation uses prose "X of Y cards" form for ET', () => {
     const sixWeeksOut = TODAY.getTime() + 42 * DAY;
     const out = getGoalFeasibility(
       etCoverageGoal(1000, sixWeeksOut),
@@ -543,11 +562,11 @@ describe('recommendations are calculated, not templated', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('at_risk');
-      expect(out.recommendation).toMatch(/projected to cover \d+ of 1000 items/);
+      expect(out.recommendation).toMatch(/projected to cover \d+ of 1000 cards/);
     }
   });
 
-  it('unrecoverable (future deadline) recommendation uses "Even at full pace" framing', () => {
+  it('unrecoverable (future deadline) uses "Even at full pace" + module unit', () => {
     const oneWeekOut = TODAY.getTime() + 7 * DAY;
     const out = getGoalFeasibility(
       etCoverageGoal(500, oneWeekOut),
@@ -560,7 +579,29 @@ describe('recommendations are calculated, not templated', () => {
     if (out.kind === 'measurable') {
       expect(out.status).toBe('unrecoverable');
       expect(out.recommendation).toMatch(/Even at full pace/);
-      expect(out.recommendation).toMatch(/of 500 items/);
+      expect(out.recommendation).toMatch(/of 500 cards/);
+    }
+  });
+
+  it('coverage strings use "minutes" for time modules', () => {
+    // Shapes & Patterns coverage goal — activityUnitForModule
+    // returns "minutes". Using a sparse pace so we land in
+    // unrecoverable / future-deadline (the most unit-explicit
+    // string).
+    const oneWeekOut = TODAY.getTime() + 7 * DAY;
+    const goal = mkGoal({
+      scope: 'yearly',
+      targetMetric: 'shapes_coverage_at_acquired',
+      targetValue: 408,
+      targetDate: oneWeekOut,
+    });
+    const out = getGoalFeasibility(goal, {
+      currentValue: 0,
+      today: TODAY,
+      mix: { standard: 0, deep: 0, light: 1 }, // 8 minutes/week
+    });
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/of 408 minutes/);
     }
   });
 
@@ -576,21 +617,23 @@ describe('recommendations are calculated, not templated', () => {
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('critical');
-      // "Need about N items per week" with N being a real count
-      expect(out.recommendation).toMatch(/Need about \d+ items per week/);
-      expect(out.recommendation).toMatch(/100/); // target appears
+      // "Need about N cards per week" — module unit replaces
+      // generic "items".
+      expect(out.recommendation).toMatch(/Need about \d+ cards per week/);
+      expect(out.recommendation).toMatch(/100/);
     }
   });
 
-  it('unrecoverable (deadline passed) recommendation reports actual reached count', () => {
+  it('unrecoverable (deadline passed) recommendation uses "X of Y unit" prose', () => {
     const yesterday = TODAY.getTime() - 1 * DAY;
     const out = getGoalFeasibility(
       etCoverageGoal(100, yesterday),
       { currentValue: 47, today: TODAY },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/47\/100/);
+      expect(out.recommendation).toMatch(/47 of 100 cards/);
       expect(out.recommendation).toMatch(/Deadline passed/i);
+      expect(out.recommendation).not.toMatch(/47\/100/);
     }
   });
 });
