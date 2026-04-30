@@ -42,6 +42,7 @@ import {
   isCoverageSpecificMetric,
   type CoverageMetric,
 } from './coverageMetrics';
+import { moduleForMetric } from './goalVocabulary';
 
 // =====================================================================
 // Constants
@@ -369,4 +370,286 @@ export async function getGoalProgress(goal: Goal): Promise<GoalProgress> {
 
   // Specific accuracy + everything else not yet handled
   return { kind: 'unsupported', current: null, target, source: `unsupported:${metric}` };
+}
+
+// =====================================================================
+// Goal feasibility — projection-based status (Phase 2 step 7)
+// =====================================================================
+
+/**
+ * "Will I make it" status tiers. Distinct from raw progress
+ * (which answers "where am I"). Coverage goals project from
+ * current value + remaining weeks × weekly-pace; status falls
+ * out of how that projection compares to target.
+ *
+ *   - 'on_track'      — projected ≥ target at current pace
+ *   - 'at_risk'       — projected ≥ 85% of target, < target
+ *                       (gentle nudge; trivial bump recovers)
+ *   - 'critical'      — projected < 85% of target, but
+ *                       doubling pace would still reach target
+ *   - 'unrecoverable' — even doubling won't reach target by
+ *                       deadline, OR deadline already passed.
+ *                       Excluded from worst-case rollup; UI
+ *                       shows a motivational placeholder
+ *                       instead of a status pill.
+ */
+export type GoalFeasibilityStatus =
+  | 'on_track'
+  | 'at_risk'
+  | 'critical'
+  | 'unrecoverable';
+
+/**
+ * Output of `getGoalFeasibility`. Discriminated by `kind`:
+ *   - 'measurable'    — concrete projection vs target with status
+ *                       and a calculated, numbers-driven
+ *                       recommendation string
+ *   - 'aspirational'  — open-text reflections (2-3 year, lifetime
+ *                       scopes); a randomly-selected motivational
+ *                       placeholder phrase from
+ *                       ASPIRATIONAL_PLACEHOLDERS
+ *   - 'unknown'       — goal type not yet handled by the
+ *                       projection math (accuracy / consistency /
+ *                       item-count metrics — wired in step 7b)
+ */
+export type GoalFeasibility =
+  | {
+      kind: 'measurable';
+      status: GoalFeasibilityStatus;
+      projected: number;
+      target: number;
+      currentValue: number;
+      daysRemaining: number;
+      recommendation: string;
+    }
+  | { kind: 'aspirational'; message: string }
+  | { kind: 'unknown' };
+
+/** Per-week count of each day-profile type. Defaults to
+ *  DEFAULT_DAY_PROFILE_MIX when omitted. */
+export type DayProfileMix = Partial<
+  Record<'standard' | 'deep' | 'light' | 'custom', number>
+>;
+
+/** Phase 2 default mix per the 6h.2 sign-off (3 Standard + 1
+ *  Deep + 1 Light per week). Phase 7 makes this user-editable. */
+export const DEFAULT_DAY_PROFILE_MIX: DayProfileMix = {
+  standard: 3,
+  deep: 1,
+  light: 1,
+};
+
+/** Items-per-session estimates per (module × profile). Starting
+ *  points from the 6h.2 design call; calibrated from real use
+ *  in Phase 7. Card modules count cards reviewed; time modules
+ *  count minutes practised. */
+const ITEMS_PER_SESSION: Record<
+  | 'ear-training'
+  | 'harmonic-fluency'
+  | 'shapes-and-patterns'
+  | 'repertoire'
+  | 'production',
+  Record<'standard' | 'deep' | 'light' | 'custom', number>
+> = {
+  'ear-training':        { standard: 30, deep: 50, light: 10, custom: 30 },
+  'harmonic-fluency':    { standard: 25, deep: 45, light:  8, custom: 25 },
+  'shapes-and-patterns': { standard: 20, deep: 35, light:  8, custom: 20 },
+  'repertoire':          { standard: 25, deep: 45, light: 10, custom: 25 },
+  'production':          { standard: 30, deep: 60, light: 15, custom: 30 },
+};
+
+type FeasibilityModule = keyof typeof ITEMS_PER_SESSION;
+
+/** Boundary between at_risk and critical, applied as a target
+ *  ratio. A goal with projected ≥ AT_RISK_RATIO × target sits in
+ *  at_risk; below that, the doubling check picks critical vs
+ *  unrecoverable. */
+export const AT_RISK_RATIO = 0.85;
+
+/** Pool of motivational placeholders shown in place of a status
+ *  pill on aspirational scopes (2–3 year, lifetime). Randomly
+ *  selected per call. */
+export const ASPIRATIONAL_PLACEHOLDERS: ReadonlyArray<string> = [
+  'Your daily wins compound into the greatness outlined here.',
+  'Every session moves you closer to this vision.',
+  "This is where you're headed. Show up and trust the process.",
+  'The trajectory starts today. Keep going.',
+  'Your daily wins compound and set the trajectory for this vision.',
+];
+
+/** Inputs the caller supplies to `getGoalFeasibility`. */
+export interface GoalFeasibilityContext {
+  /** Live numerator — typically `getCoverageCount` for coverage
+   *  goals, `goal.currentValue` otherwise. Pure-function input
+   *  so the helper stays testable without Dexie. */
+  currentValue: number;
+  /** Reference "today" — caller-supplied so tests can pin. */
+  today: Date;
+  /** Weekly day-profile mix. Defaults to DEFAULT_DAY_PROFILE_MIX
+   *  when omitted. */
+  mix?: DayProfileMix;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Project a goal's likely outcome by deadline and assign a
+ * status tier. Step 7a covers coverage goals + the
+ * aspirational-placeholder branch. Other goal types (accuracy,
+ * consistency, item-count) return `{ kind: 'unknown' }` —
+ * wired in step 7b.
+ */
+export function getGoalFeasibility(
+  goal: Goal,
+  ctx: GoalFeasibilityContext,
+): GoalFeasibility {
+  // Aspirational scopes — open-text reflections, no measurable
+  // target. Always render a motivational placeholder instead of
+  // computing a status.
+  if (goal.scope === 'two_to_three_year' || goal.scope === 'lifetime') {
+    return { kind: 'aspirational', message: pickAspirationalPlaceholder() };
+  }
+
+  const metric = goal.targetMetric;
+  if (!metric) return { kind: 'unknown' };
+
+  if (isCoverageMetric(metric)) {
+    return coverageFeasibility(goal, ctx, metric);
+  }
+
+  // Accuracy / consistency / item-count branches — step 7b.
+  return { kind: 'unknown' };
+}
+
+function coverageFeasibility(
+  goal: Goal,
+  ctx: GoalFeasibilityContext,
+  metric: CoverageMetric,
+): GoalFeasibility {
+  const target = goal.targetValue;
+  if (target === null || target === undefined) {
+    return { kind: 'unknown' };
+  }
+
+  const moduleId = moduleForMetric(metric);
+  if (!moduleId || !(moduleId in ITEMS_PER_SESSION)) {
+    return { kind: 'unknown' };
+  }
+  const feasibilityModule = moduleId as FeasibilityModule;
+
+  const daysRemaining = Math.max(
+    0,
+    Math.ceil((goal.targetDate - ctx.today.getTime()) / DAY_MS),
+  );
+  const weeksRemaining = daysRemaining / 7;
+
+  const itemsPerWeek = weeklyPace(
+    feasibilityModule,
+    ctx.mix ?? DEFAULT_DAY_PROFILE_MIX,
+  );
+  const projected = Math.round(ctx.currentValue + weeksRemaining * itemsPerWeek);
+  const doubledProjected = Math.round(
+    ctx.currentValue + weeksRemaining * itemsPerWeek * 2,
+  );
+
+  const status = classifyCoverageStatus(
+    projected,
+    doubledProjected,
+    target,
+    daysRemaining,
+  );
+
+  const recommendation = recommendCoverage({
+    status,
+    projected,
+    doubledProjected,
+    target,
+    currentValue: ctx.currentValue,
+    daysRemaining,
+    targetDate: new Date(goal.targetDate),
+  });
+
+  return {
+    kind: 'measurable',
+    status,
+    projected,
+    target,
+    currentValue: ctx.currentValue,
+    daysRemaining,
+    recommendation,
+  };
+}
+
+function classifyCoverageStatus(
+  projected: number,
+  doubledProjected: number,
+  target: number,
+  daysRemaining: number,
+): GoalFeasibilityStatus {
+  // Target already met (or projected to meet) wins regardless
+  // of remaining time — guards against deadlines-today goals
+  // tripping into unrecoverable when the user has actually
+  // hit the count.
+  if (projected >= target) return 'on_track';
+  if (daysRemaining <= 0) return 'unrecoverable';
+  if (projected >= AT_RISK_RATIO * target) return 'at_risk';
+  if (doubledProjected >= target) return 'critical';
+  return 'unrecoverable';
+}
+
+function weeklyPace(
+  moduleId: FeasibilityModule,
+  mix: DayProfileMix,
+): number {
+  const items = ITEMS_PER_SESSION[moduleId];
+  return (
+    (mix.standard ?? 0) * items.standard +
+    (mix.deep ?? 0) * items.deep +
+    (mix.light ?? 0) * items.light +
+    (mix.custom ?? 0) * items.custom
+  );
+}
+
+/**
+ * Compose a numbers-driven recommendation string per status.
+ * Always includes real values (target, projected, date, items
+ * needed per week) — no templated phrases divorced from the
+ * actual goal state.
+ */
+function recommendCoverage(args: {
+  status: GoalFeasibilityStatus;
+  projected: number;
+  doubledProjected: number;
+  target: number;
+  currentValue: number;
+  daysRemaining: number;
+  targetDate: Date;
+}): string {
+  const dateStr = args.targetDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const remainingItems = Math.max(0, args.target - args.currentValue);
+
+  if (args.status === 'on_track') {
+    return `On pace — projected ${args.projected}/${args.target} by ${dateStr}.`;
+  }
+  if (args.status === 'at_risk') {
+    return `At current pace, projected ${args.projected}/${args.target} by ${dateStr}.`;
+  }
+  if (args.status === 'critical') {
+    const weeksLeft = Math.max(1, Math.ceil(args.daysRemaining / 7));
+    const itemsPerWeekNeeded = Math.ceil(remainingItems / weeksLeft);
+    return `Need about ${itemsPerWeekNeeded} items per week to hit ${args.target} by ${dateStr}.`;
+  }
+  // unrecoverable
+  if (args.daysRemaining <= 0) {
+    return `Deadline passed — reached ${args.currentValue}/${args.target}.`;
+  }
+  return `At full pace, projected ${args.doubledProjected}/${args.target} by ${dateStr}.`;
+}
+
+function pickAspirationalPlaceholder(): string {
+  const i = Math.floor(Math.random() * ASPIRATIONAL_PLACEHOLDERS.length);
+  return ASPIRATIONAL_PLACEHOLDERS[i];
 }
