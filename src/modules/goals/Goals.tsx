@@ -68,6 +68,13 @@ import {
   type RowCollapseState,
 } from './goalRowCollapse';
 import {
+  getGoalFeasibility,
+  loadDayProfileMix,
+  rollupChildFeasibilities,
+  type GoalFeasibility,
+} from './progress';
+import { FeasibilityPill, UmbrellaFeasibilityPill } from './FeasibilityPill';
+import {
   groupByModule,
   isCurrentOrUpcoming,
   ORDERED_GOAL_MODULES,
@@ -677,6 +684,18 @@ function GoalRow({
   const showSlots = shouldShowSlots(layerType);
   const progressText = progressSlotText(slotState);
   const progressPct = progressSlotPercent(slotState);
+  // Feasibility — passes goal.currentValue as the live numerator
+  // for now. Phase 5 keeps that column in sync with spacingState
+  // automatically; until then the read may lag a session or two.
+  const feasibility = useMemo<GoalFeasibility>(
+    () =>
+      getGoalFeasibility(goal, {
+        currentValue: goal.currentValue,
+        today: new Date(),
+        mix: loadDayProfileMix(),
+      }),
+    [goal],
+  );
 
   const handleDelete = async () => {
     if (!confirm('Delete this goal? This moves it to abandoned status.')) return;
@@ -722,14 +741,7 @@ function GoalRow({
             >
               {progressText}
             </span>
-            <span
-              data-feasibility-slot
-              aria-hidden
-              className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
-              title="Feasibility — coming in step 7"
-            >
-              —
-            </span>
+            <FeasibilityPill feasibility={feasibility} />
           </div>
         )}
       </button>
@@ -1061,6 +1073,21 @@ function UmbrellaRow({
     ? moduleMetaById(sharedModule)?.accentHex
     : undefined;
   const displayTitle = umbrellaDisplayTitle(umbrella, sharedModule);
+  // Per-child feasibility + rollup. The collapsed pill reads
+  // from the rollup; expanded "X on track · Y at risk"
+  // breakdown lands in step 7e.
+  const rollup = useMemo(() => {
+    const today = new Date();
+    const mix = loadDayProfileMix();
+    const childFeasibilities = childGoals.map(c =>
+      getGoalFeasibility(c, {
+        currentValue: c.currentValue,
+        today,
+        mix,
+      }),
+    );
+    return rollupChildFeasibilities(childFeasibilities);
+  }, [childGoals]);
 
   const handleDelete = async () => {
     if (
@@ -1107,27 +1134,18 @@ function UmbrellaRow({
 
         {showSlots && (
           <div className="flex items-center gap-2 shrink-0 pt-0.5">
-            {/* Both slots reserved for worst-case feasibility
-                rollup. Step 7 fills them in. Inert dashed pills
-                for now so the layout is committed and won't shift
-                when real status data arrives. */}
+            {/* Progress slot stays inert on umbrellas (aggregate
+                progress doesn't compose across child metrics).
+                Feasibility slot carries the rollup status pill. */}
             <span
               data-progress-slot
               data-umbrella
               aria-hidden
               className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
-              title="Worst-case feasibility — coming in step 7"
             >
               —
             </span>
-            <span
-              data-feasibility-slot
-              aria-hidden
-              className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
-              title="Worst-case feasibility — coming in step 7"
-            >
-              —
-            </span>
+            <UmbrellaFeasibilityPill rollup={rollup} />
           </div>
         )}
       </button>
