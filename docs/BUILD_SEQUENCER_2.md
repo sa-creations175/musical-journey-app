@@ -14,9 +14,11 @@ Last updated: April 28, 2026
 
 **Phase 1.6 — COMPLETE.** All 16 build steps shipped, verified end-to-end, and pushed to origin/main. The new `GoalCreationFlow` is live in production paths (Goals home + onboarding Screen 3); legacy `GoalFormModal` stays mounted alongside for old-vocab edits.
 
-**Phase 2 — IN PROGRESS.** Step 1 (populate spacingState across all 8 modules) and Step 2 (coverage metric vocabulary + GoalCreationFlow wiring across all 5 measurable modules) shipped April 28 and pushed to origin/main. 161/161 tests passing.
+**Phase 2 — IN PROGRESS.** Steps 1–6 complete; 568/568 tests passing.
+- Steps 1–5 shipped previously (spacingState, coverage vocabulary, item counts, progress helpers, YearlyAnchorFlow).
+- Step 6 (Goals home redesign) shipped across substeps 6a–6h on April 29: GoalRow anatomy + reserved slots, scope-adaptive activity charts (mocked → live data), umbrella row redesign with vision-statement titles, view toggle + persistence, by-timeframe module subheaders, by-module view + dashed anchor backstop, collapse persistence (localStorage), end-to-end integration smoke.
 
-**Active next step:** Phase 2 Step 3 — moduleItemCounts helper to replace hardcoded TODO 2/3 denominators with live counts.
+**Active next step:** Phase 2 Step 7 — `getGoalFeasibility()` helper + Goals home feasibility surface. Step 6's progress + feasibility slot reservations let Step 7 drop in without retrofitting layout.
 
 ---
 
@@ -136,10 +138,19 @@ All 7 steps pushed to origin/main.
    - 2c — Harmonic Fluency coverage goal wired (per-group accent pills via `selectedStyle: 'fluent' | 'accent'`)
    - 2d — Shapes & Patterns coverage goal wired (3 sub-areas: 348+24+36=408; Mental Visualization excluded)
    - 2e — Production coverage goal wired (6 paths; `targetUnit: 'lessons'`; back-applied slice fix for non-coverage children)
-3. ⏭️ **moduleItemCounts helper** — replaces all TODO 2/3 hardcoded denominators with live counts pulled from data. Per Apr 27 principle: yearly anchor breadth questions always display live item counts, never hardcoded numbers.
-4. ⏭️ **Coverage and accuracy progress helpers** — `getCoverageCount`, `getEarTrainingAccuracy`, etc. Auto-update goal `current_value` from spacing state.
-5. ⏭️ **YearlyAnchorFlow UI** — new dedicated component, two screens (Set Intention + Review). Separate from GoalCreationFlow. One umbrella record + N dimension records (Breadth/Depth/Mastery/Consistency). Triggered when user creates a goal for a module with no yearly anchor yet, or from by-module backstop prompt.
-6. ⏭️ **Goals home redesign** — segmented pill toggle (by timeframe / by module). By-timeframe = action view, weekly default open. By-module = hierarchy view, umbrella + children, current period + 7-day lookahead rule. Goal rows: collapsed = natural-language description; expanded = scope-adaptive activity chart (7-day bars / dot grid / 12-month bars) + progress bar + edit/delete.
+3. ✅ **moduleItemCounts helper** — replaces all TODO 2/3 hardcoded denominators with live counts pulled from data.
+4. ✅ **Coverage and accuracy progress helpers** — `getCoverageCount`, `getEarTrainingAccuracy`, etc. Auto-update goal `current_value` from spacing state.
+5. ✅ **YearlyAnchorFlow UI** — dedicated two-screen component (Set Intention + Review). One umbrella record + N dimension records.
+6. ✅ **Goals home redesign** (substeps 6a–6h, all shipped April 29):
+   - 6a — `<GoalRow>` collapsed/expanded anatomy with reserved progress + feasibility slots
+   - 6b — Scope-adaptive activity charts (`<WeeklyBars>` / `<MonthlyDotGrid>` / `<YearlyBars>`), pure top-percentile + future-fade helpers, mock data wiring
+   - 6c — Live activity data via new `getDailyActivity` helper (dailySummaries / drillSessions / songPracticeLog / productionLessonSessions); refinements: always-visible unit gutter, umbrella row with subtitle + cross-module chart routing, vision-statement titles + module-accent rendering, suppressed chart on umbrella children
+   - 6d — View toggle (by timeframe / by module) with userPref persistence
+   - 6e — Module subheaders inside each timeframe layer (nav-order, accent colors)
+   - 6f — By-module view: module-as-top sections, dashed yearly-anchor backstop, current-period + 7-day lookahead filter, cross-scope `findAllChildren`
+   - 6g — Collapse persistence via localStorage (sidesteps userPrefs sync race that wiped writes); per-module vision-statement titles + legacy heuristic
+   - 6h — End-to-end integration smoke + sequencer update
+7. ⏭️ **Goal feasibility checking** — `getGoalFeasibility()` helper + Goals home feasibility surface. Step 6 reserved slots so Step 7 drops in without layout retrofit.
 
 **Deferred items captured during Phase 2 design + Steps 1–2 build:**
 - SyncProvider re-rendering excessively — pre-existing, monitor as Phase 2 adds more writes
