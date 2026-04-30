@@ -40,43 +40,78 @@ function draftFor(moduleId: AnchorModuleId, slot: Partial<AnchorDraft>): AnchorD
 
 describe('defaultAnchorName', () => {
   it.each<[AnchorModuleId, string]>([
-    ['ear-training',         'Build comprehensive Ear Training mastery in 2026'],
-    ['harmonic-fluency',     'Build comprehensive Harmonic Fluency mastery in 2026'],
-    ['repertoire',           'Build comprehensive Song Repertoire mastery in 2026'],
-    ['shapes-and-patterns',  'Build comprehensive Shapes & Patterns mastery in 2026'],
-    ['production',           'Build comprehensive Production mastery in 2026'],
-    ['practice-consistency', 'Build comprehensive Practice consistency mastery in 2026'],
-  ])('returns the action-oriented default for %s', (moduleId, expected) => {
+    [
+      'ear-training',
+      'Make music speak to me — intervals, chords, progressions, all of it.',
+    ],
+    ['harmonic-fluency', 'Master the language of harmony.'],
+    [
+      'shapes-and-patterns',
+      'Lock the shapes in. See them, hear them, flow between them — every key.',
+    ],
+    [
+      'repertoire',
+      'Own my songs. Play them freely, shape them intentionally, make them mine.',
+    ],
+    [
+      'production',
+      'Make the studio feel like home. Master the tools, play, and create freely.',
+    ],
+    [
+      'practice-consistency',
+      'Show up every day. Make music practice as natural as breathing.',
+    ],
+  ])('returns the vision statement for %s', (moduleId, expected) => {
     expect(defaultAnchorName(moduleId, YEAR)).toBe(expected);
   });
 
-  it('substitutes the year argument', () => {
-    expect(defaultAnchorName('ear-training', 2030)).toBe(
-      'Build comprehensive Ear Training mastery in 2030',
+  it('ignores the year argument — vision statements are timeless', () => {
+    expect(defaultAnchorName('ear-training', 2026)).toBe(
+      defaultAnchorName('ear-training', 2030),
     );
   });
 });
 
 describe('isLegacyAnchorName', () => {
-  it('detects the prior "[Module] [Year]" shape', () => {
+  it('detects the original "[Module] [Year]" shape', () => {
     expect(isLegacyAnchorName('Ear Training 2026', 'ear-training', 2026)).toBe(true);
     expect(isLegacyAnchorName('  Ear Training 2026  ', 'ear-training', 2026)).toBe(true);
   });
 
-  it('returns false for the new default and for user-customized strings', () => {
+  it('detects the 6c.2 "Build comprehensive ... mastery in [Year]" shape', () => {
     expect(
       isLegacyAnchorName(
         'Build comprehensive Ear Training mastery in 2026',
         'ear-training',
         2026,
       ),
+    ).toBe(true);
+  });
+
+  it('returns false for the current vision-statement default', () => {
+    expect(
+      isLegacyAnchorName(
+        defaultAnchorName('ear-training', 2026),
+        'ear-training',
+        2026,
+      ),
     ).toBe(false);
+  });
+
+  it('returns false for user-customized strings', () => {
     expect(isLegacyAnchorName('My ET year', 'ear-training', 2026)).toBe(false);
   });
 
   it('does not match a different module or year', () => {
     expect(isLegacyAnchorName('Ear Training 2026', 'harmonic-fluency', 2026)).toBe(false);
     expect(isLegacyAnchorName('Ear Training 2025', 'ear-training', 2026)).toBe(false);
+    expect(
+      isLegacyAnchorName(
+        'Build comprehensive Ear Training mastery in 2025',
+        'ear-training',
+        2026,
+      ),
+    ).toBe(false);
   });
 });
 

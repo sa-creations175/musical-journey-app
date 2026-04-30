@@ -96,10 +96,10 @@ describe('saveAnchor — create mode shape', () => {
     expect(u.parentGoalId).toBeNull();
   });
 
-  it('umbrella description falls back to the action-oriented default when draft.name is null', async () => {
+  it('umbrella description falls back to the ET vision statement when draft.name is null', async () => {
     const result = await saveAnchor(etDraft(), baseOpts);
     expect(result!.umbrella.description).toBe(
-      'Build comprehensive Ear Training mastery in 2026',
+      'Make music speak to me — intervals, chords, progressions, all of it.',
     );
   });
 
@@ -111,10 +111,10 @@ describe('saveAnchor — create mode shape', () => {
     expect(result!.umbrella.description).toBe('My Ear Training Year');
   });
 
-  it('empty / whitespace draft.name falls back to default', async () => {
+  it('empty / whitespace draft.name falls back to vision statement', async () => {
     const result = await saveAnchor({ ...etDraft(), name: '   ' }, baseOpts);
     expect(result!.umbrella.description).toBe(
-      'Build comprehensive Ear Training mastery in 2026',
+      'Make music speak to me — intervals, chords, progressions, all of it.',
     );
   });
 
@@ -328,7 +328,7 @@ describe('saveAnchor — per-module smoke', () => {
     );
     expect(result!.children).toHaveLength(3);
     expect(result!.umbrella.description).toBe(
-      'Build comprehensive Practice consistency mastery in 2026',
+      'Show up every day. Make music practice as natural as breathing.',
     );
   });
 

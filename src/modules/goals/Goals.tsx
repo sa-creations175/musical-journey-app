@@ -56,9 +56,9 @@ import {
   type GoalsView,
 } from './goalsView';
 import {
-  parseRowCollapseState,
-  PREF_GOALS_ROW_COLLAPSE,
+  loadRowCollapse,
   resolveRowExpanded,
+  saveRowCollapse,
   toggleRowExpanded,
   type RowCollapseState,
 } from './goalRowCollapse';
@@ -184,7 +184,14 @@ export default function Goals() {
   const [collapseOverrides, setCollapseOverrides] = useState<LayerCollapseOverrides>({});
   const [hiddenLayers, setHiddenLayers] = useState<GoalScope[]>([]);
   const [activeView, setActiveView] = useState<GoalsView>(DEFAULT_GOALS_VIEW);
-  const [rowCollapse, setRowCollapse] = useState<RowCollapseState>({});
+  // Lazy initializer reads localStorage on first render — synchronous,
+  // so the very first paint already reflects the persisted state. No
+  // hydrate effect needed for this pref (unlike the userPrefs-backed
+  // ones, which are async). Avoids the userPrefs sync-pull race that
+  // wiped local writes on reload (see 6g.2 commit message).
+  const [rowCollapse, setRowCollapse] = useState<RowCollapseState>(() =>
+    loadRowCollapse(),
+  );
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
@@ -229,21 +236,19 @@ export default function Goals() {
     setOnboardingActive(true);
   }
 
-  // Hydrate prefs once.
+  // Hydrate userPrefs-backed state once. rowCollapse is NOT in this
+  // path — it's already populated synchronously from localStorage
+  // via the useState lazy initializer.
   useEffect(() => {
     (async () => {
-      const [collapse, hidden, view, rows] = await Promise.all([
+      const [collapse, hidden, view] = await Promise.all([
         getPref<LayerCollapseOverrides>(PREF_LAYER_COLLAPSE, {}),
         getPref<GoalScope[]>(PREF_HIDDEN_LAYERS, []),
         getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW),
-        getPref<unknown>(PREF_GOALS_ROW_COLLAPSE, {}),
       ]);
-      // TEMP step 6g.1 diagnostic — revert once persistence verified.
-      console.log('[goals.rowCollapse] hydrate read:', rows);
       setCollapseOverrides(collapse ?? {});
       setHiddenLayers(Array.isArray(hidden) ? hidden : []);
       setActiveView(parseGoalsView(view));
-      setRowCollapse(parseRowCollapseState(rows));
       setHydrated(true);
     })();
   }, []);
@@ -263,12 +268,11 @@ export default function Goals() {
     void setPref(PREF_GOALS_ACTIVE_VIEW, activeView);
   }, [activeView, hydrated]);
 
+  // Persist rowCollapse to localStorage on every change. Synchronous
+  // write, no race conditions, no sync layer to fight.
   useEffect(() => {
-    if (!hydrated) return;
-    // TEMP step 6g.1 diagnostic — revert once persistence verified.
-    console.log('[goals.rowCollapse] persist write:', rowCollapse);
-    void setPref(PREF_GOALS_ROW_COLLAPSE, rowCollapse);
-  }, [rowCollapse, hydrated]);
+    saveRowCollapse(rowCollapse);
+  }, [rowCollapse]);
 
   // Stable accessors that resolve / mutate the row-collapse map
   // for any (goalId, isUmbrella) pair. Threaded through
@@ -276,15 +280,8 @@ export default function Goals() {
   // so every row consults the same source of truth.
   const isRowExpanded = (goalId: string, isUmbrella: boolean) =>
     resolveRowExpanded(rowCollapse, goalId, isUmbrella);
-  const onToggleRow = (goalId: string, isUmbrella: boolean) => {
-    // TEMP step 6g.1 diagnostic — revert once persistence verified.
-    console.log('[goals.rowCollapse] toggle invoked:', { goalId, isUmbrella });
-    setRowCollapse(s => {
-      const next = toggleRowExpanded(s, goalId, isUmbrella);
-      console.log('[goals.rowCollapse] toggle next state:', next);
-      return next;
-    });
-  };
+  const onToggleRow = (goalId: string, isUmbrella: boolean) =>
+    setRowCollapse(s => toggleRowExpanded(s, goalId, isUmbrella));
 
   const goalsByScope = useMemo(() => groupByScope(goals ?? []), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));

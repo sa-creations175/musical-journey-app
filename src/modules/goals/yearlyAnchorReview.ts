@@ -72,31 +72,62 @@ export interface DimensionReviewRow {
 // =====================================================================
 
 /**
- * Auto-generated umbrella name. Action-oriented form
- * ("Build comprehensive [Module] mastery in [Year]") so the
- * title reads as an intention the user is committing to, not
- * a calendar slot. Editable inline on Screen 2; this is the
- * placeholder / fallback when the user hasn't typed their own.
+ * Per-module vision statement used as the auto-generated
+ * umbrella name. No year suffix — these are timeless
+ * commitments, not calendar entries. Editable inline on
+ * Screen 2; this is the placeholder / fallback when the user
+ * hasn't typed their own.
  */
-export function defaultAnchorName(moduleId: AnchorModuleId, year: number): string {
-  return `Build comprehensive ${MODULE_DISPLAY_NAME[moduleId]} mastery in ${year}`;
+const VISION_TITLES: Record<AnchorModuleId, string> = {
+  'ear-training':
+    'Make music speak to me — intervals, chords, progressions, all of it.',
+  'harmonic-fluency':
+    'Master the language of harmony.',
+  'shapes-and-patterns':
+    'Lock the shapes in. See them, hear them, flow between them — every key.',
+  'repertoire':
+    'Own my songs. Play them freely, shape them intentionally, make them mine.',
+  'production':
+    'Make the studio feel like home. Master the tools, play, and create freely.',
+  'practice-consistency':
+    'Show up every day. Make music practice as natural as breathing.',
+};
+
+/**
+ * Returns the vision-statement default title for `moduleId`.
+ * `year` is accepted but ignored — kept in the signature for
+ * call-site compatibility with code paths that still pass it.
+ */
+export function defaultAnchorName(
+  moduleId: AnchorModuleId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _year: number,
+): string {
+  return VISION_TITLES[moduleId];
 }
 
 /**
- * Detect the prior auto-name shape ("[Module] [Year]") so the
- * Goals home can substitute the new action-oriented title at
- * render time for umbrellas saved before the rename. Real
- * user-customized titles fall through to display as stored.
+ * Detect any prior auto-name shape so the Goals home can
+ * substitute the current vision statement at render time for
+ * umbrellas saved before the rename. Catches:
  *
- * False positive on the rare case where a user customized to
- * the exact legacy default — accepted; they can edit again.
+ *   - "[Module] [Year]"                                — Phase 1.6 default
+ *   - "Build comprehensive [Module] mastery in [Year]" — 6c.2 default
+ *
+ * Real user-customized titles fall through to display as stored.
+ * False-positive risk on a user who happens to have customized
+ * to one of the legacy strings exactly — accepted; they can
+ * edit again.
  */
 export function isLegacyAnchorName(
   desc: string,
   moduleId: AnchorModuleId,
   year: number,
 ): boolean {
-  return desc.trim() === `${MODULE_DISPLAY_NAME[moduleId]} ${year}`;
+  const trimmed = desc.trim();
+  if (trimmed === `${MODULE_DISPLAY_NAME[moduleId]} ${year}`) return true;
+  if (trimmed === `Build comprehensive ${MODULE_DISPLAY_NAME[moduleId]} mastery in ${year}`) return true;
+  return false;
 }
 
 // =====================================================================

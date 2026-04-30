@@ -1,89 +1,97 @@
 // @vitest-environment jsdom
 /**
- * Phase 2 step 6g — round-trip test for collapse pref
- * persistence. Mirrors the page-level lifecycle:
+ * Phase 2 step 6g.2 — round-trip test for collapse persistence
+ * against localStorage. Mirrors the page-level lifecycle:
  *
- *   1. Toggle a row (page calls toggleRowExpanded + setPref)
- *   2. Simulate a reload (re-read pref)
+ *   1. Toggle a row (page calls toggleRowExpanded + saveRowCollapse)
+ *   2. Simulate a reload (re-read localStorage via loadRowCollapse)
  *   3. resolveRowExpanded against the re-read state
  *
- * Reproduces the bug surfaced during 6g review: collapsing the
- * umbrella, reloading, and finding it expanded again.
+ * 6g originally persisted via userPrefs/Dexie. That path lost
+ * writes to the userPrefs sync layer (drain + pullAll('replace')
+ * race) — collapse state isn't worth coordinating across devices,
+ * so it lives in localStorage instead. These tests pin the
+ * synchronous round-trip works.
  */
-import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from '../../../lib/db';
-import { getPref, setPref } from '../../../lib/userPrefs';
 import {
-  PREF_GOALS_ROW_COLLAPSE,
-  parseRowCollapseState,
+  loadRowCollapse,
   resolveRowExpanded,
+  saveRowCollapse,
+  STORAGE_KEY_ROW_COLLAPSE,
   toggleRowExpanded,
   type RowCollapseState,
 } from '../goalRowCollapse';
 
-beforeEach(async () => {
-  await db.userPrefs.clear();
+beforeEach(() => {
+  localStorage.clear();
 });
 
-async function persistToggle(state: RowCollapseState, goalId: string, isUmbrella: boolean) {
+function persistToggle(state: RowCollapseState, goalId: string, isUmbrella: boolean) {
   const next = toggleRowExpanded(state, goalId, isUmbrella);
-  await setPref(PREF_GOALS_ROW_COLLAPSE, next);
+  saveRowCollapse(next);
   return next;
 }
 
-async function rehydrate(): Promise<RowCollapseState> {
-  const raw = await getPref<unknown>(PREF_GOALS_ROW_COLLAPSE, {});
-  return parseRowCollapseState(raw);
-}
-
-describe('rowCollapse persistence round-trip', () => {
-  it('survives a single toggle + reload (umbrella collapsed)', async () => {
-    let state: RowCollapseState = {};
-    state = await persistToggle(state, 'g1', true);
+describe('rowCollapse persistence round-trip (localStorage)', () => {
+  it('survives a single toggle + reload (umbrella collapsed)', () => {
+    let state: RowCollapseState = loadRowCollapse();
+    state = persistToggle(state, 'g1', true);
     expect(state).toEqual({ g1: 'collapsed' });
 
-    const reloaded = await rehydrate();
+    const reloaded = loadRowCollapse();
     expect(resolveRowExpanded(reloaded, 'g1', true)).toBe(false);
   });
 
-  it('survives a regular row expand + reload', async () => {
-    let state: RowCollapseState = {};
-    state = await persistToggle(state, 'g1', false);
+  it('survives a regular row expand + reload', () => {
+    let state: RowCollapseState = loadRowCollapse();
+    state = persistToggle(state, 'g1', false);
     expect(state).toEqual({ g1: 'expanded' });
 
-    const reloaded = await rehydrate();
+    const reloaded = loadRowCollapse();
     expect(resolveRowExpanded(reloaded, 'g1', false)).toBe(true);
   });
 
-  it('toggle-back-to-default writes an empty map and reloads to default', async () => {
-    let state: RowCollapseState = {};
-    state = await persistToggle(state, 'g1', true);
-    state = await persistToggle(state, 'g1', true);
+  it('toggle-back-to-default writes an empty map and reloads to default', () => {
+    let state: RowCollapseState = loadRowCollapse();
+    state = persistToggle(state, 'g1', true);
+    state = persistToggle(state, 'g1', true);
     expect(state).toEqual({});
 
-    const reloaded = await rehydrate();
+    const reloaded = loadRowCollapse();
     expect(resolveRowExpanded(reloaded, 'g1', true)).toBe(true);
   });
 
-  it('preserves overrides for other goals when toggling one back to default', async () => {
-    let state: RowCollapseState = {};
-    state = await persistToggle(state, 'g1', true); // umbrella collapsed
-    state = await persistToggle(state, 'g2', false); // regular expanded
-    state = await persistToggle(state, 'g1', true); // umbrella back to expanded (default)
+  it('preserves overrides for other goals when toggling one back to default', () => {
+    let state: RowCollapseState = loadRowCollapse();
+    state = persistToggle(state, 'g1', true);
+    state = persistToggle(state, 'g2', false);
+    state = persistToggle(state, 'g1', true);
 
-    const reloaded = await rehydrate();
+    const reloaded = loadRowCollapse();
     expect(reloaded).toEqual({ g2: 'expanded' });
-    expect(resolveRowExpanded(reloaded, 'g1', true)).toBe(true);
-    expect(resolveRowExpanded(reloaded, 'g2', false)).toBe(true);
   });
 
-  it('re-reads the same pref key the persist effect writes to', async () => {
-    // Pin: if PREF_GOALS_ROW_COLLAPSE were typo'd in either
-    // direction, this round-trip would fail because the read
-    // would miss the write.
-    await setPref(PREF_GOALS_ROW_COLLAPSE, { 'g1': 'collapsed' });
-    const reloaded = await rehydrate();
-    expect(reloaded).toEqual({ g1: 'collapsed' });
+  it('returns {} for an unwritten store (first-ever load)', () => {
+    expect(loadRowCollapse()).toEqual({});
+  });
+
+  it('falls back to {} when stored JSON is malformed', () => {
+    localStorage.setItem(STORAGE_KEY_ROW_COLLAPSE, '{not json');
+    expect(loadRowCollapse()).toEqual({});
+  });
+
+  it('drops unrecognized override values during load', () => {
+    localStorage.setItem(
+      STORAGE_KEY_ROW_COLLAPSE,
+      JSON.stringify({ g1: 'collapsed', g2: 'open', g3: 42 }),
+    );
+    expect(loadRowCollapse()).toEqual({ g1: 'collapsed' });
+  });
+
+  it('writes a stable JSON encoding readable by load', () => {
+    saveRowCollapse({ g1: 'collapsed', g2: 'expanded' });
+    const raw = localStorage.getItem(STORAGE_KEY_ROW_COLLAPSE);
+    expect(raw).toBe('{"g1":"collapsed","g2":"expanded"}');
   });
 });
