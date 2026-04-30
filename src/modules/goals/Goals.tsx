@@ -38,6 +38,7 @@ import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import {
   dimensionForGoal,
   findChildren,
+  isConcatenatedChildSummary,
   isCrossModuleUmbrella,
   umbrellaModuleId,
   umbrellaSubtitle,
@@ -867,9 +868,14 @@ function averageOfNonZero(daily: DailyActivityPoint[]): number {
  *   - Empty description: synthesize the action-oriented default
  *     ("Build comprehensive Ear Training mastery in 2026").
  *   - Description matches the legacy "[Module] [Year]" default:
- *     substitute the new default. Lets pre-existing umbrellas
- *     wear the new title without forcing a re-save.
+ *     substitute the new default.
+ *   - Description is the legacy concatenated-child-descriptions
+ *     run-on (umbrella + " and " in the text): substitute the
+ *     new default. Catches umbrellas saved before yearly anchors
+ *     had a real auto-name.
  *   - Anything else: treat as user-customized and display verbatim.
+ *
+ * Pure render-time substitution — never touches stored data.
  */
 function umbrellaDisplayTitle(
   umbrella: Goal,
@@ -881,7 +887,11 @@ function umbrellaDisplayTitle(
     return desc || '(unnamed anchor)';
   }
   const anchorId = moduleId as AnchorModuleId;
-  if (!desc || isLegacyAnchorName(desc, anchorId, year)) {
+  if (
+    !desc ||
+    isLegacyAnchorName(desc, anchorId, year) ||
+    isConcatenatedChildSummary(umbrella)
+  ) {
     return defaultAnchorName(anchorId, year);
   }
   return desc;

@@ -9,6 +9,7 @@ import {
   findChildren,
   umbrellaModuleId,
   isCrossModuleUmbrella,
+  isConcatenatedChildSummary,
 } from '../umbrellaSummary';
 
 function mkGoal(overrides: Partial<Goal> = {}): Goal {
@@ -215,6 +216,48 @@ describe('umbrellaModuleId', () => {
   it('returns null when no child has a derivable module', () => {
     const children = [mkGoal({ targetMetric: null })];
     expect(umbrellaModuleId(children)).toBeNull();
+  });
+});
+
+describe('isConcatenatedChildSummary', () => {
+  it('catches the legacy run-on concatenation on umbrella records', () => {
+    const goal = mkGoal({
+      isUmbrella: true,
+      description:
+        'Cover all 143 ear training items (acquired) and Improve my overall ear training accuracy to 80% and practice at least 3 times a week',
+    });
+    expect(isConcatenatedChildSummary(goal)).toBe(true);
+  });
+
+  it('returns false for non-umbrella goals even if their description contains " and "', () => {
+    const goal = mkGoal({
+      isUmbrella: false,
+      description: 'Practice scales and arpeggios this week',
+    });
+    expect(isConcatenatedChildSummary(goal)).toBe(false);
+  });
+
+  it('returns false for umbrella records without " and " in their description', () => {
+    expect(
+      isConcatenatedChildSummary(
+        mkGoal({ isUmbrella: true, description: 'Build comprehensive Ear Training mastery in 2026' }),
+      ),
+    ).toBe(false);
+    expect(
+      isConcatenatedChildSummary(mkGoal({ isUmbrella: true, description: '' })),
+    ).toBe(false);
+  });
+
+  it('treats a user-customized title containing " and " as legacy too (accepted false positive)', () => {
+    // Documented trade-off: if a real user types " and " into
+    // their umbrella name, it gets substituted with the new
+    // auto-default. They can re-edit. The legacy-concat case is
+    // common enough to warrant the broad heuristic.
+    expect(
+      isConcatenatedChildSummary(
+        mkGoal({ isUmbrella: true, description: 'Master ET basics and dive deeper' }),
+      ),
+    ).toBe(true);
   });
 });
 

@@ -141,3 +141,27 @@ export function isCrossModuleUmbrella(
   }
   return seen.size > 1;
 }
+
+/**
+ * Heuristic for the second legacy umbrella description shape:
+ * concatenated child descriptions joined by " and " (the auto-
+ * formatter that lived before yearly anchors had a real
+ * auto-name).
+ *
+ * Returns true when the goal is an umbrella AND its description
+ * contains " and " — broad on purpose. The Goals home pairs
+ * this with the explicit isLegacyAnchorName check; together
+ * they cover both legacy patterns without a data migration.
+ *
+ * Accepted false positive: a user customizes their umbrella
+ * title to a string that happens to contain " and " (e.g.,
+ * "Master ET basics and dive deeper"). That title gets
+ * substituted with the new default at render time. User can
+ * re-edit; tradeoff is worth it because the run-on
+ * concatenation case is far more common.
+ */
+export function isConcatenatedChildSummary(goal: Goal): boolean {
+  if (!goal.isUmbrella) return false;
+  const desc = goal.description?.trim() ?? '';
+  return desc.includes(' and ');
+}
