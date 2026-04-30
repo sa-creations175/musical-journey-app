@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal, type GoalScope, type GoalStatus, type ProficiencyDefinition, type Song } from '../../lib/db';
-import { GOALS_META } from '../../lib/moduleMeta';
+import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { getPref, setPref } from '../../lib/userPrefs';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
@@ -19,7 +19,22 @@ import {
   shouldShowSlots,
 } from './goalRowSlots';
 import { ActivityChart } from './activity/ActivityChart';
-import { mockForGoal } from './activity/mockActivityData';
+import {
+  getDailyActivity,
+  activityUnitForModule,
+  binToWeek,
+  binToMonth,
+  binToYear,
+  mondayOf,
+  weeklyRange,
+  monthlyRange,
+  yearlyRange,
+  type DailyActivityPoint,
+} from './activity/dailyActivity';
+// `mockActivityData` stays around as a DEV preview helper for
+// substep reviews — not wired into production paths anymore now
+// that 6c reads from the live data layer.
+import { moduleForMetric } from './goalVocabulary';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -592,7 +607,7 @@ function GoalRow({
               live getDailyActivity helper without disturbing the
               <ActivityChart> contract. */}
           <div data-activity-area>
-            <MockActivityChart goal={goal} />
+            <LiveActivityChart goal={goal} />
           </div>
 
           {showSlots && (
@@ -667,61 +682,96 @@ function GoalRow({
 }
 
 /**
- * Phase 2 step 6b — wraps the scope-adaptive ActivityChart with
- * deterministic mock data. The wrapper exists so step 6c can
- * swap the mock generator for a live data source (Dexie live
- * query against attempts / drillSessions / songPracticeLog /
- * lesson sessions) without changing the <GoalRow> call site.
+ * Phase 2 step 6c — live activity chart wrapper.
  *
- * Uses a per-render `today` so the chart future-fades correctly
- * when the user opens Goals across midnight (rare but cheap to
- * be right about).
+ * Reads daily activity from the canonical per-module sources via
+ * a Dexie live query, bins it into the chart shape that matches
+ * the goal's scope, and renders the right sub-chart with the
+ * module's accent + activity unit.
+ *
+ * Module identity is derived from `goal.targetMetric` via
+ * `moduleForMetric`. Goals without a derivable module (umbrellas
+ * with null metric, malformed records) and goals at scopes that
+ * don't have a chart shape (quarterly, aspirational,
+ * practice-consistency) fall through to the dispatcher's
+ * "no chart" notice.
+ *
+ * Personal-history average is computed from the same daily
+ * series for now — over the visible window. Step 7's feasibility
+ * helper introduces a longer-window personal average; we'll
+ * upgrade this signal then.
  */
-function MockActivityChart({ goal }: { goal: Goal }) {
-  const today = new Date();
-  const data = useMemo(() => mockForGoal(goal, today), [goal.id, goal.scope]);
-  // Module accent: 6e wires per-goal-module accent. For now,
-  // share the Goals module accent so the chart visually anchors
-  // to the page until module bucketing lands.
-  const accent = GOALS_META.accentHex;
-  if (data.kind === 'weekly') {
+function LiveActivityChart({ goal }: { goal: Goal }) {
+  // Stable across re-renders within one mount; recomputed on
+  // remount so an open page across midnight refreshes via Dexie
+  // live-query reactivity rather than `today` ticking.
+  const today = useMemo(() => new Date(), []);
+  const moduleId = moduleForMetric(goal.targetMetric);
+
+  const range = useMemo(() => {
+    if (goal.scope === 'weekly') return weeklyRange(today);
+    if (goal.scope === 'monthly') return monthlyRange(today);
+    if (goal.scope === 'yearly') return yearlyRange(today);
+    return null;
+  }, [goal.scope, today]);
+
+  const daily = useLiveQuery(
+    () =>
+      moduleId && range
+        ? getDailyActivity(moduleId, range)
+        : Promise.resolve([] as DailyActivityPoint[]),
+    [moduleId, range?.startMs, range?.endMs],
+    [] as DailyActivityPoint[],
+  );
+
+  if (!moduleId || !range) {
+    return <ActivityChart scope={goal.scope} />;
+  }
+
+  const unit = activityUnitForModule(moduleId);
+  const accent = moduleMetaById(moduleId)?.accentHex ?? GOALS_META.accentHex;
+  const avg = averageOfNonZero(daily ?? []);
+
+  if (goal.scope === 'weekly') {
+    const weekStart = mondayOf(today);
     return (
       <ActivityChart
         scope="weekly"
         weekly={{
-          values: data.values,
-          weekStart: data.weekStart,
-          averageCount: data.averageCount,
-          unit: 'cards',
+          values: binToWeek(daily ?? [], weekStart),
+          weekStart,
+          averageCount: avg,
+          unit,
           accentHex: accent,
           today,
         }}
       />
     );
   }
-  if (data.kind === 'monthly') {
+  if (goal.scope === 'monthly') {
     return (
       <ActivityChart
         scope="monthly"
         monthly={{
-          values: data.values,
-          averageCount: data.averageCount,
-          unit: 'cards',
+          values: binToMonth(daily ?? [], today.getFullYear(), today.getMonth()),
+          averageCount: avg,
+          unit,
           accentHex: accent,
           today,
         }}
       />
     );
   }
-  if (data.kind === 'yearly') {
+  if (goal.scope === 'yearly') {
+    const year = today.getFullYear();
     return (
       <ActivityChart
         scope="yearly"
         yearly={{
-          values: data.values,
-          year: data.year,
-          averageCount: data.averageCount,
-          unit: 'cards',
+          values: binToYear(daily ?? [], year),
+          year,
+          averageCount: avg,
+          unit,
           accentHex: accent,
           today,
         }}
@@ -729,6 +779,17 @@ function MockActivityChart({ goal }: { goal: Goal }) {
     );
   }
   return <ActivityChart scope={goal.scope} />;
+}
+
+/**
+ * Window-relative average of non-zero days. Returns 0 when the
+ * window is empty so the chart simply omits the average line +
+ * gutter rather than drawing a misleading flat-zero overlay.
+ */
+function averageOfNonZero(daily: DailyActivityPoint[]): number {
+  const nz = daily.filter(p => p.count > 0);
+  if (nz.length === 0) return 0;
+  return Math.round(nz.reduce((sum, p) => sum + p.count, 0) / nz.length);
 }
 
 // -------------------------------------------------------------------
