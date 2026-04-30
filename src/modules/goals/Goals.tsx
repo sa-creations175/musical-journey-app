@@ -56,6 +56,13 @@ import {
   type GoalsView,
 } from './goalsView';
 import {
+  parseRowCollapseState,
+  PREF_GOALS_ROW_COLLAPSE,
+  resolveRowExpanded,
+  toggleRowExpanded,
+  type RowCollapseState,
+} from './goalRowCollapse';
+import {
   groupByModule,
   isCurrentOrUpcoming,
   ORDERED_GOAL_MODULES,
@@ -114,6 +121,14 @@ type FormMode =
   | { kind: 'create'; scope: GoalScope | null }
   | { kind: 'edit'; goal: Goal };
 
+/** Phase 2 step 6g — passed from the page-level component down
+ *  to every row so collapse state is a single source of truth
+ *  across both views and persists across reloads. */
+interface RowCollapseAccess {
+  isRowExpanded: (goalId: string, isUmbrella: boolean) => boolean;
+  onToggleRow: (goalId: string, isUmbrella: boolean) => void;
+}
+
 export default function Goals() {
   // No default value — `goals` is `undefined` until the live query
   // resolves the first time. The onboarding latch effect below uses
@@ -169,6 +184,7 @@ export default function Goals() {
   const [collapseOverrides, setCollapseOverrides] = useState<LayerCollapseOverrides>({});
   const [hiddenLayers, setHiddenLayers] = useState<GoalScope[]>([]);
   const [activeView, setActiveView] = useState<GoalsView>(DEFAULT_GOALS_VIEW);
+  const [rowCollapse, setRowCollapse] = useState<RowCollapseState>({});
   const [hydrated, setHydrated] = useState(false);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
@@ -216,14 +232,16 @@ export default function Goals() {
   // Hydrate prefs once.
   useEffect(() => {
     (async () => {
-      const [collapse, hidden, view] = await Promise.all([
+      const [collapse, hidden, view, rows] = await Promise.all([
         getPref<LayerCollapseOverrides>(PREF_LAYER_COLLAPSE, {}),
         getPref<GoalScope[]>(PREF_HIDDEN_LAYERS, []),
         getPref<unknown>(PREF_GOALS_ACTIVE_VIEW, DEFAULT_GOALS_VIEW),
+        getPref<unknown>(PREF_GOALS_ROW_COLLAPSE, {}),
       ]);
       setCollapseOverrides(collapse ?? {});
       setHiddenLayers(Array.isArray(hidden) ? hidden : []);
       setActiveView(parseGoalsView(view));
+      setRowCollapse(parseRowCollapseState(rows));
       setHydrated(true);
     })();
   }, []);
@@ -242,6 +260,20 @@ export default function Goals() {
     if (!hydrated) return;
     void setPref(PREF_GOALS_ACTIVE_VIEW, activeView);
   }, [activeView, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void setPref(PREF_GOALS_ROW_COLLAPSE, rowCollapse);
+  }, [rowCollapse, hydrated]);
+
+  // Stable accessors that resolve / mutate the row-collapse map
+  // for any (goalId, isUmbrella) pair. Threaded through
+  // LayerSection / ByModuleSection → UmbrellaRow → child GoalRow
+  // so every row consults the same source of truth.
+  const isRowExpanded = (goalId: string, isUmbrella: boolean) =>
+    resolveRowExpanded(rowCollapse, goalId, isUmbrella);
+  const onToggleRow = (goalId: string, isUmbrella: boolean) =>
+    setRowCollapse(s => toggleRowExpanded(s, goalId, isUmbrella));
 
   const goalsByScope = useMemo(() => groupByScope(goals ?? []), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));
@@ -387,6 +419,8 @@ export default function Goals() {
                 onToggle={() => toggleLayer(layer.scope)}
                 onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
                 onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
+                isRowExpanded={isRowExpanded}
+                onToggleRow={onToggleRow}
               />
             );
           })}
@@ -405,6 +439,8 @@ export default function Goals() {
           onSetYearlyAnchor={moduleId =>
             setAnchorMode({ moduleId: moduleId as AnchorModuleId })
           }
+          isRowExpanded={isRowExpanded}
+          onToggleRow={onToggleRow}
         />
       )}
 
@@ -491,6 +527,8 @@ function LayerSection({
   onToggle,
   onAdd,
   onEditGoal,
+  isRowExpanded,
+  onToggleRow,
 }: {
   layer: LayerDef;
   goals: Goal[];
@@ -500,7 +538,7 @@ function LayerSection({
   onToggle: () => void;
   onAdd: () => void;
   onEditGoal: (goal: Goal) => void;
-}) {
+} & RowCollapseAccess) {
   return (
     <section className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
       <button
@@ -547,6 +585,8 @@ function LayerSection({
                         proficiencyDefs={proficiencyDefs}
                         songLookup={songLookup}
                         onEditGoal={onEditGoal}
+                        isRowExpanded={isRowExpanded}
+                        onToggleRow={onToggleRow}
                       />
                     ) : (
                       <GoalRow
@@ -556,6 +596,8 @@ function LayerSection({
                         proficiencyDefs={proficiencyDefs}
                         songLookup={songLookup}
                         onEdit={() => onEditGoal(g)}
+                        isRowExpanded={isRowExpanded}
+                        onToggleRow={onToggleRow}
                       />
                     ),
                   )}
@@ -608,6 +650,8 @@ function GoalRow({
   dimensionLabel,
   dimensionAccentHex,
   omitActivityChart,
+  isRowExpanded,
+  onToggleRow,
 }: {
   goal: Goal;
   layerType: LayerDef['type'];
@@ -631,8 +675,9 @@ function GoalRow({
   /** Module accent for the dimension label. Falls back to the
    *  Goals page accent when not provided. */
   dimensionAccentHex?: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
+} & RowCollapseAccess) {
+  const expanded = isRowExpanded(goal.id, false);
+  const setExpanded = () => onToggleRow(goal.id, false);
   const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
   const slotState = progressSlotState(goal, layerType);
   const showSlots = shouldShowSlots(layerType);
@@ -654,7 +699,7 @@ function GoalRow({
     <li data-testid="goal-row">
       <button
         type="button"
-        onClick={() => setExpanded(v => !v)}
+        onClick={setExpanded}
         aria-expanded={expanded}
         className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
       >
@@ -994,6 +1039,8 @@ function UmbrellaRow({
   proficiencyDefs,
   songLookup,
   onEditGoal,
+  isRowExpanded,
+  onToggleRow,
 }: {
   umbrella: Goal;
   childGoals: Goal[];
@@ -1001,12 +1048,17 @@ function UmbrellaRow({
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
-}) {
-  // Default expanded — umbrella's own panel + children list both
-  // visible. Tapping the umbrella header collapses the entire
-  // subtree (panel + children disappear together). Children
-  // remain individually collapsible inside the subtree.
-  const [expanded, setExpanded] = useState(true);
+} & RowCollapseAccess) {
+  // Default expanded for umbrellas — subtree (panel + children)
+  // visible on first render. Tapping the umbrella header
+  // collapses the entire subtree. Children remain individually
+  // collapsible inside the subtree.
+  //
+  // State is lifted to the page-level component (step 6g) so the
+  // umbrella's collapse state survives across reloads and view
+  // switches.
+  const expanded = isRowExpanded(umbrella.id, true);
+  const setExpanded = () => onToggleRow(umbrella.id, true);
   const subtitle = umbrellaSubtitle(childGoals);
   const showSlots = shouldShowSlots(layerType);
   const sharedModule = umbrellaModuleId(childGoals);
@@ -1036,7 +1088,7 @@ function UmbrellaRow({
     <li data-testid="goal-row" data-umbrella>
       <button
         type="button"
-        onClick={() => setExpanded(v => !v)}
+        onClick={setExpanded}
         aria-expanded={expanded}
         className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
       >
@@ -1167,6 +1219,8 @@ function UmbrellaRow({
                 dimensionLabel={label}
                 dimensionAccentHex={moduleAccent}
                 omitActivityChart
+                isRowExpanded={isRowExpanded}
+                onToggleRow={onToggleRow}
               />
             );
           })}
@@ -1274,13 +1328,15 @@ function ByModuleView({
   songLookup,
   onEditGoal,
   onSetYearlyAnchor,
+  isRowExpanded,
+  onToggleRow,
 }: {
   goals: Goal[];
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
-}) {
+} & RowCollapseAccess) {
   // Stable across re-renders within one mount; matches the
   // pattern used by LiveActivityChart elsewhere.
   const today = useMemo(() => new Date(), []);
@@ -1300,6 +1356,8 @@ function ByModuleView({
           songLookup={songLookup}
           onEditGoal={onEditGoal}
           onSetYearlyAnchor={onSetYearlyAnchor}
+          isRowExpanded={isRowExpanded}
+          onToggleRow={onToggleRow}
         />
       ))}
     </div>
@@ -1319,6 +1377,8 @@ function ByModuleSection({
   songLookup,
   onEditGoal,
   onSetYearlyAnchor,
+  isRowExpanded,
+  onToggleRow,
 }: {
   moduleId: GoalFlowModuleId;
   allGoals: Goal[];
@@ -1326,7 +1386,7 @@ function ByModuleSection({
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
-}) {
+} & RowCollapseAccess) {
   // A goal belongs to this module when its derived module
   // matches. Non-umbrella → moduleForMetric. Umbrella → same
   // function over its children via umbrellaModuleId.
@@ -1371,6 +1431,8 @@ function ByModuleSection({
             proficiencyDefs={proficiencyDefs}
             songLookup={songLookup}
             onEditGoal={onEditGoal}
+            isRowExpanded={isRowExpanded}
+            onToggleRow={onToggleRow}
           />
         </ul>
       ) : (
@@ -1392,6 +1454,8 @@ function ByModuleSection({
                 proficiencyDefs={proficiencyDefs}
                 songLookup={songLookup}
                 onEditGoal={onEditGoal}
+                isRowExpanded={isRowExpanded}
+                onToggleRow={onToggleRow}
               />
             ) : (
               <GoalRow
@@ -1401,6 +1465,8 @@ function ByModuleSection({
                 proficiencyDefs={proficiencyDefs}
                 songLookup={songLookup}
                 onEdit={() => onEditGoal(g)}
+                isRowExpanded={isRowExpanded}
+                onToggleRow={onToggleRow}
               />
             ),
           )}

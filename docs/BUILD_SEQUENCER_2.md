@@ -151,6 +151,9 @@ All 7 steps pushed to origin/main.
 - Dev "Clear all goals" button — remove when Phase 2 fully done (Phase 7 cleanup)
 - Mid-year umbrella expansion — deferred indefinitely; no legacy goals exist, all new users use YearlyAnchorFlow
 
+**Pre-Phase 3 cleanup items (must land before Phase 3 build):**
+- **Accuracy slider needs a paired text input.** Surfaced during Step 6f review (Apr 29). YearlyAnchorFlow's Depth dimension uses an accuracy % slider for ET / HF; users want to type an exact percentage rather than dragging. Same fix likely needed in GoalCreationFlow's accuracy step. Add a small numeric input next to the slider, two-way bound, with sensible min/max clamping.
+
 **Dependency:** Phase 1.6 complete ✅. Step 3 unblocks Step 4 (helpers need live counts). Steps 5 + 6 share UI work and can be sequenced together.
 
 ---
