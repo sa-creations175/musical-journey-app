@@ -558,6 +558,10 @@ export function getGoalFeasibility(
     return coverageFeasibility(goal, ctx, metric);
   }
 
+  if (metric === 'song_whole_at_level') {
+    return songWholeFeasibility(goal, ctx);
+  }
+
   if (isAccuracyMetric(metric)) {
     return accuracyFeasibility(goal, ctx);
   }
@@ -566,9 +570,10 @@ export function getGoalFeasibility(
     return consistencyFeasibility(goal, ctx);
   }
 
-  // Item-count branches (song_whole_at_level / count_completed)
-  // need module-specific rate data we don't track yet — they
-  // intentionally stay 'unknown' until that data lands.
+  // count_completed and other free-form item-count metrics need
+  // per-goal rate data we don't track yet — they stay 'unknown'
+  // until that data lands. song_whole_at_level is wired above
+  // with a default 1-song/month rate (Phase 7 calibration).
   return { kind: 'unknown' };
 }
 
@@ -718,6 +723,119 @@ function recommendCoverage(args: {
     return `Deadline passed — reached ${args.currentValue} of ${args.target} ${u}.`;
   }
   return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} ${u} by ${dateStr}.`;
+}
+
+// ── Song coverage branch (song_whole_at_level) ───────────────
+
+/** Default rate of songs reaching a given level per week.
+ *  Tunable starting point — 1 song/month per the Phase 7
+ *  placeholder rule logged in BUILD_SEQUENCER_2.md. Calibrated
+ *  from real use once songPracticeLog history accumulates. */
+export const SONG_DEFAULT_RATE_PER_WEEK = 0.25;
+
+/**
+ * Format a song goal's targetUnit as a display label injected
+ * into recommendation strings ("Comfortable", "Solid",
+ * "Internalized"). Returns null for `cross_key` (uses % math,
+ * deferred) or any unknown unit so the caller can fall back to
+ * `{ kind: 'unknown' }`.
+ */
+function formatSongStageLabel(unit: string | null): string | null {
+  if (!unit) return null;
+  if (unit === 'comfortable') return 'Comfortable';
+  if (unit === 'solid') return 'Solid';
+  if (unit === 'internalized') return 'Internalized';
+  // cross_key + anything unrecognized → no label, no projection.
+  return null;
+}
+
+function songWholeFeasibility(
+  goal: Goal,
+  ctx: GoalFeasibilityContext,
+): GoalFeasibility {
+  const target = goal.targetValue;
+  if (target === null || target === undefined) {
+    return { kind: 'unknown' };
+  }
+  const stage = formatSongStageLabel(goal.targetUnit);
+  if (!stage) return { kind: 'unknown' };
+
+  const daysRemaining = Math.max(
+    0,
+    Math.ceil((goal.targetDate - ctx.today.getTime()) / DAY_MS),
+  );
+  const weeksRemaining = daysRemaining / 7;
+
+  const projected = Math.round(
+    ctx.currentValue + weeksRemaining * SONG_DEFAULT_RATE_PER_WEEK,
+  );
+  const doubledProjected = Math.round(
+    ctx.currentValue + weeksRemaining * SONG_DEFAULT_RATE_PER_WEEK * 2,
+  );
+
+  const status = classifyCoverageStatus(
+    projected,
+    doubledProjected,
+    target,
+    daysRemaining,
+  );
+
+  const recommendation = recommendSongWhole({
+    status,
+    projected,
+    doubledProjected,
+    target,
+    currentValue: ctx.currentValue,
+    daysRemaining,
+    targetDate: new Date(goal.targetDate),
+    stage,
+  });
+
+  return {
+    kind: 'measurable',
+    status,
+    projected,
+    target,
+    currentValue: ctx.currentValue,
+    daysRemaining,
+    recommendation,
+  };
+}
+
+function recommendSongWhole(args: {
+  status: GoalFeasibilityStatus;
+  projected: number;
+  doubledProjected: number;
+  target: number;
+  currentValue: number;
+  daysRemaining: number;
+  targetDate: Date;
+  stage: string;
+}): string {
+  const dateStr = args.targetDate.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  const remaining = Math.max(0, args.target - args.currentValue);
+  const stage = args.stage;
+
+  if (args.status === 'on_track') {
+    return `On pace — projected to cover all ${args.target} songs at ${stage} by ${dateStr}.`;
+  }
+  if (args.status === 'at_risk') {
+    return `At current pace, projected to cover ${args.projected} of ${args.target} songs at ${stage} by ${dateStr}.`;
+  }
+  if (args.status === 'critical') {
+    const weeksLeft = Math.max(1, Math.ceil(args.daysRemaining / 7));
+    const songsPerWeek = Math.ceil(remaining / weeksLeft);
+    const songsWord = songsPerWeek === 1 ? 'song' : 'songs';
+    return `Need about ${songsPerWeek} ${songsWord} to reach ${stage} per week to hit ${args.target} by ${dateStr}.`;
+  }
+  // unrecoverable
+  if (args.daysRemaining <= 0) {
+    return `Deadline passed — reached ${args.currentValue} of ${args.target} songs at ${stage}.`;
+  }
+  return `Even at full pace, projected to cover ${args.doubledProjected} of ${args.target} songs at ${stage} by ${dateStr}.`;
 }
 
 // ── Accuracy branch ──────────────────────────────────────────

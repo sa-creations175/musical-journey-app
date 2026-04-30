@@ -130,16 +130,139 @@ describe('routing — non-coverage metrics fall through', () => {
     expect(out.kind).toBe('unknown');
   });
 
-  it('returns unknown for item-count metrics (deferred — needs per-module rate data)', () => {
+  it('returns unknown for free-form count_completed (still deferred)', () => {
     const out = getGoalFeasibility(
       mkGoal({
         scope: 'yearly',
-        targetMetric: 'song_whole_at_level',
-        targetValue: 25,
-        targetUnit: 'comfortable',
+        targetMetric: 'count_completed',
+        targetValue: 5,
+        targetUnit: 'items',
       }),
+      { currentValue: 1, today: TODAY },
+    );
+    expect(out.kind).toBe('unknown');
+  });
+});
+
+// ── Song coverage branch (song_whole_at_level) ──────────────
+
+describe('song_whole_at_level — coverage with stage injection', () => {
+  function songGoal(
+    target: number,
+    stage: 'comfortable' | 'solid' | 'internalized' | 'cross_key',
+    targetDate: number,
+  ): Goal {
+    return mkGoal({
+      scope: 'yearly',
+      targetMetric: 'song_whole_at_level',
+      targetValue: target,
+      targetUnit: stage,
+      targetDate,
+    });
+  }
+
+  it('routes Comfortable target through coverage feasibility (not "unknown")', () => {
+    const out = getGoalFeasibility(
+      songGoal(10, 'comfortable', DEC_31),
+      { currentValue: 0, today: TODAY },
+    );
+    expect(out.kind).toBe('measurable');
+  });
+
+  it('on_track recommendation injects the stage', () => {
+    const out = getGoalFeasibility(
+      songGoal(5, 'comfortable', DEC_31),
+      { currentValue: 5, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('on_track');
+      expect(out.recommendation).toMatch(/all 5 songs at Comfortable by/);
+    }
+  });
+
+  it('at_risk recommendation injects the stage (Comfortable)', () => {
+    // 35 weeks × 0.25 ≈ 9 projected vs target 10 → 90% → at_risk
+    const out = getGoalFeasibility(
+      songGoal(10, 'comfortable', DEC_31),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('at_risk');
+      expect(out.recommendation).toMatch(/of 10 songs at Comfortable by/);
+    }
+  });
+
+  it('at_risk recommendation injects the stage (Solid — different goal, same shape)', () => {
+    const out = getGoalFeasibility(
+      songGoal(10, 'solid', DEC_31),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('at_risk');
+      expect(out.recommendation).toMatch(/of 10 songs at Solid by/);
+    }
+  });
+
+  it('critical recommendation uses "songs to reach <Stage> per week" form', () => {
+    // 12 weeks × 0.25 = 3 projected vs target 5 → 60% < 85%.
+    // Doubled = 6 ≥ 5 → critical.
+    const twelveWeeksOut = TODAY.getTime() + 84 * DAY;
+    const out = getGoalFeasibility(
+      songGoal(5, 'comfortable', twelveWeeksOut),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('critical');
+      expect(out.recommendation).toMatch(/songs? to reach Comfortable per week/);
+      expect(out.recommendation).toMatch(/to hit 5 by/);
+    }
+  });
+
+  it('unrecoverable / future deadline injects stage in "Even at full pace"', () => {
+    // 4 weeks × 0.25 × 2 = 2 doubled projection vs target 25 →
+    // unrecoverable (doubling doesn't reach target).
+    const fourWeeksOut = TODAY.getTime() + 28 * DAY;
+    const out = getGoalFeasibility(
+      songGoal(25, 'solid', fourWeeksOut),
+      { currentValue: 0, today: TODAY },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('unrecoverable');
+      expect(out.recommendation).toMatch(/Even at full pace/);
+      expect(out.recommendation).toMatch(/of 25 songs at Solid by/);
+    }
+  });
+
+  it('unrecoverable / deadline passed injects stage in deadline-passed line', () => {
+    const yesterday = TODAY.getTime() - DAY;
+    const out = getGoalFeasibility(
+      songGoal(25, 'internalized', yesterday),
       { currentValue: 8, today: TODAY },
     );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('unrecoverable');
+      expect(out.recommendation).toMatch(
+        /Deadline passed — reached 8 of 25 songs at Internalized\./,
+      );
+    }
+  });
+
+  it('falls back to unknown for cross_key target (% math, not coverage)', () => {
+    const out = getGoalFeasibility(
+      songGoal(80, 'cross_key', DEC_31),
+      { currentValue: 50, today: TODAY },
+    );
+    expect(out.kind).toBe('unknown');
+  });
+
+  it('falls back to unknown when targetUnit is missing', () => {
+    const goal = mkGoal({
+      scope: 'yearly',
+      targetMetric: 'song_whole_at_level',
+      targetValue: 25,
+      targetUnit: null,
+    });
+    const out = getGoalFeasibility(goal, { currentValue: 0, today: TODAY });
     expect(out.kind).toBe('unknown');
   });
 });
