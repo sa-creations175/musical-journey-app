@@ -96,9 +96,11 @@ describe('saveAnchor — create mode shape', () => {
     expect(u.parentGoalId).toBeNull();
   });
 
-  it('umbrella description falls back to "Ear Training 2026" when draft.name is null', async () => {
+  it('umbrella description falls back to the action-oriented default when draft.name is null', async () => {
     const result = await saveAnchor(etDraft(), baseOpts);
-    expect(result!.umbrella.description).toBe('Ear Training 2026');
+    expect(result!.umbrella.description).toBe(
+      'Build comprehensive Ear Training mastery in 2026',
+    );
   });
 
   it('umbrella description uses draft.name when provided', async () => {
@@ -111,7 +113,9 @@ describe('saveAnchor — create mode shape', () => {
 
   it('empty / whitespace draft.name falls back to default', async () => {
     const result = await saveAnchor({ ...etDraft(), name: '   ' }, baseOpts);
-    expect(result!.umbrella.description).toBe('Ear Training 2026');
+    expect(result!.umbrella.description).toBe(
+      'Build comprehensive Ear Training mastery in 2026',
+    );
   });
 
   it('children all share scope=yearly, status=active, parentGoalId=umbrella, isUmbrella=false', async () => {
@@ -323,7 +327,9 @@ describe('saveAnchor — per-module smoke', () => {
       baseOpts,
     );
     expect(result!.children).toHaveLength(3);
-    expect(result!.umbrella.description).toBe('Practice consistency 2026');
+    expect(result!.umbrella.description).toBe(
+      'Build comprehensive Practice consistency mastery in 2026',
+    );
   });
 
   it('saves a Songs anchor with all-zero counts → just the Consistency record', async () => {

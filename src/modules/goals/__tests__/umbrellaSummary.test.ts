@@ -110,7 +110,7 @@ describe('dimensionForGoal', () => {
 });
 
 describe('umbrellaSubtitle', () => {
-  it('joins distinct dimensions in the canonical order', () => {
+  it('joins distinct dimensions in the order children are passed', () => {
     const children = [
       mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' }), // Breadth
       mkGoal({ targetMetric: 'ear_training_mastery_at_mastered' }),  // Mastery
@@ -129,12 +129,30 @@ describe('umbrellaSubtitle', () => {
     expect(umbrellaSubtitle(children)).toBe('Breadth');
   });
 
-  it('respects canonical ordering regardless of input order', () => {
-    const children = [
-      mkGoal({ targetMetric: 'ear_training_sessions_per_week' }),  // Consistency
+  it('preserves the order children appear in the list', () => {
+    // Subtitle ordering follows children's rendered order so the
+    // overview matches what the user sees below the umbrella.
+    const consistencyFirst = [
+      mkGoal({ targetMetric: 'ear_training_sessions_per_week' }),    // Consistency
       mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' }), // Breadth
     ];
-    expect(umbrellaSubtitle(children)).toBe('Breadth · Consistency');
+    expect(umbrellaSubtitle(consistencyFirst)).toBe('Consistency · Breadth');
+
+    const breadthFirst = [
+      mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' }), // Breadth
+      mkGoal({ targetMetric: 'ear_training_sessions_per_week' }),    // Consistency
+    ];
+    expect(umbrellaSubtitle(breadthFirst)).toBe('Breadth · Consistency');
+  });
+
+  it('skips Depth from the subtitle when no child carries that dimension', () => {
+    // Active dimensions only: a Mastery + Consistency umbrella
+    // does not surface a phantom "Depth" slot.
+    const children = [
+      mkGoal({ targetMetric: 'ear_training_mastery_at_mastered' }),  // Mastery
+      mkGoal({ targetMetric: 'ear_training_sessions_per_week' }),    // Consistency
+    ];
+    expect(umbrellaSubtitle(children)).toBe('Mastery · Consistency');
   });
 
   it('returns null when no child has a classifiable dimension', () => {

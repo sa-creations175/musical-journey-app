@@ -72,12 +72,31 @@ export interface DimensionReviewRow {
 // =====================================================================
 
 /**
- * Auto-generated umbrella name in "[Module Display Name] [Year]"
- * shape. Editable inline on Screen 2; this is the placeholder /
- * fallback when the user hasn't typed their own.
+ * Auto-generated umbrella name. Action-oriented form
+ * ("Build comprehensive [Module] mastery in [Year]") so the
+ * title reads as an intention the user is committing to, not
+ * a calendar slot. Editable inline on Screen 2; this is the
+ * placeholder / fallback when the user hasn't typed their own.
  */
 export function defaultAnchorName(moduleId: AnchorModuleId, year: number): string {
-  return `${MODULE_DISPLAY_NAME[moduleId]} ${year}`;
+  return `Build comprehensive ${MODULE_DISPLAY_NAME[moduleId]} mastery in ${year}`;
+}
+
+/**
+ * Detect the prior auto-name shape ("[Module] [Year]") so the
+ * Goals home can substitute the new action-oriented title at
+ * render time for umbrellas saved before the rename. Real
+ * user-customized titles fall through to display as stored.
+ *
+ * False positive on the rare case where a user customized to
+ * the exact legacy default — accepted; they can edit again.
+ */
+export function isLegacyAnchorName(
+  desc: string,
+  moduleId: AnchorModuleId,
+  year: number,
+): boolean {
+  return desc.trim() === `${MODULE_DISPLAY_NAME[moduleId]} ${year}`;
 }
 
 // =====================================================================

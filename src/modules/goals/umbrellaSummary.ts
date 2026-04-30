@@ -33,13 +33,6 @@ import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 
 export type GoalDimension = 'Breadth' | 'Mastery' | 'Depth' | 'Consistency';
 
-const DIMENSION_ORDER: ReadonlyArray<GoalDimension> = [
-  'Breadth',
-  'Mastery',
-  'Depth',
-  'Consistency',
-];
-
 /**
  * Classify a goal by dimension. Returns null for goals that
  * don't fit the four-dimension framework (most non-yearly-anchor
@@ -69,20 +62,26 @@ export function dimensionForGoal(goal: Goal): GoalDimension | null {
 
 /**
  * Build the umbrella subtitle from its children's dimensions.
- * Each dimension appears at most once, in the canonical order
- * (Breadth → Mastery → Depth → Consistency). Returns null when
- * no child has a classifiable dimension — caller falls back to
- * a generic subtitle (currently nothing, but step 7 may add a
- * count of children).
+ * Each dimension appears at most once, in the order it first
+ * appears as we walk the children list — the user sees the
+ * subtitle in the same order their children render below.
+ *
+ * Returns null when no child has a classifiable dimension;
+ * caller renders no subtitle (placeholder for a Step 7 child-
+ * count fallback if useful).
  */
 export function umbrellaSubtitle(children: ReadonlyArray<Goal>): string | null {
-  const set = new Set<GoalDimension>();
+  const seen = new Set<GoalDimension>();
+  const order: GoalDimension[] = [];
   for (const c of children) {
     const dim = dimensionForGoal(c);
-    if (dim) set.add(dim);
+    if (dim && !seen.has(dim)) {
+      seen.add(dim);
+      order.push(dim);
+    }
   }
-  if (set.size === 0) return null;
-  return DIMENSION_ORDER.filter(d => set.has(d)).join(' · ');
+  if (order.length === 0) return null;
+  return order.join(' · ');
 }
 
 /**

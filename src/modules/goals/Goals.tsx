@@ -36,11 +36,17 @@ import {
 // that 6c reads from the live data layer.
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import {
+  dimensionForGoal,
   findChildren,
   isCrossModuleUmbrella,
   umbrellaModuleId,
   umbrellaSubtitle,
+  type GoalDimension,
 } from './umbrellaSummary';
+import {
+  defaultAnchorName,
+  isLegacyAnchorName,
+} from './yearlyAnchorReview';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -556,12 +562,23 @@ function GoalRow({
   proficiencyDefs,
   songLookup,
   onEdit,
+  dimensionLabel,
+  dimensionAccentHex,
 }: {
   goal: Goal;
   layerType: LayerDef['type'];
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEdit: () => void;
+  /** When this row is a child of an umbrella, surfaces the
+   *  dimension label ("Breadth" / "Mastery" / "Depth" /
+   *  "Consistency") above the description so the user has
+   *  per-child framework context without re-reading the
+   *  umbrella's subtitle. Null = no label rendered. */
+  dimensionLabel?: GoalDimension | null;
+  /** Module accent for the dimension label. Falls back to the
+   *  Goals page accent when not provided. */
+  dimensionAccentHex?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
   const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
@@ -590,6 +607,14 @@ function GoalRow({
         className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
       >
         <div className="flex-1 min-w-0">
+          {dimensionLabel && (
+            <div
+              className="text-[10px] uppercase tracking-wide font-medium mb-0.5"
+              style={{ color: dimensionAccentHex ?? GOALS_META.accentHex }}
+            >
+              {dimensionLabel}
+            </div>
+          )}
           <div className="text-sm text-neutral-700 dark:text-neutral-200">
             {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
           </div>
@@ -835,6 +860,34 @@ function averageOfNonZero(daily: DailyActivityPoint[]): number {
 }
 
 /**
+ * Render-time umbrella title.
+ *
+ *   - Cross-module umbrella (no shared module): use the stored
+ *     description; no clean auto-fallback exists.
+ *   - Empty description: synthesize the action-oriented default
+ *     ("Build comprehensive Ear Training mastery in 2026").
+ *   - Description matches the legacy "[Module] [Year]" default:
+ *     substitute the new default. Lets pre-existing umbrellas
+ *     wear the new title without forcing a re-save.
+ *   - Anything else: treat as user-customized and display verbatim.
+ */
+function umbrellaDisplayTitle(
+  umbrella: Goal,
+  moduleId: GoalFlowModuleId | null,
+): string {
+  const desc = umbrella.description?.trim() ?? '';
+  const year = new Date(umbrella.targetDate).getFullYear();
+  if (!moduleId) {
+    return desc || '(unnamed anchor)';
+  }
+  const anchorId = moduleId as AnchorModuleId;
+  if (!desc || isLegacyAnchorName(desc, anchorId, year)) {
+    return defaultAnchorName(anchorId, year);
+  }
+  return desc;
+}
+
+/**
  * Return only goals that should appear at the top level of a
  * scope layer — excludes children whose parent is also in the
  * same list. Children render indented under their umbrella's
@@ -891,6 +944,10 @@ function UmbrellaRow({
   const showSlots = shouldShowSlots(layerType);
   const sharedModule = umbrellaModuleId(childGoals);
   const isCrossModule = isCrossModuleUmbrella(childGoals);
+  const moduleAccent = sharedModule
+    ? moduleMetaById(sharedModule)?.accentHex
+    : undefined;
+  const displayTitle = umbrellaDisplayTitle(umbrella, sharedModule);
 
   const handleDelete = async () => {
     if (
@@ -917,10 +974,18 @@ function UmbrellaRow({
         className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
       >
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-            {umbrella.description || (
-              <span className="italic text-neutral-500">(unnamed anchor)</span>
-            )}
+          <div
+            className="text-sm font-medium"
+            // Module accent applied to the whole title — single-
+            // module umbrellas wear their module's color so the
+            // user reads the row by-module at a glance. Cross-
+            // module umbrellas (no shared accent) fall back to
+            // the neutral palette.
+            style={{
+              color: moduleAccent ?? undefined,
+            }}
+          >
+            {displayTitle}
           </div>
           {subtitle && (
             <div className="text-xs text-neutral-500 mt-0.5">{subtitle}</div>
@@ -1021,6 +1086,8 @@ function UmbrellaRow({
               proficiencyDefs={proficiencyDefs}
               songLookup={songLookup}
               onEdit={() => onEditGoal(c)}
+              dimensionLabel={dimensionForGoal(c)}
+              dimensionAccentHex={moduleAccent}
             />
           ))}
         </ul>

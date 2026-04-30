@@ -24,6 +24,7 @@ import type {
 import {
   defaultAnchorName,
   dimensionRowsFor,
+  isLegacyAnchorName,
   summarizeAnchor,
 } from '../yearlyAnchorReview';
 
@@ -39,18 +40,43 @@ function draftFor(moduleId: AnchorModuleId, slot: Partial<AnchorDraft>): AnchorD
 
 describe('defaultAnchorName', () => {
   it.each<[AnchorModuleId, string]>([
-    ['ear-training',         'Ear Training 2026'],
-    ['harmonic-fluency',     'Harmonic Fluency 2026'],
-    ['repertoire',           'Song Repertoire 2026'],
-    ['shapes-and-patterns',  'Shapes & Patterns 2026'],
-    ['production',           'Production 2026'],
-    ['practice-consistency', 'Practice consistency 2026'],
-  ])('returns "%s 2026" for %s', (moduleId, expected) => {
+    ['ear-training',         'Build comprehensive Ear Training mastery in 2026'],
+    ['harmonic-fluency',     'Build comprehensive Harmonic Fluency mastery in 2026'],
+    ['repertoire',           'Build comprehensive Song Repertoire mastery in 2026'],
+    ['shapes-and-patterns',  'Build comprehensive Shapes & Patterns mastery in 2026'],
+    ['production',           'Build comprehensive Production mastery in 2026'],
+    ['practice-consistency', 'Build comprehensive Practice consistency mastery in 2026'],
+  ])('returns the action-oriented default for %s', (moduleId, expected) => {
     expect(defaultAnchorName(moduleId, YEAR)).toBe(expected);
   });
 
   it('substitutes the year argument', () => {
-    expect(defaultAnchorName('ear-training', 2030)).toBe('Ear Training 2030');
+    expect(defaultAnchorName('ear-training', 2030)).toBe(
+      'Build comprehensive Ear Training mastery in 2030',
+    );
+  });
+});
+
+describe('isLegacyAnchorName', () => {
+  it('detects the prior "[Module] [Year]" shape', () => {
+    expect(isLegacyAnchorName('Ear Training 2026', 'ear-training', 2026)).toBe(true);
+    expect(isLegacyAnchorName('  Ear Training 2026  ', 'ear-training', 2026)).toBe(true);
+  });
+
+  it('returns false for the new default and for user-customized strings', () => {
+    expect(
+      isLegacyAnchorName(
+        'Build comprehensive Ear Training mastery in 2026',
+        'ear-training',
+        2026,
+      ),
+    ).toBe(false);
+    expect(isLegacyAnchorName('My ET year', 'ear-training', 2026)).toBe(false);
+  });
+
+  it('does not match a different module or year', () => {
+    expect(isLegacyAnchorName('Ear Training 2026', 'harmonic-fluency', 2026)).toBe(false);
+    expect(isLegacyAnchorName('Ear Training 2025', 'ear-training', 2026)).toBe(false);
   });
 });
 
