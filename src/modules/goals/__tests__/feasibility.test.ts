@@ -583,11 +583,11 @@ describe('recommendations are calculated, not templated', () => {
     }
   });
 
-  it('coverage strings use "minutes" for time modules', () => {
-    // Shapes & Patterns coverage goal — activityUnitForModule
-    // returns "minutes". Using a sparse pace so we land in
-    // unrecoverable / future-deadline (the most unit-explicit
-    // string).
+  it('coverage strings use "shapes" for Shapes & Patterns (not the activity unit "minutes")', () => {
+    // Activity unit for Shapes is "minutes" (what you do per
+    // session) but the COVERAGE unit is "shapes" (what's being
+    // counted toward the target). The two diverge here — pin
+    // the coverage unit explicitly.
     const oneWeekOut = TODAY.getTime() + 7 * DAY;
     const goal = mkGoal({
       scope: 'yearly',
@@ -598,11 +598,43 @@ describe('recommendations are calculated, not templated', () => {
     const out = getGoalFeasibility(goal, {
       currentValue: 0,
       today: TODAY,
-      mix: { standard: 0, deep: 0, light: 1 }, // 8 minutes/week
+      mix: { standard: 0, deep: 0, light: 1 }, // sparse → unrecoverable
     });
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/of 408 minutes/);
+      expect(out.recommendation).toMatch(/of 408 shapes/);
+      expect(out.recommendation).not.toMatch(/minutes/);
     }
+  });
+
+  it('coverage strings use "lessons" for Production', () => {
+    const oneWeekOut = TODAY.getTime() + 7 * DAY;
+    const goal = mkGoal({
+      scope: 'yearly',
+      targetMetric: 'production_coverage_at_acquired',
+      targetValue: 56,
+      targetDate: oneWeekOut,
+    });
+    const out = getGoalFeasibility(goal, {
+      currentValue: 0,
+      today: TODAY,
+      mix: { standard: 0, deep: 0, light: 1 },
+    });
+    if (out.kind === 'measurable') {
+      expect(out.recommendation).toMatch(/of 56 lessons/);
+      expect(out.recommendation).not.toMatch(/minutes/);
+    }
+  });
+
+  it('coverageUnitForModule returns the right noun per module', async () => {
+    // Tiny pin-the-mapping test so a future rename surfaces in
+    // a single place rather than scattered string assertions.
+    const { coverageUnitForModule } = await import('../progress');
+    expect(coverageUnitForModule('ear-training')).toBe('cards');
+    expect(coverageUnitForModule('harmonic-fluency')).toBe('cards');
+    expect(coverageUnitForModule('shapes-and-patterns')).toBe('shapes');
+    expect(coverageUnitForModule('repertoire')).toBe('songs');
+    expect(coverageUnitForModule('production')).toBe('lessons');
+    expect(coverageUnitForModule('practice-consistency')).toBe('sessions');
   });
 
   it('critical recommendation includes weekly items needed', () => {

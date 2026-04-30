@@ -43,7 +43,6 @@ import {
   type CoverageMetric,
 } from './coverageMetrics';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
-import { activityUnitForModule } from './activity/dailyActivity';
 
 // =====================================================================
 // Constants
@@ -432,6 +431,43 @@ export type DayProfileMix = Partial<
   Record<'standard' | 'deep' | 'light' | 'custom', number>
 >;
 
+/**
+ * Coverage-unit noun per module — the thing being counted
+ * toward a coverage goal's target. **Distinct from
+ * `activityUnitForModule`** (cards / minutes), which describes
+ * the per-session activity unit on the activity chart.
+ *
+ *   activity unit       coverage unit
+ *   -----------------   -----------------
+ *   ET, HF: cards       cards
+ *   Shapes: minutes     shapes
+ *   Songs:  minutes     songs
+ *   Production: minutes lessons
+ *
+ * For card modules the two units happen to coincide (you
+ * review cards and you cover cards). For time modules they
+ * diverge: you practice minutes but you cover shapes / songs /
+ * lessons toward the target.
+ *
+ * Practice consistency goals don't actually use coverage math —
+ * the value is a defensive default for any caller that asks.
+ */
+export function coverageUnitForModule(moduleId: GoalFlowModuleId): string {
+  switch (moduleId) {
+    case 'ear-training':
+    case 'harmonic-fluency':
+      return 'cards';
+    case 'shapes-and-patterns':
+      return 'shapes';
+    case 'repertoire':
+      return 'songs';
+    case 'production':
+      return 'lessons';
+    case 'practice-consistency':
+      return 'sessions';
+  }
+}
+
 /** Phase 2 default mix per the 6h.2 sign-off (3 Standard + 1
  *  Deep + 1 Light per week). Phase 7 makes this user-editable. */
 export const DEFAULT_DAY_PROFILE_MIX: DayProfileMix = {
@@ -593,7 +629,7 @@ function coverageFeasibility(
     currentValue: ctx.currentValue,
     daysRemaining,
     targetDate: new Date(goal.targetDate),
-    unit: activityUnitForModule(moduleId as GoalFlowModuleId),
+    unit: coverageUnitForModule(moduleId as GoalFlowModuleId),
   });
 
   return {
@@ -652,7 +688,9 @@ function recommendCoverage(args: {
   currentValue: number;
   daysRemaining: number;
   targetDate: Date;
-  unit: 'cards' | 'minutes';
+  /** Coverage-unit noun for the module — "cards" / "shapes" /
+   *  "songs" / "lessons". See `coverageUnitForModule`. */
+  unit: string;
 }): string {
   const dateStr = args.targetDate.toLocaleDateString('en-US', {
     month: 'short',
