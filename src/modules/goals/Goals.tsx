@@ -34,7 +34,13 @@ import {
 // `mockActivityData` stays around as a DEV preview helper for
 // substep reviews — not wired into production paths anymore now
 // that 6c reads from the live data layer.
-import { moduleForMetric } from './goalVocabulary';
+import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
+import {
+  findChildren,
+  isCrossModuleUmbrella,
+  umbrellaModuleId,
+  umbrellaSubtitle,
+} from './umbrellaSummary';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -484,16 +490,28 @@ function LayerSection({
             </div>
           ) : (
             <ul className="flex flex-col gap-1.5">
-              {goals.map(g => (
-                <GoalRow
-                  key={g.id}
-                  goal={g}
-                  layerType={layer.type}
-                  proficiencyDefs={proficiencyDefs}
-                  songLookup={songLookup}
-                  onEdit={() => onEditGoal(g)}
-                />
-              ))}
+              {topLevelGoals(goals).map(g =>
+                g.isUmbrella ? (
+                  <UmbrellaRow
+                    key={g.id}
+                    umbrella={g}
+                    childGoals={findChildren(g, goals)}
+                    layerType={layer.type}
+                    proficiencyDefs={proficiencyDefs}
+                    songLookup={songLookup}
+                    onEditGoal={onEditGoal}
+                  />
+                ) : (
+                  <GoalRow
+                    key={g.id}
+                    goal={g}
+                    layerType={layer.type}
+                    proficiencyDefs={proficiencyDefs}
+                    songLookup={songLookup}
+                    onEdit={() => onEditGoal(g)}
+                  />
+                ),
+              )}
               <li>
                 <button
                   type="button"
@@ -701,12 +719,24 @@ function GoalRow({
  * helper introduces a longer-window personal average; we'll
  * upgrade this signal then.
  */
-function LiveActivityChart({ goal }: { goal: Goal }) {
+function LiveActivityChart({
+  goal,
+  moduleIdOverride,
+}: {
+  goal: Goal;
+  /** When provided, bypasses moduleForMetric(goal.targetMetric).
+   *  Used by UmbrellaRow to thread its single shared module
+   *  through the same data path as a regular child goal. */
+  moduleIdOverride?: GoalFlowModuleId | null;
+}) {
   // Stable across re-renders within one mount; recomputed on
   // remount so an open page across midnight refreshes via Dexie
   // live-query reactivity rather than `today` ticking.
   const today = useMemo(() => new Date(), []);
-  const moduleId = moduleForMetric(goal.targetMetric);
+  const moduleId =
+    moduleIdOverride !== undefined
+      ? moduleIdOverride
+      : moduleForMetric(goal.targetMetric);
 
   const range = useMemo(() => {
     if (goal.scope === 'weekly') return weeklyRange(today);
@@ -723,6 +753,18 @@ function LiveActivityChart({ goal }: { goal: Goal }) {
     [moduleId, range?.startMs, range?.endMs],
     [] as DailyActivityPoint[],
   );
+
+  // Practice consistency is a meta-habit with no single
+  // underlying source; the chart says so explicitly rather than
+  // falling through to the generic placeholder.
+  if (moduleId === 'practice-consistency') {
+    return (
+      <ActivityChart
+        scope={goal.scope}
+        emptyMessage="No single activity source for habit tracking"
+      />
+    );
+  }
 
   if (!moduleId || !range) {
     return <ActivityChart scope={goal.scope} />;
@@ -790,6 +832,201 @@ function averageOfNonZero(daily: DailyActivityPoint[]): number {
   const nz = daily.filter(p => p.count > 0);
   if (nz.length === 0) return 0;
   return Math.round(nz.reduce((sum, p) => sum + p.count, 0) / nz.length);
+}
+
+/**
+ * Return only goals that should appear at the top level of a
+ * scope layer — excludes children whose parent is also in the
+ * same list. Children render indented under their umbrella's
+ * row instead of as siblings.
+ */
+function topLevelGoals(goals: Goal[]): Goal[] {
+  const ids = new Set(goals.map(g => g.id));
+  return goals.filter(
+    g => !g.parentGoalId || !ids.has(g.parentGoalId),
+  );
+}
+
+/**
+ * Phase 2 step 6c.1 — umbrella goal row.
+ *
+ * Distinct from <GoalRow> because aggregate progress numbers
+ * don't compose cleanly across umbrella children (coverage
+ * count + accuracy % + consistency days don't sum). Both slots
+ * are reserved for worst-case feasibility status — Step 7 fills
+ * them in. For 6c.1 they render as inert pills, same shape as
+ * <GoalRow>'s feasibility slot.
+ *
+ * Expanded view:
+ *   - Single-module children → real activity chart, threaded
+ *     through <LiveActivityChart> with moduleIdOverride
+ *   - Cross-module children → "not available" message
+ *   - Single-module with no children yet → real chart with
+ *     zero-baseline ticks
+ *   - Feasibility breakdown — placeholder until Step 7
+ *   - Edit / Delete on the umbrella record itself
+ *
+ * Children render indented immediately below the umbrella row
+ * with their own full <GoalRow> anatomy. Tapping the umbrella
+ * header toggles ONLY the umbrella's own details — children's
+ * collapse states are independent.
+ */
+function UmbrellaRow({
+  umbrella,
+  childGoals,
+  layerType,
+  proficiencyDefs,
+  songLookup,
+  onEditGoal,
+}: {
+  umbrella: Goal;
+  childGoals: Goal[];
+  layerType: LayerDef['type'];
+  proficiencyDefs: ProficiencyDefinition[];
+  songLookup: (skillId: string) => Song | undefined;
+  onEditGoal: (g: Goal) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const subtitle = umbrellaSubtitle(childGoals);
+  const showSlots = shouldShowSlots(layerType);
+  const sharedModule = umbrellaModuleId(childGoals);
+  const isCrossModule = isCrossModuleUmbrella(childGoals);
+
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        'Delete this umbrella goal? Its sub-goals stay active. This moves the umbrella to abandoned status.',
+      )
+    )
+      return;
+    try {
+      await db.goals.update(umbrella.id, {
+        status: 'abandoned' satisfies GoalStatus,
+      });
+    } catch (err) {
+      console.warn('[goals] umbrella delete failed', err);
+    }
+  };
+
+  return (
+    <li data-testid="goal-row" data-umbrella>
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
+        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+            {umbrella.description || (
+              <span className="italic text-neutral-500">(unnamed anchor)</span>
+            )}
+          </div>
+          {subtitle && (
+            <div className="text-xs text-neutral-500 mt-0.5">{subtitle}</div>
+          )}
+        </div>
+
+        {showSlots && (
+          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            {/* Both slots reserved for worst-case feasibility
+                rollup. Step 7 fills them in. Inert dashed pills
+                for now so the layout is committed and won't shift
+                when real status data arrives. */}
+            <span
+              data-progress-slot
+              data-umbrella
+              aria-hidden
+              className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
+              title="Worst-case feasibility — coming in step 7"
+            >
+              —
+            </span>
+            <span
+              data-feasibility-slot
+              aria-hidden
+              className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
+              title="Worst-case feasibility — coming in step 7"
+            >
+              —
+            </span>
+          </div>
+        )}
+      </button>
+
+      {expanded && (
+        <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
+          <div data-activity-area>
+            {isCrossModule ? (
+              <ActivityChart
+                scope={umbrella.scope}
+                emptyMessage="Activity chart not available for cross-module goals"
+              />
+            ) : (
+              <LiveActivityChart
+                goal={umbrella}
+                moduleIdOverride={sharedModule}
+              />
+            )}
+          </div>
+
+          {showSlots && (
+            <div
+              data-feasibility-slot
+              data-variant="expanded"
+              className="text-xs text-neutral-400 italic"
+              aria-hidden
+            >
+              Per-child feasibility breakdown arrives in step 7
+            </div>
+          )}
+
+          <hr className="border-neutral-200 dark:border-neutral-800" />
+
+          <div className="flex items-center gap-2" data-testid="goal-row-actions">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditGoal(umbrella);
+              }}
+              className="text-xs px-2.5 py-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void handleDelete();
+              }}
+              className="text-xs px-2.5 py-1 rounded text-needswork hover:bg-needswork/10"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {childGoals.length > 0 && (
+        <ul
+          className="pl-4 mt-1.5 ml-2 flex flex-col gap-1.5 border-l border-neutral-200 dark:border-neutral-800"
+          data-umbrella-children
+        >
+          {childGoals.map(c => (
+            <GoalRow
+              key={c.id}
+              goal={c}
+              layerType={layerType}
+              proficiencyDefs={proficiencyDefs}
+              songLookup={songLookup}
+              onEdit={() => onEditGoal(c)}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
 }
 
 // -------------------------------------------------------------------

@@ -70,17 +70,24 @@ export function WeeklyBars(props: WeeklyBarsProps) {
   const max = Math.max(1, ...props.values);
   const top = pickTopPercentileIndices(props.values, 20);
   const showAvg = props.averageCount !== undefined && props.averageCount > 0;
+  const action = actionForUnit(props.unit);
 
   return (
     <div className="h-20 flex">
-      {showAvg && (
-        <AverageGutter
-          value={props.averageCount!}
-          max={max}
-          label={`Avg ${formatNumber(props.averageCount!)} ${props.unit}`}
-          title={`Avg: ${formatNumber(props.averageCount!)} ${props.unit}/day`}
-        />
-      )}
+      <AverageGutter
+        value={showAvg ? props.averageCount! : 0}
+        max={max}
+        label={
+          showAvg
+            ? `Avg ${formatNumber(props.averageCount!)} ${action}`
+            : action
+        }
+        title={
+          showAvg
+            ? `Avg: ${formatNumber(props.averageCount!)} ${action}/day`
+            : `${action} per day`
+        }
+      />
       <div className="relative flex-1 flex items-end gap-1 pr-1">
         {showAvg && <AverageLine value={props.averageCount!} max={max} />}
         {props.values.map((v, i) => {
@@ -118,17 +125,24 @@ export function YearlyBars(props: YearlyBarsProps) {
   const max = Math.max(1, ...props.values);
   const top = pickTopPercentileIndices(props.values, 20);
   const showAvg = props.averageCount !== undefined && props.averageCount > 0;
+  const action = actionForUnit(props.unit);
 
   return (
     <div className="h-20 flex">
-      {showAvg && (
-        <AverageGutter
-          value={props.averageCount!}
-          max={max}
-          label={`Avg ${formatNumber(props.averageCount!)} ${props.unit}`}
-          title={`Avg: ${formatNumber(props.averageCount!)} ${props.unit}/month`}
-        />
-      )}
+      <AverageGutter
+        value={showAvg ? props.averageCount! : 0}
+        max={max}
+        label={
+          showAvg
+            ? `Avg ${formatNumber(props.averageCount!)} ${action}`
+            : action
+        }
+        title={
+          showAvg
+            ? `Avg: ${formatNumber(props.averageCount!)} ${action}/month`
+            : `${action} per month`
+        }
+      />
       <div className="relative flex-1 flex items-end gap-[3px] pr-1">
         {showAvg && <AverageLine value={props.averageCount!} max={max} />}
         {props.values.map((v, i) => {
@@ -204,11 +218,11 @@ export function MonthlyDotGrid(props: MonthlyDotGridProps) {
           );
         })}
       </div>
-      {props.averageCount !== undefined && props.averageCount > 0 && (
-        <div className="text-[10px] text-neutral-500 px-1 tabular-nums">
-          Avg: {formatNumber(props.averageCount)} {props.unit}/day
-        </div>
-      )}
+      <div className="text-[10px] text-neutral-500 px-1 tabular-nums">
+        {props.averageCount !== undefined && props.averageCount > 0
+          ? `Avg: ${formatNumber(props.averageCount)} ${actionForUnit(props.unit)}/day`
+          : `${actionForUnit(props.unit)} per day`}
+      </div>
     </div>
   );
 }
@@ -220,6 +234,11 @@ export interface ActivityChartProps {
   weekly?: WeeklyBarsProps;
   monthly?: MonthlyDotGridProps;
   yearly?: YearlyBarsProps;
+  /** Override the empty-state message when no chart shape is
+   *  appropriate. Used by callers that know more about the
+   *  reason (cross-module umbrella, practice-consistency
+   *  meta-habit) than the dispatcher does. */
+  emptyMessage?: string;
 }
 
 export function ActivityChart(props: ActivityChartProps) {
@@ -232,12 +251,9 @@ export function ActivityChart(props: ActivityChartProps) {
   if (props.scope === 'yearly' && props.yearly) {
     return <YearlyBars {...props.yearly} />;
   }
-  // Quarterly + aspirational scopes don't have a spec'd chart
-  // shape. Render a quiet notice that keeps the activity area
-  // height stable instead of collapsing the row.
   return (
-    <div className="h-20 flex items-center justify-center text-[11px] uppercase tracking-wide text-neutral-400">
-      no activity chart for this scope
+    <div className="h-20 flex items-center justify-center text-[11px] tracking-wide text-neutral-400 px-2 text-center">
+      {props.emptyMessage ?? 'No activity chart for this scope'}
     </div>
   );
 }
@@ -309,14 +325,17 @@ function AverageLine({ value, max }: { value: number; max: number }) {
 }
 
 /**
- * Reserved left-side strip that holds the average line's label.
- * Pulling the label out of the bars area entirely is the
- * architecturally clean fix for readability — clean whitespace,
- * never collides with bars or top-20% number labels.
+ * Reserved left-side strip that holds the average label. Always
+ * renders so the unit is visible even when the chart has no
+ * average to draw — without it the bars are unitless.
  *
- * Vertically aligned to the dashed line by sharing the same
- * bottom-percentage calculation. `transform: translateY(50%)`
- * centers the label's vertical midpoint on the line.
+ * Two modes:
+ *   - With average: vertically aligned to the dashed line via
+ *     the shared bottom-percentage calc. `translateY(50%)`
+ *     centers the label's midpoint on the line.
+ *   - Without average (`value === 0`): anchored to the chart's
+ *     baseline above the weekday-label gutter so the unit label
+ *     sits where the line would have been at zero.
  */
 function AverageGutter({
   value,
@@ -329,12 +348,13 @@ function AverageGutter({
   label: string;
   title: string;
 }) {
-  const pct = avgBottomPercent(value, max);
+  const onLine = value > 0;
+  const bottom = onLine ? avgBottomPercent(value, max) : '14px';
   return (
-    <div className="relative w-16 shrink-0 pl-1 pr-1.5">
+    <div className="relative w-20 shrink-0 pl-1 pr-1.5">
       <span
         className="absolute right-1.5 text-[9px] tabular-nums text-neutral-500 dark:text-neutral-400 whitespace-nowrap"
-        style={{ bottom: pct, transform: 'translateY(50%)' }}
+        style={{ bottom, transform: onLine ? 'translateY(50%)' : 'translateY(0)' }}
         title={title}
       >
         {label}
@@ -360,6 +380,16 @@ function avgBottomPercent(value: number, max: number): string {
 function formatNumber(n: number): string {
   if (Number.isInteger(n)) return String(n);
   return n.toFixed(1);
+}
+
+/**
+ * Map the chart's unit type to the action label users see on
+ * the chart ("cards reviewed" / "minutes practiced"). The unit
+ * type stays terse for prop reuse; the user-facing label tells
+ * them what the bars are counting.
+ */
+function actionForUnit(unit: 'cards' | 'minutes'): string {
+  return unit === 'cards' ? 'cards reviewed' : 'minutes practiced';
 }
 
 function formatDate(d: Date): string {
