@@ -448,15 +448,13 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
     if (out.kind === 'measurable') expect(out.status).toBe('on_track');
   });
 
-  it('at_risk when slightly behind pace', () => {
-    // 20-day period (Apr 20 → May 10), TODAY = Apr 30 noon →
-    // daysPassed = 11, daysTotal = 20. target 20, current 10
-    // → expectedSoFar = 11, ratio = 10/11 = 0.91 → at_risk.
-    const start = new Date(2026, 3, 20).getTime();
-    const end = new Date(2026, 4, 10).getTime();
+  it('at_risk when slightly behind pace (weekly cadence window)', () => {
+    // Weekly scope → cadence window is current Mon-Sun (7 days).
+    // TODAY = Apr 30 noon (Thu) → elapsedFraction = 3.5/7 = 0.5.
+    // target=20, current=9 → expectedSoFar=10, ratio=0.9 → at_risk.
     const out = getGoalFeasibility(
-      weeklyConsistencyGoal(20, start, end),
-      { currentValue: 10, today: TODAY },
+      weeklyConsistencyGoal(20, PERIOD_START, PERIOD_END),
+      { currentValue: 9, today: TODAY },
     );
     if (out.kind === 'measurable') expect(out.status).toBe('at_risk');
   });
@@ -492,13 +490,67 @@ describe('consistency goals — pace-ratio + remaining-day feasibility', () => {
     if (out.kind === 'measurable') expect(out.status).toBe('unrecoverable');
   });
 
-  it('critical recommendation specifies sessions and days', () => {
+  it('weekly critical recommendation uses "this week" framing', () => {
     const out = getGoalFeasibility(
       weeklyConsistencyGoal(4, PERIOD_START, PERIOD_END),
       { currentValue: 0, today: TODAY },
     );
     if (out.kind === 'measurable') {
-      expect(out.recommendation).toMatch(/Need 4 more sessions in the next 4 days/);
+      expect(out.status).toBe('critical');
+      expect(out.recommendation).toBe('Need 4 more sessions this week.');
+      // Regression: never frame weekly with the goal's full
+      // deadline window.
+      expect(out.recommendation).not.toMatch(/in the next \d+ days/);
+    }
+  });
+
+  it('monthly critical recommendation uses "in the next N days" framing (days remaining in month)', () => {
+    // Monthly scope → cadence window = current month (Apr).
+    // TODAY = Apr 30 noon. Apr has 30 days → daysRemaining ≈ 1.
+    // target=10 sessions/month, current=0 → 10 sessions needed
+    // in 1 day = unrecoverable. To land critical, raise the
+    // remaining window: simulate Apr 25 noon → daysRemaining=5.
+    const apr25 = new Date(2026, 3, 25, 12);
+    const out = getGoalFeasibility(
+      mkGoal({
+        scope: 'monthly',
+        targetMetric: 'ear_training_sessions_per_month',
+        targetValue: 5,
+        startDate: new Date(2026, 3, 1).getTime(),
+        targetDate: new Date(2026, 4, 1).getTime(),
+      }),
+      { currentValue: 0, today: apr25 },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('critical');
+      expect(out.recommendation).toMatch(/Need 5 more sessions in the next \d+ days\./);
+      expect(out.recommendation).not.toMatch(/this week/);
+    }
+  });
+
+  it('yearly critical recommendation uses "this month to stay on yearly pace" framing', () => {
+    // Yearly scope → cadence window = current month. The
+    // recommendation explicitly invokes the yearly framing so
+    // a 245-days-remaining yearly anchor doesn't read as
+    // "the next 245 days".
+    const apr25 = new Date(2026, 3, 25, 12);
+    const out = getGoalFeasibility(
+      mkGoal({
+        scope: 'yearly',
+        targetMetric: 'practice_aspiration_days_per_week',
+        targetValue: 5,
+        startDate: new Date(2026, 0, 1).getTime(),
+        targetDate: new Date(2026, 11, 31).getTime(),
+      }),
+      { currentValue: 0, today: apr25 },
+    );
+    if (out.kind === 'measurable') {
+      expect(out.status).toBe('critical');
+      expect(out.recommendation).toMatch(
+        /Need 5 more sessions this month to stay on yearly pace\./,
+      );
+      // Regression: never read the goal's full-year deadline.
+      expect(out.recommendation).not.toMatch(/\d{2,3} days/);
     }
   });
 

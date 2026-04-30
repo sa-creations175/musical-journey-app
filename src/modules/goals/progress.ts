@@ -30,7 +30,7 @@
  * per-item averaged reading later if real use shows volume-skew.
  */
 
-import { db, type AcquisitionStage, type AttemptRecord, type Goal, type SpacingState } from '../../lib/db';
+import { db, type AcquisitionStage, type AttemptRecord, type Goal, type GoalScope, type SpacingState } from '../../lib/db';
 import { MIN_ATTEMPTS_FOR_TIER } from '../../lib/tier';
 import { cardById, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import { lessonsByPath } from '../production/content/lessons';
@@ -43,6 +43,7 @@ import {
   type CoverageMetric,
 } from './coverageMetrics';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
+import { mondayOf } from './activity/dailyActivity';
 
 // =====================================================================
 // Constants
@@ -1033,6 +1034,59 @@ function roundPercent(n: number): number {
  *  across goal types). */
 export const CONSISTENCY_AT_RISK_RATIO = AT_RISK_RATIO;
 
+/**
+ * Scope-aware cadence window for consistency goals. The
+ * goal.startDate / goal.targetDate range is irrelevant to pace
+ * math — a weekly consistency goal whose deadline is end-of-
+ * year still tracks against THIS WEEK's Mon-Sun. Reading the
+ * full goal-period remainder produced "Need 3 more sessions in
+ * the next 245 days" for a weekly goal (7e bug report).
+ *
+ * Window mapping:
+ *   weekly                          → current week (Mon → next Mon)
+ *   monthly / quarterly             → current calendar month
+ *   yearly                          → current calendar month, with
+ *                                     "stay on yearly pace" framing
+ */
+interface ConsistencyWindow {
+  start: number;
+  end: number;
+  /** Continuous fraction of window elapsed — used for
+   *  expectedSoFar pace math without integer rounding loss. */
+  elapsedFraction: number;
+  /** Whole-day count of remaining time in the window. */
+  daysRemaining: number;
+}
+
+function currentConsistencyWindow(
+  scope: GoalScope,
+  today: Date,
+): ConsistencyWindow {
+  let start: Date;
+  let end: Date;
+  if (scope === 'weekly') {
+    start = mondayOf(today);
+    end = new Date(start);
+    end.setDate(end.getDate() + 7);
+  } else {
+    // monthly / quarterly / yearly all use current calendar month
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+    end = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  }
+  const totalMs = end.getTime() - start.getTime();
+  const elapsedMs = Math.max(
+    0,
+    Math.min(totalMs, today.getTime() - start.getTime()),
+  );
+  const remainingMs = Math.max(0, end.getTime() - today.getTime());
+  return {
+    start: start.getTime(),
+    end: end.getTime(),
+    elapsedFraction: totalMs > 0 ? elapsedMs / totalMs : 1,
+    daysRemaining: Math.max(0, Math.ceil(remainingMs / DAY_MS)),
+  };
+}
+
 function consistencyFeasibility(
   goal: Goal,
   ctx: GoalFeasibilityContext,
@@ -1042,17 +1096,15 @@ function consistencyFeasibility(
     return { kind: 'unknown' };
   }
 
-  const todayMs = ctx.today.getTime();
-  const periodStart = goal.startDate;
-  const periodEnd = goal.targetDate;
-  const daysTotal = Math.max(1, Math.ceil((periodEnd - periodStart) / DAY_MS));
-  const daysPassed = Math.max(
+  // Goal's own deadline gates the deadline-passed branch.
+  const goalDeadlineDays = Math.max(
     0,
-    Math.min(daysTotal, Math.ceil((todayMs - periodStart) / DAY_MS)),
+    Math.ceil((goal.targetDate - ctx.today.getTime()) / DAY_MS),
   );
-  const daysRemaining = Math.max(0, daysTotal - daysPassed);
 
-  const expectedSoFar = target * (daysPassed / daysTotal);
+  // Cadence window drives pace math + the recommendation framing.
+  const window = currentConsistencyWindow(goal.scope, ctx.today);
+  const expectedSoFar = target * window.elapsedFraction;
   const sessionsRemaining = Math.max(0, target - ctx.currentValue);
 
   const status = classifyConsistencyStatus({
@@ -1060,7 +1112,8 @@ function consistencyFeasibility(
     target,
     expectedSoFar,
     sessionsRemaining,
-    daysRemaining,
+    daysRemaining: window.daysRemaining,
+    goalDeadlineDays,
   });
 
   const recommendation = recommendConsistency({
@@ -1068,8 +1121,8 @@ function consistencyFeasibility(
     current: ctx.currentValue,
     target,
     sessionsRemaining,
-    daysRemaining,
-    targetDate: new Date(goal.targetDate),
+    daysRemaining: window.daysRemaining,
+    scope: goal.scope,
   });
 
   return {
@@ -1078,7 +1131,7 @@ function consistencyFeasibility(
     projected: Math.round(ctx.currentValue),
     target,
     currentValue: ctx.currentValue,
-    daysRemaining,
+    daysRemaining: window.daysRemaining,
     recommendation,
   };
 }
@@ -1089,8 +1142,12 @@ function classifyConsistencyStatus(args: {
   expectedSoFar: number;
   sessionsRemaining: number;
   daysRemaining: number;
+  goalDeadlineDays: number;
 }): GoalFeasibilityStatus {
   if (args.current >= args.target) return 'on_track';
+  // Goal's hard deadline already in the past → unrecoverable
+  // regardless of cadence-window math.
+  if (args.goalDeadlineDays <= 0) return 'unrecoverable';
 
   // Pace ratio: have we logged what we'd expect by now?
   // Guards divide-by-zero at the start of the period (when
@@ -1119,7 +1176,7 @@ function recommendConsistency(args: {
   target: number;
   sessionsRemaining: number;
   daysRemaining: number;
-  targetDate: Date;
+  scope: GoalScope;
 }): string {
   if (args.status === 'on_track') {
     return `On pace — ${args.current} of ${args.target} sessions logged.`;
@@ -1128,12 +1185,21 @@ function recommendConsistency(args: {
     return `${args.current} of ${args.target} sessions so far — slightly behind pace.`;
   }
   if (args.status === 'critical') {
-    // Singular case (1 session, 1 day) reads more naturally as
-    // "today" than "in the next 1 day".
+    // Singular case — last day of the cadence window — reads
+    // more naturally as "today" than "in the next 1 day".
     if (args.sessionsRemaining === 1 && args.daysRemaining === 1) {
       return `Need 1 more session today to stay on track.`;
     }
-    return `Need ${args.sessionsRemaining} more session${args.sessionsRemaining === 1 ? '' : 's'} in the next ${args.daysRemaining} day${args.daysRemaining === 1 ? '' : 's'}.`;
+    const sessionsWord = args.sessionsRemaining === 1 ? 'session' : 'sessions';
+    if (args.scope === 'weekly') {
+      return `Need ${args.sessionsRemaining} more ${sessionsWord} this week.`;
+    }
+    if (args.scope === 'yearly') {
+      return `Need ${args.sessionsRemaining} more ${sessionsWord} this month to stay on yearly pace.`;
+    }
+    // monthly / quarterly default to "in the next N days"
+    const daysWord = args.daysRemaining === 1 ? 'day' : 'days';
+    return `Need ${args.sessionsRemaining} more ${sessionsWord} in the next ${args.daysRemaining} ${daysWord}.`;
   }
   // unrecoverable — unified message.
   return UNRECOVERABLE_MESSAGE;
