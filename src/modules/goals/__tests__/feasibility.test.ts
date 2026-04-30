@@ -28,6 +28,9 @@ import {
   ASPIRATIONAL_PLACEHOLDERS,
   AT_RISK_RATIO,
   DEFAULT_DAY_PROFILE_MIX,
+  loadDayProfileMix,
+  rollupChildFeasibilities,
+  type GoalFeasibility,
 } from '../progress';
 
 const TODAY = new Date(2026, 3, 30, 12); // April 30 2026, noon
@@ -834,5 +837,137 @@ describe('day-profile mix', () => {
 describe('AT_RISK_RATIO', () => {
   it('is exported and equals 0.85 (sign-off in step 6h.2 review)', () => {
     expect(AT_RISK_RATIO).toBe(0.85);
+  });
+});
+
+// ── Day profile mix accessor ─────────────────────────────────
+
+describe('loadDayProfileMix', () => {
+  it('returns the documented Phase 2 default (3 Standard + 1 Deep + 1 Light)', () => {
+    expect(loadDayProfileMix()).toEqual({
+      standard: 3,
+      deep: 1,
+      light: 1,
+    });
+  });
+
+  it('matches DEFAULT_DAY_PROFILE_MIX exactly (single source of truth)', () => {
+    expect(loadDayProfileMix()).toBe(DEFAULT_DAY_PROFILE_MIX);
+  });
+});
+
+// ── Umbrella worst-case rollup ───────────────────────────────
+
+type MeasurableStatus = 'on_track' | 'at_risk' | 'critical' | 'unrecoverable';
+
+function measurable(status: MeasurableStatus): GoalFeasibility {
+  return {
+    kind: 'measurable',
+    status,
+    projected: 0,
+    target: 100,
+    currentValue: 0,
+    daysRemaining: 30,
+    recommendation: 'fixture',
+  };
+}
+
+describe('rollupChildFeasibilities', () => {
+  it('returns null status + zero counts on empty input', () => {
+    expect(rollupChildFeasibilities([])).toEqual({
+      status: null,
+      breakdown: { on_track: 0, at_risk: 0, critical: 0, unrecoverable: 0 },
+    });
+  });
+
+  it('all on_track → status on_track, breakdown counts each', () => {
+    const out = rollupChildFeasibilities([
+      measurable('on_track'),
+      measurable('on_track'),
+      measurable('on_track'),
+    ]);
+    expect(out.status).toBe('on_track');
+    expect(out.breakdown).toEqual({
+      on_track: 3, at_risk: 0, critical: 0, unrecoverable: 0,
+    });
+  });
+
+  it('any at_risk pulls the worst-case to at_risk', () => {
+    const out = rollupChildFeasibilities([
+      measurable('on_track'),
+      measurable('at_risk'),
+      measurable('on_track'),
+    ]);
+    expect(out.status).toBe('at_risk');
+  });
+
+  it('any critical pulls the worst-case to critical (over at_risk)', () => {
+    const out = rollupChildFeasibilities([
+      measurable('on_track'),
+      measurable('at_risk'),
+      measurable('critical'),
+    ]);
+    expect(out.status).toBe('critical');
+    expect(out.breakdown).toEqual({
+      on_track: 1, at_risk: 1, critical: 1, unrecoverable: 0,
+    });
+  });
+
+  it('unrecoverable children are excluded from the worst-case', () => {
+    // The 6h.2 rule: unrecoverable is no longer actionable, so
+    // it doesn't drag the umbrella's status. Worst-case here is
+    // the on_track child.
+    const out = rollupChildFeasibilities([
+      measurable('on_track'),
+      measurable('unrecoverable'),
+    ]);
+    expect(out.status).toBe('on_track');
+  });
+
+  it('unrecoverable children still appear in the breakdown', () => {
+    // Excluded from worst-case but counted so the UI can render
+    // a motivational placeholder for each unrecoverable child.
+    const out = rollupChildFeasibilities([
+      measurable('on_track'),
+      measurable('at_risk'),
+      measurable('unrecoverable'),
+    ]);
+    expect(out.breakdown.unrecoverable).toBe(1);
+    expect(out.status).toBe('at_risk');
+  });
+
+  it('all-unrecoverable returns null status (umbrella has nothing actionable)', () => {
+    const out = rollupChildFeasibilities([
+      measurable('unrecoverable'),
+      measurable('unrecoverable'),
+    ]);
+    expect(out.status).toBeNull();
+    expect(out.breakdown.unrecoverable).toBe(2);
+  });
+
+  it('aspirational and unknown children do not contribute to status or breakdown', () => {
+    const out = rollupChildFeasibilities([
+      { kind: 'aspirational', message: 'placeholder' },
+      { kind: 'unknown' },
+      measurable('at_risk'),
+    ]);
+    expect(out.status).toBe('at_risk');
+    expect(out.breakdown).toEqual({
+      on_track: 0, at_risk: 1, critical: 0, unrecoverable: 0,
+    });
+  });
+
+  it('mixed actionable + unrecoverable + aspirational + unknown — only actionable wins', () => {
+    const out = rollupChildFeasibilities([
+      measurable('critical'),
+      measurable('unrecoverable'),
+      { kind: 'aspirational', message: 'p' },
+      { kind: 'unknown' },
+      measurable('on_track'),
+    ]);
+    expect(out.status).toBe('critical');
+    expect(out.breakdown).toEqual({
+      on_track: 1, at_risk: 0, critical: 1, unrecoverable: 1,
+    });
   });
 });

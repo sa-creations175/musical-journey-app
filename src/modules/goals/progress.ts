@@ -476,6 +476,18 @@ export const DEFAULT_DAY_PROFILE_MIX: DayProfileMix = {
   light: 1,
 };
 
+/**
+ * Stable accessor for the user's weekly day-profile mix. Phase 2
+ * returns the hardcoded default; Phase 7 swaps the body to read
+ * from a user-editable store (likely localStorage to sidestep
+ * the userPrefs sync race that bit 6g/6h). Callers that want
+ * feasibility against the user's current mix should go through
+ * here so the Phase 7 swap happens in one place.
+ */
+export function loadDayProfileMix(): DayProfileMix {
+  return DEFAULT_DAY_PROFILE_MIX;
+}
+
 /** Items-per-session estimates per (module × profile). Starting
  *  points from the 6h.2 design call; calibrated from real use
  *  in Phase 7. Card modules count cards reviewed; time modules
@@ -513,6 +525,29 @@ export const ASPIRATIONAL_PLACEHOLDERS: ReadonlyArray<string> = [
   'The trajectory starts today. Keep going.',
   'Your daily wins compound and set the trajectory for this vision.',
 ];
+
+/**
+ * Rolled-up feasibility for an umbrella goal. `status` is the
+ * worst-case across the umbrella's actionable children (i.e.,
+ * everything except unrecoverable — unrecoverable children are
+ * no longer in play, so they don't pull the umbrella's status
+ * down with them). `breakdown` counts each status across all
+ * measurable children for the UI's "X on track · Y at risk · Z
+ * unrecoverable" display.
+ *
+ * Aspirational and 'unknown' children are not measurable and
+ * contribute neither to the worst-case nor to the breakdown.
+ */
+export interface FeasibilityRollup {
+  /** Worst-case status across actionable children, or null when
+   *  no children are actionable (every measurable child is
+   *  unrecoverable, or the umbrella has no measurable children). */
+  status: GoalFeasibilityStatus | null;
+  /** Per-status counts across measurable children. Includes the
+   *  unrecoverable count so the UI can surface "1 unrecoverable"
+   *  separately from the worst-case pill. */
+  breakdown: Record<GoalFeasibilityStatus, number>;
+}
 
 /** Inputs the caller supplies to `getGoalFeasibility`. */
 export interface GoalFeasibilityContext {
@@ -575,6 +610,40 @@ export function getGoalFeasibility(
   // until that data lands. song_whole_at_level is wired above
   // with a default 1-song/month rate (Phase 7 calibration).
   return { kind: 'unknown' };
+}
+
+/**
+ * Roll up an umbrella's children into a single feasibility
+ * status + breakdown. Worst-case across actionable children;
+ * unrecoverable children are excluded from the worst-case
+ * (they're no longer actionable per the 6h.2 sign-off) but
+ * still surface in the breakdown so the UI can show a
+ * motivational placeholder per unrecoverable child.
+ *
+ * Pure function — caller computes each child's feasibility,
+ * passes the array in, and renders the result.
+ */
+export function rollupChildFeasibilities(
+  children: ReadonlyArray<GoalFeasibility>,
+): FeasibilityRollup {
+  const breakdown: Record<GoalFeasibilityStatus, number> = {
+    on_track: 0,
+    at_risk: 0,
+    critical: 0,
+    unrecoverable: 0,
+  };
+  for (const c of children) {
+    if (c.kind !== 'measurable') continue;
+    breakdown[c.status]++;
+  }
+  // Worst-case across actionable (non-unrecoverable) children.
+  // Order matters: critical is worse than at_risk, which is worse
+  // than on_track. Unrecoverable doesn't enter the comparison.
+  let status: GoalFeasibilityStatus | null = null;
+  if (breakdown.critical > 0) status = 'critical';
+  else if (breakdown.at_risk > 0) status = 'at_risk';
+  else if (breakdown.on_track > 0) status = 'on_track';
+  return { status, breakdown };
 }
 
 /** Accuracy metrics — `*_accuracy_overall` and `*_accuracy_specific`. */
