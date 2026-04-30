@@ -75,6 +75,11 @@ import {
 } from './progress';
 import { FeasibilityPill, UmbrellaFeasibilityPill } from './FeasibilityPill';
 import {
+  feasibilityDetailText,
+  formatUmbrellaDetail,
+  isAllUnrecoverableRollup,
+} from './feasibilityDetail';
+import {
   groupByModule,
   isCurrentOrUpcoming,
   ORDERED_GOAL_MODULES,
@@ -651,6 +656,7 @@ function GoalRow({
   dimensionLabel,
   dimensionAccentHex,
   omitActivityChart,
+  suppressFeasibilityDetail,
   isRowExpanded,
   onToggleRow,
 }: {
@@ -673,6 +679,12 @@ function GoalRow({
    *  identical to the umbrella's. Standalone goals (no parent
    *  umbrella) keep their chart. */
   omitActivityChart?: boolean;
+  /** When true, the expanded panel skips the feasibility
+   *  detail text. Used by UmbrellaRow for an all-unrecoverable
+   *  umbrella's children — per the 7d-amend spec, the unified
+   *  message shows once at the umbrella level and per-child
+   *  messages disappear. */
+  suppressFeasibilityDetail?: boolean;
   /** Module accent for the dimension label. Falls back to the
    *  Goals page accent when not provided. */
   dimensionAccentHex?: string;
@@ -787,16 +799,21 @@ function GoalRow({
             </div>
           )}
 
-          {showSlots && (
-            <div
-              data-feasibility-slot
-              data-variant="expanded"
-              className="text-xs text-neutral-400 italic"
-              aria-hidden
-            >
-              Feasibility status arrives in step 7
-            </div>
-          )}
+          {(() => {
+            if (!showSlots) return null;
+            if (suppressFeasibilityDetail) return null;
+            const detail = feasibilityDetailText(feasibility);
+            if (!detail) return null;
+            return (
+              <div
+                data-feasibility-slot
+                data-variant="expanded"
+                className="text-xs text-neutral-500 dark:text-neutral-400"
+              >
+                {detail}
+              </div>
+            );
+          })()}
 
           {/* Divider — keeps actions visually distinct from data display. */}
           <hr className="border-neutral-200 dark:border-neutral-800" />
@@ -1173,16 +1190,19 @@ function UmbrellaRow({
             )}
           </div>
 
-          {showSlots && (
-            <div
-              data-feasibility-slot
-              data-variant="expanded"
-              className="text-xs text-neutral-400 italic"
-              aria-hidden
-            >
-              Per-child feasibility breakdown arrives in step 7
-            </div>
-          )}
+          {showSlots && (() => {
+            const detail = formatUmbrellaDetail(rollup);
+            if (!detail) return null;
+            return (
+              <div
+                data-feasibility-slot
+                data-variant="expanded"
+                className="text-xs text-neutral-500 dark:text-neutral-400"
+              >
+                {detail}
+              </div>
+            );
+          })()}
 
           <hr className="border-neutral-200 dark:border-neutral-800" />
 
@@ -1231,6 +1251,7 @@ function UmbrellaRow({
                 dimensionLabel={label}
                 dimensionAccentHex={moduleAccent}
                 omitActivityChart
+                suppressFeasibilityDetail={isAllUnrecoverableRollup(rollup)}
                 isRowExpanded={isRowExpanded}
                 onToggleRow={onToggleRow}
               />
