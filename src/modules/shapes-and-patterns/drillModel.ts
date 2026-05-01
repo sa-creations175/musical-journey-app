@@ -58,7 +58,32 @@ export type SkillDescriptor =
  */
 export async function findOrCreateSkill(desc: SkillDescriptor): Promise<DrillSkill> {
   const existing = await findSkill(desc);
-  if (existing) return existing;
+  if (existing) {
+    // Self-heal: an existing skill row with zero drillTypes is a
+    // stranded skill from an earlier app version where skill creation
+    // and drill-type materialisation didn't share a transaction. The
+    // DrillListModal renders "start drill" inside drillTypes.map(),
+    // so an empty drill-types set leaves the user with no way to
+    // begin practice. Surfaced for C major scale and C ABA-251
+    // voice-leading. Re-materialise defaults so the cell becomes
+    // usable again.
+    const typeCount = await db.drillTypes.where('skillId').equals(existing.id).count();
+    if (typeCount === 0) {
+      const defaults = defaultDrillTypesForDescriptor(desc);
+      const drillTypeRows: DrillType[] = defaults.map((d, i) => ({
+        id: uid('dtype'),
+        skillId: existing.id,
+        name: d.name,
+        suggestedSeconds: d.suggestedSeconds,
+        order: i,
+        repCount: 0,
+        totalSeconds: 0,
+        lastPracticedAt: null,
+      }));
+      await db.drillTypes.bulkAdd(drillTypeRows);
+    }
+    return existing;
+  }
   const skill: DrillSkill = {
     id: uid('skill'),
     kind: desc.kind,
