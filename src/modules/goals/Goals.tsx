@@ -1095,7 +1095,7 @@ function UmbrellaRow({
     umbrellaModule === 'practice-consistency'
       ? childGoals
       : childGoals.filter(c => !isConsistencyMetric(c.targetMetric));
-  const subtitle = umbrellaSubtitle(visibleChildGoals, umbrella);
+  const subtitle = umbrellaSubtitle(visibleChildGoals);
   const showSlots = shouldShowSlots(layerType);
   const sharedModule = umbrellaModuleId(visibleChildGoals);
   const isCrossModule = isCrossModuleUmbrella(visibleChildGoals);

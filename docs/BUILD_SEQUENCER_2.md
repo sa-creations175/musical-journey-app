@@ -169,7 +169,7 @@ All 7 steps pushed to origin/main.
 - **Item-count goal feasibility.** Surfaced during Step 7b (Apr 30). `song_whole_at_level` and `count_completed` goals currently return `kind: 'unknown'` from `getGoalFeasibility` — they need module-specific rate data we don't track yet. Suggested placeholder rule when data lands: default rate of 1 song/month for `song_whole_at_level`, configurable per-user. Same shape for production lessons. Add a `getRateForCountMetric(metric, history)` helper that reads from spacingState / songPracticeLog and falls back to the default when history is sparse.
 
 **Phase 5+ retrospective views:**
-- **Weekly consistency hit rate over the year.** Surfaced during Step 7e (Apr 30) when the consistency dimension stopped generating a child goal record. Show how many weeks the user hit their session target (e.g. "28 of 52 weeks"). Retrospective dashboard view that complements the live weekly consistency goal — yearly anchor's "Consistency" framework dimension finds its truth here, not in a feasibility pill on the umbrella row.
+- **Weekly consistency hit rate over the year.** Surfaced during Step 7e (Apr 30) when the consistency dimension stopped generating a child goal record. Show how many weeks the user hit their session target (e.g. "28 of 52 weeks"). Retrospective dashboard view that complements the live weekly consistency goal — the yearly anchor's consistency intention finds its truth here, not in a feasibility pill or subtitle label on the umbrella row.
 
 **Dependency:** Phase 1.6 complete ✅. Step 3 unblocks Step 4 (helpers need live counts). Steps 5 + 6 share UI work and can be sequenced together.
 
