@@ -547,15 +547,24 @@ function LayerSection({
   onEditGoal: (goal: Goal) => void;
 } & RowCollapseAccess) {
   return (
-    <section className="border-b border-neutral-200 dark:border-neutral-800 last:border-b-0">
+    <section
+      className="rounded-lg pl-4 pr-3 py-3 mb-3"
+      style={{
+        backgroundColor: LAYER_PALETTE.bg,
+        borderLeft: `3px solid ${LAYER_PALETTE.border}`,
+      }}
+    >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={!collapsed}
-        className="w-full flex items-center gap-2 py-3 text-left hover:bg-neutral-50 dark:hover:bg-neutral-900/40 px-2 -mx-2 rounded transition"
+        className="w-full flex items-center gap-2 text-left rounded transition"
       >
         <Chevron open={!collapsed} />
-        <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-200 flex-1">
+        <h2
+          className="text-sm font-medium flex-1"
+          style={{ color: LAYER_PALETTE.border }}
+        >
           {layer.title}
         </h2>
         <span className="text-xs text-neutral-500">
@@ -563,7 +572,7 @@ function LayerSection({
         </span>
       </button>
       {!collapsed && (
-        <div className="pl-6 pb-4">
+        <div className="mt-3">
           {goals.length === 0 ? (
             <div className="flex items-center gap-3 py-2">
               <span className="text-sm text-neutral-500 italic">{layer.emptyMessage}</span>
@@ -576,50 +585,72 @@ function LayerSection({
               </button>
             </div>
           ) : (
-            <ul className="flex flex-col gap-1.5">
-              {groupByModule(topLevelGoals(goals), goals).map(group => (
-                <Fragment key={group.moduleId ?? '__no-module'}>
-                  {group.moduleId && (
+            <div className="flex flex-col gap-3">
+              {groupByModule(topLevelGoals(goals), goals).map(group => {
+                const palette = group.moduleId
+                  ? SECTION_PALETTE[group.moduleId]
+                  : null;
+                const groupContent = (
+                  <ul className="flex flex-col gap-1.5">
+                    {group.goals.map(g =>
+                      g.isUmbrella ? (
+                        <UmbrellaRow
+                          key={g.id}
+                          umbrella={g}
+                          childGoals={findChildren(g, goals)}
+                          layerType={layer.type}
+                          proficiencyDefs={proficiencyDefs}
+                          songLookup={songLookup}
+                          onEditGoal={onEditGoal}
+                          isRowExpanded={isRowExpanded}
+                          onToggleRow={onToggleRow}
+                        />
+                      ) : (
+                        <GoalRow
+                          key={g.id}
+                          goal={g}
+                          layerType={layer.type}
+                          proficiencyDefs={proficiencyDefs}
+                          songLookup={songLookup}
+                          onEdit={() => onEditGoal(g)}
+                          isRowExpanded={isRowExpanded}
+                          onToggleRow={onToggleRow}
+                        />
+                      ),
+                    )}
+                  </ul>
+                );
+                if (!palette || !group.moduleId) {
+                  // Goals with no derivable module render flat —
+                  // no colored container.
+                  return (
+                    <Fragment key={group.moduleId ?? '__no-module'}>
+                      {groupContent}
+                    </Fragment>
+                  );
+                }
+                return (
+                  <div
+                    key={group.moduleId}
+                    className="rounded-lg pl-3 pr-2 py-2"
+                    style={{
+                      backgroundColor: palette.bg,
+                      borderLeft: `3px solid ${palette.border}`,
+                    }}
+                  >
                     <ModuleSubheader moduleId={group.moduleId} />
-                  )}
-                  {group.goals.map(g =>
-                    g.isUmbrella ? (
-                      <UmbrellaRow
-                        key={g.id}
-                        umbrella={g}
-                        childGoals={findChildren(g, goals)}
-                        layerType={layer.type}
-                        proficiencyDefs={proficiencyDefs}
-                        songLookup={songLookup}
-                        onEditGoal={onEditGoal}
-                        isRowExpanded={isRowExpanded}
-                        onToggleRow={onToggleRow}
-                      />
-                    ) : (
-                      <GoalRow
-                        key={g.id}
-                        goal={g}
-                        layerType={layer.type}
-                        proficiencyDefs={proficiencyDefs}
-                        songLookup={songLookup}
-                        onEdit={() => onEditGoal(g)}
-                        isRowExpanded={isRowExpanded}
-                        onToggleRow={onToggleRow}
-                      />
-                    ),
-                  )}
-                </Fragment>
-              ))}
-              <li>
-                <button
-                  type="button"
-                  onClick={onAdd}
-                  className="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 mt-1"
-                >
-                  {layer.addLabel}
-                </button>
-              </li>
-            </ul>
+                    {groupContent}
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={onAdd}
+                className="self-start text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 mt-1"
+              >
+                {layer.addLabel}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -738,7 +769,13 @@ function GoalRow({
               {dimensionLabel}
             </div>
           )}
-          <div className="text-sm text-neutral-700 dark:text-neutral-200">
+          <div
+            className={
+              dimensionLabel
+                ? 'text-sm font-bold italic text-neutral-700 dark:text-neutral-200'
+                : 'text-sm text-neutral-700 dark:text-neutral-200'
+            }
+          >
             {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
           </div>
           {target && (
@@ -1279,28 +1316,25 @@ function UmbrellaRow({
 // -------------------------------------------------------------------
 
 /**
- * Phase 2 step 6e — module subheader inside a timeframe layer.
+ * Phase 2 step 6e / 7f.2 — module subheader inside a timeframe
+ * layer's module-group container.
  *
- * Small uppercase label in the module's accent color, marking
- * the start of that module's goal cluster within the scope.
- * Practice consistency has no ModuleMeta entry (it's a meta-
- * habit, not a learning module) so we fall back to the YearlyAnchor
- * display name + neutral text color.
- *
- * Renders as an <li> inside the layer's <ul> so the surrounding
- * gap-1.5 spacing applies cleanly between subheader and first
- * goal row.
+ * Small uppercase label colored to match the SECTION_PALETTE
+ * border for the same module — keeps the group container in a
+ * single tonal family. Practice consistency falls back to the
+ * YearlyAnchor display name when ModuleMeta has no entry.
  */
 function ModuleSubheader({ moduleId }: { moduleId: GoalFlowModuleId }) {
   const meta = moduleMetaById(moduleId);
   const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+  const palette = SECTION_PALETTE[moduleId];
   return (
-    <li
-      className="text-[10px] uppercase tracking-wide font-medium pt-1.5 first:pt-0"
-      style={{ color: meta?.accentHex }}
+    <div
+      className="text-[10px] uppercase tracking-wide font-medium mb-1.5"
+      style={{ color: palette.border }}
     >
       {label}
-    </li>
+    </div>
   );
 }
 
@@ -1437,6 +1471,23 @@ const SECTION_PALETTE: Record<
   'repertoire':           { bg: '#FBEAF0', border: '#8B3A52' },
   'production':           { bg: '#E6F1FB', border: '#1F3A6E' },
   'practice-consistency': { bg: '#F1EFE8', border: '#5F5E5A' },
+};
+
+/**
+ * Outer palette for the by-timeframe view's scope-layer
+ * containers. Strong dark-neutral border signals "timeframe-
+ * scoped" rather than module-scoped; light off-white tint
+ * provides definition without competing with the colored
+ * module-group containers nested inside.
+ *
+ * Visual hierarchy in by-timeframe:
+ *   layer container (dark border + neutral tint)
+ *     └─ module group (colored border + tint, per SECTION_PALETTE)
+ *         └─ goal cards
+ */
+const LAYER_PALETTE = {
+  bg: '#FAFAF9',
+  border: '#2C2C2A',
 };
 
 function ByModuleSection({
