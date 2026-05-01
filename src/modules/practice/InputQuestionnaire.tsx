@@ -46,6 +46,14 @@ interface Props {
    *  — gates Q3's "Continuing today's plan" option. Step 3d wires
    *  the gate; Step 3g pulls the value from the day's session log. */
   hasEarlierSessionsToday?: boolean;
+  /**
+   * Candidate items the user can pick for "push on a specific item"
+   * intent. Typically the algorithm's currently-acquiring + active-
+   * goal-linked set. Empty list is fine — the picker shows a
+   * graceful empty state and gently steers the user back to another
+   * intent. Wired by the Practice Sessions home in Step 7a.
+   */
+  pushOnItemCandidates?: ReadonlyArray<{ itemRef: string; label: string }>;
 }
 
 export default function InputQuestionnaire({
@@ -54,6 +62,7 @@ export default function InputQuestionnaire({
   onGenerate,
   initialDayProfile,
   hasEarlierSessionsToday,
+  pushOnItemCandidates,
 }: Props) {
   const [draft, setDraft] = useState<InputQuestionnaireDraft>(EMPTY_DRAFT);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -140,7 +149,11 @@ export default function InputQuestionnaire({
             hasEarlierSessions={!!hasEarlierSessionsToday}
             onChange={p => setDraft(d => ({ ...d, dayPlan: p }))}
           />
-          <QuestionPlaceholder slotLabel="Intent" />
+          <Q4Intent
+            value={draft.intent}
+            candidates={pushOnItemCandidates ?? []}
+            onChange={i => setDraft(d => ({ ...d, intent: i }))}
+          />
           <QuestionPlaceholder slotLabel="Energy" />
         </div>
 
@@ -371,6 +384,77 @@ function Q3DayPlan({
               </button>
             ))}
           </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Q4 — Intent (+ inline item picker for push-on-specific)
+// ---------------------------------------------------------------------
+
+function Q4Intent({
+  value,
+  candidates,
+  onChange,
+}: {
+  value: import('./inputs').IntentChoice | null;
+  candidates: ReadonlyArray<{ itemRef: string; label: string }>;
+  onChange: (i: import('./inputs').IntentChoice) => void;
+}) {
+  const isBal = value?.kind === 'balanced';
+  const isLean = value?.kind === 'lean_to_goals';
+  const isRecover = value?.kind === 'recover';
+  const isPush = value?.kind === 'push_on_item';
+  const pushedRef = isPush ? value.itemRef : null;
+
+  const handlePushClick = () => {
+    if (isPush) return;
+    onChange({ kind: 'push_on_item', itemRef: null });
+  };
+
+  return (
+    <section>
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
+        Intent
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <button onClick={() => onChange({ kind: 'balanced' })} className={pill(isBal)}>
+          balanced
+        </button>
+        <button onClick={() => onChange({ kind: 'lean_to_goals' })} className={pill(isLean)}>
+          lean to goals
+        </button>
+        <button onClick={() => onChange({ kind: 'recover' })} className={pill(isRecover)}>
+          recover
+        </button>
+        <button onClick={handlePushClick} className={pill(isPush)}>
+          push on item
+        </button>
+      </div>
+      {isPush && (
+        <div className="mt-2">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+            Pick an item
+          </div>
+          {candidates.length === 0 ? (
+            <p className="text-[11px] italic text-neutral-500">
+              No candidate items available — set a goal first, or pick a different intent.
+            </p>
+          ) : (
+            <div className="max-h-32 overflow-y-auto pr-1 space-y-1">
+              {candidates.map(c => (
+                <button
+                  key={c.itemRef}
+                  onClick={() => onChange({ kind: 'push_on_item', itemRef: c.itemRef })}
+                  className={`w-full text-left ${pill(c.itemRef === pushedRef)}`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
