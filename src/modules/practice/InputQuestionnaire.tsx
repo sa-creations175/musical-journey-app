@@ -18,7 +18,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  CUSTOM_TIME_MAX,
+  CUSTOM_TIME_MIN,
+  CUSTOM_TIME_STEP,
   EMPTY_DRAFT,
+  TIME_PRESETS_MIN,
   finalizeDraft,
   isDraftComplete,
   type DayProfileChoice,
@@ -122,7 +126,10 @@ export default function InputQuestionnaire({
         </header>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-3 space-y-4 text-sm">
-          <QuestionPlaceholder slotLabel="Time" />
+          <Q1Time
+            value={draft.timeMinutes}
+            onChange={n => setDraft(d => ({ ...d, timeMinutes: n }))}
+          />
           <QuestionPlaceholder slotLabel="Context" />
           <QuestionPlaceholder slotLabel="Day plan" />
           <QuestionPlaceholder slotLabel="Intent" />
@@ -153,6 +160,95 @@ export default function InputQuestionnaire({
     document.body,
   );
 }
+
+// ---------------------------------------------------------------------
+// Q1 — Time available
+// ---------------------------------------------------------------------
+
+function Q1Time({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (n: number) => void;
+}) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const isPresetValue = value !== null && (TIME_PRESETS_MIN as ReadonlyArray<number>).includes(value);
+  const showCustom = customOpen || (value !== null && !isPresetValue);
+
+  // Stepper anchor — when value is null we seed at 30 min (the
+  // middle of the presets) so the +/- buttons feel oriented.
+  const stepperValue = value ?? 30;
+
+  const setPreset = (n: number) => {
+    onChange(n);
+    setCustomOpen(false);
+  };
+  const openCustom = () => setCustomOpen(true);
+  const dec = () => onChange(Math.max(CUSTOM_TIME_MIN, stepperValue - CUSTOM_TIME_STEP));
+  const inc = () => onChange(Math.min(CUSTOM_TIME_MAX, stepperValue + CUSTOM_TIME_STEP));
+
+  return (
+    <section>
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
+        Time available
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {TIME_PRESETS_MIN.map(n => (
+          <button
+            key={n}
+            onClick={() => setPreset(n)}
+            className={pill(value === n && !showCustom)}
+          >
+            {n} min
+          </button>
+        ))}
+        <button onClick={openCustom} className={pill(showCustom)}>
+          custom
+        </button>
+      </div>
+      {showCustom && (
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            onClick={dec}
+            disabled={stepperValue <= CUSTOM_TIME_MIN}
+            className={stepperBtn(stepperValue <= CUSTOM_TIME_MIN)}
+            aria-label="decrease time"
+          >
+            −
+          </button>
+          <span className="font-mono tabular-nums text-sm w-16 text-center">
+            {stepperValue} min
+          </span>
+          <button
+            onClick={inc}
+            disabled={stepperValue >= CUSTOM_TIME_MAX}
+            className={stepperBtn(stepperValue >= CUSTOM_TIME_MAX)}
+            aria-label="increase time"
+          >
+            +
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function pill(active: boolean): string {
+  return active
+    ? 'px-2.5 py-1 rounded-md text-xs font-medium bg-fluent text-white border border-fluent'
+    : 'px-2.5 py-1 rounded-md text-xs font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent';
+}
+
+function stepperBtn(disabled: boolean): string {
+  return disabled
+    ? 'w-7 h-7 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-300 cursor-not-allowed'
+    : 'w-7 h-7 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent';
+}
+
+// ---------------------------------------------------------------------
+// Placeholder for question slots not yet wired
+// ---------------------------------------------------------------------
 
 function QuestionPlaceholder({ slotLabel }: { slotLabel: string }) {
   return (
