@@ -10,6 +10,7 @@ import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
+import { HardPausePromptModal } from '../lib/sessionTimer/HardPausePromptModal';
 
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function Layout() {
     </div>
     <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
+    <HardPausePromptModal />
     </div>
   );
 }

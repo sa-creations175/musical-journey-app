@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
 import { formatActiveTime } from './formatActiveTime';
 import { moduleMetaById } from '../moduleMeta';
+import { formatDriftText, shouldShowDrift } from './drift';
 
 export function GlobalSessionBanner() {
   const { state, endSession } = useSessionTimer();
@@ -37,6 +38,7 @@ export function GlobalSessionBanner() {
   const route = moduleMeta?.route ?? null;
 
   const isPaused = state.status === 'paused';
+  const driftActive = shouldShowDrift(times);
 
   const handleBannerClick = () => {
     if (route) navigate(route);
@@ -92,6 +94,14 @@ export function GlobalSessionBanner() {
           end session
         </button>
       </div>
+      {driftActive && (
+        <div
+          className="px-4 pb-1.5 text-[11px] italic text-neutral-500 dark:text-neutral-400"
+          aria-label="session drift"
+        >
+          {formatDriftText(times)}
+        </div>
+      )}
     </div>
   );
 }
