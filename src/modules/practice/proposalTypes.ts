@@ -56,4 +56,14 @@ export interface ProposalCardData {
   /** Sum of plannedSeconds across blocks. Pre-computed so the
    *  proposal header doesn't have to. */
   totalSeconds: number;
+  /**
+   * Optional pre-built lines for the "Why this plan?" panel
+   * (Step 4e). Each line carries the dot color + a concise reason.
+   * When omitted, the panel falls back to one line per block using
+   * each block's whySnippet + moduleAccentHex — useful baseline for
+   * Phase 3 v1, with the integration layer (Step 5+) supplying
+   * cross-block narratives (pace deficit lines, etc.) when they're
+   * available.
+   */
+  whyLines?: ReadonlyArray<{ accentHex: string; reason: string }>;
 }

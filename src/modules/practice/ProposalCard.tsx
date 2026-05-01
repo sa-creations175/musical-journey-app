@@ -12,6 +12,7 @@
  * surface; 4i the cold-start banner; 4j the feasibility banner.
  * Each substep edits this file.
  */
+import { useState } from 'react';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import SessionStack from './SessionStack';
 import type { ProposalCardData } from './proposalTypes';
@@ -22,6 +23,17 @@ interface Props {
 }
 
 export default function ProposalCard({ data, onAccept }: Props) {
+  const [whyOpen, setWhyOpen] = useState(false);
+
+  // Fall back to per-block whySnippets when the integration layer
+  // hasn't supplied a hand-tuned whyLines list. Filters out blocks
+  // whose snippet is empty so we don't render bare dots.
+  const lines: ReadonlyArray<{ accentHex: string; reason: string }> =
+    data.whyLines ??
+    data.blocks
+      .filter(b => b.whySnippet.length > 0)
+      .map(b => ({ accentHex: b.moduleAccentHex, reason: b.whySnippet }));
+
   return (
     <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-3 space-y-3">
       <header className="flex items-baseline justify-between gap-2">
@@ -33,6 +45,35 @@ export default function ProposalCard({ data, onAccept }: Props) {
         </span>
       </header>
       <SessionStack blocks={data.blocks} />
+
+      {lines.length > 0 && (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => setWhyOpen(v => !v)}
+            aria-expanded={whyOpen}
+            className="text-[11px] text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
+          >
+            <span>Why this plan?</span>
+            <span aria-hidden>{whyOpen ? '↑' : '↓'}</span>
+          </button>
+          {whyOpen && (
+            <ul className="space-y-1 text-[11px] text-neutral-600 dark:text-neutral-300">
+              {lines.map((line, idx) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <span
+                    aria-hidden
+                    className="mt-1 inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ backgroundColor: line.accentHex }}
+                  />
+                  <span>{line.reason}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <button
         type="button"
         onClick={() => onAccept(data)}
