@@ -53,6 +53,7 @@ export default function InputQuestionnaire({
   onClose,
   onGenerate,
   initialDayProfile,
+  hasEarlierSessionsToday,
 }: Props) {
   const [draft, setDraft] = useState<InputQuestionnaireDraft>(EMPTY_DRAFT);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -134,7 +135,11 @@ export default function InputQuestionnaire({
             value={draft.context}
             onChange={c => setDraft(d => ({ ...d, context: c }))}
           />
-          <QuestionPlaceholder slotLabel="Day plan" />
+          <Q3DayPlan
+            value={draft.dayPlan}
+            hasEarlierSessions={!!hasEarlierSessionsToday}
+            onChange={p => setDraft(d => ({ ...d, dayPlan: p }))}
+          />
           <QuestionPlaceholder slotLabel="Intent" />
           <QuestionPlaceholder slotLabel="Energy" />
         </div>
@@ -298,6 +303,78 @@ function contextPill(active: boolean): string {
   return active
     ? `${base} bg-fluent text-white border-fluent`
     : `${base} border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent`;
+}
+
+// ---------------------------------------------------------------------
+// Q3 — Day plan
+// ---------------------------------------------------------------------
+
+const DAY_PROFILES: ReadonlyArray<DayProfileChoice> = ['standard', 'light', 'deep', 'custom'];
+
+function Q3DayPlan({
+  value,
+  hasEarlierSessions,
+  onChange,
+}: {
+  value: import('./inputs').DayPlanChoice | null;
+  hasEarlierSessions: boolean;
+  onChange: (p: import('./inputs').DayPlanChoice) => void;
+}) {
+  const isJust = value?.kind === 'just_this_session';
+  const isFirst = value?.kind === 'first_of_multiple';
+  const isContinuing = value?.kind === 'continuing_today';
+
+  const handleFirstClick = () => {
+    if (isFirst) return;
+    // Default to 'standard' for the fast path; user can change in
+    // the profile picker below.
+    onChange({ kind: 'first_of_multiple', profile: 'standard' });
+  };
+
+  return (
+    <section>
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
+        Day plan
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          onClick={() => onChange({ kind: 'just_this_session' })}
+          className={pill(isJust)}
+        >
+          just this session
+        </button>
+        <button onClick={handleFirstClick} className={pill(isFirst)}>
+          first of multiple
+        </button>
+        {hasEarlierSessions && (
+          <button
+            onClick={() => onChange({ kind: 'continuing_today' })}
+            className={pill(isContinuing)}
+          >
+            continuing today
+          </button>
+        )}
+      </div>
+      {isFirst && (
+        <div className="mt-2">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+            Day profile
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {DAY_PROFILES.map(p => (
+              <button
+                key={p}
+                onClick={() => onChange({ kind: 'first_of_multiple', profile: p })}
+                className={pill(value.profile === p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
 }
 
 // ---------------------------------------------------------------------
