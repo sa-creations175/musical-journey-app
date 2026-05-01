@@ -62,17 +62,20 @@ export const COVERED_STAGES: ReadonlySet<AcquisitionStage> = new Set([
 
 /** moduleRefs that compose Ear Training. Mirrors the Step 1b–1c
  *  wiring — each ET submodule writes spacingState rows under its own
- *  MODULE_ID. */
-const ET_MODULE_REFS: ReadonlyArray<string> = [
+ *  MODULE_ID. Exported for the Phase 3 candidate spec generator
+ *  (sessionAlgorithm/candidates.ts) which needs the same module-ref
+ *  set. */
+export const ET_MODULE_REFS: ReadonlyArray<string> = [
   'intervals',
   'chord-recognition',
   'chord-progressions',
   'scales-modes',
 ];
 
-const HF_MODULE_REF = 'harmonic-fluency';
-const SHAPES_MODULE_REF = 'shapes-and-patterns';
-const PRODUCTION_MODULE_REF = 'production';
+export const HF_MODULE_REF = 'harmonic-fluency';
+export const SHAPES_MODULE_REF = 'shapes-and-patterns';
+export const PRODUCTION_MODULE_REF = 'production';
+export const REPERTOIRE_MODULE_REF = 'repertoire';
 
 /** moduleIds for the AttemptRecord table. AttemptRecord and
  *  spacingState happen to share names for ET / HF, so the two
@@ -94,7 +97,7 @@ export const ACCURACY_ROLLING_WINDOW = 200;
  *  moduleItemCounts.ts; kept separate here because the two consumers
  *  key by different domains (UI denominators vs stored
  *  goal.targetUnit). */
-const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory>> = {
+export const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory>> = {
   'foundational':       ['scale-degree-math', 'named-notes', 'key-signatures'],
   'chord-knowledge':    ['diatonic-qualities', 'chord-construction', 'slash-chords'],
   'functional-applied': ['functional-harmony', 'reverse-key-pivots', 'progressions'],
@@ -103,7 +106,7 @@ const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory>> = {
 
 /** S&P sub-area id → spacingState itemRef prefix. Mirrors
  *  `itemRefForSkill` in shapes-and-patterns/drillModel.ts. */
-const SHAPES_AREA_PREFIX: Record<string, string> = {
+export const SHAPES_AREA_PREFIX: Record<string, string> = {
   'chord_shape_drills': 'chord-shape:',
   'scale_drills':       'scale:',
   'voice_leading':      'vl:',
