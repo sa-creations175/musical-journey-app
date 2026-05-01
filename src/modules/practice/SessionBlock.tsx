@@ -1,36 +1,59 @@
 /**
- * Phase 3 Step 4a — Single block on the proposal screen, default state.
+ * Phase 3 Step 4a/4b — Single block on the proposal screen.
  *
- * Module-accent left bar + tinted fill, module name (top, small,
- * uppercase), activity description, duration right-aligned, optional
- * warm-up badge. The block height becomes proportional to
- * plannedSeconds when stacked (Step 4c).
+ * Default state (4a): module-accent left bar + tinted fill, module
+ * name, activity description, duration, optional warm-up badge.
  *
- * Step 4b will add the expanded state (why-snippet + quick-launch)
- * with tap-to-toggle behavior. Step 4c stacks blocks proportionally.
+ * Expanded state (4b): tap toggles a slide-down body containing the
+ * why-snippet and a quick-launch button into the relevant module.
+ * Song-specific section + key targets land in the whySnippet string
+ * — the component renders whatever the caller assembles.
+ *
+ * Uncontrolled by default. Pass `expanded` + `onToggle` for
+ * controlled use (e.g. a "expand all" toggle in a parent).
  */
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import type { ProposalBlock } from './proposalTypes';
 
 interface Props {
   block: ProposalBlock;
+  /** Controlled-mode expand state. Undefined → uncontrolled. */
+  expanded?: boolean;
+  /** Controlled-mode toggle handler. Required when `expanded` is set. */
+  onToggle?: () => void;
 }
 
-export default function SessionBlock({ block }: Props) {
-  // Reach moduleMeta for the route (used by 4b's quick-launch) and
-  // for the canonical label fallback when block.moduleLabel ends up
-  // empty.
+export default function SessionBlock({ block, expanded, onToggle }: Props) {
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isControlled = expanded !== undefined;
+  const isExpanded = isControlled ? !!expanded : internalExpanded;
+
+  const navigate = useNavigate();
   const moduleMeta = moduleMetaById(block.moduleRef);
   const label = block.moduleLabel || moduleMeta?.label || block.moduleRef;
+  const route = moduleMeta?.route ?? null;
 
-  // Background tint at low opacity over the accent so text stays
-  // readable; accent itself comes through on the left bar.
+  const handleToggle = () => {
+    if (isControlled) onToggle?.();
+    else setInternalExpanded(v => !v);
+  };
+
+  const handleQuickLaunch = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (route) navigate(route);
+  };
+
   const tint = `${block.moduleAccentHex}14`; // ~8% alpha
 
   return (
-    <div
-      className="w-full rounded-md border"
+    <button
+      type="button"
+      onClick={handleToggle}
+      aria-expanded={isExpanded}
+      className="w-full text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
       style={{
         backgroundColor: tint,
         borderColor: block.moduleAccentHex,
@@ -66,6 +89,40 @@ export default function SessionBlock({ block }: Props) {
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
       </div>
-    </div>
+
+      {isExpanded && (
+        <div
+          className="px-3 pb-2 pt-1.5 text-[11px] space-y-1.5 border-t"
+          style={{ borderColor: `${block.moduleAccentHex}33` }}
+        >
+          {block.whySnippet && (
+            <p className="text-neutral-600 dark:text-neutral-300 italic">
+              {block.whySnippet}
+            </p>
+          )}
+          {route && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleQuickLaunch}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleQuickLaunch(e as unknown as React.MouseEvent);
+                }
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium hover:opacity-90 cursor-pointer"
+              style={{
+                color: block.moduleAccentHex,
+                borderColor: block.moduleAccentHex,
+              }}
+            >
+              <span aria-hidden>↗</span>
+              <span>open {label}</span>
+            </span>
+          )}
+        </div>
+      )}
+    </button>
   );
 }
