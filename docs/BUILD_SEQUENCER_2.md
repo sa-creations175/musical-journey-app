@@ -14,11 +14,12 @@ Last updated: April 28, 2026
 
 **Phase 1.6 — COMPLETE.** All 16 build steps shipped, verified end-to-end, and pushed to origin/main. The new `GoalCreationFlow` is live in production paths (Goals home + onboarding Screen 3); legacy `GoalFormModal` stays mounted alongside for old-vocab edits.
 
-**Phase 2 — IN PROGRESS.** Steps 1–6 complete; 568/568 tests passing.
+**Phase 2 — COMPLETE.** All 7 steps shipped April 29–30; 701/701 tests passing.
 - Steps 1–5 shipped previously (spacingState, coverage vocabulary, item counts, progress helpers, YearlyAnchorFlow).
-- Step 6 (Goals home redesign) shipped across substeps 6a–6h on April 29: GoalRow anatomy + reserved slots, scope-adaptive activity charts (mocked → live data), umbrella row redesign with vision-statement titles, view toggle + persistence, by-timeframe module subheaders, by-module view + dashed anchor backstop, collapse persistence (localStorage), end-to-end integration smoke.
+- Step 6 (Goals home redesign) shipped across substeps 6a–6h on April 29.
+- Step 7 (`getGoalFeasibility()` + Goals home feasibility surface) shipped across substeps 7a–7f on April 30: 4-tier status model (on_track / at_risk / critical / unrecoverable), scope-aware cadence windows for consistency, module-aware coverage units, action-oriented pill labels in non-red palette, unified unrecoverable message, all-unrecoverable umbrella suppression, consistency dimension dropped from yearly anchor children, end-to-end integration smoke.
 
-**Active next step:** Phase 2 Step 7 — `getGoalFeasibility()` helper + Goals home feasibility surface. Step 6's progress + feasibility slot reservations let Step 7 drop in without retrofitting layout.
+**Active next step:** Phase 3 — Practice Sessions algorithm. All Phase 3 design questions resolved (PHASE3_READY_DESIGN_DOC.md); Phase 2 fully unblocks the build. Pre-Phase 3 cleanup items remain (see "Pre-Phase 3 cleanup items" section below).
 
 ---
 
@@ -150,7 +151,13 @@ All 7 steps pushed to origin/main.
    - 6f — By-module view: module-as-top sections, dashed yearly-anchor backstop, current-period + 7-day lookahead filter, cross-scope `findAllChildren`
    - 6g — Collapse persistence via localStorage (sidesteps userPrefs sync race that wiped writes); per-module vision-statement titles + legacy heuristic
    - 6h — End-to-end integration smoke + sequencer update
-7. ⏭️ **Goal feasibility checking** — `getGoalFeasibility()` helper + Goals home feasibility surface. Step 6 reserved slots so Step 7 drops in without layout retrofit.
+7. ✅ **Goal feasibility checking** (substeps 7a–7f, all shipped April 30):
+   - 7a — `getGoalFeasibility()` foundation: 4-tier status (on_track / at_risk / critical / unrecoverable), discriminated `kind` output (measurable / aspirational / unknown), tunable constants (DEFAULT_DAY_PROFILE_MIX, AT_RISK_RATIO, ASPIRATIONAL_PLACEHOLDERS, ITEMS_PER_SESSION), coverage-goal projection math, goal-id-seeded aspirational placeholder
+   - 7b — Other measurable goal types: accuracy (gap + critical-window), consistency (pace-ratio + day-fit, scope-aware cadence window), song_whole_at_level (per-stage projection, 1 song/month default rate), `coverageUnitForModule` distinct from `activityUnitForModule`, unified `UNRECOVERABLE_MESSAGE`
+   - 7c — `loadDayProfileMix()` accessor + `rollupChildFeasibilities()` worst-case rollup excluding unrecoverable (per 6h.2 sign-off)
+   - 7d — Collapsed feasibility pill: action-oriented labels ("On track", "Pick up pace", "Act now", "Unrecoverable"), no icons, non-red palette (green / yellow / orange / gray), soft-teal "Progressing" pill for aspirational scopes, inert dashed em-dash for unknown
+   - 7e — Expanded feasibility detail: per-row recommendation text, umbrella breakdown summary ("2 on track · 1 behind pace"), unified message at all-unrecoverable umbrella level with per-child suppression, scope-aware consistency time framing ("this week" / "this month" / "this month to stay on yearly pace"), daysRemaining counts today as a remaining day, consistency dimension dropped from yearly anchor children (Phase 5+ retrospective view captured)
+   - 7f — End-to-end integration smoke + Step 7 close-out + Phase 2 close-out
 
 **Deferred items captured during Phase 2 design + Steps 1–2 build:**
 - SyncProvider re-rendering excessively — pre-existing, monitor as Phase 2 adds more writes
