@@ -15,15 +15,34 @@
 import { useState } from 'react';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import SessionStack from './SessionStack';
+import TimePicker from './TimePicker';
 import type { ProposalCardData } from './proposalTypes';
 
 interface Props {
   data: ProposalCardData;
   onAccept: (data: ProposalCardData) => void;
+  /**
+   * Inline time adjustment hook. When supplied, the total-time pill
+   * in the header becomes tappable and reveals a TimePicker. Caller
+   * regenerates proposals at the new time and pushes new data back
+   * via the `data` prop. Step 4f wires this; future integration
+   * (Step 5+) supplies the regen.
+   */
+  onTimeChange?: (minutes: number) => void;
 }
 
-export default function ProposalCard({ data, onAccept }: Props) {
+export default function ProposalCard({ data, onAccept, onTimeChange }: Props) {
   const [whyOpen, setWhyOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
+  const totalMinutes = Math.round(data.totalSeconds / 60);
+
+  const handleTimeChange = (minutes: number) => {
+    onTimeChange?.(minutes);
+    // Don't auto-close — user may want to nudge again. Tapping
+    // outside or selecting from a different question collapses it
+    // (handled by the parent in v1; we just leave the popover open
+    // here for fast multi-tap adjustment).
+  };
 
   // Fall back to per-block whySnippets when the integration layer
   // hasn't supplied a hand-tuned whyLines list. Filters out blocks
@@ -40,10 +59,32 @@ export default function ProposalCard({ data, onAccept }: Props) {
         <h4 className="text-sm font-medium tracking-tight text-neutral-800 dark:text-neutral-100">
           {data.title}
         </h4>
-        <span className="font-mono tabular-nums text-xs text-neutral-500">
-          {formatActiveTime(data.totalSeconds * 1000)} total
-        </span>
+        {onTimeChange ? (
+          <button
+            type="button"
+            onClick={() => setTimeOpen(v => !v)}
+            aria-expanded={timeOpen}
+            className="font-mono tabular-nums text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
+          >
+            <span>{formatActiveTime(data.totalSeconds * 1000)} total</span>
+            <span aria-hidden>{timeOpen ? '↑' : '↓'}</span>
+          </button>
+        ) : (
+          <span className="font-mono tabular-nums text-xs text-neutral-500">
+            {formatActiveTime(data.totalSeconds * 1000)} total
+          </span>
+        )}
       </header>
+
+      {timeOpen && onTimeChange && (
+        <div className="rounded-md border border-neutral-200 dark:border-neutral-700 p-2.5">
+          <TimePicker
+            value={totalMinutes}
+            onChange={handleTimeChange}
+            helperText="Adjust session length"
+          />
+        </div>
+      )}
       <SessionStack blocks={data.blocks} />
 
       {lines.length > 0 && (

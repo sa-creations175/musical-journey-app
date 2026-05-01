@@ -24,9 +24,20 @@ import type { ProposalCardData } from './proposalTypes';
 interface Props {
   proposals: ReadonlyArray<ProposalCardData>;
   onAccept: (data: ProposalCardData) => void;
+  /** Inline time adjustment passes through to each card; caller
+   *  regenerates proposals on commit. Step 4f. */
+  onTimeChange?: (minutes: number) => void;
+  /** Re-opens the full input questionnaire so the user can revise
+   *  context / day plan / intent / energy. Step 4f link target. */
+  onTryDifferentInputs?: () => void;
 }
 
-export default function ProposalScreen({ proposals, onAccept }: Props) {
+export default function ProposalScreen({
+  proposals,
+  onAccept,
+  onTimeChange,
+  onTryDifferentInputs,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -67,7 +78,11 @@ export default function ProposalScreen({ proposals, onAccept }: Props) {
             key={`${p.kind}-${p.title}`}
             className="snap-center shrink-0 w-full md:w-auto"
           >
-            <ProposalCard data={p} onAccept={onAccept} />
+            <ProposalCard
+              data={p}
+              onAccept={onAccept}
+              onTimeChange={onTimeChange}
+            />
           </div>
         ))}
       </div>
@@ -85,6 +100,18 @@ export default function ProposalScreen({ proposals, onAccept }: Props) {
               }`}
             />
           ))}
+        </div>
+      )}
+
+      {onTryDifferentInputs && (
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={onTryDifferentInputs}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+          >
+            Try different inputs
+          </button>
         </div>
       )}
     </section>
