@@ -14,6 +14,7 @@
  */
 import { useState } from 'react';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
+import AffirmationSurface from './AffirmationSurface';
 import SessionStack from './SessionStack';
 import TimePicker from './TimePicker';
 import type { ProposalCardData } from './proposalTypes';
@@ -46,6 +47,12 @@ interface Props {
   onAddDeeperOnExisting?: () => void;
   onAddNextPriority?: () => void;
   onAddPickYourOwn?: () => void;
+  /**
+   * Pre-picked affirmation surfaced above the start button (Step 4h).
+   * Caller picks one via pickRandomAffirmation from the user's past
+   * pool; null hides the surface entirely.
+   */
+  affirmation?: string | null;
 }
 
 export default function ProposalCard({
@@ -55,6 +62,7 @@ export default function ProposalCard({
   onAddDeeperOnExisting,
   onAddNextPriority,
   onAddPickYourOwn,
+  affirmation,
 }: Props) {
   const [whyOpen, setWhyOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
@@ -193,6 +201,8 @@ export default function ProposalCard({
           )}
         </div>
       )}
+
+      <AffirmationSurface affirmation={affirmation ?? null} />
 
       <button
         type="button"

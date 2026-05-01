@@ -36,6 +36,8 @@ interface Props {
   onAddDeeperOnExisting?: () => void;
   onAddNextPriority?: () => void;
   onAddPickYourOwn?: () => void;
+  /** Pre-picked affirmation passed through to every card (Step 4h). */
+  affirmation?: string | null;
 }
 
 export default function ProposalScreen({
@@ -46,6 +48,7 @@ export default function ProposalScreen({
   onAddDeeperOnExisting,
   onAddNextPriority,
   onAddPickYourOwn,
+  affirmation,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -94,6 +97,7 @@ export default function ProposalScreen({
               onAddDeeperOnExisting={onAddDeeperOnExisting}
               onAddNextPriority={onAddNextPriority}
               onAddPickYourOwn={onAddPickYourOwn}
+              affirmation={affirmation}
             />
           </div>
         ))}
