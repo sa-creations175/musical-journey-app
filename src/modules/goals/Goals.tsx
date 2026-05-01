@@ -69,6 +69,7 @@ import {
 } from './goalRowCollapse';
 import {
   getGoalFeasibility,
+  isConsistencyMetric,
   loadDayProfileMix,
   rollupChildFeasibilities,
   type GoalFeasibility,
@@ -1082,10 +1083,22 @@ function UmbrellaRow({
   // switches.
   const expanded = isRowExpanded(umbrella.id, true);
   const setExpanded = () => onToggleRow(umbrella.id, true);
-  const subtitle = umbrellaSubtitle(childGoals);
+  // Filter out consistency-metric children for non-practice-
+  // consistency umbrellas. Consistency dimension is part of the
+  // yearly framework but is no longer a trackable child goal —
+  // it's a recurring habit, not a cumulative target. The
+  // practice-consistency module has its own three-part
+  // consistency framework (weekly floor / monthly floor /
+  // aspiration), so its children stay.
+  const umbrellaModule = umbrellaModuleId(childGoals);
+  const visibleChildGoals =
+    umbrellaModule === 'practice-consistency'
+      ? childGoals
+      : childGoals.filter(c => !isConsistencyMetric(c.targetMetric));
+  const subtitle = umbrellaSubtitle(visibleChildGoals, umbrella);
   const showSlots = shouldShowSlots(layerType);
-  const sharedModule = umbrellaModuleId(childGoals);
-  const isCrossModule = isCrossModuleUmbrella(childGoals);
+  const sharedModule = umbrellaModuleId(visibleChildGoals);
+  const isCrossModule = isCrossModuleUmbrella(visibleChildGoals);
   const moduleAccent = sharedModule
     ? moduleMetaById(sharedModule)?.accentHex
     : undefined;
@@ -1096,7 +1109,7 @@ function UmbrellaRow({
   const rollup = useMemo(() => {
     const today = new Date();
     const mix = loadDayProfileMix();
-    const childFeasibilities = childGoals.map(c =>
+    const childFeasibilities = visibleChildGoals.map(c =>
       getGoalFeasibility(c, {
         currentValue: c.currentValue,
         today,
@@ -1104,7 +1117,7 @@ function UmbrellaRow({
       }),
     );
     return rollupChildFeasibilities(childFeasibilities);
-  }, [childGoals]);
+  }, [visibleChildGoals]);
 
   const handleDelete = async () => {
     if (
@@ -1231,12 +1244,12 @@ function UmbrellaRow({
         </div>
       )}
 
-      {expanded && childGoals.length > 0 && (
+      {expanded && visibleChildGoals.length > 0 && (
         <ul
           className="pl-4 mt-1.5 ml-2 flex flex-col gap-1.5 border-l border-neutral-200 dark:border-neutral-800"
           data-umbrella-children
         >
-          {childGoals.map(c => {
+          {visibleChildGoals.map(c => {
             const dim = dimensionForGoal(c);
             const childModule = moduleForMetric(c.targetMetric);
             const label = dim ? dimensionDisplayLabel(dim, childModule) : null;

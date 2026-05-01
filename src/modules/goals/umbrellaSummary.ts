@@ -96,9 +96,21 @@ export function dimensionForGoal(goal: Goal): GoalDimension | null {
  * children show "Accuracy", subtitle says "Accuracy" too — not
  * "Depth").
  *
- * Returns null when no child has a classifiable dimension.
+ * Yearly-anchor umbrellas always carry "Consistency" as the
+ * fourth dimension of the framework, even though no child goal
+ * record exists for it (consistency is a recurring habit, not a
+ * cumulative target — tracked through weekly consistency goals,
+ * not a yearly child). The subtitle appends "Consistency" when
+ * the umbrella is a yearly anchor and isn't a practice-
+ * consistency umbrella (which has its own three-part
+ * consistency framework).
+ *
+ * Returns null when no dimension is derivable.
  */
-export function umbrellaSubtitle(children: ReadonlyArray<Goal>): string | null {
+export function umbrellaSubtitle(
+  children: ReadonlyArray<Goal>,
+  umbrella?: Goal | null,
+): string | null {
   const seen = new Set<string>();
   const order: string[] = [];
   for (const c of children) {
@@ -110,6 +122,15 @@ export function umbrellaSubtitle(children: ReadonlyArray<Goal>): string | null {
       seen.add(label);
       order.push(label);
     }
+  }
+  if (
+    umbrella &&
+    umbrella.scope === 'yearly' &&
+    umbrella.isUmbrella &&
+    umbrellaModuleId(children) !== 'practice-consistency' &&
+    !seen.has('Consistency')
+  ) {
+    order.push('Consistency');
   }
   if (order.length === 0) return null;
   return order.join(' · ');

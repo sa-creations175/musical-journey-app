@@ -168,6 +168,65 @@ describe('umbrellaSubtitle', () => {
     expect(umbrellaSubtitle(children)).toBe('Mastery · Consistency');
   });
 
+  it('appends "Consistency" for a yearly anchor umbrella even when no consistency child exists', () => {
+    // 7e decision: consistency dimension is no longer a child
+    // record, but the umbrella's framework still includes it.
+    // Subtitle appends "Consistency" for yearly anchor umbrellas.
+    const umbrella = mkGoal({
+      id: 'u-et',
+      scope: 'yearly',
+      isUmbrella: true,
+    });
+    const children = [
+      mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' }),  // Breadth
+      mkGoal({ targetMetric: 'ear_training_accuracy_overall' }),      // Accuracy (Depth)
+    ];
+    expect(umbrellaSubtitle(children, umbrella)).toBe(
+      'Breadth · Accuracy · Consistency',
+    );
+  });
+
+  it('does NOT append a duplicate "Consistency" when a consistency child already exists', () => {
+    // Old umbrellas (pre-7e) have consistency children — the
+    // dimension is already derived from the child. Appending
+    // would double up; the helper dedupes via the seen set.
+    const umbrella = mkGoal({
+      scope: 'yearly',
+      isUmbrella: true,
+    });
+    const children = [
+      mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' }),
+      mkGoal({ targetMetric: 'ear_training_sessions_per_week' }),
+    ];
+    expect(umbrellaSubtitle(children, umbrella)).toBe('Breadth · Consistency');
+  });
+
+  it('does NOT append "Consistency" for non-yearly umbrellas', () => {
+    const umbrella = mkGoal({
+      scope: 'monthly',
+      isUmbrella: true,
+    });
+    const children = [
+      mkGoal({ scope: 'monthly', targetMetric: 'ear_training_coverage_at_acquired' }),
+    ];
+    expect(umbrellaSubtitle(children, umbrella)).toBe('Breadth');
+  });
+
+  it('does NOT append "Consistency" for a practice-consistency umbrella (already has its own framework)', () => {
+    const umbrella = mkGoal({
+      scope: 'yearly',
+      isUmbrella: true,
+    });
+    const children = [
+      mkGoal({ targetMetric: 'practice_weekly_floor_days' }),
+    ];
+    // Children already classify as Consistency, so the subtitle
+    // shows it once. The append-for-yearly branch is gated by
+    // umbrellaModuleId !== 'practice-consistency'; even so the
+    // dedupe keeps things clean.
+    expect(umbrellaSubtitle(children, umbrella)).toBe('Consistency');
+  });
+
   it('returns null when no child has a classifiable dimension', () => {
     const children = [mkGoal({ targetMetric: null })];
     expect(umbrellaSubtitle(children)).toBeNull();

@@ -76,14 +76,18 @@ describe('encodeDimensionRecords — Ear Training', () => {
     consistency: { count: 4, cadence: 'week' },
   };
 
-  it('all-defaults produces Breadth + Depth + Consistency (3 records, no Mastery)', () => {
+  it('all-defaults produces Breadth + Depth (2 records, no Mastery, no Consistency child)', () => {
+    // Consistency dimension intentionally not encoded as a
+    // child record (7e decision) — it's a recurring habit, not
+    // a cumulative target. The umbrella's subtitle still shows
+    // "Consistency" via umbrellaSubtitle's yearly-anchor branch.
     const records = encodeDimensionRecords(et(baseEt));
-    expect(records).toHaveLength(3);
+    expect(records).toHaveLength(2);
     expect(records.map(r => r.targetMetric)).toEqual([
       'ear_training_coverage_at_acquired',
       'ear_training_accuracy_overall',
-      'ear_training_sessions_per_cadence',
     ]);
+    expect(records.some(r => r.targetMetric.includes('sessions_per'))).toBe(false);
   });
 
   it('Breadth = all uses _coverage_at_acquired with the live total', () => {
@@ -136,11 +140,9 @@ describe('encodeDimensionRecords — Ear Training', () => {
     expect(depth!.targetUnit).toBe('%');
   });
 
-  it('Consistency emits sessions_per_cadence with cadence in targetUnit', () => {
+  it('Consistency does NOT emit a child record (7e decision)', () => {
     const records = encodeDimensionRecords(et({ ...baseEt, consistency: { count: 3, cadence: 'month' } }));
-    const c = records.find(r => r.targetMetric === 'ear_training_sessions_per_cadence');
-    expect(c!.targetValue).toBe(3);
-    expect(c!.targetUnit).toBe('month');
+    expect(records.some(r => r.targetMetric.includes('sessions_per'))).toBe(false);
   });
 
   it('Breadth = subset with empty groupIds skips the Breadth record', () => {
@@ -194,12 +196,11 @@ describe('encodeDimensionRecords — Shapes & Patterns', () => {
     consistency: { count: 30, cadence: 'week' },
   };
 
-  it('Depth empty + Mastery empty → 2 records (Breadth + Consistency only)', () => {
+  it('Depth empty + Mastery empty → 1 record (Breadth only; consistency excluded)', () => {
     const records = encodeDimensionRecords(sp(baseSp));
-    expect(records).toHaveLength(2);
+    expect(records).toHaveLength(1);
     expect(records.map(r => r.targetMetric)).toEqual([
       'shapes_coverage_at_acquired',
-      'shapes_minutes_per_cadence',
     ]);
   });
 
@@ -216,11 +217,9 @@ describe('encodeDimensionRecords — Shapes & Patterns', () => {
     expect(depth!.targetValue).toBeNull();
   });
 
-  it('Consistency uses minutes_per_cadence with cadence in targetUnit', () => {
+  it('Consistency does NOT emit a child record (7e decision)', () => {
     const records = encodeDimensionRecords(sp(baseSp));
-    const c = records.find(r => r.targetMetric === 'shapes_minutes_per_cadence');
-    expect(c!.targetValue).toBe(30);
-    expect(c!.targetUnit).toBe('week');
+    expect(records.some(r => r.targetMetric.includes('minutes_per'))).toBe(false);
   });
 
   it('Mastery covering all 3 areas uses overall mastery metric', () => {
@@ -239,21 +238,20 @@ describe('encodeDimensionRecords — Shapes & Patterns', () => {
 // -------------------------------------------------------------------
 
 describe('encodeDimensionRecords — Song Repertoire', () => {
-  it('all-zero counts produce only the Consistency record', () => {
+  it('all-zero counts produce zero records (no consistency child either)', () => {
     const records = encodeDimensionRecords(songs({
       breadthCount: 0, depthCount: 0, masteryCount: 0,
       consistency: { count: 4, cadence: 'week' },
     }));
-    expect(records).toHaveLength(1);
-    expect(records[0].targetMetric).toBe('repertoire_sessions_per_cadence');
+    expect(records).toHaveLength(0);
   });
 
-  it('non-zero counts use song_whole_at_level with level in targetUnit', () => {
+  it('non-zero counts use song_whole_at_level with level in targetUnit (no consistency)', () => {
     const records = encodeDimensionRecords(songs({
       breadthCount: 5, depthCount: 3, masteryCount: 1,
       consistency: { count: 4, cadence: 'week' },
     }));
-    expect(records).toHaveLength(4);
+    expect(records).toHaveLength(3);
     expect(records[0].targetMetric).toBe('song_whole_at_level');
     expect(records[0].targetUnit).toBe('comfortable');
     expect(records[0].targetValue).toBe(5);
@@ -261,17 +259,15 @@ describe('encodeDimensionRecords — Song Repertoire', () => {
     expect(records[1].targetValue).toBe(3);
     expect(records[2].targetUnit).toBe('internalized');
     expect(records[2].targetValue).toBe(1);
+    expect(records.some(r => r.targetMetric.includes('sessions_per'))).toBe(false);
   });
 
-  it('Songs Consistency ships the new repertoire_sessions_per_cadence metric', () => {
+  it('Songs Consistency does NOT emit a child record (7e decision)', () => {
     const records = encodeDimensionRecords(songs({
       breadthCount: 0, depthCount: 0, masteryCount: 0,
       consistency: { count: 5, cadence: 'month' },
     }));
-    const c = records[0];
-    expect(c.targetMetric).toBe('repertoire_sessions_per_cadence');
-    expect(c.targetValue).toBe(5);
-    expect(c.targetUnit).toBe('month');
+    expect(records.some(r => r.targetMetric.includes('sessions_per'))).toBe(false);
   });
 });
 
@@ -286,12 +282,11 @@ describe('encodeDimensionRecords — Production', () => {
     consistency: { count: 2, cadence: 'week' },
   };
 
-  it('all-defaults produces Breadth + Consistency (2 records, no Mastery, no Depth)', () => {
+  it('all-defaults produces Breadth only (1 record, no Mastery, no Depth, no Consistency)', () => {
     const records = encodeDimensionRecords(prod(baseP));
-    expect(records).toHaveLength(2);
+    expect(records).toHaveLength(1);
     expect(records.map(r => r.targetMetric)).toEqual([
       'production_coverage_at_acquired',
-      'production_hours_per_cadence',
     ]);
   });
 
@@ -307,11 +302,9 @@ describe('encodeDimensionRecords — Production', () => {
     expect(depth!.targetValue).toBe(8 + 22);  // workflow + genre lesson counts
   });
 
-  it('Consistency uses hours_per_cadence', () => {
+  it('Consistency does NOT emit a child record (7e decision)', () => {
     const records = encodeDimensionRecords(prod(baseP));
-    const c = records.find(r => r.targetMetric === 'production_hours_per_cadence');
-    expect(c!.targetValue).toBe(2);
-    expect(c!.targetUnit).toBe('week');
+    expect(records.some(r => r.targetMetric.includes('hours_per'))).toBe(false);
   });
 
   it('never produces a Production mastery record', () => {

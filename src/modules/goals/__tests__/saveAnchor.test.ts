@@ -69,18 +69,20 @@ beforeEach(async () => {
 // -------------------------------------------------------------------
 
 describe('saveAnchor — create mode shape', () => {
-  it('writes 1 umbrella + 3 children for an ET all-defaults draft', async () => {
+  it('writes 1 umbrella + 2 children for an ET all-defaults draft (no consistency child)', async () => {
+    // 7e decision: consistency dimension no longer encoded as a
+    // child record. ET all-defaults yields Breadth + Depth = 2.
     const result = await saveAnchor(etDraft(), baseOpts);
     expect(result).not.toBeNull();
     expect(result!.umbrella.isUmbrella).toBe(true);
-    expect(result!.children).toHaveLength(3);
+    expect(result!.children).toHaveLength(2);
 
     // Persisted to db.goals
     const all = await db.goals.toArray();
-    expect(all).toHaveLength(4);  // 1 umbrella + 3 children
+    expect(all).toHaveLength(3);  // 1 umbrella + 2 children
     const umbrella = all.find(g => g.isUmbrella)!;
     const children = all.filter(g => !g.isUmbrella);
-    expect(children).toHaveLength(3);
+    expect(children).toHaveLength(2);
     expect(children.every(c => c.parentGoalId === umbrella.id)).toBe(true);
   });
 
@@ -168,12 +170,12 @@ describe('saveAnchor — create mode shape', () => {
     expect(await db.goals.count()).toBe(0);
   });
 
-  it('produces 4 records when Mastery is also populated', async () => {
+  it('produces 3 records when Mastery is also populated (Breadth + Mastery + Depth, no consistency child)', async () => {
     const result = await saveAnchor(
       etDraft({ mastery: { groupIds: ['intervals', 'chord-recognition'] } }),
       baseOpts,
     );
-    expect(result!.children).toHaveLength(4);
+    expect(result!.children).toHaveLength(3);
     const masteryChild = result!.children.find(c => c.targetMetric.includes('mastery'));
     expect(masteryChild).toBeDefined();
     expect(masteryChild!.relatedItems).toEqual(['intervals', 'chord-recognition']);
@@ -186,26 +188,27 @@ describe('saveAnchor — create mode shape', () => {
 
 describe('saveAnchor — edit-mode delete-and-recreate', () => {
   it('reuses umbrella id and replaces children', async () => {
-    // First save: 3 children (Breadth + Depth + Consistency).
+    // First save: 2 children (Breadth + Depth; no consistency
+    // child per 7e decision).
     const first = await saveAnchor(etDraft(), baseOpts);
-    expect(first!.children).toHaveLength(3);
+    expect(first!.children).toHaveLength(2);
     const originalUmbrellaId = first!.umbrella.id;
 
-    // Second save with mastery added → 4 children. Same umbrella.
+    // Second save with mastery added → 3 children. Same umbrella.
     const second = await saveAnchor(
       etDraft({ mastery: { groupIds: ['intervals'] } }),
       { ...baseOpts, initialAnchor: first!.umbrella, now: NOW + 1000 },
     );
     expect(second!.umbrella.id).toBe(originalUmbrellaId);
-    expect(second!.children).toHaveLength(4);
+    expect(second!.children).toHaveLength(3);
 
-    // Persisted state: 1 umbrella + 4 children = 5 total. The original
-    // 3 children are GONE (their ids were not reused), replaced by 4
+    // Persisted state: 1 umbrella + 3 children = 4 total. The
+    // original 2 children are GONE (ids not reused), replaced by 3
     // fresh children.
     const all = await db.goals.toArray();
-    expect(all).toHaveLength(5);
+    expect(all).toHaveLength(4);
     const persistedChildren = all.filter(g => !g.isUmbrella);
-    expect(persistedChildren).toHaveLength(4);
+    expect(persistedChildren).toHaveLength(3);
     const originalChildIds = first!.children.map(c => c.id);
     for (const ocid of originalChildIds) {
       expect(persistedChildren.find(c => c.id === ocid)).toBeUndefined();
@@ -235,22 +238,23 @@ describe('saveAnchor — edit-mode delete-and-recreate', () => {
   });
 
   it('shrinking the dimension set deletes the orphaned children', async () => {
-    // First save with 4 children (Breadth + Mastery + Depth + Consistency).
+    // First save with 3 children (Breadth + Mastery + Depth;
+    // no consistency child per 7e decision).
     const first = await saveAnchor(
       etDraft({ mastery: { groupIds: ['intervals', 'chord-recognition'] } }),
       baseOpts,
     );
-    expect(first!.children).toHaveLength(4);
+    expect(first!.children).toHaveLength(3);
 
-    // Second save: drop Mastery → 3 children.
+    // Second save: drop Mastery → 2 children (Breadth + Depth).
     const second = await saveAnchor(
       etDraft({ mastery: { groupIds: [] } }),
       { ...baseOpts, initialAnchor: first!.umbrella },
     );
-    expect(second!.children).toHaveLength(3);
+    expect(second!.children).toHaveLength(2);
 
     const all = await db.goals.toArray();
-    expect(all).toHaveLength(4);  // 1 umbrella + 3 children
+    expect(all).toHaveLength(3);  // 1 umbrella + 2 children
     expect(all.filter(g => g.targetMetric?.includes('mastery'))).toHaveLength(0);
   });
 
@@ -332,7 +336,11 @@ describe('saveAnchor — per-module smoke', () => {
     );
   });
 
-  it('saves a Songs anchor with all-zero counts → just the Consistency record', async () => {
+  it('Songs anchor with all-zero counts no longer saves (consistency-only is not a writable anchor)', async () => {
+    // Per 7e decision, consistency isn't a child record. So a
+    // songs anchor with all-zero breadth/depth/mastery counts
+    // has nothing to encode and saveAnchor returns null. The
+    // user has to set at least one numeric ambition.
     const result = await saveAnchor(
       {
         moduleId: 'repertoire',
@@ -344,11 +352,10 @@ describe('saveAnchor — per-module smoke', () => {
       },
       baseOpts,
     );
-    expect(result!.children).toHaveLength(1);
-    expect(result!.children[0].targetMetric).toBe('repertoire_sessions_per_cadence');
+    expect(result).toBeNull();
   });
 
-  it('saves a Production anchor (3 dimensions, no Mastery)', async () => {
+  it('saves a Production anchor (Breadth only — no Mastery, no Depth, no Consistency child)', async () => {
     const result = await saveAnchor(
       {
         moduleId: 'production',
@@ -361,7 +368,7 @@ describe('saveAnchor — per-module smoke', () => {
       },
       baseOpts,
     );
-    expect(result!.children).toHaveLength(2);  // Breadth + Consistency
+    expect(result!.children).toHaveLength(1);
     expect(result!.children.every(c => !c.targetMetric.includes('mastery'))).toBe(true);
   });
 });

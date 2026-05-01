@@ -668,9 +668,16 @@ function isAccuracyMetric(metric: string): boolean {
 }
 
 /** Consistency metrics — `*_sessions_per_week`, `*_sessions_per_month`,
+ *  `*_sessions_per_cadence`, `*_minutes_per_cadence`, `*_hours_per_cadence`,
  *  and the practice-consistency umbrella's `practice_*` flavors. */
-function isConsistencyMetric(metric: string): boolean {
-  return metric.includes('_sessions_per_') || metric.startsWith('practice_');
+export function isConsistencyMetric(metric: string | null | undefined): boolean {
+  if (!metric) return false;
+  return (
+    metric.includes('_sessions_per_') ||
+    metric.includes('_minutes_per_') ||
+    metric.includes('_hours_per_') ||
+    metric.startsWith('practice_')
+  );
 }
 
 function coverageFeasibility(

@@ -653,7 +653,6 @@ function buildInitialDraft(
  * existing entry-point selector keeps working without per-id
  * tweaks.
  */
-const SONG_REPERTOIRE_SESSIONS_PER_CADENCE = 'repertoire_sessions_per_cadence';
 const PRACTICE_WEEKLY_FLOOR_DAYS           = 'practice_weekly_floor_days';
 const PRACTICE_MONTHLY_FLOOR_DAYS          = 'practice_monthly_floor_days';
 const PRACTICE_ASPIRATION_DAYS_PER_WEEK    = 'practice_aspiration_days_per_week';
@@ -763,14 +762,16 @@ function encodeEarTrainingDimensions(et: EarTrainingAnchor): DimensionRecordSpec
     relatedItems: [],
   });
 
-  // ---- Consistency ----
-  records.push({
-    description: `Practice Ear Training ${et.consistency.count}× per ${et.consistency.cadence}`,
-    targetMetric: 'ear_training_sessions_per_cadence',
-    targetValue: et.consistency.count,
-    targetUnit: et.consistency.cadence,
-    relatedItems: [],
-  });
+  // ---- Consistency: intentionally NOT a child goal record ----
+  // Consistency is a recurring habit, not a cumulative target.
+  // You can't make up missed sessions, and evaluating it
+  // year-to-date produces misleading feasibility (4 months of
+  // 0 sessions = unrecoverable, even if the user is just
+  // starting). Tracking lives in weekly consistency goals,
+  // not the yearly anchor. The umbrella's subtitle still
+  // surfaces "Consistency" as a framework dimension so the
+  // ambition stays visible.
+  void et.consistency;
 
   return records;
 }
@@ -824,13 +825,9 @@ function encodeHarmonicFluencyDimensions(hf: HarmonicFluencyAnchor): DimensionRe
     relatedItems: [],
   });
 
-  records.push({
-    description: `Practice Harmonic Fluency ${hf.consistency.count}× per ${hf.consistency.cadence}`,
-    targetMetric: 'harmonic_fluency_sessions_per_cadence',
-    targetValue: hf.consistency.count,
-    targetUnit: hf.consistency.cadence,
-    relatedItems: [],
-  });
+  // Consistency dimension intentionally not a child record —
+  // see encodeEarTrainingDimensions for the rationale.
+  void hf.consistency;
 
   return records;
 }
@@ -895,13 +892,9 @@ function encodeShapesDimensions(sp: ShapesPatternsAnchor): DimensionRecordSpec[]
     });
   }
 
-  records.push({
-    description: `Practice Shapes & Patterns ${sp.consistency.count} minutes per ${sp.consistency.cadence}`,
-    targetMetric: 'shapes_minutes_per_cadence',
-    targetValue: sp.consistency.count,
-    targetUnit: sp.consistency.cadence,
-    relatedItems: [],
-  });
+  // Consistency dimension intentionally not a child record —
+  // see encodeEarTrainingDimensions for the rationale.
+  void sp.consistency;
 
   return records;
 }
@@ -936,13 +929,9 @@ function encodeSongRepertoireDimensions(sr: SongRepertoireAnchor): DimensionReco
       relatedItems: [],
     });
   }
-  records.push({
-    description: `Cultivate Song Repertoire ${sr.consistency.count}× per ${sr.consistency.cadence}`,
-    targetMetric: SONG_REPERTOIRE_SESSIONS_PER_CADENCE,
-    targetValue: sr.consistency.count,
-    targetUnit: sr.consistency.cadence,
-    relatedItems: [],
-  });
+  // Consistency dimension intentionally not a child record —
+  // see encodeEarTrainingDimensions for the rationale.
+  void sr.consistency;
 
   return records;
 }
@@ -989,13 +978,9 @@ function encodeProductionDimensions(p: ProductionAnchor): DimensionRecordSpec[] 
     });
   }
 
-  records.push({
-    description: `Spend ${p.consistency.count} hours per ${p.consistency.cadence} on Production`,
-    targetMetric: 'production_hours_per_cadence',
-    targetValue: p.consistency.count,
-    targetUnit: p.consistency.cadence,
-    relatedItems: [],
-  });
+  // Consistency dimension intentionally not a child record —
+  // see encodeEarTrainingDimensions for the rationale.
+  void p.consistency;
 
   return records;
 }
