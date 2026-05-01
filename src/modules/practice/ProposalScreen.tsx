@@ -17,7 +17,7 @@
  *   4i — Cold-start one-time banner
  *   4j — Feasibility banner above the stack
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import ColdStartBanner from './ColdStartBanner';
 import ProposalCard from './ProposalCard';
 import type { ProposalCardData } from './proposalTypes';
@@ -46,6 +46,15 @@ interface Props {
    * mount and passes the result here. Step 6k flips the flag.
    */
   showColdStartBanner?: boolean;
+  /**
+   * Slot for the goal-feasibility banner that sits above the
+   * session stack when any goal is behind pace. Step 4j lands the
+   * slot; the actual banner component lands in Step 7b and is
+   * shared between this surface and Practice Sessions home (7a).
+   * Render-prop shape so this screen doesn't take a dependency on
+   * the banner's internals or its data fetch.
+   */
+  feasibilityBanner?: ReactNode;
 }
 
 export default function ProposalScreen({
@@ -58,6 +67,7 @@ export default function ProposalScreen({
   onAddPickYourOwn,
   affirmation,
   showColdStartBanner,
+  feasibilityBanner,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -85,6 +95,8 @@ export default function ProposalScreen({
   return (
     <section className="space-y-3">
       <ColdStartBanner visible={!!showColdStartBanner} />
+
+      {feasibilityBanner}
 
       <header>
         <h3 className="text-sm font-medium tracking-tight">
