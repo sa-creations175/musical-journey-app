@@ -34,7 +34,9 @@ import type {
   AnchorDraft,
   AnchorModuleId,
   EarTrainingAnchor,
+  EarTrainingGroupId,
   HarmonicFluencyAnchor,
+  HarmonicFluencyGroupId,
   PracticeConsistencyAnchor,
   ProductionAnchor,
   ShapesPatternsAnchor,
@@ -156,7 +158,7 @@ function summarizeEarTrainingBreadth(et: EarTrainingAnchor): string {
     return `All ${total} items`;
   }
   if (et.breadth.groupIds.length === 0) return 'Not yet picked';
-  return joinAnd(et.breadth.groupIds.map(id => ET_GROUP_LABELS[id]));
+  return joinAnd(et.breadth.groupIds.map(id => ET_GROUP_LABELS[id as EarTrainingGroupId]));
 }
 
 function summarizeEarTrainingMastery(et: EarTrainingAnchor): string {
@@ -178,7 +180,7 @@ function summarizeEarTraining(et: EarTrainingAnchor, year: number): string {
     ? `cover all ${earTrainingCounts().total} ear training items`
     : et.breadth.groupIds.length === 0
       ? 'cover the groups you choose'
-      : `cover the ${joinAnd(et.breadth.groupIds.map(id => ET_GROUP_LABELS[id]))} groups`;
+      : `cover the ${joinAnd(et.breadth.groupIds.map(id => ET_GROUP_LABELS[id as EarTrainingGroupId]))} groups`;
   const masteryClause = et.mastery.groupIds.length === 0
     ? null
     : `master the ${joinAnd(et.mastery.groupIds.map(id => ET_GROUP_LABELS[id]))} groups`;
@@ -198,7 +200,7 @@ function summarizeHarmonicFluencyBreadth(hf: HarmonicFluencyAnchor): string {
     return `All ${total} cards`;
   }
   if (hf.breadth.groupIds.length === 0) return 'Not yet picked';
-  return joinAnd(hf.breadth.groupIds.map(id => HF_GROUP_LABELS[id]));
+  return joinAnd(hf.breadth.groupIds.map(id => HF_GROUP_LABELS[id as HarmonicFluencyGroupId]));
 }
 
 function summarizeHarmonicFluencyMastery(hf: HarmonicFluencyAnchor): string {
@@ -220,7 +222,7 @@ function summarizeHarmonicFluency(hf: HarmonicFluencyAnchor, year: number): stri
     ? `cover all ${harmonicFluencyCounts().total} harmonic fluency cards`
     : hf.breadth.groupIds.length === 0
       ? 'cover the groups you choose'
-      : `cover the ${joinAnd(hf.breadth.groupIds.map(id => HF_GROUP_LABELS[id]))} groups`;
+      : `cover the ${joinAnd(hf.breadth.groupIds.map(id => HF_GROUP_LABELS[id as HarmonicFluencyGroupId]))} groups`;
   const masteryClause = hf.mastery.groupIds.length === 0
     ? null
     : `master the ${joinAnd(hf.mastery.groupIds.map(id => HF_GROUP_LABELS[id]))} groups`;

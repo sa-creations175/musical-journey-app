@@ -176,7 +176,7 @@ describe('saveAnchor — create mode shape', () => {
       baseOpts,
     );
     expect(result!.children).toHaveLength(3);
-    const masteryChild = result!.children.find(c => c.targetMetric.includes('mastery'));
+    const masteryChild = result!.children.find(c => c.targetMetric?.includes('mastery'));
     expect(masteryChild).toBeDefined();
     expect(masteryChild!.relatedItems).toEqual(['intervals', 'chord-recognition']);
   });
@@ -369,6 +369,6 @@ describe('saveAnchor — per-module smoke', () => {
       baseOpts,
     );
     expect(result!.children).toHaveLength(1);
-    expect(result!.children.every(c => !c.targetMetric.includes('mastery'))).toBe(true);
+    expect(result!.children.every(c => !c.targetMetric?.includes('mastery'))).toBe(true);
   });
 });
