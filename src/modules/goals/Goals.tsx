@@ -1416,6 +1416,29 @@ function ByModuleView({
  * hierarchy) or the dashed YearlyAnchorBackstop. Standalone
  * non-umbrella goals inside the module render flat below.
  */
+/**
+ * Per-module visual container palette for the by-module view.
+ * Tint background + 3px solid left border + soft corners group
+ * everything inside as belonging to one module.
+ *
+ * Tints intentionally reuse the feasibility-pill palette where
+ * a module's accent matches a status color (ET green, Shapes
+ * amber). Borders are darker variants of the same family —
+ * deeper than the moduleMeta accents because they're a small
+ * 3px stripe and need contrast against the tint.
+ */
+const SECTION_PALETTE: Record<
+  GoalFlowModuleId,
+  { bg: string; border: string }
+> = {
+  'ear-training':         { bg: '#EAF3DE', border: '#3B6D11' },
+  'harmonic-fluency':     { bg: '#EEEDFE', border: '#534AB7' },
+  'shapes-and-patterns':  { bg: '#FAEEDA', border: '#854F0B' },
+  'repertoire':           { bg: '#FBEAF0', border: '#8B3A52' },
+  'production':           { bg: '#E6F1FB', border: '#1F3A6E' },
+  'practice-consistency': { bg: '#F1EFE8', border: '#5F5E5A' },
+};
+
 function ByModuleSection({
   moduleId,
   allGoals,
@@ -1458,12 +1481,19 @@ function ByModuleSection({
 
   const meta = moduleMetaById(moduleId);
   const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+  const palette = SECTION_PALETTE[moduleId];
 
   return (
-    <section>
+    <section
+      className="rounded-lg pl-4 pr-3 py-3"
+      style={{
+        backgroundColor: palette.bg,
+        borderLeft: `3px solid ${palette.border}`,
+      }}
+    >
       <h2
         className="text-sm font-medium uppercase tracking-wide mb-2"
-        style={{ color: meta?.accentHex }}
+        style={{ color: palette.border }}
       >
         {label}
       </h2>
