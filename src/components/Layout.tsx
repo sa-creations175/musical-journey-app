@@ -9,13 +9,16 @@ import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
+import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
 
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creativeOpen, setCreativeOpen] = useState(false);
   useAutoPauseOnNavigation();
   return (
-    <div className="min-h-full flex flex-col md:flex-row">
+    <div className="min-h-full flex flex-col">
+    <GlobalSessionBanner />
+    <div className="flex-1 flex flex-col md:flex-row">
       <aside className="md:w-60 md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur">
         <div className="p-4">
           <div className="text-sm font-medium tracking-tight text-fluent">musical journey</div>
@@ -55,8 +58,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
+    </div>
+    <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
     </div>
   );
 }
