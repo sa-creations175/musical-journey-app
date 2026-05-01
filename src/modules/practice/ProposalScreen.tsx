@@ -30,6 +30,12 @@ interface Props {
   /** Re-opens the full input questionnaire so the user can revise
    *  context / day plan / intent / energy. Step 4f link target. */
   onTryDifferentInputs?: () => void;
+  /** "+ Add block" picker callbacks — Step 4g. Pass through to each
+   *  card. The card decides whether to render the picker based on
+   *  which callbacks are supplied. */
+  onAddDeeperOnExisting?: () => void;
+  onAddNextPriority?: () => void;
+  onAddPickYourOwn?: () => void;
 }
 
 export default function ProposalScreen({
@@ -37,6 +43,9 @@ export default function ProposalScreen({
   onAccept,
   onTimeChange,
   onTryDifferentInputs,
+  onAddDeeperOnExisting,
+  onAddNextPriority,
+  onAddPickYourOwn,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -82,6 +91,9 @@ export default function ProposalScreen({
               data={p}
               onAccept={onAccept}
               onTimeChange={onTimeChange}
+              onAddDeeperOnExisting={onAddDeeperOnExisting}
+              onAddNextPriority={onAddNextPriority}
+              onAddPickYourOwn={onAddPickYourOwn}
             />
           </div>
         ))}

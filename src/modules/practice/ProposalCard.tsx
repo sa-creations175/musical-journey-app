@@ -29,12 +29,42 @@ interface Props {
    * (Step 5+) supplies the regen.
    */
   onTimeChange?: (minutes: number) => void;
+  /**
+   * "+ Add block" picker callbacks. When all three are supplied,
+   * the picker renders below the session stack. Each callback is
+   * fired when the user picks that path:
+   *   onAddDeeperOnExisting — Step 4g shows the existing blocks
+   *     as a chooser; caller's UX adds a second block for the
+   *     chosen module / item.
+   *   onAddNextPriority — caller queries the algorithm for the
+   *     single next-best item and adds it.
+   *   onAddPickYourOwn — caller opens a module browser for full
+   *     manual control.
+   * 4g lands the entry-point + branching surface; the secondary
+   * UX inside each option is integrated in Step 5+.
+   */
+  onAddDeeperOnExisting?: () => void;
+  onAddNextPriority?: () => void;
+  onAddPickYourOwn?: () => void;
 }
 
-export default function ProposalCard({ data, onAccept, onTimeChange }: Props) {
+export default function ProposalCard({
+  data,
+  onAccept,
+  onTimeChange,
+  onAddDeeperOnExisting,
+  onAddNextPriority,
+  onAddPickYourOwn,
+}: Props) {
   const [whyOpen, setWhyOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const totalMinutes = Math.round(data.totalSeconds / 60);
+
+  const showAddPicker =
+    onAddDeeperOnExisting !== undefined ||
+    onAddNextPriority !== undefined ||
+    onAddPickYourOwn !== undefined;
 
   const handleTimeChange = (minutes: number) => {
     onTimeChange?.(minutes);
@@ -87,6 +117,55 @@ export default function ProposalCard({ data, onAccept, onTimeChange }: Props) {
       )}
       <SessionStack blocks={data.blocks} />
 
+      {showAddPicker && (
+        <div className="space-y-1.5">
+          <button
+            type="button"
+            onClick={() => setAddOpen(v => !v)}
+            aria-expanded={addOpen}
+            className="text-[11px] text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
+          >
+            <span aria-hidden>+</span>
+            <span>Add block</span>
+            <span aria-hidden>{addOpen ? '↑' : '↓'}</span>
+          </button>
+          {addOpen && (
+            <div className="space-y-1">
+              {onAddDeeperOnExisting && (
+                <AddBlockOption
+                  title="Go deeper on something here"
+                  subtitle="Pick a block in the session and add more time on it."
+                  onClick={() => {
+                    setAddOpen(false);
+                    onAddDeeperOnExisting();
+                  }}
+                />
+              )}
+              {onAddNextPriority && (
+                <AddBlockOption
+                  title="Next priority"
+                  subtitle="Algorithm picks the next best use of your time."
+                  onClick={() => {
+                    setAddOpen(false);
+                    onAddNextPriority();
+                  }}
+                />
+              )}
+              {onAddPickYourOwn && (
+                <AddBlockOption
+                  title="Pick your own"
+                  subtitle="Browse modules and choose anything."
+                  onClick={() => {
+                    setAddOpen(false);
+                    onAddPickYourOwn();
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {lines.length > 0 && (
         <div className="space-y-1.5">
           <button
@@ -123,5 +202,26 @@ export default function ProposalCard({ data, onAccept, onTimeChange }: Props) {
         start this session
       </button>
     </div>
+  );
+}
+
+function AddBlockOption({
+  title,
+  subtitle,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left rounded-md border border-neutral-200 dark:border-neutral-700 px-2.5 py-1.5 hover:border-fluent hover:text-fluent"
+    >
+      <div className="text-xs font-medium">{title}</div>
+      <div className="text-[10px] text-neutral-500">{subtitle}</div>
+    </button>
   );
 }
