@@ -4,6 +4,7 @@ import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
+import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import {
   FEEL_EMOJI,
   FEEL_LABEL,
@@ -19,24 +20,49 @@ interface Props {
   onLogged: (session: DrillSession) => void;
 }
 
-type Phase = 'setup' | 'running' | 'paused' | 'complete' | 'assess';
+type Phase = 'setup' | 'running' | 'paused' | 'assess';
 
 /**
- * Drill runner: two-phase flow.
- *   setup  — target time editor, Start button, metronome preview.
- *   running — counts DOWN from target; metronome auto-plays.
- *   complete — arrives either by timer hitting 0 or user clicking
- *              Complete Early; transitions to assess.
- *   assess — feel rating + notes + Save.
+ * Drill runner: setup → running → (paused → running)* → assess.
  *
- * Metronome coordination: starts with driver='drill' when the user
- * clicks Start, stops with driver='drill' on any exit. If the user
- * had the metronome running with driver='user' before the drill,
- * it keeps running afterward (driverStack in the metronome singleton).
+ * The per-drill countdown is local to this modal — its own setInterval,
+ * its own elapsed/remaining state. Independent of the global session
+ * timer.
+ *
+ * Phase 3 Step 1e — global session integration:
+ *
+ *   - The Shapes practice "session" is one block ("Shapes practice")
+ *     in the global timer. It spans an arbitrary number of drill modal
+ *     opens; the block timer accumulates total time on Shapes,
+ *     auto-pausing on navigation away and surfacing in the global
+ *     banner. The session ends when the user explicitly taps End on
+ *     the banner — not when an individual drill completes or saves.
+ *
+ *   - On the FIRST drill of a session (timer idle / ended), this
+ *     modal calls startSession with the persistent block. On
+ *     subsequent drills (timer running / paused), it doesn't touch
+ *     the timer — the existing session continues.
+ *
+ *   - Pause / resume from the banner (or auto-pause-on-navigation)
+ *     is mirrored into this modal's local timer via a sync effect:
+ *     external pause stops the local interval and metronome and
+ *     flips the modal phase to 'paused'; external resume restarts
+ *     them. The modal's own pause / resume buttons go the opposite
+ *     direction (call pauseSession / resumeSession on the global
+ *     timer; the sync effect picks the change up).
+ *
+ *   - When the user ends the session via the banner mid-drill, the
+ *     sync effect snapshots the in-progress drill into assess phase
+ *     so any practice time can still be saved.
+ *
+ *   - Cancel and save never touch the global timer. They only manage
+ *     the per-drill record. The session keeps running for the next
+ *     drill.
  */
 export default function DrillSessionModal({ skill, drillType, onClose, onLogged }: Props) {
   const { toast } = useToast();
   const metroState = useMetronomeState();
+  const { state, startSession, pauseSession, resumeSession } = useSessionTimer();
 
   const [targetSeconds, setTargetSeconds] = useState(drillType.suggestedSeconds);
   const [phase, setPhase] = useState<Phase>('setup');
@@ -48,8 +74,9 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
   const intervalRef = useRef<number | null>(null);
   const startedAtRef = useRef<number | null>(null);
 
-  // Cleanup on unmount — make sure we don't leave a drill-driven
-  // metronome running or a ticking timer.
+  // Cleanup on unmount — stop the local interval and metronome. Don't
+  // touch the global session: a Shapes practice session may span
+  // multiple drill modal cycles, and the banner is the canonical end.
   useEffect(() => {
     return () => {
       if (intervalRef.current !== null) {
@@ -63,11 +90,63 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Mirror external global-timer transitions into local timer state.
+  // Banner pause / auto-pause-on-navigation / hard-prompt-end-session
+  // all change state.status without going through the modal's
+  // buttons; this effect keeps the per-drill countdown in sync.
+  useEffect(() => {
+    if (phase !== 'running' && phase !== 'paused') return;
+
+    if (state.status === 'paused' && phase === 'running') {
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      metronome.stop('drill');
+      setPhase('paused');
+    } else if (state.status === 'running' && phase === 'paused') {
+      setPhase('running');
+      void metronome.start('drill');
+      tick();
+    } else if (state.status === 'idle' || state.status === 'ended') {
+      // Session ended externally via banner. Snapshot into assess so
+      // any in-progress drill time can still be saved by the user.
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      metronome.stop('drill');
+      setPhase('assess');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status]);
+
   const start = async () => {
     setPhase('running');
     setRemainingSeconds(targetSeconds);
     setElapsedSeconds(0);
     startedAtRef.current = Date.now();
+
+    // First drill of a Shapes practice session — light up the global
+    // timer with a single persistent "Shapes practice" block.
+    // Subsequent drills join the existing session; block.activeMs
+    // continues to accumulate.
+    if (state.status === 'idle' || state.status === 'ended') {
+      startSession({
+        origin: 'shapes-drill',
+        activeModuleRef: 'shapes-and-patterns',
+        blocks: [
+          {
+            moduleRef: 'shapes-and-patterns',
+            label: 'Shapes practice',
+            // Soft cap; the canonical end is the user tapping End on
+            // the global banner, not the timer reaching this value.
+            plannedSeconds: 60 * 60,
+          },
+        ],
+      });
+    }
+
     await metronome.start('drill');
     tick();
   };
@@ -92,18 +171,13 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
   };
 
   const pause = () => {
-    setPhase('paused');
-    if (intervalRef.current !== null) {
-      window.clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    metronome.stop('drill');
+    // Drive the global timer; sync effect handles local cleanup.
+    pauseSession({ reason: 'manual' });
   };
 
-  const resume = async () => {
-    setPhase('running');
-    await metronome.start('drill');
-    tick();
+  const resume = () => {
+    // Drive the global timer; sync effect handles local restart.
+    resumeSession();
   };
 
   const completeEarly = () => {
@@ -112,10 +186,11 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
       intervalRef.current = null;
     }
     metronome.stop('drill');
+    // Do NOT end the global session — the Shapes practice continues.
     setPhase('assess');
   };
 
-  const reset = () => {
+  const resetToSetup = () => {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -124,6 +199,7 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
     setPhase('setup');
     setElapsedSeconds(0);
     setRemainingSeconds(targetSeconds);
+    // Local-only reset; global session persists.
   };
 
   const save = async () => {
@@ -146,11 +222,18 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
       variant: 'success',
     });
     onLogged(session);
+    // Modal unmounts via parent (setActiveDrill(null)). Global session
+    // remains running for the next drill — banner is the canonical end.
   };
 
   const cancelWithoutLogging = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     metronome.stop('drill');
     onClose();
+    // Same as save: don't touch the global session.
   };
 
   const mm = Math.floor((phase === 'assess' ? elapsedSeconds : remainingSeconds) / 60);
@@ -267,7 +350,12 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
                 </button>
                 <button
                   onClick={completeEarly}
-                  className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+                  disabled={belowMin}
+                  className={`px-4 py-2 rounded-lg border text-sm ${
+                    belowMin
+                      ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
+                  }`}
                 >
                   complete early
                 </button>
@@ -283,12 +371,17 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
                 </button>
                 <button
                   onClick={completeEarly}
-                  className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+                  disabled={belowMin}
+                  className={`px-4 py-2 rounded-lg border text-sm ${
+                    belowMin
+                      ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
+                  }`}
                 >
                   complete early
                 </button>
                 <button
-                  onClick={reset}
+                  onClick={resetToSetup}
                   className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-500"
                 >
                   reset
@@ -296,6 +389,12 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
               </>
             )}
           </div>
+
+          {belowMin && (phase === 'running' || phase === 'paused') && (
+            <p className="text-[11px] text-neutral-500 text-center italic">
+              practice for at least {MIN_REP_SECONDS} seconds before completing — cancel to exit without logging.
+            </p>
+          )}
 
           <p className="text-[11px] text-neutral-500 text-center italic">
             metronome: {metroState.playing ? 'on' : 'off'} · {metroState.bpm} bpm · {metroState.groove} · adjust from the header control.

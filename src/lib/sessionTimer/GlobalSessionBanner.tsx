@@ -21,7 +21,7 @@ import { moduleMetaById } from '../moduleMeta';
 import { formatDriftText, shouldShowDrift } from './drift';
 
 export function GlobalSessionBanner() {
-  const { state, endSession } = useSessionTimer();
+  const { state, pauseSession, resumeSession, endSession } = useSessionTimer();
   const times = useSessionTimes();
   const navigate = useNavigate();
 
@@ -49,11 +49,23 @@ export function GlobalSessionBanner() {
     endSession();
   };
 
+  const handlePauseResumeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (state.status === 'running') {
+      pauseSession({ reason: 'manual' });
+    } else if (state.status === 'paused') {
+      resumeSession();
+    }
+  };
+
+  // Banner z-index sits above Modal's z-[100] so the active session
+  // surface remains visible even while a module modal (drill, etc.)
+  // is open. Toaster (z-[200]) still wins.
   return (
     <div
       role="region"
       aria-label="active practice session"
-      className="sticky top-0 z-50 w-full border-b border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur"
+      className="sticky top-0 z-[150] w-full border-b border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur"
       style={{ borderTopColor: accent, borderTopWidth: 2, borderTopStyle: 'solid' }}
     >
       <div className="flex items-center gap-3 px-4 py-2">
@@ -85,6 +97,15 @@ export function GlobalSessionBanner() {
           <span className="ml-auto font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
             {formatActiveTime(times.activeMs)}
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={handlePauseResumeClick}
+          aria-label={isPaused ? 'resume session' : 'pause session'}
+          title={isPaused ? 'resume' : 'pause'}
+          className="text-sm leading-none w-7 h-7 inline-flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
+        >
+          {isPaused ? '▶' : '⏸'}
         </button>
         <button
           type="button"
