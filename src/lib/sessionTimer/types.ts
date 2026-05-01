@@ -1,0 +1,134 @@
+/**
+ * Phase 3 Step 1a — Global session timer types.
+ *
+ * The session timer is a single, app-level primitive consumed by:
+ *   1. Phase 3 block timer (active session screen)
+ *   2. Shapes & Patterns drill sessions (Step 1e wires this)
+ *   3. Song-only sessions from song detail page (deferred to Phase 7)
+ *
+ * One session may be active at a time. Sessions are linear sequences
+ * of blocks; one block is "current" at any moment while running.
+ *
+ * Time bookkeeping intentionally separates wall-clock from active.
+ *   - Wall-clock = (sessionEnd ?? now) - sessionStart, monotonic.
+ *   - Active = wall-clock minus all paused durations (across blocks
+ *     plus any in-progress pause segment).
+ * This split powers Step 1d drift detection — active time is what the
+ * user actually practiced; wall-clock is what the world observed.
+ */
+
+export type SessionStatus = 'idle' | 'running' | 'paused' | 'ended';
+
+export type SessionOrigin = 'practice-sessions' | 'shapes-drill' | 'song-detail';
+
+export type BlockStatus = 'pending' | 'running' | 'completed' | 'skipped';
+
+export type PerformanceRating = 'flying' | 'cruising' | 'crawling';
+
+export interface SessionBlock {
+  /** Stable local id for this block within the session. */
+  id: string;
+  /** Canonical module ref (e.g. 'shapes-and-patterns'). */
+  moduleRef: string;
+  /** Optional item references this block targets (cards, songs, drills). */
+  itemRefs?: string[];
+  /** Human-readable label shown in the global banner and on the block screen. */
+  label?: string;
+  /** Intended duration in seconds. */
+  plannedSeconds: number;
+  status: BlockStatus;
+  /** Wall-clock start (ms). null until block starts. */
+  startedAt: number | null;
+  /** Wall-clock end (ms). null until finalized via advanceBlock or endSession. */
+  endedAt: number | null;
+  /**
+   * Active practice time within this block (ms). Only meaningful once
+   * the block finalizes (status = completed | skipped). For the
+   * currently-running block use getTimes().blockActiveMs instead.
+   */
+  activeMs: number;
+  /**
+   * Cumulative paused time within this block (ms). Pause segments
+   * that begin while this block is current contribute on resume (or
+   * on advanceBlock / endSession if the session was still paused).
+   */
+  pausedMs: number;
+  /** Optional per-block rating, captured at advance/end time (Step 5c). */
+  rating?: PerformanceRating;
+}
+
+export interface SessionState {
+  status: SessionStatus;
+  /** Stable id for this session record. Persisted to practiceSessions on end. */
+  sessionId: string | null;
+  origin: SessionOrigin | null;
+  /**
+   * The module ref the session is "anchored to." Step 1b auto-pause
+   * compares this against the user's current route on every navigation
+   * — when they leave, pause; when they return, resume.
+   */
+  activeModuleRef: string | null;
+  /** Wall-clock session start (ms). Identical to first block's startedAt. */
+  startedAt: number | null;
+  /** Wall-clock session end (ms). null while running/paused. */
+  endedAt: number | null;
+  /**
+   * If currently paused, when the in-progress pause began (ms).
+   * null while running. Pause is global, not per-block — the
+   * current block bears the cost.
+   */
+  pausedAt: number | null;
+  blocks: SessionBlock[];
+  currentBlockIndex: number | null;
+}
+
+export interface SessionTimes {
+  /** Wall-clock total (ms) from session start to now-or-end. 0 when idle. */
+  wallMs: number;
+  /** Active total (ms) excluding all paused durations. 0 when idle. */
+  activeMs: number;
+  /** Same as wallMs but scoped to the current block. 0 when no current block. */
+  blockWallMs: number;
+  /** Same as activeMs but scoped to the current block. 0 when no current block. */
+  blockActiveMs: number;
+}
+
+export interface StartSessionInput {
+  origin: SessionOrigin;
+  /** Module the session is anchored to (drives auto-pause in Step 1b). */
+  activeModuleRef: string;
+  /** Initial block plan. Must be non-empty. */
+  blocks: Array<{
+    moduleRef: string;
+    itemRefs?: string[];
+    label?: string;
+    plannedSeconds: number;
+  }>;
+  /**
+   * Optional override for the session id. Used by tests to make
+   * snapshots stable. Defaults to crypto.randomUUID() at runtime.
+   */
+  sessionId?: string;
+  /** Optional override for now() — used by tests. Defaults to Date.now(). */
+  now?: number;
+}
+
+export type SessionTimerAction =
+  | { type: 'start'; input: StartSessionInput; blockIds: string[] }
+  | { type: 'pause'; now: number }
+  | { type: 'resume'; now: number }
+  | {
+      type: 'advance-block';
+      now: number;
+      rating?: PerformanceRating;
+      markStatus?: 'completed' | 'skipped';
+      nextBlockId?: string;
+    }
+  | {
+      type: 'end-session';
+      now: number;
+      rating?: PerformanceRating;
+      markStatus?: 'completed' | 'skipped';
+    }
+  | { type: 'reset' }
+  | { type: 'set-active-module-ref'; moduleRef: string | null };

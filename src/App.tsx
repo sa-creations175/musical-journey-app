@@ -27,6 +27,7 @@ import { Toaster } from './components/Toaster';
 import { AuthProvider } from './lib/auth/AuthContext';
 import AuthGate from './lib/auth/AuthGate';
 import { SyncProvider } from './lib/sync/SyncContext';
+import { SessionTimerProvider } from './lib/sessionTimer/SessionTimerContext';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
     <AuthGate>
     <SyncProvider>
     <InstrumentProvider>
+    <SessionTimerProvider>
       <Toaster>
       <BrowserRouter>
         <Routes>
@@ -63,6 +65,7 @@ export default function App() {
         </Routes>
       </BrowserRouter>
       </Toaster>
+    </SessionTimerProvider>
     </InstrumentProvider>
     </SyncProvider>
     </AuthGate>
