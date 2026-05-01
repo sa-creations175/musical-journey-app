@@ -14,7 +14,6 @@ import {
 import type { AlgorithmBlock } from '../timeAllocation';
 
 const MIN = 60;
-const HOUR = 60 * MIN;
 
 function blk(
   id: string,

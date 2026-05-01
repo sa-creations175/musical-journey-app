@@ -134,9 +134,9 @@ describe('allocateBlockTime — squeeze + drop', () => {
 describe('sequenceBlocks', () => {
   it('orders acquisition → review → expression', () => {
     const blocks = [
-      { id: 'rev', memoryType: 'procedural', moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
-      { id: 'exp', memoryType: 'expression', moduleRef: 'just-play', itemRefs: [], weight: 1, hasAcquiringItems: false, plannedSeconds: 600, phase: 'expression' as const },
-      { id: 'acq', memoryType: 'declarative', moduleRef: 'intervals', itemRefs: [], weight: 1, hasAcquiringItems: true, plannedSeconds: 600, phase: 'acquisition' as const },
+      { id: 'rev', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
+      { id: 'exp', memoryType: 'expression' as MemoryType, moduleRef: 'just-play', itemRefs: [], weight: 1, hasAcquiringItems: false, plannedSeconds: 600, phase: 'expression' as const },
+      { id: 'acq', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals', itemRefs: [], weight: 1, hasAcquiringItems: true, plannedSeconds: 600, phase: 'acquisition' as const },
     ];
     const seq = sequenceBlocks(blocks);
     expect(seq.map(b => b.id)).toEqual(['acq', 'rev', 'exp']);
@@ -144,8 +144,8 @@ describe('sequenceBlocks', () => {
 
   it('within phase, higher weight comes first', () => {
     const blocks = [
-      { id: 'a', memoryType: 'procedural', moduleRef: 'shapes', itemRefs: [], weight: 1.0, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
-      { id: 'b', memoryType: 'declarative', moduleRef: 'intervals', itemRefs: [], weight: 1.5, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
+      { id: 'a', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes', itemRefs: [], weight: 1.0, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
+      { id: 'b', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals', itemRefs: [], weight: 1.5, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
     ];
     const seq = sequenceBlocks(blocks);
     expect(seq.map(b => b.id)).toEqual(['b', 'a']);
