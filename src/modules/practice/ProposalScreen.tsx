@@ -18,6 +18,7 @@
  *   4j — Feasibility banner above the stack
  */
 import { useEffect, useRef, useState } from 'react';
+import ColdStartBanner from './ColdStartBanner';
 import ProposalCard from './ProposalCard';
 import type { ProposalCardData } from './proposalTypes';
 
@@ -38,6 +39,13 @@ interface Props {
   onAddPickYourOwn?: () => void;
   /** Pre-picked affirmation passed through to every card (Step 4h). */
   affirmation?: string | null;
+  /**
+   * True when this is the user's first generated session — surfaces
+   * a one-time honest note above the proposals (Step 4i). Caller
+   * resolves the userPref via shouldShowColdStartBanner() once at
+   * mount and passes the result here. Step 6k flips the flag.
+   */
+  showColdStartBanner?: boolean;
 }
 
 export default function ProposalScreen({
@@ -49,6 +57,7 @@ export default function ProposalScreen({
   onAddNextPriority,
   onAddPickYourOwn,
   affirmation,
+  showColdStartBanner,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -75,6 +84,8 @@ export default function ProposalScreen({
 
   return (
     <section className="space-y-3">
+      <ColdStartBanner visible={!!showColdStartBanner} />
+
       <header>
         <h3 className="text-sm font-medium tracking-tight">
           {isPair ? 'Two plans for today. Pick one.' : 'Your session'}
