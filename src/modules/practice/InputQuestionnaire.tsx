@@ -130,7 +130,10 @@ export default function InputQuestionnaire({
             value={draft.timeMinutes}
             onChange={n => setDraft(d => ({ ...d, timeMinutes: n }))}
           />
-          <QuestionPlaceholder slotLabel="Context" />
+          <Q2Context
+            value={draft.context}
+            onChange={c => setDraft(d => ({ ...d, context: c }))}
+          />
           <QuestionPlaceholder slotLabel="Day plan" />
           <QuestionPlaceholder slotLabel="Intent" />
           <QuestionPlaceholder slotLabel="Energy" />
@@ -244,6 +247,57 @@ function stepperBtn(disabled: boolean): string {
   return disabled
     ? 'w-7 h-7 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-300 cursor-not-allowed'
     : 'w-7 h-7 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent';
+}
+
+// ---------------------------------------------------------------------
+// Q2 — Context
+// ---------------------------------------------------------------------
+
+const CONTEXT_OPTIONS: ReadonlyArray<{
+  value: 'keys' | 'laptop' | 'phone';
+  glyph: string;
+  label: string;
+}> = [
+  { value: 'keys',   glyph: '⌨', label: 'keys' },
+  { value: 'laptop', glyph: '▭', label: 'laptop' },
+  { value: 'phone',  glyph: '▯', label: 'phone' },
+];
+
+function Q2Context({
+  value,
+  onChange,
+}: {
+  value: 'keys' | 'laptop' | 'phone' | 'mixed' | null;
+  onChange: (c: 'keys' | 'laptop' | 'phone') => void;
+}) {
+  return (
+    <section>
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
+        Context
+      </div>
+      <div className="flex gap-1.5">
+        {CONTEXT_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={contextPill(value === opt.value)}
+            aria-label={opt.label}
+          >
+            <span aria-hidden className="text-base leading-none">{opt.glyph}</span>
+            <span>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function contextPill(active: boolean): string {
+  const base =
+    'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border';
+  return active
+    ? `${base} bg-fluent text-white border-fluent`
+    : `${base} border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent`;
 }
 
 // ---------------------------------------------------------------------
