@@ -27,6 +27,7 @@ import {
   sessionTimerReducer,
 } from './reducer';
 import type {
+  PauseReason,
   PerformanceRating,
   SessionState,
   SessionTimes,
@@ -46,7 +47,13 @@ interface EndSessionOptions {
 export interface SessionTimerContextValue {
   state: SessionState;
   startSession: (input: Omit<StartSessionInput, 'sessionId' | 'now'>) => void;
-  pauseSession: () => void;
+  /**
+   * Pause the timer. Defaults to 'manual' reason; pass
+   * 'auto-navigation' from the route-watching hook (Step 1b) so a
+   * manual pause isn't undone when the user happens back on the
+   * active module.
+   */
+  pauseSession: (opts?: { reason?: PauseReason }) => void;
   resumeSession: () => void;
   advanceBlock: (opts?: AdvanceBlockOptions) => void;
   endSession: (opts?: EndSessionOptions) => void;
@@ -77,8 +84,12 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const pauseSession = useCallback(() => {
-    dispatch({ type: 'pause', now: Date.now() });
+  const pauseSession = useCallback((opts?: { reason?: PauseReason }) => {
+    dispatch({
+      type: 'pause',
+      now: Date.now(),
+      reason: opts?.reason ?? 'manual',
+    });
   }, []);
 
   const resumeSession = useCallback(() => {

@@ -25,6 +25,17 @@ export type BlockStatus = 'pending' | 'running' | 'completed' | 'skipped';
 
 export type PerformanceRating = 'flying' | 'cruising' | 'crawling';
 
+/**
+ * Why the session entered the paused state. Distinguishes manual
+ * (user-initiated, e.g. the hard-prompt End-vs-Resume modal) from
+ * auto-navigation (the user left the active module's route, Step 1b).
+ *
+ * Auto-pause-on-navigation is only auto-resumed when the user
+ * navigates back. Manual pauses are sticky — returning to the active
+ * module while manually paused does NOT auto-resume.
+ */
+export type PauseReason = 'manual' | 'auto-navigation';
+
 export interface SessionBlock {
   /** Stable local id for this block within the session. */
   id: string;
@@ -78,6 +89,8 @@ export interface SessionState {
    * current block bears the cost.
    */
   pausedAt: number | null;
+  /** Why we're paused, when paused. null while running/idle/ended. */
+  pauseReason: PauseReason | null;
   blocks: SessionBlock[];
   currentBlockIndex: number | null;
 }
@@ -115,7 +128,7 @@ export interface StartSessionInput {
 
 export type SessionTimerAction =
   | { type: 'start'; input: StartSessionInput; blockIds: string[] }
-  | { type: 'pause'; now: number }
+  | { type: 'pause'; now: number; reason: PauseReason }
   | { type: 'resume'; now: number }
   | {
       type: 'advance-block';

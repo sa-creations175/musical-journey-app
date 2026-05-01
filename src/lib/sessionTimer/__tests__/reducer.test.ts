@@ -94,29 +94,41 @@ describe('sessionTimerReducer — start', () => {
 });
 
 describe('sessionTimerReducer — pause / resume', () => {
-  it('pause stores pausedAt and flips to paused', () => {
+  it('pause stores pausedAt + reason and flips to paused', () => {
     const s = startState();
-    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 30 * SECOND });
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 30 * SECOND, reason: 'manual' });
     expect(paused.status).toBe('paused');
     expect(paused.pausedAt).toBe(T0 + 30 * SECOND);
+    expect(paused.pauseReason).toBe('manual');
+  });
+
+  it('pause carries the auto-navigation reason through unchanged', () => {
+    const s = startState();
+    const paused = sessionTimerReducer(s, {
+      type: 'pause',
+      now: T0 + 5 * SECOND,
+      reason: 'auto-navigation',
+    });
+    expect(paused.pauseReason).toBe('auto-navigation');
   });
 
   it('pause is a no-op while not running', () => {
     const s = startState();
-    const paused1 = sessionTimerReducer(s, { type: 'pause', now: T0 + 5 * SECOND });
-    const paused2 = sessionTimerReducer(paused1, { type: 'pause', now: T0 + 10 * SECOND });
+    const paused1 = sessionTimerReducer(s, { type: 'pause', now: T0 + 5 * SECOND, reason: 'manual' });
+    const paused2 = sessionTimerReducer(paused1, { type: 'pause', now: T0 + 10 * SECOND, reason: 'manual' });
     expect(paused2).toBe(paused1);
   });
 
-  it('resume bumps current block pausedMs and clears pausedAt', () => {
+  it('resume bumps current block pausedMs and clears pausedAt + pauseReason', () => {
     const s = startState();
-    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 10 * SECOND });
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 10 * SECOND, reason: 'auto-navigation' });
     const resumed = sessionTimerReducer(paused, {
       type: 'resume',
       now: T0 + 25 * SECOND,
     });
     expect(resumed.status).toBe('running');
     expect(resumed.pausedAt).toBeNull();
+    expect(resumed.pauseReason).toBeNull();
     expect(resumed.blocks[0].pausedMs).toBe(15 * SECOND);
   });
 
@@ -149,7 +161,7 @@ describe('sessionTimerReducer — advance-block', () => {
   it('finalizes pause segment before finalizing current block', () => {
     const s = startState();
     // Pause at T0+1m, advance at T0+3m → pause segment of 2m carried into block 0 pausedMs.
-    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 1 * MINUTE });
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 1 * MINUTE, reason: 'manual' });
     const advanced = sessionTimerReducer(paused, {
       type: 'advance-block',
       now: T0 + 3 * MINUTE,
@@ -202,7 +214,7 @@ describe('sessionTimerReducer — end-session', () => {
 
   it('from paused, finalizes the in-progress pause and then ends', () => {
     const s = startState();
-    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 2 * MINUTE });
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 2 * MINUTE, reason: 'manual' });
     const ended = sessionTimerReducer(paused, {
       type: 'end-session',
       now: T0 + 5 * MINUTE,
@@ -269,7 +281,7 @@ describe('getTimes', () => {
 
   it('while paused, activeMs freezes but wallMs keeps growing', () => {
     const s = startState();
-    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 30 * SECOND });
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 30 * SECOND, reason: 'manual' });
     const t = getTimes(paused, T0 + 90 * SECOND);
     expect(t.wallMs).toBe(90 * SECOND);
     expect(t.activeMs).toBe(30 * SECOND);
@@ -279,7 +291,7 @@ describe('getTimes', () => {
 
   it('after finalized pause, activeMs subtracts the segment', () => {
     const s = startState();
-    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 30 * SECOND });
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + 30 * SECOND, reason: 'manual' });
     const resumed = sessionTimerReducer(paused, {
       type: 'resume',
       now: T0 + 60 * SECOND,
@@ -317,9 +329,9 @@ describe('getTimes', () => {
     let state = startState();
     // Pause 0–10s, run 10–30s, pause 30–50s, run 50–90s.
     const actions: SessionTimerAction[] = [
-      { type: 'pause', now: T0 + 0 * SECOND },
+      { type: 'pause', now: T0 + 0 * SECOND, reason: 'manual' },
       { type: 'resume', now: T0 + 10 * SECOND },
-      { type: 'pause', now: T0 + 30 * SECOND },
+      { type: 'pause', now: T0 + 30 * SECOND, reason: 'manual' },
       { type: 'resume', now: T0 + 50 * SECOND },
     ];
     for (const a of actions) state = sessionTimerReducer(state, a);

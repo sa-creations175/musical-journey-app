@@ -8,10 +8,12 @@ import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
+import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creativeOpen, setCreativeOpen] = useState(false);
+  useAutoPauseOnNavigation();
   return (
     <div className="min-h-full flex flex-col md:flex-row">
       <aside className="md:w-60 md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur">

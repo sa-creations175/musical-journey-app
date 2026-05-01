@@ -24,6 +24,7 @@ export const INITIAL_SESSION_STATE: SessionState = {
   startedAt: null,
   endedAt: null,
   pausedAt: null,
+  pauseReason: null,
   blocks: [],
   currentBlockIndex: null,
 };
@@ -38,13 +39,24 @@ export function sessionTimerReducer(
 
     case 'pause':
       if (state.status !== 'running') return state;
-      return { ...state, status: 'paused', pausedAt: action.now };
+      return {
+        ...state,
+        status: 'paused',
+        pausedAt: action.now,
+        pauseReason: action.reason,
+      };
 
     case 'resume': {
       if (state.status !== 'paused' || state.pausedAt === null) return state;
       const pauseDuration = Math.max(0, action.now - state.pausedAt);
       const blocks = bumpCurrentBlockPause(state, pauseDuration);
-      return { ...state, status: 'running', pausedAt: null, blocks };
+      return {
+        ...state,
+        status: 'running',
+        pausedAt: null,
+        pauseReason: null,
+        blocks,
+      };
     }
 
     case 'advance-block':
@@ -107,6 +119,7 @@ function startSession(
     startedAt: now,
     endedAt: null,
     pausedAt: null,
+    pauseReason: null,
     blocks,
     currentBlockIndex: 0,
   };
@@ -128,6 +141,7 @@ function advanceBlock(
       ...state,
       status: 'running',
       pausedAt: null,
+      pauseReason: null,
       blocks: bumpCurrentBlockPause(state, pauseDuration),
     };
   }
@@ -187,6 +201,7 @@ function endSession(
       ...state,
       status: 'running',
       pausedAt: null,
+      pauseReason: null,
       blocks: bumpCurrentBlockPause(state, pauseDuration),
     };
   }
