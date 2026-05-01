@@ -32,6 +32,7 @@ import {
   dateInputValue,
   dateInputToMs,
 } from './scopeMeta';
+import { AccuracySlider } from './yearlyAnchorDimensions';
 import {
   CROSS_KEY_PERCENT_DEFAULT,
   buildKeyStateHints,
@@ -1655,7 +1656,7 @@ const EAR_TRAINING_DRILL_TYPES: ReadonlyArray<DrillType> = [
 ];
 
 const ACCURACY_PCT_MIN = 50;
-const ACCURACY_PCT_MAX = 95;
+const ACCURACY_PCT_MAX = 100;
 const ACCURACY_PCT_STEP = 5;
 
 /**
@@ -1855,18 +1856,14 @@ function AccuracyTargetCard({
           )}
         </>
       )}
-      <Field label={`Accuracy: ${target.accuracyPercent}%`}>
-        <input
-          type="range"
-          min={ACCURACY_PCT_MIN}
-          max={ACCURACY_PCT_MAX}
-          step={ACCURACY_PCT_STEP}
-          value={target.accuracyPercent}
-          onChange={e => setPercent(Number(e.target.value))}
-          className="w-full"
-          aria-label="Target accuracy percentage"
-        />
-      </Field>
+      <AccuracySlider
+        value={target.accuracyPercent}
+        onChange={setPercent}
+        min={ACCURACY_PCT_MIN}
+        max={ACCURACY_PCT_MAX}
+        step={ACCURACY_PCT_STEP}
+        label={`Target accuracy (${target.accuracyPercent}%)`}
+      />
     </ToggleCard>
   );
 }
@@ -2361,18 +2358,14 @@ function HarmonicFluencyAccuracyCard({
           ))}
         </div>
       )}
-      <Field label={`Accuracy: ${target.accuracyPercent}%`}>
-        <input
-          type="range"
-          min={ACCURACY_PCT_MIN}
-          max={ACCURACY_PCT_MAX}
-          step={ACCURACY_PCT_STEP}
-          value={target.accuracyPercent}
-          onChange={e => setPercent(Number(e.target.value))}
-          className="w-full"
-          aria-label="Target accuracy percentage"
-        />
-      </Field>
+      <AccuracySlider
+        value={target.accuracyPercent}
+        onChange={setPercent}
+        min={ACCURACY_PCT_MIN}
+        max={ACCURACY_PCT_MAX}
+        step={ACCURACY_PCT_STEP}
+        label={`Target accuracy (${target.accuracyPercent}%)`}
+      />
     </ToggleCard>
   );
 }

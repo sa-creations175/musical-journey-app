@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Field from './Field';
 import { inputClass } from './formStyles';
 import { CategoryPillButton } from './GoalCreationFlow';
@@ -232,17 +232,29 @@ export function BreadthYesNoPicker({
 // =====================================================================
 
 /**
- * Range slider for an accuracy percentage. Displays the current
- * value alongside the label so users can see the target without
- * dragging. Defaults match the GoalCreationFlow accuracy targets
- * (50–95 in 5% steps) — kept here as defaults rather than imported
- * to keep this primitive standalone.
+ * Slider + paired numeric text input for an accuracy percentage.
+ * The slider gives quick rough adjustment in 5% steps; the text
+ * input lets users type an exact integer.
+ *
+ * Sync rules:
+ *   - moving the slider updates the text immediately
+ *   - typing a fully-formed in-range integer commits eagerly
+ *     (slider follows)
+ *   - intermediate typing (e.g., "3" on the way to "30", or
+ *     out-of-range values) shows in the text without
+ *     committing; on blur we clamp to [min, max] and snap
+ *   - blur with empty / non-numeric input snaps back to the
+ *     last committed value
+ *
+ * Defaults: 50–100 in 5% slider steps; integer text input. Apply
+ * to both YearlyAnchorFlow's Depth dimension and GoalCreationFlow's
+ * accuracy step — same component, same behavior.
  */
 export function AccuracySlider({
   value,
   onChange,
   min = 50,
-  max = 95,
+  max = 100,
   step = 5,
   label = 'Target accuracy',
 }: {
@@ -253,18 +265,78 @@ export function AccuracySlider({
   step?: number;
   label?: string;
 }) {
+  const [draft, setDraft] = useState(String(value));
+
+  // Keep the text in sync when the slider (or any external
+  // caller) changes the committed value.
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const clamp = (n: number) => Math.max(min, Math.min(max, n));
+
+  const commitOnBlur = (raw: string) => {
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n)) {
+      // Empty / junk → snap back to the last committed value.
+      setDraft(String(value));
+      return;
+    }
+    const clamped = clamp(n);
+    if (clamped !== value) onChange(clamped);
+    setDraft(String(clamped));
+  };
+
+  const tryEagerCommit = (raw: string) => {
+    // Commit only when the input is a fully-formed integer in
+    // range. Intermediate keystrokes ("3" before "30",
+    // out-of-range "150") show in the text but don't move the
+    // slider until valid.
+    const n = parseInt(raw, 10);
+    if (Number.isNaN(n)) return;
+    if (String(n) !== raw.trim()) return;
+    if (n < min || n > max) return;
+    if (n !== value) onChange(n);
+  };
+
   return (
-    <Field label={`${label}: ${value}%`}>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={e => onChange(Number(e.target.value))}
-        className="w-full"
-        aria-label={label}
-      />
+    <Field label={label}>
+      <div className="flex items-center gap-3">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={e => onChange(Number(e.target.value))}
+          className="flex-1"
+          aria-label={label}
+        />
+        <div className="flex items-center gap-1 shrink-0">
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={1}
+            value={draft}
+            onChange={e => {
+              setDraft(e.target.value);
+              tryEagerCommit(e.target.value);
+            }}
+            onBlur={e => commitOnBlur(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+            }}
+            className="w-14 px-2 py-1 text-sm rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 tabular-nums text-right"
+            aria-label={`${label} numeric input`}
+          />
+          <span className="text-sm text-neutral-500" aria-hidden>
+            %
+          </span>
+        </div>
+      </div>
     </Field>
   );
 }

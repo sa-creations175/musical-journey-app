@@ -169,8 +169,8 @@ All 7 steps pushed to origin/main.
 - Dev "Clear all goals" button — remove when Phase 2 fully done (Phase 7 cleanup)
 - Mid-year umbrella expansion — deferred indefinitely; no legacy goals exist, all new users use YearlyAnchorFlow
 
-**Pre-Phase 3 cleanup items (must land before Phase 3 build):**
-- **Accuracy slider needs a paired text input.** Surfaced during Step 6f review (Apr 29). YearlyAnchorFlow's Depth dimension uses an accuracy % slider for ET / HF; users want to type an exact percentage rather than dragging. Same fix likely needed in GoalCreationFlow's accuracy step. Add a small numeric input next to the slider, two-way bound, with sensible min/max clamping.
+**Pre-Phase 3 cleanup items:**
+- ✅ **Accuracy slider — paired text input.** Shipped April 30. AccuracySlider in `yearlyAnchorDimensions.tsx` rebuilt as slider + numeric text input with eager commit on valid in-range integer, clamp on blur, snap-back on empty/junk. Range opened to 50–100. GoalCreationFlow's two inline range inputs replaced with the shared component; constants updated.
 
 **Phase 7 polish items (post-Phase 3):**
 - **Item-count goal feasibility.** Surfaced during Step 7b (Apr 30). `song_whole_at_level` and `count_completed` goals currently return `kind: 'unknown'` from `getGoalFeasibility` — they need module-specific rate data we don't track yet. Suggested placeholder rule when data lands: default rate of 1 song/month for `song_whole_at_level`, configurable per-user. Same shape for production lessons. Add a `getRateForCountMetric(metric, history)` helper that reads from spacingState / songPracticeLog and falls back to the default when history is sparse.
