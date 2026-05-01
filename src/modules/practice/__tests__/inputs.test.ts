@@ -9,6 +9,7 @@ import {
   dayPlanForAlgorithm,
   finalizeDraft,
   isDraftComplete,
+  seedDraft,
   type InputQuestionnaireDraft,
 } from '../inputs';
 
@@ -64,6 +65,52 @@ describe('finalizeDraft', () => {
 
   it('throws on an incomplete draft', () => {
     expect(() => finalizeDraft(EMPTY_DRAFT)).toThrow();
+  });
+});
+
+describe('seedDraft', () => {
+  it('all-null inputs produce EMPTY_DRAFT', () => {
+    expect(
+      seedDraft({
+        prefilledContext: null,
+        prefilledDayPlan: null,
+        initialDayProfile: null,
+      }),
+    ).toEqual(EMPTY_DRAFT);
+  });
+
+  it('passes through saved Context + Day plan when no override', () => {
+    const result = seedDraft({
+      prefilledContext: 'keys',
+      prefilledDayPlan: { kind: 'just_this_session' },
+      initialDayProfile: null,
+    });
+    expect(result.context).toBe('keys');
+    expect(result.dayPlan).toEqual({ kind: 'just_this_session' });
+    expect(result.timeMinutes).toBeNull();
+    expect(result.intent).toBeNull();
+  });
+
+  it('initialDayProfile overrides saved Day plan with first_of_multiple + profile', () => {
+    const result = seedDraft({
+      prefilledContext: 'phone',
+      prefilledDayPlan: { kind: 'just_this_session' },
+      initialDayProfile: 'deep',
+    });
+    expect(result.dayPlan).toEqual({ kind: 'first_of_multiple', profile: 'deep' });
+    // Context still passes through.
+    expect(result.context).toBe('phone');
+  });
+
+  it('Time / Intent / Energy stay blank regardless of inputs', () => {
+    const result = seedDraft({
+      prefilledContext: 'laptop',
+      prefilledDayPlan: { kind: 'first_of_multiple', profile: 'standard' },
+      initialDayProfile: 'deep',
+    });
+    expect(result.timeMinutes).toBeNull();
+    expect(result.intent).toBeNull();
+    expect(result.energy).toEqual(EMPTY_ENERGY);
   });
 });
 

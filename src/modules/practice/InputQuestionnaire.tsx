@@ -25,6 +25,7 @@ import {
   TIME_PRESETS_MIN,
   finalizeDraft,
   isDraftComplete,
+  seedDraft,
   type DayProfileChoice,
   type InputQuestionnaireDraft,
   type InputQuestionnaireResult,
@@ -82,15 +83,13 @@ export default function InputQuestionnaire({
       });
       if (cancelled) return;
 
-      const seeded: InputQuestionnaireDraft = {
-        ...EMPTY_DRAFT,
-        context: prefill.context,
-        dayPlan: prefill.dayPlan,
-      };
-      if (initialDayProfile) {
-        seeded.dayPlan = { kind: 'first_of_multiple', profile: initialDayProfile };
-      }
-      setDraft(seeded);
+      setDraft(
+        seedDraft({
+          prefilledContext: prefill.context,
+          prefilledDayPlan: prefill.dayPlan,
+          initialDayProfile: initialDayProfile ?? null,
+        }),
+      );
     })();
 
     return () => {

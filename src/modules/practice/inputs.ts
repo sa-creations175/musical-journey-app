@@ -117,3 +117,34 @@ export function finalizeDraft(
     energy: draft.energy,
   };
 }
+
+/**
+ * Build the initial draft state for a fresh sheet open. Layers in
+ * order:
+ *   1. EMPTY_DRAFT — Time / Intent / Energy stay blank, by design.
+ *   2. userPrefs pre-fill — Context + Day plan (if present, post-
+ *      sanitize for hasEarlierSessionsToday).
+ *   3. initialDayProfile — Step 3h Deep-day tap-through. Wins over
+ *      the saved Day plan because the Practice Sessions home banner
+ *      is making an explicit "go deep" suggestion.
+ *
+ * Pure; tests pass each layer's input directly.
+ */
+export function seedDraft(input: {
+  prefilledContext: PracticeSessionContext | null;
+  prefilledDayPlan: DayPlanChoice | null;
+  initialDayProfile: DayProfileChoice | null;
+}): InputQuestionnaireDraft {
+  const draft: InputQuestionnaireDraft = {
+    ...EMPTY_DRAFT,
+    context: input.prefilledContext,
+    dayPlan: input.prefilledDayPlan,
+  };
+  if (input.initialDayProfile) {
+    draft.dayPlan = {
+      kind: 'first_of_multiple',
+      profile: input.initialDayProfile,
+    };
+  }
+  return draft;
+}
