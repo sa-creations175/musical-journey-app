@@ -29,6 +29,7 @@ import {
   type InputQuestionnaireDraft,
   type InputQuestionnaireResult,
 } from './inputs';
+import { loadPrefill, savePrefill } from './inputsPrefill';
 
 interface Props {
   open: boolean;
@@ -67,17 +68,35 @@ export default function InputQuestionnaire({
   const [draft, setDraft] = useState<InputQuestionnaireDraft>(EMPTY_DRAFT);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Reset draft on every open. Pre-fill (3g) and Deep tap-through (3h)
-  // hooks layer on top of EMPTY_DRAFT here so each open starts from a
-  // known state.
+  // Reset draft on every open. Order: EMPTY_DRAFT → userPrefs
+  // pre-fill (Context + Day plan from last session) → initialDayProfile
+  // override (Step 3h Deep tap-through). Time / Intent / Energy are
+  // never pre-filled — per-session conscious choices.
   useEffect(() => {
     if (!open) return;
-    const seeded: InputQuestionnaireDraft = { ...EMPTY_DRAFT };
-    if (initialDayProfile) {
-      seeded.dayPlan = { kind: 'first_of_multiple', profile: initialDayProfile };
-    }
-    setDraft(seeded);
-  }, [open, initialDayProfile]);
+    let cancelled = false;
+
+    void (async () => {
+      const prefill = await loadPrefill({
+        hasEarlierSessionsToday: !!hasEarlierSessionsToday,
+      });
+      if (cancelled) return;
+
+      const seeded: InputQuestionnaireDraft = {
+        ...EMPTY_DRAFT,
+        context: prefill.context,
+        dayPlan: prefill.dayPlan,
+      };
+      if (initialDayProfile) {
+        seeded.dayPlan = { kind: 'first_of_multiple', profile: initialDayProfile };
+      }
+      setDraft(seeded);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, initialDayProfile, hasEarlierSessionsToday]);
 
   // Body scroll lock + Escape to close, mirroring the standard Modal.
   useEffect(() => {
@@ -104,7 +123,11 @@ export default function InputQuestionnaire({
 
   const handleGenerate = () => {
     if (!complete) return;
-    onGenerate(finalizeDraft(draft));
+    const result = finalizeDraft(draft);
+    // Persist Context + Day plan for next session's pre-fill. Fire
+    // and forget — no point blocking Generate on a userPref write.
+    void savePrefill({ context: result.context, dayPlan: result.dayPlan });
+    onGenerate(result);
   };
 
   // Subsequent substeps replace these placeholders with real
