@@ -1,48 +1,155 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
+import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
 import ManualLogForm from './ManualLogForm';
 import RecentSessionsList from './RecentSessionsList';
 import VacationManager from './VacationManager';
+import InputQuestionnaire from './InputQuestionnaire';
+import ProposalScreen from './ProposalScreen';
+import { shouldShowColdStartBanner } from './coldStartBannerPref';
+import { buildSessionProposals } from './sessionGenerator';
+import { countEarlierSessionsToday } from './sessionsToday';
+import type {
+  DayProfileChoice,
+  InputQuestionnaireResult,
+} from './inputs';
+import type { ProposalCardData } from './proposalTypes';
 
 /**
- * Practice Sessions page (sub-phase 4).
+ * Practice Sessions home (Phase 3 Step 7a).
  *
- * Phase 1 ships this as a placeholder: the session generator + timer
- * + algorithm-driven plans don't exist yet (Phase 3+). What lives
- * here today is the data plumbing — manual session logging that
- * round-trips through `practiceSessions` + `practiceBlocks`, the
- * vacation toggle (Q2 truth-honoring stance, no spacing pause), an
- * inline goals nudge for users who haven't declared any (Q7), and a
- * peek at recent sessions.
+ * The user's entry point into the generator-driven flow. State
+ * machine across three views:
  *
- * Layout order top-to-bottom:
+ *   home — landing state. CTA "Start a session", recent sessions,
+ *          goals nudge / vacation banner, manual log fallback.
+ *   questionnaire — bottom sheet (Step 3). Open / close locally.
+ *   proposal — full-page proposal cards (Step 4) once the
+ *              questionnaire generates.
  *
- *   header               — accent + title
- *   coming-soon strip    — sets expectations honestly
- *   goals nudge          — only if no active goals AND not recently dismissed
- *   active vacation      — only if today is inside any vacation period
- *   manual log form      — collapsed by default ("+ Log a session")
- *   recent sessions      — last five (empty-state friendly)
- *   plan a vacation      — only when no active vacation; collapsed by default
+ * Active session execution lives at /practice-sessions/active and
+ * is reached via navigate() on proposal acceptance.
  *
- * Each piece is self-contained — they share no state, just live-query
- * Dexie independently, so the page composition is purely declarative.
+ * 7b lands the feasibility banner; 7c the Deep tap-through; 7d the
+ * disappear-when-clear behavior; 7e the ordering reconciliation
+ * with the existing goals nudge.
  */
+type View = 'home' | 'questionnaire' | 'proposal';
 
 export default function PracticeSessions() {
-  // Fire end-of-month bookkeeping on every mount of this page.
-  // recordEndOfMonth is idempotent per YYYY-MM key, so this no-ops
-  // mid-month after the prior month has already been logged. Phase 7
-  // surfaces the monthly review UI from these rows; Phase 1 just
-  // ensures the events exist for it to read.
+  const navigate = useNavigate();
+  const { startSession } = useSessionTimer();
+
+  const [view, setView] = useState<View>('home');
+  const [proposals, setProposals] = useState<ProposalCardData[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [showColdStart, setShowColdStart] = useState(false);
+  const [hasEarlierSessionsToday, setHasEarlierSessionsToday] = useState(false);
+  const [initialDayProfile, setInitialDayProfile] =
+    useState<DayProfileChoice | null>(null);
+
+  // End-of-month bookkeeping (idempotent per YYYY-MM).
   useEffect(() => {
     void recordEndOfMonth().catch(err => {
       console.warn('[PracticeSessions] recordEndOfMonth failed', err);
     });
   }, []);
 
+  // Cold-start banner flag + earlier-sessions count, refreshed on
+  // every mount of the home view (e.g. after the user finishes a
+  // session and the Done handler resets back here).
+  useEffect(() => {
+    if (view !== 'home') return;
+    let cancelled = false;
+    void shouldShowColdStartBanner().then(v => {
+      if (!cancelled) setShowColdStart(v);
+    });
+    void countEarlierSessionsToday().then(c => {
+      if (!cancelled) setHasEarlierSessionsToday(c > 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
+  const handleStartSession = (dayProfile?: DayProfileChoice) => {
+    setInitialDayProfile(dayProfile ?? null);
+    setView('questionnaire');
+  };
+
+  const handleQuestionnaireGenerate = async (
+    inputs: InputQuestionnaireResult,
+  ) => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const built = await buildSessionProposals(inputs);
+      setProposals(built);
+      setView('proposal');
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[PracticeSessions] buildSessionProposals failed', e);
+      // Stay on questionnaire so the user can adjust + retry.
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleProposalAccept = (card: ProposalCardData) => {
+    startSession({
+      origin: 'practice-sessions',
+      // Model (b) per the 1b/5a design call — active session screen
+      // owns the practice-sessions ref while it's mounted; quick-
+      // launches into individual modules update activeRef
+      // dynamically.
+      activeModuleRef: 'practice-sessions',
+      blocks: card.blocks.map(b => ({
+        moduleRef: b.moduleRef,
+        itemRefs: [...b.itemRefs],
+        label: b.activityDescription,
+        plannedSeconds: b.plannedSeconds,
+      })),
+    });
+    navigate('/practice-sessions/active');
+  };
+
+  // -------------------------------------------------------------
+  // Proposal view
+  // -------------------------------------------------------------
+  if (view === 'proposal') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+        <ProposalScreen
+          proposals={proposals}
+          onAccept={handleProposalAccept}
+          onTryDifferentInputs={() => setView('questionnaire')}
+          showColdStartBanner={showColdStart}
+        />
+        {proposals.length === 0 && (
+          <div className="text-center text-sm text-neutral-500 py-6 space-y-3">
+            <p>
+              No proposals available yet — set a few goals first so the
+              algorithm has something to plan with.
+            </p>
+            <button
+              type="button"
+              onClick={() => setView('home')}
+              className="text-xs text-fluent hover:underline"
+            >
+              ← back to Practice Sessions
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Home view (questionnaire renders alongside as a portal)
+  // -------------------------------------------------------------
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
       <header className="mb-6 flex items-center gap-3">
@@ -61,23 +168,28 @@ export default function PracticeSessions() {
         </h1>
       </header>
 
-      <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 px-4 py-3 mb-5">
-        <div className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-          Coming soon — session generator and timer.
-        </div>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          The full Practice Sessions experience — recommendations shaped by your
-          goals, energy, and freshness — arrives in a later release. For now you
-          can log sessions manually and plan vacations.
-        </p>
-      </div>
+      <button
+        type="button"
+        onClick={() => handleStartSession()}
+        className="w-full mb-5 px-4 py-3 rounded-md bg-fluent text-white text-base font-medium hover:opacity-90"
+      >
+        Start a session
+      </button>
 
       <div className="flex flex-col gap-5">
         <GoalsNudgeBanner />
         <VacationManager />
-        <ManualLogForm />
         <RecentSessionsList />
+        <ManualLogForm />
       </div>
+
+      <InputQuestionnaire
+        open={view === 'questionnaire'}
+        onClose={() => setView('home')}
+        onGenerate={handleQuestionnaireGenerate}
+        hasEarlierSessionsToday={hasEarlierSessionsToday}
+        initialDayProfile={initialDayProfile}
+      />
     </div>
   );
 }
