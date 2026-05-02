@@ -26,6 +26,8 @@ export const INITIAL_SESSION_STATE: SessionState = {
   endedAt: null,
   pausedAt: null,
   pauseReason: null,
+  hardBlock: false,
+  blockEndRequested: false,
   blocks: [],
   currentBlockIndex: null,
 };
@@ -82,6 +84,33 @@ export function sessionTimerReducer(
     case 'set-active-module-ref':
       return { ...state, activeModuleRef: action.moduleRef };
 
+    case 'extend-block': {
+      if (state.currentBlockIndex === null) return state;
+      if (state.status !== 'running' && state.status !== 'paused') return state;
+      const idx = state.currentBlockIndex;
+      const cur = state.blocks[idx];
+      const bumped = Math.max(0, cur.extensionSeconds + action.mins * 60);
+      return {
+        ...state,
+        // Tapping an extend pill is an explicit "keep going" — clear
+        // any pending block-end handoff so we don't bounce into the
+        // rating phase right after dismissing the modal.
+        blockEndRequested: false,
+        blocks: replaceAt(state.blocks, idx, {
+          ...cur,
+          extensionSeconds: bumped,
+        }),
+      };
+    }
+
+    case 'request-block-end':
+      if (state.status !== 'running' && state.status !== 'paused') return state;
+      return { ...state, blockEndRequested: true };
+
+    case 'consume-block-end':
+      if (!state.blockEndRequested) return state;
+      return { ...state, blockEndRequested: false };
+
     default: {
       const _exhaustive: never = action;
       void _exhaustive;
@@ -115,6 +144,7 @@ function startSession(
     itemRefs: b.itemRefs,
     label: b.label,
     plannedSeconds: b.plannedSeconds,
+    extensionSeconds: 0,
     status: i === 0 ? 'running' : 'pending',
     startedAt: i === 0 ? now : null,
     endedAt: null,
@@ -135,6 +165,8 @@ function startSession(
     endedAt: null,
     pausedAt: null,
     pauseReason: null,
+    hardBlock: input.hardBlock ?? false,
+    blockEndRequested: false,
     blocks,
     currentBlockIndex: 0,
   };
@@ -176,6 +208,7 @@ function advanceBlock(
       ...workingState,
       status: 'ended',
       endedAt: action.now,
+      blockEndRequested: false,
       blocks: replaceAt(workingState.blocks, idx, finalized),
       currentBlockIndex: idx,
     };
@@ -198,6 +231,7 @@ function advanceBlock(
   return {
     ...workingState,
     status: 'running',
+    blockEndRequested: false,
     blocks,
     currentBlockIndex: nextIdx,
   };

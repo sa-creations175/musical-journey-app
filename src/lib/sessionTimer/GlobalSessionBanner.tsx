@@ -53,10 +53,15 @@ export function GlobalSessionBanner() {
   const blockModuleLabel = blockMeta?.label ?? activeBlock?.moduleRef ?? '';
 
   // Block countdown — clamps to 0 when the user runs over the
-  // planned duration. Soft-block extend pills + hard-block grace
-  // are surfaced on the active session screen, not here.
+  // planned-plus-extension duration. Extension is reducer state, so
+  // tapping an extend pill in the global expiry modal updates this
+  // immediately. Soft-block pills + hard-block grace are surfaced by
+  // BlockExpiryModal (mounted globally in Layout), not here.
+  const blockTotalMs = activeBlock
+    ? (activeBlock.plannedSeconds + activeBlock.extensionSeconds) * 1000
+    : 0;
   const blockRemainingMs = activeBlock
-    ? Math.max(0, activeBlock.plannedSeconds * 1000 - times.blockActiveMs)
+    ? Math.max(0, blockTotalMs - times.blockActiveMs)
     : 0;
 
   const isPaused = state.status === 'paused';

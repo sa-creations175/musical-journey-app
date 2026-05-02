@@ -12,6 +12,7 @@ import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavi
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
 import { HardPausePromptModal } from '../lib/sessionTimer/HardPausePromptModal';
+import { BlockExpiryModal } from '../lib/sessionTimer/BlockExpiryModal';
 
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -65,6 +66,7 @@ export default function Layout() {
     <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
     <HardPausePromptModal />
+    <BlockExpiryModal />
     </div>
   );
 }

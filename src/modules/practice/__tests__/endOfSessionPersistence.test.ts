@@ -23,6 +23,7 @@ function block(partial: Partial<SessionBlock> & Pick<SessionBlock, 'id' | 'modul
     itemRefs: partial.itemRefs ?? ['item-x'],
     label: partial.label,
     plannedSeconds: partial.plannedSeconds ?? 600,
+    extensionSeconds: partial.extensionSeconds ?? 0,
     status: partial.status ?? 'completed',
     startedAt: partial.startedAt ?? null,
     endedAt: partial.endedAt ?? null,

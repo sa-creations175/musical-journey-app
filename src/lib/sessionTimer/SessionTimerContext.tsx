@@ -72,6 +72,19 @@ export interface SessionTimerContextValue {
   /** Returns to idle. Called from end-of-session "Done" (Step 6k). */
   reset: () => void;
   setActiveModuleRef: (moduleRef: string | null) => void;
+  /**
+   * Bump the current block's extensionSeconds by `mins` minutes.
+   * No-op if there's no current block. Soft-block extend pills in the
+   * global block-expiry modal call this.
+   */
+  extendCurrentBlock: (mins: number) => void;
+  /**
+   * Signal cross-screen "Next block" handoff. The block-expiry modal
+   * sets this; the active session screen reactively transitions to
+   * its rating phase and clears via consumeBlockEndRequest.
+   */
+  requestBlockEnd: () => void;
+  consumeBlockEndRequest: () => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -141,6 +154,18 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'set-active-module-ref', moduleRef });
   }, []);
 
+  const extendCurrentBlock = useCallback((mins: number) => {
+    dispatch({ type: 'extend-block', mins });
+  }, []);
+
+  const requestBlockEnd = useCallback(() => {
+    dispatch({ type: 'request-block-end' });
+  }, []);
+
+  const consumeBlockEndRequest = useCallback(() => {
+    dispatch({ type: 'consume-block-end' });
+  }, []);
+
   const value = useMemo<SessionTimerContextValue>(
     () => ({
       state,
@@ -153,6 +178,9 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       endSession,
       reset,
       setActiveModuleRef,
+      extendCurrentBlock,
+      requestBlockEnd,
+      consumeBlockEndRequest,
     }),
     [
       state,
@@ -165,6 +193,9 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       endSession,
       reset,
       setActiveModuleRef,
+      extendCurrentBlock,
+      requestBlockEnd,
+      consumeBlockEndRequest,
     ],
   );
 

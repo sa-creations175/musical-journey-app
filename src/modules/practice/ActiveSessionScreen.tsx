@@ -18,23 +18,26 @@
  *   - On return, the on-mount effect resets to 'practice-sessions'.
  *
  * Soft-block vs hard-block (5b):
- *   - Soft (default): on countdown reaching 0, extend pills appear
- *     (+2 / +5 / +10 min). User taps End manually to move on.
- *   - Hard (opt-in): on countdown reaching 0, a 5-second grace
- *     auto-advances. User can interrupt by extending or ending.
+ *   - Soft (default): on countdown reaching 0, the global
+ *     BlockExpiryModal pops up with extend pills (+2 / +5 / +10 min)
+ *     and a "Next block" button. The modal handles all expiry UX so
+ *     it works regardless of which route the user is on.
+ *   - Hard (opt-in): same modal, plus a 5s auto-advance grace if the
+ *     user doesn't interact.
  *
  * Rating phase (5c):
- *   - User taps End → screen pauses the timer + transitions to a
- *     rating phase showing three vertically-stacked buttons
- *     (Flying / Cruising / Crawling). Always optional — Next can
- *     fire with no rating selected (missed ratings will batch at
+ *   - User taps "end this activity" → screen pauses the timer +
+ *     transitions to a rating phase showing three vertically-stacked
+ *     buttons (Flying / Cruising / Crawling). Always optional —
+ *     Next can fire with no rating selected (missed ratings batch at
  *     session end in Step 6e).
+ *   - User can also reach the rating phase via the global expiry
+ *     modal's "Next block" button: that dispatches request-block-end,
+ *     navigates here, and a reactive effect transitions phase to
+ *     rating + clears the flag.
  *   - On Next, the timer resumes and advanceBlock dispatches with
  *     the chosen rating. The advance auto-ends the session if this
  *     was the last block.
- *   - Hard-block grace bypasses the rating phase for now — quick-
- *     tap-during-grace integration is a future refinement once the
- *     UX has been exercised in real use.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -49,9 +52,6 @@ import EndOfSessionSummary from './EndOfSessionSummary';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
-
-export const HARD_BLOCK_GRACE_MS = 5000;
-const EXTEND_OPTIONS_MIN: ReadonlyArray<number> = [2, 5, 10];
 
 type Phase = 'running' | 'rating';
 
@@ -88,13 +88,7 @@ const RATING_OPTIONS: ReadonlyArray<RatingOption> = [
   },
 ];
 
-interface Props {
-  /** Hard-block mode: auto-advance after a 5-second grace once the
-   *  countdown reaches 0. Defaults to soft. */
-  hardBlock?: boolean;
-}
-
-export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
+export default function ActiveSessionScreen() {
   const navigate = useNavigate();
   const {
     state,
@@ -103,22 +97,32 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
     endSession,
     pauseSession,
     resumeSession,
+    consumeBlockEndRequest,
   } = useSessionTimer();
   const times = useSessionTimes();
 
   const [phase, setPhase] = useState<Phase>('running');
   const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
-  const [extensionSeconds, setExtensionSeconds] = useState(0);
-  const [hardGraceStart, setHardGraceStart] = useState<number | null>(null);
 
-  // Reset all per-block state when the current block changes — fresh
-  // block, fresh extension bank + grace + rating draft.
+  // Reset per-block UI state on block change.
   useEffect(() => {
     setPhase('running');
     setPendingRating(null);
-    setExtensionSeconds(0);
-    setHardGraceStart(null);
   }, [state.currentBlockIndex]);
+
+  // Cross-screen handoff from the global BlockExpiryModal: when the
+  // user taps "Next block" there, the modal dispatches
+  // request-block-end + navigates here. Pick that up reactively,
+  // mirror the manual handleEndActivity transition (pause + rating
+  // phase), and consume the flag so we don't loop.
+  useEffect(() => {
+    if (!state.blockEndRequested) return;
+    if (state.status === 'running') {
+      pauseSession({ reason: 'manual' });
+    }
+    setPhase('rating');
+    consumeBlockEndRequest();
+  }, [state.blockEndRequested, state.status, pauseSession, consumeBlockEndRequest]);
 
   // Model (b) — set activeModuleRef = 'practice-sessions' once on
   // mount. The dep array is intentionally empty: re-firing on every
@@ -145,16 +149,6 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
     }
   }, [state.status, navigate]);
 
-  // Hard-block grace — schedule auto-advance once it starts. Cleanup
-  // cancels the timeout if the user extends or ends manually.
-  useEffect(() => {
-    if (hardGraceStart === null) return;
-    const id = window.setTimeout(() => {
-      advanceBlock({ markStatus: 'completed' });
-    }, HARD_BLOCK_GRACE_MS);
-    return () => window.clearTimeout(id);
-  }, [hardGraceStart, advanceBlock]);
-
   if (state.status === 'idle') return null;
 
   const currentBlock =
@@ -169,22 +163,10 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   const route = moduleMeta?.route ?? null;
 
   const elapsedSec = Math.floor(times.blockActiveMs / 1000);
-  const totalSec = currentBlock.plannedSeconds + extensionSeconds;
+  const totalSec = currentBlock.plannedSeconds + currentBlock.extensionSeconds;
   const remainingSec = Math.max(0, totalSec - elapsedSec);
   const isOvertime = elapsedSec >= totalSec;
   const isEnded = state.status === 'ended';
-
-  // Start the hard-block grace at the moment we cross the 0-mark.
-  // Idempotent: subsequent ticks see hardGraceStart already set.
-  if (
-    hardBlock &&
-    isOvertime &&
-    !isEnded &&
-    phase === 'running' &&
-    hardGraceStart === null
-  ) {
-    queueMicrotask(() => setHardGraceStart(Date.now()));
-  }
 
   const handleQuickLaunch = () => {
     if (!route) return;
@@ -198,11 +180,6 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   const handleEndActivity = () => {
     pauseSession({ reason: 'manual' });
     setPhase('rating');
-  };
-
-  const handleExtend = (mins: number) => {
-    setExtensionSeconds(s => s + mins * 60);
-    setHardGraceStart(null);
   };
 
   const handleRatingNext = () => {
@@ -241,14 +218,6 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
       markStatus: 'completed',
     });
   };
-
-  const graceRemainingSec =
-    hardGraceStart !== null
-      ? Math.max(
-          0,
-          Math.ceil((HARD_BLOCK_GRACE_MS - (Date.now() - hardGraceStart)) / 1000),
-        )
-      : null;
 
   if (isEnded) {
     return <EndOfSessionSummary />;
@@ -420,29 +389,6 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
             <span aria-hidden>↗</span>
             <span>open {moduleLabel}</span>
           </button>
-        )}
-
-        {isOvertime && (
-          <div className="flex items-center justify-center gap-1.5">
-            {EXTEND_OPTIONS_MIN.map(m => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => handleExtend(m)}
-                className="px-3 py-1 rounded-md border text-xs font-medium hover:opacity-90"
-                style={{ color: accent, borderColor: accent }}
-              >
-                +{m} min
-              </button>
-            ))}
-          </div>
-        )}
-
-        {hardBlock && graceRemainingSec !== null && (
-          <p className="text-center text-[11px] italic text-neutral-500">
-            auto-advancing in {graceRemainingSec}s · tap an extend pill or
-            end manually to interrupt
-          </p>
         )}
       </section>
 

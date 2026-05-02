@@ -47,6 +47,14 @@ export interface SessionBlock {
   label?: string;
   /** Intended duration in seconds. */
   plannedSeconds: number;
+  /**
+   * User-applied extension on top of plannedSeconds (seconds).
+   * Soft-block: tapping +2/+5/+10 in the global expiry modal bumps this.
+   * Hard-block: untouched (auto-advance happens instead).
+   * Lives in the reducer (not UI state) so the global banner countdown
+   * stays in sync with extensions and the value survives navigation.
+   */
+  extensionSeconds: number;
   status: BlockStatus;
   /** Wall-clock start (ms). null until block starts. */
   startedAt: number | null;
@@ -81,6 +89,12 @@ export interface SessionBlock {
  */
 export interface PendingStartConfig {
   origin: SessionOrigin;
+  /**
+   * Hard-block mode for this session. true = auto-advance after a 5s
+   * grace once a block hits 0; false = soft-block (extend pills, no
+   * auto-advance). Defaults to false. Carried through to SessionState.
+   */
+  hardBlock?: boolean;
   blocks: Array<{
     moduleRef: string;
     itemRefs?: string[];
@@ -115,6 +129,20 @@ export interface SessionState {
   pausedAt: number | null;
   /** Why we're paused, when paused. null while running/idle/ended. */
   pauseReason: PauseReason | null;
+  /**
+   * Hard-block mode. true = auto-advance after a 5s grace; false =
+   * soft-block (extend pills only). Set at session start; survives
+   * pause/resume.
+   */
+  hardBlock: boolean;
+  /**
+   * Cross-screen handoff for "Next block" tapped in the global block
+   * expiry modal. The active session screen reactively transitions to
+   * the rating phase when this is true and clears it via
+   * consume-block-end. Persisted in the reducer rather than UI state
+   * so the modal can fire from any route.
+   */
+  blockEndRequested: boolean;
   blocks: SessionBlock[];
   currentBlockIndex: number | null;
 }
@@ -134,6 +162,8 @@ export interface StartSessionInput {
   origin: SessionOrigin;
   /** Module the session is anchored to (drives auto-pause in Step 1b). */
   activeModuleRef: string;
+  /** Hard-block mode. Defaults to false. */
+  hardBlock?: boolean;
   /** Initial block plan. Must be non-empty. */
   blocks: Array<{
     moduleRef: string;
@@ -170,4 +200,7 @@ export type SessionTimerAction =
       markStatus?: 'completed' | 'skipped';
     }
   | { type: 'reset' }
-  | { type: 'set-active-module-ref'; moduleRef: string | null };
+  | { type: 'set-active-module-ref'; moduleRef: string | null }
+  | { type: 'extend-block'; mins: number }
+  | { type: 'request-block-end' }
+  | { type: 'consume-block-end' };
