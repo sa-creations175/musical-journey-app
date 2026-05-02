@@ -92,6 +92,8 @@ export default function ManualLogForm() {
         reasoningSnapshot: null,
         notes: form.notes.trim() === '' ? null : form.notes.trim(),
         lastEngagedAt: now,
+        sessionRating: null,
+        affirmation: null,
       };
 
       const blocks = buildBlocks(sessionId, form.modules, durationNumeric);

@@ -835,6 +835,14 @@ export type BlockCompletionStatus =
   | 'extended';
 export type PerformanceRating = 'flying' | 'cruising' | 'crawling';
 /**
+ * Whole-session rating captured at the end-of-session summary
+ * (Phase 3 Step 6b). Distinct from PerformanceRating which is per-
+ * block: the session rating answers "how was this session as an
+ * experience?" while per-block ratings answer "how did this skill
+ * feel?" Both coexist on every session.
+ */
+export type PracticeSessionRating = 'locked_in' | 'solid' | 'going_through_it';
+/**
  * Goal scope hierarchy. No 'daily' — daily intent is generated
  * by the algorithm (Phase 3+), not stored as a goal entity.
  *
@@ -1008,6 +1016,22 @@ export interface PracticeSession {
   /** Application-managed; updated when user revisits / edits the
    *  session. Phase 1 sets this on manual-log create. */
   lastEngagedAt: number | null;
+  /**
+   * Whole-session rating from the end-of-session summary's top
+   * zone (Phase 3 Step 6b). One-tap pick: Locked in / Solid /
+   * Going through it. Optional — null when the user closes the
+   * summary without rating. Distinct from per-block performanceRating.
+   */
+  sessionRating: PracticeSessionRating | null;
+  /**
+   * "Optional — a note to your future self" affirmation captured
+   * from the end-of-session summary's bottom zone (Phase 3 Step 6d).
+   * Free text, optional, "I am..." or "I can..." prompted. Empty
+   * string and null are equivalent — caller normalizes to null on
+   * save. Surfaced back on future proposal screens via
+   * pickRandomAffirmation (Step 4h).
+   */
+  affirmation: string | null;
 }
 
 /**
@@ -1949,6 +1973,63 @@ export class AppDB extends Dexie {
     // `songCrossKeyProgress` is also kept intact — see the
     // @deprecated note on the SongCrossKeyProgress interface above.
     this.version(19).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+    });
+
+    // v20 — checkpoint for Phase 3 Step 6a TS-level additions on
+    // PracticeSession: sessionRating + affirmation columns. Both
+    // live in the JSONB `data` payload of practice_sessions (per
+    // 003_practice_sessions_phase1.sql — the row's non-indexed
+    // fields are JSONB, not columns), so .stores() is unchanged
+    // and no Postgres migration is required. The version bump is
+    // a checkpoint so future readers can correlate the schema
+    // version with the type widening.
+    this.version(20).stores({
       intervals: 'id, name, semitones',
       chordQualities: 'id, name, tier, family',
       chordShapes: 'id, chordId, key, inversion',
