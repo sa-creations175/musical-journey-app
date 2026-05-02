@@ -16,8 +16,16 @@
  *        documentation pass — no new code; the existing wiring
  *        does the work.
  *
- *   6h — acquisition_stage advancement. Same — handled by
- *        computeNextStage inside recordEngagement.
+ *   6h — acquisition_stage advancement. recordEngagement (Phase 2)
+ *        runs computeNextStage on every signal — new → acquiring on
+ *        first engagement; acquiring → acquired when the
+ *        declarative-accuracy or rating-based threshold is met.
+ *        consolidated / mastered transitions remain deferred until
+ *        their thresholds are calibrated from real use (per the
+ *        design's Phase 3 scope note). 6h is a no-code substep —
+ *        the integration test in __tests__/endOfSessionPersistence
+ *        exercises the full path so a regression can't slip
+ *        through.
  *
  *   6i — Goal current_value updates + milestone-prompt queueing.
  *

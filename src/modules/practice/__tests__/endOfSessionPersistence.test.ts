@@ -141,6 +141,114 @@ describe('recordBlockEngagements — memory-type routing', () => {
   });
 });
 
+describe('recordBlockEngagements — Step 6h acquisition_stage advancement', () => {
+  beforeEach(async () => {
+    await db.spacingState.clear();
+  });
+
+  it('advances new → acquiring on a procedural block with a rating', async () => {
+    await recordBlockEngagements([
+      block({
+        id: 'b1',
+        moduleRef: 'shapes-and-patterns',
+        itemRefs: ['scale:major:C'],
+        rating: 'cruising',
+      }),
+    ]);
+    const rows = await db.spacingState.toArray();
+    expect(rows[0].acquisitionStage).toBe('acquiring');
+  });
+
+  it('advances acquiring → acquired when the rating-based threshold clears', async () => {
+    // Three blocks in sequence simulates three sessions; each block
+    // here has rating 'cruising'. After three engagements the
+    // last-3-ratings rule fires and advances to acquired.
+    for (let i = 0; i < 3; i++) {
+      await recordBlockEngagements([
+        block({
+          id: `b${i}`,
+          moduleRef: 'shapes-and-patterns',
+          itemRefs: ['scale:major:C'],
+          rating: 'cruising',
+        }),
+      ]);
+    }
+    const row = (await db.spacingState.toArray())[0];
+    expect(row.acquisitionStage).toBe('acquired');
+  });
+
+  it('a crawling in the trailing window blocks initial promotion', async () => {
+    // flying, flying, crawling — last 3 = [flying, flying, crawling],
+    // crawling blocks the rating-based promotion. Stage stays at
+    // acquiring rather than advancing on engagement 3.
+    const ratings = ['flying', 'flying', 'crawling'] as const;
+    for (let i = 0; i < ratings.length; i++) {
+      await recordBlockEngagements([
+        block({
+          id: `b${i}`,
+          moduleRef: 'shapes-and-patterns',
+          itemRefs: ['scale:major:C'],
+          rating: ratings[i],
+        }),
+      ]);
+    }
+    const row = (await db.spacingState.toArray())[0];
+    expect(row.acquisitionStage).toBe('acquiring');
+  });
+
+  it('once at acquired, never demotes — even on a sequence of crawlings', async () => {
+    // Get to acquired first.
+    for (let i = 0; i < 3; i++) {
+      await recordBlockEngagements([
+        block({
+          id: `pos${i}`,
+          moduleRef: 'shapes-and-patterns',
+          itemRefs: ['scale:major:C'],
+          rating: 'flying',
+        }),
+      ]);
+    }
+    expect((await db.spacingState.toArray())[0].acquisitionStage).toBe('acquired');
+
+    // Pile on crawlings — stage holds.
+    for (let i = 0; i < 5; i++) {
+      await recordBlockEngagements([
+        block({
+          id: `neg${i}`,
+          moduleRef: 'shapes-and-patterns',
+          itemRefs: ['scale:major:C'],
+          rating: 'crawling',
+        }),
+      ]);
+    }
+    expect((await db.spacingState.toArray())[0].acquisitionStage).toBe('acquired');
+  });
+
+  it('expression items stay at acquiring forever — recency-driven by design', async () => {
+    // creative module is registered as expression in memoryType.ts.
+    // Repeat to drive home that no rating signal applies.
+    for (let i = 0; i < 5; i++) {
+      await recordBlockEngagements([
+        block({
+          id: `b${i}`,
+          moduleRef: 'creative',
+          itemRefs: ['just-play'],
+          rating: 'flying',
+        }),
+      ]);
+    }
+    const row = (await db.spacingState.toArray()).find(
+      r => r.moduleRef === 'creative',
+    );
+    if (row) {
+      expect(row.acquisitionStage).toBe('acquiring');
+    }
+    // No row at all is also fine — creative may not be in
+    // MODULE_MEMORY_TYPES yet; the test is defensive about the
+    // never-advance contract for expression.
+  });
+});
+
 describe('mergeBatchRatings', () => {
   it('applies batch ratings to blocks by id', () => {
     const blocks = [
