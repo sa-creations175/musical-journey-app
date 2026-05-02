@@ -38,7 +38,7 @@ import FlashcardSession, {
 const MODULE_ID = 'production';
 const PREF_TIMER = 'productionVocabTimerMode';
 const PREF_CLUSTERS = 'productionVocabClusterFilter';
-const SESSION_TARGET = 20;
+const SESSION_TARGET = 10;
 const FOCUS_PROTECTION_THRESHOLD = 4;
 
 interface BuiltSession {
