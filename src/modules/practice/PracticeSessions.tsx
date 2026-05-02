@@ -9,7 +9,12 @@ import RecentSessionsList from './RecentSessionsList';
 import VacationManager from './VacationManager';
 import InputQuestionnaire from './InputQuestionnaire';
 import ProposalScreen from './ProposalScreen';
+import FeasibilityBanner from './FeasibilityBanner';
 import { shouldShowColdStartBanner } from './coldStartBannerPref';
+import {
+  loadFeasibilityBannerEntries,
+  type FeasibilityBannerEntry,
+} from './feasibilityBannerData';
 import { buildSessionProposals } from './sessionGenerator';
 import { countEarlierSessionsToday } from './sessionsToday';
 import type {
@@ -50,6 +55,9 @@ export default function PracticeSessions() {
   const [hasEarlierSessionsToday, setHasEarlierSessionsToday] = useState(false);
   const [initialDayProfile, setInitialDayProfile] =
     useState<DayProfileChoice | null>(null);
+  const [feasibilityEntries, setFeasibilityEntries] = useState<
+    ReadonlyArray<FeasibilityBannerEntry>
+  >([]);
 
   // End-of-month bookkeeping (idempotent per YYYY-MM).
   useEffect(() => {
@@ -58,9 +66,10 @@ export default function PracticeSessions() {
     });
   }, []);
 
-  // Cold-start banner flag + earlier-sessions count, refreshed on
-  // every mount of the home view (e.g. after the user finishes a
-  // session and the Done handler resets back here).
+  // Cold-start banner flag, earlier-sessions count, and feasibility
+  // entries refreshed on every mount of the home view (e.g. after
+  // the user finishes a session and the Done handler resets back
+  // here).
   useEffect(() => {
     if (view !== 'home') return;
     let cancelled = false;
@@ -69,6 +78,9 @@ export default function PracticeSessions() {
     });
     void countEarlierSessionsToday().then(c => {
       if (!cancelled) setHasEarlierSessionsToday(c > 0);
+    });
+    void loadFeasibilityBannerEntries().then(entries => {
+      if (!cancelled) setFeasibilityEntries(entries);
     });
     return () => {
       cancelled = true;
@@ -127,6 +139,15 @@ export default function PracticeSessions() {
           onAccept={handleProposalAccept}
           onTryDifferentInputs={() => setView('questionnaire')}
           showColdStartBanner={showColdStart}
+          feasibilityBanner={
+            <FeasibilityBanner
+              entries={feasibilityEntries}
+              onTapDeep={() => {
+                setView('questionnaire');
+                setInitialDayProfile('deep');
+              }}
+            />
+          }
         />
         {proposals.length === 0 && (
           <div className="text-center text-sm text-neutral-500 py-6 space-y-3">
@@ -177,6 +198,10 @@ export default function PracticeSessions() {
       </button>
 
       <div className="flex flex-col gap-5">
+        <FeasibilityBanner
+          entries={feasibilityEntries}
+          onTapDeep={() => handleStartSession('deep')}
+        />
         <GoalsNudgeBanner />
         <VacationManager />
         <RecentSessionsList />
