@@ -63,6 +63,7 @@ export default function EndOfSessionSummary() {
 
   const [sessionRating, setSessionRating] =
     useState<PracticeSessionRating | null>(null);
+  const [affirmation, setAffirmation] = useState('');
 
   const totalActiveSec = Math.floor(times.activeMs / 1000);
   const completedBlocks = state.blocks.filter(
@@ -112,9 +113,44 @@ export default function EndOfSessionSummary() {
 
       <BlockList blocks={state.blocks} />
 
-      {/* Bottom zone (6d) — affirmation field — lands next. */}
+      <AffirmationField value={affirmation} onChange={setAffirmation} />
+
       {/* Done button (6k) — final substep. */}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Bottom zone — affirmation field (6d)
+// ---------------------------------------------------------------------
+
+function AffirmationField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <section className="space-y-1">
+      <label className="block">
+        <div className="text-[11px] uppercase tracking-wider text-neutral-500 mb-1">
+          Optional — a note to your future self
+        </div>
+        <textarea
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="I am... or I can..."
+          rows={2}
+          maxLength={300}
+          className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm placeholder:italic placeholder:text-neutral-400 resize-none"
+        />
+      </label>
+      <p className="text-[10px] italic text-neutral-500">
+        Auto-saved when you tap Done. Shown back on a future proposal,
+        randomly chosen from your past notes.
+      </p>
+    </section>
   );
 }
 
