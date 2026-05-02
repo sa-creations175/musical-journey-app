@@ -54,6 +54,8 @@ import { enqueue } from '../../lib/prompts/queue';
 import { PROMPT_TYPE } from '../../lib/prompts/types';
 import { getGoalProgress } from '../../modules/goals/progress';
 import { timeOfDayFor } from './timeOfDay';
+import { markColdStartBannerSeen } from './coldStartBannerPref';
+import { sessionTimerReducer } from '../../lib/sessionTimer/reducer';
 import type {
   PerformanceRating,
   SessionState,
@@ -262,6 +264,79 @@ export async function logSongKeyEngagements(
 
 function makeEngagementId(now: number): string {
   return `eng-${Math.random().toString(36).slice(2, 8)}-${now.toString(36)}`;
+}
+
+// ---------------------------------------------------------------------
+// Pipeline orchestrator (6k + "end & start new" share this)
+// ---------------------------------------------------------------------
+
+export interface EndOfSessionPipelineInput {
+  /** State the pipeline runs against. Expected to be in 'ended' or
+   *  'paused' status — the reducer's end-session action has run, so
+   *  the current block's activeMs is finalized. Callers from a
+   *  live-running session should run sessionTimerReducer manually
+   *  via endActiveSessionForPipeline() to derive this state. */
+  state: SessionState;
+  summary: {
+    sessionRating: PracticeSessionRating | null;
+    affirmation: string | null;
+    /** From Step 6e — keyed by block id. Empty when the user is
+     *  abandoning a session via the home's "End & start new" path. */
+    batchRatings: Record<string, PerformanceRating>;
+  };
+  extras?: PersistSessionExtras;
+}
+
+/**
+ * Runs the full end-of-session persistence chain: merge batch
+ * ratings into blocks → persist session/blocks rows → record
+ * per-item engagements → recompute goal progress + milestones →
+ * log songKeyEngagements → mark the cold-start banner seen.
+ *
+ * Returns the persisted session id.
+ *
+ * Two callers as of Step 7+:
+ *   - EndOfSessionSummary's Done button (post-summary user flow)
+ *   - PracticeSessions' "End & start new" (mid-session abandon)
+ */
+export async function runEndOfSessionPipeline(
+  input: EndOfSessionPipelineInput,
+): Promise<string> {
+  const { state, summary, extras } = input;
+  const blocksWithRatings = mergeBatchRatings(state.blocks, summary.batchRatings);
+  const sessionId = await persistSession(
+    state,
+    {
+      sessionRating: summary.sessionRating,
+      affirmation: summary.affirmation,
+      blocksWithFinalRatings: blocksWithRatings,
+    },
+    extras,
+  );
+  await recordBlockEngagements(blocksWithRatings);
+  await recomputeGoalsAndQueueMilestones();
+  await logSongKeyEngagements(blocksWithRatings, sessionId);
+  await markColdStartBannerSeen();
+  return sessionId;
+}
+
+/**
+ * Pure: derive the post-end state from a live (running / paused)
+ * SessionState by running the reducer's end-session action against
+ * it. Caller hands the result to runEndOfSessionPipeline so the
+ * persisted blocks include the final activeMs of the current
+ * (mid-session-abandoned) block. The actual timer dispatch + reset
+ * are the caller's responsibility — this is the snapshot pass.
+ */
+export function endActiveSessionForPipeline(
+  state: SessionState,
+  now: number = Date.now(),
+): SessionState {
+  return sessionTimerReducer(state, {
+    type: 'end-session',
+    now,
+    markStatus: 'completed',
+  });
 }
 
 // Re-export to silence unused-import warning when PerformanceRating

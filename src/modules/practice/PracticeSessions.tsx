@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
+import Modal from '../../components/Modal';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
 import ManualLogForm from './ManualLogForm';
 import RecentSessionsList from './RecentSessionsList';
@@ -15,6 +16,10 @@ import {
   loadFeasibilityBannerEntries,
   type FeasibilityBannerEntry,
 } from './feasibilityBannerData';
+import {
+  endActiveSessionForPipeline,
+  runEndOfSessionPipeline,
+} from './endOfSessionPersistence';
 import { buildSessionProposals } from './sessionGenerator';
 import { countEarlierSessionsToday } from './sessionsToday';
 import type {
@@ -46,7 +51,7 @@ type View = 'home' | 'questionnaire' | 'proposal';
 
 export default function PracticeSessions() {
   const navigate = useNavigate();
-  const { startSession } = useSessionTimer();
+  const { state: timerState, reset, startSession } = useSessionTimer();
 
   const [view, setView] = useState<View>('home');
   const [proposals, setProposals] = useState<ProposalCardData[]>([]);
@@ -58,6 +63,12 @@ export default function PracticeSessions() {
   const [feasibilityEntries, setFeasibilityEntries] = useState<
     ReadonlyArray<FeasibilityBannerEntry>
   >([]);
+  // "You have a session in progress" prompt — fires when the user
+  // taps Start a session while a session is already running or
+  // paused. Lets them resume the existing one or end it cleanly
+  // (full persistence pipeline) before starting fresh.
+  const [sessionInProgressOpen, setSessionInProgressOpen] = useState(false);
+  const [endingActive, setEndingActive] = useState(false);
 
   // End-of-month bookkeeping (idempotent per YYYY-MM).
   useEffect(() => {
@@ -89,7 +100,58 @@ export default function PracticeSessions() {
 
   const handleStartSession = (dayProfile?: DayProfileChoice) => {
     setInitialDayProfile(dayProfile ?? null);
+    if (timerState.status === 'running' || timerState.status === 'paused') {
+      // Don't open the questionnaire on top of a live session — a
+      // new startSession would clobber the existing one's
+      // accumulating active time. Surface the prompt; the user
+      // picks Resume or End-and-start-new.
+      setSessionInProgressOpen(true);
+      return;
+    }
     setView('questionnaire');
+  };
+
+  const handleResumeActiveSession = () => {
+    setSessionInProgressOpen(false);
+    // Route to wherever the active session is anchored. activeModuleRef
+    // tracks the user's location per model (b); when it's a known
+    // module, send them there directly. Fall back to the active
+    // session screen otherwise.
+    const activeMeta = timerState.activeModuleRef
+      ? moduleMetaById(timerState.activeModuleRef)
+      : null;
+    navigate(activeMeta?.route ?? '/practice-sessions/active');
+  };
+
+  const handleEndAndStartNew = async () => {
+    if (endingActive) return;
+    setEndingActive(true);
+    try {
+      // Snapshot a post-end state via the pure reducer so persist
+      // sees the current block's finalized activeMs even though we
+      // never dispatched endSession() to the live timer. The
+      // pipeline writes practiceSessions + practiceBlocks rows,
+      // fires per-item engagements + goal recompute + songKey
+      // engagements, marks the cold-start banner seen.
+      const endedState = endActiveSessionForPipeline(timerState);
+      await runEndOfSessionPipeline({
+        state: endedState,
+        summary: {
+          sessionRating: null,
+          affirmation: null,
+          batchRatings: {},
+        },
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[PracticeSessions] flush of abandoned session failed', e);
+      // Continue anyway — better to start fresh than block the user.
+    } finally {
+      reset();
+      setSessionInProgressOpen(false);
+      setEndingActive(false);
+      setView('questionnaire');
+    }
   };
 
   const handleQuestionnaireGenerate = async (
@@ -245,6 +307,47 @@ export default function PracticeSessions() {
         hasEarlierSessionsToday={hasEarlierSessionsToday}
         initialDayProfile={initialDayProfile}
       />
+
+      <Modal
+        open={sessionInProgressOpen}
+        onClose={() => {
+          if (endingActive) return;
+          setSessionInProgressOpen(false);
+        }}
+        title="You have a session in progress"
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleEndAndStartNew}
+              disabled={endingActive}
+              className={`px-3 py-1.5 rounded-md border text-sm ${
+                endingActive
+                  ? 'border-neutral-200 text-neutral-400 cursor-not-allowed'
+                  : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
+              }`}
+            >
+              {endingActive ? 'ending…' : 'end & start new'}
+            </button>
+            <button
+              type="button"
+              onClick={handleResumeActiveSession}
+              disabled={endingActive}
+              data-autofocus
+              className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              resume session
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm text-neutral-700 dark:text-neutral-200">
+          Resume where you left off, or end it and start fresh. Ending
+          saves what you've practiced so far — the in-progress block
+          gets logged with whatever active time it's already
+          accumulated.
+        </p>
+      </Modal>
     </div>
   );
 }

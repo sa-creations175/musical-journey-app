@@ -29,14 +29,7 @@ import type {
   PerformanceRating,
   SessionBlock,
 } from '../../lib/sessionTimer/types';
-import {
-  logSongKeyEngagements,
-  mergeBatchRatings,
-  persistSession,
-  recomputeGoalsAndQueueMilestones,
-  recordBlockEngagements,
-} from './endOfSessionPersistence';
-import { markColdStartBannerSeen } from './coldStartBannerPref';
+import { runEndOfSessionPipeline } from './endOfSessionPersistence';
 
 const SESSION_RATING_OPTIONS: ReadonlyArray<{
   value: PracticeSessionRating;
@@ -154,36 +147,10 @@ export default function EndOfSessionSummary() {
           if (persisting) return;
           setPersisting(true);
           try {
-            // 1. Merge batch ratings into the block list so the
-            //    engagement signals + persisted blocks reflect them.
-            const blocksWithRatings = mergeBatchRatings(state.blocks, batchRatings);
-
-            // 2. Persist practiceSession + practiceBlocks rows.
-            const sessionId = await persistSession(
+            await runEndOfSessionPipeline({
               state,
-              {
-                sessionRating,
-                affirmation,
-                blocksWithFinalRatings: blocksWithRatings,
-              },
-            );
-
-            // 3. Per-item engagement writes (6f) — drives 6g/6h
-            //    spacing-curve + acquisition-stage updates inside
-            //    recordEngagement.
-            await recordBlockEngagements(blocksWithRatings);
-
-            // 4. Recompute goal currentValue + queue milestones (6i).
-            await recomputeGoalsAndQueueMilestones();
-
-            // 5. Log song-key engagements (6j) for any Repertoire blocks.
-            await logSongKeyEngagements(blocksWithRatings, sessionId);
-
-            // 6. Mark the cold-start banner seen so future proposals
-            //    skip the "first generated session" note.
-            await markColdStartBannerSeen();
-
-            // 7. Reset the timer + return home.
+              summary: { sessionRating, affirmation, batchRatings },
+            });
             reset();
             navigate('/practice-sessions');
           } catch (e) {
