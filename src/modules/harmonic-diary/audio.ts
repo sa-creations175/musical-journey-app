@@ -2,6 +2,7 @@ import { playNoteSequence, playBlocked, type NoteEvent } from '../../lib/musical
 import { parseSkillId, type SkillRecord } from '../skills/registry';
 import { QUALITY_INTERVALS } from '../shapes-and-patterns/catalog';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
+import { modeById } from '../ear-training/scales-modes/catalog';
 import {
   playProgressionById,
   playMotionById,
@@ -66,6 +67,25 @@ const NOTE_BASES: Record<string, number> = {
   C: 60, 'C#': 61, Db: 61, D: 62, 'D#': 63, Eb: 63, E: 64,
   F: 65, 'F#': 66, Gb: 66, G: 67, 'G#': 68, Ab: 68, A: 69,
   'A#': 70, Bb: 70, B: 71,
+};
+
+// Each mode's natural root within the C-major parent scale.
+// Church modes 1-7 land on C, D, E, F, G, A, B respectively. The
+// minor variants (harmonic, melodic) ride on A (parallel to Aeolian)
+// since they're typically taught as altered natural-minor scales.
+//
+// Wired to mode.parentScalePosition so adding new modes to the
+// catalog only requires picking a position; no code change here.
+const PARENT_POSITION_MIDI: Record<number, number> = {
+  1: 60, // C — Ionian
+  2: 62, // D — Dorian
+  3: 64, // E — Phrygian
+  4: 65, // F — Lydian
+  5: 67, // G — Mixolydian
+  6: 69, // A — Aeolian
+  7: 71, // B — Locrian
+  8: 69, // A — Harmonic minor
+  9: 69, // A — Melodic minor
 };
 
 export type DiaryPlayMode = DiaryPlaybackMode; // re-export for callers
@@ -138,18 +158,19 @@ export async function playSkillAudio(
       return;
     }
 
-    // Modes — placeholder stays as the major-scale stack (every mode
-    // sounds the same — separately filed roadmap item), but playback
-    // pattern now respects mode parameter so users can hear the
-    // notes blocked, ascending, or descending. Uses MODE_BEATS so
-    // 7-note scale arpeggios get the same per-note registration time
-    // as 4-note chord arpeggios.
+    // Modes — use the mode's actual scaleIntervals (which include
+    // the octave on top, per the catalog) so each mode sounds
+    // distinct, and the natural-position root from the C-major
+    // parent scale so the mode rings in its own key. Asc plays
+    // 0→12 (octave on top); desc plays 12→0 (starts from the
+    // octave). Blocked stacks all 8 tones simultaneously.
     if (parsed.moduleId === 'scales-modes') {
-      // 7-note major-scale placeholder — every mode plays this until
-      // the per-mode interval data is threaded through.
-      const intervals = [0, 2, 4, 5, 7, 9, 11];
-      const rootMidi = diaryRegisterRoot(intervals, 0);
-      await playChord(rootMidi, intervals, mode, MODE_BEATS);
+      const modeData = modeById(parsed.itemId);
+      if (!modeData) return;
+      const naturalRoot = PARENT_POSITION_MIDI[modeData.parentScalePosition] ?? 60;
+      const pitchClass = ((naturalRoot % 12) + 12) % 12;
+      const rootMidi = diaryRegisterRoot(modeData.scaleIntervals, pitchClass);
+      await playChord(rootMidi, modeData.scaleIntervals, mode, MODE_BEATS);
       return;
     }
 
