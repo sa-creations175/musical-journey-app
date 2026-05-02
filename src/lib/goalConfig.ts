@@ -12,6 +12,10 @@ const MODULE_DEFAULT_GOALS: Record<string, number> = {
   'chord-progressions': 8,
   'harmonic-fluency': 10,
   'scales-modes': 5,
+  // Production attempts come from the Vocabulary activity. 10 mirrors
+  // SESSION_TARGET in modules/production/VocabularySession.tsx — a
+  // single completed session clears the bar.
+  production: 10,
 };
 
 export function defaultDailyGoal(moduleId: string): number {
