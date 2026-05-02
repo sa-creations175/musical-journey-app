@@ -5,8 +5,8 @@
  * running or paused. Hidden in idle / ended.
  *
  * Layout (left → right):
- *   [accent dot] [block label] [paused?]
- *   ··· Session 6:32 · [Module] 2:14 [⏸] [end session]
+ *   [accent dot] [block label] [Module] 2:14 [paused?]
+ *   ··· Session 6:32 [⏸] [end session]
  *
  * The session timer counts up (active practice time), the block
  * timer counts down from the current block's plannedSeconds. The
@@ -103,10 +103,21 @@ export function GlobalSessionBanner() {
             className={`inline-block w-2 h-2 rounded-full shrink-0 ${isPaused ? '' : 'animate-pulse'}`}
             style={{ backgroundColor: isPaused ? '#a3a3a3' : accent }}
           />
-          <span className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="flex items-center gap-3 min-w-0 flex-1">
             <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
               {blockLabel}
             </span>
+            {activeBlock && (
+              <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200 shrink-0">
+                <span
+                  className="text-[10px] uppercase tracking-wider mr-1"
+                  style={{ color: blockAccent }}
+                >
+                  {blockModuleLabel}
+                </span>
+                {formatActiveTime(blockRemainingMs)}
+              </span>
+            )}
             {isPaused && (
               <span
                 className="text-[10px] uppercase tracking-wider text-neutral-500 shrink-0"
@@ -117,26 +128,13 @@ export function GlobalSessionBanner() {
             )}
           </span>
           <span
-            className="ml-auto flex items-center gap-3 shrink-0"
-            aria-label="session times"
+            className="ml-auto font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200 shrink-0"
+            aria-label="session time"
           >
-            <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
-              <span className="text-[10px] uppercase tracking-wider text-neutral-500 mr-1">
-                Session
-              </span>
-              {formatActiveTime(times.activeMs)}
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500 mr-1">
+              Session
             </span>
-            {activeBlock && (
-              <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
-                <span
-                  className="text-[10px] uppercase tracking-wider mr-1"
-                  style={{ color: blockAccent }}
-                >
-                  {blockModuleLabel}
-                </span>
-                {formatActiveTime(blockRemainingMs)}
-              </span>
-            )}
+            {formatActiveTime(times.activeMs)}
           </span>
         </button>
         <button
