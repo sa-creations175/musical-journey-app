@@ -1,12 +1,15 @@
 /**
- * Phase 3 Step 5a/5b/5c — Active session execution screen.
+ * Phase 3 Step 5a–5d — Active session execution screen.
  *
  * One block at a time, full-screen focus. Reads from the global
  * timer; doesn't start sessions itself (proposal acceptance does
  * that, supplying the block list).
  *
- * 5d will add the "Ready for next?" preview + Start button so the
- * rating + preview share one between-blocks surface.
+ * Between-blocks (5c rating + 5d preview) share one surface: rating
+ * buttons at top, a "you just completed X" line, a preview of the
+ * next block, then Start to advance. Last block swaps Start for a
+ * Finish button. An "end session early" link sits below for any
+ * block.
  *
  * activeModuleRef wiring (per the 1b design call, model b):
  *   - While on this screen, activeModuleRef = 'practice-sessions'.
@@ -92,8 +95,14 @@ interface Props {
 
 export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   const navigate = useNavigate();
-  const { state, setActiveModuleRef, advanceBlock, pauseSession, resumeSession } =
-    useSessionTimer();
+  const {
+    state,
+    setActiveModuleRef,
+    advanceBlock,
+    endSession,
+    pauseSession,
+    resumeSession,
+  } = useSessionTimer();
   const times = useSessionTimes();
 
   const [phase, setPhase] = useState<Phase>('running');
@@ -194,6 +203,14 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
     });
   };
 
+  const handleEndSessionEarly = () => {
+    resumeSession();
+    endSession({
+      rating: pendingRating ?? undefined,
+      markStatus: 'completed',
+    });
+  };
+
   const graceRemainingSec =
     hardGraceStart !== null
       ? Math.max(
@@ -222,10 +239,18 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   }
 
   // -------------------------------------------------------------
-  // Rating phase (5c). Step 5d will replace the bare Next button
-  // with a "Ready for next?" preview surface.
+  // Between-blocks phase (5c rating + 5d preview).
   // -------------------------------------------------------------
   if (phase === 'rating') {
+    const isLastBlock =
+      state.currentBlockIndex === state.blocks.length - 1;
+    const nextBlock = !isLastBlock
+      ? state.blocks[state.currentBlockIndex! + 1]
+      : null;
+    const nextMeta = nextBlock ? moduleMetaById(nextBlock.moduleRef) : null;
+    const nextAccent = nextMeta?.accentHex ?? '#4a9088';
+    const nextLabel = nextMeta?.label ?? nextBlock?.moduleRef ?? '';
+
     return (
       <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
         <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
@@ -251,7 +276,7 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
               go?
             </h2>
             <p className="text-[11px] text-neutral-500">
-              Optional — tap one or skip with Next.
+              Optional — tap one or skip with the button below.
             </p>
           </div>
 
@@ -275,13 +300,55 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
           </div>
         </section>
 
+        {/* 5d preview — next-block card OR last-block close-out copy. */}
+        {nextBlock ? (
+          <section
+            className="rounded-lg border p-3 space-y-1.5"
+            style={{ borderColor: nextAccent, borderLeftWidth: 3 }}
+          >
+            <div
+              className="text-[10px] uppercase tracking-wider font-medium"
+              style={{ color: nextAccent }}
+            >
+              Up next · {nextLabel}
+            </div>
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
+                {nextBlock.label ?? nextBlock.moduleRef}
+              </div>
+              <div className="font-mono tabular-nums text-xs text-neutral-500 shrink-0">
+                {formatActiveTime(nextBlock.plannedSeconds * 1000)}
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center">
+            <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
+              Final block
+            </div>
+            <p className="text-sm text-neutral-700 dark:text-neutral-200">
+              You're at the last block. Finish to wrap the session.
+            </p>
+          </section>
+        )}
+
         <button
           type="button"
           onClick={handleRatingNext}
           className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
         >
-          {pendingRating ? 'next' : 'next (skip rating)'}
+          {nextBlock ? 'start next' : 'finish session'}
         </button>
+
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={handleEndSessionEarly}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+          >
+            end session early
+          </button>
+        </div>
       </div>
     );
   }
