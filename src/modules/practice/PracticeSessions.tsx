@@ -197,6 +197,30 @@ export default function PracticeSessions() {
         Start a session
       </button>
 
+      {/*
+        Stacking order — Step 7e:
+
+          1. FeasibilityBanner — actionable behind-pace alert. Fires
+             only when the user has active goals AND at least one is
+             at_risk or critical. Most urgent surface; takes the top
+             slot when present.
+
+          2. GoalsNudgeBanner — cold-start nudge for users with zero
+             active goals. Mutually exclusive with FeasibilityBanner
+             (which requires active goals to have anything to flag),
+             so they never compete for visual prominence; the order
+             only matters for source readability + the once-in-a-
+             blue-moon edge case where the goal count flips during a
+             render.
+
+          3. VacationManager — active-vacation banner (when in one)
+             OR collapsed "plan a vacation" trigger. Always present;
+             cheap visual.
+
+          4. RecentSessionsList + ManualLogForm — passive list +
+             fallback log form. Below the alerts because they're
+             history, not action surfaces.
+      */}
       <div className="flex flex-col gap-5">
         <FeasibilityBanner
           entries={feasibilityEntries}
