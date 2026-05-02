@@ -43,7 +43,7 @@ export default function SessionStack({ blocks }: Props) {
 
   return (
     <div
-      className="grid gap-0.5 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+      className="w-full min-w-0 overflow-hidden grid gap-0.5 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
       style={{
         gridTemplateRows,
         minHeight: `${minTotalPx}px`,

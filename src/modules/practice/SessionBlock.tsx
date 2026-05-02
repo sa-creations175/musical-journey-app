@@ -53,7 +53,7 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
       type="button"
       onClick={handleToggle}
       aria-expanded={isExpanded}
-      className="w-full text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
+      className="w-full min-w-0 overflow-hidden text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
       style={{
         backgroundColor: tint,
         borderColor: block.moduleAccentHex,
