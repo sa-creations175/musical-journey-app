@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
+import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
@@ -111,13 +111,19 @@ export default function PracticeSessions() {
   };
 
   const handleProposalAccept = (card: ProposalCardData) => {
+    if (card.blocks.length === 0) return;
+    const firstBlock = card.blocks[0];
+    const firstMeta = moduleMetaById(firstBlock.moduleRef);
+    // Auto-navigate into the first block's module so the user lands
+    // where they'll actually practice — the active session screen
+    // is the BETWEEN-BLOCKS surface, not the entry point for
+    // block 1. activeModuleRef matches the destination so the auto-
+    // pause hook doesn't fire on arrival.
+    const startRoute = firstMeta?.route ?? '/practice-sessions/active';
+
     startSession({
       origin: 'practice-sessions',
-      // Model (b) per the 1b/5a design call — active session screen
-      // owns the practice-sessions ref while it's mounted; quick-
-      // launches into individual modules update activeRef
-      // dynamically.
-      activeModuleRef: 'practice-sessions',
+      activeModuleRef: firstBlock.moduleRef,
       blocks: card.blocks.map(b => ({
         moduleRef: b.moduleRef,
         itemRefs: [...b.itemRefs],
@@ -125,7 +131,7 @@ export default function PracticeSessions() {
         plannedSeconds: b.plannedSeconds,
       })),
     });
-    navigate('/practice-sessions/active');
+    navigate(startRoute);
   };
 
   // -------------------------------------------------------------

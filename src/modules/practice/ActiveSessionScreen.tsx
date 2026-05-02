@@ -120,14 +120,23 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
     setHardGraceStart(null);
   }, [state.currentBlockIndex]);
 
-  // Model (b) — keep activeModuleRef tracking the practice-sessions
-  // surface while we're on this screen.
+  // Model (b) — set activeModuleRef = 'practice-sessions' once on
+  // mount. The dep array is intentionally empty: re-firing on every
+  // state.activeModuleRef change would clobber the explicit update
+  // that handleQuickLaunch / handleRatingNext make right before
+  // navigating away to the next block's module.
+  //
+  // The auto-pause hook in Layout reads activeModuleRef + pathname
+  // to decide pause/resume; setting it here once is enough because
+  // any subsequent change is intentional (caused by an outbound
+  // navigation, with the new value matching the new route).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (state.status === 'idle' || state.status === 'ended') return;
     if (state.activeModuleRef !== PRACTICE_SESSIONS_REF) {
       setActiveModuleRef(PRACTICE_SESSIONS_REF);
     }
-  }, [state.status, state.activeModuleRef, setActiveModuleRef]);
+  }, []);
 
   // Bounce off the screen when there's no session.
   useEffect(() => {
@@ -197,11 +206,32 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   };
 
   const handleRatingNext = () => {
+    const isLast =
+      state.currentBlockIndex !== null &&
+      state.currentBlockIndex >= state.blocks.length - 1;
+    const nextBlock =
+      !isLast && state.currentBlockIndex !== null
+        ? state.blocks[state.currentBlockIndex + 1]
+        : null;
+    const nextMeta = nextBlock ? moduleMetaById(nextBlock.moduleRef) : null;
+
     resumeSession();
     advanceBlock({
       rating: pendingRating ?? undefined,
       markStatus: 'completed',
     });
+
+    // Auto-navigate into the next block's module, mirroring the
+    // session-start flow (PracticeSessions.handleProposalAccept).
+    // The active session screen is the between-blocks surface; the
+    // module is where the user actually practices.
+    if (nextBlock && nextMeta?.route) {
+      setActiveModuleRef(nextBlock.moduleRef);
+      navigate(nextMeta.route);
+    }
+    // For the last block, advanceBlock auto-ends the session. Stay
+    // on this screen so the 'ended'-status branch renders the
+    // EndOfSessionSummary.
   };
 
   const handleEndSessionEarly = () => {
