@@ -31,6 +31,11 @@ interface Props {
    *  proposal screen exposes, kept here so the user always has a
    *  way to bail back to standard inputs. */
   onTryDifferentInputs?: () => void;
+  /** DEV-only: current forced abundance mode label + cycle handler.
+   *  Caller (PracticeSessions) only supplies these under
+   *  import.meta.env.DEV, so production tree-shakes the pill. */
+  devForceMode?: string;
+  onCycleDevForceMode?: () => void;
 }
 
 interface PathCard {
@@ -104,17 +109,32 @@ export default function AbundancePathScreen({
   reason,
   onPick,
   onTryDifferentInputs,
+  devForceMode,
+  onCycleDevForceMode,
 }: Props) {
   const cards = reason === 'zero-goals' ? FALLBACK_CARDS : ABUNDANCE_CARDS;
   const { title, subtitle } = headerCopy(reason);
+  const showDevPill = !!(devForceMode && onCycleDevForceMode);
 
   return (
     <section className="max-w-2xl mx-auto space-y-4">
-      <header className="space-y-1">
-        <h2 className="text-lg font-medium tracking-tight text-neutral-800 dark:text-neutral-100">
-          {title}
-        </h2>
-        <p className="text-sm text-neutral-500">{subtitle}</p>
+      <header className="flex items-start gap-2">
+        <div className="flex-1 space-y-1">
+          <h2 className="text-lg font-medium tracking-tight text-neutral-800 dark:text-neutral-100">
+            {title}
+          </h2>
+          <p className="text-sm text-neutral-500">{subtitle}</p>
+        </div>
+        {showDevPill && (
+          <button
+            type="button"
+            onClick={onCycleDevForceMode}
+            className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+            title="DEV: cycle abundance / zero-goals override (remove after verification)"
+          >
+            DEV: {devForceMode}
+          </button>
+        )}
       </header>
 
       <div className="flex flex-col gap-2">
