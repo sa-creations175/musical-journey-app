@@ -68,11 +68,35 @@ export interface SessionBlock {
   rating?: PerformanceRating;
 }
 
+/**
+ * Armed-but-not-running session. The proposal-acceptance flow stores
+ * the planned blocks here and routes the user to the first block's
+ * module; the actual `start` action fires once they arrive there. This
+ * keeps session-time honest — the user's questionnaire-fill +
+ * proposal-browse window doesn't count toward practice time.
+ *
+ * pendingStart is consumed (cleared) the moment a `start` action
+ * fires, regardless of whether the start was triggered by arrival or
+ * by an explicit consumer.
+ */
+export interface PendingStartConfig {
+  origin: SessionOrigin;
+  blocks: Array<{
+    moduleRef: string;
+    itemRefs?: string[];
+    label?: string;
+    plannedSeconds: number;
+  }>;
+}
+
 export interface SessionState {
   status: SessionStatus;
   /** Stable id for this session record. Persisted to practiceSessions on end. */
   sessionId: string | null;
   origin: SessionOrigin | null;
+  /** Armed-but-not-running session (set by `arm`, consumed by `start`).
+   *  null when nothing is armed. */
+  pendingStart: PendingStartConfig | null;
   /**
    * The module ref the session is "anchored to." Step 1b auto-pause
    * compares this against the user's current route on every navigation
@@ -127,6 +151,8 @@ export interface StartSessionInput {
 }
 
 export type SessionTimerAction =
+  | { type: 'arm'; config: PendingStartConfig }
+  | { type: 'clear-pending' }
   | { type: 'start'; input: StartSessionInput; blockIds: string[] }
   | { type: 'pause'; now: number; reason: PauseReason }
   | { type: 'resume'; now: number }

@@ -4,15 +4,19 @@
  * Always-visible thin strip at the top of the app while a session is
  * running or paused. Hidden in idle / ended.
  *
- * Layout:
- *   [accent dot] [block label · live elapsed]                     [End]
+ * Layout (left → right):
+ *   [accent dot] [block label] [paused?]
+ *   ··· Session 6:32 · [Module] 2:14 [⏸] [end session]
+ *
+ * The session timer counts up (active practice time), the block
+ * timer counts down from the current block's plannedSeconds. The
+ * "[Module]" prefix on the block timer wears the block's accent
+ * color so the user sees at a glance which block they're on. Both
+ * timers freeze while paused.
  *
  * Tapping the body returns the user to the active module's route.
- * The "End" button is its own click target — tapping End calls
- * endSession() and stops the propagation so it doesn't also navigate.
- *
- * Drift detection text (Step 1d) will overlay on this same surface;
- * for now the banner just shows the running active time.
+ * Pause / End buttons stop propagation so taps on them don't also
+ * navigate.
  */
 import { useNavigate } from 'react-router-dom';
 import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
@@ -31,11 +35,29 @@ export function GlobalSessionBanner() {
     state.currentBlockIndex !== null ? state.blocks[state.currentBlockIndex] : null;
   const blockLabel = activeBlock?.label ?? activeBlock?.moduleRef ?? 'Session';
 
-  const moduleMeta = state.activeModuleRef
+  // Border-top + dot accent follows the user's location (active
+  // module ref) so the banner reads as "the timer is here with
+  // you."
+  const activeModuleMeta = state.activeModuleRef
     ? moduleMetaById(state.activeModuleRef)
     : undefined;
-  const accent = moduleMeta?.accentHex ?? '#4a9088'; // Practice Sessions teal default
-  const route = moduleMeta?.route ?? null;
+  const accent = activeModuleMeta?.accentHex ?? '#4a9088';
+  const route = activeModuleMeta?.route ?? null;
+
+  // Block timer accent follows the BLOCK's module — independent of
+  // navigation. The module name in the block-timer chip wears this
+  // color so "what I'm doing right now" stays visually anchored to
+  // its own module even when the user steps onto another surface.
+  const blockMeta = activeBlock ? moduleMetaById(activeBlock.moduleRef) : undefined;
+  const blockAccent = blockMeta?.accentHex ?? accent;
+  const blockModuleLabel = blockMeta?.label ?? activeBlock?.moduleRef ?? '';
+
+  // Block countdown — clamps to 0 when the user runs over the
+  // planned duration. Soft-block extend pills + hard-block grace
+  // are surfaced on the active session screen, not here.
+  const blockRemainingMs = activeBlock
+    ? Math.max(0, activeBlock.plannedSeconds * 1000 - times.blockActiveMs)
+    : 0;
 
   const isPaused = state.status === 'paused';
   const driftActive = shouldShowDrift(times);
@@ -73,29 +95,48 @@ export function GlobalSessionBanner() {
           type="button"
           onClick={handleBannerClick}
           disabled={!route}
-          className="flex-1 flex items-center gap-3 text-left disabled:cursor-default"
+          className="flex-1 flex items-center gap-3 text-left disabled:cursor-default min-w-0"
           aria-label={`return to ${blockLabel}`}
         >
           <span
             aria-hidden
-            className={`inline-block w-2 h-2 rounded-full ${isPaused ? '' : 'animate-pulse'}`}
+            className={`inline-block w-2 h-2 rounded-full shrink-0 ${isPaused ? '' : 'animate-pulse'}`}
             style={{ backgroundColor: isPaused ? '#a3a3a3' : accent }}
           />
-          <span className="flex items-center gap-2 min-w-0">
+          <span className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
               {blockLabel}
             </span>
             {isPaused && (
               <span
-                className="text-[10px] uppercase tracking-wider text-neutral-500"
+                className="text-[10px] uppercase tracking-wider text-neutral-500 shrink-0"
                 aria-label="session paused"
               >
                 paused
               </span>
             )}
           </span>
-          <span className="ml-auto font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
-            {formatActiveTime(times.activeMs)}
+          <span
+            className="ml-auto flex items-center gap-3 shrink-0"
+            aria-label="session times"
+          >
+            <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500 mr-1">
+                Session
+              </span>
+              {formatActiveTime(times.activeMs)}
+            </span>
+            {activeBlock && (
+              <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
+                <span
+                  className="text-[10px] uppercase tracking-wider mr-1"
+                  style={{ color: blockAccent }}
+                >
+                  {blockModuleLabel}
+                </span>
+                {formatActiveTime(blockRemainingMs)}
+              </span>
+            )}
           </span>
         </button>
         <button

@@ -28,6 +28,7 @@ import {
 } from './reducer';
 import type {
   PauseReason,
+  PendingStartConfig,
   PerformanceRating,
   SessionState,
   SessionTimes,
@@ -46,6 +47,17 @@ interface EndSessionOptions {
 
 export interface SessionTimerContextValue {
   state: SessionState;
+  /**
+   * Arm a session for delayed start. The proposal-acceptance flow
+   * stores the planned blocks here and routes the user to the first
+   * block's module; the actual `start` action fires the moment they
+   * arrive there (via useStartArmedSessionOnArrival in Layout).
+   * Keeps session-time honest — questionnaire-fill +
+   * proposal-browse time doesn't count toward practice time.
+   */
+  armSession: (config: PendingStartConfig) => void;
+  /** Clear an armed session without starting. */
+  clearPendingSession: () => void;
   startSession: (input: Omit<StartSessionInput, 'sessionId' | 'now'>) => void;
   /**
    * Pause the timer. Defaults to 'manual' reason; pass
@@ -67,6 +79,14 @@ const SessionTimerContext = createContext<SessionTimerContextValue | null>(null)
 
 export function SessionTimerProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(sessionTimerReducer, INITIAL_SESSION_STATE);
+
+  const armSession = useCallback((config: PendingStartConfig) => {
+    dispatch({ type: 'arm', config });
+  }, []);
+
+  const clearPendingSession = useCallback(() => {
+    dispatch({ type: 'clear-pending' });
+  }, []);
 
   const startSession = useCallback(
     (input: Omit<StartSessionInput, 'sessionId' | 'now'>) => {
@@ -124,6 +144,8 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SessionTimerContextValue>(
     () => ({
       state,
+      armSession,
+      clearPendingSession,
       startSession,
       pauseSession,
       resumeSession,
@@ -134,6 +156,8 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
+      armSession,
+      clearPendingSession,
       startSession,
       pauseSession,
       resumeSession,

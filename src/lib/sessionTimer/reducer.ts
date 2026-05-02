@@ -20,6 +20,7 @@ export const INITIAL_SESSION_STATE: SessionState = {
   status: 'idle',
   sessionId: null,
   origin: null,
+  pendingStart: null,
   activeModuleRef: null,
   startedAt: null,
   endedAt: null,
@@ -34,6 +35,16 @@ export function sessionTimerReducer(
   action: SessionTimerAction,
 ): SessionState {
   switch (action.type) {
+    case 'arm':
+      // Refuse to arm on top of a live session — caller must reset
+      // first. Replacing pendingStart while idle is fine; the
+      // most-recent arm wins.
+      if (state.status !== 'idle' && state.status !== 'ended') return state;
+      return { ...state, pendingStart: action.config };
+
+    case 'clear-pending':
+      return { ...state, pendingStart: null };
+
     case 'start':
       return startSession(state, action.input, action.blockIds);
 
@@ -115,6 +126,10 @@ function startSession(
     status: 'running',
     sessionId,
     origin: input.origin,
+    // start consumes pendingStart — whether or not this start was
+    // routed through arm(), we don't want a stale pending config
+    // hanging around once a real session is running.
+    pendingStart: null,
     activeModuleRef: input.activeModuleRef,
     startedAt: now,
     endedAt: null,

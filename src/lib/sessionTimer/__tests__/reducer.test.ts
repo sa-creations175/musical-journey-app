@@ -240,6 +240,59 @@ describe('sessionTimerReducer — end-session', () => {
   });
 });
 
+describe('sessionTimerReducer — arm / clear-pending', () => {
+  const armConfig = {
+    origin: 'practice-sessions' as const,
+    blocks: [
+      { moduleRef: 'shapes-and-patterns', plannedSeconds: 600, label: 'Block 1' },
+    ],
+  };
+
+  it('arm sets pendingStart while idle', () => {
+    const armed = sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'arm',
+      config: armConfig,
+    });
+    expect(armed.pendingStart).toEqual(armConfig);
+    expect(armed.status).toBe('idle');
+  });
+
+  it('arm refuses to set pendingStart while a session is running', () => {
+    const running = startState();
+    const same = sessionTimerReducer(running, { type: 'arm', config: armConfig });
+    expect(same).toBe(running);
+  });
+
+  it('clear-pending nulls pendingStart', () => {
+    const armed = sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'arm',
+      config: armConfig,
+    });
+    const cleared = sessionTimerReducer(armed, { type: 'clear-pending' });
+    expect(cleared.pendingStart).toBeNull();
+  });
+
+  it('start consumes pendingStart in a single action', () => {
+    const armed = sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'arm',
+      config: armConfig,
+    });
+    const started = sessionTimerReducer(armed, {
+      type: 'start',
+      input: {
+        origin: 'practice-sessions',
+        activeModuleRef: 'shapes-and-patterns',
+        blocks: armConfig.blocks,
+        sessionId: 'sess-1',
+        now: T0,
+      },
+      blockIds: ['b1'],
+    });
+    expect(started.status).toBe('running');
+    expect(started.pendingStart).toBeNull();
+  });
+});
+
 describe('sessionTimerReducer — reset / set-active-module-ref', () => {
   it('reset returns to INITIAL_SESSION_STATE', () => {
     const s = startState();

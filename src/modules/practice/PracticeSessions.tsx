@@ -51,7 +51,7 @@ type View = 'home' | 'questionnaire' | 'proposal';
 
 export default function PracticeSessions() {
   const navigate = useNavigate();
-  const { state: timerState, reset, startSession } = useSessionTimer();
+  const { state: timerState, armSession, reset } = useSessionTimer();
 
   const [view, setView] = useState<View>('home');
   const [proposals, setProposals] = useState<ProposalCardData[]>([]);
@@ -176,16 +176,15 @@ export default function PracticeSessions() {
     if (card.blocks.length === 0) return;
     const firstBlock = card.blocks[0];
     const firstMeta = moduleMetaById(firstBlock.moduleRef);
-    // Auto-navigate into the first block's module so the user lands
-    // where they'll actually practice — the active session screen
-    // is the BETWEEN-BLOCKS surface, not the entry point for
-    // block 1. activeModuleRef matches the destination so the auto-
-    // pause hook doesn't fire on arrival.
     const startRoute = firstMeta?.route ?? '/practice-sessions/active';
 
-    startSession({
+    // Arm — don't start. The actual `start` action fires when the
+    // user arrives at the first block's module (handled by
+    // useStartArmedSessionOnArrival in Layout). Keeps session-time
+    // = practice-time; questionnaire-fill + proposal-browse don't
+    // get counted.
+    armSession({
       origin: 'practice-sessions',
-      activeModuleRef: firstBlock.moduleRef,
       blocks: card.blocks.map(b => ({
         moduleRef: b.moduleRef,
         itemRefs: [...b.itemRefs],

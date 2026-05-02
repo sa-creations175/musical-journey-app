@@ -9,6 +9,7 @@ import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
+import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
 import { HardPausePromptModal } from '../lib/sessionTimer/HardPausePromptModal';
 
@@ -16,6 +17,7 @@ export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creativeOpen, setCreativeOpen] = useState(false);
   useAutoPauseOnNavigation();
+  useStartArmedSessionOnArrival();
   return (
     <div className="min-h-full flex flex-col">
     <GlobalSessionBanner />
