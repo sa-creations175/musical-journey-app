@@ -65,6 +65,30 @@ describe('isOnActiveModule', () => {
     // Hypothetical defensive case — first-segment must equal exactly.
     expect(isOnActiveModule('/shapes', 'shapes-and-patterns')).toBe(false);
   });
+
+  it('matches a sub-module ref against its full nested route', () => {
+    // 'intervals' is registered with route '/ear-training/intervals'.
+    // Naive first-segment comparison would yield 'ear-training' !==
+    // 'intervals' and falsely report off-module — so the auto-pause
+    // hook would re-pause every time the user lands on the sub-module.
+    expect(isOnActiveModule('/ear-training/intervals', 'intervals')).toBe(true);
+    expect(isOnActiveModule('/ear-training/intervals/anything', 'intervals')).toBe(true);
+  });
+
+  it('rejects sibling sub-module routes', () => {
+    expect(isOnActiveModule('/ear-training/chord-recognition', 'intervals')).toBe(false);
+    expect(isOnActiveModule('/ear-training', 'intervals')).toBe(false);
+  });
+
+  it('still treats a top-level module sub-route as on-module', () => {
+    expect(isOnActiveModule('/ear-training/intervals', 'ear-training')).toBe(true);
+    expect(isOnActiveModule('/ear-training', 'ear-training')).toBe(true);
+  });
+
+  it('falls back to first-segment match for refs not in the module registry', () => {
+    expect(isOnActiveModule('/unregistered-module', 'unregistered-module')).toBe(true);
+    expect(isOnActiveModule('/elsewhere', 'unregistered-module')).toBe(false);
+  });
 });
 
 describe('decideAutoPauseAction', () => {

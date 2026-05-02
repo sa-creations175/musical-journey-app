@@ -5,8 +5,8 @@
  * The proposal-acceptance flow calls armSession({...}) and navigates
  * to the first block's module's route. This hook (mounted in Layout
  * alongside useAutoPauseOnNavigation) watches pathname + pendingStart
- * and fires startSession exactly once: when the first non-empty
- * pathname segment matches the first block's moduleRef.
+ * and fires startSession exactly once: when the user lands on the
+ * first block's module route (top-level or sub-module).
  *
  * Result: session-time = actual practice time. The questionnaire-
  * fill + proposal-browse window doesn't count toward active time.
@@ -17,7 +17,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useSessionTimer } from './SessionTimerContext';
-import { pathnameToModuleRef } from './useAutoPauseOnNavigation';
+import { isOnActiveModule } from './useAutoPauseOnNavigation';
 
 export function useStartArmedSessionOnArrival(): void {
   const location = useLocation();
@@ -29,8 +29,7 @@ export function useStartArmedSessionOnArrival(): void {
     const firstBlock = state.pendingStart.blocks[0];
     if (!firstBlock) return;
 
-    const seg = pathnameToModuleRef(location.pathname);
-    if (seg !== firstBlock.moduleRef) return;
+    if (!isOnActiveModule(location.pathname, firstBlock.moduleRef)) return;
 
     startSession({
       origin: state.pendingStart.origin,

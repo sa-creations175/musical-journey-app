@@ -8,18 +8,20 @@
  * auto-navigation one. A manual pause survives navigation: returning
  * to the active module does not undo it.
  *
- * Module-ref derivation is a literal first-segment match. The Phase 1
- * route table mounts every module at a top-level slug
- * (`/shapes-and-patterns`, `/ear-training/...`, etc.), so the first
- * non-empty segment is the canonical module ref. Sub-routes
- * (`/shapes-and-patterns/calendar`) keep the same first segment and
- * count as "still in module" — the user hasn't left.
+ * On-module detection uses the module registry's route, not first-
+ * segment heuristics. Top-level modules ('harmonic-fluency') live at
+ * '/harmonic-fluency'; sub-modules ('intervals', 'chord-recognition',
+ * etc.) live at nested paths like '/ear-training/intervals'. A simple
+ * first-segment match misses the sub-module case — `intervals` would
+ * never equal `'ear-training'`. So we look up the module's canonical
+ * route and check pathname-startsWith.
  *
  * The decision logic lives in `decideAutoPauseAction` (pure, tested
  * in isolation) so this module's wiring stays trivial.
  */
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { moduleMetaById } from '../moduleMeta';
 import { useSessionTimer } from './SessionTimerContext';
 import type { SessionState } from './types';
 
@@ -88,9 +90,26 @@ export function pathnameToModuleRef(pathname: string): string | null {
   return null;
 }
 
+/**
+ * Is the user "on" the module identified by activeModuleRef? True if
+ * the pathname equals the module's canonical route, or is a sub-route
+ * underneath it. Looks up the module in the registry; sub-modules
+ * (route '/ear-training/intervals') get matched correctly by their
+ * full route, not by first-segment heuristics.
+ *
+ * Falls back to first-segment equality when activeModuleRef isn't in
+ * the registry (e.g. test fixtures, unknown refs). That preserves the
+ * pre-registry behavior so existing tests / shape-and-patterns paths
+ * keep working.
+ */
 export function isOnActiveModule(
   pathname: string,
   activeModuleRef: string,
 ): boolean {
+  const meta = moduleMetaById(activeModuleRef);
+  if (meta) {
+    if (pathname === meta.route) return true;
+    return pathname.startsWith(meta.route + '/');
+  }
   return pathnameToModuleRef(pathname) === activeModuleRef;
 }
