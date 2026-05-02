@@ -57,29 +57,6 @@ import type { ProposalCardData } from './proposalTypes';
  */
 type View = 'home' | 'questionnaire' | 'proposal' | 'abundance';
 
-// -------------------------------------------------------------------
-// DEV-only abundance override
-// -------------------------------------------------------------------
-// Lets us verify the four abundance reasons + zero-goals fallback in
-// the browser without touching real goals. Tree-shakes out of
-// production via import.meta.env.DEV. REMOVE AFTER VERIFICATION.
-const DEV_FORCE_MODES = [
-  'normal',
-  'ahead-of-pace',
-  'queue-cleared',
-  'nothing-urgent',
-  'zero-goals',
-] as const;
-type DevForceMode = (typeof DEV_FORCE_MODES)[number];
-
-const DEV_DEFAULT_INPUTS: InputQuestionnaireResult = {
-  timeMinutes: 30,
-  context: 'keys',
-  dayPlan: { kind: 'just_this_session' },
-  intent: { kind: 'balanced' },
-  energy: { focus: 3, motivation: 3, inspiration: 3 },
-};
-
 export default function PracticeSessions() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -106,11 +83,6 @@ export default function PracticeSessions() {
   const [lastInputs, setLastInputs] =
     useState<InputQuestionnaireResult | null>(null);
   const [activePath, setActivePath] = useState<AbundancePath | null>(null);
-  // Dev-only override for verifying the abundance + zero-goals flows
-  // without manipulating real goals. Cycles via the DEV button in
-  // the home header; gated by import.meta.env.DEV so it tree-shakes
-  // out of production bundles. REMOVE AFTER VERIFICATION.
-  const [devForceMode, setDevForceMode] = useState<DevForceMode>('normal');
   // "You have a session in progress" prompt — fires when the user
   // taps Start a session while a session is already running or
   // paused. Lets them resume the existing one or end it cleanly
@@ -164,31 +136,6 @@ export default function PracticeSessions() {
       cancelled = true;
     };
   }, [view]);
-
-  // DEV: cycle through abundance reasons + zero-goals to verify the
-  // path screens in the browser. Each non-normal mode jumps straight
-  // to the abundance view with default inputs so subsequent path
-  // pick / regenerate flows work end-to-end. REMOVE AFTER VERIFICATION.
-  const cycleDevForceMode = () => {
-    if (!import.meta.env.DEV) return;
-    setDevForceMode(curr => {
-      const idx = DEV_FORCE_MODES.indexOf(curr);
-      const next = DEV_FORCE_MODES[(idx + 1) % DEV_FORCE_MODES.length];
-      if (next === 'normal') {
-        setView('home');
-        setAbundanceReason(null);
-        setActivePath(null);
-        setProposals([]);
-      } else {
-        setLastInputs(DEV_DEFAULT_INPUTS);
-        setAbundanceReason(next);
-        setActivePath(null);
-        setProposals([]);
-        setView('abundance');
-      }
-      return next;
-    });
-  };
 
   const handleStartSession = (dayProfile?: DayProfileChoice) => {
     setInitialDayProfile(dayProfile ?? null);
@@ -253,13 +200,7 @@ export default function PracticeSessions() {
     setGenerating(true);
     try {
       const earlierSessionsToday = await countEarlierSessionsToday();
-      let plan = await buildSessionPlan(inputs, { earlierSessionsToday });
-      // DEV-only override — forces the result regardless of real
-      // signals so we can verify the path screens. Tree-shaken in
-      // production via import.meta.env.DEV. REMOVE AFTER VERIFICATION.
-      if (import.meta.env.DEV && devForceMode !== 'normal') {
-        plan = { kind: 'abundance', reason: devForceMode };
-      }
+      const plan = await buildSessionPlan(inputs, { earlierSessionsToday });
       setLastInputs(inputs);
       setActivePath(null);
       if (plan.kind === 'abundance') {
@@ -434,16 +375,6 @@ export default function PracticeSessions() {
         <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100 flex-1">
           Practice Sessions
         </h1>
-        {import.meta.env.DEV && (
-          <button
-            type="button"
-            onClick={cycleDevForceMode}
-            className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
-            title="DEV: cycle abundance / zero-goals override (remove after verification)"
-          >
-            DEV: {devForceMode}
-          </button>
-        )}
       </header>
 
       <button
