@@ -367,10 +367,6 @@ export default function PracticeSessions() {
           reason={abundanceReason}
           onPick={handlePathPick}
           onTryDifferentInputs={() => setView('questionnaire')}
-          devForceMode={import.meta.env.DEV ? devForceMode : undefined}
-          onCycleDevForceMode={
-            import.meta.env.DEV ? cycleDevForceMode : undefined
-          }
         />
       </div>
     );
