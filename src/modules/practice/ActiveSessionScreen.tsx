@@ -1,13 +1,12 @@
 /**
- * Phase 3 Step 5a/5b — Active session execution screen.
+ * Phase 3 Step 5a/5b/5c — Active session execution screen.
  *
  * One block at a time, full-screen focus. Reads from the global
  * timer; doesn't start sessions itself (proposal acceptance does
  * that, supplying the block list).
  *
- * Subsequent substeps add:
- *   5c — Flying / Cruising / Crawling rating at block end
- *   5d — between-blocks "Ready for next?" screen
+ * 5d will add the "Ready for next?" preview + Start button so the
+ * rating + preview share one between-blocks surface.
  *
  * activeModuleRef wiring (per the 1b design call, model b):
  *   - While on this screen, activeModuleRef = 'practice-sessions'.
@@ -17,13 +16,22 @@
  *
  * Soft-block vs hard-block (5b):
  *   - Soft (default): on countdown reaching 0, extend pills appear
- *     (+2 / +5 / +10 min). User taps end manually to move on. Block
- *     time can run over without penalty — the timer records actual
- *     active ms regardless.
- *   - Hard (opt-in via prop, future session config): on countdown
- *     reaching 0, a 5-second grace begins; system auto-advances at
- *     grace end. User can interrupt by extending (resets grace) or
- *     manually ending.
+ *     (+2 / +5 / +10 min). User taps End manually to move on.
+ *   - Hard (opt-in): on countdown reaching 0, a 5-second grace
+ *     auto-advances. User can interrupt by extending or ending.
+ *
+ * Rating phase (5c):
+ *   - User taps End → screen pauses the timer + transitions to a
+ *     rating phase showing three vertically-stacked buttons
+ *     (Flying / Cruising / Crawling). Always optional — Next can
+ *     fire with no rating selected (missed ratings will batch at
+ *     session end in Step 6e).
+ *   - On Next, the timer resumes and advanceBlock dispatches with
+ *     the chosen rating. The advance auto-ends the session if this
+ *     was the last block.
+ *   - Hard-block grace bypasses the rating phase for now — quick-
+ *     tap-during-grace integration is a future refinement once the
+ *     UX has been exercised in real use.
  */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -33,6 +41,7 @@ import {
   useSessionTimes,
 } from '../../lib/sessionTimer/SessionTimerContext';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
+import type { PerformanceRating } from '../../lib/sessionTimer/types';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -40,25 +49,63 @@ const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
 export const HARD_BLOCK_GRACE_MS = 5000;
 const EXTEND_OPTIONS_MIN: ReadonlyArray<number> = [2, 5, 10];
 
+type Phase = 'running' | 'rating';
+
+interface RatingOption {
+  value: PerformanceRating;
+  label: string;
+  /** Tailwind classes for the button's accent. Per design: warm /
+   *  neutral / cool, not red. */
+  activeClass: string;
+  inactiveClass: string;
+}
+
+const RATING_OPTIONS: ReadonlyArray<RatingOption> = [
+  {
+    value: 'flying',
+    label: 'Flying',
+    activeClass: 'bg-amber-500 text-white border-amber-500',
+    inactiveClass:
+      'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
+  },
+  {
+    value: 'cruising',
+    label: 'Cruising',
+    activeClass: 'bg-neutral-500 text-white border-neutral-500',
+    inactiveClass:
+      'border-neutral-400 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-500/10',
+  },
+  {
+    value: 'crawling',
+    label: 'Crawling',
+    activeClass: 'bg-teal-600 text-white border-teal-600',
+    inactiveClass:
+      'border-teal-600/40 text-teal-700 dark:text-teal-400 hover:bg-teal-600/10',
+  },
+];
+
 interface Props {
   /** Hard-block mode: auto-advance after a 5-second grace once the
-   *  countdown reaches 0. Defaults to soft (extend / manual end).
-   *  Future session config will drive this; hardcoded false for now. */
+   *  countdown reaches 0. Defaults to soft. */
   hardBlock?: boolean;
 }
 
 export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   const navigate = useNavigate();
-  const { state, setActiveModuleRef, advanceBlock } = useSessionTimer();
+  const { state, setActiveModuleRef, advanceBlock, pauseSession, resumeSession } =
+    useSessionTimer();
   const times = useSessionTimes();
 
-  // Local extension bank — accumulates +2/+5/+10 taps. Reset on
-  // each block change so extensions don't carry across blocks.
+  const [phase, setPhase] = useState<Phase>('running');
+  const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
   const [extensionSeconds, setExtensionSeconds] = useState(0);
   const [hardGraceStart, setHardGraceStart] = useState<number | null>(null);
 
-  // Reset extension + grace when the current block changes.
+  // Reset all per-block state when the current block changes — fresh
+  // block, fresh extension bank + grace + rating draft.
   useEffect(() => {
+    setPhase('running');
+    setPendingRating(null);
     setExtensionSeconds(0);
     setHardGraceStart(null);
   }, [state.currentBlockIndex]);
@@ -108,13 +155,13 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
   const isOvertime = elapsedSec >= totalSec;
   const isEnded = state.status === 'ended';
 
-  // Start the hard-block grace timer the first tick we cross the
-  // 0-mark. Idempotent: subsequent ticks see hardGraceStart already
-  // non-null and skip.
+  // Start the hard-block grace at the moment we cross the 0-mark.
+  // Idempotent: subsequent ticks see hardGraceStart already set.
   if (
     hardBlock &&
     isOvertime &&
     !isEnded &&
+    phase === 'running' &&
     hardGraceStart === null
   ) {
     queueMicrotask(() => setHardGraceStart(Date.now()));
@@ -126,13 +173,25 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
     navigate(route);
   };
 
+  // 5c — End now transitions to the rating phase rather than
+  // advancing immediately. Pause keeps activeMs honest while the
+  // user takes their time choosing a rating.
   const handleEndActivity = () => {
-    advanceBlock({ markStatus: 'completed' });
+    pauseSession({ reason: 'manual' });
+    setPhase('rating');
   };
 
   const handleExtend = (mins: number) => {
     setExtensionSeconds(s => s + mins * 60);
-    setHardGraceStart(null); // cancel any pending grace auto-advance
+    setHardGraceStart(null);
+  };
+
+  const handleRatingNext = () => {
+    resumeSession();
+    advanceBlock({
+      rating: pendingRating ?? undefined,
+      markStatus: 'completed',
+    });
   };
 
   const graceRemainingSec =
@@ -162,6 +221,74 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
     );
   }
 
+  // -------------------------------------------------------------
+  // Rating phase (5c). Step 5d will replace the bare Next button
+  // with a "Ready for next?" preview surface.
+  // -------------------------------------------------------------
+  if (phase === 'rating') {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+        <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
+          Block {(state.currentBlockIndex ?? 0) + 1} of {state.blocks.length}
+        </div>
+
+        <section
+          className="rounded-lg border p-5 sm:p-6 space-y-5"
+          style={{ borderColor: accent, backgroundColor: `${accent}0a`, borderLeftWidth: 3 }}
+        >
+          <div className="text-center space-y-1">
+            <div
+              className="text-[11px] uppercase tracking-wider font-medium"
+              style={{ color: accent }}
+            >
+              {moduleLabel}
+            </div>
+            <h2 className="text-base font-medium">
+              How did{' '}
+              <span className="text-neutral-700 dark:text-neutral-200">
+                {currentBlock.label ?? currentBlock.moduleRef}
+              </span>{' '}
+              go?
+            </h2>
+            <p className="text-[11px] text-neutral-500">
+              Optional — tap one or skip with Next.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {RATING_OPTIONS.map(opt => {
+              const active = pendingRating === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPendingRating(active ? null : opt.value)}
+                  aria-pressed={active}
+                  className={`w-full px-3 py-3 rounded-md border text-sm font-medium transition-colors ${
+                    active ? opt.activeClass : opt.inactiveClass
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={handleRatingNext}
+          className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
+        >
+          {pendingRating ? 'next' : 'next (skip rating)'}
+        </button>
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // Running phase
+  // -------------------------------------------------------------
   return (
     <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
       <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
@@ -191,9 +318,7 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
         <div className="text-center py-3">
           <div
             className="font-mono tabular-nums text-6xl"
-            style={{
-              color: isOvertime ? accent : undefined,
-            }}
+            style={{ color: isOvertime ? accent : undefined }}
           >
             {formatActiveTime(remainingSec * 1000)}
           </div>
@@ -214,8 +339,6 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
           </button>
         )}
 
-        {/* Soft-block extend pills surface as soon as we're at or
-            past 0:00. Tapping resets any pending hard-block grace. */}
         {isOvertime && (
           <div className="flex items-center justify-center gap-1.5">
             {EXTEND_OPTIONS_MIN.map(m => (
