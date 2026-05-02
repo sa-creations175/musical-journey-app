@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
@@ -82,6 +82,7 @@ const DEV_DEFAULT_INPUTS: InputQuestionnaireResult = {
 
 export default function PracticeSessions() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { state: timerState, armSession, reset } = useSessionTimer();
 
   const [view, setView] = useState<View>('home');
@@ -123,6 +124,25 @@ export default function PracticeSessions() {
       console.warn('[PracticeSessions] recordEndOfMonth failed', err);
     });
   }, []);
+
+  // Tapping the Practice Sessions nav item while already on
+  // /practice-sessions creates a new history entry but doesn't
+  // remount this component — internal view state would otherwise
+  // strand the user on the abundance / questionnaire / proposal
+  // surface. location.key changes on every navigation (including
+  // same-URL re-navigations from NavLink), so we use it as the
+  // signal to reset back to the home view. On the first mount the
+  // reset is a no-op (state is already the defaults).
+  useEffect(() => {
+    if (location.pathname !== '/practice-sessions') return;
+    setView('home');
+    setAbundanceReason(null);
+    setActivePath(null);
+    setProposals([]);
+    setLastInputs(null);
+    setInitialDayProfile(null);
+    setSessionInProgressOpen(false);
+  }, [location.key, location.pathname]);
 
   // Cold-start banner flag, earlier-sessions count, and feasibility
   // entries refreshed on every mount of the home view (e.g. after
