@@ -55,6 +55,19 @@ interface Props {
    * the banner's internals or its data fetch.
    */
   feasibilityBanner?: ReactNode;
+  /**
+   * Step 8d — Back link that returns the user to the three-path
+   * choice screen. Only supplied when this proposal was generated
+   * via an abundance path; absent for standard-flow proposals.
+   */
+  onBackToPaths?: () => void;
+  /**
+   * Step 8e — Regenerate the proposal on the same path with a
+   * fresh item selection. Only supplied alongside onBackToPaths.
+   */
+  onRegeneratePath?: () => void;
+  /** True while a regenerate is in flight — disables the button. */
+  regenerating?: boolean;
 }
 
 export default function ProposalScreen({
@@ -68,6 +81,9 @@ export default function ProposalScreen({
   affirmation,
   showColdStartBanner,
   feasibilityBanner,
+  onBackToPaths,
+  onRegeneratePath,
+  regenerating,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -94,6 +110,38 @@ export default function ProposalScreen({
 
   return (
     <section className="space-y-3">
+      {(onBackToPaths || onRegeneratePath) && (
+        <div className="flex items-center justify-between text-[11px] text-neutral-500">
+          {onBackToPaths ? (
+            <button
+              type="button"
+              onClick={onBackToPaths}
+              className="hover:text-fluent inline-flex items-center gap-1"
+            >
+              <span aria-hidden>←</span>
+              <span>back to options</span>
+            </button>
+          ) : (
+            <span />
+          )}
+          {onRegeneratePath && (
+            <button
+              type="button"
+              onClick={onRegeneratePath}
+              disabled={regenerating}
+              className={`inline-flex items-center gap-1 ${
+                regenerating
+                  ? 'text-neutral-400 cursor-not-allowed'
+                  : 'hover:text-fluent'
+              }`}
+            >
+              <span aria-hidden>↻</span>
+              <span>{regenerating ? 'regenerating…' : 'regenerate'}</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <ColdStartBanner visible={!!showColdStartBanner} />
 
       {feasibilityBanner}

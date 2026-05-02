@@ -21,6 +21,10 @@ import { db, type Goal, type SpacingState } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { getMemoryType } from '../../lib/memoryType';
 import {
+  detectAbundance,
+  type AbundanceReason,
+} from '../../lib/sessionAlgorithm/abundance';
+import {
   candidateSpecForGoal,
   resolveCandidates,
 } from '../../lib/sessionAlgorithm/candidates';
@@ -34,6 +38,7 @@ import type {
 } from '../../lib/sessionAlgorithm/timeAllocation';
 import { goalAlignmentFactor } from '../../lib/sessionAlgorithm/weighting';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
+import { getGoalFeasibility } from '../goals/progress';
 import type {
   ProposalBlock,
   ProposalCardData,
@@ -68,18 +73,199 @@ export async function buildSessionProposals(
     return [];
   }
 
-  const availableSeconds = inputs.timeMinutes * 60;
+  return generateAndShape(moduleBlocks, inputs.timeMinutes * 60);
+}
+
+// ---------------------------------------------------------------------
+// Step 8a — Session planning (abundance-aware orchestration)
+// ---------------------------------------------------------------------
+
+/**
+ * Step 8a — high-level orchestration that wraps proposal generation
+ * with the abundance trigger detection from Step 2j. Returns a
+ * discriminated union so the caller (PracticeSessions) can route to
+ * either the standard ProposalScreen or the abundance three-path
+ * screen.
+ *
+ * Reasons surface back to the path-screen header copy:
+ *   queue-cleared / ahead-of-pace / nothing-urgent — abundance flow
+ *   zero-goals — fallback flow (8f) with creative + rest paths
+ */
+export type SessionPlanReason = AbundanceReason | 'zero-goals';
+
+export type SessionPlan =
+  | { kind: 'proposals'; cards: ProposalCardData[] }
+  | { kind: 'abundance'; reason: SessionPlanReason };
+
+export interface SessionPlanContext {
+  /** Sessions logged earlier today — gates the nothing-urgent
+   *  abundance signal. Caller usually passes
+   *  countEarlierSessionsToday(). */
+  earlierSessionsToday: number;
+}
+
+export async function buildSessionPlan(
+  inputs: InputQuestionnaireResult,
+  context: SessionPlanContext,
+): Promise<SessionPlan> {
+  const goals = await db.goals.where('status').equals('active').toArray();
+
+  // Zero-goals: nothing for the algorithm to chew on. Surfaces the
+  // 8f fallback paths instead of a confusing empty proposal screen.
+  if (goals.length === 0) {
+    return { kind: 'abundance', reason: 'zero-goals' };
+  }
+
+  const spacingRows = await db.spacingState.toArray();
+  const moduleBlocks = aggregateGoalCandidatesByModule(goals, spacingRows);
+
+  const candidatePoolSize = moduleBlocks.reduce(
+    (sum, b) => sum + b.itemRefs.length,
+    0,
+  );
+  const topItemWeight = moduleBlocks.reduce(
+    (max, b) => Math.max(max, b.weight),
+    0,
+  );
+  const goalPaceRatios = computeGoalPaceRatios(goals);
+
+  const abundance = detectAbundance({
+    candidatePoolSize,
+    topItemWeight,
+    goalPaceRatios,
+    earlierSessionsToday: context.earlierSessionsToday,
+  });
+
+  if (abundance.triggered && abundance.reason) {
+    return { kind: 'abundance', reason: abundance.reason };
+  }
+
+  if (moduleBlocks.length === 0) {
+    // Defensive — detectAbundance would normally fire queue-cleared
+    // here (candidatePoolSize=0), but if the thresholds ever drift
+    // we still want a sensible fallback rather than an empty
+    // proposal screen.
+    return { kind: 'abundance', reason: 'queue-cleared' };
+  }
+
+  return {
+    kind: 'proposals',
+    cards: generateAndShape(moduleBlocks, inputs.timeMinutes * 60),
+  };
+}
+
+/**
+ * Pace ratio per measurable goal — used by the abundance detector's
+ * ahead-of-pace branch. Aspirational + unknown feasibilities are
+ * skipped (not measurable). Ratio = projected / target; >= 1.0 means
+ * on or ahead of the straight-line trajectory.
+ */
+function computeGoalPaceRatios(goals: ReadonlyArray<Goal>): number[] {
+  const today = new Date();
+  const ratios: number[] = [];
+  for (const goal of goals) {
+    const f = getGoalFeasibility(goal, {
+      currentValue: goal.currentValue,
+      today,
+    });
+    if (f.kind === 'measurable' && f.target > 0) {
+      ratios.push(f.projected / f.target);
+    }
+  }
+  return ratios;
+}
+
+function generateAndShape(
+  moduleBlocks: AlgorithmBlock[],
+  availableSeconds: number,
+): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
     availableSeconds,
   });
-
   return proposals.map(p => ({
     kind: p.kind,
     title: p.title,
     blocks: p.blocks.map(b => toProposalBlock(b)),
     totalSeconds: p.totalSeconds,
   }));
+}
+
+// ---------------------------------------------------------------------
+// Step 8c — Path-specific proposal generation
+// ---------------------------------------------------------------------
+
+export type AbundancePath = 'get-ahead' | 'drive-home' | 'expand';
+
+/**
+ * Build proposals scoped to one of the abundance paths. Filters
+ * spacing rows by the path's semantic intent before running the
+ * standard module-aggregation + generation pipeline:
+ *
+ *   get-ahead   — items not yet due (nextDueAt > now). Bank
+ *                 progress on what's coming up.
+ *   drive-home  — items already in motion (acquiring) or
+ *                 consolidated (acquired). Reinforcement.
+ *   expand      — items at the 'new' stage. Break new ground.
+ *
+ * Items are shuffled per call so Regenerate (8e) returns a fresh
+ * selection each time. If the path filter eliminates everything,
+ * we fall back to the unfiltered pool so the user still gets a
+ * proposal — better to be slightly off-intent than to land on an
+ * empty screen.
+ */
+export async function buildSessionProposalsForPath(
+  path: AbundancePath,
+  inputs: InputQuestionnaireResult,
+): Promise<ProposalCardData[]> {
+  const goals = await db.goals.where('status').equals('active').toArray();
+  if (goals.length === 0) return [];
+
+  const spacingRows = await db.spacingState.toArray();
+  const filteredRows = filterSpacingRowsByPath(spacingRows, path);
+  const shuffledFiltered = shuffleInPlace(filteredRows.slice());
+
+  const availableSeconds = inputs.timeMinutes * 60;
+
+  const filteredBlocks = aggregateGoalCandidatesByModule(goals, shuffledFiltered);
+  if (filteredBlocks.length > 0) {
+    return generateAndShape(filteredBlocks, availableSeconds);
+  }
+
+  // Fallback — shuffle the full pool so we still introduce fresh
+  // variety even though the path filter came up empty.
+  const fallbackBlocks = aggregateGoalCandidatesByModule(
+    goals,
+    shuffleInPlace(spacingRows.slice()),
+  );
+  if (fallbackBlocks.length === 0) return [];
+  return generateAndShape(fallbackBlocks, availableSeconds);
+}
+
+export function filterSpacingRowsByPath(
+  rows: ReadonlyArray<SpacingState>,
+  path: AbundancePath,
+): SpacingState[] {
+  const now = Date.now();
+  switch (path) {
+    case 'get-ahead':
+      return rows.filter(r => r.nextDueAt !== null && r.nextDueAt > now);
+    case 'drive-home':
+      return rows.filter(
+        r => r.acquisitionStage === 'acquiring' || r.acquisitionStage === 'acquired',
+      );
+    case 'expand':
+      return rows.filter(r => r.acquisitionStage === 'new');
+  }
+}
+
+/** Fisher–Yates shuffle. Mutates the array. */
+function shuffleInPlace<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 // ---------------------------------------------------------------------

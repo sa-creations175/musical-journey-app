@@ -20,8 +20,16 @@ import {
   endActiveSessionForPipeline,
   runEndOfSessionPipeline,
 } from './endOfSessionPersistence';
-import { buildSessionProposals } from './sessionGenerator';
+import {
+  buildSessionPlan,
+  buildSessionProposalsForPath,
+  type AbundancePath,
+  type SessionPlanReason,
+} from './sessionGenerator';
 import { countEarlierSessionsToday } from './sessionsToday';
+import AbundancePathScreen, {
+  type AbundancePathChoice,
+} from './AbundancePathScreen';
 import type {
   DayProfileChoice,
   InputQuestionnaireResult,
@@ -47,7 +55,7 @@ import type { ProposalCardData } from './proposalTypes';
  * disappear-when-clear behavior; 7e the ordering reconciliation
  * with the existing goals nudge.
  */
-type View = 'home' | 'questionnaire' | 'proposal';
+type View = 'home' | 'questionnaire' | 'proposal' | 'abundance';
 
 export default function PracticeSessions() {
   const navigate = useNavigate();
@@ -63,6 +71,17 @@ export default function PracticeSessions() {
   const [feasibilityEntries, setFeasibilityEntries] = useState<
     ReadonlyArray<FeasibilityBannerEntry>
   >([]);
+  // Step 8 — abundance flow state. abundanceReason drives the
+  // path-screen header copy + which card set renders. lastInputs
+  // caches the questionnaire result so the user can pick a path or
+  // regenerate without re-answering. activePath records which path
+  // produced the current proposal so the proposal screen can render
+  // Back / Regenerate affordances and Regenerate keeps the path.
+  const [abundanceReason, setAbundanceReason] =
+    useState<SessionPlanReason | null>(null);
+  const [lastInputs, setLastInputs] =
+    useState<InputQuestionnaireResult | null>(null);
+  const [activePath, setActivePath] = useState<AbundancePath | null>(null);
   // "You have a session in progress" prompt — fires when the user
   // taps Start a session while a session is already running or
   // paused. Lets them resume the existing one or end it cleanly
@@ -160,13 +179,77 @@ export default function PracticeSessions() {
     if (generating) return;
     setGenerating(true);
     try {
-      const built = await buildSessionProposals(inputs);
-      setProposals(built);
+      const earlierSessionsToday = await countEarlierSessionsToday();
+      const plan = await buildSessionPlan(inputs, { earlierSessionsToday });
+      setLastInputs(inputs);
+      setActivePath(null);
+      if (plan.kind === 'abundance') {
+        setAbundanceReason(plan.reason);
+        setProposals([]);
+        setView('abundance');
+      } else {
+        setAbundanceReason(null);
+        setProposals(plan.cards);
+        setView('proposal');
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[PracticeSessions] buildSessionPlan failed', e);
+      // Stay on questionnaire so the user can adjust + retry.
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Step 8c — user picked an abundance path. Generate path-specific
+  // proposals and route to the proposal screen. activePath sticks
+  // around so 8d (Back) and 8e (Regenerate) can return / re-run.
+  const handlePathPick = async (choice: AbundancePathChoice) => {
+    // 8f fallback paths route the user out of the planner entirely.
+    if (choice === 'just-play') {
+      navigate('/harmonic-diary');
+      return;
+    }
+    if (choice === 'set-goal') {
+      navigate('/goals');
+      return;
+    }
+    if (choice === 'rest') {
+      setView('home');
+      setAbundanceReason(null);
+      setLastInputs(null);
+      return;
+    }
+
+    if (!lastInputs || generating) return;
+    setGenerating(true);
+    try {
+      const cards = await buildSessionProposalsForPath(choice, lastInputs);
+      setProposals(cards);
+      setActivePath(choice);
       setView('proposal');
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error('[PracticeSessions] buildSessionProposals failed', e);
-      // Stay on questionnaire so the user can adjust + retry.
+      console.error('[PracticeSessions] buildSessionProposalsForPath failed', e);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleBackToPaths = () => {
+    setActivePath(null);
+    setView('abundance');
+  };
+
+  const handleRegeneratePath = async () => {
+    if (!activePath || !lastInputs || generating) return;
+    setGenerating(true);
+    try {
+      const cards = await buildSessionProposalsForPath(activePath, lastInputs);
+      setProposals(cards);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[PracticeSessions] regenerate path failed', e);
     } finally {
       setGenerating(false);
     }
@@ -196,6 +279,21 @@ export default function PracticeSessions() {
   };
 
   // -------------------------------------------------------------
+  // Abundance / fallback path-choice view (Step 8b + 8f)
+  // -------------------------------------------------------------
+  if (view === 'abundance' && abundanceReason) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        <AbundancePathScreen
+          reason={abundanceReason}
+          onPick={handlePathPick}
+          onTryDifferentInputs={() => setView('questionnaire')}
+        />
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
   // Proposal view
   // -------------------------------------------------------------
   if (view === 'proposal') {
@@ -205,6 +303,9 @@ export default function PracticeSessions() {
           proposals={proposals}
           onAccept={handleProposalAccept}
           onTryDifferentInputs={() => setView('questionnaire')}
+          onBackToPaths={activePath ? handleBackToPaths : undefined}
+          onRegeneratePath={activePath ? handleRegeneratePath : undefined}
+          regenerating={generating}
           showColdStartBanner={showColdStart}
           feasibilityBanner={
             <FeasibilityBanner
