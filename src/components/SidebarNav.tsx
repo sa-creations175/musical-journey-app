@@ -190,7 +190,15 @@ const ALL_GROUP_IDS = NAV_GROUPS.map(g => g.id);
  *  module-state keys in the same expansion map. */
 const groupKey = (id: string) => `group:${id}`;
 
-export default function SidebarNav() {
+interface SidebarNavProps {
+  /** When true, render the icon-only compact list at md+. The full
+   *  expanded tree still renders on phone (below md) since the
+   *  sidebar layout there is at the top of the page rather than a
+   *  side rail and there's no width pressure to relieve. */
+  collapsed?: boolean;
+}
+
+export default function SidebarNav({ collapsed = false }: SidebarNavProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [hydrated, setHydrated] = useState(false);
   const location = useLocation();
@@ -220,41 +228,95 @@ export default function SidebarNav() {
 
   const currentPath = location.pathname + location.search;
 
+  // Compact (icon-only) sidebar — only used at md+ when collapsed.
+  // Phone keeps the expanded tree regardless: at that breakpoint the
+  // sidebar lays out across the top of the page, so width pressure
+  // is the inverse problem.
+  const compactClass = collapsed ? 'hidden md:flex' : 'hidden';
+  const expandedClass = collapsed
+    ? 'md:hidden px-2 pb-4 flex flex-col gap-2 overflow-x-auto'
+    : 'px-2 pb-4 flex flex-col gap-2 md:gap-3 overflow-x-auto md:overflow-x-visible';
+
   return (
-    <nav className="px-2 pb-4 flex flex-col gap-2 md:gap-3 overflow-x-auto md:overflow-x-visible">
-      {NAV_GROUPS.map(group => {
-        const gKey = groupKey(group.id);
-        // Default open when hydrated value is missing (covers race
-        // conditions before hydration completes).
-        const isGroupOpen = expanded[gKey] !== false;
-        return (
-          <div key={group.id} className="flex flex-col">
-            <GroupHeader
-              label={group.label}
-              open={isGroupOpen}
-              onToggle={() => toggle(gKey)}
-              accentHex={GROUP_ACCENT[group.id]}
-            />
-            {isGroupOpen && (
-              // Indent the group's items + a subtle left-line so
-              // children read clearly as "inside" the group header
-              // rather than peers of it.
-              <div className="flex flex-col gap-0.5 md:gap-1 mt-1 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-800">
-                {group.items.map(item => (
-                  <NavItemRow
-                    key={item.id}
-                    item={item}
-                    expanded={expanded}
-                    onToggle={toggle}
-                    currentPath={currentPath}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </nav>
+    <>
+      <nav
+        className={`${compactClass} flex-col gap-1 px-1 pb-4`}
+        aria-label="modules"
+      >
+        {NAV_GROUPS.flatMap(g => g.items).map(item => (
+          <CompactNavLink key={item.id} item={item} />
+        ))}
+      </nav>
+      <nav className={expandedClass}>
+        {NAV_GROUPS.map(group => {
+          const gKey = groupKey(group.id);
+          // Default open when hydrated value is missing (covers race
+          // conditions before hydration completes).
+          const isGroupOpen = expanded[gKey] !== false;
+          return (
+            <div key={group.id} className="flex flex-col">
+              <GroupHeader
+                label={group.label}
+                open={isGroupOpen}
+                onToggle={() => toggle(gKey)}
+                accentHex={GROUP_ACCENT[group.id]}
+              />
+              {isGroupOpen && (
+                // Indent the group's items + a subtle left-line so
+                // children read clearly as "inside" the group header
+                // rather than peers of it.
+                <div className="flex flex-col gap-0.5 md:gap-1 mt-1 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-800">
+                  {group.items.map(item => (
+                    <NavItemRow
+                      key={item.id}
+                      item={item}
+                      expanded={expanded}
+                      onToggle={toggle}
+                      currentPath={currentPath}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </nav>
+    </>
+  );
+}
+
+/**
+ * Single icon-only nav button used in the collapsed sidebar. Sub-items
+ * + group headers are dropped — clicking lands on the module's base
+ * route. Native title attribute provides the label tooltip on hover.
+ */
+function CompactNavLink({ item }: { item: NavItem }) {
+  const meta = moduleMetaById(item.id);
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      title={item.label}
+      aria-label={item.label}
+      className={({ isActive }) =>
+        `inline-flex items-center justify-center w-10 h-10 rounded-md transition ${
+          isActive
+            ? 'bg-fluent/10 text-fluent'
+            : 'text-neutral-500 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800'
+        }`
+      }
+    >
+      {meta ? (
+        <ModuleGlyph meta={meta} size={22} fontSize={12} />
+      ) : (
+        <span
+          aria-hidden
+          className="inline-flex items-center justify-center w-[22px] h-[22px] rounded-md border border-current text-[11px] font-medium uppercase"
+        >
+          {item.label.charAt(0)}
+        </span>
+      )}
+    </NavLink>
   );
 }
 

@@ -111,7 +111,11 @@ export default function ProposalScreen({
         {proposals.map(p => (
           <div
             key={`${p.kind}-${p.title}`}
-            className="snap-center shrink-0 w-full md:w-auto"
+            // min-w-0 on the grid item is the standard fix for grid
+            // overflow at medium widths — without it, content with a
+            // long unbreakable token can grow the column past its
+            // 1fr allotment and spill into / overlap the sibling card.
+            className="snap-center shrink-0 w-full md:w-auto md:min-w-0"
           >
             <ProposalCard
               data={p}

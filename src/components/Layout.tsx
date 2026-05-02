@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import InstrumentSelector from './InstrumentSelector';
 import MetronomeControl from './MetronomeControl';
@@ -8,27 +8,87 @@ import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
+import { getPref, setPref } from '../lib/userPrefs';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
 import { HardPausePromptModal } from '../lib/sessionTimer/HardPausePromptModal';
 import { BlockExpiryModal } from '../lib/sessionTimer/BlockExpiryModal';
 
+const SIDEBAR_PREF = 'sidebarCollapsed';
+
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creativeOpen, setCreativeOpen] = useState(false);
+  // Sidebar collapse only takes effect at md+ (CSS gates it via
+  // md:w-* classes). The state is shared across all sizes so the
+  // user's preference survives resize. Initial value defaults to
+  // collapsed on md (768–1023px) and expanded at lg+; an explicit
+  // user toggle (persisted to userPrefs) overrides the default.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return !window.matchMedia('(min-width: 1024px)').matches;
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPref<boolean | null>(SIDEBAR_PREF, null).then(stored => {
+      if (cancelled || stored === null) return;
+      setSidebarCollapsed(stored);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      void setPref(SIDEBAR_PREF, next);
+      return next;
+    });
+  }, []);
+
   useAutoPauseOnNavigation();
   useStartArmedSessionOnArrival();
   return (
     <div className="min-h-full flex flex-col">
     <GlobalSessionBanner />
     <div className="flex-1 flex flex-col md:flex-row">
-      <aside className="md:w-60 md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur">
-        <div className="p-4">
-          <div className="text-sm font-medium tracking-tight text-fluent">musical journey</div>
-          <div className="text-xs text-neutral-500 mt-0.5">practice companion</div>
+      <aside
+        className={`${
+          sidebarCollapsed ? 'md:w-14' : 'md:w-60'
+        } md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur transition-[width] duration-150`}
+      >
+        <div
+          className={`p-4 ${
+            sidebarCollapsed ? 'md:p-2 md:justify-center' : ''
+          } flex items-center justify-between gap-2`}
+        >
+          <div className={sidebarCollapsed ? 'md:hidden' : ''}>
+            <div className="text-sm font-medium tracking-tight text-fluent">musical journey</div>
+            <div className="text-xs text-neutral-500 mt-0.5">practice companion</div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? 'expand sidebar' : 'collapse sidebar'}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? 'expand' : 'collapse'}
+            className="hidden md:inline-flex w-7 h-7 items-center justify-center rounded-md text-neutral-400 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0"
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              className={`transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`}
+              aria-hidden
+            >
+              <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
-        <SidebarNav />
+        <SidebarNav collapsed={sidebarCollapsed} />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         <header className="relative z-40 border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3">
