@@ -145,6 +145,85 @@ export function computeNextStage(
 }
 
 // ===================================================================
+// Phase 3 Step 6g — spacing curve (next_due_at recalculation)
+// ===================================================================
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** First-engagement interval. Subsequent intervals scale from here. */
+export const INITIAL_INTERVAL_DAYS = 1;
+/** Multiplier applied on a positive signal (correct attempt; flying
+ *  / cruising rating). Doubling-style SRS. */
+export const INTERVAL_GROWTH_FACTOR = 2;
+/** Multiplier applied on a negative signal (incorrect attempt;
+ *  crawling rating). */
+export const INTERVAL_REGRESSION_FACTOR = 0.5;
+/** Floor — never schedule less than this far out. */
+export const MIN_INTERVAL_DAYS = 1;
+
+/** Per-memory-type ceilings. Declarative items can sit longer
+ *  between reviews than expression items (which are recency-driven
+ *  and surface stale within a short window). Calibrated from
+ *  intuition; revisit from real use. */
+export const MAX_INTERVAL_BY_MEMORY_TYPE: Record<MemoryType, number> = {
+  declarative: 60,
+  procedural: 30,
+  integration: 30,
+  expression: 14,
+};
+
+/**
+ * Compute the new currentIntervalDays after this engagement. Pure;
+ * tests pass the prior interval + signal directly. Behavior:
+ *
+ *   attempt(correct=true) | rating in {flying, cruising}
+ *     → priorInterval × INTERVAL_GROWTH_FACTOR (capped)
+ *
+ *   attempt(correct=false) | rating='crawling'
+ *     → priorInterval × INTERVAL_REGRESSION_FACTOR (floored)
+ *
+ *   recency
+ *     → priorInterval unchanged (floored to INITIAL on first engagement)
+ *
+ * priorInterval = 0 (never engaged) starts at INITIAL_INTERVAL_DAYS
+ * before scaling.
+ */
+export function computeIntervalDays(input: {
+  memoryType: MemoryType;
+  priorInterval: number;
+  signal: EngagementSignal;
+}): number {
+  const { memoryType, priorInterval, signal } = input;
+  const max = MAX_INTERVAL_BY_MEMORY_TYPE[memoryType];
+  const base = priorInterval > 0 ? priorInterval : INITIAL_INTERVAL_DAYS;
+
+  let next: number;
+  if (signal.kind === 'attempt') {
+    next = signal.correct
+      ? base * INTERVAL_GROWTH_FACTOR
+      : base * INTERVAL_REGRESSION_FACTOR;
+  } else if (signal.kind === 'rating') {
+    next =
+      signal.rating === 'flying' || signal.rating === 'cruising'
+        ? base * INTERVAL_GROWTH_FACTOR
+        : base * INTERVAL_REGRESSION_FACTOR;
+  } else {
+    // recency: don't grow or shrink — expression items are recency-
+    // driven; the algorithm decides surfacing from lastEngagedAt
+    // rather than a stored due date. We still set a reasonable
+    // nextDueAt so the field is consistent.
+    next = base;
+  }
+
+  return Math.min(max, Math.max(MIN_INTERVAL_DAYS, Math.round(next)));
+}
+
+/** Convert days from `now` into a wall-clock timestamp. Pure. */
+export function computeNextDueAt(now: number, intervalDays: number): number {
+  return now + intervalDays * MS_PER_DAY;
+}
+
+// ===================================================================
 // Internal helpers
 // ===================================================================
 
@@ -218,6 +297,11 @@ export async function recordEngagement(
 
   if (!existing) {
     const initialHistory: PerformanceEntry[] = [entry];
+    const intervalDays = computeIntervalDays({
+      memoryType,
+      priorInterval: 0,
+      signal,
+    });
     const row: SpacingState = {
       id: crypto.randomUUID(),
       itemRef,
@@ -228,9 +312,9 @@ export async function recordEngagement(
       // ratings), but we run computeNextStage for uniformity in case
       // future thresholds drop to 1.
       acquisitionStage: computeNextStage(memoryType, 'acquiring', initialHistory),
-      currentIntervalDays: 0,
+      currentIntervalDays: intervalDays,
       lastEngagedAt: t,
-      nextDueAt: null,
+      nextDueAt: computeNextDueAt(t, intervalDays),
       performanceHistory: initialHistory as Array<Record<string, unknown>>,
     };
     await db.spacingState.add(row);
@@ -241,10 +325,17 @@ export async function recordEngagement(
     ...(existing.performanceHistory as PerformanceEntry[]),
     entry,
   ].slice(-PERFORMANCE_HISTORY_MAX);
+  const intervalDays = computeIntervalDays({
+    memoryType,
+    priorInterval: existing.currentIntervalDays,
+    signal,
+  });
   const updated: SpacingState = {
     ...existing,
     acquisitionStage: computeNextStage(memoryType, existing.acquisitionStage, history),
+    currentIntervalDays: intervalDays,
     lastEngagedAt: t,
+    nextDueAt: computeNextDueAt(t, intervalDays),
     performanceHistory: history as Array<Record<string, unknown>>,
   };
   await db.spacingState.put(updated);

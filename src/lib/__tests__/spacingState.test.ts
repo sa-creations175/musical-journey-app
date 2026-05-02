@@ -18,6 +18,13 @@ import {
   DECLARATIVE_ACQUIRED_WINDOW,
   DECLARATIVE_ACQUIRED_THRESHOLD,
   RATING_ACQUIRED_MIN_RATINGS,
+  INITIAL_INTERVAL_DAYS,
+  INTERVAL_GROWTH_FACTOR,
+  INTERVAL_REGRESSION_FACTOR,
+  MAX_INTERVAL_BY_MEMORY_TYPE,
+  MIN_INTERVAL_DAYS,
+  computeIntervalDays,
+  computeNextDueAt,
   nextStageDeclarative,
   nextStageRatingBased,
   nextStageExpression,
@@ -201,8 +208,11 @@ describe('recordEngagement — first call creates a row', () => {
     expect(row.itemRef).toBe('M3:asc');
     expect(row.moduleRef).toBe('intervals');
     expect(row.lastEngagedAt).toBe(1000);
-    expect(row.currentIntervalDays).toBe(0);
-    expect(row.nextDueAt).toBeNull();
+    // Phase 3 Step 6g — first-engagement schedule. Correct attempt
+    // grows from INITIAL_INTERVAL_DAYS (1) by INTERVAL_GROWTH_FACTOR
+    // (×2) → 2 days, capped well under declarative's 60-day max.
+    expect(row.currentIntervalDays).toBe(2);
+    expect(row.nextDueAt).toBe(1000 + 2 * 24 * 60 * 60 * 1000);
     expect(row.performanceHistory).toHaveLength(1);
   });
 
@@ -489,5 +499,124 @@ describe('assertSpacingStage — moduleRef validation', () => {
     await expect(
       assertSpacingStage('x', 'not-a-real-module', null),
     ).rejects.toThrow(/unknown moduleRef/);
+  });
+});
+
+// -------------------------------------------------------------------
+// Phase 3 Step 6g — spacing curve
+// -------------------------------------------------------------------
+
+describe('computeIntervalDays', () => {
+  it('first engagement with correct attempt → 1 × 2 = 2 days', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'declarative',
+        priorInterval: 0,
+        signal: { kind: 'attempt', correct: true },
+      }),
+    ).toBe(2);
+  });
+
+  it('first engagement with incorrect attempt → floored at min', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'declarative',
+        priorInterval: 0,
+        signal: { kind: 'attempt', correct: false },
+      }),
+    ).toBe(MIN_INTERVAL_DAYS);
+  });
+
+  it('rating flying / cruising grow the interval', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'procedural',
+        priorInterval: 4,
+        signal: { kind: 'rating', rating: 'flying' },
+      }),
+    ).toBe(8);
+    expect(
+      computeIntervalDays({
+        memoryType: 'procedural',
+        priorInterval: 4,
+        signal: { kind: 'rating', rating: 'cruising' },
+      }),
+    ).toBe(8);
+  });
+
+  it('rating crawling shrinks the interval', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'procedural',
+        priorInterval: 8,
+        signal: { kind: 'rating', rating: 'crawling' },
+      }),
+    ).toBe(4);
+  });
+
+  it('recency signals leave the interval unchanged but floor + cap', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'expression',
+        priorInterval: 5,
+        signal: { kind: 'recency' },
+      }),
+    ).toBe(5);
+    expect(
+      computeIntervalDays({
+        memoryType: 'expression',
+        priorInterval: 0,
+        signal: { kind: 'recency' },
+      }),
+    ).toBe(INITIAL_INTERVAL_DAYS);
+  });
+
+  it('caps at the per-memory-type maximum', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'expression',
+        priorInterval: 100,
+        signal: { kind: 'rating', rating: 'flying' },
+      }),
+    ).toBe(MAX_INTERVAL_BY_MEMORY_TYPE.expression);
+    expect(
+      computeIntervalDays({
+        memoryType: 'declarative',
+        priorInterval: 100,
+        signal: { kind: 'attempt', correct: true },
+      }),
+    ).toBe(MAX_INTERVAL_BY_MEMORY_TYPE.declarative);
+  });
+
+  it('floors at MIN_INTERVAL_DAYS even on aggressive shrinkage', () => {
+    expect(
+      computeIntervalDays({
+        memoryType: 'procedural',
+        priorInterval: 1,
+        signal: { kind: 'rating', rating: 'crawling' },
+      }),
+    ).toBe(MIN_INTERVAL_DAYS);
+  });
+});
+
+describe('computeNextDueAt', () => {
+  it('adds interval × ms-per-day to now', () => {
+    const now = 1_700_000_000_000;
+    expect(computeNextDueAt(now, 1)).toBe(now + 24 * 60 * 60 * 1000);
+    expect(computeNextDueAt(now, 14)).toBe(now + 14 * 24 * 60 * 60 * 1000);
+    expect(computeNextDueAt(now, 0)).toBe(now);
+  });
+});
+
+describe('exposed constants', () => {
+  it('match the documented design', () => {
+    expect(INITIAL_INTERVAL_DAYS).toBe(1);
+    expect(INTERVAL_GROWTH_FACTOR).toBe(2);
+    expect(INTERVAL_REGRESSION_FACTOR).toBe(0.5);
+    expect(MIN_INTERVAL_DAYS).toBe(1);
+    expect(MAX_INTERVAL_BY_MEMORY_TYPE.declarative).toBe(60);
+    expect(MAX_INTERVAL_BY_MEMORY_TYPE.procedural).toBe(30);
+    expect(MAX_INTERVAL_BY_MEMORY_TYPE.integration).toBe(30);
+    expect(MAX_INTERVAL_BY_MEMORY_TYPE.expression).toBe(14);
   });
 });
