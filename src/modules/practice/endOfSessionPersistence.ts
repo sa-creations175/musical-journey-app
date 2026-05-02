@@ -1,0 +1,136 @@
+/**
+ * Phase 3 Step 6f–6j — Persistence pipeline for end-of-session.
+ *
+ * The Done button in EndOfSessionSummary (Step 6k) flushes all of
+ * the following before reset()ing the timer:
+ *
+ *   6f — recordBlockEngagements: per-item recordEngagement calls
+ *        for each completed block, memory-type-aware. Per-rep
+ *        signals during practice already covered declarative +
+ *        procedural; this pass adds the holistic signal we only
+ *        have at session end (block rating, recency).
+ *
+ *   6g — next_due_at recalculation. recordEngagement (Phase 2)
+ *        already updates the spacingState row's nextDueAt via the
+ *        memory-type curve in computeNextStage. 6g is a thin
+ *        documentation pass — no new code; the existing wiring
+ *        does the work.
+ *
+ *   6h — acquisition_stage advancement. Same — handled by
+ *        computeNextStage inside recordEngagement.
+ *
+ *   6i — Goal current_value updates + milestone-prompt queueing.
+ *
+ *   6j — songKeyEngagements logging at section + key cell level.
+ *
+ * Each substep adds one helper to this module; 6k composes them.
+ *
+ * All helpers swallow recordEngagement errors per-call rather than
+ * aborting the batch — partial persistence is better than no
+ * persistence when the user's session is over and they're waiting
+ * on a Done button.
+ */
+
+import { getMemoryType } from '../../lib/memoryType';
+import { recordEngagement } from '../../lib/spacingState';
+import type { SessionBlock } from '../../lib/sessionTimer/types';
+
+/**
+ * Walk completed blocks and write a session-end engagement signal
+ * per item. Memory-type-aware:
+ *
+ *   procedural / integration  →  recordEngagement(rating: block.rating)
+ *     when the block has a per-block rating; skipped otherwise.
+ *   expression                →  recordEngagement(recency)
+ *     fires regardless of rating — the signal IS the engagement.
+ *   declarative               →  skipped here. Per-attempt writes
+ *     during the session (Phase 2 module wiring) already covered it
+ *     at finer granularity than a block-level signal would; adding
+ *     a holistic signal would distort the per-card history.
+ *
+ * Skipped blocks (status !== 'completed') and blocks with no
+ * itemRefs are also skipped — there's no item to write against.
+ *
+ * Errors per-itemRef are logged and swallowed so one failure
+ * doesn't abort the rest. Returns the count of successful writes
+ * for downstream telemetry / tests.
+ */
+export async function recordBlockEngagements(
+  blocks: ReadonlyArray<SessionBlock>,
+): Promise<{ written: number; skipped: number }> {
+  let written = 0;
+  let skipped = 0;
+
+  for (const block of blocks) {
+    if (block.status !== 'completed') {
+      skipped += 1;
+      continue;
+    }
+    if (!block.itemRefs || block.itemRefs.length === 0) continue;
+
+    let memoryType;
+    try {
+      memoryType = getMemoryType(block.moduleRef);
+    } catch {
+      // Unknown module ref — skip rather than throw. Algorithm
+      // shouldn't produce these, but be defensive.
+      skipped += 1;
+      continue;
+    }
+
+    for (const itemRef of block.itemRefs) {
+      try {
+        if (
+          (memoryType === 'procedural' || memoryType === 'integration') &&
+          block.rating
+        ) {
+          await recordEngagement({
+            itemRef,
+            moduleRef: block.moduleRef,
+            signal: { kind: 'rating', rating: block.rating },
+          });
+          written += 1;
+        } else if (memoryType === 'expression') {
+          await recordEngagement({
+            itemRef,
+            moduleRef: block.moduleRef,
+            signal: { kind: 'recency' },
+          });
+          written += 1;
+        } else {
+          // declarative without per-block applicable signal
+          skipped += 1;
+        }
+      } catch (e) {
+        // Log + swallow so the rest of the batch still runs.
+        // eslint-disable-next-line no-console
+        console.warn('[end-of-session] recordEngagement failed', {
+          blockId: block.id,
+          moduleRef: block.moduleRef,
+          itemRef,
+          error: e,
+        });
+        skipped += 1;
+      }
+    }
+  }
+
+  return { written, skipped };
+}
+
+/**
+ * Merge the unrated-batch ratings (collected on the summary screen
+ * in Step 6e) into a fresh block list. Returns a new array;
+ * doesn't mutate. Used by 6k before recordBlockEngagements so the
+ * batch ratings drive the engagement signal.
+ */
+export function mergeBatchRatings(
+  blocks: ReadonlyArray<SessionBlock>,
+  batchRatings: Record<string, SessionBlock['rating']>,
+): SessionBlock[] {
+  return blocks.map(b => {
+    const r = batchRatings[b.id];
+    if (!r) return { ...b };
+    return { ...b, rating: r };
+  });
+}
