@@ -73,6 +73,14 @@ export function GlobalSessionBanner() {
 
   const handleEndClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // EndOfSessionSummary lives inside ActiveSessionScreen and only
+    // renders when that route is mounted. If the user taps End from
+    // any other route, end-then-stay would silently reset the timer
+    // and skip the rating + persistence pipeline. Route there first
+    // (no-op if already on it), then end. Both updates batch into a
+    // single render: status='ended' + pathname='/practice-sessions/
+    // active' → ActiveSessionScreen mounts and renders the summary.
+    navigate('/practice-sessions/active');
     endSession();
   };
 
