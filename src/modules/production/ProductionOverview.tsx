@@ -10,6 +10,7 @@ interface Props {
   onOpenLesson: (lessonId: string) => void;
   onOpenGlossary: () => void;
   onOpenReferenceTracks: () => void;
+  onOpenVocabulary: () => void;
 }
 
 const MASTERY_DOT: Record<ProductionLessonMastery, string> = {
@@ -30,6 +31,7 @@ export default function ProductionOverview({
   onOpenLesson,
   onOpenGlossary,
   onOpenReferenceTracks,
+  onOpenVocabulary,
 }: Props) {
   const rawLessonStates = useLiveQuery(async () => db.productionLessons.toArray(), []);
   const rawTermStates = useLiveQuery(async () => db.glossaryTermStates.toArray(), []);
@@ -80,13 +82,19 @@ export default function ProductionOverview({
       </header>
 
       {/* Stats strip */}
-      <section className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <section className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <Stat label="lessons" value={`${totals.completed}/${totals.total}`} accent="text-production" />
         <Stat label="in progress" value={String(totals.inProgress)} />
         <Stat
           label="glossary"
           value={`${glossaryTotals.gotIt}/${glossaryTotals.all}`}
           onClick={onOpenGlossary}
+        />
+        <Stat
+          label="vocabulary"
+          value="practice →"
+          accent="text-production"
+          onClick={onOpenVocabulary}
         />
         <Stat
           label="reference tracks"

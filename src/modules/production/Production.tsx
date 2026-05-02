@@ -7,6 +7,7 @@ import PathView from './PathView';
 import LessonView from './LessonView';
 import GlossaryView from './GlossaryView';
 import ReferenceTracksView from './ReferenceTracksView';
+import VocabularySession from './VocabularySession';
 
 /**
  * Production module router. Reads from the URL:
@@ -52,6 +53,7 @@ export default function Production() {
   const openLesson = (id: string) => go({ lesson: id, path: null, view: null });
   const openGlossary = () => go({ view: 'glossary', path: null, lesson: null });
   const openRefs = () => go({ view: 'reference-tracks', path: null, lesson: null });
+  const openVocabulary = () => go({ view: 'vocabulary', path: null, lesson: null });
   const backToOverview = () => navigate('/production');
 
   // Priority order: lesson > path > view.
@@ -79,6 +81,9 @@ export default function Production() {
   if (view === 'reference-tracks') {
     return <ReferenceTracksView />;
   }
+  if (view === 'vocabulary') {
+    return <VocabularySession onBack={backToOverview} />;
+  }
 
   return (
     <ProductionOverview
@@ -86,6 +91,7 @@ export default function Production() {
       onOpenLesson={openLesson}
       onOpenGlossary={openGlossary}
       onOpenReferenceTracks={openRefs}
+      onOpenVocabulary={openVocabulary}
     />
   );
 }
