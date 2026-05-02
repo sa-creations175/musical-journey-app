@@ -45,6 +45,7 @@ import {
 } from '../../lib/sessionTimer/SessionTimerContext';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import type { PerformanceRating } from '../../lib/sessionTimer/types';
+import EndOfSessionSummary from './EndOfSessionSummary';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -220,22 +221,7 @@ export default function ActiveSessionScreen({ hardBlock = false }: Props = {}) {
       : null;
 
   if (isEnded) {
-    return (
-      <div className="max-w-xl mx-auto px-4 py-10 text-center space-y-3">
-        <h2 className="text-lg font-medium">Session complete</h2>
-        <p className="text-sm text-neutral-500">
-          End-of-session summary lands in a later release. For now,
-          tap below to return to Practice Sessions.
-        </p>
-        <button
-          type="button"
-          onClick={() => navigate(PRACTICE_SESSIONS_HOME_ROUTE)}
-          className="px-4 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
-        >
-          done
-        </button>
-      </div>
-    );
+    return <EndOfSessionSummary />;
   }
 
   // -------------------------------------------------------------
