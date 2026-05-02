@@ -61,11 +61,13 @@ export default function Layout() {
         } md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur transition-[width] duration-150`}
       >
         <div
-          className={`p-4 ${
-            sidebarCollapsed ? 'md:p-2 md:justify-center' : ''
-          } flex items-center justify-between gap-2`}
+          className={`flex items-center gap-2 ${
+            sidebarCollapsed
+              ? 'p-2 justify-end md:justify-center'
+              : 'p-4 justify-between'
+          }`}
         >
-          <div className={sidebarCollapsed ? 'md:hidden' : ''}>
+          <div className={sidebarCollapsed ? 'hidden' : ''}>
             <div className="text-sm font-medium tracking-tight text-fluent">musical journey</div>
             <div className="text-xs text-neutral-500 mt-0.5">practice companion</div>
           </div>
@@ -75,16 +77,42 @@ export default function Layout() {
             aria-label={sidebarCollapsed ? 'expand sidebar' : 'collapse sidebar'}
             aria-expanded={!sidebarCollapsed}
             title={sidebarCollapsed ? 'expand' : 'collapse'}
-            className="hidden md:inline-flex w-7 h-7 items-center justify-center rounded-md text-neutral-400 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0"
+            className="inline-flex w-8 h-8 items-center justify-center rounded-md text-neutral-400 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0"
           >
+            {/* Hamburger on phone (compact bar at top) → chevron on md+
+                where the sidebar is a vertical rail. CSS swap keeps a
+                single button. */}
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              className="md:hidden"
+              aria-hidden
+            >
+              <path
+                d="M2 4h10M2 7h10M2 10h10"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
             <svg
               width="10"
               height="10"
               viewBox="0 0 10 10"
-              className={`transition-transform ${sidebarCollapsed ? '' : 'rotate-180'}`}
+              className={`hidden md:block transition-transform ${
+                sidebarCollapsed ? '' : 'rotate-180'
+              }`}
               aria-hidden
             >
-              <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M3 1.5L7 5L3 8.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         </div>

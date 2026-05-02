@@ -191,10 +191,11 @@ const ALL_GROUP_IDS = NAV_GROUPS.map(g => g.id);
 const groupKey = (id: string) => `group:${id}`;
 
 interface SidebarNavProps {
-  /** When true, render the icon-only compact list at md+. The full
-   *  expanded tree still renders on phone (below md) since the
-   *  sidebar layout there is at the top of the page rather than a
-   *  side rail and there's no width pressure to relieve. */
+  /** When true, render the icon-only compact list. On phone the
+   *  compact view is a horizontal strip across the top of the page
+   *  (so the sidebar doesn't push main content down); on md+ it's a
+   *  vertical icon column. When false, the full expanded tree
+   *  renders at every size. */
   collapsed?: boolean;
 }
 
@@ -228,21 +229,20 @@ export default function SidebarNav({ collapsed = false }: SidebarNavProps) {
 
   const currentPath = location.pathname + location.search;
 
-  // Compact (icon-only) sidebar — only used at md+ when collapsed.
-  // Phone keeps the expanded tree regardless: at that breakpoint the
-  // sidebar lays out across the top of the page, so width pressure
-  // is the inverse problem.
-  const compactClass = collapsed ? 'hidden md:flex' : 'hidden';
+  // Compact (icon-only) view rendered when collapsed at every size.
+  // Phone uses a horizontal scroll strip across the top so main
+  // content isn't pushed down; md+ uses a vertical icon column in
+  // the narrow side rail.
+  const compactClass = collapsed
+    ? 'flex flex-row md:flex-col gap-1 px-2 pb-2 md:pb-4 overflow-x-auto md:overflow-x-visible'
+    : 'hidden';
   const expandedClass = collapsed
-    ? 'md:hidden px-2 pb-4 flex flex-col gap-2 overflow-x-auto'
+    ? 'hidden'
     : 'px-2 pb-4 flex flex-col gap-2 md:gap-3 overflow-x-auto md:overflow-x-visible';
 
   return (
     <>
-      <nav
-        className={`${compactClass} flex-col gap-1 px-1 pb-4`}
-        aria-label="modules"
-      >
+      <nav className={compactClass} aria-label="modules">
         {NAV_GROUPS.flatMap(g => g.items).map(item => (
           <CompactNavLink key={item.id} item={item} />
         ))}
@@ -299,7 +299,7 @@ function CompactNavLink({ item }: { item: NavItem }) {
       title={item.label}
       aria-label={item.label}
       className={({ isActive }) =>
-        `inline-flex items-center justify-center w-10 h-10 rounded-md transition ${
+        `inline-flex shrink-0 items-center justify-center w-10 h-10 rounded-md transition ${
           isActive
             ? 'bg-fluent/10 text-fluent'
             : 'text-neutral-500 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800'
