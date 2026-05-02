@@ -13,6 +13,12 @@
  * Component is dumb — caller supplies the pre-computed banner
  * data via useFeasibilityBannerData() (lib helper). Keeps Dexie
  * reads + sort logic pure-testable, separates them from React.
+ *
+ * Step 7d's "disappear when nothing's behind pace" behavior is
+ * implicit: pickBehindPaceEntries returns [] when no goals
+ * qualify; this component returns null on empty entries; the
+ * caller renders nothing. No conditional mounting needed by
+ * consumers.
  */
 import { useState } from 'react';
 import { moduleMetaById } from '../../lib/moduleMeta';

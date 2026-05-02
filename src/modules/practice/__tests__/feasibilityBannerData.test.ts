@@ -102,3 +102,23 @@ describe('pickBehindPaceEntries — message fallback', () => {
     expect(out[0].message).toBe('Practice Bach this week');
   });
 });
+
+describe('pickBehindPaceEntries — Step 7d empty state', () => {
+  it('returns [] when no goals are behind pace', () => {
+    // All on-track + a couple aspirational/unknown — none qualify.
+    const out = pickBehindPaceEntries([
+      { goal: goal({ id: 'a' }), feasibility: measurable('on_track') },
+      { goal: goal({ id: 'b' }), feasibility: measurable('on_track') },
+      { goal: goal({ id: 'c' }), feasibility: { kind: 'aspirational', message: 'x' } },
+      { goal: goal({ id: 'd' }), feasibility: { kind: 'unknown' } },
+    ]);
+    // FeasibilityBanner returns null on empty entries — the
+    // banner-disappear-when-clear behavior (Step 7d) follows
+    // automatically from this contract.
+    expect(out).toEqual([]);
+  });
+
+  it('returns [] for an empty input list', () => {
+    expect(pickBehindPaceEntries([])).toEqual([]);
+  });
+});
