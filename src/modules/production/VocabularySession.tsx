@@ -14,6 +14,14 @@
  * fully exercisable in the browser before the SR layer lands.
  */
 import { useMemo, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, type AttemptRecord } from '../../lib/db';
+import { recordEngagement } from '../../lib/spacingState';
+import { updateDailySummary } from '../../lib/dailySummaries';
+import {
+  recordAttempt as recordSrAttempt,
+  toggleFlag,
+} from '../../lib/flashcards/spacedRepetition';
 import {
   PRODUCTION_VOCAB_FLASHCARDS,
   VOCAB_CLUSTER_LABELS,
@@ -23,8 +31,11 @@ import {
   type VocabFlashcard,
 } from './vocabularyFlashcards';
 import FlashcardSession, {
+  type CardAnsweredArgs,
   type TimerMode,
 } from '../../lib/flashcards/FlashcardSession';
+
+const MODULE_ID = 'production';
 
 interface Props {
   onBack: () => void;
@@ -78,30 +89,7 @@ export default function VocabularySession({ onBack }: Props) {
   };
 
   if (phase === 'running') {
-    return (
-      <div className="space-y-4 max-w-3xl">
-        <header className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-medium tracking-tight">Vocabulary practice</h1>
-          <button
-            onClick={() => setPhase('setup')}
-            className="text-xs text-neutral-500 hover:text-production"
-          >
-            ← change queue
-          </button>
-        </header>
-        <FlashcardSession<VocabFlashcard>
-          queue={queue}
-          timerMode={timerMode}
-          onExit={() => setPhase('setup')}
-          onCardAnswered={async () => {
-            // Step D wires the persistence pipeline (db.attempts +
-            // recordEngagement + vocab SR). For now the answer just
-            // updates in-shell state; nothing leaves the component.
-          }}
-          fadeStreakThreshold={0}
-        />
-      </div>
-    );
+    return <RunningPhase queue={queue} timerMode={timerMode} onChangeQueue={() => setPhase('setup')} />;
   }
 
   return (
@@ -207,6 +195,88 @@ export default function VocabularySession({ onBack }: Props) {
       >
         Start session
       </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Running phase — owns the live flag-state query + the persistence
+// pipeline. Split into its own component so the useLiveQuery only
+// fires while a session is actually running (not on the setup screen).
+// ---------------------------------------------------------------------
+function RunningPhase({
+  queue,
+  timerMode,
+  onChangeQueue,
+}: {
+  queue: VocabFlashcard[];
+  timerMode: TimerMode;
+  onChangeQueue: () => void;
+}) {
+  const flaggedIds = useLiveQuery(async () => {
+    const ids = queue.map(c => c.id);
+    const states = await db.flashcardStates.where('cardId').anyOf(ids).toArray();
+    const set = new Set<string>();
+    for (const s of states) if (s.isFlagged) set.add(s.cardId);
+    return set;
+  }, [queue]) ?? new Set<string>();
+
+  async function handleCardAnswered({
+    card,
+    correct,
+    timestamp,
+  }: CardAnsweredArgs<VocabFlashcard>) {
+    // 1. Append to the global attempts log so dashboards / streaks
+    //    pick it up the same way every other module's attempts do.
+    const record: AttemptRecord = {
+      moduleId: MODULE_ID,
+      itemId: card.id,
+      correct,
+      timestamp,
+    };
+    await db.attempts.add(record);
+
+    // 2. Phase 3 spacing layer — drives the practice-session
+    //    candidate algorithm (next_due_at, acquisition stage).
+    //    Vocab cards are declarative items: graded attempts only.
+    await recordEngagement({
+      itemRef: card.id,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct },
+      timestamp,
+    });
+
+    // 3. Per-card SM-2 schedule. Same shared db.flashcardStates
+    //    table HF uses; card ids are namespaced (`prod-vocab:`)
+    //    so there's no collision.
+    await recordSrAttempt(card.id, correct, timestamp);
+
+    // 4. Daily-summary roll-up.
+    await updateDailySummary(MODULE_ID);
+  }
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <header className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-medium tracking-tight">Vocabulary practice</h1>
+        <button
+          onClick={onChangeQueue}
+          className="text-xs text-neutral-500 hover:text-production"
+        >
+          ← change queue
+        </button>
+      </header>
+      <FlashcardSession<VocabFlashcard>
+        queue={queue}
+        timerMode={timerMode}
+        onExit={onChangeQueue}
+        onCardAnswered={handleCardAnswered}
+        flaggedIds={flaggedIds}
+        onToggleFlag={async cardId => {
+          await toggleFlag(cardId);
+        }}
+        fadeStreakThreshold={0}
+      />
     </div>
   );
 }
