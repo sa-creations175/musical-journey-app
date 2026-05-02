@@ -103,9 +103,35 @@ export function sessionTimerReducer(
       };
     }
 
-    case 'request-block-end':
-      if (state.status !== 'running' && state.status !== 'paused') return state;
-      return { ...state, blockEndRequested: true };
+    case 'request-block-end': {
+      // Atomic with pause: anchors the rating-phase entry as a manual
+      // pause so the auto-pause hook (Layout) can't race us into an
+      // auto-navigation reason that would later auto-resume mid-
+      // rating. Three branches:
+      //
+      //   - running: pause now with reason 'manual', set the flag.
+      //   - paused with auto-navigation: convert reason to 'manual'
+      //     so the hook stops trying to auto-resume.
+      //   - paused with manual / no pauseReason: just set the flag.
+      //
+      // Any other status (idle/ended) is a no-op.
+      if (state.status === 'running') {
+        return {
+          ...state,
+          status: 'paused',
+          pausedAt: action.now,
+          pauseReason: 'manual',
+          blockEndRequested: true,
+        };
+      }
+      if (state.status === 'paused') {
+        if (state.pauseReason === 'auto-navigation') {
+          return { ...state, pauseReason: 'manual', blockEndRequested: true };
+        }
+        return { ...state, blockEndRequested: true };
+      }
+      return state;
+    }
 
     case 'consume-block-end':
       if (!state.blockEndRequested) return state;

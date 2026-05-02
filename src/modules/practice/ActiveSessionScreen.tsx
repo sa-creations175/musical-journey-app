@@ -112,17 +112,14 @@ export default function ActiveSessionScreen() {
 
   // Cross-screen handoff from the global BlockExpiryModal: when the
   // user taps "Next block" there, the modal dispatches
-  // request-block-end + navigates here. Pick that up reactively,
-  // mirror the manual handleEndActivity transition (pause + rating
-  // phase), and consume the flag so we don't loop.
+  // request-block-end (which atomically pauses with reason 'manual'
+  // in the reducer) + navigates here. Pick the flag up reactively,
+  // flip phase to rating, consume the flag.
   useEffect(() => {
     if (!state.blockEndRequested) return;
-    if (state.status === 'running') {
-      pauseSession({ reason: 'manual' });
-    }
     setPhase('rating');
     consumeBlockEndRequest();
-  }, [state.blockEndRequested, state.status, pauseSession, consumeBlockEndRequest]);
+  }, [state.blockEndRequested, consumeBlockEndRequest]);
 
   // Model (b) — set activeModuleRef = 'practice-sessions' once on
   // mount. The dep array is intentionally empty: re-firing on every

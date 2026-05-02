@@ -293,6 +293,97 @@ describe('sessionTimerReducer — arm / clear-pending', () => {
   });
 });
 
+describe('sessionTimerReducer — request-block-end / consume-block-end', () => {
+  it('request-block-end pauses a running session with reason "manual"', () => {
+    const running = startState();
+    const requested = sessionTimerReducer(running, {
+      type: 'request-block-end',
+      now: T0 + 30 * SECOND,
+    });
+    expect(requested.blockEndRequested).toBe(true);
+    expect(requested.status).toBe('paused');
+    expect(requested.pauseReason).toBe('manual');
+    expect(requested.pausedAt).toBe(T0 + 30 * SECOND);
+  });
+
+  it('request-block-end converts an auto-navigation pause to manual', () => {
+    const running = startState();
+    const autoPaused = sessionTimerReducer(running, {
+      type: 'pause',
+      now: T0 + 30 * SECOND,
+      reason: 'auto-navigation',
+    });
+    expect(autoPaused.pauseReason).toBe('auto-navigation');
+    const requested = sessionTimerReducer(autoPaused, {
+      type: 'request-block-end',
+      now: T0 + 60 * SECOND,
+    });
+    expect(requested.blockEndRequested).toBe(true);
+    expect(requested.status).toBe('paused');
+    expect(requested.pauseReason).toBe('manual');
+    expect(requested.pausedAt).toBe(T0 + 30 * SECOND);
+  });
+
+  it('request-block-end on a manual pause leaves the pause untouched', () => {
+    const running = startState();
+    const manualPaused = sessionTimerReducer(running, {
+      type: 'pause',
+      now: T0 + 30 * SECOND,
+      reason: 'manual',
+    });
+    const requested = sessionTimerReducer(manualPaused, {
+      type: 'request-block-end',
+      now: T0 + 60 * SECOND,
+    });
+    expect(requested.blockEndRequested).toBe(true);
+    expect(requested.pauseReason).toBe('manual');
+    expect(requested.pausedAt).toBe(T0 + 30 * SECOND);
+  });
+
+  it('request-block-end is a no-op when idle', () => {
+    const same = sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'request-block-end',
+      now: T0,
+    });
+    expect(same).toBe(INITIAL_SESSION_STATE);
+  });
+
+  it('consume-block-end clears the flag', () => {
+    const running = startState();
+    const requested = sessionTimerReducer(running, {
+      type: 'request-block-end',
+      now: T0 + 30 * SECOND,
+    });
+    const consumed = sessionTimerReducer(requested, { type: 'consume-block-end' });
+    expect(consumed.blockEndRequested).toBe(false);
+  });
+
+  it('advance-block clears the flag and unwinds the manual pause', () => {
+    const running = startState({ blockCount: 2 });
+    const requested = sessionTimerReducer(running, {
+      type: 'request-block-end',
+      now: T0 + 30 * SECOND,
+    });
+    expect(requested.blockEndRequested).toBe(true);
+    expect(requested.status).toBe('paused');
+    // Mirror handleRatingNext: explicit resume, then advance.
+    const resumed = sessionTimerReducer(requested, {
+      type: 'resume',
+      now: T0 + 60 * SECOND,
+    });
+    expect(resumed.status).toBe('running');
+    expect(resumed.pausedAt).toBeNull();
+    expect(resumed.pauseReason).toBeNull();
+    const advanced = sessionTimerReducer(resumed, {
+      type: 'advance-block',
+      now: T0 + 60 * SECOND,
+    });
+    expect(advanced.status).toBe('running');
+    expect(advanced.blockEndRequested).toBe(false);
+    expect(advanced.currentBlockIndex).toBe(1);
+  });
+});
+
 describe('sessionTimerReducer — reset / set-active-module-ref', () => {
   it('reset returns to INITIAL_SESSION_STATE', () => {
     const s = startState();

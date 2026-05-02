@@ -159,7 +159,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const requestBlockEnd = useCallback(() => {
-    dispatch({ type: 'request-block-end' });
+    dispatch({ type: 'request-block-end', now: Date.now() });
   }, []);
 
   const consumeBlockEndRequest = useCallback(() => {

@@ -202,5 +202,5 @@ export type SessionTimerAction =
   | { type: 'reset' }
   | { type: 'set-active-module-ref'; moduleRef: string | null }
   | { type: 'extend-block'; mins: number }
-  | { type: 'request-block-end' }
+  | { type: 'request-block-end'; now: number }
   | { type: 'consume-block-end' };
