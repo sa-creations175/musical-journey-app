@@ -33,6 +33,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Workbox defaults to a 2 MiB per-asset precache ceiling.
+        // Bumping to 4 MiB so the main bundle precaches as the app
+        // grows; revisit with code-splitting if it crosses that.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       devOptions: {
         enabled: false,
