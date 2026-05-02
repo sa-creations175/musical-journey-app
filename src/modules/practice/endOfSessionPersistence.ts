@@ -39,13 +39,27 @@
  * on a Done button.
  */
 
-import { db } from '../../lib/db';
+import { db, type SongKeyEngagement } from '../../lib/db';
 import { getMemoryType } from '../../lib/memoryType';
 import { recordEngagement } from '../../lib/spacingState';
 import { enqueue } from '../../lib/prompts/queue';
 import { PROMPT_TYPE } from '../../lib/prompts/types';
 import { getGoalProgress } from '../../modules/goals/progress';
 import type { SessionBlock } from '../../lib/sessionTimer/types';
+
+/**
+ * Convention for the algorithm to encode song-key targets in a
+ * block's itemRefs. The integration layer (Step 7+) populates these
+ * when building blocks for the Song Repertoire module; 6j parses
+ * the prefix to derive the songKeyId for engagement logging.
+ *
+ *   songKey:<songKeyId>
+ *
+ * Cell-level (section × key) refs are out of scope here — they
+ * write to songCellRunThroughs as the user logs run-throughs in
+ * the matrix UI. 6j's job is the per-key roll-up at session end.
+ */
+export const SONG_KEY_ITEM_REF_PREFIX = 'songKey:';
 
 /**
  * Walk completed blocks and write a session-end engagement signal
@@ -169,6 +183,74 @@ export function mergeBatchRatings(
  * for). Item-count + song-proficiency progress lands in Phase 7
  * polish.
  */
+/**
+ * Phase 3 Step 6j — songKeyEngagements logging. Walks completed
+ * Song Repertoire blocks and records one row per (songKey,
+ * session) into the deferred-from-Phase-1.5 songKeyEngagements
+ * table. Lived-with window logic (Step 2h helpers) reads from
+ * this table to surface fading / lapsed songs to the algorithm.
+ *
+ * itemRef convention: 'songKey:<songKeyId>'. Refs that don't
+ * match the prefix are ignored (defensive against non-song-key
+ * itemRefs sharing the block).
+ *
+ * Idempotent at the (songKey, session) granularity is not
+ * enforced here — the same block's items will only fire once per
+ * session because end-of-session runs once. If a future flow
+ * re-runs persistence (e.g., resume-after-crash), the caller is
+ * responsible for deduping or accepting duplicate rows; the
+ * lived-with helpers count distinct sessions via DISTINCT(songKey,
+ * practiceSessionId), so duplicates don't double-count.
+ *
+ * Per-row failures are logged + swallowed.
+ */
+export async function logSongKeyEngagements(
+  blocks: ReadonlyArray<SessionBlock>,
+  practiceSessionId: string,
+  now: number = Date.now(),
+): Promise<{ logged: number }> {
+  let logged = 0;
+
+  for (const block of blocks) {
+    if (block.status !== 'completed') continue;
+    if (block.moduleRef !== 'repertoire') continue;
+    if (!block.itemRefs || block.itemRefs.length === 0) continue;
+
+    for (const ref of block.itemRefs) {
+      if (!ref.startsWith(SONG_KEY_ITEM_REF_PREFIX)) continue;
+      const songKeyId = ref.slice(SONG_KEY_ITEM_REF_PREFIX.length);
+      if (!songKeyId) continue;
+
+      try {
+        const songKey = await db.songKeys.get(songKeyId);
+        if (!songKey) continue;
+        const engagement: SongKeyEngagement = {
+          id: makeEngagementId(now),
+          songKeyId,
+          songId: songKey.songId,
+          practiceSessionId,
+          engagedAt: now,
+          createdAt: now,
+        };
+        await db.songKeyEngagements.add(engagement);
+        logged += 1;
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn('[end-of-session] songKeyEngagement insert failed', {
+          ref,
+          error: e,
+        });
+      }
+    }
+  }
+
+  return { logged };
+}
+
+function makeEngagementId(now: number): string {
+  return `eng-${Math.random().toString(36).slice(2, 8)}-${now.toString(36)}`;
+}
+
 export async function recomputeGoalsAndQueueMilestones(): Promise<{
   updated: number;
   milestonesQueued: number;
