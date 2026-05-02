@@ -16,7 +16,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type AttemptRecord } from '../../lib/db';
-import { recordEngagement } from '../../lib/spacingState';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import {
   recordAttempt as recordSrAttempt,
@@ -236,23 +235,23 @@ function RunningPhase({
     };
     await db.attempts.add(record);
 
-    // 2. Phase 3 spacing layer — drives the practice-session
-    //    candidate algorithm (next_due_at, acquisition stage).
-    //    Vocab cards are declarative items: graded attempts only.
-    await recordEngagement({
-      itemRef: card.id,
-      moduleRef: MODULE_ID,
-      signal: { kind: 'attempt', correct },
-      timestamp,
-    });
-
-    // 3. Per-card SM-2 schedule. Same shared db.flashcardStates
+    // 2. Per-card SM-2 schedule. Same shared db.flashcardStates
     //    table HF uses; card ids are namespaced (`prod-vocab:`)
     //    so there's no collision.
     await recordSrAttempt(card.id, correct, timestamp);
 
-    // 4. Daily-summary roll-up.
+    // 3. Daily-summary roll-up.
     await updateDailySummary(MODULE_ID);
+
+    // Note: Phase 3 spacingState (recordEngagement) is intentionally
+    // skipped. The 'production' module is registered as an
+    // `integration` memory type, which only accepts rating-shaped
+    // signals — feeding it an 'attempt' throws. Vocab cards aren't
+    // currently goal-tracked, so the spacing layer doesn't need a
+    // row per card. If vocab ever becomes a candidate for the
+    // session generator, register a declarative-typed module ref
+    // for it in MODULE_MEMORY_TYPES (e.g. 'production-vocabulary')
+    // and re-introduce the recordEngagement call with that ref.
   }
 
   return (
