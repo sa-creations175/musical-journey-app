@@ -17,6 +17,7 @@
  * 6b ships the top zone only; subsequent substeps fill in.
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useSessionTimer,
   useSessionTimes,
@@ -28,6 +29,14 @@ import type {
   PerformanceRating,
   SessionBlock,
 } from '../../lib/sessionTimer/types';
+import {
+  logSongKeyEngagements,
+  mergeBatchRatings,
+  persistSession,
+  recomputeGoalsAndQueueMilestones,
+  recordBlockEngagements,
+} from './endOfSessionPersistence';
+import { markColdStartBannerSeen } from './coldStartBannerPref';
 
 const SESSION_RATING_OPTIONS: ReadonlyArray<{
   value: PracticeSessionRating;
@@ -61,8 +70,10 @@ const SESSION_RATING_OPTIONS: ReadonlyArray<{
 ];
 
 export default function EndOfSessionSummary() {
-  const { state } = useSessionTimer();
+  const navigate = useNavigate();
+  const { state, reset } = useSessionTimer();
   const times = useSessionTimes();
+  const [persisting, setPersisting] = useState(false);
 
   const [sessionRating, setSessionRating] =
     useState<PracticeSessionRating | null>(null);
@@ -137,7 +148,64 @@ export default function EndOfSessionSummary() {
 
       <AffirmationField value={affirmation} onChange={setAffirmation} />
 
-      {/* Done button (6k) — final substep. */}
+      <button
+        type="button"
+        onClick={async () => {
+          if (persisting) return;
+          setPersisting(true);
+          try {
+            // 1. Merge batch ratings into the block list so the
+            //    engagement signals + persisted blocks reflect them.
+            const blocksWithRatings = mergeBatchRatings(state.blocks, batchRatings);
+
+            // 2. Persist practiceSession + practiceBlocks rows.
+            const sessionId = await persistSession(
+              state,
+              {
+                sessionRating,
+                affirmation,
+                blocksWithFinalRatings: blocksWithRatings,
+              },
+            );
+
+            // 3. Per-item engagement writes (6f) — drives 6g/6h
+            //    spacing-curve + acquisition-stage updates inside
+            //    recordEngagement.
+            await recordBlockEngagements(blocksWithRatings);
+
+            // 4. Recompute goal currentValue + queue milestones (6i).
+            await recomputeGoalsAndQueueMilestones();
+
+            // 5. Log song-key engagements (6j) for any Repertoire blocks.
+            await logSongKeyEngagements(blocksWithRatings, sessionId);
+
+            // 6. Mark the cold-start banner seen so future proposals
+            //    skip the "first generated session" note.
+            await markColdStartBannerSeen();
+
+            // 7. Reset the timer + return home.
+            reset();
+            navigate('/practice-sessions');
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.error('[end-of-session] persist failed', e);
+            // Still tear down the timer + navigate so the user
+            // isn't stuck on a dead screen.
+            reset();
+            navigate('/practice-sessions');
+          } finally {
+            setPersisting(false);
+          }
+        }}
+        disabled={persisting}
+        className={`w-full px-4 py-2.5 rounded-md text-sm font-medium text-white ${
+          persisting
+            ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
+            : 'bg-fluent hover:opacity-90'
+        }`}
+      >
+        {persisting ? 'saving…' : 'done'}
+      </button>
     </div>
   );
 }

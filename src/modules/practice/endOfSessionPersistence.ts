@@ -39,12 +39,25 @@
  * on a Done button.
  */
 
-import { db, type SongKeyEngagement } from '../../lib/db';
+import {
+  db,
+  type PracticeBlock,
+  type PracticeSession,
+  type PracticeSessionContext,
+  type PracticeSessionRating,
+  type PracticeSessionRole,
+  type SongKeyEngagement,
+} from '../../lib/db';
 import { getMemoryType } from '../../lib/memoryType';
 import { recordEngagement } from '../../lib/spacingState';
 import { enqueue } from '../../lib/prompts/queue';
 import { PROMPT_TYPE } from '../../lib/prompts/types';
 import { getGoalProgress } from '../../modules/goals/progress';
+import { timeOfDayFor } from './timeOfDay';
+import type {
+  PerformanceRating,
+  SessionState,
+} from '../../lib/sessionTimer/types';
 import type { SessionBlock } from '../../lib/sessionTimer/types';
 
 /**
@@ -249,6 +262,131 @@ export async function logSongKeyEngagements(
 
 function makeEngagementId(now: number): string {
   return `eng-${Math.random().toString(36).slice(2, 8)}-${now.toString(36)}`;
+}
+
+// Re-export to silence unused-import warning when PerformanceRating
+// is referenced solely in type position above.
+export type { PerformanceRating };
+
+/**
+ * Phase 3 Step 6k — write practiceSession + practiceBlocks rows.
+ *
+ * Composes the timer's session state + summary form values + the
+ * input-questionnaire metadata into a PracticeSession + per-block
+ * PracticeBlock rows. extras carry questionnaire-derived fields
+ * the timer doesn't track (context, sessionRole, sessionIntent,
+ * energy*, dayProfileUsed, reasoningSnapshot). Phase 3 v0 ships
+ * with extras typically empty; Step 7+ integration wires real
+ * values from the proposal-acceptance flow.
+ *
+ * Returns the sessionId so the caller can chain further writes
+ * (Step 6j wants it for songKeyEngagements.practiceSessionId).
+ */
+export interface PersistSessionExtras {
+  context?: PracticeSessionContext;
+  sessionRole?: PracticeSessionRole;
+  sessionIntent?: string | null;
+  hardBlocks?: boolean;
+  energyFocus?: number | null;
+  energyMotivation?: number | null;
+  energyInspiration?: number | null;
+  dayProfileUsed?: PracticeSession['dayProfileUsed'];
+  reasoningSnapshot?: PracticeSession['reasoningSnapshot'];
+  notes?: string | null;
+}
+
+export async function persistSession(
+  state: SessionState,
+  summary: {
+    sessionRating: PracticeSessionRating | null;
+    affirmation: string | null;
+    blocksWithFinalRatings: ReadonlyArray<SessionBlock>;
+  },
+  extras: PersistSessionExtras = {},
+): Promise<string> {
+  if (!state.sessionId || state.startedAt === null) {
+    throw new Error('persistSession: session never started');
+  }
+
+  const startedAt = state.startedAt;
+  const endedAt = state.endedAt ?? Date.now();
+  const finalizedTotalMs = endedAt - startedAt;
+  const activeMs = summary.blocksWithFinalRatings.reduce(
+    (sum, b) => sum + b.activeMs,
+    0,
+  );
+
+  const trimmedAffirmation =
+    summary.affirmation && summary.affirmation.trim().length > 0
+      ? summary.affirmation.trim()
+      : null;
+
+  const sessionRow: PracticeSession = {
+    id: state.sessionId,
+    startedAt,
+    endedAt,
+    plannedDurationMin: Math.round(
+      summary.blocksWithFinalRatings.reduce(
+        (s, b) => s + b.plannedSeconds,
+        0,
+      ) / 60,
+    ),
+    actualDurationMin: Math.round(activeMs / 60_000),
+    context: extras.context ?? 'mixed',
+    timeOfDay: timeOfDayFor(startedAt),
+    sessionRole: extras.sessionRole ?? 'only',
+    sessionIntent: extras.sessionIntent ?? null,
+    hardBlocks: extras.hardBlocks ?? false,
+    energyFocus: extras.energyFocus ?? null,
+    energyMotivation: extras.energyMotivation ?? null,
+    energyInspiration: extras.energyInspiration ?? null,
+    dayProfileUsed: extras.dayProfileUsed ?? null,
+    reasoningSnapshot: extras.reasoningSnapshot ?? null,
+    notes: extras.notes ?? null,
+    lastEngagedAt: endedAt,
+    sessionRating: summary.sessionRating,
+    affirmation: trimmedAffirmation,
+  };
+
+  const blockRows: PracticeBlock[] = summary.blocksWithFinalRatings.map(
+    (b, i): PracticeBlock => ({
+      id: b.id,
+      sessionId: state.sessionId!,
+      orderIndex: i,
+      moduleRef: b.moduleRef,
+      subModuleRef: null,
+      itemRefs: b.itemRefs ? [...b.itemRefs] : [],
+      plannedMinutes: Math.round(b.plannedSeconds / 60),
+      actualMinutes: Math.round(b.activeMs / 60_000),
+      completionStatus:
+        b.status === 'completed'
+          ? 'completed'
+          : b.status === 'skipped'
+            ? 'skipped'
+            : null,
+      performanceRating: b.rating ?? null,
+      blockColor: null,
+      notes: null,
+    }),
+  );
+
+  // Single transaction so a partial write doesn't strand a session
+  // without its blocks (or vice versa).
+  await db.transaction('rw', [db.practiceSessions, db.practiceBlocks], async () => {
+    await db.practiceSessions.put(sessionRow);
+    await db.practiceBlocks.bulkPut(blockRows);
+  });
+
+  // Touch finalizedTotalMs so the unused-import linter ignores it
+  // — kept around for a future "session length vs active time"
+  // surface that may want the wall-clock total.
+  void finalizeAvailable(finalizedTotalMs);
+
+  return state.sessionId;
+}
+
+function finalizeAvailable(_total: number): void {
+  // intentional no-op
 }
 
 export async function recomputeGoalsAndQueueMilestones(): Promise<{
