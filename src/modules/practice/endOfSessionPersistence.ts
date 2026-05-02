@@ -39,8 +39,12 @@
  * on a Done button.
  */
 
+import { db } from '../../lib/db';
 import { getMemoryType } from '../../lib/memoryType';
 import { recordEngagement } from '../../lib/spacingState';
+import { enqueue } from '../../lib/prompts/queue';
+import { PROMPT_TYPE } from '../../lib/prompts/types';
+import { getGoalProgress } from '../../modules/goals/progress';
 import type { SessionBlock } from '../../lib/sessionTimer/types';
 
 /**
@@ -141,4 +145,78 @@ export function mergeBatchRatings(
     if (!r) return { ...b };
     return { ...b, rating: r };
   });
+}
+
+/**
+ * Phase 3 Step 6i — recompute current_value for active goals after
+ * the session's engagement writes have settled, then enqueue a
+ * GOAL_MILESTONE prompt for any goal whose current_value just
+ * crossed its target_value.
+ *
+ * Walks active goals; uses getGoalProgress (Phase 2) to compute
+ * new current values, updates goal.currentValue when it changed,
+ * and detects "wasReached / isReached" transitions so the prompt
+ * only fires the moment a milestone is crossed (not every session
+ * thereafter).
+ *
+ * Per-goal failures are logged + swallowed — partial progress
+ * updates are better than none if one goal's read happens to
+ * fault. Returns { updated, milestonesQueued } counts for tests
+ * and telemetry.
+ *
+ * Phase 3 v0 only: 'coverage' and 'accuracy' goal kinds are
+ * supported (everything getGoalProgress returns kind !== 'unsupported'
+ * for). Item-count + song-proficiency progress lands in Phase 7
+ * polish.
+ */
+export async function recomputeGoalsAndQueueMilestones(): Promise<{
+  updated: number;
+  milestonesQueued: number;
+}> {
+  let updated = 0;
+  let milestonesQueued = 0;
+
+  const goals = await db.goals.where('status').equals('active').toArray();
+
+  for (const goal of goals) {
+    try {
+      const progress = await getGoalProgress(goal);
+      if (progress.kind === 'unsupported') continue;
+      if (progress.current === null) continue;
+
+      const target = progress.target;
+      const newCurrent = progress.current;
+      const oldCurrent = goal.currentValue ?? 0;
+
+      if (newCurrent !== oldCurrent) {
+        await db.goals.update(goal.id, { currentValue: newCurrent });
+        updated += 1;
+      }
+
+      const wasReached = oldCurrent >= target;
+      const isReached = newCurrent >= target;
+      if (!wasReached && isReached) {
+        await enqueue({
+          promptType: PROMPT_TYPE.GOAL_MILESTONE,
+          tier: 'medium',
+          surface: 'session_end',
+          payload: {
+            goalId: goal.id,
+            targetMetric: goal.targetMetric,
+            targetValue: target,
+            currentValue: newCurrent,
+          },
+        });
+        milestonesQueued += 1;
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[end-of-session] goal recompute failed', {
+        goalId: goal.id,
+        error: e,
+      });
+    }
+  }
+
+  return { updated, milestonesQueued };
 }

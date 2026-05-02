@@ -19,6 +19,11 @@ export const PROMPT_TYPE = {
    *  month. Phase 7 surfaces the monthly review UI; Phase 1 just
    *  records the event. */
   END_OF_MONTH: 'end_of_month',
+  /** Phase 3 Step 6i — fired at session end when a measurable goal
+   *  just crossed its target_value. Payload carries goalId,
+   *  targetMetric, targetValue so the surface UI (Phase 7) can
+   *  render module-specific copy without a re-fetch. */
+  GOAL_MILESTONE: 'goal_milestone',
 } as const;
 
 export type PromptType = typeof PROMPT_TYPE[keyof typeof PROMPT_TYPE];
