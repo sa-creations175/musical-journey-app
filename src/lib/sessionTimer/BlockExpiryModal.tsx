@@ -46,7 +46,7 @@ import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
 
 const PRACTICE_SESSIONS_ACTIVE_ROUTE = '/practice-sessions/active';
 const HARD_BLOCK_GRACE_MS = 5000;
-const EXTEND_OPTIONS_MIN: ReadonlyArray<number> = [2, 5, 10];
+const EXTEND_OPTIONS_MIN: ReadonlyArray<number> = [1, 2, 5, 10];
 
 export function BlockExpiryModal() {
   const navigate = useNavigate();
