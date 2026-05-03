@@ -5,19 +5,21 @@
  * helpers to produce ProposalCardData[] that the proposal screen
  * renders.
  *
- * Phase 3 v0 ships a minimum-viable orchestration: walks active
- * goals, derives one block per module the user is engaged with,
- * allocates time proportionally, and runs generateProposals to
- * produce balanced + focused cards. Sophisticated weighting
- * (pace urgency, freshness, multi-goal compounding) lands in a
- * follow-up iteration once we've watched real sessions and seen
- * what actually needs tuning.
+ * Composition: each contributing goal yields a CandidateSpec
+ * (Step 2a), which resolves to an itemRef set against spacing
+ * rows. For every (item, module) pair, weightForItem (Step 2d)
+ * combines goal alignment, pace urgency, acquisition lift, and
+ * freshness into a single per-item weight. Per module, items
+ * sort by weight desc and the block's weight is the MAX item
+ * weight — so a single screaming-urgent item drives the block's
+ * priority. Multi-goal compounding falls out of weightForItem's
+ * MAX-across-goals semantics.
  *
  * The function is async because it reads spacingState + goals
  * from Dexie. Pure-logic Step 2 helpers compose underneath.
  */
 
-import { db, type Goal, type SpacingState } from '../../lib/db';
+import { db, type Goal, type GoalScope, type SpacingState } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { getMemoryType } from '../../lib/memoryType';
 import {
@@ -36,8 +38,10 @@ import type {
   AlgorithmBlock,
   AllocatedBlock,
 } from '../../lib/sessionAlgorithm/timeAllocation';
-import { goalAlignmentFactor } from '../../lib/sessionAlgorithm/weighting';
+import { weightForItem } from '../../lib/sessionAlgorithm/weighting';
+import { paceForCoverageGoal } from '../../lib/sessionAlgorithm/pace';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
+import type { CandidateSpec } from '../../lib/sessionAlgorithm/types';
 import { getGoalFeasibility } from '../goals/progress';
 import type {
   ProposalBlock,
@@ -51,15 +55,15 @@ import type { InputQuestionnaireResult } from './inputs';
  *
  * Strategy:
  *   1. Read active goals + all spacing rows.
- *   2. For each goal, derive its candidate items (spec + resolve).
- *      Module → set-of-itemRefs grouping; weight per module via
- *      MAX(goalAlignmentFactor).
- *   3. Build one AlgorithmBlock per module touched by goals.
- *      Block items = the goal's candidate set (capped per block).
- *      Block weight = max goalAlignment across the goals in scope.
- *   4. Run generateProposals(blocks, availableSeconds) → 1 or 2
+ *   2. Per goal, derive a CandidateSpec + pace factor.
+ *   3. For each (item, module) pair contributed by a goal, run
+ *      weightForItem (Step 2d) to combine goal alignment, pace,
+ *      acquisition stage, and freshness into a single weight.
+ *   4. Group items by module; sort items by weight desc; cap at
+ *      MAX_ITEMS_PER_BLOCK. Block weight = MAX item weight.
+ *   5. Run generateProposals(blocks, availableSeconds) → 1 or 2
  *      AllocatedBlock-bearing proposals.
- *   5. Map AllocatedBlocks → ProposalBlocks (display shape) using
+ *   6. Map AllocatedBlocks → ProposalBlocks (display shape) using
  *      moduleMeta + a per-module activity description.
  */
 export async function buildSessionProposals(
@@ -272,78 +276,148 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // Goal-driven module aggregation
 // ---------------------------------------------------------------------
 
-interface ModuleAggregate {
-  moduleRef: string;
-  itemRefs: Set<string>;
-  /** Max goalAlignmentFactor across the goals that contributed. */
-  weight: number;
-  hasAcquiringItems: boolean;
+/** Cap on items carried into a block. Beyond this the per-item
+ *  weight ranking still picks the most urgent items first. */
+const MAX_ITEMS_PER_BLOCK = 20;
+
+/**
+ * Per-goal pace factor — applies to goals with an item-count
+ * denominator (coverage, production_count). Returns 1.0 (neutral)
+ * for accuracy / consistency / song / unsupported goals; their
+ * pace shape needs a different model and is deferred. Also
+ * returns 1.0 when the goal lacks a usable target value or has a
+ * zero-length period.
+ */
+export function paceFactorForGoal(
+  goal: Goal,
+  spec: CandidateSpec,
+  now: number,
+): number {
+  if (spec.kind !== 'coverage' && spec.kind !== 'production_count') return 1.0;
+  if (goal.targetValue === null || goal.targetValue <= 0) return 1.0;
+  if (goal.targetDate <= goal.startDate) return 1.0;
+  return paceForCoverageGoal({
+    startDate: goal.startDate,
+    targetDate: goal.targetDate,
+    totalItems: goal.targetValue,
+    actualCoverage: goal.currentValue,
+    now,
+  }).factor;
 }
 
-function aggregateGoalCandidatesByModule(
+/**
+ * Aggregate active goals + spacing rows into one AlgorithmBlock
+ * per module. Per-item weighting (Step 2d) drives the block
+ * weight; items sort by weight desc so the urgent ones survive
+ * the per-block cap.
+ *
+ * Behavior note: the block weight is now the MAX per-item weight
+ * (was MAX goalAlignmentFactor). This ranges higher (up to ~13)
+ * than the old [1.0, 1.8] range; downstream consumers
+ * (proposal sort, drop priority, focused split) are scale-
+ * invariant. The abundance detector's nothing-urgent threshold
+ * (1.5) now reflects "no pressure across all signals" rather
+ * than "no goal-scope lift" — semantic shift; recalibrate after
+ * real-data sessions if the branch fires too rarely or too often.
+ *
+ * The `now` parameter exists as a test seam so weighting outputs
+ * are deterministic. Production callers pass Date.now().
+ */
+export function aggregateGoalCandidatesByModule(
   goals: ReadonlyArray<Goal>,
   spacingRows: ReadonlyArray<SpacingState>,
+  now: number = Date.now(),
 ): AlgorithmBlock[] {
-  const byModule = new Map<string, ModuleAggregate>();
-
-  // Index spacing rows by ref for hasAcquiringItems checks.
   const acquiringItemRefs = new Set<string>();
+  const rowByItemRef = new Map<string, SpacingState>();
   for (const row of spacingRows) {
+    rowByItemRef.set(row.itemRef, row);
     if (isAcquiring(row)) acquiringItemRefs.add(row.itemRef);
   }
+
+  // (itemRef, moduleRef) -> contributing goals (scope + paceFactor).
+  // Same item can land in different moduleRefs across goals (e.g. an
+  // ET overall goal + a sub-area goal both touching one note). Keying
+  // on the joint pair keeps per-module aggregation clean while
+  // letting weightForItem's MAX-across-goals do multi-goal
+  // compounding inside each (item, module) cell.
+  const contributingByItemModule = new Map<
+    string,
+    { scope: GoalScope; paceFactor: number }[]
+  >();
 
   for (const goal of goals) {
     const spec = candidateSpecForGoal(goal);
     if (spec.kind === 'umbrella' || spec.kind === 'unsupported') continue;
 
-    // For coverage / accuracy / consistency the spec carries
-    // moduleRefs. Collect itemRefs by walking spacing rows + the
-    // spec's filter; consistency yields any rows in module.
-    const itemRefs = resolveCandidates(spec, spacingRows);
-
-    // Pick module — for multi-module specs (ET overall, practice_*
-    // umbrella), each row's moduleRef governs grouping.
     const candidateModuleRefs =
       'moduleRefs' in spec ? spec.moduleRefs : [];
+    if (candidateModuleRefs.length === 0) continue;
 
-    for (const moduleRef of candidateModuleRefs) {
-      const moduleItems = itemRefs.filter(ref =>
-        spacingRows.some(r => r.itemRef === ref && r.moduleRef === moduleRef),
-      );
-      if (moduleItems.length === 0) continue;
+    const paceFactor = paceFactorForGoal(goal, spec, now);
+    const itemRefs = resolveCandidates(spec, spacingRows);
 
-      const factor = goalAlignmentFactor(goal.scope);
-      const existing = byModule.get(moduleRef);
-      if (existing) {
-        for (const ref of moduleItems) existing.itemRefs.add(ref);
-        existing.weight = Math.max(existing.weight, factor);
-        existing.hasAcquiringItems =
-          existing.hasAcquiringItems ||
-          blockHasAcquiringItems(moduleItems, acquiringItemRefs);
+    for (const itemRef of itemRefs) {
+      const row = rowByItemRef.get(itemRef);
+      if (!row) continue;
+      if (!candidateModuleRefs.includes(row.moduleRef)) continue;
+
+      const key = `${itemRef}\x00${row.moduleRef}`;
+      const list = contributingByItemModule.get(key);
+      if (list) {
+        list.push({ scope: goal.scope, paceFactor });
       } else {
-        byModule.set(moduleRef, {
-          moduleRef,
-          itemRefs: new Set(moduleItems),
-          weight: factor,
-          hasAcquiringItems: blockHasAcquiringItems(
-            moduleItems,
-            acquiringItemRefs,
-          ),
-        });
+        contributingByItemModule.set(key, [
+          { scope: goal.scope, paceFactor },
+        ]);
       }
     }
   }
 
-  return Array.from(byModule.values()).map(
-    (agg, idx): AlgorithmBlock => ({
-      id: `block-${idx}-${agg.moduleRef}`,
-      moduleRef: agg.moduleRef,
-      memoryType: safeMemoryType(agg.moduleRef),
-      itemRefs: Array.from(agg.itemRefs).slice(0, 20),
-      weight: agg.weight,
-      hasAcquiringItems: agg.hasAcquiringItems,
-    }),
-  );
+  // Compute per-item weight, group by module.
+  type ItemWithWeight = { itemRef: string; weight: number };
+  const byModule = new Map<string, ItemWithWeight[]>();
+
+  for (const [key, contributingGoals] of contributingByItemModule) {
+    const sep = key.indexOf('\x00');
+    const itemRef = key.slice(0, sep);
+    const moduleRef = key.slice(sep + 1);
+    const row = rowByItemRef.get(itemRef);
+
+    const { weight } = weightForItem({
+      row,
+      goals: contributingGoals,
+      priority: undefined, // Phase 3: no per-item priority UI yet.
+      now,
+    });
+
+    const arr = byModule.get(moduleRef);
+    if (arr) arr.push({ itemRef, weight });
+    else byModule.set(moduleRef, [{ itemRef, weight }]);
+  }
+
+  const blocks: AlgorithmBlock[] = [];
+  let idx = 0;
+  for (const [moduleRef, items] of byModule) {
+    items.sort((a, b) => b.weight - a.weight);
+    const top = items.slice(0, MAX_ITEMS_PER_BLOCK);
+    if (top.length === 0) continue;
+
+    const itemRefs = top.map(i => i.itemRef);
+    const blockWeight = top[0].weight;
+
+    blocks.push({
+      id: `block-${idx}-${moduleRef}`,
+      moduleRef,
+      memoryType: safeMemoryType(moduleRef),
+      itemRefs,
+      weight: blockWeight,
+      hasAcquiringItems: blockHasAcquiringItems(itemRefs, acquiringItemRefs),
+    });
+    idx++;
+  }
+
+  return blocks;
 }
 
 function safeMemoryType(moduleRef: string): AlgorithmBlock['memoryType'] {
