@@ -450,16 +450,39 @@ function toProposalBlock(block: AllocatedBlock): ProposalBlock {
   };
 }
 
-function describeActivity(block: AllocatedBlock): string {
-  const meta = moduleMetaById(block.moduleRef);
-  const moduleLabel = meta?.label ?? block.moduleRef;
-  const minutes = Math.max(1, Math.round(block.plannedSeconds / 60));
-  // Phase 3 v0: a generic per-module description. Future
-  // refinement: per-memory-type shapes from the design (Part 4)
-  // — declarative "X cards · N attempts", procedural "X drills · N
-  // min", integration "Mirror · Verse · C, G", etc. Requires a
-  // resolver from itemRef → display name.
-  return `${moduleLabel} · ${minutes} min`;
+/**
+ * Tier-1 activity descriptions: per-memory-type generic templates
+ * keyed off block.memoryType + moduleRef + item count. The
+ * SessionBlock UI already renders the module label (upper line)
+ * and the duration (right side) separately — this string fills
+ * the lower line, so it should NOT repeat either.
+ *
+ * Tier 2 (deferred — see BUILD_SEQUENCER_2.md polish-sprint
+ * deferred list) adds itemRef → display-name resolvers per module
+ * so the line can surface specific lesson titles, song names,
+ * card categories, etc.
+ */
+export function describeActivity(block: AllocatedBlock): string {
+  const count = block.itemRefs.length;
+  const plural = (n: number, singular: string, pluralForm: string) =>
+    `${n} ${n === 1 ? singular : pluralForm}`;
+
+  switch (block.memoryType) {
+    case 'declarative':
+      return `flashcards · ${plural(count, 'card', 'cards')}`;
+    case 'procedural':
+      return `drills · ${plural(count, 'item', 'items')}`;
+    case 'integration':
+      if (block.moduleRef === 'repertoire') {
+        return `repertoire · ${plural(count, 'song', 'songs')}`;
+      }
+      if (block.moduleRef === 'production') {
+        return `lessons · ${plural(count, 'lesson', 'lessons')}`;
+      }
+      return `session work · ${plural(count, 'item', 'items')}`;
+    case 'expression':
+      return 'freeform play';
+  }
 }
 
 function deriveWhySnippet(block: AllocatedBlock): string {

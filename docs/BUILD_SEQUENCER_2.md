@@ -2,227 +2,102 @@
 
 Single source of truth for build order, current state, and which docs to reference per phase. Paste this at the start of every Claude Code session alongside WORKING_WITH_CLAUDE.md.
 
-Last updated: April 28, 2026
+Last updated: May 2, 2026
 
 ---
 
 ## Current state
 
-**Phase 1 — COMPLETE.** All 6 sub-phases shipped and verified. Pushed to origin/main.
+**Phase 1 — COMPLETE.**
+**Phase 1.5 — COMPLETE.**
+**Phase 1.6 — COMPLETE.**
+**Phase 2 — COMPLETE.** 701/701 tests passing.
+**Phase 3 — COMPLETE.** 986/986 tests passing. Full Practice Sessions generator shipped and verified end-to-end in browser. Vercel green. Last commit: 24c64d8.
 
-**Phase 1.5 — COMPLETE.** All 7 steps shipped and pushed to origin/main.
-
-**Phase 1.6 — COMPLETE.** All 16 build steps shipped, verified end-to-end, and pushed to origin/main. The new `GoalCreationFlow` is live in production paths (Goals home + onboarding Screen 3); legacy `GoalFormModal` stays mounted alongside for old-vocab edits.
-
-**Phase 2 — COMPLETE.** All 7 steps shipped April 29–30; 701/701 tests passing.
-- Steps 1–5 shipped previously (spacingState, coverage vocabulary, item counts, progress helpers, YearlyAnchorFlow).
-- Step 6 (Goals home redesign) shipped across substeps 6a–6h on April 29.
-- Step 7 (`getGoalFeasibility()` + Goals home feasibility surface) shipped across substeps 7a–7f on April 30: 4-tier status model (on_track / at_risk / critical / unrecoverable), scope-aware cadence windows for consistency, module-aware coverage units, action-oriented pill labels in non-red palette, unified unrecoverable message, all-unrecoverable umbrella suppression, consistency dimension dropped from yearly anchor children, end-to-end integration smoke.
-
-**Active next step:** Phase 3 — Practice Sessions algorithm. All Phase 3 design questions resolved (PHASE3_READY_DESIGN_DOC.md); Phase 2 fully unblocks the build. Pre-Phase 3 cleanup items remain (see "Pre-Phase 3 cleanup items" section below).
+**Active next step:** Polish sprint (items pulled forward from Phase 7) — Session 1: sessionGenerator full weighting + block description fix + scales drill consolidation.
 
 ---
 
-## Build order
+## Revised build order
 
-### Phase 1 — Practice Sessions foundation ✅ COMPLETE
+The original phase order (3 → 4 → 5 → 6 → 7) has been revised. Phase 3 is now in daily use. Phases 4 and 5 require real usage data before they can be properly calibrated. High-impact polish items are pulled forward so the app feels complete for daily practice before tackling the architectural middle phases.
 
-All 6 sub-phases shipped and verified. Pushed to origin/main.
+### Why phases 4 and 5 are deferred
 
----
+**Phase 4** (day coordination / opener-middler-closer) only adds value when you're regularly doing multiple sessions per day. If you're doing one session a day, it adds complexity without value. Build it when multi-session days are actually part of your practice routine.
 
-### Phase 1.5 — Song Progression Redesign ✅ COMPLETE
+**Phase 5** (goal automation) auto-calculates goal progress from spacing state and triggers end-of-period reviews. The spacing curve constants and acquisition thresholds were set with reasonable defaults in Phase 3 — but they need 20–30 real sessions of data before calibration makes sense. Building goal automation before that means potentially automating against bad numbers and having to recalibrate everything.
 
-**Reference docs:**
-- `SONG_PROGRESSION_DESIGN_3.md` — full spec
-
-**Steps:**
-1. ✅ Schema — 6 new tables + sync registration + proficiencyDefinitions seed update
-2. ✅ Migration — seed existing songs from old proficiency states + section setup flow
-3. ✅ Matrix UI — steps 3a (read-only matrix), 3b (section setup flow), 3c (cross-key follow-up)
-4. ✅ Cell interaction modal — attempt logging, BPM gate (≥ performance tempo − 10), mode toggle deferred
-5. ✅ Whole-song test modal — Comfortable → Solid gate, discrete-session, deliberate initiation
-6. ✅ Solid decay + retest flow — fading/lapsed badges, retest modal, decay stickiness
-7. ✅ Goal creation modal updates — matrix-aware song goal targeting (song-specific branch only)
-
-All 7 steps pushed to origin/main.
-
-**Known deferred items from Phase 1.5:**
-- Cell interaction modal per-attempt mode toggle (P3 polish)
-- "Clear all session attempts" button (P3 polish)
-- "Reset cell historical count" option (P3 polish)
-- Section mutations after creation (rename, reorder, split, archive, restore) — later step
-- Original key reassignment UI — later step
-- songKeyEngagements logging — Phase 3 (Practice Sessions integration)
-- Lived-with window computation — Phase 3
-- Whole-song test modal per-attempt mode — deferred
-- `songCrossKeyProgress` table deprecation/drop — later cleanup step
-- Pre-existing SongDetailView.tsx lint warnings (lines 109, 116) — cleanup
+**Recommended milestone:** use the app daily for 3–4 weeks after the polish sprint, then revisit Phases 4 and 5.
 
 ---
 
-### Phase 1.6 — Goal Modal Redesign + Shapes & Patterns Proficiency ✅ COMPLETE
+## Next: Polish sprint (pulled forward from Phase 7)
 
-**Reference docs:**
-- `GOAL_MODAL_REDESIGN.md` — final spec (5-step flow, parent goal step, design questions resolved)
-- `SHAPES_PROFICIENCY_DESIGN.md` — Shapes & Patterns proficiency model
+### Polish session 1 — Practice Sessions polish
 
-**What Phase 1.6 shipped:**
-- New `GoalCreationFlow` — guided 5-step conversation in `src/modules/goals/GoalCreationFlow.tsx`
-- Step 1: module cards (6 modules in 3×2 grid with canonical accent colors)
-- Step 2: module-specific target surfaces — all 6 modules built
-- Step 3: scope cards + target date with `initialScope` pre-fill and persistent scope banner
-- Step 3.5: parent goal picker (vocabulary-aware suggestions + "No parent goal" + "Create new parent goal" placeholder)
-- Step 4: review block with metadata pills + multi-target indicator + save
-- Context inference (`contextForModule`) wired into save
-- Multi-target encoding: two records sharing `parent_goal_id` per the spec design call
-- Edit mode: full decoder set + key-on-mount remount pattern
-- Entry-point swap: vocabulary-routed (new vocab → new flow, old vocab → legacy `GoalFormModal`)
-- Both modals coexist on Goals home + onboarding Screen 3 until old-vocab goals age out / migrate
+**1. sessionGenerator full weighting**
+Wire the Step 2 algorithm helpers (pace urgency, freshness, acquisition weighting, multi-goal compounding) into `sessionGenerator.ts`. Currently the generator is minimum-viable — equal time to everything. This is the highest-impact item: the algorithm is fully built in Step 2 but not connected to the generator. Reference: `src/lib/sessionAlgorithm/` — all pure functions ready to consume.
 
-**Build steps (all shipped, in order):**
-1. ✅ `GoalCreationFlow` shell — 5-step navigation, dot indicator, back/next
-2. ✅ Step 1 — module cards (with accent colors)
-3. ✅ Step 2 — Song Repertoire (extracted SongTargetSection, want-to-learn promote)
-4. ✅ Step 2 — Ear Training
-5. ✅ Step 2 — Harmonic Fluency (with 4-group accent palette)
-6. ✅ Step 2 — Shapes & Patterns
-7. ✅ Step 2 — Production
-8. ✅ Step 2 — Practice consistency
-9. ✅ Step 3 — scope cards + target date (extracted scopeMeta)
-10. ✅ Step 3.5 — parent goal picker
-11+12+13. ✅ Step 4 review + save logic + multi-target encoding + context inference (combined commit)
-14. ✅ Edit mode — decoders + key-on-mount remount
-15. ✅ Entry-point swap — vocabulary routing + persistent scope banner + "+ Reflect" → "+ Aspire"
-16. ✅ Final verification — all new-vocab metrics decode correctly in edit mode
+**2. Block description redundancy fix**
+Proposal card blocks show "HARMONIC FLUENCY / harmonic fluency · 3 min" — module name repeated twice. The lower line should be a meaningful activity description (e.g. "practice flashcards · 3 min"), not a repeat of the module name.
 
-**Known deferred items from Phase 1.6 (captured in user-memory notes for after Phase 1.6 ships):**
-- Song section multi-select (multiple sections in one pass, save as siblings)
-- Cross-key % slider tied to the song's actual keys × sections (not generic 0–100%)
-- "+ Add" / "+ Aspire" link should sit at top of each layer instead of bottom
-- Vision-scope goals (Lifetime, 2–3 years) should swap structured target picker for freeform text per module
-- End-of-period goal warning (e.g., monthly goal created on April 27 with only 3 days left)
-- Onboarding Screen3 vision-scope creates still walk through the new flow's structured pickers — may want to special-case back to legacy text-only modal
-- Legacy `GoalFormModal` stays mounted alongside the new flow until all old-vocab goals are aged out / migrated
+**3. Scales drill consolidation**
+User preference: ascending and descending as separate drills plus a "both" option is redundant. The only drill type used is "both (up and down)". Consolidate to one drill type per scale.
+
+### Polish session 2 — Mobile nav + Settings
+
+**4. Mobile bottom tab nav**
+On mobile, replace the horizontal icon strip with a proper bottom tab bar — four tabs: Goals, Dashboard, Practice, Modules. "Modules" opens a bottom sheet showing all module options. Desktop sidebar stays as-is (no change). Bottom sheet (not a screen) for the Modules picker. Skills Catalogue placement TBD at build time.
+
+**5. Hard-block toggle in Settings**
+Setting: "Block timer behavior" — "Auto-advance when time is up" (hard) vs "Prompt and wait" (soft). Default: hard. Plumbing built in Phase 3 (`hardBlock` on session state), needs a Settings UI surface.
+
+**6. Practice History calendar view**
+Show completed sessions on a calendar with module color dots, session duration, and block count. Becomes motivating once real sessions are accumulating.
+
+### Polish session 3 — Investigate + fix
+
+**7. HF minimum items banner investigation**
+"Focus sessions with fewer than 4 items don't count toward fluency tiers" surfaced during Phase 3 walkthrough. Investigate whether this conflicts with how the session generator sizes HF blocks. May require a minimum item threshold check before scheduling HF blocks.
+
+**8. Production vocab YouTube link**
+On card answer reveal, show a small "Watch: [lesson title] ↗" link if the term has a relatedLesson with a youtubeLink. Opens in new tab. Data chain already exists: glossaryTerms[].relatedLessons[] → lessons[].youtubeLink.
 
 ---
 
-### Phase 2 — Practice Sessions spacing state + multi-component goals + coverage goals (IN PROGRESS)
+## Already shipped as part of polish (May 2, 2026)
 
-**Reference docs:**
-- `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 2 section + new "Yearly Anchor Flows" + "Activity tracking framework" sections
-- `DESIGN_DECISIONS_6.md` — coverage goals, activity units, session floors, yearly anchor design
-- `SESSION_SUMMARY_2026_04_27_PHASE2_DESIGN.md` + `SESSION_SUMMARY_2026_04_28.md` — design + build context
+**Mode playback fix ✅**
+All modes now play from their correct root note in Harmonic Diary. Scales & Modes module was already correct. Commit: 9475311.
 
-**Scope:**
-- Populate `spacingState` as users engage with items across all 8 modules ✅
-- Coverage metric vocabulary + GoalCreationFlow wiring (multi-pick group/area/path goals) ✅
-- Live denominators (replace hardcoded TODO 2/3 markers)
-- Coverage / accuracy progress helpers (auto-update `current_value` from spacing state)
-- YearlyAnchorFlow — dedicated two-screen flow for yearly umbrellas (separate from GoalCreationFlow)
-- Goals home redesign — by-timeframe + by-module views, activity charts, expanded goal rows
+**Production Vocabulary flashcards ✅**
+199 cards generated programmatically from glossary.ts with 17 semantic clusters for decoy selection. Generic `FlashcardSession` component lifted from HF (HF wires through same shell). SM-2 persistence via shared db.flashcardStates. Daily goal bar at 10 cards. Full session UI matches HF pattern. Commits: 3e44369 → 24c64d8.
 
-**Build steps:**
+**Collapsible sidebar nav ✅**
+Sidebar collapses to icon-only at md widths, horizontal icon strip on mobile with hamburger toggle. User preference persists. Commits: bde3ef8, 5ff0725.
 
-1. ✅ **Populate spacingState across all modules** (8 substeps, all shipped)
-   - 1a — Foundational helpers (`src/lib/spacingState.ts`, 215 lines, `recordEngagement` + `getSpacingState`)
-   - 1b — Intervals wired (itemRef = `M3:asc` / `M3:desc`, focus-protected attempts only)
-   - 1c — Chord Recognition + Scales & Modes + Chord Progressions wired (Ear Training denominator = 143, not 134, after 18 mode×tab rows)
-   - 1d — Harmonic Fluency wired (rides alongside SM-2 `flashcardStates`, independent updates)
-   - 1e — Shapes & Patterns wired (procedural rating-based, Mental Visualization excluded via `itemRefForSkill` returning null)
-   - 1f — Song Repertoire wired to PracticeLogModal (stopgap; Song Practice Timer replaces this in Phase 7)
-   - 1g — Production wired via new `assertSpacingStage` API (state-declaration, not signal-based)
-   - 1h — One-time backfill from existing user history (pref-gated `PREF_SPACING_STATE_BACKFILL_V1`, 68 rows after backfill)
-2. ✅ **Coverage metric vocabulary + GoalCreationFlow wiring** (5 substeps, all shipped, 161/161 tests passing)
-   - 2a — Coverage metric vocabulary (`src/modules/goals/coverageMetrics.ts`, 8 metric IDs, type guards)
-   - 2b — Ear Training coverage goal wired (multi-pick group pills; pre-existing multi-target umbrella bug fixed; Step 3.5 hardened to default `kind: 'none'`; dev "Clear all goals" button added)
-   - 2c — Harmonic Fluency coverage goal wired (per-group accent pills via `selectedStyle: 'fluent' | 'accent'`)
-   - 2d — Shapes & Patterns coverage goal wired (3 sub-areas: 348+24+36=408; Mental Visualization excluded)
-   - 2e — Production coverage goal wired (6 paths; `targetUnit: 'lessons'`; back-applied slice fix for non-coverage children)
-3. ✅ **moduleItemCounts helper** — replaces all TODO 2/3 hardcoded denominators with live counts pulled from data.
-4. ✅ **Coverage and accuracy progress helpers** — `getCoverageCount`, `getEarTrainingAccuracy`, etc. Auto-update goal `current_value` from spacing state.
-5. ✅ **YearlyAnchorFlow UI** — dedicated two-screen component (Set Intention + Review). One umbrella record + N dimension records.
-6. ✅ **Goals home redesign** (substeps 6a–6h, all shipped April 29):
-   - 6a — `<GoalRow>` collapsed/expanded anatomy with reserved progress + feasibility slots
-   - 6b — Scope-adaptive activity charts (`<WeeklyBars>` / `<MonthlyDotGrid>` / `<YearlyBars>`), pure top-percentile + future-fade helpers, mock data wiring
-   - 6c — Live activity data via new `getDailyActivity` helper (dailySummaries / drillSessions / songPracticeLog / productionLessonSessions); refinements: always-visible unit gutter, umbrella row with subtitle + cross-module chart routing, vision-statement titles + module-accent rendering, suppressed chart on umbrella children
-   - 6d — View toggle (by timeframe / by module) with userPref persistence
-   - 6e — Module subheaders inside each timeframe layer (nav-order, accent colors)
-   - 6f — By-module view: module-as-top sections, dashed yearly-anchor backstop, current-period + 7-day lookahead filter, cross-scope `findAllChildren`
-   - 6g — Collapse persistence via localStorage (sidesteps userPrefs sync race that wiped writes); per-module vision-statement titles + legacy heuristic
-   - 6h — End-to-end integration smoke + sequencer update
-7. ✅ **Goal feasibility checking** (substeps 7a–7f, all shipped April 30):
-   - 7a — `getGoalFeasibility()` foundation: 4-tier status (on_track / at_risk / critical / unrecoverable), discriminated `kind` output (measurable / aspirational / unknown), tunable constants (DEFAULT_DAY_PROFILE_MIX, AT_RISK_RATIO, ASPIRATIONAL_PLACEHOLDERS, ITEMS_PER_SESSION), coverage-goal projection math, goal-id-seeded aspirational placeholder
-   - 7b — Other measurable goal types: accuracy (gap + critical-window), consistency (pace-ratio + day-fit, scope-aware cadence window), song_whole_at_level (per-stage projection, 1 song/month default rate), `coverageUnitForModule` distinct from `activityUnitForModule`, unified `UNRECOVERABLE_MESSAGE`
-   - 7c — `loadDayProfileMix()` accessor + `rollupChildFeasibilities()` worst-case rollup excluding unrecoverable (per 6h.2 sign-off)
-   - 7d — Collapsed feasibility pill: action-oriented labels ("On track", "Pick up pace", "Act now", "Unrecoverable"), no icons, non-red palette (green / yellow / orange / gray), soft-teal "Progressing" pill for aspirational scopes, inert dashed em-dash for unknown
-   - 7e — Expanded feasibility detail: per-row recommendation text, umbrella breakdown summary ("2 on track · 1 behind pace"), unified message at all-unrecoverable umbrella level with per-child suppression, scope-aware consistency time framing ("this week" / "this month" / "this month to stay on yearly pace"), daysRemaining counts today as a remaining day, consistency dimension dropped from yearly anchor children (Phase 5+ retrospective view captured)
-   - 7f — End-to-end integration smoke + Step 7 close-out + Phase 2 close-out
-
-**Deferred items captured during Phase 2 design + Steps 1–2 build:**
-- SyncProvider re-rendering excessively — pre-existing, monitor as Phase 2 adds more writes
-- `lessons.ts` stale header comment ("24 Phase-1 lessons") — fix next time in that file
-- Harmonic Fluency 4-group structure UI propagation into module nav (Phase 7 polish)
-- Song Practice Timer — needs dedicated `SONG_PRACTICE_TIMER_DESIGN.md` before build (see Deferred design sessions)
-- PracticeLogModal deprecation — Phase 7 cleanup when timer ships
-- Edit-mode for coverage children — needs "add to existing umbrella" flow (Phase 7 UX polish; YearlyAnchorFlow handles yearly case)
-- Dev "Clear all goals" button — remove when Phase 2 fully done (Phase 7 cleanup)
-- Mid-year umbrella expansion — deferred indefinitely; no legacy goals exist, all new users use YearlyAnchorFlow
-
-**Pre-Phase 3 cleanup items:**
-- ✅ **Accuracy slider — paired text input.** Shipped April 30. AccuracySlider in `yearlyAnchorDimensions.tsx` rebuilt as slider + numeric text input with eager commit on valid in-range integer, clamp on blur, snap-back on empty/junk. Range opened to 50–100. GoalCreationFlow's two inline range inputs replaced with the shared component; constants updated.
-
-**Phase 7 polish items (post-Phase 3):**
-- **Item-count goal feasibility.** Surfaced during Step 7b (Apr 30). `song_whole_at_level` and `count_completed` goals currently return `kind: 'unknown'` from `getGoalFeasibility` — they need module-specific rate data we don't track yet. Suggested placeholder rule when data lands: default rate of 1 song/month for `song_whole_at_level`, configurable per-user. Same shape for production lessons. Add a `getRateForCountMetric(metric, history)` helper that reads from spacingState / songPracticeLog and falls back to the default when history is sparse.
-
-**Phase 5+ retrospective views:**
-- **Weekly consistency hit rate over the year.** Surfaced during Step 7e (Apr 30) when the consistency dimension stopped generating a child goal record. Show how many weeks the user hit their session target (e.g. "28 of 52 weeks"). Retrospective dashboard view that complements the live weekly consistency goal — the yearly anchor's consistency intention finds its truth here, not in a feasibility pill or subtitle label on the umbrella row.
-
-**Dependency:** Phase 1.6 complete ✅. Step 3 unblocks Step 4 (helpers need live counts). Steps 5 + 6 share UI work and can be sequenced together.
+**Proposal card overflow fix ✅**
+w-full min-w-0 overflow-hidden at ProposalCard, SessionStack, and SessionBlock level. Commit: 88c2ad8.
 
 ---
 
-### Phase 3 — Practice Sessions algorithm
+## Phase 4 — Practice Sessions session roles + day coordination (DEFERRED)
 
-**Reference docs:**
-- `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 3 section
-- `SONG_PROGRESSION_DESIGN_3.md` — Practice Sessions integration notes section
-
-**Scope:**
-- Session generator: goals + spacing state + freshness + context → session plan
-- Input questionnaire: energy, time, context, session intent
-- Block-by-block timer execution
-- Performance rating: Flying / Cruising / Crawling
-- Two-option session proposals
-- "Why this plan?" reasoning panel
-- "No items due" abundance flow
-- Song state read at cell level — block recommendations target section + key combinations
-- Acquisition stage detection at cell level for songs
-- songKeyEngagements logging (deferred from Phase 1.5)
-- Lived-with window computation
-
-**Dependency:** Phase 1.5 complete (song model must exist before algorithm reads it).
-
----
-
-### Phase 4 — Practice Sessions session roles + day coordination
-
-**Reference docs:**
-- `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 4 section
+**Reference docs:** `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 4 section
 
 **Scope:**
 - Opener / middler / closer role detection
-- Cross-session coordination
+- Cross-session coordination within a day
 - Day-level breadth tracking
 
-**Dependency:** Phase 3 complete.
+**Dependency:** Phase 3 complete ✅. Needs real usage data before build is meaningful.
 
 ---
 
-### Phase 5 — Goals: automation + end-of-period reviews
+## Phase 5 — Goals: automation + end-of-period reviews (DEFERRED)
 
-**Reference docs:**
-- `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 5 section
+**Reference docs:** `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 5 section
 
 **Scope:**
 - Goal progress auto-calculation from spacing state
@@ -230,43 +105,70 @@ All 7 steps pushed to origin/main.
 - Vacation return welcome-back surface
 - Goal feasibility nudges at midpoints
 
-**Dependency:** Phase 2 + Phase 3 complete.
+**Dependency:** Phase 2 + Phase 3 complete ✅. Needs real usage data before calibration makes sense.
 
 ---
 
-### Phase 6 — Dashboard integration
+## Phase 6 — Within-day spacing (stub)
 
-**Reference docs:**
-- `DESIGN_DECISIONS_6.md` — Dashboard section
+**Scope:** Within-day spacing for acquiring items (algorithm Step 6 stub from Phase 3 Step 2e).
 
-**Scope:**
-- Goals widget on Dashboard
-- Song Progression matrix summary on Dashboard
-- Practice Sessions recent history on Dashboard
-- Freshness heat maps updated for new song model
-
-**Dependency:** Phase 1.5 + Phase 3 complete.
+**Dependency:** Phase 4 data structures.
 
 ---
 
-### Phase 7 — Polish + settings + history
+## Phase 7 — Remaining polish + cleanup
 
-**Reference docs:**
-- `DESIGN_DECISIONS_6.md` — P3 polish list
-- `PRACTICE_SESSIONS_DESIGN_3.md` — Phase 7 section
+Items not yet addressed:
 
-**Scope:**
-- Practice History calendar view
-- Prompt management Settings UI
+- Song-detail page consumer of global timer + PracticeLogModal deprecation (Phase 7 cleanup)
 - Smart parent-goal suggestion at goal creation
-- Production Vocabulary flashcards
-- Audio consistency pass
-- Mode playback fix
-- Diary features
-- **Deprecate PracticeLogModal + remove "+ log a practice session" button** — once the Song Practice Timer ships (see deferred design sessions), the timer's end-session handler becomes the canonical session boundary for Song Repertoire. PracticeLogModal is currently wired to spacingState as a stopgap (Phase 2 1f); when the timer flow ships, move the recordEngagement call to the timer's end-session handler and remove the modal + its trigger button on `SongDetailView`.
-- P3 polish items
+- End-of-period goal warning (goal created near period end)
+- Vision-scope freeform text in GoalCreationFlow (Lifetime / 2–3 year goals)
+- Section mutations (rename, reorder, split, archive, restore)
+- Original key reassignment UI
+- Diary features (transposition, mobile layout, visual feedback on play buttons)
+- Audio source-module consistency pass
+- songCrossKeyProgress table deprecation/drop
+- SongDetailView.tsx pre-existing lint warnings
+- Settings UI for backfill utility
+- Cell interaction modal polish (mode toggle, clear all, reset count)
+- "Just play" chord progression + beat loop surface (zero-goals fallback is currently Harmonic Diary placeholder)
+- Legacy GoalFormModal deprecation (when all old-vocab goals aged out / migrated)
+- **Block description tier 2 (production)** — wire a lesson-name resolver from `production/content/lessons.ts` so the proposal-card lower line surfaces specific lesson titles ("Workflow Foundations 1") instead of the tier-1 generic count. Small, self-contained.
+- **Block description tier 2 (repertoire)** — join the song progression matrix into block descriptions so the lower line can surface song titles + sections + keys ("Mirror — Verse — C, G") per the original design doc Part 4. Larger lift; matrix data is in separate tables.
 
-**Dependency:** Phases 1–6 complete or substantially stable.
+---
+
+## Phase 8 — Learning + calibration
+
+- Typical-week baseline
+- Self-correcting day profiles
+- Performance-based interval adjustment refinement
+
+---
+
+## Phase 3 detail — for reference
+
+**986/986 tests passing. All 8 steps + 59 substeps shipped.**
+
+Step 1 — Global session timer (1a–1e)
+Step 2 — Algorithm pure logic (2a–2j, 116 tests)
+Step 3 — Input questionnaire bottom sheet (3a–3h)
+Step 4 — Two-card proposal screen (4a–4j)
+Step 5 — Active session execution (5a–5d)
+Step 6 — End-of-session summary + spacing writes (6a–6k, Dexie v20)
+Step 7 — Practice Sessions home + feasibility banner (7a–7e)
+Step 8 — Abundance flow (8a–8f)
+
+**Key architectural decisions:**
+- Session timer starts on first module arrival, not proposal accept
+- activeModuleRef model (b): 'practice-sessions' on session screen, updates to block.moduleRef on quick-launch, resets on return
+- Block expiry modal appears globally via Layout mount (not just on active session screen)
+- Hard-block default: on for generated sessions; Settings toggle planned
+- Two rating systems coexist: per-block Flying/Cruising/Crawling (skill signal) + per-session Locked in/Solid/Going through it (experience signal)
+- sessionGenerator is minimum-viable — full Step 2 weighting not yet wired (first item in polish sprint)
+- runEndOfSessionPipeline: single orchestration path used by both Done button and "End & start new" abandon path
 
 ---
 
@@ -280,43 +182,17 @@ All 7 steps pushed to origin/main.
 
 **You do not need to paste all design docs every session.**
 
-**After completing a phase:**
-- Update the checkbox/status in this file
+**After completing a phase or sprint:**
+- Update the status in this file
 - Update `DESIGN_DECISIONS_6.md` build state section
 - Write a session summary
 
 ---
 
-## Deferred design sessions needed (not yet scheduled)
+## Known deferred items (not yet scheduled)
 
-**Section mutations** — rename, reorder, split, archive, restore for song matrix sections. Deferred from Phase 1.5. Add as a Phase 1.5 cleanup step before Phase 2.
+**Section mutations** — rename, reorder, split, archive, restore for song matrix sections. Deferred from Phase 1.5.
 
-**Original key reassignment UI** — user can change which key is designated as original. Schema supports it; UI not built. Add as a Phase 1.5 cleanup step.
+**Original key reassignment UI** — user can change which key is designated as original. Schema supports it; UI not built.
 
-**Vision-scope freeform text in new flow** — Lifetime / 2–3 year goals should swap the structured target picker for an open-text field per module (legacy `GoalFormModal` had a vision-mode variant; new flow currently doesn't). Captured as a Phase 1.6 deferred item.
-
-**Song Practice Timer** — replace the "+ log a practice session" button on `SongDetailView` with a Start/End session timer that wraps matrix work. Timer becomes the canonical session boundary for Song Repertoire: matrix interactions during the active window are the practice; the end-session handler prompts for feel rating (1–5) and writes both `songPracticeLog` + `recordEngagement` for spacingState. **Surfaced during Phase 2 1f verification (Apr 28):** PracticeLogModal exists but isn't part of the regular workflow — the matrix IS the practice log for songs. Estimates: bare-minimum (in-memory only) ~4–6 hours / ~200 lines; production-quality (crash recovery + global banner) ~8–12 hours / ~400–500 lines. Needs `SONG_PRACTICE_TIMER_DESIGN.md` before build. Decisions to lock down:
-- State persistence (in-memory only vs. Dexie/userPrefs for crash recovery)
-- Global session banner placement (where it lives when the user navigates away from the song page)
-- One-active-session-at-a-time vs. per-song concurrent
-- Reload behavior — "you had a session running yesterday, save or discard?"
-- How sections/keys touched are derived from matrix activity in the session window
-Deprecates PracticeLogModal once shipped (see Phase 7 cleanup item).
-
----
-
-## P2/P3 work (can be picked between phases)
-
-- Production Vocabulary flashcards (P2)
-- Audio source-module consistency pass (P2)
-- Diary playback controls — transposition (P2)
-- Sustained-chord rendering fix (P2, needs design conversation first)
-- Mode playback placeholder fix (P3)
-- Diary mobile layout (P3)
-- Visual feedback on diary play buttons (P3)
-- Settings UI for backfill utility (P3)
-- Cell interaction modal — per-attempt mode toggle (P3)
-- Cell interaction modal — "Clear all" button (P3)
-- Cell interaction modal — "Reset cell historical count" (P3)
-- songCrossKeyProgress table deprecation/drop (P3 cleanup)
-- SongDetailView.tsx pre-existing lint warnings (P3 cleanup)
+**Vision-scope freeform text** — Lifetime / 2–3 year goals should swap structured target picker for open-text field per module.
