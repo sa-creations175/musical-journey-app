@@ -26,7 +26,6 @@ import {
   PRODUCTION_VOCAB_FLASHCARDS,
   VOCAB_CLUSTER_LABELS,
   VOCAB_CLUSTER_ORDER,
-  relatedLessonForCard,
   type VocabClusterId,
   type VocabFlashcard,
 } from './vocabularyFlashcards';
@@ -276,16 +275,15 @@ export default function VocabularySession({ onBack }: Props) {
           fadeStreakThreshold={0}
           renderFooter={(card, { answered }) => {
             if (!answered) return null;
-            const link = relatedLessonForCard(card);
-            if (!link) return null;
+            const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(card.question)}`;
             return (
               <a
-                href={link.youtubeLink}
+                href={url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] text-neutral-500 hover:text-fluent"
               >
-                <span>Watch: {link.title}</span>
+                <span>Search YouTube: {card.question}</span>
                 <span aria-hidden>↗</span>
               </a>
             );

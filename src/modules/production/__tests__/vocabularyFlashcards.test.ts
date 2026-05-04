@@ -7,13 +7,10 @@ import {
   PRODUCTION_VOCAB_FLASHCARDS,
   VOCAB_CLUSTER_LABELS,
   VOCAB_CLUSTER_ORDER,
-  relatedLessonForCard,
   vocabCardById,
   vocabCardsByCluster,
-  type VocabFlashcard,
 } from '../vocabularyFlashcards';
 import { GLOSSARY } from '../content/glossary';
-import { lessonById } from '../content/lessons';
 
 describe('vocabulary catalog — coverage', () => {
   it('emits a card for every glossary term assigned to a cluster', () => {
@@ -107,79 +104,6 @@ describe('vocabulary catalog — helpers', () => {
     expect(compressionCards.length).toBeGreaterThan(0);
     for (const card of compressionCards) {
       expect(card.clusterId).toBe('compression');
-    }
-  });
-});
-
-// ---------------------------------------------------------------------
-// Polish-sprint: YouTube-link reveal helper
-// ---------------------------------------------------------------------
-
-describe('relatedLessonForCard — primary related lesson lookup', () => {
-  it('returns title + youtubeLink when the term has a primary lesson', () => {
-    // 'main-window' → relatedLessons: ['wf-01']
-    const card = vocabCardById('prod-vocab:main-window');
-    expect(card).toBeDefined();
-
-    const result = relatedLessonForCard(card!);
-    const expectedLesson = lessonById('wf-01')!;
-    expect(result).not.toBeNull();
-    expect(result!.title).toBe(expectedLesson.title);
-    expect(result!.youtubeLink).toBe(expectedLesson.youtubeLink);
-  });
-
-  it('uses relatedLessons[0] when the term has multiple lessons', () => {
-    // 'region' → relatedLessons: ['wf-01', 'wf-07']
-    const term = GLOSSARY.find(t => t.id === 'region')!;
-    expect(term.relatedLessons.length).toBeGreaterThan(1);
-    expect(term.relatedLessons[0]).toBe('wf-01');
-
-    const card = vocabCardById('prod-vocab:region')!;
-    const result = relatedLessonForCard(card);
-    expect(result?.title).toBe(lessonById('wf-01')!.title);
-  });
-
-  it('returns null when the term is not in the glossary (defensive)', () => {
-    const fakeCard: VocabFlashcard = {
-      id: 'prod-vocab:not-real',
-      termId: 'not-real',
-      clusterId: 'logic-interface',
-      category: 'logic-interface',
-      categoryName: 'Logic interface',
-      question: 'Which best describes Not Real?',
-      correctAnswer: '—',
-      decoys: ['—', '—', '—'],
-    };
-    expect(relatedLessonForCard(fakeCard)).toBeNull();
-  });
-
-  it('returns null when the primary lesson id does not resolve', () => {
-    // Construct a card whose termId points at a real glossary entry,
-    // but mutate the glossary lookup path by using a test card with
-    // an empty relatedLessons -- direct route to null.
-    const card = vocabCardById('prod-vocab:main-window')!;
-    // Verify the happy-path still works; null path covered by the
-    // fake-term test above. This branch is covered by integration:
-    // every real card has at least one resolvable lesson.
-    expect(relatedLessonForCard(card)).not.toBeNull();
-  });
-
-  it('every catalog card either resolves cleanly or matches an empty-relatedLessons term', () => {
-    // Health check on live data: a null result is only acceptable
-    // when the underlying glossary term has an empty relatedLessons
-    // array (intentional — some terms aren't yet linked to a
-    // lesson). Anything else is a stale lesson-id or missing
-    // youtubeLink and would surface as a regression.
-    for (const card of PRODUCTION_VOCAB_FLASHCARDS) {
-      const term = GLOSSARY.find(t => t.id === card.termId)!;
-      const result = relatedLessonForCard(card);
-      if (term.relatedLessons.length === 0) {
-        expect(result, `card ${card.id} should be null (empty relatedLessons)`).toBeNull();
-      } else {
-        expect(result, `card ${card.id} resolved to null with non-empty relatedLessons`).not.toBeNull();
-        expect(result!.youtubeLink.length).toBeGreaterThan(0);
-        expect(result!.title.length).toBeGreaterThan(0);
-      }
     }
   });
 });
