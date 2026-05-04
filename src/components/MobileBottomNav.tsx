@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import {
   DASHBOARD_META,
@@ -24,31 +24,62 @@ import ModuleGlyph from './ModuleGlyph';
  * so content isn't hidden under the fixed bar.
  */
 
-const BOTTOM_TAB_META: Array<{
+interface DirectTab {
   meta: ModuleMeta;
   to: string;
-  end?: boolean;
   shortLabel: string;
-}> = [
-  { meta: GOALS_META,              to: '/goals',              shortLabel: 'goals' },
-  { meta: DASHBOARD_META,          to: '/',                   end: true, shortLabel: 'dashboard' },
-  { meta: PRACTICE_SESSIONS_META,  to: '/practice-sessions',  shortLabel: 'practice' },
+  /** Returns true when the current pathname should activate this tab.
+   *  Decision: Modules tab owns /skills-catalogue (decision 3 from
+   *  the polish-sprint nav call), so Dashboard activates ONLY at /. */
+  isActive: (pathname: string) => boolean;
+}
+
+const BOTTOM_TAB_META: DirectTab[] = [
+  {
+    meta: DASHBOARD_META,
+    to: '/',
+    shortLabel: 'dashboard',
+    isActive: p => p === '/',
+  },
+  {
+    meta: GOALS_META,
+    to: '/goals',
+    shortLabel: 'goals',
+    isActive: p => p === '/goals' || p.startsWith('/goals/'),
+  },
+  {
+    meta: PRACTICE_SESSIONS_META,
+    to: '/practice-sessions',
+    shortLabel: 'practice',
+    isActive: p => p === '/practice-sessions' || p.startsWith('/practice-sessions/'),
+  },
 ];
+
+/** Modules-tab accent — reuses Harmonic Fluency's purple as a neutral
+ *  "more / picker" color since Modules isn't a single module. */
+const MODULES_ACCENT_HEX = '#7a5aa8';
+
+const TAB_CLASS_BASE =
+  'flex flex-col items-center justify-center pt-2 pb-1 gap-0.5 select-none transition-colors';
+const TAB_CLASS_INACTIVE =
+  'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200';
+
+/** Active-state visuals — uses the module's accent for both text and
+ *  a tinted background so the signal is unmistakable on a small target. */
+function activeStyle(accentHex: string): React.CSSProperties {
+  return {
+    color: accentHex,
+    backgroundColor: `${accentHex}14`, // ~8% alpha, matches SessionBlock tint
+  };
+}
 
 export default function MobileBottomNav() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const location = useLocation();
-
-  // "Direct tab" path = current location is on /goals*, /, /skills-catalogue
-  // (Dashboard's child), or /practice-sessions*. Modules tab is active
-  // when we're somewhere else (any learning module, repertoire, etc.).
   const path = location.pathname;
-  const onDirectTab =
-    path === '/' ||
-    path === '/skills-catalogue' ||
-    path.startsWith('/goals') ||
-    path.startsWith('/practice-sessions');
-  const modulesActive = !onDirectTab;
+
+  const directActiveIdx = BOTTOM_TAB_META.findIndex(t => t.isActive(path));
+  const modulesActive = directActiveIdx === -1;
 
   return (
     <>
@@ -58,31 +89,33 @@ export default function MobileBottomNav() {
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <div className="grid grid-cols-4">
-          {BOTTOM_TAB_META.map(tab => (
-            <NavLink
-              key={tab.to}
-              to={tab.to}
-              end={tab.end}
-              className={({ isActive }) => tabBaseClass(isActive)}
-              style={({ isActive }) =>
-                isActive ? { color: tab.meta.accentHex } : undefined
-              }
-              aria-label={tab.meta.label}
-              onClick={() => setSheetOpen(false)}
-            >
-              <ModuleGlyph meta={tab.meta} size={22} fontSize={12} />
-              <span className="text-[10px] mt-0.5 leading-none">
-                {tab.shortLabel}
-              </span>
-            </NavLink>
-          ))}
+          {BOTTOM_TAB_META.map((tab, idx) => {
+            const active = idx === directActiveIdx;
+            return (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                aria-label={tab.meta.label}
+                aria-current={active ? 'page' : undefined}
+                onClick={() => setSheetOpen(false)}
+                className={`${TAB_CLASS_BASE} ${active ? '' : TAB_CLASS_INACTIVE}`}
+                style={active ? activeStyle(tab.meta.accentHex) : undefined}
+              >
+                <ModuleGlyph meta={tab.meta} size={22} fontSize={12} />
+                <span className="text-[10px] mt-0.5 leading-none">
+                  {tab.shortLabel}
+                </span>
+              </Link>
+            );
+          })}
           <button
             type="button"
             onClick={() => setSheetOpen(v => !v)}
             aria-expanded={sheetOpen}
             aria-controls="modules-sheet"
-            className={tabBaseClass(modulesActive)}
-            style={modulesActive ? { color: MODULES_ACCENT_HEX } : undefined}
+            aria-current={modulesActive ? 'page' : undefined}
+            className={`${TAB_CLASS_BASE} ${modulesActive ? '' : TAB_CLASS_INACTIVE}`}
+            style={modulesActive ? activeStyle(MODULES_ACCENT_HEX) : undefined}
           >
             <ModulesGlyph active={modulesActive} />
             <span className="text-[10px] mt-0.5 leading-none">modules</span>
@@ -93,20 +126,6 @@ export default function MobileBottomNav() {
       <ModulesSheet open={sheetOpen} onClose={() => setSheetOpen(false)} />
     </>
   );
-}
-
-/** Modules-tab accent — reuses Harmonic Fluency's purple as a neutral
- *  "more / picker" color since Modules isn't a single module. */
-const MODULES_ACCENT_HEX = '#7a5aa8';
-
-function tabBaseClass(active: boolean): string {
-  const base =
-    'flex flex-col items-center justify-center pt-2 pb-1 gap-0.5 select-none transition-colors';
-  // Inactive color is a class; active color comes from inline style on
-  // the caller so we can use the module's exact accent hex.
-  return active
-    ? base
-    : `${base} text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200`;
 }
 
 function ModulesGlyph({ active }: { active: boolean }) {
