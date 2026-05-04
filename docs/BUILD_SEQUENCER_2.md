@@ -137,6 +137,7 @@ Items not yet addressed:
 - Legacy GoalFormModal deprecation (when all old-vocab goals aged out / migrated)
 - **Block description tier 2 (production)** — wire a lesson-name resolver from `production/content/lessons.ts` so the proposal-card lower line surfaces specific lesson titles ("Workflow Foundations 1") instead of the tier-1 generic count. Small, self-contained.
 - **Block description tier 2 (repertoire)** — join the song progression matrix into block descriptions so the lower line can surface song titles + sections + keys ("Mirror — Verse — C, G") per the original design doc Part 4. Larger lift; matrix data is in separate tables.
+- **Mobile header density** — the top header on mobile carries 5 icons (Sync / Instrument / Metronome / Just Play / Settings) alongside the new bottom tab bar. Worth trimming or collapsing some into a kebab once real phone usage shows what's noisy. Tracked separately so the bottom-nav commit stays scoped.
 
 ---
 

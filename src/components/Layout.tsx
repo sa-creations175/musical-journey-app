@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import InstrumentSelector from './InstrumentSelector';
 import MetronomeControl from './MetronomeControl';
 import SettingsPanel from './SettingsPanel';
+import MobileBottomNav from './MobileBottomNav';
 import SidebarNav from './SidebarNav';
 import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
@@ -56,9 +57,9 @@ export default function Layout() {
     <GlobalSessionBanner />
     <div className="flex-1 flex flex-col md:flex-row">
       <aside
-        className={`${
+        className={`hidden md:block ${
           sidebarCollapsed ? 'md:w-14' : 'md:w-60'
-        } md:min-h-screen border-b md:border-b-0 md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur transition-[width] duration-150`}
+        } md:min-h-screen md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur transition-[width] duration-150`}
       >
         <div
           className={`flex items-center gap-2 ${
@@ -146,7 +147,7 @@ export default function Layout() {
         </header>
         <BackupReminderBanner />
         <ReturnToCatalogueBanner />
-        <main className="flex-1 p-6 md:p-10 max-w-5xl w-full">
+        <main className="flex-1 p-6 md:p-10 pb-24 md:pb-10 max-w-5xl w-full">
           <Outlet />
         </main>
       </div>
@@ -155,6 +156,7 @@ export default function Layout() {
     <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
     <HardPausePromptModal />
     <BlockExpiryModal />
+    <MobileBottomNav />
     </div>
   );
 }
