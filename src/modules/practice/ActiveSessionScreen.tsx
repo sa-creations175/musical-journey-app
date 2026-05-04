@@ -19,7 +19,7 @@
  *
  * Soft-block vs hard-block (5b):
  *   - Soft (default): on countdown reaching 0, the global
- *     BlockExpiryModal pops up with extend pills (+2 / +5 / +10 min)
+ *     BlockExpiryModal pops up with extend pills (+1 / +2 / +5 / +10 min)
  *     and a "Next block" button. The modal handles all expiry UX so
  *     it works regardless of which route the user is on.
  *   - Hard (opt-in): same modal, plus a 5s auto-advance grace if the
