@@ -28,7 +28,7 @@ const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
 // pedagogically. Mental viz stays last as the away-from-keyboard
 // capstone.
 const TABS: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'scales',        label: 'scales',             hint: 'major + natural minor across 12 keys' },
+  { id: 'scales',        label: 'scales',             hint: 'major, minor scales & more' },
   { id: 'chord-shapes',  label: 'chord shapes',       hint: 'triads, sevenths, extensions — 12 keys' },
   { id: 'voice-leading', label: 'voice-leading',      hint: 'named patterns across 12 keys' },
   { id: 'mental-viz',    label: 'mental visualisation', hint: 'away-from-keyboard cognitive drills' },
