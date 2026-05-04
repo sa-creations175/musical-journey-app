@@ -15,7 +15,7 @@ export default function ScaleDrills() {
           scale drills
         </h3>
         <p className="text-xs text-neutral-500 mt-0.5">
-          major + natural minor for v1. modes, harmonic minor, melodic minor, pentatonics land in a future pass.
+          major, natural minor, and pentatonics across 12 keys. modes, harmonic minor, and melodic minor land in a future pass.
         </p>
       </div>
       <HeatGrid rows={rows} keyList={KEYS} />

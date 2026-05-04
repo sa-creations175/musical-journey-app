@@ -142,8 +142,10 @@ export interface ScaleEntry {
 }
 
 export const SCALES: ScaleEntry[] = [
-  { id: 'major',         label: 'Major' },
-  { id: 'natural-minor', label: 'Natural Minor' },
+  { id: 'major',           label: 'Major' },
+  { id: 'natural-minor',   label: 'Natural Minor' },
+  { id: 'major-pentatonic', label: 'Major Pentatonic' },
+  { id: 'minor-pentatonic', label: 'Minor Pentatonic' },
 ];
 
 export function defaultDrillTypesForScale(): DefaultDrill[] {

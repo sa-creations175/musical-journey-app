@@ -109,7 +109,7 @@ describe('harmonicFluencyCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Shapes & Patterns — 348 + 24 + 36 = 408 (Mental Viz excluded)
+// Shapes & Patterns — 348 + 48 + 36 = 432 (Mental Viz excluded)
 // -------------------------------------------------------------------
 
 describe('shapesCounts', () => {
@@ -119,16 +119,16 @@ describe('shapesCounts', () => {
     expect(c.chordShapeDrills).toBe(348);
   });
 
-  it('scaleDrills = 2 scales × 12 keys = 24', () => {
-    expect(c.scaleDrills).toBe(24);
+  it('scaleDrills = 4 scales × 12 keys = 48', () => {
+    expect(c.scaleDrills).toBe(48);
   });
 
   it('voiceLeading = 3 patterns × 12 keys = 36', () => {
     expect(c.voiceLeading).toBe(36);
   });
 
-  it('total = 408 (sum of sub-areas)', () => {
-    expect(c.total).toBe(408);
+  it('total = 432 (sum of sub-areas)', () => {
+    expect(c.total).toBe(432);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 
