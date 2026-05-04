@@ -32,12 +32,8 @@ describe('findOrCreateSkill', () => {
       scale: 'major',
     });
     const types = await db.drillTypes.where('skillId').equals(skill.id).toArray();
-    expect(types.length).toBe(3);
-    expect(types.map(t => t.name).sort()).toEqual([
-      'Both directions (continuous)',
-      'Scale ascending',
-      'Scale descending',
-    ]);
+    expect(types.length).toBe(1);
+    expect(types[0].name).toBe('Scale drill');
   });
 
   it('returns the existing skill without duplicating types on second call', async () => {
@@ -53,7 +49,7 @@ describe('findOrCreateSkill', () => {
     });
     expect(second.id).toBe(first.id);
     const types = await db.drillTypes.where('skillId').equals(first.id).toArray();
-    expect(types.length).toBe(3);
+    expect(types.length).toBe(1);
   });
 
   it('self-heals an existing skill with zero drillTypes (scale)', async () => {
@@ -77,7 +73,8 @@ describe('findOrCreateSkill', () => {
 
     expect(result.id).toBe(stranded.id);
     const types = await db.drillTypes.where('skillId').equals(stranded.id).toArray();
-    expect(types.length).toBe(3);
+    expect(types.length).toBe(1);
+    expect(types[0].name).toBe('Scale drill');
   });
 
   it('self-heals an existing skill with zero drillTypes (voice-leading C ABA-251)', async () => {
@@ -113,14 +110,14 @@ describe('findOrCreateSkill', () => {
       keyName: 'C',
       scale: 'major',
     });
-    // User renamed one of the defaults — should not be overwritten.
+    // User renamed the default — should not be overwritten.
     const types = await db.drillTypes.where('skillId').equals(first.id).toArray();
     await db.drillTypes.update(types[0].id, { name: 'My custom variation' });
 
     await findOrCreateSkill({ kind: 'scale', keyName: 'C', scale: 'major' });
 
     const after = await db.drillTypes.where('skillId').equals(first.id).toArray();
-    expect(after.length).toBe(3);
+    expect(after.length).toBe(1);
     expect(after.find(t => t.id === types[0].id)?.name).toBe('My custom variation');
   });
 });

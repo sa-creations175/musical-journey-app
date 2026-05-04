@@ -148,9 +148,7 @@ export const SCALES: ScaleEntry[] = [
 
 export function defaultDrillTypesForScale(): DefaultDrill[] {
   return [
-    { name: 'Scale ascending',                   suggestedSeconds: 90 },
-    { name: 'Scale descending',                  suggestedSeconds: 90 },
-    { name: 'Both directions (continuous)',      suggestedSeconds: 120 },
+    { name: 'Scale drill', suggestedSeconds: 120 },
   ];
 }
 

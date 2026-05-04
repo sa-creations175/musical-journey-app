@@ -8,7 +8,10 @@ import ChordShapeDrills from './ChordShapeDrills';
 import ScaleDrills from './ScaleDrills';
 import VoiceLeadingDrills from './VoiceLeadingDrills';
 import MentalVizDrills from './MentalVizDrills';
-import { cleanupGhostKeyboardIfNeeded } from './cleanup';
+import {
+  cleanupGhostKeyboardIfNeeded,
+  cleanupScaleDirectionalDrillsIfNeeded,
+} from './cleanup';
 import type { QualityKind } from './catalog';
 
 type TabId = 'chord-shapes' | 'scales' | 'voice-leading' | 'mental-viz';
@@ -51,6 +54,9 @@ export default function ShapesAndPatterns() {
       setPrefsLoaded(true);
       // Retire any ghost-keyboard orphan drill rows from legacy data.
       await cleanupGhostKeyboardIfNeeded();
+      // Collapse legacy ascending/descending scale drills into the
+      // single "Scale drill" row.
+      await cleanupScaleDirectionalDrillsIfNeeded();
     })();
   }, []);
 
