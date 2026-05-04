@@ -275,7 +275,7 @@ export default function VocabularySession({ onBack }: Props) {
           fadeStreakThreshold={0}
           renderFooter={(card, { answered }) => {
             if (!answered) return null;
-            const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(card.question)}`;
+            const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(card.termName)}`;
             return (
               <a
                 href={url}
@@ -283,7 +283,7 @@ export default function VocabularySession({ onBack }: Props) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] text-neutral-500 hover:text-fluent"
               >
-                <span>Search YouTube: {card.question}</span>
+                <span>Search YouTube: {card.termName}</span>
                 <span aria-hidden>↗</span>
               </a>
             );

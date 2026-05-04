@@ -177,6 +177,10 @@ for (const [cluster, ids] of Object.entries(CLUSTER_TERMS) as Array<
 export interface VocabFlashcard extends BaseFlashcard {
   /** Original glossary term id (without the prod-vocab: prefix). */
   termId: string;
+  /** Human-readable term name — denormalised onto the card at build
+   *  time so reveal-side surfaces (e.g. the YouTube search link) can
+   *  read it without re-looking-up the glossary. */
+  termName: string;
   clusterId: VocabClusterId;
 }
 
@@ -258,6 +262,7 @@ function buildCatalog(): VocabFlashcard[] {
     out.push({
       id: `prod-vocab:${term.id}`,
       termId: term.id,
+      termName: term.name,
       clusterId,
       category: clusterId,
       categoryName: VOCAB_CLUSTER_LABELS[clusterId],

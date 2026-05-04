@@ -19,6 +19,9 @@ describe('vocabulary catalog — coverage', () => {
       const term = GLOSSARY.find(t => t.id === card.termId);
       expect(term, `unknown termId ${card.termId}`).toBeDefined();
       expect(card.correctAnswer).toBe(term!.definition);
+      // termName is denormalised onto the card so reveal-side
+      // surfaces don't have to re-look-up the glossary.
+      expect(card.termName).toBe(term!.name);
     }
   });
 
