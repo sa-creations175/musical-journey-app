@@ -275,7 +275,10 @@ export default function PracticeSessions() {
     }
   };
 
-  const handleProposalAccept = (card: ProposalCardData) => {
+  const handleProposalAccept = (
+    card: ProposalCardData,
+    opts: { hardBlock: boolean },
+  ) => {
     if (card.blocks.length === 0) return;
     const firstBlock = card.blocks[0];
     const firstMeta = moduleMetaById(firstBlock.moduleRef);
@@ -288,6 +291,7 @@ export default function PracticeSessions() {
     // get counted.
     armSession({
       origin: 'practice-sessions',
+      hardBlock: opts.hardBlock,
       blocks: card.blocks.map(b => ({
         moduleRef: b.moduleRef,
         itemRefs: [...b.itemRefs],

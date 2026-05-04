@@ -21,7 +21,15 @@ import type { ProposalCardData } from './proposalTypes';
 
 interface Props {
   data: ProposalCardData;
-  onAccept: (data: ProposalCardData) => void;
+  onAccept: (data: ProposalCardData, opts: { hardBlock: boolean }) => void;
+  /**
+   * Hard-block toggle state — owned by the parent (ProposalScreen)
+   * so both proposals share one value. Passed down to `onAccept`
+   * when the user starts. Defaults to true on every fresh proposal-
+   * screen mount; not persisted.
+   */
+  hardBlock: boolean;
+  onHardBlockChange: (next: boolean) => void;
   /**
    * Inline time adjustment hook. When supplied, the total-time pill
    * in the header becomes tappable and reveals a TimePicker. Caller
@@ -58,6 +66,8 @@ interface Props {
 export default function ProposalCard({
   data,
   onAccept,
+  hardBlock,
+  onHardBlockChange,
   onTimeChange,
   onAddDeeperOnExisting,
   onAddNextPriority,
@@ -204,14 +214,55 @@ export default function ProposalCard({
 
       <AffirmationSurface affirmation={affirmation ?? null} />
 
+      <HardBlockToggle value={hardBlock} onChange={onHardBlockChange} />
+
       <button
         type="button"
-        onClick={() => onAccept(data)}
+        onClick={() => onAccept(data, { hardBlock })}
         className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
       >
         start this session
       </button>
     </div>
+  );
+}
+
+function HardBlockToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      onClick={() => onChange(!value)}
+      className="w-full flex items-center gap-3 px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 text-left hover:border-fluent/50 transition-colors"
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
+          Auto-advance blocks
+        </div>
+        <div className="text-[11px] text-neutral-500">
+          Move to next block when time is up
+        </div>
+      </div>
+      <span
+        aria-hidden
+        className={`shrink-0 inline-flex items-center w-9 h-5 rounded-full transition-colors ${
+          value ? 'bg-fluent' : 'bg-neutral-300 dark:bg-neutral-700'
+        }`}
+      >
+        <span
+          className={`inline-block w-4 h-4 rounded-full bg-white shadow transform transition-transform ${
+            value ? 'translate-x-[18px]' : 'translate-x-0.5'
+          }`}
+        />
+      </span>
+    </button>
   );
 }
 

@@ -34,6 +34,7 @@ export function useStartArmedSessionOnArrival(): void {
     startSession({
       origin: state.pendingStart.origin,
       activeModuleRef: firstBlock.moduleRef,
+      hardBlock: state.pendingStart.hardBlock,
       blocks: state.pendingStart.blocks.map(b => ({
         moduleRef: b.moduleRef,
         itemRefs: b.itemRefs,

@@ -24,7 +24,7 @@ import type { ProposalCardData } from './proposalTypes';
 
 interface Props {
   proposals: ReadonlyArray<ProposalCardData>;
-  onAccept: (data: ProposalCardData) => void;
+  onAccept: (data: ProposalCardData, opts: { hardBlock: boolean }) => void;
   /** Inline time adjustment passes through to each card; caller
    *  regenerates proposals on commit. Step 4f. */
   onTimeChange?: (minutes: number) => void;
@@ -87,6 +87,11 @@ export default function ProposalScreen({
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Hard-block defaults to ON every session. State is per-mount of
+  // this screen — when the user navigates back to the questionnaire
+  // and forward again, ProposalScreen unmounts/remounts and the
+  // toggle resets to true. No persistence by design.
+  const [hardBlock, setHardBlock] = useState(true);
 
   // Keep the paginator in sync with horizontal scroll position on
   // mobile. On desktop the cards live side-by-side (no scroll), so
@@ -168,6 +173,8 @@ export default function ProposalScreen({
             <ProposalCard
               data={p}
               onAccept={onAccept}
+              hardBlock={hardBlock}
+              onHardBlockChange={setHardBlock}
               onTimeChange={onTimeChange}
               onAddDeeperOnExisting={onAddDeeperOnExisting}
               onAddNextPriority={onAddNextPriority}
