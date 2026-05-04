@@ -115,8 +115,10 @@ interface Props<TCard extends BaseFlashcard> {
 
   /** Footer slot rendered above the navigation row — used by callers
    *  that want to add module-specific affordances under the choices
-   *  (e.g. "open in glossary"). */
-  renderFooter?: (card: TCard) => ReactNode;
+   *  (e.g. "open in glossary"). The `answered` flag lets callers
+   *  gate reveal-only affordances (e.g. a "Watch lesson ↗" link
+   *  that should only surface after the user picks). */
+  renderFooter?: (card: TCard, opts: { answered: boolean }) => ReactNode;
 }
 
 const DEFAULT_FADE_THRESHOLD = 5;
@@ -494,7 +496,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
         </p>
       )}
 
-      {renderFooter?.(card)}
+      {renderFooter?.(card, { answered: hasAnswered })}
 
       {/* Navigation */}
       <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-neutral-200 dark:border-neutral-800">

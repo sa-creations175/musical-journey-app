@@ -18,6 +18,7 @@
  */
 
 import { GLOSSARY } from './content/glossary';
+import { lessonById } from './content/lessons';
 import type { GlossaryContent } from './content/types';
 import type { BaseFlashcard } from '../../lib/flashcards/FlashcardSession';
 
@@ -275,6 +276,32 @@ export const PRODUCTION_VOCAB_FLASHCARDS: VocabFlashcard[] = buildCatalog();
 
 export function vocabCardById(id: string): VocabFlashcard | undefined {
   return PRODUCTION_VOCAB_FLASHCARDS.find(c => c.id === id);
+}
+
+/**
+ * Resolve the primary related lesson for a vocab card. Walks the
+ * card.termId → glossary[term].relatedLessons[0] → lessonById(...)
+ * chain. Returns null when:
+ *   · the term isn't in the glossary (shouldn't happen — every card
+ *     is built from a glossary entry);
+ *   · the term has no related lessons (relatedLessons is required
+ *     by the type but empty arrays are technically allowed);
+ *   · the primary lesson id doesn't resolve (stale reference);
+ *   · the lesson exists but has no youtubeLink (currently impossible
+ *     because youtubeLink is required on LessonContent, but kept as
+ *     a defensive guard).
+ *
+ * Pure; no DB access. The reveal-time render-prop in VocabularySession
+ * calls this and skips the link when null.
+ */
+export function relatedLessonForCard(
+  card: VocabFlashcard,
+): { title: string; youtubeLink: string } | null {
+  const term = GLOSSARY.find(t => t.id === card.termId);
+  if (!term || term.relatedLessons.length === 0) return null;
+  const lesson = lessonById(term.relatedLessons[0]);
+  if (!lesson || !lesson.youtubeLink) return null;
+  return { title: lesson.title, youtubeLink: lesson.youtubeLink };
 }
 
 export function vocabCardsByCluster(

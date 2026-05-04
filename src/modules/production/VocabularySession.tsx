@@ -26,6 +26,7 @@ import {
   PRODUCTION_VOCAB_FLASHCARDS,
   VOCAB_CLUSTER_LABELS,
   VOCAB_CLUSTER_ORDER,
+  relatedLessonForCard,
   type VocabClusterId,
   type VocabFlashcard,
 } from './vocabularyFlashcards';
@@ -273,6 +274,22 @@ export default function VocabularySession({ onBack }: Props) {
           }}
           focusProtected={focusProtected}
           fadeStreakThreshold={0}
+          renderFooter={(card, { answered }) => {
+            if (!answered) return null;
+            const link = relatedLessonForCard(card);
+            if (!link) return null;
+            return (
+              <a
+                href={link.youtubeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-neutral-500 hover:text-fluent"
+              >
+                <span>Watch: {link.title}</span>
+                <span aria-hidden>↗</span>
+              </a>
+            );
+          }}
         />
       ) : (
         <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-5">
