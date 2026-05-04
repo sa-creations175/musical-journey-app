@@ -180,6 +180,9 @@ export default function PracticeSessions() {
           affirmation: null,
           batchRatings: {},
         },
+        extras: {
+          context: endedState.context,
+        },
       });
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -292,6 +295,7 @@ export default function PracticeSessions() {
     armSession({
       origin: 'practice-sessions',
       hardBlock: opts.hardBlock,
+      context: lastInputs?.context ?? 'mixed',
       blocks: card.blocks.map(b => ({
         moduleRef: b.moduleRef,
         itemRefs: [...b.itemRefs],

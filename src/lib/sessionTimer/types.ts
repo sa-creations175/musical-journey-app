@@ -95,6 +95,16 @@ export interface PendingStartConfig {
    * auto-advance). Defaults to false. Carried through to SessionState.
    */
   hardBlock?: boolean;
+  /**
+   * Practice context the user picked at questionnaire time (keys /
+   * laptop / phone / mixed). Carried through to SessionState so the
+   * end-of-session pipeline can persist it on practiceSessions.context
+   * instead of falling back to the 'mixed' default. Defaults to 'mixed'
+   * when omitted. Algorithm filtering uses inputs.context directly at
+   * generation time; this field is for persistence + survives an
+   * abandon-and-restart.
+   */
+  context?: import('../db').PracticeSessionContext;
   blocks: Array<{
     moduleRef: string;
     itemRefs?: string[];
@@ -136,6 +146,15 @@ export interface SessionState {
    */
   hardBlock: boolean;
   /**
+   * Practice context the user picked when generating this session.
+   * Drives algorithm filtering at generation time; this copy is what
+   * the end-of-session pipeline persists onto practiceSessions.context
+   * (so the row reflects the user's actual choice instead of the
+   * 'mixed' fallback). Defaults to 'mixed' for legacy sessions / when
+   * the questionnaire didn't supply one.
+   */
+  context: import('../db').PracticeSessionContext;
+  /**
    * Cross-screen handoff for "Next block" tapped in the global block
    * expiry modal. The active session screen reactively transitions to
    * the rating phase when this is true and clears it via
@@ -164,6 +183,8 @@ export interface StartSessionInput {
   activeModuleRef: string;
   /** Hard-block mode. Defaults to false. */
   hardBlock?: boolean;
+  /** Practice context. Defaults to 'mixed'. */
+  context?: import('../db').PracticeSessionContext;
   /** Initial block plan. Must be non-empty. */
   blocks: Array<{
     moduleRef: string;

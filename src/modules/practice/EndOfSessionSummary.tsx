@@ -150,6 +150,10 @@ export default function EndOfSessionSummary() {
             await runEndOfSessionPipeline({
               state,
               summary: { sessionRating, affirmation, batchRatings },
+              extras: {
+                context: state.context,
+                hardBlocks: state.hardBlock,
+              },
             });
             reset();
             navigate('/practice-sessions');

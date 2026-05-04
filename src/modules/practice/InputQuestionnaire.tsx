@@ -300,10 +300,11 @@ const CONTEXT_OPTIONS: ReadonlyArray<{
   value: 'keys' | 'laptop' | 'phone';
   glyph: string;
   label: string;
+  subtitle: string;
 }> = [
-  { value: 'keys',   glyph: '⌨', label: 'keys' },
-  { value: 'laptop', glyph: '▭', label: 'laptop' },
-  { value: 'phone',  glyph: '▯', label: 'phone' },
+  { value: 'keys',   glyph: '⌨', label: 'Keys',   subtitle: 'keyboard + everything' },
+  { value: 'laptop', glyph: '▭', label: 'Laptop', subtitle: 'no keyboard, DAW available' },
+  { value: 'phone',  glyph: '▯', label: 'Phone',  subtitle: 'most constrained' },
 ];
 
 function Q2Context({
@@ -324,10 +325,19 @@ function Q2Context({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             className={contextPill(value === opt.value)}
-            aria-label={opt.label}
+            aria-label={`${opt.label} — ${opt.subtitle}`}
           >
-            <span aria-hidden className="text-base leading-none">{opt.glyph}</span>
-            <span>{opt.label}</span>
+            <span aria-hidden className="text-base leading-none mb-0.5">
+              {opt.glyph}
+            </span>
+            <span className="text-xs font-medium">{opt.label}</span>
+            <span className={`text-[10px] leading-tight ${
+              value === opt.value
+                ? 'text-white/80'
+                : 'text-neutral-500 dark:text-neutral-400'
+            }`}>
+              {opt.subtitle}
+            </span>
           </button>
         ))}
       </div>
@@ -337,7 +347,7 @@ function Q2Context({
 
 function contextPill(active: boolean): string {
   const base =
-    'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border';
+    'flex-1 inline-flex flex-col items-center justify-center gap-0 px-2 py-2 rounded-md border text-center';
   return active
     ? `${base} bg-fluent text-white border-fluent`
     : `${base} border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent`;

@@ -19,7 +19,13 @@
  * from Dexie. Pure-logic Step 2 helpers compose underneath.
  */
 
-import { db, type Goal, type GoalScope, type SpacingState } from '../../lib/db';
+import {
+  db,
+  type Goal,
+  type GoalScope,
+  type PracticeSessionContext,
+  type SpacingState,
+} from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { getMemoryType } from '../../lib/memoryType';
 import {
@@ -72,7 +78,12 @@ export async function buildSessionProposals(
   const goals = await db.goals.where('status').equals('active').toArray();
   const spacingRows = await db.spacingState.toArray();
 
-  const moduleBlocks = aggregateGoalCandidatesByModule(goals, spacingRows);
+  const moduleBlocks = aggregateGoalCandidatesByModule(
+    goals,
+    spacingRows,
+    Date.now(),
+    inputs.context,
+  );
   if (moduleBlocks.length === 0) {
     return [];
   }
@@ -121,7 +132,12 @@ export async function buildSessionPlan(
   }
 
   const spacingRows = await db.spacingState.toArray();
-  const moduleBlocks = aggregateGoalCandidatesByModule(goals, spacingRows);
+  const moduleBlocks = aggregateGoalCandidatesByModule(
+    goals,
+    spacingRows,
+    Date.now(),
+    inputs.context,
+  );
 
   const candidatePoolSize = moduleBlocks.reduce(
     (sum, b) => sum + b.itemRefs.length,
@@ -231,7 +247,12 @@ export async function buildSessionProposalsForPath(
 
   const availableSeconds = inputs.timeMinutes * 60;
 
-  const filteredBlocks = aggregateGoalCandidatesByModule(goals, shuffledFiltered);
+  const filteredBlocks = aggregateGoalCandidatesByModule(
+    goals,
+    shuffledFiltered,
+    Date.now(),
+    inputs.context,
+  );
   if (filteredBlocks.length > 0) {
     return generateAndShape(filteredBlocks, availableSeconds);
   }
@@ -241,6 +262,8 @@ export async function buildSessionProposalsForPath(
   const fallbackBlocks = aggregateGoalCandidatesByModule(
     goals,
     shuffleInPlace(spacingRows.slice()),
+    Date.now(),
+    inputs.context,
   );
   if (fallbackBlocks.length === 0) return [];
   return generateAndShape(fallbackBlocks, availableSeconds);
@@ -279,6 +302,55 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 /** Cap on items carried into a block. Beyond this the per-item
  *  weight ranking still picks the most urgent items first. */
 const MAX_ITEMS_PER_BLOCK = 20;
+
+// ---------------------------------------------------------------------
+// Context-based hard filtering
+// ---------------------------------------------------------------------
+
+/**
+ * Capability rank per practice context. A user on a higher-rank
+ * context can do anything a lower-rank context can do, plus more.
+ * Mixed is treated as keys-equivalent (most permissive).
+ */
+const CONTEXT_RANK: Record<PracticeSessionContext, number> = {
+  keys: 3,
+  mixed: 3,
+  laptop: 2,
+  phone: 1,
+};
+
+/**
+ * True when the user's current context can satisfy the goal's
+ * required context. Goals with no contextTag (null) always pass —
+ * they're not constrained to any particular setup.
+ */
+export function isGoalCompatibleWithContext(
+  goal: Goal,
+  userContext: PracticeSessionContext,
+): boolean {
+  if (goal.contextTag === null) return true;
+  return CONTEXT_RANK[userContext] >= CONTEXT_RANK[goal.contextTag];
+}
+
+/**
+ * Module-level item filter. Per the polish-sprint context-filter
+ * decision: under non-keys context, Shapes & Patterns drops out of
+ * algorithm proposals entirely — its spacingState items (chord-shape
+ * / scale / voice-leading) all require physical keys, and Mental
+ * Visualization isn't tracked in spacingState (flashcard pipeline,
+ * not acquisition-stage). Mental-viz remains directly reachable from
+ * the Shapes tab; it just doesn't surface in algorithm-generated
+ * blocks. All other modules pass through unchanged — Repertoire stays
+ * available for chord-progression study even without keys.
+ */
+export function isSpacingRowCompatibleWithContext(
+  row: SpacingState,
+  userContext: PracticeSessionContext,
+): boolean {
+  if (CONTEXT_RANK[userContext] >= CONTEXT_RANK['keys']) return true;
+  if (row.moduleRef === 'shapes-and-patterns') return false;
+  return true;
+}
 
 /**
  * Per-goal pace factor — applies to goals with an item-count
@@ -327,10 +399,18 @@ export function aggregateGoalCandidatesByModule(
   goals: ReadonlyArray<Goal>,
   spacingRows: ReadonlyArray<SpacingState>,
   now: number = Date.now(),
+  context: PracticeSessionContext = 'mixed',
 ): AlgorithmBlock[] {
+  // Hard-filter spacing rows by context before any aggregation. Drops
+  // shapes-and-patterns rows under non-keys (mental-viz is excluded
+  // from spacingState by design — see isSpacingRowCompatibleWithContext).
+  const filteredRows = spacingRows.filter(r =>
+    isSpacingRowCompatibleWithContext(r, context),
+  );
+
   const acquiringItemRefs = new Set<string>();
   const rowByItemRef = new Map<string, SpacingState>();
-  for (const row of spacingRows) {
+  for (const row of filteredRows) {
     rowByItemRef.set(row.itemRef, row);
     if (isAcquiring(row)) acquiringItemRefs.add(row.itemRef);
   }
@@ -347,6 +427,11 @@ export function aggregateGoalCandidatesByModule(
   >();
 
   for (const goal of goals) {
+    // Skip goals whose required context the current session can't
+    // satisfy (rank ladder: keys/mixed > laptop > phone). Goals with
+    // a null contextTag always pass.
+    if (!isGoalCompatibleWithContext(goal, context)) continue;
+
     const spec = candidateSpecForGoal(goal);
     if (spec.kind === 'umbrella' || spec.kind === 'unsupported') continue;
 
@@ -355,7 +440,10 @@ export function aggregateGoalCandidatesByModule(
     if (candidateModuleRefs.length === 0) continue;
 
     const paceFactor = paceFactorForGoal(goal, spec, now);
-    const itemRefs = resolveCandidates(spec, spacingRows);
+    // Resolve against filtered rows so module-level drops cascade
+    // automatically — a goal that targets only Shapes items will
+    // produce zero candidates under non-keys.
+    const itemRefs = resolveCandidates(spec, filteredRows);
 
     for (const itemRef of itemRefs) {
       const row = rowByItemRef.get(itemRef);

@@ -9,6 +9,7 @@ import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
+import { cleanupRepertoireGoalContextIfNeeded } from '../modules/goals/cleanup';
 import { getPref, setPref } from '../lib/userPrefs';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
@@ -37,6 +38,10 @@ export default function Layout() {
       if (cancelled || stored === null) return;
       setSidebarCollapsed(stored);
     });
+    // One-shot legacy-data migration: relax repertoire goals tagged
+    // 'keys' to 'mixed' so the polish-sprint context filter doesn't
+    // drop them under non-keys contexts. Idempotent.
+    void cleanupRepertoireGoalContextIfNeeded();
     return () => {
       cancelled = true;
     };

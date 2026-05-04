@@ -3613,7 +3613,12 @@ function relatedModulesForCard(id: ModuleCardId | null): string[] {
  */
 function contextForModule(id: ModuleCardId | null): PracticeSessionContext | null {
   switch (id) {
-    case 'repertoire':           return 'keys';   // physical keyboard
+    // Repertoire used to default to 'keys'. Polish-sprint context-
+    // filter rules treat repertoire as study-anywhere (chord-progression
+    // study works on phone / laptop without a keyboard), so the default
+    // is now 'mixed'. Existing repertoire goals tagged 'keys' are
+    // migrated by cleanupRepertoireGoalContextIfNeeded at app boot.
+    case 'repertoire':           return 'mixed';
     case 'shapes-and-patterns':  return 'keys';   // physical keyboard
     case 'ear-training':         return 'mixed';  // laptop or phone
     case 'harmonic-fluency':     return 'mixed';  // keyboard / laptop / phone
