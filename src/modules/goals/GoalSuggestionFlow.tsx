@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
-import { db, type Goal, type GoalScope, type PracticeSessionContext } from '../../lib/db';
+import {
+  db,
+  type Goal,
+  type GoalScope,
+  type PracticeSessionContext,
+  type Song,
+} from '../../lib/db';
 // harmonicFluencyCounts now imported alongside the other module counts below.
 import {
   CategoryPillButton,
@@ -33,6 +40,7 @@ import {
   suggestPracticeConsistencyMonthly,
   type PracticeConsistencyMonthlyTarget,
 } from './suggestions/practiceConsistencyMonthly';
+import { suggestRepertoireMonthly } from './suggestions/repertoireMonthly';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
   earTrainingCounts,
@@ -199,6 +207,9 @@ export default function GoalSuggestionFlow({
     }
     if (moduleId === 'practice-consistency') {
       return <PracticeConsistencyMonthlyBody {...sharedProps} moduleId="practice-consistency" />;
+    }
+    if (moduleId === 'repertoire') {
+      return <RepertoireMonthlyBody {...sharedProps} moduleId="repertoire" />;
     }
   }
 
@@ -1454,4 +1465,624 @@ function PracticeConsistencyFocus({
       </p>
     </section>
   );
+}
+
+// =====================================================================
+// Repertoire body
+// =====================================================================
+
+/**
+ * Repertoire monthly goal body. Three-section composition:
+ *
+ *   Section 1 — Maintaining & advancing
+ *     Display only. Lists every active song so the user can see the
+ *     full month's commitment, but no goal record is written for
+ *     these. Target reads as "comfortable" — keep them where they
+ *     are.
+ *
+ *   Section 2 — Pushing to comfortable
+ *     Editable list, pre-seeded with the first 2 active songs.
+ *     One child Goal record per song with targetUnit='comfortable'
+ *     and relatedItems carrying the song id.
+ *
+ *   Section 3 — New this month
+ *     Adds-only list. Each slot is one of:
+ *       · catalog pick — an existing db.songs row
+ *       · typed — a free-text title; on save we insert a new
+ *         db.songs row first, then encode the goal pointing at it.
+ *       · TBD — placeholder; encodes a goal with empty relatedItems
+ *         and a "TBD this month" description.
+ *
+ * Save shape: 1 umbrella row + N children, where N = section 2 +
+ * section 3. parentGoalId on the umbrella points at the yearly
+ * Repertoire anchor; children point at the umbrella.
+ */
+
+interface NewSlot {
+  /** Stable row key — matches goal id once persisted, but we need
+   *  one for React keys before save too. */
+  key: string;
+  data:
+    | { kind: 'catalog'; songId: string }
+    | { kind: 'typed'; title: string }
+    | { kind: 'tbd' };
+}
+
+function newSlotKey(): string {
+  return `slot-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function RepertoireMonthlyBody({
+  anchor,
+  scope,
+  moduleId,
+  onClose,
+  onSaved,
+}: ModuleBodyProps<'repertoire'>) {
+  const initialSuggestion = useMemo(() => suggestRepertoireMonthly(), []);
+
+  // Live-fetch all songs at mount. The Song schema doesn't carry an
+  // explicit active/archived flag, so "active" is interpreted as the
+  // full repertoire — every song the user has added.
+  const allSongs = useLiveQuery(() => db.songs.toArray(), []);
+
+  const [pushIds, setPushIds] = useState<string[]>([]);
+  const [newSlots, setNewSlots] = useState<NewSlot[]>([]);
+  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const [seeded, setSeeded] = useState(false);
+
+  // Seed section 2 with the first 2 active songs the moment they
+  // load. Only seeds once — if the user clears section 2 and hits
+  // save, we don't re-seed on the next render.
+  useEffect(() => {
+    if (seeded) return;
+    if (!allSongs) return;
+    setPushIds(allSongs.slice(0, 2).map(s => s.id));
+    setSeeded(true);
+  }, [allSongs, seeded]);
+
+  // Save gate: require at least one entry across sections 2 and 3.
+  // Section 1 is display-only and doesn't count.
+  const hasSelection = pushIds.length > 0 || newSlots.length > 0;
+  // Stub records array — saveOverride owns the actual write so the
+  // contents don't matter, but BodyShell uses records.length || saveOverride
+  // to gate canSave. Passing one element keeps canSave honest.
+  const stubRecords: EncodedRecord[] = hasSelection
+    ? [{ description: 'placeholder', targetMetric: 'song_whole_at_level', targetValue: null, targetUnit: 'comfortable' }]
+    : [];
+
+  const saveOverride = async () => {
+    if (!hasSelection) return;
+    await persistRepertoireMonthlyGoal({
+      pushSongIds: pushIds,
+      newSlots,
+      anchorGoalId: anchor.id,
+      scope,
+      targetDate,
+      allSongs: allSongs ?? [],
+    });
+  };
+
+  // Until songs load, render an empty body so the modal still opens
+  // promptly. Without this the BodyShell would render the "+ Add"
+  // affordances against an undefined-songs state and crash on click.
+  if (!allSongs) {
+    return (
+      <Modal open onClose={onClose} title={`New ${SCOPE_LABEL[scope].toLowerCase()} Song Repertoire goal`}>
+        <div className="text-sm text-neutral-500 italic">Loading songs…</div>
+      </Modal>
+    );
+  }
+
+  return (
+    <BodyShell
+      anchor={anchor}
+      scope={scope}
+      moduleId={moduleId}
+      contextLines={initialSuggestion.contextLines}
+      records={stubRecords}
+      targetDate={targetDate}
+      setTargetDate={setTargetDate}
+      onClose={onClose}
+      onSaved={onSaved}
+      saveOverride={saveOverride}
+    >
+      <RepertoireMaintainSection songs={allSongs} />
+      <RepertoirePushSection
+        allSongs={allSongs}
+        selectedIds={pushIds}
+        onChange={setPushIds}
+        excludedFromCatalog={excludedSongIds(pushIds, newSlots)}
+      />
+      <RepertoireNewSection
+        slots={newSlots}
+        onChange={setNewSlots}
+        catalog={allSongs}
+        excludedFromCatalog={excludedSongIds(pushIds, newSlots)}
+      />
+    </BodyShell>
+  );
+}
+
+/** Songs already chosen in section 2 or section 3 — used to filter
+ *  the "+ Add" pickers so the user can't add the same song twice. */
+function excludedSongIds(pushIds: string[], newSlots: NewSlot[]): Set<string> {
+  const set = new Set(pushIds);
+  for (const slot of newSlots) {
+    const d = slot.data;
+    if (d.kind === 'catalog') set.add(d.songId);
+  }
+  return set;
+}
+
+// ---------------------------------------------------------------------
+// Section 1 — Maintain & advancing (display only)
+// ---------------------------------------------------------------------
+
+function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
+  return (
+    <section className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+          Maintaining &amp; advancing
+        </div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          Keep these comfortable through the month
+        </div>
+      </header>
+      {songs.length === 0 ? (
+        <p className="text-xs text-neutral-500 italic">
+          No songs in your repertoire yet — add one in the New section below.
+        </p>
+      ) : (
+        <ul className="text-sm text-neutral-700 dark:text-neutral-200 space-y-1">
+          {songs.map(s => (
+            <li key={s.id} className="flex items-baseline gap-2">
+              <span>{s.title}</span>
+              {s.artist && (
+                <span className="text-xs text-neutral-500">— {s.artist}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-[11px] text-neutral-500 leading-snug">
+        Display only — no separate goal records are created for these. They show the full month's commitment context.
+      </p>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Section 2 — Pushing to comfortable (editable from active songs)
+// ---------------------------------------------------------------------
+
+function RepertoirePushSection({
+  allSongs,
+  selectedIds,
+  onChange,
+  excludedFromCatalog,
+}: {
+  allSongs: ReadonlyArray<Song>;
+  selectedIds: string[];
+  onChange: (next: string[]) => void;
+  excludedFromCatalog: Set<string>;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const selected = selectedIds
+    .map(id => allSongs.find(s => s.id === id))
+    .filter((s): s is Song => s !== undefined);
+  const available = allSongs.filter(s => !excludedFromCatalog.has(s.id));
+
+  const remove = (id: string) => onChange(selectedIds.filter(x => x !== id));
+  const add = (id: string) => {
+    if (selectedIds.includes(id)) return;
+    onChange([...selectedIds, id]);
+    setPickerOpen(false);
+  };
+
+  return (
+    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-2">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-fluent">
+          Pushing to comfortable
+        </div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          Songs you're advancing this month
+        </div>
+      </header>
+      {selected.length === 0 ? (
+        <p className="text-xs text-neutral-500 italic">
+          No songs selected. Add at least one to commit to advancing it this month.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {selected.map(s => (
+            <li
+              key={s.id}
+              className="flex items-center justify-between gap-2 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/40"
+            >
+              <span className="text-sm text-neutral-700 dark:text-neutral-200">
+                {s.title}
+                {s.artist && <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>}
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(s.id)}
+                aria-label={`Remove ${s.title}`}
+                className="text-neutral-400 hover:text-needswork text-sm"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {available.length > 0 && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(v => !v)}
+            className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
+          >
+            {pickerOpen ? '↑ Cancel' : '+ Add song'}
+          </button>
+          {pickerOpen && (
+            <ul className="mt-1.5 max-h-40 overflow-y-auto space-y-0.5 border border-neutral-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 p-1">
+              {available.map(s => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => add(s.id)}
+                    className="w-full text-left px-2 py-1 rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  >
+                    {s.title}
+                    {s.artist && <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Section 3 — New this month (catalog pick / typed / TBD)
+// ---------------------------------------------------------------------
+
+function RepertoireNewSection({
+  slots,
+  onChange,
+  catalog,
+  excludedFromCatalog,
+}: {
+  slots: NewSlot[];
+  onChange: (next: NewSlot[]) => void;
+  catalog: ReadonlyArray<Song>;
+  excludedFromCatalog: Set<string>;
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [typedDraft, setTypedDraft] = useState('');
+
+  const removeSlot = (key: string) => onChange(slots.filter(s => s.key !== key));
+  const addCatalog = (songId: string) => {
+    onChange([...slots, { key: newSlotKey(), data: { kind: 'catalog', songId } }]);
+    setPickerOpen(false);
+  };
+  const addTyped = () => {
+    const title = typedDraft.trim();
+    if (title.length === 0) return;
+    onChange([...slots, { key: newSlotKey(), data: { kind: 'typed', title } }]);
+    setTypedDraft('');
+    setPickerOpen(false);
+  };
+  const addTbd = () => {
+    onChange([...slots, { key: newSlotKey(), data: { kind: 'tbd' } }]);
+    setPickerOpen(false);
+  };
+
+  const slotLabel = (slot: NewSlot): string => {
+    const d = slot.data;
+    if (d.kind === 'catalog') {
+      const s = catalog.find(c => c.id === d.songId);
+      return s?.title ?? '(missing song)';
+    }
+    if (d.kind === 'typed') return d.title;
+    return 'TBD — pick later';
+  };
+  const slotSub = (slot: NewSlot): string | null => {
+    const d = slot.data;
+    if (d.kind === 'catalog') {
+      const s = catalog.find(c => c.id === d.songId);
+      return s?.artist || null;
+    }
+    if (d.kind === 'typed') return 'will be added to your repertoire';
+    return 'placeholder — fill in when you decide';
+  };
+
+  const availableForCatalog = catalog.filter(s => !excludedFromCatalog.has(s.id));
+
+  return (
+    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-2">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-fluent">
+          New this month
+        </div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          A song you'll start working on
+        </div>
+      </header>
+      {slots.length > 0 && (
+        <ul className="space-y-1">
+          {slots.map(slot => {
+            const sub = slotSub(slot);
+            return (
+              <li
+                key={slot.key}
+                className="flex items-center justify-between gap-2 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/40"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm text-neutral-700 dark:text-neutral-200 truncate">
+                    {slotLabel(slot)}
+                  </div>
+                  {sub && (
+                    <div className="text-[11px] text-neutral-500 truncate">{sub}</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeSlot(slot.key)}
+                  aria-label="Remove"
+                  className="text-neutral-400 hover:text-needswork text-sm shrink-0"
+                >
+                  ×
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {!pickerOpen ? (
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
+        >
+          + Add new song
+        </button>
+      ) : (
+        <div className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+          {/* Type a new title */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={typedDraft}
+              onChange={e => setTypedDraft(e.target.value)}
+              placeholder="Type a new song title…"
+              className="flex-1 px-2 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-fluent/40"
+            />
+            <button
+              type="button"
+              onClick={addTyped}
+              disabled={typedDraft.trim().length === 0}
+              className={`px-2 py-1 rounded-md text-xs font-medium text-white ${
+                typedDraft.trim().length === 0
+                  ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
+                  : 'bg-fluent hover:opacity-90'
+              }`}
+            >
+              Add
+            </button>
+          </div>
+
+          {/* Catalog browser */}
+          {availableForCatalog.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+                Or pick from your catalog
+              </div>
+              <ul className="max-h-32 overflow-y-auto space-y-0.5 border border-neutral-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 p-1">
+                {availableForCatalog.map(s => (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => addCatalog(s.id)}
+                      className="w-full text-left px-2 py-1 rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      {s.title}
+                      {s.artist && <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <button
+              type="button"
+              onClick={addTbd}
+              className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
+            >
+              Save TBD slot →
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPickerOpen(false);
+                setTypedDraft('');
+              }}
+              className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Repertoire save plumbing
+// ---------------------------------------------------------------------
+
+interface PersistRepertoireArgs {
+  pushSongIds: string[];
+  newSlots: NewSlot[];
+  anchorGoalId: string;
+  scope: ShortScope;
+  targetDate: number;
+  allSongs: ReadonlyArray<Song>;
+}
+
+/**
+ * Repertoire save path. Different shape from the generic
+ * persistSuggestionGoal because:
+ *   · Multiple records (one per song) each need their own
+ *     relatedItems[songId] — the generic encoder produces records
+ *     without song-specific identity.
+ *   · Typed-new-song slots create a Song row first, then encode the
+ *     goal pointing at the new id.
+ *   · TBD slots emit a placeholder goal with empty relatedItems.
+ *
+ * Always umbrella + N children when N >= 1, even when N === 1, so
+ * the data shape stays consistent with how the by-module / by-
+ * timeframe views render multi-song repertoire commitments.
+ */
+async function persistRepertoireMonthlyGoal(
+  args: PersistRepertoireArgs,
+): Promise<void> {
+  const { pushSongIds, newSlots, anchorGoalId, scope, targetDate, allSongs } = args;
+
+  // 1) Resolve each section-3 slot to a song id (creating new Song
+  //    rows for typed slots), or null for TBD.
+  type ResolvedSlot = { songId: string | null; description: string };
+  const resolvedNewSlots: ResolvedSlot[] = [];
+  const newSongRowsToInsert: Song[] = [];
+
+  for (const slot of newSlots) {
+    const d = slot.data;
+    if (d.kind === 'catalog') {
+      const s = allSongs.find(x => x.id === d.songId);
+      const title = s?.title ?? '(missing)';
+      resolvedNewSlots.push({
+        songId: d.songId,
+        description: `Start ${title} this month — reach comfortable`,
+      });
+    } else if (d.kind === 'typed') {
+      const id = crypto.randomUUID();
+      newSongRowsToInsert.push({
+        id,
+        title: d.title,
+        artist: '',
+        stage: 'learning',
+        audioLinks: [],
+        addedDate: Date.now(),
+      });
+      resolvedNewSlots.push({
+        songId: id,
+        description: `Start ${d.title} this month — reach comfortable`,
+      });
+    } else {
+      // TBD — placeholder goal with empty relatedItems.
+      resolvedNewSlots.push({
+        songId: null,
+        description: 'Start a new song this month — TBD',
+      });
+    }
+  }
+
+  // 2) Build child goal records.
+  const now = Date.now();
+  const baseFields = {
+    scope,
+    contextTag: 'mixed' as const,
+    relatedModules: ['repertoire'],
+    startDate: now,
+    targetDate,
+    status: 'active' as const,
+    contributesNumericallyToParent: false,
+    lastEngagedAt: null as number | null,
+    currentValue: 0,
+  };
+
+  const pushChildren: Goal[] = pushSongIds.map(songId => {
+    const s = allSongs.find(x => x.id === songId);
+    const title = s?.title ?? '(missing)';
+    return {
+      id: crypto.randomUUID(),
+      ...baseFields,
+      description: `${title} → comfortable this month`,
+      targetMetric: 'song_whole_at_level',
+      targetValue: null,
+      targetUnit: 'comfortable',
+      relatedItems: [songId],
+      parentGoalId: '', // patched after umbrella id is generated
+      isUmbrella: false,
+    };
+  });
+
+  const newChildren: Goal[] = resolvedNewSlots.map(slot => ({
+    id: crypto.randomUUID(),
+    ...baseFields,
+    description: slot.description,
+    targetMetric: 'song_whole_at_level',
+    targetValue: null,
+    targetUnit: 'comfortable',
+    relatedItems: slot.songId ? [slot.songId] : [],
+    parentGoalId: '', // patched after umbrella id is generated
+    isUmbrella: false,
+  }));
+
+  const allChildren = [...pushChildren, ...newChildren];
+
+  // 3) Build umbrella + patch parentGoalId on children.
+  const umbrellaId = crypto.randomUUID();
+  for (const child of allChildren) child.parentGoalId = umbrellaId;
+
+  const umbrellaDescriptionParts: string[] = [];
+  if (pushChildren.length > 0) {
+    umbrellaDescriptionParts.push(
+      `Push ${pushChildren.length} song${pushChildren.length === 1 ? '' : 's'} to comfortable`,
+    );
+  }
+  if (newChildren.length > 0) {
+    umbrellaDescriptionParts.push(
+      `start ${newChildren.length} new song${newChildren.length === 1 ? '' : 's'}`,
+    );
+  }
+  const umbrellaDescription =
+    umbrellaDescriptionParts.length > 0
+      ? `Repertoire month: ${umbrellaDescriptionParts.join(' and ')}`
+      : 'Repertoire month';
+
+  const umbrella: Goal = {
+    id: umbrellaId,
+    ...baseFields,
+    description: umbrellaDescription,
+    targetMetric: null,
+    targetValue: null,
+    targetUnit: null,
+    relatedItems: [],
+    parentGoalId: anchorGoalId,
+    isUmbrella: true,
+  };
+
+  // 4) Write everything in one transaction. New Song rows go first
+  //    so the goal records' relatedItems point at existing rows by
+  //    the time the goal table sees them.
+  await db.transaction('rw', [db.songs, db.goals], async () => {
+    if (newSongRowsToInsert.length > 0) {
+      await db.songs.bulkAdd(newSongRowsToInsert);
+    }
+    await db.goals.add(umbrella);
+    if (allChildren.length > 0) {
+      await db.goals.bulkAdd(allChildren);
+    }
+  });
 }
