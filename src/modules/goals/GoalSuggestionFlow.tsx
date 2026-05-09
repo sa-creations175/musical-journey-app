@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../components/Modal';
 import { db, type Goal, type GoalScope, type PracticeSessionContext } from '../../lib/db';
-import { harmonicFluencyCounts } from '../../lib/moduleItemCounts';
+// harmonicFluencyCounts now imported alongside the other module counts below.
 import {
   CategoryPillButton,
   ConsistencyTargetCard,
@@ -16,12 +16,30 @@ import {
 import { AccuracySlider } from './yearlyAnchorDimensions';
 import {
   encodeRecordsForDraft,
+  type EarTrainingTarget,
   type EncodedRecord,
   type HarmonicFluencyTarget,
+  type PracticeConsistencyTarget,
+  type ProductionTarget,
+  type ShapesPatternsTarget,
 } from './GoalCreationFlow';
 import { findAnchorGoalForModule } from './anchorLookup';
 import { suggestHfMonthly } from './suggestions/hfMonthly';
+import { suggestEtMonthly } from './suggestions/etMonthly';
+import { suggestShapesMonthly } from './suggestions/shapesMonthly';
+import { suggestProductionMonthly } from './suggestions/productionMonthly';
+import {
+  suggestPracticeConsistencyMonthly,
+  type PracticeConsistencyMonthlyTarget,
+} from './suggestions/practiceConsistencyMonthly';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
+import {
+  earTrainingCounts,
+  harmonicFluencyCounts,
+  productionCounts,
+  shapesCounts,
+} from '../../lib/moduleItemCounts';
+import { PRODUCTION_PATHS } from '../production/content/paths';
 import { moduleMetaById, PRACTICE_SESSIONS_META, DASHBOARD_META } from '../../lib/moduleMeta';
 
 /**
@@ -154,19 +172,33 @@ export default function GoalSuggestionFlow({
     );
   }
 
-  // Anchor is ready. Route to the per-module body. v1 only handles
-  // monthly + harmonic-fluency end-to-end; other combos show a
-  // placeholder until their suggestion logic + edit UI is built.
-  if (moduleId === 'harmonic-fluency' && scope === 'monthly') {
-    return (
-      <HarmonicFluencyMonthlyBody
-        anchor={anchorState.goal}
-        scope={scope}
-        moduleId={moduleId}
-        onClose={onClose}
-        onSaved={onSaved}
-      />
-    );
+  // Anchor is ready. Route to the per-module body. Repertoire is the
+  // only module without a body yet — its suggestion shape requires an
+  // active-songs Dexie fetch and a multi-song save path that hasn't
+  // been built; falls through to the placeholder for now.
+  if (scope === 'monthly') {
+    const sharedProps = {
+      anchor: anchorState.goal,
+      scope,
+      moduleId,
+      onClose,
+      onSaved,
+    };
+    if (moduleId === 'harmonic-fluency') {
+      return <HarmonicFluencyMonthlyBody {...sharedProps} moduleId="harmonic-fluency" />;
+    }
+    if (moduleId === 'ear-training') {
+      return <EarTrainingMonthlyBody {...sharedProps} moduleId="ear-training" />;
+    }
+    if (moduleId === 'shapes-and-patterns') {
+      return <ShapesPatternsMonthlyBody {...sharedProps} moduleId="shapes-and-patterns" />;
+    }
+    if (moduleId === 'production') {
+      return <ProductionMonthlyBody {...sharedProps} moduleId="production" />;
+    }
+    if (moduleId === 'practice-consistency') {
+      return <PracticeConsistencyMonthlyBody {...sharedProps} moduleId="practice-consistency" />;
+    }
   }
 
   return (
@@ -240,43 +272,66 @@ function ComingSoonPlaceholder({
 // Harmonic Fluency — monthly body
 // ---------------------------------------------------------------------
 
-function HarmonicFluencyMonthlyBody({
-  anchor,
-  scope,
-  moduleId,
-  onClose,
-  onSaved,
-}: {
+// ---------------------------------------------------------------------
+// Shared shell — wraps the per-module body with the consistent
+// chrome (modal, context lines, anchor panel, target date, save).
+// Each body provides its own focus + add-on UI as children, plus the
+// state needed for save (records + a save handler).
+// ---------------------------------------------------------------------
+
+interface BodyShellProps {
   anchor: Goal;
   scope: ShortScope;
   moduleId: SuggestionFlowModule;
+  contextLines: string[];
+  records: EncodedRecord[];
+  targetDate: number;
+  setTargetDate: (next: number) => void;
   onClose: () => void;
   onSaved?: () => void;
-}) {
-  const initialSuggestion = useMemo(() => suggestHfMonthly(), []);
-  const [target, setTarget] = useState<HarmonicFluencyTarget>(initialSuggestion.target);
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  /** Module-specific focus + add-on UI rendered between the context
+   *  lines and the anchor panel. */
+  children: React.ReactNode;
+  /** Override the default save flow (records → persistSuggestionGoal).
+   *  Practice Consistency and other custom-shape modules use this to
+   *  emit goal records that don't go through the wizard's encoder. */
+  saveOverride?: () => Promise<void>;
+}
+
+function BodyShell({
+  anchor,
+  scope,
+  moduleId,
+  contextLines,
+  records,
+  targetDate,
+  setTargetDate,
+  onClose,
+  onSaved,
+  children,
+  saveOverride,
+}: BodyShellProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const records = useMemo(
-    () => encodeHfTargetForRecords(target),
-    [target],
-  );
-  const canSave = records.length > 0 && !saving;
+  const canSave = (saveOverride !== undefined || records.length > 0) && !saving;
 
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     setSaveError(null);
     try {
-      await persistSuggestionGoal({
-        records,
-        scope,
-        moduleId,
-        targetDate,
-        anchorGoalId: anchor.id,
-      });
+      if (saveOverride) {
+        await saveOverride();
+      } else {
+        await persistSuggestionGoal({
+          records,
+          scope,
+          moduleId,
+          targetDate,
+          anchorGoalId: anchor.id,
+        });
+      }
       onSaved?.();
       onClose();
     } catch (err) {
@@ -287,45 +342,22 @@ function HarmonicFluencyMonthlyBody({
     }
   };
 
-  const title = `New ${SCOPE_LABEL[scope].toLowerCase()} Harmonic Fluency goal`;
+  const title = `New ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[moduleId]} goal`;
 
   return (
     <Modal open onClose={onClose} title={title}>
       <div className="space-y-4">
-        {initialSuggestion.contextLines.length > 0 && (
+        {contextLines.length > 0 && (
           <div className="text-xs text-neutral-500 dark:text-neutral-400 space-y-1">
-            {initialSuggestion.contextLines.map((line, idx) => (
+            {contextLines.map((line, idx) => (
               <p key={idx}>{line}</p>
             ))}
           </div>
         )}
-
-        <FocusSection target={target} onChange={setTarget} />
-
-        <AlsoAddRow
-          target={target}
-          onChange={setTarget}
-        />
-
-        {target.accuracyEnabled && (
-          <AccuracySection target={target} onChange={setTarget} />
-        )}
-
-        {target.consistencyEnabled && (
-          <ConsistencyTargetCard target={target} onChange={setTarget} />
-        )}
-
+        {children}
         <AnchorPanel anchor={anchor} />
-
-        <TargetDateField
-          value={targetDate}
-          onChange={setTargetDate}
-        />
-
-        {saveError && (
-          <p className="text-xs text-needswork">{saveError}</p>
-        )}
-
+        <TargetDateField value={targetDate} onChange={setTargetDate} />
+        {saveError && <p className="text-xs text-needswork">{saveError}</p>}
         <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
           <button
             type="button"
@@ -352,10 +384,62 @@ function HarmonicFluencyMonthlyBody({
 }
 
 // ---------------------------------------------------------------------
+// Harmonic Fluency body
+// ---------------------------------------------------------------------
+
+interface ModuleBodyProps<TModuleId extends SuggestionFlowModule> {
+  anchor: Goal;
+  scope: ShortScope;
+  moduleId: TModuleId;
+  onClose: () => void;
+  onSaved?: () => void;
+}
+
+function HarmonicFluencyMonthlyBody({
+  anchor,
+  scope,
+  moduleId,
+  onClose,
+  onSaved,
+}: ModuleBodyProps<'harmonic-fluency'>) {
+  const initialSuggestion = useMemo(() => suggestHfMonthly(), []);
+  const [target, setTarget] = useState<HarmonicFluencyTarget>(initialSuggestion.target);
+  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+
+  const records = useMemo(
+    () => encodeShim('harmonic-fluency', target),
+    [target],
+  );
+
+  return (
+    <BodyShell
+      anchor={anchor}
+      scope={scope}
+      moduleId={moduleId}
+      contextLines={initialSuggestion.contextLines}
+      records={records}
+      targetDate={targetDate}
+      setTargetDate={setTargetDate}
+      onClose={onClose}
+      onSaved={onSaved}
+    >
+      <HfFocusSection target={target} onChange={setTarget} />
+      <HfAlsoAddRow target={target} onChange={setTarget} />
+      {target.accuracyEnabled && (
+        <HfAccuracySection target={target} onChange={setTarget} />
+      )}
+      {target.consistencyEnabled && (
+        <ConsistencyTargetCard target={target} onChange={setTarget} />
+      )}
+    </BodyShell>
+  );
+}
+
+// ---------------------------------------------------------------------
 // Focus section — pre-populated suggestion, editable
 // ---------------------------------------------------------------------
 
-function FocusSection({
+function HfFocusSection({
   target,
   onChange,
 }: {
@@ -423,7 +507,7 @@ function FocusSection({
 // "Also add" pills
 // ---------------------------------------------------------------------
 
-function AlsoAddRow({
+function HfAlsoAddRow({
   target,
   onChange,
 }: {
@@ -496,7 +580,7 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
   },
 ];
 
-function AccuracySection({
+function HfAccuracySection({
   target,
   onChange,
 }: {
@@ -633,22 +717,33 @@ function dateStringToMs(value: string): number | null {
 // ---------------------------------------------------------------------
 
 /**
- * Encode an HF target slice via the wizard's encoder, bypassing the
- * Draft envelope (the suggestion flow's draft model is per-module
- * and doesn't carry the wizard's full Draft shape).
+ * Encode a per-module target slice via the wizard's encoder, bypassing
+ * the wizard's full Draft envelope. The suggestion flow's draft model
+ * carries one module slice at a time; this shim wraps the slice in a
+ * minimal Draft shape the encoder will accept (it switches on
+ * `moduleId` and only reads the matching slice). Other module slices
+ * are never read in the matched-moduleId branch, so leaving them off
+ * the shim is safe.
  */
-function encodeHfTargetForRecords(
-  target: HarmonicFluencyTarget,
+type EncodableSlice =
+  | { moduleId: 'harmonic-fluency'; target: HarmonicFluencyTarget }
+  | { moduleId: 'ear-training'; target: EarTrainingTarget }
+  | { moduleId: 'shapes-and-patterns'; target: ShapesPatternsTarget }
+  | { moduleId: 'production'; target: ProductionTarget }
+  | { moduleId: 'practice-consistency'; target: PracticeConsistencyTarget };
+
+function encodeShim(
+  moduleId: EncodableSlice['moduleId'],
+  target: EncodableSlice['target'],
 ): EncodedRecord[] {
-  // Build a minimal draft-shaped object the wizard's encoder accepts.
-  // encodeRecordsForDraft inspects only `moduleId` and the matching
-  // module slice; other fields are unused for HF.
-  const draftShim = {
-    moduleId: 'harmonic-fluency' as const,
-    harmonicFluency: target,
-    // Other slices left at non-touched defaults — encoder switch
-    // never reads them for moduleId === 'harmonic-fluency'.
-  };
+  const draftShim: Record<string, unknown> = { moduleId };
+  switch (moduleId) {
+    case 'harmonic-fluency':     draftShim.harmonicFluency = target; break;
+    case 'ear-training':         draftShim.earTraining = target; break;
+    case 'shapes-and-patterns':  draftShim.shapesPatterns = target; break;
+    case 'production':           draftShim.production = target; break;
+    case 'practice-consistency': draftShim.practiceConsistency = target; break;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return encodeRecordsForDraft(draftShim as any, undefined, new Map());
 }
@@ -735,4 +830,511 @@ async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
     await db.goals.add(umbrella);
     await db.goals.bulkAdd(children);
   });
+}
+
+// =====================================================================
+// Ear Training body
+// =====================================================================
+
+const ET_COUNTS = earTrainingCounts();
+
+interface EtCoverageGroupOption {
+  id: string;
+  label: string;
+  denominator: number;
+}
+
+const ET_COVERAGE_GROUPS: ReadonlyArray<EtCoverageGroupOption> = [
+  { id: 'intervals',          label: 'intervals',          denominator: ET_COUNTS.intervals },
+  { id: 'chord-recognition',  label: 'chord recognition',  denominator: ET_COUNTS.chordRecognition },
+  { id: 'chord-progressions', label: 'chord progressions', denominator: ET_COUNTS.chordProgressions },
+  { id: 'scales-modes',       label: 'scales & modes',     denominator: ET_COUNTS.scalesModes },
+];
+
+function EarTrainingMonthlyBody({
+  anchor,
+  scope,
+  moduleId,
+  onClose,
+  onSaved,
+}: ModuleBodyProps<'ear-training'>) {
+  const initialSuggestion = useMemo(() => suggestEtMonthly(), []);
+  const [target, setTarget] = useState<EarTrainingTarget>(initialSuggestion.target);
+  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const records = useMemo(() => encodeShim('ear-training', target), [target]);
+
+  return (
+    <BodyShell
+      anchor={anchor}
+      scope={scope}
+      moduleId={moduleId}
+      contextLines={initialSuggestion.contextLines}
+      records={records}
+      targetDate={targetDate}
+      setTargetDate={setTargetDate}
+      onClose={onClose}
+      onSaved={onSaved}
+    >
+      <EtFocusSection target={target} onChange={setTarget} />
+      <EtAlsoAddRow target={target} onChange={setTarget} />
+      {target.consistencyEnabled && (
+        <ConsistencyTargetCard target={target} onChange={setTarget} />
+      )}
+    </BodyShell>
+  );
+}
+
+function EtFocusSection({
+  target,
+  onChange,
+}: {
+  target: EarTrainingTarget;
+  onChange: (next: EarTrainingTarget) => void;
+}) {
+  const setScope = (s: 'overall' | 'specific') => {
+    if (s === target.coverageScope) return;
+    onChange({
+      ...target,
+      coverageScope: s,
+      coverageGroupIds: s === 'overall' ? [] : target.coverageGroupIds,
+    });
+  };
+  const toggleGroup = (id: string) => {
+    const next = target.coverageGroupIds.includes(id)
+      ? target.coverageGroupIds.filter(x => x !== id)
+      : [...target.coverageGroupIds, id];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  return (
+    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          Reach acquired stage on items
+        </div>
+      </header>
+      <div className="flex gap-1.5 flex-wrap">
+        <PillButton
+          label={`All of ear training (${ET_COUNTS.total} items)`}
+          active={target.coverageScope === 'overall'}
+          onClick={() => setScope('overall')}
+        />
+        <PillButton
+          label="One or more groups"
+          active={target.coverageScope === 'specific'}
+          onClick={() => setScope('specific')}
+        />
+      </div>
+      {target.coverageScope === 'specific' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          {ET_COVERAGE_GROUPS.map(group => (
+            <CategoryPillButton
+              key={group.id}
+              label={`${group.label} (${group.denominator})`}
+              accentHex={moduleMetaById('ear-training')?.accentHex ?? '#5a8752'}
+              active={target.coverageGroupIds.includes(group.id)}
+              onClick={() => toggleGroup(group.id)}
+              selectedStyle="accent"
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EtAlsoAddRow({
+  target,
+  onChange,
+}: {
+  target: EarTrainingTarget;
+  onChange: (next: EarTrainingTarget) => void;
+}) {
+  const showConsistency = !target.consistencyEnabled;
+  if (!showConsistency) return null;
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      <PillButton
+        label="+ Also add consistency target"
+        active={false}
+        onClick={() => onChange({ ...target, consistencyEnabled: true })}
+      />
+    </div>
+  );
+}
+
+// =====================================================================
+// Shapes & Patterns body
+// =====================================================================
+
+const SP_COUNTS = shapesCounts();
+
+interface ShapesCoverageGroupOption {
+  id: 'chord_shape_drills' | 'scale_drills' | 'voice_leading';
+  label: string;
+  denominator: number;
+}
+
+const SHAPES_COVERAGE_GROUP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> = [
+  { id: 'chord_shape_drills', label: 'chord shape drills', denominator: SP_COUNTS.chordShapeDrills },
+  { id: 'scale_drills',       label: 'scale drills',       denominator: SP_COUNTS.scaleDrills      },
+  { id: 'voice_leading',      label: 'voice-leading',      denominator: SP_COUNTS.voiceLeading     },
+];
+
+function ShapesPatternsMonthlyBody({
+  anchor,
+  scope,
+  moduleId,
+  onClose,
+  onSaved,
+}: ModuleBodyProps<'shapes-and-patterns'>) {
+  const initialSuggestion = useMemo(() => suggestShapesMonthly(), []);
+  const [target, setTarget] = useState<ShapesPatternsTarget>(initialSuggestion.target);
+  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const records = useMemo(() => encodeShim('shapes-and-patterns', target), [target]);
+
+  return (
+    <BodyShell
+      anchor={anchor}
+      scope={scope}
+      moduleId={moduleId}
+      contextLines={initialSuggestion.contextLines}
+      records={records}
+      targetDate={targetDate}
+      setTargetDate={setTargetDate}
+      onClose={onClose}
+      onSaved={onSaved}
+    >
+      <ShapesFocusSection target={target} onChange={setTarget} />
+      <ShapesAlsoAddRow target={target} onChange={setTarget} />
+      {target.consistencyEnabled && (
+        <ConsistencyTargetCard
+          target={target}
+          onChange={setTarget}
+          unitLabel="Minutes"
+          hint="Minutes per week or month."
+        />
+      )}
+    </BodyShell>
+  );
+}
+
+function ShapesFocusSection({
+  target,
+  onChange,
+}: {
+  target: ShapesPatternsTarget;
+  onChange: (next: ShapesPatternsTarget) => void;
+}) {
+  const setScope = (s: 'overall' | 'specific') => {
+    if (s === target.coverageScope) return;
+    onChange({
+      ...target,
+      coverageScope: s,
+      coverageGroupIds: s === 'overall' ? [] : target.coverageGroupIds,
+    });
+  };
+  const toggleGroup = (id: ShapesCoverageGroupOption['id']) => {
+    const next = target.coverageGroupIds.includes(id)
+      ? target.coverageGroupIds.filter(x => x !== id)
+      : [...target.coverageGroupIds, id];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  return (
+    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          Reach acquired stage on shapes
+        </div>
+      </header>
+      <div className="flex gap-1.5 flex-wrap">
+        <PillButton
+          label={`All of shapes (${SP_COUNTS.total} items)`}
+          active={target.coverageScope === 'overall'}
+          onClick={() => setScope('overall')}
+        />
+        <PillButton
+          label="One or more groups"
+          active={target.coverageScope === 'specific'}
+          onClick={() => setScope('specific')}
+        />
+      </div>
+      {target.coverageScope === 'specific' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          {SHAPES_COVERAGE_GROUP_OPTIONS.map(group => (
+            <CategoryPillButton
+              key={group.id}
+              label={`${group.label} (${group.denominator})`}
+              accentHex={moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a'}
+              active={target.coverageGroupIds.includes(group.id)}
+              onClick={() => toggleGroup(group.id)}
+              selectedStyle="accent"
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ShapesAlsoAddRow({
+  target,
+  onChange,
+}: {
+  target: ShapesPatternsTarget;
+  onChange: (next: ShapesPatternsTarget) => void;
+}) {
+  const showConsistency = !target.consistencyEnabled;
+  if (!showConsistency) return null;
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      <PillButton
+        label="+ Also add minutes-per-week target"
+        active={false}
+        onClick={() => onChange({ ...target, consistencyEnabled: true })}
+      />
+    </div>
+  );
+}
+
+// =====================================================================
+// Production body
+// =====================================================================
+
+const PROD_COUNTS = productionCounts();
+
+function ProductionMonthlyBody({
+  anchor,
+  scope,
+  moduleId,
+  onClose,
+  onSaved,
+}: ModuleBodyProps<'production'>) {
+  const initialSuggestion = useMemo(() => suggestProductionMonthly(), []);
+  const [target, setTarget] = useState<ProductionTarget>(initialSuggestion.target);
+  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const records = useMemo(() => encodeShim('production', target), [target]);
+
+  return (
+    <BodyShell
+      anchor={anchor}
+      scope={scope}
+      moduleId={moduleId}
+      contextLines={initialSuggestion.contextLines}
+      records={records}
+      targetDate={targetDate}
+      setTargetDate={setTargetDate}
+      onClose={onClose}
+      onSaved={onSaved}
+    >
+      <ProductionCompletionFocus target={target} onChange={setTarget} />
+      <ProductionConsistencyFocus target={target} onChange={setTarget} />
+    </BodyShell>
+  );
+}
+
+function ProductionCompletionFocus({
+  target,
+  onChange,
+}: {
+  target: ProductionTarget;
+  onChange: (next: ProductionTarget) => void;
+}) {
+  const setScope = (s: 'path' | 'count') => {
+    if (s === target.completionScope) return;
+    onChange({ ...target, completionScope: s, pathId: s === 'count' ? null : target.pathId });
+  };
+  return (
+    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          Complete production lessons
+        </div>
+      </header>
+      <div className="flex gap-1.5 flex-wrap">
+        <PillButton
+          label="A specific path"
+          active={target.completionScope === 'path'}
+          onClick={() => setScope('path')}
+        />
+        <PillButton
+          label="A lesson count"
+          active={target.completionScope === 'count'}
+          onClick={() => setScope('count')}
+        />
+      </div>
+      {target.completionScope === 'path' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          {PRODUCTION_PATHS.map(path => (
+            <CategoryPillButton
+              key={path.id}
+              label={`${path.title} (${PROD_COUNTS.byPath[path.id] ?? 0})`}
+              accentHex={moduleMetaById('production')?.accentHex ?? '#3a4875'}
+              active={target.pathId === path.id}
+              onClick={() => onChange({ ...target, pathId: path.id })}
+              selectedStyle="accent"
+            />
+          ))}
+        </div>
+      )}
+      {target.completionScope === 'count' && (
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-neutral-700 dark:text-neutral-200">Lessons:</span>
+          <input
+            type="number"
+            min={1}
+            value={target.lessonCount === 0 ? '' : target.lessonCount}
+            onChange={e =>
+              onChange({ ...target, lessonCount: Number(e.target.value) || 0 })
+            }
+            className="w-20 px-2 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm"
+          />
+        </label>
+      )}
+    </section>
+  );
+}
+
+function ProductionConsistencyFocus({
+  target,
+  onChange,
+}: {
+  target: ProductionTarget;
+  onChange: (next: ProductionTarget) => void;
+}) {
+  // Production's consistency is hours-per-cadence and on by default
+  // (per the spec baseline: "1 hour/week"). Always-rendered as a
+  // second focus section rather than gated behind an "Also add" pill.
+  return (
+    <ConsistencyTargetCard
+      target={target}
+      onChange={onChange}
+      unitLabel="Hours"
+      hint="Hours of production work per week or month."
+      cardTitle="Time target"
+    />
+  );
+}
+
+// =====================================================================
+// Practice Consistency body
+// =====================================================================
+
+function PracticeConsistencyMonthlyBody({
+  anchor,
+  scope,
+  moduleId,
+  onClose,
+  onSaved,
+}: ModuleBodyProps<'practice-consistency'>) {
+  const initialSuggestion = useMemo(() => suggestPracticeConsistencyMonthly(), []);
+  const [target, setTarget] = useState<PracticeConsistencyMonthlyTarget>(initialSuggestion.target);
+  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+
+  // Practice Consistency uses a custom 3-field target shape that the
+  // wizard's encoder doesn't know about. v1 maps the daysPerWeek
+  // field onto the existing PracticeConsistencyTarget shape (single
+  // {days, cadence} encoder) and saves only that. The keyboard
+  // session quality fields are aspirational — they read as goal
+  // intent in the UI but don't yet persist as their own goal record.
+  // Future: emit a second linked record (sibling under an umbrella)
+  // for the keyboard-session quality target once the data model
+  // supports it.
+  const reducedRecords = useMemo<EncodedRecord[]>(
+    () => encodeShim('practice-consistency', {
+      days: target.daysPerWeek,
+      cadence: 'week',
+    }),
+    [target.daysPerWeek],
+  );
+
+  return (
+    <BodyShell
+      anchor={anchor}
+      scope={scope}
+      moduleId={moduleId}
+      contextLines={initialSuggestion.contextLines}
+      records={reducedRecords}
+      targetDate={targetDate}
+      setTargetDate={setTargetDate}
+      onClose={onClose}
+      onSaved={onSaved}
+    >
+      <PracticeConsistencyFocus target={target} onChange={setTarget} />
+    </BodyShell>
+  );
+}
+
+function PracticeConsistencyFocus({
+  target,
+  onChange,
+}: {
+  target: PracticeConsistencyMonthlyTarget;
+  onChange: (next: PracticeConsistencyMonthlyTarget) => void;
+}) {
+  const numInput = (
+    value: number,
+    onSet: (n: number) => void,
+    min: number,
+    max: number,
+    ariaLabel: string,
+  ) => (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      value={value === 0 ? '' : value}
+      onChange={e => onSet(Number(e.target.value) || 0)}
+      aria-label={ariaLabel}
+      className="w-16 px-2 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm"
+    />
+  );
+
+  return (
+    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
+      <header>
+        <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
+        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+          Show up consistently
+        </div>
+      </header>
+      <div className="space-y-2 text-sm">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-neutral-700 dark:text-neutral-200">Practice</span>
+          {numInput(
+            target.daysPerWeek,
+            n => onChange({ ...target, daysPerWeek: n }),
+            1, 7,
+            'Days per week',
+          )}
+          <span className="text-neutral-700 dark:text-neutral-200">days a week</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-neutral-700 dark:text-neutral-200">Plus at least</span>
+          {numInput(
+            target.keyboardSessionsPerWeek,
+            n => onChange({ ...target, keyboardSessionsPerWeek: n }),
+            0, 7,
+            'Keyboard sessions per week',
+          )}
+          <span className="text-neutral-700 dark:text-neutral-200">keyboard sessions a week,</span>
+          {numInput(
+            target.keyboardSessionMinMinutes,
+            n => onChange({ ...target, keyboardSessionMinMinutes: n }),
+            5, 240,
+            'Minimum minutes per keyboard session',
+          )}
+          <span className="text-neutral-700 dark:text-neutral-200">+ minutes each.</span>
+        </div>
+      </div>
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+        v1: the days-per-week target persists as the Practice Consistency goal. Keyboard-session quality is captured as
+        intent but not yet tracked as its own metric.
+      </p>
+    </section>
+  );
 }

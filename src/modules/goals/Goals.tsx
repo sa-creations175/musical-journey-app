@@ -219,11 +219,11 @@ export default function Goals() {
    *  the picked module. */
   const [anchorMode, setAnchorMode] = useState<{ moduleId: AnchorModuleId } | null>(null);
   /** Suggestion-flow open state. Driven by the per-anchor "+ Add
-   *  monthly goal" affordance in by-module view. v1 only wires HF
-   *  monthly so the pattern can be eyeballed before generalizing
-   *  to the other five modules. */
+   *  monthly goal" affordance in by-module view. All six modules
+   *  surface the affordance; Repertoire's body still falls through
+   *  to the placeholder until its multi-song save path lands. */
   const [suggestionFlow, setSuggestionFlow] = useState<
-    { scope: 'monthly'; moduleId: 'harmonic-fluency' } | null
+    { scope: 'monthly'; moduleId: GoalFlowModuleId } | null
   >(null);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
@@ -454,13 +454,9 @@ export default function Goals() {
           onSetYearlyAnchor={moduleId =>
             setAnchorMode({ moduleId: moduleId as AnchorModuleId })
           }
-          onAddMonthlyGoal={moduleId => {
-            // v1: only HF wired. Other modules will land alongside
-            // their suggestion logic in upcoming commits.
-            if (moduleId === 'harmonic-fluency') {
-              setSuggestionFlow({ scope: 'monthly', moduleId });
-            }
-          }}
+          onAddMonthlyGoal={moduleId =>
+            setSuggestionFlow({ scope: 'monthly', moduleId })
+          }
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
         />
@@ -1601,18 +1597,13 @@ function ByModuleSection({
               onToggleRow={onToggleRow}
             />
           </ul>
-          {/* v1: only HF surfaces the new suggestion-flow affordance.
-              The other modules' suggestion logic + body components
-              land in subsequent commits. */}
-          {moduleId === 'harmonic-fluency' && (
-            <button
-              type="button"
-              onClick={() => onAddMonthlyGoal(moduleId)}
-              className="mt-2 text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
-            >
-              + Add monthly goal
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onAddMonthlyGoal(moduleId)}
+            className="mt-2 text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
+          >
+            + Add monthly goal
+          </button>
         </>
       ) : (
         <YearlyAnchorBackstop
