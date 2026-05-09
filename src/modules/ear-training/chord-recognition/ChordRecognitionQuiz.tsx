@@ -25,10 +25,29 @@ import ItemSelectionPanel, {
 } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import {
+  INVERSION_LABEL,
+  attemptItemId,
+  inversionsForIntervalCount,
+  normalizeAttemptItemId,
+  rotateForInversion,
+  type Inversion,
+} from './inversionUtils';
 
 const MODULE_ID = 'chord-recognition';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
+const PREF_INVERSION_POSITIONS = 'chordRecognitionInversionPositions';
+// Default: all three triad inversions enabled. Inversion training is
+// the polish-build feature — surface it on by default; gear icon lets
+// the user dial back to root only or any subset.
+const DEFAULT_INVERSION_POSITIONS: Inversion[] = [0, 1, 2];
+
+type QuizPhase =
+  | 'awaiting-quality'
+  | 'quality-correct-awaiting-inversion'
+  | 'quality-wrong-revealed'
+  | 'fully-revealed';
 
 type TierFilter = 'all' | ChordData['tier'];
 type PlaybackStyle = 'blocked' | 'broken';
@@ -88,14 +107,23 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
   const [playStyle, setPlayStyle] = useState<PlaybackStyle>('blocked');
   const [brokenDir, setBrokenDir] = useState<BrokenChordDirection>('asc');
-  const [current, setCurrent] = useState<{ chord: ChordData; rootMidi: number } | null>(null);
+  const [current, setCurrent] = useState<{
+    chord: ChordData;
+    rootMidi: number;
+    inversion: Inversion;
+  } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [answered, setAnswered] = useState(false);
+  const [selectedInversion, setSelectedInversion] = useState<Inversion | null>(null);
+  const [phase, setPhase] = useState<QuizPhase>('awaiting-quality');
   const [showFocusPanel, setShowFocusPanel] = useState(false);
   const [focusActive, setFocusActive] = useState(false);
   const [focusKeys, setFocusKeys] = useState<string[]>([]);
   const [showLifetime, setShowLifetime] = useState(false);
+  const [showInversionSettings, setShowInversionSettings] = useState(false);
+  const [inversionPositions, setInversionPositions] = useState<Inversion[]>(
+    DEFAULT_INVERSION_POSITIONS,
+  );
 
   const filterRef = useRef(tierFilter); filterRef.current = tierFilter;
   const playStyleRef = useRef(playStyle); playStyleRef.current = playStyle;
@@ -103,19 +131,39 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const focusActiveRef = useRef(focusActive); focusActiveRef.current = focusActive;
   const focusKeysRef = useRef(focusKeys); focusKeysRef.current = focusKeys;
   const chordsRef = useRef(chords); chordsRef.current = chords;
+  const inversionPositionsRef = useRef(inversionPositions);
+  inversionPositionsRef.current = inversionPositions;
 
   const persistedFocus = useLiveQuery(
     async () => getPref<string[]>(PREF_FOCUS, []),
     [],
   ) ?? [];
 
-  // Hydrate broken-chord direction from userPrefs on mount.
+  // Hydrate broken-chord direction + inversion positions from userPrefs.
   useEffect(() => {
     (async () => {
       const stored = await getPref<BrokenChordDirection>(PREF_BROKEN_DIRECTION, 'asc');
       setBrokenDir(stored === 'desc' || stored === 'both' ? stored : 'asc');
+
+      const positions = await getPref<number[]>(
+        PREF_INVERSION_POSITIONS,
+        DEFAULT_INVERSION_POSITIONS,
+      );
+      // Defensively coerce: any stored entry not in 0–3 is dropped, dedupe,
+      // and clamp empty to root-only.
+      const sanitized = (Array.from(new Set(positions))
+        .filter((n): n is Inversion => n === 0 || n === 1 || n === 2 || n === 3)
+        .sort() as Inversion[]);
+      setInversionPositions(sanitized.length > 0 ? sanitized : [0]);
     })();
   }, []);
+
+  const saveInversionPositions = async (next: Inversion[]) => {
+    const sanitized = (Array.from(new Set(next)).sort() as Inversion[]);
+    const final: Inversion[] = sanitized.length > 0 ? sanitized : [0];
+    setInversionPositions(final);
+    await setPref(PREF_INVERSION_POSITIONS, final);
+  };
 
   const saveBrokenDir = async (d: BrokenChordDirection) => {
     setBrokenDir(d);
@@ -133,13 +181,17 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   // Only fluency-tracked attempts feed the rolling window. Small-pool
   // focus sessions log with excludeFromFluency=true so they don't
   // artificially boost tiers for items the user was already cued into.
+  // Keys are normalized to canonical 'chordId:inversion' shape so legacy
+  // attempts (logged as bare 'maj' before the inversion build) bucket
+  // alongside new root-position attempts under 'maj:0'.
   const groupedAttempts = useMemo(() => {
     const m = new Map<string, AttemptRecord[]>();
     for (const a of attempts) {
       if (a.moduleId !== MODULE_ID) continue;
       if (a.excludeFromFluency) continue;
-      const arr = m.get(a.itemId);
-      if (arr) arr.push(a); else m.set(a.itemId, [a]);
+      const key = normalizeAttemptItemId(a.itemId);
+      const arr = m.get(key);
+      if (arr) arr.push(a); else m.set(key, [a]);
     }
     for (const arr of m.values()) arr.sort((x, y) => y.timestamp - x.timestamp);
     return m;
@@ -149,14 +201,23 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     const sorted = attempts
       .filter(a => a.moduleId === MODULE_ID)
       .sort((a, b) => b.timestamp - a.timestamp);
-    return new Set(sorted.slice(0, RECENT_HISTORY_SIZE).map(a => a.itemId));
+    return new Set(
+      sorted.slice(0, RECENT_HISTORY_SIZE).map(a => normalizeAttemptItemId(a.itemId)),
+    );
   }, [attempts]);
 
   const groupedRef = useRef(groupedAttempts); groupedRef.current = groupedAttempts;
   const recentRef = useRef(recentHistoryKeys); recentRef.current = recentHistoryKeys;
 
-  const tierForChord = (id: string, today: string): Tier => {
-    const keyed = groupedRef.current.get(id) ?? [];
+  // Per-(chord, inversion) tier. Each (chord, inversion) pair has its
+  // own rolling-window accuracy now that AttemptRecord.itemId carries
+  // the inversion suffix. Replaces the chord-only tierForChord.
+  const tierForChordInversion = (
+    chordId: string,
+    inversion: Inversion,
+    today: string,
+  ): Tier => {
+    const keyed = groupedRef.current.get(attemptItemId(chordId, inversion)) ?? [];
     const recent = keyed.slice(0, ROLLING_WINDOW_SIZE);
     const correctN = recent.filter(a => a.correct).length;
     const total = recent.length;
@@ -165,32 +226,58 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     return computeTier({ windowCorrect: correctN, windowTotal: total, daysSinceLastAttempt: daysSince });
   };
 
-  const buildCandidates = (): AdaptiveCandidate<ChordData>[] => {
+  const buildCandidates = (): AdaptiveCandidate<{
+    chord: ChordData;
+    inversion: Inversion;
+  }>[] => {
     const today = localDayKey();
     const focusSet = focusActiveRef.current ? new Set(focusKeysRef.current) : null;
     const filter = filterRef.current;
-    const candidates: AdaptiveCandidate<ChordData>[] = [];
+    const positions = inversionPositionsRef.current;
+    const candidates: AdaptiveCandidate<{ chord: ChordData; inversion: Inversion }>[] = [];
+
     for (const c of chordsRef.current) {
       if (focusSet) {
         if (!focusSet.has(c.id)) continue;
       } else if (filter !== 'all' && c.tier !== filter) {
         continue;
       }
-      const t = tierForChord(c.id, today);
-      candidates.push({
-        item: c,
-        baseWeight: TIER_WEIGHT[t],
-        inRecentHistory: recentRef.current.has(c.id),
-      });
+
+      // Inversion training is foundational-only for now AND requires
+      // 2+ positions enabled to be meaningful. Other tiers always play
+      // root; foundational with 1-position settings also plays root.
+      const stepTwoEligible = c.tier === 'foundational' && positions.length >= 2;
+      const validInversions = inversionsForIntervalCount(c.intervals.length);
+      const inversionsForCard: Inversion[] = stepTwoEligible
+        ? positions.filter(p => validInversions.includes(p))
+        : [0];
+      // Fallback if filter eliminates everything (shouldn't happen for
+      // triads + standard positions, but defensive).
+      const finalInversions: Inversion[] =
+        inversionsForCard.length > 0 ? inversionsForCard : [0];
+
+      for (const inv of finalInversions) {
+        const t = tierForChordInversion(c.id, inv, today);
+        candidates.push({
+          item: { chord: c, inversion: inv },
+          baseWeight: TIER_WEIGHT[t],
+          inRecentHistory: recentRef.current.has(attemptItemId(c.id, inv)),
+        });
+      }
     }
     return candidates;
   };
 
-  const playChord = async (chord: ChordData, rootMidi: number) => {
+  const playChord = async (
+    chord: ChordData,
+    rootMidi: number,
+    inversion: Inversion,
+  ) => {
+    const intervals = rotateForInversion(chord.intervals, inversion);
     if (playStyleRef.current === 'broken') {
-      await playChordBroken(rootMidi, chord.intervals, speedRef.current, brokenDirRef.current);
+      await playChordBroken(rootMidi, intervals, speedRef.current, brokenDirRef.current);
     } else {
-      await playChordBlocked(rootMidi, chord.intervals, speedRef.current);
+      await playChordBlocked(rootMidi, intervals, speedRef.current);
     }
   };
 
@@ -198,40 +285,89 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     if (chordsRef.current.length === 0) return;
     const candidates = buildCandidates();
     if (candidates.length === 0) return;
-    const chord = pickAdaptive(candidates);
+    const picked = pickAdaptive(candidates);
     const rootMidi = pickRootMidi();
-    setCurrent({ chord, rootMidi });
+    setCurrent({ chord: picked.chord, rootMidi, inversion: picked.inversion });
     setSelectedId(null);
-    setAnswered(false);
+    setSelectedInversion(null);
+    setPhase('awaiting-quality');
     setHasPlayed(true);
-    await playChord(chord, rootMidi);
+    await playChord(picked.chord, rootMidi, picked.inversion);
   };
 
   const replay = async () => {
     if (!current) return;
-    await playChord(current.chord, current.rootMidi);
+    await playChord(current.chord, current.rootMidi, current.inversion);
   };
 
+  // Step-two eligibility for the *current* card. Independent of the
+  // inversion-positions setting at submit time so a mid-card settings
+  // change can't strand the user (we use the inversion picked at
+  // startNew, which is already constrained by the settings of that
+  // moment).
+  const stepTwoFiresFor = (chord: ChordData): boolean =>
+    chord.tier === 'foundational' && inversionPositionsRef.current.length >= 2;
+
   const submitAnswer = async (chosen: ChordData) => {
-    if (!current || answered) return;
+    if (!current || phase !== 'awaiting-quality') return;
     const isCorrect = chosen.id === current.chord.id;
     setSelectedId(chosen.id);
-    setAnswered(true);
+
+    if (isCorrect && stepTwoFiresFor(current.chord)) {
+      // Defer logging until step 2 completes — we log a single combined
+      // attempt per card, and step 2's inversion verdict is part of
+      // the combined `correct` value. Phase transitions to step 2.
+      setPhase('quality-correct-awaiting-inversion');
+      return;
+    }
+
+    // Either quality wrong, or quality correct with no step 2. Log
+    // immediately. Combined `correct` for the no-step-2 branch is just
+    // the quality verdict.
     const timestamp = Date.now();
+    const itemId = attemptItemId(current.chord.id, current.inversion);
     await db.attempts.add({
       moduleId: MODULE_ID,
-      itemId: current.chord.id,
+      itemId,
       correct: isCorrect,
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
     });
     await recordEngagement({
-      itemRef: current.chord.id,
+      itemRef: itemId,
       moduleRef: MODULE_ID,
       signal: { kind: 'attempt', correct: isCorrect },
       timestamp,
     });
     await updateDailySummary(MODULE_ID);
+
+    setPhase(isCorrect ? 'fully-revealed' : 'quality-wrong-revealed');
+  };
+
+  const submitInversion = async (chosen: Inversion) => {
+    if (!current || phase !== 'quality-correct-awaiting-inversion') return;
+    setSelectedInversion(chosen);
+    // Combined attempt: quality is already known correct in this
+    // branch, so the combined verdict reduces to the inversion
+    // verdict alone.
+    const isCorrect = chosen === current.inversion;
+    const timestamp = Date.now();
+    const itemId = attemptItemId(current.chord.id, current.inversion);
+    await db.attempts.add({
+      moduleId: MODULE_ID,
+      itemId,
+      correct: isCorrect,
+      timestamp,
+      ...(focusProtected ? { excludeFromFluency: true } : {}),
+    });
+    await recordEngagement({
+      itemRef: itemId,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct: isCorrect },
+      timestamp,
+    });
+    await updateDailySummary(MODULE_ID);
+    setPhase('fully-revealed');
   };
 
   const answerGrid = useMemo(() => {
@@ -251,9 +387,18 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     });
   }, [chords, tierFilter, focusActive, focusKeys]);
 
+  // Quality-side answer grid is interactive only during step 1.
+  // From quality-correct-awaiting-inversion onward, the grid is
+  // disabled and styled with the result so the user reads the verdict
+  // while picking an inversion.
+  const qualityLocked =
+    phase === 'quality-correct-awaiting-inversion' ||
+    phase === 'quality-wrong-revealed' ||
+    phase === 'fully-revealed';
+
   const renderButtonClass = (c: ChordData) => {
     const base = 'relative rounded-lg border text-xs font-medium transition px-3 py-3 text-left leading-snug';
-    if (!answered) {
+    if (!qualityLocked) {
       if (!hasPlayed) {
         return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400`;
       }
@@ -272,10 +417,15 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const focusProtected = focusActive && focusKeys.length < 4;
 
   const rootName = current ? midiToNoteName(current.rootMidi) : '';
-  const wasCorrect = answered && current && selectedId === current.chord.id;
-  const wasWrong = answered && current && selectedId !== current.chord.id;
+  const qualityCorrect = qualityLocked && current && selectedId === current.chord.id;
+  const qualityWrong = phase === 'quality-wrong-revealed';
+  const inversionAnswered = phase === 'fully-revealed' && selectedInversion !== null;
+  const inversionCorrect =
+    inversionAnswered && current && selectedInversion === current.inversion;
   const activeDesc = current && (current.chord.soundCustom ?? current.chord.soundDefault);
   const descIsCustom = current && Boolean(current.chord.soundCustom);
+
+  const cardIsTerminal = phase === 'quality-wrong-revealed' || phase === 'fully-revealed';
 
   useEffect(() => {
     if (!showLifetime) return;
@@ -311,9 +461,20 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const suggestWeakSpots = (): string[] => {
     const today = localDayKey();
     const keys: string[] = [];
+    // Per-chord weakness check: a chord is "weak" if any of its
+    // tracked inversions (or root, for non-foundational) sits in
+    // developing / needsWork / untouched. Conservative — surfaces
+    // chords that need work in any inversion the user has practised.
     for (const c of chords) {
-      const t = tierForChord(c.id, today);
-      if (t === 'developing' || t === 'needsWork' || t === 'untouched') keys.push(c.id);
+      const inversionsToCheck: Inversion[] =
+        c.tier === 'foundational'
+          ? inversionsForIntervalCount(c.intervals.length)
+          : [0];
+      const isWeak = inversionsToCheck.some(inv => {
+        const t = tierForChordInversion(c.id, inv, today);
+        return t === 'developing' || t === 'needsWork' || t === 'untouched';
+      });
+      if (isWeak) keys.push(c.id);
     }
     return keys;
   };
@@ -344,7 +505,11 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord recognition quiz</h2>
       </div>
 
-      {/* Scope selector (all-first) + focus button + dynamic status line. */}
+      {/* Scope selector (all-first) + focus button + dynamic status line.
+          Foundational Triads tab carries an inline gear that opens the
+          inversion-training settings drawer. The gear is always visible
+          on that tab regardless of which tab is selected — configuring
+          inversion training is independent of scoping the pool. */}
       <div className="flex flex-col items-center gap-2">
         {!focusActive && (
           <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap justify-center">
@@ -354,20 +519,62 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               { id: 'seventh', label: TIER_TAB_LABEL.seventh },
               { id: 'dominant', label: TIER_TAB_LABEL.dominant },
               { id: 'extensions', label: TIER_TAB_LABEL.extensions },
-            ] as const).map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setTierFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-md transition ${
-                  tierFilter === tab.id
-                    ? 'bg-fluent text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            ] as const).map(tab => {
+              const active = tierFilter === tab.id;
+              const isFoundational = tab.id === 'foundational';
+              // Each tab is a wrapper with one or two buttons inside —
+              // a button for the label, and (foundational only) a
+              // sibling button for the gear. Avoids nesting interactive
+              // elements while still rendering the gear as part of the
+              // tab's visual unit.
+              const wrapperClass = `inline-flex items-center rounded-md transition ${
+                active ? 'bg-fluent text-white' : ''
+              }`;
+              const labelClass = `px-3 py-1.5 rounded-md transition ${
+                active
+                  ? 'text-white'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+              } ${isFoundational ? 'pr-1.5' : ''}`;
+              const gearClass = `inline-flex items-center justify-center pr-2 py-1.5 text-[12px] leading-none rounded-md transition ${
+                active
+                  ? 'text-white opacity-90 hover:opacity-100'
+                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+              }`;
+              return (
+                <span key={tab.id} className={wrapperClass}>
+                  <button
+                    type="button"
+                    onClick={() => setTierFilter(tab.id)}
+                    className={labelClass}
+                  >
+                    {tab.label}
+                  </button>
+                  {isFoundational && (
+                    <button
+                      type="button"
+                      aria-label="inversion training settings"
+                      title="inversion training settings"
+                      onClick={e => {
+                        e.stopPropagation();
+                        setShowInversionSettings(v => !v);
+                      }}
+                      className={gearClass}
+                    >
+                      ⚙
+                    </button>
+                  )}
+                </span>
+              );
+            })}
           </div>
+        )}
+
+        {showInversionSettings && (
+          <InversionSettingsDrawer
+            positions={inversionPositions}
+            onSave={saveInversionPositions}
+            onClose={() => setShowInversionSettings(false)}
+          />
         )}
         <button
           onClick={() => setShowFocusPanel(true)}
@@ -467,7 +674,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               replay {playStyle}
             </button>
           )}
-          {answered && (
+          {cardIsTerminal && (
             <button
               onClick={startNew}
               className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
@@ -480,11 +687,11 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
 
       {/* Feedback area */}
       <div className="min-h-[1.5rem]">
-        {answered && current ? (
+        {qualityLocked && current ? (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-medium uppercase tracking-wide ${wasCorrect ? 'text-fluent' : 'text-needswork'}`}>
-                {wasCorrect ? 'correct' : 'not quite'}
+              <span className={`text-xs font-medium uppercase tracking-wide ${qualityCorrect ? 'text-fluent' : 'text-needswork'}`}>
+                {qualityCorrect ? 'correct' : 'not quite'}
               </span>
               <span className="text-neutral-400">·</span>
               <span>
@@ -497,10 +704,28 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               {activeDesc}
               {descIsCustom && <span className="ml-2 text-xs text-neutral-500 not-italic">(your note)</span>}
             </div>
-            {wasWrong && (
+            {qualityWrong && (
               <p className="italic text-xs text-neutral-500">
                 You'll see this one again soon to reinforce it.
               </p>
+            )}
+            {phase === 'quality-correct-awaiting-inversion' && (
+              <p className="text-xs text-neutral-500">
+                Now identify the inversion you heard.
+              </p>
+            )}
+            {inversionAnswered && current && (
+              <div className="text-xs">
+                {inversionCorrect ? (
+                  <span className="text-fluent font-medium">
+                    ✓ inversion: {INVERSION_LABEL[current.inversion]}
+                  </span>
+                ) : (
+                  <span className="text-needswork">
+                    × not quite — that was {INVERSION_LABEL[current.inversion].toLowerCase()}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         ) : hasPlayed ? (
@@ -515,9 +740,9 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         {answerGrid.map(c => (
           <button
             key={c.id}
-            disabled={!hasPlayed || answered}
+            disabled={!hasPlayed || qualityLocked}
             onClick={() => submitAnswer(c)}
-            className={`${renderButtonClass(c)} ${(!hasPlayed || answered) ? 'cursor-default' : 'cursor-pointer'} disabled:cursor-default`}
+            className={`${renderButtonClass(c)} ${(!hasPlayed || qualityLocked) ? 'cursor-default' : 'cursor-pointer'} disabled:cursor-default`}
             title={c.formula}
           >
             <span className="block pr-4">{c.name}</span>
@@ -525,6 +750,21 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
           </button>
         ))}
       </div>
+
+      {/* Inversion picker — surfaces during step 2 (quality correct,
+          awaiting inversion identification) and stays visible (disabled
+          with verdict styling) once the user answers. */}
+      {current && (phase === 'quality-correct-awaiting-inversion' || (phase === 'fully-revealed' && stepTwoFiresFor(current.chord) && selectedInversion !== null)) && (
+        <InversionPicker
+          enabled={inversionPositions.filter(p =>
+            inversionsForIntervalCount(current.chord.intervals.length).includes(p),
+          )}
+          correctInversion={current.inversion}
+          selectedInversion={selectedInversion}
+          locked={phase === 'fully-revealed'}
+          onPick={submitInversion}
+        />
+      )}
 
       <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end text-xs">
         <button
@@ -603,6 +843,145 @@ function LifetimeStatsModal({ onClose }: { onClose: () => void }) {
           <div className="flex justify-between"><dt className="text-neutral-500">first session</dt><dd className="font-mono">{first ? first.toLocaleDateString() : '—'}</dd></div>
         </dl>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Inversion picker — surfaces during step 2 and stays visible (locked)
+// once the user answers. Only renders the inversions present in the
+// current settings, so e.g. "Root + 1st only" omits the 2nd-inv button.
+// ---------------------------------------------------------------------
+
+interface InversionPickerProps {
+  enabled: Inversion[];
+  correctInversion: Inversion;
+  selectedInversion: Inversion | null;
+  locked: boolean;
+  onPick: (inv: Inversion) => void;
+}
+
+function InversionPicker({
+  enabled,
+  correctInversion,
+  selectedInversion,
+  locked,
+  onPick,
+}: InversionPickerProps) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 text-center">
+        identify the inversion
+      </div>
+      <div className="flex justify-center gap-2 flex-wrap">
+        {enabled.map(inv => {
+          const isCorrect = inv === correctInversion;
+          const isSelected = inv === selectedInversion;
+          const base =
+            'px-3 py-2 rounded-lg border text-xs font-medium transition';
+          let cls: string;
+          if (!locked) {
+            cls = `${base} border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-fluent hover:text-fluent cursor-pointer`;
+          } else if (isCorrect) {
+            cls = `${base} border-fluent bg-fluent/10 text-fluent cursor-default`;
+          } else if (isSelected) {
+            cls = `${base} border-needswork bg-needswork/10 text-needswork cursor-default`;
+          } else {
+            cls = `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400 opacity-60 cursor-default`;
+          }
+          return (
+            <button
+              key={inv}
+              type="button"
+              disabled={locked}
+              onClick={() => onPick(inv)}
+              className={cls}
+            >
+              {INVERSION_LABEL[inv]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Inversion settings drawer — inline below tab strip. Opens from the
+// gear icon on the Foundational Triads tab. Multi-select; saves on
+// every toggle so there's no separate save button. Click the close
+// button to dismiss.
+// ---------------------------------------------------------------------
+
+interface InversionSettingsDrawerProps {
+  positions: Inversion[];
+  onSave: (next: Inversion[]) => void | Promise<void>;
+  onClose: () => void;
+}
+
+function InversionSettingsDrawer({
+  positions,
+  onSave,
+  onClose,
+}: InversionSettingsDrawerProps) {
+  const isEnabled = (inv: Inversion) => positions.includes(inv);
+  const toggle = async (inv: Inversion) => {
+    const next = isEnabled(inv)
+      ? positions.filter(p => p !== inv)
+      : [...positions, inv];
+    await onSave(next);
+  };
+
+  const stepTwoActive = positions.length >= 2;
+
+  return (
+    <div className="w-full max-w-md rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-medium tracking-tight">
+            Foundational Triads — inversion training
+          </h3>
+          <p className="text-[11px] text-neutral-500 mt-0.5">
+            {stepTwoActive
+              ? 'After each correct chord answer, you’ll be asked to identify the inversion.'
+              : 'Enable two or more positions to turn on inversion training.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="close"
+          className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 text-lg leading-none"
+        >
+          ×
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {([0, 1, 2] as Inversion[]).map(inv => {
+          const enabled = isEnabled(inv);
+          return (
+            <button
+              key={inv}
+              type="button"
+              onClick={() => void toggle(inv)}
+              className={`px-3 py-2 rounded-lg border text-xs font-medium transition ${
+                enabled
+                  ? 'border-fluent bg-fluent/10 text-fluent'
+                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+              }`}
+              aria-pressed={enabled}
+            >
+              {INVERSION_LABEL[inv]}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-neutral-500">
+        Per-inversion accuracy feeds tier ratings separately — your{' '}
+        <span className="font-medium">C major root</span> tier and{' '}
+        <span className="font-medium">C major 1st inversion</span> tier are tracked
+        independently.
+      </p>
     </div>
   );
 }

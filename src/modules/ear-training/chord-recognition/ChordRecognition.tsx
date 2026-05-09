@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
 import { seedChordQualities } from './seed';
+import { migrateChordRecognitionInversionItemIds } from './inversionMigration';
 import ChordRecognitionQuiz from './ChordRecognitionQuiz';
 import ChordFluencyTracker from './ChordFluencyTracker';
 import ModuleIntro from '../../../components/ModuleIntro';
@@ -11,7 +12,12 @@ import DailyGoalBar from '../../../components/DailyGoalBar';
 const MODULE_ID = 'chord-recognition';
 
 export default function ChordRecognition() {
-  useEffect(() => { seedChordQualities(); }, []);
+  useEffect(() => {
+    seedChordQualities();
+    // One-shot: rewrite legacy chord-recognition attempt itemIds
+    // ('maj') to canonical inversion-aware shape ('maj:0'). Idempotent.
+    void migrateChordRecognitionInversionItemIds();
+  }, []);
 
   const chords = useLiveQuery(() => db.chordQualities.toArray(), []);
   const attempts = useLiveQuery(

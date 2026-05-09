@@ -11,6 +11,12 @@ import {
   computeTier,
   type Tier,
 } from '../../../lib/tier';
+import {
+  INVERSION_LABEL,
+  inversionsForIntervalCount,
+  parseAttemptItemId,
+  type Inversion,
+} from './inversionUtils';
 
 const MODULE_ID = 'chord-recognition';
 const DESC_MAX = 300;
@@ -59,9 +65,23 @@ interface RollingStats {
   tier: Tier;
 }
 
-function rollingFor(attempts: AttemptRecord[], chordId: string): RollingStats {
+// Filter rolling-window stats by chord id (any inversion) or by a
+// specific (chord, inversion) pair. Pre-build attempts logged as bare
+// 'maj' parse to inversion 0 via parseAttemptItemId, so legacy data
+// surfaces in the root-position drill-down without a migration race.
+function rollingFor(
+  attempts: AttemptRecord[],
+  chordId: string,
+  inversion?: Inversion,
+): RollingStats {
   const filtered = attempts
-    .filter(a => a.moduleId === MODULE_ID && a.itemId === chordId)
+    .filter(a => {
+      if (a.moduleId !== MODULE_ID) return false;
+      const parsed = parseAttemptItemId(a.itemId);
+      if (parsed.chordId !== chordId) return false;
+      if (inversion !== undefined && parsed.inversion !== inversion) return false;
+      return true;
+    })
     .sort((a, b) => b.timestamp - a.timestamp);
   const recent = filtered.slice(0, ROLLING_WINDOW_SIZE);
   const correct = recent.filter(a => a.correct).length;
@@ -147,48 +167,124 @@ function DescriptionEditor({ chord }: DescriptionEditorProps) {
 interface ChordRowProps { chord: ChordData; attempts: AttemptRecord[]; }
 
 function ChordRow({ chord, attempts }: ChordRowProps) {
+  const [expanded, setExpanded] = useState(false);
   const rolling = rollingFor(attempts, chord.id);
   const isUntouched = rolling.tier === 'untouched';
+
+  // Per-inversion drill-down — only meaningful for foundational triads
+  // where inversion training is enabled. Sevenths could expand later;
+  // for now the affordance is foundational-only to match where the
+  // settings live.
+  const supportsDrillDown = chord.tier === 'foundational';
+  const inversions = supportsDrillDown
+    ? inversionsForIntervalCount(chord.intervals.length)
+    : [];
+
   return (
-    <div className="py-3 first:pt-0 last:pb-0 grid lg:grid-cols-[280px,1fr] gap-3 sm:gap-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-sm">{chord.name}</span>
-          <span className={`text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 border ${FAMILY_BADGE[chord.family]}`}>
-            {FAMILY_LABEL[chord.family]}
-          </span>
-          <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[rolling.tier]}`}>
-            {TIER_LABEL[rolling.tier]}
-          </span>
+    <div className="py-3 first:pt-0 last:pb-0">
+      <div className="grid lg:grid-cols-[280px,1fr] gap-3 sm:gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-sm">{chord.name}</span>
+            <span className={`text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 border ${FAMILY_BADGE[chord.family]}`}>
+              {FAMILY_LABEL[chord.family]}
+            </span>
+            <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[rolling.tier]}`}>
+              {TIER_LABEL[rolling.tier]}
+            </span>
+          </div>
+          <div className="text-xs text-neutral-500 font-mono mt-1">{chord.formula}</div>
+          <div className="mt-2">
+            <DescriptionEditor chord={chord} />
+          </div>
         </div>
-        <div className="text-xs text-neutral-500 font-mono mt-1">{chord.formula}</div>
-        <div className="mt-2">
-          <DescriptionEditor chord={chord} />
+        <div className="min-w-0">
+          <div className="flex items-baseline justify-between text-xs text-neutral-500 mb-1 gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <span>rolling window</span>
+              {supportsDrillDown && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(v => !v)}
+                  aria-expanded={expanded}
+                  aria-label={expanded ? 'hide per-inversion breakdown' : 'show per-inversion breakdown'}
+                  className="text-neutral-400 hover:text-fluent text-[10px]"
+                >
+                  {expanded ? '▾ inversions' : '▸ inversions'}
+                </button>
+              )}
+            </span>
+            <span className="font-mono">
+              {isUntouched ? (
+                <span className="text-neutral-400">
+                  no data yet — needs {MIN_ATTEMPTS_FOR_TIER} ({rolling.total}/{MIN_ATTEMPTS_FOR_TIER})
+                </span>
+              ) : (
+                <>
+                  {rolling.correct}/{rolling.total}
+                  <span className="ml-1">· {rolling.percent}%</span>
+                  <span className={`ml-1 ${TIER_TEXT_CLASS[rolling.tier]}`}>— {TIER_LABEL[rolling.tier]}</span>
+                </>
+              )}
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+            <div
+              className={`h-full ${TIER_BAR_CLASS[rolling.tier]} transition-all`}
+              style={{ width: rolling.total === 0 ? 0 : `${Math.max(4, rolling.percent)}%` }}
+            />
+          </div>
+
+          {expanded && supportsDrillDown && (
+            <div className="mt-3 space-y-2 pl-3 border-l border-neutral-200 dark:border-neutral-800">
+              {inversions.map(inv => (
+                <InversionStatRow
+                  key={inv}
+                  chordId={chord.id}
+                  inversion={inv}
+                  attempts={attempts}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      <div className="min-w-0">
-        <div className="flex items-baseline justify-between text-xs text-neutral-500 mb-1 gap-2 flex-wrap">
-          <span>rolling window</span>
-          <span className="font-mono">
-            {isUntouched ? (
-              <span className="text-neutral-400">
-                no data yet — needs {MIN_ATTEMPTS_FOR_TIER} ({rolling.total}/{MIN_ATTEMPTS_FOR_TIER})
-              </span>
-            ) : (
-              <>
-                {rolling.correct}/{rolling.total}
-                <span className="ml-1">· {rolling.percent}%</span>
-                <span className={`ml-1 ${TIER_TEXT_CLASS[rolling.tier]}`}>— {TIER_LABEL[rolling.tier]}</span>
-              </>
-            )}
-          </span>
-        </div>
-        <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-          <div
-            className={`h-full ${TIER_BAR_CLASS[rolling.tier]} transition-all`}
-            style={{ width: rolling.total === 0 ? 0 : `${Math.max(4, rolling.percent)}%` }}
-          />
-        </div>
+    </div>
+  );
+}
+
+interface InversionStatRowProps {
+  chordId: string;
+  inversion: Inversion;
+  attempts: AttemptRecord[];
+}
+
+function InversionStatRow({ chordId, inversion, attempts }: InversionStatRowProps) {
+  const rolling = rollingFor(attempts, chordId, inversion);
+  const isUntouched = rolling.tier === 'untouched';
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-[11px] text-neutral-500 mb-1 gap-2 flex-wrap">
+        <span>{INVERSION_LABEL[inversion]}</span>
+        <span className="font-mono">
+          {isUntouched ? (
+            <span className="text-neutral-400">
+              no data yet ({rolling.total}/{MIN_ATTEMPTS_FOR_TIER})
+            </span>
+          ) : (
+            <>
+              {rolling.correct}/{rolling.total}
+              <span className="ml-1">· {rolling.percent}%</span>
+              <span className={`ml-1 ${TIER_TEXT_CLASS[rolling.tier]}`}>— {TIER_LABEL[rolling.tier]}</span>
+            </>
+          )}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+        <div
+          className={`h-full ${TIER_BAR_CLASS[rolling.tier]} transition-all`}
+          style={{ width: rolling.total === 0 ? 0 : `${Math.max(4, rolling.percent)}%` }}
+        />
       </div>
     </div>
   );
