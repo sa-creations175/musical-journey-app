@@ -15,6 +15,7 @@ import {
 } from './scopeMeta';
 import { AccuracySlider } from './yearlyAnchorDimensions';
 import {
+  EAR_TRAINING_DRILL_TYPES,
   encodeRecordsForDraft,
   type EarTrainingTarget,
   type EncodedRecord,
@@ -877,6 +878,9 @@ function EarTrainingMonthlyBody({
     >
       <EtFocusSection target={target} onChange={setTarget} />
       <EtAlsoAddRow target={target} onChange={setTarget} />
+      {target.accuracyEnabled && (
+        <EtAccuracySection target={target} onChange={setTarget} />
+      )}
       {target.consistencyEnabled && (
         <ConsistencyTargetCard target={target} onChange={setTarget} />
       )}
@@ -951,16 +955,129 @@ function EtAlsoAddRow({
   target: EarTrainingTarget;
   onChange: (next: EarTrainingTarget) => void;
 }) {
+  const showAccuracy = !target.accuracyEnabled;
   const showConsistency = !target.consistencyEnabled;
-  if (!showConsistency) return null;
+  if (!showAccuracy && !showConsistency) return null;
   return (
     <div className="flex gap-1.5 flex-wrap">
-      <PillButton
-        label="+ Also add consistency target"
-        active={false}
-        onClick={() => onChange({ ...target, consistencyEnabled: true })}
-      />
+      {showAccuracy && (
+        <PillButton
+          label="+ Also add accuracy target"
+          active={false}
+          onClick={() => onChange({ ...target, accuracyEnabled: true })}
+        />
+      )}
+      {showConsistency && (
+        <PillButton
+          label="+ Also add consistency target"
+          active={false}
+          onClick={() => onChange({ ...target, consistencyEnabled: true })}
+        />
+      )}
     </div>
+  );
+}
+
+function EtAccuracySection({
+  target,
+  onChange,
+}: {
+  target: EarTrainingTarget;
+  onChange: (next: EarTrainingTarget) => void;
+}) {
+  const drill = EAR_TRAINING_DRILL_TYPES.find(d => d.id === target.drillTypeId) ?? null;
+  const remove = () =>
+    onChange({
+      ...target,
+      accuracyEnabled: false,
+      drillTypeId: null,
+      drillSubtypeId: null,
+    });
+  const setScope = (s: 'overall' | 'specific') => {
+    if (s === target.accuracyScope) return;
+    onChange({
+      ...target,
+      accuracyScope: s,
+      drillTypeId: s === 'overall' ? null : target.drillTypeId,
+      drillSubtypeId: s === 'overall' ? null : target.drillSubtypeId,
+    });
+  };
+  const setDrillType = (id: string) => {
+    // Resetting subtype on type change — the previous subtype belongs
+    // to a different drill and would encode a nonsense combination.
+    onChange({ ...target, drillTypeId: id || null, drillSubtypeId: null });
+  };
+  const setDrillSubtype = (id: string) => {
+    onChange({ ...target, drillSubtypeId: id || null });
+  };
+
+  return (
+    <ToggleCard
+      title="Accuracy target"
+      hint="Reach a target accuracy percentage."
+      enabled={true}
+      onToggle={remove}
+    >
+      <div className="flex gap-1.5">
+        <PillButton
+          label="Overall accuracy"
+          active={target.accuracyScope === 'overall'}
+          onClick={() => setScope('overall')}
+        />
+        <PillButton
+          label="Specific drill type"
+          active={target.accuracyScope === 'specific'}
+          onClick={() => setScope('specific')}
+        />
+      </div>
+      {target.accuracyScope === 'specific' && (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+              Drill type
+            </span>
+            <select
+              value={target.drillTypeId ?? ''}
+              onChange={e => setDrillType(e.target.value)}
+              className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-fluent/40"
+            >
+              <option value="">Pick a drill type…</option>
+              {EAR_TRAINING_DRILL_TYPES.map(d => (
+                <option key={d.id} value={d.id}>{d.label}</option>
+              ))}
+            </select>
+          </label>
+          {drill && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
+                Subtype
+              </span>
+              <select
+                value={target.drillSubtypeId ?? ''}
+                onChange={e => setDrillSubtype(e.target.value)}
+                className="w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-fluent/40"
+              >
+                <option value="">Pick a subtype…</option>
+                {drill.subtypes.map(s => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      )}
+      <AccuracySlider
+        value={target.accuracyPercent}
+        onChange={p => onChange({ ...target, accuracyPercent: p })}
+        min={ACCURACY_PCT_MIN}
+        max={ACCURACY_PCT_MAX}
+        step={ACCURACY_PCT_STEP}
+        label={`Target accuracy (${target.accuracyPercent}%)`}
+      />
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+        Acquired = per-card mastery (last 10 attempts). Accuracy target = overall sharpness across the group (last 200 attempts).
+      </p>
+    </ToggleCard>
   );
 }
 

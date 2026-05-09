@@ -1617,13 +1617,13 @@ async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string>
  * Recognition's subtypes are title case because the chord-recognition
  * quiz's section labels are title case. Honest to source-of-truth.
  */
-interface DrillType {
+export interface DrillType {
   id: string;
   label: string;
   subtypes: ReadonlyArray<{ id: string; label: string }>;
 }
 
-const EAR_TRAINING_DRILL_TYPES: ReadonlyArray<DrillType> = [
+export const EAR_TRAINING_DRILL_TYPES: ReadonlyArray<DrillType> = [
   {
     id: 'intervals',
     label: 'intervals',
