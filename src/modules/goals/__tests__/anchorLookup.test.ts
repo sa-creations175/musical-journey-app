@@ -89,6 +89,77 @@ describe('findAnchorGoalForModule', () => {
     expect((await findAnchorGoalForModule('shapes-and-patterns'))?.id).toBe('g-multi');
     expect(await findAnchorGoalForModule('production')).toBeNull();
   });
+
+  it('prefers an umbrella over its children even when a child has a later startDate', async () => {
+    // Children inherit scope + relatedModules from the parent's baseFields
+    // and can be persisted with a startDate fractionally later than the
+    // umbrella's. Without umbrella-preference, a startDate tiebreak race
+    // returns the child instead of the umbrella.
+    await db.goals.bulkAdd([
+      goal({
+        id: 'umbrella',
+        scope: 'yearly',
+        isUmbrella: true,
+        parentGoalId: null,
+        startDate: NOW,
+      }),
+      goal({
+        id: 'child-coverage',
+        scope: 'yearly',
+        isUmbrella: false,
+        parentGoalId: 'umbrella',
+        startDate: NOW + 5, // milliseconds later — bulkAdd timing
+      }),
+      goal({
+        id: 'child-accuracy',
+        scope: 'yearly',
+        isUmbrella: false,
+        parentGoalId: 'umbrella',
+        startDate: NOW + 10,
+      }),
+    ]);
+    expect((await findAnchorGoalForModule('harmonic-fluency'))?.id).toBe('umbrella');
+  });
+
+  it('returns null when only child goals match (never anchors to a child of an unrelated umbrella)', async () => {
+    // Child rows under an umbrella that DOESN'T match the queried
+    // module — e.g. the user has a cross-module umbrella and one of
+    // its children is HF-tagged. The HF-tagged child should not
+    // serve as an anchor for new HF monthly goals; the suggestion
+    // flow blocks until a top-level HF anchor exists.
+    await db.goals.bulkAdd([
+      goal({
+        id: 'cross-umbrella',
+        scope: 'yearly',
+        isUmbrella: true,
+        parentGoalId: null,
+        relatedModules: ['ear-training'], // not HF
+      }),
+      goal({
+        id: 'child-hf-tagged',
+        scope: 'yearly',
+        isUmbrella: false,
+        parentGoalId: 'cross-umbrella',
+        relatedModules: ['harmonic-fluency'],
+      }),
+    ]);
+    expect(await findAnchorGoalForModule('harmonic-fluency')).toBeNull();
+  });
+
+  it('falls back to top-level non-umbrella yearly when no umbrella exists', async () => {
+    // Single-target yearly goals (one metric, not umbrella) are
+    // still valid anchors — the user just hasn't set a multi-target
+    // yearly goal yet.
+    await db.goals.add(
+      goal({
+        id: 'single-target',
+        scope: 'yearly',
+        isUmbrella: false,
+        parentGoalId: null,
+      }),
+    );
+    expect((await findAnchorGoalForModule('harmonic-fluency'))?.id).toBe('single-target');
+  });
 });
 
 describe('findActiveMonthlyForModule', () => {
