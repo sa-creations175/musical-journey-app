@@ -130,8 +130,12 @@ describe('INVERSION_EXCLUDED_CHORD_IDS', () => {
     expect(INVERSION_EXCLUDED_CHORD_IDS.has('sus4')).toBe(true);
   });
 
-  it('does not exclude the rest of the foundational triads', () => {
-    for (const id of ['maj', 'min', 'dim', 'aug']) {
+  it('excludes aug (symmetric stack of major thirds — all inversions sound identical)', () => {
+    expect(INVERSION_EXCLUDED_CHORD_IDS.has('aug')).toBe(true);
+  });
+
+  it('does not exclude the asymmetric foundational triads', () => {
+    for (const id of ['maj', 'min', 'dim']) {
       expect(INVERSION_EXCLUDED_CHORD_IDS.has(id)).toBe(false);
     }
   });

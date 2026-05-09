@@ -16,17 +16,26 @@ export const INVERSION_LABEL: Record<Inversion, string> = {
 };
 
 /**
- * Chord ids excluded from inversion training. Sus chords are
- * voicing-shape-defined rather than triad-stacked, so "1st inversion"
- * of Sus2 / Sus4 isn't a useful ear-training target — the user would
- * be guessing between voicings that don't share the same emotional
- * fingerprint as the real Sus2/Sus4 sound. These chords always play
- * in root position regardless of the inversion settings, and never
- * trigger step 2.
+ * Chord ids excluded from inversion training. Two reasons surface
+ * the same exclusion:
+ *
+ *   · Sus chords (sus2, sus4) — voicing-shape-defined rather than
+ *     triad-stacked. "1st inversion" of Sus2 / Sus4 isn't a useful
+ *     ear target; the user would be guessing between voicings that
+ *     don't share the real Sus emotional fingerprint.
+ *
+ *   · Augmented triad (aug) — symmetric stack of major thirds
+ *     ([0,4,8]). Each inversion is enharmonically the same chord
+ *     at a different root — they sound identical to the ear, so
+ *     there's nothing to identify.
+ *
+ * Excluded chords always play in root position regardless of the
+ * inversion settings, and never trigger step 2.
  */
 export const INVERSION_EXCLUDED_CHORD_IDS: ReadonlySet<string> = new Set([
   'sus2',
   'sus4',
+  'aug',
 ]);
 
 /**
