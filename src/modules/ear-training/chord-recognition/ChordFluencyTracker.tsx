@@ -12,6 +12,7 @@ import {
   type Tier,
 } from '../../../lib/tier';
 import {
+  INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_LABEL,
   inversionsForIntervalCount,
   parseAttemptItemId,
@@ -174,8 +175,10 @@ function ChordRow({ chord, attempts }: ChordRowProps) {
   // Per-inversion drill-down — only meaningful for foundational triads
   // where inversion training is enabled. Sevenths could expand later;
   // for now the affordance is foundational-only to match where the
-  // settings live.
-  const supportsDrillDown = chord.tier === 'foundational';
+  // settings live. Sus2 / Sus4 are excluded — they never get inversion
+  // training so the drill-down would surface mostly empty data.
+  const supportsDrillDown =
+    chord.tier === 'foundational' && !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id);
   const inversions = supportsDrillDown
     ? inversionsForIntervalCount(chord.intervals.length)
     : [];

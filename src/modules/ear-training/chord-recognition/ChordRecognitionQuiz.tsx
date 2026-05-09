@@ -26,6 +26,7 @@ import ItemSelectionPanel, {
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import {
+  INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_LABEL,
   attemptItemId,
   inversionsForIntervalCount,
@@ -243,10 +244,15 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         continue;
       }
 
-      // Inversion training is foundational-only for now AND requires
-      // 2+ positions enabled to be meaningful. Other tiers always play
-      // root; foundational with 1-position settings also plays root.
-      const stepTwoEligible = c.tier === 'foundational' && positions.length >= 2;
+      // Inversion training is foundational-only AND requires 2+
+      // positions enabled to be meaningful. Sus2 / Sus4 are also
+      // excluded — their character is voicing-defined rather than
+      // triad-stacked, so identifying inversions of them isn't a
+      // useful ear target. Other tiers always play root.
+      const stepTwoEligible =
+        c.tier === 'foundational' &&
+        !INVERSION_EXCLUDED_CHORD_IDS.has(c.id) &&
+        positions.length >= 2;
       const validInversions = inversionsForIntervalCount(c.intervals.length);
       const inversionsForCard: Inversion[] = stepTwoEligible
         ? positions.filter(p => validInversions.includes(p))
@@ -304,9 +310,12 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   // inversion-positions setting at submit time so a mid-card settings
   // change can't strand the user (we use the inversion picked at
   // startNew, which is already constrained by the settings of that
-  // moment).
+  // moment). Sus2 / Sus4 are excluded from inversion training and
+  // never trigger step 2.
   const stepTwoFiresFor = (chord: ChordData): boolean =>
-    chord.tier === 'foundational' && inversionPositionsRef.current.length >= 2;
+    chord.tier === 'foundational' &&
+    !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id) &&
+    inversionPositionsRef.current.length >= 2;
 
   const submitAnswer = async (chosen: ChordData) => {
     if (!current || phase !== 'awaiting-quality') return;
@@ -427,6 +436,20 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
 
   const cardIsTerminal = phase === 'quality-wrong-revealed' || phase === 'fully-revealed';
 
+  // Inline inversion label for the wrong-quality reveal. Surfaces the
+  // inversion alongside chord identity so the user can learn what
+  // they were hearing — but only when inversion training was active
+  // for this card (foundational, eligible chord, 2+ positions). For
+  // fully-revealed, the inversion verdict has its own dedicated line
+  // below; for quality-correct-awaiting-inversion, disclosing the
+  // inversion would spoil step 2.
+  const showInversionInline =
+    phase === 'quality-wrong-revealed' &&
+    current !== null &&
+    current.chord.tier === 'foundational' &&
+    !INVERSION_EXCLUDED_CHORD_IDS.has(current.chord.id) &&
+    inversionPositions.length >= 2;
+
   useEffect(() => {
     if (!showLifetime) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowLifetime(false); };
@@ -467,7 +490,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     // chords that need work in any inversion the user has practised.
     for (const c of chords) {
       const inversionsToCheck: Inversion[] =
-        c.tier === 'foundational'
+        c.tier === 'foundational' && !INVERSION_EXCLUDED_CHORD_IDS.has(c.id)
           ? inversionsForIntervalCount(c.intervals.length)
           : [0];
       const isWeak = inversionsToCheck.some(inv => {
@@ -695,7 +718,12 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               </span>
               <span className="text-neutral-400">·</span>
               <span>
-                <span className="font-medium">{rootName} {current.chord.name}</span>
+                <span className="font-medium">
+                  {rootName} {current.chord.name}
+                  {showInversionInline && (
+                    <>, {INVERSION_LABEL[current.inversion]}</>
+                  )}
+                </span>
                 <span className="text-neutral-400 ml-1.5 font-mono text-xs">{current.chord.formula}</span>
               </span>
             </div>

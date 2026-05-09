@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import {
+  INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_LABEL,
   attemptItemId,
   inversionsForIntervalCount,
@@ -119,5 +120,18 @@ describe('INVERSION_LABEL', () => {
     expect(INVERSION_LABEL[1]).toBe('1st inversion');
     expect(INVERSION_LABEL[2]).toBe('2nd inversion');
     expect(INVERSION_LABEL[3]).toBe('3rd inversion');
+  });
+});
+
+describe('INVERSION_EXCLUDED_CHORD_IDS', () => {
+  it('excludes sus2 and sus4 (voicing-shape chords)', () => {
+    expect(INVERSION_EXCLUDED_CHORD_IDS.has('sus2')).toBe(true);
+    expect(INVERSION_EXCLUDED_CHORD_IDS.has('sus4')).toBe(true);
+  });
+
+  it('does not exclude the rest of the foundational triads', () => {
+    for (const id of ['maj', 'min', 'dim', 'aug']) {
+      expect(INVERSION_EXCLUDED_CHORD_IDS.has(id)).toBe(false);
+    }
   });
 });
