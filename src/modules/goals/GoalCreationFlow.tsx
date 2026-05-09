@@ -277,7 +277,7 @@ function defaultSongTarget(): SongTargetSelection {
  * The encoding-to-Goal-record transform lives in build step 11
  * (single target) and step 13 (multi-target).
  */
-interface EarTrainingTarget {
+export interface EarTrainingTarget {
   /** Phase 2 2b — coverage (breadth) target: reach `acquired`
    *  acquisition stage on every item in the module, or one chosen
    *  group. Independent of accuracy and consistency; a goal can
@@ -312,7 +312,7 @@ interface EarTrainingTarget {
   consistencyCadence: 'week' | 'month';
 }
 
-function defaultEarTraining(): EarTrainingTarget {
+export function defaultEarTraining(): EarTrainingTarget {
   return {
     coverageEnabled: false,
     coverageScope: 'overall',
@@ -335,7 +335,7 @@ function defaultEarTraining(): EarTrainingTarget {
  * cascading subtype), with the 12 categories grouped into 4 sections
  * for the picker UI.
  */
-interface HarmonicFluencyTarget {
+export interface HarmonicFluencyTarget {
   /** Phase 2 2c — coverage (breadth) target: reach `acquired`
    *  acquisition stage on every flashcard in the module, or one or
    *  more chosen design-doc groups. Independent of accuracy and
@@ -363,7 +363,7 @@ interface HarmonicFluencyTarget {
   consistencyCadence: 'week' | 'month';
 }
 
-function defaultHarmonicFluency(): HarmonicFluencyTarget {
+export function defaultHarmonicFluency(): HarmonicFluencyTarget {
   return {
     coverageEnabled: false,
     coverageScope: 'overall',
@@ -394,7 +394,7 @@ function defaultHarmonicFluency(): HarmonicFluencyTarget {
 type ShapesActivityArea = 'scale_drills' | 'chord_shape_drills' | 'voice_leading';
 type ShapesProficiencyLevel = 'learning' | 'comfortable' | 'solid' | 'internalized';
 
-interface ShapesPatternsTarget {
+export interface ShapesPatternsTarget {
   /** Phase 2 2d — coverage (breadth) target: reach `acquired`
    *  acquisition stage on every shape × key combination in the
    *  module, or one or more chosen sub-areas. Mental Visualization
@@ -432,7 +432,7 @@ interface ShapesPatternsTarget {
   consistencyCadence: 'week' | 'month';
 }
 
-function defaultShapesPatterns(): ShapesPatternsTarget {
+export function defaultShapesPatterns(): ShapesPatternsTarget {
   return {
     coverageEnabled: false,
     coverageScope: 'overall',
@@ -463,7 +463,7 @@ function defaultShapesPatterns(): ShapesPatternsTarget {
  * total today but the user may set a goal beyond what's authored
  * if they're planning ahead.
  */
-interface ProductionTarget {
+export interface ProductionTarget {
   /** Phase 2 2e — coverage (breadth) target: reach `acquired`
    *  acquisition stage on every lesson in the module, or one or
    *  more chosen paths. Semantically overlaps with the existing
@@ -497,7 +497,7 @@ interface ProductionTarget {
   consistencyCadence: 'week' | 'month';
 }
 
-function defaultProduction(): ProductionTarget {
+export function defaultProduction(): ProductionTarget {
   return {
     coverageEnabled: false,
     coverageScope: 'overall',
@@ -522,12 +522,12 @@ function defaultProduction(): ProductionTarget {
  * a recurring weekly target, "this month" reads as a one-shot monthly
  * count — semantically distinct intents the wording honors.
  */
-interface PracticeConsistencyTarget {
+export interface PracticeConsistencyTarget {
   days: number;
   cadence: 'week' | 'month';
 }
 
-function defaultPracticeConsistency(): PracticeConsistencyTarget {
+export function defaultPracticeConsistency(): PracticeConsistencyTarget {
   return {
     days: 4,
     cadence: 'week',
@@ -3407,7 +3407,7 @@ function formatTargetDate(ms: number): string {
  * returns two entries; siblings share parent_goal_id at save time
  * per the spec's "two linked records sharing parent_goal_id" rule.
  */
-interface EncodedRecord {
+export interface EncodedRecord {
   /** Sliced natural-language description for this specific record.
    *  Multi-target goals slice the combined preview so each record's
    *  description honestly reflects only its own target metric. */
@@ -3417,7 +3417,7 @@ interface EncodedRecord {
   targetUnit: string | null;
 }
 
-function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
+export function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
   // Coverage emitted FIRST so multi-target goals list breadth before
   // accuracy + consistency — matches the design doc dimension order
@@ -3499,7 +3499,7 @@ function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
   return records;
 }
 
-function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
+export function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
   // Coverage emitted FIRST so multi-target goals list breadth before
   // accuracy + consistency — matches the design doc dimension order
@@ -3572,7 +3572,7 @@ function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[] {
   return records;
 }
 
-function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
+export function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
   // Coverage emitted FIRST so multi-target goals list breadth before
   // proficiency + consistency — matches the design doc dimension
@@ -3645,7 +3645,7 @@ function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
   return records;
 }
 
-function encodeProduction(t: ProductionTarget): EncodedRecord[] {
+export function encodeProduction(t: ProductionTarget): EncodedRecord[] {
   const records: EncodedRecord[] = [];
   // Coverage emitted FIRST so multi-target goals list breadth before
   // completion + consistency — matches the design doc dimension
@@ -3723,7 +3723,7 @@ function encodeProduction(t: ProductionTarget): EncodedRecord[] {
   return records;
 }
 
-function encodePracticeConsistency(t: PracticeConsistencyTarget): EncodedRecord[] {
+export function encodePracticeConsistency(t: PracticeConsistencyTarget): EncodedRecord[] {
   if (t.days < 1) return [];
   const sliced = previewPracticeConsistencyTarget(t);
   if (!sliced) return [];
@@ -3735,7 +3735,7 @@ function encodePracticeConsistency(t: PracticeConsistencyTarget): EncodedRecord[
   }];
 }
 
-function encodeSongRecord(
+export function encodeSongRecord(
   draft: Draft,
   songRecord: Song,
   sectionNamesById: ReadonlyMap<string, string>,
@@ -3763,7 +3763,7 @@ function encodeSongRecord(
  * with shared metadata (scope, targetDate, parentGoalId, etc.) at
  * save time.
  */
-function encodeRecordsForDraft(
+export function encodeRecordsForDraft(
   draft: Draft,
   songRecord: Song | undefined,
   sectionNamesById: ReadonlyMap<string, string>,
