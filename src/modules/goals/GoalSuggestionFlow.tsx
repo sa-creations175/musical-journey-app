@@ -1472,20 +1472,15 @@ function PracticeConsistencyFocus({
 // =====================================================================
 
 /**
- * Repertoire monthly goal body. Three-section composition:
+ * Repertoire monthly goal body. Two-section composition:
  *
  *   Section 1 — Maintaining & advancing
- *     Display only. Lists every active song so the user can see the
- *     full month's commitment, but no goal record is written for
- *     these. Target reads as "comfortable" — keep them where they
- *     are.
+ *     Display only. Numbered list of every song in the repertoire so
+ *     the user sees the full month's commitment. Target reads as
+ *     "comfortable" — keep them where they are. No goal records are
+ *     written for these.
  *
- *   Section 2 — Pushing to comfortable
- *     Editable list, pre-seeded with the first 2 active songs.
- *     One child Goal record per song with targetUnit='comfortable'
- *     and relatedItems carrying the song id.
- *
- *   Section 3 — New this month
+ *   Section 2 — New this month
  *     Adds-only list. Each slot is one of:
  *       · catalog pick — an existing db.songs row
  *       · typed — a free-text title; on save we insert a new
@@ -1493,9 +1488,10 @@ function PracticeConsistencyFocus({
  *       · TBD — placeholder; encodes a goal with empty relatedItems
  *         and a "TBD this month" description.
  *
- * Save shape: 1 umbrella row + N children, where N = section 2 +
- * section 3. parentGoalId on the umbrella points at the yearly
- * Repertoire anchor; children point at the umbrella.
+ * Save shape: 1 umbrella + N children, where N = section 2 entries.
+ * parentGoalId on the umbrella points at the yearly Repertoire
+ * anchor; children point at the umbrella. The maintaining section
+ * is context-only and never writes records.
  */
 
 interface NewSlot {
@@ -1526,24 +1522,12 @@ function RepertoireMonthlyBody({
   // full repertoire — every song the user has added.
   const allSongs = useLiveQuery(() => db.songs.toArray(), []);
 
-  const [pushIds, setPushIds] = useState<string[]>([]);
   const [newSlots, setNewSlots] = useState<NewSlot[]>([]);
   const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
-  const [seeded, setSeeded] = useState(false);
 
-  // Seed section 2 with the first 2 active songs the moment they
-  // load. Only seeds once — if the user clears section 2 and hits
-  // save, we don't re-seed on the next render.
-  useEffect(() => {
-    if (seeded) return;
-    if (!allSongs) return;
-    setPushIds(allSongs.slice(0, 2).map(s => s.id));
-    setSeeded(true);
-  }, [allSongs, seeded]);
-
-  // Save gate: require at least one entry across sections 2 and 3.
-  // Section 1 is display-only and doesn't count.
-  const hasSelection = pushIds.length > 0 || newSlots.length > 0;
+  // Save gate: require at least one new-this-month entry. Section 1
+  // is display-only and doesn't count.
+  const hasSelection = newSlots.length > 0;
   // Stub records array — saveOverride owns the actual write so the
   // contents don't matter, but BodyShell uses records.length || saveOverride
   // to gate canSave. Passing one element keeps canSave honest.
@@ -1554,7 +1538,6 @@ function RepertoireMonthlyBody({
   const saveOverride = async () => {
     if (!hasSelection) return;
     await persistRepertoireMonthlyGoal({
-      pushSongIds: pushIds,
       newSlots,
       anchorGoalId: anchor.id,
       scope,
@@ -1588,26 +1571,21 @@ function RepertoireMonthlyBody({
       saveOverride={saveOverride}
     >
       <RepertoireMaintainSection songs={allSongs} />
-      <RepertoirePushSection
-        allSongs={allSongs}
-        selectedIds={pushIds}
-        onChange={setPushIds}
-        excludedFromCatalog={excludedSongIds(pushIds, newSlots)}
-      />
       <RepertoireNewSection
         slots={newSlots}
         onChange={setNewSlots}
         catalog={allSongs}
-        excludedFromCatalog={excludedSongIds(pushIds, newSlots)}
+        excludedFromCatalog={excludedSongIds(newSlots)}
       />
     </BodyShell>
   );
 }
 
-/** Songs already chosen in section 2 or section 3 — used to filter
- *  the "+ Add" pickers so the user can't add the same song twice. */
-function excludedSongIds(pushIds: string[], newSlots: NewSlot[]): Set<string> {
-  const set = new Set(pushIds);
+/** Songs already chosen in the new-this-month list — used to filter
+ *  the catalog picker so the user can't add the same song twice in
+ *  the same goal. */
+function excludedSongIds(newSlots: NewSlot[]): Set<string> {
+  const set = new Set<string>();
   for (const slot of newSlots) {
     const d = slot.data;
     if (d.kind === 'catalog') set.add(d.songId);
@@ -1635,116 +1613,20 @@ function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
           No songs in your repertoire yet — add one in the New section below.
         </p>
       ) : (
-        <ul className="text-sm text-neutral-700 dark:text-neutral-200 space-y-1">
+        <ol className="list-decimal list-inside text-sm text-neutral-700 dark:text-neutral-200 space-y-1 marker:text-neutral-400">
           {songs.map(s => (
-            <li key={s.id} className="flex items-baseline gap-2">
+            <li key={s.id}>
               <span>{s.title}</span>
               {s.artist && (
-                <span className="text-xs text-neutral-500">— {s.artist}</span>
+                <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>
               )}
             </li>
           ))}
-        </ul>
+        </ol>
       )}
       <p className="text-[11px] text-neutral-500 leading-snug">
-        Display only — no separate goal records are created for these. They show the full month's commitment context.
+        Display only — context for your month's commitment. No separate goal records are created for these.
       </p>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------
-// Section 2 — Pushing to comfortable (editable from active songs)
-// ---------------------------------------------------------------------
-
-function RepertoirePushSection({
-  allSongs,
-  selectedIds,
-  onChange,
-  excludedFromCatalog,
-}: {
-  allSongs: ReadonlyArray<Song>;
-  selectedIds: string[];
-  onChange: (next: string[]) => void;
-  excludedFromCatalog: Set<string>;
-}) {
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const selected = selectedIds
-    .map(id => allSongs.find(s => s.id === id))
-    .filter((s): s is Song => s !== undefined);
-  const available = allSongs.filter(s => !excludedFromCatalog.has(s.id));
-
-  const remove = (id: string) => onChange(selectedIds.filter(x => x !== id));
-  const add = (id: string) => {
-    if (selectedIds.includes(id)) return;
-    onChange([...selectedIds, id]);
-    setPickerOpen(false);
-  };
-
-  return (
-    <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-2">
-      <header>
-        <div className="text-[10px] uppercase tracking-wide text-fluent">
-          Pushing to comfortable
-        </div>
-        <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Songs you're advancing this month
-        </div>
-      </header>
-      {selected.length === 0 ? (
-        <p className="text-xs text-neutral-500 italic">
-          No songs selected. Add at least one to commit to advancing it this month.
-        </p>
-      ) : (
-        <ul className="space-y-1">
-          {selected.map(s => (
-            <li
-              key={s.id}
-              className="flex items-center justify-between gap-2 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/40"
-            >
-              <span className="text-sm text-neutral-700 dark:text-neutral-200">
-                {s.title}
-                {s.artist && <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>}
-              </span>
-              <button
-                type="button"
-                onClick={() => remove(s.id)}
-                aria-label={`Remove ${s.title}`}
-                className="text-neutral-400 hover:text-needswork text-sm"
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {available.length > 0 && (
-        <div>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(v => !v)}
-            className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
-          >
-            {pickerOpen ? '↑ Cancel' : '+ Add song'}
-          </button>
-          {pickerOpen && (
-            <ul className="mt-1.5 max-h-40 overflow-y-auto space-y-0.5 border border-neutral-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 p-1">
-              {available.map(s => (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => add(s.id)}
-                    className="w-full text-left px-2 py-1 rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                  >
-                    {s.title}
-                    {s.artist && <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
     </section>
   );
 }
@@ -1932,7 +1814,6 @@ function RepertoireNewSection({
 // ---------------------------------------------------------------------
 
 interface PersistRepertoireArgs {
-  pushSongIds: string[];
   newSlots: NewSlot[];
   anchorGoalId: string;
   scope: ShortScope;
@@ -1943,7 +1824,7 @@ interface PersistRepertoireArgs {
 /**
  * Repertoire save path. Different shape from the generic
  * persistSuggestionGoal because:
- *   · Multiple records (one per song) each need their own
+ *   · Multiple records (one per new song) each need their own
  *     relatedItems[songId] — the generic encoder produces records
  *     without song-specific identity.
  *   · Typed-new-song slots create a Song row first, then encode the
@@ -1951,16 +1832,18 @@ interface PersistRepertoireArgs {
  *   · TBD slots emit a placeholder goal with empty relatedItems.
  *
  * Always umbrella + N children when N >= 1, even when N === 1, so
- * the data shape stays consistent with how the by-module / by-
- * timeframe views render multi-song repertoire commitments.
+ * the data shape stays consistent with how the by-module /
+ * by-timeframe views render multi-song repertoire commitments. The
+ * maintaining section is display-only and doesn't contribute records.
  */
 async function persistRepertoireMonthlyGoal(
   args: PersistRepertoireArgs,
 ): Promise<void> {
-  const { pushSongIds, newSlots, anchorGoalId, scope, targetDate, allSongs } = args;
+  const { newSlots, anchorGoalId, scope, targetDate, allSongs } = args;
+  if (newSlots.length === 0) return;
 
-  // 1) Resolve each section-3 slot to a song id (creating new Song
-  //    rows for typed slots), or null for TBD.
+  // 1) Resolve each new-this-month slot to a song id (creating new
+  //    Song rows for typed slots), or null for TBD.
   type ResolvedSlot = { songId: string | null; description: string };
   const resolvedNewSlots: ResolvedSlot[] = [];
   const newSongRowsToInsert: Song[] = [];
@@ -2011,23 +1894,8 @@ async function persistRepertoireMonthlyGoal(
     currentValue: 0,
   };
 
-  const pushChildren: Goal[] = pushSongIds.map(songId => {
-    const s = allSongs.find(x => x.id === songId);
-    const title = s?.title ?? '(missing)';
-    return {
-      id: crypto.randomUUID(),
-      ...baseFields,
-      description: `${title} → comfortable this month`,
-      targetMetric: 'song_whole_at_level',
-      targetValue: null,
-      targetUnit: 'comfortable',
-      relatedItems: [songId],
-      parentGoalId: '', // patched after umbrella id is generated
-      isUmbrella: false,
-    };
-  });
-
-  const newChildren: Goal[] = resolvedNewSlots.map(slot => ({
+  const umbrellaId = crypto.randomUUID();
+  const children: Goal[] = resolvedNewSlots.map(slot => ({
     id: crypto.randomUUID(),
     ...baseFields,
     description: slot.description,
@@ -2035,32 +1903,12 @@ async function persistRepertoireMonthlyGoal(
     targetValue: null,
     targetUnit: 'comfortable',
     relatedItems: slot.songId ? [slot.songId] : [],
-    parentGoalId: '', // patched after umbrella id is generated
+    parentGoalId: umbrellaId,
     isUmbrella: false,
   }));
 
-  const allChildren = [...pushChildren, ...newChildren];
-
-  // 3) Build umbrella + patch parentGoalId on children.
-  const umbrellaId = crypto.randomUUID();
-  for (const child of allChildren) child.parentGoalId = umbrellaId;
-
-  const umbrellaDescriptionParts: string[] = [];
-  if (pushChildren.length > 0) {
-    umbrellaDescriptionParts.push(
-      `Push ${pushChildren.length} song${pushChildren.length === 1 ? '' : 's'} to comfortable`,
-    );
-  }
-  if (newChildren.length > 0) {
-    umbrellaDescriptionParts.push(
-      `start ${newChildren.length} new song${newChildren.length === 1 ? '' : 's'}`,
-    );
-  }
-  const umbrellaDescription =
-    umbrellaDescriptionParts.length > 0
-      ? `Repertoire month: ${umbrellaDescriptionParts.join(' and ')}`
-      : 'Repertoire month';
-
+  // 3) Umbrella row.
+  const umbrellaDescription = `Repertoire month: start ${children.length} new song${children.length === 1 ? '' : 's'}`;
   const umbrella: Goal = {
     id: umbrellaId,
     ...baseFields,
@@ -2081,8 +1929,6 @@ async function persistRepertoireMonthlyGoal(
       await db.songs.bulkAdd(newSongRowsToInsert);
     }
     await db.goals.add(umbrella);
-    if (allChildren.length > 0) {
-      await db.goals.bulkAdd(allChildren);
-    }
+    await db.goals.bulkAdd(children);
   });
 }
