@@ -8,6 +8,7 @@ import {
   normalizeAttemptItemId,
   parseAttemptItemId,
   rotateForInversion,
+  rotateFormula,
 } from '../inversionUtils';
 
 describe('rotateForInversion — triads', () => {
@@ -133,5 +134,36 @@ describe('INVERSION_EXCLUDED_CHORD_IDS', () => {
     for (const id of ['maj', 'min', 'dim', 'aug']) {
       expect(INVERSION_EXCLUDED_CHORD_IDS.has(id)).toBe(false);
     }
+  });
+});
+
+describe('rotateFormula — scale-degree string rotation', () => {
+  it('inv 0 returns the formula unchanged', () => {
+    expect(rotateFormula('1, 3, 5', 0)).toBe('1, 3, 5');
+  });
+
+  it('major triad: 1st inv → "3, 5, 1"', () => {
+    expect(rotateFormula('1, 3, 5', 1)).toBe('3, 5, 1');
+  });
+
+  it('major triad: 2nd inv → "5, 1, 3"', () => {
+    expect(rotateFormula('1, 3, 5', 2)).toBe('5, 1, 3');
+  });
+
+  it('minor triad with flat 3rd: "1, b3, 5" 1st inv → "b3, 5, 1"', () => {
+    expect(rotateFormula('1, b3, 5', 1)).toBe('b3, 5, 1');
+  });
+
+  it('seventh chord: "1, 3, 5, 7" 3rd inv → "7, 1, 3, 5"', () => {
+    expect(rotateFormula('1, 3, 5, 7', 3)).toBe('7, 1, 3, 5');
+  });
+
+  it('out-of-range inversion clamps to original', () => {
+    expect(rotateFormula('1, 3, 5', 5)).toBe('1, 3, 5');
+    expect(rotateFormula('1, 3, 5', -1)).toBe('1, 3, 5');
+  });
+
+  it('handles odd whitespace gracefully', () => {
+    expect(rotateFormula('1,  3,5', 1)).toBe('3, 5, 1');
   });
 });

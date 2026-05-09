@@ -95,3 +95,25 @@ export function inversionsForIntervalCount(count: number): Inversion[] {
   if (count === 3) return [0, 1, 2];
   return [0, 1, 2, 3];
 }
+
+/**
+ * Rotate the displayed scale-degree formula to match the played
+ * inversion. Mirrors rotateForInversion's semantics for intervals,
+ * but on the comma-separated string format ChordData.formula uses
+ * (e.g. "1, 3, 5" → "3, 5, 1" for 1st inversion).
+ *
+ * Out-of-range inversions clamp to the original (root) formula.
+ * The function preserves whatever spacing the source string used
+ * by trimming each part and rejoining with ", ".
+ */
+export function rotateFormula(formula: string, inversion: number): string {
+  if (inversion <= 0) return formula;
+  const parts = formula.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  if (inversion >= parts.length) return formula;
+  const out = [...parts];
+  for (let i = 0; i < inversion; i++) {
+    const first = out.shift()!;
+    out.push(first);
+  }
+  return out.join(', ');
+}

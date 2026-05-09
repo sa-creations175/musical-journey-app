@@ -32,6 +32,7 @@ import {
   inversionsForIntervalCount,
   normalizeAttemptItemId,
   rotateForInversion,
+  rotateFormula,
   type Inversion,
 } from './inversionUtils';
 
@@ -436,19 +437,43 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
 
   const cardIsTerminal = phase === 'quality-wrong-revealed' || phase === 'fully-revealed';
 
-  // Inline inversion label for the wrong-quality reveal. Surfaces the
-  // inversion alongside chord identity so the user can learn what
-  // they were hearing — but only when inversion training was active
-  // for this card (foundational, eligible chord, 2+ positions). For
-  // fully-revealed, the inversion verdict has its own dedicated line
-  // below; for quality-correct-awaiting-inversion, disclosing the
-  // inversion would spoil step 2.
-  const showInversionInline =
-    phase === 'quality-wrong-revealed' &&
+  // True when the current card was generated under active inversion
+  // training — drives the inline inversion label on the wrong-quality
+  // reveal AND the rotated formula on terminal phases.
+  const cardUsesInversionTraining =
     current !== null &&
     current.chord.tier === 'foundational' &&
     !INVERSION_EXCLUDED_CHORD_IDS.has(current.chord.id) &&
     inversionPositions.length >= 2;
+
+  // Inline inversion label for the wrong-quality reveal. Surfaces the
+  // inversion alongside chord identity so the user can learn what they
+  // were hearing. Skipped on quality-correct-awaiting-inversion (would
+  // spoil step 2) and on fully-revealed (the dedicated inversion-
+  // verdict line below already discloses it).
+  const showInversionInline =
+    phase === 'quality-wrong-revealed' && cardUsesInversionTraining;
+
+  // Chord identity text — derived as a plain string so the inversion
+  // suffix can't get lost in JSX whitespace nuances. Always shows
+  // root + name; appends ", <inversion label>" on the wrong-quality
+  // path when training was active.
+  const chordIdentityText = current
+    ? showInversionInline
+      ? `${rootName} ${current.chord.name}, ${INVERSION_LABEL[current.inversion]}`
+      : `${rootName} ${current.chord.name}`
+    : '';
+
+  // Displayed formula — shows the actual played intervals (rotated
+  // for inversion) on terminal phases when training was active for
+  // this card. quality-correct-awaiting-inversion stays on root
+  // formula so the formula doesn't spoil the inversion question.
+  const cardIsTerminalForFormula =
+    phase === 'quality-wrong-revealed' || phase === 'fully-revealed';
+  const displayedFormula =
+    current && cardIsTerminalForFormula && cardUsesInversionTraining
+      ? rotateFormula(current.chord.formula, current.inversion)
+      : current?.chord.formula ?? '';
 
   useEffect(() => {
     if (!showLifetime) return;
@@ -718,13 +743,8 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               </span>
               <span className="text-neutral-400">·</span>
               <span>
-                <span className="font-medium">
-                  {rootName} {current.chord.name}
-                  {showInversionInline && (
-                    <>, {INVERSION_LABEL[current.inversion]}</>
-                  )}
-                </span>
-                <span className="text-neutral-400 ml-1.5 font-mono text-xs">{current.chord.formula}</span>
+                <span className="font-medium">{chordIdentityText}</span>
+                <span className="text-neutral-400 ml-1.5 font-mono text-xs">{displayedFormula}</span>
               </span>
             </div>
             <div className={descIsCustom ? 'italic' : ''}>
