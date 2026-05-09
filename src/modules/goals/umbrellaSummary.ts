@@ -4,6 +4,23 @@ import { isMasteryMetric } from './yearlyAnchorMetrics';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 
 /**
+ * Mirror of progress.ts's isConsistencyMetric — inlined here to
+ * avoid importing progress.ts, which transitively pulls in db.ts
+ * (touches window) and forces every consuming test file to opt
+ * into a jsdom environment. Keep this in lockstep with progress.ts
+ * if either drifts; the two predicates must agree on what counts
+ * as a consistency metric across the goal-classification surface.
+ */
+function isConsistencyMetricLocal(metric: string): boolean {
+  return (
+    metric.includes('_sessions_per_') ||
+    metric.includes('_minutes_per_') ||
+    metric.includes('_hours_per_') ||
+    metric.startsWith('practice_')
+  );
+}
+
+/**
  * Phase 2 step 6c.1 — helpers for the umbrella goal row.
  *
  * Three concerns:
@@ -61,6 +78,23 @@ export function dimensionDisplayLabel(
  * Classify a goal by dimension. Returns null for goals that
  * don't fit the four-dimension framework (most non-yearly-anchor
  * goals — they're standalone targets, not framework slots).
+ *
+ * Depth recognition spans the full encoder vocabulary:
+ *   · `_accuracy_`   — ET / HF accuracy goals (Depth → "Accuracy"
+ *                       per dimensionDisplayLabel)
+ *   · `_proficiency_` — Shapes proficiency goals (Depth →
+ *                       "Proficiency")
+ *   · production_path_completion / production_lessons_count —
+ *                       Production's "Go deepest on ..." goal,
+ *                       which has no separate Mastery dimension
+ *                       (Production runs 3 questions only, depth/
+ *                       mastery merged per the design call)
+ *
+ * Consistency recognition uses the canonical `_per_cadence` suffix
+ * shared by every cadence-based metric in the encoder vocabulary
+ * (sessions / minutes / hours / days), plus the `practice_` prefix
+ * for practice-consistency umbrellas whose children predate that
+ * convention.
  */
 export function dimensionForGoal(goal: Goal): GoalDimension | null {
   const metric = goal.targetMetric;
@@ -68,10 +102,21 @@ export function dimensionForGoal(goal: Goal): GoalDimension | null {
 
   if (isCoverageMetric(metric)) return 'Breadth';
   if (isMasteryMetric(metric)) return 'Mastery';
-  if (metric.includes('_accuracy_')) return 'Depth';
-  if (metric.includes('_sessions_per_') || metric.startsWith('practice_')) {
-    return 'Consistency';
+
+  if (
+    metric.includes('_accuracy_') ||
+    metric.includes('_proficiency_') ||
+    metric === 'production_path_completion' ||
+    metric === 'production_lessons_count'
+  ) {
+    return 'Depth';
   }
+
+  // Any cadence-based metric (sessions / minutes / hours, all
+  // per_cadence | per_week | per_month variants) plus practice_*
+  // meta-habits. Mirrors progress.ts:isConsistencyMetric — see the
+  // local helper docstring for why it's inlined.
+  if (isConsistencyMetricLocal(metric)) return 'Consistency';
 
   // Songs: same metric for breadth/depth/mastery, differentiated
   // by targetUnit. See yearlyAnchorMetrics.ts header note.

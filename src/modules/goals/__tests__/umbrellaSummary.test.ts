@@ -88,6 +88,44 @@ describe('dimensionForGoal', () => {
     ).toBe('Consistency');
   });
 
+  it('classifies shapes proficiency metrics as Depth', () => {
+    expect(
+      dimensionForGoal(
+        mkGoal({ targetMetric: 'shapes_proficiency_overall' }),
+      ),
+    ).toBe('Depth');
+    expect(
+      dimensionForGoal(
+        mkGoal({ targetMetric: 'shapes_proficiency_specific' }),
+      ),
+    ).toBe('Depth');
+  });
+
+  it('classifies production path/lesson metrics as Depth (no separate Mastery for Production)', () => {
+    expect(
+      dimensionForGoal(
+        mkGoal({ targetMetric: 'production_path_completion' }),
+      ),
+    ).toBe('Depth');
+    expect(
+      dimensionForGoal(
+        mkGoal({ targetMetric: 'production_lessons_count' }),
+      ),
+    ).toBe('Depth');
+  });
+
+  it('classifies cadence-based metrics across all units (sessions/minutes/hours/days) as Consistency', () => {
+    for (const metric of [
+      'ear_training_sessions_per_cadence',
+      'harmonic_fluency_sessions_per_cadence',
+      'shapes_minutes_per_cadence',
+      'production_hours_per_cadence',
+      'practice_days_per_cadence',
+    ]) {
+      expect(dimensionForGoal(mkGoal({ targetMetric: metric }))).toBe('Consistency');
+    }
+  });
+
   it('uses song targetUnit to pick the dimension', () => {
     expect(
       dimensionForGoal(
