@@ -565,6 +565,9 @@ function AccuracySection({
         step={ACCURACY_PCT_STEP}
         label={`Target accuracy (${target.accuracyPercent}%)`}
       />
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+        Acquired = per-card mastery (last 10 attempts). Accuracy target = overall sharpness across the group (last 200 attempts).
+      </p>
     </ToggleCard>
   );
 }
