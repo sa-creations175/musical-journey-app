@@ -154,17 +154,34 @@ export function CategoryPillButton({
   selectedStyle?: 'fluent' | 'accent';
 }) {
   if (selectedStyle === 'accent') {
-    const tint = `${accentHex}1a`;
+    // Selected gets THREE concurrent contrast bumps over unselected so
+    // the difference reads at a glance:
+    //   1. Stronger background tint (~33% alpha vs no fill).
+    //   2. Bolder text weight (semibold vs normal).
+    //   3. Thicker border (2px vs 1px) — compensated by negative
+    //      margin so layout doesn't shift between states.
+    // Unselected stays accent-colored (border + text) to preserve the
+    // group's identity at rest, per the design's "GROUP IS the entity
+    // being selected" framing.
+    const activeBg = `${accentHex}33`;
     return (
       <button
         type="button"
         onClick={onClick}
         aria-pressed={active}
         style={active
-          ? { borderColor: accentHex, backgroundColor: tint, color: accentHex }
+          ? {
+              borderColor: accentHex,
+              borderWidth: '2px',
+              backgroundColor: activeBg,
+              color: accentHex,
+              margin: '-1px', // offset thicker border so layout doesn't reflow
+            }
           : { borderColor: accentHex, color: accentHex }
         }
-        className="px-3 py-1.5 text-sm rounded-md border transition text-left"
+        className={`px-3 py-1.5 text-sm rounded-md border transition text-left ${
+          active ? 'font-semibold' : ''
+        }`}
       >
         {label}
       </button>
