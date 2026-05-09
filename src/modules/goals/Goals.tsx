@@ -5,6 +5,7 @@ import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
+import GoalSuggestionFlow from './GoalSuggestionFlow';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
@@ -217,6 +218,13 @@ export default function Goals() {
    *  interstitial). When non-null, the flow is mounted open with
    *  the picked module. */
   const [anchorMode, setAnchorMode] = useState<{ moduleId: AnchorModuleId } | null>(null);
+  /** Suggestion-flow open state. Driven by the per-anchor "+ Add
+   *  monthly goal" affordance in by-module view. v1 only wires HF
+   *  monthly so the pattern can be eyeballed before generalizing
+   *  to the other five modules. */
+  const [suggestionFlow, setSuggestionFlow] = useState<
+    { scope: 'monthly'; moduleId: 'harmonic-fluency' } | null
+  >(null);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which
@@ -446,6 +454,13 @@ export default function Goals() {
           onSetYearlyAnchor={moduleId =>
             setAnchorMode({ moduleId: moduleId as AnchorModuleId })
           }
+          onAddMonthlyGoal={moduleId => {
+            // v1: only HF wired. Other modules will land alongside
+            // their suggestion logic in upcoming commits.
+            if (moduleId === 'harmonic-fluency') {
+              setSuggestionFlow({ scope: 'monthly', moduleId });
+            }
+          }}
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
         />
@@ -518,6 +533,24 @@ export default function Goals() {
             : null
         }
         initialScope={null}
+      />
+
+      {/* New short-horizon suggestion flow. v1 only wires HF monthly
+          via the per-anchor "+ Add monthly goal" button on the HF
+          section. Other module/scope combinations land in subsequent
+          commits; the flow itself already shells those as "coming
+          soon" placeholders so opening it on an unwired combo is a
+          known-shaped no-op rather than a crash. */}
+      <GoalSuggestionFlow
+        key={
+          suggestionFlow
+            ? `suggestion-${suggestionFlow.scope}-${suggestionFlow.moduleId}`
+            : 'suggestion-closed'
+        }
+        open={suggestionFlow !== null}
+        onClose={() => setSuggestionFlow(null)}
+        scope={suggestionFlow?.scope ?? 'monthly'}
+        moduleId={suggestionFlow?.moduleId ?? 'harmonic-fluency'}
       />
     </div>
   );
@@ -1408,6 +1441,7 @@ function ByModuleView({
   songLookup,
   onEditGoal,
   onSetYearlyAnchor,
+  onAddMonthlyGoal,
   isRowExpanded,
   onToggleRow,
 }: {
@@ -1416,6 +1450,7 @@ function ByModuleView({
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
+  onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
 } & RowCollapseAccess) {
   // Stable across re-renders within one mount; matches the
   // pattern used by LiveActivityChart elsewhere.
@@ -1436,6 +1471,7 @@ function ByModuleView({
           songLookup={songLookup}
           onEditGoal={onEditGoal}
           onSetYearlyAnchor={onSetYearlyAnchor}
+          onAddMonthlyGoal={onAddMonthlyGoal}
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
         />
@@ -1497,6 +1533,7 @@ function ByModuleSection({
   songLookup,
   onEditGoal,
   onSetYearlyAnchor,
+  onAddMonthlyGoal,
   isRowExpanded,
   onToggleRow,
 }: {
@@ -1506,6 +1543,7 @@ function ByModuleSection({
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
+  onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
 } & RowCollapseAccess) {
   // A goal belongs to this module when its derived module
   // matches. Non-umbrella → moduleForMetric. Umbrella → same
@@ -1550,18 +1588,32 @@ function ByModuleSection({
       </h2>
 
       {yearlyUmbrella ? (
-        <ul className="flex flex-col gap-1.5">
-          <UmbrellaRow
-            umbrella={yearlyUmbrella}
-            childGoals={findAllChildren(yearlyUmbrella, allGoals)}
-            layerType="measurable"
-            proficiencyDefs={proficiencyDefs}
-            songLookup={songLookup}
-            onEditGoal={onEditGoal}
-            isRowExpanded={isRowExpanded}
-            onToggleRow={onToggleRow}
-          />
-        </ul>
+        <>
+          <ul className="flex flex-col gap-1.5">
+            <UmbrellaRow
+              umbrella={yearlyUmbrella}
+              childGoals={findAllChildren(yearlyUmbrella, allGoals)}
+              layerType="measurable"
+              proficiencyDefs={proficiencyDefs}
+              songLookup={songLookup}
+              onEditGoal={onEditGoal}
+              isRowExpanded={isRowExpanded}
+              onToggleRow={onToggleRow}
+            />
+          </ul>
+          {/* v1: only HF surfaces the new suggestion-flow affordance.
+              The other modules' suggestion logic + body components
+              land in subsequent commits. */}
+          {moduleId === 'harmonic-fluency' && (
+            <button
+              type="button"
+              onClick={() => onAddMonthlyGoal(moduleId)}
+              className="mt-2 text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
+            >
+              + Add monthly goal
+            </button>
+          )}
+        </>
       ) : (
         <YearlyAnchorBackstop
           moduleId={moduleId}
