@@ -6,6 +6,10 @@ import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
 import GoalSuggestionFlow from './GoalSuggestionFlow';
+// Side-effect import: registers `__deleteShortHorizonGoals` on
+// window so the operator can wipe all monthly + weekly goals from
+// the browser console. Manual one-shot only — see devCleanup.ts.
+import './devCleanup';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
