@@ -41,10 +41,15 @@ export const PRODUCTION_TIME_RANGE_MINUTES = {
 // ---------------------------------------------------------------------
 
 /**
- * Count attempts for a module within a week window. The "attempt"
- * unit and source table differ per module — this helper is the
- * single dispatch point so callers don't have to reason about
- * underlying schema:
+ * Count attempts for a module within an arbitrary date range. The
+ * `getWeeklyAttempts` and `getAttemptsInRange` exports are the same
+ * function — the weekly name preserves the Phase 4 Step 1 contract,
+ * the range name is for callers (Step 2's monthly aggregation,
+ * future trend queries) that operate on non-weekly windows.
+ *
+ * The "attempt" unit and source table differ per module — this
+ * helper is the single dispatch point so callers don't have to
+ * reason about underlying schema:
  *
  *   harmonic-fluency     → db.attempts (moduleId='harmonic-fluency')
  *   ear-training         → db.attempts (moduleId in ET_MODULE_REFS)
@@ -118,6 +123,14 @@ export async function getWeeklyAttempts(
         .count();
   }
 }
+
+/**
+ * Alias of getWeeklyAttempts. Exists so callers operating on
+ * non-weekly date ranges (Step 2's monthly aggregation, future
+ * trend queries) can read intent at the call site without
+ * pretending the window is a single week. Identical implementation.
+ */
+export const getAttemptsInRange = getWeeklyAttempts;
 
 // ---------------------------------------------------------------------
 // getWeeklyTimeEstimate
