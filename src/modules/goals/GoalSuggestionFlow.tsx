@@ -20,6 +20,10 @@ import {
   dateInputValue,
   SCOPE_LABEL,
 } from './scopeMeta';
+import {
+  formatWeeklyTimeEstimate,
+  weeklyTimeForRecords,
+} from './weeklyTimeEstimate';
 import { AccuracySlider } from './yearlyAnchorDimensions';
 import {
   EAR_TRAINING_DRILL_TYPES,
@@ -32,6 +36,10 @@ import {
   type ShapesPatternsTarget,
 } from './GoalCreationFlow';
 import { findAnchorGoalForModule } from './anchorLookup';
+import {
+  SHAPES_COVERAGE_GROUP_DEFS,
+  type ShapesCoverageGroupId,
+} from './shapesCoverageGroups';
 import { suggestHfMonthly } from './suggestions/hfMonthly';
 import { suggestEtMonthly } from './suggestions/etMonthly';
 import { suggestShapesMonthly } from './suggestions/shapesMonthly';
@@ -369,6 +377,11 @@ function BodyShell({
         {children}
         <AnchorPanel anchor={anchor} />
         <TargetDateField value={targetDate} onChange={setTargetDate} />
+        <WeeklyTimeEstimateRow
+          records={records}
+          moduleId={moduleId}
+          targetDate={targetDate}
+        />
         {saveError && <p className="text-xs text-needswork">{saveError}</p>}
         <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
           <button
@@ -392,6 +405,40 @@ function BodyShell({
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Live "~X hrs/week" preview that updates as the user toggles
+ * focus groups / add-ons. Hides when the active module's math
+ * isn't wired in weeklyTimeEstimate.ts (returns null) — extend
+ * per-module there to surface the row for additional bodies.
+ *
+ * Re-computes on every records / targetDate change via useMemo;
+ * cheap enough to skip memo dependencies fine-grained beyond
+ * those two inputs.
+ */
+function WeeklyTimeEstimateRow({
+  records,
+  moduleId,
+  targetDate,
+}: {
+  records: EncodedRecord[];
+  moduleId: SuggestionFlowModule;
+  targetDate: number;
+}) {
+  const estimate = useMemo(
+    () => weeklyTimeForRecords({ records, moduleId, targetDate }),
+    [records, moduleId, targetDate],
+  );
+  if (!estimate) return null;
+  return (
+    <div className="text-xs text-neutral-600 dark:text-neutral-400 px-1">
+      Weekly time commitment:{' '}
+      <span className="font-medium text-neutral-800 dark:text-neutral-200">
+        {formatWeeklyTimeEstimate(estimate)}
+      </span>
+    </div>
   );
 }
 
@@ -1099,16 +1146,17 @@ function EtAccuracySection({
 const SP_COUNTS = shapesCounts();
 
 interface ShapesCoverageGroupOption {
-  id: 'chord_shape_drills' | 'scale_drills' | 'voice_leading';
+  id: ShapesCoverageGroupId;
   label: string;
   denominator: number;
 }
 
-const SHAPES_COVERAGE_GROUP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> = [
-  { id: 'chord_shape_drills', label: 'chord shape drills', denominator: SP_COUNTS.chordShapeDrills },
-  { id: 'scale_drills',       label: 'scale drills',       denominator: SP_COUNTS.scaleDrills      },
-  { id: 'voice_leading',      label: 'voice-leading',      denominator: SP_COUNTS.voiceLeading     },
-];
+const SHAPES_COVERAGE_GROUP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_DEFS.map(g => ({
+    id: g.id,
+    label: g.label,
+    denominator: g.denominator,
+  }));
 
 function ShapesPatternsMonthlyBody({
   anchor,

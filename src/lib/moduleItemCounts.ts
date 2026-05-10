@@ -135,7 +135,7 @@ export function harmonicFluencyCounts(): HarmonicFluencyCounts {
 export interface ShapesCounts {
   /** 29 chord qualities × 12 keys = 348. */
   chordShapeDrills: number;
-  /** 2 scales × 12 keys = 24. */
+  /** 4 scales × 12 keys = 48. */
   scaleDrills: number;
   /** 3 voice-leading patterns × 12 keys = 36. */
   voiceLeading: number;

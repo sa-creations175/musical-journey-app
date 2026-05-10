@@ -44,6 +44,7 @@ import {
 } from './coverageMetrics';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import { mondayOf } from './activity/dailyActivity';
+import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
 
 // =====================================================================
 // Constants
@@ -104,8 +105,12 @@ export const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory
   'ear-recognition':    ['modes', 'intervals', 'ear-theory'],
 };
 
-/** S&P sub-area id → spacingState itemRef prefix. Mirrors
- *  `itemRefForSkill` in shapes-and-patterns/drillModel.ts. */
+/** S&P sub-area id → spacingState itemRef prefix. Legacy single-
+ *  bucket map, kept for callers that still reason about activity
+ *  areas at the broad level (cold-start cycle, etc.). For
+ *  goal-picker coverage groups (which now split chord-shape into
+ *  triad / seventh / extension / special sub-groups) use
+ *  `itemRefMatcherForCoverageGroup` from shapesCoverageGroups.ts. */
 export const SHAPES_AREA_PREFIX: Record<string, string> = {
   'chord_shape_drills': 'chord-shape:',
   'scale_drills':       'scale:',
@@ -223,9 +228,9 @@ export async function getCoverageCount(
   }
   if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
     if (!subArea) return 0;
-    const prefix = SHAPES_AREA_PREFIX[subArea];
-    if (!prefix) return 0;
-    return countCoveredSpacingRows([SHAPES_MODULE_REF], itemRef => itemRef.startsWith(prefix));
+    const matcher = itemRefMatcherForCoverageGroup(subArea);
+    if (!matcher) return 0;
+    return countCoveredSpacingRows([SHAPES_MODULE_REF], matcher);
   }
   if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
     if (!subArea) return 0;

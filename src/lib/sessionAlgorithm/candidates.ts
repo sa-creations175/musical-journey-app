@@ -34,10 +34,10 @@ import {
   HF_GROUP_CATEGORIES,
   PRODUCTION_MODULE_REF,
   REPERTOIRE_MODULE_REF,
-  SHAPES_AREA_PREFIX,
   SHAPES_MODULE_REF,
   isConsistencyMetric,
 } from '../../modules/goals/progress';
+import { itemRefMatcherForCoverageGroup } from '../../modules/goals/shapesCoverageGroups';
 import { lessonsByPath } from '../../modules/production/content/lessons';
 import { SONG_METRIC } from '../../modules/goals/songTarget';
 import type { CandidateSpec, SpacingRow } from './types';
@@ -139,13 +139,13 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
-      const prefix = SHAPES_AREA_PREFIX[subArea];
-      if (!prefix) return { kind: 'unsupported' };
+      const matcher = itemRefMatcherForCoverageGroup(subArea);
+      if (!matcher) return { kind: 'unsupported' };
       return {
         kind: 'coverage',
         moduleRefs: [SHAPES_MODULE_REF],
         excludeStages: COVERED_STAGES,
-        itemRefFilter: itemRef => itemRef.startsWith(prefix),
+        itemRefFilter: matcher,
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {

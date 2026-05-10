@@ -18,17 +18,53 @@ import type { GoalFlowModuleId } from '../modules/goals/goalVocabulary';
 // of real usage data per the Phase 4 design)
 // ---------------------------------------------------------------------
 
-/** Time per attempt in minutes for modules with a point estimate. */
+/** Time per attempt in minutes for modules with a single point
+ *  estimate. Shapes lives in its own per-activity-area table (see
+ *  SHAPES_TIME_PER_REP_MINUTES below) because its three activity
+ *  areas have materially different per-rep costs; Production is in
+ *  PRODUCTION_TIME_RANGE_MINUTES because lesson length varies enough
+ *  to warrant a range. */
 export const TIME_PER_ATTEMPT_MINUTES: Record<
-  Exclude<GoalFlowModuleId, 'production'>,
+  Exclude<GoalFlowModuleId, 'production' | 'shapes-and-patterns'>,
   number
 > = {
   'harmonic-fluency':     20 / 60,  // 20 seconds per flashcard
   'ear-training':         20 / 60,  // 20 seconds per quiz question
-  'shapes-and-patterns':  5,        // 5 minutes per drill rep
   'repertoire':           17.5,     // midpoint of 15–20 min per cell session
   'practice-consistency': 45,       // midpoint of 30–60 min per session
 };
+
+/** Shapes & Patterns activity-area discriminator. Mirrors the
+ *  ShapesActivityArea union in GoalCreationFlow.tsx but redeclared
+ *  here so this lib stays UI-independent. */
+export type ShapesActivityArea =
+  | 'chord_shape_drills'
+  | 'scale_drills'
+  | 'voice_leading';
+
+/** Per-activity-area Shapes time-per-rep. Voice-leading reps are
+ *  longer than chord-shape / scale reps because the pattern itself
+ *  is longer (a full ii–V–I cycle vs. a single shape or scale
+ *  pass). Recalibrate alongside TIME_PER_ATTEMPT_MINUTES once
+ *  there's enough real session data to compare against. */
+export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
+  chord_shape_drills: 2,
+  scale_drills:       2,
+  voice_leading:      3,
+};
+
+/** Weighted-average fallback used when a Shapes time estimate is
+ *  requested without a specific activity area (e.g., the WeeklyPlan
+ *  last-week review, which counts drill sessions across all three
+ *  areas without joining through db.drillSkills). Weights come from
+ *  catalog cardinality at time of writing:
+ *    chord_shape_drills = 29 qualities × 12 keys = 348
+ *    scale_drills       = 4 scales × 12 keys     = 48
+ *    voice_leading      = 3 patterns × 12 keys   = 36
+ *  → (348×2 + 48×2 + 36×3) / 432 ≈ 2.083 min/rep.
+ *  Hardcoded (rather than computed from moduleItemCounts) so this
+ *  file stays dependency-free. Re-derive if the catalog shifts. */
+export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 2.083;
 
 /** Production lesson time is highly variable — show as a range. */
 export const PRODUCTION_TIME_RANGE_MINUTES = {
@@ -140,7 +176,11 @@ export const getAttemptsInRange = getWeeklyAttempts;
  * Honest time estimate for an attempt count. Production returns a
  * range because lesson depth varies materially (a conceptual lesson
  * might take 15 min; a Logic-application lesson can hit 2+ hours).
- * Other modules return a point estimate from
+ * Shapes accepts an optional `shapesActivityArea` so callers that
+ * know which activity drove the attempts (chord shape vs scale vs
+ * voice-leading) get the area-specific minutes; without it, falls
+ * back to SHAPES_DEFAULT_TIME_PER_REP_MINUTES (catalog-weighted
+ * average). Other modules return a point estimate from
  * TIME_PER_ATTEMPT_MINUTES.
  *
  * Returns minutes (caller formats hours/minutes for display).
@@ -152,6 +192,7 @@ export type TimeEstimate =
 export function getWeeklyTimeEstimate(
   moduleId: GoalFlowModuleId,
   attempts: number,
+  shapesActivityArea?: ShapesActivityArea,
 ): TimeEstimate {
   if (moduleId === 'production') {
     return {
@@ -159,6 +200,12 @@ export function getWeeklyTimeEstimate(
       minMinutes: attempts * PRODUCTION_TIME_RANGE_MINUTES.minPerLesson,
       maxMinutes: attempts * PRODUCTION_TIME_RANGE_MINUTES.maxPerLesson,
     };
+  }
+  if (moduleId === 'shapes-and-patterns') {
+    const perRep = shapesActivityArea
+      ? SHAPES_TIME_PER_REP_MINUTES[shapesActivityArea]
+      : SHAPES_DEFAULT_TIME_PER_REP_MINUTES;
+    return { kind: 'point', minutes: attempts * perRep };
   }
   return {
     kind: 'point',

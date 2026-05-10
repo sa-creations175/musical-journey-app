@@ -5,6 +5,8 @@ import {
   getWeeklyAttempts,
   getWeeklyTimeEstimate,
   PRODUCTION_TIME_RANGE_MINUTES,
+  SHAPES_DEFAULT_TIME_PER_REP_MINUTES,
+  SHAPES_TIME_PER_REP_MINUTES,
   TIME_PER_ATTEMPT_MINUTES,
 } from '../weeklyAttempts';
 import {
@@ -44,11 +46,29 @@ describe('getWeeklyTimeEstimate — point estimates', () => {
     });
   });
 
-  it('Shapes: 5 minutes per rep', () => {
+  it('Shapes (no area): falls back to weighted-average per-rep minutes', () => {
     expect(getWeeklyTimeEstimate('shapes-and-patterns', 6)).toEqual({
       kind: 'point',
-      minutes: 30,
+      minutes: 6 * SHAPES_DEFAULT_TIME_PER_REP_MINUTES,
     });
+  });
+
+  it('Shapes (chord_shape_drills): 2 min per rep', () => {
+    expect(
+      getWeeklyTimeEstimate('shapes-and-patterns', 10, 'chord_shape_drills'),
+    ).toEqual({ kind: 'point', minutes: 20 });
+  });
+
+  it('Shapes (scale_drills): 2 min per rep', () => {
+    expect(
+      getWeeklyTimeEstimate('shapes-and-patterns', 10, 'scale_drills'),
+    ).toEqual({ kind: 'point', minutes: 20 });
+  });
+
+  it('Shapes (voice_leading): 3 min per rep — slower because the pattern is longer', () => {
+    expect(
+      getWeeklyTimeEstimate('shapes-and-patterns', 10, 'voice_leading'),
+    ).toEqual({ kind: 'point', minutes: 30 });
   });
 
   it('Repertoire: 17.5 minutes per cell session', () => {
@@ -91,16 +111,38 @@ describe('TIME_PER_ATTEMPT_MINUTES — sanity on the per-module constants', () =
     expect(TIME_PER_ATTEMPT_MINUTES['harmonic-fluency']).toBe(TIME_PER_ATTEMPT_MINUTES['ear-training']);
   });
 
-  it('all non-production modules carry a positive constant', () => {
+  it('all single-rate modules carry a positive constant', () => {
     for (const moduleId of [
       'harmonic-fluency',
       'ear-training',
-      'shapes-and-patterns',
       'repertoire',
       'practice-consistency',
     ] as const) {
       expect(TIME_PER_ATTEMPT_MINUTES[moduleId]).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('SHAPES_TIME_PER_REP_MINUTES — per-activity-area constants', () => {
+  it('chord_shape_drills + scale_drills share the 2-min/rep rate', () => {
+    expect(SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills).toBe(2);
+    expect(SHAPES_TIME_PER_REP_MINUTES.scale_drills).toBe(2);
+  });
+
+  it('voice_leading is slower per rep than the other two areas', () => {
+    expect(SHAPES_TIME_PER_REP_MINUTES.voice_leading).toBe(3);
+    expect(SHAPES_TIME_PER_REP_MINUTES.voice_leading).toBeGreaterThan(
+      SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills,
+    );
+  });
+
+  it('weighted-avg fallback sits between the chord/scale rate and the voice-leading rate', () => {
+    expect(SHAPES_DEFAULT_TIME_PER_REP_MINUTES).toBeGreaterThanOrEqual(
+      SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills,
+    );
+    expect(SHAPES_DEFAULT_TIME_PER_REP_MINUTES).toBeLessThanOrEqual(
+      SHAPES_TIME_PER_REP_MINUTES.voice_leading,
+    );
   });
 });
 

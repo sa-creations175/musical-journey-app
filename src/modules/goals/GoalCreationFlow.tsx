@@ -48,6 +48,10 @@ import {
   COVERAGE_SPECIFIC_METRIC,
 } from './coverageMetrics';
 import {
+  SHAPES_COVERAGE_GROUP_DEFS,
+  type ShapesCoverageGroupId,
+} from './shapesCoverageGroups';
+import {
   earTrainingCounts,
   harmonicFluencyCounts,
   shapesCounts,
@@ -403,15 +407,19 @@ export interface ShapesPatternsTarget {
    *  consistency only). */
   coverageEnabled: boolean;
   /** 'overall' = all 408 items across the three sub-areas (one
-   *  record); 'specific' = one or more of the three sub-areas
-   *  (chord_shape_drills / scale_drills / voice_leading), with one
-   *  child record per picked area sharing parent_goal_id via the
-   *  auto-umbrella encoding from 2b's handleSave. */
+   *  record); 'specific' = one or more of the six coverage groups
+   *  (chord_shape_triads / chord_shape_sevenths /
+   *  chord_shape_extensions / chord_shape_special / scale_drills /
+   *  voice_leading), with one child record per picked group sharing
+   *  parent_goal_id via the auto-umbrella encoding from 2b's
+   *  handleSave. */
   coverageScope: 'overall' | 'specific';
-  /** Activity-area ids from SHAPES_COVERAGE_GROUPS (a subset of
-   *  ShapesActivityArea — mental-viz is not a coverage option).
-   *  Empty array when scope is 'overall' or no area is yet picked. */
-  coverageGroupIds: ShapesActivityArea[];
+  /** Coverage-group ids from SHAPES_COVERAGE_GROUPS. Finer-grained
+   *  than ShapesActivityArea so the user can scope coverage to one
+   *  chord-shape kind at a time (triads vs sevenths vs …) without
+   *  committing to all 348 chord-shape items at once. Empty array
+   *  when scope is 'overall' or no group is yet picked. */
+  coverageGroupIds: ShapesCoverageGroupId[];
 
   proficiencyEnabled: boolean;
   proficiencyScope: 'overall' | 'specific';
@@ -2295,46 +2303,30 @@ function shapeLabel(area: ShapesActivityArea, shapeId: string): string | null {
 }
 
 /**
- * Coverage-target groups for Shapes & Patterns. Each group's
- * `denominator` is the count of distinct shape × key combinations
- * the user must reach `acquired` stage on for that group to count
- * as covered.
+ * Coverage-target groups for Shapes & Patterns. Sourced from the
+ * canonical SHAPES_COVERAGE_GROUP_DEFS in shapesCoverageGroups.ts
+ * so all consumers (picker, encoder, progress queries, session-
+ * candidate filtering) agree on the id space + denominators.
  *
- *   chord_shape_drills = 29 qualities × 12 keys = 348
- *   scale_drills       =  2 scales    × 12 keys = 24
- *   voice_leading      =  3 patterns  × 12 keys = 36
- *   total                                       = 408
+ * Mental Visualization is excluded from the picker per design
+ * doc §6 (different cognitive mode, counts toward consistency
+ * only) and per 1e's spacingState wiring (mental-viz produces no
+ * spacingState rows, so it can't contribute to a coverage
+ * denominator).
  *
- * Mental Visualization is intentionally excluded from this list:
- * per design doc §6 it counts toward consistency only ("a different
- * cognitive mode for internalizing existing shapes"), and per 1e's
- * live wiring it does not produce spacingState rows. Excluding it
- * here keeps the coverage denominator honest against the spacing
- * data the algorithm will consume.
- *
- * Single S&P module accent for all 3 pills — S&P doesn't have
- * pre-existing per-area accent definitions (unlike HF's
- * HARMONIC_FLUENCY_GROUPS which already used borrowed colors for
- * the accuracy-specific picker), and 3 pills with clear labels read
- * cleanly without needing per-pill differentiation.
- *
- * Live denominators come from `shapesCounts()` (Phase 2 step 3);
- * catalog growth (new chord qualities, new scales, new voice-leading
- * patterns) flows through automatically. Mental Visualization stays
- * out of `shapesCounts.total` per the helper's contract.
+ * Catalog growth (new chord qualities, new scales, new patterns)
+ * flows in automatically via shapesCoverageGroups.ts.
  */
-interface ShapesCoverageGroup {
-  id: ShapesActivityArea;
+const SP_COUNTS = shapesCounts();
+const SHAPES_COVERAGE_GROUPS: ReadonlyArray<{
+  id: ShapesCoverageGroupId;
   label: string;
   denominator: number;
-}
-
-const SP_COUNTS = shapesCounts();
-const SHAPES_COVERAGE_GROUPS: ReadonlyArray<ShapesCoverageGroup> = [
-  { id: 'chord_shape_drills', label: 'chord shape drills', denominator: SP_COUNTS.chordShapeDrills },
-  { id: 'scale_drills',       label: 'scale drills',       denominator: SP_COUNTS.scaleDrills      },
-  { id: 'voice_leading',      label: 'voice-leading',      denominator: SP_COUNTS.voiceLeading     },
-];
+}> = SHAPES_COVERAGE_GROUP_DEFS.map(g => ({
+  id: g.id,
+  label: g.label,
+  denominator: g.denominator,
+}));
 
 const SHAPES_TOTAL_ITEMS = SP_COUNTS.total;
 
@@ -2387,7 +2379,7 @@ function ShapesPatternsCoverageCard({
       coverageGroupIds: scope === 'overall' ? [] : target.coverageGroupIds,
     });
   };
-  const toggleGroup = (id: ShapesActivityArea) => {
+  const toggleGroup = (id: ShapesCoverageGroupId) => {
     const next = target.coverageGroupIds.includes(id)
       ? target.coverageGroupIds.filter(x => x !== id)
       : [...target.coverageGroupIds, id];
@@ -3868,11 +3860,23 @@ function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
   } else if (goal.targetMetric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
     t.coverageEnabled = true;
     t.coverageScope = 'specific';
-    // Edit mode is per-record — only the clicked sibling's area id
-    // is restored. Adding more areas in the multi-pick UI on edit
+    // Edit mode is per-record — only the clicked sibling's group id
+    // is restored. Adding more groups in the multi-pick UI on edit
     // creates new siblings on save (Behavior C from 2b's analysis).
+    // Pre-split goals stored the legacy `chord_shape_drills` umbrella
+    // id; those rows leave coverageGroupIds empty so the user picks
+    // a fresh sub-group (triads / sevenths / extensions / special)
+    // on save. SHAPES_COVERAGE_GROUP_DEFS is the source of truth for
+    // valid id strings.
     const area = goal.targetUnit;
-    if (area === 'scale_drills' || area === 'chord_shape_drills' || area === 'voice_leading') {
+    if (
+      area === 'chord_shape_triads'
+      || area === 'chord_shape_sevenths'
+      || area === 'chord_shape_extensions'
+      || area === 'chord_shape_special'
+      || area === 'scale_drills'
+      || area === 'voice_leading'
+    ) {
       t.coverageGroupIds = [area];
     }
   } else if (goal.targetMetric === 'shapes_proficiency_overall') {
