@@ -13,6 +13,7 @@ import {
   type SkillDescriptor,
 } from './drillModel';
 import DrillListModal from './DrillListModal';
+import InversionBreakdownPanel from './InversionBreakdownPanel';
 import { KEYS } from './catalog';
 
 interface RowMeta {
@@ -47,6 +48,10 @@ interface Props {
  */
 export default function HeatGrid({ rows, keyList = KEYS, rowAccent }: Props) {
   const [openSkill, setOpenSkill] = useState<DrillSkill | null>(null);
+  // Phase 4 inversion redesign — chord-shape cells route to the
+  // breakdown panel (one row per inversion state). Other kinds
+  // continue to open DrillListModal directly.
+  const [openChordShapeCell, setOpenChordShapeCell] = useState<{ keyName: string; quality: string } | null>(null);
 
   // Single live query for all skills + types in the module; heavy on
   // first load but avoids N×M queries per cell.
@@ -94,18 +99,31 @@ export default function HeatGrid({ rows, keyList = KEYS, rowAccent }: Props) {
             <div className={`text-xs pr-3 py-1 truncate ${rowAccent?.(row) ?? ''}`} title={row.label}>
               {row.label}
             </div>
-            {keyList.map(k => (
-              <Cell
-                key={k}
-                descriptor={row.descriptorFor(k)}
-                skill={findSkillFor(allSkills, row.descriptorFor(k))}
-                types={findTypesFor(allSkills, typesBySkill, row.descriptorFor(k))}
-                onOpen={async () => {
-                  const skill = await findOrCreateSkill(row.descriptorFor(k));
-                  setOpenSkill(skill);
-                }}
-              />
-            ))}
+            {keyList.map(k => {
+              const desc = row.descriptorFor(k);
+              return (
+                <Cell
+                  key={k}
+                  descriptor={desc}
+                  skill={findSkillFor(allSkills, desc)}
+                  types={findTypesFor(allSkills, typesBySkill, desc)}
+                  onOpen={async () => {
+                    if (desc.kind === 'chord-shape') {
+                      // Materialise the cell's inversion-state rows
+                      // up-front (the panel re-runs the same op
+                      // idempotently — this primes the typesBySkill
+                      // live query for fewer flicker frames). Then
+                      // route to the breakdown panel.
+                      await findOrCreateSkill(desc);
+                      setOpenChordShapeCell({ keyName: desc.keyName, quality: desc.quality });
+                    } else {
+                      const skill = await findOrCreateSkill(desc);
+                      setOpenSkill(skill);
+                    }
+                  }}
+                />
+              );
+            })}
           </div>
         ))}
       </div>
@@ -114,6 +132,13 @@ export default function HeatGrid({ rows, keyList = KEYS, rowAccent }: Props) {
         <DrillListModal
           skill={openSkill}
           onClose={() => setOpenSkill(null)}
+        />
+      )}
+      {openChordShapeCell && (
+        <InversionBreakdownPanel
+          keyName={openChordShapeCell.keyName}
+          quality={openChordShapeCell.quality}
+          onClose={() => setOpenChordShapeCell(null)}
         />
       )}
     </div>
@@ -180,6 +205,11 @@ function Cell({ descriptor, skill, types, onOpen }: CellProps) {
 function findSkillFor(skills: DrillSkill[], desc: SkillDescriptor): DrillSkill | undefined {
   switch (desc.kind) {
     case 'chord-shape':
+      // Multiple skill rows may match a chord-shape cell after the
+      // Phase 4 inversion redesign (one per inversion state). Return
+      // the first match so the cell's "is touched at all?" check
+      // still resolves; per-row coloring uses findTypesFor (which
+      // unions drillTypes across all matching skills).
       return skills.find(s => s.kind === 'chord-shape' && s.keyName === desc.keyName && s.quality === desc.quality);
     case 'scale':
       return skills.find(s => s.kind === 'scale' && s.keyName === desc.keyName && s.scale === desc.scale);
@@ -195,6 +225,20 @@ function findTypesFor(
   typesBySkill: Map<string, DrillType[]>,
   desc: SkillDescriptor,
 ): DrillType[] {
+  // Chord-shape cells aggregate across every per-inversion skill
+  // row in the cell so the heat color reflects total practice time
+  // across all inversions, not just one.
+  if (desc.kind === 'chord-shape') {
+    const matching = skills.filter(
+      s => s.kind === 'chord-shape' && s.keyName === desc.keyName && s.quality === desc.quality,
+    );
+    const out: DrillType[] = [];
+    for (const skill of matching) {
+      const skillTypes = typesBySkill.get(skill.id);
+      if (skillTypes) out.push(...skillTypes);
+    }
+    return out;
+  }
   const skill = findSkillFor(skills, desc);
   if (!skill) return [];
   return typesBySkill.get(skill.id) ?? [];
