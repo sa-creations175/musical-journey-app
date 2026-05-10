@@ -9,6 +9,13 @@ export interface MonthlySuggestion<T> {
   target: T;
   /** 1–2 short context lines explaining why this is the suggestion. */
   contextLines: string[];
+  /** Optional targetDate override (epoch ms). When the suggestion
+   *  implies a longer horizon than the scope's default end-of-period
+   *  (e.g. Shapes' inversion-redesign suggesting 3 months for triad
+   *  coverage), the body uses this override instead of
+   *  defaultTargetDate(scope). User can still edit via the date
+   *  picker. */
+  defaultTargetDate?: number;
 }
 
 /**

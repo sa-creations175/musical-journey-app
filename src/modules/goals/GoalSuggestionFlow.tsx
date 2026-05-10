@@ -1167,7 +1167,9 @@ function ShapesPatternsMonthlyBody({
 }: ModuleBodyProps<'shapes-and-patterns'>) {
   const initialSuggestion = useMemo(() => suggestShapesMonthly(), []);
   const [target, setTarget] = useState<ShapesPatternsTarget>(initialSuggestion.target);
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const [targetDate, setTargetDate] = useState<number>(
+    initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope),
+  );
   const records = useMemo(() => encodeShim('shapes-and-patterns', target), [target]);
 
   return (
