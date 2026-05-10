@@ -15,6 +15,8 @@ import { MODULE_ORDER, type ModuleMeta } from '../../lib/moduleMeta';
 import ModuleGlyph from '../../components/ModuleGlyph';
 import { pickQuote, type MusicianQuote } from './quotes';
 import { useUserName } from './userName';
+import WeeklyPlan from '../goals/WeeklyPlan';
+import WeeklyPlanBanner from '../goals/WeeklyPlanBanner';
 
 /**
  * The Dashboard is the app's home surface. It pulls cross-module
@@ -87,6 +89,12 @@ export default function Dashboard() {
   // Radar dimension selection.
   const [selectedDim, setSelectedDim] = useState<DimensionKey | null>(null);
 
+  // Phase 4 step 3 — WeeklyPlan modal. Auto-surfaced via the
+  // Sunday banner; not directly opened from elsewhere on the
+  // dashboard, but the modal mount stays here so the banner can
+  // open it without routing to Goals.
+  const [weeklyPlanOpen, setWeeklyPlanOpen] = useState(false);
+
   const displayName = userName;
 
   const openCreative = (mode?: CreativeMode, prompt?: CreativePrompt) => {
@@ -97,6 +105,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-16">
+      {/* Phase 4 step 3 — Sunday weekly-plan banner. Self-hides on
+          non-Sundays / when already confirmed / when dismissed for
+          the week. */}
+      <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
+
       {/* Section 1 — warm opening */}
       <section className="space-y-2">
         <div className="flex items-center gap-3 flex-wrap">
@@ -245,6 +258,13 @@ export default function Dashboard() {
         onClose={() => setCreativeOpen(false)}
         initialMode={launchMode}
         initialPrompt={launchPrompt ?? undefined}
+      />
+
+      {/* Phase 4 step 3 — WeeklyPlan modal opened by the banner. */}
+      <WeeklyPlan
+        key={weeklyPlanOpen ? 'weekly-plan-open' : 'weekly-plan-closed'}
+        open={weeklyPlanOpen}
+        onClose={() => setWeeklyPlanOpen(false)}
       />
     </div>
   );

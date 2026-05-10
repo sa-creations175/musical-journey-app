@@ -6,10 +6,17 @@ import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
 import GoalSuggestionFlow from './GoalSuggestionFlow';
+import WeeklyPlan from './WeeklyPlan';
+import WeeklyPlanBanner from './WeeklyPlanBanner';
 // Side-effect import: registers `__deleteShortHorizonGoals` on
 // window so the operator can wipe all monthly + weekly goals from
 // the browser console. Manual one-shot only — see devCleanup.ts.
 import './devCleanup';
+// Side-effect import: registers `__inspectLastWeekActivity` and
+// `__wipeRepertoireRunThroughsInRange` for diagnosing whether the
+// WeeklyPlan "last week" totals reflect real practice or stale
+// dev-build clicks. See devInspectActivity.ts.
+import './devInspectActivity';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
@@ -216,6 +223,10 @@ export default function Goals() {
   );
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
+  /** Phase 4 step 3 — WeeklyPlan modal. Auto-surfaced via the
+   *  Sunday banner; also reachable from the explicit "Plan week"
+   *  button in the toolbar so users on non-Sundays can still open it. */
+  const [weeklyPlanOpen, setWeeklyPlanOpen] = useState(false);
   /** Phase 2 step 5f — YearlyAnchorFlow open state.
    *  Driven by GoalCreationFlow's onRequestYearlyAnchor callback
    *  (the user picked "Set yearly anchor first" on the
@@ -355,9 +366,21 @@ export default function Goals() {
         </button>
       </header>
 
+      <div className="mb-4">
+        <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
+      </div>
+
       <ViewToggle value={activeView} onChange={setActiveView} />
 
       <div className="mb-4 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setWeeklyPlanOpen(true)}
+          className="px-3 py-1.5 rounded-md text-sm font-medium border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          title="Plan your week"
+        >
+          Plan week
+        </button>
         <button
           type="button"
           onClick={() => setFormMode({ kind: 'create', scope: null })}
@@ -551,6 +574,15 @@ export default function Goals() {
         onClose={() => setSuggestionFlow(null)}
         scope={suggestionFlow?.scope ?? 'monthly'}
         moduleId={suggestionFlow?.moduleId ?? 'harmonic-fluency'}
+      />
+
+      {/* Phase 4 step 3 — WeeklyPlan modal. Mounted here so its
+          state lives at the page level (Goals.tsx is also where the
+          Sunday banner mounts via WeeklyPlanBanner above). */}
+      <WeeklyPlan
+        key={weeklyPlanOpen ? 'weekly-plan-open' : 'weekly-plan-closed'}
+        open={weeklyPlanOpen}
+        onClose={() => setWeeklyPlanOpen(false)}
       />
     </div>
   );
