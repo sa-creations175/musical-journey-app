@@ -9,6 +9,7 @@ import {
   type SpacingState,
 } from '../../lib/db';
 import Modal from '../../components/Modal';
+import { assertSpacingStage } from '../../lib/spacingState';
 import DrillListModal from './DrillListModal';
 import DrillSessionModal from './DrillSessionModal';
 import {
@@ -20,6 +21,8 @@ import {
   findAllChordShapeSkillsForCell,
   humanAgo,
 } from './drillModel';
+
+type SelfAssessmentLevel = 'not_started' | 'familiar' | 'comfortable';
 
 interface Props {
   /** Chord-shape cell coordinates. The panel materialises every
@@ -60,6 +63,17 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
   //     so they can pick which one.
   const [openSession, setOpenSession] = useState<{ skill: DrillSkill; drillType: DrillType } | null>(null);
   const [openSkill, setOpenSkill] = useState<DrillSkill | null>(null);
+  // Self-assessment dismissal: hides the prompt for the lifetime of
+  // the panel after the user picks "Not started" (no spacingState
+  // rows get created in that case, so the persistence-based check
+  // alone would re-show the prompt every open). Familiar /
+  // Comfortable selections also flip this flag so the prompt-→-rows
+  // transition feels instant — the live query catches up
+  // milliseconds later with the seeded stages, but the UI shouldn't
+  // wait on it. Resets on panel remount (i.e., next time the user
+  // opens the cell from the heat grid).
+  const [selfAssessmentDismissed, setSelfAssessmentDismissed] = useState(false);
+  const [seedingAssessment, setSeedingAssessment] = useState(false);
 
   // Materialise + load all skill rows for the cell. findAllChordShape­
   // SkillsForCell runs the cell-level transaction (creates any
@@ -150,6 +164,46 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
   const kind = qualityEntry?.kind ?? 'special';
   const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[kind];
 
+  // Self-assessment prompt visibility: first-open with no existing
+  // spacingState rows AND the user hasn't yet picked an option. Once
+  // any spacingState row exists for the cell (from prior practice or
+  // a Familiar/Comfortable seed), the prompt stays hidden.
+  const hasAnySpacingForCell = stageByItemRef.size > 0;
+  const showSelfAssessment = !selfAssessmentDismissed && !hasAnySpacingForCell;
+
+  /**
+   * Seed spacingState rows for the acquisition-path inversion states
+   * at the chosen stage (or no-op for 'not_started'). Supplementary
+   * rows are intentionally skipped — they're practice tools, not
+   * acquisition targets.
+   *
+   * Uses assertSpacingStage (deliberate state declaration), not
+   * recordEngagement — the user hasn't actually practiced, they're
+   * declaring where they're starting from. No performanceHistory
+   * entries are appended.
+   */
+  const handleSelfAssessment = async (level: SelfAssessmentLevel) => {
+    if (seedingAssessment) return;
+    if (level === 'not_started') {
+      setSelfAssessmentDismissed(true);
+      return;
+    }
+    const stage: AcquisitionStage = level === 'familiar' ? 'acquiring' : 'acquired';
+    const pathStates = states.filter(s => s !== 'supplementary');
+    setSeedingAssessment(true);
+    try {
+      await Promise.all(
+        pathStates.map(state => {
+          const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
+          return assertSpacingStage(itemRef, 'shapes-and-patterns', stage);
+        }),
+      );
+      setSelfAssessmentDismissed(true);
+    } finally {
+      setSeedingAssessment(false);
+    }
+  };
+
   // Derive title from the first skill's label (which already carries
   // the chord notation, e.g. "Cmaj7 (major seventh)"). Strip the
   // trailing inversion-state suffix the labelFor helper appends.
@@ -177,42 +231,50 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
         </div>
       )}
     >
-      <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-        {states.map(state => {
-          const skill = skills.find(s => (s.inversionState ?? null) === state);
-          const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
-          const stage = stageByItemRef.get(itemRef);
-          const skillTypes = skill ? typesBySkill.get(skill.id) ?? [] : [];
-          // Pulled from drillSessions (canonical), not the
-          // drillTypes.lastPracticedAt cache — see lastPracticedBySkill
-          // construction above.
-          const lastPracticedAt = skill ? lastPracticedBySkill.get(skill.id) ?? null : null;
+      {showSelfAssessment ? (
+        <SelfAssessmentPrompt
+          label={cellLabel}
+          disabled={seedingAssessment}
+          onPick={handleSelfAssessment}
+        />
+      ) : (
+        <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          {states.map(state => {
+            const skill = skills.find(s => (s.inversionState ?? null) === state);
+            const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
+            const stage = stageByItemRef.get(itemRef);
+            const skillTypes = skill ? typesBySkill.get(skill.id) ?? [] : [];
+            // Pulled from drillSessions (canonical), not the
+            // drillTypes.lastPracticedAt cache — see lastPracticedBySkill
+            // construction above.
+            const lastPracticedAt = skill ? lastPracticedBySkill.get(skill.id) ?? null : null;
 
-          return (
-            <InversionRow
-              key={state ?? 'single'}
-              label={state ? inversionStateLabel(state) : 'Drills'}
-              isSupplementary={state === 'supplementary'}
-              stage={stage}
-              lastPracticedAt={lastPracticedAt}
-              disabled={!skill}
-              onDrill={() => {
-                if (!skill) return;
-                // Inversion-state skill rows seed exactly one drill —
-                // skip DrillListModal and jump straight into the
-                // timer. Multi-drill rows (supplementary two-handed,
-                // or any user-customised cell) keep going through
-                // DrillListModal so the user can pick.
-                if (skillTypes.length === 1 && state !== 'supplementary') {
-                  setOpenSession({ skill, drillType: skillTypes[0] });
-                } else {
-                  setOpenSkill(skill);
-                }
-              }}
-            />
-          );
-        })}
-      </div>
+            return (
+              <InversionRow
+                key={state ?? 'single'}
+                label={state ? inversionStateLabel(state) : 'Drills'}
+                isSupplementary={state === 'supplementary'}
+                stage={stage}
+                lastPracticedAt={lastPracticedAt}
+                disabled={!skill}
+                onDrill={() => {
+                  if (!skill) return;
+                  // Inversion-state skill rows seed exactly one drill —
+                  // skip DrillListModal and jump straight into the
+                  // timer. Multi-drill rows (supplementary two-handed,
+                  // or any user-customised cell) keep going through
+                  // DrillListModal so the user can pick.
+                  if (skillTypes.length === 1 && state !== 'supplementary') {
+                    setOpenSession({ skill, drillType: skillTypes[0] });
+                  } else {
+                    setOpenSkill(skill);
+                  }
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {openSession && (
         <DrillSessionModal
@@ -241,6 +303,95 @@ interface InversionRowProps {
   lastPracticedAt: number | null;
   disabled: boolean;
   onDrill: () => void;
+}
+
+/**
+ * First-open self-assessment prompt. Replaces the inversion rows
+ * until the user picks an option, so the rows don't have to render
+ * misleading "Not started" badges next to the question that's
+ * asking what state to start them in.
+ *
+ *   Not started  → no spacingState rows created; rows show with
+ *                  "Not started" badges, normal acquisition path
+ *                  applies.
+ *   Familiar     → all acquisition-path inversion-state rows seeded
+ *                  at 'acquiring' stage.
+ *   Comfortable  → same, seeded at 'acquired' stage.
+ *
+ * Supplementary rows (two-handed seventh drills) are never seeded
+ * by self-assessment — they're practice tools, not acquisition
+ * targets.
+ */
+function SelfAssessmentPrompt({
+  label,
+  disabled,
+  onPick,
+}: {
+  label: string;
+  disabled: boolean;
+  onPick: (level: SelfAssessmentLevel) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-sm font-medium">
+          How well do you know {label}?
+        </div>
+        <div className="text-xs text-neutral-500 mt-1">
+          Quick self-assessment — sets the starting acquisition stage for each
+          inversion. You can always revise by drilling; the spacing system
+          will demote shapes you rate poorly later on.
+        </div>
+      </div>
+      <div className="grid gap-2">
+        <SelfAssessmentOption
+          title="Not started"
+          hint="I haven't practiced this. Start from scratch."
+          disabled={disabled}
+          onClick={() => onPick('not_started')}
+        />
+        <SelfAssessmentOption
+          title="Familiar"
+          hint="I know it but it's not solid. Start at acquiring stage."
+          disabled={disabled}
+          onClick={() => onPick('familiar')}
+        />
+        <SelfAssessmentOption
+          title="Comfortable"
+          hint="I can play this reliably. Start at acquired stage."
+          disabled={disabled}
+          onClick={() => onPick('comfortable')}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SelfAssessmentOption({
+  title,
+  hint,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  hint: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`text-left rounded-lg border px-3 py-2.5 transition ${
+        disabled
+          ? 'border-neutral-200 dark:border-neutral-800 opacity-50 cursor-not-allowed'
+          : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:bg-fluent/5'
+      }`}
+    >
+      <div className="text-sm font-medium">{title}</div>
+      <div className="text-[11px] text-neutral-500 mt-0.5">{hint}</div>
+    </button>
+  );
 }
 
 /**
