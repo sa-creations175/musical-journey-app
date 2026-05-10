@@ -53,10 +53,10 @@ describe('getWeeklyTimeEstimate — point estimates', () => {
     });
   });
 
-  it('Shapes (chord_shape_drills): 2 min per rep', () => {
+  it('Shapes (chord_shape_drills): 1.6 min per rep (weighted avg post-inversion redesign)', () => {
     expect(
       getWeeklyTimeEstimate('shapes-and-patterns', 10, 'chord_shape_drills'),
-    ).toEqual({ kind: 'point', minutes: 20 });
+    ).toEqual({ kind: 'point', minutes: 16 });
   });
 
   it('Shapes (scale_drills): 2 min per rep', () => {
@@ -124,8 +124,11 @@ describe('TIME_PER_ATTEMPT_MINUTES — sanity on the per-module constants', () =
 });
 
 describe('SHAPES_TIME_PER_REP_MINUTES — per-activity-area constants', () => {
-  it('chord_shape_drills + scale_drills share the 2-min/rep rate', () => {
-    expect(SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills).toBe(2);
+  it('chord_shape_drills uses the inversion-redesign weighted avg', () => {
+    expect(SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills).toBe(1.6);
+  });
+
+  it('scale_drills stays at 2 min/rep', () => {
     expect(SHAPES_TIME_PER_REP_MINUTES.scale_drills).toBe(2);
   });
 
@@ -136,7 +139,7 @@ describe('SHAPES_TIME_PER_REP_MINUTES — per-activity-area constants', () => {
     );
   });
 
-  it('weighted-avg fallback sits between the chord/scale rate and the voice-leading rate', () => {
+  it('weighted-avg fallback sits between the chord-shape rate and the voice-leading rate', () => {
     expect(SHAPES_DEFAULT_TIME_PER_REP_MINUTES).toBeGreaterThanOrEqual(
       SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills,
     );

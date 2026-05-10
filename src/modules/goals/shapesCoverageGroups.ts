@@ -1,12 +1,27 @@
 import {
   CHORD_QUALITIES,
   CHORD_QUALITY_BY_ID,
+  INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
   SCALES,
   VOICE_LEADING_PATTERNS,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
 import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
+
+/**
+ * Count of acquisition-path inversion-state rows per cell, by
+ * QualityKind. Triads have 4 (root/inv1/inv2/fluid), sevenths have 5
+ * (root/inv1/inv2/inv3/fluid — `supplementary` excluded), extensions
+ * and special/sixth have 1 (single voicing-based row, no inversion
+ * state). Drives the per-kind denominator multiplier.
+ */
+const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
+  triad:     INVERSION_STATES_FOR_CHORD_SHAPE_KIND.triad.filter(s => s !== 'supplementary').length,
+  seventh:   INVERSION_STATES_FOR_CHORD_SHAPE_KIND.seventh.filter(s => s !== 'supplementary').length,
+  extension: 1,
+  special:   1,
+};
 
 /**
  * Coverage-picker granularity for Shapes & Patterns goals.
@@ -63,19 +78,25 @@ const KEY_COUNT = KEYS.length;
 
 /** Canonical coverage-group definitions. Live denominators come
  *  from the catalog so adding a new chord quality / scale / voice-
- *  leading pattern flows into the picker automatically. */
+ *  leading pattern flows into the picker automatically. Triads and
+ *  sevenths multiply by their per-cell inversion-state count from
+ *  ACQUISITION_PATH_STATES_PER_KIND — each inversion is its own
+ *  trackable item (triads: ×4, sevenths: ×5; supplementary excluded).
+ */
 export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> = [
   {
     id: 'chord_shape_triads',
-    label: 'triads',
+    label: 'triad inversions',
     activityArea: 'chord_shape_drills',
-    denominator: CHORD_QUALITIES_BY_KIND.triad.length * KEY_COUNT,
+    denominator:
+      CHORD_QUALITIES_BY_KIND.triad.length * KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.triad,
   },
   {
     id: 'chord_shape_sevenths',
-    label: 'seventh chords',
+    label: 'seventh-chord inversions',
     activityArea: 'chord_shape_drills',
-    denominator: CHORD_QUALITIES_BY_KIND.seventh.length * KEY_COUNT,
+    denominator:
+      CHORD_QUALITIES_BY_KIND.seventh.length * KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.seventh,
   },
   {
     id: 'chord_shape_extensions',
@@ -138,13 +159,18 @@ export function coverageGroupIdToActivityArea(
  * itemRef predicate matching the coverage group's spacingState
  * rows. Mirrors the itemRef format from
  * shapes-and-patterns/drillModel.ts:
- *   chord-shape:${quality}:${keyName}  (chord_shape_*)
- *   scale:${scale}:${keyName}          (scale_drills)
- *   vl:${patternId}:${keyName}         (voice_leading)
  *
- * Drives spacingState filtering for both progress-counting
- * (modules/goals/progress.ts) and session-candidate selection
- * (lib/sessionAlgorithm/candidates.ts).
+ *   chord-shape:${quality}:${keyName}                       — extension/special
+ *   chord-shape:${quality}:${keyName}:${inversionState}     — triad/seventh
+ *   scale:${scale}:${keyName}                               — scale_drills
+ *   vl:${patternId}:${keyName}                              — voice_leading
+ *
+ * For triads/sevenths, the matcher excludes the `supplementary`
+ * state (two-handed seventh-chord drills) — those are practice
+ * tools, not acquisition-gating items, so they don't count toward
+ * coverage progress. Drives spacingState filtering for both
+ * progress-counting (modules/goals/progress.ts) and
+ * session-candidate selection (lib/sessionAlgorithm/candidates.ts).
  */
 export function itemRefMatcherForCoverageGroup(
   groupId: string,
@@ -152,7 +178,8 @@ export function itemRefMatcherForCoverageGroup(
   if (groupId === 'scale_drills') return ir => ir.startsWith('scale:');
   if (groupId === 'voice_leading') return ir => ir.startsWith('vl:');
   // Legacy single-bucket id — keeps pre-split goals matching every
-  // chord-shape row.
+  // chord-shape row, including supplementary. Used only by
+  // back-compat consumers.
   if (groupId === 'chord_shape_drills') return ir => ir.startsWith('chord-shape:');
 
   const kind = chordShapeKindForGroupId(groupId);
@@ -162,7 +189,12 @@ export function itemRefMatcherForCoverageGroup(
     const parts = ir.split(':');
     if (parts.length < 3) return false;
     const q = CHORD_QUALITY_BY_ID.get(parts[1]);
-    return q?.kind === kind;
+    if (q?.kind !== kind) return false;
+    // 4-part triad/seventh refs: filter out the supplementary state
+    // so two-handed seventh drills don't inflate coverage counts.
+    // 3-part extension/special refs pass without inspecting parts[3].
+    if (parts.length >= 4 && parts[3] === 'supplementary') return false;
+    return true;
   };
 }
 

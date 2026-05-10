@@ -109,14 +109,20 @@ describe('harmonicFluencyCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Shapes & Patterns — 348 + 48 + 36 = 432 (Mental Viz excluded)
+// Shapes & Patterns — Phase 4 inversion redesign:
+// triads (6×12×4 = 288) + sevenths (6×12×5 = 360) +
+// extensions (14×12 = 168) + special (3×12 = 36) = 852 chord-shape;
+// + 48 scales + 36 voice-leading = 936 total (Mental Viz excluded).
+// Supplementary two-handed seventh rows are excluded — they're
+// practice tools, not acquisition-gating items.
 // -------------------------------------------------------------------
 
 describe('shapesCounts', () => {
   const c = shapesCounts();
 
-  it('chordShapeDrills = 29 qualities × 12 keys = 348', () => {
-    expect(c.chordShapeDrills).toBe(348);
+  it('chordShapeDrills counts triad+seventh inversions plus voicing-based extensions/special', () => {
+    // 6×12×4 + 6×12×5 + 14×12 + 3×12 = 288 + 360 + 168 + 36 = 852
+    expect(c.chordShapeDrills).toBe(852);
   });
 
   it('scaleDrills = 4 scales × 12 keys = 48', () => {
@@ -127,8 +133,8 @@ describe('shapesCounts', () => {
     expect(c.voiceLeading).toBe(36);
   });
 
-  it('total = 432 (sum of sub-areas)', () => {
-    expect(c.total).toBe(432);
+  it('total = 936 (sum of sub-areas, post-inversion redesign)', () => {
+    expect(c.total).toBe(936);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 

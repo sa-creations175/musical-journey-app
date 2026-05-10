@@ -133,7 +133,11 @@ export function harmonicFluencyCounts(): HarmonicFluencyCounts {
 // =====================================================================
 
 export interface ShapesCounts {
-  /** 29 chord qualities × 12 keys = 348. */
+  /** Acquisition-path chord-shape items: triads (6×12×4 inversions =
+   *  288) + sevenths (6×12×5 inversions = 360) + extensions (14×12 =
+   *  168) + special/sixth (3×12 = 36) = 852. Excludes the
+   *  `supplementary` two-handed seventh rows — those are practice
+   *  tools, not acquisition-gating items. */
   chordShapeDrills: number;
   /** 4 scales × 12 keys = 48. */
   scaleDrills: number;
@@ -146,7 +150,14 @@ export interface ShapesCounts {
 }
 
 export function shapesCounts(): ShapesCounts {
-  const chordShapeDrills = CHORD_QUALITIES.length * KEYS.length;
+  // Per-quality-kind item counts. Triads + sevenths multiply by their
+  // acquisition-path inversion-state count (4 / 5); extensions +
+  // special/sixth keep their voicing-based one-row-per-cell shape.
+  const triadCount     = CHORD_QUALITIES.filter(q => q.kind === 'triad').length     * KEYS.length * 4;
+  const seventhCount   = CHORD_QUALITIES.filter(q => q.kind === 'seventh').length   * KEYS.length * 5;
+  const extensionCount = CHORD_QUALITIES.filter(q => q.kind === 'extension').length * KEYS.length;
+  const specialCount   = CHORD_QUALITIES.filter(q => q.kind === 'special').length   * KEYS.length;
+  const chordShapeDrills = triadCount + seventhCount + extensionCount + specialCount;
   const scaleDrills = SCALES.length * KEYS.length;
   const voiceLeading = VOICE_LEADING_PATTERNS.length * KEYS.length;
   return {

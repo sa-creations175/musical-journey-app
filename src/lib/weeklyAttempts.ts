@@ -42,13 +42,15 @@ export type ShapesActivityArea =
   | 'scale_drills'
   | 'voice_leading';
 
-/** Per-activity-area Shapes time-per-rep. Voice-leading reps are
- *  longer than chord-shape / scale reps because the pattern itself
- *  is longer (a full ii–V–I cycle vs. a single shape or scale
- *  pass). Recalibrate alongside TIME_PER_ATTEMPT_MINUTES once
- *  there's enough real session data to compare against. */
+/** Per-activity-area Shapes time-per-rep. The chord_shape_drills
+ *  value is a weighted average across the post-inversion-redesign
+ *  drill mix (90 s/rep for individual inversions, 120 s/rep for
+ *  fluid + extensions/special voicings) — see Phase 4 inversion
+ *  spec. Voice-leading reps are longer because the pattern itself
+ *  is longer (a full ii–V–I cycle). Recalibrate alongside
+ *  TIME_PER_ATTEMPT_MINUTES once there's enough real session data. */
 export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
-  chord_shape_drills: 2,
+  chord_shape_drills: 1.6,  // weighted avg: triads ~1.625, sevenths ~1.6
   scale_drills:       2,
   voice_leading:      3,
 };
@@ -57,14 +59,15 @@ export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
  *  requested without a specific activity area (e.g., the WeeklyPlan
  *  last-week review, which counts drill sessions across all three
  *  areas without joining through db.drillSkills). Weights come from
- *  catalog cardinality at time of writing:
- *    chord_shape_drills = 29 qualities × 12 keys = 348
- *    scale_drills       = 4 scales × 12 keys     = 48
- *    voice_leading      = 3 patterns × 12 keys   = 36
- *  → (348×2 + 48×2 + 36×3) / 432 ≈ 2.083 min/rep.
+ *  catalog cardinality at time of writing (Phase 4 inversion model):
+ *    chord_shape_drills = 852 acquisition-path items
+ *      (triads 6×12×4=288, sevenths 6×12×5=360, extensions 14×12=168, special 3×12=36)
+ *    scale_drills       = 4 scales × 12 keys = 48
+ *    voice_leading      = 3 patterns × 12 keys = 36
+ *  → (852×1.6 + 48×2 + 36×3) / 936 ≈ 1.67 min/rep.
  *  Hardcoded (rather than computed from moduleItemCounts) so this
  *  file stays dependency-free. Re-derive if the catalog shifts. */
-export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 2.083;
+export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 1.67;
 
 /** Production lesson time is highly variable — show as a range. */
 export const PRODUCTION_TIME_RANGE_MINUTES = {
