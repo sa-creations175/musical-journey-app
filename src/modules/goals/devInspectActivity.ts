@@ -367,6 +367,87 @@ export async function wipePracticeSessionsInRange(
 }
 
 /**
+ * One-shot: wipe every chord-shape drillSkill + its drillTypes +
+ * drillSessions + shapes-and-patterns spacingState rows whose
+ * itemRef starts with 'chord-shape:'. Used as a pre-step before
+ * the Shapes inversion-tracking redesign rolls in — the new model
+ * materialises one drillSkill row per (quality × key × inversion
+ * state) where the old model had one row per (quality × key), so
+ * the cleanest path is wipe-and-reseed rather than in-place
+ * migration. Scale + voice-leading skills are untouched.
+ *
+ * Logs counts per table before deleting. Sync hooks propagate the
+ * deletes to Supabase. Returns the per-table count summary.
+ */
+export async function wipeChordShapeCatalog(): Promise<{
+  drillSkills: number;
+  drillTypes: number;
+  drillSessions: number;
+  spacingState: number;
+}> {
+  // 1. drillSkills (chord-shape kind)
+  const skills = await db.drillSkills.where('kind').equals('chord-shape').toArray();
+  const skillIds = new Set(skills.map(s => s.id));
+
+  // 2. drillTypes referencing those skills
+  const types = skillIds.size === 0
+    ? []
+    : await db.drillTypes.where('skillId').anyOf([...skillIds]).toArray();
+
+  // 3. drillSessions referencing those skills
+  const sessions = skillIds.size === 0
+    ? []
+    : await db.drillSessions.where('skillId').anyOf([...skillIds]).toArray();
+
+  // 4. spacingState chord-shape rows
+  const allShapesSpacing = await db.spacingState
+    .where('moduleRef').equals('shapes-and-patterns')
+    .toArray();
+  const chordSpacing = allShapesSpacing.filter(r => r.itemRef.startsWith('chord-shape:'));
+
+  // eslint-disable-next-line no-console
+  console.log('[wipeChordShapeCatalog] About to delete:', {
+    drillSkills:   skills.length,
+    drillTypes:    types.length,
+    drillSessions: sessions.length,
+    spacingState:  chordSpacing.length,
+  });
+  if (skills.length > 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      '[wipeChordShapeCatalog] drillSkills sample:',
+      skills.slice(0, 10).map(s => ({ id: s.id, label: s.label, quality: s.quality, keyName: s.keyName })),
+    );
+  }
+
+  if (skills.length === 0 && chordSpacing.length === 0) {
+    return { drillSkills: 0, drillTypes: 0, drillSessions: 0, spacingState: 0 };
+  }
+
+  await db.transaction(
+    'rw',
+    [db.drillSkills, db.drillTypes, db.drillSessions, db.spacingState],
+    async () => {
+      if (skills.length > 0)   await db.drillSkills.bulkDelete(skills.map(s => s.id));
+      if (types.length > 0)    await db.drillTypes.bulkDelete(types.map(t => t.id));
+      if (sessions.length > 0) await db.drillSessions.bulkDelete(sessions.map(s => s.id));
+      if (chordSpacing.length > 0) {
+        await db.spacingState.bulkDelete(chordSpacing.map(r => r.id));
+      }
+    },
+  );
+
+  // eslint-disable-next-line no-console
+  console.log('[wipeChordShapeCatalog] Done. Cells will re-materialise on next tap.');
+  return {
+    drillSkills:   skills.length,
+    drillTypes:    types.length,
+    drillSessions: sessions.length,
+    spacingState:  chordSpacing.length,
+  };
+}
+
+/**
  * One-shot: clear every activity source in the window. Calls each
  * per-module helper sequentially so each one's pre-delete log is
  * visible in the console for audit. Returns a per-module count
@@ -616,6 +697,7 @@ if (typeof window !== 'undefined') {
     __wipeShapesDrillSessionsInRange?: typeof wipeShapesDrillSessionsInRange;
     __wipePracticeSessionsInRange?: typeof wipePracticeSessionsInRange;
     __wipeAllActivityInRange?: typeof wipeAllActivityInRange;
+    __wipeChordShapeCatalog?: typeof wipeChordShapeCatalog;
     __diagnoseWeeklyPlan?: typeof diagnoseWeeklyPlan;
   };
   const w = window as unknown as W;
@@ -626,5 +708,6 @@ if (typeof window !== 'undefined') {
   w.__wipeShapesDrillSessionsInRange = wipeShapesDrillSessionsInRange;
   w.__wipePracticeSessionsInRange = wipePracticeSessionsInRange;
   w.__wipeAllActivityInRange = wipeAllActivityInRange;
+  w.__wipeChordShapeCatalog = wipeChordShapeCatalog;
   w.__diagnoseWeeklyPlan = diagnoseWeeklyPlan;
 }

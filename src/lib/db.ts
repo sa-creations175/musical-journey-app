@@ -338,6 +338,33 @@ export type DrillKind =
   | 'mental-viz';
 
 /**
+ * Inversion-state discriminator for chord-shape drillSkills (Phase 4
+ * inversion redesign). For triads and seventh chords, each
+ * inversion + the fluid capstone is its own trackable skill row so
+ * acquisition is scoped per inversion. Extensions / special / sixth
+ * skills set this to null — they use voicings, not inversions.
+ *
+ *   root          — root position
+ *   inv1 / inv2   — 1st / 2nd inversion
+ *   inv3          — 3rd inversion (sevenths only)
+ *   fluid         — capstone "all inversions fluid" drill, its own row
+ *   supplementary — non-acquisition-gating drills (e.g. two-handed
+ *                   LH-root + RH-triad seventh variants); excluded
+ *                   from coverage denominators
+ *
+ * null is the legacy / extensions / special / sixth state — those
+ * keep one row per (quality × key) cell with no inversion suffix
+ * on the itemRef.
+ */
+export type InversionState =
+  | 'root'
+  | 'inv1'
+  | 'inv2'
+  | 'inv3'
+  | 'fluid'
+  | 'supplementary';
+
+/**
  * A drillable "cell" — something the user can practise across
  * multiple drill types. Created lazily on first interaction: opening
  * a heat-grid cell that's never been practised materialises the
@@ -361,6 +388,14 @@ export interface DrillSkill {
   patternId?: string;
   /** Mental-viz variant id ('shape-viz' / 'ghost-keyboard' / …). */
   variant?: string;
+  /** Inversion state for triad / seventh chord-shape skills — one
+   *  row per inversion + fluid capstone + supplementary group. Null
+   *  / undefined for extension + special chord shapes (which use
+   *  voicings, not inversions) and for non-chord-shape kinds.
+   *  See InversionState above. Not indexed — the candidate set per
+   *  (kind+keyName+quality) lookup is at most ~6 rows so a
+   *  post-query filter is cheap. */
+  inversionState?: InversionState | null;
   /** Denormalised display label — used when rendering without having
    *  to re-derive from catalog. Editable. */
   label?: string;

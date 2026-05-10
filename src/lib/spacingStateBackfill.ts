@@ -212,9 +212,13 @@ function itemRefForSkillRow(skill: {
   quality?: string;
   scale?: string;
   patternId?: string;
+  inversionState?: string | null;
 }): string | null {
   switch (skill.kind) {
-    case 'chord-shape':   return `chord-shape:${skill.quality}:${skill.keyName}`;
+    case 'chord-shape': {
+      const base = `chord-shape:${skill.quality}:${skill.keyName}`;
+      return skill.inversionState ? `${base}:${skill.inversionState}` : base;
+    }
     case 'scale':         return `scale:${skill.scale}:${skill.keyName}`;
     case 'voice-leading': return `vl:${skill.patternId}:${skill.keyName}`;
     case 'mental-viz':    return null;

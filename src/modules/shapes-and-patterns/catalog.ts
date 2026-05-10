@@ -16,6 +16,8 @@
 // the module draws from. Practice activity materialises DrillSkill +
 // DrillType rows lazily per interaction.
 
+import type { InversionState } from '../../lib/db';
+
 export const KEYS = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
 ] as const;
@@ -132,6 +134,119 @@ export function defaultDrillTypesForQuality(kind: QualityKind): DefaultDrill[] {
         { name: 'Flowing inversions',                  suggestedSeconds: 180 },
       ];
   }
+}
+
+// --- Chord-shape inversion catalog (Phase 4 inversion redesign) ----
+
+/**
+ * Ordered list of inversion-state skill rows to materialise per
+ * (quality × key) cell, keyed by QualityKind. Drives
+ * findOrCreateSkill's per-cell materialisation: opening a triad
+ * cell creates 4 skill rows (root / inv1 / inv2 / fluid); opening
+ * a seventh-chord cell creates 6 rows (root / inv1 / inv2 / inv3 /
+ * fluid / supplementary). Extensions + special/sixth produce one
+ * row with no inversion suffix on the itemRef.
+ *
+ * The 'supplementary' state for sevenths hosts the two-handed
+ * drills as its own skill row — kept out of the acquisition path
+ * (its itemRef is filtered out of coverage / progress counts) but
+ * still log-able. Decision A in the Step-0 plan.
+ *
+ * For acquisition counting, see `gatesAcquisition` below.
+ */
+export const INVERSION_STATES_FOR_CHORD_SHAPE_KIND: Record<
+  QualityKind,
+  ReadonlyArray<InversionState | null>
+> = {
+  triad:     ['root', 'inv1', 'inv2', 'fluid'],
+  seventh:   ['root', 'inv1', 'inv2', 'inv3', 'fluid', 'supplementary'],
+  extension: [null],
+  special:   [null],
+};
+
+/**
+ * Whether a (kind, state) skill row counts toward acquisition
+ * (i.e., shows up in coverage denominators and goal progress).
+ * Supplementary rows for sevenths are excluded — they're practice
+ * tools, not acquisition requirements.
+ */
+export function gatesAcquisition(
+  kind: QualityKind,
+  inversionState: InversionState | null | undefined,
+): boolean {
+  if (kind === 'extension' || kind === 'special') return true;
+  return inversionState !== 'supplementary';
+}
+
+/**
+ * Display label for the inversion state — shown in skill labels
+ * (e.g. "Cmaj7 — 2nd inversion") and in the breakdown panel.
+ * `null` and `undefined` return the empty string so callers can
+ * concatenate without a guard.
+ */
+export function inversionStateLabel(
+  state: InversionState | null | undefined,
+): string {
+  switch (state) {
+    case 'root':          return 'Root position';
+    case 'inv1':          return '1st inversion';
+    case 'inv2':          return '2nd inversion';
+    case 'inv3':          return '3rd inversion';
+    case 'fluid':         return 'All inversions fluid';
+    case 'supplementary': return 'Two-handed drills';
+    default:              return '';
+  }
+}
+
+/**
+ * Per-(kind, state) drill seed for chord-shape skills.
+ *
+ *   Triads + sevenths: one drill per inversion state at 90 s/rep;
+ *   fluid at 120 s/rep (per Phase 4 inversion-redesign time
+ *   constants).
+ *
+ *   Seventh supplementary: the four two-handed drills, all on the
+ *   single supplementary skill row.
+ *
+ *   Extensions + special: unchanged — delegate to the legacy
+ *   `defaultDrillTypesForQuality` so their voicing-based drill
+ *   lists keep working.
+ */
+export function defaultDrillForChordShape(
+  kind: QualityKind,
+  inversionState: InversionState | null | undefined,
+): DefaultDrill[] {
+  if (kind === 'extension' || kind === 'special') {
+    return defaultDrillTypesForQuality(kind);
+  }
+  if (kind === 'seventh' && inversionState === 'supplementary') {
+    return [
+      { name: 'Two-handed: LH root + RH triad root', suggestedSeconds: 120 },
+      { name: 'Two-handed: LH root + RH triad 1st',  suggestedSeconds: 120 },
+      { name: 'Two-handed: LH root + RH triad 2nd',  suggestedSeconds: 120 },
+      { name: 'Two-handed all inversions fluid',     suggestedSeconds: 180 },
+    ];
+  }
+  if (kind === 'triad') {
+    switch (inversionState) {
+      case 'root':  return [{ name: 'Root position (up & down)', suggestedSeconds: 90 }];
+      case 'inv1':  return [{ name: '1st inversion (up & down)', suggestedSeconds: 90 }];
+      case 'inv2':  return [{ name: '2nd inversion (up & down)', suggestedSeconds: 90 }];
+      case 'fluid': return [{ name: 'All inversions fluid',      suggestedSeconds: 120 }];
+      default:      return [];
+    }
+  }
+  if (kind === 'seventh') {
+    switch (inversionState) {
+      case 'root':  return [{ name: 'One-handed root position',        suggestedSeconds: 90 }];
+      case 'inv1':  return [{ name: 'One-handed 1st inversion',        suggestedSeconds: 90 }];
+      case 'inv2':  return [{ name: 'One-handed 2nd inversion',        suggestedSeconds: 90 }];
+      case 'inv3':  return [{ name: 'One-handed 3rd inversion',        suggestedSeconds: 90 }];
+      case 'fluid': return [{ name: 'One-handed all inversions fluid', suggestedSeconds: 120 }];
+      default:      return [];
+    }
+  }
+  return [];
 }
 
 // --- Scales ---------------------------------------------------------

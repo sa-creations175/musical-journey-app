@@ -3,13 +3,16 @@ import {
   type DrillSession,
   type DrillSkill,
   type DrillType,
+  type InversionState,
 } from '../../lib/db';
 import {
   CHORD_QUALITY_BY_ID,
+  defaultDrillForChordShape,
   defaultDrillTypesForMentalViz,
-  defaultDrillTypesForQuality,
   defaultDrillTypesForScale,
   defaultDrillTypesForVoiceLeading,
+  INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
+  inversionStateLabel,
   MENTAL_VIZ_VARIANTS,
   SCALES,
   VOICE_LEADING_PATTERNS,
@@ -29,6 +32,14 @@ interface ChordShapeDescriptor {
   kind: 'chord-shape';
   keyName: string;
   quality: string;
+  /** Optional inversion state. Required to disambiguate which skill
+   *  row to return for triads / sevenths (where one cell maps to
+   *  multiple rows). When omitted on a triad / seventh descriptor,
+   *  findOrCreateSkill defaults to 'root' for back-compat with
+   *  call sites that pre-date the inversion-tracking redesign;
+   *  Step 3 routes the breakdown-panel UX through an explicit
+   *  inversion state. Always `null` for extensions / special. */
+  inversionState?: InversionState | null;
 }
 interface ScaleDescriptor {
   kind: 'scale';
@@ -55,8 +66,21 @@ export type SkillDescriptor =
  * default drill types on first ask. Every caller that wants to
  * open a drill list goes through here, so the heat grid can stay
  * free of per-cell DB rows until the user actually touches a cell.
+ *
+ * Chord-shape semantics: the inversion-tracking redesign splits one
+ * (quality × key) cell into multiple skill rows — one per
+ * acquisition-path inversion state plus optionally a supplementary
+ * row for two-handed drills (sevenths only). This function
+ * materialises the FULL cell's rows on first touch (atomic
+ * transaction) and returns the row matching the descriptor's
+ * `inversionState` (defaulting to 'root' for triads / sevenths,
+ * `null` for extensions / special).
  */
 export async function findOrCreateSkill(desc: SkillDescriptor): Promise<DrillSkill> {
+  if (desc.kind === 'chord-shape') {
+    return findOrCreateChordShapeSkill(desc);
+  }
+
   const existing = await findSkill(desc);
   if (existing) {
     // Self-heal: an existing skill row with zero drillTypes is a
@@ -88,7 +112,6 @@ export async function findOrCreateSkill(desc: SkillDescriptor): Promise<DrillSki
     id: uid('skill'),
     kind: desc.kind,
     keyName: 'keyName' in desc ? desc.keyName : undefined,
-    quality: 'quality' in desc ? desc.quality : undefined,
     scale: 'scale' in desc ? desc.scale : undefined,
     patternId: 'patternId' in desc ? desc.patternId : undefined,
     variant: 'variant' in desc ? desc.variant : undefined,
@@ -115,12 +138,134 @@ export async function findOrCreateSkill(desc: SkillDescriptor): Promise<DrillSki
   return skill;
 }
 
+/**
+ * Cell-level materialisation for chord-shape skills. Creates every
+ * inversion-state row the cell needs (per
+ * INVERSION_STATES_FOR_CHORD_SHAPE_KIND) in one transaction, then
+ * returns the row matching the descriptor's `inversionState`.
+ *
+ * Idempotent — only creates rows that don't already exist. Self-heals
+ * empty drill-types sets on existing rows.
+ */
+async function findOrCreateChordShapeSkill(desc: ChordShapeDescriptor): Promise<DrillSkill> {
+  const qualityEntry = CHORD_QUALITY_BY_ID.get(desc.quality);
+  const kind = qualityEntry?.kind ?? 'special';
+  const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[kind];
+  const requestedState: InversionState | null =
+    desc.inversionState ?? states[0] ?? null;
+
+  const existing = await db.drillSkills
+    .where('[kind+keyName+quality]').equals(['chord-shape', desc.keyName, desc.quality])
+    .toArray();
+  const existingByState = new Map<InversionState | null, DrillSkill>();
+  for (const s of existing) existingByState.set(s.inversionState ?? null, s);
+
+  const newSkills: DrillSkill[] = [];
+  const newTypes: DrillType[] = [];
+  for (const state of states) {
+    if (existingByState.has(state)) continue;
+    const skill: DrillSkill = {
+      id: uid('skill'),
+      kind: 'chord-shape',
+      keyName: desc.keyName,
+      quality: desc.quality,
+      inversionState: state,
+      label: labelFor({ ...desc, inversionState: state }),
+      createdAt: Date.now(),
+    };
+    newSkills.push(skill);
+    existingByState.set(state, skill);
+
+    const seedDrills = defaultDrillForChordShape(kind, state);
+    seedDrills.forEach((d, i) => {
+      newTypes.push({
+        id: uid('dtype'),
+        skillId: skill.id,
+        name: d.name,
+        suggestedSeconds: d.suggestedSeconds,
+        order: i,
+        repCount: 0,
+        totalSeconds: 0,
+        lastPracticedAt: null,
+      });
+    });
+  }
+
+  // Self-heal: existing rows with no drillTypes get their seed
+  // drills re-materialised. Same rationale as the legacy path.
+  const healTypes: DrillType[] = [];
+  for (const state of states) {
+    const skill = existingByState.get(state);
+    if (!skill) continue;
+    // Skip newly-created rows — they already have their seed types in newTypes.
+    if (newSkills.some(s => s.id === skill.id)) continue;
+    const typeCount = await db.drillTypes.where('skillId').equals(skill.id).count();
+    if (typeCount > 0) continue;
+    const seedDrills = defaultDrillForChordShape(kind, state);
+    seedDrills.forEach((d, i) => {
+      healTypes.push({
+        id: uid('dtype'),
+        skillId: skill.id,
+        name: d.name,
+        suggestedSeconds: d.suggestedSeconds,
+        order: i,
+        repCount: 0,
+        totalSeconds: 0,
+        lastPracticedAt: null,
+      });
+    });
+  }
+
+  if (newSkills.length > 0 || newTypes.length > 0 || healTypes.length > 0) {
+    await db.transaction('rw', [db.drillSkills, db.drillTypes], async () => {
+      if (newSkills.length > 0) await db.drillSkills.bulkAdd(newSkills);
+      if (newTypes.length > 0) await db.drillTypes.bulkAdd(newTypes);
+      if (healTypes.length > 0) await db.drillTypes.bulkAdd(healTypes);
+    });
+  }
+
+  const match = existingByState.get(requestedState);
+  if (match) return match;
+  // Shouldn't happen — `requestedState` is sourced from `states`.
+  // Defensive fallback: return the first row available so the caller
+  // doesn't crash on a "no skill" edge case.
+  return existing[0] ?? newSkills[0];
+}
+
+/**
+ * Enumerate every chord-shape skill row for a (quality × key) cell,
+ * materialising them if absent. Used by the Step 3 inversion
+ * breakdown panel to render one entry per inversion state.
+ */
+export async function findAllChordShapeSkillsForCell(
+  keyName: string,
+  quality: string,
+): Promise<DrillSkill[]> {
+  // Seed the cell. findOrCreateChordShapeSkill materialises ALL
+  // states in one transaction; we discard its return value here.
+  await findOrCreateChordShapeSkill({ kind: 'chord-shape', keyName, quality });
+  return db.drillSkills
+    .where('[kind+keyName+quality]').equals(['chord-shape', keyName, quality])
+    .toArray();
+}
+
 export async function findSkill(desc: SkillDescriptor): Promise<DrillSkill | undefined> {
   switch (desc.kind) {
-    case 'chord-shape':
-      return db.drillSkills
+    case 'chord-shape': {
+      // The [kind+keyName+quality] index returns all inversion-state
+      // rows for the cell; filter by the descriptor's state (defaults
+      // to 'root' when omitted, matching findOrCreateSkill).
+      const candidates = await db.drillSkills
         .where('[kind+keyName+quality]').equals(['chord-shape', desc.keyName, desc.quality])
-        .first();
+        .toArray();
+      if (candidates.length === 0) return undefined;
+      const qualityEntry = CHORD_QUALITY_BY_ID.get(desc.quality);
+      const kind = qualityEntry?.kind ?? 'special';
+      const fallbackState =
+        INVERSION_STATES_FOR_CHORD_SHAPE_KIND[kind][0] ?? null;
+      const target = desc.inversionState ?? fallbackState;
+      return candidates.find(s => (s.inversionState ?? null) === target);
+    }
     case 'scale':
       return db.drillSkills
         .where('[kind+keyName+scale]').equals(['scale', desc.keyName, desc.scale])
@@ -140,7 +285,7 @@ function defaultDrillTypesForDescriptor(desc: SkillDescriptor) {
   switch (desc.kind) {
     case 'chord-shape': {
       const q = CHORD_QUALITY_BY_ID.get(desc.quality);
-      return defaultDrillTypesForQuality(q?.kind ?? 'special');
+      return defaultDrillForChordShape(q?.kind ?? 'special', desc.inversionState);
     }
     case 'scale':         return defaultDrillTypesForScale();
     case 'voice-leading': return defaultDrillTypesForVoiceLeading();
@@ -165,7 +310,12 @@ export function labelFor(desc: SkillDescriptor): string {
       // Don't duplicate when short-form already matches long-form
       // (e.g. bare "C" vs. "Major" — still worth the parenthetical
       // because row context isn't always visible from the modal).
-      return `${short} (${longName.toLowerCase()})`;
+      const base = `${short} (${longName.toLowerCase()})`;
+      // Inversion-state suffix when present and non-default. Triads
+      // and sevenths produce per-state rows; the label disambiguates
+      // them in DrillListModal headers + the breakdown panel.
+      const stateText = inversionStateLabel(desc.inversionState);
+      return stateText ? `${base} — ${stateText}` : base;
     }
     case 'scale': {
       const s = SCALES.find(x => x.id === desc.scale);
@@ -217,15 +367,23 @@ function feelToRating(feel: DrillSession['feelRating']): 'flying' | 'cruising' |
  * existing shapes, not a separate catalog item; counts toward
  * consistency goals but not breadth/depth/mastery).
  *
- * Format mirrors the Phase 2 Decision-1 table:
- *   chord-shape   → `chord-shape:${quality}:${keyName}`
+ * Format mirrors the Phase 2 Decision-1 table, extended for the
+ * Phase 4 inversion-tracking redesign:
+ *   chord-shape (triad/seventh) → `chord-shape:${quality}:${keyName}:${inversionState}`
+ *   chord-shape (extension/special) → `chord-shape:${quality}:${keyName}` (unchanged)
+ *   chord-shape (supplementary, sevenths) → `chord-shape:${quality}:${keyName}:supplementary`
+ *                                            — filtered out of acquisition queries
+ *                                              by gatesAcquisition / matchers.
  *   scale         → `scale:${scale}:${keyName}`
  *   voice-leading → `vl:${patternId}:${keyName}`
  *   mental-viz    → null (skip)
  */
 function itemRefForSkill(skill: DrillSkill): string | null {
   switch (skill.kind) {
-    case 'chord-shape':   return `chord-shape:${skill.quality}:${skill.keyName}`;
+    case 'chord-shape': {
+      const base = `chord-shape:${skill.quality}:${skill.keyName}`;
+      return skill.inversionState ? `${base}:${skill.inversionState}` : base;
+    }
     case 'scale':         return `scale:${skill.scale}:${skill.keyName}`;
     case 'voice-leading': return `vl:${skill.patternId}:${skill.keyName}`;
     case 'mental-viz':    return null;
