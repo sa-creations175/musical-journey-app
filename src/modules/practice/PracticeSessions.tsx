@@ -35,6 +35,9 @@ import type {
   InputQuestionnaireResult,
 } from './inputs';
 import type { ProposalCardData } from './proposalTypes';
+import BehindPaceBanner from './BehindPaceBanner';
+import type { BehindPaceNotice } from '../../lib/sessionAlgorithm/weeklyPace';
+import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 
 /**
  * Practice Sessions home (Phase 3 Step 7a).
@@ -72,6 +75,17 @@ export default function PracticeSessions() {
   const [feasibilityEntries, setFeasibilityEntries] = useState<
     ReadonlyArray<FeasibilityBannerEntry>
   >([]);
+  // Phase 4 Step 4 — weekly-pace notice state. Notices come back
+  // from buildSessionPlan alongside the proposal cards; dismissedPace­
+  // Modules tracks per-session dismissal so re-renders don't lose
+  // the user's "x"-clicks. Resets on each fresh proposal generation
+  // (intentionally — a new session deserves a fresh look).
+  const [behindPaceNotices, setBehindPaceNotices] = useState<
+    ReadonlyArray<BehindPaceNotice>
+  >([]);
+  const [dismissedPaceModules, setDismissedPaceModules] = useState<
+    ReadonlySet<string>
+  >(new Set());
   // Step 8 — abundance flow state. abundanceReason drives the
   // path-screen header copy + which card set renders. lastInputs
   // caches the questionnaire result so the user can pick a path or
@@ -111,6 +125,8 @@ export default function PracticeSessions() {
     setAbundanceReason(null);
     setActivePath(null);
     setProposals([]);
+    setBehindPaceNotices([]);
+    setDismissedPaceModules(new Set());
     setLastInputs(null);
     setInitialDayProfile(null);
     setSessionInProgressOpen(false);
@@ -209,10 +225,13 @@ export default function PracticeSessions() {
       if (plan.kind === 'abundance') {
         setAbundanceReason(plan.reason);
         setProposals([]);
+        setBehindPaceNotices([]);
         setView('abundance');
       } else {
         setAbundanceReason(null);
         setProposals(plan.cards);
+        setBehindPaceNotices(plan.behindPaceNotices);
+        setDismissedPaceModules(new Set());
         setView('proposal');
       }
     } catch (e) {
@@ -273,6 +292,47 @@ export default function PracticeSessions() {
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error('[PracticeSessions] regenerate path failed', e);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  /**
+   * Phase 4 Step 4 — "Add to this session" wired off a behind-pace
+   * notice. Dismisses the notice and re-runs the proposal generator
+   * with the named module force-included past the context hard
+   * filter. Keeps the user's other inputs (time / context / day-
+   * profile / intent / energy) intact via lastInputs.
+   *
+   * v1 implementation note: force-include just regenerates with the
+   * named module passed through to `buildSessionPlan` via a new
+   * forceIncludeModules option. The actual block-injection logic
+   * lives in sessionGenerator; this handler stays UI-only.
+   */
+  const handleAddModuleFromBehindPace = async (moduleId: GoalFlowModuleId) => {
+    if (!lastInputs || generating) return;
+    setDismissedPaceModules(prev => {
+      const next = new Set(prev);
+      next.add(moduleId);
+      return next;
+    });
+    setGenerating(true);
+    try {
+      const earlierSessionsToday = await countEarlierSessionsToday();
+      const plan = await buildSessionPlan(
+        lastInputs,
+        { earlierSessionsToday },
+        { forceIncludeModules: [moduleId] },
+      );
+      if (plan.kind === 'proposals') {
+        setProposals(plan.cards);
+        // Keep behindPaceNotices intact — the user may want to add
+        // another behind-pace module too. The dismissed set hides
+        // the one they just acted on.
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[PracticeSessions] add-module regenerate failed', e);
     } finally {
       setGenerating(false);
     }
@@ -342,6 +402,20 @@ export default function PracticeSessions() {
                 setView('questionnaire');
                 setInitialDayProfile('deep');
               }}
+            />
+          }
+          behindPaceBanner={
+            <BehindPaceBanner
+              notices={behindPaceNotices}
+              dismissed={dismissedPaceModules}
+              onAddModule={handleAddModuleFromBehindPace}
+              onDismiss={moduleId =>
+                setDismissedPaceModules(prev => {
+                  const next = new Set(prev);
+                  next.add(moduleId);
+                  return next;
+                })
+              }
             />
           }
         />

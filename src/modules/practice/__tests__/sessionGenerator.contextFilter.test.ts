@@ -95,15 +95,23 @@ describe('isGoalCompatibleWithContext — rank ladder', () => {
   });
 });
 
-describe('isSpacingRowCompatibleWithContext — Shapes drops under non-keys', () => {
-  it('keys + mixed contexts pass everything', () => {
+describe('isSpacingRowCompatibleWithContext — context arc hard filters', () => {
+  it('keys + mixed pass Shapes + Repertoire; drop HF + ET + Production (Phase 4 Step 5)', () => {
     const shapes = spacingRow({ moduleRef: 'shapes-and-patterns' });
-    const hf = spacingRow({ moduleRef: 'harmonic-fluency' });
     const rep = spacingRow({ moduleRef: 'repertoire' });
+    const hf = spacingRow({ moduleRef: 'harmonic-fluency' });
+    const et = spacingRow({ moduleRef: 'intervals' });
+    const prod = spacingRow({ moduleRef: 'production' });
     for (const ctx of ['keys', 'mixed'] as PracticeSessionContext[]) {
       expect(isSpacingRowCompatibleWithContext(shapes, ctx)).toBe(true);
-      expect(isSpacingRowCompatibleWithContext(hf, ctx)).toBe(true);
       expect(isSpacingRowCompatibleWithContext(rep, ctx)).toBe(true);
+      // Phase 4 Step 5: physical-instrument sessions exclude the
+      // cognitive modules from the default proposal — they're
+      // available via + Add module if the user wants them, but the
+      // algorithm doesn't surface them on its own.
+      expect(isSpacingRowCompatibleWithContext(hf, ctx)).toBe(false);
+      expect(isSpacingRowCompatibleWithContext(et, ctx)).toBe(false);
+      expect(isSpacingRowCompatibleWithContext(prod, ctx)).toBe(false);
     }
   });
 

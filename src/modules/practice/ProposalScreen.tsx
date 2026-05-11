@@ -56,6 +56,15 @@ interface Props {
    */
   feasibilityBanner?: ReactNode;
   /**
+   * Phase 4 Step 4 — weekly-pace nudge slot. Sibling to
+   * feasibilityBanner because the signals are distinct: feasibility
+   * tracks long-horizon goal trajectories, this slot tracks the
+   * current week's attempt cadence. Both can appear together.
+   * Same render-prop shape for symmetry — the caller wires
+   * BehindPaceBanner with the notices + onAddModule callback.
+   */
+  behindPaceBanner?: ReactNode;
+  /**
    * Step 8d — Back link that returns the user to the three-path
    * choice screen. Only supplied when this proposal was generated
    * via an abundance path; absent for standard-flow proposals.
@@ -81,6 +90,7 @@ export default function ProposalScreen({
   affirmation,
   showColdStartBanner,
   feasibilityBanner,
+  behindPaceBanner,
   onBackToPaths,
   onRegeneratePath,
   regenerating,
@@ -150,6 +160,7 @@ export default function ProposalScreen({
       <ColdStartBanner visible={!!showColdStartBanner} />
 
       {feasibilityBanner}
+      {behindPaceBanner}
 
       <header>
         <h3 className="text-sm font-medium tracking-tight">

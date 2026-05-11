@@ -37,6 +37,10 @@ import {
   resolveCandidates,
 } from '../../lib/sessionAlgorithm/candidates';
 import {
+  contextFactorForModule,
+  isModuleAllowedForContext,
+} from '../../lib/sessionAlgorithm/contextWeighting';
+import {
   generateProposals,
   blockHasAcquiringItems,
 } from '../../lib/sessionAlgorithm/proposal';
@@ -46,9 +50,26 @@ import type {
 } from '../../lib/sessionAlgorithm/timeAllocation';
 import { weightForItem } from '../../lib/sessionAlgorithm/weighting';
 import { paceForCoverageGoal } from '../../lib/sessionAlgorithm/pace';
+import {
+  computeWeeklyPaceByModule,
+  type BehindPaceNotice,
+} from '../../lib/sessionAlgorithm/weeklyPace';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
 import type { CandidateSpec } from '../../lib/sessionAlgorithm/types';
-import { getGoalFeasibility } from '../goals/progress';
+import {
+  ET_MODULE_REFS,
+  getGoalFeasibility,
+  HF_MODULE_REF,
+  PRODUCTION_MODULE_REF,
+  REPERTOIRE_MODULE_REF,
+  SHAPES_MODULE_REF,
+} from '../goals/progress';
+import {
+  endOfWeekLocal,
+  startOfWeekLocal,
+} from '../goals/weeklyPlanData';
+import { getWeeklyAttempts } from '../../lib/weeklyAttempts';
+import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
   ProposalCardData,
@@ -77,12 +98,15 @@ export async function buildSessionProposals(
 ): Promise<ProposalCardData[]> {
   const goals = await db.goals.where('status').equals('active').toArray();
   const spacingRows = await db.spacingState.toArray();
+  const now = Date.now();
+  const weeklyPace = await loadWeeklyPace(now);
 
   const moduleBlocks = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
-    Date.now(),
+    now,
     inputs.context,
+    weeklyPace.factorByModule,
   );
   if (moduleBlocks.length === 0) {
     return [];
@@ -109,7 +133,18 @@ export async function buildSessionProposals(
 export type SessionPlanReason = AbundanceReason | 'zero-goals';
 
 export type SessionPlan =
-  | { kind: 'proposals'; cards: ProposalCardData[] }
+  | {
+      kind: 'proposals';
+      cards: ProposalCardData[];
+      /** Phase 4 Step 4 — modules meaningfully behind on this week's
+       *  attempt cadence (below 50% of weekly target with > 2 days
+       *  left). Surfaced on the proposal screen as user-actionable
+       *  nudges ("You're behind on HF this week — add it to this
+       *  session?"). Independent of the context hard filter — a
+       *  user on a keys session can still get a notice for HF.
+       *  Empty array when no module qualifies. */
+      behindPaceNotices: BehindPaceNotice[];
+    }
   | { kind: 'abundance'; reason: SessionPlanReason };
 
 export interface SessionPlanContext {
@@ -119,9 +154,26 @@ export interface SessionPlanContext {
   earlierSessionsToday: number;
 }
 
+/**
+ * Phase 4 Step 4 — proposal-generation options that don't belong on
+ * the questionnaire input itself. `forceIncludeModules` overrides
+ * the context hard filter for the named GoalFlowModuleIds so a
+ * user acting on a behind-pace notice ("add HF to this session?")
+ * gets HF candidates even on a keys session.
+ */
+export interface SessionPlanOptions {
+  /** Module ids the hard filter should let through regardless of
+   *  context. Useful when the user explicitly accepts a behind-pace
+   *  notice for a module that the context arc would otherwise
+   *  exclude. Empty array (the default) means honor the hard filter
+   *  unchanged. */
+  forceIncludeModules?: ReadonlyArray<GoalFlowModuleId>;
+}
+
 export async function buildSessionPlan(
   inputs: InputQuestionnaireResult,
   context: SessionPlanContext,
+  options: SessionPlanOptions = {},
 ): Promise<SessionPlan> {
   const goals = await db.goals.where('status').equals('active').toArray();
 
@@ -131,12 +183,23 @@ export async function buildSessionPlan(
     return { kind: 'abundance', reason: 'zero-goals' };
   }
 
+  const now = Date.now();
   const spacingRows = await db.spacingState.toArray();
+  // Phase 4 Step 4 — weekly-pace pressure resolved upstream so the
+  // module-level factor map can be applied during block aggregation.
+  // Behind-pace notices ride alongside the cards back to the UI.
+  // Notices are computed from raw weekly goals BEFORE context
+  // filtering so a user on a keys session can still see "behind on
+  // HF" — the yes-action uses + Add module to inject the named
+  // module past the hard filter.
+  const weeklyPace = await loadWeeklyPace(now);
   const moduleBlocks = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
-    Date.now(),
+    now,
     inputs.context,
+    weeklyPace.factorByModule,
+    options.forceIncludeModules,
   );
 
   const candidatePoolSize = moduleBlocks.reduce(
@@ -171,6 +234,7 @@ export async function buildSessionPlan(
   return {
     kind: 'proposals',
     cards: generateAndShape(moduleBlocks, inputs.timeMinutes * 60),
+    behindPaceNotices: weeklyPace.notices,
   };
 }
 
@@ -246,12 +310,15 @@ export async function buildSessionProposalsForPath(
   const shuffledFiltered = shuffleInPlace(filteredRows.slice());
 
   const availableSeconds = inputs.timeMinutes * 60;
+  const now = Date.now();
+  const weeklyPace = await loadWeeklyPace(now);
 
   const filteredBlocks = aggregateGoalCandidatesByModule(
     goals,
     shuffledFiltered,
-    Date.now(),
+    now,
     inputs.context,
+    weeklyPace.factorByModule,
   );
   if (filteredBlocks.length > 0) {
     return generateAndShape(filteredBlocks, availableSeconds);
@@ -262,8 +329,9 @@ export async function buildSessionProposalsForPath(
   const fallbackBlocks = aggregateGoalCandidatesByModule(
     goals,
     shuffleInPlace(spacingRows.slice()),
-    Date.now(),
+    now,
     inputs.context,
+    weeklyPace.factorByModule,
   );
   if (fallbackBlocks.length === 0) return [];
   return generateAndShape(fallbackBlocks, availableSeconds);
@@ -304,6 +372,90 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 const MAX_ITEMS_PER_BLOCK = 20;
 
 // ---------------------------------------------------------------------
+// Phase 4 Step 4 — Weekly-pace integration helpers
+// ---------------------------------------------------------------------
+
+const ET_MODULE_REFS_SET: ReadonlySet<string> = new Set(ET_MODULE_REFS);
+
+/**
+ * Map a spacingState moduleRef onto the GoalFlowModuleId space used
+ * by weekly goals + getWeeklyAttempts. Each ET sub-module rolls up
+ * to 'ear-training' so a weekly ET goal's pace boost lifts every
+ * sub-module's blocks uniformly. Returns null for moduleRefs we
+ * don't recognise (e.g. mental-viz, future modules) so the caller
+ * skips applying a weekly factor rather than crashing.
+ */
+export function goalFlowModuleForSpacingModuleRef(
+  moduleRef: string,
+): GoalFlowModuleId | null {
+  if (moduleRef === HF_MODULE_REF) return 'harmonic-fluency';
+  if (ET_MODULE_REFS_SET.has(moduleRef)) return 'ear-training';
+  if (moduleRef === SHAPES_MODULE_REF) return 'shapes-and-patterns';
+  if (moduleRef === REPERTOIRE_MODULE_REF) return 'repertoire';
+  if (moduleRef === PRODUCTION_MODULE_REF) return 'production';
+  return null;
+}
+
+/**
+ * Load the current week's actual attempt counts per GoalFlowModuleId,
+ * for use by computeWeeklyPaceByModule. One getWeeklyAttempts call
+ * per module — five total. Practice-consistency is excluded because
+ * a "practice consistency" weekly goal doesn't drive item-level
+ * boosting; its cadence is met by ANY module's session count,
+ * already covered by the generic block weighting.
+ */
+async function loadAttemptsByModule(
+  weekStart: number,
+  weekEnd: number,
+): Promise<Map<string, number>> {
+  const modules: ReadonlyArray<GoalFlowModuleId> = [
+    'harmonic-fluency',
+    'ear-training',
+    'shapes-and-patterns',
+    'repertoire',
+    'production',
+  ];
+  const out = new Map<string, number>();
+  await Promise.all(
+    modules.map(async m => {
+      out.set(m, await getWeeklyAttempts(m, weekStart, weekEnd));
+    }),
+  );
+  return out;
+}
+
+/**
+ * Resolve weekly-pace factors + behind-pace notices for the current
+ * week. Async wrapper around `computeWeeklyPaceByModule` that does
+ * the Dexie load for weekly Goal records + per-module attempt
+ * counts. Pure helpers underneath; this just bridges to storage.
+ */
+export async function loadWeeklyPace(now: number = Date.now()): Promise<{
+  factorByModule: Map<string, number>;
+  notices: BehindPaceNotice[];
+}> {
+  const weekStart = startOfWeekLocal(now);
+  const weekEnd = endOfWeekLocal(weekStart);
+  const allGoals = await db.goals.toArray();
+  const weeklyGoals = allGoals.filter(
+    g =>
+      g.scope === 'weekly' &&
+      g.status === 'active' &&
+      g.startDate <= now &&
+      g.targetDate >= now,
+  );
+  if (weeklyGoals.length === 0) {
+    return { factorByModule: new Map(), notices: [] };
+  }
+  const attemptsByModule = await loadAttemptsByModule(weekStart, weekEnd);
+  return computeWeeklyPaceByModule({
+    weeklyGoals,
+    attemptsByModule,
+    now,
+  });
+}
+
+// ---------------------------------------------------------------------
 // Context-based hard filtering
 // ---------------------------------------------------------------------
 
@@ -333,23 +485,35 @@ export function isGoalCompatibleWithContext(
 }
 
 /**
- * Module-level item filter. Per the polish-sprint context-filter
- * decision: under non-keys context, Shapes & Patterns drops out of
- * algorithm proposals entirely — its spacingState items (chord-shape
- * / scale / voice-leading) all require physical keys, and Mental
- * Visualization isn't tracked in spacingState (flashcard pipeline,
- * not acquisition-stage). Mental-viz remains directly reachable from
- * the Shapes tab; it just doesn't surface in algorithm-generated
- * blocks. All other modules pass through unchanged — Repertoire stays
- * available for chord-progression study even without keys.
+ * Module-level item filter — Phase 3 polish + Phase 4 Step 5
+ * context-arc extension. Two rules layered:
+ *
+ *   non-keys / non-mixed  → Shapes & Patterns dropped (physical-keys
+ *                           only; mental-viz isn't in spacingState).
+ *
+ *   keys / mixed          → only Shapes + Repertoire surface; HF +
+ *                           every ET sub-module + Production excluded
+ *                           by default. Keeps physical-instrument
+ *                           sessions focused on Shapes drills and
+ *                           song work; cognitive modules get the
+ *                           laptop/phone arcs instead. User can
+ *                           manually inject excluded modules via
+ *                           the + Add module affordance — this
+ *                           hard filter only governs default
+ *                           proposals.
+ *
+ * Mental-viz remains reachable from the Shapes tab; it never enters
+ * algorithm-generated blocks because it doesn't write spacingState
+ * rows.
+ *
+ * Delegated to `isModuleAllowedForContext` in contextWeighting.ts so
+ * the per-module rules live alongside the per-module weight tables.
  */
 export function isSpacingRowCompatibleWithContext(
   row: SpacingState,
   userContext: PracticeSessionContext,
 ): boolean {
-  if (CONTEXT_RANK[userContext] >= CONTEXT_RANK['keys']) return true;
-  if (row.moduleRef === 'shapes-and-patterns') return false;
-  return true;
+  return isModuleAllowedForContext(row.moduleRef, userContext);
 }
 
 /**
@@ -400,12 +564,42 @@ export function aggregateGoalCandidatesByModule(
   spacingRows: ReadonlyArray<SpacingState>,
   now: number = Date.now(),
   context: PracticeSessionContext = 'mixed',
+  /** Phase 4 Step 4 — per-GoalFlowModuleId pace boost applied as a
+   *  block-weight multiplier. Falls through to 1.0 (no boost) when
+   *  the module isn't in the map or when no weekly goal exists for
+   *  it. Production callers pre-compute via `loadWeeklyPace()`;
+   *  tests pass a literal Map. */
+  weeklyPaceFactorByModule: ReadonlyMap<string, number> = new Map(),
+  /** Phase 4 Step 4 — modules that should bypass the context hard
+   *  filter for this proposal (e.g. user accepted a behind-pace
+   *  notice on a keys session for HF). Mapped to spacingState
+   *  moduleRefs internally via goalFlowModuleForSpacingModuleRef's
+   *  inverse. Empty by default. */
+  forceIncludeModules: ReadonlyArray<GoalFlowModuleId> = [],
 ): AlgorithmBlock[] {
+  // Build the inverse of goalFlowModuleForSpacingModuleRef: which
+  // spacingState moduleRefs are protected from the hard filter for
+  // this proposal. Done once per call so the row-filter step stays
+  // O(rows).
+  const forcedSpacingModuleRefs = new Set<string>();
+  for (const m of forceIncludeModules) {
+    if (m === 'harmonic-fluency') forcedSpacingModuleRefs.add(HF_MODULE_REF);
+    else if (m === 'ear-training') for (const r of ET_MODULE_REFS) forcedSpacingModuleRefs.add(r);
+    else if (m === 'shapes-and-patterns') forcedSpacingModuleRefs.add(SHAPES_MODULE_REF);
+    else if (m === 'repertoire') forcedSpacingModuleRefs.add(REPERTOIRE_MODULE_REF);
+    else if (m === 'production') forcedSpacingModuleRefs.add(PRODUCTION_MODULE_REF);
+    // 'practice-consistency' has no spacingState rows of its own;
+    // force-including it is a no-op at this layer.
+  }
+
   // Hard-filter spacing rows by context before any aggregation. Drops
-  // shapes-and-patterns rows under non-keys (mental-viz is excluded
-  // from spacingState by design — see isSpacingRowCompatibleWithContext).
+  // rows the context arc excludes (e.g. HF/ET/Production under keys,
+  // shapes under non-keys). Rows whose moduleRef is in
+  // forcedSpacingModuleRefs bypass the filter — the user explicitly
+  // opted that module in via the behind-pace notice.
   const filteredRows = spacingRows.filter(r =>
-    isSpacingRowCompatibleWithContext(r, context),
+    forcedSpacingModuleRefs.has(r.moduleRef)
+      || isSpacingRowCompatibleWithContext(r, context),
   );
 
   const acquiringItemRefs = new Set<string>();
@@ -492,7 +686,23 @@ export function aggregateGoalCandidatesByModule(
     if (top.length === 0) continue;
 
     const itemRefs = top.map(i => i.itemRef);
-    const blockWeight = top[0].weight;
+
+    // Phase 4 Step 4 + Step 5 — block-weight post-multipliers:
+    //   weeklyPaceFactor  — boosts modules behind on the current
+    //                       week's attempt cadence (per-module,
+    //                       not per-item). MAX item weight already
+    //                       carries per-item pace lift from
+    //                       weighting.ts; this layers on top.
+    //   contextFactor     — tunes module priority per session
+    //                       context (laptop foregrounds Production
+    //                       + chord-progressions; phone foregrounds
+    //                       HF/ET). Pure multiplier on the block.
+    const goalFlowModule = goalFlowModuleForSpacingModuleRef(moduleRef);
+    const weeklyPaceFactor = goalFlowModule
+      ? weeklyPaceFactorByModule.get(goalFlowModule) ?? 1.0
+      : 1.0;
+    const contextFactor = contextFactorForModule(moduleRef, context);
+    const blockWeight = top[0].weight * weeklyPaceFactor * contextFactor;
 
     blocks.push({
       id: `block-${idx}-${moduleRef}`,

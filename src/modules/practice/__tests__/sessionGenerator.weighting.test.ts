@@ -61,6 +61,14 @@ function coverageGoal(partial: Partial<Goal> = {}): Goal {
 }
 
 describe('aggregateGoalCandidatesByModule — per-item weighting', () => {
+  // Phase 4 Step 5 context arc: HF rows are excluded from keys/mixed
+  // contexts; tests using HF must pass an explicit non-keys context.
+  // 'laptop' chosen because (a) HF passes the hard filter there, and
+  // (b) the per-block contextFactor (HF on laptop = 1.2) is a stable
+  // constant we can multiply into expected values without coupling
+  // the test to the full per-context weight table.
+  const HF_LAPTOP_CONTEXT_FACTOR = 1.2;
+
   it('block weight reflects per-item factors, not just goal-alignment', () => {
     const goal = coverageGoal();
     const acquiringStaleRow = spacingRow({
@@ -75,16 +83,18 @@ describe('aggregateGoalCandidatesByModule — per-item weighting', () => {
       [goal],
       [acquiringStaleRow],
       NOW,
+      'laptop',
     );
 
     expect(blocks).toHaveLength(1);
     // 5/50 covered after 10 of 30 days → ratio ~0.30 → significantly-behind.
-    // Expected: monthly × significantly-behind pace × acquiring × very-stale × neutral priority
+    // Expected: monthly × significantly-behind pace × acquiring × very-stale × laptop HF contextFactor
     const expected =
       GOAL_ALIGNMENT_FACTOR_MONTHLY *
       PACE_FACTOR_SIGNIFICANTLY_BEHIND *
       ACQUISITION_FACTOR_ACQUIRING *
-      FRESHNESS_FACTOR_VERY_STALE;
+      FRESHNESS_FACTOR_VERY_STALE *
+      HF_LAPTOP_CONTEXT_FACTOR;
     expect(blocks[0].weight).toBeCloseTo(expected, 5);
     // And clearly above the old goal-alignment-only ceiling.
     expect(blocks[0].weight).toBeGreaterThan(GOAL_ALIGNMENT_FACTOR_MONTHLY);
@@ -112,6 +122,7 @@ describe('aggregateGoalCandidatesByModule — per-item weighting', () => {
       // Insert in cold-then-hot order so we know the sort actually ran.
       [coldNeverEngaged, hotAcquiringStale],
       NOW,
+      'laptop',
     );
 
     expect(blocks).toHaveLength(1);
@@ -134,8 +145,8 @@ describe('aggregateGoalCandidatesByModule — per-item weighting', () => {
       lastEngagedAt: null, // freshness neutral
     });
 
-    const monthlyOnly = aggregateGoalCandidatesByModule([monthly], [row], NOW);
-    const both = aggregateGoalCandidatesByModule([monthly, weekly], [row], NOW);
+    const monthlyOnly = aggregateGoalCandidatesByModule([monthly], [row], NOW, 'laptop');
+    const both = aggregateGoalCandidatesByModule([monthly, weekly], [row], NOW, 'laptop');
 
     // Weekly has higher goalAlignmentFactor → adding it should
     // raise the block weight; monthly alone shouldn't move.
@@ -165,5 +176,109 @@ describe('aggregateGoalCandidatesByModule — per-item weighting', () => {
       NOW,
     );
     expect(blocks).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Phase 4 Step 4 + Step 5 — post-multiplier integration
+// ---------------------------------------------------------------------
+
+describe('aggregateGoalCandidatesByModule — weekly-pace + context post-multipliers', () => {
+  it('applies weeklyPaceFactor as a per-module block-weight multiplier', () => {
+    const goal = coverageGoal();
+    const row = spacingRow({
+      id: 'r1',
+      itemRef: 'card-1',
+      moduleRef: 'harmonic-fluency',
+      acquisitionStage: 'new',
+      lastEngagedAt: null,
+    });
+    // Laptop HF contextFactor = 1.2 in both runs; the only variable
+    // is the weekly-pace map. A 1.6 lift should multiply the
+    // resulting block weight by 1.6 exactly.
+    const baseline = aggregateGoalCandidatesByModule([goal], [row], NOW, 'laptop');
+    const boosted = aggregateGoalCandidatesByModule(
+      [goal], [row], NOW, 'laptop',
+      new Map([['harmonic-fluency', 1.6]]),
+    );
+    expect(boosted[0].weight).toBeCloseTo(baseline[0].weight * 1.6, 5);
+  });
+
+  it('applies contextFactor differently across laptop and phone', () => {
+    const goal = coverageGoal();
+    const row = spacingRow({
+      id: 'r1',
+      itemRef: 'card-1',
+      moduleRef: 'harmonic-fluency',
+      acquisitionStage: 'new',
+      lastEngagedAt: null,
+    });
+    const laptop = aggregateGoalCandidatesByModule([goal], [row], NOW, 'laptop');
+    const phone = aggregateGoalCandidatesByModule([goal], [row], NOW, 'phone');
+    // Phone HF factor 1.4 > laptop HF factor 1.2 → phone weight is higher.
+    expect(phone[0].weight).toBeGreaterThan(laptop[0].weight);
+    expect(phone[0].weight / laptop[0].weight).toBeCloseTo(1.4 / 1.2, 5);
+  });
+
+  it('keys context drops HF entirely from the candidate pool', () => {
+    const goal = coverageGoal();
+    const row = spacingRow({
+      id: 'r1',
+      itemRef: 'card-1',
+      moduleRef: 'harmonic-fluency',
+    });
+    const blocks = aggregateGoalCandidatesByModule([goal], [row], NOW, 'keys');
+    expect(blocks).toEqual([]);
+  });
+
+  it('forceIncludeModules overrides the keys hard filter for the named module', () => {
+    const goal = coverageGoal();
+    const row = spacingRow({
+      id: 'r1',
+      itemRef: 'card-1',
+      moduleRef: 'harmonic-fluency',
+    });
+    // Without override: keys drops HF.
+    const withoutOverride = aggregateGoalCandidatesByModule(
+      [goal], [row], NOW, 'keys',
+    );
+    expect(withoutOverride).toEqual([]);
+
+    // With override: HF passes; context factor for HF on keys is the
+    // default (1.0) since the keys table doesn't list HF — so the
+    // block weight equals the base per-item weight unchanged.
+    const withOverride = aggregateGoalCandidatesByModule(
+      [goal], [row], NOW, 'keys',
+      new Map(),
+      ['harmonic-fluency'],
+    );
+    expect(withOverride).toHaveLength(1);
+    expect(withOverride[0].moduleRef).toBe('harmonic-fluency');
+  });
+
+  it('forceIncludeModules ear-training expands to all four ET sub-modules', () => {
+    const goal = coverageGoal({
+      targetMetric: 'ear_training_coverage_at_acquired',
+      relatedModules: ['ear-training'],
+    });
+    const intervalsRow = spacingRow({
+      id: 'r-int',
+      itemRef: 'int-M3',
+      moduleRef: 'intervals',
+    });
+    const chordRecRow = spacingRow({
+      id: 'r-cr',
+      itemRef: 'cr-maj',
+      moduleRef: 'chord-recognition',
+    });
+    const blocks = aggregateGoalCandidatesByModule(
+      [goal], [intervalsRow, chordRecRow], NOW, 'keys',
+      new Map(),
+      ['ear-training'],
+    );
+    // Both sub-modules survive the override; each emits its own block.
+    expect(blocks.map(b => b.moduleRef).sort()).toEqual(
+      ['chord-recognition', 'intervals'],
+    );
   });
 });
