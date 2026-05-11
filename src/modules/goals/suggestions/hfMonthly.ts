@@ -20,12 +20,11 @@ export interface MonthlySuggestion<T> {
 
 /**
  * Build the monthly Harmonic Fluency suggestion. v1 (clean-slate):
- * baseline foundational / math group, cover-to-acquired, no
- * accuracy or consistency targets enabled — the user opts in to
- * those via the "Also add" pills if they want them. Future
- * iterations can read the user's existing progress (which group
- * has the most untouched cards, has the foundational group been
- * acquired already?) and advance the suggestion accordingly.
+ * baseline foundational / math group, cover-to-acquired. The
+ * consistency target is on by default (5 days/week) via
+ * `defaultHarmonicFluency()` — spreading flashcard work across days
+ * matters more for retention than total time. The user can toggle
+ * accuracy or change the days count via the body.
  */
 export function suggestHfMonthly(): MonthlySuggestion<HarmonicFluencyTarget> {
   const target = defaultHarmonicFluency();
@@ -38,6 +37,7 @@ export function suggestHfMonthly(): MonthlySuggestion<HarmonicFluencyTarget> {
     contextLines: [
       'Start with foundational scale-degree math, named notes, and key signatures.',
       'Reach the acquired stage on all 130 cards in this group.',
+      'Default: 5 days/week — frequent short sessions over occasional long ones.',
     ],
   };
 }

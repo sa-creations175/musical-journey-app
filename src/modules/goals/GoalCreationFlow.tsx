@@ -327,8 +327,11 @@ export function defaultEarTraining(): EarTrainingTarget {
     drillTypeId: null,
     drillSubtypeId: null,
     accuracyPercent: 75,
-    consistencyEnabled: false,
-    consistencyCount: 3,
+    // Days/week is the new consistency unit. 5/week is the
+    // suggested default — frequent enough to lock in spaced
+    // repetition without demanding a daily commitment.
+    consistencyEnabled: true,
+    consistencyCount: 5,
     consistencyCadence: 'week',
   };
 }
@@ -377,8 +380,10 @@ export function defaultHarmonicFluency(): HarmonicFluencyTarget {
     accuracyScope: 'overall',
     categoryId: null,
     accuracyPercent: 75,
-    consistencyEnabled: false,
-    consistencyCount: 3,
+    // 5 days/week — same default as Ear Training. HF is flashcard
+    // work and benefits from frequent short sessions.
+    consistencyEnabled: true,
+    consistencyCount: 5,
     consistencyCadence: 'week',
   };
 }
@@ -452,9 +457,10 @@ export function defaultShapesPatterns(): ShapesPatternsTarget {
     shapeId: null,
     keyTarget: 'all',
     proficiencyLevel: 'comfortable',
-    consistencyEnabled: false,
-    // 20 mins/week mirrors the spec preview example.
-    consistencyCount: 20,
+    // 6 days/week — paired with Repertoire since both are keyboard-
+    // dependent and happen together in a Keys session block.
+    consistencyEnabled: true,
+    consistencyCount: 6,
     consistencyCadence: 'week',
   };
 }
@@ -500,8 +506,11 @@ export interface ProductionTarget {
   lessonCount: number;
 
   consistencyEnabled: boolean;
-  /** Hours per cadence — same field name as count-based consistency
-   *  on other modules so the generic card can reuse it. */
+  /** Lessons per week. Persisted as
+   *  `production_lessons_per_cadence` with targetUnit='week'.
+   *  Legacy goals with `production_hours_per_cadence` are decoded by
+   *  resetting this value to the new default — hours are not
+   *  semantically compatible with lessons. */
   consistencyCount: number;
   consistencyCadence: 'week' | 'month';
 }
@@ -515,8 +524,11 @@ export function defaultProduction(): ProductionTarget {
     completionScope: 'path',
     pathId: null,
     lessonCount: 4,
-    consistencyEnabled: false,
-    consistencyCount: 2,
+    // 3 lessons/week — Production's consistency now measures finished
+    // lessons, not hours. Lesson depth is highly variable so we don't
+    // surface a per-lesson time estimate.
+    consistencyEnabled: true,
+    consistencyCount: 3,
     consistencyCadence: 'week',
   };
 }

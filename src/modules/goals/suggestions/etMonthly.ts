@@ -14,8 +14,9 @@ import type { MonthlySuggestion } from './hfMonthly';
  * if both feels like too much, or extend to chord-progressions /
  * scales-modes once the foundational pair is settled.
  *
- * Accuracy and consistency stay off by default — surfaced as
- * "Also add" pills if the user wants them.
+ * Consistency is on by default (5 days/week) via
+ * `defaultEarTraining()`. Accuracy stays off — surfaced as an
+ * "Also add" pill.
  */
 export function suggestEtMonthly(): MonthlySuggestion<EarTrainingTarget> {
   const target = defaultEarTraining();
@@ -28,6 +29,7 @@ export function suggestEtMonthly(): MonthlySuggestion<EarTrainingTarget> {
     contextLines: [
       'Start with the foundational ear-training surfaces: intervals and chord recognition.',
       'Reach the acquired stage on every item in both groups.',
+      'Default: 5 days/week — spread ear training across the week for spaced repetition.',
     ],
   };
 }

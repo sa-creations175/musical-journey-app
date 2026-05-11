@@ -28,8 +28,10 @@ import type { MonthlySuggestion } from './hfMonthly';
  * qualities; the "Triad inversions" pill is a select-all shortcut
  * for all 6 qualities (288 items at once).
  *
- * Proficiency and consistency stay off by default — surfaced as
- * "Also add" pills if the user wants them.
+ * Consistency is on by default (6 days/week) via
+ * `defaultShapesPatterns()` — paired with Repertoire since both are
+ * keyboard-dependent and happen together in Keys session blocks.
+ * Proficiency stays off — surfaced as an "Also add" pill.
  */
 export function suggestShapesMonthly(): MonthlySuggestion<ShapesPatternsTarget> {
   const target = defaultShapesPatterns();
@@ -42,6 +44,7 @@ export function suggestShapesMonthly(): MonthlySuggestion<ShapesPatternsTarget> 
     contextLines: [
       'Cover all 96 major + minor triad-inversion items across 12 keys — each inversion (root, 1st, 2nd, fluid) tracked separately.',
       'Suggested next months: month 2 add diminished + augmented (48 more), month 3 add sus2 + sus4 (48 more) → all 288 triad inversions covered. About 1h 55m/week to start.',
+      'Default: 6 days/week — paired with Repertoire as the Keys session block.',
     ],
   };
 }

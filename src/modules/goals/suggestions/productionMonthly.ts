@@ -7,7 +7,7 @@ import type { MonthlySuggestion } from './hfMonthly';
 /**
  * Build the monthly Production suggestion. v1 (clean-slate):
  * complete the workflow-foundations path (the first path in the
- * production curriculum) plus 1 hour/week consistency commitment.
+ * production curriculum) plus 3 lessons/week consistency.
  *
  * "Next lessons in current path" reduces to "workflow-foundations"
  * for clean-slate users; once we have progress data, the suggestion
@@ -24,14 +24,14 @@ export function suggestProductionMonthly(): MonthlySuggestion<ProductionTarget> 
   target.completionScope = 'path';
   target.pathId = 'workflow-foundations';
   target.consistencyEnabled = true;
-  target.consistencyCount = 1; // 1 hour
+  target.consistencyCount = 3;
   target.consistencyCadence = 'week';
 
   return {
     target,
     contextLines: [
       'Work through workflow foundations — the first lessons of the production path.',
-      'Plus an hour a week to make steady progress.',
+      'Plus 3 lessons/week to keep momentum.',
     ],
   };
 }
