@@ -675,15 +675,20 @@ function isAccuracyMetric(metric: string): boolean {
   return metric.includes('_accuracy_');
 }
 
-/** Consistency metrics — `*_sessions_per_week`, `*_sessions_per_month`,
- *  `*_sessions_per_cadence`, `*_minutes_per_cadence`, `*_hours_per_cadence`,
- *  and the practice-consistency umbrella's `practice_*` flavors. */
+/** Consistency metrics — `*_sessions_per_*`, `*_minutes_per_*`,
+ *  `*_hours_per_*`, `*_days_per_*`, `*_lessons_per_*`, plus the
+ *  practice-consistency umbrella's `practice_*` flavors. The days
+ *  + lessons variants are the new consistency idiom (May 2026
+ *  redesign); the older suffixes stay matched so legacy goals are
+ *  still classified correctly until they're edited and re-encoded. */
 export function isConsistencyMetric(metric: string | null | undefined): boolean {
   if (!metric) return false;
   return (
     metric.includes('_sessions_per_') ||
     metric.includes('_minutes_per_') ||
     metric.includes('_hours_per_') ||
+    metric.includes('_days_per_') ||
+    metric.includes('_lessons_per_') ||
     metric.startsWith('practice_')
   );
 }

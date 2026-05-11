@@ -90,6 +90,7 @@ function isConsistencyMetric(metric: string): boolean {
     metric.includes('_minutes_per_') ||
     metric.includes('_hours_per_') ||
     metric.includes('_days_per_') ||
+    metric.includes('_lessons_per_') ||
     metric.startsWith('practice_')
   );
 }
@@ -160,6 +161,7 @@ function weeklyUnitForMetric(metric: string): string {
   if (isConsistencyMetric(metric)) {
     if (metric.includes('_minutes_per_')) return 'minutes';
     if (metric.includes('_hours_per_')) return 'hours';
+    if (metric.includes('_lessons_per_')) return 'lessons';
     if (metric.includes('_days_per_') || metric.startsWith('practice_')) {
       return 'days';
     }

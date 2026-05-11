@@ -16,6 +16,8 @@ function isConsistencyMetricLocal(metric: string): boolean {
     metric.includes('_sessions_per_') ||
     metric.includes('_minutes_per_') ||
     metric.includes('_hours_per_') ||
+    metric.includes('_days_per_') ||
+    metric.includes('_lessons_per_') ||
     metric.startsWith('practice_')
   );
 }
