@@ -55,6 +55,11 @@ import {
   type BehindPaceNotice,
 } from '../../lib/sessionAlgorithm/weeklyPace';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
+import {
+  loadRepertoireSplitContext,
+  splitRepertoireAllocation,
+  type RepertoireSplitContext,
+} from './repertoireSplit';
 import type { CandidateSpec } from '../../lib/sessionAlgorithm/types';
 import {
   ET_MODULE_REFS,
@@ -112,7 +117,8 @@ export async function buildSessionProposals(
     return [];
   }
 
-  return generateAndShape(moduleBlocks, inputs.timeMinutes * 60);
+  const repertoireSplit = await loadRepertoireSplitContext(now);
+  return generateAndShape(moduleBlocks, inputs.timeMinutes * 60, repertoireSplit);
 }
 
 // ---------------------------------------------------------------------
@@ -231,9 +237,14 @@ export async function buildSessionPlan(
     return { kind: 'abundance', reason: 'queue-cleared' };
   }
 
+  const repertoireSplit = await loadRepertoireSplitContext(now);
   return {
     kind: 'proposals',
-    cards: generateAndShape(moduleBlocks, inputs.timeMinutes * 60),
+    cards: generateAndShape(
+      moduleBlocks,
+      inputs.timeMinutes * 60,
+      repertoireSplit,
+    ),
     behindPaceNotices: weeklyPace.notices,
   };
 }
@@ -262,6 +273,7 @@ function computeGoalPaceRatios(goals: ReadonlyArray<Goal>): number[] {
 function generateAndShape(
   moduleBlocks: AlgorithmBlock[],
   availableSeconds: number,
+  repertoireSplit: RepertoireSplitContext | null = null,
 ): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
@@ -270,7 +282,7 @@ function generateAndShape(
   return proposals.map(p => ({
     kind: p.kind,
     title: p.title,
-    blocks: p.blocks.map(b => toProposalBlock(b)),
+    blocks: p.blocks.flatMap(b => toProposalBlocks(b, repertoireSplit)),
     totalSeconds: p.totalSeconds,
   }));
 }
@@ -320,8 +332,9 @@ export async function buildSessionProposalsForPath(
     inputs.context,
     weeklyPace.factorByModule,
   );
+  const repertoireSplit = await loadRepertoireSplitContext(now);
   if (filteredBlocks.length > 0) {
-    return generateAndShape(filteredBlocks, availableSeconds);
+    return generateAndShape(filteredBlocks, availableSeconds, repertoireSplit);
   }
 
   // Fallback — shuffle the full pool so we still introduce fresh
@@ -334,7 +347,7 @@ export async function buildSessionProposalsForPath(
     weeklyPace.factorByModule,
   );
   if (fallbackBlocks.length === 0) return [];
-  return generateAndShape(fallbackBlocks, availableSeconds);
+  return generateAndShape(fallbackBlocks, availableSeconds, repertoireSplit);
 }
 
 export function filterSpacingRowsByPath(
@@ -730,22 +743,62 @@ function safeMemoryType(moduleRef: string): AlgorithmBlock['memoryType'] {
 // AlgorithmBlock → ProposalBlock display mapping
 // ---------------------------------------------------------------------
 
-function toProposalBlock(block: AllocatedBlock): ProposalBlock {
+/**
+ * Translate one AllocatedBlock to one OR two ProposalBlocks.
+ *
+ * For Repertoire blocks with a known split context (spotlight +
+ * maintenance candidates), the block splits into two display rows
+ * per the Song-of-the-Month spec. For every other module the
+ * function returns a single ProposalBlock — same shape as before.
+ */
+function toProposalBlocks(
+  block: AllocatedBlock,
+  repertoireSplit: RepertoireSplitContext | null,
+): ProposalBlock[] {
   const meta = moduleMetaById(block.moduleRef);
   const moduleLabel = meta?.label ?? block.moduleRef;
   const moduleAccentHex = meta?.accentHex ?? '#4a9088';
 
-  return {
-    id: block.id,
-    moduleRef: block.moduleRef,
-    moduleLabel,
-    moduleAccentHex,
-    activityDescription: describeActivity(block),
-    plannedSeconds: block.plannedSeconds,
-    whySnippet: deriveWhySnippet(block),
-    itemRefs: block.itemRefs,
-    isWarmup: false,
-  };
+  // Repertoire split — only when we have at least one of spotlight
+  // OR maintenance. When both are absent the original single block
+  // passes through unchanged.
+  if (block.moduleRef === 'repertoire' && repertoireSplit) {
+    const splits = splitRepertoireAllocation(block.plannedSeconds, repertoireSplit);
+    if (splits.length > 0) {
+      return splits.map((s, idx) => ({
+        id: `${block.id}-${s.kind}`,
+        moduleRef: block.moduleRef,
+        moduleLabel,
+        moduleAccentHex,
+        activityDescription: s.label,
+        plannedSeconds: s.plannedSeconds,
+        whySnippet: s.why,
+        // Carry the per-block song id (when known) so the quick-
+        // launch destination can route into the specific song's
+        // matrix view rather than the generic Repertoire list.
+        itemRefs: s.songId ? [s.songId] : [],
+        isWarmup: false,
+        // First (spotlight) block gets the warm-up affordance when
+        // splitting; otherwise leave isWarmup off and let the
+        // screen-level wiring decide.
+        ...(idx === 0 ? {} : {}),
+      }));
+    }
+  }
+
+  return [
+    {
+      id: block.id,
+      moduleRef: block.moduleRef,
+      moduleLabel,
+      moduleAccentHex,
+      activityDescription: describeActivity(block),
+      plannedSeconds: block.plannedSeconds,
+      whySnippet: deriveWhySnippet(block),
+      itemRefs: block.itemRefs,
+      isWarmup: false,
+    },
+  ];
 }
 
 /**
