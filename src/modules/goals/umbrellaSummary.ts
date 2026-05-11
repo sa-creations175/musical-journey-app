@@ -77,6 +77,29 @@ export function dimensionDisplayLabel(
 }
 
 /**
+ * User-facing type label for a single goal in the by-module view's
+ * row badges ("COVERAGE", "ACCURACY", "CONSISTENCY", etc).
+ *
+ * Differs from `dimensionDisplayLabel` only in renaming Breadth to
+ * Coverage — same word the rest of the app uses for the same
+ * concept everywhere outside the yearly-anchor framework. Keeps
+ * `dimensionDisplayLabel` (which still says "Breadth" for the
+ * umbrella subtitle) untouched.
+ *
+ * Returns null when the goal's dimension can't be classified —
+ * caller skips the label row entirely.
+ */
+export function goalTypeLabel(
+  goal: Goal,
+  moduleId: GoalFlowModuleId | null,
+): string | null {
+  const dim = dimensionForGoal(goal);
+  if (!dim) return null;
+  if (dim === 'Breadth') return 'Coverage';
+  return dimensionDisplayLabel(dim, moduleId);
+}
+
+/**
  * Classify a goal by dimension. Returns null for goals that
  * don't fit the four-dimension framework (most non-yearly-anchor
  * goals — they're standalone targets, not framework slots).
