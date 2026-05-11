@@ -255,66 +255,117 @@ export interface ConsistencyFields {
 export function ConsistencyTargetCard<T extends ConsistencyFields>({
   target,
   onChange,
-  unitLabel = 'Sessions',
-  hint = 'Show up regularly — sessions per week or month.',
-  cardTitle = 'Consistency target',
+  unitMode = 'days',
+  cardTitle,
+  hint,
+  coverageWeeklyMinutes = null,
+  perDayMinutesOverride = null,
 }: {
   target: T;
   onChange: (next: T) => void;
-  /** Field label and ARIA label for the count input. Defaults to
-   *  "Sessions" — modules that consume minutes (e.g., Shapes &
-   *  Patterns) or hours (e.g., Production) override accordingly. */
-  unitLabel?: string;
-  /** Card-header hint text. Defaults to the sessions phrasing;
-   *  override per module to keep the unit honest. */
-  hint?: string;
-  /** Card-header title. Defaults to "Consistency target" — Production
-   *  overrides with "Time target" since hours-as-time reads more
-   *  naturally there. */
+  /** Days mode (HF / ET / Shapes / Repertoire): clamps the count to
+   *  1–7 and frames the input as "days per week". When
+   *  `coverageWeeklyMinutes` is provided the card renders an inline
+   *  per-day time estimate (= weekly minutes ÷ days). When neither
+   *  coverage minutes nor a per-day override are supplied, the card
+   *  shows a hint pointing the user back to the coverage card.
+   *
+   *  Lessons mode (Production only): the count means lessons per
+   *  week. No per-day estimate, no empty-coverage hint — lesson
+   *  depth is highly variable. */
+  unitMode?: 'days' | 'lessons';
+  /** Card-header title. Sensible per-mode defaults: 'Practice days'
+   *  for days mode, 'Lesson target' for lessons mode. */
   cardTitle?: string;
+  /** Card-header hint text. Defaults to mode-appropriate copy. */
+  hint?: string;
+  /** Coverage-derived weekly time commitment in minutes. When
+   *  provided in days mode, the card divides by the days count to
+   *  render an inline per-day estimate. Null means "no coverage set
+   *  yet" — the card shows the empty-coverage hint. */
+  coverageWeeklyMinutes?: number | null;
+  /** Override the per-day minutes calculation entirely. Used by
+   *  Repertoire, which has no coverage-derived time to divide from
+   *  but does have a known per-session default. */
+  perDayMinutesOverride?: number | null;
 }) {
+  const isDays = unitMode === 'days';
+  const resolvedTitle = cardTitle ?? (isDays ? 'Practice days' : 'Lesson target');
+  const resolvedHint =
+    hint
+    ?? (isDays
+      ? 'Spread practice across the week — days matter more than total time.'
+      : 'Lessons completed per week. Depth varies; no per-lesson time estimate.');
+
   const toggle = () => onChange({ ...target, consistencyEnabled: !target.consistencyEnabled });
-  const setCount = (n: number) => {
-    // Allow empty string to read as 0 from the input; clamp at 1
-    // floor on save / preview but keep the raw value for editing fluency.
-    onChange({ ...target, consistencyCount: Number.isFinite(n) ? n : 0 });
+  const setCount = (raw: number) => {
+    const n = Number.isFinite(raw) ? raw : 0;
+    // Days mode clamps at 7. Lessons mode is open-ended but we keep
+    // 0 → "" editing fluency in both.
+    const clamped = isDays ? Math.min(n, 7) : n;
+    // Force cadence to 'week' on every onChange so the field stays
+    // consistent even though we no longer render a picker.
+    onChange({ ...target, consistencyCount: clamped, consistencyCadence: 'week' });
   };
-  const setCadence = (c: 'week' | 'month') => {
-    if (c === target.consistencyCadence) return;
-    onChange({ ...target, consistencyCadence: c });
-  };
+
+  // Per-day estimate: only meaningful in days mode with a positive
+  // day count and a non-null source of minutes. Override wins when
+  // both are set (Repertoire uses the override; HF/ET/Shapes
+  // typically use coverageWeeklyMinutes).
+  const days = target.consistencyCount;
+  const perDayMinutes =
+    !isDays || days <= 0
+      ? null
+      : perDayMinutesOverride != null
+        ? perDayMinutesOverride
+        : coverageWeeklyMinutes != null && coverageWeeklyMinutes > 0
+          ? coverageWeeklyMinutes / days
+          : null;
+
+  // Empty-coverage hint: shown only in days mode when nothing
+  // upstream can feed the per-day estimate.
+  const showEmptyCoverageHint =
+    isDays
+    && days > 0
+    && perDayMinutesOverride == null
+    && (coverageWeeklyMinutes == null || coverageWeeklyMinutes <= 0);
+
+  const fieldLabel = isDays ? 'Days' : 'Lessons';
+  const cadenceWord = isDays ? 'per week' : 'per week';
 
   return (
     <ToggleCard
-      title={cardTitle}
-      hint={hint}
+      title={resolvedTitle}
+      hint={resolvedHint}
       enabled={target.consistencyEnabled}
       onToggle={toggle}
     >
-      <div className="flex items-end gap-2">
-        <Field label={unitLabel}>
+      <div className="flex items-end gap-2 flex-wrap">
+        <Field label={fieldLabel}>
           <input
             type="number"
             min={1}
+            max={isDays ? 7 : undefined}
             value={target.consistencyCount === 0 ? '' : target.consistencyCount}
             onChange={e => setCount(Number(e.target.value))}
             className={`${inputClass()} w-20`}
-            aria-label={`${unitLabel} per cadence`}
+            aria-label={`${fieldLabel} per week`}
           />
         </Field>
-        <div className="flex gap-1.5 pb-[2px]">
-          <PillButton
-            label="per week"
-            active={target.consistencyCadence === 'week'}
-            onClick={() => setCadence('week')}
-          />
-          <PillButton
-            label="per month"
-            active={target.consistencyCadence === 'month'}
-            onClick={() => setCadence('month')}
-          />
-        </div>
+        <span className="text-sm text-neutral-700 dark:text-neutral-200 pb-2">
+          {cadenceWord}
+        </span>
+        {perDayMinutes != null && (
+          <span className="pb-2 text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
+            · ~{Math.max(1, Math.round(perDayMinutes))} min/day
+          </span>
+        )}
       </div>
+      {showEmptyCoverageHint && (
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 italic">
+          Add a coverage target above to see your estimated time per day.
+        </p>
+      )}
     </ToggleCard>
   );
 }

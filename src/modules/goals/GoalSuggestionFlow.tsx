@@ -24,6 +24,7 @@ import {
   formatWeeklyTimeEstimate,
   weeklyTimeForRecords,
 } from './weeklyTimeEstimate';
+import { REPERTOIRE_SESSION_DEFAULT_MINUTES } from '../../lib/weeklyAttempts';
 import { AccuracySlider } from './yearlyAnchorDimensions';
 import {
   EAR_TRAINING_DRILL_TYPES,
@@ -1212,8 +1213,7 @@ function ShapesPatternsMonthlyBody({
         <ConsistencyTargetCard
           target={target}
           onChange={setTarget}
-          unitLabel="Minutes"
-          hint="Minutes per week or month."
+          unitMode="days"
         />
       )}
     </BodyShell>
@@ -1487,9 +1487,9 @@ function ProductionConsistencyFocus({
     <ConsistencyTargetCard
       target={target}
       onChange={onChange}
-      unitLabel="Hours"
-      hint="Hours of production work per week or month."
-      cardTitle="Time target"
+      unitMode="lessons"
+      cardTitle="Lesson target"
+      hint="Lessons completed per week. Depth varies; no per-lesson estimate."
     />
   );
 }
@@ -1676,10 +1676,12 @@ function RepertoireMonthlyBody({
   });
   const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
 
-  // Save gate: at least one new-this-month entry OR an enabled
-  // time-commitment target with a positive value. Section 1 is
-  // display-only and doesn't count toward the gate.
-  const hasNewSongs = newSlots.length > 0;
+  // Save gate: at least one concrete new-this-month entry OR an
+  // enabled time-commitment target with a positive value. TBD slots
+  // don't count — they're skipped by the persist path, so allowing
+  // them through the gate alone would write an empty umbrella.
+  // Section 1 is display-only and doesn't count.
+  const hasNewSongs = newSlots.some(s => s.data.kind !== 'tbd');
   const hasHoursTarget =
     hoursTarget.consistencyEnabled && hoursTarget.consistencyCount > 0;
   const hasSelection = hasNewSongs || hasHoursTarget;
@@ -1730,9 +1732,10 @@ function RepertoireMonthlyBody({
       <ConsistencyTargetCard
         target={hoursTarget}
         onChange={setHoursTarget}
-        unitLabel="Hours"
-        hint="Time at the keyboard on repertoire. Saves as a `repertoire_hours_per_cadence` goal — surfaces in the weekly plan as a time block."
-        cardTitle="Time commitment"
+        unitMode="days"
+        cardTitle="Practice days"
+        hint="Spread repertoire work across the week — days matter more than total hours."
+        perDayMinutesOverride={REPERTOIRE_SESSION_DEFAULT_MINUTES}
       />
       <RepertoireNewSection
         slots={newSlots}
@@ -2020,14 +2023,19 @@ async function persistRepertoireMonthlyGoal(
   args: PersistRepertoireArgs,
 ): Promise<void> {
   const { newSlots, hoursTarget, anchorGoalId, scope, targetDate, allSongs } = args;
-  const hasNewSongs = newSlots.length > 0;
+  const hasNewSongs = newSlots.some(s => s.data.kind !== 'tbd');
   const hasHoursTarget =
     hoursTarget.consistencyEnabled && hoursTarget.consistencyCount > 0;
   if (!hasNewSongs && !hasHoursTarget) return;
 
   // 1) Resolve each new-this-month slot to a song id (creating new
-  //    Song rows for typed slots), or null for TBD.
-  type ResolvedSlot = { songId: string | null; description: string };
+  //    Song rows for typed slots). TBD slots are skipped entirely:
+  //    "start a new song this month" with no specific song would
+  //    create a goal record with empty relatedItems that the session
+  //    algorithm can't surface against any concrete work. The
+  //    hours-based time-commitment child carries the intent on its
+  //    own, so dropping TBD slots loses nothing.
+  type ResolvedSlot = { songId: string; description: string };
   const resolvedNewSlots: ResolvedSlot[] = [];
   const newSongRowsToInsert: Song[] = [];
 
@@ -2062,13 +2070,8 @@ async function persistRepertoireMonthlyGoal(
         songId: id,
         description: `Start ${d.title} this month — reach comfortable`,
       });
-    } else {
-      // TBD — placeholder goal with empty relatedItems.
-      resolvedNewSlots.push({
-        songId: null,
-        description: 'Start a new song this month — TBD',
-      });
     }
+    // TBD slots: skip — no concrete song to attach a child goal to.
   }
 
   // 2) Build child goal records.
@@ -2093,7 +2096,7 @@ async function persistRepertoireMonthlyGoal(
     targetMetric: 'song_whole_at_level',
     targetValue: null,
     targetUnit: 'comfortable',
-    relatedItems: slot.songId ? [slot.songId] : [],
+    relatedItems: [slot.songId],
     parentGoalId: umbrellaId,
     isUmbrella: false,
   }));

@@ -2353,8 +2353,7 @@ function Step2ShapesPatterns({
       <ConsistencyTargetCard
         target={target}
         onChange={setTarget}
-        unitLabel="Minutes"
-        hint="Show up regularly — minutes per week or month."
+        unitMode="days"
       />
       <TargetPreview text={previewShapesPatternsTarget(target)} />
     </div>
@@ -2700,9 +2699,9 @@ function Step2Production({
       <ConsistencyTargetCard
         target={target}
         onChange={setTarget}
-        cardTitle="Time target"
-        unitLabel="Hours"
-        hint="How much time at the workstation per week or month."
+        unitMode="lessons"
+        cardTitle="Lesson target"
+        hint="Lessons completed per week. Depth varies; no per-lesson estimate."
       />
       <TargetPreview text={previewProductionTarget(target)} />
     </div>
