@@ -45,14 +45,11 @@ export interface SyncTableConfig {
  * in the Postgres schema is all that's needed to bring it into sync.
  */
 export const SYNC_TABLES: SyncTableConfig[] = [
-  // TODO (Supabase): once the Postgres migration adds `learning_order`
-  // (see src/lib/db.ts v21 comment), add `{ dexie: 'learningOrder',
-  // pg: 'learning_order' }` here. The value already round-trips via
-  // the `data` JSONB blob — the only missing piece is the indexed
-  // top-level column. Until then this mapping must NOT be added or
-  // upserts will fail with "column learning_order does not exist".
   { dexie: 'songs', pg: 'songs', idField: 'id',
-    topLevel: [{ dexie: 'addedDate', pg: 'added_date' }] },
+    topLevel: [
+      { dexie: 'addedDate', pg: 'added_date' },
+      { dexie: 'learningOrder', pg: 'learning_order' },
+    ] },
   { dexie: 'songSections', pg: 'song_sections', idField: 'id',
     topLevel: [{ dexie: 'songId', pg: 'song_id' }] },
   { dexie: 'songChords', pg: 'song_chords', idField: 'id',

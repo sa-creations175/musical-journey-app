@@ -113,12 +113,16 @@ export async function buildSessionProposals(
     inputs.context,
     weeklyPace.factorByModule,
   );
-  if (moduleBlocks.length === 0) {
-    return [];
-  }
 
   const repertoireSplit = await loadRepertoireSplitContext(now);
-  return generateAndShape(moduleBlocks, inputs.timeMinutes * 60, repertoireSplit);
+  const withColdStart = maybeInjectRepertoireColdStartBlock(
+    moduleBlocks,
+    goals,
+    repertoireSplit,
+    inputs.context,
+  );
+  if (withColdStart.length === 0) return [];
+  return generateAndShape(withColdStart, inputs.timeMinutes * 60, repertoireSplit);
 }
 
 // ---------------------------------------------------------------------
@@ -199,13 +203,24 @@ export async function buildSessionPlan(
   // HF" — the yes-action uses + Add module to inject the named
   // module past the hard filter.
   const weeklyPace = await loadWeeklyPace(now);
-  const moduleBlocks = aggregateGoalCandidatesByModule(
+  const aggregated = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
     now,
     inputs.context,
     weeklyPace.factorByModule,
     options.forceIncludeModules,
+  );
+  const repertoireSplit = await loadRepertoireSplitContext(now);
+  // Inject a Repertoire cold-start block before abundance detection so
+  // a song goal with no spacing data doesn't trigger queue-cleared —
+  // there IS work waiting (the spotlight + maintenance songs), it
+  // just isn't recorded in spacingState yet.
+  const moduleBlocks = maybeInjectRepertoireColdStartBlock(
+    aggregated,
+    goals,
+    repertoireSplit,
+    inputs.context,
   );
 
   const candidatePoolSize = moduleBlocks.reduce(
@@ -237,7 +252,6 @@ export async function buildSessionPlan(
     return { kind: 'abundance', reason: 'queue-cleared' };
   }
 
-  const repertoireSplit = await loadRepertoireSplitContext(now);
   return {
     kind: 'proposals',
     cards: generateAndShape(
@@ -333,8 +347,14 @@ export async function buildSessionProposalsForPath(
     weeklyPace.factorByModule,
   );
   const repertoireSplit = await loadRepertoireSplitContext(now);
-  if (filteredBlocks.length > 0) {
-    return generateAndShape(filteredBlocks, availableSeconds, repertoireSplit);
+  const filteredWithColdStart = maybeInjectRepertoireColdStartBlock(
+    filteredBlocks,
+    goals,
+    repertoireSplit,
+    inputs.context,
+  );
+  if (filteredWithColdStart.length > 0) {
+    return generateAndShape(filteredWithColdStart, availableSeconds, repertoireSplit);
   }
 
   // Fallback — shuffle the full pool so we still introduce fresh
@@ -346,8 +366,14 @@ export async function buildSessionProposalsForPath(
     inputs.context,
     weeklyPace.factorByModule,
   );
-  if (fallbackBlocks.length === 0) return [];
-  return generateAndShape(fallbackBlocks, availableSeconds, repertoireSplit);
+  const fallbackWithColdStart = maybeInjectRepertoireColdStartBlock(
+    fallbackBlocks,
+    goals,
+    repertoireSplit,
+    inputs.context,
+  );
+  if (fallbackWithColdStart.length === 0) return [];
+  return generateAndShape(fallbackWithColdStart, availableSeconds, repertoireSplit);
 }
 
 export function filterSpacingRowsByPath(
@@ -737,6 +763,80 @@ function safeMemoryType(moduleRef: string): AlgorithmBlock['memoryType'] {
   } catch {
     return 'declarative';
   }
+}
+
+/**
+ * Moderate weight for synthetic cold-start Repertoire blocks. Pitched
+ * to land between "neutral" (~1.0) and "heavy pace pressure" (~13)
+ * so a Repertoire goal with no spacing data still ranks competitively
+ * but doesn't crowd out genuinely urgent items elsewhere.
+ */
+const COLD_START_REPERTOIRE_WEIGHT = 5;
+
+/**
+ * Cold-start support for song goals. The aggregator above only emits a
+ * Repertoire block when at least one spacingState row carries
+ * moduleRef='repertoire' — which only happens after the user has
+ * logged practice on a song. Goals on songs with no songCellRunThroughs
+ * (the cold-start case) would otherwise never surface in proposals.
+ *
+ * loadRepertoireSplitContext already finds the right spotlight +
+ * maintenance candidate (lowest-learningOrder not-yet-comfortable
+ * song), so the only missing piece is injecting an AlgorithmBlock so
+ * generateProposals + toProposalBlocks have something to allocate
+ * Repertoire time to. The downstream split (toProposalBlocks) reads
+ * the split context as its source of truth and overwrites itemRefs
+ * with the spotlight/maintenance songIds.
+ *
+ * Conditions for injection:
+ *   · at least one active song_proficiency goal (Song of the Month,
+ *     song_whole_at_level, etc.)
+ *   · context permits Repertoire (not phone/laptop arcs)
+ *   · no Repertoire block was generated from spacing rows
+ *   · loadRepertoireSplitContext returned a candidate (spotlight OR
+ *     maintenance — TBD-only spotlight still counts, since the split
+ *     surfaces an "Add a song in Goals" inline action).
+ */
+export function maybeInjectRepertoireColdStartBlock(
+  blocks: AlgorithmBlock[],
+  goals: ReadonlyArray<Goal>,
+  repertoireSplit: RepertoireSplitContext | null,
+  context: PracticeSessionContext,
+): AlgorithmBlock[] {
+  if (blocks.some(b => b.moduleRef === REPERTOIRE_MODULE_REF)) return blocks;
+  if (!isModuleAllowedForContext(REPERTOIRE_MODULE_REF, context)) return blocks;
+  const hasSongGoal = goals.some(
+    g => candidateSpecForGoal(g).kind === 'song_proficiency',
+  );
+  if (!hasSongGoal) return blocks;
+  if (!repertoireSplit) return blocks;
+  const hasSpotlight = !!repertoireSplit.spotlight;
+  const hasMaintenance = !!repertoireSplit.maintenanceSong;
+  if (!hasSpotlight && !hasMaintenance) return blocks;
+
+  // Collect concrete songIds as itemRefs (downstream split overwrites
+  // these from the split context, but having them here keeps the
+  // block coherent with its eventual content for any consumer that
+  // inspects itemRefs pre-split). TBD spotlight contributes nothing
+  // here — refId is null — but the split still produces a TBD block.
+  const itemRefs: string[] = [];
+  const s = repertoireSplit.spotlight;
+  if (s && s.kind === 'song' && s.refId) itemRefs.push(s.refId);
+  if (repertoireSplit.maintenanceSong) {
+    itemRefs.push(repertoireSplit.maintenanceSong.id);
+  }
+
+  return [
+    ...blocks,
+    {
+      id: 'block-repertoire-cold-start',
+      moduleRef: REPERTOIRE_MODULE_REF,
+      memoryType: safeMemoryType(REPERTOIRE_MODULE_REF),
+      itemRefs,
+      weight: COLD_START_REPERTOIRE_WEIGHT,
+      hasAcquiringItems: false,
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------
