@@ -1658,7 +1658,24 @@ function RepertoireMonthlyBody({
   // "pick from your repertoire" path; WTL backs the "pick a queued
   // song to bring into the spotlight" path. Both lists feed the
   // queue picker.
-  const allSongs = useLiveQuery(() => db.songs.toArray(), []);
+  //
+  // Songs are pre-sorted by learningOrder ASC so the Maintain
+  // section + the queue picker read in the user's authored study
+  // order. Matches the source-side sort in Repertoire.tsx — the
+  // in-component sort that used to live inside RepertoireMaintainSection
+  // doesn't catch legacy synced rows whose learningOrder is
+  // undefined (the comparator collapses to a no-op and the
+  // unsorted insert order leaks through).
+  const allSongs = useLiveQuery(
+    () => db.songs
+      .toArray()
+      .then(rows => rows.sort(
+        (a, b) =>
+          (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.learningOrder ?? Number.MAX_SAFE_INTEGER),
+      )),
+    [],
+  );
   const wantToLearn = useLiveQuery(() => db.wantToLearn.toArray(), []);
 
   const [queue, setQueue] = useState<DraftSlot[]>([]);
@@ -1766,13 +1783,9 @@ function excludedQueueRefs(queue: DraftSlot[]): {
 // ---------------------------------------------------------------------
 
 function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
-  // Display order matches the user-authored study sequence so the
-  // numbered list here reads identically to the Repertoire home.
-  const ordered = [...songs].sort(
-    (a, b) =>
-      (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
-      (b.learningOrder ?? Number.MAX_SAFE_INTEGER),
-  );
+  // `songs` arrives pre-sorted by learningOrder from the parent
+  // body — the numbered list reads identically to the Repertoire
+  // home's study sequence.
   return (
     <section className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
       <header>
@@ -1783,13 +1796,13 @@ function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
           Keep these comfortable through the month
         </div>
       </header>
-      {ordered.length === 0 ? (
+      {songs.length === 0 ? (
         <p className="text-xs text-neutral-500 italic">
           No songs in your repertoire yet — add one in the New section below.
         </p>
       ) : (
         <ol className="list-decimal list-inside text-sm text-neutral-700 dark:text-neutral-200 space-y-1 marker:text-neutral-400">
-          {ordered.map(s => (
+          {songs.map(s => (
             <li key={s.id}>
               <span>{s.title}</span>
               {s.artist && (
