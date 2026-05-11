@@ -16,7 +16,7 @@
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { db, type Goal } from '../../../lib/db';
-import { loadGoalForEdit } from '../editLoad';
+import { isSuggestionFlowEditCandidate, loadGoalForEdit } from '../editLoad';
 import { COVERAGE_OVERALL_METRIC, COVERAGE_SPECIFIC_METRIC } from '../coverageMetrics';
 
 const NOW = new Date(2026, 4, 11).getTime();
@@ -291,6 +291,67 @@ describe('loadGoalForEdit — Repertoire queue + days', () => {
     const prefill = await loadGoalForEdit(umb);
     if (prefill?.moduleId !== 'repertoire') throw new Error('wrong module');
     expect(prefill.daysTarget.consistencyEnabled).toBe(false);
+  });
+});
+
+describe('isSuggestionFlowEditCandidate — routing predicate', () => {
+  it('matches monthly new-vocab metric children', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_days_per_cadence',
+    }))).toBe(true);
+  });
+
+  it('matches monthly umbrella rows with relatedModules set', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'monthly',
+      isUmbrella: true,
+      targetMetric: null,
+      relatedModules: ['harmonic-fluency'],
+    }))).toBe(true);
+  });
+
+  it('matches monthly song_of_month metric (Repertoire queue child)', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'song_of_month',
+      targetValue: 2,
+      targetUnit: 'wtl',
+      relatedModules: ['repertoire'],
+    }))).toBe(true);
+  });
+
+  it('matches monthly song_whole_at_level when relatedModules includes repertoire', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'song_whole_at_level',
+      relatedModules: ['repertoire'],
+    }))).toBe(true);
+  });
+
+  it('rejects non-monthly goals', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'yearly',
+      isUmbrella: true,
+      targetMetric: null,
+      relatedModules: ['harmonic-fluency'],
+    }))).toBe(false);
+  });
+
+  it('rejects umbrellas with no relatedModules', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'monthly',
+      isUmbrella: true,
+      targetMetric: null,
+      relatedModules: [],
+    }))).toBe(false);
+  });
+
+  it('rejects legacy old-vocab metrics', () => {
+    expect(isSuggestionFlowEditCandidate(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'items_at_level',
+    }))).toBe(false);
   });
 });
 

@@ -19,7 +19,7 @@ import './devCleanup';
 import './devInspectActivity';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
-import { SONG_OF_MONTH_METRIC } from '../repertoire/songOfMonth';
+import { isSuggestionFlowEditCandidate } from './editLoad';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
@@ -157,32 +157,6 @@ type FormMode =
   | { kind: 'closed' }
   | { kind: 'create'; scope: GoalScope | null }
   | { kind: 'edit'; goal: Goal };
-
-/**
- * Decide which modal handles editing a given goal:
- *   · GoalSuggestionFlow — monthly goals whose shape the suggestion
- *     flow can render (new-vocab metric, new-style umbrella, or
- *     Repertoire song queue children). Covers the routing gap
- *     where pure-umbrella goals (targetMetric: null) previously fell
- *     through to GoalFormModal.
- *   · GoalCreationFlow — non-monthly new-vocab metrics.
- *   · GoalFormModal — everything else (legacy generic vocabulary).
- */
-function isSuggestionFlowEditCandidate(goal: Goal): boolean {
-  if (goal.scope !== 'monthly') return false;
-  // New-vocab metric (HF/ET/Shapes/Production/PracticeConsistency child or single-target).
-  if (isNewVocabMetric(goal.targetMetric)) return true;
-  // New-style umbrella row (no metric, module derivable from relatedModules).
-  if (goal.isUmbrella && goal.targetMetric === null && goal.relatedModules.length > 0) return true;
-  // Repertoire song-of-month queue children (slots 2/3 + TBD spotlight).
-  if (goal.targetMetric === SONG_OF_MONTH_METRIC) return true;
-  // Repertoire spotlight song goal (slot 1 specific).
-  if (
-    goal.targetMetric === 'song_whole_at_level'
-    && goal.relatedModules.includes('repertoire')
-  ) return true;
-  return false;
-}
 
 /** Phase 2 step 6g — passed from the page-level component down
  *  to every row so collapse state is a single source of truth

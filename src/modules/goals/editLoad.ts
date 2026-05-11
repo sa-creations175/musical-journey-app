@@ -1,4 +1,5 @@
 import { db, type Goal } from '../../lib/db';
+import { isNewVocabMetric } from './goalVocabulary';
 import {
   decodeEarTraining,
   decodeHarmonicFluency,
@@ -362,6 +363,39 @@ function isShapesConsistencyChild(g: Goal): boolean {
 function isProductionConsistencyChild(g: Goal): boolean {
   return g.targetMetric === 'production_lessons_per_cadence'
     || g.targetMetric === 'production_hours_per_cadence';
+}
+
+/**
+ * Decide whether a goal's shape can be rendered by GoalSuggestionFlow's
+ * edit mode. Routing-only — independent of whether `loadGoalForEdit`
+ * actually succeeds at runtime (which depends on Dexie content). Used
+ * by Goals.tsx to pick the right modal for each edit click:
+ *
+ *   true  → GoalSuggestionFlow with existingGoal
+ *   false → GoalCreationFlow (new-vocab non-monthly) or GoalFormModal
+ *           (legacy generic vocabulary)
+ *
+ * Four positive cases:
+ *   · new-vocab metric on a monthly goal
+ *   · monthly umbrella row (targetMetric: null + relatedModules set)
+ *   · monthly Repertoire song-of-month queue child (slots 2/3 + TBD)
+ *   · monthly Repertoire spotlight song (song_whole_at_level)
+ *
+ * Closes the routing gap where umbrellas (targetMetric: null) and
+ * song_of_month / song_whole_at_level metrics fell through to
+ * GoalFormModal because `isNewVocabMetric(null) === false` matched
+ * the legacy branch.
+ */
+export function isSuggestionFlowEditCandidate(goal: Goal): boolean {
+  if (goal.scope !== 'monthly') return false;
+  if (isNewVocabMetric(goal.targetMetric)) return true;
+  if (goal.isUmbrella && goal.targetMetric === null && goal.relatedModules.length > 0) return true;
+  if (goal.targetMetric === 'song_of_month') return true;
+  if (
+    goal.targetMetric === 'song_whole_at_level'
+    && goal.relatedModules.includes('repertoire')
+  ) return true;
+  return false;
 }
 
 /**
