@@ -765,7 +765,7 @@ function toProposalBlocks(
   if (block.moduleRef === 'repertoire' && repertoireSplit) {
     const splits = splitRepertoireAllocation(block.plannedSeconds, repertoireSplit);
     if (splits.length > 0) {
-      return splits.map((s, idx) => ({
+      return splits.map(s => ({
         id: `${block.id}-${s.kind}`,
         moduleRef: block.moduleRef,
         moduleLabel,
@@ -778,10 +778,16 @@ function toProposalBlocks(
         // matrix view rather than the generic Repertoire list.
         itemRefs: s.songId ? [s.songId] : [],
         isWarmup: false,
-        // First (spotlight) block gets the warm-up affordance when
-        // splitting; otherwise leave isWarmup off and let the
-        // screen-level wiring decide.
-        ...(idx === 0 ? {} : {}),
+        // TBD spotlight surfaces an inline "Add a song in Goals"
+        // action — the block still renders normally so the
+        // sibling Maintenance block keeps its allocation; this is
+        // a discoverability nudge, not a hard gate.
+        ...(s.isTbdSpotlight
+          ? {
+              inlineActionText: 'Add a song in Goals to continue',
+              inlineActionTarget: 'goals' as const,
+            }
+          : {}),
       }));
     }
   }

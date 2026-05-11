@@ -46,6 +46,11 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
     if (route) navigate(route);
   };
 
+  const handleInlineAction = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (block.inlineActionTarget === 'goals') navigate('/goals');
+  };
+
   const tint = `${block.moduleAccentHex}14`; // ~8% alpha
 
   return (
@@ -84,6 +89,24 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
           <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
             {block.activityDescription}
           </div>
+          {block.inlineActionText && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleInlineAction}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleInlineAction(e as unknown as React.MouseEvent);
+                }
+              }}
+              className="inline-flex items-center gap-1 text-[11px] font-medium hover:opacity-80 cursor-pointer underline-offset-2 hover:underline"
+              style={{ color: block.moduleAccentHex }}
+            >
+              {block.inlineActionText}
+              <span aria-hidden>→</span>
+            </span>
+          )}
         </div>
         <div className="shrink-0 font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}

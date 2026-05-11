@@ -47,6 +47,17 @@ export interface ProposalBlock {
    *  block per card to flag as warm-up; this component just paints
    *  the badge when told. */
   isWarmup?: boolean;
+  /** Optional inline action surfaced next to the activity
+   *  description. Used by the Song-of-the-Month TBD spotlight to
+   *  point the user at the Goals page to pick a song — the block
+   *  still renders (with its allocated time + maintenance sibling),
+   *  but the user has a one-click path to fill the TBD slot
+   *  without leaving the proposal context. */
+  inlineActionText?: string;
+  /** Routing target for `inlineActionText`. Currently the only
+   *  supported value is 'goals'; the screen navigates there on
+   *  click. Extend the union as new inline-action surfaces show up. */
+  inlineActionTarget?: 'goals';
 }
 
 export interface ProposalCardData {
