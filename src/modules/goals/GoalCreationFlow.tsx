@@ -1596,7 +1596,7 @@ function uid(prefix: string): string {
  * Returns the new song's id so the caller can immediately wire it
  * into the goal's selection.
  */
-async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string> {
+export async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string> {
   const now = Date.now();
   const songId = uid('song');
   const learningOrder = await assignNextLearningOrder();
