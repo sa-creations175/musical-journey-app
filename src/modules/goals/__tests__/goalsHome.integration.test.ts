@@ -528,11 +528,21 @@ describe('Step 7 integration — feasibility pipeline', () => {
   it('isConsistencyMetric catches all consistency cadence shapes', () => {
     // Pin the predicate that filters consistency children from
     // umbrella rendering (7e decision).
+    // New idiom (May 2026 redesign): days-per-week + lessons-per-week.
+    expect(isConsistencyMetric('ear_training_days_per_cadence')).toBe(true);
+    expect(isConsistencyMetric('harmonic_fluency_days_per_cadence')).toBe(true);
+    expect(isConsistencyMetric('shapes_days_per_cadence')).toBe(true);
+    expect(isConsistencyMetric('repertoire_days_per_cadence')).toBe(true);
+    expect(isConsistencyMetric('production_lessons_per_cadence')).toBe(true);
+    // Legacy — keep matching so existing user goals classify correctly.
     expect(isConsistencyMetric('ear_training_sessions_per_week')).toBe(true);
     expect(isConsistencyMetric('ear_training_sessions_per_cadence')).toBe(true);
     expect(isConsistencyMetric('shapes_minutes_per_cadence')).toBe(true);
     expect(isConsistencyMetric('production_hours_per_cadence')).toBe(true);
+    expect(isConsistencyMetric('repertoire_hours_per_cadence')).toBe(true);
+    // Practice-consistency umbrella.
     expect(isConsistencyMetric('practice_weekly_floor_days')).toBe(true);
+    // Negative cases.
     expect(isConsistencyMetric('ear_training_coverage_at_acquired')).toBe(false);
     expect(isConsistencyMetric(null)).toBe(false);
   });

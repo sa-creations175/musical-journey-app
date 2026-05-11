@@ -3842,7 +3842,7 @@ function isConsistencySlice(metric: string | null): boolean {
   return metric.endsWith('_per_cadence');
 }
 
-function decodeEarTraining(goal: Goal): EarTrainingTarget {
+export function decodeEarTraining(goal: Goal): EarTrainingTarget {
   const t = defaultEarTraining();
   if (goal.targetMetric === COVERAGE_OVERALL_METRIC.EAR_TRAINING) {
     t.coverageEnabled = true;
@@ -3889,7 +3889,7 @@ function decodeEarTraining(goal: Goal): EarTrainingTarget {
   return t;
 }
 
-function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
+export function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
   const t = defaultHarmonicFluency();
   if (goal.targetMetric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) {
     t.coverageEnabled = true;
@@ -3927,7 +3927,7 @@ function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
   return t;
 }
 
-function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
+export function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
   const t = defaultShapesPatterns();
   if (goal.targetMetric === COVERAGE_OVERALL_METRIC.SHAPES) {
     t.coverageEnabled = true;
@@ -3999,7 +3999,7 @@ function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
   return t;
 }
 
-function decodeProduction(goal: Goal): ProductionTarget {
+export function decodeProduction(goal: Goal): ProductionTarget {
   const t = defaultProduction();
   if (goal.targetMetric === COVERAGE_OVERALL_METRIC.PRODUCTION) {
     t.coverageEnabled = true;

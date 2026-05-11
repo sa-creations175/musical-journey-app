@@ -162,7 +162,7 @@ describe('candidateSpecForGoal — accuracy / consistency / songs / umbrella', (
 
   it('consistency metrics route to their module', () => {
     expect(
-      candidateSpecForGoal(makeGoal({ targetMetric: 'shapes_sessions_per_cadence' })),
+      candidateSpecForGoal(makeGoal({ targetMetric: 'shapes_days_per_cadence' })),
     ).toMatchObject({ kind: 'consistency', moduleRefs: ['shapes-and-patterns'] });
   });
 
@@ -259,7 +259,7 @@ describe('resolveCandidates — accuracy / consistency / passthrough', () => {
 
   it('consistency includes any stage in the module', () => {
     const spec = candidateSpecForGoal(
-      makeGoal({ targetMetric: 'ear_training_sessions_per_cadence' }),
+      makeGoal({ targetMetric: 'ear_training_days_per_cadence' }),
     );
     expect(resolveCandidates(spec, rows)).toEqual(['a', 'b']);
   });

@@ -372,6 +372,42 @@ describe('deriveWeeklyGoals — consistency goals (direct passthrough)', () => {
     expect(weekly.targetUnit).toBe('sessions');
   });
 
+  it('repertoire days/cadence (new): weekly = monthly cadence value, unit = days', async () => {
+    const monthly = buildMonthly({
+      targetMetric: 'repertoire_days_per_cadence',
+      targetValue: 6,
+      targetUnit: 'week',
+      relatedModules: ['repertoire'],
+    });
+    const [weekly] = await deriveWeeklyGoals([monthly], WEEK_START, WEEK_START);
+    expect(weekly.targetValue).toBe(6);
+    expect(weekly.targetUnit).toBe('days');
+  });
+
+  it('production lessons/cadence (new): weekly = monthly cadence value, unit = lessons', async () => {
+    const monthly = buildMonthly({
+      targetMetric: 'production_lessons_per_cadence',
+      targetValue: 3,
+      targetUnit: 'week',
+      relatedModules: ['production'],
+    });
+    const [weekly] = await deriveWeeklyGoals([monthly], WEEK_START, WEEK_START);
+    expect(weekly.targetValue).toBe(3);
+    expect(weekly.targetUnit).toBe('lessons');
+  });
+
+  it('harmonic_fluency days/cadence (new): weekly = monthly cadence value, unit = days', async () => {
+    const monthly = buildMonthly({
+      targetMetric: 'harmonic_fluency_days_per_cadence',
+      targetValue: 5,
+      targetUnit: 'week',
+      relatedModules: ['harmonic-fluency'],
+    });
+    const [weekly] = await deriveWeeklyGoals([monthly], WEEK_START, WEEK_START);
+    expect(weekly.targetValue).toBe(5);
+    expect(weekly.targetUnit).toBe('days');
+  });
+
   it('does NOT prorate consistency goals on mid-week creation', async () => {
     // Even when a consistency goal is created mid-week, the cadence
     // value passes through verbatim — "1 hour/week" is a weekly

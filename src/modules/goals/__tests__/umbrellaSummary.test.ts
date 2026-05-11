@@ -114,12 +114,21 @@ describe('dimensionForGoal', () => {
     ).toBe('Depth');
   });
 
-  it('classifies cadence-based metrics across all units (sessions/minutes/hours/days) as Consistency', () => {
+  it('classifies cadence-based metrics across all units (sessions/minutes/hours/days/lessons) as Consistency', () => {
     for (const metric of [
+      // New idiom (May 2026 redesign).
+      'ear_training_days_per_cadence',
+      'harmonic_fluency_days_per_cadence',
+      'shapes_days_per_cadence',
+      'repertoire_days_per_cadence',
+      'production_lessons_per_cadence',
+      // Legacy — keep classifying correctly for existing user goals.
       'ear_training_sessions_per_cadence',
       'harmonic_fluency_sessions_per_cadence',
       'shapes_minutes_per_cadence',
       'production_hours_per_cadence',
+      'repertoire_hours_per_cadence',
+      // Practice-consistency umbrella metric (unchanged).
       'practice_days_per_cadence',
     ]) {
       expect(dimensionForGoal(mkGoal({ targetMetric: metric }))).toBe('Consistency');
