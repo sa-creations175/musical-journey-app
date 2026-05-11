@@ -127,6 +127,81 @@ function weeklyTimeForShapesRecords(
   return { kind: 'total', estimate: { kind: 'point', minutes: totalWeeklyMinutes } };
 }
 
+// ---------------------------------------------------------------------
+// Coverage-only weekly-minutes helper
+// ---------------------------------------------------------------------
+
+/** Item-to-attempt multipliers. Mirrors weeklyDerivation.ts's
+ *  constants — kept locally so this file stays import-flat. */
+const DECLARATIVE_ATTEMPTS_PER_ITEM = 10;
+const PROCEDURAL_ATTEMPTS_PER_ITEM = 3;
+
+/**
+ * Coverage-derived weekly time commitment, in minutes, for a module's
+ * current goal records. Drives the per-day estimate the
+ * ConsistencyTargetCard renders in days mode.
+ *
+ * The output ignores any consistency record on the same goal — the
+ * card itself takes care of dividing this number by the days count,
+ * so we want pure coverage time here.
+ *
+ * Returns null when:
+ *   · the module isn't wired up (Production, Repertoire — they use
+ *     perDayMinutesOverride or don't show per-day at all)
+ *   · no coverage records contribute (e.g. a consistency-only goal
+ *     in progress, before the user enables coverage)
+ */
+export function coverageWeeklyMinutes(args: {
+  records: ReadonlyArray<EncodedRecord>;
+  moduleId: GoalFlowModuleId;
+  targetDate: number;
+  now?: number;
+}): number | null {
+  const { records, moduleId, targetDate, now = Date.now() } = args;
+  const weeks = weeksInPeriod(now, targetDate);
+
+  // HF / ET — declarative attempts × per-attempt minutes.
+  if (moduleId === 'harmonic-fluency' || moduleId === 'ear-training') {
+    let items = 0;
+    for (const r of records) {
+      if (!isCoverageMetric(r.targetMetric)) continue;
+      if (r.targetValue == null || r.targetValue <= 0) continue;
+      items += r.targetValue;
+    }
+    if (items <= 0) return null;
+    const weeklyAttempts = (items * DECLARATIVE_ATTEMPTS_PER_ITEM) / weeks;
+    return weeklyAttempts * TIME_PER_ATTEMPT_MINUTES[moduleId];
+  }
+
+  // Shapes — procedural attempts × area-aware per-rep minutes.
+  // Sums each coverage record independently because the per-rep cost
+  // varies by activity area (chord_shape 2 min/rep, voice_leading
+  // 3 min/rep, scale_drills 2 min/rep).
+  if (moduleId === 'shapes-and-patterns') {
+    let total = 0;
+    let contributed = false;
+    for (const r of records) {
+      if (!isCoverageMetric(r.targetMetric)) continue;
+      if (r.targetValue == null || r.targetValue <= 0) continue;
+      const weeklyAttempts = (r.targetValue * PROCEDURAL_ATTEMPTS_PER_ITEM) / weeks;
+      const area = r.targetUnit ? coverageGroupIdToActivityArea(r.targetUnit) : null;
+      const est = getWeeklyTimeEstimate(
+        'shapes-and-patterns',
+        weeklyAttempts,
+        area ?? undefined,
+      );
+      if (est.kind === 'point') total += est.minutes;
+      contributed = true;
+    }
+    return contributed ? total : null;
+  }
+
+  // Production / Repertoire / Practice Consistency: no coverage-time
+  // model. The cards for these modules use perDayMinutesOverride or
+  // skip the per-day estimate entirely.
+  return null;
+}
+
 interface HfConsistency {
   sessions: number;
   cadence: 'week' | 'month';

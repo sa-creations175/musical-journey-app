@@ -21,6 +21,7 @@ import {
   SCOPE_LABEL,
 } from './scopeMeta';
 import {
+  coverageWeeklyMinutes,
   formatWeeklyTimeEstimate,
   weeklyTimeForRecords,
 } from './weeklyTimeEstimate';
@@ -471,6 +472,14 @@ function HarmonicFluencyMonthlyBody({
     () => encodeShim('harmonic-fluency', target),
     [target],
   );
+  const coverageMinutes = useMemo(
+    () => coverageWeeklyMinutes({
+      records,
+      moduleId: 'harmonic-fluency',
+      targetDate,
+    }),
+    [records, targetDate],
+  );
 
   return (
     <BodyShell
@@ -490,7 +499,11 @@ function HarmonicFluencyMonthlyBody({
         <HfAccuracySection target={target} onChange={setTarget} />
       )}
       {target.consistencyEnabled && (
-        <ConsistencyTargetCard target={target} onChange={setTarget} />
+        <ConsistencyTargetCard
+          target={target}
+          onChange={setTarget}
+          coverageWeeklyMinutes={coverageMinutes}
+        />
       )}
     </BodyShell>
   );
@@ -923,6 +936,14 @@ function EarTrainingMonthlyBody({
   const [target, setTarget] = useState<EarTrainingTarget>(initialSuggestion.target);
   const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
   const records = useMemo(() => encodeShim('ear-training', target), [target]);
+  const coverageMinutes = useMemo(
+    () => coverageWeeklyMinutes({
+      records,
+      moduleId: 'ear-training',
+      targetDate,
+    }),
+    [records, targetDate],
+  );
 
   return (
     <BodyShell
@@ -942,7 +963,11 @@ function EarTrainingMonthlyBody({
         <EtAccuracySection target={target} onChange={setTarget} />
       )}
       {target.consistencyEnabled && (
-        <ConsistencyTargetCard target={target} onChange={setTarget} />
+        <ConsistencyTargetCard
+          target={target}
+          onChange={setTarget}
+          coverageWeeklyMinutes={coverageMinutes}
+        />
       )}
     </BodyShell>
   );
@@ -1194,6 +1219,14 @@ function ShapesPatternsMonthlyBody({
     initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope),
   );
   const records = useMemo(() => encodeShim('shapes-and-patterns', target), [target]);
+  const coverageMinutes = useMemo(
+    () => coverageWeeklyMinutes({
+      records,
+      moduleId: 'shapes-and-patterns',
+      targetDate,
+    }),
+    [records, targetDate],
+  );
 
   return (
     <BodyShell
@@ -1214,6 +1247,7 @@ function ShapesPatternsMonthlyBody({
           target={target}
           onChange={setTarget}
           unitMode="days"
+          coverageWeeklyMinutes={coverageMinutes}
         />
       )}
     </BodyShell>

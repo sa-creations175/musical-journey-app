@@ -70,6 +70,7 @@ import {
   TargetPreview,
   ToggleCard,
 } from './atoms';
+import { coverageWeeklyMinutes } from './weeklyTimeEstimate';
 import type { PracticeSessionContext } from '../../lib/db';
 
 /**
@@ -1719,6 +1720,18 @@ function Step2EarTraining({
 }) {
   const target = draft.earTraining;
   const setTarget = (next: EarTrainingTarget) => onUpdate({ earTraining: next });
+  // Coverage minutes feeds the consistency card's per-day estimate.
+  // targetDate may be null until Step 1 is complete — fall back to a
+  // monthly horizon so the estimate is still meaningful in-flow.
+  const fallbackTarget = draft.targetDate ?? Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const coverageMinutes = useMemo(
+    () => coverageWeeklyMinutes({
+      records: encodeEarTraining(target),
+      moduleId: 'ear-training',
+      targetDate: fallbackTarget,
+    }),
+    [target, fallbackTarget],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -1727,7 +1740,11 @@ function Step2EarTraining({
       </p>
       <EarTrainingCoverageCard target={target} onChange={setTarget} />
       <AccuracyTargetCard target={target} onChange={setTarget} />
-      <ConsistencyTargetCard target={target} onChange={setTarget} />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
       <EarTrainingPreview target={target} />
     </div>
   );
@@ -2049,6 +2066,15 @@ function Step2HarmonicFluency({
 }) {
   const target = draft.harmonicFluency;
   const setTarget = (next: HarmonicFluencyTarget) => onUpdate({ harmonicFluency: next });
+  const fallbackTarget = draft.targetDate ?? Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const coverageMinutes = useMemo(
+    () => coverageWeeklyMinutes({
+      records: encodeHarmonicFluency(target),
+      moduleId: 'harmonic-fluency',
+      targetDate: fallbackTarget,
+    }),
+    [target, fallbackTarget],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -2057,7 +2083,11 @@ function Step2HarmonicFluency({
       </p>
       <HarmonicFluencyCoverageCard target={target} onChange={setTarget} />
       <HarmonicFluencyAccuracyCard target={target} onChange={setTarget} />
-      <ConsistencyTargetCard target={target} onChange={setTarget} />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
       <TargetPreview text={previewHarmonicFluencyTarget(target)} />
     </div>
   );
@@ -2354,6 +2384,15 @@ function Step2ShapesPatterns({
 }) {
   const target = draft.shapesPatterns;
   const setTarget = (next: ShapesPatternsTarget) => onUpdate({ shapesPatterns: next });
+  const fallbackTarget = draft.targetDate ?? Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const coverageMinutes = useMemo(
+    () => coverageWeeklyMinutes({
+      records: encodeShapesPatterns(target),
+      moduleId: 'shapes-and-patterns',
+      targetDate: fallbackTarget,
+    }),
+    [target, fallbackTarget],
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -2366,6 +2405,7 @@ function Step2ShapesPatterns({
         target={target}
         onChange={setTarget}
         unitMode="days"
+        coverageWeeklyMinutes={coverageMinutes}
       />
       <TargetPreview text={previewShapesPatternsTarget(target)} />
     </div>
