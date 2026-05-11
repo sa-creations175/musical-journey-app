@@ -20,11 +20,7 @@ import {
   dateInputValue,
   SCOPE_LABEL,
 } from './scopeMeta';
-import {
-  coverageWeeklyMinutes,
-  formatWeeklyTimeEstimate,
-  weeklyTimeForRecords,
-} from './weeklyTimeEstimate';
+import { coverageWeeklyMinutes } from './weeklyTimeEstimate';
 import { REPERTOIRE_SESSION_DEFAULT_MINUTES } from '../../lib/weeklyAttempts';
 import { AccuracySlider } from './yearlyAnchorDimensions';
 import {
@@ -380,11 +376,6 @@ function BodyShell({
         {children}
         <AnchorPanel anchor={anchor} />
         <TargetDateField value={targetDate} onChange={setTargetDate} />
-        <WeeklyTimeEstimateRow
-          records={records}
-          moduleId={moduleId}
-          targetDate={targetDate}
-        />
         {saveError && <p className="text-xs text-needswork">{saveError}</p>}
         <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
           <button
@@ -412,34 +403,46 @@ function BodyShell({
 }
 
 /**
- * Live "~X hrs/week" preview that updates as the user toggles
- * focus groups / add-ons. Hides when the active module's math
- * isn't wired in weeklyTimeEstimate.ts (returns null) — extend
- * per-module there to surface the row for additional bodies.
- *
- * Re-computes on every records / targetDate change via useMemo;
- * cheap enough to skip memo dependencies fine-grained beyond
- * those two inputs.
+ * Format an integer minute count as a compact "1h 48m" / "32m"
+ * string. Used by the inline weekly-time footer beneath each
+ * FocusSection. Mirrors the formatting that
+ * `formatWeeklyTimeEstimate` produces for point estimates but
+ * skips the broader display contract — the focus footer only ever
+ * shows a single number derived from `coverageWeeklyMinutes`.
  */
-function WeeklyTimeEstimateRow({
-  records,
-  moduleId,
-  targetDate,
+function formatMinutesShort(minutes: number): string {
+  if (minutes < 1) return '<1m';
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes - h * 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+/**
+ * Inline "Weekly time commitment ~1h 48m/week" footer rendered at
+ * the bottom of each Focus card. Updates live as the user toggles
+ * coverage selections — the parent body passes the same
+ * `coverageWeeklyMinutes` value the ConsistencyTargetCard
+ * consumes for its per-day estimate, so the two cards stay in
+ * lockstep.
+ *
+ * Hidden entirely when minutes is null or ≤ 0 (e.g. before the
+ * user picks any coverage items). The collapsed ConsistencyTarget-
+ * Card on its own already prompts the user to add coverage; a
+ * second placeholder here would be redundant.
+ */
+function CoverageTimeFooter({
+  coverageWeeklyMinutes,
 }: {
-  records: EncodedRecord[];
-  moduleId: SuggestionFlowModule;
-  targetDate: number;
+  coverageWeeklyMinutes: number | null;
 }) {
-  const estimate = useMemo(
-    () => weeklyTimeForRecords({ records, moduleId, targetDate }),
-    [records, moduleId, targetDate],
-  );
-  if (!estimate) return null;
+  if (coverageWeeklyMinutes == null || coverageWeeklyMinutes <= 0) return null;
   return (
-    <div className="text-xs text-neutral-600 dark:text-neutral-400 px-1">
-      Weekly time commitment:{' '}
-      <span className="font-medium text-neutral-800 dark:text-neutral-200">
-        {formatWeeklyTimeEstimate(estimate)}
+    <div className="text-xs text-neutral-500 dark:text-neutral-400 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
+      Weekly time commitment{' '}
+      <span className="font-medium text-neutral-700 dark:text-neutral-200 tabular-nums">
+        ~{formatMinutesShort(coverageWeeklyMinutes)}/week
       </span>
     </div>
   );
@@ -493,18 +496,17 @@ function HarmonicFluencyMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
     >
-      <HfFocusSection target={target} onChange={setTarget} />
-      <HfAlsoAddRow target={target} onChange={setTarget} />
-      {target.accuracyEnabled && (
-        <HfAccuracySection target={target} onChange={setTarget} />
-      )}
-      {target.consistencyEnabled && (
-        <ConsistencyTargetCard
-          target={target}
-          onChange={setTarget}
-          coverageWeeklyMinutes={coverageMinutes}
-        />
-      )}
+      <HfFocusSection
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
+      <HfAccuracySection target={target} onChange={setTarget} />
     </BodyShell>
   );
 }
@@ -516,9 +518,11 @@ function HarmonicFluencyMonthlyBody({
 function HfFocusSection({
   target,
   onChange,
+  coverageWeeklyMinutes: minutes,
 }: {
   target: HarmonicFluencyTarget;
   onChange: (next: HarmonicFluencyTarget) => void;
+  coverageWeeklyMinutes: number | null;
 }) {
   const setScope = (s: 'overall' | 'specific') => {
     if (s === target.coverageScope) return;
@@ -573,42 +577,8 @@ function HfFocusSection({
           ))}
         </div>
       )}
+      <CoverageTimeFooter coverageWeeklyMinutes={minutes} />
     </section>
-  );
-}
-
-// ---------------------------------------------------------------------
-// "Also add" pills
-// ---------------------------------------------------------------------
-
-function HfAlsoAddRow({
-  target,
-  onChange,
-}: {
-  target: HarmonicFluencyTarget;
-  onChange: (next: HarmonicFluencyTarget) => void;
-}) {
-  const showAccuracy = !target.accuracyEnabled;
-  const showConsistency = !target.consistencyEnabled;
-  if (!showAccuracy && !showConsistency) return null;
-
-  return (
-    <div className="flex gap-1.5 flex-wrap">
-      {showAccuracy && (
-        <PillButton
-          label="+ Also add accuracy target"
-          active={false}
-          onClick={() => onChange({ ...target, accuracyEnabled: true })}
-        />
-      )}
-      {showConsistency && (
-        <PillButton
-          label="+ Also add consistency target"
-          active={false}
-          onClick={() => onChange({ ...target, consistencyEnabled: true })}
-        />
-      )}
-    </div>
   );
 }
 
@@ -661,7 +631,17 @@ function HfAccuracySection({
   target: HarmonicFluencyTarget;
   onChange: (next: HarmonicFluencyTarget) => void;
 }) {
-  const remove = () => onChange({ ...target, accuracyEnabled: false, categoryId: null });
+  // Toggle flips between enabled and disabled — disabling also
+  // clears the picked category so the next re-enable starts clean.
+  // Always-visible affordance: card renders even when off; collapsed
+  // state shows just the title row + checkbox.
+  const toggle = () => {
+    if (target.accuracyEnabled) {
+      onChange({ ...target, accuracyEnabled: false, categoryId: null });
+    } else {
+      onChange({ ...target, accuracyEnabled: true });
+    }
+  };
   const setScope = (s: 'overall' | 'specific') => {
     if (s === target.accuracyScope) return;
     onChange({
@@ -675,8 +655,8 @@ function HfAccuracySection({
     <ToggleCard
       title="Accuracy target"
       hint="Reach a target accuracy percentage."
-      enabled={true}
-      onToggle={remove}
+      enabled={target.accuracyEnabled}
+      onToggle={toggle}
     >
       <div className="flex gap-1.5">
         <PillButton
@@ -957,18 +937,17 @@ function EarTrainingMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
     >
-      <EtFocusSection target={target} onChange={setTarget} />
-      <EtAlsoAddRow target={target} onChange={setTarget} />
-      {target.accuracyEnabled && (
-        <EtAccuracySection target={target} onChange={setTarget} />
-      )}
-      {target.consistencyEnabled && (
-        <ConsistencyTargetCard
-          target={target}
-          onChange={setTarget}
-          coverageWeeklyMinutes={coverageMinutes}
-        />
-      )}
+      <EtFocusSection
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
+      <EtAccuracySection target={target} onChange={setTarget} />
     </BodyShell>
   );
 }
@@ -976,9 +955,11 @@ function EarTrainingMonthlyBody({
 function EtFocusSection({
   target,
   onChange,
+  coverageWeeklyMinutes: minutes,
 }: {
   target: EarTrainingTarget;
   onChange: (next: EarTrainingTarget) => void;
+  coverageWeeklyMinutes: number | null;
 }) {
   const setScope = (s: 'overall' | 'specific') => {
     if (s === target.coverageScope) return;
@@ -1029,37 +1010,8 @@ function EtFocusSection({
           ))}
         </div>
       )}
+      <CoverageTimeFooter coverageWeeklyMinutes={minutes} />
     </section>
-  );
-}
-
-function EtAlsoAddRow({
-  target,
-  onChange,
-}: {
-  target: EarTrainingTarget;
-  onChange: (next: EarTrainingTarget) => void;
-}) {
-  const showAccuracy = !target.accuracyEnabled;
-  const showConsistency = !target.consistencyEnabled;
-  if (!showAccuracy && !showConsistency) return null;
-  return (
-    <div className="flex gap-1.5 flex-wrap">
-      {showAccuracy && (
-        <PillButton
-          label="+ Also add accuracy target"
-          active={false}
-          onClick={() => onChange({ ...target, accuracyEnabled: true })}
-        />
-      )}
-      {showConsistency && (
-        <PillButton
-          label="+ Also add consistency target"
-          active={false}
-          onClick={() => onChange({ ...target, consistencyEnabled: true })}
-        />
-      )}
-    </div>
   );
 }
 
@@ -1071,13 +1023,22 @@ function EtAccuracySection({
   onChange: (next: EarTrainingTarget) => void;
 }) {
   const drill = EAR_TRAINING_DRILL_TYPES.find(d => d.id === target.drillTypeId) ?? null;
-  const remove = () =>
-    onChange({
-      ...target,
-      accuracyEnabled: false,
-      drillTypeId: null,
-      drillSubtypeId: null,
-    });
+  // Toggle flips between enabled and disabled — disabling also
+  // clears the drill picks so the next re-enable starts clean.
+  // Always-visible affordance: card renders even when off; collapsed
+  // state shows just the title row + checkbox.
+  const toggle = () => {
+    if (target.accuracyEnabled) {
+      onChange({
+        ...target,
+        accuracyEnabled: false,
+        drillTypeId: null,
+        drillSubtypeId: null,
+      });
+    } else {
+      onChange({ ...target, accuracyEnabled: true });
+    }
+  };
   const setScope = (s: 'overall' | 'specific') => {
     if (s === target.accuracyScope) return;
     onChange({
@@ -1100,8 +1061,8 @@ function EtAccuracySection({
     <ToggleCard
       title="Accuracy target"
       hint="Reach a target accuracy percentage."
-      enabled={true}
-      onToggle={remove}
+      enabled={target.accuracyEnabled}
+      onToggle={toggle}
     >
       <div className="flex gap-1.5">
         <PillButton
@@ -1240,16 +1201,17 @@ function ShapesPatternsMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
     >
-      <ShapesFocusSection target={target} onChange={setTarget} />
-      <ShapesAlsoAddRow target={target} onChange={setTarget} />
-      {target.consistencyEnabled && (
-        <ConsistencyTargetCard
-          target={target}
-          onChange={setTarget}
-          unitMode="days"
-          coverageWeeklyMinutes={coverageMinutes}
-        />
-      )}
+      <ShapesFocusSection
+        target={target}
+        onChange={setTarget}
+        coverageWeeklyMinutes={coverageMinutes}
+      />
+      <ConsistencyTargetCard
+        target={target}
+        onChange={setTarget}
+        unitMode="days"
+        coverageWeeklyMinutes={coverageMinutes}
+      />
     </BodyShell>
   );
 }
@@ -1257,9 +1219,11 @@ function ShapesPatternsMonthlyBody({
 function ShapesFocusSection({
   target,
   onChange,
+  coverageWeeklyMinutes: minutes,
 }: {
   target: ShapesPatternsTarget;
   onChange: (next: ShapesPatternsTarget) => void;
+  coverageWeeklyMinutes: number | null;
 }) {
   const setScope = (s: 'overall' | 'specific') => {
     if (s === target.coverageScope) return;
@@ -1384,27 +1348,8 @@ function ShapesFocusSection({
           )}
         </>
       )}
+      <CoverageTimeFooter coverageWeeklyMinutes={minutes} />
     </section>
-  );
-}
-
-function ShapesAlsoAddRow({
-  target,
-  onChange,
-}: {
-  target: ShapesPatternsTarget;
-  onChange: (next: ShapesPatternsTarget) => void;
-}) {
-  const showConsistency = !target.consistencyEnabled;
-  if (!showConsistency) return null;
-  return (
-    <div className="flex gap-1.5 flex-wrap">
-      <PillButton
-        label="+ Also add minutes-per-week target"
-        active={false}
-        onClick={() => onChange({ ...target, consistencyEnabled: true })}
-      />
-    </div>
   );
 }
 
