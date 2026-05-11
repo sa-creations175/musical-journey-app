@@ -15,6 +15,7 @@ import {
 import { moduleMetaById, PRACTICE_SESSIONS_META, DASHBOARD_META } from '../../lib/moduleMeta';
 import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
+import { assignNextLearningOrder } from '../repertoire/seedSongs';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
   CHORD_QUALITIES,
@@ -1585,6 +1586,7 @@ function uid(prefix: string): string {
 async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string> {
   const now = Date.now();
   const songId = uid('song');
+  const learningOrder = await assignNextLearningOrder();
   const song: Song = {
     id: songId,
     title: entry.title,
@@ -1595,6 +1597,7 @@ async function promoteWantToLearnEntry(entry: WantToLearnEntry): Promise<string>
     youtubeLink: entry.link?.includes('youtube') ? entry.link : undefined,
     spotifyLink: entry.link?.includes('spotify') ? entry.link : undefined,
     addedDate: now,
+    learningOrder,
   };
   const sections: SongSection[] = ['Verse', 'Chorus', 'Bridge'].map((name, idx) => ({
     id: uid('section'),
@@ -3871,6 +3874,12 @@ function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
     const area = goal.targetUnit;
     if (
       area === 'chord_shape_triads'
+      || area === 'chord_shape_triads_maj'
+      || area === 'chord_shape_triads_min'
+      || area === 'chord_shape_triads_dim'
+      || area === 'chord_shape_triads_aug'
+      || area === 'chord_shape_triads_sus2'
+      || area === 'chord_shape_triads_sus4'
       || area === 'chord_shape_sevenths'
       || area === 'chord_shape_extensions'
       || area === 'chord_shape_special'

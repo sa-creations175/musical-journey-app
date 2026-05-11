@@ -207,6 +207,15 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
   // matrix carries their state. Algorithm consumes 2h's lived-with
   // window + matrix state to surface song work; spec hands off the
   // related song ids.
+  //
+  // TODO: When a song has no spacingState rows yet, use the song's
+  // learning order number as priority — surface cells from the
+  // lowest-numbered incomplete song first. Implement once songs
+  // have real matrix data. The Song.learningOrder field now exists
+  // (added in db.ts v21; 1-indexed, ASC = study next, authored via
+  // drag-to-reorder on the Repertoire home in learning-order sort
+  // mode). Read as `song.learningOrder ?? Number.MAX_SAFE_INTEGER`
+  // defensively, since pre-backfill sync rows could lack it.
   if (
     metric === SONG_METRIC.WHOLE ||
     metric === SONG_METRIC.SECTION ||

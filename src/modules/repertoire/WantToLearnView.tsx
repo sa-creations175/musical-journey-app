@@ -7,6 +7,7 @@ import {
   type WantToLearnEntry,
 } from '../../lib/db';
 import { DEFAULT_STAGE } from './stage';
+import { assignNextLearningOrder } from './seedSongs';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
@@ -77,6 +78,7 @@ export default function WantToLearnView({ onPromoted }: Props) {
   const promote = async (entry: WantToLearnEntry) => {
     const now = Date.now();
     const songId = uid('song');
+    const learningOrder = await assignNextLearningOrder();
     const song: Song = {
       id: songId,
       title: entry.title,
@@ -87,6 +89,7 @@ export default function WantToLearnView({ onPromoted }: Props) {
       youtubeLink: entry.link?.includes('youtube') ? entry.link : undefined,
       spotifyLink: entry.link?.includes('spotify') ? entry.link : undefined,
       addedDate: now,
+      learningOrder,
     };
     const sections: SongSection[] = ['Verse', 'Chorus', 'Bridge'].map((name, idx) => ({
       id: uid('section'),

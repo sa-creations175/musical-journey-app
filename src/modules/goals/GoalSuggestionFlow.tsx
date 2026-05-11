@@ -49,6 +49,7 @@ import {
   type PracticeConsistencyMonthlyTarget,
 } from './suggestions/practiceConsistencyMonthly';
 import { suggestRepertoireMonthly } from './suggestions/repertoireMonthly';
+import { assignNextLearningOrder } from '../repertoire/seedSongs';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
   earTrainingCounts,
@@ -1760,6 +1761,13 @@ function excludedSongIds(newSlots: NewSlot[]): Set<string> {
 // ---------------------------------------------------------------------
 
 function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
+  // Display order matches the user-authored study sequence so the
+  // numbered list here reads identically to the Repertoire home.
+  const ordered = [...songs].sort(
+    (a, b) =>
+      (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
+      (b.learningOrder ?? Number.MAX_SAFE_INTEGER),
+  );
   return (
     <section className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
       <header>
@@ -1770,13 +1778,13 @@ function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
           Keep these comfortable through the month
         </div>
       </header>
-      {songs.length === 0 ? (
+      {ordered.length === 0 ? (
         <p className="text-xs text-neutral-500 italic">
           No songs in your repertoire yet — add one in the New section below.
         </p>
       ) : (
         <ol className="list-decimal list-inside text-sm text-neutral-700 dark:text-neutral-200 space-y-1 marker:text-neutral-400">
-          {songs.map(s => (
+          {ordered.map(s => (
             <li key={s.id}>
               <span>{s.title}</span>
               {s.artist && (
@@ -2023,6 +2031,13 @@ async function persistRepertoireMonthlyGoal(
   const resolvedNewSlots: ResolvedSlot[] = [];
   const newSongRowsToInsert: Song[] = [];
 
+  // Assign learningOrder to typed-new-song rows in submission order:
+  // first typed slot gets next-available, subsequent typed slots get
+  // +1. Catalog and TBD slots don't create new Song rows so they're
+  // skipped. Computed once up-front (instead of per slot) because the
+  // helper does a full table scan; bumping locally keeps the writes
+  // monotonic in this single transaction.
+  let nextLearningOrder = await assignNextLearningOrder();
   for (const slot of newSlots) {
     const d = slot.data;
     if (d.kind === 'catalog') {
@@ -2041,6 +2056,7 @@ async function persistRepertoireMonthlyGoal(
         stage: 'learning',
         audioLinks: [],
         addedDate: Date.now(),
+        learningOrder: nextLearningOrder++,
       });
       resolvedNewSlots.push({
         songId: id,

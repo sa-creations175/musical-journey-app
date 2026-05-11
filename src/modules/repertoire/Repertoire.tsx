@@ -71,7 +71,20 @@ export default function Repertoire() {
     setPref(PREF_SELECTED_SONG, selectedSongId);
   }, [selectedSongId, prefsLoaded]);
 
-  const songs = useLiveQuery<Song[]>(() => db.songs.toArray(), []) ?? [];
+  // Pre-sort by learningOrder so any consumer that doesn't apply its
+  // own sort (e.g. SongDetailView's jump-to dropdown) ends up in study
+  // sequence by default. ActiveRepertoireView re-sorts based on its
+  // own sort-mode pref, so the order here doesn't matter for that view.
+  const songs = useLiveQuery<Song[]>(
+    () => db.songs
+      .toArray()
+      .then(rows => rows.sort(
+        (a, b) =>
+          (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
+          (b.learningOrder ?? Number.MAX_SAFE_INTEGER),
+      )),
+    [],
+  ) ?? [];
 
   const openSong = (songId: string) => {
     setSelectedSongId(songId);

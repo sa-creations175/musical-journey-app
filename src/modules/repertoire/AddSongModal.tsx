@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Song, type SongSection, type WantToLearnEntry } from '../../lib/db';
 import Modal from '../../components/Modal';
 import { DEFAULT_STAGE } from './stage';
+import { assignNextLearningOrder } from './seedSongs';
 import { useToast } from '../../components/Toaster';
 
 interface Props {
@@ -56,7 +57,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
 
   const canSaveBlank = title.trim() !== '' && artist.trim() !== '' && !submitting;
 
-  const buildSong = (opts: {
+  const buildSong = async (opts: {
     title: string;
     artist: string;
     description?: string;
@@ -66,9 +67,10 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
     spotifyLink?: string;
     youtubeLink?: string;
     audioLinks?: string[];
-  }): { song: Song; sections: SongSection[]; songId: string } => {
+  }): Promise<{ song: Song; sections: SongSection[]; songId: string }> => {
     const songId = uid('song');
     const now = Date.now();
+    const learningOrder = await assignNextLearningOrder();
     const song: Song = {
       id: songId,
       title: opts.title,
@@ -82,6 +84,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
       youtubeLink: opts.youtubeLink,
       audioLinks: opts.audioLinks ?? [],
       addedDate: now,
+      learningOrder,
     };
     const sections: SongSection[] = DEFAULT_SECTIONS.map((name, idx) => ({
       id: uid('section'),
@@ -100,7 +103,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
     if (!canSaveBlank) return;
     setSubmitting(true);
     try {
-      const { song, sections, songId } = buildSong({
+      const { song, sections, songId } = await buildSong({
         title: title.trim(),
         artist: artist.trim(),
         description: description.trim() || undefined,
@@ -127,7 +130,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
   const promoteEntry = async (entry: WantToLearnEntry) => {
     setSubmitting(true);
     try {
-      const { song, sections, songId } = buildSong({
+      const { song, sections, songId } = await buildSong({
         title: entry.title,
         artist: entry.artist,
         description: entry.why,

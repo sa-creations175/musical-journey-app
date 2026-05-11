@@ -65,6 +65,13 @@ export interface Song {
    *  songs. Advancement is user-driven; the UI suggests when criteria
    *  are met but never forces a change. */
   stage?: RepertoireStage;
+  /** User-controlled learning sequence — 1-indexed, ASC = study
+   *  next. Backfilled on first load to addedDate-ASC rank for
+   *  existing rows (oldest = 1). The Repertoire home's
+   *  learning-order sort mode is the authoring surface; the
+   *  session algorithm consumes this as cold-start priority for
+   *  songs with no spacingState rows (candidates.ts TODO). */
+  learningOrder: number;
   /** Free-text "why I'm learning this" description. Starter copy is
    *  pre-populated when a song is seeded; user can edit or clear it. */
   description?: string;
@@ -2111,6 +2118,81 @@ export class AppDB extends Dexie {
       songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
       songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
       songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+    });
+
+    // v21 — Song.learningOrder field for the user-authored study
+    // sequence. Backfills existing rows to addedDate-ASC rank so
+    // oldest = 1 (matches the user's expectation of "the songs I
+    // added first are earliest in my learning queue"). New rows
+    // assign MAX(learningOrder) + 1 at insert time — see
+    // assignNextLearningOrder() in modules/repertoire/seedSongs.ts.
+    //
+    // TODO (Supabase): Postgres migration to add the matching column
+    // before this schema reaches production sync:
+    //   ALTER TABLE songs ADD COLUMN learning_order INTEGER NOT NULL DEFAULT 0;
+    // Then backfill via SQL using row_number() OVER (ORDER BY added_date),
+    // matching the Dexie upgrade callback below. Until the column
+    // exists, learningOrder still round-trips because the full Dexie
+    // row lives in the `data` JSONB blob — only the indexed top-level
+    // column is missing. Once the migration ships, add the mapping
+    // `{ dexie: 'learningOrder', pg: 'learning_order' }` to the songs
+    // entry in src/lib/sync/tables.ts (a TODO is parked there).
+    this.version(21).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage, learningOrder',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+    }).upgrade(async tx => {
+      // Backfill: existing songs get sequential learningOrder values
+      // based on addedDate ASC (oldest first). Rows without an
+      // addedDate (defensive against partial data) sort to the end.
+      const rows = await tx.table('songs').toArray();
+      rows.sort((a, b) => (a.addedDate ?? Infinity) - (b.addedDate ?? Infinity));
+      for (let i = 0; i < rows.length; i++) {
+        await tx.table('songs').update(rows[i].id, { learningOrder: i + 1 });
+      }
     });
   }
 }

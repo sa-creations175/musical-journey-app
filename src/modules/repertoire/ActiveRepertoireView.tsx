@@ -1,5 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type Song,
@@ -13,6 +30,7 @@ import {
   evaluateAdvancement,
   freshnessFor,
   humanAgo,
+  type Freshness,
 } from './stage';
 import SongCard, { formatAddedDate } from './SongCard';
 import AddSongModal from './AddSongModal';
@@ -24,6 +42,7 @@ interface Props {
 }
 
 type SortMode =
+  | 'learning-order'
   | 'date-added'
   | 'recent-practice'
   | 'alphabetical'
@@ -31,6 +50,10 @@ type SortMode =
   | 'by-freshness';
 
 const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
+  // learning-order is the canonical study sequence; drag-to-reorder
+  // is enabled only in this mode (other modes use a non-draggable
+  // 3-col grid so the user can browse without authoring the order).
+  { id: 'learning-order',   label: 'learning order (drag to reorder)' },
   { id: 'date-added',       label: 'date added (oldest first)' },
   { id: 'recent-practice',  label: 'recently practiced' },
   { id: 'alphabetical',     label: 'alphabetical (A–Z)' },
@@ -39,6 +62,11 @@ const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
 ];
 
 const PREF_SORT_MODE = 'repertoireSortMode';
+// One-time flag — flipped true the first time we land an existing user
+// in learning-order mode after the v21 introduction. Without this, an
+// older saved PREF_SORT_MODE (e.g. 'date-added') would overwrite the
+// new default and hide the drag UI on refresh.
+const PREF_LEARNING_ORDER_INTRODUCED = 'repertoireSortMode.learningOrderIntroduced';
 
 // Rank used by the by-freshness sort — lower = shows earlier.
 const FRESHNESS_RANK: Record<ReturnType<typeof freshnessFor>, number> = {
@@ -50,13 +78,23 @@ const FRESHNESS_RANK: Record<ReturnType<typeof freshnessFor>, number> = {
 
 export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   const [showAdd, setShowAdd] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>('date-added');
+  const [sortMode, setSortMode] = useState<SortMode>('learning-order');
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const s = await getPref<SortMode>(PREF_SORT_MODE, 'date-added');
-      if (SORT_OPTIONS.some(o => o.id === s)) setSortMode(s);
+      const introduced = await getPref<boolean>(PREF_LEARNING_ORDER_INTRODUCED, false);
+      if (!introduced) {
+        // First open since the learning-order mode shipped — land the
+        // user in it regardless of any stale saved sort pref, then
+        // flip the flag so future loads honour whatever they pick.
+        setSortMode('learning-order');
+        await setPref(PREF_LEARNING_ORDER_INTRODUCED, true);
+        await setPref(PREF_SORT_MODE, 'learning-order');
+      } else {
+        const s = await getPref<SortMode>(PREF_SORT_MODE, 'learning-order');
+        if (SORT_OPTIONS.some(o => o.id === s)) setSortMode(s);
+      }
       setPrefsLoaded(true);
     })();
   }, []);
@@ -128,7 +166,19 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   const sortedSongs = useMemo(() => {
     const rows = [...perSong];
     const byDateAdded = (a: Song, b: Song) => a.addedDate - b.addedDate;
+    const byLearningOrder = (a: Song, b: Song) =>
+      (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
+      (b.learningOrder ?? Number.MAX_SAFE_INTEGER);
     switch (sortMode) {
+      case 'learning-order':
+        // Defensive fallback: rows without a learningOrder sort to
+        // the end (shouldn't happen post-v21-upgrade, but defensive
+        // in case sync delivers a pre-backfill row).
+        rows.sort((a, b) => {
+          const cmp = byLearningOrder(a.song, b.song);
+          return cmp !== 0 ? cmp : byDateAdded(a.song, b.song);
+        });
+        break;
       case 'date-added':
         rows.sort((a, b) => byDateAdded(a.song, b.song));
         break;
@@ -157,6 +207,32 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     }
     return rows;
   }, [perSong, sortMode]);
+
+  // Drag-to-reorder — only active in learning-order mode. dnd-kit
+  // sensors: pointer (5px activation distance prevents accidental
+  // drags from intentional taps) + keyboard (accessibility — Space
+  // picks up, arrows move, Space drops).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sortedSongs.findIndex(s => s.song.id === active.id);
+    const newIndex = sortedSongs.findIndex(s => s.song.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(sortedSongs, oldIndex, newIndex);
+    // Rewrite every row's learningOrder in one transaction. The
+    // useLiveQuery on songs re-fires after commit, refreshing this
+    // view with the new order.
+    await db.transaction('rw', db.songs, async () => {
+      for (let i = 0; i < newOrder.length; i++) {
+        await db.songs.update(newOrder[i].song.id, { learningOrder: i + 1 });
+      }
+    });
+  };
 
   // Stage one-liner formatted for humans.
   const stageLine = STAGES.map(s => `${STAGE_LABEL[s]}: ${stageCounts[s] ?? 0}`).join(' · ');
@@ -230,12 +306,39 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         </label>
       </div>
 
-      {/* Song cards grid */}
+      {/* Song cards — vertical sortable list in learning-order mode,
+          3-col grid in every other sort mode. */}
       {sortedSongs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-neutral-200 dark:border-neutral-800 p-8 text-center text-sm text-neutral-500">
           no songs yet. starter songs seed automatically — if you've cleared your data, click
           "add song" below.
         </div>
+      ) : sortMode === 'learning-order' ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={sortedSongs.map(s => s.song.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-2">
+              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance }) => (
+                <SortableSongRow
+                  key={song.id}
+                  song={song}
+                  lastPractisedAt={lastPractisedAt}
+                  lastPractisedLabel={humanAgo(lastPractisedAt)}
+                  addedLabel={formatAddedDate(song.addedDate)}
+                  freshness={freshness}
+                  readyToAdvance={readyToAdvance}
+                  onOpen={() => onOpenSong(song.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance }) => (
@@ -269,5 +372,47 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         />
       )}
     </section>
+  );
+}
+
+interface SortableSongRowProps {
+  song: Song;
+  lastPractisedAt: number | null;
+  lastPractisedLabel: string;
+  addedLabel: string;
+  freshness: Freshness;
+  readyToAdvance?: boolean;
+  onOpen: () => void;
+}
+
+/**
+ * SongCard with a left-side drag handle, registered with dnd-kit's
+ * useSortable so the parent SortableContext can reorder it. Only used
+ * in learning-order mode — other sort modes render the plain SongCard
+ * in a 3-col grid.
+ */
+function SortableSongRow(props: SortableSongRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: props.song.id });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-stretch gap-2">
+      <button
+        type="button"
+        aria-label={`drag to reorder ${props.song.title}`}
+        {...attributes}
+        {...listeners}
+        className="shrink-0 px-2 flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
+      </button>
+      <div className="flex-1 min-w-0">
+        <SongCard {...props} />
+      </div>
+    </div>
   );
 }

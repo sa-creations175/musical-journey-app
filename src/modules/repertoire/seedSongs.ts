@@ -34,6 +34,30 @@ const SEED_PREF = 'repertoireSeedVersion';
  */
 const SEED_VERSION = 3;
 
+/**
+ * Return the next learningOrder value for a new song — MAX of
+ * existing learningOrder + 1, or 1 when the table is empty. Used
+ * by every song-insertion site (AddSongModal, WantToLearnView
+ * promote, persistRepertoireMonthlyGoal typed-slot path, plus the
+ * seeder above).
+ *
+ * Read+compute is not transactional — single-user app + UI-driven
+ * inserts make the race window practically zero (no two song
+ * creates land in the same tick). If that changes, wrap the call
+ * site in a transaction and run the read+write together.
+ */
+export async function assignNextLearningOrder(): Promise<number> {
+  const rows = await db.songs.toArray();
+  if (rows.length === 0) return 1;
+  let max = 0;
+  for (const r of rows) {
+    if (typeof r.learningOrder === 'number' && r.learningOrder > max) {
+      max = r.learningOrder;
+    }
+  }
+  return max + 1;
+}
+
 // In-flight guard so parallel callers (e.g. React StrictMode's
 // double-invocation of useEffect) don't produce two parallel seed
 // transactions.
@@ -467,7 +491,8 @@ async function seedFreshIfEmpty(): Promise<void> {
 
     const songRows: Song[] = [];
     const sectionRows: SongSection[] = [];
-    for (const seed of SEED_SONGS) {
+    for (let i = 0; i < SEED_SONGS.length; i++) {
+      const seed = SEED_SONGS[i];
       const songId = uid('song');
       songRows.push({
         id: songId,
@@ -482,6 +507,7 @@ async function seedFreshIfEmpty(): Promise<void> {
         fullLyrics: seed.fullLyrics,
         spotifyLink: songSearchUrl('spotify', seed.title, seed.artist),
         youtubeLink: songSearchUrl('youtube', seed.title, seed.artist),
+        learningOrder: i + 1,
         audioLinks: [],
         addedDate: now,
       });
