@@ -7,6 +7,7 @@ import {
   type GoalScope,
   type PracticeSessionContext,
   type Song,
+  type WantToLearnEntry,
 } from '../../lib/db';
 // harmonicFluencyCounts now imported alongside the other module counts below.
 import {
@@ -47,7 +48,12 @@ import {
   type PracticeConsistencyMonthlyTarget,
 } from './suggestions/practiceConsistencyMonthly';
 import { suggestRepertoireMonthly } from './suggestions/repertoireMonthly';
-import { assignNextLearningOrder } from '../repertoire/seedSongs';
+import {
+  MAX_SLOTS,
+  SONG_OF_MONTH_METRIC,
+  type SlotPayloadKind,
+} from '../repertoire/songOfMonth';
+import { promoteWantToLearnEntry } from './GoalCreationFlow';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
   earTrainingCounts,
@@ -1619,13 +1625,19 @@ function PracticeConsistencyFocus({
  * is context-only and never writes records.
  */
 
-interface NewSlot {
-  /** Stable row key — matches goal id once persisted, but we need
-   *  one for React keys before save too. */
+/**
+ * UI-side draft for one queue slot. Mirrors the persisted shape in
+ * songOfMonth.ts (kind: 'song' | 'wtl' | 'tbd' + refId) but adds a
+ * stable React key so the picker can swap entries without
+ * triggering re-renders on the wrong row.
+ */
+interface DraftSlot {
+  /** Stable row key — independent of refId so a TBD → song swap
+   *  doesn't unmount + remount the row. */
   key: string;
   data:
-    | { kind: 'catalog'; songId: string }
-    | { kind: 'typed'; title: string }
+    | { kind: 'song';        songId: string }    // already in db.songs
+    | { kind: 'wtl';         entryId: string }   // in db.wantToLearn
     | { kind: 'tbd' };
 }
 
@@ -1642,12 +1654,14 @@ function RepertoireMonthlyBody({
 }: ModuleBodyProps<'repertoire'>) {
   const initialSuggestion = useMemo(() => suggestRepertoireMonthly(), []);
 
-  // Live-fetch all songs at mount. The Song schema doesn't carry an
-  // explicit active/archived flag, so "active" is interpreted as the
-  // full repertoire — every song the user has added.
+  // Live-fetch songs + want-to-learn at mount. Songs back the
+  // "pick from your repertoire" path; WTL backs the "pick a queued
+  // song to bring into the spotlight" path. Both lists feed the
+  // queue picker.
   const allSongs = useLiveQuery(() => db.songs.toArray(), []);
+  const wantToLearn = useLiveQuery(() => db.wantToLearn.toArray(), []);
 
-  const [newSlots, setNewSlots] = useState<NewSlot[]>([]);
+  const [queue, setQueue] = useState<DraftSlot[]>([]);
   const [daysTarget, setDaysTarget] = useState({
     consistencyEnabled: initialSuggestion.target.consistencyEnabled,
     consistencyCount: initialSuggestion.target.consistencyCount,
@@ -1655,15 +1669,15 @@ function RepertoireMonthlyBody({
   });
   const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
 
-  // Save gate: at least one concrete new-this-month entry OR an
-  // enabled days target with a positive value. TBD slots don't count
-  // — they're skipped by the persist path, so allowing them through
-  // the gate alone would write an empty umbrella. Section 1 is
-  // display-only and doesn't count.
-  const hasNewSongs = newSlots.some(s => s.data.kind !== 'tbd');
+  // Save gate: at least one queue slot (specific OR TBD — TBD now
+  // creates a slot-1 placeholder goal so the spotlight position
+  // exists even without a chosen song) OR an enabled days target.
+  // A pure days-only save still works for users who only want the
+  // consistency floor.
+  const hasQueueSlots = queue.length > 0;
   const hasDaysTarget =
     daysTarget.consistencyEnabled && daysTarget.consistencyCount > 0;
-  const hasSelection = hasNewSongs || hasDaysTarget;
+  const hasSelection = hasQueueSlots || hasDaysTarget;
   // Stub records array — saveOverride owns the actual write so the
   // contents don't matter, but BodyShell uses records.length || saveOverride
   // to gate canSave. Passing one element keeps canSave honest.
@@ -1674,25 +1688,28 @@ function RepertoireMonthlyBody({
   const saveOverride = async () => {
     if (!hasSelection) return;
     await persistRepertoireMonthlyGoal({
-      newSlots,
+      queue,
       daysTarget,
       anchorGoalId: anchor.id,
       scope,
       targetDate,
       allSongs: allSongs ?? [],
+      wantToLearn: wantToLearn ?? [],
     });
   };
 
-  // Until songs load, render an empty body so the modal still opens
-  // promptly. Without this the BodyShell would render the "+ Add"
-  // affordances against an undefined-songs state and crash on click.
-  if (!allSongs) {
+  // Until songs + want-to-learn load, render an empty body so the
+  // modal still opens promptly. Without this the picker would
+  // render against undefined collections.
+  if (!allSongs || !wantToLearn) {
     return (
       <Modal open onClose={onClose} title={`New ${SCOPE_LABEL[scope].toLowerCase()} Song Repertoire goal`}>
         <div className="text-sm text-neutral-500 italic">Loading songs…</div>
       </Modal>
     );
   }
+
+  const excluded = excludedQueueRefs(queue);
 
   return (
     <BodyShell
@@ -1716,26 +1733,32 @@ function RepertoireMonthlyBody({
         hint="Spread repertoire work across the week — days matter more than total hours."
         perDayMinutesOverride={REPERTOIRE_SESSION_DEFAULT_MINUTES}
       />
-      <RepertoireNewSection
-        slots={newSlots}
-        onChange={setNewSlots}
-        catalog={allSongs}
-        excludedFromCatalog={excludedSongIds(newSlots)}
+      <RepertoireSpotlightQueueSection
+        queue={queue}
+        onChange={setQueue}
+        songs={allSongs}
+        wantToLearn={wantToLearn}
+        excludedSongIds={excluded.songIds}
+        excludedWtlIds={excluded.wtlIds}
       />
     </BodyShell>
   );
 }
 
-/** Songs already chosen in the new-this-month list — used to filter
- *  the catalog picker so the user can't add the same song twice in
- *  the same goal. */
-function excludedSongIds(newSlots: NewSlot[]): Set<string> {
-  const set = new Set<string>();
-  for (const slot of newSlots) {
+/** Refs already in the queue — drives the picker's "don't show
+ *  things already queued" filter. */
+function excludedQueueRefs(queue: DraftSlot[]): {
+  songIds: Set<string>;
+  wtlIds: Set<string>;
+} {
+  const songIds = new Set<string>();
+  const wtlIds = new Set<string>();
+  for (const slot of queue) {
     const d = slot.data;
-    if (d.kind === 'catalog') set.add(d.songId);
+    if (d.kind === 'song') songIds.add(d.songId);
+    else if (d.kind === 'wtl') wtlIds.add(d.entryId);
   }
-  return set;
+  return { songIds, wtlIds };
 }
 
 // ---------------------------------------------------------------------
@@ -1787,89 +1810,150 @@ function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
 // Section 3 — New this month (catalog pick / typed / TBD)
 // ---------------------------------------------------------------------
 
-function RepertoireNewSection({
-  slots,
+/**
+ * Song-of-the-Month queue picker. Up to MAX_SLOTS slots; first is
+ * the spotlight (the currently active song-of-the-month), the rest
+ * are commitments-in-waiting that surface when the spotlight is
+ * complete.
+ *
+ *   · Pick from want-to-learn  — references a WTL entry. Slot 1
+ *     promotes the entry to db.songs at goal-save time; slots 2/3
+ *     leave it in WTL until they advance.
+ *   · Pick from active songs   — references an existing db.songs id.
+ *   · Mark TBD                 — placeholder slot.
+ */
+function RepertoireSpotlightQueueSection({
+  queue,
   onChange,
-  catalog,
-  excludedFromCatalog,
+  songs,
+  wantToLearn,
+  excludedSongIds,
+  excludedWtlIds,
 }: {
-  slots: NewSlot[];
-  onChange: (next: NewSlot[]) => void;
-  catalog: ReadonlyArray<Song>;
-  excludedFromCatalog: Set<string>;
+  queue: DraftSlot[];
+  onChange: (next: DraftSlot[]) => void;
+  songs: ReadonlyArray<Song>;
+  wantToLearn: ReadonlyArray<WantToLearnEntry>;
+  excludedSongIds: Set<string>;
+  excludedWtlIds: Set<string>;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [typedDraft, setTypedDraft] = useState('');
 
-  const removeSlot = (key: string) => onChange(slots.filter(s => s.key !== key));
-  const addCatalog = (songId: string) => {
-    onChange([...slots, { key: newSlotKey(), data: { kind: 'catalog', songId } }]);
+  const removeSlot = (key: string) =>
+    onChange(queue.filter(s => s.key !== key));
+  const canAddMore = queue.length < MAX_SLOTS;
+
+  const addFromWtl = (entryId: string) => {
+    if (!canAddMore) return;
+    onChange([...queue, { key: newSlotKey(), data: { kind: 'wtl', entryId } }]);
     setPickerOpen(false);
   };
-  const addTyped = () => {
-    const title = typedDraft.trim();
-    if (title.length === 0) return;
-    onChange([...slots, { key: newSlotKey(), data: { kind: 'typed', title } }]);
-    setTypedDraft('');
+  const addFromSongs = (songId: string) => {
+    if (!canAddMore) return;
+    onChange([...queue, { key: newSlotKey(), data: { kind: 'song', songId } }]);
     setPickerOpen(false);
   };
   const addTbd = () => {
-    onChange([...slots, { key: newSlotKey(), data: { kind: 'tbd' } }]);
+    if (!canAddMore) return;
+    onChange([...queue, { key: newSlotKey(), data: { kind: 'tbd' } }]);
     setPickerOpen(false);
   };
 
-  const slotLabel = (slot: NewSlot): string => {
+  const slotLabel = (slot: DraftSlot): string => {
     const d = slot.data;
-    if (d.kind === 'catalog') {
-      const s = catalog.find(c => c.id === d.songId);
+    if (d.kind === 'song') {
+      const s = songs.find(x => x.id === d.songId);
       return s?.title ?? '(missing song)';
     }
-    if (d.kind === 'typed') return d.title;
-    return 'TBD — pick later';
-  };
-  const slotSub = (slot: NewSlot): string | null => {
-    const d = slot.data;
-    if (d.kind === 'catalog') {
-      const s = catalog.find(c => c.id === d.songId);
-      return s?.artist || null;
+    if (d.kind === 'wtl') {
+      const e = wantToLearn.find(x => x.id === d.entryId);
+      return e?.title ?? '(missing want-to-learn entry)';
     }
-    if (d.kind === 'typed') return 'will be added to your repertoire';
-    return 'placeholder — fill in when you decide';
+    return 'TBD';
+  };
+  const slotSub = (slot: DraftSlot, isSpotlight: boolean): string | null => {
+    const d = slot.data;
+    if (d.kind === 'song') {
+      const s = songs.find(x => x.id === d.songId);
+      return s?.artist || (isSpotlight ? 'from your repertoire' : null);
+    }
+    if (d.kind === 'wtl') {
+      const e = wantToLearn.find(x => x.id === d.entryId);
+      const artist = e?.artist || null;
+      if (isSpotlight) {
+        return artist
+          ? `${artist} · moves to active songs on save`
+          : 'moves to active songs on save';
+      }
+      return artist
+        ? `${artist} · stays in want-to-learn until its turn`
+        : 'stays in want-to-learn until its turn';
+    }
+    return isSpotlight
+      ? 'placeholder — pick a song to start the month'
+      : 'placeholder — pick a song when you decide';
   };
 
-  const availableForCatalog = catalog.filter(s => !excludedFromCatalog.has(s.id));
+  const availableSongs = songs.filter(s => !excludedSongIds.has(s.id));
+  const availableWtl = wantToLearn.filter(w => !excludedWtlIds.has(w.id));
 
   return (
     <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-2">
       <header>
         <div className="text-[10px] uppercase tracking-wide text-fluent">
-          New this month
+          Song of the month
         </div>
         <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          A song you'll start working on
+          Up to {MAX_SLOTS} slots — slot 1 is the spotlight
         </div>
       </header>
-      {slots.length > 0 && (
-        <ul className="space-y-1">
-          {slots.map(slot => {
-            const sub = slotSub(slot);
+
+      {queue.length > 0 && (
+        <ol className="space-y-1">
+          {queue.map((slot, idx) => {
+            const isSpotlight = idx === 0;
+            const sub = slotSub(slot, isSpotlight);
             return (
               <li
                 key={slot.key}
-                className="flex items-center justify-between gap-2 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/40"
+                className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded border ${
+                  isSpotlight
+                    ? 'border-fluent/40 bg-white dark:bg-neutral-900/60'
+                    : 'border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/40'
+                }`}
               >
-                <div className="min-w-0">
-                  <div className="text-sm text-neutral-700 dark:text-neutral-200 truncate">
-                    {slotLabel(slot)}
+                <div className="min-w-0 flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold ${
+                      isSpotlight
+                        ? 'bg-fluent text-white'
+                        : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200'
+                    }`}
+                    title={isSpotlight ? 'Spotlight slot' : `Slot ${idx + 1}`}
+                  >
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm text-neutral-700 dark:text-neutral-200 truncate flex items-center gap-1.5">
+                      {slotLabel(slot)}
+                      {isSpotlight && (
+                        <span className="text-[10px] uppercase tracking-wide text-fluent">
+                          spotlight
+                        </span>
+                      )}
+                    </div>
+                    {sub && (
+                      <div className="text-[11px] text-neutral-500 truncate">
+                        {sub}
+                      </div>
+                    )}
                   </div>
-                  {sub && (
-                    <div className="text-[11px] text-neutral-500 truncate">{sub}</div>
-                  )}
                 </div>
                 <button
                   type="button"
                   onClick={() => removeSlot(slot.key)}
-                  aria-label="Remove"
+                  aria-label={`Remove slot ${idx + 1}`}
                   className="text-neutral-400 hover:text-needswork text-sm shrink-0"
                 >
                   ×
@@ -1877,58 +1961,68 @@ function RepertoireNewSection({
               </li>
             );
           })}
-        </ul>
+        </ol>
       )}
 
-      {!pickerOpen ? (
+      {!canAddMore ? (
+        <p className="text-[11px] text-neutral-500 italic">
+          Queue full ({MAX_SLOTS} slots).
+        </p>
+      ) : !pickerOpen ? (
         <button
           type="button"
           onClick={() => setPickerOpen(true)}
           className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
         >
-          + Add new song
+          + Add slot
         </button>
       ) : (
         <div className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-2">
-          {/* Type a new title */}
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={typedDraft}
-              onChange={e => setTypedDraft(e.target.value)}
-              placeholder="Type a new song title…"
-              className="flex-1 px-2 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm focus:outline-none focus:ring-2 focus:ring-fluent/40"
-            />
-            <button
-              type="button"
-              onClick={addTyped}
-              disabled={typedDraft.trim().length === 0}
-              className={`px-2 py-1 rounded-md text-xs font-medium text-white ${
-                typedDraft.trim().length === 0
-                  ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
-                  : 'bg-fluent hover:opacity-90'
-              }`}
-            >
-              Add
-            </button>
-          </div>
-
-          {/* Catalog browser */}
-          {availableForCatalog.length > 0 && (
+          {availableWtl.length > 0 && (
             <div>
               <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
-                Or pick from your catalog
+                Pick from want-to-learn
               </div>
               <ul className="max-h-32 overflow-y-auto space-y-0.5 border border-neutral-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 p-1">
-                {availableForCatalog.map(s => (
+                {availableWtl.map(e => (
+                  <li key={e.id}>
+                    <button
+                      type="button"
+                      onClick={() => addFromWtl(e.id)}
+                      className="w-full text-left px-2 py-1 rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      {e.title}
+                      {e.artist && (
+                        <span className="text-xs text-neutral-500 ml-1">
+                          — {e.artist}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {availableSongs.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+                Or pick from active songs
+              </div>
+              <ul className="max-h-32 overflow-y-auto space-y-0.5 border border-neutral-200 dark:border-neutral-700 rounded bg-white dark:bg-neutral-900 p-1">
+                {availableSongs.map(s => (
                   <li key={s.id}>
                     <button
                       type="button"
-                      onClick={() => addCatalog(s.id)}
+                      onClick={() => addFromSongs(s.id)}
                       className="w-full text-left px-2 py-1 rounded text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
                     >
                       {s.title}
-                      {s.artist && <span className="text-xs text-neutral-500 ml-1">— {s.artist}</span>}
+                      {s.artist && (
+                        <span className="text-xs text-neutral-500 ml-1">
+                          — {s.artist}
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -1942,14 +2036,11 @@ function RepertoireNewSection({
               onClick={addTbd}
               className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
             >
-              Save TBD slot →
+              Add TBD slot →
             </button>
             <button
               type="button"
-              onClick={() => {
-                setPickerOpen(false);
-                setTypedDraft('');
-              }}
+              onClick={() => setPickerOpen(false)}
               className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
             >
               Cancel
@@ -1966,12 +2057,12 @@ function RepertoireNewSection({
 // ---------------------------------------------------------------------
 
 interface PersistRepertoireArgs {
-  newSlots: NewSlot[];
+  queue: DraftSlot[];
   /** Days-per-week practice target from the body's
    *  ConsistencyTargetCard. When enabled with a positive count, the
    *  persist path adds a `repertoire_days_per_cadence` child to the
-   *  umbrella alongside the new-song children. Coexists rather than
-   *  replaces — a goal can have days-only, songs-only, or both. */
+   *  umbrella alongside the queue children. Coexists rather than
+   *  replaces — a goal can have days-only, queue-only, or both. */
   daysTarget: {
     consistencyEnabled: boolean;
     consistencyCount: number;
@@ -1981,79 +2072,66 @@ interface PersistRepertoireArgs {
   scope: ShortScope;
   targetDate: number;
   allSongs: ReadonlyArray<Song>;
+  wantToLearn: ReadonlyArray<WantToLearnEntry>;
 }
 
 /**
- * Repertoire save path. Different shape from the generic
- * persistSuggestionGoal because:
- *   · Multiple records (one per new song) each need their own
- *     relatedItems[songId] — the generic encoder produces records
- *     without song-specific identity.
- *   · Typed-new-song slots create a Song row first, then encode the
- *     goal pointing at the new id.
- *   · TBD slots emit a placeholder goal with empty relatedItems.
+ * Persist a Song-of-the-Month queue + optional days target as an
+ * umbrella goal with N children.
  *
- * Always umbrella + N children when N >= 1, even when N === 1, so
- * the data shape stays consistent with how the by-module /
- * by-timeframe views render multi-song repertoire commitments. The
- * maintaining section is display-only and doesn't contribute records.
+ * Slot 1 (the spotlight):
+ *   · kind='song' — emit `song_whole_at_level` + relatedItems=[songId]
+ *     (the existing shape the algorithm already surfaces).
+ *   · kind='wtl'  — promote the WTL entry to db.songs FIRST, then emit
+ *     the same `song_whole_at_level` shape pointing at the new id.
+ *     The entry is removed from db.wantToLearn as part of promotion.
+ *   · kind='tbd'  — emit `song_of_month` + targetValue=1 +
+ *     targetUnit='tbd' + relatedItems=[]. Algorithm classifies this
+ *     as unsupported; UI surfaces an "Add a song" prompt when this
+ *     slot reaches the spotlight.
+ *
+ * Slots 2 and 3:
+ *   · Emit `song_of_month` + targetValue=N + targetUnit='song'|'wtl'|'tbd' +
+ *     relatedItems carrying the songId or wtl entryId (empty for TBD).
+ *   · Want-to-learn entries are NOT promoted at this stage — they stay
+ *     in db.wantToLearn until the slot advances to spotlight via
+ *     advanceSpotlightQueue.
+ *
+ * Plus the optional days-per-cadence child (unchanged from before).
  */
 async function persistRepertoireMonthlyGoal(
   args: PersistRepertoireArgs,
 ): Promise<void> {
-  const { newSlots, daysTarget, anchorGoalId, scope, targetDate, allSongs } = args;
-  const hasNewSongs = newSlots.some(s => s.data.kind !== 'tbd');
+  const {
+    queue,
+    daysTarget,
+    anchorGoalId,
+    scope,
+    targetDate,
+    allSongs,
+    wantToLearn,
+  } = args;
+  const hasQueueSlots = queue.length > 0;
   const hasDaysTarget =
     daysTarget.consistencyEnabled && daysTarget.consistencyCount > 0;
-  if (!hasNewSongs && !hasDaysTarget) return;
+  if (!hasQueueSlots && !hasDaysTarget) return;
 
-  // 1) Resolve each new-this-month slot to a song id (creating new
-  //    Song rows for typed slots). TBD slots are skipped entirely:
-  //    "start a new song this month" with no specific song would
-  //    create a goal record with empty relatedItems that the session
-  //    algorithm can't surface against any concrete work. The
-  //    hours-based time-commitment child carries the intent on its
-  //    own, so dropping TBD slots loses nothing.
-  type ResolvedSlot = { songId: string; description: string };
-  const resolvedNewSlots: ResolvedSlot[] = [];
-  const newSongRowsToInsert: Song[] = [];
-
-  // Assign learningOrder to typed-new-song rows in submission order:
-  // first typed slot gets next-available, subsequent typed slots get
-  // +1. Catalog and TBD slots don't create new Song rows so they're
-  // skipped. Computed once up-front (instead of per slot) because the
-  // helper does a full table scan; bumping locally keeps the writes
-  // monotonic in this single transaction.
-  let nextLearningOrder = await assignNextLearningOrder();
-  for (const slot of newSlots) {
-    const d = slot.data;
-    if (d.kind === 'catalog') {
-      const s = allSongs.find(x => x.id === d.songId);
-      const title = s?.title ?? '(missing)';
-      resolvedNewSlots.push({
-        songId: d.songId,
-        description: `Start ${title} this month — reach comfortable`,
-      });
-    } else if (d.kind === 'typed') {
-      const id = crypto.randomUUID();
-      newSongRowsToInsert.push({
-        id,
-        title: d.title,
-        artist: '',
-        stage: 'learning',
-        audioLinks: [],
-        addedDate: Date.now(),
-        learningOrder: nextLearningOrder++,
-      });
-      resolvedNewSlots.push({
-        songId: id,
-        description: `Start ${d.title} this month — reach comfortable`,
-      });
+  // ── Spotlight promotion ────────────────────────────────────────
+  // If slot 1 is a want-to-learn pick, promote it BEFORE the goal
+  // transaction so the resulting songId is known when we encode the
+  // slot-1 child. Other slots stay in want-to-learn until their turn.
+  // If the entry vanished between picker render and save (concurrent
+  // delete), spotlight degrades to a TBD placeholder.
+  let spotlightPromotedSongId: string | null = null;
+  if (queue.length > 0 && queue[0].data.kind === 'wtl') {
+    const entryId = queue[0].data.entryId;
+    const entry = wantToLearn.find(e => e.id === entryId);
+    if (entry) {
+      spotlightPromotedSongId = await promoteWantToLearnEntry(entry);
     }
-    // TBD slots: skip — no concrete song to attach a child goal to.
   }
 
-  // 2) Build child goal records.
+  // ── Build child goal records ──────────────────────────────────
   const now = Date.now();
   const baseFields = {
     scope,
@@ -2068,23 +2146,85 @@ async function persistRepertoireMonthlyGoal(
   };
 
   const umbrellaId = crypto.randomUUID();
-  const children: Goal[] = resolvedNewSlots.map(slot => ({
-    id: crypto.randomUUID(),
-    ...baseFields,
-    description: slot.description,
-    targetMetric: 'song_whole_at_level',
-    targetValue: null,
-    targetUnit: 'comfortable',
-    relatedItems: [slot.songId],
-    parentGoalId: umbrellaId,
-    isUmbrella: false,
-  }));
+  const children: Goal[] = [];
 
-  // 2.5) Days-per-week consistency child, when the body's
-  //      ConsistencyTargetCard is enabled. WeeklyPlan reads this
-  //      single record and derives the per-day time block using
-  //      REPERTOIRE_SESSION_DEFAULT_MINUTES — total weekly time =
-  //      days × ~45 min.
+  for (let i = 0; i < queue.length; i++) {
+    const slot = queue[i];
+    const slotIndex = i + 1;
+    const d = slot.data;
+    const isSpotlight = slotIndex === 1;
+
+    if (isSpotlight) {
+      // Slot 1: either song_whole_at_level (specific) or
+      // song_of_month TBD.
+      let songId: string | null = null;
+      if (d.kind === 'song') {
+        songId = d.songId;
+      } else if (d.kind === 'wtl') {
+        songId = spotlightPromotedSongId;
+      }
+      if (songId) {
+        const s = allSongs.find(x => x.id === songId);
+        const title = s?.title ?? (d.kind === 'wtl'
+          ? (wantToLearn.find(e => e.id === d.entryId)?.title ?? 'new song')
+          : '(missing)');
+        children.push({
+          id: crypto.randomUUID(),
+          ...baseFields,
+          description: `Song of the month: ${title}`,
+          targetMetric: 'song_whole_at_level',
+          targetValue: null,
+          targetUnit: 'comfortable',
+          relatedItems: [songId],
+          parentGoalId: umbrellaId,
+          isUmbrella: false,
+        });
+      } else {
+        // TBD spotlight (or a wtl ref that vanished).
+        children.push({
+          id: crypto.randomUUID(),
+          ...baseFields,
+          description: 'Song of the month: TBD',
+          targetMetric: SONG_OF_MONTH_METRIC,
+          targetValue: 1,
+          targetUnit: 'tbd',
+          relatedItems: [],
+          parentGoalId: umbrellaId,
+          isUmbrella: false,
+        });
+      }
+      continue;
+    }
+
+    // Slot 2/3: song_of_month metric with the slot index + payload.
+    const kind: SlotPayloadKind = d.kind;
+    let refId: string | null = null;
+    let title = 'TBD';
+    if (d.kind === 'song') {
+      refId = d.songId;
+      title = allSongs.find(x => x.id === d.songId)?.title ?? '(missing)';
+    } else if (d.kind === 'wtl') {
+      refId = d.entryId;
+      title = wantToLearn.find(e => e.id === d.entryId)?.title ?? '(missing)';
+    }
+    children.push({
+      id: crypto.randomUUID(),
+      ...baseFields,
+      description: `Queue ${slotIndex}: ${title}`,
+      targetMetric: SONG_OF_MONTH_METRIC,
+      targetValue: slotIndex,
+      targetUnit: kind,
+      relatedItems: refId ? [refId] : [],
+      parentGoalId: umbrellaId,
+      isUmbrella: false,
+    });
+  }
+
+  // Days-per-week consistency child, when the body's
+  // ConsistencyTargetCard is enabled. WeeklyPlan reads this single
+  // record and derives the per-day time block using
+  // REPERTOIRE_SESSION_DEFAULT_MINUTES — total weekly time =
+  // days × ~45 min.
   if (hasDaysTarget) {
     children.push({
       id: crypto.randomUUID(),
@@ -2092,8 +2232,8 @@ async function persistRepertoireMonthlyGoal(
       description: `${daysTarget.consistencyCount} days per week on repertoire`,
       targetMetric: 'repertoire_days_per_cadence',
       targetValue: daysTarget.consistencyCount,
-      // Days metric is always weekly — the new card no longer
-      // exposes a monthly toggle.
+      // Days metric is always weekly — the card no longer exposes a
+      // monthly toggle.
       targetUnit: 'week',
       relatedItems: [],
       parentGoalId: umbrellaId,
@@ -2101,17 +2241,16 @@ async function persistRepertoireMonthlyGoal(
     });
   }
 
-  // 3) Umbrella row. Description mirrors what the user committed
-  //    to — days only, songs only, or both.
-  const songCount = resolvedNewSlots.length;
-  const songsPhrase =
-    songCount > 0
-      ? `start ${songCount} new song${songCount === 1 ? '' : 's'}`
+  // ── Umbrella row ──────────────────────────────────────────────
+  const queueCount = queue.length;
+  const queuePhrase =
+    queueCount > 0
+      ? `${queueCount} song-of-the-month slot${queueCount === 1 ? '' : 's'}`
       : '';
   const daysPhrase = hasDaysTarget
     ? `${daysTarget.consistencyCount} days/week`
     : '';
-  const phrases = [songsPhrase, daysPhrase].filter(p => p.length > 0).join(' + ');
+  const phrases = [queuePhrase, daysPhrase].filter(p => p.length > 0).join(' + ');
   const umbrellaDescription = `Repertoire month: ${phrases}`;
   const umbrella: Goal = {
     id: umbrellaId,
@@ -2125,13 +2264,10 @@ async function persistRepertoireMonthlyGoal(
     isUmbrella: true,
   };
 
-  // 4) Write everything in one transaction. New Song rows go first
-  //    so the goal records' relatedItems point at existing rows by
-  //    the time the goal table sees them.
-  await db.transaction('rw', [db.songs, db.goals], async () => {
-    if (newSongRowsToInsert.length > 0) {
-      await db.songs.bulkAdd(newSongRowsToInsert);
-    }
+  // Note: the spotlight WTL promotion (if any) already ran outside
+  // this transaction — promoteWantToLearnEntry has its own. We only
+  // need the goals table here.
+  await db.transaction('rw', db.goals, async () => {
     await db.goals.add(umbrella);
     await db.goals.bulkAdd(children);
   });
