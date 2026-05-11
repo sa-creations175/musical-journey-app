@@ -10,7 +10,10 @@
       "Bash(curl -sI http://localhost:5192/)",
       "Bash(npm run *)",
       "Bash(tee /tmp/vite-dev.log)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(npx vitest *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

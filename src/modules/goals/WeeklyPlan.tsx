@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import Modal from '../../components/Modal';
 import { db, type Goal } from '../../lib/db';
 import {
   getWeeklyTimeEstimate,
+  REPERTOIRE_SESSION_DEFAULT_MINUTES,
   TIME_PER_ATTEMPT_MINUTES,
   type ShapesActivityArea,
   type TimeEstimate,
@@ -10,7 +11,10 @@ import {
 import { MODULE_ORDER, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 import type { GoalFlowModuleId } from './goalVocabulary';
 import { isCoverageMetric } from './coverageMetrics';
-import { coverageGroupIdToActivityArea } from './shapesCoverageGroups';
+import {
+  coverageGroupIdToActivityArea,
+  getShapesCoverageGroup,
+} from './shapesCoverageGroups';
 import { deriveWeeklyGoals } from './weeklyDerivation';
 import {
   classifyPace,
@@ -82,16 +86,39 @@ interface PlanRow {
    *  a colon-prefixed variant for proficiency). Drives per-area
    *  time-per-rep selection in rowTime. */
   parentUnit: string | null;
+  /** Phase 4 polish — when a sibling consistency row exists in the
+   *  same module (e.g. an HF umbrella with both a coverage child and
+   *  a consistency child), this field carries the consistency
+   *  cadence so the row's display can fold "across N sessions ·
+   *  ~Y min each" inline. The standalone consistency row is dropped
+   *  from the plan grid after the merge — no separate time
+   *  estimate, since per-session time is computed from this row's
+   *  own coverage target. Set only on coverage rows; null otherwise. */
+  consistencyInfo: {
+    sessions: number;
+    cadence: 'week' | 'month';
+  } | null;
 }
 
 /** Per-row time display. `time` carries a TimeEstimate to render
  *  "~1h 50m" / "~30 min" the same as before. `per-session`
  *  carries a single per-session minutes value rendered as
- *  "~27m each" — used for HF/ET consistency rows so the user
- *  sees the honest "this many sessions × this much time per
- *  session" breakdown derived from the sibling coverage row. */
+ *  "~27m each" — used for standalone HF/ET consistency rows when
+ *  there's no sibling coverage to merge into.
+ *
+ *  When a coverage row has a sibling consistency target (merged via
+ *  consistencyInfo on the PlanRow), the time display additionally
+ *  carries a `consistencySuffix` string — appended inline to make
+ *  the user's full week read as a single line:
+ *      "~1h 48m/week · across 4 sessions · ~27 min each"
+ *  The standalone consistency row is dropped from the grid after
+ *  the merge so the user doesn't see duplicated time estimates. */
 type RowTimeDisplay =
-  | { kind: 'time'; estimate: TimeEstimate }
+  | {
+      kind: 'time';
+      estimate: TimeEstimate;
+      consistencySuffix?: string;
+    }
   | { kind: 'per-session'; minutesPerSession: number };
 
 /** HF/ET cadence-style metrics whose row should render as
@@ -100,6 +127,80 @@ const SESSIONS_PER_CADENCE_METRICS: ReadonlySet<string> = new Set([
   'harmonic_fluency_sessions_per_cadence',
   'ear_training_sessions_per_cadence',
 ]);
+
+/**
+ * Phase 4 polish — merge coverage + consistency rows for the same
+ * (parentUmbrellaId, moduleId). The coverage row keeps the primary
+ * target + time; the consistency row's session count + cadence
+ * attaches to the coverage row's `consistencyInfo` and the
+ * standalone consistency row is dropped from the grid.
+ *
+ * Rationale: coverage and consistency for the same module describe
+ * the same weekly time — coverage measures attempts, consistency
+ * frames those attempts as sessions. Showing both as separate rows
+ * implies separate time commitments. Merging keeps the UI honest:
+ * one time figure, with the consistency cadence as a sub-note.
+ *
+ * Edge cases preserved:
+ *   · Consistency-only modules (no sibling coverage) stay as
+ *     standalone rows; rowTime returns null or per-session
+ *     depending on whether HF/ET sibling-coverage logic finds
+ *     anything (it won't, since we already filtered to this module).
+ *   · Coverage-only modules stay as standalone rows with
+ *     consistencyInfo = null.
+ *   · Multiple umbrellas for the same module (rare) stay separate
+ *     since the group key includes parentUmbrellaId.
+ */
+function mergeCoverageAndConsistencyRows(rows: PlanRow[]): PlanRow[] {
+  // Group rows by (parentUmbrellaId, moduleId). Falls back to
+  // monthlyGoalId for rows without an umbrella so unrelated
+  // standalone goals never accidentally merge.
+  const groupKey = (r: PlanRow) =>
+    `${r.parentUmbrellaId ?? r.monthlyGoalId}\x00${r.moduleId}`;
+  const groups = new Map<string, PlanRow[]>();
+  for (const row of rows) {
+    const key = groupKey(row);
+    const arr = groups.get(key);
+    if (arr) arr.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const out: PlanRow[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      out.push(group[0]);
+      continue;
+    }
+    const coverage = group.find(r => r.parentMetric != null && isCoverageMetric(r.parentMetric));
+    const consistency = group.find(
+      r => r.parentMetric != null && SESSIONS_PER_CADENCE_METRICS.has(r.parentMetric),
+    );
+    if (coverage && consistency) {
+      // Fold consistency into coverage. Cadence comes from the
+      // consistency goal's targetUnit; defaults to 'week' when the
+      // saved value is anything else (the per-session math is the
+      // same for either cadence when normalized to the goal's
+      // period — see weeklyTimeEstimate.ts's per-session derivation
+      // for the parallel logic in the suggestion flow).
+      const cadence: 'week' | 'month' =
+        consistency.parentUnit === 'month' ? 'month' : 'week';
+      out.push({
+        ...coverage,
+        consistencyInfo: { sessions: consistency.target, cadence },
+      });
+      // Push any other rows in the group (e.g. accuracy children)
+      // unchanged so they keep their own display.
+      for (const r of group) {
+        if (r === coverage || r === consistency) continue;
+        out.push(r);
+      }
+    } else {
+      // No clean coverage+consistency pair — emit as-is.
+      for (const r of group) out.push(r);
+    }
+  }
+  return out;
+}
 
 /** Pull the activity-area discriminator out of a Shapes parent
  *  goal's targetUnit when present:
@@ -146,6 +247,57 @@ const MODULE_ACCENT_HEX: Record<GoalFlowModuleId, string> = {
   'production':           MODULE_ORDER.find(m => m.id === 'production')?.accentHex           ?? '#3a4875',
   'practice-consistency': PRACTICE_SESSIONS_META.accentHex,
 };
+
+/**
+ * Display labels for the four ET sub-modules (used as sub-row
+ * labels when an ET monthly goal has split coverage across multiple
+ * sub-areas — e.g. intervals + chord-progressions both selected on
+ * the picker). Keys match `parentUnit` for ear_training_*_specific
+ * coverage records.
+ */
+const ET_SUBAREA_LABEL: Readonly<Record<string, string>> = {
+  'intervals':          'Intervals',
+  'chord-recognition':  'Chord recognition',
+  'chord-progressions': 'Chord progressions',
+  'scales-modes':       'Scales & modes',
+};
+
+/**
+ * Short display label for a sub-row inside a multi-row module
+ * group. Distinguishes siblings ("Major triads" / "Minor triads" /
+ * "Intervals" / "Chord progressions") without repeating the module
+ * label that already shows in the group header.
+ *
+ * Resolution order:
+ *   · Shapes coverage_specific  → SHAPES_COVERAGE_GROUP_DEFS label
+ *     by parentUnit (covers the Layer 2 triad-quality ids + the
+ *     Layer 1 group ids like 'scale_drills').
+ *   · ET coverage_specific      → ET_SUBAREA_LABEL by parentUnit
+ *     (intervals / chord-recognition / chord-progressions /
+ *     scales-modes).
+ *   · Fallback                  → parentDescription (verbose but
+ *     never empty).
+ *
+ * Returns null when there's nothing useful — the caller can fall
+ * back to the parent description in that case.
+ */
+function subLabelForPlanRow(row: PlanRow): string | null {
+  const metric = row.parentMetric;
+  const unit = row.parentUnit;
+  if (!unit) return null;
+  if (metric && metric.startsWith('shapes_coverage_at_acquired')) {
+    const def = getShapesCoverageGroup(unit);
+    if (def) {
+      // Capitalize the first letter so it reads as a label, not the
+      // raw lowercase picker copy.
+      return def.label.charAt(0).toUpperCase() + def.label.slice(1);
+    }
+  }
+  if (metric && metric.startsWith('ear_training_coverage_at_acquired')) {
+    return ET_SUBAREA_LABEL[unit] ?? null;
+  }
+  return null;
+}
 
 // ---------------------------------------------------------------------
 // Formatting helpers
@@ -222,6 +374,13 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
   const [confirmedGoals, setConfirmedGoals] = useState<Goal[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Per-module collapse state. Empty set = everything expanded
+   *  (the default — see spec: "expanded by default, collapse
+   *  chevron on the right"). Only applies to multi-row module
+   *  groups; single-row modules always render flat. */
+  const [collapsedModules, setCollapsedModules] = useState<Set<GoalFlowModuleId>>(
+    new Set(),
+  );
 
   // Load everything on open / weekStart change.
   useEffect(() => {
@@ -258,9 +417,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
               parentMetric: parent?.targetMetric ?? null,
               parentUmbrellaId: parent?.parentGoalId ?? null,
               parentUnit: parent?.targetUnit ?? null,
+              consistencyInfo: null,
             };
           });
-          setPlanRows(rows);
+          setPlanRows(mergeCoverageAndConsistencyRows(rows));
         } else {
           const derived = await deriveWeeklyGoals(monthlies, weekStart);
           const rows: PlanRow[] = derived.map(g => {
@@ -276,9 +436,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
               parentMetric: parent?.targetMetric ?? null,
               parentUmbrellaId: parent?.parentGoalId ?? null,
               parentUnit: parent?.targetUnit ?? null,
+              consistencyInfo: null,
             };
           });
-          setPlanRows(rows);
+          setPlanRows(mergeCoverageAndConsistencyRows(rows));
         }
       } catch (e) {
         if (cancelled) return;
@@ -334,12 +495,27 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
       };
     }
 
-    // Production hours/cadence: target IS the weekly hour count.
+    // Hours-per-cadence consistency rows (production_hours_per_cadence
+    // or repertoire_hours_per_cadence after derivation passthrough):
+    // target IS the weekly hour count. Repertoire additionally derives
+    // a session breakdown ("~45 min · 6 sessions/week") so the user
+    // sees the cadence shape, not just the bulk hours figure.
     if (row.unit === 'hours') {
-      return {
-        kind: 'time',
-        estimate: { kind: 'point', minutes: row.target * 60 },
-      };
+      const estimate: TimeEstimate = { kind: 'point', minutes: row.target * 60 };
+      if (row.parentMetric === 'repertoire_hours_per_cadence' && row.target > 0) {
+        const sessions = Math.max(
+          1,
+          Math.round((row.target * 60) / REPERTOIRE_SESSION_DEFAULT_MINUTES),
+        );
+        const sessionNoun = sessions === 1 ? 'session' : 'sessions';
+        return {
+          kind: 'time',
+          estimate,
+          consistencySuffix:
+            `~${REPERTOIRE_SESSION_DEFAULT_MINUTES} min · ${sessions} ${sessionNoun}/week`,
+        };
+      }
+      return { kind: 'time', estimate };
     }
 
     // Shapes minutes_per_cadence (consistency): target IS the
@@ -366,15 +542,39 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
     // (or 'area:level' for proficiency); the *_overall metric has
     // no area, so the function falls back to the catalog-weighted
     // average per-rep.
+    //
+    // consistencySuffix: when this row has a merged sibling
+    // consistency target (HF/ET only), append "across N sessions ·
+    // ~Y min each" to the time display so the user sees one honest
+    // line per module. Per-session minutes = (this row's attempts) /
+    // (sibling's session count) × per-attempt-minutes; uses the
+    // declarative HF/ET constants since the per-session breakdown
+    // is currently scoped to those modules (matches the suggestion
+    // flow's weeklyTimeEstimate.ts logic).
     if (row.unit === 'attempts' || row.unit === 'sessions') {
+      let estimate: TimeEstimate;
       if (row.moduleId === 'shapes-and-patterns') {
         const area = shapesAreaFromUnit(row.parentUnit);
-        return {
-          kind: 'time',
-          estimate: getWeeklyTimeEstimate('shapes-and-patterns', row.target, area ?? undefined),
-        };
+        estimate = getWeeklyTimeEstimate('shapes-and-patterns', row.target, area ?? undefined);
+      } else {
+        estimate = getWeeklyTimeEstimate(row.moduleId, row.target);
       }
-      return { kind: 'time', estimate: getWeeklyTimeEstimate(row.moduleId, row.target) };
+      let consistencySuffix: string | undefined;
+      if (
+        row.consistencyInfo
+        && (row.moduleId === 'harmonic-fluency' || row.moduleId === 'ear-training')
+        && row.consistencyInfo.sessions > 0
+      ) {
+        const minutesPerAttempt = TIME_PER_ATTEMPT_MINUTES[row.moduleId];
+        const attemptsPerSession = row.target / row.consistencyInfo.sessions;
+        const minutesPerSession = attemptsPerSession * minutesPerAttempt;
+        const sessionNoun = row.consistencyInfo.sessions === 1 ? 'session' : 'sessions';
+        const cadenceNoun = row.consistencyInfo.cadence === 'month' ? '/month' : '';
+        consistencySuffix =
+          `across ${row.consistencyInfo.sessions} ${sessionNoun}${cadenceNoun} · `
+          + `~${formatMinutes(minutesPerSession)} each`;
+      }
+      return { kind: 'time', estimate, consistencySuffix };
     }
 
     // 'days' (practice consistency) — no honest per-day constant
@@ -395,6 +595,56 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
     if (estimates.length === 0) return { kind: 'point', minutes: 0 };
     return sumTimeEstimates(estimates);
   }, [planRows]);
+
+  /**
+   * Group rows by module so the grid can render a per-module header
+   * with combined time for multi-row groups (e.g. Shapes with maj +
+   * min + dim triad sub-goals → one "Shapes & Patterns" header
+   * grouping 3 sub-rows). Each group carries its own combined time
+   * estimate; single-row groups still flow through the existing
+   * flat-row render path.
+   */
+  interface ModuleGroup {
+    moduleId: GoalFlowModuleId;
+    rows: PlanRow[];
+    combinedTime: TimeEstimate;
+  }
+  const moduleGroups = useMemo<ModuleGroup[]>(() => {
+    const byModule = new Map<GoalFlowModuleId, PlanRow[]>();
+    // Preserve insertion order — first row's module wins the slot,
+    // siblings append to the existing array. Keeps a deterministic
+    // visual order tied to deriveWeeklyGoals' walk through the
+    // monthly-goals list.
+    for (const row of planRows) {
+      const list = byModule.get(row.moduleId);
+      if (list) list.push(row);
+      else byModule.set(row.moduleId, [row]);
+    }
+    const out: ModuleGroup[] = [];
+    for (const [moduleId, rows] of byModule) {
+      const estimates: TimeEstimate[] = [];
+      for (const r of rows) {
+        const t = rowTime(r);
+        if (!t || t.kind !== 'time') continue;
+        estimates.push(t.estimate);
+      }
+      const combinedTime: TimeEstimate =
+        estimates.length === 0
+          ? { kind: 'point', minutes: 0 }
+          : sumTimeEstimates(estimates);
+      out.push({ moduleId, rows, combinedTime });
+    }
+    return out;
+  }, [planRows]);
+
+  const toggleModuleCollapsed = (moduleId: GoalFlowModuleId) => {
+    setCollapsedModules(prev => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) next.delete(moduleId);
+      else next.add(moduleId);
+      return next;
+    });
+  };
 
   function setRowTarget(monthlyGoalId: string, next: number) {
     setPlanRows(rows =>
@@ -479,9 +729,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
           parentMetric: parent?.targetMetric ?? null,
           parentUmbrellaId: parent?.parentGoalId ?? null,
           parentUnit: parent?.targetUnit ?? null,
+          consistencyInfo: null,
         };
       });
-      setPlanRows(rows);
+      setPlanRows(mergeCoverageAndConsistencyRows(rows));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to re-plan');
     } finally {
@@ -588,28 +839,63 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
                         <th className="px-3 py-2 text-left">Module</th>
                         <th className="px-3 py-2 text-left">Target</th>
                         <th className="px-3 py-2 text-left">Time</th>
-                        <th className="px-3 py-2 text-left"></th>
+                        <th className="px-3 py-2 text-left w-10"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                      {planRows.map(row => (
-                        <PlanRowView
-                          key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}
-                          row={row}
-                          time={rowTime(row)}
-                          editable={!isConfirmed}
-                          onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
-                          onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
-                        />
-                      ))}
+                      {moduleGroups.map(group => {
+                        // Single-row module → flat row (no group header,
+                        // no chevron). HF's coverage+consistency merge
+                        // commonly lands here.
+                        if (group.rows.length === 1) {
+                          const row = group.rows[0];
+                          return (
+                            <PlanRowView
+                              key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}
+                              row={row}
+                              time={rowTime(row)}
+                              editable={!isConfirmed}
+                              onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
+                              onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
+                            />
+                          );
+                        }
+                        // Multi-row module → collapsible group header
+                        // + sub-rows (rendered when expanded).
+                        const isCollapsed = collapsedModules.has(group.moduleId);
+                        return (
+                          <Fragment key={group.moduleId}>
+                            <ModuleGroupHeader
+                              moduleId={group.moduleId}
+                              combinedTime={group.combinedTime}
+                              collapsed={isCollapsed}
+                              onToggle={() => toggleModuleCollapsed(group.moduleId)}
+                            />
+                            {!isCollapsed && group.rows.map(row => (
+                              <PlanRowView
+                                key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}
+                                row={row}
+                                time={rowTime(row)}
+                                editable={!isConfirmed}
+                                onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
+                                onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
+                                subLabel={subLabelForPlanRow(row) ?? row.parentDescription}
+                                hideModuleHeading
+                              />
+                            ))}
+                          </Fragment>
+                        );
+                      })}
+                      <TotalRow totalTime={totalTime} />
                     </tbody>
                   </table>
                 </div>
 
-                <div className="text-xs text-neutral-500 px-1">
-                  Total time this week: <span className="font-medium text-neutral-700 dark:text-neutral-300">{formatTimeEstimate(totalTime)}</span>
-                  {totalTime.kind === 'range' && ' (range reflects production lesson variability)'}
-                </div>
+                {totalTime.kind === 'range' && (
+                  <div className="text-xs text-neutral-500 px-1">
+                    Range reflects production lesson variability.
+                  </div>
+                )}
 
                 <DailyPattern />
               </>
@@ -707,23 +993,36 @@ function PlanRowView(props: {
   editable: boolean;
   onChangeTarget: (n: number) => void;
   onResetTarget: () => void;
+  /** When set, the module name is suppressed in the row's Module
+   *  cell and `subLabel` replaces it. Used for sub-rows of a
+   *  multi-row module group (the group's header already shows
+   *  the module name + accent dot). */
+  subLabel?: string;
+  /** Hide the module name and accent dot; sub-row mode. */
+  hideModuleHeading?: boolean;
 }) {
-  const { row, time, editable, onChangeTarget, onResetTarget } = props;
+  const { row, time, editable, onChangeTarget, onResetTarget, subLabel, hideModuleHeading } = props;
   const accentHex = MODULE_ACCENT_HEX[row.moduleId];
   const adjusted = row.target !== row.suggested;
   return (
     <tr>
-      <td className="px-3 py-2 align-top">
-        <span className="inline-flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ backgroundColor: accentHex }}
-          />
-          <span className="font-medium">{MODULE_LABEL[row.moduleId]}</span>
-        </span>
-        <div className="text-xs text-neutral-500 mt-0.5 max-w-[20rem] truncate">
-          {row.parentDescription}
-        </div>
+      <td className={`px-3 py-2 align-top ${hideModuleHeading ? 'pl-9' : ''}`}>
+        {hideModuleHeading ? (
+          <div className="font-medium text-sm">{subLabel ?? row.parentDescription}</div>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="inline-block w-2 h-2 rounded-full"
+                style={{ backgroundColor: accentHex }}
+              />
+              <span className="font-medium">{MODULE_LABEL[row.moduleId]}</span>
+            </span>
+            <div className="text-xs text-neutral-500 mt-0.5 max-w-[20rem] truncate">
+              {row.parentDescription}
+            </div>
+          </>
+        )}
       </td>
       <td className="px-3 py-2 align-top">
         <div className="flex items-center gap-2">
@@ -752,14 +1051,109 @@ function PlanRowView(props: {
           </button>
         )}
       </td>
-      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400 tabular-nums">
-        {time === null
-          ? '—'
-          : time.kind === 'per-session'
-            ? `~${formatMinutes(time.minutesPerSession)} each`
-            : `~${formatTimeEstimate(time.estimate)}`}
+      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400">
+        {time === null ? (
+          <span className="tabular-nums">—</span>
+        ) : time.kind === 'per-session' ? (
+          <span className="tabular-nums">~{formatMinutes(time.minutesPerSession)} each</span>
+        ) : (
+          <span>
+            <span className="tabular-nums">~{formatTimeEstimate(time.estimate)}/week</span>
+            {time.consistencySuffix && (
+              <span className="tabular-nums text-neutral-500 dark:text-neutral-500">
+                {' · '}{time.consistencySuffix}
+              </span>
+            )}
+          </span>
+        )}
       </td>
       <td className="px-3 py-2 align-top"></td>
+    </tr>
+  );
+}
+
+/**
+ * Group-header row for a module that has multiple sub-goals
+ * (e.g. Shapes with maj/min/dim triad coverage selections, or
+ * ET with intervals + chord-progressions coverage). Renders the
+ * module name + accent dot, an empty Target column (sub-rows carry
+ * the individual targets), the combined weekly time across the
+ * group, and a chevron toggle in the right gutter.
+ *
+ * Clicking anywhere on the row toggles collapse — the chevron is
+ * the visual cue, the whole row is the affordance.
+ */
+function ModuleGroupHeader(props: {
+  moduleId: GoalFlowModuleId;
+  combinedTime: TimeEstimate;
+  collapsed: boolean;
+  onToggle: () => void;
+}) {
+  const { moduleId, combinedTime, collapsed, onToggle } = props;
+  const accentHex = MODULE_ACCENT_HEX[moduleId];
+  return (
+    <tr
+      onClick={onToggle}
+      className="cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/40 bg-neutral-50/50 dark:bg-neutral-800/30"
+    >
+      <td className="px-3 py-2 align-middle">
+        <span className="inline-flex items-center gap-2">
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ backgroundColor: accentHex }}
+          />
+          <span className="font-medium">{MODULE_LABEL[moduleId]}</span>
+        </span>
+      </td>
+      <td className="px-3 py-2 align-middle text-xs text-neutral-500">{/* sub-rows carry targets */}</td>
+      <td className="px-3 py-2 align-middle text-neutral-700 dark:text-neutral-300 tabular-nums font-medium">
+        ~{formatTimeEstimate(combinedTime)}/week
+      </td>
+      <td className="px-3 py-2 align-middle text-right w-10 text-neutral-500">
+        <button
+          type="button"
+          aria-label={collapsed ? 'expand' : 'collapse'}
+          className="inline-block align-middle"
+          onClick={e => {
+            // The whole row already handles the click; this button
+            // is here for accessibility / keyboard focus. Stop the
+            // event so it doesn't fire twice (parent + child).
+            e.stopPropagation();
+            onToggle();
+          }}
+        >
+          <span
+            className={`inline-block transition-transform duration-150 ${
+              collapsed ? '-rotate-90' : 'rotate-0'
+            }`}
+            aria-hidden
+          >
+            ▾
+          </span>
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * Bottom-of-table total row aggregating weekly time across all
+ * modules. Per-session-only goals (HF/ET consistency surfaced as
+ * "~27 min each") are intentionally excluded — totalTime is
+ * computed from the same `kind: 'time'` estimates we sum into
+ * group totals, so the math composes cleanly.
+ */
+function TotalRow({ totalTime }: { totalTime: TimeEstimate }) {
+  return (
+    <tr className="bg-neutral-100/70 dark:bg-neutral-800/50">
+      <td className="px-3 py-2.5 align-middle font-medium uppercase tracking-wide text-xs text-neutral-700 dark:text-neutral-300">
+        Total this week
+      </td>
+      <td className="px-3 py-2.5 align-middle" />
+      <td className="px-3 py-2.5 align-middle font-semibold text-neutral-800 dark:text-neutral-100 tabular-nums">
+        ~{formatTimeEstimate(totalTime)}/week
+      </td>
+      <td className="px-3 py-2.5 align-middle w-10" />
     </tr>
   );
 }
