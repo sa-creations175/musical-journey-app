@@ -49,11 +49,39 @@ const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
  */
 export type ShapesCoverageGroupId =
   | 'chord_shape_triads'
+  | 'chord_shape_triads_maj'
+  | 'chord_shape_triads_min'
+  | 'chord_shape_triads_dim'
+  | 'chord_shape_triads_aug'
+  | 'chord_shape_triads_sus2'
+  | 'chord_shape_triads_sus4'
   | 'chord_shape_sevenths'
   | 'chord_shape_extensions'
   | 'chord_shape_special'
   | 'scale_drills'
   | 'voice_leading';
+
+/**
+ * Per-triad-quality coverage groups (Layer 2). Each represents a
+ * single chord quality across all 12 keys × 4 inversion states =
+ * 48 items, allowing the user to scope a coverage goal to (e.g.)
+ * just major + minor triads instead of all six triad qualities.
+ *
+ * Maps the coverage-group id to the underlying chord-quality id in
+ * the catalog (the `parts[1]` segment of the itemRef). The legacy
+ * `chord_shape_triads` id is the "all six qualities" shortcut and
+ * doesn't appear here — it's handled by the broad-kind matcher.
+ */
+const TRIAD_QUALITY_FOR_GROUP_ID: Readonly<
+  Partial<Record<ShapesCoverageGroupId, string>>
+> = {
+  chord_shape_triads_maj:  'maj',
+  chord_shape_triads_min:  'min',
+  chord_shape_triads_dim:  'dim',
+  chord_shape_triads_aug:  'aug',
+  chord_shape_triads_sus2: 'sus2',
+  chord_shape_triads_sus4: 'sus4',
+};
 
 export interface ShapesCoverageGroupDef {
   id: ShapesCoverageGroupId;
@@ -83,6 +111,9 @@ const KEY_COUNT = KEYS.length;
  *  ACQUISITION_PATH_STATES_PER_KIND — each inversion is its own
  *  trackable item (triads: ×4, sevenths: ×5; supplementary excluded).
  */
+const TRIAD_INVERSION_MULTIPLIER =
+  KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.triad;
+
 export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> = [
   {
     id: 'chord_shape_triads',
@@ -90,6 +121,46 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
     activityArea: 'chord_shape_drills',
     denominator:
       CHORD_QUALITIES_BY_KIND.triad.length * KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.triad,
+  },
+  // Layer 2 — per-quality triad sub-groups. Each = 12 keys × 4
+  // inversion states = 48 items. The legacy `chord_shape_triads`
+  // above is the "all six qualities" shortcut id used by the
+  // picker's select-all behaviour and by older saved goals.
+  {
+    id: 'chord_shape_triads_maj',
+    label: 'major triads',
+    activityArea: 'chord_shape_drills',
+    denominator: TRIAD_INVERSION_MULTIPLIER,
+  },
+  {
+    id: 'chord_shape_triads_min',
+    label: 'minor triads',
+    activityArea: 'chord_shape_drills',
+    denominator: TRIAD_INVERSION_MULTIPLIER,
+  },
+  {
+    id: 'chord_shape_triads_dim',
+    label: 'diminished triads',
+    activityArea: 'chord_shape_drills',
+    denominator: TRIAD_INVERSION_MULTIPLIER,
+  },
+  {
+    id: 'chord_shape_triads_aug',
+    label: 'augmented triads',
+    activityArea: 'chord_shape_drills',
+    denominator: TRIAD_INVERSION_MULTIPLIER,
+  },
+  {
+    id: 'chord_shape_triads_sus2',
+    label: 'sus2 triads',
+    activityArea: 'chord_shape_drills',
+    denominator: TRIAD_INVERSION_MULTIPLIER,
+  },
+  {
+    id: 'chord_shape_triads_sus4',
+    label: 'sus4 triads',
+    activityArea: 'chord_shape_drills',
+    denominator: TRIAD_INVERSION_MULTIPLIER,
   },
   {
     id: 'chord_shape_sevenths',
@@ -182,6 +253,20 @@ export function itemRefMatcherForCoverageGroup(
   // back-compat consumers.
   if (groupId === 'chord_shape_drills') return ir => ir.startsWith('chord-shape:');
 
+  // Layer 2 — per-triad-quality sub-groups. Match the specific
+  // chord-quality id in parts[1] and exclude supplementary state.
+  const quality = TRIAD_QUALITY_FOR_GROUP_ID[groupId as ShapesCoverageGroupId];
+  if (quality !== undefined) {
+    return ir => {
+      if (!ir.startsWith('chord-shape:')) return false;
+      const parts = ir.split(':');
+      if (parts.length < 3) return false;
+      if (parts[1] !== quality) return false;
+      if (parts.length >= 4 && parts[3] === 'supplementary') return false;
+      return true;
+    };
+  }
+
   const kind = chordShapeKindForGroupId(groupId);
   if (!kind) return null;
   return ir => {
@@ -200,10 +285,16 @@ export function itemRefMatcherForCoverageGroup(
 
 function chordShapeKindForGroupId(groupId: string): QualityKind | null {
   switch (groupId) {
-    case 'chord_shape_triads':     return 'triad';
-    case 'chord_shape_sevenths':   return 'seventh';
-    case 'chord_shape_extensions': return 'extension';
-    case 'chord_shape_special':    return 'special';
+    case 'chord_shape_triads':       return 'triad';
+    case 'chord_shape_triads_maj':   return 'triad';
+    case 'chord_shape_triads_min':   return 'triad';
+    case 'chord_shape_triads_dim':   return 'triad';
+    case 'chord_shape_triads_aug':   return 'triad';
+    case 'chord_shape_triads_sus2':  return 'triad';
+    case 'chord_shape_triads_sus4':  return 'triad';
+    case 'chord_shape_sevenths':     return 'seventh';
+    case 'chord_shape_extensions':   return 'extension';
+    case 'chord_shape_special':      return 'special';
     default: return null;
   }
 }

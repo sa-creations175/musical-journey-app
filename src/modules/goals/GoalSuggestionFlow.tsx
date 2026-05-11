@@ -1158,6 +1158,27 @@ const SHAPES_COVERAGE_GROUP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
     denominator: g.denominator,
   }));
 
+/** Layer 1 picker — broad areas. The `chord_shape_triads` id stays
+ *  here as a "select all triad inversions" shortcut; its visual
+ *  state mirrors whether all 6 quality sub-ids are selected. The
+ *  6 quality ids are rendered separately by SHAPES_TRIAD_QUALITY_OPTIONS. */
+const TRIAD_QUALITY_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'chord_shape_triads_maj',
+  'chord_shape_triads_min',
+  'chord_shape_triads_dim',
+  'chord_shape_triads_aug',
+  'chord_shape_triads_sus2',
+  'chord_shape_triads_sus4',
+];
+const TRIAD_QUALITY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
+  TRIAD_QUALITY_GROUP_IDS,
+);
+
+const SHAPES_LAYER1_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => !TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
+const SHAPES_TRIAD_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
+
 function ShapesPatternsMonthlyBody({
   anchor,
   scope,
@@ -1220,6 +1241,41 @@ function ShapesFocusSection({
     onChange({ ...target, coverageGroupIds: next });
   };
 
+  /**
+   * "Triad inversions" pill — Layer 2 shortcut. Clicking toggles
+   * the 6 quality sub-ids on/off as a batch. Its active state
+   * mirrors whether all 6 are currently selected (partial states
+   * read as inactive so the user has a clear "select all" affordance
+   * available regardless of where they started). Picking the
+   * shortcut REPLACES the legacy `chord_shape_triads` id with the 6
+   * quality sub-ids — older single-id selections get migrated
+   * silently when the user touches the picker.
+   */
+  const allTriadQualitiesSelected = TRIAD_QUALITY_GROUP_IDS.every(id =>
+    target.coverageGroupIds.includes(id),
+  );
+  const anyTriadQualitySelected = target.coverageGroupIds.some(
+    id =>
+      TRIAD_QUALITY_GROUP_ID_SET.has(id) || id === 'chord_shape_triads',
+  );
+  const toggleAllTriadQualities = () => {
+    const withoutTriads = target.coverageGroupIds.filter(
+      id => !TRIAD_QUALITY_GROUP_ID_SET.has(id) && id !== 'chord_shape_triads',
+    );
+    const next = allTriadQualitiesSelected
+      ? withoutTriads
+      : [...withoutTriads, ...TRIAD_QUALITY_GROUP_IDS];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  const shapesAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
+  const triadInversionsDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
+    g => g.id === 'chord_shape_triads',
+  );
+  const triadInversionsLabel = triadInversionsDef
+    ? `${triadInversionsDef.label} (${triadInversionsDef.denominator})`
+    : 'triad inversions (288)';
+
   return (
     <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
       <header>
@@ -1241,18 +1297,57 @@ function ShapesFocusSection({
         />
       </div>
       {target.coverageScope === 'specific' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-          {SHAPES_COVERAGE_GROUP_OPTIONS.map(group => (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {/* Triad inversions select-all shortcut. Behaves as a
+                tri-state pill: "active" only when all 6 qualities
+                are selected. Clicking flips the whole batch. */}
             <CategoryPillButton
-              key={group.id}
-              label={`${group.label} (${group.denominator})`}
-              accentHex={moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a'}
-              active={target.coverageGroupIds.includes(group.id)}
-              onClick={() => toggleGroup(group.id)}
+              key="chord_shape_triads"
+              label={triadInversionsLabel}
+              accentHex={shapesAccent}
+              active={allTriadQualitiesSelected}
+              onClick={toggleAllTriadQualities}
               selectedStyle="accent"
             />
-          ))}
-        </div>
+            {SHAPES_LAYER1_OPTIONS.filter(g => g.id !== 'chord_shape_triads').map(group => (
+              <CategoryPillButton
+                key={group.id}
+                label={`${group.label} (${group.denominator})`}
+                accentHex={shapesAccent}
+                active={target.coverageGroupIds.includes(group.id)}
+                onClick={() => toggleGroup(group.id)}
+                selectedStyle="accent"
+              />
+            ))}
+          </div>
+          {/* Layer 2 — individual triad-quality sub-pills, revealed
+              when any triad selection is active. The "Triad
+              inversions" shortcut + the 6 quality pills are
+              functionally equivalent at the data layer (selecting
+              all 6 = same coverage as the shortcut). The shortcut
+              just lets the user batch-select; the sub-pills let
+              them narrow scope. */}
+          {anyTriadQualitySelected && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Triad qualities
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {SHAPES_TRIAD_QUALITY_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
