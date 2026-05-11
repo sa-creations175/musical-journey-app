@@ -51,11 +51,19 @@ import {
   dimensionForGoal,
   findAllChildren,
   findChildren,
+  goalTypeLabel,
   isConcatenatedChildSummary,
   isCrossModuleUmbrella,
   umbrellaModuleId,
   umbrellaSubtitle,
 } from './umbrellaSummary';
+import {
+  classifyGoalPace,
+  isDaysConsistencyGoal,
+} from './byModulePace';
+import { goalWeekTime } from './goalWeekTime';
+import { useThisWeekActivity } from './useThisWeekActivity';
+import { InfoTip, PacePill } from './atoms';
 import {
   defaultAnchorName,
   isLegacyAnchorName,
@@ -1492,6 +1500,23 @@ function ByModuleView({
     [goals, today],
   );
 
+  // Fetch this-week attempts + distinct days for every module with
+  // at least one current weekly goal — single batched call powers
+  // every section's pace pill / "X of Y days" text.
+  const modulesWithWeekly = useMemo(() => {
+    const set = new Set<GoalFlowModuleId>();
+    for (const g of filtered) {
+      if (g.scope !== 'weekly' || g.isUmbrella) continue;
+      const m = moduleForMetric(g.targetMetric);
+      if (m) set.add(m);
+    }
+    return [...set];
+  }, [filtered]);
+  const activity = useThisWeekActivity({
+    modules: modulesWithWeekly,
+    goalsVersion: filtered.length,
+  });
+
   return (
     <div className="flex flex-col gap-6">
       {ORDERED_GOAL_MODULES.map(moduleId => (
@@ -1506,6 +1531,7 @@ function ByModuleView({
           onAddMonthlyGoal={onAddMonthlyGoal}
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
+          activity={activity}
         />
       ))}
     </div>
@@ -1568,6 +1594,7 @@ function ByModuleSection({
   onAddMonthlyGoal,
   isRowExpanded,
   onToggleRow,
+  activity,
 }: {
   moduleId: GoalFlowModuleId;
   allGoals: Goal[];
@@ -1576,6 +1603,7 @@ function ByModuleSection({
   onEditGoal: (g: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
   onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
+  activity: ReturnType<typeof useThisWeekActivity>;
 } & RowCollapseAccess) {
   // A goal belongs to this module when its derived module
   // matches. Non-umbrella → moduleForMetric. Umbrella → same
@@ -1587,22 +1615,31 @@ function ByModuleSection({
     return moduleForMetric(g.targetMetric) === moduleId;
   });
 
-  const yearlyUmbrella = moduleGoals.find(
+  // Split by timeframe. Yearly is always the umbrella (one per
+  // module, by assumed constraint); monthly + weekly buckets pull
+  // non-umbrella goals.
+  const yearlyAnchor = moduleGoals.find(
     g => g.isUmbrella && g.scope === 'yearly',
   );
-
-  // "Standalone" = not the umbrella itself and not parented to
-  // it. (Parented goals already render under <UmbrellaRow> via
-  // findAllChildren.)
-  const standalone = moduleGoals.filter(
-    g =>
-      g.id !== yearlyUmbrella?.id &&
-      (yearlyUmbrella ? g.parentGoalId !== yearlyUmbrella.id : true),
+  const monthlyGoals = moduleGoals.filter(
+    g => g.scope === 'monthly' && !g.isUmbrella,
+  );
+  const weeklyGoals = moduleGoals.filter(
+    g => g.scope === 'weekly' && !g.isUmbrella,
   );
 
   const meta = moduleMetaById(moduleId);
   const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+  const accentHex = meta?.accentHex ?? GOALS_META.accentHex;
   const palette = SECTION_PALETTE[moduleId];
+
+  // THIS MONTH section is visible whenever the user has somewhere
+  // useful to put a monthly goal — either an anchor that frames
+  // them, or existing monthly goals to display. No anchor + no
+  // monthlies means the section adds no information and we omit it.
+  const showMonthlySection = !!yearlyAnchor || monthlyGoals.length > 0;
+  // THIS WEEK section is shown only when there are weekly goals.
+  const showWeeklySection = weeklyGoals.length > 0;
 
   return (
     <section
@@ -1612,75 +1649,324 @@ function ByModuleSection({
         borderLeft: `3px solid ${palette.border}`,
       }}
     >
-      <h2
-        className="text-sm font-medium uppercase tracking-wide mb-2"
-        style={{ color: palette.border }}
-      >
-        {label}
-      </h2>
+      {/* Header — accent dot, module name, "+ Add goal" link. The
+          link opens the monthly suggestion flow (the suggestion
+          flow itself prompts to set a yearly anchor first when
+          one's missing — no need to gate the button here). */}
+      <header className="flex items-center justify-between gap-2 mb-3">
+        <h2
+          className="flex items-center gap-2 text-sm font-medium"
+          style={{ color: palette.border }}
+        >
+          <span
+            aria-hidden
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ backgroundColor: accentHex }}
+          />
+          {label}
+        </h2>
+        <button
+          type="button"
+          onClick={() => onAddMonthlyGoal(moduleId)}
+          className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
+        >
+          + Add goal
+        </button>
+      </header>
 
-      {yearlyUmbrella ? (
-        <>
-          <ul className="flex flex-col gap-1.5">
-            <UmbrellaRow
-              umbrella={yearlyUmbrella}
-              childGoals={findAllChildren(yearlyUmbrella, allGoals)}
-              layerType="measurable"
-              proficiencyDefs={proficiencyDefs}
-              songLookup={songLookup}
-              onEditGoal={onEditGoal}
-              isRowExpanded={isRowExpanded}
-              onToggleRow={onToggleRow}
+      <div className="flex flex-col gap-3">
+        {/* YEARLY */}
+        <div className="flex flex-col gap-1.5">
+          <SubSectionLabel>Yearly</SubSectionLabel>
+          {yearlyAnchor ? (
+            <YearlyAnchorRow
+              umbrella={yearlyAnchor}
+              childGoals={findAllChildren(yearlyAnchor, allGoals)}
+              onClick={() => onEditGoal(yearlyAnchor)}
             />
-          </ul>
-          <button
-            type="button"
-            onClick={() => onAddMonthlyGoal(moduleId)}
-            className="mt-2 text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
-          >
-            + Add monthly goal
-          </button>
-        </>
-      ) : (
-        <YearlyAnchorBackstop
-          moduleId={moduleId}
-          onClick={() => onSetYearlyAnchor(moduleId)}
-        />
-      )}
-
-      {standalone.length > 0 && (
-        <ul className="flex flex-col gap-1.5 mt-2">
-          {standalone.map(g =>
-            g.isUmbrella ? (
-              <UmbrellaRow
-                key={g.id}
-                umbrella={g}
-                childGoals={findAllChildren(g, allGoals)}
-                layerType="measurable"
-                proficiencyDefs={proficiencyDefs}
-                songLookup={songLookup}
-                onEditGoal={onEditGoal}
-                isRowExpanded={isRowExpanded}
-                onToggleRow={onToggleRow}
-              />
-            ) : (
-              <GoalRow
-                key={g.id}
-                goal={g}
-                layerType="measurable"
-                proficiencyDefs={proficiencyDefs}
-                songLookup={songLookup}
-                onEdit={() => onEditGoal(g)}
-                isRowExpanded={isRowExpanded}
-                onToggleRow={onToggleRow}
-              />
-            ),
+          ) : (
+            <YearlyAnchorBackstop
+              moduleId={moduleId}
+              onClick={() => onSetYearlyAnchor(moduleId)}
+            />
           )}
-        </ul>
-      )}
+        </div>
+
+        {/* THIS MONTH */}
+        {showMonthlySection && (
+          <div className="flex flex-col gap-1.5">
+            <SubSectionLabel>This month</SubSectionLabel>
+            <div
+              className="pl-3 border-l-2"
+              style={{ borderColor: accentHex }}
+            >
+              {monthlyGoals.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onAddMonthlyGoal(moduleId)}
+                  className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
+                >
+                  + Add monthly goal
+                </button>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {monthlyGoals.map(g => (
+                    <GoalRow
+                      key={g.id}
+                      goal={g}
+                      layerType="measurable"
+                      proficiencyDefs={proficiencyDefs}
+                      songLookup={songLookup}
+                      onEdit={() => onEditGoal(g)}
+                      dimensionLabel={goalTypeLabel(g, moduleId)}
+                      dimensionAccentHex={accentHex}
+                      omitActivityChart
+                      isRowExpanded={isRowExpanded}
+                      onToggleRow={onToggleRow}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* THIS WEEK */}
+        {showWeeklySection && (
+          <div className="flex flex-col gap-1.5">
+            <SubSectionLabel>This week</SubSectionLabel>
+            <div
+              className="pl-3 border-l"
+              style={{ borderColor: `${accentHex}66` }}
+            >
+              <ul className="flex flex-col gap-1.5">
+                {weeklyGoals.map(g => (
+                  <WeeklyGoalRow
+                    key={g.id}
+                    goal={g}
+                    moduleId={moduleId}
+                    accentHex={accentHex}
+                    actualAttempts={activity.attemptsByModule[moduleId] ?? 0}
+                    daysWithActivity={activity.daysByModule[moduleId] ?? 0}
+                    onEdit={() => onEditGoal(g)}
+                  />
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
+
+/** Small uppercase neutral-gray label for a sub-section header
+ *  (YEARLY / THIS MONTH / THIS WEEK) inside a module card. */
+function SubSectionLabel({ children }: { children: string }) {
+  return (
+    <div className="text-[10px] uppercase tracking-wide font-medium text-neutral-500 dark:text-neutral-400">
+      {children}
+    </div>
+  );
+}
+
+/** Slim row for the YEARLY section — anchor display name + overall
+ *  feasibility pill rolled up across the umbrella's current
+ *  children. Whole row is clickable; opens the anchor's edit
+ *  flow. Subtle background distinguishes the yearly row as the
+ *  module's north-star context. */
+function YearlyAnchorRow({
+  umbrella,
+  childGoals,
+  onClick,
+}: {
+  umbrella: Goal;
+  childGoals: Goal[];
+  onClick: () => void;
+}) {
+  const sharedModule = umbrellaModuleId(childGoals);
+  const title = umbrellaDisplayTitle(umbrella, sharedModule);
+  const moduleAccent = sharedModule
+    ? moduleMetaById(sharedModule)?.accentHex
+    : undefined;
+  // Filter consistency children out of the rollup — same rule the
+  // UmbrellaRow uses for its feasibility computation.
+  const visibleChildGoals =
+    sharedModule === 'practice-consistency'
+      ? childGoals
+      : childGoals.filter(c => !isConsistencyMetric(c.targetMetric));
+  const rollup = useMemo(() => {
+    const today = new Date();
+    const mix = loadDayProfileMix();
+    return rollupChildFeasibilities(
+      visibleChildGoals.map(c =>
+        getGoalFeasibility(c, {
+          currentValue: c.currentValue,
+          today,
+          mix,
+        }),
+      ),
+    );
+  }, [visibleChildGoals]);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left rounded-md bg-white/50 dark:bg-neutral-900/30 hover:bg-white/70 dark:hover:bg-neutral-900/50 transition px-3 py-2 flex items-center justify-between gap-3"
+    >
+      <span
+        className="text-sm font-medium truncate"
+        style={{ color: moduleAccent ?? undefined }}
+      >
+        {title}
+      </span>
+      <UmbrellaFeasibilityPill rollup={rollup} />
+    </button>
+  );
+}
+
+/**
+ * Compact weekly-goal row for the THIS WEEK sub-section.
+ *
+ * Layout: small type label above the description on the left;
+ * target + time + pace pill (or "X of Y days" muted text count
+ * for consistency goals) on the right. Tapping the row opens the
+ * goal's edit flow.
+ *
+ * Pace classification varies by goal flavor (see byModulePace.ts):
+ *   · Coverage / mastery — actual = goal.currentValue
+ *   · Attempts / sessions / lessons — actual = this-week attempts
+ *     for the module (passed in as actualAttempts)
+ *   · Days / consistency — no pill; shows "X of Y days" muted text
+ *     where X is days with practice this week for the module
+ */
+function WeeklyGoalRow({
+  goal,
+  moduleId,
+  accentHex,
+  actualAttempts,
+  daysWithActivity,
+  onEdit,
+}: {
+  goal: Goal;
+  moduleId: GoalFlowModuleId;
+  accentHex: string;
+  actualAttempts: number;
+  daysWithActivity: number;
+  onEdit: () => void;
+}) {
+  const typeLabel = goalTypeLabel(goal, moduleId);
+  const weekTime = goalWeekTime(goal);
+
+  // Decide the actual numerator the pace classifier sees:
+  //   coverage / mastery goals — items acquired so far (currentValue)
+  //   anything else with a pace pill — this-week attempts.
+  const isCoverageOrMastery =
+    !!goal.targetMetric &&
+    (dimensionForGoal(goal) === 'Breadth' || dimensionForGoal(goal) === 'Mastery');
+  const paceActual = isCoverageOrMastery
+    ? goal.currentValue
+    : actualAttempts;
+  const pace = classifyGoalPace({ goal, actual: paceActual, now: Date.now() });
+
+  // Right-side content: days consistency goals get the muted text
+  // count; everything else gets target + time + pace pill.
+  const isDays = isDaysConsistencyGoal(goal);
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="w-full text-left rounded px-2 py-1.5 -mx-2 hover:bg-white/40 dark:hover:bg-neutral-900/30 transition flex items-start gap-3"
+      >
+        <div className="flex-1 min-w-0">
+          {typeLabel && (
+            <div
+              className="text-[10px] uppercase tracking-wide font-medium mb-0.5"
+              style={{ color: accentHex }}
+            >
+              {typeLabel}
+            </div>
+          )}
+          <div className="text-sm text-neutral-700 dark:text-neutral-200 truncate">
+            {goal.description || (
+              <span className="italic text-neutral-500">(untitled goal)</span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 pt-0.5 text-xs text-neutral-600 dark:text-neutral-400">
+          {isDays ? (
+            <span className="tabular-nums">
+              {daysWithActivity} of {goal.targetValue ?? '—'} days
+            </span>
+          ) : (
+            <>
+              {goal.targetValue != null && (
+                <span className="tabular-nums">
+                  {goal.targetValue} {goal.targetUnit ?? ''}
+                </span>
+              )}
+              {weekTime && (
+                <span className="flex items-center gap-1 tabular-nums">
+                  <span>~{formatGoalWeekTime(weekTime)}</span>
+                  <InfoTip text={TIME_ESTIMATE_INFO_TEXT} />
+                </span>
+              )}
+              {pace.kind === 'pill' && (
+                <span className="flex items-center gap-1">
+                  <PacePill
+                    color={pace.color}
+                    label={paceLabelForColor(pace.color)}
+                  />
+                  <InfoTip text={PACE_INFO_TEXT} />
+                </span>
+              )}
+            </>
+          )}
+        </div>
+      </button>
+    </li>
+  );
+}
+
+/** Plain English label inside the pace pill. */
+function paceLabelForColor(color: 'green' | 'amber' | 'red'): string {
+  switch (color) {
+    case 'green': return 'on pace';
+    case 'amber': return 'a little behind';
+    case 'red':   return 'behind';
+  }
+}
+
+/** Format a GoalWeekTime for display next to the row's target.
+ *  Point estimates render as "1h 50m" / "30 min"; ranges render
+ *  as "1h–3h" / "30–90 min". Pure helper. */
+function formatGoalWeekTime(t: ReturnType<typeof goalWeekTime>): string {
+  if (!t) return '';
+  const e = t.estimate;
+  const fmt = (m: number) => {
+    if (m <= 0) return '0';
+    if (m < 1) return '<1m';
+    const h = Math.floor(m / 60);
+    const mn = Math.round(m - h * 60);
+    if (h === 0) return `${mn}m`;
+    if (mn === 0) return `${h}h`;
+    return `${h}h ${mn}m`;
+  };
+  if (e.kind === 'point') return fmt(e.minutes);
+  return `${fmt(e.minMinutes)}–${fmt(e.maxMinutes)}`;
+}
+
+const TIME_ESTIMATE_INFO_TEXT =
+  'Time estimates use per-attempt averages: HF/ET ≈20s, Shapes ≈1.5 min/rep (varies by drill type), '
+  + 'Repertoire ≈45 min/day, Production 30–90 min/lesson. These will refine as you log more practice.';
+
+const PACE_INFO_TEXT =
+  "Compares what you've done this week against what you'd need each day to hit your weekly target. "
+  + 'Green = on track, amber = a little behind, red = falling behind.';
 
 /**
  * Dashed prompt that lives in a module section when no yearly
