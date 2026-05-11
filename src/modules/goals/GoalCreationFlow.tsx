@@ -3496,9 +3496,11 @@ export function encodeEarTraining(t: EarTrainingTarget): EncodedRecord[] {
     if (sliced) {
       records.push({
         description: sliced,
-        targetMetric: 'ear_training_sessions_per_cadence',
+        targetMetric: 'ear_training_days_per_cadence',
         targetValue: t.consistencyCount,
-        targetUnit: t.consistencyCadence,
+        // Days-per-week is fixed to 'week' — the new card no longer
+        // exposes a monthly toggle.
+        targetUnit: 'week',
       });
     }
   }
@@ -3569,9 +3571,9 @@ export function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[]
     if (sliced) {
       records.push({
         description: sliced,
-        targetMetric: 'harmonic_fluency_sessions_per_cadence',
+        targetMetric: 'harmonic_fluency_days_per_cadence',
         targetValue: t.consistencyCount,
-        targetUnit: t.consistencyCadence,
+        targetUnit: 'week',
       });
     }
   }
@@ -3642,9 +3644,9 @@ export function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
     if (sliced) {
       records.push({
         description: sliced,
-        targetMetric: 'shapes_minutes_per_cadence',
+        targetMetric: 'shapes_days_per_cadence',
         targetValue: t.consistencyCount,
-        targetUnit: t.consistencyCadence,
+        targetUnit: 'week',
       });
     }
   }
@@ -3720,9 +3722,9 @@ export function encodeProduction(t: ProductionTarget): EncodedRecord[] {
     if (sliced) {
       records.push({
         description: sliced,
-        targetMetric: 'production_hours_per_cadence',
+        targetMetric: 'production_lessons_per_cadence',
         targetValue: t.consistencyCount,
-        targetUnit: t.consistencyCadence,
+        targetUnit: 'week',
       });
     }
   }
@@ -3827,10 +3829,22 @@ function decodeEarTraining(goal: Goal): EarTrainingTarget {
     const [drillTypeId, drillSubtypeId] = (goal.targetUnit ?? '').split(':');
     t.drillTypeId = drillTypeId || null;
     t.drillSubtypeId = drillSubtypeId || null;
-  } else if (goal.targetMetric === 'ear_training_sessions_per_cadence') {
+  } else if (goal.targetMetric === 'ear_training_days_per_cadence') {
+    // New: days-per-week. consistencyCount is the integer day count.
     t.consistencyEnabled = true;
-    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
-    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+    t.consistencyCount =
+      typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = 'week';
+  } else if (goal.targetMetric === 'ear_training_sessions_per_cadence') {
+    // Legacy: sessions-per-cadence. The stored value's unit
+    // ('sessions per week' or 'sessions per month') is not directly
+    // compatible with the days-per-week semantics; we keep
+    // consistency enabled but reset the count to the new default so
+    // the user explicitly re-affirms when they next save.
+    const d = defaultEarTraining();
+    t.consistencyEnabled = true;
+    t.consistencyCount = d.consistencyCount;
+    t.consistencyCadence = 'week';
   }
   return t;
 }
@@ -3857,10 +3871,18 @@ function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
     t.accuracyScope = 'specific';
     t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
     t.categoryId = (goal.targetUnit as FlashcardCategory) || null;
-  } else if (goal.targetMetric === 'harmonic_fluency_sessions_per_cadence') {
+  } else if (goal.targetMetric === 'harmonic_fluency_days_per_cadence') {
     t.consistencyEnabled = true;
-    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
-    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+    t.consistencyCount =
+      typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = 'week';
+  } else if (goal.targetMetric === 'harmonic_fluency_sessions_per_cadence') {
+    // Legacy: reset count to new default — sessions semantics don't
+    // map cleanly to days-per-week.
+    const d = defaultHarmonicFluency();
+    t.consistencyEnabled = true;
+    t.consistencyCount = d.consistencyCount;
+    t.consistencyCadence = 'week';
   }
   return t;
 }
@@ -3921,10 +3943,18 @@ function decodeShapesPatterns(goal: Goal): ShapesPatternsTarget {
     if (level === 'learning' || level === 'comfortable' || level === 'solid' || level === 'internalized') {
       t.proficiencyLevel = level;
     }
-  } else if (goal.targetMetric === 'shapes_minutes_per_cadence') {
+  } else if (goal.targetMetric === 'shapes_days_per_cadence') {
     t.consistencyEnabled = true;
-    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
-    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+    t.consistencyCount =
+      typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = 'week';
+  } else if (goal.targetMetric === 'shapes_minutes_per_cadence') {
+    // Legacy: stored minutes are not compatible with days-per-week.
+    // Reset to new default so the user explicitly re-affirms.
+    const d = defaultShapesPatterns();
+    t.consistencyEnabled = true;
+    t.consistencyCount = d.consistencyCount;
+    t.consistencyCadence = 'week';
   }
   return t;
 }
@@ -3950,10 +3980,18 @@ function decodeProduction(goal: Goal): ProductionTarget {
     t.completionEnabled = true;
     t.completionScope = 'count';
     t.lessonCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.lessonCount;
-  } else if (goal.targetMetric === 'production_hours_per_cadence') {
+  } else if (goal.targetMetric === 'production_lessons_per_cadence') {
     t.consistencyEnabled = true;
-    t.consistencyCount = typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
-    t.consistencyCadence = goal.targetUnit === 'month' ? 'month' : 'week';
+    t.consistencyCount =
+      typeof goal.targetValue === 'number' ? goal.targetValue : t.consistencyCount;
+    t.consistencyCadence = 'week';
+  } else if (goal.targetMetric === 'production_hours_per_cadence') {
+    // Legacy: hours don't map to lessons. Reset to new default so
+    // the user explicitly re-affirms when they next save.
+    const d = defaultProduction();
+    t.consistencyEnabled = true;
+    t.consistencyCount = d.consistencyCount;
+    t.consistencyCadence = 'week';
   }
   return t;
 }
