@@ -35,6 +35,7 @@ import {
   type ShapesPatternsTarget,
 } from './GoalCreationFlow';
 import { findAnchorGoalForModule } from './anchorLookup';
+import { loadGoalForEdit, type EditPrefill } from './editLoad';
 import {
   SHAPES_COVERAGE_GROUP_DEFS,
   type ShapesCoverageGroupId,
@@ -102,8 +103,14 @@ type ShortScope = Extract<GoalScope, 'weekly' | 'monthly' | 'quarterly'>;
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Create mode: caller pre-decides scope + module. */
   scope: ShortScope;
   moduleId: SuggestionFlowModule;
+  /** Edit mode: caller passes an existing goal (umbrella, child, or
+   *  standalone). When set, scope + moduleId from the goal take
+   *  precedence; the shell loads + merges siblings before rendering
+   *  the body. Null/undefined = create mode. */
+  existingGoal?: Goal | null;
   onSaved?: () => void;
 }
 
@@ -153,26 +160,92 @@ export default function GoalSuggestionFlow({
   onClose,
   scope,
   moduleId,
+  existingGoal,
   onSaved,
 }: Props) {
+  // Edit mode: load the prefill (umbrella + children → merged target
+  // shape) before resolving the anchor, so the anchor query uses the
+  // moduleId derived from the goal rather than the caller's hint.
+  // Create mode (existingGoal null): prefill stays null; scope/moduleId
+  // come straight from props.
+  const [editPrefillState, setEditPrefillState] = useState<
+    { kind: 'idle' } | { kind: 'loading' } | { kind: 'ready'; prefill: EditPrefill } | { kind: 'unavailable' }
+  >({ kind: 'idle' });
+
+  useEffect(() => {
+    if (!open) return;
+    if (!existingGoal) {
+      setEditPrefillState({ kind: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setEditPrefillState({ kind: 'loading' });
+    loadGoalForEdit(existingGoal).then(prefill => {
+      if (cancelled) return;
+      setEditPrefillState(prefill
+        ? { kind: 'ready', prefill }
+        : { kind: 'unavailable' });
+    });
+    return () => { cancelled = true; };
+  }, [open, existingGoal]);
+
+  const effectiveModuleId: SuggestionFlowModule =
+    editPrefillState.kind === 'ready' ? editPrefillState.prefill.moduleId : moduleId;
+
   const [anchorState, setAnchorState] = useState<
     { kind: 'loading' } | { kind: 'missing' } | { kind: 'ready'; goal: Goal }
   >({ kind: 'loading' });
 
+  // Anchor resolution waits on the edit-prefill (when in edit mode)
+  // so we look up the anchor using the correct module derived from
+  // the goal. In create mode the prefill state is 'idle' and we
+  // proceed directly with the caller-supplied moduleId.
   useEffect(() => {
     if (!open) return;
+    const editPending =
+      existingGoal && (editPrefillState.kind === 'loading' || editPrefillState.kind === 'idle');
+    if (editPending) return;
     let cancelled = false;
     setAnchorState({ kind: 'loading' });
-    findAnchorGoalForModule(moduleId).then(g => {
+    findAnchorGoalForModule(effectiveModuleId).then(g => {
       if (cancelled) return;
       setAnchorState(g ? { kind: 'ready', goal: g } : { kind: 'missing' });
     });
     return () => { cancelled = true; };
-  }, [open, moduleId]);
+  }, [open, effectiveModuleId, existingGoal, editPrefillState.kind]);
 
   if (!open) return null;
 
-  const title = `New ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[moduleId]} goal`;
+  const isEditing = !!existingGoal;
+  const titlePrefix = isEditing ? 'Edit' : 'New';
+  const title = `${titlePrefix} ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[effectiveModuleId]} goal`;
+
+  // Edit-mode loading + unavailable states render in the modal shell.
+  if (existingGoal && editPrefillState.kind === 'loading') {
+    return (
+      <Modal open onClose={onClose} title={title}>
+        <div className="text-sm text-neutral-500 italic">Loading goal…</div>
+      </Modal>
+    );
+  }
+  if (existingGoal && editPrefillState.kind === 'unavailable') {
+    return (
+      <Modal open onClose={onClose} title={title}>
+        <div className="space-y-3 text-sm text-neutral-700 dark:text-neutral-200">
+          <p>This goal can't be edited in the suggestion flow yet — its shape isn't supported here.</p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   if (anchorState.kind === 'loading') {
     return (
@@ -186,7 +259,7 @@ export default function GoalSuggestionFlow({
     return (
       <Modal open onClose={onClose} title={title}>
         <MissingAnchorBlocker
-          moduleLabel={MODULE_LABEL[moduleId]}
+          moduleLabel={MODULE_LABEL[effectiveModuleId]}
           scope={scope}
           onClose={onClose}
         />
@@ -194,34 +267,38 @@ export default function GoalSuggestionFlow({
     );
   }
 
-  // Anchor is ready. Route to the per-module body. Repertoire is the
-  // only module without a body yet — its suggestion shape requires an
-  // active-songs Dexie fetch and a multi-song save path that hasn't
-  // been built; falls through to the placeholder for now.
+  // Anchor is ready. Route to the per-module body. The body decides
+  // its initial state from editPrefill (when set) or its suggest*()
+  // default (when null). Bodies that haven't been wired for edit yet
+  // ignore editPrefill — those get wired in the per-module commit.
+  const editPrefill: EditPrefill | null =
+    editPrefillState.kind === 'ready' ? editPrefillState.prefill : null;
+
   if (scope === 'monthly') {
     const sharedProps = {
       anchor: anchorState.goal,
       scope,
-      moduleId,
+      moduleId: effectiveModuleId,
       onClose,
       onSaved,
+      editPrefill,
     };
-    if (moduleId === 'harmonic-fluency') {
+    if (effectiveModuleId === 'harmonic-fluency') {
       return <HarmonicFluencyMonthlyBody {...sharedProps} moduleId="harmonic-fluency" />;
     }
-    if (moduleId === 'ear-training') {
+    if (effectiveModuleId === 'ear-training') {
       return <EarTrainingMonthlyBody {...sharedProps} moduleId="ear-training" />;
     }
-    if (moduleId === 'shapes-and-patterns') {
+    if (effectiveModuleId === 'shapes-and-patterns') {
       return <ShapesPatternsMonthlyBody {...sharedProps} moduleId="shapes-and-patterns" />;
     }
-    if (moduleId === 'production') {
+    if (effectiveModuleId === 'production') {
       return <ProductionMonthlyBody {...sharedProps} moduleId="production" />;
     }
-    if (moduleId === 'practice-consistency') {
+    if (effectiveModuleId === 'practice-consistency') {
       return <PracticeConsistencyMonthlyBody {...sharedProps} moduleId="practice-consistency" />;
     }
-    if (moduleId === 'repertoire') {
+    if (effectiveModuleId === 'repertoire') {
       return <RepertoireMonthlyBody {...sharedProps} moduleId="repertoire" />;
     }
   }
@@ -229,7 +306,7 @@ export default function GoalSuggestionFlow({
   return (
     <Modal open onClose={onClose} title={title}>
       <ComingSoonPlaceholder
-        moduleLabel={MODULE_LABEL[moduleId]}
+        moduleLabel={MODULE_LABEL[effectiveModuleId]}
         scope={scope}
         anchor={anchorState.goal}
       />
@@ -321,6 +398,9 @@ interface BodyShellProps {
    *  Practice Consistency and other custom-shape modules use this to
    *  emit goal records that don't go through the wizard's encoder. */
   saveOverride?: () => Promise<void>;
+  /** Edit mode flag — flips the modal title to "Edit … goal" and the
+   *  save button to "Save changes". */
+  isEditing?: boolean;
 }
 
 function BodyShell({
@@ -335,6 +415,7 @@ function BodyShell({
   onSaved,
   children,
   saveOverride,
+  isEditing,
 }: BodyShellProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -367,7 +448,8 @@ function BodyShell({
     }
   };
 
-  const title = `New ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[moduleId]} goal`;
+  const title = `${isEditing ? 'Edit' : 'New'} ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[moduleId]} goal`;
+  const idleSaveLabel = isEditing ? 'Save changes' : 'Save goal';
 
   return (
     <Modal open onClose={onClose} title={title}>
@@ -400,7 +482,7 @@ function BodyShell({
               canSave ? 'bg-fluent hover:opacity-90' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
             }`}
           >
-            {saving ? 'Saving…' : 'Save goal'}
+            {saving ? 'Saving…' : idleSaveLabel}
           </button>
         </div>
       </div>
@@ -464,6 +546,11 @@ interface ModuleBodyProps<TModuleId extends SuggestionFlowModule> {
   moduleId: TModuleId;
   onClose: () => void;
   onSaved?: () => void;
+  /** Edit-mode prefill — non-null when the user clicked edit on an
+   *  existing monthly goal. Each body uses the matching variant to
+   *  seed its initial target state in place of suggest*() defaults.
+   *  Bodies that haven't been wired for edit yet ignore this. */
+  editPrefill?: EditPrefill | null;
 }
 
 function HarmonicFluencyMonthlyBody({
@@ -472,6 +559,7 @@ function HarmonicFluencyMonthlyBody({
   moduleId,
   onClose,
   onSaved,
+  editPrefill,
 }: ModuleBodyProps<'harmonic-fluency'>) {
   const initialSuggestion = useMemo(() => suggestHfMonthly(), []);
   const [target, setTarget] = useState<HarmonicFluencyTarget>(initialSuggestion.target);
@@ -501,6 +589,7 @@ function HarmonicFluencyMonthlyBody({
       setTargetDate={setTargetDate}
       onClose={onClose}
       onSaved={onSaved}
+      isEditing={!!editPrefill}
     >
       <HfFocusSection
         target={target}
@@ -917,6 +1006,7 @@ function EarTrainingMonthlyBody({
   moduleId,
   onClose,
   onSaved,
+  editPrefill,
 }: ModuleBodyProps<'ear-training'>) {
   const initialSuggestion = useMemo(() => suggestEtMonthly(), []);
   const [target, setTarget] = useState<EarTrainingTarget>(initialSuggestion.target);
@@ -942,6 +1032,7 @@ function EarTrainingMonthlyBody({
       setTargetDate={setTargetDate}
       onClose={onClose}
       onSaved={onSaved}
+      isEditing={!!editPrefill}
     >
       <EtFocusSection
         target={target}
@@ -1179,6 +1270,7 @@ function ShapesPatternsMonthlyBody({
   moduleId,
   onClose,
   onSaved,
+  editPrefill,
 }: ModuleBodyProps<'shapes-and-patterns'>) {
   const initialSuggestion = useMemo(() => suggestShapesMonthly(), []);
   const [target, setTarget] = useState<ShapesPatternsTarget>(initialSuggestion.target);
@@ -1206,6 +1298,7 @@ function ShapesPatternsMonthlyBody({
       setTargetDate={setTargetDate}
       onClose={onClose}
       onSaved={onSaved}
+      isEditing={!!editPrefill}
     >
       <ShapesFocusSection
         target={target}
@@ -1371,6 +1464,7 @@ function ProductionMonthlyBody({
   moduleId,
   onClose,
   onSaved,
+  editPrefill,
 }: ModuleBodyProps<'production'>) {
   const initialSuggestion = useMemo(() => suggestProductionMonthly(), []);
   const [target, setTarget] = useState<ProductionTarget>(initialSuggestion.target);
@@ -1388,6 +1482,7 @@ function ProductionMonthlyBody({
       setTargetDate={setTargetDate}
       onClose={onClose}
       onSaved={onSaved}
+      isEditing={!!editPrefill}
     >
       <ProductionCompletionFocus target={target} onChange={setTarget} />
       <ProductionConsistencyFocus target={target} onChange={setTarget} />
@@ -1489,6 +1584,7 @@ function PracticeConsistencyMonthlyBody({
   moduleId,
   onClose,
   onSaved,
+  editPrefill,
 }: ModuleBodyProps<'practice-consistency'>) {
   const initialSuggestion = useMemo(() => suggestPracticeConsistencyMonthly(), []);
   const [target, setTarget] = useState<PracticeConsistencyMonthlyTarget>(initialSuggestion.target);
@@ -1522,6 +1618,7 @@ function PracticeConsistencyMonthlyBody({
       setTargetDate={setTargetDate}
       onClose={onClose}
       onSaved={onSaved}
+      isEditing={!!editPrefill}
     >
       <PracticeConsistencyFocus target={target} onChange={setTarget} />
     </BodyShell>
@@ -1651,6 +1748,7 @@ function RepertoireMonthlyBody({
   moduleId,
   onClose,
   onSaved,
+  editPrefill,
 }: ModuleBodyProps<'repertoire'>) {
   const initialSuggestion = useMemo(() => suggestRepertoireMonthly(), []);
 
@@ -1719,8 +1817,9 @@ function RepertoireMonthlyBody({
   // modal still opens promptly. Without this the picker would
   // render against undefined collections.
   if (!allSongs || !wantToLearn) {
+    const loadTitle = `${editPrefill ? 'Edit' : 'New'} ${SCOPE_LABEL[scope].toLowerCase()} Song Repertoire goal`;
     return (
-      <Modal open onClose={onClose} title={`New ${SCOPE_LABEL[scope].toLowerCase()} Song Repertoire goal`}>
+      <Modal open onClose={onClose} title={loadTitle}>
         <div className="text-sm text-neutral-500 italic">Loading songs…</div>
       </Modal>
     );
@@ -1740,6 +1839,7 @@ function RepertoireMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
       saveOverride={saveOverride}
+      isEditing={!!editPrefill}
     >
       <RepertoireMaintainSection songs={allSongs} />
       <ConsistencyTargetCard
