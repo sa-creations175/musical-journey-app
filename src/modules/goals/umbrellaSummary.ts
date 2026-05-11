@@ -155,6 +155,22 @@ export function dimensionForGoal(goal: Goal): GoalDimension | null {
 }
 
 /**
+ * Display-order rank for a dimension child within the by-module
+ * monthly section. The Goals home reads Coverage → Consistency →
+ * Accuracy/Proficiency → Mastery — the order users move through when
+ * setting a goal up. Children whose dimension can't be classified
+ * sort last in stable insert order. Used as a sort comparator key.
+ */
+export function dimensionSortOrder(goal: Goal): number {
+  const dim = dimensionForGoal(goal);
+  if (dim === 'Breadth')      return 0; // Coverage
+  if (dim === 'Consistency')  return 1;
+  if (dim === 'Depth')        return 2; // Accuracy / Proficiency
+  if (dim === 'Mastery')      return 3;
+  return 4;
+}
+
+/**
  * Build the umbrella subtitle from its children's dimensions.
  *
  * Each dimension appears at most once, in the order it first

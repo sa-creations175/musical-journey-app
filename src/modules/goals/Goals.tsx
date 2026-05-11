@@ -25,7 +25,7 @@ import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
 import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
 import { SongOfMonthTbdNudgeBanner } from '../repertoire/SongOfMonthBanners';
-import { describeGoalTarget } from './describeGoal';
+import { describeGoalTarget, describeDimensionTarget } from './describeGoal';
 import {
   progressSlotState,
   progressSlotText,
@@ -52,6 +52,7 @@ import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import {
   dimensionDisplayLabel,
   dimensionForGoal,
+  dimensionSortOrder,
   findAllChildren,
   findChildren,
   goalTypeLabel,
@@ -247,12 +248,15 @@ export default function Goals() {
    *  Sunday banner; also reachable from the explicit "Plan week"
    *  button in the toolbar so users on non-Sundays can still open it. */
   const [weeklyPlanOpen, setWeeklyPlanOpen] = useState(false);
-  /** Phase 2 step 5f — YearlyAnchorFlow open state.
-   *  Driven by GoalCreationFlow's onRequestYearlyAnchor callback
-   *  (the user picked "Set yearly anchor first" on the
-   *  interstitial). When non-null, the flow is mounted open with
-   *  the picked module. */
-  const [anchorMode, setAnchorMode] = useState<{ moduleId: AnchorModuleId } | null>(null);
+  /** YearlyAnchorFlow open state. Two entry paths:
+   *    · create — onRequestYearlyAnchor callback from GoalCreationFlow,
+   *      or the yearly anchor backstop tap in by-module view.
+   *    · edit — Edit button on the YearlyAnchorRow. `initialAnchor`
+   *      carries the existing yearly umbrella so the flow opens
+   *      pre-filled. */
+  const [anchorMode, setAnchorMode] = useState<
+    { moduleId: AnchorModuleId; initialAnchor?: Goal | null } | null
+  >(null);
   /** Suggestion-flow open state. Two modes:
    *    · 'create' — driven by the per-anchor "+ Add monthly goal"
    *      affordance in by-module view. Caller pre-decides scope +
@@ -518,6 +522,12 @@ export default function Goals() {
               setFormMode({ kind: 'edit', goal });
             }
           }}
+          onEditYearlyAnchor={(moduleId, anchor) =>
+            setAnchorMode({
+              moduleId: moduleId as AnchorModuleId,
+              initialAnchor: anchor,
+            })
+          }
           onSetYearlyAnchor={moduleId =>
             setAnchorMode({ moduleId: moduleId as AnchorModuleId })
           }
@@ -579,10 +589,17 @@ export default function Goals() {
             closes this flow and returns the user to the Goals home
             (Phase 7 polish: resume goal creation after save). */}
       <YearlyAnchorFlow
-        key={anchorMode ? `anchor-${anchorMode.moduleId}` : 'anchor-closed'}
+        key={
+          anchorMode
+            ? anchorMode.initialAnchor
+              ? `anchor-edit-${anchorMode.initialAnchor.id}`
+              : `anchor-create-${anchorMode.moduleId}`
+            : 'anchor-closed'
+        }
         open={anchorMode !== null}
         onClose={() => setAnchorMode(null)}
         moduleId={anchorMode?.moduleId ?? 'ear-training'}
+        initialAnchor={anchorMode?.initialAnchor ?? null}
       />
 
       <GoalFormModal
@@ -806,6 +823,7 @@ function GoalRow({
   dimensionAccentHex,
   omitActivityChart,
   suppressFeasibilityDetail,
+  omitRowActions,
   isRowExpanded,
   onToggleRow,
 }: {
@@ -834,13 +852,26 @@ function GoalRow({
    *  message shows once at the umbrella level and per-child
    *  messages disappear. */
   suppressFeasibilityDetail?: boolean;
+  /** When true, the expanded panel skips the Edit + Delete
+   *  action row entirely. Used by ByModuleSection's monthly
+   *  children — the "This month" subheader carries a single
+   *  always-visible Edit button for the whole umbrella, so
+   *  per-dimension actions become redundant. */
+  omitRowActions?: boolean;
   /** Module accent for the dimension label. Falls back to the
    *  Goals page accent when not provided. */
   dimensionAccentHex?: string;
 } & RowCollapseAccess) {
   const expanded = isRowExpanded(goal.id, false);
   const setExpanded = () => onToggleRow(goal.id, false);
-  const target = describeGoalTarget(goal, proficiencyDefs, songLookup);
+  // Dimension children get prose-style target strings ("130 foundational
+  // cards covered this month") instead of the wizard's compact form
+  // ("130 foundational"). Falls back to describeGoalTarget when the
+  // metric isn't one of the three dimensions handled.
+  const dimensionModuleId = dimensionLabel ? moduleForMetric(goal.targetMetric) : null;
+  const target =
+    (dimensionLabel ? describeDimensionTarget(goal, dimensionModuleId) : null)
+    ?? describeGoalTarget(goal, proficiencyDefs, songLookup);
   const slotState = progressSlotState(goal, layerType);
   const showSlots = shouldShowSlots(layerType);
   const progressText = progressSlotText(slotState);
@@ -970,31 +1001,35 @@ function GoalRow({
             );
           })()}
 
-          {/* Divider — keeps actions visually distinct from data display. */}
-          <hr className="border-neutral-200 dark:border-neutral-800" />
+          {!omitRowActions && (
+            <>
+              {/* Divider — keeps actions visually distinct from data display. */}
+              <hr className="border-neutral-200 dark:border-neutral-800" />
 
-          <div className="flex items-center gap-2" data-testid="goal-row-actions">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="text-xs px-2.5 py-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleDelete();
-              }}
-              className="text-xs px-2.5 py-1 rounded text-needswork hover:bg-needswork/10"
-            >
-              Delete
-            </button>
-          </div>
+              <div className="flex items-center gap-2" data-testid="goal-row-actions">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  className="text-xs px-2.5 py-1 rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleDelete();
+                  }}
+                  className="text-xs px-2.5 py-1 rounded text-needswork hover:bg-needswork/10"
+                >
+                  Delete
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </li>
@@ -1524,6 +1559,7 @@ function ByModuleView({
   proficiencyDefs,
   songLookup,
   onEditGoal,
+  onEditYearlyAnchor,
   onSetYearlyAnchor,
   onAddMonthlyGoal,
   isRowExpanded,
@@ -1533,6 +1569,7 @@ function ByModuleView({
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
+  onEditYearlyAnchor: (moduleId: GoalFlowModuleId, anchor: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
   onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
 } & RowCollapseAccess) {
@@ -1571,6 +1608,7 @@ function ByModuleView({
           proficiencyDefs={proficiencyDefs}
           songLookup={songLookup}
           onEditGoal={onEditGoal}
+          onEditYearlyAnchor={onEditYearlyAnchor}
           onSetYearlyAnchor={onSetYearlyAnchor}
           onAddMonthlyGoal={onAddMonthlyGoal}
           isRowExpanded={isRowExpanded}
@@ -1676,6 +1714,7 @@ function ByModuleSection({
   proficiencyDefs,
   songLookup,
   onEditGoal,
+  onEditYearlyAnchor,
   onSetYearlyAnchor,
   onAddMonthlyGoal,
   isRowExpanded,
@@ -1687,13 +1726,23 @@ function ByModuleSection({
   proficiencyDefs: ProficiencyDefinition[];
   songLookup: (skillId: string) => Song | undefined;
   onEditGoal: (g: Goal) => void;
+  onEditYearlyAnchor: (moduleId: GoalFlowModuleId, anchor: Goal) => void;
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
   onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
   activity: ReturnType<typeof useThisWeekActivity>;
 } & RowCollapseAccess) {
-  const { yearlyAnchor, monthlyGoals, weeklyGoals } = bucketModuleGoalsByTimeframe(
+  const { yearlyAnchor, monthlyGoals: rawMonthlyGoals, weeklyGoals } = bucketModuleGoalsByTimeframe(
     moduleId,
     allGoals,
+  );
+  // Coverage → Consistency → Accuracy/Proficiency → Mastery → other.
+  // Order users move through when setting a goal up — matches the
+  // suggestion flow's section order.
+  const monthlyGoals = useMemo(
+    () => [...rawMonthlyGoals].sort(
+      (a, b) => dimensionSortOrder(a) - dimensionSortOrder(b),
+    ),
+    [rawMonthlyGoals],
   );
 
   const meta = moduleMetaById(moduleId);
@@ -1750,7 +1799,7 @@ function ByModuleSection({
             <YearlyAnchorRow
               umbrella={yearlyAnchor}
               childGoals={findAllChildren(yearlyAnchor, allGoals)}
-              onClick={() => onEditGoal(yearlyAnchor)}
+              onEdit={() => onEditYearlyAnchor(moduleId, yearlyAnchor)}
             />
           ) : (
             <YearlyAnchorBackstop
@@ -1763,7 +1812,19 @@ function ByModuleSection({
         {/* THIS MONTH */}
         {showMonthlySection && (
           <div className="flex flex-col gap-1.5">
-            <SubSectionLabel>This month</SubSectionLabel>
+            <div className="flex items-center justify-between gap-2">
+              <SubSectionLabel>This month</SubSectionLabel>
+              {monthlyGoals.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onEditGoal(monthlyGoals[0])}
+                  className="text-[11px] text-neutral-500 hover:text-fluent transition-colors"
+                  aria-label="Edit this month's goal"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
             <div
               className="pl-3 border-l-2"
               style={{ borderColor: accentHex }}
@@ -1789,6 +1850,7 @@ function ByModuleSection({
                       dimensionLabel={goalTypeLabel(g, moduleId)}
                       dimensionAccentHex={accentHex}
                       omitActivityChart
+                      omitRowActions
                       isRowExpanded={isRowExpanded}
                       onToggleRow={onToggleRow}
                     />
@@ -1846,11 +1908,13 @@ function SubSectionLabel({ children }: { children: string }) {
 function YearlyAnchorRow({
   umbrella,
   childGoals,
-  onClick,
+  onEdit,
 }: {
   umbrella: Goal;
   childGoals: Goal[];
-  onClick: () => void;
+  /** Opens YearlyAnchorFlow in edit mode for this anchor. Fired by
+   *  the row's always-visible Edit affordance. */
+  onEdit: () => void;
 }) {
   const sharedModule = umbrellaModuleId(childGoals);
   const title = umbrellaDisplayTitle(umbrella, sharedModule);
@@ -1878,19 +1942,25 @@ function YearlyAnchorRow({
   }, [visibleChildGoals]);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left rounded-md bg-white/50 dark:bg-neutral-900/30 hover:bg-white/70 dark:hover:bg-neutral-900/50 transition px-3 py-2 flex items-center justify-between gap-3"
-    >
+    <div className="w-full rounded-md bg-white/50 dark:bg-neutral-900/30 px-3 py-2 flex items-center justify-between gap-3">
       <span
         className="text-sm font-medium truncate"
         style={{ color: moduleAccent ?? undefined }}
       >
         {title}
       </span>
-      <UmbrellaFeasibilityPill rollup={rollup} />
-    </button>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="text-[11px] text-neutral-500 hover:text-fluent transition-colors"
+          aria-label="Edit yearly anchor"
+        >
+          Edit
+        </button>
+        <UmbrellaFeasibilityPill rollup={rollup} />
+      </div>
+    </div>
   );
 }
 

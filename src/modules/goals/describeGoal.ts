@@ -1,5 +1,7 @@
 import type { Goal, ProficiencyDefinition, Song } from '../../lib/db';
 import { describeSongGoalTarget, isSongMetric } from './songTarget';
+import { moduleMetaById } from '../../lib/moduleMeta';
+import type { GoalFlowModuleId } from './goalVocabulary';
 
 /**
  * Format a goal record as a short human-readable target string.
@@ -77,6 +79,78 @@ export function describeGoalTarget(
   // Custom: "<value> <unit>" (unit may be empty)
   const unit = goal.targetUnit?.trim();
   return unit ? `${value} ${unit}` : String(value);
+}
+
+/**
+ * Goals-home-specific target description for dimension children
+ * (Coverage / Accuracy / Consistency rows under a monthly umbrella).
+ * Returns prose-style strings that name the unit + scope + timeframe
+ * so each row reads as a complete sentence at a glance:
+ *
+ *   coverage    → "130 foundational cards covered this month"
+ *   accuracy    → "85% accuracy across cards covered this month"
+ *   consistency → "5 days a week practicing harmonic fluency this month"
+ *
+ * Returns null when the goal's metric isn't one of the three
+ * dimensions handled here — caller falls back to describeGoalTarget
+ * (Shapes proficiency, Production completion, legacy metrics).
+ *
+ * Module nouns differ per module: HF → cards, Production → lessons,
+ * everything else → items. Module labels for consistency strings use
+ * moduleMeta's lowercase prose form ("harmonic fluency"); the
+ * practice-consistency module elides the label since "practicing
+ * practice" reads poorly.
+ */
+export function describeDimensionTarget(
+  goal: Goal,
+  moduleId: GoalFlowModuleId | null,
+): string | null {
+  const metric = goal.targetMetric;
+  if (!metric) return null;
+  if (goal.targetValue === null || goal.targetValue === undefined) return null;
+  const value = goal.targetValue;
+  const noun = moduleCoverageNoun(moduleId);
+
+  if (metric.endsWith('_coverage_at_acquired')) {
+    return `${value} ${noun} covered this month`;
+  }
+  if (metric.endsWith('_coverage_at_acquired_specific')) {
+    const groupLabel = goal.targetUnit ? prettifyGroupId(goal.targetUnit) : null;
+    return groupLabel
+      ? `${value} ${groupLabel} ${noun} covered this month`
+      : `${value} ${noun} covered this month`;
+  }
+
+  if (metric.endsWith('_accuracy_overall') || metric.endsWith('_accuracy_specific')) {
+    return `${value}% accuracy across ${noun} covered this month`;
+  }
+
+  if (metric.endsWith('_days_per_cadence')) {
+    if (moduleId === 'practice-consistency') {
+      return `${value} days a week practicing this month`;
+    }
+    return `${value} days a week practicing ${moduleProseLabel(moduleId)} this month`;
+  }
+  if (metric.endsWith('_lessons_per_cadence')) {
+    return `${value} lessons a week on ${moduleProseLabel(moduleId)} this month`;
+  }
+
+  return null;
+}
+
+function moduleCoverageNoun(moduleId: GoalFlowModuleId | null): string {
+  if (moduleId === 'harmonic-fluency') return 'cards';
+  if (moduleId === 'production') return 'lessons';
+  return 'items';
+}
+
+function moduleProseLabel(moduleId: GoalFlowModuleId | null): string {
+  if (!moduleId) return 'this module';
+  return moduleMetaById(moduleId)?.label ?? moduleId;
+}
+
+function prettifyGroupId(id: string): string {
+  return id.replace(/[-_]/g, ' ').trim();
 }
 
 /**
