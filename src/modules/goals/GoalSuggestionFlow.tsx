@@ -401,6 +401,12 @@ interface BodyShellProps {
   /** Edit mode flag — flips the modal title to "Edit … goal" and the
    *  save button to "Save changes". */
   isEditing?: boolean;
+  /** Edit mode: forwarded into persistSuggestionGoal so the update
+   *  path matches new records against existing children by slice
+   *  kind. Ignored when saveOverride is set (Repertoire owns its own
+   *  edit plumbing). */
+  existingUmbrella?: Goal | null;
+  existingChildren?: ReadonlyArray<Goal>;
 }
 
 function BodyShell({
@@ -416,6 +422,8 @@ function BodyShell({
   children,
   saveOverride,
   isEditing,
+  existingUmbrella,
+  existingChildren,
 }: BodyShellProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -436,6 +444,8 @@ function BodyShell({
           moduleId,
           targetDate,
           anchorGoalId: anchor.id,
+          existingUmbrella,
+          existingChildren,
         });
       }
       onSaved?.();
@@ -562,8 +572,14 @@ function HarmonicFluencyMonthlyBody({
   editPrefill,
 }: ModuleBodyProps<'harmonic-fluency'>) {
   const initialSuggestion = useMemo(() => suggestHfMonthly(), []);
-  const [target, setTarget] = useState<HarmonicFluencyTarget>(initialSuggestion.target);
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const editTarget =
+    editPrefill && editPrefill.moduleId === 'harmonic-fluency' ? editPrefill.target : null;
+  const [target, setTarget] = useState<HarmonicFluencyTarget>(
+    () => editTarget ?? initialSuggestion.target,
+  );
+  const [targetDate, setTargetDate] = useState<number>(
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+  );
 
   const records = useMemo(
     () => encodeShim('harmonic-fluency', target),
@@ -590,6 +606,8 @@ function HarmonicFluencyMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
       isEditing={!!editPrefill}
+      existingUmbrella={editPrefill?.umbrella ?? null}
+      existingChildren={editPrefill?.existingChildren}
     >
       <HfFocusSection
         target={target}
@@ -1142,8 +1160,14 @@ function EarTrainingMonthlyBody({
   editPrefill,
 }: ModuleBodyProps<'ear-training'>) {
   const initialSuggestion = useMemo(() => suggestEtMonthly(), []);
-  const [target, setTarget] = useState<EarTrainingTarget>(initialSuggestion.target);
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const editTarget =
+    editPrefill && editPrefill.moduleId === 'ear-training' ? editPrefill.target : null;
+  const [target, setTarget] = useState<EarTrainingTarget>(
+    () => editTarget ?? initialSuggestion.target,
+  );
+  const [targetDate, setTargetDate] = useState<number>(
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+  );
   const records = useMemo(() => encodeShim('ear-training', target), [target]);
   const coverageMinutes = useMemo(
     () => coverageWeeklyMinutes({
@@ -1166,6 +1190,8 @@ function EarTrainingMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
       isEditing={!!editPrefill}
+      existingUmbrella={editPrefill?.umbrella ?? null}
+      existingChildren={editPrefill?.existingChildren}
     >
       <EtFocusSection
         target={target}
@@ -1406,9 +1432,13 @@ function ShapesPatternsMonthlyBody({
   editPrefill,
 }: ModuleBodyProps<'shapes-and-patterns'>) {
   const initialSuggestion = useMemo(() => suggestShapesMonthly(), []);
-  const [target, setTarget] = useState<ShapesPatternsTarget>(initialSuggestion.target);
+  const editTarget =
+    editPrefill && editPrefill.moduleId === 'shapes-and-patterns' ? editPrefill.target : null;
+  const [target, setTarget] = useState<ShapesPatternsTarget>(
+    () => editTarget ?? initialSuggestion.target,
+  );
   const [targetDate, setTargetDate] = useState<number>(
-    initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope),
+    () => editPrefill?.targetDate ?? initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope),
   );
   const records = useMemo(() => encodeShim('shapes-and-patterns', target), [target]);
   const coverageMinutes = useMemo(
@@ -1432,6 +1462,8 @@ function ShapesPatternsMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
       isEditing={!!editPrefill}
+      existingUmbrella={editPrefill?.umbrella ?? null}
+      existingChildren={editPrefill?.existingChildren}
     >
       <ShapesFocusSection
         target={target}
@@ -1600,8 +1632,14 @@ function ProductionMonthlyBody({
   editPrefill,
 }: ModuleBodyProps<'production'>) {
   const initialSuggestion = useMemo(() => suggestProductionMonthly(), []);
-  const [target, setTarget] = useState<ProductionTarget>(initialSuggestion.target);
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const editTarget =
+    editPrefill && editPrefill.moduleId === 'production' ? editPrefill.target : null;
+  const [target, setTarget] = useState<ProductionTarget>(
+    () => editTarget ?? initialSuggestion.target,
+  );
+  const [targetDate, setTargetDate] = useState<number>(
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+  );
   const records = useMemo(() => encodeShim('production', target), [target]);
 
   return (
@@ -1616,6 +1654,8 @@ function ProductionMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
       isEditing={!!editPrefill}
+      existingUmbrella={editPrefill?.umbrella ?? null}
+      existingChildren={editPrefill?.existingChildren}
     >
       <ProductionCompletionFocus target={target} onChange={setTarget} />
       <ProductionConsistencyFocus target={target} onChange={setTarget} />
@@ -1720,8 +1760,14 @@ function PracticeConsistencyMonthlyBody({
   editPrefill,
 }: ModuleBodyProps<'practice-consistency'>) {
   const initialSuggestion = useMemo(() => suggestPracticeConsistencyMonthly(), []);
-  const [target, setTarget] = useState<PracticeConsistencyMonthlyTarget>(initialSuggestion.target);
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const editTarget =
+    editPrefill && editPrefill.moduleId === 'practice-consistency' ? editPrefill.target : null;
+  const [target, setTarget] = useState<PracticeConsistencyMonthlyTarget>(
+    () => editTarget ?? initialSuggestion.target,
+  );
+  const [targetDate, setTargetDate] = useState<number>(
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+  );
 
   // Practice Consistency uses a custom 3-field target shape that the
   // wizard's encoder doesn't know about. v1 maps the daysPerWeek
@@ -1752,6 +1798,8 @@ function PracticeConsistencyMonthlyBody({
       onClose={onClose}
       onSaved={onSaved}
       isEditing={!!editPrefill}
+      existingUmbrella={editPrefill?.umbrella ?? null}
+      existingChildren={editPrefill?.existingChildren}
     >
       <PracticeConsistencyFocus target={target} onChange={setTarget} />
     </BodyShell>
@@ -1909,13 +1957,34 @@ function RepertoireMonthlyBody({
   );
   const wantToLearn = useLiveQuery(() => db.wantToLearn.toArray(), []);
 
-  const [queue, setQueue] = useState<DraftSlot[]>([]);
-  const [daysTarget, setDaysTarget] = useState({
+  const editRepertoire =
+    editPrefill && editPrefill.moduleId === 'repertoire' ? editPrefill : null;
+  // Seed queue from the edit prefill, generating a fresh React key
+  // per slot so picker state stays stable. The data shape (kind +
+  // refId) maps cleanly back to DraftSlot.data.
+  const [queue, setQueue] = useState<DraftSlot[]>(() => {
+    if (!editRepertoire) return [];
+    return editRepertoire.queue.map(item => {
+      if (item.kind === 'tbd') {
+        return { key: newSlotKey(), data: { kind: 'tbd' } as const };
+      }
+      if (item.kind === 'song' && item.refId) {
+        return { key: newSlotKey(), data: { kind: 'song', songId: item.refId } };
+      }
+      if (item.kind === 'wtl' && item.refId) {
+        return { key: newSlotKey(), data: { kind: 'wtl', entryId: item.refId } };
+      }
+      return { key: newSlotKey(), data: { kind: 'tbd' } as const };
+    });
+  });
+  const [daysTarget, setDaysTarget] = useState(() => editRepertoire?.daysTarget ?? {
     consistencyEnabled: initialSuggestion.target.consistencyEnabled,
     consistencyCount: initialSuggestion.target.consistencyCount,
     consistencyCadence: initialSuggestion.target.consistencyCadence,
   });
-  const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
+  const [targetDate, setTargetDate] = useState<number>(
+    () => editRepertoire?.targetDate ?? defaultTargetDate(scope),
+  );
 
   // Save gate: at least one queue slot (specific OR TBD — TBD now
   // creates a slot-1 placeholder goal so the spotlight position
@@ -1943,6 +2012,8 @@ function RepertoireMonthlyBody({
       targetDate,
       allSongs: allSongs ?? [],
       wantToLearn: wantToLearn ?? [],
+      existingUmbrella: editRepertoire?.umbrella ?? null,
+      existingChildren: editRepertoire?.existingChildren,
     });
   };
 
