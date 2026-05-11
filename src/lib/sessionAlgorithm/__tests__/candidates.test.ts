@@ -179,6 +179,15 @@ describe('candidateSpecForGoal — accuracy / consistency / songs / umbrella', (
     expect(spec.moduleRefs).toContain('repertoire');
   });
 
+  it('song_of_month metric (queue metadata) classifies as unsupported', () => {
+    // Slot-1 TBD + slot 2/3 entries — pure queue metadata, must not
+    // drive the algorithm. Only slot-1 specific reaches the
+    // algorithm via song_whole_at_level (covered below).
+    expect(
+      candidateSpecForGoal(makeGoal({ targetMetric: 'song_of_month' })),
+    ).toEqual({ kind: 'unsupported' });
+  });
+
   it('song proficiency metrics surface the related song ids', () => {
     const spec = candidateSpecForGoal(
       makeGoal({

@@ -233,6 +233,16 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
     return { kind: 'production_count', moduleRefs: [PRODUCTION_MODULE_REF] };
   }
 
+  // --- Song of the Month metadata --------------------------------
+  // Sentinel metric on slot-1 TBD + every slot 2/3 entry in the
+  // Repertoire monthly queue (see modules/repertoire/songOfMonth.ts).
+  // Pure queue metadata — never drives session generation. Only
+  // slot-1 specific (routed via song_whole_at_level above) reaches
+  // the algorithm's session-candidate path.
+  if (metric === 'song_of_month') {
+    return { kind: 'unsupported' };
+  }
+
   return { kind: 'unsupported' };
 }
 

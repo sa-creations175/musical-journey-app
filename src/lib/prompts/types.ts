@@ -24,6 +24,20 @@ export const PROMPT_TYPE = {
    *  targetMetric, targetValue so the surface UI (Phase 7) can
    *  render module-specific copy without a re-fetch. */
   GOAL_MILESTONE: 'goal_milestone',
+  /** Song of the Month — fired when the spotlight song reaches
+   *  comfortable in its original key. Payload carries songId,
+   *  songTitle, umbrellaGoalId so the surface can render copy +
+   *  wire the "Yes, advance" action without re-fetching. High
+   *  tier; dedupe per songId across the prompt's lifetime. */
+  SONG_OF_MONTH_CONGRATS: 'song_of_month_congrats',
+  /** Song of the Month — fired when the spotlight song is past
+   *  ~50% comfortable AND the next slot is TBD. Re-enqueued at
+   *  most once per local day per umbrella (cadence:
+   *  evaluateSongOfMonthPrompts checks for an existing prompt
+   *  whose createdAt falls in the same local day before
+   *  enqueuing again). Medium tier; payload carries
+   *  umbrellaGoalId. */
+  SONG_OF_MONTH_TBD_NUDGE: 'song_of_month_tbd_nudge',
 } as const;
 
 export type PromptType = typeof PROMPT_TYPE[keyof typeof PROMPT_TYPE];
