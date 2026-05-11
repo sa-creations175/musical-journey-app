@@ -5,15 +5,14 @@ import {
   getWeeklyTimeEstimate,
   REPERTOIRE_SESSION_DEFAULT_MINUTES,
   TIME_PER_ATTEMPT_MINUTES,
-  type ShapesActivityArea,
   type TimeEstimate,
 } from '../../lib/weeklyAttempts';
 import { MODULE_ORDER, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 import type { GoalFlowModuleId } from './goalVocabulary';
 import { isCoverageMetric } from './coverageMetrics';
 import {
-  coverageGroupIdToActivityArea,
   getShapesCoverageGroup,
+  shapesAreaFromUnit,
 } from './shapesCoverageGroups';
 import { deriveWeeklyGoals } from './weeklyDerivation';
 import {
@@ -231,34 +230,6 @@ function mergeCoverageAndConsistencyRows(rows: PlanRow[]): PlanRow[] {
     }
   }
   return out;
-}
-
-/** Pull the activity-area discriminator out of a Shapes parent
- *  goal's targetUnit when present:
- *    coverage_specific:    one of the six ShapesCoverageGroupId
- *                          values (chord_shape_triads /
- *                          chord_shape_sevenths /
- *                          chord_shape_extensions /
- *                          chord_shape_special / scale_drills /
- *                          voice_leading) — the four chord-shape
- *                          sub-groups all roll up to the
- *                          chord_shape_drills activity area for
- *                          time-per-rep dispatch.
- *    proficiency_overall:  '${activityArea}:${level}'              → split before ':'
- *    proficiency_specific: '${activityArea}:${shapeId}:${key}:${level}' → split before ':'
- *  Returns null for overall-coverage rows ('items') and for any
- *  unit string that doesn't resolve — caller falls back to the
- *  catalog-weighted-average constant. */
-function shapesAreaFromUnit(unit: string | null): ShapesActivityArea | null {
-  if (!unit) return null;
-  const head = unit.includes(':') ? unit.slice(0, unit.indexOf(':')) : unit;
-  // Try the coverage-group-id space first (covers the 4 chord-shape
-  // sub-groups + scale_drills + voice_leading + legacy
-  // chord_shape_drills). Falls through to the proficiency picker's
-  // raw activity-area space (scale_drills / chord_shape_drills /
-  // voice_leading) for proficiency unit prefixes — the helper
-  // recognizes the legacy chord_shape_drills id directly.
-  return coverageGroupIdToActivityArea(head);
 }
 
 const MODULE_LABEL: Record<GoalFlowModuleId, string> = {

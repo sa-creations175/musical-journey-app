@@ -227,6 +227,31 @@ export function coverageGroupIdToActivityArea(
 }
 
 /**
+ * Pull the activity-area discriminator out of a Shapes goal's
+ * targetUnit string. The unit carries the area in three encodings:
+ *
+ *   coverage_specific:    one of the six ShapesCoverageGroupId
+ *                         values (or the legacy chord_shape_drills
+ *                         id) — splits on coverage groups.
+ *   proficiency_overall:  '${activityArea}:${level}'              → split before ':'
+ *   proficiency_specific: '${activityArea}:${shapeId}:${key}:${level}' → split before ':'
+ *
+ * Returns null for overall-coverage rows ('items') and for any
+ * unit string that doesn't resolve — caller falls back to the
+ * catalog-weighted-average constant.
+ *
+ * Shared between WeeklyPlan's per-row time math and the by-module
+ * view's per-goal time helper.
+ */
+export function shapesAreaFromUnit(
+  unit: string | null,
+): ShapesActivityArea | null {
+  if (!unit) return null;
+  const head = unit.includes(':') ? unit.slice(0, unit.indexOf(':')) : unit;
+  return coverageGroupIdToActivityArea(head);
+}
+
+/**
  * itemRef predicate matching the coverage group's spacingState
  * rows. Mirrors the itemRef format from
  * shapes-and-patterns/drillModel.ts:
