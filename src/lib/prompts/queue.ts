@@ -27,10 +27,14 @@ interface EnqueueInput {
   surface: PromptSurface;
   payload?: Record<string, unknown>;
   expiresAt?: number;
+  /** Override the createdAt timestamp. Production callers omit
+   *  this and the row gets Date.now(); tests pass a deterministic
+   *  value so per-day cadence checks resolve correctly. */
+  createdAt?: number;
 }
 
 export async function enqueue(input: EnqueueInput): Promise<PromptRecord> {
-  const now = Date.now();
+  const now = input.createdAt ?? Date.now();
   const record: PromptRecord = {
     id: `prompt-${Math.random().toString(36).slice(2, 8)}-${now.toString(36)}`,
     promptType: input.promptType,

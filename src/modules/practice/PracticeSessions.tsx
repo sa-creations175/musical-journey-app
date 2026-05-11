@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
+import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import Modal from '../../components/Modal';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
@@ -108,6 +109,17 @@ export default function PracticeSessions() {
   useEffect(() => {
     void recordEndOfMonth().catch(err => {
       console.warn('[PracticeSessions] recordEndOfMonth failed', err);
+    });
+  }, []);
+
+  // Song-of-the-Month prompt evaluation — fires on every mount of
+  // the Practice Sessions surface (which the user lands on after
+  // completing a session, and again on revisit). The evaluator
+  // dedupes congrats per songId + caps the TBD nudge to once per
+  // local day per umbrella, so cheap to call repeatedly.
+  useEffect(() => {
+    void evaluateSongOfMonthPrompts().catch(err => {
+      console.warn('[PracticeSessions] evaluateSongOfMonthPrompts failed', err);
     });
   }, []);
 

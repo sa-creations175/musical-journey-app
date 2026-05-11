@@ -22,6 +22,7 @@ import { isNewVocabMetric } from './goalVocabulary';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
+import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
 import { describeGoalTarget } from './describeGoal';
 import {
   progressSlotState,
@@ -212,6 +213,15 @@ export default function Goals() {
   useEffect(() => {
     void backfillSpacingStateIfNeeded().catch(err => {
       console.warn('[goals] backfillSpacingStateIfNeeded failed', err);
+    });
+  }, []);
+
+  // Song-of-the-Month prompt evaluation — surfaces the congrats /
+  // TBD nudge when conditions are met. Dedupe + per-day cadence
+  // live inside the evaluator, so it's cheap to call on every mount.
+  useEffect(() => {
+    void evaluateSongOfMonthPrompts().catch(err => {
+      console.warn('[goals] evaluateSongOfMonthPrompts failed', err);
     });
   }, []);
 
