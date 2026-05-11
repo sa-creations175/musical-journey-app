@@ -88,15 +88,18 @@ interface PlanRow {
   parentUnit: string | null;
   /** Phase 4 polish — when a sibling consistency row exists in the
    *  same module (e.g. an HF umbrella with both a coverage child and
-   *  a consistency child), this field carries the consistency
-   *  cadence so the row's display can fold "across N sessions ·
-   *  ~Y min each" inline. The standalone consistency row is dropped
-   *  from the plan grid after the merge — no separate time
-   *  estimate, since per-session time is computed from this row's
-   *  own coverage target. Set only on coverage rows; null otherwise. */
+   *  a consistency child), this field folds the consistency count
+   *  into the coverage row's display: "across N days · ~Y min each"
+   *  (or "across N sessions · …" for legacy sessions-per-cadence
+   *  goals). The standalone consistency row is dropped from the plan
+   *  grid after the merge. Set only on coverage rows; null otherwise. */
   consistencyInfo: {
-    sessions: number;
+    count: number;
     cadence: 'week' | 'month';
+    /** 'days' for new *_days_per_cadence metrics; 'sessions' for
+     *  legacy *_sessions_per_cadence metrics. Drives the suffix
+     *  noun ("days" vs "sessions"). */
+    unit: 'days' | 'sessions';
   } | null;
 }
 
@@ -121,12 +124,39 @@ type RowTimeDisplay =
     }
   | { kind: 'per-session'; minutesPerSession: number };
 
-/** HF/ET cadence-style metrics whose row should render as
- *  per-session when a sibling coverage row exists. */
-const SESSIONS_PER_CADENCE_METRICS: ReadonlySet<string> = new Set([
+/** Per-module consistency metrics that should fold into a sibling
+ *  coverage row when both exist. Includes the new days-based metrics
+ *  (HF / ET / Shapes — May 2026 redesign) plus the legacy sessions-
+ *  and minutes-based names so existing goals still merge correctly.
+ *  Repertoire's _days_per_cadence intentionally stays out — it's a
+ *  standalone row with its own per-day display path. */
+const MERGEABLE_CONSISTENCY_METRICS: ReadonlySet<string> = new Set([
+  // New (days-based).
+  'harmonic_fluency_days_per_cadence',
+  'ear_training_days_per_cadence',
+  'shapes_days_per_cadence',
+  // Legacy.
   'harmonic_fluency_sessions_per_cadence',
   'ear_training_sessions_per_cadence',
+  'shapes_minutes_per_cadence',
 ]);
+
+/** Whether the metric carries days-per-week semantics (vs the legacy
+ *  sessions/minutes shape). Drives the consistencyInfo.unit
+ *  discriminator and downstream display copy. */
+function isDaysMetric(metric: string | null | undefined): boolean {
+  return !!metric && metric.includes('_days_per_');
+}
+
+/** Repertoire's two consistency metric flavors — the new days-based
+ *  shape (May 2026 redesign) and the legacy hours-based one. Both
+ *  trigger the RepertoireGuidanceRow under the row. */
+function isRepertoireRoutineRow(metric: string | null | undefined): boolean {
+  return (
+    metric === 'repertoire_days_per_cadence'
+    || metric === 'repertoire_hours_per_cadence'
+  );
+}
 
 /**
  * Phase 4 polish — merge coverage + consistency rows for the same
@@ -173,20 +203,21 @@ function mergeCoverageAndConsistencyRows(rows: PlanRow[]): PlanRow[] {
     }
     const coverage = group.find(r => r.parentMetric != null && isCoverageMetric(r.parentMetric));
     const consistency = group.find(
-      r => r.parentMetric != null && SESSIONS_PER_CADENCE_METRICS.has(r.parentMetric),
+      r => r.parentMetric != null && MERGEABLE_CONSISTENCY_METRICS.has(r.parentMetric),
     );
     if (coverage && consistency) {
       // Fold consistency into coverage. Cadence comes from the
       // consistency goal's targetUnit; defaults to 'week' when the
-      // saved value is anything else (the per-session math is the
-      // same for either cadence when normalized to the goal's
-      // period — see weeklyTimeEstimate.ts's per-session derivation
-      // for the parallel logic in the suggestion flow).
+      // saved value is anything else. The unit discriminator drives
+      // the display suffix ("across N days" vs "across N sessions").
       const cadence: 'week' | 'month' =
         consistency.parentUnit === 'month' ? 'month' : 'week';
+      const unit: 'days' | 'sessions' = isDaysMetric(consistency.parentMetric)
+        ? 'days'
+        : 'sessions';
       out.push({
         ...coverage,
-        consistencyInfo: { sessions: consistency.target, cadence },
+        consistencyInfo: { count: consistency.target, cadence, unit },
       });
       // Push any other rows in the group (e.g. accuracy children)
       // unchanged so they keep their own display.
@@ -474,7 +505,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
 
     // HF / ET consistency — divide sibling coverage attempts by
     // sessions to get attempts-per-session × per-attempt minutes.
-    if (row.parentMetric != null && SESSIONS_PER_CADENCE_METRICS.has(row.parentMetric)) {
+    if (row.parentMetric != null && MERGEABLE_CONSISTENCY_METRICS.has(row.parentMetric)) {
       if (!row.parentUmbrellaId) return null;
       const sibling = planRows.find(
         r =>
@@ -495,11 +526,11 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
       };
     }
 
-    // Hours-per-cadence consistency rows (production_hours_per_cadence
-    // or repertoire_hours_per_cadence after derivation passthrough):
-    // target IS the weekly hour count. Repertoire additionally derives
-    // a session breakdown ("~45 min · 6 sessions/week") so the user
-    // sees the cadence shape, not just the bulk hours figure.
+    // Hours-per-cadence consistency rows (legacy
+    // production_hours_per_cadence / repertoire_hours_per_cadence):
+    // target IS the weekly hour count. Repertoire additionally
+    // derives a session breakdown so the user sees the cadence
+    // shape, not just the bulk hours figure.
     if (row.unit === 'hours') {
       const estimate: TimeEstimate = { kind: 'point', minutes: row.target * 60 };
       if (row.parentMetric === 'repertoire_hours_per_cadence' && row.target > 0) {
@@ -518,7 +549,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
       return { kind: 'time', estimate };
     }
 
-    // Shapes minutes_per_cadence (consistency): target IS the
+    // Shapes minutes_per_cadence (legacy consistency): target IS the
     // weekly minute count. Bypass the per-rep math entirely.
     if (row.unit === 'minutes') {
       return {
@@ -527,12 +558,36 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
       };
     }
 
-    // Production lesson count: getWeeklyTimeEstimate returns a range
-    // (30–90 min/lesson). Other modules with unit='lessons' would
-    // route here too, but the function is module-aware via the
-    // moduleId switch.
+    // Lessons-per-week (Production new consistency, or
+    // production_path_completion / _lessons_count): getWeeklyTimeEstimate
+    // returns a range (30–90 min/lesson). New
+    // production_lessons_per_cadence routes through the same range
+    // mapping — depth is variable, so we honestly show a range.
     if (row.unit === 'lessons') {
       return { kind: 'time', estimate: getWeeklyTimeEstimate(row.moduleId, row.target) };
+    }
+
+    // Days-per-week (the new consistency idiom). Standalone rows
+    // (i.e. no sibling coverage to merge with) get a per-day
+    // breakdown based on the module:
+    //   · repertoire_days_per_cadence — multiplies by
+    //     REPERTOIRE_SESSION_DEFAULT_MINUTES (45 min/day).
+    //   · HF/ET/Shapes _days_per_cadence standing alone — no
+    //     coverage to derive minutes from, so just show the count.
+    //   · practice_days_per_cadence — same: count-only, the
+    //     practice-consistency umbrella covers any module.
+    if (row.unit === 'days') {
+      if (row.parentMetric === 'repertoire_days_per_cadence' && row.target > 0) {
+        const totalMinutes = row.target * REPERTOIRE_SESSION_DEFAULT_MINUTES;
+        const dayNoun = row.target === 1 ? 'day' : 'days';
+        return {
+          kind: 'time',
+          estimate: { kind: 'point', minutes: totalMinutes },
+          consistencySuffix:
+            `~${REPERTOIRE_SESSION_DEFAULT_MINUTES} min · ${row.target} ${dayNoun}/week`,
+        };
+      }
+      return null;
     }
 
     // Standard attempt / session counts: HF/ET coverage, Shapes
@@ -563,22 +618,24 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
       if (
         row.consistencyInfo
         && (row.moduleId === 'harmonic-fluency' || row.moduleId === 'ear-training')
-        && row.consistencyInfo.sessions > 0
+        && row.consistencyInfo.count > 0
       ) {
         const minutesPerAttempt = TIME_PER_ATTEMPT_MINUTES[row.moduleId];
-        const attemptsPerSession = row.target / row.consistencyInfo.sessions;
-        const minutesPerSession = attemptsPerSession * minutesPerAttempt;
-        const sessionNoun = row.consistencyInfo.sessions === 1 ? 'session' : 'sessions';
+        const attemptsPerUnit = row.target / row.consistencyInfo.count;
+        const minutesPerUnit = attemptsPerUnit * minutesPerAttempt;
+        const unitNoun =
+          row.consistencyInfo.unit === 'days'
+            ? row.consistencyInfo.count === 1 ? 'day' : 'days'
+            : row.consistencyInfo.count === 1 ? 'session' : 'sessions';
         const cadenceNoun = row.consistencyInfo.cadence === 'month' ? '/month' : '';
         consistencySuffix =
-          `across ${row.consistencyInfo.sessions} ${sessionNoun}${cadenceNoun} · `
-          + `~${formatMinutes(minutesPerSession)} each`;
+          `across ${row.consistencyInfo.count} ${unitNoun}${cadenceNoun} · `
+          + `~${formatMinutes(minutesPerUnit)} each`;
       }
       return { kind: 'time', estimate, consistencySuffix };
     }
 
-    // 'days' (practice consistency) — no honest per-day constant
-    // to multiply by; show the count verbatim, no time estimate.
+    // Unhandled unit (defensive): no honest per-row time to surface.
     return null;
   }
 
@@ -850,14 +907,18 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
                         if (group.rows.length === 1) {
                           const row = group.rows[0];
                           return (
-                            <PlanRowView
-                              key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}
-                              row={row}
-                              time={rowTime(row)}
-                              editable={!isConfirmed}
-                              onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
-                              onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
-                            />
+                            <Fragment key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}>
+                              <PlanRowView
+                                row={row}
+                                time={rowTime(row)}
+                                editable={!isConfirmed}
+                                onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
+                                onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
+                              />
+                              {isRepertoireRoutineRow(row.parentMetric) && (
+                                <RepertoireGuidanceRow />
+                              )}
+                            </Fragment>
                           );
                         }
                         // Multi-row module → collapsible group header
@@ -872,16 +933,20 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
                               onToggle={() => toggleModuleCollapsed(group.moduleId)}
                             />
                             {!isCollapsed && group.rows.map(row => (
-                              <PlanRowView
-                                key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}
-                                row={row}
-                                time={rowTime(row)}
-                                editable={!isConfirmed}
-                                onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
-                                onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
-                                subLabel={subLabelForPlanRow(row) ?? row.parentDescription}
-                                hideModuleHeading
-                              />
+                              <Fragment key={row.monthlyGoalId || `${row.moduleId}-${row.suggested}`}>
+                                <PlanRowView
+                                  row={row}
+                                  time={rowTime(row)}
+                                  editable={!isConfirmed}
+                                  onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
+                                  onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
+                                  subLabel={subLabelForPlanRow(row) ?? row.parentDescription}
+                                  hideModuleHeading
+                                />
+                                {isRepertoireRoutineRow(row.parentMetric) && (
+                                  <RepertoireGuidanceRow />
+                                )}
+                              </Fragment>
                             ))}
                           </Fragment>
                         );
@@ -1068,6 +1133,38 @@ function PlanRowView(props: {
         )}
       </td>
       <td className="px-3 py-2 align-top"></td>
+    </tr>
+  );
+}
+
+/**
+ * Hint row rendered immediately under any repertoire-routine row
+ * (the new `repertoire_days_per_cadence` and the legacy
+ * `repertoire_hours_per_cadence`). Explains the recommended split
+ * of a ~45 min repertoire session
+ * — new-song learning vs. maintenance rotation — and how 6 sessions a
+ * week cover 6 of 7 active songs with the spacing system surfacing
+ * the most stale as the skip candidate.
+ *
+ * Static guidance: doesn't read from the row's target (the math
+ * holds at 4.5 h/week — recalibrate if the default ever moves and
+ * the inline numbers stop matching the session cadence).
+ */
+function RepertoireGuidanceRow() {
+  return (
+    <tr className="bg-neutral-50/40 dark:bg-neutral-800/20">
+      <td
+        colSpan={4}
+        className="px-3 py-2 text-[11px] leading-snug text-neutral-600 dark:text-neutral-400"
+      >
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Suggested session split:
+        </span>{' '}
+        ~30 min new-song learning + ~15 min maintenance rotation. With
+        7 active songs and 6 sessions/week, one song per session covers
+        6 of 7 — the spacing system surfaces the most stale song as the
+        skip candidate.
+      </td>
     </tr>
   );
 }
