@@ -19,6 +19,7 @@ import './devCleanup';
 import './devInspectActivity';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
+import { SONG_OF_MONTH_METRIC } from '../repertoire/songOfMonth';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
@@ -157,6 +158,32 @@ type FormMode =
   | { kind: 'create'; scope: GoalScope | null }
   | { kind: 'edit'; goal: Goal };
 
+/**
+ * Decide which modal handles editing a given goal:
+ *   · GoalSuggestionFlow — monthly goals whose shape the suggestion
+ *     flow can render (new-vocab metric, new-style umbrella, or
+ *     Repertoire song queue children). Covers the routing gap
+ *     where pure-umbrella goals (targetMetric: null) previously fell
+ *     through to GoalFormModal.
+ *   · GoalCreationFlow — non-monthly new-vocab metrics.
+ *   · GoalFormModal — everything else (legacy generic vocabulary).
+ */
+function isSuggestionFlowEditCandidate(goal: Goal): boolean {
+  if (goal.scope !== 'monthly') return false;
+  // New-vocab metric (HF/ET/Shapes/Production/PracticeConsistency child or single-target).
+  if (isNewVocabMetric(goal.targetMetric)) return true;
+  // New-style umbrella row (no metric, module derivable from relatedModules).
+  if (goal.isUmbrella && goal.targetMetric === null && goal.relatedModules.length > 0) return true;
+  // Repertoire song-of-month queue children (slots 2/3 + TBD spotlight).
+  if (goal.targetMetric === SONG_OF_MONTH_METRIC) return true;
+  // Repertoire spotlight song goal (slot 1 specific).
+  if (
+    goal.targetMetric === 'song_whole_at_level'
+    && goal.relatedModules.includes('repertoire')
+  ) return true;
+  return false;
+}
+
 /** Phase 2 step 6g — passed from the page-level component down
  *  to every row so collapse state is a single source of truth
  *  across both views and persists across reloads. */
@@ -252,12 +279,18 @@ export default function Goals() {
    *  interstitial). When non-null, the flow is mounted open with
    *  the picked module. */
   const [anchorMode, setAnchorMode] = useState<{ moduleId: AnchorModuleId } | null>(null);
-  /** Suggestion-flow open state. Driven by the per-anchor "+ Add
-   *  monthly goal" affordance in by-module view. All six modules
-   *  surface the affordance; Repertoire's body still falls through
-   *  to the placeholder until its multi-song save path lands. */
+  /** Suggestion-flow open state. Two modes:
+   *    · 'create' — driven by the per-anchor "+ Add monthly goal"
+   *      affordance in by-module view. Caller pre-decides scope +
+   *      module.
+   *    · 'edit'   — driven by clicking edit on any monthly goal whose
+   *      shape the suggestion flow can render (new-vocab metric,
+   *      new-style umbrella, or Repertoire song queue children).
+   *      Scope/module derived from the goal inside the flow. */
   const [suggestionFlow, setSuggestionFlow] = useState<
-    { scope: 'monthly'; moduleId: GoalFlowModuleId } | null
+    | { mode: 'create'; scope: 'monthly'; moduleId: GoalFlowModuleId }
+    | { mode: 'edit'; goal: Goal }
+    | null
   >(null);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
@@ -481,7 +514,13 @@ export default function Goals() {
                 collapsed={collapsed}
                 onToggle={() => toggleLayer(layer.scope)}
                 onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
-                onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
+                onEditGoal={goal => {
+                  if (isSuggestionFlowEditCandidate(goal)) {
+                    setSuggestionFlow({ mode: 'edit', goal });
+                  } else {
+                    setFormMode({ kind: 'edit', goal });
+                  }
+                }}
                 isRowExpanded={isRowExpanded}
                 onToggleRow={onToggleRow}
               />
@@ -498,12 +537,18 @@ export default function Goals() {
           goals={goals}
           proficiencyDefs={proficiencyDefs}
           songLookup={songLookup}
-          onEditGoal={goal => setFormMode({ kind: 'edit', goal })}
+          onEditGoal={goal => {
+            if (isSuggestionFlowEditCandidate(goal)) {
+              setSuggestionFlow({ mode: 'edit', goal });
+            } else {
+              setFormMode({ kind: 'edit', goal });
+            }
+          }}
           onSetYearlyAnchor={moduleId =>
             setAnchorMode({ moduleId: moduleId as AnchorModuleId })
           }
           onAddMonthlyGoal={moduleId =>
-            setSuggestionFlow({ scope: 'monthly', moduleId })
+            setSuggestionFlow({ mode: 'create', scope: 'monthly', moduleId })
           }
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
@@ -518,17 +563,15 @@ export default function Goals() {
         onSetHidden={setLayerHidden}
       />
 
-      {/* Phase 1.6 step 15 entry-point routing:
-            - All creates open GoalCreationFlow.
-            - Edits route by vocabulary: new-vocab metrics open
-              GoalCreationFlow (decoders preserve all state); old-
-              vocab metrics open GoalFormModal (still works, no
-              decoder support).
+      {/* Entry-point routing:
+            - All creates from layer-section "+ Add" → GoalCreationFlow.
+            - Monthly edits whose shape the suggestion flow can render
+              (new-vocab metric / new-style umbrella / Repertoire song
+              queue) → GoalSuggestionFlow (handled below).
+            - Other new-vocab edits → GoalCreationFlow.
+            - Old-vocab edits → GoalFormModal.
           GoalFormModal stays mounted alongside GoalCreationFlow until
-          all old-vocab goals are aged out / migrated. The key prop on
-          GoalCreationFlow forces a fresh remount per open, so its
-          useState lazy initializer re-runs against the current
-          initialGoal / initialScope. */}
+          all old-vocab goals are aged out / migrated. */}
       <GoalCreationFlow
         key={
           formMode.kind === 'edit' && isNewVocabMetric(formMode.goal.targetMetric)
@@ -579,22 +622,36 @@ export default function Goals() {
         initialScope={null}
       />
 
-      {/* New short-horizon suggestion flow. v1 only wires HF monthly
-          via the per-anchor "+ Add monthly goal" button on the HF
-          section. Other module/scope combinations land in subsequent
-          commits; the flow itself already shells those as "coming
-          soon" placeholders so opening it on an unwired combo is a
-          known-shaped no-op rather than a crash. */}
+      {/* Short-horizon suggestion flow. Handles both:
+            · create — driven by per-anchor "+ Add monthly goal" in
+              by-module view. scope + moduleId pre-decided by caller.
+            · edit — driven by clicking edit on a monthly goal whose
+              shape this flow can render. scope + moduleId derived
+              from the goal inside the flow.
+          The key prop differs between modes to force a fresh remount
+          on each open so each body's useState lazy initializers re-
+          read editPrefill / suggest* defaults cleanly. */}
       <GoalSuggestionFlow
         key={
-          suggestionFlow
-            ? `suggestion-${suggestionFlow.scope}-${suggestionFlow.moduleId}`
-            : 'suggestion-closed'
+          suggestionFlow?.mode === 'edit'
+            ? `suggestion-edit-${suggestionFlow.goal.id}`
+            : suggestionFlow?.mode === 'create'
+              ? `suggestion-create-${suggestionFlow.scope}-${suggestionFlow.moduleId}`
+              : 'suggestion-closed'
         }
         open={suggestionFlow !== null}
         onClose={() => setSuggestionFlow(null)}
-        scope={suggestionFlow?.scope ?? 'monthly'}
-        moduleId={suggestionFlow?.moduleId ?? 'harmonic-fluency'}
+        scope={
+          suggestionFlow?.mode === 'create'
+            ? suggestionFlow.scope
+            : 'monthly'
+        }
+        moduleId={
+          suggestionFlow?.mode === 'create'
+            ? suggestionFlow.moduleId
+            : 'harmonic-fluency'
+        }
+        existingGoal={suggestionFlow?.mode === 'edit' ? suggestionFlow.goal : null}
       />
 
       {/* Phase 4 step 3 — WeeklyPlan modal. Mounted here so its
