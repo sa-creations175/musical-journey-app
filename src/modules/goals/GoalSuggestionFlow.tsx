@@ -903,27 +903,114 @@ interface PersistArgs {
   moduleId: SuggestionFlowModule;
   targetDate: number;
   anchorGoalId: string;
+  /** Edit mode: existing umbrella id (null if no umbrella). When set
+   *  with existingChildren, the persist path matches new records to
+   *  existing children by slice kind and reuses ids in place. */
+  existingUmbrella?: Goal | null;
+  /** Edit mode: existing child goal rows under the umbrella (or a
+   *  one-element list for a standalone child). Unmatched existing
+   *  children are deleted on save. */
+  existingChildren?: ReadonlyArray<Goal>;
+}
+
+type SliceKind =
+  | 'coverage-overall'
+  | 'coverage-specific'
+  | 'accuracy'
+  | 'consistency'
+  | 'proficiency'
+  | 'completion';
+
+/**
+ * Classify an encoded record (or an existing child goal) by which
+ * slice of the per-module body it belongs to. Drives the edit-mode
+ * match between new records and existing children: same slice kind
+ * → reuse id (preserve currentValue, startDate, status, etc.).
+ *
+ * Returns null for metrics outside the suggestion flow's vocabulary
+ * (e.g. song_*, song_of_month). The caller skips matching for those.
+ */
+function sliceKindFromMetric(metric: string | null): SliceKind | null {
+  if (!metric) return null;
+  if (metric.endsWith('_coverage_at_acquired'))           return 'coverage-overall';
+  if (metric.endsWith('_coverage_at_acquired_specific'))  return 'coverage-specific';
+  if (metric.endsWith('_accuracy_overall'))               return 'accuracy';
+  if (metric.endsWith('_accuracy_specific'))              return 'accuracy';
+  if (metric === 'shapes_proficiency_overall')            return 'proficiency';
+  if (metric === 'shapes_proficiency_specific')           return 'proficiency';
+  if (metric === 'production_path_completion')            return 'completion';
+  if (metric === 'production_lessons_count')              return 'completion';
+  if (metric.endsWith('_days_per_cadence'))               return 'consistency';
+  if (metric.endsWith('_sessions_per_cadence'))           return 'consistency';
+  if (metric.endsWith('_minutes_per_cadence'))            return 'consistency';
+  if (metric.endsWith('_lessons_per_cadence'))            return 'consistency';
+  if (metric.endsWith('_hours_per_cadence'))              return 'consistency';
+  return null;
 }
 
 /**
- * Persist a suggestion-flow goal. Mirrors the wizard's new-create
- * save semantics for multi-record goals: 1 umbrella + N children
- * when records.length > 1, single row otherwise. Always sets
- * parent_goal_id to the auto-connected anchor (or to the umbrella
- * for child rows).
- *
- * Future: extract this into the shared encoder module once the
- * wizard's handleSave is also factored out, so both flows share
- * identical write semantics.
+ * Pick the best existing child to match a new record. Mutates
+ * `pool` by removing the matched entry. For coverage-specific
+ * records, prefers an existing row with the same targetUnit (group
+ * id) so unchanged groups keep their ids; falls back to any unmatched
+ * coverage-specific row (treat as group swap, preserve the row's
+ * progress). For other slices, slice-kind match is sufficient since
+ * each kind has at most one row per goal.
  */
-async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
-  const { records, scope, moduleId, targetDate, anchorGoalId } = args;
+function pluckMatch(
+  pool: Goal[],
+  newRecord: EncodedRecord,
+): Goal | null {
+  const newKind = sliceKindFromMetric(newRecord.targetMetric);
+  if (!newKind) return null;
+  if (newKind === 'coverage-specific') {
+    const exactIdx = pool.findIndex(g =>
+      sliceKindFromMetric(g.targetMetric) === 'coverage-specific'
+      && g.targetUnit === newRecord.targetUnit,
+    );
+    if (exactIdx >= 0) return pool.splice(exactIdx, 1)[0];
+    const anyIdx = pool.findIndex(g =>
+      sliceKindFromMetric(g.targetMetric) === 'coverage-specific',
+    );
+    if (anyIdx >= 0) return pool.splice(anyIdx, 1)[0];
+    return null;
+  }
+  const idx = pool.findIndex(g => sliceKindFromMetric(g.targetMetric) === newKind);
+  if (idx >= 0) return pool.splice(idx, 1)[0];
+  return null;
+}
+
+/**
+ * Persist a suggestion-flow goal. In create mode (no existingChildren),
+ * mirrors the wizard's new-create save semantics: 1 umbrella + N
+ * children when records.length > 1, single row otherwise.
+ *
+ * In edit mode (existingChildren provided), matches new records to
+ * existing children by slice kind, reuses ids in place (preserving
+ * currentValue, startDate, lastEngagedAt, status), creates rows for
+ * newly-added slices, and deletes rows for removed slices. Umbrella
+ * handling: reuse existingUmbrella if present; auto-create one when
+ * going from 1 → 2+ records on edit.
+ */
+export async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
+  const {
+    records,
+    scope,
+    moduleId,
+    targetDate,
+    anchorGoalId,
+    existingUmbrella,
+    existingChildren,
+  } = args;
   if (records.length === 0) return;
 
   const now = Date.now();
   const context = contextForSuggestionModule(moduleId);
   const relatedModules = relatedModulesForSuggestion(moduleId);
+  const isEditing = !!existingChildren;
 
+  // Fields shared by every freshly-created row. Edit-matched rows
+  // override id + history fields (currentValue, startDate, etc.).
   const baseFields = {
     scope,
     contextTag: context,
@@ -937,47 +1024,93 @@ async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
     currentValue: 0,
   };
 
-  if (records.length === 1) {
-    const r = records[0];
-    const goal: Goal = {
-      id: crypto.randomUUID(),
-      ...baseFields,
-      description: r.description,
-      targetMetric: r.targetMetric,
-      targetValue: r.targetValue,
-      targetUnit: r.targetUnit,
-      parentGoalId: anchorGoalId,
-      isUmbrella: false,
-    };
-    await db.goals.add(goal);
-    return;
+  // ── Decide umbrella shape ────────────────────────────────────
+  // Keep the existing umbrella if there is one. Auto-create when
+  // going from single-row → multi-row on edit. Skip when we're in
+  // create mode with one record.
+  let effectiveUmbrellaId: string | null = existingUmbrella?.id ?? null;
+  let umbrellaWrite: Goal | null = null;
+  const wantsUmbrella = records.length > 1 || !!existingUmbrella;
+  if (wantsUmbrella) {
+    if (effectiveUmbrellaId === null) {
+      effectiveUmbrellaId = crypto.randomUUID();
+    }
+    const description = records.map(r => r.description).join(' and ');
+    umbrellaWrite = existingUmbrella
+      ? {
+        ...existingUmbrella,
+        description,
+        targetMetric: null,
+        targetValue: null,
+        targetUnit: null,
+        contextTag: context,
+        relatedModules,
+        targetDate,
+        parentGoalId: anchorGoalId,
+        isUmbrella: true,
+      }
+      : {
+        id: effectiveUmbrellaId,
+        ...baseFields,
+        description,
+        targetMetric: null,
+        targetValue: null,
+        targetUnit: null,
+        parentGoalId: anchorGoalId,
+        isUmbrella: true,
+      };
   }
 
-  // Multi-record → umbrella + children.
-  const umbrella: Goal = {
-    id: crypto.randomUUID(),
-    ...baseFields,
-    description: records.map(r => r.description).join(' and '),
-    targetMetric: null,
-    targetValue: null,
-    targetUnit: null,
-    parentGoalId: anchorGoalId,
-    isUmbrella: true,
-  };
-  const children: Goal[] = records.map(r => ({
-    id: crypto.randomUUID(),
-    ...baseFields,
-    description: r.description,
-    targetMetric: r.targetMetric,
-    targetValue: r.targetValue,
-    targetUnit: r.targetUnit,
-    parentGoalId: umbrella.id,
-    isUmbrella: false,
-  }));
+  const childParentGoalId = effectiveUmbrellaId ?? anchorGoalId;
+
+  // ── Match new records against existing children ──────────────
+  const pool: Goal[] = isEditing ? [...existingChildren] : [];
+  const childWrites: Goal[] = [];
+
+  for (const record of records) {
+    const matched = isEditing ? pluckMatch(pool, record) : null;
+    if (matched) {
+      childWrites.push({
+        ...matched,
+        description: record.description,
+        targetMetric: record.targetMetric,
+        targetValue: record.targetValue,
+        targetUnit: record.targetUnit,
+        contextTag: context,
+        relatedModules,
+        relatedItems: [],
+        targetDate,
+        parentGoalId: childParentGoalId,
+        isUmbrella: false,
+      });
+    } else {
+      childWrites.push({
+        id: crypto.randomUUID(),
+        ...baseFields,
+        description: record.description,
+        targetMetric: record.targetMetric,
+        targetValue: record.targetValue,
+        targetUnit: record.targetUnit,
+        parentGoalId: childParentGoalId,
+        isUmbrella: false,
+      });
+    }
+  }
+
+  // Unmatched existing children → delete on save (slice was removed).
+  // Skip Repertoire-specific metrics from the delete pool — those
+  // are managed by persistRepertoireMonthlyGoal, not by this path.
+  const deleteIds = pool
+    .filter(g => sliceKindFromMetric(g.targetMetric) !== null)
+    .map(g => g.id);
 
   await db.transaction('rw', db.goals, async () => {
-    await db.goals.add(umbrella);
-    await db.goals.bulkAdd(children);
+    if (umbrellaWrite) await db.goals.put(umbrellaWrite);
+    if (childWrites.length > 0) {
+      // `put` covers both inserts (new id) and updates (reused id).
+      await db.goals.bulkPut(childWrites);
+    }
+    if (deleteIds.length > 0) await db.goals.bulkDelete(deleteIds);
   });
 }
 
@@ -2186,6 +2319,12 @@ interface PersistRepertoireArgs {
   targetDate: number;
   allSongs: ReadonlyArray<Song>;
   wantToLearn: ReadonlyArray<WantToLearnEntry>;
+  /** Edit mode: existing umbrella + children — when present, the
+   *  persist path matches new queue slots and the days target to
+   *  existing rows by (slot index, songId) and reuses ids, deletes
+   *  unmatched children, and reuses the umbrella id. */
+  existingUmbrella?: Goal | null;
+  existingChildren?: ReadonlyArray<Goal>;
 }
 
 /**
@@ -2212,7 +2351,7 @@ interface PersistRepertoireArgs {
  *
  * Plus the optional days-per-cadence child (unchanged from before).
  */
-async function persistRepertoireMonthlyGoal(
+export async function persistRepertoireMonthlyGoal(
   args: PersistRepertoireArgs,
 ): Promise<void> {
   const {
@@ -2223,11 +2362,14 @@ async function persistRepertoireMonthlyGoal(
     targetDate,
     allSongs,
     wantToLearn,
+    existingUmbrella,
+    existingChildren,
   } = args;
   const hasQueueSlots = queue.length > 0;
   const hasDaysTarget =
     daysTarget.consistencyEnabled && daysTarget.consistencyCount > 0;
   if (!hasQueueSlots && !hasDaysTarget) return;
+  const isEditing = !!existingChildren;
 
   // ── Spotlight promotion ────────────────────────────────────────
   // If slot 1 is a want-to-learn pick, promote it BEFORE the goal
@@ -2244,6 +2386,49 @@ async function persistRepertoireMonthlyGoal(
     }
   }
 
+  // ── Index existing children for edit-mode matching ────────────
+  // Queue rows: match by slot index. Spotlight matches preferentially
+  // by same songId (preserves the song-of-the-month's currentValue +
+  // engagement history when the user re-saves with the same song
+  // selected). Days row: match by metric.
+  const existingPool: Goal[] = isEditing ? [...existingChildren] : [];
+
+  const pluckSpotlightMatch = (newSongId: string | null): Goal | null => {
+    if (!isEditing) return null;
+    // Same songId on song_whole_at_level wins.
+    if (newSongId !== null) {
+      const idx = existingPool.findIndex(g =>
+        g.targetMetric === 'song_whole_at_level'
+        && g.relatedItems[0] === newSongId,
+      );
+      if (idx >= 0) return existingPool.splice(idx, 1)[0];
+    }
+    // Otherwise reuse any existing slot-1 row.
+    const idx = existingPool.findIndex(g =>
+      g.targetMetric === 'song_whole_at_level'
+      || (g.targetMetric === SONG_OF_MONTH_METRIC && g.targetValue === 1),
+    );
+    if (idx >= 0) return existingPool.splice(idx, 1)[0];
+    return null;
+  };
+
+  const pluckSlotMatch = (slotIndex: number): Goal | null => {
+    if (!isEditing) return null;
+    const idx = existingPool.findIndex(g =>
+      g.targetMetric === SONG_OF_MONTH_METRIC
+      && g.targetValue === slotIndex,
+    );
+    if (idx >= 0) return existingPool.splice(idx, 1)[0];
+    return null;
+  };
+
+  const pluckDaysMatch = (): Goal | null => {
+    if (!isEditing) return null;
+    const idx = existingPool.findIndex(g => g.targetMetric === 'repertoire_days_per_cadence');
+    if (idx >= 0) return existingPool.splice(idx, 1)[0];
+    return null;
+  };
+
   // ── Build child goal records ──────────────────────────────────
   const now = Date.now();
   const baseFields = {
@@ -2258,8 +2443,33 @@ async function persistRepertoireMonthlyGoal(
     currentValue: 0,
   };
 
-  const umbrellaId = crypto.randomUUID();
+  // Umbrella id: reuse existing on edit, mint a fresh one for create.
+  const umbrellaId = existingUmbrella?.id ?? crypto.randomUUID();
   const children: Goal[] = [];
+
+  const buildChild = (
+    matched: Goal | null,
+    fields: Pick<Goal, 'description' | 'targetMetric' | 'targetValue' | 'targetUnit' | 'relatedItems'>,
+  ): Goal => {
+    if (matched) {
+      return {
+        ...matched,
+        ...fields,
+        contextTag: 'mixed',
+        relatedModules: ['repertoire'],
+        targetDate,
+        parentGoalId: umbrellaId,
+        isUmbrella: false,
+      };
+    }
+    return {
+      id: crypto.randomUUID(),
+      ...baseFields,
+      ...fields,
+      parentGoalId: umbrellaId,
+      isUmbrella: false,
+    };
+  };
 
   for (let i = 0; i < queue.length; i++) {
     const slot = queue[i];
@@ -2276,35 +2486,28 @@ async function persistRepertoireMonthlyGoal(
       } else if (d.kind === 'wtl') {
         songId = spotlightPromotedSongId;
       }
+      const matched = pluckSpotlightMatch(songId);
       if (songId) {
         const s = allSongs.find(x => x.id === songId);
         const title = s?.title ?? (d.kind === 'wtl'
           ? (wantToLearn.find(e => e.id === d.entryId)?.title ?? 'new song')
           : '(missing)');
-        children.push({
-          id: crypto.randomUUID(),
-          ...baseFields,
+        children.push(buildChild(matched, {
           description: `Song of the month: ${title}`,
           targetMetric: 'song_whole_at_level',
           targetValue: null,
           targetUnit: 'comfortable',
           relatedItems: [songId],
-          parentGoalId: umbrellaId,
-          isUmbrella: false,
-        });
+        }));
       } else {
         // TBD spotlight (or a wtl ref that vanished).
-        children.push({
-          id: crypto.randomUUID(),
-          ...baseFields,
+        children.push(buildChild(matched, {
           description: 'Song of the month: TBD',
           targetMetric: SONG_OF_MONTH_METRIC,
           targetValue: 1,
           targetUnit: 'tbd',
           relatedItems: [],
-          parentGoalId: umbrellaId,
-          isUmbrella: false,
-        });
+        }));
       }
       continue;
     }
@@ -2320,17 +2523,14 @@ async function persistRepertoireMonthlyGoal(
       refId = d.entryId;
       title = wantToLearn.find(e => e.id === d.entryId)?.title ?? '(missing)';
     }
-    children.push({
-      id: crypto.randomUUID(),
-      ...baseFields,
+    const matched = pluckSlotMatch(slotIndex);
+    children.push(buildChild(matched, {
       description: `Queue ${slotIndex}: ${title}`,
       targetMetric: SONG_OF_MONTH_METRIC,
       targetValue: slotIndex,
       targetUnit: kind,
       relatedItems: refId ? [refId] : [],
-      parentGoalId: umbrellaId,
-      isUmbrella: false,
-    });
+    }));
   }
 
   // Days-per-week consistency child, when the body's
@@ -2339,9 +2539,8 @@ async function persistRepertoireMonthlyGoal(
   // REPERTOIRE_SESSION_DEFAULT_MINUTES — total weekly time =
   // days × ~45 min.
   if (hasDaysTarget) {
-    children.push({
-      id: crypto.randomUUID(),
-      ...baseFields,
+    const matched = pluckDaysMatch();
+    children.push(buildChild(matched, {
       description: `${daysTarget.consistencyCount} days per week on repertoire`,
       targetMetric: 'repertoire_days_per_cadence',
       targetValue: daysTarget.consistencyCount,
@@ -2349,9 +2548,7 @@ async function persistRepertoireMonthlyGoal(
       // monthly toggle.
       targetUnit: 'week',
       relatedItems: [],
-      parentGoalId: umbrellaId,
-      isUmbrella: false,
-    });
+    }));
   }
 
   // ── Umbrella row ──────────────────────────────────────────────
@@ -2365,23 +2562,42 @@ async function persistRepertoireMonthlyGoal(
     : '';
   const phrases = [queuePhrase, daysPhrase].filter(p => p.length > 0).join(' + ');
   const umbrellaDescription = `Repertoire month: ${phrases}`;
-  const umbrella: Goal = {
-    id: umbrellaId,
-    ...baseFields,
-    description: umbrellaDescription,
-    targetMetric: null,
-    targetValue: null,
-    targetUnit: null,
-    relatedItems: [],
-    parentGoalId: anchorGoalId,
-    isUmbrella: true,
-  };
+  const umbrella: Goal = existingUmbrella
+    ? {
+      ...existingUmbrella,
+      description: umbrellaDescription,
+      targetMetric: null,
+      targetValue: null,
+      targetUnit: null,
+      contextTag: 'mixed',
+      relatedModules: ['repertoire'],
+      relatedItems: [],
+      targetDate,
+      parentGoalId: anchorGoalId,
+      isUmbrella: true,
+    }
+    : {
+      id: umbrellaId,
+      ...baseFields,
+      description: umbrellaDescription,
+      targetMetric: null,
+      targetValue: null,
+      targetUnit: null,
+      relatedItems: [],
+      parentGoalId: anchorGoalId,
+      isUmbrella: true,
+    };
+
+  // Unmatched existing children → delete on save (slot removed,
+  // days target turned off, or stale rows from a previous shape).
+  const deleteIds = existingPool.map(g => g.id);
 
   // Note: the spotlight WTL promotion (if any) already ran outside
   // this transaction — promoteWantToLearnEntry has its own. We only
   // need the goals table here.
   await db.transaction('rw', db.goals, async () => {
-    await db.goals.add(umbrella);
-    await db.goals.bulkAdd(children);
+    await db.goals.put(umbrella);
+    if (children.length > 0) await db.goals.bulkPut(children);
+    if (deleteIds.length > 0) await db.goals.bulkDelete(deleteIds);
   });
 }
