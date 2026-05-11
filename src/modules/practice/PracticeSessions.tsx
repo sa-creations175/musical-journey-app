@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
 import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
+import { SongOfMonthCongratsBanner } from '../repertoire/SongOfMonthBanners';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import Modal from '../../components/Modal';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
@@ -508,6 +509,7 @@ export default function PracticeSessions() {
           entries={feasibilityEntries}
           onTapDeep={() => handleStartSession('deep')}
         />
+        <SongOfMonthCongratsBanner />
         <GoalsNudgeBanner />
         <VacationManager />
         <RecentSessionsList />

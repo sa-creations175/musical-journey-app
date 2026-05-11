@@ -23,6 +23,7 @@ import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
 import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
+import { SongOfMonthTbdNudgeBanner } from '../repertoire/SongOfMonthBanners';
 import { describeGoalTarget } from './describeGoal';
 import {
   progressSlotState,
@@ -459,6 +460,8 @@ export default function Goals() {
           </button>
         )}
       </div>
+
+      <SongOfMonthTbdNudgeBanner />
 
       {activeView === 'timeframe' ? (
         <div className="flex flex-col">
