@@ -1668,11 +1668,20 @@ function RepertoireMonthlyBody({
   const allSongs = useLiveQuery(() => db.songs.toArray(), []);
 
   const [newSlots, setNewSlots] = useState<NewSlot[]>([]);
+  const [hoursTarget, setHoursTarget] = useState({
+    consistencyEnabled: initialSuggestion.target.consistencyEnabled,
+    consistencyCount: initialSuggestion.target.consistencyCount,
+    consistencyCadence: initialSuggestion.target.consistencyCadence,
+  });
   const [targetDate, setTargetDate] = useState<number>(defaultTargetDate(scope));
 
-  // Save gate: require at least one new-this-month entry. Section 1
-  // is display-only and doesn't count.
-  const hasSelection = newSlots.length > 0;
+  // Save gate: at least one new-this-month entry OR an enabled
+  // time-commitment target with a positive value. Section 1 is
+  // display-only and doesn't count toward the gate.
+  const hasNewSongs = newSlots.length > 0;
+  const hasHoursTarget =
+    hoursTarget.consistencyEnabled && hoursTarget.consistencyCount > 0;
+  const hasSelection = hasNewSongs || hasHoursTarget;
   // Stub records array — saveOverride owns the actual write so the
   // contents don't matter, but BodyShell uses records.length || saveOverride
   // to gate canSave. Passing one element keeps canSave honest.
@@ -1684,6 +1693,7 @@ function RepertoireMonthlyBody({
     if (!hasSelection) return;
     await persistRepertoireMonthlyGoal({
       newSlots,
+      hoursTarget,
       anchorGoalId: anchor.id,
       scope,
       targetDate,
@@ -1716,6 +1726,13 @@ function RepertoireMonthlyBody({
       saveOverride={saveOverride}
     >
       <RepertoireMaintainSection songs={allSongs} />
+      <ConsistencyTargetCard
+        target={hoursTarget}
+        onChange={setHoursTarget}
+        unitLabel="Hours"
+        hint="Time at the keyboard on repertoire. Saves as a `repertoire_hours_per_cadence` goal — surfaces in the weekly plan as a time block."
+        cardTitle="Time commitment"
+      />
       <RepertoireNewSection
         slots={newSlots}
         onChange={setNewSlots}
@@ -1960,6 +1977,16 @@ function RepertoireNewSection({
 
 interface PersistRepertoireArgs {
   newSlots: NewSlot[];
+  /** Time-commitment target from the body's ConsistencyTargetCard.
+   *  When enabled with a positive count, the persist path adds a
+   *  `repertoire_hours_per_cadence` child to the umbrella alongside
+   *  the new-song children. Coexists rather than replaces — a goal
+   *  can have hours-only, songs-only, or both. */
+  hoursTarget: {
+    consistencyEnabled: boolean;
+    consistencyCount: number;
+    consistencyCadence: 'week' | 'month';
+  };
   anchorGoalId: string;
   scope: ShortScope;
   targetDate: number;
@@ -1984,8 +2011,11 @@ interface PersistRepertoireArgs {
 async function persistRepertoireMonthlyGoal(
   args: PersistRepertoireArgs,
 ): Promise<void> {
-  const { newSlots, anchorGoalId, scope, targetDate, allSongs } = args;
-  if (newSlots.length === 0) return;
+  const { newSlots, hoursTarget, anchorGoalId, scope, targetDate, allSongs } = args;
+  const hasNewSongs = newSlots.length > 0;
+  const hasHoursTarget =
+    hoursTarget.consistencyEnabled && hoursTarget.consistencyCount > 0;
+  if (!hasNewSongs && !hasHoursTarget) return;
 
   // 1) Resolve each new-this-month slot to a song id (creating new
   //    Song rows for typed slots), or null for TBD.
@@ -2052,8 +2082,40 @@ async function persistRepertoireMonthlyGoal(
     isUmbrella: false,
   }));
 
-  // 3) Umbrella row.
-  const umbrellaDescription = `Repertoire month: start ${children.length} new song${children.length === 1 ? '' : 's'}`;
+  // 2.5) Hours-based time-commitment child, when the body's
+  //      ConsistencyTargetCard is enabled. Follows the existing
+  //      `_hours_per_cadence` convention from production (value =
+  //      hours/cadence, unit = 'week'|'month'); the WeeklyPlan
+  //      derives a "~4h 30m/week · ~45 min · 6 sessions/week"
+  //      breakdown from this single record using
+  //      REPERTOIRE_SESSION_DEFAULT_MINUTES.
+  if (hasHoursTarget) {
+    const cadenceWord = hoursTarget.consistencyCadence === 'month' ? 'month' : 'week';
+    children.push({
+      id: crypto.randomUUID(),
+      ...baseFields,
+      description: `${hoursTarget.consistencyCount} hours per ${cadenceWord} on repertoire`,
+      targetMetric: 'repertoire_hours_per_cadence',
+      targetValue: hoursTarget.consistencyCount,
+      targetUnit: hoursTarget.consistencyCadence,
+      relatedItems: [],
+      parentGoalId: umbrellaId,
+      isUmbrella: false,
+    });
+  }
+
+  // 3) Umbrella row. Description mirrors what the user committed
+  //    to — hours only, songs only, or both.
+  const songCount = resolvedNewSlots.length;
+  const songsPhrase =
+    songCount > 0
+      ? `start ${songCount} new song${songCount === 1 ? '' : 's'}`
+      : '';
+  const hoursPhrase = hasHoursTarget
+    ? `${hoursTarget.consistencyCount} hrs/${hoursTarget.consistencyCadence}`
+    : '';
+  const phrases = [songsPhrase, hoursPhrase].filter(p => p.length > 0).join(' + ');
+  const umbrellaDescription = `Repertoire month: ${phrases}`;
   const umbrella: Goal = {
     id: umbrellaId,
     ...baseFields,

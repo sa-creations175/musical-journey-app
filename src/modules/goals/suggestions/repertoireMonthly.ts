@@ -41,6 +41,15 @@ export interface RepertoireMonthlyTarget {
   /** Same proficiency vocabulary; new songs typically aim for
    *  'learning' as a starting milestone. */
   newSongLevel: RepertoireProficiencyLevel;
+  /** Time-commitment target (hours per cadence period). Satisfies
+   *  the ConsistencyFields contract from atoms.tsx so the body can
+   *  reuse the generic ConsistencyTargetCard. Saves emit an
+   *  additional umbrella child with targetMetric
+   *  'repertoire_hours_per_cadence' when enabled. Default: on,
+   *  4.5 hours/week. */
+  consistencyEnabled: boolean;
+  consistencyCount: number;
+  consistencyCadence: 'week' | 'month';
 }
 
 export function suggestRepertoireMonthly(): MonthlySuggestion<RepertoireMonthlyTarget> {
@@ -50,10 +59,14 @@ export function suggestRepertoireMonthly(): MonthlySuggestion<RepertoireMonthlyT
       maintainLevel: 'comfortable',
       newSongIds: [],
       newSongLevel: 'learning',
+      consistencyEnabled: true,
+      consistencyCount: 4.5,
+      consistencyCadence: 'week',
     },
     contextLines: [
       'Maintain every active song at comfortable through the month.',
       'Plus at least one new song to start working on — pick from the catalog or add a new one.',
+      'Default time commitment: 4.5 hours / week (~6 sessions × ~45 min). Adjust below if needed.',
     ],
   };
 }
