@@ -1584,6 +1584,48 @@ const LAYER_PALETTE = {
   border: '#2C2C2A',
 };
 
+/**
+ * Group a module's goals into the three timeframe buckets the
+ * redesigned by-module section renders:
+ *
+ *   yearly  — the module's yearly umbrella (one per module by
+ *             assumed constraint). Null when no anchor exists.
+ *   monthly — non-umbrella goals at monthly scope (whether or not
+ *             they're parented to the yearly umbrella — the
+ *             timeframe groups them either way).
+ *   weekly  — non-umbrella goals at weekly scope.
+ *
+ * Module membership is the same predicate the legacy renderer
+ * used: moduleForMetric for non-umbrellas, umbrellaModuleId over
+ * children for umbrellas. Exported so the integration tests can
+ * exercise the bucketing without mounting React.
+ */
+export function bucketModuleGoalsByTimeframe(
+  moduleId: GoalFlowModuleId,
+  allGoals: ReadonlyArray<Goal>,
+): {
+  yearlyAnchor: Goal | undefined;
+  monthlyGoals: Goal[];
+  weeklyGoals: Goal[];
+} {
+  const moduleGoals = allGoals.filter(g => {
+    if (g.isUmbrella) {
+      return umbrellaModuleId(findAllChildren(g, [...allGoals])) === moduleId;
+    }
+    return moduleForMetric(g.targetMetric) === moduleId;
+  });
+  const yearlyAnchor = moduleGoals.find(
+    g => g.isUmbrella && g.scope === 'yearly',
+  );
+  const monthlyGoals = moduleGoals.filter(
+    g => g.scope === 'monthly' && !g.isUmbrella,
+  );
+  const weeklyGoals = moduleGoals.filter(
+    g => g.scope === 'weekly' && !g.isUmbrella,
+  );
+  return { yearlyAnchor, monthlyGoals, weeklyGoals };
+}
+
 function ByModuleSection({
   moduleId,
   allGoals,
@@ -1605,27 +1647,9 @@ function ByModuleSection({
   onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
   activity: ReturnType<typeof useThisWeekActivity>;
 } & RowCollapseAccess) {
-  // A goal belongs to this module when its derived module
-  // matches. Non-umbrella → moduleForMetric. Umbrella → same
-  // function over its children via umbrellaModuleId.
-  const moduleGoals = allGoals.filter(g => {
-    if (g.isUmbrella) {
-      return umbrellaModuleId(findAllChildren(g, allGoals)) === moduleId;
-    }
-    return moduleForMetric(g.targetMetric) === moduleId;
-  });
-
-  // Split by timeframe. Yearly is always the umbrella (one per
-  // module, by assumed constraint); monthly + weekly buckets pull
-  // non-umbrella goals.
-  const yearlyAnchor = moduleGoals.find(
-    g => g.isUmbrella && g.scope === 'yearly',
-  );
-  const monthlyGoals = moduleGoals.filter(
-    g => g.scope === 'monthly' && !g.isUmbrella,
-  );
-  const weeklyGoals = moduleGoals.filter(
-    g => g.scope === 'weekly' && !g.isUmbrella,
+  const { yearlyAnchor, monthlyGoals, weeklyGoals } = bucketModuleGoalsByTimeframe(
+    moduleId,
+    allGoals,
   );
 
   const meta = moduleMetaById(moduleId);
