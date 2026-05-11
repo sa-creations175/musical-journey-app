@@ -179,6 +179,97 @@ export async function getWeeklyAttempts(
 export const getAttemptsInRange = getWeeklyAttempts;
 
 // ---------------------------------------------------------------------
+// getDaysWithActivity
+// ---------------------------------------------------------------------
+
+/** Convert an epoch ms to a local YYYY-MM-DD string. Used as the
+ *  distinct-day key for `getDaysWithActivity` — two timestamps on
+ *  the same local calendar day collapse to one entry. */
+function localDayKey(ts: number): string {
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Distinct days within the window that had at least one attempt
+ * for `moduleId`. Returns 0-7 for a one-week window. Drives the
+ * by-module view's "X of Y days" muted text for consistency goals.
+ *
+ * Mirrors `getWeeklyAttempts` per-module dispatch: each module
+ * pulls timestamps from its native source table. Practice-
+ * consistency is the module-agnostic "any practice session"
+ * count — every other module narrows to its own source.
+ */
+export async function getDaysWithActivity(
+  moduleId: GoalFlowModuleId,
+  weekStart: number,
+  weekEnd: number,
+): Promise<number> {
+  const days = new Set<string>();
+
+  switch (moduleId) {
+    case 'harmonic-fluency': {
+      const rows = await db.attempts
+        .where('moduleId').equals('harmonic-fluency')
+        .filter(a => a.timestamp >= weekStart && a.timestamp <= weekEnd)
+        .toArray();
+      for (const r of rows) days.add(localDayKey(r.timestamp));
+      break;
+    }
+    case 'ear-training': {
+      const rows = await db.attempts
+        .where('moduleId').anyOf(ET_MODULE_REFS as readonly string[] as string[])
+        .filter(a => a.timestamp >= weekStart && a.timestamp <= weekEnd)
+        .toArray();
+      for (const r of rows) days.add(localDayKey(r.timestamp));
+      break;
+    }
+    case 'shapes-and-patterns': {
+      const rows = await db.drillSessions
+        .where('timestamp').between(weekStart, weekEnd, true, true)
+        .toArray();
+      for (const r of rows) days.add(localDayKey(r.timestamp));
+      break;
+    }
+    case 'repertoire': {
+      const rows = await db.songCellRunThroughs
+        .where('createdAt').between(weekStart, weekEnd, true, true)
+        .toArray();
+      for (const r of rows) days.add(localDayKey(r.createdAt));
+      break;
+    }
+    case 'production': {
+      const rows = await db.spacingState
+        .where('moduleRef').equals('production')
+        .toArray();
+      for (const row of rows) {
+        for (const entry of row.performanceHistory) {
+          const t = (entry as { t?: unknown }).t;
+          const kind = (entry as { kind?: unknown }).kind;
+          if (typeof t !== 'number') continue;
+          if (t < weekStart || t > weekEnd) continue;
+          if (kind === 'recency') continue;
+          days.add(localDayKey(t));
+        }
+      }
+      break;
+    }
+    case 'practice-consistency': {
+      const rows = await db.practiceSessions
+        .where('startedAt').between(weekStart, weekEnd, true, true)
+        .toArray();
+      for (const r of rows) days.add(localDayKey(r.startedAt));
+      break;
+    }
+  }
+
+  return days.size;
+}
+
+// ---------------------------------------------------------------------
 // getWeeklyTimeEstimate
 // ---------------------------------------------------------------------
 

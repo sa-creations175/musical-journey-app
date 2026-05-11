@@ -369,3 +369,79 @@ export function ConsistencyTargetCard<T extends ConsistencyFields>({
     </ToggleCard>
   );
 }
+
+// ---------------------------------------------------------------------
+// InfoTip — small ⓘ icon with hover tooltip
+// ---------------------------------------------------------------------
+
+/**
+ * A 12px circled "i" with a native `title` tooltip. Plain English
+ * explanation on hover; same string read by screen readers via
+ * the title attribute. Used in the by-module view next to pace
+ * pills and time estimates so the user can ask "what does this
+ * mean?" without leaving the row.
+ */
+export function InfoTip({ text }: { text: string }) {
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="inline-flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-help"
+    >
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="currentColor"
+        aria-hidden
+      >
+        <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 1a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7h1.5v5h-1.5V7z" />
+      </svg>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------
+// PacePill — green / amber / red status pill for the by-module view
+// ---------------------------------------------------------------------
+
+export type PacePillColor = 'green' | 'amber' | 'red';
+
+/**
+ * Compact pace pill. Rendered next to weekly-goal rows whose unit
+ * supports the attempts-vs-pro-rated-target comparison (coverage,
+ * attempts, sessions, lessons). Days/consistency goals render a
+ * muted "X of Y days" text count instead — see the by-module view.
+ *
+ * Color semantics:
+ *   green — on or ahead of pace
+ *   amber — within ~15% below pace (at-risk)
+ *   red   — materially behind pace
+ *
+ * `label` is the short word inside the pill (e.g. "on pace",
+ * "amber", "behind"). The companion InfoTip explains the math
+ * in plain English.
+ */
+export function PacePill({
+  color,
+  label,
+}: {
+  color: PacePillColor;
+  label: string;
+}) {
+  const classes = {
+    green:
+      'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300',
+    amber:
+      'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300',
+    red:
+      'bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300',
+  }[color];
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums ${classes}`}
+    >
+      {label}
+    </span>
+  );
+}
