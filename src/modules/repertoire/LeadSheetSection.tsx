@@ -11,9 +11,9 @@ import { detectProgressions } from '../../lib/progressionDetection';
 import { useToast } from '../../components/Toaster';
 import {
   chordSequenceForArrangement,
-  newEmptyPhrase,
   normalizeArrangements,
   normalizePhrase,
+  phraseFromLyrics,
   uid,
 } from './beatsModel';
 import { toRomanToken } from './chordFunction';
@@ -109,10 +109,29 @@ export default function LeadSheetSection({
   };
 
   // --- Phrase list CRUD ------------------------------------------
-  const addPhrase = async () => {
-    const fresh = newEmptyPhrase();
+  // `+ add phrase line` opens an inline lyric input rather than
+  // committing immediately — gives the user a clear surface to type or
+  // paste a line of lyrics. Empty input still produces a phrase (single
+  // blank beat) so instrumental lines stay reachable.
+  const [drafting, setDrafting] = useState(false);
+  const [draftLyrics, setDraftLyrics] = useState('');
+
+  const beginDraft = () => {
+    setDraftLyrics('');
+    setDrafting(true);
+  };
+
+  const cancelDraft = () => {
+    setDrafting(false);
+    setDraftLyrics('');
+  };
+
+  const commitDraft = async () => {
+    const fresh = phraseFromLyrics(draftLyrics);
     const list = [...normalisedPhrases, fresh];
     await commit({ phrases: list });
+    setDrafting(false);
+    setDraftLyrics('');
     onPhraseAdded?.(fresh.id);
   };
 
@@ -292,12 +311,17 @@ export default function LeadSheetSection({
 
           {normalisedPhrases.length === 0 ? (
             <p className="text-xs text-neutral-500 italic">
-              {section.lyricsNeedsVerification
-                ? 'no lyrics seeded — transcribe from the recording and click "+ add phrase line" to start.'
-                : 'no phrase lines yet — click "+ add phrase line" to start.'}
+              Tap &quot;+ add phrase line&quot; to start entering lyrics and chords.
             </p>
           ) : (
             <div className="space-y-2">
+              {/* One-time orientation cue above the first phrase — the
+                  chord row sits above the beat row but neither carries
+                  a header on its own, so this label tells a first-time
+                  user which row is which. */}
+              <div className="text-[10px] uppercase tracking-wide text-neutral-400 pl-7">
+                chords ↑&nbsp;&nbsp;lyrics ↓
+              </div>
               {normalisedPhrases.map((p, idx) => {
                 const otherCompareIds = compareIds.filter(id => id !== activeArrangementId);
                 return (
@@ -347,12 +371,49 @@ export default function LeadSheetSection({
             </div>
           )}
 
-          <button
-            onClick={addPhrase}
-            className="text-xs text-neutral-500 hover:text-fluent"
-          >
-            + add phrase line
-          </button>
+          {drafting ? (
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                autoFocus
+                value={draftLyrics}
+                onChange={e => setDraftLyrics(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void commitDraft();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelDraft();
+                  }
+                }}
+                placeholder="Type or paste lyrics for this line..."
+                className="flex-1 min-w-0 rounded-md border border-fluent/60 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-fluent/30 focus:border-fluent"
+              />
+              <button
+                onClick={() => void commitDraft()}
+                title="add line"
+                aria-label="add line"
+                className="px-2 py-1 rounded-md bg-fluent text-white text-xs hover:opacity-90"
+              >
+                ✓
+              </button>
+              <button
+                onClick={cancelDraft}
+                title="cancel"
+                aria-label="cancel"
+                className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-500 hover:text-needswork"
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={beginDraft}
+              className="text-xs text-neutral-500 hover:text-fluent"
+            >
+              + add phrase line
+            </button>
+          )}
 
           {progressionMatches.length > 0 && !comparing && (
             <div className="flex flex-wrap gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">

@@ -560,14 +560,14 @@ function ChordSlot({ beatId, chord, notationMode, sectionKey, autofocus, onCommi
         onFocus={() => setEditing(true)}
         onBlur={commit}
         onKeyDown={handleKey}
-        placeholder=" "
+        placeholder="1"
         spellCheck={false}
-        className={`bg-transparent border-0 border-b border-dashed text-center px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors ${
+        className={`bg-transparent border-0 border-b border-dashed text-center px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${
           unparsed
             ? 'text-developing border-developing/40'
             : filled
               ? 'text-fluent border-fluent/30'
-              : 'text-neutral-400 border-transparent hover:border-neutral-300 dark:hover:border-neutral-600'
+              : 'text-neutral-400 border-neutral-300 dark:border-neutral-600 hover:border-neutral-400 dark:hover:border-neutral-500'
         }`}
         style={{ width: `${Math.max(2, draft.length + 1)}ch`, minWidth: '1.5rem' }}
         title={unparsed

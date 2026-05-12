@@ -71,6 +71,29 @@ export function newEmptyPhrase(): Phrase {
   };
 }
 
+/**
+ * Build a phrase from a raw lyric string. Whitespace-separated tokens
+ * become word beats in order; chord placements start empty so the user
+ * can fill them in above. Empty / whitespace-only input falls back to
+ * `newEmptyPhrase()` — the instrumental-line case (single blank beat).
+ */
+export function phraseFromLyrics(lyrics: string): Phrase {
+  const tokens = lyrics.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return newEmptyPhrase();
+  const beats: Beat[] = tokens.map(text => ({
+    id: uid('beat'),
+    type: 'word',
+    text,
+  }));
+  return {
+    id: uid('phrase'),
+    beats,
+    chordsByArrangement: {
+      [BASIC_ARRANGEMENT_ID]: {} as Record<string, ChordFunction>,
+    },
+  };
+}
+
 // --- Section migration ---------------------------------------------
 
 /**
