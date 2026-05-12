@@ -183,8 +183,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     // isOriginalKey row stays in lockstep with Song.key. Without the
     // reassignment, the matrix would keep advertising the old key as
     // original while the song header shows the new value.
+    //
+    // Read-then-put rather than db.songs.update — per the
+    // VacationManager / CellInteractionModal precedent, .update can
+    // silently no-op when its internal lookup-and-merge fails (returns
+    // 0, no throw, no signal). .put with the full record is
+    // unambiguous upsert by primary key.
     await db.transaction('rw', [db.songs, db.songKeys], async () => {
-      await db.songs.update(song.id, patch);
+      const fresh = await db.songs.get(song.id);
+      if (!fresh) {
+        console.warn('[song] saveMeta — song record vanished mid-edit', song.id);
+        return;
+      }
+      await db.songs.put({ ...fresh, ...patch });
       if (keyChanged) {
         await reassignOriginalKey(song.id, newKey);
       }

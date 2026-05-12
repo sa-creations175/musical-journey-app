@@ -107,14 +107,13 @@ async function pullOneTable(
       const id = row[cfg.idField];
       if (typeof id === 'string' && id !== '') cloudIds.add(id);
     }
-    const localRows = await table.toArray();
-    const orphanIds: string[] = [];
-    for (const row of localRows) {
-      const id = (row as Record<string, unknown>)[cfg.idField];
-      if (typeof id === 'string' && id !== '' && !cloudIds.has(id)) {
-        orphanIds.push(id);
-      }
-    }
+    const localRows = (await table.toArray()) as Array<Record<string, unknown>>;
+    const orphanIds = computeOrphanIdsForReplacePull(
+      localRows,
+      cloudIds,
+      cfg.idField,
+      Date.now(),
+    );
     if (orphanIds.length > 0) {
       await table.bulkDelete(orphanIds);
     }
@@ -131,6 +130,53 @@ type DexieMiniTable = {
   bulkDelete: (ids: string[]) => Promise<unknown>;
   toArray: () => Promise<unknown[]>;
 };
+
+/**
+ * Local rows whose `updatedAt` falls within this window of the pull's
+ * start are treated as pending-push candidates: they may have been
+ * written milliseconds ago and not yet drained into Supabase, so
+ * replace-pull mustn't delete them as orphans. 60 seconds covers the
+ * `setTimeout(fn, 0)` defer in the Dexie write hook plus realistic
+ * drain + network latency, with headroom for a slow connection.
+ *
+ * Tables without an `updatedAt` field get no protection — the legacy
+ * behavior holds. Add the field to any table that needs guarding,
+ * and the protection picks it up automatically.
+ */
+export const PENDING_PUSH_PROTECTION_MS = 60_000;
+
+/**
+ * Pure orphan-id computation for replace-mode pull. Extracted as an
+ * export so the protection rule can be unit-tested without spinning
+ * up Supabase. Returns the ids of local rows that:
+ *   · have a valid string id
+ *   · don't appear in the cloud id set
+ *   · either lack an `updatedAt` field or have an `updatedAt` older
+ *     than `now - PENDING_PUSH_PROTECTION_MS`
+ *
+ * The third clause is the recent-write protection — it preserves
+ * local writes that haven't had a chance to push yet.
+ */
+export function computeOrphanIdsForReplacePull(
+  localRows: ReadonlyArray<Record<string, unknown>>,
+  cloudIds: ReadonlySet<string>,
+  idField: string,
+  now: number,
+): string[] {
+  const orphans: string[] = [];
+  for (const row of localRows) {
+    const id = row[idField];
+    if (typeof id !== 'string' || id === '') continue;
+    if (cloudIds.has(id)) continue;
+    const updatedAt = row.updatedAt;
+    if (
+      typeof updatedAt === 'number'
+      && now - updatedAt < PENDING_PUSH_PROTECTION_MS
+    ) continue;
+    orphans.push(id);
+  }
+  return orphans;
+}
 
 /**
  * Enqueue a sync job. Called from the Dexie write hooks on every
