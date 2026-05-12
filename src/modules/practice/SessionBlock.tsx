@@ -34,7 +34,9 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
   const navigate = useNavigate();
   const moduleMeta = moduleMetaById(block.moduleRef);
   const label = block.moduleLabel || moduleMeta?.label || block.moduleRef;
-  const route = moduleMeta?.route ?? null;
+  // Per-block override (e.g. Production Vocab → vocab tab) wins over
+  // the module's default route.
+  const route = block.quickLaunchRoute ?? moduleMeta?.route ?? null;
 
   const handleToggle = () => {
     if (isControlled) onToggle?.();

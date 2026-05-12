@@ -58,6 +58,12 @@ export interface ProposalBlock {
    *  supported value is 'goals'; the screen navigates there on
    *  click. Extend the union as new inline-action surfaces show up. */
   inlineActionTarget?: 'goals';
+  /** Optional route override for the active-session quick-launch
+   *  button. When set, ActiveSessionScreen routes here instead of
+   *  the module's default route. Used by the Production Vocab
+   *  block to land on `/production?view=vocabulary` rather than
+   *  the Production overview. */
+  quickLaunchRoute?: string;
 }
 
 export interface ProposalCardData {

@@ -157,7 +157,11 @@ export default function ActiveSessionScreen() {
   const moduleMeta = moduleMetaById(currentBlock.moduleRef);
   const moduleLabel = moduleMeta?.label ?? currentBlock.moduleRef;
   const accent = moduleMeta?.accentHex ?? '#4a9088';
-  const route = moduleMeta?.route ?? null;
+  // Per-block route override (set by sessionGenerator for blocks that
+  // need a deeper destination than moduleMeta.route — currently
+  // Production Vocab → /production?view=vocabulary). Falls back to
+  // the module's default route.
+  const route = currentBlock.quickLaunchRoute ?? moduleMeta?.route ?? null;
 
   const elapsedSec = Math.floor(times.blockActiveMs / 1000);
   const totalSec = currentBlock.plannedSeconds + currentBlock.extensionSeconds;
@@ -199,9 +203,10 @@ export default function ActiveSessionScreen() {
     // session-start flow (PracticeSessions.handleProposalAccept).
     // The active session screen is the between-blocks surface; the
     // module is where the user actually practices.
-    if (nextBlock && nextMeta?.route) {
+    const nextRoute = nextBlock?.quickLaunchRoute ?? nextMeta?.route ?? null;
+    if (nextBlock && nextRoute) {
       setActiveModuleRef(nextBlock.moduleRef);
-      navigate(nextMeta.route);
+      navigate(nextRoute);
     }
     // For the last block, advanceBlock auto-ends the session. Stay
     // on this screen so the 'ended'-status branch renders the

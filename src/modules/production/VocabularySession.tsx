@@ -29,6 +29,8 @@ import {
   type VocabClusterId,
   type VocabFlashcard,
 } from './vocabularyFlashcards';
+import { glossaryById } from './content/glossary';
+import { lessonById } from './content/lessons';
 import FlashcardSession, {
   type CardAnsweredArgs,
   type FlashcardSessionStats,
@@ -50,6 +52,26 @@ interface BuiltSession {
 
 interface Props {
   onBack: () => void;
+}
+
+/**
+ * For a glossary term, return the first related lesson that has a
+ * non-empty `youtubeLink`. Lets the flashcard reveal point at the
+ * curated tutorial the lesson author already picked, instead of a
+ * generic YouTube search.
+ */
+export function pickTermTutorial(
+  termId: string,
+): { url: string; title: string } | null {
+  const term = glossaryById(termId);
+  if (!term) return null;
+  for (const lessonId of term.relatedLessons) {
+    const lesson = lessonById(lessonId);
+    if (lesson && lesson.youtubeLink.trim() !== '') {
+      return { url: lesson.youtubeLink, title: lesson.title };
+    }
+  }
+  return null;
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -275,13 +297,29 @@ export default function VocabularySession({ onBack }: Props) {
           fadeStreakThreshold={0}
           renderFooter={(card, { answered }) => {
             if (!answered) return null;
-            const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(card.termName)}`;
+            const tutorial = pickTermTutorial(card.termId);
+            const linkClass =
+              'inline-flex items-center gap-1 text-[11px] text-neutral-500 hover:text-fluent';
+            if (tutorial) {
+              return (
+                <a
+                  href={tutorial.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={linkClass}
+                >
+                  <span>Watch: {tutorial.title}</span>
+                  <span aria-hidden>↗</span>
+                </a>
+              );
+            }
+            const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(card.termName)}`;
             return (
               <a
-                href={url}
+                href={fallbackUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] text-neutral-500 hover:text-fluent"
+                className={linkClass}
               >
                 <span>Search YouTube: {card.termName}</span>
                 <span aria-hidden>↗</span>

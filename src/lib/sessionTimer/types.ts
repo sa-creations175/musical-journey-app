@@ -45,6 +45,12 @@ export interface SessionBlock {
   itemRefs?: string[];
   /** Human-readable label shown in the global banner and on the block screen. */
   label?: string;
+  /** Optional route override for the active-session quick-launch button.
+   *  When set, ActiveSessionScreen + the rating-phase auto-advance use
+   *  this instead of moduleMeta.route. Lets a block surface a deeper
+   *  destination (e.g. `/production?view=vocabulary`) without inventing
+   *  a synthetic moduleRef. */
+  quickLaunchRoute?: string;
   /** Intended duration in seconds. */
   plannedSeconds: number;
   /**
@@ -110,6 +116,8 @@ export interface PendingStartConfig {
     itemRefs?: string[];
     label?: string;
     plannedSeconds: number;
+    /** Optional route override forwarded onto the SessionBlock. */
+    quickLaunchRoute?: string;
   }>;
 }
 
@@ -191,6 +199,8 @@ export interface StartSessionInput {
     itemRefs?: string[];
     label?: string;
     plannedSeconds: number;
+    /** Optional route override forwarded onto the SessionBlock. */
+    quickLaunchRoute?: string;
   }>;
   /**
    * Optional override for the session id. Used by tests to make

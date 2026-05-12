@@ -424,7 +424,8 @@ export default function PracticeSessions() {
     if (card.blocks.length === 0) return;
     const firstBlock = card.blocks[0];
     const firstMeta = moduleMetaById(firstBlock.moduleRef);
-    const startRoute = firstMeta?.route ?? '/practice-sessions/active';
+    const startRoute =
+      firstBlock.quickLaunchRoute ?? firstMeta?.route ?? '/practice-sessions/active';
 
     // Arm — don't start. The actual `start` action fires when the
     // user arrives at the first block's module (handled by
@@ -440,6 +441,7 @@ export default function PracticeSessions() {
         itemRefs: [...b.itemRefs],
         label: b.activityDescription,
         plannedSeconds: b.plannedSeconds,
+        quickLaunchRoute: b.quickLaunchRoute,
       })),
     });
     navigate(startRoute);

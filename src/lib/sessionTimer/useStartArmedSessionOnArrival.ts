@@ -41,6 +41,7 @@ export function useStartArmedSessionOnArrival(): void {
         itemRefs: b.itemRefs,
         label: b.label,
         plannedSeconds: b.plannedSeconds,
+        quickLaunchRoute: b.quickLaunchRoute,
       })),
     });
   }, [location.pathname, state.pendingStart, state.status, startSession]);

@@ -170,6 +170,7 @@ function startSession(
     moduleRef: b.moduleRef,
     itemRefs: b.itemRefs,
     label: b.label,
+    quickLaunchRoute: b.quickLaunchRoute,
     plannedSeconds: b.plannedSeconds,
     extensionSeconds: 0,
     status: i === 0 ? 'running' : 'pending',

@@ -21,6 +21,7 @@
 
 import {
   db,
+  type FlashcardState,
   type Goal,
   type GoalScope,
   type PracticeSessionContext,
@@ -252,13 +253,19 @@ export async function buildSessionPlan(
     return { kind: 'abundance', reason: 'queue-cleared' };
   }
 
+  const cards = generateAndShape(
+    moduleBlocks,
+    inputs.timeMinutes * 60,
+    repertoireSplit,
+  );
+  const vocabBlock = await maybeBuildProductionVocabBlock({
+    goals,
+    context: inputs.context,
+    now,
+  });
   return {
     kind: 'proposals',
-    cards: generateAndShape(
-      moduleBlocks,
-      inputs.timeMinutes * 60,
-      repertoireSplit,
-    ),
+    cards: vocabBlock ? cards.map(c => prependVocabBlock(c, vocabBlock)) : cards,
     behindPaceNotices: weeklyPace.notices,
   };
 }
@@ -946,6 +953,114 @@ export function describeActivity(block: AllocatedBlock): string {
     case 'expression':
       return 'freeform play';
   }
+}
+
+// ---------------------------------------------------------------------
+// Production Vocab — parallel candidate stream (laptop / phone only)
+// ---------------------------------------------------------------------
+
+/**
+ * Fixed duration for the injected Production Vocab block. Bypasses
+ * the algorithm's time allocator on purpose — vocab review is a
+ * standalone parallel stream, not something the weighting layer
+ * should compete with other modules for. 10 min lands in the typical
+ * "quick refresh" window the SR scheduler is calibrated for.
+ */
+export const PRODUCTION_VOCAB_PLANNED_SECONDS = 600;
+
+/** Internal: the cardId prefix that marks a Production-vocabulary
+ *  flashcard row in the shared db.flashcardStates table (the same
+ *  table holds HF cards). Mirrors VOCAB_CARD_ID_PREFIX in
+ *  vocabularyFlashcards.ts; duplicated here to keep this file's
+ *  imports off the production module surface. */
+const PROD_VOCAB_CARDID_PREFIX = 'prod-vocab:';
+
+/** True when the goal touches the Production module via candidate
+ *  resolution. Covers coverage / accuracy / consistency / production-
+ *  count specs. Umbrella + unsupported goals return false (the
+ *  algorithm delegates umbrella aggregation to children separately). */
+export function hasProductionGoal(goals: ReadonlyArray<Goal>): boolean {
+  return goals.some(g => {
+    const spec = candidateSpecForGoal(g);
+    return 'moduleRefs' in spec
+      && spec.moduleRefs.includes(PRODUCTION_MODULE_REF);
+  });
+}
+
+/** Count Production-vocab cards whose SR schedule says they're due
+ *  on or before `now`. Reads the indexed `nextReviewDate` range
+ *  first, then filters by the prod-vocab cardId prefix. */
+export async function countDueProductionVocabCards(
+  now: number,
+): Promise<number> {
+  const rows: FlashcardState[] = await db.flashcardStates
+    .where('nextReviewDate')
+    .belowOrEqual(now)
+    .toArray();
+  let n = 0;
+  for (const r of rows) {
+    if (r.cardId.startsWith(PROD_VOCAB_CARDID_PREFIX)) n++;
+  }
+  return n;
+}
+
+/** Pure eligibility check — laptop/phone only, Production goal
+ *  exists, at least one vocab card is due. */
+export function isProductionVocabBlockEligible(opts: {
+  goals: ReadonlyArray<Goal>;
+  context: PracticeSessionContext;
+  dueVocabCount: number;
+}): boolean {
+  if (opts.context !== 'laptop' && opts.context !== 'phone') return false;
+  if (opts.dueVocabCount <= 0) return false;
+  return hasProductionGoal(opts.goals);
+}
+
+/** Construct the injected Production Vocab ProposalBlock. Routes the
+ *  active-session quick-launch into the Vocabulary tab rather than
+ *  the Production overview. */
+export function buildProductionVocabBlock(dueCount: number): ProposalBlock {
+  const meta = moduleMetaById(PRODUCTION_MODULE_REF);
+  return {
+    id: 'block-production-vocab',
+    moduleRef: PRODUCTION_MODULE_REF,
+    moduleLabel: 'Production Vocab',
+    moduleAccentHex: meta?.accentHex ?? '#3a4875',
+    activityDescription: 'Flashcard review — terms and concepts',
+    plannedSeconds: PRODUCTION_VOCAB_PLANNED_SECONDS,
+    whySnippet: `${dueCount} card${dueCount === 1 ? '' : 's'} due — quick refresh on terms and concepts`,
+    itemRefs: [],
+    isWarmup: false,
+    quickLaunchRoute: '/production?view=vocabulary',
+  };
+}
+
+/**
+ * Async wrapper: returns the Production Vocab block when the user is
+ * on laptop/phone, has a Production goal, and has at least one due
+ * vocab card. Otherwise null. Caller prepends to each proposal card.
+ */
+export async function maybeBuildProductionVocabBlock(opts: {
+  goals: ReadonlyArray<Goal>;
+  context: PracticeSessionContext;
+  now: number;
+}): Promise<ProposalBlock | null> {
+  if (opts.context !== 'laptop' && opts.context !== 'phone') return null;
+  if (!hasProductionGoal(opts.goals)) return null;
+  const dueCount = await countDueProductionVocabCards(opts.now);
+  if (dueCount <= 0) return null;
+  return buildProductionVocabBlock(dueCount);
+}
+
+function prependVocabBlock(
+  card: ProposalCardData,
+  block: ProposalBlock,
+): ProposalCardData {
+  return {
+    ...card,
+    blocks: [block, ...card.blocks],
+    totalSeconds: card.totalSeconds + block.plannedSeconds,
+  };
 }
 
 function deriveWhySnippet(block: AllocatedBlock): string {
