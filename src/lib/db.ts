@@ -1268,6 +1268,12 @@ export interface SongMatrixSection {
    *  parent section's id. Preserves lineage. Null when the section
    *  was created fresh by the user. */
   splitFromSectionId: string | null;
+  /** FK → songSections.id. When set, this matrix row mirrors a
+   *  lead-sheet section and the reconciler keeps the two in
+   *  lockstep (rename, reorder, archive). Null for legacy matrix
+   *  rows created before the one-way sync landed — the reconciler
+   *  matches those by name on first run and stamps this field. */
+  songSectionId?: string | null;
   createdAt: number;
   updatedAt: number;
 }

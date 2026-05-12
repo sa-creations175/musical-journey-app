@@ -1,6 +1,7 @@
 import { createContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../auth/useAuth';
 import { installSyncHooks } from './hooks';
+import { installMatrixSectionsHook } from '../../modules/repertoire/matrix/matrixSectionsSync';
 import { setCurrentUserId } from './currentUser';
 import { pullAll, drain, clearLocalCache, refreshFromCloud } from './engine';
 import { markSyncReady, resetSyncReady } from './syncReady';
@@ -76,6 +77,12 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     resetSyncReady();
     if (hooksInstalledRef.current) return;
     installSyncHooks();
+    // Matrix-sections reconciler: derives songMatrixSections from
+    // songSections on every lead-sheet write. Installed alongside
+    // the cloud sync hooks so both arrive in lockstep at app boot;
+    // the reconciler is also idempotent + guarded against double
+    // install internally, so order between the two doesn't matter.
+    installMatrixSectionsHook();
     hooksInstalledRef.current = true;
   }, []);
 
