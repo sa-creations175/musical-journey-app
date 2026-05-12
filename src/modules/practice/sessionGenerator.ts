@@ -114,7 +114,7 @@ export async function buildSessionProposals(
     weeklyPace.factorByModule,
   );
 
-  const repertoireSplit = await loadRepertoireSplitContext(now);
+  const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   const withColdStart = maybeInjectRepertoireColdStartBlock(
     moduleBlocks,
     goals,
@@ -211,7 +211,7 @@ export async function buildSessionPlan(
     weeklyPace.factorByModule,
     options.forceIncludeModules,
   );
-  const repertoireSplit = await loadRepertoireSplitContext(now);
+  const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   // Inject a Repertoire cold-start block before abundance detection so
   // a song goal with no spacing data doesn't trigger queue-cleared —
   // there IS work waiting (the spotlight + maintenance songs), it
@@ -346,7 +346,7 @@ export async function buildSessionProposalsForPath(
     inputs.context,
     weeklyPace.factorByModule,
   );
-  const repertoireSplit = await loadRepertoireSplitContext(now);
+  const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   const filteredWithColdStart = maybeInjectRepertoireColdStartBlock(
     filteredBlocks,
     goals,
@@ -861,12 +861,17 @@ function toProposalBlocks(
 
   // Repertoire split — only when we have at least one of spotlight
   // OR maintenance. When both are absent the original single block
-  // passes through unchanged.
+  // passes through unchanged. Setup + chord-quiz blocks ride the
+  // same mapping; their `label` + `why` come straight from the
+  // splitter, and chord-quiz blocks render with the warm-up badge.
   if (block.moduleRef === 'repertoire' && repertoireSplit) {
     const splits = splitRepertoireAllocation(block.plannedSeconds, repertoireSplit);
     if (splits.length > 0) {
-      return splits.map(s => ({
-        id: `${block.id}-${s.kind}`,
+      return splits.map((s, idx) => ({
+        // Include the array index so paired chord-quiz blocks (one
+        // per half on keys/mixed ready) keep distinct ids — kind
+        // alone would collide.
+        id: `${block.id}-${s.kind}-${idx}`,
         moduleRef: block.moduleRef,
         moduleLabel,
         moduleAccentHex,
@@ -875,9 +880,10 @@ function toProposalBlocks(
         whySnippet: s.why,
         // Carry the per-block song id (when known) so the quick-
         // launch destination can route into the specific song's
-        // matrix view rather than the generic Repertoire list.
+        // matrix / setup view rather than the generic Repertoire list.
         itemRefs: s.songId ? [s.songId] : [],
-        isWarmup: false,
+        // Chord quiz is the warm-up affordance — surfaces the badge.
+        isWarmup: s.kind === 'chord-quiz',
         // TBD spotlight surfaces an inline "Add a song in Goals"
         // action — the block still renders normally so the
         // sibling Maintenance block keeps its allocation; this is

@@ -77,12 +77,24 @@ function repertoireBlock(): AlgorithmBlock {
   };
 }
 
-const SPLIT_WITH_MAINTENANCE: RepertoireSplitContext = {
-  spotlight: null,
-  maintenanceSong: mkSong({ id: 'song-maint', title: 'Maintenance Song' }),
-};
+function splitCtx(partial: Partial<RepertoireSplitContext>): RepertoireSplitContext {
+  return {
+    spotlight: null,
+    spotlightSong: null,
+    spotlightReadiness: null,
+    maintenanceSong: null,
+    maintenanceReadiness: null,
+    context: 'mixed',
+    ...partial,
+  };
+}
 
-const SPLIT_WITH_SPOTLIGHT_AND_MAINT: RepertoireSplitContext = {
+const SPLIT_WITH_MAINTENANCE: RepertoireSplitContext = splitCtx({
+  maintenanceSong: mkSong({ id: 'song-maint', title: 'Maintenance Song' }),
+  maintenanceReadiness: 'ready',
+});
+
+const SPLIT_WITH_SPOTLIGHT_AND_MAINT: RepertoireSplitContext = splitCtx({
   spotlight: {
     slotIndex: 1,
     kind: 'song',
@@ -90,10 +102,13 @@ const SPLIT_WITH_SPOTLIGHT_AND_MAINT: RepertoireSplitContext = {
     goalId: 'g-spot',
     displayTitle: 'Spotlight',
   },
+  spotlightSong: mkSong({ id: 'song-spot', title: 'Spotlight' }),
+  spotlightReadiness: 'ready',
   maintenanceSong: mkSong({ id: 'song-maint', title: 'Maintenance Song' }),
-};
+  maintenanceReadiness: 'ready',
+});
 
-const SPLIT_TBD_ONLY: RepertoireSplitContext = {
+const SPLIT_TBD_ONLY: RepertoireSplitContext = splitCtx({
   spotlight: {
     slotIndex: 1,
     kind: 'tbd',
@@ -101,13 +116,9 @@ const SPLIT_TBD_ONLY: RepertoireSplitContext = {
     goalId: 'g-tbd',
     displayTitle: 'TBD',
   },
-  maintenanceSong: null,
-};
+});
 
-const SPLIT_EMPTY: RepertoireSplitContext = {
-  spotlight: null,
-  maintenanceSong: null,
-};
+const SPLIT_EMPTY: RepertoireSplitContext = splitCtx({});
 
 describe('maybeInjectRepertoireColdStartBlock', () => {
   it('injects a synthetic Repertoire block when song goal exists + no spacing block', () => {
