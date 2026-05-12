@@ -891,6 +891,16 @@ function toProposalBlocks(
         itemRefs: s.songId ? [s.songId] : [],
         // Chord quiz is the warm-up affordance — surfaces the badge.
         isWarmup: s.kind === 'chord-quiz',
+        // Whole-song-run blocks deep-link to the song's detail view
+        // so the WholeSongTestBanner (already prominent at the top
+        // of the matrix when the song is comfortable) is one tap
+        // away. Repertoire.tsx reads the `songId` URL param and
+        // jumps to the detail tab.
+        ...(s.kind === 'whole-song-run' && s.songId
+          ? {
+              quickLaunchRoute: `/repertoire?tab=detail&songId=${encodeURIComponent(s.songId)}&action=whole-song-test`,
+            }
+          : {}),
         // TBD spotlight surfaces an inline "Add a song in Goals"
         // action — the block still renders normally so the
         // sibling Maintenance block keeps its allocation; this is

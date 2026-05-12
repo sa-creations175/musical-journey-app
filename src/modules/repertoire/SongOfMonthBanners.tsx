@@ -21,10 +21,10 @@
  *     later → markDismissed; re-fires the next local day if
  *     conditions still hold (see songOfMonthPrompts.ts).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../../lib/db';
+import { db, type Song } from '../../lib/db';
 import {
   PROMPT_TYPE,
   markDismissed,
@@ -32,6 +32,8 @@ import {
   markShown,
 } from '../../lib/prompts';
 import { advanceSpotlightQueue } from './songOfMonth';
+import { generateCircleOfFourthsSequence } from './circleOfFourths';
+import { useToast } from '../../components/Toaster';
 
 /**
  * Pick the most-recent prompt of `type` whose status is queued
@@ -57,9 +59,13 @@ function useLiveBanner(type: string) {
 // Congrats banner
 // =====================================================================
 
+/** Path options shown on the congrats banner. */
+type ProgressionPath = 'deepen' | 'expand-keys' | 'maintenance';
+
 export function SongOfMonthCongratsBanner() {
   const live = useLiveBanner(PROMPT_TYPE.SONG_OF_MONTH_CONGRATS);
-  const [advancing, setAdvancing] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const { toast } = useToast();
 
   // Mark queued → shown on first render. Same guarded transition
   // pattern as GoalsNudgeBanner — markShown no-ops past queued.
@@ -73,57 +79,137 @@ export function SongOfMonthCongratsBanner() {
     }
   }, [liveId, liveStatus]);
 
+  // Live-read the song record so the rendered key reflects any
+  // user-edit between enqueue and ack — the payload's snapshot might
+  // be stale.
+  const songId = live?.payload?.songId as string | undefined;
+  const song = useLiveQuery(
+    async () => (songId ? await db.songs.get(songId) : undefined),
+    [songId],
+  );
+
+  const originalKey = song?.key ?? '';
+  // First circle-of-4ths step from the song's original key — used
+  // as the "next key" hint on the expand-keys subtext.
+  const nextKey = useMemo(() => {
+    if (!originalKey) return null;
+    return generateCircleOfFourthsSequence(originalKey)[0] ?? null;
+  }, [originalKey]);
+
   if (!live) return null;
   const songTitle = (live.payload?.songTitle as string) ?? 'this song';
   const umbrellaGoalId = live.payload?.umbrellaGoalId as string | undefined;
 
-  const handleAdvance = async () => {
-    if (!umbrellaGoalId || advancing) return;
-    setAdvancing(true);
+  const handlePick = async (path: ProgressionPath) => {
+    if (processing || !songId) return;
+    setProcessing(true);
     try {
-      await advanceSpotlightQueue(umbrellaGoalId);
+      // Read-then-put avoids the silent-no-op behavior of
+      // db.songs.update on rows that have drifted to a slightly
+      // different schema (see VacationManager precedent +
+      // saveOverride in matrix saveMeta).
+      const current = await db.songs.get(songId);
+      if (current) {
+        const next: Song = { ...current, progressionPath: path };
+        if (path === 'expand-keys') {
+          next.expandKeysOrder = generateCircleOfFourthsSequence(
+            current.key ?? '',
+          );
+        } else {
+          // Clear any stale walk-order when the user picks a non-
+          // expand path so the algorithm doesn't accidentally
+          // consume it later. Optional fields → undefined.
+          next.expandKeysOrder = undefined;
+        }
+        await db.songs.put(next);
+      }
+      // SotM queue advancement is unconditional once the user picks
+      // a path — per spec, the path choice doesn't block the next
+      // spotlight from rotating in.
+      if (umbrellaGoalId) {
+        await advanceSpotlightQueue(umbrellaGoalId);
+      }
       await markEngaged(live.id);
+      toast({
+        message: `Got it — we'll practice ${songTitle} accordingly`,
+        variant: 'success',
+      });
     } catch (err) {
-      console.warn('[SongOfMonthCongratsBanner] advance failed', err);
-    } finally {
-      setAdvancing(false);
+      console.warn('[SongOfMonthCongratsBanner] path pick failed', err);
+      setProcessing(false);
     }
   };
 
-  const handleDismiss = () => {
-    void markDismissed(live.id).catch(err => {
-      console.warn('[SongOfMonthCongratsBanner] markDismissed failed', err);
-    });
-  };
+  const inKey = originalKey ? `in ${originalKey}` : 'in this key';
+  const expandSubtext = nextKey && originalKey
+    ? `Start on ${nextKey} while keeping ${originalKey} fresh`
+    : 'Walk this song through every key in the wheel';
 
   return (
-    <div className="rounded-md border border-emerald-400/40 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
-      <div className="flex-1">
+    <div className="rounded-md border border-emerald-400/40 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 space-y-3">
+      <div>
         <div className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
           Congrats! {songTitle} is comfortable in its original key.
         </div>
         <div className="text-xs text-emerald-800/80 dark:text-emerald-200/80 mt-0.5">
-          Ready to start on your next song of the month?
+          Pick how you want to keep working on it.
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={handleDismiss}
-          className="text-xs text-emerald-800/70 hover:text-emerald-900 dark:text-emerald-200/70 dark:hover:text-emerald-200"
-        >
-          Maybe later
-        </button>
-        <button
-          type="button"
-          onClick={handleAdvance}
-          disabled={advancing || !umbrellaGoalId}
-          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-        >
-          {advancing ? 'Advancing…' : 'Yes, advance →'}
-        </button>
+      <div className="flex flex-col gap-2">
+        <PathChoiceButton
+          onClick={() => void handlePick('deepen')}
+          disabled={processing}
+          title="Deepen"
+          label={`Keep building ${inKey}`}
+          subtext="Work toward solid — whole-song runs with focused repair"
+        />
+        <PathChoiceButton
+          onClick={() => void handlePick('expand-keys')}
+          disabled={processing || !nextKey}
+          title="Expand keys"
+          label="Take it to new keys"
+          subtext={expandSubtext}
+        />
+        <PathChoiceButton
+          onClick={() => void handlePick('maintenance')}
+          disabled={processing}
+          title="Maintenance"
+          label="Keep it fresh"
+          subtext="Light weekly rotation — you've got this one"
+        />
       </div>
     </div>
+  );
+}
+
+function PathChoiceButton({
+  title,
+  label,
+  subtext,
+  onClick,
+  disabled,
+}: {
+  title: string;
+  label: string;
+  subtext: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full text-left rounded-md border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-emerald-950/20 px-3 py-2 hover:border-emerald-500 hover:bg-emerald-100/40 dark:hover:bg-emerald-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    >
+      <div className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+        <span className="font-semibold">{title}</span>
+        <span className="text-emerald-800/80 dark:text-emerald-200/80"> — {label}</span>
+      </div>
+      <div className="text-[11px] text-emerald-800/70 dark:text-emerald-200/70 mt-0.5">
+        {subtext}
+      </div>
+    </button>
   );
 }
 

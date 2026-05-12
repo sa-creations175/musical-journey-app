@@ -82,8 +82,10 @@ function splitCtx(partial: Partial<RepertoireSplitContext>): RepertoireSplitCont
     spotlight: null,
     spotlightSong: null,
     spotlightReadiness: null,
+    spotlightPostComfortable: null,
     maintenanceSong: null,
     maintenanceReadiness: null,
+    maintenancePostComfortable: null,
     context: 'mixed',
     ...partial,
   };

@@ -34,7 +34,7 @@
  *     (which removes their cells from the active surface); this
  *     predicate trusts the data.
  */
-import { db } from '../../lib/db';
+import { db, type Song, type SongCell, type SongKey } from '../../lib/db';
 
 export async function isSongComfortableInOriginalKey(
   songId: string,
@@ -68,6 +68,34 @@ export async function comfortableCellRatioInOriginalKey(
   if (cells.length === 0) return 0;
   const comfy = cells.filter(c => c.cellState === 'comfortable').length;
   return comfy / cells.length;
+}
+
+/**
+ * Synchronous variant of {@link isSongComfortableInOriginalKey} that
+ * operates on pre-loaded records. Same predicate; separates IO from
+ * logic so the algorithm layer can ask "is this song past the comfy
+ * threshold?" once it's already pulled the matrix rows it needs for
+ * everything else. Returns true iff every cell at the song's
+ * original key is `cellState === 'comfortable'`.
+ *
+ * Defensive edge cases match the async version:
+ *   · No original-key songKeys row → false
+ *   · Zero cells at the original key → false
+ */
+export function isSongPostComfortable(
+  song: Song,
+  songKeys: ReadonlyArray<SongKey>,
+  songCells: ReadonlyArray<SongCell>,
+): boolean {
+  const originalKey = songKeys.find(
+    k => k.songId === song.id && k.isOriginalKey,
+  );
+  if (!originalKey) return false;
+  const cells = songCells.filter(
+    c => c.songId === song.id && c.songKeyId === originalKey.id,
+  );
+  if (cells.length === 0) return false;
+  return cells.every(c => c.cellState === 'comfortable');
 }
 
 async function findOriginalKey(songId: string) {

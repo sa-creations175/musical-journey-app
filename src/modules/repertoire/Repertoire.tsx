@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Song } from '../../lib/db';
 import ModuleIntro from '../../components/ModuleIntro';
@@ -68,6 +69,20 @@ export default function Repertoire() {
 
   // Sidebar sub-items land here as /repertoire?tab=want-to-learn.
   useUrlTabSync<TabId>('tab', isTabId, setTab);
+
+  // Deep-link support: /repertoire?songId=<id> jumps to the named
+  // song's detail view. Used by post-comfortable whole-song-run
+  // session blocks so the active-session quick-launch lands on the
+  // exact song. Reads the param once per URL change and applies it
+  // alongside the existing tab/songId state machine.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const incomingSongId = searchParams.get('songId');
+    if (incomingSongId && incomingSongId.length > 0) {
+      setSelectedSongId(incomingSongId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => { if (prefsLoaded) setPref(PREF_ACTIVE_TAB, tab); }, [tab, prefsLoaded]);
   useEffect(() => {

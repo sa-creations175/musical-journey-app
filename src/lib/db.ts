@@ -80,6 +80,28 @@ export interface Song {
    *  indexes, so adding the field doesn't need a schema-version
    *  bump. Rides in the `data` JSONB blob across sync. */
   sectionOrder?: string[];
+  /**
+   * Path the user chose after reaching "comfortable in original
+   * key" via the SotM congrats banner. Null/undefined while the
+   * user hasn't picked yet — the session algorithm treats null as
+   * an implicit "deepen" so the song stays in active rotation
+   * until the banner gets a response.
+   *
+   *   deepen       — keep working in the original key, target solid
+   *   expand-keys  — start a circle-of-4ths walk; original key
+   *                  stays in maintenance
+   *   maintenance  — light weekly rotation; user calls it done
+   *
+   * Unindexed — rides in the `data` JSONB blob across sync. */
+  progressionPath?: 'deepen' | 'expand-keys' | 'maintenance' | null;
+  /**
+   * Circle-of-4ths walk-order populated when the user picks the
+   * expand-keys path. Auto-generated from `key` via
+   * `generateCircleOfFourthsSequence` so the user sees a
+   * consistent next-key target. Excludes the original key itself.
+   *
+   * Unindexed — rides in the `data` JSONB blob across sync. */
+  expandKeysOrder?: string[];
   /** Free-text "why I'm learning this" description. Starter copy is
    *  pre-populated when a song is seeded; user can edit or clear it. */
   description?: string;

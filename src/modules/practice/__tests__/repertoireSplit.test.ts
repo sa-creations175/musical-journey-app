@@ -56,8 +56,10 @@ function splitCtx(
     spotlightSong: null,
     spotlightReadiness: partial.spotlight && partial.spotlight.kind === 'song'
       ? 'needs-chords' : null,
+    spotlightPostComfortable: null,
     maintenanceSong: partial.maintenanceSong,
     maintenanceReadiness: partial.maintenanceSong ? 'needs-chords' : null,
+    maintenancePostComfortable: null,
     context: 'mixed',
   };
 }
@@ -312,5 +314,119 @@ describe('splitRepertoireAllocation — readiness routing', () => {
     expect(out).toHaveLength(1);
     expect(out[0].kind).toBe('spotlight');
     expect(out[0].isTbdSpotlight).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Post-comfortable progression — whole-song-run + expand-keys blocks
+// ---------------------------------------------------------------------
+
+describe('splitRepertoireAllocation — post-comfortable progression', () => {
+  it('deepen path → whole-song-run block (NOT a cell/practice block)', () => {
+    const ctx: RepertoireSplitContext = {
+      spotlight: specificSpotlight('s-deep', 'Mirror'),
+      spotlightSong: maint('s-deep', 'Mirror'),
+      spotlightReadiness: 'ready',
+      spotlightPostComfortable: { kind: 'whole-song-run', keyName: 'C' },
+      maintenanceSong: null,
+      maintenanceReadiness: null,
+      maintenancePostComfortable: null,
+      context: 'mixed',
+    };
+    const out = splitRepertoireAllocation(45 * 60, ctx);
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe('whole-song-run');
+    expect(out[0].label).toBe('Run through Mirror');
+    expect(out[0].why).toContain('C');
+    expect(out[0].songId).toBe('s-deep');
+    // Specifically — NOT a chord-quiz + practice combo (that's the
+    // pre-comfortable ready path on keys/mixed).
+    expect(out.some(b => b.kind === 'chord-quiz')).toBe(false);
+    expect(out.some(b => b.kind === 'spotlight')).toBe(false);
+  });
+
+  it('expand-keys with un-mastered next key → cell-drill block on the new key', () => {
+    const ctx: RepertoireSplitContext = {
+      spotlight: specificSpotlight('s-exp', 'Alpha & Omega'),
+      spotlightSong: maint('s-exp', 'Alpha & Omega'),
+      spotlightReadiness: 'ready',
+      spotlightPostComfortable: { kind: 'cell-drill-expansion', keyName: 'F' },
+      maintenanceSong: null,
+      maintenanceReadiness: null,
+      maintenancePostComfortable: null,
+      context: 'mixed',
+    };
+    const out = splitRepertoireAllocation(45 * 60, ctx);
+    expect(out).toHaveLength(1);
+    expect(out[0].label).toContain('Expand to F');
+    expect(out[0].label).toContain('Alpha & Omega');
+    expect(out[0].kind).not.toBe('whole-song-run');
+  });
+
+  it('maintenance path that decided "skip" returns no slot blocks (caller falls back)', () => {
+    // A maintenance slot whose decision is 'skip' means the song
+    // is on the maintenance path and within the 7-day floor —
+    // splitRepertoireAllocation passes the slot through the
+    // readiness fallback, which produces the standard practice
+    // block. The KEY behavior pinned here is that the slot is NOT
+    // treated as a whole-song-run. (The picker in
+    // loadRepertoireSplitContext is what truly suppresses skipped
+    // songs end-to-end; splitRepertoireAllocation is exercised in
+    // isolation here.)
+    const song = maint('s-maint', 'No Weapon');
+    const ctx: RepertoireSplitContext = {
+      spotlight: null,
+      spotlightSong: null,
+      spotlightReadiness: null,
+      spotlightPostComfortable: null,
+      maintenanceSong: song,
+      maintenanceReadiness: 'needs-chords',
+      maintenancePostComfortable: { kind: 'skip' },
+      context: 'mixed',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe('maintenance');
+    expect(out[0].kind).not.toBe('whole-song-run');
+  });
+
+  it('maintenance path that decided whole-song-run → whole-song-run block (weekly floor met)', () => {
+    const ctx: RepertoireSplitContext = {
+      spotlight: null,
+      spotlightSong: null,
+      spotlightReadiness: null,
+      spotlightPostComfortable: null,
+      maintenanceSong: maint('s-maint', 'How Great'),
+      maintenanceReadiness: 'ready',
+      maintenancePostComfortable: { kind: 'whole-song-run', keyName: 'G' },
+      context: 'mixed',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    expect(out).toHaveLength(1);
+    expect(out[0].kind).toBe('whole-song-run');
+    expect(out[0].label).toBe('Run through How Great');
+    expect(out[0].why).toContain('G');
+  });
+
+  it('post-comfortable spotlight + post-comfortable maintenance → both whole-song-run blocks', () => {
+    const ctx: RepertoireSplitContext = {
+      spotlight: specificSpotlight('s-1', 'Song One'),
+      spotlightSong: maint('s-1', 'Song One'),
+      spotlightReadiness: 'ready',
+      spotlightPostComfortable: { kind: 'whole-song-run', keyName: 'C' },
+      maintenanceSong: maint('s-2', 'Song Two'),
+      maintenanceReadiness: 'ready',
+      maintenancePostComfortable: { kind: 'whole-song-run', keyName: 'D' },
+      context: 'mixed',
+    };
+    const out = splitRepertoireAllocation(45 * 60, ctx);
+    expect(out).toHaveLength(2);
+    expect(out[0].kind).toBe('whole-song-run');
+    expect(out[0].label).toBe('Run through Song One');
+    expect(out[1].kind).toBe('whole-song-run');
+    expect(out[1].label).toBe('Run through Song Two');
+    // Time split preserved: 2/3 to spotlight, 1/3 to maintenance.
+    expect(out[0].plannedSeconds).toBe(30 * 60);
+    expect(out[1].plannedSeconds).toBe(15 * 60);
   });
 });

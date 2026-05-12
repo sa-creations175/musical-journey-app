@@ -27,10 +27,18 @@
  *   · Only maintenance, no monthly umbrella → full Rep time goes
  *     to maintenance with no "Song of the month" label.
  */
-import { db, type PracticeSessionContext, type Song } from '../../lib/db';
-import { isSongComfortableInOriginalKey } from '../repertoire/songComfortable';
+import {
+  db,
+  type PracticeSessionContext,
+  type Song,
+} from '../../lib/db';
+import { isSongPostComfortable } from '../repertoire/songComfortable';
 import { loadActiveSpotlight, type QueueSlot } from '../repertoire/songOfMonth';
 import { getSongReadiness, type SongReadiness } from '../repertoire/songReadiness';
+import {
+  decidePostComfortableBlock,
+  type PostComfortableBlockDecision,
+} from '../repertoire/songProgression';
 
 const MIN_SPOTLIGHT_SECONDS = 15 * 60;
 const SPOTLIGHT_RATIO = 2 / 3;
@@ -49,14 +57,27 @@ export interface RepertoireSplitContext {
   /** Practice readiness for the spotlight song. Null when there's
    *  no specific song (TBD spotlight or missing record). */
   spotlightReadiness: SongReadiness | null;
-  /** Lowest-learningOrder active song not yet comfortable in its
-   *  original key, excluding the spotlight song. On keys/mixed
-   *  context, needs-setup songs are deferred to fallback so a ready
-   *  alternative wins the maintenance slot when one exists. */
+  /** Post-comfortable progression decision for the spotlight song,
+   *  populated only when the song is past comfortable in its
+   *  original key. Null otherwise — the readiness path handles
+   *  pre-comfortable songs. */
+  spotlightPostComfortable: PostComfortableBlockDecision | null;
+  /** Lowest-learningOrder active song eligible for the maintenance
+   *  slot, excluding the spotlight song. On keys/mixed context,
+   *  needs-setup songs are deferred to fallback so a ready
+   *  alternative wins the slot when one exists. Post-comfortable
+   *  songs are now eligible — they show up as whole-song-run blocks
+   *  (deepen / null path), cell-drill on the next key (expand-keys
+   *  path), or are skipped (maintenance path before the weekly
+   *  floor). */
   maintenanceSong: Song | null;
   /** Practice readiness for the maintenance song. Null when no
    *  maintenance candidate was found. */
   maintenanceReadiness: SongReadiness | null;
+  /** Post-comfortable progression decision for the maintenance
+   *  song, populated only when the song is past comfortable in its
+   *  original key. Null otherwise. */
+  maintenancePostComfortable: PostComfortableBlockDecision | null;
   /** Context the split was loaded for. Drives both the
    *  maintenance-song preference (deprioritize needs-setup on keys)
    *  and the chord-quiz block placement (prepend on keys/mixed,
@@ -87,7 +108,16 @@ export async function loadRepertoireSplitContext(
   const spotlightSongId =
     spotlight && spotlight.kind === 'song' ? spotlight.refId : null;
 
-  const allSongs = await db.songs.toArray();
+  // Bulk-load matrix data once for every song. Lets the
+  // post-comfortable decision run per-song without a Dexie round-
+  // trip per candidate (the inner loop walks every song in the
+  // worst case).
+  const [allSongs, allKeys, allCells, allSections] = await Promise.all([
+    db.songs.toArray(),
+    db.songKeys.toArray(),
+    db.songCells.toArray(),
+    db.songSections.toArray(),
+  ]);
   const sorted = [...allSongs].sort(
     (a, b) =>
       (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
@@ -96,42 +126,103 @@ export async function loadRepertoireSplitContext(
 
   const isKeysContext = context === 'keys' || context === 'mixed';
 
+  // Per-song helpers reading from the bulk-loaded arrays. Avoids
+  // re-filtering in every branch below.
+  const keysFor = (songId: string) => allKeys.filter(k => k.songId === songId);
+  const cellsFor = (songId: string) => allCells.filter(c => c.songId === songId);
+  const sectionsFor = (songId: string) =>
+    allSections.filter(s => s.songId === songId);
+  const originalKeyEngagedAt = (songId: string): number | null => {
+    const ok = allKeys.find(k => k.songId === songId && k.isOriginalKey);
+    return ok?.lastEngagedAt ?? null;
+  };
+
+  // Decide a single song's contribution to the maintenance slot.
+  // Returns null when the song should be skipped entirely (e.g.
+  // maintenance path before the weekly floor). The caller picks the
+  // first eligible song in learningOrder ASC.
+  const candidateInfo = (s: Song): {
+    readiness: SongReadiness;
+    postComfortable: PostComfortableBlockDecision | null;
+  } | null => {
+    const sKeys = keysFor(s.id);
+    const sCells = cellsFor(s.id);
+    const readiness = getSongReadiness(s, sKeys, sectionsFor(s.id));
+    if (isSongPostComfortable(s, sKeys, sCells)) {
+      const decision = decidePostComfortableBlock({
+        song: s,
+        songKeys: sKeys,
+        songCells: sCells,
+        lastEngagedAt: originalKeyEngagedAt(s.id),
+        now,
+      });
+      if (decision.kind === 'skip') return null;
+      return { readiness, postComfortable: decision };
+    }
+    return { readiness, postComfortable: null };
+  };
+
   // Primary + fallback candidates. On keys/mixed, needs-setup songs
   // fall into the fallback list. On laptop/phone, every candidate
   // lands in primary (no deferral).
   let primary: Song | null = null;
   let primaryReadiness: SongReadiness | null = null;
+  let primaryPostComfortable: PostComfortableBlockDecision | null = null;
   let fallback: Song | null = null;
   let fallbackReadiness: SongReadiness | null = null;
+  let fallbackPostComfortable: PostComfortableBlockDecision | null = null;
 
   for (const s of sorted) {
     if (spotlightSongId && s.id === spotlightSongId) continue;
-    // eslint-disable-next-line no-await-in-loop
-    if (await isSongComfortableInOriginalKey(s.id)) continue;
-    // eslint-disable-next-line no-await-in-loop
-    const readiness = await loadReadinessForSong(s);
-    if (isKeysContext && readiness === 'needs-setup') {
+    const info = candidateInfo(s);
+    if (!info) continue;
+    if (isKeysContext && info.readiness === 'needs-setup' && !info.postComfortable) {
       if (!fallback) {
         fallback = s;
-        fallbackReadiness = readiness;
+        fallbackReadiness = info.readiness;
+        fallbackPostComfortable = info.postComfortable;
       }
       continue;
     }
     primary = s;
-    primaryReadiness = readiness;
+    primaryReadiness = info.readiness;
+    primaryPostComfortable = info.postComfortable;
     break;
   }
 
   const maintenanceSong = primary ?? fallback;
   const maintenanceReadiness =
     primary ? primaryReadiness : fallback ? fallbackReadiness : null;
+  const maintenancePostComfortable =
+    primary ? primaryPostComfortable : fallback ? fallbackPostComfortable : null;
 
   let spotlightSong: Song | null = null;
   let spotlightReadiness: SongReadiness | null = null;
+  let spotlightPostComfortable: PostComfortableBlockDecision | null = null;
   if (spotlightSongId) {
     spotlightSong = sorted.find(s => s.id === spotlightSongId) ?? null;
     if (spotlightSong) {
-      spotlightReadiness = await loadReadinessForSong(spotlightSong);
+      const sKeys = keysFor(spotlightSong.id);
+      const sCells = cellsFor(spotlightSong.id);
+      spotlightReadiness = getSongReadiness(
+        spotlightSong,
+        sKeys,
+        sectionsFor(spotlightSong.id),
+      );
+      if (isSongPostComfortable(spotlightSong, sKeys, sCells)) {
+        const decision = decidePostComfortableBlock({
+          song: spotlightSong,
+          songKeys: sKeys,
+          songCells: sCells,
+          lastEngagedAt: originalKeyEngagedAt(spotlightSong.id),
+          now,
+        });
+        // Even a 'skip' decision still leaves the spotlight slot
+        // populated — the spotlight is user-chosen and shouldn't
+        // disappear mid-month. The split layer reads 'skip' and
+        // falls back to the pre-comfortable readiness flow.
+        spotlightPostComfortable = decision;
+      }
     }
   }
 
@@ -139,19 +230,14 @@ export async function loadRepertoireSplitContext(
     spotlight,
     spotlightSong,
     spotlightReadiness,
+    spotlightPostComfortable,
     maintenanceSong,
     maintenanceReadiness,
+    maintenancePostComfortable,
     context,
   };
 }
 
-async function loadReadinessForSong(song: Song): Promise<SongReadiness> {
-  const [songKeys, songSections] = await Promise.all([
-    db.songKeys.where('songId').equals(song.id).toArray(),
-    db.songSections.where('songId').equals(song.id).toArray(),
-  ]);
-  return getSongReadiness(song, songKeys, songSections);
-}
 
 export interface RepertoireSplitBlock {
   /** Display label for the activityDescription line. */
@@ -173,8 +259,13 @@ export interface RepertoireSplitBlock {
    *                              so the user can add sections + chords
    *    chord-quiz              — 3-min recall warm-up that prepends
    *                              practice on keys/mixed, or stands
-   *                              alone on laptop/phone */
-  kind: 'spotlight' | 'maintenance' | 'setup' | 'chord-quiz';
+   *                              alone on laptop/phone
+   *    whole-song-run          — post-comfortable practice: full
+   *                              song-through-the-song run. Routes
+   *                              to song detail (whole-song-test
+   *                              banner is visible there); deepen /
+   *                              maintenance paths use this. */
+  kind: 'spotlight' | 'maintenance' | 'setup' | 'chord-quiz' | 'whole-song-run';
 }
 
 /**
@@ -243,6 +334,18 @@ function buildSpotlightHalf(
     return [tbdSpotlightBlock(seconds)];
   }
   const title = ctx.spotlightSong?.title ?? spotlight.displayTitle;
+  // Post-comfortable songs short-circuit the readiness/chord-quiz
+  // flow with a whole-song-run (deepen / maintenance / finished
+  // expand-keys walk) or a cell-drill on a new key (expand-keys mid-
+  // walk). 'skip' falls back to the pre-comfortable readiness flow
+  // — the spotlight slot stays populated regardless.
+  const postBlocks = buildPostComfortableBlocks(
+    seconds,
+    spotlight.refId,
+    title,
+    ctx.spotlightPostComfortable,
+  );
+  if (postBlocks) return postBlocks;
   return buildSongHalf({
     seconds,
     songId: spotlight.refId,
@@ -261,6 +364,13 @@ function buildMaintenanceHalf(
   ctx: RepertoireSplitContext,
 ): RepertoireSplitBlock[] {
   const song = ctx.maintenanceSong!;
+  const postBlocks = buildPostComfortableBlocks(
+    seconds,
+    song.id,
+    song.title,
+    ctx.maintenancePostComfortable,
+  );
+  if (postBlocks) return postBlocks;
   return buildSongHalf({
     seconds,
     songId: song.id,
@@ -272,6 +382,39 @@ function buildMaintenanceHalf(
     practiceWhy: 'Oldest active song still in motion — keep it warm',
     setupWhyExtra: 'Lowest-order song in your repertoire still needs setup',
   });
+}
+
+/**
+ * Build the block list for a post-comfortable slot. Returns null
+ * when the slot is pre-comfortable (caller falls back to the
+ * readiness flow) or when the decision is 'skip' (caller falls
+ * back; today only the maintenance-path within-floor case hits
+ * 'skip' AND only on the maintenance slot, where the picker has
+ * already skipped the song — so a 'skip' decision on the spotlight
+ * still defers to readiness rendering).
+ */
+function buildPostComfortableBlocks(
+  seconds: number,
+  songId: string,
+  title: string,
+  decision: PostComfortableBlockDecision | null,
+): RepertoireSplitBlock[] | null {
+  if (!decision) return null;
+  if (decision.kind === 'skip') return null;
+  if (decision.kind === 'whole-song-run') {
+    return [wholeSongRunBlock(seconds, songId, title, decision.keyName)];
+  }
+  // cell-drill-expansion → use the practice-block kind but label
+  // the slot as new-key expansion.
+  return [
+    practiceBlock(
+      seconds,
+      songId,
+      `Expand to ${decision.keyName}: ${title}`,
+      `Cell-drill the next key in your circle-of-4ths walk`,
+      'maintenance',
+    ),
+  ];
 }
 
 interface SongHalfArgs {
@@ -379,5 +522,22 @@ function chordQuizBlock(
     songId,
     isTbdSpotlight: false,
     kind: 'chord-quiz',
+  };
+}
+
+function wholeSongRunBlock(
+  plannedSeconds: number,
+  songId: string,
+  title: string,
+  keyName: string,
+): RepertoireSplitBlock {
+  const inKey = keyName ? ` — ${keyName}` : '';
+  return {
+    label: `Run through ${title}`,
+    plannedSeconds,
+    why: `Whole-song practice${inKey}`,
+    songId,
+    isTbdSpotlight: false,
+    kind: 'whole-song-run',
   };
 }
