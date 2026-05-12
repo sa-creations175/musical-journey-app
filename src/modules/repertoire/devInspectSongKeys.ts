@@ -54,10 +54,44 @@ export async function inspectSongKeys(songId: string): Promise<void> {
   console.groupEnd();
 }
 
-// Expose on window so the helper is reachable from the browser
+/**
+ * Convenience wrapper: find a song by case-insensitive title
+ * substring, then delegate to inspectSongKeys.
+ *
+ *     await __inspectSongKeysByTitle('no weapon')
+ *
+ * Picks the first match when the substring matches multiple songs;
+ * warns when no song matches. Lets the user skip the songId-lookup
+ * step entirely.
+ */
+export async function inspectSongKeysByTitle(
+  titleFragment: string,
+): Promise<void> {
+  const needle = titleFragment.toLowerCase();
+  const songs = await db.songs.toArray();
+  const matches = songs.filter(s => s.title.toLowerCase().includes(needle));
+  if (matches.length === 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[inspectSongKeysByTitle] no song title contains "${titleFragment}"`);
+    return;
+  }
+  if (matches.length > 1) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[inspectSongKeysByTitle] ${matches.length} matches — inspecting first ("${matches[0].title}"). All matches:`,
+      matches.map(s => ({ id: s.id, title: s.title })),
+    );
+  }
+  await inspectSongKeys(matches[0].id);
+}
+
+// Expose on window so the helpers are reachable from the browser
 // console without needing a module import path.
 if (typeof window !== 'undefined') {
-  (
-    window as unknown as { __inspectSongKeys?: typeof inspectSongKeys }
-  ).__inspectSongKeys = inspectSongKeys;
+  const w = window as unknown as {
+    __inspectSongKeys?: typeof inspectSongKeys;
+    __inspectSongKeysByTitle?: typeof inspectSongKeysByTitle;
+  };
+  w.__inspectSongKeys = inspectSongKeys;
+  w.__inspectSongKeysByTitle = inspectSongKeysByTitle;
 }
