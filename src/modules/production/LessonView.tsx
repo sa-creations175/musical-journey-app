@@ -331,7 +331,7 @@ function MasteryControls({
     <div className="flex items-center gap-1.5 flex-wrap">
       {options.map(o => {
         const active = current === o.value;
-        return (
+        const button = (
           <button
             key={o.value}
             onClick={() => mark(o.value)}
@@ -348,7 +348,53 @@ function MasteryControls({
             {o.label}
           </button>
         );
+        if (o.value === 'completed') {
+          return (
+            <span key={o.value} className="inline-flex items-center gap-1">
+              {button}
+              <GotItInfoTip />
+            </span>
+          );
+        }
+        return button;
       })}
     </div>
+  );
+}
+
+/** Visible-popover info tip pinned to the "got it" button. Same
+ *  hover/focus/click pattern as InputQuestionnaire's IntentInfoTip —
+ *  native `title` tooltips don't fire on touch and have a long
+ *  reveal delay on desktop, neither of which fits a moment where
+ *  the user is actively deciding between mastery states. */
+function GotItInfoTip() {
+  const [open, setOpen] = useState(false);
+  const text = 'Self-assessed — you understand the idea and can apply it in your work.';
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        type="button"
+        aria-label={text}
+        aria-expanded={open}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(v => !v)}
+        className="inline-flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus:text-production"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 1a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7h1.5v5h-1.5V7z" />
+        </svg>
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute z-10 right-0 bottom-full mb-1.5 w-56 px-2.5 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[11px] leading-snug shadow-lg pointer-events-none"
+        >
+          {text}
+        </span>
+      )}
+    </span>
   );
 }

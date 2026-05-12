@@ -1,7 +1,21 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type ProductionLessonMastery } from '../../lib/db';
 import { lessonsByPath } from './content/lessons';
 import { pathById } from './content/paths';
+
+/** Plain-English explanation of the four self-assessed mastery
+ *  states. Shown on the path page via a collapsible legend so the
+ *  user can answer "what does 'got it' mean?" without leaving the
+ *  list. Same definitions surface inline on the lesson page via
+ *  MasteryControls' "got it" tooltip — keep them in sync if either
+ *  drifts. */
+const MASTERY_LEGEND: Array<{ key: ProductionLessonMastery; label: string; meaning: string }> = [
+  { key: 'not-started', label: 'not yet',     meaning: "haven't looked at this yet" },
+  { key: 'in-progress', label: 'in progress', meaning: 'started but still working through it' },
+  { key: 'completed',   label: 'got it',      meaning: 'understand the idea and can use it' },
+  { key: 'mastered',    label: 'mastered',    meaning: 'solid enough to teach it or apply it instinctively' },
+];
 
 interface Props {
   pathId: string;
@@ -31,6 +45,7 @@ const MASTERY_LABEL: Record<ProductionLessonMastery, string> = {
 export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
   const path = pathById(pathId);
   const lessons = lessonsByPath(pathId);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const states = useLiveQuery(
     async () => db.productionLessons.where('pathId').equals(pathId).toArray(),
@@ -84,6 +99,28 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
           </div>
           <span className="text-[11px] font-mono tabular-nums text-neutral-500">{progressPct}%</span>
         </div>
+        <button
+          type="button"
+          onClick={() => setLegendOpen(v => !v)}
+          aria-expanded={legendOpen}
+          className="text-[11px] text-neutral-500 hover:text-production inline-flex items-center gap-1 self-start"
+        >
+          What do these mean?
+          <span aria-hidden>{legendOpen ? '▾' : '▸'}</span>
+        </button>
+        {legendOpen && (
+          <ul className="text-[11px] text-neutral-600 dark:text-neutral-300 space-y-1 border-l-2 border-production/20 ml-1 pl-3">
+            {MASTERY_LEGEND.map(entry => (
+              <li key={entry.key} className="flex items-baseline gap-2">
+                <span className={`shrink-0 inline-block w-2 h-2 rounded-full mt-0.5 ${MASTERY_DOT[entry.key]}`} aria-hidden />
+                <span>
+                  <span className="font-medium">{entry.label}</span>
+                  <span className="text-neutral-500"> — {entry.meaning}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </header>
 
       {/* Lesson list */}
@@ -104,7 +141,7 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
                     <span className="font-mono tabular-nums text-neutral-400 mr-2">{String(l.order).padStart(2, '0')}</span>
                     {l.title}
                   </div>
-                  <div className="text-[11px] text-neutral-500 truncate mt-0.5">{l.goal}</div>
+                  <div className="text-[11px] text-neutral-500 line-clamp-2 mt-0.5">{l.goal}</div>
                 </div>
                 <div className="col-span-3 sm:col-span-2 text-right">
                   <div className="text-[11px] text-neutral-500">{MASTERY_LABEL[mastery]}</div>
