@@ -515,6 +515,37 @@ export default function Goals() {
                     setFormMode({ kind: 'edit', goal });
                   }
                 }}
+                // Monthly-only props — LayerSection switches to the
+                // anchor-aware MonthlyLayerBody when these are
+                // supplied. Other scopes ignore them.
+                allGoals={layer.scope === 'monthly' ? goals : undefined}
+                onEditYearlyAnchor={
+                  layer.scope === 'monthly'
+                    ? (moduleId, anchor) =>
+                        setAnchorMode({
+                          moduleId: moduleId as AnchorModuleId,
+                          initialAnchor: anchor,
+                        })
+                    : undefined
+                }
+                onSetYearlyAnchor={
+                  layer.scope === 'monthly'
+                    ? moduleId =>
+                        setAnchorMode({
+                          moduleId: moduleId as AnchorModuleId,
+                        })
+                    : undefined
+                }
+                onAddMonthlyGoal={
+                  layer.scope === 'monthly'
+                    ? moduleId =>
+                        setSuggestionFlow({
+                          mode: 'create',
+                          scope: 'monthly',
+                          moduleId,
+                        })
+                    : undefined
+                }
                 isRowExpanded={isRowExpanded}
                 onToggleRow={onToggleRow}
               />
@@ -693,6 +724,10 @@ function LayerSection({
   onToggle,
   onAdd,
   onEditGoal,
+  allGoals,
+  onEditYearlyAnchor,
+  onSetYearlyAnchor,
+  onAddMonthlyGoal,
   isRowExpanded,
   onToggleRow,
 }: {
@@ -704,7 +739,21 @@ function LayerSection({
   onToggle: () => void;
   onAdd: () => void;
   onEditGoal: (goal: Goal) => void;
+  /** Optional — when set on the monthly layer, the section renders
+   *  yearly anchor + nested monthly-goal rows per module (parity
+   *  with by-module view's THIS MONTH section). All four below
+   *  must be provided together. */
+  allGoals?: Goal[];
+  onEditYearlyAnchor?: (moduleId: GoalFlowModuleId, anchor: Goal) => void;
+  onSetYearlyAnchor?: (moduleId: GoalFlowModuleId) => void;
+  onAddMonthlyGoal?: (moduleId: GoalFlowModuleId) => void;
 } & RowCollapseAccess) {
+  const hasMonthlyAnchorWiring =
+    layer.scope === 'monthly'
+    && !!allGoals
+    && !!onEditYearlyAnchor
+    && !!onSetYearlyAnchor
+    && !!onAddMonthlyGoal;
   return (
     <section
       className="rounded-lg pl-4 pr-3 py-3 mb-3"
@@ -730,7 +779,30 @@ function LayerSection({
           {goals.length === 0 ? '—' : `${goals.length} goal${goals.length === 1 ? '' : 's'}`}
         </span>
       </button>
-      {!collapsed && (
+      {!collapsed && hasMonthlyAnchorWiring && (
+        <div className="mt-3">
+          <MonthlyLayerBody
+            allGoals={allGoals!}
+            proficiencyDefs={proficiencyDefs}
+            songLookup={songLookup}
+            onEditGoal={onEditGoal}
+            onEditYearlyAnchor={onEditYearlyAnchor!}
+            onSetYearlyAnchor={onSetYearlyAnchor!}
+            onAddMonthlyGoal={onAddMonthlyGoal!}
+            isRowExpanded={isRowExpanded}
+            onToggleRow={onToggleRow}
+          />
+          <button
+            type="button"
+            onClick={onAdd}
+            className="self-start text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 mt-3"
+          >
+            {layer.addLabel}
+          </button>
+        </div>
+      )}
+
+      {!collapsed && !hasMonthlyAnchorWiring && (
         <div className="mt-3">
           {goals.length === 0 ? (
             <div className="flex items-center gap-3 py-2">
@@ -814,6 +886,134 @@ function LayerSection({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Body of the by-timeframe MONTHLY layer when wired with the
+ * anchor-aware props. Walks `ORDERED_GOAL_MODULES` and renders one
+ * group per module that has either a yearly anchor or any monthly
+ * goal. Each group mirrors the by-module section's Yearly + This
+ * month subsections so the user sees the same hierarchy regardless
+ * of which view they're in. Dimension rows inside use the same
+ * collapsible GoalRow with `omitActivityChart` + `omitRowActions`
+ * that by-module uses — collapsed by default, tap to expand.
+ */
+function MonthlyLayerBody({
+  allGoals,
+  proficiencyDefs,
+  songLookup,
+  onEditGoal,
+  onEditYearlyAnchor,
+  onSetYearlyAnchor,
+  onAddMonthlyGoal,
+  isRowExpanded,
+  onToggleRow,
+}: {
+  allGoals: Goal[];
+  proficiencyDefs: ProficiencyDefinition[];
+  songLookup: (skillId: string) => Song | undefined;
+  onEditGoal: (g: Goal) => void;
+  onEditYearlyAnchor: (moduleId: GoalFlowModuleId, anchor: Goal) => void;
+  onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
+  onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
+} & RowCollapseAccess) {
+  return (
+    <div className="flex flex-col gap-3">
+      {ORDERED_GOAL_MODULES.map(moduleId => {
+        const { yearlyAnchor, monthlyGoals: rawMonthlyGoals } =
+          bucketModuleGoalsByTimeframe(moduleId, allGoals);
+        // Hide modules that have neither an anchor nor monthly
+        // goals — they'd render as an empty container.
+        if (!yearlyAnchor && rawMonthlyGoals.length === 0) return null;
+        const monthlyGoals = [...rawMonthlyGoals].sort(
+          (a, b) => dimensionSortOrder(a) - dimensionSortOrder(b),
+        );
+        const palette = SECTION_PALETTE[moduleId];
+        const meta = moduleMetaById(moduleId);
+        const accentHex = meta?.accentHex ?? GOALS_META.accentHex;
+        return (
+          <div
+            key={moduleId}
+            className="rounded-lg pl-3 pr-2 py-2"
+            style={{
+              backgroundColor: palette.bg,
+              borderLeft: `3px solid ${palette.border}`,
+            }}
+          >
+            <ModuleSubheader moduleId={moduleId} />
+
+            {/* YEARLY anchor */}
+            <div className="flex flex-col gap-1.5 mb-3">
+              <SubSectionLabel>Yearly</SubSectionLabel>
+              {yearlyAnchor ? (
+                <YearlyAnchorRow
+                  umbrella={yearlyAnchor}
+                  childGoals={findAllChildren(yearlyAnchor, allGoals)}
+                  onEdit={() => onEditYearlyAnchor(moduleId, yearlyAnchor)}
+                />
+              ) : (
+                <YearlyAnchorBackstop
+                  moduleId={moduleId}
+                  onClick={() => onSetYearlyAnchor(moduleId)}
+                />
+              )}
+            </div>
+
+            {/* THIS MONTH — nested under the yearly anchor with the
+                same indent + accent border as the by-module view. */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <SubSectionLabel>This month</SubSectionLabel>
+                {monthlyGoals.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onEditGoal(monthlyGoals[0])}
+                    className="text-[11px] text-neutral-500 hover:text-fluent transition-colors"
+                    aria-label="Edit this month's goal"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+              <div
+                className="pl-3 border-l-2"
+                style={{ borderColor: accentHex }}
+              >
+                {monthlyGoals.length === 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => onAddMonthlyGoal(moduleId)}
+                    className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
+                  >
+                    + Add monthly goal
+                  </button>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {monthlyGoals.map(g => (
+                      <GoalRow
+                        key={g.id}
+                        goal={g}
+                        layerType="measurable"
+                        proficiencyDefs={proficiencyDefs}
+                        songLookup={songLookup}
+                        onEdit={() => onEditGoal(g)}
+                        dimensionLabel={goalTypeLabel(g, moduleId)}
+                        dimensionAccentHex={accentHex}
+                        omitActivityChart
+                        omitRowActions
+                        isRowExpanded={isRowExpanded}
+                        onToggleRow={onToggleRow}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
+import { ScopePill } from './ScopePill';
 import {
   db,
   type Goal,
@@ -224,14 +225,14 @@ export default function GoalSuggestionFlow({
   // Edit-mode loading + unavailable states render in the modal shell.
   if (existingGoal && editPrefillState.kind === 'loading') {
     return (
-      <Modal open onClose={onClose} title={title}>
+      <Modal open onClose={onClose} title={title} titleBadge={<ScopePill scope={scope} />}>
         <div className="text-sm text-neutral-500 italic">Loading goal…</div>
       </Modal>
     );
   }
   if (existingGoal && editPrefillState.kind === 'unavailable') {
     return (
-      <Modal open onClose={onClose} title={title}>
+      <Modal open onClose={onClose} title={title} titleBadge={<ScopePill scope={scope} />}>
         <div className="space-y-3 text-sm text-neutral-700 dark:text-neutral-200">
           <p>This goal can't be edited in the suggestion flow yet — its shape isn't supported here.</p>
           <div className="flex justify-end">
@@ -250,7 +251,7 @@ export default function GoalSuggestionFlow({
 
   if (anchorState.kind === 'loading') {
     return (
-      <Modal open onClose={onClose} title={title}>
+      <Modal open onClose={onClose} title={title} titleBadge={<ScopePill scope={scope} />}>
         <div className="text-sm text-neutral-500 italic">Loading…</div>
       </Modal>
     );
@@ -258,7 +259,7 @@ export default function GoalSuggestionFlow({
 
   if (anchorState.kind === 'missing') {
     return (
-      <Modal open onClose={onClose} title={title}>
+      <Modal open onClose={onClose} title={title} titleBadge={<ScopePill scope={scope} />}>
         <MissingAnchorBlocker
           moduleLabel={MODULE_LABEL[effectiveModuleId]}
           scope={scope}
@@ -305,7 +306,7 @@ export default function GoalSuggestionFlow({
   }
 
   return (
-    <Modal open onClose={onClose} title={title}>
+    <Modal open onClose={onClose} title={title} titleBadge={<ScopePill scope={scope} />}>
       <ComingSoonPlaceholder
         moduleLabel={MODULE_LABEL[effectiveModuleId]}
         scope={scope}
@@ -474,7 +475,7 @@ function BodyShell({
   const idleSaveLabel = isEditing ? 'Save changes' : 'Save goal';
 
   return (
-    <Modal open onClose={onClose} title={title}>
+    <Modal open onClose={onClose} title={title} titleBadge={<ScopePill scope={scope} />}>
       <div className="space-y-4">
         {contextLines.length > 0 && (
           <div className="text-xs text-neutral-500 dark:text-neutral-400 space-y-1">
@@ -2035,7 +2036,7 @@ function RepertoireMonthlyBody({
   if (!allSongs || !wantToLearn) {
     const loadTitle = `${editPrefill ? 'Edit' : 'New'} ${SCOPE_LABEL[scope].toLowerCase()} Song Repertoire goal`;
     return (
-      <Modal open onClose={onClose} title={loadTitle}>
+      <Modal open onClose={onClose} title={loadTitle} titleBadge={<ScopePill scope={scope} />}>
         <div className="text-sm text-neutral-500 italic">Loading songs…</div>
       </Modal>
     );

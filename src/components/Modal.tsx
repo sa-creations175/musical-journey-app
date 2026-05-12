@@ -10,6 +10,11 @@ interface Props {
   footer?: ReactNode;
   /** Accessible label override if you want something different from the visible title. */
   ariaLabel?: string;
+  /** Optional small pill / chip rendered to the left of the title.
+   *  Used by goal modals to surface the timeframe (Weekly / Monthly /
+   *  Yearly) so users know what scope they're editing without
+   *  parsing the title text. */
+  titleBadge?: ReactNode;
 }
 
 // Reusable modal with a portal into document.body so it escapes any
@@ -17,7 +22,7 @@ interface Props {
 // Locks body scroll while open, moves focus into the dialog on mount,
 // closes on Escape or backdrop click. Body scrolls internally; header and
 // footer stay pinned.
-export default function Modal({ open, onClose, title, description, children, footer, ariaLabel }: Props) {
+export default function Modal({ open, onClose, title, description, children, footer, ariaLabel, titleBadge }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -64,6 +69,7 @@ export default function Modal({ open, onClose, title, description, children, foo
       >
         <header className="shrink-0 px-4 sm:px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between gap-3">
           <div className="min-w-0">
+            {titleBadge && <div className="mb-1.5">{titleBadge}</div>}
             <h3 className="text-base sm:text-lg font-medium tracking-tight truncate">{title}</h3>
             {description && <p className="text-xs sm:text-sm text-neutral-500 mt-1">{description}</p>}
           </div>

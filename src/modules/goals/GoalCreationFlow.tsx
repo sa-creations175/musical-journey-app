@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
+import { ScopePill } from './ScopePill';
 import {
   db,
   type Goal,
@@ -1082,7 +1083,13 @@ export default function GoalCreationFlow({
 
   return (
     <>
-      <Modal open={open} onClose={handleClose} title={step.title} footer={footer}>
+      <Modal
+        open={open}
+        onClose={handleClose}
+        title={step.title}
+        footer={footer}
+        titleBadge={draft.scope ? <ScopePill scope={draft.scope} /> : undefined}
+      >
         {showScopeBanner && (
           <div className="rounded-md border border-fluent/30 bg-fluent/5 px-3 py-2 mb-3 text-xs font-medium text-fluent">
             Setting up a {SCOPE_LABEL[draft.scope!]} goal
