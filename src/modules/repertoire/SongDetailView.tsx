@@ -1054,7 +1054,7 @@ function SortableLeadSheetItem({
         aria-label="drag to reorder lead-sheet section"
         {...attributes}
         {...listeners}
-        className="absolute top-2 left-2 z-10 px-1.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
+        className="absolute bottom-2 right-2 z-10 px-1.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
       >
         <span aria-hidden className="font-mono">≡</span>
       </button>
