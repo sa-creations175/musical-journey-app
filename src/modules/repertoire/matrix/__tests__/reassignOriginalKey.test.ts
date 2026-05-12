@@ -113,6 +113,41 @@ describe('reassignOriginalKey — target row does not exist', () => {
   });
 });
 
+describe('reassignOriginalKey — zero rows (un-migrated song)', () => {
+  it('creates the original-key row when songKeys is empty for the song', async () => {
+    // No rows at all — matches the production bug case where the
+    // user edited the key via the meta editor before
+    // matrixMigration had ever run on the song.
+    await reassignOriginalKey(SONG, 'Ab', LATER);
+
+    const rows = await db.songKeys.where('songId').equals(SONG).toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(`songkey-${SONG}-Ab`);
+    expect(rows[0].keyName).toBe('Ab');
+    expect(rows[0].isOriginalKey).toBe(true);
+    expect(rows[0].keyState).toBe('not_started');
+    expect(rows[0].createdAt).toBe(LATER);
+    expect(rows[0].updatedAt).toBe(LATER);
+  });
+
+  it('zero-rows path does not interfere with other songs songKeys rows', async () => {
+    // Write a row for a DIFFERENT song. The zero-rows query is
+    // scoped to songId, so this row must remain untouched.
+    await db.songKeys.put(mkKey({
+      id: 'other-c',
+      songId: 'other-song',
+      keyName: 'C',
+      isOriginalKey: true,
+    }));
+
+    await reassignOriginalKey(SONG, 'Ab', LATER);
+
+    const otherRow = await db.songKeys.get('other-c');
+    expect(otherRow?.isOriginalKey).toBe(true);
+    expect(otherRow?.songId).toBe('other-song');
+  });
+});
+
 describe('reassignOriginalKey — no-op cases', () => {
   it('is a no-op when the current original already matches', async () => {
     const existing = mkKey({

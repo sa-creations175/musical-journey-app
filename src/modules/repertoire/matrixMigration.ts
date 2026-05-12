@@ -80,6 +80,27 @@ async function runMigration(): Promise<void> {
   await db.songKeys.bulkPut(newKeys);
 }
 
+/**
+ * Single-song variant of the bulk migration. Idempotent: no-op when
+ * the song already has at least one songKeys row, no-op when the
+ * song record itself is missing. Used by saveMeta in SongDetailView
+ * to bootstrap the matrix for songs that haven't been opened in the
+ * matrix view yet — without this, editing the key field on a fresh
+ * song would update Song.key but leave songKeys empty, and the
+ * matrix would render against a stale or absent designation.
+ *
+ * The seed mirrors the bulk migration's row shape exactly (same
+ * deterministic id, same stage→keyState mapping) so the two paths
+ * stay consistent.
+ */
+export async function ensureSongHasOriginalKey(songId: string): Promise<void> {
+  const existing = await db.songKeys.where('songId').equals(songId).count();
+  if (existing > 0) return;
+  const song = await db.songs.get(songId);
+  if (!song) return;
+  await db.songKeys.put(buildOriginalKeyRow(song, Date.now()));
+}
+
 function buildOriginalKeyRow(song: Song, now: number): SongKey {
   const stage: RepertoireStage = song.stage ?? 'learning';
   const keyState = mapStageToKeyState(stage);

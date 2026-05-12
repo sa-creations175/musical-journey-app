@@ -34,6 +34,7 @@ import { useScrollHighlight } from './useScrollHighlight';
 import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/notationPref';
 import SongMatrixView from './matrix/SongMatrixView';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
+import { ensureSongHasOriginalKey } from './matrixMigration';
 
 interface Props {
   songId: string | null;
@@ -200,6 +201,13 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         await reassignOriginalKey(song.id, newKey);
       }
     });
+    // Seed the matrix's original-key row if it's never been
+    // initialized. Catches songs edited before matrixMigration ran
+    // (e.g. via the meta editor on a fresh song) so Song.key and
+    // the matrix's original column can't drift apart. No-op when
+    // rows already exist — including the row just written by
+    // reassignOriginalKey above.
+    await ensureSongHasOriginalKey(song.id);
     setEditingMeta(false);
     toast({ message: 'Song details saved.', variant: 'success' });
   };

@@ -41,6 +41,21 @@ export async function reassignOriginalKey(
   now: number = Date.now(),
 ): Promise<void> {
   const rows = await db.songKeys.where('songId').equals(songId).toArray();
+
+  // Zero rows — the song hasn't been migrated yet (matrixMigration
+  // skips songs whose songKeys table is empty for them until the user
+  // opens the matrix). Create the original-key row directly. This
+  // is the path "No Weapon" hit in production: the user edited the
+  // key via the meta editor before ever opening the matrix view, so
+  // no migration had run, so there was nothing for the demote loop
+  // to act on — and prior to this branch, the function did the right
+  // thing implicitly but the lack of an explicit case left readers
+  // (and the bug report) uncertain. Now it's explicit and tested.
+  if (rows.length === 0) {
+    await db.songKeys.put(buildOriginalKeyRow(songId, newKeyName, now));
+    return;
+  }
+
   const currentOriginals = rows.filter(r => r.isOriginalKey);
   const targetRow = rows.find(r => r.keyName === newKeyName);
 
@@ -69,30 +84,42 @@ export async function reassignOriginalKey(
       writes.push({ ...targetRow, isOriginalKey: true, updatedAt: now });
     }
   } else {
-    writes.push({
-      // Matches matrixMigration's deterministic id pattern so
-      // concurrent reassignments across devices converge rather
-      // than duplicate rows.
-      id: `songkey-${songId}-${newKeyName}`,
-      songId,
-      keyName: newKeyName,
-      isOriginalKey: true,
-      keyState: 'not_started',
-      solidAt: null,
-      solidDecayState: null,
-      lastDecayCheckAt: null,
-      livedWithSessionCount: 0,
-      livedWithFirstSessionAt: null,
-      livedWithWindowStartAt: null,
-      livedWithSessionsInWindow: 0,
-      wholeSongTestPassedAt: null,
-      isRetestRecommended: false,
-      lastEngagedAt: null,
-      createdAt: now,
-      updatedAt: now,
-    });
+    writes.push(buildOriginalKeyRow(songId, newKeyName, now));
   }
 
   if (writes.length === 0) return;
   await db.songKeys.bulkPut(writes);
+}
+
+/**
+ * Construct a fresh original-key row. Matches the deterministic id
+ * pattern matrixMigration uses so concurrent reassignments across
+ * devices converge on the same row rather than duplicating. All
+ * progress fields seed to not_started — no practice has happened in
+ * this key yet by definition.
+ */
+function buildOriginalKeyRow(
+  songId: string,
+  keyName: string,
+  now: number,
+): SongKey {
+  return {
+    id: `songkey-${songId}-${keyName}`,
+    songId,
+    keyName,
+    isOriginalKey: true,
+    keyState: 'not_started',
+    solidAt: null,
+    solidDecayState: null,
+    lastDecayCheckAt: null,
+    livedWithSessionCount: 0,
+    livedWithFirstSessionAt: null,
+    livedWithWindowStartAt: null,
+    livedWithSessionsInWindow: 0,
+    wholeSongTestPassedAt: null,
+    isRetestRecommended: false,
+    lastEngagedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
