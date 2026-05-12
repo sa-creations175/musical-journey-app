@@ -178,8 +178,21 @@ function distribute(
 ): Array<{ block: AlgorithmBlock; seconds: number }> {
   const out: Array<{ block: AlgorithmBlock; seconds: number }> = [];
 
-  if (available >= typicalHighTotal) {
-    // Plenty of time — give each block its typical-high.
+  if (available > typicalHighTotal) {
+    // Overflow — the user asked for more than the typical-high
+    // total. Start every block at its typical-high (the default
+    // sweet spot) and distribute the leftover into blocks weighted
+    // by block.weight × memory-type bias. Without this branch the
+    // remaining time would silently drop on the floor, which on
+    // Keys/Mixed (where the context hard filter limits to Shapes +
+    // Repertoire) means any session > 35 min loses everything past
+    // the cap.
+    return distributeOverflow(blocks, tiers, available, typicalHighTotal);
+  }
+
+  if (available === typicalHighTotal) {
+    // Exact fit — give each block its typical-high. (Pulled out of
+    // the >= branch so the overflow case can use strict > above.)
     blocks.forEach((b, i) => {
       out.push({ block: b, seconds: tiers[i].typicalHighSeconds });
     });
@@ -212,6 +225,63 @@ function distribute(
       tier.minSeconds + t * (tier.typicalLowSeconds - tier.minSeconds),
     );
     out.push({ block: b, seconds });
+  });
+  return out;
+}
+
+/**
+ * Memory-type bias for overflow distribution. Integration (Repertoire,
+ * Production) gets a larger share of any time past the typical-high
+ * total — on Keys/Mixed, Repertoire is the primary activity and
+ * benefits most from longer playthroughs, so we lean the extra time
+ * toward it rather than padding Shapes drills past their useful
+ * length. Other memory types get a neutral 1.0 multiplier so the
+ * existing block.weight ordering still dominates.
+ */
+const OVERFLOW_MEMORY_BIAS: Record<MemoryType, number> = {
+  integration: 1.5,
+  procedural:  1.0,
+  declarative: 1.0,
+  expression:  1.0,
+};
+
+/**
+ * Stack overflow seconds on top of each block's typical-high. Share
+ * each block receives is `block.weight × OVERFLOW_MEMORY_BIAS[mem]`,
+ * normalized. When all combined shares are zero (every block has
+ * weight 0 — defensive), the overflow splits evenly. The last block
+ * absorbs the rounding remainder so the sum exactly equals
+ * `available` — no time silently dropped.
+ */
+function distributeOverflow(
+  blocks: ReadonlyArray<AlgorithmBlock>,
+  tiers: ReadonlyArray<DurationTier>,
+  available: number,
+  typicalHighTotal: number,
+): Array<{ block: AlgorithmBlock; seconds: number }> {
+  const overflow = available - typicalHighTotal;
+  const shares = blocks.map(b => b.weight * OVERFLOW_MEMORY_BIAS[b.memoryType]);
+  const totalShare = shares.reduce((s, v) => s + v, 0);
+
+  const out: Array<{ block: AlgorithmBlock; seconds: number }> = [];
+  let allocatedOverflow = 0;
+  blocks.forEach((b, i) => {
+    let extra: number;
+    if (i === blocks.length - 1) {
+      // Last block soaks up any rounding remainder so the total
+      // matches `available` exactly.
+      extra = overflow - allocatedOverflow;
+    } else if (totalShare === 0) {
+      // Defensive — split evenly when every share is zero.
+      extra = Math.round(overflow / blocks.length);
+    } else {
+      extra = Math.round(overflow * (shares[i] / totalShare));
+    }
+    allocatedOverflow += extra;
+    out.push({
+      block: b,
+      seconds: tiers[i].typicalHighSeconds + extra,
+    });
   });
   return out;
 }

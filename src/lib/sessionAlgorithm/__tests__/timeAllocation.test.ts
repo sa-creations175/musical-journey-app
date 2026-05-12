@@ -45,7 +45,7 @@ describe('phaseForBlock', () => {
 });
 
 describe('allocateBlockTime — happy paths', () => {
-  it('plenty of time → each block gets typical-high', () => {
+  it('exact typical-high total → each block gets typical-high', () => {
     const blocks = [
       block({ id: 'a', memoryType: 'declarative' }),
       block({ id: 'b', memoryType: 'procedural' }),
@@ -53,7 +53,7 @@ describe('allocateBlockTime — happy paths', () => {
     const totalHigh =
       MEMORY_TYPE_DURATIONS.declarative.typicalHighSeconds +
       MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
-    const out = allocateBlockTime(blocks, totalHigh + 600);
+    const out = allocateBlockTime(blocks, totalHigh);
     expect(out).toHaveLength(2);
     expect(out![0].plannedSeconds).toBe(MEMORY_TYPE_DURATIONS.declarative.typicalHighSeconds);
     expect(out![1].plannedSeconds).toBe(MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds);
@@ -90,6 +90,95 @@ describe('allocateBlockTime — happy paths', () => {
     const procMid = (MEMORY_TYPE_DURATIONS.procedural.typicalLowSeconds + MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds) / 2;
     expect(out[0].plannedSeconds).toBe(Math.round(declMid));
     expect(out[1].plannedSeconds).toBe(Math.round(procMid));
+  });
+});
+
+describe('allocateBlockTime — overflow (available > typicalHighTotal)', () => {
+  it('60-min Keys session (Shapes + Repertoire) fills the full requested time', () => {
+    // The original "No Weapon" report: Keys hard filter restricts to
+    // Shapes + Repertoire (procedural 15 high + integration 20 high =
+    // 35 min typical-high total). User asks for 60. Before the fix
+    // this returned 35 and silently dropped 25; now it returns 60.
+    const blocks = [
+      block({ id: 'shapes', memoryType: 'procedural', weight: 5 }),
+      block({ id: 'repertoire', memoryType: 'integration', weight: 5 }),
+    ];
+    const out = allocateBlockTime(blocks, 60 * 60)!;
+    const sum = out.reduce((s, b) => s + b.plannedSeconds, 0);
+    expect(sum).toBe(60 * 60);
+    // Each block stays at or above its typical-high.
+    expect(out[0].plannedSeconds).toBeGreaterThanOrEqual(
+      MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds,
+    );
+    expect(out[1].plannedSeconds).toBeGreaterThanOrEqual(
+      MEMORY_TYPE_DURATIONS.integration.typicalHighSeconds,
+    );
+  });
+
+  it('integration memory type gets a larger overflow share at equal block weight', () => {
+    // Two equal-weight blocks: procedural (Shapes) vs integration
+    // (Repertoire). With integration's 1.5x bias vs procedural's
+    // 1.0x, the overflow split should be 60/40 in favor of
+    // Repertoire — matches the design rationale that long Keys
+    // sessions want more song playthroughs, not more drill reps.
+    const blocks = [
+      block({ id: 'shapes', memoryType: 'procedural', weight: 4 }),
+      block({ id: 'repertoire', memoryType: 'integration', weight: 4 }),
+    ];
+    const out = allocateBlockTime(blocks, 60 * 60)!;
+    const shapesExtra = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const repExtra = out[1].plannedSeconds - MEMORY_TYPE_DURATIONS.integration.typicalHighSeconds;
+    expect(repExtra).toBeGreaterThan(shapesExtra);
+    // Ratio of extras matches the bias ratio (approximate due to
+    // rounding + last-block remainder absorption).
+    expect(repExtra / shapesExtra).toBeGreaterThan(1.3);
+    expect(repExtra / shapesExtra).toBeLessThan(1.7);
+  });
+
+  it('block.weight dominates when both blocks share the same memory type', () => {
+    // Same memory type cancels the bias multiplier — block.weight
+    // alone drives the split.
+    const blocks = [
+      block({ id: 'low', memoryType: 'procedural', weight: 1 }),
+      block({ id: 'high', memoryType: 'procedural', weight: 3 }),
+    ];
+    const out = allocateBlockTime(blocks, 60 * 60)!;
+    const lowExtra = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const highExtra = out[1].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    expect(highExtra).toBeGreaterThan(lowExtra * 2.5);
+  });
+
+  it('sum equals available exactly even with rounding (last block absorbs remainder)', () => {
+    // Pick a session length that doesn't divide evenly to make the
+    // last-block-remainder branch fire.
+    const blocks = [
+      block({ id: 'a', memoryType: 'declarative', weight: 7 }),
+      block({ id: 'b', memoryType: 'procedural', weight: 11 }),
+      block({ id: 'c', memoryType: 'integration', weight: 13 }),
+    ];
+    for (const target of [3601, 3617, 4711, 5023]) {
+      const out = allocateBlockTime(blocks, target)!;
+      const sum = out.reduce((s, b) => s + b.plannedSeconds, 0);
+      expect(sum).toBe(target);
+    }
+  });
+
+  it('falls back to even split when every block has zero weight', () => {
+    const blocks = [
+      block({ id: 'a', memoryType: 'declarative', weight: 0 }),
+      block({ id: 'b', memoryType: 'procedural', weight: 0 }),
+    ];
+    const typicalHighTotal =
+      MEMORY_TYPE_DURATIONS.declarative.typicalHighSeconds +
+      MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const overflow = 1200;
+    const out = allocateBlockTime(blocks, typicalHighTotal + overflow)!;
+    const sum = out.reduce((s, b) => s + b.plannedSeconds, 0);
+    expect(sum).toBe(typicalHighTotal + overflow);
+    // Even split — within rounding of half each.
+    const a = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.declarative.typicalHighSeconds;
+    const b = out[1].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    expect(Math.abs(a - b)).toBeLessThanOrEqual(1);
   });
 });
 
