@@ -134,11 +134,16 @@ export function seedDraft(input: {
   prefilledContext: PracticeSessionContext | null;
   prefilledDayPlan: DayPlanChoice | null;
   initialDayProfile: DayProfileChoice | null;
+  /** When set, seeds Q1's time selection. Used by the
+   *  "What your goals need today" screen so the user's chosen time
+   *  carries into the questionnaire without a second tap. */
+  initialTimeMinutes?: number | null;
 }): InputQuestionnaireDraft {
   const draft: InputQuestionnaireDraft = {
     ...EMPTY_DRAFT,
     context: input.prefilledContext,
     dayPlan: input.prefilledDayPlan,
+    timeMinutes: input.initialTimeMinutes ?? null,
   };
   if (input.initialDayProfile) {
     draft.dayPlan = {

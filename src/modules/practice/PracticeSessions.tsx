@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { db } from '../../lib/db';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { recordEndOfMonth } from '../../lib/prompts';
 import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
@@ -10,6 +11,7 @@ import GoalsNudgeBanner from './GoalsNudgeBanner';
 import ManualLogForm from './ManualLogForm';
 import RecentSessionsList from './RecentSessionsList';
 import VacationManager from './VacationManager';
+import GoalsNeedTodayScreen from './GoalsNeedTodayScreen';
 import InputQuestionnaire from './InputQuestionnaire';
 import ProposalScreen from './ProposalScreen';
 import FeasibilityBanner from './FeasibilityBanner';
@@ -60,7 +62,7 @@ import type { GoalFlowModuleId } from '../goals/goalVocabulary';
  * disappear-when-clear behavior; 7e the ordering reconciliation
  * with the existing goals nudge.
  */
-type View = 'home' | 'questionnaire' | 'proposal' | 'abundance';
+type View = 'home' | 'goals-need' | 'questionnaire' | 'proposal' | 'abundance';
 
 export default function PracticeSessions() {
   const navigate = useNavigate();
@@ -74,9 +76,19 @@ export default function PracticeSessions() {
   const [hasEarlierSessionsToday, setHasEarlierSessionsToday] = useState(false);
   const [initialDayProfile, setInitialDayProfile] =
     useState<DayProfileChoice | null>(null);
+  /** Pre-seeded Q1 time selection coming out of the
+   *  GoalsNeedTodayScreen. Carried into InputQuestionnaire so the
+   *  user's picked-on-the-prior-screen time survives without a
+   *  second tap. */
+  const [initialTimeMinutes, setInitialTimeMinutes] =
+    useState<number | null>(null);
   const [feasibilityEntries, setFeasibilityEntries] = useState<
     ReadonlyArray<FeasibilityBannerEntry>
   >([]);
+  /** True when the user has at least one active goal. Drives the
+   *  routing decision in handleStartSession — zero goals skips the
+   *  "What your goals need today" screen entirely. */
+  const [hasActiveGoals, setHasActiveGoals] = useState(false);
   // Phase 4 Step 4 — weekly-pace notice state. Notices come back
   // from buildSessionPlan alongside the proposal cards; dismissedPace­
   // Modules tracks per-session dismissal so re-renders don't lose
@@ -142,6 +154,7 @@ export default function PracticeSessions() {
     setDismissedPaceModules(new Set());
     setLastInputs(null);
     setInitialDayProfile(null);
+    setInitialTimeMinutes(null);
     setSessionInProgressOpen(false);
   }, [location.key, location.pathname]);
 
@@ -161,6 +174,9 @@ export default function PracticeSessions() {
     void loadFeasibilityBannerEntries().then(entries => {
       if (!cancelled) setFeasibilityEntries(entries);
     });
+    void db.goals.where('status').equals('active').count().then(n => {
+      if (!cancelled) setHasActiveGoals(n > 0);
+    });
     return () => {
       cancelled = true;
     };
@@ -168,6 +184,7 @@ export default function PracticeSessions() {
 
   const handleStartSession = (dayProfile?: DayProfileChoice) => {
     setInitialDayProfile(dayProfile ?? null);
+    setInitialTimeMinutes(null);
     if (timerState.status === 'running' || timerState.status === 'paused') {
       // Don't open the questionnaire on top of a live session — a
       // new startSession would clobber the existing one's
@@ -176,6 +193,30 @@ export default function PracticeSessions() {
       setSessionInProgressOpen(true);
       return;
     }
+    // With active goals, surface the "what your goals need today"
+    // intro screen first so the user picks a time against real
+    // context. Zero-goals users skip straight to the questionnaire
+    // (it carries its own time picker). The Deep tap-through from
+    // the feasibility banner also bypasses the intro — the user has
+    // already committed to a focused session, so we honor that
+    // intent rather than re-asking.
+    if (hasActiveGoals && !dayProfile) {
+      setView('goals-need');
+    } else {
+      setView('questionnaire');
+    }
+  };
+
+  const handleGoalsNeedPick = (minutes: number) => {
+    setInitialTimeMinutes(minutes);
+    setView('questionnaire');
+  };
+
+  const handleGoalsNeedSkip = () => {
+    // Caller has fallen through (no goals / load timed out / user
+    // tapped skip). Bypass the intro and let the questionnaire's
+    // own time picker drive.
+    setInitialTimeMinutes(null);
     setView('questionnaire');
   };
 
@@ -516,12 +557,20 @@ export default function PracticeSessions() {
         <ManualLogForm />
       </div>
 
+      <GoalsNeedTodayScreen
+        open={view === 'goals-need'}
+        hasEarlierSessionsToday={hasEarlierSessionsToday}
+        onPick={handleGoalsNeedPick}
+        onClose={handleGoalsNeedSkip}
+      />
+
       <InputQuestionnaire
         open={view === 'questionnaire'}
         onClose={() => setView('home')}
         onGenerate={handleQuestionnaireGenerate}
         hasEarlierSessionsToday={hasEarlierSessionsToday}
         initialDayProfile={initialDayProfile}
+        initialTimeMinutes={initialTimeMinutes}
       />
 
       <Modal

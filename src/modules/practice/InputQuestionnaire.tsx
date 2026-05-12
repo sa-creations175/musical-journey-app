@@ -44,6 +44,10 @@ interface Props {
    * Wired in Step 3h.
    */
   initialDayProfile?: DayProfileChoice | null;
+  /** Pre-seed Q1's time selection. Set by the goals-need-today
+   *  screen so the user's chosen time carries through without a
+   *  second tap. */
+  initialTimeMinutes?: number | null;
   /** True when at least one practice session has been logged today
    *  — gates Q3's "Continuing today's plan" option. Step 3d wires
    *  the gate; Step 3g pulls the value from the day's session log. */
@@ -63,6 +67,7 @@ export default function InputQuestionnaire({
   onClose,
   onGenerate,
   initialDayProfile,
+  initialTimeMinutes,
   hasEarlierSessionsToday,
   pushOnItemCandidates,
 }: Props) {
@@ -88,6 +93,7 @@ export default function InputQuestionnaire({
           prefilledContext: prefill.context,
           prefilledDayPlan: prefill.dayPlan,
           initialDayProfile: initialDayProfile ?? null,
+          initialTimeMinutes: initialTimeMinutes ?? null,
         }),
       );
     })();
@@ -95,7 +101,7 @@ export default function InputQuestionnaire({
     return () => {
       cancelled = true;
     };
-  }, [open, initialDayProfile, hasEarlierSessionsToday]);
+  }, [open, initialDayProfile, initialTimeMinutes, hasEarlierSessionsToday]);
 
   // Body scroll lock + Escape to close, mirroring the standard Modal.
   useEffect(() => {
