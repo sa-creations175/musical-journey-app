@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal, type GoalScope, type GoalStatus, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
+import Modal from '../../components/Modal';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
@@ -146,7 +147,7 @@ export interface LayerDef {
  */
 export const LAYERS: LayerDef[] = [
   { scope: 'weekly',            title: 'This week',       type: 'measurable',   emptyMessage: 'No weekly goals yet',    addLabel: '+ Add' },
-  { scope: 'monthly',           title: 'This month',      type: 'measurable',   emptyMessage: 'No monthly goals yet',   addLabel: '+ Add' },
+  { scope: 'monthly',           title: 'This month',      type: 'measurable',   emptyMessage: 'No monthly goals yet',   addLabel: '+ Add monthly goal' },
   { scope: 'quarterly',         title: 'This quarter',    type: 'measurable',   emptyMessage: 'No quarterly goals yet', addLabel: '+ Add' },
   { scope: 'yearly',            title: 'This year',       type: 'measurable',   emptyMessage: 'No yearly goals yet',    addLabel: '+ Add' },
   { scope: 'two_to_three_year', title: '2 — 3 years',     type: 'aspirational', emptyMessage: 'Not yet captured',       addLabel: '+ Aspire' },
@@ -270,6 +271,12 @@ export default function Goals() {
     | { mode: 'edit'; goal: Goal }
     | null
   >(null);
+  /** By-timeframe view's "+ Add monthly goal" entry point. The
+   *  suggestion flow needs a module up front, but the timeframe
+   *  view isn't grouped by module — so we surface a small module
+   *  picker as an intermediary step. Pick → route into the
+   *  suggestion flow with that moduleId. */
+  const [monthlyModulePickerOpen, setMonthlyModulePickerOpen] = useState(false);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which
@@ -491,7 +498,16 @@ export default function Goals() {
                 songLookup={songLookup}
                 collapsed={collapsed}
                 onToggle={() => toggleLayer(layer.scope)}
-                onAdd={() => setFormMode({ kind: 'create', scope: layer.scope })}
+                onAdd={() => {
+                  if (layer.scope === 'monthly') {
+                    // Monthly creates route through GoalSuggestionFlow
+                    // for parity with the by-module view. The flow
+                    // needs a moduleId; the picker resolves that.
+                    setMonthlyModulePickerOpen(true);
+                  } else {
+                    setFormMode({ kind: 'create', scope: layer.scope });
+                  }
+                }}
                 onEditGoal={goal => {
                   if (isSuggestionFlowEditCandidate(goal)) {
                     setSuggestionFlow({ mode: 'edit', goal });
@@ -545,6 +561,15 @@ export default function Goals() {
         layers={LAYERS}
         hiddenLayers={hiddenLayers}
         onSetHidden={setLayerHidden}
+      />
+
+      <MonthlyModulePickerModal
+        open={monthlyModulePickerOpen}
+        onClose={() => setMonthlyModulePickerOpen(false)}
+        onPick={moduleId => {
+          setMonthlyModulePickerOpen(false);
+          setSuggestionFlow({ mode: 'create', scope: 'monthly', moduleId });
+        }}
       />
 
       {/* Entry-point routing:
@@ -1487,6 +1512,62 @@ function ModuleSubheader({ moduleId }: { moduleId: GoalFlowModuleId }) {
     >
       {label}
     </div>
+  );
+}
+
+/**
+ * Intermediary picker that resolves "which module is this monthly
+ * goal for?" before opening GoalSuggestionFlow from the by-timeframe
+ * view. The by-module view already knows the module (each anchor
+ * row owns its own "+ Add monthly goal"), so the picker is only
+ * needed from the timeframe entry point.
+ */
+const MONTHLY_PICKER_MODULES: ReadonlyArray<GoalFlowModuleId> = [
+  'harmonic-fluency',
+  'ear-training',
+  'shapes-and-patterns',
+  'repertoire',
+  'production',
+  'practice-consistency',
+];
+
+function MonthlyModulePickerModal({
+  open,
+  onClose,
+  onPick,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPick: (moduleId: GoalFlowModuleId) => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add a monthly goal"
+      description="Which module is this month's focus?"
+    >
+      <div className="flex flex-col gap-2 py-1">
+        {MONTHLY_PICKER_MODULES.map(moduleId => {
+          const meta = moduleMetaById(moduleId);
+          const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+          const accent = meta?.accentHex ?? GOALS_META.accentHex;
+          return (
+            <button
+              key={moduleId}
+              type="button"
+              onClick={() => onPick(moduleId)}
+              className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
+              style={{ borderColor: `${accent}55`, borderLeftWidth: 3, borderLeftColor: accent }}
+            >
+              <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </Modal>
   );
 }
 
