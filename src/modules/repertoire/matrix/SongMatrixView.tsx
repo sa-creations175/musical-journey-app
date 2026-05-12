@@ -41,9 +41,15 @@ import { computeSongLevelState, songLevelStateLabel } from './songLevelState';
 interface Props {
   song: Song;
   onClose: () => void;
+  /** When true, the matrix renders inline as part of the song detail
+   *  page — hides the "← song detail" back link (we're already on
+   *  the song detail) and lets the parent section card own the
+   *  surrounding chrome. Defaults to false for the legacy
+   *  full-page replacement mode. */
+  embedded?: boolean;
 }
 
-export default function SongMatrixView({ song, onClose }: Props) {
+export default function SongMatrixView({ song, onClose, embedded }: Props) {
   // refreshKey is bumped after every save we route through this view
   // (cell save, test save). It's added to all four useLiveQuery deps
   // below so each write tears down and re-creates the live
@@ -258,13 +264,15 @@ export default function SongMatrixView({ song, onClose }: Props) {
 
   return (
     <section className="space-y-4">
-      <button
-        type="button"
-        onClick={onClose}
-        className="text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
-      >
-        ← song detail
-      </button>
+      {!embedded && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
+        >
+          ← song detail
+        </button>
+      )}
 
       <Header
         song={song}

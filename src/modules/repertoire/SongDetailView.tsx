@@ -1,6 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type HarmonicDiaryEntry,
@@ -35,6 +52,54 @@ import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/no
 import SongMatrixView from './matrix/SongMatrixView';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 import { ensureSongHasOriginalKey } from './matrixMigration';
+
+/**
+ * Canonical section keys on the song detail page. Order in this
+ * tuple is the DEFAULT — used when Song.sectionOrder is unset, and
+ * as a fallback for legacy / unknown keys when reading a stored
+ * order. The meta header always renders first (not in this list);
+ * cross-key, practice history, and danger zone always render at
+ * the bottom (also not in this list). Only the five named sections
+ * here participate in drag-to-reorder.
+ */
+const SECTION_KEYS = [
+  'leadSheet',
+  'matrix',
+  'learningStatus',
+  'whyAndLinks',
+  'associations',
+] as const;
+type SectionKey = (typeof SECTION_KEYS)[number];
+const SECTION_KEY_SET: ReadonlySet<string> = new Set(SECTION_KEYS);
+
+const SECTION_TITLES: Record<SectionKey, string> = {
+  leadSheet:      'lead sheet',
+  matrix:         'matrix',
+  learningStatus: 'learning status',
+  whyAndLinks:    'why this song',
+  associations:   'my associations',
+};
+
+/**
+ * Resolve a Song's effective section order. Drops unknown keys
+ * (defensive against schema drift) and appends any missing keys at
+ * the tail in DEFAULT order so a new section we add later still
+ * shows up for existing songs.
+ */
+function resolveSectionOrder(stored: string[] | undefined): SectionKey[] {
+  const result: SectionKey[] = [];
+  const seen = new Set<SectionKey>();
+  for (const key of stored ?? []) {
+    if (SECTION_KEY_SET.has(key) && !seen.has(key as SectionKey)) {
+      result.push(key as SectionKey);
+      seen.add(key as SectionKey);
+    }
+  }
+  for (const key of SECTION_KEYS) {
+    if (!seen.has(key)) result.push(key);
+  }
+  return result;
+}
 
 interface Props {
   songId: string | null;
@@ -140,11 +205,39 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [whyEditing, setWhyEditing] = useState(false);
   const [whyDraft, setWhyDraft] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
-  // Matrix view toggle (Phase 1.5 step 3a). Renders inline within
-  // Song Detail rather than via a new route — keeps song context
-  // unified, no nav restructure. Local state only; resets when the
-  // user navigates between songs.
-  const [showMatrix, setShowMatrix] = useState(false);
+  // Full lyrics collapsible inside the lead sheet section. Closed by
+  // default; the user opens it explicitly via "Show full lyrics".
+  const [showFullLyrics, setShowFullLyrics] = useState(false);
+
+  // Section-order drag state. The sortable list reads from
+  // song.sectionOrder (falling back to DEFAULT_SECTION_ORDER); the
+  // drag-end handler writes the new order back to db.songs. dnd-kit
+  // wiring mirrors ActiveRepertoireView's SortableSongRow setup —
+  // 5px pointer activation distance so taps don't accidentally
+  // trigger a drag, keyboard sensor for accessibility.
+  const sectionOrder = useMemo(
+    () => resolveSectionOrder(song?.sectionOrder),
+    [song?.sectionOrder],
+  );
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const handleSectionDragEnd = async (event: DragEndEvent) => {
+    if (!song) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sectionOrder.indexOf(active.id as SectionKey);
+    const newIndex = sectionOrder.indexOf(over.id as SectionKey);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const next = arrayMove(sectionOrder, oldIndex, newIndex);
+    // Read-then-put per the saveMeta precedent — db.songs.update can
+    // silently no-op when its lookup-and-merge fails. Single put
+    // also stays in lockstep with the rest of the song row.
+    const fresh = await db.songs.get(song.id);
+    if (!fresh) return;
+    await db.songs.put({ ...fresh, sectionOrder: next });
+  };
 
   const [titleDraft, setTitleDraft] = useState('');
   const [artistDraft, setArtistDraft] = useState('');
@@ -434,14 +527,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     );
   }
 
-  // Matrix view fully replaces the rest of Song Detail when open —
-  // its own ← song detail button on the matrix view returns here.
-  if (showMatrix) {
-    return (
-      <SongMatrixView song={song} onClose={() => setShowMatrix(false)} />
-    );
-  }
-
   const hasDescription = Boolean(song.description && song.description.trim().length > 0);
 
   return (
@@ -453,12 +538,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           className="text-neutral-500 hover:text-fluent"
         >
           ← back to active repertoire
-        </button>
-        <button
-          onClick={() => setShowMatrix(true)}
-          className="px-2.5 py-1 rounded-md border border-fluent/40 text-fluent hover:bg-fluent/10 hover:border-fluent text-xs font-medium"
-        >
-          view matrix →
         </button>
         {songs.length > 1 && (
           <label className="inline-flex items-center gap-2 text-neutral-500">
@@ -532,158 +611,203 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 </span>
               )}
               {song.tempoLabel && <span>tempo: {song.tempoLabel}</span>}
-              {song.spotifyLink && (
-                <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
-              )}
-              {song.youtubeLink && (
-                <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">youtube ↗</a>
-              )}
-            </div>
-
-            {/* Why this song — collapsed by default; inline editor. */}
-            <div className="pt-1">
-              {whyEditing ? (
-                <div className="space-y-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-neutral-500 text-xs uppercase tracking-wide">why this song</span>
-                    <textarea
-                      rows={3}
-                      value={whyDraft}
-                      autoFocus
-                      onChange={e => setWhyDraft(e.target.value)}
-                      placeholder="what drew you to it, what you want to learn from it"
-                      className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
-                    />
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
-                    <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
-                  </div>
-                </div>
-              ) : hasDescription ? (
-                <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 px-3 py-2 text-sm text-neutral-700 dark:text-neutral-200">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">why this song</div>
-                      <p className="whitespace-pre-wrap">{song.description}</p>
-                    </div>
-                    <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">edit</button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={openWhyEditor}
-                  className="text-xs text-neutral-500 hover:text-fluent"
-                >
-                  + add a note about this song
-                </button>
-              )}
             </div>
           </>
         )}
       </section>
 
-      {/* My associations — saves to Harmonic Diary under a stable
-          song skill id so the entry shows up both here and in the
-          Diary. */}
-      <SongAssociationsSection song={song} />
+      {/* Drag-to-reorder section list. Each entry in sectionOrder
+          renders inside a SortableSection wrapper so the user can
+          rearrange them per-song. The meta header above and the
+          cross-key / practice history / danger zone below stay
+          fixed — only the five named sections participate. */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleSectionDragEnd}
+      >
+        <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
+          <div className="space-y-5">
+            {sectionOrder.map(key => (
+              <SortableSection key={key} id={key}>
+                {key === 'leadSheet' && (
+                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
+                      <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
+                      <div className="flex items-center gap-3 flex-wrap text-xs">
+                        <label className="inline-flex items-center gap-1 text-neutral-500">
+                          notation:
+                          <select
+                            value={notationMode}
+                            onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
+                            className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
+                            title="changes how chord functions display across the whole app"
+                          >
+                            {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
+                              <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          onClick={addSection}
+                          className="text-neutral-500 hover:text-fluent"
+                        >
+                          + add section
+                        </button>
+                      </div>
+                    </div>
+                    {sections.length === 0 ? (
+                      <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {sections.map((s, idx) => (
+                          <LeadSheetSection
+                            key={s.id}
+                            song={song}
+                            section={s}
+                            canMoveUp={idx > 0}
+                            canMoveDown={idx < sections.length - 1}
+                            highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
+                            highlightedPhraseId={flashPhraseId}
+                            onChange={patch => updateSection(s.id, patch)}
+                            onMoveUp={() => moveSection(s, -1)}
+                            onMoveDown={() => moveSection(s, 1)}
+                            onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
+                            onPhraseAdded={pid => {
+                              setFlashPhraseId(pid);
+                              requestAnimationFrame(() => flash(`phrase-${pid}`));
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {/* Full lyrics collapsible — opens via "Show full
+                        lyrics" toggle, closed by default. The full
+                        lyrics live HERE now rather than as a
+                        standalone section. */}
+                    <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800">
+                      <button
+                        type="button"
+                        onClick={() => setShowFullLyrics(v => !v)}
+                        className="text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
+                        aria-expanded={showFullLyrics}
+                      >
+                        <span aria-hidden>{showFullLyrics ? '▾' : '▸'}</span>
+                        {showFullLyrics ? 'Hide full lyrics' : 'Show full lyrics'}
+                      </button>
+                      {showFullLyrics && (
+                        <div className="mt-3">
+                          <FullLyricsSection song={song} onSave={saveFullLyrics} />
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                )}
 
-      {/* Full lyrics reference */}
-      <FullLyricsSection song={song} onSave={saveFullLyrics} />
+                {key === 'matrix' && (
+                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                    <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">matrix</h3>
+                    <SongMatrixView song={song} onClose={() => {}} embedded />
+                  </section>
+                )}
 
-      {/* Stage & guidance */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
-              {STAGE_LABEL[currentStage]}
-            </span>
-            <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
-              change stage:
-              <select
-                value={currentStage}
-                onChange={e => setStage(e.target.value as RepertoireStage)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
-              >
-                {STAGES.map(s => <option key={s} value={s}>{STAGE_LABEL[s]}</option>)}
-              </select>
-            </label>
-            {nextStageOption && (
-              <button
-                onClick={() => setStage(nextStageOption)}
-                className="px-3 py-1 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
-              >
-                advance to {STAGE_LABEL[nextStageOption]} →
-              </button>
-            )}
-          </div>
-        </div>
-        <p className="text-sm text-neutral-700 dark:text-neutral-200 italic leading-snug">
-          {STAGE_GUIDANCE[currentStage]}
-        </p>
-        {advancement.suggest && advancement.reason && (
-          <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
-            <span aria-hidden className="mr-1.5">✨</span>
-            {advancement.reason}
-          </div>
-        )}
-      </section>
+                {key === 'learningStatus' && (
+                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                    <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">learning status</h3>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
+                          {STAGE_LABEL[currentStage]}
+                        </span>
+                        <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
+                          change stage:
+                          <select
+                            value={currentStage}
+                            onChange={e => setStage(e.target.value as RepertoireStage)}
+                            className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
+                          >
+                            {STAGES.map(s => <option key={s} value={s}>{STAGE_LABEL[s]}</option>)}
+                          </select>
+                        </label>
+                        {nextStageOption && (
+                          <button
+                            onClick={() => setStage(nextStageOption)}
+                            className="px-3 py-1 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
+                          >
+                            advance to {STAGE_LABEL[nextStageOption]} →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-sm text-neutral-700 dark:text-neutral-200 italic leading-snug">
+                      {STAGE_GUIDANCE[currentStage]}
+                    </p>
+                    {advancement.suggest && advancement.reason && (
+                      <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
+                        <span aria-hidden className="mr-1.5">✨</span>
+                        {advancement.reason}
+                      </div>
+                    )}
+                  </section>
+                )}
 
-      {/* Lead sheet */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
-          <div className="flex items-center gap-3 flex-wrap text-xs">
-            <label className="inline-flex items-center gap-1 text-neutral-500">
-              notation:
-              <select
-                value={notationMode}
-                onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
-                title="changes how chord functions display across the whole app"
-              >
-                {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
-                  <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
-                ))}
-              </select>
-            </label>
-            <button
-              onClick={addSection}
-              className="text-neutral-500 hover:text-fluent"
-            >
-              + add section
-            </button>
-          </div>
-        </div>
-        {sections.length === 0 ? (
-          <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
-        ) : (
-          <div className="space-y-3">
-            {sections.map((s, idx) => (
-              <LeadSheetSection
-                key={s.id}
-                song={song}
-                section={s}
-                canMoveUp={idx > 0}
-                canMoveDown={idx < sections.length - 1}
-                highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
-                highlightedPhraseId={flashPhraseId}
-                onChange={patch => updateSection(s.id, patch)}
-                onMoveUp={() => moveSection(s, -1)}
-                onMoveDown={() => moveSection(s, 1)}
-                onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
-                onPhraseAdded={pid => {
-                  setFlashPhraseId(pid);
-                  requestAnimationFrame(() => flash(`phrase-${pid}`));
-                }}
-              />
+                {key === 'whyAndLinks' && (
+                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                    <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">why this song</h3>
+                    {whyEditing ? (
+                      <div className="space-y-2">
+                        <textarea
+                          rows={3}
+                          value={whyDraft}
+                          autoFocus
+                          onChange={e => setWhyDraft(e.target.value)}
+                          placeholder="what drew you to it, what you want to learn from it"
+                          className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
+                          <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
+                        </div>
+                      </div>
+                    ) : hasDescription ? (
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-200">
+                          {song.description}
+                        </p>
+                        <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">edit</button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={openWhyEditor}
+                        className="text-xs text-neutral-500 hover:text-fluent"
+                      >
+                        + add a note about this song
+                      </button>
+                    )}
+                    {(song.spotifyLink || song.youtubeLink) && (
+                      <div className="flex items-center gap-3 flex-wrap text-xs pt-1">
+                        {song.spotifyLink && (
+                          <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
+                        )}
+                        {song.youtubeLink && (
+                          <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">youtube ↗</a>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                )}
+
+                {key === 'associations' && (
+                  <SongAssociationsSection song={song} />
+                )}
+              </SortableSection>
             ))}
           </div>
-        )}
-      </section>
+        </SortableContext>
+      </DndContext>
 
       {/* Cross-key grid */}
       <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
@@ -818,6 +942,45 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           if (s) await deleteSection(s);
         }}
       />
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------
+// SortableSection — dnd-kit wrapper around a single drag-to-reorder
+// section on the song detail page. Mirrors the SortableSongRow
+// pattern in ActiveRepertoireView so the two surfaces feel
+// consistent. The drag handle sits absolutely positioned at the
+// top-right of the section card so each section's existing
+// internal header (title, inline controls) stays intact.
+// -------------------------------------------------------------------
+
+function SortableSection({
+  id,
+  children,
+}: {
+  id: SectionKey;
+  children: ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      <button
+        type="button"
+        aria-label={`drag to reorder ${SECTION_TITLES[id]} section`}
+        {...attributes}
+        {...listeners}
+        className="absolute top-2 right-2 z-10 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
+      >
+        <span aria-hidden className="font-mono">≡</span>
+      </button>
+      {children}
     </div>
   );
 }

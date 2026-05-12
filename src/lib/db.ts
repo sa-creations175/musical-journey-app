@@ -72,6 +72,14 @@ export interface Song {
    *  session algorithm consumes this as cold-start priority for
    *  songs with no spacingState rows (candidates.ts TODO). */
   learningOrder: number;
+  /** Per-song ordering of the song detail page's main sections.
+   *  When unset, the renderer uses DEFAULT_SECTION_ORDER. Stored as
+   *  an array of canonical section keys
+   *  ('leadSheet' | 'matrix' | 'learningStatus' | 'whyAndLinks' |
+   *  'associations'). Unindexed — Dexie's `stores()` only declares
+   *  indexes, so adding the field doesn't need a schema-version
+   *  bump. Rides in the `data` JSONB blob across sync. */
+  sectionOrder?: string[];
   /** Free-text "why I'm learning this" description. Starter copy is
    *  pre-populated when a song is seeded; user can edit or clear it. */
   description?: string;

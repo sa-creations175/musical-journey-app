@@ -104,17 +104,22 @@ export default function Repertoire() {
         </p>
       </div>
 
-      <ModuleIntro
-        accent="green"
-        headline="Your song repertoire — where theory meets practice."
-        description="Track each song's stage, keep it fresh across weeks, and stretch its sections through 12 keys. The lead sheet is your working canvas; the practice log is your diary."
-        bullets={[
-          'Five **learning stages** with coaching guidance',
-          'Per-section **cross-key** mastery across all 12 keys',
-          'Lead sheets with **chord parsing** that surfaces known progressions',
-          '**Practice session log** — freshness, feel ratings, notes',
-        ]}
-      />
+      {/* Module-level explainer only on the Active tab — when the
+          user has drilled into a single song or is browsing the
+          want-to-learn list, the broad context isn't useful. */}
+      {tab === 'active' && (
+        <ModuleIntro
+          accent="green"
+          headline="Your song repertoire — where theory meets practice."
+          description="Track each song's stage, keep it fresh across weeks, and stretch its sections through 12 keys. The lead sheet is your working canvas; the practice log is your diary."
+          bullets={[
+            'Five **learning stages** with coaching guidance',
+            'Per-section **cross-key** mastery across all 12 keys',
+            'Lead sheets with **chord parsing** that surfaces known progressions',
+            '**Practice session log** — freshness, feel ratings, notes',
+          ]}
+        />
+      )}
 
       <nav
         className="flex items-center gap-1 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur flex-wrap"
