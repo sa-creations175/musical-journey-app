@@ -33,6 +33,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
 import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/notationPref';
 import SongMatrixView from './matrix/SongMatrixView';
+import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 
 interface Props {
   songId: string | null;
@@ -166,17 +167,28 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   const saveMeta = async () => {
     if (!song) return;
+    const newKey = keyDraft.trim() || undefined;
+    const keyChanged = newKey !== undefined && newKey !== song.key;
     const patch: Partial<Song> = {
       title: titleDraft.trim() || song.title,
       artist: artistDraft.trim() || song.artist,
       genre: genreDraft.trim() || undefined,
-      key: keyDraft.trim() || undefined,
+      key: newKey,
       keyNeedsVerification: keyDraft.trim() === song.key ? song.keyNeedsVerification : false,
       tempoLabel: tempoDraft.trim() || undefined,
       spotifyLink: spotifyDraft.trim() || undefined,
       youtubeLink: youtubeDraft.trim() || undefined,
     };
-    await db.songs.update(song.id, patch);
+    // Single transaction over both tables so the matrix's
+    // isOriginalKey row stays in lockstep with Song.key. Without the
+    // reassignment, the matrix would keep advertising the old key as
+    // original while the song header shows the new value.
+    await db.transaction('rw', [db.songs, db.songKeys], async () => {
+      await db.songs.update(song.id, patch);
+      if (keyChanged) {
+        await reassignOriginalKey(song.id, newKey);
+      }
+    });
     setEditingMeta(false);
     toast({ message: 'Song details saved.', variant: 'success' });
   };
