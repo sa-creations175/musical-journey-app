@@ -31,7 +31,6 @@ import {
   type InputQuestionnaireResult,
 } from './inputs';
 import { loadPrefill, savePrefill } from './inputsPrefill';
-import { InfoTip } from '../goals/atoms';
 
 interface Props {
   open: boolean;
@@ -467,15 +466,57 @@ function Q3DayPlan({
 // Q4 — Intent (+ inline item picker for push-on-specific)
 // ---------------------------------------------------------------------
 
-/** Plain-English descriptions shown via the InfoTip next to each
- *  intent pill. Used as both tooltip text and aria-label so screen
- *  readers see the same explanation hover users do. */
+/** Plain-English descriptions shown via the IntentInfoTip popover
+ *  next to each intent pill. Used as both popover text and
+ *  aria-label so screen readers see the same explanation hover users
+ *  do. */
 const INTENT_DESCRIPTIONS = {
   balanced: 'Mix of all your active goals, weighted by urgency and pace',
   lean_to_goals: 'Prioritizes your most behind or time-sensitive goals',
   recover: 'Lighter session focused on items you already know well',
   push_on_item: 'Deep focus on one module or goal for the full session',
 } as const;
+
+/**
+ * ⓘ icon with a hover/focus/tap-triggered popover. The shared
+ * `InfoTip` in goals/atoms.tsx uses the native HTML `title`
+ * attribute, which has a ~1.5s reveal delay on desktop and never
+ * shows on touch — wrong fit for a questionnaire where the user is
+ * actively deciding between options and needs the description
+ * promptly. This variant renders the text inline as a positioned
+ * span so the user sees it instantly on hover or focus, and on
+ * touch by tapping the icon.
+ */
+function IntentInfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex items-center">
+      <button
+        type="button"
+        aria-label={text}
+        aria-expanded={open}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onClick={() => setOpen(v => !v)}
+        className="inline-flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus:text-fluent"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 1a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7h1.5v5h-1.5V7z" />
+        </svg>
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute z-10 left-1/2 -translate-x-1/2 top-full mt-1.5 w-56 px-2.5 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[11px] leading-snug shadow-lg pointer-events-none"
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function Q4Intent({
   value,
@@ -507,25 +548,25 @@ function Q4Intent({
           <button onClick={() => onChange({ kind: 'balanced' })} className={pill(isBal)}>
             balanced
           </button>
-          <InfoTip text={INTENT_DESCRIPTIONS.balanced} />
+          <IntentInfoTip text={INTENT_DESCRIPTIONS.balanced} />
         </span>
         <span className="flex items-center gap-1">
           <button onClick={() => onChange({ kind: 'lean_to_goals' })} className={pill(isLean)}>
             lean to goals
           </button>
-          <InfoTip text={INTENT_DESCRIPTIONS.lean_to_goals} />
+          <IntentInfoTip text={INTENT_DESCRIPTIONS.lean_to_goals} />
         </span>
         <span className="flex items-center gap-1">
           <button onClick={() => onChange({ kind: 'recover' })} className={pill(isRecover)}>
             recover
           </button>
-          <InfoTip text={INTENT_DESCRIPTIONS.recover} />
+          <IntentInfoTip text={INTENT_DESCRIPTIONS.recover} />
         </span>
         <span className="flex items-center gap-1">
           <button onClick={handlePushClick} className={pill(isPush)}>
             push on item
           </button>
-          <InfoTip text={INTENT_DESCRIPTIONS.push_on_item} />
+          <IntentInfoTip text={INTENT_DESCRIPTIONS.push_on_item} />
         </span>
       </div>
       {isPush && (
