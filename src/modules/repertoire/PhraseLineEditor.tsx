@@ -510,7 +510,7 @@ function DroppableBeatColumn({
   return (
     <span
       ref={setNodeRef}
-      className={`inline-flex flex-col items-center rounded transition-colors ${
+      className={`inline-flex flex-col items-start rounded transition-colors ${
         isOver ? 'bg-fluent/15 ring-1 ring-fluent/40' : ''
       }`}
     >
