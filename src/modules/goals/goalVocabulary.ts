@@ -1,6 +1,15 @@
 import { SONG_METRIC } from './songTarget';
 
 /**
+ * Inlined mirror of `SONG_OF_MONTH_METRIC` from
+ * src/modules/repertoire/songOfMonth.ts. The repertoire module
+ * transitively imports db.ts which touches `window`; goalVocabulary
+ * is consumed by pure tests that don't opt into jsdom, so we keep
+ * this file dep-free at runtime. Update both sides if either drifts.
+ */
+const SONG_OF_MONTH_METRIC = 'song_of_month';
+
+/**
  * Goal-vocabulary identification for the Phase 1.6 entry-point swap.
  *
  * The new GoalCreationFlow encodes its targets with a per-module
@@ -38,6 +47,12 @@ export function moduleForMetric(metric: string | null): GoalFlowModuleId | null 
   if (metric === SONG_METRIC.WHOLE || metric === SONG_METRIC.SECTION || metric === SONG_METRIC.KEY) {
     return 'repertoire';
   }
+  // Song-of-the-Month queue sentinel — written by Repertoire monthly
+  // umbrellas for TBD spotlights and queue slots 2/3. Without this
+  // bucket, a TBD-only Repertoire monthly umbrella is invisible in
+  // the by-module view because every child's metric returns null and
+  // umbrellaModuleId derives the module from its children.
+  if (metric === SONG_OF_MONTH_METRIC) return 'repertoire';
   // YearlyAnchorFlow's Songs consistency dimension introduces
   // `repertoire_sessions_per_cadence`. Prefix-route it through the
   // same module bucket as the existing song_* metrics so any future

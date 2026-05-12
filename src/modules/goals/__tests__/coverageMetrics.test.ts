@@ -140,4 +140,13 @@ describe('coverage metrics route via existing goalVocabulary.moduleForMetric', (
       expect(isNewVocabMetric(m)).toBe(true);
     }
   });
+
+  it('song_of_month routes to repertoire so TBD-only umbrellas surface in by-module view', () => {
+    // Without this routing, a Repertoire monthly umbrella whose only
+    // children are TBD spotlight / queue slots (all song_of_month) is
+    // invisible — every child's metric resolves to null and
+    // umbrellaModuleId derives the umbrella's module from its children.
+    expect(moduleForMetric('song_of_month')).toBe('repertoire');
+    expect(isNewVocabMetric('song_of_month')).toBe(true);
+  });
 });

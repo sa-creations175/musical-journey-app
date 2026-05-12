@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
+import { useToast } from '../../components/Toaster';
 import {
   db,
   type Goal,
@@ -427,8 +428,15 @@ function BodyShell({
 }: BodyShellProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const canSave = (saveOverride !== undefined || records.length > 0) && !saving;
+  // The button is gated on records.length > 0 even when saveOverride is
+  // set. Repertoire's body emits a stub record only when hasSelection
+  // is true (at least one queue slot OR an enabled days target), so
+  // requiring records.length > 0 here doubles as the "user picked
+  // something" gate. Without it, the override's silent no-op return
+  // would close the modal with nothing written and no feedback.
+  const canSave = records.length > 0 && !saving;
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -449,6 +457,10 @@ function BodyShell({
         });
       }
       onSaved?.();
+      toast({
+        message: isEditing ? 'Goal updated' : 'Goal saved',
+        variant: 'success',
+      });
       onClose();
     } catch (err) {
       console.error('[GoalSuggestionFlow] save failed', err);
