@@ -206,24 +206,23 @@ export default function PhraseLineEditor({
         );
       })}
 
-      {/* Active chord row — editable */}
-      <ChordRow
-        active
-        label={compareArrangementIds.length > 0 ? arrangementName(activeArrangementId) : undefined}
+      {/* Active chord row + beat row, fused into one flex-wrap
+          container of column-pairs. Each beat owns a single
+          `inline-flex flex-col` cell that stacks its chord slot
+          above its word cell — when the line is long enough to
+          wrap, chord + word always wrap together, so the chord
+          slot for every word stays directly above its word
+          regardless of line length. */}
+      <ActiveBeatRow
         beats={beats}
         placements={activePlacements}
         notationMode={notationMode}
         sectionKey={sectionKey}
         autofocusBeatId={autofocusBeatId}
-        onCommit={commitChord}
-      />
-
-      {/* Beat row — word text or small · placeholder, with "+"
-          insertion slots between beats. */}
-      <BeatRow
-        beats={beats}
-        onInsert={insertBlankAt}
-        onDelete={deleteBeat}
+        label={compareArrangementIds.length > 0 ? arrangementName(activeArrangementId) : undefined}
+        onCommitChord={commitChord}
+        onInsertBlank={insertBlankAt}
+        onDeleteBeat={deleteBeat}
         onUpdateText={updateWordText}
         onSplitBeat={beatId => setSplitTargetBeatId(beatId)}
       />
@@ -337,43 +336,111 @@ function ChordRow({
 
 // -------------------------------------------------------------------
 
-interface BeatRowProps {
+interface ActiveBeatRowProps {
   beats: Beat[];
-  onInsert: (index: number) => Promise<Beat>;
-  onDelete: (beatId: string) => Promise<void>;
+  placements: Record<string, ChordFunction>;
+  notationMode: NotationMode;
+  sectionKey?: string;
+  autofocusBeatId?: string;
+  /** Arrangement label rendered to the left of the row in compare
+   *  mode. Undefined when no compare rows exist (then no label is
+   *  shown — same condition as the legacy ChordRow). */
+  label?: string;
+  onCommitChord: (beatId: string, raw: string) => Promise<void>;
+  onInsertBlank: (index: number) => Promise<Beat>;
+  onDeleteBeat: (beatId: string) => Promise<void>;
   onUpdateText: (beatId: string, text: string) => Promise<void>;
   onSplitBeat: (beatId: string) => void;
 }
 
-function BeatRow({ beats, onInsert, onDelete, onUpdateText, onSplitBeat }: BeatRowProps) {
+/**
+ * Active chord row + beat row, combined into a single flex-wrap
+ * row whose children are paired column-cells (chord slot stacked
+ * above word cell). Replaces the prior pattern of two independent
+ * flex-wrap rows that wrapped at different points and could put a
+ * word on a wrapped second visual line without its chord slot.
+ *
+ * Insert affordances + syllable hyphens between beats are also
+ * column-cells (with an empty top half) so wrapping happens to
+ * whole columns — chord/beat alignment is preserved by construction.
+ */
+function ActiveBeatRow({
+  beats,
+  placements,
+  notationMode,
+  sectionKey,
+  autofocusBeatId,
+  label,
+  onCommitChord,
+  onInsertBlank,
+  onDeleteBeat,
+  onUpdateText,
+  onSplitBeat,
+}: ActiveBeatRowProps) {
   return (
-    <div className="flex flex-wrap items-start">
-      <InsertPoint onClick={() => onInsert(0)} />
+    <div className="flex items-end flex-wrap">
+      {label !== undefined && (
+        <span className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium mr-2 min-w-[7rem] text-right shrink-0 self-end mb-1">
+          {label}:
+        </span>
+      )}
+      <PairedInsertColumn onClick={() => onInsertBlank(0)} />
       {beats.map((beat, idx) => (
-        <span key={beat.id} className="inline-flex items-start">
-          <BeatCell
-            beat={beat}
-            joinToNext={beat.joinToNext === true}
-            onDelete={() => onDelete(beat.id)}
-            onUpdateText={text => onUpdateText(beat.id, text)}
-            onSplit={beat.type === 'word' ? () => onSplitBeat(beat.id) : undefined}
-          />
+        <span key={beat.id} className="inline-flex items-end">
+          <span className="inline-flex flex-col items-center">
+            <ChordSlot
+              beatId={beat.id}
+              chord={placements[beat.id]}
+              notationMode={notationMode}
+              sectionKey={sectionKey}
+              autofocus={autofocusBeatId === beat.id}
+              onCommit={raw => onCommitChord(beat.id, raw)}
+            />
+            <BeatCell
+              beat={beat}
+              joinToNext={beat.joinToNext === true}
+              onDelete={() => onDeleteBeat(beat.id)}
+              onUpdateText={text => onUpdateText(beat.id, text)}
+              onSplit={beat.type === 'word' ? () => onSplitBeat(beat.id) : undefined}
+            />
+          </span>
           {beat.joinToNext ? (
-            // Joined syllables render with a visual hyphen between
-            // them. Width matches InsertPoint so chord slots above
-            // stay column-aligned.
-            <span
-              aria-hidden
-              className="inline-flex items-center justify-center w-3 h-5 text-sm text-neutral-400 select-none"
-            >
-              -
-            </span>
+            <PairedHyphenColumn />
           ) : (
-            <InsertPoint onClick={() => onInsert(idx + 1)} />
+            <PairedInsertColumn onClick={() => onInsertBlank(idx + 1)} />
           )}
         </span>
       ))}
     </div>
+  );
+}
+
+/** Inter-beat column: empty top half (aligned with the chord row)
+ *  + a clickable `+` on the bottom half (aligned with the beat row).
+ *  Wrapping happens to the whole column. */
+function PairedInsertColumn({ onClick }: { onClick: () => void }) {
+  return (
+    <span className="inline-flex flex-col items-center">
+      <InsertSpacer />
+      <InsertPoint onClick={onClick} />
+    </span>
+  );
+}
+
+/** Inter-beat column for joined syllables: empty top half + a hyphen
+ *  on the bottom half. Same width as PairedInsertColumn so columns
+ *  align horizontally across the wrap container. */
+function PairedHyphenColumn() {
+  return (
+    <span className="inline-flex flex-col items-center">
+      <InsertSpacer />
+      <span
+        aria-hidden
+        className="inline-flex items-center justify-center w-3 h-5 text-sm text-neutral-400 select-none"
+      >
+        -
+      </span>
+    </span>
   );
 }
 
