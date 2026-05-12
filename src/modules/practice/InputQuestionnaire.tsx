@@ -31,6 +31,7 @@ import {
   type InputQuestionnaireResult,
 } from './inputs';
 import { loadPrefill, savePrefill } from './inputsPrefill';
+import { InfoTip } from '../goals/atoms';
 
 interface Props {
   open: boolean;
@@ -167,6 +168,7 @@ export default function InputQuestionnaire({
           <Q1Time
             value={draft.timeMinutes}
             onChange={n => setDraft(d => ({ ...d, timeMinutes: n }))}
+            fullSessionMinutes={initialTimeMinutes ?? null}
           />
           <Q2Context
             value={draft.context}
@@ -220,13 +222,28 @@ export default function InputQuestionnaire({
 function Q1Time({
   value,
   onChange,
+  fullSessionMinutes,
 }: {
   value: number | null;
   onChange: (n: number) => void;
+  /** When set, surfaces an extra "Full session — X min" pill at
+   *  the front of the row. The pill takes precedence over the
+   *  custom-stepper path so a goals-need session whose total
+   *  doesn't match a standard preset (e.g. 50, 80, 130 min) still
+   *  shows up as a named option, not as a Custom value. */
+  fullSessionMinutes?: number | null;
 }) {
   const [customOpen, setCustomOpen] = useState(false);
-  const isPresetValue = value !== null && (TIME_PRESETS_MIN as ReadonlyArray<number>).includes(value);
-  const showCustom = customOpen || (value !== null && !isPresetValue);
+  const fullSession =
+    fullSessionMinutes != null && fullSessionMinutes > 0
+      ? fullSessionMinutes
+      : null;
+  const isFullSessionValue = fullSession !== null && value === fullSession;
+  const isPresetValue =
+    value !== null && (TIME_PRESETS_MIN as ReadonlyArray<number>).includes(value);
+  const showCustom =
+    customOpen
+    || (value !== null && !isPresetValue && !isFullSessionValue);
 
   // Stepper anchor — when value is null we seed at 30 min (the
   // middle of the presets) so the +/- buttons feel oriented.
@@ -240,13 +257,28 @@ function Q1Time({
   const dec = () => onChange(Math.max(CUSTOM_TIME_MIN, stepperValue - CUSTOM_TIME_STEP));
   const inc = () => onChange(Math.min(CUSTOM_TIME_MAX, stepperValue + CUSTOM_TIME_STEP));
 
+  // When the full session minute count happens to collide with one
+  // of the standard presets, hide the matching preset to avoid two
+  // pills carrying the same value side-by-side.
+  const presetsToShow = TIME_PRESETS_MIN.filter(
+    n => fullSession === null || n !== fullSession,
+  );
+
   return (
     <section>
       <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
         Time available
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        {TIME_PRESETS_MIN.map(n => (
+        {fullSession !== null && (
+          <button
+            onClick={() => setPreset(fullSession)}
+            className={pill(isFullSessionValue && !showCustom)}
+          >
+            Full session — {fullSession} min
+          </button>
+        )}
+        {presetsToShow.map(n => (
           <button
             key={n}
             onClick={() => setPreset(n)}
@@ -435,6 +467,16 @@ function Q3DayPlan({
 // Q4 — Intent (+ inline item picker for push-on-specific)
 // ---------------------------------------------------------------------
 
+/** Plain-English descriptions shown via the InfoTip next to each
+ *  intent pill. Used as both tooltip text and aria-label so screen
+ *  readers see the same explanation hover users do. */
+const INTENT_DESCRIPTIONS = {
+  balanced: 'Mix of all your active goals, weighted by urgency and pace',
+  lean_to_goals: 'Prioritizes your most behind or time-sensitive goals',
+  recover: 'Lighter session focused on items you already know well',
+  push_on_item: 'Deep focus on one module or goal for the full session',
+} as const;
+
 function Q4Intent({
   value,
   candidates,
@@ -460,19 +502,31 @@ function Q4Intent({
       <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
         Intent
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        <button onClick={() => onChange({ kind: 'balanced' })} className={pill(isBal)}>
-          balanced
-        </button>
-        <button onClick={() => onChange({ kind: 'lean_to_goals' })} className={pill(isLean)}>
-          lean to goals
-        </button>
-        <button onClick={() => onChange({ kind: 'recover' })} className={pill(isRecover)}>
-          recover
-        </button>
-        <button onClick={handlePushClick} className={pill(isPush)}>
-          push on item
-        </button>
+      <div className="flex flex-wrap gap-x-2 gap-y-1.5">
+        <span className="flex items-center gap-1">
+          <button onClick={() => onChange({ kind: 'balanced' })} className={pill(isBal)}>
+            balanced
+          </button>
+          <InfoTip text={INTENT_DESCRIPTIONS.balanced} />
+        </span>
+        <span className="flex items-center gap-1">
+          <button onClick={() => onChange({ kind: 'lean_to_goals' })} className={pill(isLean)}>
+            lean to goals
+          </button>
+          <InfoTip text={INTENT_DESCRIPTIONS.lean_to_goals} />
+        </span>
+        <span className="flex items-center gap-1">
+          <button onClick={() => onChange({ kind: 'recover' })} className={pill(isRecover)}>
+            recover
+          </button>
+          <InfoTip text={INTENT_DESCRIPTIONS.recover} />
+        </span>
+        <span className="flex items-center gap-1">
+          <button onClick={handlePushClick} className={pill(isPush)}>
+            push on item
+          </button>
+          <InfoTip text={INTENT_DESCRIPTIONS.push_on_item} />
+        </span>
       </div>
       {isPush && (
         <div className="mt-2">

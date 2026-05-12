@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { moduleMetaById } from '../../lib/moduleMeta';
-import { TIME_PRESETS_MIN } from './inputs';
 import { loadDailyGoalNeed, type DailyNeed } from './dailyGoalNeed';
 
 /**
@@ -10,23 +9,24 @@ import { loadDailyGoalNeed, type DailyNeed } from './dailyGoalNeed';
  *
  *   · Per-module daily need rows (Shapes 15 min, Repertoire 45 min,
  *     etc.) computed from the user's active monthly goals.
- *   · "Full session — X min" CTA equal to the sum across modules.
- *   · Standard preset slots (15 / 30 / 45 / 60 / Custom) below as
- *     alternatives — picking one proceeds to the questionnaire
- *     with that time pre-filled.
+ *   · "Full session — X min" CTA that bypasses the questionnaire
+ *     entirely — proceeds straight to proposal generation with
+ *     balanced intent + the full time. The user's saved context +
+ *     day plan from prior sessions still apply.
+ *   · "Customize" secondary action opens the questionnaire for
+ *     users who want to override intent / context / day plan.
  *   · "Split across contexts" affordance when the user has already
  *     practiced today (signaled by hasEarlierSessionsToday).
  *
  * Behavior contracts:
- *   · `onPick(minutes)` fires once the user commits to a time. The
- *     parent threads this through to the existing questionnaire's
- *     `initialTimeMinutes` so the proposal screen sees the same
- *     value it would have received from the questionnaire's own
- *     time picker.
- *   · `onSkipToQuestionnaire()` fires when the user wants to skip
- *     past this screen (e.g. the "Split across contexts" path opens
- *     the questionnaire directly to handle the multi-session
- *     planning) OR when the loading takes too long (2s fallback).
+ *   · `onFullSession(minutes)` fires when the user taps Full session.
+ *     Parent skips the questionnaire and runs buildSessionPlan with
+ *     the prefilled context/dayPlan + balanced intent.
+ *   · `onCustomize()` opens the questionnaire (no pre-filled time —
+ *     the user is explicitly asking for control).
+ *   · `onClose()` fires on the header skip, on the timeout fallback,
+ *     and on empty-goals — parent opens the questionnaire so the
+ *     user is never trapped.
  *   · Caller is responsible for not opening this screen when the
  *     user has zero active goals — the wrapper falls back to the
  *     questionnaire directly. Loading null also falls through.
@@ -37,7 +37,8 @@ interface Props {
    *  multi-session day planned). Surfaces the "Split across
    *  contexts" affordance. */
   hasEarlierSessionsToday: boolean;
-  onPick: (minutes: number) => void;
+  onFullSession: (minutes: number) => void;
+  onCustomize: () => void;
   onClose: () => void;
 }
 
@@ -46,7 +47,8 @@ const LOAD_TIMEOUT_MS = 2000;
 export default function GoalsNeedTodayScreen({
   open,
   hasEarlierSessionsToday,
-  onPick,
+  onFullSession,
+  onCustomize,
   onClose,
 }: Props) {
   const [need, setNeed] = useState<DailyNeed | null>(null);
@@ -121,7 +123,8 @@ export default function GoalsNeedTodayScreen({
           <ReadyContent
             need={need}
             hasEarlierSessionsToday={hasEarlierSessionsToday}
-            onPick={onPick}
+            onFullSession={onFullSession}
+            onCustomize={onCustomize}
             onClose={onClose}
           />
         )}
@@ -133,12 +136,14 @@ export default function GoalsNeedTodayScreen({
 function ReadyContent({
   need,
   hasEarlierSessionsToday,
-  onPick,
+  onFullSession,
+  onCustomize,
   onClose,
 }: {
   need: DailyNeed;
   hasEarlierSessionsToday: boolean;
-  onPick: (minutes: number) => void;
+  onFullSession: (minutes: number) => void;
+  onCustomize: () => void;
   onClose: () => void;
 }) {
   const total = need.totalMinutes;
@@ -183,36 +188,19 @@ function ReadyContent({
 
       <button
         type="button"
-        onClick={() => onPick(total)}
+        onClick={() => onFullSession(total)}
         className="w-full px-4 py-3 rounded-md bg-fluent text-white text-base font-medium hover:opacity-90"
       >
         Full session — {total} min
       </button>
 
-      <section className="flex flex-col gap-2">
-        <div className="text-[10px] uppercase tracking-wide text-neutral-500">
-          Or pick a different length
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {TIME_PRESETS_MIN.map(n => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onPick(n)}
-              className="px-3 py-1.5 rounded-md text-sm font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
-            >
-              {n} min
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-md text-sm font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
-          >
-            custom…
-          </button>
-        </div>
-      </section>
+      <button
+        type="button"
+        onClick={onCustomize}
+        className="w-full px-4 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
+      >
+        Customize…
+      </button>
 
       {hasEarlierSessionsToday && (
         <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3">

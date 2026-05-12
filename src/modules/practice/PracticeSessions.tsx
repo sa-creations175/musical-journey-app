@@ -12,6 +12,7 @@ import ManualLogForm from './ManualLogForm';
 import RecentSessionsList from './RecentSessionsList';
 import VacationManager from './VacationManager';
 import GoalsNeedTodayScreen from './GoalsNeedTodayScreen';
+import { loadPrefill } from './inputsPrefill';
 import InputQuestionnaire from './InputQuestionnaire';
 import ProposalScreen from './ProposalScreen';
 import FeasibilityBanner from './FeasibilityBanner';
@@ -207,8 +208,29 @@ export default function PracticeSessions() {
     }
   };
 
-  const handleGoalsNeedPick = (minutes: number) => {
-    setInitialTimeMinutes(minutes);
+  const handleGoalsNeedFullSession = async (minutes: number) => {
+    // Bypass the questionnaire entirely — the user committed to the
+    // full session length, balanced intent, and their saved context
+    // / day plan from prior sessions. Builds a complete
+    // InputQuestionnaireResult and runs the same generate pipeline
+    // the questionnaire's Generate button would have triggered.
+    const prefill = await loadPrefill({
+      hasEarlierSessionsToday,
+    });
+    const inputs: InputQuestionnaireResult = {
+      timeMinutes: minutes,
+      context: prefill.context ?? 'mixed',
+      dayPlan: prefill.dayPlan ?? { kind: 'just_this_session' },
+      intent: { kind: 'balanced' },
+      energy: { focus: null, motivation: null, inspiration: null },
+    };
+    await handleQuestionnaireGenerate(inputs);
+  };
+
+  const handleGoalsNeedCustomize = () => {
+    // User explicitly opts into the questionnaire. No time pre-fill
+    // so they can pick from scratch.
+    setInitialTimeMinutes(null);
     setView('questionnaire');
   };
 
@@ -560,7 +582,8 @@ export default function PracticeSessions() {
       <GoalsNeedTodayScreen
         open={view === 'goals-need'}
         hasEarlierSessionsToday={hasEarlierSessionsToday}
-        onPick={handleGoalsNeedPick}
+        onFullSession={handleGoalsNeedFullSession}
+        onCustomize={handleGoalsNeedCustomize}
         onClose={handleGoalsNeedSkip}
       />
 
