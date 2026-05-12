@@ -22,8 +22,11 @@ import { loadDailyGoalNeed, type DailyNeed } from './dailyGoalNeed';
  *   · `onFullSession(minutes)` fires when the user taps Full session.
  *     Parent skips the questionnaire and runs buildSessionPlan with
  *     the prefilled context/dayPlan + balanced intent.
- *   · `onCustomize()` opens the questionnaire (no pre-filled time —
- *     the user is explicitly asking for control).
+ *   · `onCustomize(minutes)` opens the questionnaire pre-seeded
+ *     with the full daily-need total. The user is explicitly asking
+ *     for control over intent / context / day plan, but the
+ *     goal-aware time figure is still the most useful default —
+ *     surfaced as a named "Full session" pill in Q1.
  *   · `onClose()` fires on the header skip, on the timeout fallback,
  *     and on empty-goals — parent opens the questionnaire so the
  *     user is never trapped.
@@ -38,7 +41,7 @@ interface Props {
    *  contexts" affordance. */
   hasEarlierSessionsToday: boolean;
   onFullSession: (minutes: number) => void;
-  onCustomize: () => void;
+  onCustomize: (minutes: number) => void;
   onClose: () => void;
 }
 
@@ -143,7 +146,7 @@ function ReadyContent({
   need: DailyNeed;
   hasEarlierSessionsToday: boolean;
   onFullSession: (minutes: number) => void;
-  onCustomize: () => void;
+  onCustomize: (minutes: number) => void;
   onClose: () => void;
 }) {
   const total = need.totalMinutes;
@@ -196,7 +199,7 @@ function ReadyContent({
 
       <button
         type="button"
-        onClick={onCustomize}
+        onClick={() => onCustomize(total)}
         className="w-full px-4 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
       >
         Customize…

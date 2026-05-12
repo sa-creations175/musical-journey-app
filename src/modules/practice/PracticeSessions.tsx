@@ -227,10 +227,13 @@ export default function PracticeSessions() {
     await handleQuestionnaireGenerate(inputs);
   };
 
-  const handleGoalsNeedCustomize = () => {
-    // User explicitly opts into the questionnaire. No time pre-fill
-    // so they can pick from scratch.
-    setInitialTimeMinutes(null);
+  const handleGoalsNeedCustomize = (minutes: number) => {
+    // User explicitly opts into the questionnaire. Carry the daily-
+    // need total through so Q1 still surfaces the "Full session — X
+    // min" pill as the goal-aware default — they're customizing the
+    // OTHER axes (intent / context / day plan), not necessarily the
+    // time.
+    setInitialTimeMinutes(minutes);
     setView('questionnaire');
   };
 
