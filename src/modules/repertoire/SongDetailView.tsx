@@ -40,6 +40,7 @@ import {
   nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
+import { PhraseClipboardProvider } from './phraseClipboard';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import SongHeatmap from './SongHeatmap';
@@ -79,6 +80,11 @@ const SECTION_TITLES: Record<SectionKey, string> = {
   whyAndLinks:    'why this song',
   associations:   'my associations',
 };
+
+/** Time-signature dropdown options. "Other" routes the user to a
+ *  free-text input so uncommon meters (9/8, 11/8, etc.) still
+ *  round-trip. Empty string means "no signature set". */
+const TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
 
 /**
  * Resolve a Song's effective section order. Drops unknown keys
@@ -270,6 +276,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [genreDraft, setGenreDraft] = useState('');
   const [keyDraft, setKeyDraft] = useState('');
   const [tempoDraft, setTempoDraft] = useState('');
+  // Time signature is edited as a dropdown of common meters plus an
+  // "Other" → free-text path so uncommon picks (9/8 etc.) still
+  // round-trip. Two pieces of state: which preset is selected, and
+  // (when "Other") the custom string.
+  const [timeSigPreset, setTimeSigPreset] = useState<string>('');
+  const [timeSigCustom, setTimeSigCustom] = useState('');
   const [spotifyDraft, setSpotifyDraft] = useState('');
   const [youtubeDraft, setYoutubeDraft] = useState('');
 
@@ -280,6 +292,16 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     setGenreDraft(song.genre ?? '');
     setKeyDraft(song.key ?? '');
     setTempoDraft(song.tempoLabel ?? (song.tempo ? String(song.tempo) : ''));
+    // Seed time-signature draft state: if the stored value matches
+    // one of the presets, pick that; otherwise route through "Other".
+    const stored = song.timeSignature?.trim() ?? '';
+    if (stored === '' || TIME_SIGNATURE_PRESETS.includes(stored)) {
+      setTimeSigPreset(stored);
+      setTimeSigCustom('');
+    } else {
+      setTimeSigPreset('Other');
+      setTimeSigCustom(stored);
+    }
     setSpotifyDraft(song.spotifyLink ?? '');
     setYoutubeDraft(song.youtubeLink ?? '');
     setEditingMeta(true);
@@ -289,6 +311,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     if (!song) return;
     const newKey = keyDraft.trim() || undefined;
     const keyChanged = newKey !== undefined && newKey !== song.key;
+    // Time signature: empty preset → unset; "Other" → custom field;
+    // any other preset → use it verbatim.
+    const newTimeSignature =
+      timeSigPreset === ''
+        ? undefined
+        : timeSigPreset === 'Other'
+          ? timeSigCustom.trim() || undefined
+          : timeSigPreset;
     const patch: Partial<Song> = {
       title: titleDraft.trim() || song.title,
       artist: artistDraft.trim() || song.artist,
@@ -296,6 +326,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       key: newKey,
       keyNeedsVerification: keyDraft.trim() === song.key ? song.keyNeedsVerification : false,
       tempoLabel: tempoDraft.trim() || undefined,
+      timeSignature: newTimeSignature,
       spotifyLink: spotifyDraft.trim() || undefined,
       youtubeLink: youtubeDraft.trim() || undefined,
     };
@@ -607,6 +638,28 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 <input value={tempoDraft} onChange={e => setTempoDraft(e.target.value)} placeholder="80 BPM or 70–85" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5" />
               </label>
               <label className="flex flex-col gap-1">
+                <span className="text-neutral-500 text-xs uppercase tracking-wide">time signature</span>
+                <select
+                  value={timeSigPreset}
+                  onChange={e => setTimeSigPreset(e.target.value)}
+                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                >
+                  <option value="">— none —</option>
+                  {TIME_SIGNATURE_PRESETS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                  <option value="Other">Other…</option>
+                </select>
+                {timeSigPreset === 'Other' && (
+                  <input
+                    value={timeSigCustom}
+                    onChange={e => setTimeSigCustom(e.target.value)}
+                    placeholder="e.g. 9/8 or 11/8"
+                    className="mt-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                  />
+                )}
+              </label>
+              <label className="flex flex-col gap-1">
                 <span className="text-neutral-500 text-xs uppercase tracking-wide">spotify link</span>
                 <input value={spotifyDraft} onChange={e => setSpotifyDraft(e.target.value)} className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 font-mono text-xs" />
               </label>
@@ -637,6 +690,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 </span>
               )}
               {song.tempoLabel && <span>tempo: {song.tempoLabel}</span>}
+              {song.timeSignature && (
+                <span>
+                  time: <span className="font-mono text-neutral-700 dark:text-neutral-200">{song.timeSignature}</span>
+                </span>
+              )}
             </div>
           </>
         )}
@@ -685,6 +743,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                     {sections.length === 0 ? (
                       <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
                     ) : (
+                      <PhraseClipboardProvider>
                       <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -718,6 +777,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                           </div>
                         </SortableContext>
                       </DndContext>
+                      </PhraseClipboardProvider>
                     )}
                     {/* Full lyrics collapsible — opens via "Show full
                         lyrics" toggle, closed by default. The full

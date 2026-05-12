@@ -72,6 +72,42 @@ export function newEmptyPhrase(): Phrase {
 }
 
 /**
+ * Deep-clone a phrase with freshly-generated ids on the phrase, its
+ * beats, and every chord-placement key that referenced the old beats.
+ * Used by the "duplicate phrase line" affordance so a copied phrase
+ * is independently editable and doesn't share state with its source.
+ *
+ * Beat-id remapping preserves chord placements verbatim: if the
+ * original phrase had chord X on beat A, the clone has the same
+ * chord on the new beat that occupies A's slot.
+ */
+export function clonePhraseWithFreshIds(
+  phrase: Phrase,
+): Required<Pick<Phrase, 'beats' | 'chordsByArrangement'>> & Phrase {
+  const idMap = new Map<string, string>();
+  const beats: Beat[] = (phrase.beats ?? []).map(b => {
+    const freshId = uid('beat');
+    idMap.set(b.id, freshId);
+    return { ...b, id: freshId };
+  });
+  const chordsByArrangement: Record<string, Record<string, ChordFunction>> = {};
+  for (const [arrId, placements] of Object.entries(phrase.chordsByArrangement ?? {})) {
+    const copy: Record<string, ChordFunction> = {};
+    for (const [oldBeatId, chord] of Object.entries(placements)) {
+      const newBeatId = idMap.get(oldBeatId);
+      if (newBeatId) copy[newBeatId] = chord;
+    }
+    chordsByArrangement[arrId] = copy;
+  }
+  return {
+    ...phrase,
+    id: uid('phrase'),
+    beats,
+    chordsByArrangement,
+  };
+}
+
+/**
  * Build a phrase from a raw lyric string. Whitespace-separated tokens
  * become word beats in order; chord placements start empty so the user
  * can fill them in above. Empty / whitespace-only input falls back to
@@ -91,6 +127,58 @@ export function phraseFromLyrics(lyrics: string): Phrase {
     chordsByArrangement: {
       [BASIC_ARRANGEMENT_ID]: {} as Record<string, ChordFunction>,
     },
+  };
+}
+
+/**
+ * Edit-as-text round-trip: rebuild a phrase from a new lyric string
+ * while preserving chord placements that still apply.
+ *
+ * Carries the phrase's existing id forward so the caller can keep
+ * its in-place reference. For each new word beat at position i, if
+ * the old beat at the same position has the same `text`, copy any
+ * chord placements (across every arrangement) from old-beat-id →
+ * new-beat-id. Unmatched chords are dropped — the user changed the
+ * word, so the chord no longer belongs to a recognisable target.
+ *
+ * Empty lyrics input still falls through to `newEmptyPhrase()` plus
+ * the original id, so all chords are dropped (no positions match).
+ */
+export function phraseFromLyricsPreserveChords(
+  lyrics: string,
+  oldPhrase: Phrase,
+): Phrase {
+  const fresh = phraseFromLyrics(lyrics);
+  const oldBeats = oldPhrase.beats ?? [];
+  const oldChords = oldPhrase.chordsByArrangement ?? {};
+  const newBeats = fresh.beats ?? [];
+
+  // Initialise the per-arrangement maps so every arrangement that
+  // existed on the old phrase survives even when no chords match
+  // (caller can keep editing without losing the arrangement).
+  const nextChords: Record<string, Record<string, ChordFunction>> = {};
+  for (const arrId of Object.keys(oldChords)) {
+    nextChords[arrId] = {};
+  }
+  if (!nextChords[BASIC_ARRANGEMENT_ID]) nextChords[BASIC_ARRANGEMENT_ID] = {};
+
+  for (let i = 0; i < newBeats.length; i++) {
+    const newBeat = newBeats[i];
+    const oldBeat = oldBeats[i];
+    if (!oldBeat) continue;
+    if ((newBeat.text ?? '') !== (oldBeat.text ?? '')) continue;
+    for (const [arrId, placements] of Object.entries(oldChords)) {
+      const chord = placements[oldBeat.id];
+      if (chord) {
+        nextChords[arrId][newBeat.id] = chord;
+      }
+    }
+  }
+
+  return {
+    ...fresh,
+    id: oldPhrase.id,
+    chordsByArrangement: nextChords,
   };
 }
 

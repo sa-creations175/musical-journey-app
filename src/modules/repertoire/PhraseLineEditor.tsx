@@ -1,4 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  pointerWithin,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
 import type { Beat, ChordFunction, Phrase } from '../../lib/db';
 import {
   applySyllableSplit,
@@ -180,6 +190,28 @@ export default function PhraseLineEditor({
     await onChange({ ...normalised, beats: nextBeats });
   };
 
+  // Move a chord placement from one beat to another within the
+  // active arrangement. Target overwrites — if the user drops onto a
+  // beat that already holds a chord, the dropped chord replaces it.
+  // Compare arrangements aren't touched; drag-to-move only operates
+  // on the editable row.
+  const moveChord = async (sourceBeatId: string, targetBeatId: string) => {
+    if (sourceBeatId === targetBeatId) return;
+    const placements = normalised.chordsByArrangement[activeArrangementId] ?? {};
+    const chord = placements[sourceBeatId];
+    if (!chord) return;
+    const next = { ...placements };
+    delete next[sourceBeatId];
+    next[targetBeatId] = chord;
+    await onChange({
+      ...normalised,
+      chordsByArrangement: {
+        ...normalised.chordsByArrangement,
+        [activeArrangementId]: next,
+      },
+    });
+  };
+
   // --- Render -----------------------------------------------------
 
   const instrumental = isInstrumentalPhrase(normalised);
@@ -225,6 +257,7 @@ export default function PhraseLineEditor({
         onDeleteBeat={deleteBeat}
         onUpdateText={updateWordText}
         onSplitBeat={beatId => setSplitTargetBeatId(beatId)}
+        onMoveChord={moveChord}
       />
 
       {splitTargetBeatId && (() => {
@@ -351,7 +384,15 @@ interface ActiveBeatRowProps {
   onDeleteBeat: (beatId: string) => Promise<void>;
   onUpdateText: (beatId: string, text: string) => Promise<void>;
   onSplitBeat: (beatId: string) => void;
+  /** Move a chord placement from one beat to another within the
+   *  active arrangement. Wired into the chord-drag UX — the
+   *  draggable handle on each filled chord slot fires this when the
+   *  user drops onto another beat's column. */
+  onMoveChord: (sourceBeatId: string, targetBeatId: string) => Promise<void>;
 }
+
+const DRAG_ID_CHORD_PREFIX = 'chord-';
+const DRAG_ID_BEAT_PREFIX = 'beat-';
 
 /**
  * Active chord row + beat row, combined into a single flex-wrap
@@ -363,6 +404,11 @@ interface ActiveBeatRowProps {
  * Insert affordances + syllable hyphens between beats are also
  * column-cells (with an empty top half) so wrapping happens to
  * whole columns — chord/beat alignment is preserved by construction.
+ *
+ * The row also hosts a DndContext that lets the user drag a chord
+ * slot from one beat column to another. Drag handles only appear
+ * on filled chord slots (no chord, nothing to move); pointer-sensor
+ * has an 8px activation distance so accidental clicks don't fire.
  */
 function ActiveBeatRow({
   beats,
@@ -376,42 +422,135 @@ function ActiveBeatRow({
   onDeleteBeat,
   onUpdateText,
   onSplitBeat,
+  onMoveChord,
 }: ActiveBeatRowProps) {
+  // Pointer activation distance: 8px so accidental clicks on the
+  // drag handle don't trigger a drag. Keyboard sensor intentionally
+  // skipped — the chord-slot drag is a precision interaction; users
+  // who can't drag can still re-type the chord into the target slot.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!active || !over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (!activeId.startsWith(DRAG_ID_CHORD_PREFIX)) return;
+    if (!overId.startsWith(DRAG_ID_BEAT_PREFIX)) return;
+    const sourceBeatId = activeId.slice(DRAG_ID_CHORD_PREFIX.length);
+    const targetBeatId = overId.slice(DRAG_ID_BEAT_PREFIX.length);
+    void onMoveChord(sourceBeatId, targetBeatId);
+  };
+
   return (
-    <div className="flex items-end flex-wrap">
-      {label !== undefined && (
-        <span className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium mr-2 min-w-[7rem] text-right shrink-0 self-end mb-1">
-          {label}:
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex items-end flex-wrap">
+        {label !== undefined && (
+          <span className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium mr-2 min-w-[7rem] text-right shrink-0 self-end mb-1">
+            {label}:
+          </span>
+        )}
+        <PairedInsertColumn onClick={() => onInsertBlank(0)} />
+        {beats.map((beat, idx) => (
+          <span key={beat.id} className="inline-flex items-end">
+            <DroppableBeatColumn beatId={beat.id}>
+              <DraggableChordSlot
+                beatId={beat.id}
+                hasChord={!!placements[beat.id] && !chordIsEmpty(placements[beat.id])}
+              >
+                <ChordSlot
+                  beatId={beat.id}
+                  chord={placements[beat.id]}
+                  notationMode={notationMode}
+                  sectionKey={sectionKey}
+                  autofocus={autofocusBeatId === beat.id}
+                  onCommit={raw => onCommitChord(beat.id, raw)}
+                />
+              </DraggableChordSlot>
+              <BeatCell
+                beat={beat}
+                joinToNext={beat.joinToNext === true}
+                onDelete={() => onDeleteBeat(beat.id)}
+                onUpdateText={text => onUpdateText(beat.id, text)}
+                onSplit={beat.type === 'word' ? () => onSplitBeat(beat.id) : undefined}
+              />
+            </DroppableBeatColumn>
+            {beat.joinToNext ? (
+              <PairedHyphenColumn />
+            ) : (
+              <PairedInsertColumn onClick={() => onInsertBlank(idx + 1)} />
+            )}
+          </span>
+        ))}
+      </div>
+    </DndContext>
+  );
+}
+
+/** Beat column that accepts a chord drop. The whole chord+beat
+ *  stack is a single droppable so the user can drop on any part of
+ *  the column. Active highlight is subtle — a soft ring — so it
+ *  doesn't compete with the live editing affordances. */
+function DroppableBeatColumn({
+  beatId,
+  children,
+}: {
+  beatId: string;
+  children: React.ReactNode;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `${DRAG_ID_BEAT_PREFIX}${beatId}`,
+  });
+  return (
+    <span
+      ref={setNodeRef}
+      className={`inline-flex flex-col items-center rounded transition-colors ${
+        isOver ? 'bg-fluent/15 ring-1 ring-fluent/40' : ''
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Wraps the chord slot with a small drag handle (visible only when
+ *  there's a chord to move). Typing in the chord input still works
+ *  normally — drag listeners attach to the handle, not the input. */
+function DraggableChordSlot({
+  beatId,
+  hasChord,
+  children,
+}: {
+  beatId: string;
+  hasChord: boolean;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `${DRAG_ID_CHORD_PREFIX}${beatId}`,
+    disabled: !hasChord,
+  });
+  return (
+    <span className={`relative inline-flex flex-col items-center ${isDragging ? 'opacity-40' : ''}`}>
+      {children}
+      {hasChord && (
+        <span
+          ref={setNodeRef}
+          {...listeners}
+          {...attributes}
+          title="drag to move chord to another beat"
+          aria-label="drag chord"
+          className="absolute -top-2 right-0 text-[9px] text-neutral-300 hover:text-fluent cursor-grab active:cursor-grabbing select-none leading-none px-0.5"
+        >
+          ↔
         </span>
       )}
-      <PairedInsertColumn onClick={() => onInsertBlank(0)} />
-      {beats.map((beat, idx) => (
-        <span key={beat.id} className="inline-flex items-end">
-          <span className="inline-flex flex-col items-center">
-            <ChordSlot
-              beatId={beat.id}
-              chord={placements[beat.id]}
-              notationMode={notationMode}
-              sectionKey={sectionKey}
-              autofocus={autofocusBeatId === beat.id}
-              onCommit={raw => onCommitChord(beat.id, raw)}
-            />
-            <BeatCell
-              beat={beat}
-              joinToNext={beat.joinToNext === true}
-              onDelete={() => onDeleteBeat(beat.id)}
-              onUpdateText={text => onUpdateText(beat.id, text)}
-              onSplit={beat.type === 'word' ? () => onSplitBeat(beat.id) : undefined}
-            />
-          </span>
-          {beat.joinToNext ? (
-            <PairedHyphenColumn />
-          ) : (
-            <PairedInsertColumn onClick={() => onInsertBlank(idx + 1)} />
-          )}
-        </span>
-      ))}
-    </div>
+    </span>
   );
 }
 

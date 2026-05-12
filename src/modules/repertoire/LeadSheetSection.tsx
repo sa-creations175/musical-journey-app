@@ -11,15 +11,18 @@ import { detectProgressions } from '../../lib/progressionDetection';
 import { useToast } from '../../components/Toaster';
 import {
   chordSequenceForArrangement,
+  clonePhraseWithFreshIds,
   normalizeArrangements,
   normalizePhrase,
   phraseFromLyrics,
+  phraseFromLyricsPreserveChords,
   uid,
 } from './beatsModel';
 import { toRomanToken } from './chordFunction';
 import { useNotationMode } from '../../lib/notationPref';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
+import { usePhraseClipboard } from './phraseClipboard';
 
 interface Props {
   song: Song;
@@ -134,6 +137,115 @@ export default function LeadSheetSection({
     setDraftLyrics('');
     onPhraseAdded?.(fresh.id);
   };
+
+  // --- Edit-as-text on an existing phrase line --------------------
+  // Only one phrase per section can be in text-edit mode at a time;
+  // identified by phraseId. The draft text starts populated with the
+  // existing word beats joined by spaces.
+  const [textEditPhraseId, setTextEditPhraseId] = useState<string | null>(null);
+  const [textEditDraft, setTextEditDraft] = useState('');
+
+  const beginTextEdit = (phrase: Phrase) => {
+    const text = (phrase.beats ?? [])
+      .filter(b => b.type === 'word')
+      .map(b => b.text ?? '')
+      .join(' ');
+    setTextEditDraft(text);
+    setTextEditPhraseId(phrase.id);
+  };
+
+  const cancelTextEdit = () => {
+    setTextEditPhraseId(null);
+    setTextEditDraft('');
+  };
+
+  const commitTextEdit = async () => {
+    if (!textEditPhraseId) return;
+    const target = normalisedPhrases.find(p => p.id === textEditPhraseId);
+    if (!target) {
+      cancelTextEdit();
+      return;
+    }
+    const next = phraseFromLyricsPreserveChords(textEditDraft, target);
+    const list = normalisedPhrases.map(p => (p.id === target.id ? next : p));
+    await commit({ phrases: list });
+    cancelTextEdit();
+  };
+
+  // --- Duplicate one phrase line ----------------------------------
+  // Inserts a clone (fresh ids on phrase + beats + chord-placement
+  // keys) directly below the source. Preserves beat structure and
+  // chords so the user can immediately re-edit the words via the
+  // edit-as-text affordance.
+  const duplicatePhrase = async (phraseId: string) => {
+    const idx = normalisedPhrases.findIndex(p => p.id === phraseId);
+    if (idx < 0) return;
+    const original = normalisedPhrases[idx];
+    const copy = clonePhraseWithFreshIds(original);
+    const list = [...normalisedPhrases];
+    list.splice(idx + 1, 0, copy);
+    await commit({ phrases: list });
+    onPhraseAdded?.(copy.id);
+  };
+
+  // --- Multi-line select + cross-section clipboard ----------------
+  // Select mode is per-section. The clipboard (shared via the
+  // PhraseClipboardProvider mounted in SongDetailView) lets the
+  // user copy a batch from one section and paste it into another.
+  const clipboard = usePhraseClipboard();
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedPhraseIds, setSelectedPhraseIds] = useState<Set<string>>(new Set());
+
+  const toggleSelectMode = () => {
+    setSelectMode(prev => !prev);
+    setSelectedPhraseIds(new Set());
+  };
+
+  const toggleSelection = (phraseId: string) => {
+    setSelectedPhraseIds(prev => {
+      const next = new Set(prev);
+      if (next.has(phraseId)) next.delete(phraseId);
+      else next.add(phraseId);
+      return next;
+    });
+  };
+
+  const copySelected = () => {
+    if (selectedPhraseIds.size === 0) return;
+    // Preserve user-visible order — iterate normalisedPhrases, not
+    // the selection set (which is unordered).
+    const selectedInOrder = normalisedPhrases.filter(p => selectedPhraseIds.has(p.id));
+    clipboard.setClipboard({
+      phrases: selectedInOrder,
+      sourceSectionId: section.id,
+    });
+    toast({
+      message: `${selectedInOrder.length} line${selectedInOrder.length === 1 ? '' : 's'} copied. Open another section to paste.`,
+      variant: 'success',
+    });
+    setSelectMode(false);
+    setSelectedPhraseIds(new Set());
+  };
+
+  const pasteFromClipboard = async () => {
+    if (clipboard.state.phrases.length === 0) return;
+    // Always re-clone on paste so the same clipboard can be pasted
+    // multiple times without sharing ids.
+    const copies = clipboard.state.phrases.map(p => clonePhraseWithFreshIds(p));
+    const list = [...normalisedPhrases, ...copies];
+    await commit({ phrases: list });
+    toast({
+      message: `Pasted ${copies.length} line${copies.length === 1 ? '' : 's'}.`,
+      variant: 'success',
+    });
+  };
+
+  // Source-section's own "Paste" button is suppressed — pasting
+  // there is what the duplicate affordance is for. Only show paste
+  // on OTHER sections that have a non-empty clipboard.
+  const canPaste =
+    clipboard.state.phrases.length > 0 &&
+    clipboard.state.sourceSectionId !== section.id;
 
   const deletePhrase = async (phraseId: string) => {
     const current = [...normalisedPhrases];
@@ -276,6 +388,18 @@ export default function LeadSheetSection({
             ↓
           </button>
           <button
+            onClick={toggleSelectMode}
+            disabled={normalisedPhrases.length === 0}
+            className={`px-1.5 py-0.5 rounded border text-[11px] disabled:opacity-30 disabled:cursor-not-allowed ${
+              selectMode
+                ? 'border-fluent bg-fluent/10 text-fluent'
+                : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent'
+            }`}
+            title={selectMode ? 'leave select mode' : 'select phrase lines to copy across sections'}
+          >
+            {selectMode ? '☑ selecting' : '☐ select'}
+          </button>
+          <button
             onClick={() => commit({ hidden: !section.hidden })}
             className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent"
             title={section.hidden ? 'unhide section' : 'hide section'}
@@ -324,10 +448,23 @@ export default function LeadSheetSection({
               </div>
               {normalisedPhrases.map((p, idx) => {
                 const otherCompareIds = compareIds.filter(id => id !== activeArrangementId);
+                const isTextEditing = textEditPhraseId === p.id;
+                const isSelected = selectedPhraseIds.has(p.id);
                 return (
                   <div key={p.id} className="group flex items-start gap-2">
-                    {/* Per-phrase reorder + delete affordances (fade in
-                        on hover to keep the editor calm). */}
+                    {selectMode && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelection(p.id)}
+                        title="select this phrase line to copy"
+                        aria-label="select phrase line"
+                        className="mt-2 h-4 w-4 rounded border-neutral-300 text-fluent focus:ring-fluent"
+                      />
+                    )}
+                    {/* Per-phrase reorder + delete + edit-text +
+                        duplicate affordances (fade in on hover to
+                        keep the editor calm). */}
                     <div className="flex flex-col items-center gap-0.5 pt-2 opacity-30 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={() => movePhrase(p.id, -1)}
@@ -352,24 +489,102 @@ export default function LeadSheetSection({
                       >
                         ✕
                       </button>
+                      <button
+                        onClick={() => beginTextEdit(p)}
+                        title="edit as text — re-type or re-paste this line"
+                        aria-label="edit as text"
+                        className="text-[10px] text-neutral-500 hover:text-fluent px-0.5"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => void duplicatePhrase(p.id)}
+                        title="duplicate this line below"
+                        aria-label="duplicate line"
+                        className="text-[10px] text-neutral-500 hover:text-fluent px-0.5"
+                      >
+                        ⧉
+                      </button>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <PhraseLineEditor
-                        phrase={p}
-                        activeArrangementId={activeArrangementId}
-                        compareArrangementIds={otherCompareIds}
-                        arrangementName={id => arrangements.find(a => a.id === id)?.name ?? id}
-                        notationMode={notationMode}
-                        sectionKey={song.key}
-                        onChange={updatePhraseInPlace}
-                        highlighted={highlightedPhraseId === p.id}
-                      />
+                      {isTextEditing ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            autoFocus
+                            value={textEditDraft}
+                            onChange={e => setTextEditDraft(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void commitTextEdit();
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                cancelTextEdit();
+                              }
+                            }}
+                            placeholder="Type or paste lyrics for this line..."
+                            className="flex-1 min-w-0 rounded-md border border-fluent/60 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-fluent/30 focus:border-fluent"
+                          />
+                          <button
+                            onClick={() => void commitTextEdit()}
+                            title="apply"
+                            aria-label="apply"
+                            className="px-2 py-1 rounded-md bg-fluent text-white text-xs hover:opacity-90"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={cancelTextEdit}
+                            title="cancel"
+                            aria-label="cancel"
+                            className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-500 hover:text-needswork"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <PhraseLineEditor
+                          phrase={p}
+                          activeArrangementId={activeArrangementId}
+                          compareArrangementIds={otherCompareIds}
+                          arrangementName={id => arrangements.find(a => a.id === id)?.name ?? id}
+                          notationMode={notationMode}
+                          sectionKey={song.key}
+                          onChange={updatePhraseInPlace}
+                          highlighted={highlightedPhraseId === p.id}
+                        />
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+          {/* Select-mode + paste action bar. "Copy selected" appears
+              while the user is multi-selecting; "Paste phrase lines"
+              appears on every section EXCEPT the source whenever the
+              clipboard is non-empty. */}
+          {(selectMode && selectedPhraseIds.size > 0) || canPaste ? (
+            <div className="flex items-center gap-2 pt-1 flex-wrap">
+              {selectMode && selectedPhraseIds.size > 0 && (
+                <button
+                  onClick={copySelected}
+                  className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
+                >
+                  Copy {selectedPhraseIds.size} line{selectedPhraseIds.size === 1 ? '' : 's'}
+                </button>
+              )}
+              {canPaste && (
+                <button
+                  onClick={() => void pasteFromClipboard()}
+                  className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
+                >
+                  Paste {clipboard.state.phrases.length} phrase line{clipboard.state.phrases.length === 1 ? '' : 's'}
+                </button>
+              )}
+            </div>
+          ) : null}
 
           {drafting ? (
             <div className="flex items-center gap-2 pt-1">

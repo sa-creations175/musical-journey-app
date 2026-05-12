@@ -61,6 +61,11 @@ export interface Song {
   tempo?: number;
   /** Optional human tempo range like "60-75 BPM". Rendered verbatim. */
   tempoLabel?: string;
+  /** Time signature display string like "4/4", "6/8", "5/4". Free
+   *  text so uncommon meters survive — the editor surfaces a
+   *  preset dropdown with an "Other" → free-text fallback.
+   *  Unindexed; rides in the data JSONB blob across sync. */
+  timeSignature?: string;
   /** Current user-controlled stage. Defaults to 'learning' for new
    *  songs. Advancement is user-driven; the UI suggests when criteria
    *  are met but never forces a change. */
