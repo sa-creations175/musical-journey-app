@@ -22,6 +22,20 @@ const MASTERY_LABEL: Record<ProductionLessonMastery, string> = {
   'mastered':    'mastered',
 };
 
+const MASTERY_DOT: Record<ProductionLessonMastery, string> = {
+  'not-started': 'bg-neutral-200 dark:bg-neutral-700',
+  'in-progress': 'bg-developing',
+  'completed':   'bg-fluent',
+  'mastered':    'bg-mastered',
+};
+
+const MASTERY_LEGEND: Array<{ key: ProductionLessonMastery; label: string; meaning: string }> = [
+  { key: 'not-started', label: 'not yet',     meaning: "haven't looked at this yet" },
+  { key: 'in-progress', label: 'in progress', meaning: 'started but still working through it' },
+  { key: 'completed',   label: 'got it',      meaning: 'understand the idea and can use it' },
+  { key: 'mastered',    label: 'mastered',    meaning: 'solid enough to teach it or apply it instinctively' },
+];
+
 /**
  * Single-lesson view. Surface content is always visible; the Deep
  * Dive layer expands on demand. Glossary terms render as inline
@@ -192,6 +206,8 @@ export default function LessonView({ lessonId, onBack }: Props) {
         />
       </section>
 
+      <MasteryLegend />
+
       {glossaryOpen && (
         <GlossaryOverlay
           termId={glossaryOpen}
@@ -359,6 +375,39 @@ function MasteryControls({
         return button;
       })}
     </div>
+  );
+}
+
+/** Collapsible legend explaining what each mastery state means.
+ *  Lives next to MasteryControls so the explanation is one tap away
+ *  from the buttons the user is actually deciding between. */
+function MasteryLegend() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        className="text-[11px] text-neutral-500 hover:text-production inline-flex items-center gap-1 self-end"
+      >
+        What do these mean?
+        <span aria-hidden>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <ul className="text-[11px] text-neutral-600 dark:text-neutral-300 space-y-1 border-l-2 border-production/20 pl-3 self-end">
+          {MASTERY_LEGEND.map(entry => (
+            <li key={entry.key} className="flex items-baseline gap-2">
+              <span className={`shrink-0 inline-block w-2 h-2 rounded-full mt-0.5 ${MASTERY_DOT[entry.key]}`} aria-hidden />
+              <span>
+                <span className="font-medium">{entry.label}</span>
+                <span className="text-neutral-500"> — {entry.meaning}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
