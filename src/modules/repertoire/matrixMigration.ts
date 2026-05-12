@@ -95,11 +95,6 @@ async function runMigration(): Promise<void> {
  */
 export async function ensureSongHasOriginalKey(songId: string): Promise<void> {
   const existing = await db.songKeys.where('songId').equals(songId).count();
-  // Temporary diagnostic — added to confirm whether saveMeta is
-  // actually reaching this seed path for "No Weapon". Remove once
-  // the report is in.
-  // eslint-disable-next-line no-console
-  console.log(`[ensureSongHasOriginalKey] called for songId: ${songId}, existing rows: ${existing}`);
   if (existing > 0) return;
   const song = await db.songs.get(songId);
   if (!song) return;
