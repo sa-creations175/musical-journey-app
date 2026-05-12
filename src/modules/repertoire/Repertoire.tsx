@@ -9,6 +9,10 @@ import { seedRepertoireIfNeeded } from './seedSongs';
 import ActiveRepertoireView from './ActiveRepertoireView';
 import SongDetailView from './SongDetailView';
 import WantToLearnView from './WantToLearnView';
+// Side-effect import: registers `__inspectSongKeys(songId)` on
+// `window` so the matrix's original-key state can be inspected from
+// the browser console without a module import path.
+import './devInspectSongKeys';
 
 type TabId = 'active' | 'detail' | 'want-to-learn';
 
