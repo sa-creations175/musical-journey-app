@@ -240,12 +240,12 @@ export default function LeadSheetSection({
     });
   };
 
-  // Source-section's own "Paste" button is suppressed — pasting
-  // there is what the duplicate affordance is for. Only show paste
-  // on OTHER sections that have a non-empty clipboard.
-  const canPaste =
-    clipboard.state.phrases.length > 0 &&
-    clipboard.state.sourceSectionId !== section.id;
+  // Paste shows on every section once the clipboard is non-empty
+  // — including the source. The source-section paste case is
+  // basically a multi-duplicate convenience; users asked for the
+  // symmetry. `sourceSectionId` is still recorded on the clipboard
+  // for any future heuristics but no longer gates rendering.
+  const canPaste = clipboard.state.phrases.length > 0;
 
   const deletePhrase = async (phraseId: string) => {
     const current = [...normalisedPhrases];
@@ -576,12 +576,21 @@ export default function LeadSheetSection({
                 </button>
               )}
               {canPaste && (
-                <button
-                  onClick={() => void pasteFromClipboard()}
-                  className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
-                >
-                  Paste {clipboard.state.phrases.length} phrase line{clipboard.state.phrases.length === 1 ? '' : 's'}
-                </button>
+                <>
+                  <button
+                    onClick={() => void pasteFromClipboard()}
+                    className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
+                  >
+                    Paste {clipboard.state.phrases.length} phrase line{clipboard.state.phrases.length === 1 ? '' : 's'}
+                  </button>
+                  <button
+                    onClick={() => clipboard.clear()}
+                    title="clear the phrase clipboard"
+                    className="px-2 py-1.5 rounded-md text-neutral-500 hover:text-needswork text-xs"
+                  >
+                    ✕ Clear
+                  </button>
+                </>
               )}
             </div>
           ) : null}
