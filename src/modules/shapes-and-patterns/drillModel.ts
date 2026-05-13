@@ -302,41 +302,71 @@ function defaultDrillTypesForDescriptor(desc: SkillDescriptor) {
  * long-form name in parens for clarity.
  */
 /**
- * Same as `labelFor` but takes a `DrillSkill` row (the on-disk
- * shape) rather than a freshly-built descriptor. Used by the
- * proposal-screen activity-description path so older skills
- * lacking the denormalised `label` field still render with a
- * proper name. Falls back to the row's `label` when present
- * (cheaper than reconstructing the descriptor each call).
+ * Inverse of `itemRefForSkill`: parse a spacingState itemRef
+ * (e.g. "chord-shape:maj7:C:inv1", "scale:major:C", "vl:aba-251:Bb")
+ * back into the descriptor that produced it. Returns null when
+ * the string doesn't match a known shape — defensive against
+ * legacy / hand-edited rows.
+ *
+ * Used by the proposal-screen activity-description path: the
+ * spacingState itemRefs ARE the descriptor in serialized form, so
+ * we can render the human label without touching db.drillSkills
+ * (which keys by an unrelated random `skill-…` uid).
  */
-export function labelForSkill(skill: DrillSkill): string {
-  if (skill.label && skill.label.length > 0) return skill.label;
-  switch (skill.kind) {
-    case 'chord-shape':
-      return labelFor({
+export function parseShapesItemRef(itemRef: string): SkillDescriptor | null {
+  const parts = itemRef.split(':');
+  if (parts.length < 3) return null;
+  const [kind, a, b, c] = parts;
+  switch (kind) {
+    case 'chord-shape': {
+      // a=quality, b=keyName, c=inversionState (optional)
+      if (!a || !b) return null;
+      const inversionState = parseInversionState(c);
+      return {
         kind: 'chord-shape',
-        keyName: skill.keyName ?? '',
-        quality: skill.quality ?? '',
-        inversionState: skill.inversionState ?? null,
-      });
-    case 'scale':
-      return labelFor({
-        kind: 'scale',
-        keyName: skill.keyName ?? '',
-        scale: skill.scale ?? '',
-      });
-    case 'voice-leading':
-      return labelFor({
-        kind: 'voice-leading',
-        keyName: skill.keyName ?? '',
-        patternId: skill.patternId ?? '',
-      });
-    case 'mental-viz':
-      return labelFor({
-        kind: 'mental-viz',
-        variant: skill.variant ?? '',
-      });
+        keyName: b,
+        quality: a,
+        inversionState,
+      };
+    }
+    case 'scale': {
+      // a=scale, b=keyName
+      if (!a || !b) return null;
+      return { kind: 'scale', keyName: b, scale: a };
+    }
+    case 'vl': {
+      // a=patternId, b=keyName
+      if (!a || !b) return null;
+      return { kind: 'voice-leading', keyName: b, patternId: a };
+    }
+    default:
+      return null;
   }
+}
+
+function parseInversionState(raw: string | undefined): InversionState | null {
+  if (!raw) return null;
+  if (
+    raw === 'root' ||
+    raw === 'inv1' ||
+    raw === 'inv2' ||
+    raw === 'inv3' ||
+    raw === 'fluid' ||
+    raw === 'supplementary'
+  ) {
+    return raw;
+  }
+  return null;
+}
+
+/**
+ * Convenience composition of `parseShapesItemRef` + `labelFor`.
+ * Returns null when the itemRef can't be parsed; callers fall back
+ * to their own generic noun (e.g. "drills · N items"). */
+export function labelForShapesItemRef(itemRef: string): string | null {
+  const desc = parseShapesItemRef(itemRef);
+  if (!desc) return null;
+  return labelFor(desc);
 }
 
 export function labelFor(desc: SkillDescriptor): string {

@@ -79,7 +79,7 @@ import {
   getEligibleItems as getChordRecognitionEligibleItems,
   getUnlockedTier as getChordRecognitionUnlockedTier,
 } from '../ear-training/chord-recognition/tierUnlock';
-import { labelForSkill } from '../shapes-and-patterns/drillModel';
+import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -148,7 +148,7 @@ export async function buildSessionProposals(
     inputs.context,
   );
   if (withColdStart.length === 0) return [];
-  const itemLabels = await loadShapesDrillLabels(withColdStart);
+  const itemLabels = resolveShapesDrillLabels(withColdStart);
   return generateAndShape(withColdStart, inputs.timeMinutes * 60, repertoireSplit, itemLabels);
 }
 
@@ -304,7 +304,7 @@ export async function buildSessionPlan(
     ? requestedSeconds - vocabBlock.plannedSeconds
     : requestedSeconds;
 
-  const itemLabels = await loadShapesDrillLabels(moduleBlocks);
+  const itemLabels = resolveShapesDrillLabels(moduleBlocks);
   const cards = generateAndShape(
     moduleBlocks,
     availableSeconds,
@@ -343,8 +343,8 @@ function generateAndShape(
   moduleBlocks: AlgorithmBlock[],
   availableSeconds: number,
   repertoireSplit: RepertoireSplitContext | null = null,
-  /** itemRef → human label resolver, supplied by the async caller
-   *  via `loadShapesDrillLabels`. Used by describeActivity for
+  /** itemRef → human label resolver, supplied by the caller via
+   *  `resolveShapesDrillLabels`. Used by describeActivity for
    *  Shapes & Patterns blocks so the proposal card names the
    *  actual drill ("Major triads · 6 items") instead of the
    *  generic "drills · 6 items". Undefined → no labels (fallback
@@ -365,34 +365,32 @@ function generateAndShape(
 }
 
 /**
- * Pre-load human labels for every Shapes & Patterns itemRef across
+ * Resolve human labels for every Shapes & Patterns itemRef across
  * the given block list. The proposal screen renders these in
- * `describeActivity` so the user sees "Cmaj (major) · 6 items"
- * instead of "drills · 6 items".
+ * `describeActivity` so the user sees "Cmaj7 (major seventh) · 6
+ * items" instead of "drills · 6 items".
  *
- * Reads `db.drillSkills.label` when present (denormalised at
- * skill-creation time via `labelFor`), otherwise reconstructs the
- * label on the fly via `labelForSkill` so older skills that
- * pre-date the denormalisation still render properly. Single
- * bulkGet — the typical S&P session targets a handful of skills
- * across a few keys, so the query is cheap.
+ * No DB lookup: spacingState itemRefs for S&P are descriptor
+ * strings (`chord-shape:{quality}:{keyName}[:{inversionState}]`,
+ * `scale:{scale}:{keyName}`, `vl:{patternId}:{keyName}`) — the
+ * inverse of `itemRefForSkill`. We parse the string back into a
+ * descriptor and run `labelFor` directly. Earlier versions of this
+ * function tried `db.drillSkills.bulkGet(itemRefs)` and got 0
+ * matches every time because drillSkills.id is an unrelated random
+ * `skill-…` uid; the namespaces never overlapped.
  */
-async function loadShapesDrillLabels(
+function resolveShapesDrillLabels(
   blocks: ReadonlyArray<AlgorithmBlock>,
-): Promise<Map<string, string>> {
-  const ids: string[] = [];
+): Map<string, string> {
+  const out = new Map<string, string>();
   for (const b of blocks) {
     if (b.moduleRef !== SHAPES_MODULE_REF) continue;
-    for (const ref of b.itemRefs) ids.push(ref);
+    for (const ref of b.itemRefs) {
+      if (out.has(ref)) continue;
+      const label = labelForShapesItemRef(ref);
+      if (label) out.set(ref, label);
+    }
   }
-  if (ids.length === 0) return new Map();
-  const rows = await db.drillSkills.bulkGet(ids);
-  const out = new Map<string, string>();
-  rows.forEach((row, i) => {
-    if (!row) return;
-    const label = labelForSkill(row);
-    if (label) out.set(ids[i], label);
-  });
   return out;
 }
 
@@ -456,7 +454,7 @@ export async function buildSessionProposalsForPath(
     inputs.context,
   );
   if (filteredWithColdStart.length > 0) {
-    const filteredItemLabels = await loadShapesDrillLabels(filteredWithColdStart);
+    const filteredItemLabels = resolveShapesDrillLabels(filteredWithColdStart);
     return generateAndShape(
       filteredWithColdStart,
       availableSeconds,
@@ -483,7 +481,7 @@ export async function buildSessionProposalsForPath(
     inputs.context,
   );
   if (fallbackWithColdStart.length === 0) return [];
-  const fallbackItemLabels = await loadShapesDrillLabels(fallbackWithColdStart);
+  const fallbackItemLabels = resolveShapesDrillLabels(fallbackWithColdStart);
   return generateAndShape(
     fallbackWithColdStart,
     availableSeconds,
