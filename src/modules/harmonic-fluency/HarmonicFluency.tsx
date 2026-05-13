@@ -338,30 +338,42 @@ export default function HarmonicFluency() {
 // optional notes, with a button to clear each one.
 // ---------------------------------------------------------------------
 
+// Module-level lookup — stable reference, no need for useMemo or a
+// dep on every component re-render. Building this inside the live
+// query callback (a) makes the deps array empty so the live query
+// subscribes to the table once, and (b) avoids the prior bug where
+// the panel never appeared because the dep-array reference cycle
+// blocked the observable from emitting.
+const CARDS_BY_ID = new Map(FLASHCARDS.map(c => [c.id, c]));
+
 function FlaggedForReviewPanel() {
   const [expanded, setExpanded] = useState(false);
-  const cardsById = useMemo(() => {
-    const m = new Map<string, (typeof FLASHCARDS)[number]>();
-    for (const c of FLASHCARDS) m.set(c.id, c);
-    return m;
-  }, []);
 
   const flagged = useLiveQuery(
     async () => {
-      const rows = await db.flashcardStates.filter(s => s.flagged === true).toArray();
+      const rows = await db.flashcardStates
+        .filter(s => s.flagged === true)
+        .toArray();
       return rows
         .map(r => ({
           cardId: r.cardId,
           note: r.flagNote,
           lastReviewed: r.lastReviewed,
-          card: cardsById.get(r.cardId),
+          card: CARDS_BY_ID.get(r.cardId),
         }))
-        .filter(x => x.card !== undefined)
+        .filter((x): x is typeof x & { card: NonNullable<typeof x.card> } =>
+          x.card !== undefined,
+        )
         .sort((a, b) => b.lastReviewed - a.lastReviewed);
     },
-    [cardsById],
-  ) ?? [];
+    [],
+  );
 
+  // Loading vs empty: useLiveQuery returns undefined until its first
+  // emission. We only collapse to null AFTER the query has resolved
+  // and found no flagged cards — otherwise the panel would flash
+  // empty during the brief subscribe window even when rows exist.
+  if (flagged === undefined) return null;
   if (flagged.length === 0) return null;
 
   return (
