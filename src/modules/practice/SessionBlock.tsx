@@ -60,7 +60,11 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
       type="button"
       onClick={handleToggle}
       aria-expanded={isExpanded}
-      className="w-full min-w-0 overflow-hidden text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
+      // h-full so the block fills the proportional height assigned
+      // by SessionStack's parent flex container — without it, the
+      // button would shrink to its intrinsic content height and the
+      // proportional layout would collapse.
+      className="w-full h-full min-w-0 overflow-hidden text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
       style={{
         backgroundColor: tint,
         borderColor: block.moduleAccentHex,

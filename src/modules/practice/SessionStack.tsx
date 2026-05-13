@@ -1,17 +1,38 @@
 /**
  * Phase 3 Step 4c — Session stack.
  *
- * Vertical stack of SessionBlock components with a hairline (2px)
- * gap between them and rounded/padded container framing. Block
- * heights are proportional to plannedSeconds — a 5-min block is
- * half the height of a 10-min block — using CSS grid template rows
- * with `<seconds>fr` units.
+ * Vertical stack of SessionBlock components with a hairline gap
+ * between them. Block heights are proportional to plannedSeconds —
+ * a 5-min block is half the height of a 10-min block. The container
+ * honours a per-block minimum height so even the shortest blocks
+ * render legibly; longer sessions stretch above that floor.
  *
- * The container honors a per-block minimum height so even the
- * shortest blocks render legibly, scaling the total when the
- * session is short. For longer sessions the stack stretches to
- * accommodate the proportions.
+ * Drag-to-reorder: when the caller supplies `onReorder`, each
+ * top-level group gets a drag handle and the user can shuffle the
+ * order. Adjacent warm-up + practice pairs (chord-quiz before a
+ * Repertoire block) drag as a single unit so the quiz can't be
+ * stranded from its practice. The flat block order produced by the
+ * reorder is passed back via `onReorder`; SessionStack stays
+ * stateless.
  */
+import { useMemo, type CSSProperties } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import SessionBlock from './SessionBlock';
 import type { ProposalBlock } from './proposalTypes';
 
@@ -19,9 +40,54 @@ const MIN_BLOCK_PX = 64;
 
 interface Props {
   blocks: ReadonlyArray<ProposalBlock>;
+  /** Drag-to-reorder hook. When supplied, the stack becomes
+   *  sortable and emits the reordered list on drop. Each
+   *  warm-up + practice pair (chord-quiz immediately followed by
+   *  its repertoire practice block) moves as one — the user can't
+   *  separate the quiz from the practice it sets up. */
+  onReorder?: (next: ProposalBlock[]) => void;
 }
 
-export default function SessionStack({ blocks }: Props) {
+/** A drag unit. Single-block groups contain one item; paired
+ *  groups contain a warm-up followed by its practice block. */
+interface BlockGroup {
+  /** Stable id for SortableContext — uses the first item's id. */
+  id: string;
+  items: ProposalBlock[];
+}
+
+/** Group adjacent (isWarmup → next-block) into draggable pairs.
+ *  Order-stable across reorders: a regrouped list returns the same
+ *  shape because chord-quiz keeps its practice partner immediately
+ *  after it on every move. */
+function groupBlocks(blocks: ReadonlyArray<ProposalBlock>): BlockGroup[] {
+  const groups: BlockGroup[] = [];
+  let i = 0;
+  while (i < blocks.length) {
+    const b = blocks[i];
+    if (b.isWarmup && i + 1 < blocks.length) {
+      groups.push({ id: b.id, items: [b, blocks[i + 1]] });
+      i += 2;
+    } else {
+      groups.push({ id: b.id, items: [b] });
+      i += 1;
+    }
+  }
+  return groups;
+}
+
+function sumSeconds(items: ReadonlyArray<ProposalBlock>): number {
+  return items.reduce((s, b) => s + Math.max(1, b.plannedSeconds), 0);
+}
+
+export default function SessionStack({ blocks, onReorder }: Props) {
+  const groups = useMemo(() => groupBlocks(blocks), [blocks]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   if (blocks.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-neutral-200 dark:border-neutral-800 p-4 text-center text-xs text-neutral-500">
@@ -35,23 +101,128 @@ export default function SessionStack({ blocks }: Props) {
   // sessions stretch the stack proportionally above that floor.
   const minTotalPx = blocks.length * MIN_BLOCK_PX;
 
-  // gridTemplateRows: "<sec>fr <sec>fr ..." gives each row a share
-  // proportional to its plannedSeconds.
-  const gridTemplateRows = blocks
-    .map(b => `${Math.max(1, b.plannedSeconds)}fr`)
-    .join(' ');
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!onReorder) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = groups.findIndex(g => g.id === active.id);
+    const newIdx = groups.findIndex(g => g.id === over.id);
+    if (oldIdx < 0 || newIdx < 0) return;
+    const nextGroups = arrayMove(groups, oldIdx, newIdx);
+    onReorder(nextGroups.flatMap(g => g.items));
+  };
 
-  return (
+  const stackInner = (
     <div
-      className="w-full min-w-0 overflow-hidden grid gap-0.5 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
-      style={{
-        gridTemplateRows,
-        minHeight: `${minTotalPx}px`,
-      }}
+      className="w-full min-w-0 overflow-hidden flex flex-col gap-0.5 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+      style={{ minHeight: `${minTotalPx}px` }}
     >
-      {blocks.map(block => (
-        <SessionBlock key={block.id} block={block} />
+      {groups.map(group => (
+        onReorder
+          ? <SortableGroupRow key={group.id} group={group} />
+          : <StaticGroupRow key={group.id} group={group} />
       ))}
     </div>
+  );
+
+  if (!onReorder) return stackInner;
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext
+        items={groups.map(g => g.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        {stackInner}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+/** Non-sortable group — same proportional layout, no drag handle.
+ *  Used when the caller didn't opt into reordering. */
+function StaticGroupRow({ group }: { group: BlockGroup }) {
+  const seconds = sumSeconds(group.items);
+  const style: CSSProperties = {
+    flexGrow: seconds,
+    flexShrink: seconds,
+    flexBasis: 0,
+    minHeight: 0,
+  };
+  return (
+    <div style={style} className="flex flex-col gap-0.5 min-h-0">
+      <GroupBlocks group={group} />
+    </div>
+  );
+}
+
+/** Sortable group — drag handle on the left, blocks on the right.
+ *  Height is proportional to the sum of contained block seconds. */
+function SortableGroupRow({ group }: { group: BlockGroup }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: group.id });
+  const seconds = sumSeconds(group.items);
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    flexGrow: seconds,
+    flexShrink: seconds,
+    flexBasis: 0,
+    minHeight: 0,
+    opacity: isDragging ? 0.5 : 1,
+    // While dragging, lift above sibling rows so the moving group
+    // visually leads the reflow.
+    zIndex: isDragging ? 10 : undefined,
+    position: isDragging ? 'relative' : undefined,
+  };
+  const ariaLabel = group.items.length > 1
+    ? `drag to reorder warm-up + ${group.items[1].moduleLabel} pair`
+    : `drag to reorder ${group.items[0].moduleLabel} block`;
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-stretch gap-1.5 min-h-0">
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        {...attributes}
+        {...listeners}
+        className="shrink-0 w-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-grab active:cursor-grabbing touch-none select-none"
+      >
+        <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
+      </button>
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <GroupBlocks group={group} />
+      </div>
+    </div>
+  );
+}
+
+/** Inner block list for a group. A single-block group renders just
+ *  the one SessionBlock filling the row. A paired group renders
+ *  both blocks stacked, each row sized by its own plannedSeconds
+ *  so the within-group proportions match a session-wide single
+ *  block of the same total duration. */
+function GroupBlocks({ group }: { group: BlockGroup }) {
+  if (group.items.length === 1) {
+    return <SessionBlock block={group.items[0]} />;
+  }
+  return (
+    <>
+      {group.items.map(b => {
+        const sec = Math.max(1, b.plannedSeconds);
+        return (
+          <div
+            key={b.id}
+            style={{ flexGrow: sec, flexShrink: sec, flexBasis: 0, minHeight: 0 }}
+            className="flex flex-col min-h-0"
+          >
+            <SessionBlock block={b} />
+          </div>
+        );
+      })}
+    </>
   );
 }

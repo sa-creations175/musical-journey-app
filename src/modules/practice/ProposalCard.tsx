@@ -12,12 +12,12 @@
  * surface; 4i the cold-start banner; 4j the feasibility banner.
  * Each substep edits this file.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import AffirmationSurface from './AffirmationSurface';
 import SessionStack from './SessionStack';
 import TimePicker from './TimePicker';
-import type { ProposalCardData } from './proposalTypes';
+import type { ProposalBlock, ProposalCardData } from './proposalTypes';
 
 interface Props {
   data: ProposalCardData;
@@ -79,6 +79,19 @@ export default function ProposalCard({
   const [addOpen, setAddOpen] = useState(false);
   const totalMinutes = Math.round(data.totalSeconds / 60);
 
+  // Locally-tracked block order so the user can drag-to-reorder
+  // before accepting without mutating the upstream proposal. Reset
+  // when the underlying block set changes (e.g. time nudge → fresh
+  // proposal). Compare by id signature instead of array reference
+  // so an upstream re-render with the same blocks doesn't wipe a
+  // user reorder.
+  const blockIdSignature = data.blocks.map(b => b.id).join('|');
+  const [orderedBlocks, setOrderedBlocks] = useState<ProposalBlock[]>(data.blocks);
+  useEffect(() => {
+    setOrderedBlocks(data.blocks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blockIdSignature]);
+
   const showAddPicker =
     onAddDeeperOnExisting !== undefined ||
     onAddNextPriority !== undefined ||
@@ -133,7 +146,7 @@ export default function ProposalCard({
           />
         </div>
       )}
-      <SessionStack blocks={data.blocks} />
+      <SessionStack blocks={orderedBlocks} onReorder={setOrderedBlocks} />
 
       {showAddPicker && (
         <div className="space-y-1.5">
@@ -218,7 +231,7 @@ export default function ProposalCard({
 
       <button
         type="button"
-        onClick={() => onAccept(data, { hardBlock })}
+        onClick={() => onAccept({ ...data, blocks: orderedBlocks }, { hardBlock })}
         className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
       >
         start this session
