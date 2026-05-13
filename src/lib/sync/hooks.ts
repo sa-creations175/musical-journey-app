@@ -77,7 +77,23 @@ export function installSyncHooks(): void {
     });
 
     table.hook('deleting', (...args: unknown[]) => {
-      if (!shouldSync()) return;
+      // Deletes always enqueue when a user is signed in, regardless
+      // of isPulling(). The pulling guard is correct for upserts —
+      // it prevents echo loops when replace-pull bulkPuts cloud
+      // rows into Dexie — but it was silently dropping explicit
+      // user deletes that raced a tab-focus pull (verified by
+      // diagnostic logs: confirmed-plan Re-plan + concurrent pull
+      // left the syncQueue empty and the next replace-pull
+      // restored the rows).
+      //
+      // Replace-pull's own orphan-bulkDelete also fires this hook
+      // and will enqueue 'delete' ops for already-deleted cloud
+      // rows. That's benign — Supabase delete on a non-existent
+      // row is a no-op (no error). The extra round-trips are
+      // wasteful but correct, and they're rare in practice
+      // (orphan deletes happen only when cross-device state
+      // diverges).
+      if (!getCurrentUserId()) return;
       const obj = (args[1] as UnknownRow | undefined) ?? {};
       const id = obj[cfg.idField];
       setTimeout(() => {
