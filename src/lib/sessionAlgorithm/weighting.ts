@@ -135,6 +135,30 @@ export function priorityFactor(priority: ItemPriority | undefined): number {
 }
 
 // ---------------------------------------------------------------------
+// Scoped-coverage boost
+// ---------------------------------------------------------------------
+
+/**
+ * Multiplier applied when at least one of the item's contributing
+ * goals is a specific-coverage goal (a coverage spec carrying an
+ * `itemRefFilter` — see candidateSpecForGoal in candidates.ts).
+ *
+ * Intent: when the user has an active goal that targets a specific
+ * sub-area ("Major triads", "ii–V–I voice-leading", "Workflow
+ * Foundations lessons", etc.), the items inside that sub-area
+ * should dominate the session — but items OUTSIDE the sub-area
+ * still surface at base weight so the user keeps brushing against
+ * peripheral skills.
+ *
+ * The boost lives at the weighting layer, not the filtering layer
+ * — both sub-area and non-sub-area items remain in the candidate
+ * pool, just at different weights. This is the conscious design
+ * call from the May 2026 S&P goal-alignment fix.
+ */
+export const SCOPED_COVERAGE_BOOST_FACTOR = 3.0;
+export const SCOPED_COVERAGE_BOOST_NEUTRAL = 1.0;
+
+// ---------------------------------------------------------------------
 // Combined weight
 // ---------------------------------------------------------------------
 
@@ -144,6 +168,20 @@ export interface WeightFactors {
   acquisition: number;
   freshness: number;
   priority: number;
+  /** Scoped-coverage boost — see SCOPED_COVERAGE_BOOST_FACTOR.
+   *  1.0 when no contributing goal is a specific-coverage match,
+   *  SCOPED_COVERAGE_BOOST_FACTOR when at least one is. */
+  scopedCoverage: number;
+}
+
+/** Per-goal contribution to one item's weight. */
+export interface GoalContribution {
+  scope: GoalScope;
+  paceFactor: number;
+  /** True when this contribution comes from a specific-coverage
+   *  goal whose itemRefFilter matched the item — i.e. the item is
+   *  inside the user's active sub-area scope. Default false. */
+  viaScopedCoverage?: boolean;
 }
 
 export interface WeightContext {
@@ -155,7 +193,7 @@ export interface WeightContext {
    * `paceFactor` drives pace lift. MAX wins across the array.
    * Empty when no active goal references the item.
    */
-  goals: ReadonlyArray<{ scope: GoalScope; paceFactor: number }>;
+  goals: ReadonlyArray<GoalContribution>;
   /** Per-item priority. Phase 3 ships without UI; default undefined → 1.0. */
   priority?: ItemPriority;
   /** Reference time. */
@@ -178,12 +216,17 @@ export function weightForItem(ctx: WeightContext): WeightResult {
       ? 1.0
       : Math.max(...ctx.goals.map(g => g.paceFactor));
 
+  const scopedCoverage = ctx.goals.some(g => g.viaScopedCoverage)
+    ? SCOPED_COVERAGE_BOOST_FACTOR
+    : SCOPED_COVERAGE_BOOST_NEUTRAL;
+
   const factors: WeightFactors = {
     goalAlignment,
     pace,
     acquisition: acquisitionFactor(ctx.row),
     freshness: freshnessFactor(ctx.row, ctx.now),
     priority: priorityFactor(ctx.priority),
+    scopedCoverage,
   };
 
   const weight =
@@ -191,7 +234,8 @@ export function weightForItem(ctx: WeightContext): WeightResult {
     factors.pace *
     factors.acquisition *
     factors.freshness *
-    factors.priority;
+    factors.priority *
+    factors.scopedCoverage;
 
   return { weight, factors };
 }

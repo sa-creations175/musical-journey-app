@@ -63,8 +63,12 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
       // h-full so the block fills the proportional height assigned
       // by SessionStack's parent flex container — without it, the
       // button would shrink to its intrinsic content height and the
-      // proportional layout would collapse.
-      className="w-full h-full min-w-0 overflow-hidden text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
+      // proportional layout would collapse. `overflow-visible`
+      // (default) lets activity-description wraps + warm-up badge
+      // extend past the rounded border when a short block hits its
+      // height floor; the stack-level container above still clips
+      // at the stack edge so nothing escapes the proposal card.
+      className="w-full h-full min-w-0 text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
       style={{
         backgroundColor: tint,
         borderColor: block.moduleAccentHex,

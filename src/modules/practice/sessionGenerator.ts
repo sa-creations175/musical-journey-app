@@ -23,7 +23,6 @@ import {
   db,
   type FlashcardState,
   type Goal,
-  type GoalScope,
   type PracticeSessionContext,
   type SpacingState,
 } from '../../lib/db';
@@ -49,7 +48,10 @@ import type {
   AlgorithmBlock,
   AllocatedBlock,
 } from '../../lib/sessionAlgorithm/timeAllocation';
-import { weightForItem } from '../../lib/sessionAlgorithm/weighting';
+import {
+  weightForItem,
+  type GoalContribution,
+} from '../../lib/sessionAlgorithm/weighting';
 import { paceForCoverageGoal } from '../../lib/sessionAlgorithm/pace';
 import {
   computeWeeklyPaceByModule,
@@ -775,10 +777,7 @@ export function aggregateGoalCandidatesByModule(
   // on the joint pair keeps per-module aggregation clean while
   // letting weightForItem's MAX-across-goals do multi-goal
   // compounding inside each (item, module) cell.
-  const contributingByItemModule = new Map<
-    string,
-    { scope: GoalScope; paceFactor: number }[]
-  >();
+  const contributingByItemModule = new Map<string, GoalContribution[]>();
 
   for (const goal of goals) {
     // Skip goals whose required context the current session can't
@@ -794,6 +793,16 @@ export function aggregateGoalCandidatesByModule(
     if (candidateModuleRefs.length === 0) continue;
 
     const paceFactor = paceFactorForGoal(goal, spec, now);
+    // Specific-coverage detection: only `coverage` specs that
+    // carry an itemRefFilter are scope-targeting goals (e.g. S&P
+    // "Major triads", HF "chord-function cards", Production
+    // "Workflow Foundations"). Items contributed by such goals
+    // ride a weight boost downstream so the user's active
+    // sub-area dominates the proposal without crowding out
+    // peripheral items entirely. See SCOPED_COVERAGE_BOOST_FACTOR
+    // in weighting.ts.
+    const viaScopedCoverage =
+      spec.kind === 'coverage' && spec.itemRefFilter !== undefined;
     // Resolve against filtered rows so module-level drops cascade
     // automatically — a goal that targets only Shapes items will
     // produce zero candidates under non-keys.
@@ -805,13 +814,16 @@ export function aggregateGoalCandidatesByModule(
       if (!candidateModuleRefs.includes(row.moduleRef)) continue;
 
       const key = `${itemRef}\x00${row.moduleRef}`;
+      const contribution: GoalContribution = {
+        scope: goal.scope,
+        paceFactor,
+        viaScopedCoverage,
+      };
       const list = contributingByItemModule.get(key);
       if (list) {
-        list.push({ scope: goal.scope, paceFactor });
+        list.push(contribution);
       } else {
-        contributingByItemModule.set(key, [
-          { scope: goal.scope, paceFactor },
-        ]);
+        contributingByItemModule.set(key, [contribution]);
       }
     }
   }

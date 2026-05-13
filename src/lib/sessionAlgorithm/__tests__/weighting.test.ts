@@ -21,6 +21,8 @@ import {
   PRIORITY_FACTOR_COMFORT,
   PRIORITY_FACTOR_DEEP,
   PRIORITY_FACTOR_MAINTENANCE,
+  SCOPED_COVERAGE_BOOST_FACTOR,
+  SCOPED_COVERAGE_BOOST_NEUTRAL,
   acquisitionFactor,
   freshnessFactor,
   goalAlignmentFactor,
@@ -167,5 +169,101 @@ describe('weightForItem', () => {
       now: T0,
     });
     expect(justNow.weight).toBeLessThan(aDayAgo.weight);
+  });
+});
+
+/**
+ * Scoped-coverage boost — pinned by the May 2026 S&P goal-alignment
+ * fix. When the user has a specific-coverage goal active (e.g.
+ * "Major triads"), items inside that sub-area get a 3× weight
+ * boost so they dominate the proposal. Items outside the sub-area
+ * still surface at base weight — the boost lives at the weighting
+ * layer, not the filtering layer.
+ */
+describe('weightForItem — scoped-coverage boost', () => {
+  it('exposes the boost constants in the expected direction', () => {
+    expect(SCOPED_COVERAGE_BOOST_FACTOR).toBeGreaterThan(SCOPED_COVERAGE_BOOST_NEUTRAL);
+    expect(SCOPED_COVERAGE_BOOST_NEUTRAL).toBe(1.0);
+  });
+
+  it('applies the boost when at least one contributing goal is viaScopedCoverage', () => {
+    const r = weightForItem({
+      row: row('new'),
+      goals: [
+        { scope: 'monthly', paceFactor: 1.0, viaScopedCoverage: true },
+      ],
+      now: T0,
+    });
+    expect(r.factors.scopedCoverage).toBe(SCOPED_COVERAGE_BOOST_FACTOR);
+  });
+
+  it('stays neutral when no contributing goal is viaScopedCoverage', () => {
+    const r = weightForItem({
+      row: row('new'),
+      goals: [
+        { scope: 'monthly', paceFactor: 1.0 },
+        { scope: 'weekly', paceFactor: 1.0, viaScopedCoverage: false },
+      ],
+      now: T0,
+    });
+    expect(r.factors.scopedCoverage).toBe(SCOPED_COVERAGE_BOOST_NEUTRAL);
+  });
+
+  it('a single viaScopedCoverage entry wins over many non-scoped ones', () => {
+    // Mirrors the real flow: an item lands in the candidate pool
+    // from BOTH a specific-coverage goal (scoped) and a sibling
+    // consistency goal (module-wide, not scoped). The boost still
+    // fires.
+    const r = weightForItem({
+      row: row('new'),
+      goals: [
+        { scope: 'monthly', paceFactor: 1.0, viaScopedCoverage: false },
+        { scope: 'monthly', paceFactor: 1.0, viaScopedCoverage: true },
+        { scope: 'weekly', paceFactor: 1.0 },
+      ],
+      now: T0,
+    });
+    expect(r.factors.scopedCoverage).toBe(SCOPED_COVERAGE_BOOST_FACTOR);
+  });
+
+  it('boost is multiplicative — included in the final weight product', () => {
+    const baseline = weightForItem({
+      row: row('new'),
+      goals: [{ scope: 'monthly', paceFactor: 1.0 }],
+      now: T0,
+    });
+    const boosted = weightForItem({
+      row: row('new'),
+      goals: [{ scope: 'monthly', paceFactor: 1.0, viaScopedCoverage: true }],
+      now: T0,
+    });
+    expect(boosted.weight).toBeCloseTo(baseline.weight * SCOPED_COVERAGE_BOOST_FACTOR);
+  });
+
+  /**
+   * The headline test the user asked for: with a specific-
+   * coverage goal active, a goal-matched item outweighs a
+   * non-goal item. Both items are otherwise identical (same row
+   * state, same scope, same pace), so the only weight delta IS
+   * the boost. Mirrors the S&P scenario: "Major triads" goal is
+   * active; maj-triad items beat the scale / voice-leading items
+   * that live in the same module but aren't in the user's active
+   * sub-area.
+   */
+  it('goal-matched items get higher weight than non-goal items when a specific-coverage goal is active', () => {
+    const goalMatched = weightForItem({
+      row: row('new'),
+      goals: [{ scope: 'monthly', paceFactor: 1.0, viaScopedCoverage: true }],
+      now: T0,
+    });
+    const nonGoal = weightForItem({
+      row: row('new'),
+      goals: [{ scope: 'monthly', paceFactor: 1.0 }],
+      now: T0,
+    });
+    expect(goalMatched.weight).toBeGreaterThan(nonGoal.weight);
+    // The exact ratio IS the boost — confirms nothing else
+    // unintentionally shifted between the two contexts.
+    expect(goalMatched.weight / nonGoal.weight).toBeCloseTo(SCOPED_COVERAGE_BOOST_FACTOR);
   });
 });

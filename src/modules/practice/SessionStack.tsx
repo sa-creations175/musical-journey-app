@@ -39,12 +39,13 @@ import type { ProposalBlock } from './proposalTypes';
 /** Per-block height floor. Each group / inner block can't shrink
  *  below this even when its proportional share would. Trade-off:
  *  on sessions with a very large block alongside very small ones
- *  the proportions read slightly compressed (the small block holds
- *  at 80 px instead of, say, 18 px), but content NEVER gets
- *  clipped — a 3-min chord-quiz still shows its name + duration
- *  legibly. Picked over the prior container-level floor (which
- *  starved short blocks via flex-grow distribution). */
-const MIN_BLOCK_PX = 80;
+ *  the proportions read compressed (the small block holds at
+ *  120 px instead of, say, 18 px), but content NEVER gets clipped
+ *  — a 3-min chord-quiz still shows its name + duration legibly
+ *  even with the longer 2-line activity descriptions that S&P
+ *  drill labels can produce. Picked over the prior container-level
+ *  floor (which starved short blocks via flex-grow distribution). */
+const MIN_BLOCK_PX = 120;
 
 interface Props {
   blocks: ReadonlyArray<ProposalBlock>;
