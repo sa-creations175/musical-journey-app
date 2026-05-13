@@ -588,6 +588,7 @@ export default function LeadSheetSection({
                           sectionKey={song.key}
                           onChange={updatePhraseInPlace}
                           highlighted={highlightedPhraseId === p.id}
+                          onEditAsText={() => beginTextEdit(p)}
                         />
                       )}
                     </div>

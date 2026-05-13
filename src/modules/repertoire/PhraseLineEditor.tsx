@@ -53,6 +53,11 @@ interface Props {
   highlighted?: boolean;
   /** When `highlighted` is true, which beat to auto-focus (by id). */
   autofocusBeatId?: string;
+  /** Optional: switch the whole phrase line into the parent's
+   *  "edit as text" mode. Surfaced by the mobile bottom sheet as
+   *  the "Edit line" action so a user mid-chord-entry can pivot to
+   *  rewriting the lyrics without leaving the line. */
+  onEditAsText?: () => void;
 }
 
 /**
@@ -78,6 +83,7 @@ export default function PhraseLineEditor({
   onChange,
   highlighted,
   autofocusBeatId,
+  onEditAsText,
 }: Props) {
   const normalised = normalizePhrase(phrase);
   const beats = normalised.beats;
@@ -294,6 +300,8 @@ export default function PhraseLineEditor({
           sectionKey={sectionKey}
           onActiveBeatChange={setMobileEditBeatId}
           onCommit={commitChord}
+          onDeleteBeat={deleteBeat}
+          onEditAsText={onEditAsText}
           onClose={() => setMobileEditBeatId(null)}
         />
       )}
