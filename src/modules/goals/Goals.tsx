@@ -1074,6 +1074,48 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
+  // Load the parent monthly goals so each weekly row can borrow its
+  // activity name from the richer parent description. The weekly's
+  // own description (written by WeeklyPlan.handleConfirm) is only
+  // "Module — N unit this week" — no activity context. The monthly
+  // typically reads like "Module — Major triads to fluent", which
+  // is where the activity portion comes from after parseActivityName
+  // strips the module prefix + any trailing target phrase.
+  const parentIds = useMemo(
+    () =>
+      [...new Set(
+        goals
+          .map(g => g.parentGoalId)
+          .filter((id): id is string => !!id),
+      )],
+    [goals],
+  );
+  const parentsById = useLiveQuery<Map<string, Goal>>(
+    async () => {
+      if (parentIds.length === 0) return new Map();
+      const rows = await db.goals.bulkGet(parentIds);
+      const map = new Map<string, Goal>();
+      for (const r of rows) if (r) map.set(r.id, r);
+      return map;
+    },
+    [parentIds],
+  ) ?? new Map<string, Goal>();
+
+  // Group the confirmed weekly rows by module so each module gets
+  // one header (dot + label) with activities listed beneath it —
+  // same visual hierarchy as the plan-table multi-row groups.
+  const grouped = useMemo(() => {
+    const map = new Map<GoalFlowModuleId, Goal[]>();
+    for (const g of goals) {
+      const moduleId = (g.relatedModules[0] as GoalFlowModuleId | undefined);
+      if (!moduleId) continue;
+      const arr = map.get(moduleId) ?? [];
+      arr.push(g);
+      map.set(moduleId, arr);
+    }
+    return map;
+  }, [goals]);
+
   const handleReplan = async () => {
     if (busy) return;
     if (!confirm("Clear this week's saved plan and start over?")) return;
@@ -1093,56 +1135,70 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
 
   return (
     <div className="space-y-3 py-1">
-      <ul className="flex flex-col gap-1.5">
-        {goals.map(g => {
-          const moduleId = (g.relatedModules[0] as GoalFlowModuleId | undefined) ?? null;
-          const moduleLabel = moduleId
-            ? moduleMetaById(moduleId)?.label ?? MODULE_DISPLAY_NAME[moduleId]
-            : 'practice';
-          const target = g.targetValue ?? 0;
-          const unit = g.targetUnit ?? '';
-          const accentHex = moduleId
-            ? moduleMetaById(moduleId)?.accentHex ?? GOALS_META.accentHex
-            : GOALS_META.accentHex;
-
-          // Honest time estimate — reuses the weekly-time helper
-          // for the units it knows how to size. Unknown units drop
-          // the suffix rather than print a misleading number.
-          let timeText: string | null = null;
-          if (moduleId && (unit === 'attempts' || unit === 'sessions' || unit === 'lessons')) {
-            const est = getWeeklyTimeEstimate(moduleId, target);
-            timeText = est.kind === 'point'
-              ? `~${formatMins(est.minutes)}`
-              : `~${formatMins(est.minMinutes)}–${formatMins(est.maxMinutes)}`;
-          } else if (unit === 'hours' && target > 0) {
-            timeText = `~${formatMins(target * 60)}`;
-          } else if (unit === 'minutes' && target > 0) {
-            timeText = `~${formatMins(target)}`;
-          }
-
+      <div className="flex flex-col gap-3">
+        {[...grouped.entries()].map(([moduleId, moduleGoals]) => {
+          const meta = moduleMetaById(moduleId);
+          const moduleLabel = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+          const accentHex = meta?.accentHex ?? GOALS_META.accentHex;
           return (
-            <li
-              key={g.id}
-              className="flex items-baseline gap-2 text-sm text-neutral-700 dark:text-neutral-200"
-            >
-              <span
-                aria-hidden
-                className="inline-block w-2 h-2 rounded-full shrink-0 self-center"
-                style={{ backgroundColor: accentHex }}
-              />
-              <span className="font-medium">{moduleLabel}</span>
-              <span>
-                — {target} {unit} this week
-              </span>
-              {timeText && (
-                <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                  · {timeText}
-                </span>
-              )}
-            </li>
+            <div key={moduleId}>
+              <div className="flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                <span
+                  aria-hidden
+                  className="inline-block w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: accentHex }}
+                />
+                <span>{moduleLabel}</span>
+              </div>
+              <ul
+                className="flex flex-col gap-1 pl-4 mt-1.5 border-l"
+                style={{ borderColor: `${accentHex}55` }}
+              >
+                {moduleGoals.map(g => {
+                  const target = g.targetValue ?? 0;
+                  const unit = g.targetUnit ?? '';
+                  const parent = g.parentGoalId
+                    ? parentsById.get(g.parentGoalId)
+                    : undefined;
+                  const activityName =
+                    parseActivityName(parent?.description, moduleLabel)
+                    ?? parseActivityName(g.description, moduleLabel)
+                    ?? g.description;
+
+                  let timeText: string | null = null;
+                  if (unit === 'attempts' || unit === 'sessions' || unit === 'lessons') {
+                    const est = getWeeklyTimeEstimate(moduleId, target);
+                    timeText = est.kind === 'point'
+                      ? `~${formatMins(est.minutes)}`
+                      : `~${formatMins(est.minMinutes)}–${formatMins(est.maxMinutes)}`;
+                  } else if (unit === 'hours' && target > 0) {
+                    timeText = `~${formatMins(target * 60)}`;
+                  } else if (unit === 'minutes' && target > 0) {
+                    timeText = `~${formatMins(target)}`;
+                  }
+
+                  return (
+                    <li
+                      key={g.id}
+                      className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-neutral-700 dark:text-neutral-200"
+                    >
+                      <span className="font-medium">{activityName}</span>
+                      <span className="text-neutral-600 dark:text-neutral-300">
+                        — {target} {unit} this week
+                      </span>
+                      {timeText && (
+                        <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                          · {timeText}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           );
         })}
-      </ul>
+      </div>
       <button
         type="button"
         onClick={() => void handleReplan()}
@@ -1153,6 +1209,59 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
       </button>
     </div>
   );
+}
+
+/**
+ * Parse the activity portion of a goal description: strip the
+ * leading "Module — " prefix (case-insensitive) and any trailing
+ * target phrase ("— 60 attempts this week", "60 attempts this
+ * week"). Returns null when nothing useful remains, so callers can
+ * chain through a fallback.
+ *
+ * Examples (with moduleLabel = "Shapes & Patterns"):
+ *   "Shapes & Patterns — Major triads to fluent"
+ *     → "Major triads to fluent"
+ *   "Shapes & Patterns — 60 attempts this week"
+ *     → null  (just a count phrase, no activity name)
+ *   "Major triads — 60 attempts"  (no module prefix)
+ *     → "Major triads"
+ */
+function parseActivityName(
+  description: string | undefined,
+  moduleLabel: string,
+): string | null {
+  if (!description) return null;
+  let remaining = description.trim();
+
+  // Strip "Module — " prefix (case-insensitive). Use both em-dash
+  // and ASCII-dash separators since user-typed goals may use either.
+  const lowered = remaining.toLowerCase();
+  const moduleLower = moduleLabel.toLowerCase();
+  for (const sep of [' — ', ' - ']) {
+    const prefix = moduleLower + sep;
+    if (lowered.startsWith(prefix)) {
+      remaining = remaining.slice(moduleLabel.length + sep.length);
+      break;
+    }
+  }
+
+  // Strip trailing target phrase. Two shapes the codebase produces:
+  //   · "— 60 attempts this week" (handleConfirm format)
+  //   · " 60 attempts this week" (legacy / hand-typed)
+  // Plus standalone "this week" / "this month" suffixes.
+  remaining = remaining
+    .replace(/\s*[—-]\s*\d+\s+\w+(\s+(this|per)\s+\w+)?\s*$/i, '')
+    .replace(/\s+\d+\s+\w+(\s+(this|per)\s+\w+)?\s*$/i, '')
+    .replace(/\s*(this|per)\s+\w+\s*$/i, '')
+    .trim();
+
+  if (remaining.length === 0) return null;
+  // Reject pure-numeric leftovers — those are target phrases, not
+  // activity names.
+  if (/^\d+\s+\w+/.test(remaining) && !/\D/.test(remaining.split(/\s+/)[0])) {
+    return null;
+  }
+  return remaining;
 }
 
 /** Compact "Xh Ym" / "Xm" formatter for inline summaries. Mirrors
