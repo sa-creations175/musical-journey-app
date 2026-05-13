@@ -23,6 +23,8 @@ import { useNotationMode } from '../../lib/notationPref';
 import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
+import BottomSheet from '../../components/BottomSheet';
+import LongPressWrapper from '../../components/LongPressWrapper';
 import { usePhraseClipboard } from './phraseClipboard';
 
 // On phone-class viewports (<640px) the lead sheet editor caps phrase
@@ -202,6 +204,16 @@ export default function LeadSheetSection({
     await commit({ phrases: list });
     onPhraseAdded?.(copy.id);
   };
+
+  // --- Mobile per-row context menu --------------------------------
+  // On phone-class viewports the ↑↓✕✎⧉ button column is hidden to
+  // free up horizontal space. Long-pressing a phrase row opens this
+  // bottom-sheet menu with the same actions.
+  const [menuPhraseId, setMenuPhraseId] = useState<string | null>(null);
+  const closeRowMenu = () => setMenuPhraseId(null);
+  const menuPhraseIndex = menuPhraseId
+    ? normalisedPhrases.findIndex(p => p.id === menuPhraseId)
+    : -1;
 
   // --- Multi-line select + cross-section clipboard ----------------
   // Select mode is per-section. The clipboard (shared via the
@@ -466,7 +478,12 @@ export default function LeadSheetSection({
                 const isTextEditing = textEditPhraseId === p.id;
                 const isSelected = selectedPhraseIds.has(p.id);
                 return (
-                  <div key={p.id} className="group flex items-start gap-2">
+                  <LongPressWrapper
+                    key={p.id}
+                    enabled={isMobile && !isTextEditing}
+                    onLongPress={() => setMenuPhraseId(p.id)}
+                    className="group flex items-start gap-2"
+                  >
                     {selectMode && (
                       <input
                         type="checkbox"
@@ -479,48 +496,52 @@ export default function LeadSheetSection({
                     )}
                     {/* Per-phrase reorder + delete + edit-text +
                         duplicate affordances (fade in on hover to
-                        keep the editor calm). */}
-                    <div className="flex flex-col items-center gap-0.5 pt-2 opacity-30 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => movePhrase(p.id, -1)}
-                        disabled={idx === 0}
-                        title="move line up"
-                        className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        onClick={() => movePhrase(p.id, 1)}
-                        disabled={idx === normalisedPhrases.length - 1}
-                        title="move line down"
-                        className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
-                      >
-                        ↓
-                      </button>
-                      <button
-                        onClick={() => deletePhrase(p.id)}
-                        title="delete line"
-                        className="text-[10px] text-neutral-500 hover:text-needswork px-0.5"
-                      >
-                        ✕
-                      </button>
-                      <button
-                        onClick={() => beginTextEdit(p)}
-                        title="edit as text — re-type or re-paste this line"
-                        aria-label="edit as text"
-                        className="text-[10px] text-neutral-500 hover:text-fluent px-0.5"
-                      >
-                        ✎
-                      </button>
-                      <button
-                        onClick={() => void duplicatePhrase(p.id)}
-                        title="duplicate this line below"
-                        aria-label="duplicate line"
-                        className="text-[10px] text-neutral-500 hover:text-fluent px-0.5"
-                      >
-                        ⧉
-                      </button>
-                    </div>
+                        keep the editor calm). Hidden on mobile —
+                        long-press the row to open the same actions
+                        in a bottom sheet. */}
+                    {!isMobile && (
+                      <div className="flex flex-col items-center gap-0.5 pt-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => movePhrase(p.id, -1)}
+                          disabled={idx === 0}
+                          title="move line up"
+                          className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          onClick={() => movePhrase(p.id, 1)}
+                          disabled={idx === normalisedPhrases.length - 1}
+                          title="move line down"
+                          className="text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed px-0.5"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          onClick={() => deletePhrase(p.id)}
+                          title="delete line"
+                          className="text-[10px] text-neutral-500 hover:text-needswork px-0.5"
+                        >
+                          ✕
+                        </button>
+                        <button
+                          onClick={() => beginTextEdit(p)}
+                          title="edit as text — re-type or re-paste this line"
+                          aria-label="edit as text"
+                          className="text-[10px] text-neutral-500 hover:text-fluent px-0.5"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          onClick={() => void duplicatePhrase(p.id)}
+                          title="duplicate this line below"
+                          aria-label="duplicate line"
+                          className="text-[10px] text-neutral-500 hover:text-fluent px-0.5"
+                        >
+                          ⧉
+                        </button>
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       {isTextEditing ? (
                         <div className="flex items-center gap-2">
@@ -570,7 +591,7 @@ export default function LeadSheetSection({
                         />
                       )}
                     </div>
-                  </div>
+                  </LongPressWrapper>
                 );
               })}
             </div>
@@ -699,9 +720,94 @@ export default function LeadSheetSection({
               />
             )}
           </div>
+
+          {/* Mobile long-press menu. The same row-level actions
+              (reorder / delete / edit / duplicate) that surface as
+              hover buttons on desktop. Disabled-states match the
+              desktop buttons: top row can't move up, bottom row
+              can't move down. */}
+          {menuPhraseId && menuPhraseIndex >= 0 && (
+            <BottomSheet open={true} onClose={closeRowMenu} title="Line actions">
+              <div className="flex flex-col">
+                <RowMenuButton
+                  onClick={async () => {
+                    await movePhrase(menuPhraseId, -1);
+                    closeRowMenu();
+                  }}
+                  disabled={menuPhraseIndex === 0}
+                  icon="↑"
+                  label="Move up"
+                />
+                <RowMenuButton
+                  onClick={async () => {
+                    await movePhrase(menuPhraseId, 1);
+                    closeRowMenu();
+                  }}
+                  disabled={menuPhraseIndex === normalisedPhrases.length - 1}
+                  icon="↓"
+                  label="Move down"
+                />
+                <RowMenuButton
+                  onClick={async () => {
+                    await duplicatePhrase(menuPhraseId);
+                    closeRowMenu();
+                  }}
+                  icon="⧉"
+                  label="Duplicate line"
+                />
+                <RowMenuButton
+                  onClick={() => {
+                    const target = normalisedPhrases[menuPhraseIndex];
+                    if (target) beginTextEdit(target);
+                    closeRowMenu();
+                  }}
+                  icon="✎"
+                  label="Edit as text"
+                />
+                <RowMenuButton
+                  onClick={async () => {
+                    await deletePhrase(menuPhraseId);
+                    closeRowMenu();
+                  }}
+                  icon="✕"
+                  label="Delete line"
+                  variant="danger"
+                />
+              </div>
+            </BottomSheet>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function RowMenuButton({
+  onClick,
+  disabled,
+  icon,
+  label,
+  variant,
+}: {
+  onClick: () => void | Promise<void>;
+  disabled?: boolean;
+  icon: string;
+  label: string;
+  variant?: 'danger';
+}) {
+  const colour = variant === 'danger'
+    ? 'text-needswork hover:bg-needswork/5'
+    : 'text-neutral-700 dark:text-neutral-100 hover:bg-fluent/5';
+  return (
+    <button
+      type="button"
+      onClick={() => void onClick()}
+      disabled={disabled}
+      className={`flex items-center gap-3 px-2 py-3 text-left text-sm rounded-md disabled:opacity-30 disabled:cursor-not-allowed transition-colors ${colour}`}
+    >
+      <span aria-hidden className="text-base w-5 inline-flex justify-center">{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 
