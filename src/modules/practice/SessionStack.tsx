@@ -36,7 +36,15 @@ import { CSS } from '@dnd-kit/utilities';
 import SessionBlock from './SessionBlock';
 import type { ProposalBlock } from './proposalTypes';
 
-const MIN_BLOCK_PX = 64;
+/** Per-block height floor. Each group / inner block can't shrink
+ *  below this even when its proportional share would. Trade-off:
+ *  on sessions with a very large block alongside very small ones
+ *  the proportions read slightly compressed (the small block holds
+ *  at 80 px instead of, say, 18 px), but content NEVER gets
+ *  clipped — a 3-min chord-quiz still shows its name + duration
+ *  legibly. Picked over the prior container-level floor (which
+ *  starved short blocks via flex-grow distribution). */
+const MIN_BLOCK_PX = 80;
 
 interface Props {
   blocks: ReadonlyArray<ProposalBlock>;
@@ -96,9 +104,11 @@ export default function SessionStack({ blocks, onReorder }: Props) {
     );
   }
 
-  // Total height is bounded below by the per-block minimum so each
-  // row has space for the default-state content (~64px). Longer
-  // sessions stretch the stack proportionally above that floor.
+  // Outer container minHeight covers the sum of per-block floors —
+  // matches what the per-block min-heights will impose anyway, but
+  // surfacing it on the container avoids an extra-tall outline
+  // during the brief moment before all rows resolve their flex
+  // layout.
   const minTotalPx = blocks.length * MIN_BLOCK_PX;
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -147,21 +157,24 @@ export default function SessionStack({ blocks, onReorder }: Props) {
  *  Used when the caller didn't opt into reordering. */
 function StaticGroupRow({ group }: { group: BlockGroup }) {
   const seconds = sumSeconds(group.items);
+  // minHeight = (#items × MIN_BLOCK_PX) — paired groups stack two
+  // blocks vertically, so the floor stretches accordingly.
   const style: CSSProperties = {
     flexGrow: seconds,
     flexShrink: seconds,
     flexBasis: 0,
-    minHeight: 0,
+    minHeight: `${group.items.length * MIN_BLOCK_PX}px`,
   };
   return (
-    <div style={style} className="flex flex-col gap-0.5 min-h-0">
+    <div style={style} className="flex flex-col gap-0.5">
       <GroupBlocks group={group} />
     </div>
   );
 }
 
 /** Sortable group — drag handle on the left, blocks on the right.
- *  Height is proportional to the sum of contained block seconds. */
+ *  Height is proportional to the sum of contained block seconds,
+ *  bounded below by (#items × MIN_BLOCK_PX). */
 function SortableGroupRow({ group }: { group: BlockGroup }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: group.id });
@@ -172,7 +185,7 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
     flexGrow: seconds,
     flexShrink: seconds,
     flexBasis: 0,
-    minHeight: 0,
+    minHeight: `${group.items.length * MIN_BLOCK_PX}px`,
     opacity: isDragging ? 0.5 : 1,
     // While dragging, lift above sibling rows so the moving group
     // visually leads the reflow.
@@ -183,7 +196,7 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
     ? `drag to reorder warm-up + ${group.items[1].moduleLabel} pair`
     : `drag to reorder ${group.items[0].moduleLabel} block`;
   return (
-    <div ref={setNodeRef} style={style} className="flex items-stretch gap-1.5 min-h-0">
+    <div ref={setNodeRef} style={style} className="flex items-stretch gap-1.5">
       <button
         type="button"
         aria-label={ariaLabel}
@@ -201,7 +214,8 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
 }
 
 /** Inner block list for a group. A single-block group renders just
- *  the one SessionBlock filling the row. A paired group renders
+ *  the one SessionBlock filling the row (which already has the
+ *  group-level min-height from the parent). A paired group renders
  *  both blocks stacked, each row sized by its own plannedSeconds
  *  so the within-group proportions match a session-wide single
  *  block of the same total duration. */
@@ -216,8 +230,17 @@ function GroupBlocks({ group }: { group: BlockGroup }) {
         return (
           <div
             key={b.id}
-            style={{ flexGrow: sec, flexShrink: sec, flexBasis: 0, minHeight: 0 }}
-            className="flex flex-col min-h-0"
+            // Each block in a paired group enforces the same per-
+            // block floor as a standalone group so a 3-min chord-
+            // quiz doesn't shrink so far inside a 45-min spotlight
+            // pair that its label clips.
+            style={{
+              flexGrow: sec,
+              flexShrink: sec,
+              flexBasis: 0,
+              minHeight: `${MIN_BLOCK_PX}px`,
+            }}
+            className="flex flex-col"
           >
             <SessionBlock block={b} />
           </div>

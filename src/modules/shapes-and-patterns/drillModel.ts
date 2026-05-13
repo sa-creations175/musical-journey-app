@@ -301,6 +301,44 @@ function defaultDrillTypesForDescriptor(desc: SkillDescriptor) {
  * as "Cmaj7 (major seventh)" — short and unambiguous, with the
  * long-form name in parens for clarity.
  */
+/**
+ * Same as `labelFor` but takes a `DrillSkill` row (the on-disk
+ * shape) rather than a freshly-built descriptor. Used by the
+ * proposal-screen activity-description path so older skills
+ * lacking the denormalised `label` field still render with a
+ * proper name. Falls back to the row's `label` when present
+ * (cheaper than reconstructing the descriptor each call).
+ */
+export function labelForSkill(skill: DrillSkill): string {
+  if (skill.label && skill.label.length > 0) return skill.label;
+  switch (skill.kind) {
+    case 'chord-shape':
+      return labelFor({
+        kind: 'chord-shape',
+        keyName: skill.keyName ?? '',
+        quality: skill.quality ?? '',
+        inversionState: skill.inversionState ?? null,
+      });
+    case 'scale':
+      return labelFor({
+        kind: 'scale',
+        keyName: skill.keyName ?? '',
+        scale: skill.scale ?? '',
+      });
+    case 'voice-leading':
+      return labelFor({
+        kind: 'voice-leading',
+        keyName: skill.keyName ?? '',
+        patternId: skill.patternId ?? '',
+      });
+    case 'mental-viz':
+      return labelFor({
+        kind: 'mental-viz',
+        variant: skill.variant ?? '',
+      });
+  }
+}
+
 export function labelFor(desc: SkillDescriptor): string {
   switch (desc.kind) {
     case 'chord-shape': {

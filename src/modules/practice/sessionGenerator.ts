@@ -79,6 +79,7 @@ import {
   getEligibleItems as getChordRecognitionEligibleItems,
   getUnlockedTier as getChordRecognitionUnlockedTier,
 } from '../ear-training/chord-recognition/tierUnlock';
+import { labelForSkill } from '../shapes-and-patterns/drillModel';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -364,14 +365,17 @@ function generateAndShape(
 }
 
 /**
- * Pre-load denormalised labels from `db.drillSkills` for every
- * Shapes & Patterns itemRef across the given block list. The
- * proposal screen renders these in `describeActivity` so the user
- * sees "Major triads · 6 items" instead of "drills · 6 items".
+ * Pre-load human labels for every Shapes & Patterns itemRef across
+ * the given block list. The proposal screen renders these in
+ * `describeActivity` so the user sees "Cmaj (major) · 6 items"
+ * instead of "drills · 6 items".
  *
- * Single bulkGet — the typical S&P session targets a handful of
- * skills (one drill kind across a few keys), so the query is
- * cheap. Non-S&P blocks are filtered out before the lookup.
+ * Reads `db.drillSkills.label` when present (denormalised at
+ * skill-creation time via `labelFor`), otherwise reconstructs the
+ * label on the fly via `labelForSkill` so older skills that
+ * pre-date the denormalisation still render properly. Single
+ * bulkGet — the typical S&P session targets a handful of skills
+ * across a few keys, so the query is cheap.
  */
 async function loadShapesDrillLabels(
   blocks: ReadonlyArray<AlgorithmBlock>,
@@ -385,7 +389,9 @@ async function loadShapesDrillLabels(
   const rows = await db.drillSkills.bulkGet(ids);
   const out = new Map<string, string>();
   rows.forEach((row, i) => {
-    if (row?.label) out.set(ids[i], row.label);
+    if (!row) return;
+    const label = labelForSkill(row);
+    if (label) out.set(ids[i], label);
   });
   return out;
 }
