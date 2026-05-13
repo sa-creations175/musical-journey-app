@@ -56,6 +56,13 @@ interface Props {
   /** Defaults to startOfWeekLocal(Date.now()). Tests / dev tools
    *  can pin this to a specific Sunday. */
   weekStart?: number;
+  /** When true, render the body inline (no Modal wrapper, no
+   *  Cancel/Close button — the host section owns containment).
+   *  Used by Goals.tsx's by-timeframe "This week's challenge"
+   *  subsection so the weekly plan content lives directly inside
+   *  the This Week layer. `open` is ignored when inline is true —
+   *  inline means "always rendered." */
+  inline?: boolean;
 }
 
 interface PlanRow {
@@ -363,7 +370,7 @@ function paceBadge(p: PaceStatus): { label: string; bg: string; fg: string } {
 // Component
 // ---------------------------------------------------------------------
 
-export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: Props) {
+export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, inline = false }: Props) {
   const weekStart = useMemo(
     () => weekStartProp ?? startOfWeekLocal(Date.now()),
     [weekStartProp],
@@ -384,9 +391,11 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
     new Set(),
   );
 
-  // Load everything on open / weekStart change.
+  // Load everything on open / weekStart change. Inline mode is
+  // "always open" — load whenever inline is true regardless of
+  // the `open` flag.
   useEffect(() => {
-    if (!open) return;
+    if (!open && !inline) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -454,7 +463,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
     return () => {
       cancelled = true;
     };
-  }, [open, weekStart]);
+  }, [open, weekStart, inline]);
 
   const isConfirmed = confirmedGoals.length > 0;
 
@@ -770,45 +779,46 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
 
   // ---------------- Render ----------------
 
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title="Weekly plan"
-      description="Sun → Sat — review last week, plan this week"
-      footer={
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-xs text-neutral-500">
-            {error && <span className="text-rose-600 dark:text-rose-400">{error}</span>}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              {isConfirmed ? 'Close' : 'Cancel'}
-            </button>
-            {isConfirmed ? (
-              <button
-                onClick={handleReplan}
-                disabled={saving}
-                className="px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
-              >
-                Re-plan
-              </button>
-            ) : (
-              <button
-                onClick={handleConfirm}
-                disabled={saving || planRows.length === 0}
-                className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {saving ? 'Saving…' : 'Confirm plan'}
-              </button>
-            )}
-          </div>
-        </div>
-      }
-    >
+  // Footer action row — Cancel/Close + Confirm or Re-plan. Inline
+  // mode drops the Cancel/Close button (the host section owns
+  // dismissal) but keeps Confirm/Re-plan inline below the body.
+  const actionRow = (
+    <div className="flex items-center justify-between gap-3">
+      <div className="text-xs text-neutral-500">
+        {error && <span className="text-rose-600 dark:text-rose-400">{error}</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        {!inline && (
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            {isConfirmed ? 'Close' : 'Cancel'}
+          </button>
+        )}
+        {isConfirmed ? (
+          <button
+            onClick={handleReplan}
+            disabled={saving}
+            className="px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+          >
+            Re-plan
+          </button>
+        ) : (
+          <button
+            onClick={handleConfirm}
+            disabled={saving || planRows.length === 0}
+            className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Confirm plan'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  const body = (
+    <>
       {loading && (
         <div className="text-sm text-neutral-500 py-6 text-center">Loading…</div>
       )}
@@ -939,6 +949,27 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp }: 
           </section>
         </div>
       )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="space-y-4">
+        {body}
+        {!loading && actionRow}
+      </div>
+    );
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Weekly plan"
+      description="Sun → Sat — review last week, plan this week"
+      footer={actionRow}
+    >
+      {body}
     </Modal>
   );
 }

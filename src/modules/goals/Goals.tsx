@@ -384,7 +384,10 @@ export default function Goals() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <header className="mb-6 flex items-center gap-3">
+      {/* Title row: "Goals" + accent-coloured "Set a goal". The
+          customize-layers gear stays in the same row so it doesn't
+          float without a header to anchor to. */}
+      <header className="mb-4 flex items-center gap-3">
         <span
           aria-hidden
           className="inline-flex items-center justify-center w-8 h-8 rounded-md text-base font-medium"
@@ -408,48 +411,44 @@ export default function Goals() {
           <GearIcon />
           <span className="hidden sm:inline">Customize</span>
         </button>
-      </header>
-
-      <div className="mb-4">
-        <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
-      </div>
-
-      <ViewToggle value={activeView} onChange={setActiveView} />
-
-      <div className="mb-4 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setWeeklyPlanOpen(true)}
-          className="px-3 py-1.5 rounded-md text-sm font-medium border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-          title="Plan your week"
-        >
-          Plan week
-        </button>
         <button
           type="button"
           onClick={() => setScopePickerOpen(true)}
           className="px-3 py-1.5 rounded-md text-sm font-medium text-white"
           style={{ backgroundColor: GOALS_META.accentHex }}
         >
-          + Set a goal
+          Set a goal
         </button>
-        {/* Dev-only goal-wipe affordance for Phase 2 step 2 verification.
-            Restored from the Phase 1.6 step 15 pattern; tree-shaken out
-            of production builds via the import.meta.env.DEV guard.
-            Remove once step 2 verification is fully done.
+      </header>
 
-            Sync correctness: db.goals.clear() alone is NOT enough —
-            sync is bidirectional, and pullAll() on focus/reconnect
-            will repopulate local goals from Supabase via bulkPut, so
-            "cleared" goals reappear. The full wipe needs three steps:
-              1. Delete from Supabase first (so subsequent pulls have
-                 nothing to bring back).
-              2. Suppress concurrent pulls via beginPull/endPull while
-                 local clear runs.
-              3. Clear local table AND the syncQueue rows for goals
-                 (otherwise pending writes from prior creates drain
-                 to a now-empty cloud and re-create cloud rows). */}
-        {import.meta.env.DEV && (
+      <div className="mb-4">
+        <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
+      </div>
+
+      {/* Small muted label introduces the view toggle. */}
+      <div className="text-[10px] uppercase tracking-wide font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">
+        View goals
+      </div>
+      <ViewToggle value={activeView} onChange={setActiveView} />
+
+      {/* Dev-only goal-wipe affordance for Phase 2 step 2 verification.
+          Restored from the Phase 1.6 step 15 pattern; tree-shaken out
+          of production builds via the import.meta.env.DEV guard.
+          Remove once step 2 verification is fully done.
+
+          Sync correctness: db.goals.clear() alone is NOT enough —
+          sync is bidirectional, and pullAll() on focus/reconnect
+          will repopulate local goals from Supabase via bulkPut, so
+          "cleared" goals reappear. The full wipe needs three steps:
+            1. Delete from Supabase first (so subsequent pulls have
+               nothing to bring back).
+            2. Suppress concurrent pulls via beginPull/endPull while
+               local clear runs.
+            3. Clear local table AND the syncQueue rows for goals
+               (otherwise pending writes from prior creates drain
+               to a now-empty cloud and re-create cloud rows). */}
+      {import.meta.env.DEV && (
+        <div className="mb-4 flex items-center gap-2">
           <button
             type="button"
             onClick={async () => {
@@ -483,8 +482,8 @@ export default function Goals() {
           >
             Clear all goals (dev)
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <SongOfMonthTbdNudgeBanner />
 
@@ -870,7 +869,8 @@ function LayerSection({
       )}
 
       {!collapsed && !hasMonthlyAnchorWiring && (
-        <div className="mt-3">
+        <div className="mt-3 space-y-3">
+          {layer.scope === 'weekly' && <WeeklyChallengeSection />}
           {goals.length === 0 ? (
             <div className="flex items-center gap-3 py-2">
               <span className="text-sm text-neutral-500 italic">{layer.emptyMessage}</span>
@@ -950,6 +950,44 @@ function LayerSection({
               </button>
             </div>
           )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * "This week's challenge" subsection rendered at the top of the
+ * by-timeframe Weekly LayerSection's body. Wraps the inline
+ * WeeklyPlan content (last-week review + this-week's plan rows)
+ * so the user can review + confirm/replan their week without
+ * leaving the Goals home. Collapsible with default open; the
+ * muted subtitle explains where the suggestions come from. */
+function WeeklyChallengeSection() {
+  const [open, setOpen] = useState(true);
+  return (
+    <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/30">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        className="w-full flex items-start gap-2 text-left px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900/40 rounded-t-lg transition-colors"
+      >
+        <span aria-hidden className="text-neutral-400 mt-0.5 text-xs">
+          {open ? '▾' : '▸'}
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-medium text-neutral-800 dark:text-neutral-100">
+            This week's challenge
+          </span>
+          <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Based on your monthly goals and current pace
+          </span>
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 pt-1">
+          <WeeklyPlan inline open={false} onClose={() => {}} />
         </div>
       )}
     </section>
