@@ -288,6 +288,24 @@ export function renderChordFunction(
   }
 }
 
+/**
+ * Display-safe render. Same as `renderChordFunction` but tolerates an
+ * undefined / empty chord (returns "") and preserves the user's
+ * original input verbatim when the chord couldn't be parsed
+ * (`unparsed: true`). Used wherever the UI shows a chord glyph the
+ * user is about to edit — they should see what they typed, not a
+ * canonicalised re-render.
+ */
+export function chordToDisplay(
+  chord: ChordFunction | undefined,
+  mode: NotationMode,
+  sectionKey?: string,
+): string {
+  if (!chord || isEmpty(chord)) return '';
+  if (chord.unparsed) return chord.raw ?? '';
+  return renderChordFunction(chord, mode, sectionKey);
+}
+
 // --- Interop with the existing progression detector -----------------
 
 /**

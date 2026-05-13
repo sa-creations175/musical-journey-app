@@ -22,15 +22,16 @@ import {
   syllableGroupAt,
 } from './beatsModel';
 import {
+  chordToDisplay,
   isEmpty as chordIsEmpty,
   parseChordFunction,
-  renderNumbers,
   renderRoman,
-  renderConcrete,
   type NotationMode,
 } from './chordFunction';
 import { useToast } from '../../components/Toaster';
+import { useIsMobile } from '../../lib/useIsMobile';
 import SyllableSplitModal from './SyllableSplitModal';
+import ChordEditBottomSheet from './ChordEditBottomSheet';
 
 interface Props {
   phrase: Phrase;
@@ -82,8 +83,13 @@ export default function PhraseLineEditor({
   const beats = normalised.beats;
   const activePlacements = normalised.chordsByArrangement[activeArrangementId] ?? {};
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   // Beat id whose syllable group is being edited in the split modal.
   const [splitTargetBeatId, setSplitTargetBeatId] = useState<string | null>(null);
+  // Beat id currently open in the mobile chord-edit bottom sheet.
+  // Mobile replaces the inline editing UX with tap → sheet; this
+  // state stays null on desktop.
+  const [mobileEditBeatId, setMobileEditBeatId] = useState<string | null>(null);
 
   // --- Mutation helpers ------------------------------------------
 
@@ -244,21 +250,53 @@ export default function PhraseLineEditor({
           above its word cell — when the line is long enough to
           wrap, chord + word always wrap together, so the chord
           slot for every word stays directly above its word
-          regardless of line length. */}
-      <ActiveBeatRow
-        beats={beats}
-        placements={activePlacements}
-        notationMode={notationMode}
-        sectionKey={sectionKey}
-        autofocusBeatId={autofocusBeatId}
-        label={compareArrangementIds.length > 0 ? arrangementName(activeArrangementId) : undefined}
-        onCommitChord={commitChord}
-        onInsertBlank={insertBlankAt}
-        onDeleteBeat={deleteBeat}
-        onUpdateText={updateWordText}
-        onSplitBeat={beatId => setSplitTargetBeatId(beatId)}
-        onMoveChord={moveChord}
-      />
+          regardless of line length.
+
+          On phone-class viewports the inline-editing UX is
+          replaced with a read-only-but-tappable row plus a
+          bottom-sheet editor (mounted below). The screen is too
+          narrow to host typing inside every slot at once. */}
+      {isMobile ? (
+        <MobileBeatRow
+          beats={beats}
+          placements={activePlacements}
+          notationMode={notationMode}
+          sectionKey={sectionKey}
+          activeBeatId={mobileEditBeatId}
+          label={compareArrangementIds.length > 0 ? arrangementName(activeArrangementId) : undefined}
+          onTapBeat={beatId => setMobileEditBeatId(beatId)}
+          onInsertBlank={insertBlankAt}
+        />
+      ) : (
+        <ActiveBeatRow
+          beats={beats}
+          placements={activePlacements}
+          notationMode={notationMode}
+          sectionKey={sectionKey}
+          autofocusBeatId={autofocusBeatId}
+          label={compareArrangementIds.length > 0 ? arrangementName(activeArrangementId) : undefined}
+          onCommitChord={commitChord}
+          onInsertBlank={insertBlankAt}
+          onDeleteBeat={deleteBeat}
+          onUpdateText={updateWordText}
+          onSplitBeat={beatId => setSplitTargetBeatId(beatId)}
+          onMoveChord={moveChord}
+        />
+      )}
+
+      {isMobile && mobileEditBeatId && (
+        <ChordEditBottomSheet
+          open={true}
+          beats={beats}
+          placements={activePlacements}
+          activeBeatId={mobileEditBeatId}
+          notationMode={notationMode}
+          sectionKey={sectionKey}
+          onActiveBeatChange={setMobileEditBeatId}
+          onCommit={commitChord}
+          onClose={() => setMobileEditBeatId(null)}
+        />
+      )}
 
       {splitTargetBeatId && (() => {
         const group = syllableGroupAt(beats, splitTargetBeatId);
@@ -493,6 +531,122 @@ function ActiveBeatRow({
   );
 }
 
+// -------------------------------------------------------------------
+
+interface MobileBeatRowProps {
+  beats: Beat[];
+  placements: Record<string, ChordFunction>;
+  notationMode: NotationMode;
+  sectionKey?: string;
+  /** Beat currently open in the bottom sheet — gets a fluent ring so
+   *  the user can see which one their next keystroke will land on. */
+  activeBeatId: string | null;
+  label?: string;
+  onTapBeat: (beatId: string) => void;
+  onInsertBlank: (index: number) => Promise<Beat>;
+}
+
+/**
+ * Phone-class beat row. Renders the same paired-column structure as
+ * `ActiveBeatRow` (chord glyph on top, word below, wrapping happens
+ * to whole columns) but the columns are read-only buttons that open
+ * `ChordEditBottomSheet`. No inline inputs, no drag-to-move chord
+ * handle — both surfaces are too small to operate reliably on a
+ * thumb.
+ *
+ * Insert "+" affordances between beats stay reachable (single-tap
+ * targets) so the user can still add blank beats without entering
+ * the bottom sheet.
+ */
+function MobileBeatRow({
+  beats,
+  placements,
+  notationMode,
+  sectionKey,
+  activeBeatId,
+  label,
+  onTapBeat,
+  onInsertBlank,
+}: MobileBeatRowProps) {
+  return (
+    <div className="flex items-end flex-wrap gap-y-1">
+      {label !== undefined && (
+        <span className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium mr-2 min-w-[7rem] text-right shrink-0 self-end mb-1">
+          {label}:
+        </span>
+      )}
+      <PairedInsertColumn onClick={() => onInsertBlank(0)} />
+      {beats.map((beat, idx) => (
+        <span key={beat.id} className="inline-flex items-end">
+          <MobileBeatColumn
+            beat={beat}
+            chord={placements[beat.id]}
+            notationMode={notationMode}
+            sectionKey={sectionKey}
+            isActive={activeBeatId === beat.id}
+            onTap={() => onTapBeat(beat.id)}
+          />
+          {beat.joinToNext ? (
+            <PairedHyphenColumn />
+          ) : (
+            <PairedInsertColumn onClick={() => onInsertBlank(idx + 1)} />
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function MobileBeatColumn({
+  beat,
+  chord,
+  notationMode,
+  sectionKey,
+  isActive,
+  onTap,
+}: {
+  beat: Beat;
+  chord: ChordFunction | undefined;
+  notationMode: NotationMode;
+  sectionKey?: string;
+  isActive: boolean;
+  onTap: () => void;
+}) {
+  const display = chordToDisplay(chord, notationMode, sectionKey);
+  const filled = display !== '';
+  const wordText = beat.type === 'blank' ? '·' : (beat.text || '·');
+  return (
+    <button
+      type="button"
+      onClick={onTap}
+      className={`inline-flex flex-col items-start rounded px-1 py-0.5 transition-colors active:bg-fluent/15 ${
+        isActive ? 'bg-fluent/10 ring-1 ring-fluent/40' : 'hover:bg-fluent/5'
+      }`}
+      title="tap to edit chord"
+    >
+      <span
+        className={`block text-sm font-mono leading-tight tracking-tight ${
+          filled ? 'text-fluent' : 'text-neutral-300 dark:text-neutral-700'
+        }`}
+        style={{ minWidth: '1.5rem', textAlign: 'left' }}
+      >
+        {filled ? display : '·'}
+      </span>
+      <span
+        className={`block text-sm font-mono leading-tight tracking-tight ${
+          beat.type === 'blank' || (beat.text ?? '').trim() === ''
+            ? 'text-neutral-300 dark:text-neutral-700'
+            : 'text-neutral-800 dark:text-neutral-100'
+        }`}
+      >
+        {wordText}
+      </span>
+    </button>
+  );
+}
+
+// -------------------------------------------------------------------
+
 /** Beat column that accepts a chord drop. The whole chord+beat
  *  stack is a single droppable so the user can drop on any part of
  *  the column. Active highlight is subtle — a soft ring — so it
@@ -675,31 +829,6 @@ function BeatCell({
 }
 
 // -------------------------------------------------------------------
-
-/**
- * Convert the stored ChordFunction back to a string that the user
- * would recognise as "what they typed", rendered in the currently-
- * selected notation. Used as the initial value of the edit input so
- * users see their own notation when they click to edit. When the
- * slot is empty, returns "".
- */
-function chordToDisplay(
-  chord: ChordFunction | undefined,
-  mode: NotationMode,
-  sectionKey?: string,
-): string {
-  if (!chord || chordIsEmpty(chord)) return '';
-  if (chord.unparsed) return chord.raw ?? '';
-  switch (mode) {
-    case 'numbers':
-    case 'stacked':
-      return renderNumbers(chord);
-    case 'roman':
-      return renderRoman(chord);
-    case 'concrete':
-      return renderConcrete(chord, sectionKey);
-  }
-}
 
 interface ChordSlotProps {
   beatId: string;
