@@ -21,6 +21,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type HarmonicDiaryEntry,
+  type ReferenceVideo,
   type Song,
   type SongCrossKeyProgress,
   type SongPracticeLog,
@@ -85,6 +86,43 @@ const SECTION_TITLES: Record<SectionKey, string> = {
  *  free-text input so uncommon meters (9/8, 11/8, etc.) still
  *  round-trip. Empty string means "no signature set". */
 const TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
+
+/** Generate a stable id for a reference-video entry. Prefer
+ *  `crypto.randomUUID()` (browser standard, present in all modern
+ *  Safari / Chromium); falls back to a date+random combo in any
+ *  exotic environment that lacks it (tests, older webviews). */
+function newReferenceVideoId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `vid-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Pull the human-readable hostname out of a URL — used as the
+ *  default link label when the user didn't supply one. Falls back
+ *  to the raw input if URL parsing fails (e.g. partial paste). */
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+/** Build the initial draft array when the user opens the metadata
+ *  editor. Uses `song.referenceVideos` if present; otherwise
+ *  synthesises a single entry from the legacy `youtubeLink` so the
+ *  user can edit / re-label / extend it. Empty when neither field
+ *  carries content. */
+function seedReferenceVideosDraft(song: Song): ReferenceVideo[] {
+  if (song.referenceVideos && song.referenceVideos.length > 0) {
+    return song.referenceVideos.map(v => ({ ...v }));
+  }
+  if (song.youtubeLink && song.youtubeLink.trim() !== '') {
+    return [{ id: newReferenceVideoId(), url: song.youtubeLink, label: undefined }];
+  }
+  return [];
+}
 
 /**
  * Resolve a Song's effective section order. Drops unknown keys
@@ -283,7 +321,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [timeSigPreset, setTimeSigPreset] = useState<string>('');
   const [timeSigCustom, setTimeSigCustom] = useState('');
   const [spotifyDraft, setSpotifyDraft] = useState('');
-  const [youtubeDraft, setYoutubeDraft] = useState('');
+  // Reference-videos editor draft. Seeded in `openEdit` from
+  // `song.referenceVideos`, or from a legacy `song.youtubeLink` if
+  // that's the only thing present (one-way migration on first save).
+  const [referenceVideosDraft, setReferenceVideosDraft] = useState<ReferenceVideo[]>([]);
 
   const openEdit = () => {
     if (!song) return;
@@ -303,8 +344,26 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       setTimeSigCustom(stored);
     }
     setSpotifyDraft(song.spotifyLink ?? '');
-    setYoutubeDraft(song.youtubeLink ?? '');
+    setReferenceVideosDraft(seedReferenceVideosDraft(song));
     setEditingMeta(true);
+  };
+
+  const addReferenceVideoDraft = () => {
+    setReferenceVideosDraft(prev => [
+      ...prev,
+      { id: newReferenceVideoId(), url: '', label: undefined },
+    ]);
+  };
+  const updateReferenceVideoDraft = (
+    id: string,
+    patch: Partial<Pick<ReferenceVideo, 'url' | 'label'>>,
+  ) => {
+    setReferenceVideosDraft(prev =>
+      prev.map(v => (v.id === id ? { ...v, ...patch } : v)),
+    );
+  };
+  const removeReferenceVideoDraft = (id: string) => {
+    setReferenceVideosDraft(prev => prev.filter(v => v.id !== id));
   };
 
   const saveMeta = async () => {
@@ -319,6 +378,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         : timeSigPreset === 'Other'
           ? timeSigCustom.trim() || undefined
           : timeSigPreset;
+    // Reference videos: trim, drop empties, normalise optional label.
+    // Saving with at least one entry consumes the migration — the
+    // legacy `youtubeLink` field is cleared so the display has a
+    // single source of truth from here on.
+    const cleanedVideos = referenceVideosDraft
+      .map(v => ({
+        id: v.id,
+        url: v.url.trim(),
+        label: v.label?.trim() ? v.label.trim() : undefined,
+      }))
+      .filter(v => v.url !== '');
     const patch: Partial<Song> = {
       title: titleDraft.trim() || song.title,
       artist: artistDraft.trim() || song.artist,
@@ -328,7 +398,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       tempoLabel: tempoDraft.trim() || undefined,
       timeSignature: newTimeSignature,
       spotifyLink: spotifyDraft.trim() || undefined,
-      youtubeLink: youtubeDraft.trim() || undefined,
+      referenceVideos: cleanedVideos.length > 0 ? cleanedVideos : undefined,
+      youtubeLink: undefined,
     };
     // Single transaction over both tables so the matrix's
     // isOriginalKey row stays in lockstep with Song.key. Without the
@@ -663,10 +734,52 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 <span className="text-neutral-500 text-xs uppercase tracking-wide">spotify link</span>
                 <input value={spotifyDraft} onChange={e => setSpotifyDraft(e.target.value)} className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 font-mono text-xs" />
               </label>
-              <label className="flex flex-col gap-1 sm:col-span-2">
-                <span className="text-neutral-500 text-xs uppercase tracking-wide">youtube link</span>
-                <input value={youtubeDraft} onChange={e => setYoutubeDraft(e.target.value)} className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 font-mono text-xs" />
-              </label>
+              <div className="flex flex-col gap-2 sm:col-span-2">
+                <span className="text-neutral-500 text-xs uppercase tracking-wide">reference videos</span>
+                {referenceVideosDraft.length === 0 ? (
+                  <p className="text-xs text-neutral-500 italic">
+                    no videos yet — tap "+ Add video" to link a recording, tutorial, or cover.
+                  </p>
+                ) : (
+                  referenceVideosDraft.map(video => (
+                    <div
+                      key={video.id}
+                      className="flex flex-col gap-1 p-2 rounded-md border border-neutral-200 dark:border-neutral-700"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={video.url}
+                          onChange={e => updateReferenceVideoDraft(video.id, { url: e.target.value })}
+                          placeholder="https://..."
+                          className="flex-1 min-w-0 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeReferenceVideoDraft(video.id)}
+                          aria-label="remove video"
+                          title="remove this video"
+                          className="px-2 py-1 text-neutral-400 hover:text-needswork shrink-0"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <input
+                        value={video.label ?? ''}
+                        onChange={e => updateReferenceVideoDraft(video.id, { label: e.target.value })}
+                        placeholder="e.g. Jazz version, Tutorial, Original recording"
+                        className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs"
+                      />
+                    </div>
+                  ))
+                )}
+                <button
+                  type="button"
+                  onClick={addReferenceVideoDraft}
+                  className="self-start px-2 py-1 rounded-md text-xs text-neutral-500 hover:text-fluent border border-dashed border-neutral-300 dark:border-neutral-600 hover:border-fluent transition-colors"
+                >
+                  + Add video
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={saveMeta} className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
@@ -885,14 +998,35 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         + add a note about this song
                       </button>
                     )}
-                    {(song.spotifyLink || song.youtubeLink) && (
+                    {(song.spotifyLink
+                      || (song.referenceVideos && song.referenceVideos.length > 0)
+                      || song.youtubeLink) && (
                       <div className="flex items-center gap-3 flex-wrap text-xs pt-1">
                         {song.spotifyLink && (
                           <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
                         )}
-                        {song.youtubeLink && (
-                          <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">youtube ↗</a>
-                        )}
+                        {song.referenceVideos && song.referenceVideos.length > 0
+                          ? song.referenceVideos.map(video => (
+                              <a
+                                key={video.id}
+                                href={video.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-fluent hover:underline"
+                              >
+                                {(video.label && video.label.trim() !== '')
+                                  ? video.label
+                                  : hostnameOf(video.url)} ↗
+                              </a>
+                            ))
+                          // Legacy fallback — un-migrated songs still surface
+                          // their old single YouTube link until the user opens
+                          // the editor and saves (which migrates + clears it).
+                          : song.youtubeLink && (
+                            <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">
+                              youtube ↗
+                            </a>
+                          )}
                       </div>
                     )}
                   </section>
