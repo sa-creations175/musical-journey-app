@@ -853,13 +853,26 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
             ) : (
               <>
                 <div className="overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-fixed">
+                    {/* Explicit column widths — the inline mount
+                        lives in a container narrower than the modal
+                        body once Goals page chrome + LayerSection
+                        padding eat into the page width. Without
+                        fixed widths, table-auto can starve the Time
+                        column because the Module cell's description
+                        div asks for up to 20rem of content width. */}
+                    <colgroup>
+                      <col style={{ width: '40%' }} />
+                      <col style={{ width: '22%' }} />
+                      <col style={{ width: '32%' }} />
+                      <col style={{ width: '6%' }} />
+                    </colgroup>
                     <thead className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-xs uppercase tracking-wide">
                       <tr>
                         <th className="px-3 py-2 text-left">Module</th>
                         <th className="px-3 py-2 text-left">Target</th>
                         <th className="px-3 py-2 text-left">Time</th>
-                        <th className="px-3 py-2 text-left w-10"></th>
+                        <th className="px-3 py-2 text-left"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -1122,20 +1135,26 @@ function PlanRowView(props: {
           </button>
         )}
       </td>
-      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400">
+      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400 break-words">
         {time === null ? (
           <span className="tabular-nums">—</span>
         ) : time.kind === 'per-session' ? (
-          <span className="tabular-nums">~{formatMinutes(time.minutesPerSession)} each</span>
+          <span className="tabular-nums whitespace-nowrap">~{formatMinutes(time.minutesPerSession)} each</span>
         ) : (
-          <span>
-            <span className="tabular-nums">~{formatTimeEstimate(time.estimate)}/week</span>
+          <>
+            {/* Primary estimate sits on its own line so it never
+                disappears under a long consistencySuffix when the
+                column is tight (inline mount is narrower than the
+                modal once page/section padding is subtracted). */}
+            <div className="tabular-nums whitespace-nowrap">
+              ~{formatTimeEstimate(time.estimate)}/week
+            </div>
             {time.consistencySuffix && (
-              <span className="tabular-nums text-neutral-500 dark:text-neutral-500">
-                {' · '}{time.consistencySuffix}
-              </span>
+              <div className="tabular-nums text-xs text-neutral-500 dark:text-neutral-500 mt-0.5">
+                {time.consistencySuffix}
+              </div>
             )}
-          </span>
+          </>
         )}
       </td>
       <td className="px-3 py-2 align-top"></td>
