@@ -32,6 +32,7 @@ import { useToast } from '../../components/Toaster';
 import { useIsMobile } from '../../lib/useIsMobile';
 import SyllableSplitModal from './SyllableSplitModal';
 import ChordEditBottomSheet from './ChordEditBottomSheet';
+import ChordGlyph from './chordGlyph';
 
 interface Props {
   phrase: Phrase;
@@ -638,7 +639,7 @@ function MobileBeatColumn({
         }`}
         style={{ minWidth: '1.5rem', textAlign: 'left' }}
       >
-        {filled ? display : '·'}
+        {filled ? <ChordGlyph text={display} /> : '·'}
       </span>
       <span
         className={`block text-sm font-mono leading-tight tracking-tight ${
@@ -862,12 +863,23 @@ function ChordSlot({ beatId, chord, notationMode, sectionKey, autofocus, onCommi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beatId, notationMode, sectionKey]);
 
+  // `autofocus` arrives true when this slot's beat was just created
+  // (e.g. "+ add phrase line"). Trigger editing mode so the input
+  // mounts; the next effect focuses it on the same frame.
   useEffect(() => {
-    if (autofocus) {
+    if (autofocus) setEditing(true);
+  }, [autofocus]);
+
+  // When editing flips on, focus the input. Works for both the
+  // autofocus path and the user-click path (clicking the display
+  // button sets editing=true, then this effect surfaces the
+  // keyboard caret).
+  useEffect(() => {
+    if (editing) {
       inputRef.current?.focus();
       inputRef.current?.select();
     }
-  }, [autofocus]);
+  }, [editing]);
 
   const commit = () => {
     setEditing(false);
@@ -894,38 +906,58 @@ function ChordSlot({ beatId, chord, notationMode, sectionKey, autofocus, onCommi
     ? renderRoman(chord)
     : '';
 
+  // `<input>` is a leaf element — it can't host mixed-style spans —
+  // so slash-chord visual hierarchy only renders in the
+  // not-editing state. While editing, the user sees plain text
+  // matching what they typed; on blur, the styled display takes
+  // over and the bass note pops as the dominant glyph.
+  const colourClasses = unparsed
+    ? 'text-developing border-developing/40'
+    : filled
+      ? 'text-fluent border-fluent/30'
+      : 'text-neutral-400 border-neutral-300 dark:border-neutral-600';
+
   return (
     <span className="inline-flex flex-col items-center">
-      <input
-        ref={inputRef}
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onFocus={() => setEditing(true)}
-        onBlur={commit}
-        onKeyDown={handleKey}
-        placeholder="1"
-        spellCheck={false}
-        // `size={1}` caps iOS Safari's intrinsic-width hint so it
-        // can't blow past the inline `width: Xch`. `appearance-none`
-        // flattens iOS native input chrome (internal padding/border)
-        // that would otherwise widen the box. `text-left` anchors
-        // the chord glyph to the input's left edge — same edge as
-        // the word below — so chord + word align by construction
-        // instead of relying on the input's box being exactly the
-        // right width.
-        size={1}
-        className={`bg-transparent appearance-none border-0 border-b border-dashed text-left px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${
-          unparsed
-            ? 'text-developing border-developing/40'
-            : filled
-              ? 'text-fluent border-fluent/30'
-              : 'text-neutral-400 border-neutral-300 dark:border-neutral-600 hover:border-neutral-400 dark:hover:border-neutral-500'
-        }`}
-        style={{ width: `${Math.max(2, draft.length + 1)}ch`, minWidth: '1.5rem' }}
-        title={unparsed
-          ? "couldn't parse — saved as raw text"
-          : 'chord slot — numbers (4maj7), Roman (IVmaj7), or concrete (Fmaj7 — uses section key)'}
-      />
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={handleKey}
+          placeholder="1"
+          spellCheck={false}
+          // `size={1}` caps iOS Safari's intrinsic-width hint so it
+          // can't blow past the inline `width: Xch`. `appearance-none`
+          // flattens iOS native input chrome (internal padding/border)
+          // that would otherwise widen the box. `text-left` anchors
+          // the chord glyph to the input's left edge — same edge as
+          // the word below — so chord + word align by construction
+          // instead of relying on the input's box being exactly the
+          // right width.
+          size={1}
+          className={`bg-transparent appearance-none border-0 border-b border-dashed text-left px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${colourClasses}`}
+          style={{ width: `${Math.max(2, draft.length + 1)}ch`, minWidth: '1.5rem' }}
+          title={unparsed
+            ? "couldn't parse — saved as raw text"
+            : 'chord slot — numbers (4maj7), Roman (IVmaj7), or concrete (Fmaj7 — uses section key)'}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className={`bg-transparent appearance-none border-0 border-b border-dashed text-left px-0.5 py-0 text-sm font-mono tracking-tight cursor-text hover:border-fluent/60 transition-colors ${colourClasses}`}
+          style={{ minWidth: '1.5rem' }}
+          title={unparsed
+            ? "couldn't parse — saved as raw text"
+            : 'chord slot — click to edit'}
+        >
+          {filled
+            ? <ChordGlyph text={display} />
+            : <span className="text-neutral-300 dark:text-neutral-600">1</span>}
+        </button>
+      )}
       {stackedRoman && (
         <span
           className="text-[9px] font-mono text-neutral-400 -mt-0.5 leading-none"
@@ -958,7 +990,7 @@ function ReadOnlyChordSlot({ chord, notationMode, sectionKey }: ReadOnlyChordSlo
         }`}
         style={{ minWidth: '1.5rem' }}
       >
-        {empty ? '·' : display}
+        {empty ? '·' : <ChordGlyph text={display} />}
       </span>
       {stackedRoman && (
         <span className="text-[9px] font-mono text-neutral-400 -mt-0.5 leading-none" aria-hidden>

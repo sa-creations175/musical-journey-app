@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Beat, ChordFunction } from '../../lib/db';
 import BottomSheet from '../../components/BottomSheet';
 import { chordToDisplay, type NotationMode } from './chordFunction';
+import ChordGlyph from './chordGlyph';
 
 interface Props {
   /** Sheet open state; the sheet renders nothing when false. */
@@ -279,7 +280,9 @@ export default function ChordEditBottomSheet({
                   : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
             >
-              <span className="block">{chordText || '·'}</span>
+              <span className="block">
+                {chordText === '' ? '·' : <ChordGlyph text={chordText} />}
+              </span>
               <span className={`block ${
                 isActive ? 'text-neutral-900 dark:text-neutral-100' : 'text-neutral-500'
               }`}>
