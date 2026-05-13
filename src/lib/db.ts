@@ -849,6 +849,13 @@ export interface FlashcardState {
   /** User-flagged for "study later". Optional for backwards-compat with
       records written before the field existed. */
   isFlagged?: boolean;
+  /** Review-meta flag: "I want to come back to this card and think about
+      it / fix its phrasing / etc." Distinct from `isFlagged`, which is
+      a study-later toggle that affects session inclusion. `flagged` is
+      a meta-review pile surfaced in a dedicated view, with an optional
+      free-text note explaining why. */
+  flagged?: boolean;
+  flagNote?: string;
 }
 
 /**

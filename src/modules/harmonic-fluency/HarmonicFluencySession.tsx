@@ -16,6 +16,7 @@ import LinearScaleStrip from './LinearScaleStrip';
 import { degreeNote, parseKeyRoot } from './catalog';
 import type { Flashcard, FlashcardCategory } from './catalog';
 import { recordAttempt, toggleFlag } from './spacedRepetition';
+import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 import { recordEngagement } from '../../lib/spacingState';
 import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import FlashcardSession, {
@@ -64,14 +65,27 @@ export default function HarmonicFluencySession({
   focusProtected = false,
 }: Props) {
   // Flag state — live query over db.flashcardStates for the cards in
-  // queue. The shell consumes a Set<string> of flagged ids.
-  const flaggedIds = useLiveQuery(async () => {
+  // queue. The shell consumes a Set<string> of flagged ids for ★
+  // (study-later) and a separate set + note map for 🚩 (review meta).
+  const flagState = useLiveQuery(async () => {
     const ids = queue.map(c => c.id);
     const states = await db.flashcardStates.where('cardId').anyOf(ids).toArray();
-    const set = new Set<string>();
-    for (const s of states) if (s.isFlagged) set.add(s.cardId);
-    return set;
-  }, [queue]) ?? new Set<string>();
+    const star = new Set<string>();
+    const review = new Set<string>();
+    const notes = new Map<string, string>();
+    for (const s of states) {
+      if (s.isFlagged) star.add(s.cardId);
+      if (s.flagged) {
+        review.add(s.cardId);
+        if (s.flagNote) notes.set(s.cardId, s.flagNote);
+      }
+    }
+    return { star, review, notes };
+  }, [queue]) ?? { star: new Set<string>(), review: new Set<string>(), notes: new Map<string, string>() };
+
+  const flaggedIds = flagState.star;
+  const reviewFlaggedIds = flagState.review;
+  const reviewFlagNotes = flagState.notes;
 
   async function handleCardAnswered({
     card,
@@ -115,6 +129,11 @@ export default function HarmonicFluencySession({
       flaggedIds={flaggedIds}
       onToggleFlag={async cardId => {
         await toggleFlag(cardId);
+      }}
+      reviewFlaggedIds={reviewFlaggedIds}
+      reviewFlagNotes={reviewFlagNotes}
+      onSetReviewFlag={async (cardId, flagged, note) => {
+        await setReviewFlag(cardId, flagged, note);
       }}
       visualMode={displayMode}
       visualModes={VISUAL_MODES}

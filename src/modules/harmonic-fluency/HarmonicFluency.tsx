@@ -19,6 +19,7 @@ import {
   type FlashcardCategory,
 } from './catalog';
 import { buildSession } from './spacedRepetition';
+import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 
 function isCategory(v: string): v is FlashcardCategory {
   return (CATEGORY_ORDER as readonly string[]).includes(v);
@@ -325,7 +326,92 @@ export default function HarmonicFluency() {
         </section>
       )}
 
+      {!sessionActive && <FlaggedForReviewPanel />}
       {!sessionActive && <HarmonicFluencyTracker />}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Flagged-for-review panel — a parking pile separate from the ★
+// "study later" filter. Surfaces cards the user 🚩-flagged with their
+// optional notes, with a button to clear each one.
+// ---------------------------------------------------------------------
+
+function FlaggedForReviewPanel() {
+  const [expanded, setExpanded] = useState(false);
+  const cardsById = useMemo(() => {
+    const m = new Map<string, (typeof FLASHCARDS)[number]>();
+    for (const c of FLASHCARDS) m.set(c.id, c);
+    return m;
+  }, []);
+
+  const flagged = useLiveQuery(
+    async () => {
+      const rows = await db.flashcardStates.filter(s => s.flagged === true).toArray();
+      return rows
+        .map(r => ({
+          cardId: r.cardId,
+          note: r.flagNote,
+          lastReviewed: r.lastReviewed,
+          card: cardsById.get(r.cardId),
+        }))
+        .filter(x => x.card !== undefined)
+        .sort((a, b) => b.lastReviewed - a.lastReviewed);
+    },
+    [cardsById],
+  ) ?? [];
+
+  if (flagged.length === 0) return null;
+
+  return (
+    <section className="rounded-card border border-developing/40 bg-developing/5 p-4 sm:p-5 space-y-3">
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center justify-between gap-3 text-left"
+      >
+        <div>
+          <h2 className="text-sm sm:text-base font-medium tracking-tight text-developing">
+            🚩 flagged for review
+          </h2>
+          <p className="text-[11px] text-neutral-500 mt-0.5">
+            {flagged.length} card{flagged.length === 1 ? '' : 's'} parked for later thought
+          </p>
+        </div>
+        <span className="text-xs text-neutral-500">{expanded ? 'hide' : 'show'}</span>
+      </button>
+
+      {expanded && (
+        <ul className="space-y-2.5 pt-1">
+          {flagged.map(({ cardId, note, card }) => card && (
+            <li
+              key={cardId}
+              className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 p-3 space-y-1.5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-0.5 min-w-0">
+                  <p className="text-sm">{card.question}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-neutral-400">
+                    {card.categoryName} · answer: {card.correctAnswer}
+                  </p>
+                </div>
+                <button
+                  onClick={() => void setReviewFlag(cardId, false)}
+                  className="text-[11px] text-neutral-500 hover:text-needswork shrink-0"
+                  title="remove review flag"
+                >
+                  unflag
+                </button>
+              </div>
+              {note && (
+                <p className="text-xs text-neutral-600 dark:text-neutral-400 italic border-l-2 border-developing/40 pl-2">
+                  {note}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

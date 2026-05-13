@@ -100,3 +100,29 @@ export async function toggleFlag(cardId: string): Promise<boolean> {
   await db.flashcardStates.put(next);
   return next.isFlagged ?? false;
 }
+
+/** Set the review-meta flag on a card. Distinct from `isFlagged`
+ *  (study-later toggle): `flagged` parks a card in a meta-review pile
+ *  the user can later sweep, optionally with a free-text note
+ *  explaining why. Passing `flagged: false` clears the flag and drops
+ *  any prior note. */
+export async function setReviewFlag(
+  cardId: string,
+  flagged: boolean,
+  note?: string,
+): Promise<void> {
+  const state = await getState(cardId);
+  const next: FlashcardState = flagged
+    ? { ...state, flagged: true, flagNote: note?.trim() ? note.trim() : undefined }
+    : { ...state, flagged: false, flagNote: undefined };
+  await db.flashcardStates.put(next);
+}
+
+/** Returns all cards the user has review-flagged, newest-first by
+ *  lastReviewed. Used by the dedicated "Flagged" view. */
+export async function listFlaggedCards(): Promise<FlashcardState[]> {
+  const rows = await db.flashcardStates
+    .filter(s => s.flagged === true)
+    .toArray();
+  return rows.sort((a, b) => b.lastReviewed - a.lastReviewed);
+}

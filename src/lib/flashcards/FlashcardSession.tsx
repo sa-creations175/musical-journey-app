@@ -90,6 +90,15 @@ interface Props<TCard extends BaseFlashcard> {
   flaggedIds?: Set<string>;
   onToggleFlag?: (cardId: string) => Promise<void> | void;
 
+  /** Review-meta flag (separate from `flaggedIds`). Caller passes the
+   *  set of card ids the user has flagged for review, plus an optional
+   *  note map. When `onSetReviewFlag` is supplied a 🚩 button + inline
+   *  note editor appears alongside the ★ button. Independent feature
+   *  — callers can wire either, both, or neither. */
+  reviewFlaggedIds?: Set<string>;
+  reviewFlagNotes?: Map<string, string>;
+  onSetReviewFlag?: (cardId: string, flagged: boolean, note?: string) => Promise<void> | void;
+
   /** Visual-aid mode toggle. When supplied, the header renders a tab
    *  group with these options and surfaces the change via
    *  onVisualModeChange. The current value drives `renderVisualAid`. */
@@ -130,6 +139,9 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   onCardAnswered,
   flaggedIds,
   onToggleFlag,
+  reviewFlaggedIds,
+  reviewFlagNotes,
+  onSetReviewFlag,
   visualMode,
   visualModes,
   onVisualModeChange,
@@ -146,6 +158,8 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   const [streaks, setStreaks] = useState<Map<string, number>>(new Map());
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [done, setDone] = useState(false);
+  const [flagEditorOpen, setFlagEditorOpen] = useState(false);
+  const [flagNoteDraft, setFlagNoteDraft] = useState('');
 
   const timerRef = useRef<number | null>(null);
   const card = queue[index];
@@ -156,6 +170,8 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   const isLast = index === queue.length - 1;
   const answeredCount = outcomes.filter(o => o !== undefined).length;
   const flagged = !!(card && flaggedIds && flaggedIds.has(card.id));
+  const reviewFlagged = !!(card && reviewFlaggedIds && reviewFlaggedIds.has(card.id));
+  const reviewFlagNote = card && reviewFlagNotes ? reviewFlagNotes.get(card.id) : undefined;
 
   // -----------------------------------------------------------------
   // Visual-aid fade after N consecutive correct in a category. Skip
@@ -201,6 +217,13 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       setTimeLeft(null);
     }
   }, [index, card, timerSecs, hasAnswered]);
+
+  // Close the flag editor whenever the user moves to a different card,
+  // so a half-typed note doesn't bleed over to the next item.
+  useEffect(() => {
+    setFlagEditorOpen(false);
+    setFlagNoteDraft('');
+  }, [index]);
 
   useEffect(() => {
     if (timeLeft === null || hasAnswered || !card) return;
@@ -258,6 +281,25 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   async function handleToggleFlag() {
     if (!card || !onToggleFlag) return;
     await onToggleFlag(card.id);
+  }
+
+  function handleOpenFlagEditor() {
+    if (!card || !onSetReviewFlag) return;
+    setFlagNoteDraft(reviewFlagNote ?? '');
+    setFlagEditorOpen(true);
+  }
+
+  async function handleSaveReviewFlag() {
+    if (!card || !onSetReviewFlag) return;
+    await onSetReviewFlag(card.id, true, flagNoteDraft);
+    setFlagEditorOpen(false);
+  }
+
+  async function handleClearReviewFlag() {
+    if (!card || !onSetReviewFlag) return;
+    await onSetReviewFlag(card.id, false);
+    setFlagEditorOpen(false);
+    setFlagNoteDraft('');
   }
 
   function handleEnd() {
@@ -402,6 +444,22 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               {flagged ? '★' : '☆'}
             </button>
           )}
+          {onSetReviewFlag && (
+            <button
+              onClick={handleOpenFlagEditor}
+              aria-label={reviewFlagged ? 'edit review flag' : 'flag for review'}
+              title={
+                reviewFlagged
+                  ? `review-flagged${reviewFlagNote ? ` — ${reviewFlagNote}` : ''}`
+                  : 'flag for review (add note)'
+              }
+              className={`text-base leading-none ${
+                reviewFlagged ? '' : 'opacity-40 hover:opacity-100'
+              }`}
+            >
+              🚩
+            </button>
+          )}
           {visualModes && visualModes.length > 0 && onVisualModeChange && (
             <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-[10px]">
               {visualModes.map(opt => (
@@ -424,6 +482,46 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           </button>
         </div>
       </div>
+
+      {/* Review-flag editor — inline panel when the 🚩 button is opened.
+          Note is optional; Save with empty note still flags the card. */}
+      {flagEditorOpen && onSetReviewFlag && (
+        <div className="rounded-lg border border-developing/40 bg-developing/5 p-3 space-y-2">
+          <label className="block text-[11px] uppercase tracking-wide text-neutral-500">
+            review flag — optional note
+          </label>
+          <textarea
+            value={flagNoteDraft}
+            onChange={e => setFlagNoteDraft(e.target.value)}
+            placeholder="why are you flagging this? (optional)"
+            rows={2}
+            className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/60 px-2 py-1.5 text-sm focus:outline-none focus:border-developing"
+            autoFocus
+          />
+          <div className="flex items-center justify-end gap-2 text-xs">
+            <button
+              onClick={() => setFlagEditorOpen(false)}
+              className="px-2 py-1 rounded-md text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+            >
+              cancel
+            </button>
+            {reviewFlagged && (
+              <button
+                onClick={() => void handleClearReviewFlag()}
+                className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-needswork hover:text-needswork"
+              >
+                remove flag
+              </button>
+            )}
+            <button
+              onClick={() => void handleSaveReviewFlag()}
+              className="px-3 py-1 rounded-md bg-developing text-white hover:opacity-90"
+            >
+              {reviewFlagged ? 'save changes' : 'flag for review'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Question */}
       <div className="text-center">
