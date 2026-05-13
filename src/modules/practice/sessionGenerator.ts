@@ -82,6 +82,11 @@ import {
   getUnlockedTier as getChordRecognitionUnlockedTier,
 } from '../ear-training/chord-recognition/tierUnlock';
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
+import {
+  shapeShapesBlock,
+  type ShapesSplitContext,
+} from '../shapes-and-patterns/shapesSplit';
+import { getSPUnlockedTier } from '../shapes-and-patterns/spTiers';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -151,7 +156,14 @@ export async function buildSessionProposals(
   );
   if (withColdStart.length === 0) return [];
   const itemLabels = resolveShapesDrillLabels(withColdStart);
-  return generateAndShape(withColdStart, inputs.timeMinutes * 60, repertoireSplit, itemLabels);
+  const shapesContext = await loadShapesSplitContext(spacingRows, now);
+  return generateAndShape(
+    withColdStart,
+    inputs.timeMinutes * 60,
+    repertoireSplit,
+    itemLabels,
+    shapesContext,
+  );
 }
 
 // ---------------------------------------------------------------------
@@ -307,11 +319,13 @@ export async function buildSessionPlan(
     : requestedSeconds;
 
   const itemLabels = resolveShapesDrillLabels(moduleBlocks);
+  const shapesContext = await loadShapesSplitContext(spacingRows, now);
   const cards = generateAndShape(
     moduleBlocks,
     availableSeconds,
     repertoireSplit,
     itemLabels,
+    shapesContext,
   );
   return {
     kind: 'proposals',
@@ -353,6 +367,12 @@ function generateAndShape(
    *  behaviour preserved for callers / tests that haven't
    *  pre-loaded). */
   itemLabels: ReadonlyMap<string, string> | null = null,
+  /** S&P key-by-key reshape context. When supplied,
+   *  toProposalBlocks routes shapes-and-patterns blocks through
+   *  `shapeShapesBlock` for ordered itemRefs + a richer label.
+   *  Null preserves the pre-reshape behaviour for tests + fallback
+   *  paths. */
+  shapesContext: ShapesSplitContext | null = null,
 ): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
@@ -361,9 +381,31 @@ function generateAndShape(
   return proposals.map(p => ({
     kind: p.kind,
     title: p.title,
-    blocks: p.blocks.flatMap(b => toProposalBlocks(b, repertoireSplit, itemLabels)),
+    blocks: p.blocks.flatMap(b =>
+      toProposalBlocks(b, repertoireSplit, itemLabels, shapesContext),
+    ),
     totalSeconds: p.totalSeconds,
   }));
+}
+
+/**
+ * Pre-load the Shapes & Patterns reshape context: spacingState
+ * rows indexed by itemRef (drives starting-key pick + dueness) +
+ * the user's unlocked tier (filters higher-tier items out of the
+ * walk). Awaited once per session by the callers of
+ * generateAndShape; passed through to toProposalBlocks where
+ * shapeShapesBlock consumes it.
+ */
+async function loadShapesSplitContext(
+  spacingRows: ReadonlyArray<SpacingState>,
+  now: number,
+): Promise<ShapesSplitContext> {
+  const rowsByItemRef = new Map<string, SpacingState>();
+  for (const r of spacingRows) {
+    if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
+  }
+  const unlockedTier = await getSPUnlockedTier();
+  return { rowsByItemRef, unlockedTier, now };
 }
 
 /**
@@ -457,11 +499,13 @@ export async function buildSessionProposalsForPath(
   );
   if (filteredWithColdStart.length > 0) {
     const filteredItemLabels = resolveShapesDrillLabels(filteredWithColdStart);
+    const filteredShapesCtx = await loadShapesSplitContext(spacingRows, now);
     return generateAndShape(
       filteredWithColdStart,
       availableSeconds,
       repertoireSplit,
       filteredItemLabels,
+      filteredShapesCtx,
     );
   }
 
@@ -484,11 +528,13 @@ export async function buildSessionProposalsForPath(
   );
   if (fallbackWithColdStart.length === 0) return [];
   const fallbackItemLabels = resolveShapesDrillLabels(fallbackWithColdStart);
+  const fallbackShapesCtx = await loadShapesSplitContext(spacingRows, now);
   return generateAndShape(
     fallbackWithColdStart,
     availableSeconds,
     repertoireSplit,
     fallbackItemLabels,
+    fallbackShapesCtx,
   );
 }
 
@@ -988,10 +1034,39 @@ function toProposalBlocks(
   block: AllocatedBlock,
   repertoireSplit: RepertoireSplitContext | null,
   itemLabels: ReadonlyMap<string, string> | null = null,
+  shapesContext: ShapesSplitContext | null = null,
 ): ProposalBlock[] {
   const meta = moduleMetaById(block.moduleRef);
   const moduleLabel = meta?.label ?? block.moduleRef;
   const moduleAccentHex = meta?.accentHex ?? '#4a9088';
+
+  // S&P key-by-key reshape — when the caller has pre-loaded the
+  // shapes context (spacingState rows + unlocked tier), the
+  // algorithm's weight-sorted itemRef order gets re-walked in
+  // circle-of-fourths key order with tier+inversion ordering inside
+  // each key. The label becomes "Major, Minor · C, F" instead of
+  // the generic "drills · 6 items". Falls through to the generic
+  // ProposalBlock path when no chord-shape items pass the tier
+  // gate — keeps the existing behaviour for scale / voice-leading
+  // sub-blocks.
+  if (block.moduleRef === SHAPES_MODULE_REF && shapesContext) {
+    const reshape = shapeShapesBlock(block, shapesContext);
+    if (reshape) {
+      return [
+        {
+          id: block.id,
+          moduleRef: block.moduleRef,
+          moduleLabel,
+          moduleAccentHex,
+          activityDescription: reshape.label,
+          plannedSeconds: block.plannedSeconds,
+          whySnippet: reshape.why,
+          itemRefs: reshape.itemRefs,
+          isWarmup: false,
+        },
+      ];
+    }
+  }
 
   // Repertoire split — only when we have at least one of spotlight
   // OR maintenance. When both are absent the original single block
