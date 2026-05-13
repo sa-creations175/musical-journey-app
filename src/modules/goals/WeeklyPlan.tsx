@@ -9,6 +9,7 @@ import {
 } from '../../lib/weeklyAttempts';
 import { MODULE_ORDER, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
 import type { GoalFlowModuleId } from './goalVocabulary';
+import { ORDERED_GOAL_MODULES } from './goalsByModule';
 import { isCoverageMetric } from './coverageMetrics';
 import {
   getShapesCoverageGroup,
@@ -648,17 +649,19 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   }
   const moduleGroups = useMemo<ModuleGroup[]>(() => {
     const byModule = new Map<GoalFlowModuleId, PlanRow[]>();
-    // Preserve insertion order — first row's module wins the slot,
-    // siblings append to the existing array. Keeps a deterministic
-    // visual order tied to deriveWeeklyGoals' walk through the
-    // monthly-goals list.
     for (const row of planRows) {
       const list = byModule.get(row.moduleId);
       if (list) list.push(row);
       else byModule.set(row.moduleId, [row]);
     }
+    // Iterate ORDERED_GOAL_MODULES so the plan table renders the
+    // canonical sequence regardless of which order the rows came
+    // out of deriveWeeklyGoals (which mirrors the monthly-goals
+    // walk from Dexie — not guaranteed to be canonical).
     const out: ModuleGroup[] = [];
-    for (const [moduleId, rows] of byModule) {
+    for (const moduleId of ORDERED_GOAL_MODULES) {
+      const rows = byModule.get(moduleId);
+      if (!rows || rows.length === 0) continue;
       const estimates: TimeEstimate[] = [];
       for (const r of rows) {
         const t = rowTime(r);

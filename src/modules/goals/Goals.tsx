@@ -1104,16 +1104,21 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
   // Group the confirmed weekly rows by module so each module gets
   // one header (dot + label) with activities listed beneath it —
   // same visual hierarchy as the plan-table multi-row groups.
-  const grouped = useMemo(() => {
+  // Group ordering follows ORDERED_GOAL_MODULES so the by-module
+  // sequence stays consistent across every surface (Goals home,
+  // weekly plan, picker, etc.).
+  const orderedGroups = useMemo(() => {
     const map = new Map<GoalFlowModuleId, Goal[]>();
     for (const g of goals) {
-      const moduleId = (g.relatedModules[0] as GoalFlowModuleId | undefined);
+      const moduleId = g.relatedModules[0] as GoalFlowModuleId | undefined;
       if (!moduleId) continue;
       const arr = map.get(moduleId) ?? [];
       arr.push(g);
       map.set(moduleId, arr);
     }
-    return map;
+    return ORDERED_GOAL_MODULES
+      .map(moduleId => [moduleId, map.get(moduleId) ?? []] as const)
+      .filter(([, list]) => list.length > 0);
   }, [goals]);
 
   const handleReplan = async () => {
@@ -1136,7 +1141,7 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
   return (
     <div className="space-y-3 py-1">
       <div className="flex flex-col gap-3">
-        {[...grouped.entries()].map(([moduleId, moduleGoals]) => {
+        {orderedGroups.map(([moduleId, moduleGoals]) => {
           const meta = moduleMetaById(moduleId);
           const moduleLabel = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
           const accentHex = meta?.accentHex ?? GOALS_META.accentHex;
@@ -2110,15 +2115,6 @@ function ModuleSubheader({ moduleId }: { moduleId: GoalFlowModuleId }) {
  * row owns its own "+ Add monthly goal"), so the picker is only
  * needed from the timeframe entry point.
  */
-const PICKER_MODULES: ReadonlyArray<GoalFlowModuleId> = [
-  'harmonic-fluency',
-  'ear-training',
-  'shapes-and-patterns',
-  'repertoire',
-  'production',
-  'practice-consistency',
-];
-
 function ModulePickerModal({
   open,
   onClose,
@@ -2140,7 +2136,7 @@ function ModulePickerModal({
       description={description}
     >
       <div className="flex flex-col gap-2 py-1">
-        {PICKER_MODULES.map(moduleId => {
+        {ORDERED_GOAL_MODULES.map(moduleId => {
           const meta = moduleMetaById(moduleId);
           // moduleMetaById's labels are already lowercase (the app
           // convention), but MODULE_DISPLAY_NAME's fallback for

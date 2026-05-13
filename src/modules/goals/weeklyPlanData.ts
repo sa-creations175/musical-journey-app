@@ -1,6 +1,7 @@
 import { db, type Goal } from '../../lib/db';
 import { getAttemptsInRange, getWeeklyTimeEstimate, type TimeEstimate } from '../../lib/weeklyAttempts';
 import type { GoalFlowModuleId } from './goalVocabulary';
+import { ORDERED_GOAL_MODULES } from './goalsByModule';
 
 /**
  * Phase 4 Step 3 — data loaders for the WeeklyPlan screen.
@@ -157,15 +158,6 @@ export async function loadConfirmedPlanForWeek(
 // Last week stats
 // ---------------------------------------------------------------------
 
-const ALL_MODULES: ReadonlyArray<GoalFlowModuleId> = [
-  'harmonic-fluency',
-  'ear-training',
-  'shapes-and-patterns',
-  'repertoire',
-  'production',
-  'practice-consistency',
-];
-
 export interface ModuleWeekStat {
   moduleId: GoalFlowModuleId;
   /** Attempts logged in last week's window. 0 when nothing happened. */
@@ -202,7 +194,7 @@ export async function loadLastWeekReview(
   const lastWeekGoals = await loadWeeklyGoalsForWeek(lastWeekStart);
 
   const byModule: ModuleWeekStat[] = await Promise.all(
-    ALL_MODULES.map(async (moduleId) => {
+    ORDERED_GOAL_MODULES.map(async (moduleId) => {
       const attempts = await getAttemptsInRange(
         moduleId,
         lastWeekStart,
