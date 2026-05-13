@@ -12,7 +12,8 @@ import { ScopePill } from './ScopePill';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
 import {
-  loadWeeklyGoalsForWeek,
+  endOfWeekLocal,
+  loadConfirmedPlanForWeek,
   startOfWeekLocal,
 } from './weeklyPlanData';
 import { getWeeklyTimeEstimate } from '../../lib/weeklyAttempts';
@@ -1032,9 +1033,15 @@ function WeeklyChallengeSection() {
  */
 function WeeklyChallengeBody() {
   const weekStart = useMemo(() => startOfWeekLocal(Date.now()), []);
+  const weekEnd = useMemo(() => endOfWeekLocal(weekStart), [weekStart]);
+  // Detect by parent linkage + date overlap so weekly goals saved
+  // mid-week via GoalCreationFlow (startDate = an arbitrary
+  // millisecond, not Sunday-midnight) are recognized as part of
+  // the confirmed plan when they're children of an active monthly
+  // goal. See loadConfirmedPlanForWeek for the full predicate.
   const confirmedGoals = useLiveQuery<Goal[]>(
-    async () => loadWeeklyGoalsForWeek(weekStart),
-    [weekStart],
+    async () => loadConfirmedPlanForWeek(weekStart, weekEnd),
+    [weekStart, weekEnd],
   );
 
   // Live query in flight — render nothing rather than flash the

@@ -91,15 +91,66 @@ export async function loadActiveMonthlyGoals(
 }
 
 /**
- * Weekly goals previously saved for the given Sunday. Used both
- * by the "already confirmed for this week" check and by the
- * last-week review (compare actual vs target).
+ * Weekly goals previously saved for the given Sunday. Exact
+ * equality on `startDate` — these are the rows WeeklyPlan's
+ * handleConfirm writes (always at Sunday 00:00 local). Used by:
+ *   · the modal's "already confirmed" check (matches the modal's
+ *     own save timestamp exactly)
+ *   · WeeklyPlanBanner's Sunday auto-surface gating
+ *   · the last-week review (previous-week's Sunday)
+ *
+ * For "does a confirmed plan exist this week from the user's
+ * derived-from-monthly commitment?" — use `loadConfirmedPlanForWeek`
+ * instead. That helper uses parent linkage + date-range overlap so
+ * weekly goals saved partway through the week (Path B via
+ * GoalCreationFlow) still count as long as they're children of an
+ * active monthly goal.
  */
 export async function loadWeeklyGoalsForWeek(
   weekStart: number,
 ): Promise<Goal[]> {
   const all = await db.goals.toArray();
   return all.filter(g => g.scope === 'weekly' && g.startDate === weekStart);
+}
+
+/**
+ * Confirmed-plan detection by parent linkage. A "confirmed plan"
+ * for this week is any active weekly goal that is the child of an
+ * active monthly goal AND whose window overlaps with this week.
+ *
+ * Two saves the strict-equality `loadWeeklyGoalsForWeek` misses:
+ *   · Path A — WeeklyPlan.handleConfirm: startDate = exact Sunday
+ *     midnight. Caught by both queries.
+ *   · Path B — GoalCreationFlow weekly create: startDate = the
+ *     exact `Date.now()` of save (mid-week, mid-second). Caught
+ *     only by date-range overlap.
+ *
+ * The parent-linkage predicate keeps standalone weekly goals (no
+ * monthly parent, or parented to a yearly anchor) out of the
+ * confirmed-plan summary — those are independent commitments,
+ * not the derived-from-monthly plan. Mirrors the LayerSection's
+ * "hide monthly-child weeklies from the explicit list" filter so
+ * the two surfaces stay coherent.
+ */
+export async function loadConfirmedPlanForWeek(
+  weekStart: number,
+  weekEnd: number,
+): Promise<Goal[]> {
+  const all = await db.goals.toArray();
+  const activeMonthlyIds = new Set(
+    all
+      .filter(g => g.scope === 'monthly' && g.status === 'active')
+      .map(g => g.id),
+  );
+  return all.filter(
+    g =>
+      g.scope === 'weekly' &&
+      g.status === 'active' &&
+      g.startDate <= weekEnd &&
+      g.targetDate >= weekStart &&
+      g.parentGoalId !== null &&
+      activeMonthlyIds.has(g.parentGoalId),
+  );
 }
 
 // ---------------------------------------------------------------------
