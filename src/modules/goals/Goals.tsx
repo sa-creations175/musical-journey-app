@@ -964,7 +964,12 @@ function LayerSection({
  * leaving the Goals home. Collapsible with default open; the
  * muted subtitle explains where the suggestions come from. */
 function WeeklyChallengeSection() {
-  const [open, setOpen] = useState(true);
+  // Default collapsed so the inline <WeeklyPlan /> doesn't mount —
+  // and therefore doesn't fire its loadActiveMonthlyGoals +
+  // loadLastWeekReview Dexie reads — on every Goals page visit.
+  // The user opts in with a tap; once open, the body mounts and
+  // loads normally.
+  const [open, setOpen] = useState(false);
   return (
     <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/30">
       <button

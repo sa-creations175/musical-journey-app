@@ -32,17 +32,17 @@ import {
  *
  * Two-part screen:
  *
- *   Part 1 — Last week review:
- *     For each module, show actual attempts + time vs the saved
- *     weekly target (if any) with an honest pace classification
- *     (ahead / on-track / behind / no-target). Empty state when
- *     the user has no weekly history yet.
- *
- *   Part 2 — This week's plan:
+ *   Part 1 — This week's plan:
  *     Derives weekly targets from the active monthly goals via
  *     deriveWeeklyGoals, lets the user adjust each target inline,
  *     shows the honest total time range, and surfaces the Phase 4
  *     daily pattern (Sun=Deep, Mon-Fri=Standard, Sat=Deep flex).
+ *
+ *   Part 2 — Last week review:
+ *     For each module, show actual attempts + time vs the saved
+ *     weekly target (if any) with an honest pace classification
+ *     (ahead / on-track / behind / no-target). Empty state when
+ *     the user has no weekly history yet.
  *
  * On confirm: weekly Goal records persist to db.goals. Sync hooks
  * push to Supabase automatically. Re-opening shows a "confirmed"
@@ -825,29 +825,11 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 
       {!loading && (
         <div className="space-y-8">
-          {/* ============ Part 1 — Last week review ============ */}
-          <section className="space-y-3">
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">Last week</h4>
-              {review && (
-                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                  {formatDateRange(review.weekStart, review.weekEnd)}
-                </span>
-              )}
-              <span className="text-xs text-neutral-500">how did the past week go?</span>
-            </div>
-
-            {review?.isEmpty ? (
-              <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-5 text-sm text-neutral-500">
-                No data yet. Last week is a fresh slate — start logging attempts
-                this week and you'll see your pace next Sunday.
-              </div>
-            ) : (
-              <ReviewTable review={review!} />
-            )}
-          </section>
-
-          {/* ============ Part 2 — This week's plan ============ */}
+          {/* ============ Part 1 — This week's plan ============
+              Actionable first, historical review second. The order
+              flipped after the plan moved inline into the by-
+              timeframe Weekly section — the user lands on the
+              section to act, not to relive last week. */}
           <section className="space-y-3">
             <div className="flex items-baseline gap-3 flex-wrap">
               <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">This week</h4>
@@ -945,6 +927,28 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 
                 <DailyPattern />
               </>
+            )}
+          </section>
+
+          {/* ============ Part 2 — Last week review ============ */}
+          <section className="space-y-3">
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">Last week</h4>
+              {review && (
+                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                  {formatDateRange(review.weekStart, review.weekEnd)}
+                </span>
+              )}
+              <span className="text-xs text-neutral-500">how did the past week go?</span>
+            </div>
+
+            {review?.isEmpty ? (
+              <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-5 text-sm text-neutral-500">
+                No data yet. Last week is a fresh slate — start logging attempts
+                this week and you'll see your pace next Sunday.
+              </div>
+            ) : (
+              <ReviewTable review={review!} />
             )}
           </section>
         </div>
