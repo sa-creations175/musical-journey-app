@@ -490,20 +490,6 @@ export default function Goals() {
 
       {activeView === 'timeframe' ? (
         <div className="flex flex-col">
-          {/* In-view shortcut to the scope picker. The toolbar
-              "+ Set a goal" button stays the global entry, but a
-              second affordance here gives users browsing the
-              timeframe layers a one-tap path without scrolling
-              back to the top. */}
-          <div className="flex justify-end mb-2">
-            <button
-              type="button"
-              onClick={() => setScopePickerOpen(true)}
-              className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
-            >
-              + Add goal
-            </button>
-          </div>
           {visibleLayers.map(layer => {
             const layerGoals = goalsByScope.get(layer.scope) ?? [];
             const collapsed = effectiveCollapsed(
