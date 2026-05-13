@@ -2881,7 +2881,7 @@ function formatGoalWeekTime(t: ReturnType<typeof goalWeekTime>): string {
 
 const TIME_ESTIMATE_INFO_TEXT =
   'Time estimates use per-attempt averages: HF/ET ≈20s, Shapes ≈1.5 min/rep (varies by drill type), '
-  + 'Repertoire ≈45 min/day, Production 30–90 min/lesson. These will refine as you log more practice.';
+  + 'Repertoire ≈60 min/day (~45 spotlight + ~15 maintenance), Production 30–90 min/lesson. These will refine as you log more practice.';
 
 const PACE_INFO_TEXT =
   "Compares what you've done this week against what you'd need each day to hit your weekly target. "

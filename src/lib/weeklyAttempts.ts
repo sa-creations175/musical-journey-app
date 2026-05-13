@@ -69,12 +69,17 @@ export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
  *  file stays dependency-free. Re-derive if the catalog shifts. */
 export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 1.67;
 
-/** Default assumed length of a Repertoire practice session, used by
- *  the WeeklyPlan when an hours-based repertoire consistency goal
- *  needs a "~45 min · N sessions/week" breakdown. Picked from the
- *  spec; recalibrate after a few weeks of real song-cell run-through
- *  data inform what a typical repertoire session actually runs. */
-export const REPERTOIRE_SESSION_DEFAULT_MINUTES = 45;
+/** Default assumed length of a full Repertoire practice session
+ *  (spotlight + maintenance combined), used by the WeeklyPlan when
+ *  an hours- or days-based repertoire consistency goal needs a
+ *  "~60 min · N sessions/week" cadence breakdown. The session
+ *  breaks down as ~45 min Song of the Month + ~15 min maintenance
+ *  in the session allocator; the WeeklyPlan surfaces both lines.
+ *  Was 45 prior to the May 2026 rebalance — that value treated the
+ *  full session as just the spotlight portion. Recalibrate after a
+ *  few weeks of real song-cell run-through data inform what a
+ *  typical repertoire session actually runs. */
+export const REPERTOIRE_SESSION_DEFAULT_MINUTES = 60;
 
 /** Production lesson time is highly variable — show as a range. */
 export const PRODUCTION_TIME_RANGE_MINUTES = {

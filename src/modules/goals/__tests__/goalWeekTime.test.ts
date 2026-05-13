@@ -87,7 +87,9 @@ describe('goalWeekTime — legacy hours/minutes', () => {
     }));
     expect(r).not.toBeNull();
     expect(r!.estimate).toEqual({ kind: 'point', minutes: 270 });
-    expect(r!.breakdown).toContain('45 min');
+    // Session breakdown uses REPERTOIRE_SESSION_DEFAULT_MINUTES
+    // (60 min/session as of the May 2026 rebalance — was 45).
+    expect(r!.breakdown).toContain('60 min');
     expect(r!.breakdown).toContain('week');
   });
 
@@ -101,7 +103,7 @@ describe('goalWeekTime — legacy hours/minutes', () => {
 });
 
 describe('goalWeekTime — new days/lessons', () => {
-  it('repertoire_days_per_cadence = days × 45 min/day, with breakdown', () => {
+  it('repertoire_days_per_cadence = days × default session minutes, with breakdown', () => {
     const r = goalWeekTime(goal({
       targetMetric: 'repertoire_days_per_cadence',
       targetValue: 6,
@@ -111,7 +113,8 @@ describe('goalWeekTime — new days/lessons', () => {
       kind: 'point',
       minutes: 6 * REPERTOIRE_SESSION_DEFAULT_MINUTES,
     });
-    expect(r!.breakdown).toContain('45 min');
+    // 60 min/session as of the May 2026 rebalance.
+    expect(r!.breakdown).toContain('60 min');
     expect(r!.breakdown).toContain('6 days');
   });
 

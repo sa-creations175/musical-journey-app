@@ -128,8 +128,34 @@ type RowTimeDisplay =
       kind: 'time';
       estimate: TimeEstimate;
       consistencySuffix?: string;
+      /** Additional muted lines rendered below the consistency
+       *  suffix. Used by Repertoire rows to surface the
+       *  spotlight / maintenance per-session breakdown so the
+       *  user reads the cadence shape, not just the bulk hours
+       *  figure. Each entry renders on its own line. */
+      extraLines?: readonly string[];
     }
   | { kind: 'per-session'; minutesPerSession: number };
+
+/** Spotlight share of a typical repertoire session — matches the
+ *  3:1 split used by repertoireSplit.ts (SPOTLIGHT_RATIO = 3/4).
+ *  Surfaced as user-visible "~45 min" / "~15 min" lines below; both
+ *  lines auto-rescale if REPERTOIRE_SESSION_DEFAULT_MINUTES shifts. */
+const REPERTOIRE_SPOTLIGHT_SHARE = 3 / 4;
+
+function buildRepertoireSessionBreakdown(
+  hasMaintenanceSongs: boolean,
+): string[] {
+  const spotlightMin = Math.round(
+    REPERTOIRE_SESSION_DEFAULT_MINUTES * REPERTOIRE_SPOTLIGHT_SHARE,
+  );
+  const maintenanceMin = REPERTOIRE_SESSION_DEFAULT_MINUTES - spotlightMin;
+  const lines = [`Song of the Month — ~${spotlightMin} min/session`];
+  if (hasMaintenanceSongs) {
+    lines.push(`Maintenance — ~${maintenanceMin} min/session`);
+  }
+  return lines;
+}
 
 /** Per-module consistency metrics that should fold into a sibling
  *  coverage row when both exist. Includes the new days-based metrics
@@ -384,6 +410,12 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   const [confirmedGoals, setConfirmedGoals] = useState<Goal[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Song-count snapshot for the Repertoire session breakdown.
+   *  ≥2 songs → the user has at least one maintenance candidate
+   *  (one for the spotlight, anything else for maintenance). 0 / 1
+   *  songs → only the spotlight line surfaces. Snapshot is fine
+   *  (modal is re-opened to refresh) — no live-query plumbing. */
+  const [songCount, setSongCount] = useState(0);
   /** Per-module collapse state. Empty set = everything expanded
    *  (the default — see spec: "expanded by default, collapse
    *  chevron on the right"). Only applies to multi-row module
@@ -403,14 +435,16 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 
     void (async () => {
       try {
-        const [reviewData, monthlies, alreadySaved] = await Promise.all([
+        const [reviewData, monthlies, alreadySaved, songs] = await Promise.all([
           loadLastWeekReview(weekStart),
           loadActiveMonthlyGoals(weekStart),
           loadWeeklyGoalsForWeek(weekStart),
+          db.songs.count(),
         ]);
         if (cancelled) return;
         setReview(reviewData);
         setConfirmedGoals(alreadySaved);
+        setSongCount(songs);
 
         // Derive suggestions from monthly goals. If already confirmed,
         // we mirror the saved targets into editable rows instead so
@@ -510,21 +544,16 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     // Hours-per-cadence consistency rows (legacy
     // production_hours_per_cadence / repertoire_hours_per_cadence):
     // target IS the weekly hour count. Repertoire additionally
-    // derives a session breakdown so the user sees the cadence
-    // shape, not just the bulk hours figure.
+    // surfaces the per-session split (Song of the Month +
+    // Maintenance) so the user reads the cadence shape, not just
+    // the bulk hours figure.
     if (row.unit === 'hours') {
       const estimate: TimeEstimate = { kind: 'point', minutes: row.target * 60 };
       if (row.parentMetric === 'repertoire_hours_per_cadence' && row.target > 0) {
-        const sessions = Math.max(
-          1,
-          Math.round((row.target * 60) / REPERTOIRE_SESSION_DEFAULT_MINUTES),
-        );
-        const sessionNoun = sessions === 1 ? 'session' : 'sessions';
         return {
           kind: 'time',
           estimate,
-          consistencySuffix:
-            `~${REPERTOIRE_SESSION_DEFAULT_MINUTES} min · ${sessions} ${sessionNoun}/week`,
+          extraLines: buildRepertoireSessionBreakdown(songCount >= 2),
         };
       }
       return { kind: 'time', estimate };
@@ -552,7 +581,8 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     // (i.e. no sibling coverage to merge with) get a per-day
     // breakdown based on the module:
     //   · repertoire_days_per_cadence — multiplies by
-    //     REPERTOIRE_SESSION_DEFAULT_MINUTES (45 min/day).
+    //     REPERTOIRE_SESSION_DEFAULT_MINUTES (60 min/day —
+    //     ~45 spotlight + ~15 maintenance).
     //   · HF/ET/Shapes _days_per_cadence standing alone — no
     //     coverage to derive minutes from, so just show the count.
     //   · practice_days_per_cadence — same: count-only, the
@@ -560,12 +590,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     if (row.unit === 'days') {
       if (row.parentMetric === 'repertoire_days_per_cadence' && row.target > 0) {
         const totalMinutes = row.target * REPERTOIRE_SESSION_DEFAULT_MINUTES;
-        const dayNoun = row.target === 1 ? 'day' : 'days';
         return {
           kind: 'time',
           estimate: { kind: 'point', minutes: totalMinutes },
-          consistencySuffix:
-            `~${REPERTOIRE_SESSION_DEFAULT_MINUTES} min · ${row.target} ${dayNoun}/week`,
+          extraLines: buildRepertoireSessionBreakdown(songCount >= 2),
         };
       }
       return null;
@@ -1181,6 +1209,14 @@ function PlanRowView(props: {
                 {time.consistencySuffix}
               </div>
             )}
+            {time.extraLines && time.extraLines.map((line, idx) => (
+              <div
+                key={idx}
+                className="tabular-nums text-xs text-neutral-500 dark:text-neutral-500 mt-0.5"
+              >
+                {line}
+              </div>
+            ))}
           </>
         )}
       </td>

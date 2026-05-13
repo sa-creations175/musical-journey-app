@@ -64,8 +64,38 @@ export const MEMORY_TYPE_DURATIONS: Record<MemoryType, DurationTier> = {
   },
 };
 
-export function durationTierFor(memoryType: MemoryType): DurationTier {
-  return MEMORY_TYPE_DURATIONS[memoryType];
+/**
+ * Per-module overrides that take precedence over MEMORY_TYPE_DURATIONS
+ * when the module needs a different default block shape than the rest
+ * of its memory type. Merged shallow on top of the base tier — keys
+ * not present in the override fall through.
+ *
+ * Repertoire (integration) needs ~60 min at typical-high so the
+ * spotlight + maintenance split has room to deliver the design
+ * intent (~45 min spotlight + ~15 min maintenance per session).
+ * Production stays at the integration default — its sessions are
+ * shorter and bursty.
+ */
+export const MODULE_DURATION_OVERRIDES: Readonly<Record<string, Partial<DurationTier>>> = {
+  repertoire: {
+    typicalHighSeconds: 60 * SECONDS_PER_MINUTE,
+  },
+};
+
+/**
+ * Resolve the duration tier for a block. `moduleRef` is the
+ * spacingState moduleRef (e.g. `'repertoire'`, `'production'`,
+ * `'chord-recognition'`). When omitted, falls back to the memory-
+ * type defaults so callers that don't have a moduleRef handy
+ * (mostly tests of the surrounding allocation math) still resolve
+ * cleanly.
+ */
+export function durationTierFor(memoryType: MemoryType, moduleRef?: string): DurationTier {
+  const base = MEMORY_TYPE_DURATIONS[memoryType];
+  if (!moduleRef) return base;
+  const override = MODULE_DURATION_OVERRIDES[moduleRef];
+  if (!override) return base;
+  return { ...base, ...override };
 }
 
 // ---------------------------------------------------------------------
@@ -145,7 +175,7 @@ export function allocateBlockTime(
   let working = blocks.slice();
 
   while (working.length > 0) {
-    const tiers = working.map(b => durationTierFor(b.memoryType));
+    const tiers = working.map(b => durationTierFor(b.memoryType, b.moduleRef));
     const minTotal = tiers.reduce((s, t) => s + t.minSeconds, 0);
     const typicalLowTotal = tiers.reduce((s, t) => s + t.typicalLowSeconds, 0);
     const typicalHighTotal = tiers.reduce((s, t) => s + t.typicalHighSeconds, 0);

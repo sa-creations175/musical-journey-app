@@ -2621,7 +2621,7 @@ export async function persistRepertoireMonthlyGoal(
   // ConsistencyTargetCard is enabled. WeeklyPlan reads this single
   // record and derives the per-day time block using
   // REPERTOIRE_SESSION_DEFAULT_MINUTES — total weekly time =
-  // days × ~45 min.
+  // days × ~60 min (~45 spotlight + ~15 maintenance).
   if (hasDaysTarget) {
     const matched = pluckDaysMatch();
     children.push(buildChild(matched, {

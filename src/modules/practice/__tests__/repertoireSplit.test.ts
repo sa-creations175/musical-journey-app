@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 /**
- * Unit tests for splitRepertoireAllocation — pins the 2:1 ratio,
- * the 15-min spotlight floor, the < 15-min single-block collapse,
- * and the TBD/missing-candidate edge cases.
+ * Unit tests for splitRepertoireAllocation — pins the 3:1 ratio,
+ * the 15-min spotlight floor, the post-split maintenance-under-5-
+ * min drop, and the TBD/missing-candidate edge cases. Ratio
+ * shifted 2/3 → 3/4 in the May 2026 rebalance so a 60-min
+ * Repertoire allocation lands at the design intent of 45 min
+ * spotlight + 15 min maintenance.
  */
 import { describe, expect, it } from 'vitest';
 import {
@@ -74,27 +77,33 @@ describe('splitRepertoireAllocation', () => {
     ).toEqual([]);
   });
 
-  it('45-min Repertoire → 30 min spotlight + 15 min maintenance (2:1)', () => {
+  it('60-min Repertoire → 45 min spotlight + 15 min maintenance (3:1)', () => {
+    const ctx = splitCtx({
+      spotlight: specificSpotlight(),
+      maintenanceSong: maint(),
+    });
+    const out = splitRepertoireAllocation(60 * 60, ctx);
+    expect(out).toHaveLength(2);
+    expect(out[0].kind).toBe('spotlight');
+    expect(out[0].plannedSeconds).toBe(45 * 60);
+    expect(out[1].kind).toBe('maintenance');
+    expect(out[1].plannedSeconds).toBe(15 * 60);
+  });
+
+  it('non-multiple-of-4 Repertoire splits via Math.round, not floor', () => {
+    // 45 × 60 = 2700s. round(2700 × 0.75) = 2025s = 33m45s
+    // (spotlight). maintenance = 2700 − 2025 = 675s = 11m15s.
+    // Pinning the second-granularity result so a future tweak to
+    // the split math (Math.floor / Math.ceil) doesn't silently
+    // drift away from the design intent.
     const ctx = splitCtx({
       spotlight: specificSpotlight(),
       maintenanceSong: maint(),
     });
     const out = splitRepertoireAllocation(45 * 60, ctx);
     expect(out).toHaveLength(2);
-    expect(out[0].kind).toBe('spotlight');
-    expect(out[0].plannedSeconds).toBe(30 * 60);
-    expect(out[1].kind).toBe('maintenance');
-    expect(out[1].plannedSeconds).toBe(15 * 60);
-  });
-
-  it('60-min Repertoire → 40/20 split', () => {
-    const ctx = splitCtx({
-      spotlight: specificSpotlight(),
-      maintenanceSong: maint(),
-    });
-    const out = splitRepertoireAllocation(60 * 60, ctx);
-    expect(out[0].plannedSeconds).toBe(40 * 60);
-    expect(out[1].plannedSeconds).toBe(20 * 60);
+    expect(out[0].plannedSeconds).toBe(2025);
+    expect(out[1].plannedSeconds).toBe(675);
   });
 
   it('20-min Repertoire clamps spotlight at 15-min floor → 15/5', () => {
@@ -289,16 +298,16 @@ describe('splitRepertoireAllocation — readiness routing', () => {
       context: 'keys',
     };
     const out = splitRepertoireAllocation(60 * 60, ctx);
-    // 60 min → 40 spotlight + 20 maint. Both halves ready on keys
-    // → quiz + practice on each. 4 blocks total.
+    // 60 min → 45 spotlight + 15 maint (3/4 split). Both halves
+    // ready on keys → 3-min quiz + practice on each. 4 blocks.
     expect(out).toHaveLength(4);
     expect(out.map(b => b.kind)).toEqual([
       'chord-quiz', 'spotlight', 'chord-quiz', 'maintenance',
     ]);
     expect(out[0].plannedSeconds).toBe(3 * 60);
-    expect(out[1].plannedSeconds).toBe(40 * 60 - 3 * 60);
+    expect(out[1].plannedSeconds).toBe(45 * 60 - 3 * 60);
     expect(out[2].plannedSeconds).toBe(3 * 60);
-    expect(out[3].plannedSeconds).toBe(20 * 60 - 3 * 60);
+    expect(out[3].plannedSeconds).toBe(15 * 60 - 3 * 60);
   });
 
   it('TBD spotlight ignores readiness (stays as TBD)', () => {
@@ -419,14 +428,14 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       maintenancePostComfortable: { kind: 'whole-song-run', keyName: 'D' },
       context: 'mixed',
     };
-    const out = splitRepertoireAllocation(45 * 60, ctx);
+    const out = splitRepertoireAllocation(60 * 60, ctx);
     expect(out).toHaveLength(2);
     expect(out[0].kind).toBe('whole-song-run');
     expect(out[0].label).toBe('Run through Song One');
     expect(out[1].kind).toBe('whole-song-run');
     expect(out[1].label).toBe('Run through Song Two');
-    // Time split preserved: 2/3 to spotlight, 1/3 to maintenance.
-    expect(out[0].plannedSeconds).toBe(30 * 60);
+    // Time split preserved: 3/4 to spotlight, 1/4 to maintenance.
+    expect(out[0].plannedSeconds).toBe(45 * 60);
     expect(out[1].plannedSeconds).toBe(15 * 60);
   });
 });

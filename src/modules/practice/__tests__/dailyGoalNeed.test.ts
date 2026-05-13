@@ -73,7 +73,7 @@ describe('computeDailyGoalNeed — consistency translation', () => {
     expect(out!.totalMinutes).toBe(20);
   });
 
-  it('repertoire_days_per_cadence uses the 45-min session default', () => {
+  it('repertoire_days_per_cadence uses the default session minutes', () => {
     const goals = [mkGoal({
       targetMetric: 'repertoire_days_per_cadence',
       targetValue: 6,
@@ -119,8 +119,10 @@ describe('computeDailyGoalNeed — aggregation', () => {
     expect(out!.entries).toHaveLength(3);
     const sum = out!.entries.reduce((s, e) => s + e.dailyMinutes, 0);
     expect(sum).toBe(out!.totalMinutes);
-    // Matches the spec example total (Shapes 20 + Repertoire 45 + ET 15 = 80).
-    expect(out!.totalMinutes).toBe(80);
+    // Shapes 20 + Repertoire 60 + ET 15 = 95 (Repertoire moved from
+    // 45 → 60 in the May 2026 rebalance to cover spotlight +
+    // maintenance combined).
+    expect(out!.totalMinutes).toBe(95);
   });
 
   it('orders entries: Shapes → Repertoire → Production → HF → ET → Practice', () => {

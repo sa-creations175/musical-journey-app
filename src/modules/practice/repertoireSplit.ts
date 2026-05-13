@@ -41,7 +41,16 @@ import {
 } from '../repertoire/songProgression';
 
 const MIN_SPOTLIGHT_SECONDS = 15 * 60;
-const SPOTLIGHT_RATIO = 2 / 3;
+/** Spotlight share of a two-slot repertoire allocation. 3:1 matches
+ *  the design intent: ~45 min spotlight + ~15 min maintenance on a
+ *  60-min repertoire block. Was 2/3 (40/20 on 60 min) prior to the
+ *  May 2026 rebalance. */
+const SPOTLIGHT_RATIO = 3 / 4;
+/** Floor for the maintenance half AFTER the split. When the
+ *  computed maintenance share falls below this, the slot is
+ *  dropped and spotlight absorbs the whole allocation — a
+ *  sub-5-min maintenance turn isn't worth the context switch. */
+const MIN_MAINTENANCE_SECONDS = 5 * 60;
 /** Chord-quiz warm-up duration that prepends Repertoire practice in
  *  keys/mixed sessions (or stands alone in laptop/phone sessions). */
 export const CHORD_QUIZ_SECONDS = 3 * 60;
@@ -303,21 +312,23 @@ export function splitRepertoireAllocation(
     return buildMaintenanceHalf(plannedSeconds, ctx);
   }
 
-  // Both available — apply the time split. Under-15-min Repertoire
-  // allocation collapses to whichever is more urgent: spotlight
-  // wins by default (the user actively picked it for the month).
-  if (plannedSeconds < MIN_SPOTLIGHT_SECONDS) {
-    return buildSpotlightHalf(plannedSeconds, ctx);
-  }
-
-  // ≥ 15-min split: spotlight gets max(15min, 2/3 of total);
-  // maintenance gets whatever's left.
+  // Both available — apply the time split. Spotlight gets max(15
+  // min, 3/4 of total); maintenance gets whatever's left. If the
+  // remainder falls below MIN_MAINTENANCE_SECONDS, maintenance is
+  // dropped and spotlight absorbs the whole allocation — a sub-5-
+  // min maintenance turn isn't worth the context switch (replaces
+  // the older pre-split "drop everything below 15 min" check;
+  // post-split gating produces the right outcomes across both
+  // tiny and large allocations).
   const spotlightSeconds = Math.max(
     MIN_SPOTLIGHT_SECONDS,
     Math.round(plannedSeconds * SPOTLIGHT_RATIO),
   );
   const clampedSpotlight = Math.min(spotlightSeconds, plannedSeconds);
   const maintenanceSeconds = plannedSeconds - clampedSpotlight;
+  if (maintenanceSeconds < MIN_MAINTENANCE_SECONDS) {
+    return buildSpotlightHalf(plannedSeconds, ctx);
+  }
   return [
     ...buildSpotlightHalf(clampedSpotlight, ctx),
     ...buildMaintenanceHalf(maintenanceSeconds, ctx),
