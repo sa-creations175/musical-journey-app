@@ -6,7 +6,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt' lets the user opt into the update via the
+      // PwaUpdateBanner ("New version available · Update now").
+      // useRegisterSW's onNeedRefresh / needRefresh state only
+      // fires in prompt mode — 'autoUpdate' silently swaps the SW
+      // and reloads, which made shipped fixes invisible to the
+      // user mid-session.
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Musical Journey',

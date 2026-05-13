@@ -6,6 +6,7 @@ import SidebarNav from './SidebarNav';
 import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
+import PwaUpdateBanner from './PwaUpdateBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 import { cleanupRepertoireGoalContextIfNeeded } from '../modules/goals/cleanup';
 import { getPref, setPref } from '../lib/userPrefs';
@@ -157,6 +158,7 @@ export default function Layout() {
     <HardPausePromptModal />
     <BlockExpiryModal />
     <MobileBottomNav />
+    <PwaUpdateBanner />
     </div>
   );
 }
