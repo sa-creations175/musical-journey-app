@@ -35,6 +35,17 @@ import {
   rotateFormula,
   type Inversion,
 } from './inversionUtils';
+import {
+  isTrackedItem,
+  getTierForItem,
+  type ChordRecognitionTier,
+} from './chordRecognitionTiers';
+import {
+  computeUnlockedTier,
+  getEligibleItems,
+  MIX_WEIGHT,
+} from './tierUnlock';
+import { useToast } from '../../../components/Toaster';
 
 const MODULE_ID = 'chord-recognition';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
@@ -211,6 +222,67 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const groupedRef = useRef(groupedAttempts); groupedRef.current = groupedAttempts;
   const recentRef = useRef(recentHistoryKeys); recentRef.current = recentHistoryKeys;
 
+  // --- Progressive-difficulty tier gate ----------------------------
+  // Reads chord-recognition spacingState rows (the "introduced"
+  // signal) + attempts (the unlock walk's volume + accuracy signal).
+  // Both queries live alongside the rest of the quiz's data layer so
+  // they stay reactive to recordEngagement/attempt writes mid-session.
+  const spacingStateRows = useLiveQuery(
+    () => db.spacingState.where('moduleRef').equals(MODULE_ID).toArray(),
+    [],
+  );
+
+  const unlockedTier: ChordRecognitionTier = useMemo(() => {
+    const stats = new Map<string, { correct: number; total: number }>();
+    for (const a of attempts) {
+      if (a.moduleId !== MODULE_ID) continue;
+      if (a.excludeFromFluency) continue;
+      const cur = stats.get(a.itemId) ?? { correct: 0, total: 0 };
+      cur.total += 1;
+      if (a.correct) cur.correct += 1;
+      stats.set(a.itemId, cur);
+    }
+    return computeUnlockedTier(stats);
+  }, [attempts]);
+
+  /** Eligible item-refs (attempt form) per the staged-introduction
+   *  rules. `null` while the spacingState query is hydrating —
+   *  buildCandidates treats null as "no filter applied" so the
+   *  quiz doesn't freeze with an empty candidate pool on first
+   *  paint. */
+  const eligibleItems = useMemo<ReadonlySet<string> | null>(() => {
+    if (!spacingStateRows) return null;
+    return new Set(getEligibleItems(unlockedTier, spacingStateRows));
+  }, [unlockedTier, spacingStateRows]);
+
+  /** Set of itemRefs (attempt form) that have at least one
+   *  spacingState row — used to distinguish "current tier
+   *  introduced" from "current tier fresh" for the mix-weight
+   *  multiplier. */
+  const introducedItems = useMemo<ReadonlySet<string>>(() => {
+    if (!spacingStateRows) return new Set();
+    return new Set(spacingStateRows.map(r => r.itemRef));
+  }, [spacingStateRows]);
+
+  const unlockedTierRef = useRef(unlockedTier); unlockedTierRef.current = unlockedTier;
+  const eligibleItemsRef = useRef(eligibleItems); eligibleItemsRef.current = eligibleItems;
+  const introducedItemsRef = useRef(introducedItems); introducedItemsRef.current = introducedItems;
+
+  // Toast on tier advancement. The previous-tier ref baselines on
+  // first paint so we don't fire a phantom toast for the user's
+  // existing unlock state — only NEW crossings trigger.
+  const { toast } = useToast();
+  const previousTierRef = useRef<ChordRecognitionTier | null>(null);
+  useEffect(() => {
+    if (previousTierRef.current !== null && unlockedTier > previousTierRef.current) {
+      toast({
+        message: `Tier ${unlockedTier} unlocked — new chord types available!`,
+        variant: 'success',
+      });
+    }
+    previousTierRef.current = unlockedTier;
+  }, [unlockedTier, toast]);
+
   // Per-(chord, inversion) tier. Each (chord, inversion) pair has its
   // own rolling-window accuracy now that AttemptRecord.itemId carries
   // the inversion suffix. Replaces the chord-only tierForChord.
@@ -264,11 +336,39 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         inversionsForCard.length > 0 ? inversionsForCard : [0];
 
       for (const inv of finalInversions) {
+        const itemRef = attemptItemId(c.id, inv);
+
+        // Progressive-difficulty gate. eligibleItemsRef === null
+        // means the spacingState live query hasn't resolved yet —
+        // pass everything through so the quiz doesn't freeze on
+        // initial mount. Once loaded, locked tiers + not-yet-
+        // introduced items in the current tier drop here.
+        const eligible = eligibleItemsRef.current;
+        if (eligible !== null && !eligible.has(itemRef)) continue;
+
         const t = tierForChordInversion(c.id, inv, today);
+
+        // Mix-weight multiplier — boosts current-tier introduced
+        // items (×0.7) over prior-tier review (×0.2) and fresh
+        // introductions (×0.1) per the design spec. Items outside
+        // the tier system (defensive; shouldn't reach here once
+        // the eligibility gate is on) get a 1.0 passthrough.
+        let mixMult = 1.0;
+        if (isTrackedItem(itemRef)) {
+          const itemTier = getTierForItem(itemRef);
+          if (itemTier < unlockedTierRef.current) {
+            mixMult = MIX_WEIGHT.review;
+          } else if (introducedItemsRef.current.has(itemRef)) {
+            mixMult = MIX_WEIGHT.current;
+          } else {
+            mixMult = MIX_WEIGHT.fresh;
+          }
+        }
+
         candidates.push({
           item: { chord: c, inversion: inv },
-          baseWeight: TIER_WEIGHT[t],
-          inRecentHistory: recentRef.current.has(attemptItemId(c.id, inv)),
+          baseWeight: TIER_WEIGHT[t] * mixMult,
+          inRecentHistory: recentRef.current.has(itemRef),
         });
       }
     }

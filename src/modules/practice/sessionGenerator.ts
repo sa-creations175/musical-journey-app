@@ -75,6 +75,10 @@ import {
   startOfWeekLocal,
 } from '../goals/weeklyPlanData';
 import { getWeeklyAttempts } from '../../lib/weeklyAttempts';
+import {
+  getEligibleItems as getChordRecognitionEligibleItems,
+  getUnlockedTier as getChordRecognitionUnlockedTier,
+} from '../ear-training/chord-recognition/tierUnlock';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -99,6 +103,23 @@ import type { InputQuestionnaireResult } from './inputs';
  *   6. Map AllocatedBlocks → ProposalBlocks (display shape) using
  *      moduleMeta + a per-module activity description.
  */
+/**
+ * Resolve the chord-recognition progressive-difficulty gate once
+ * per session. Reads attempt history (for the unlock walk) +
+ * spacingState rows (for the staged-introduction signal), then
+ * returns the set of itemRefs the chord-recognition module is
+ * allowed to surface this session. Passed through
+ * `aggregateGoalCandidatesByModule` → `resolveCandidates` so locked
+ * tiers + not-yet-introduced items drop before they reach proposal
+ * weighting.
+ */
+async function loadChordRecognitionEligibleSet(
+  spacingRows: ReadonlyArray<SpacingState>,
+): Promise<ReadonlySet<string>> {
+  const tier = await getChordRecognitionUnlockedTier();
+  return new Set(getChordRecognitionEligibleItems(tier, spacingRows));
+}
+
 export async function buildSessionProposals(
   inputs: InputQuestionnaireResult,
 ): Promise<ProposalCardData[]> {
@@ -106,6 +127,7 @@ export async function buildSessionProposals(
   const spacingRows = await db.spacingState.toArray();
   const now = Date.now();
   const weeklyPace = await loadWeeklyPace(now);
+  const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
 
   const moduleBlocks = aggregateGoalCandidatesByModule(
     goals,
@@ -113,6 +135,8 @@ export async function buildSessionProposals(
     now,
     inputs.context,
     weeklyPace.factorByModule,
+    undefined,
+    chordRecognitionEligibleItems,
   );
 
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
@@ -204,6 +228,7 @@ export async function buildSessionPlan(
   // HF" — the yes-action uses + Add module to inject the named
   // module past the hard filter.
   const weeklyPace = await loadWeeklyPace(now);
+  const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
   const aggregated = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
@@ -211,6 +236,7 @@ export async function buildSessionPlan(
     inputs.context,
     weeklyPace.factorByModule,
     options.forceIncludeModules,
+    chordRecognitionEligibleItems,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   // Inject a Repertoire cold-start block before abundance detection so
@@ -345,6 +371,11 @@ export async function buildSessionProposalsForPath(
   const availableSeconds = inputs.timeMinutes * 60;
   const now = Date.now();
   const weeklyPace = await loadWeeklyPace(now);
+  // Eligibility set built off the FULL spacingRows snapshot so the
+  // "introduced" signal isn't accidentally narrowed by the path
+  // filter. Path-filtered + fallback aggregations both consume the
+  // same set.
+  const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
 
   const filteredBlocks = aggregateGoalCandidatesByModule(
     goals,
@@ -352,6 +383,8 @@ export async function buildSessionProposalsForPath(
     now,
     inputs.context,
     weeklyPace.factorByModule,
+    undefined,
+    chordRecognitionEligibleItems,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   const filteredWithColdStart = maybeInjectRepertoireColdStartBlock(
@@ -372,6 +405,8 @@ export async function buildSessionProposalsForPath(
     now,
     inputs.context,
     weeklyPace.factorByModule,
+    undefined,
+    chordRecognitionEligibleItems,
   );
   const fallbackWithColdStart = maybeInjectRepertoireColdStartBlock(
     fallbackBlocks,
@@ -622,6 +657,13 @@ export function aggregateGoalCandidatesByModule(
    *  moduleRefs internally via goalFlowModuleForSpacingModuleRef's
    *  inverse. Empty by default. */
   forceIncludeModules: ReadonlyArray<GoalFlowModuleId> = [],
+  /** Chord-recognition progressive-difficulty eligibility set —
+   *  passed through to `resolveCandidates`. Undefined preserves
+   *  pre-progressive-difficulty behaviour, used by tests of the
+   *  surrounding aggregation logic that don't care about
+   *  chord-recognition tiering. Production callers compute via
+   *  `getUnlockedTier` + `getEligibleItems` once per session. */
+  chordRecognitionEligibleItems?: ReadonlySet<string>,
 ): AlgorithmBlock[] {
   // Build the inverse of goalFlowModuleForSpacingModuleRef: which
   // spacingState moduleRefs are protected from the hard filter for
@@ -683,7 +725,7 @@ export function aggregateGoalCandidatesByModule(
     // Resolve against filtered rows so module-level drops cascade
     // automatically — a goal that targets only Shapes items will
     // produce zero candidates under non-keys.
-    const itemRefs = resolveCandidates(spec, filteredRows);
+    const itemRefs = resolveCandidates(spec, filteredRows, chordRecognitionEligibleItems);
 
     for (const itemRef of itemRefs) {
       const row = rowByItemRef.get(itemRef);

@@ -278,6 +278,15 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
 export function resolveCandidates(
   spec: CandidateSpec,
   rows: ReadonlyArray<SpacingRow>,
+  /** Chord-recognition progressive-difficulty gate. When supplied,
+   *  rows with `moduleRef === 'chord-recognition'` whose `itemRef`
+   *  isn't in this set are dropped — locked tiers and not-yet-
+   *  introduced items don't reach session proposals. Undefined
+   *  preserves the pre-progressive-difficulty behaviour (used by
+   *  unit tests of the unrelated specs). The set is supplied by
+   *  the session pipeline upstream, computed once per session via
+   *  `getUnlockedTier` + `getEligibleItems`. */
+  chordRecognitionEligibleItems?: ReadonlySet<string>,
 ): readonly string[] {
   if (spec.kind === 'umbrella' || spec.kind === 'unsupported') return [];
   if (spec.kind === 'song_proficiency' || spec.kind === 'production_count') return [];
@@ -287,6 +296,17 @@ export function resolveCandidates(
 
   for (const row of rows) {
     if (!moduleSet.has(row.moduleRef)) continue;
+
+    // Chord-recognition tier/staged-introduction gate. Applied
+    // after the moduleRef match so the cost is paid only for the
+    // small chord-recognition slice of the candidate pool.
+    if (
+      row.moduleRef === 'chord-recognition'
+      && chordRecognitionEligibleItems !== undefined
+      && !chordRecognitionEligibleItems.has(row.itemRef)
+    ) {
+      continue;
+    }
 
     if (spec.kind === 'coverage') {
       if (spec.excludeStages.has(row.acquisitionStage)) continue;
