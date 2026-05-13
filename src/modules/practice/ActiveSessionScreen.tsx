@@ -49,6 +49,7 @@ import {
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import type { PerformanceRating } from '../../lib/sessionTimer/types';
 import EndOfSessionSummary from './EndOfSessionSummary';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -97,12 +98,14 @@ export default function ActiveSessionScreen() {
     endSession,
     pauseSession,
     resumeSession,
+    reset,
     consumeBlockEndRequest,
   } = useSessionTimer();
   const times = useSessionTimes();
 
   const [phase, setPhase] = useState<Phase>('running');
   const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   // Reset per-block UI state on block change.
   useEffect(() => {
@@ -221,6 +224,17 @@ export default function ActiveSessionScreen() {
     });
   };
 
+  // Discard — tear down the session without persisting anything.
+  // `reset` returns the timer to INITIAL_SESSION_STATE; the
+  // navigate-on-idle effect above takes care of routing back. No
+  // runEndOfSessionPipeline call, so no practiceSessions /
+  // practiceBlocks / spacingState writes ever fire.
+  const handleDiscardConfirm = () => {
+    setDiscardOpen(false);
+    reset();
+    navigate(PRACTICE_SESSIONS_HOME_ROUTE, { replace: true });
+  };
+
   if (isEnded) {
     return <EndOfSessionSummary />;
   }
@@ -327,7 +341,7 @@ export default function ActiveSessionScreen() {
           {nextBlock ? 'start next' : 'finish session'}
         </button>
 
-        <div className="text-center">
+        <div className="flex items-center justify-center gap-4">
           <button
             type="button"
             onClick={handleEndSessionEarly}
@@ -335,7 +349,26 @@ export default function ActiveSessionScreen() {
           >
             end session early
           </button>
+          <span className="text-neutral-300 dark:text-neutral-700">·</span>
+          <button
+            type="button"
+            onClick={() => setDiscardOpen(true)}
+            className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
+          >
+            discard session
+          </button>
         </div>
+
+        <ConfirmDialog
+          open={discardOpen}
+          title="Discard this session?"
+          message="Your progress won't be saved."
+          confirmLabel="Yes, discard"
+          cancelLabel="Keep practicing"
+          variant="danger"
+          onConfirm={handleDiscardConfirm}
+          onCancel={() => setDiscardOpen(false)}
+        />
       </div>
     );
   }
@@ -401,6 +434,27 @@ export default function ActiveSessionScreen() {
       >
         end this activity
       </button>
+
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={() => setDiscardOpen(true)}
+          className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
+        >
+          discard session
+        </button>
+      </div>
+
+      <ConfirmDialog
+        open={discardOpen}
+        title="Discard this session?"
+        message="Your progress won't be saved."
+        confirmLabel="Yes, discard"
+        cancelLabel="Keep practicing"
+        variant="danger"
+        onConfirm={handleDiscardConfirm}
+        onCancel={() => setDiscardOpen(false)}
+      />
     </div>
   );
 }
