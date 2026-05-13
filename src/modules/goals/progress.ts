@@ -99,7 +99,7 @@ export const ACCURACY_ROLLING_WINDOW = 200;
  *  key by different domains (UI denominators vs stored
  *  goal.targetUnit). */
 export const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory>> = {
-  'foundational':       ['scale-degree-math', 'named-notes', 'key-signatures'],
+  'foundational':       ['scale-degree-math', 'named-notes', 'key-signatures', 'pentatonic-scales'],
   'chord-knowledge':    ['diatonic-qualities', 'chord-construction', 'slash-chords'],
   'functional-applied': ['functional-harmony', 'reverse-key-pivots', 'progressions'],
   'ear-recognition':    ['modes', 'intervals', 'ear-theory'],
