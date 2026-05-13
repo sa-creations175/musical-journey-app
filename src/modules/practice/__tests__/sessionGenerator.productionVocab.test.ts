@@ -8,9 +8,11 @@
  *     unsupported + non-production goals.
  *   · isProductionVocabBlockEligible — gates on context ∈
  *     {laptop, phone}, Production goal present, ≥1 due vocab card.
- *   · buildProductionVocabBlock — produces a fixed-duration
- *     ProposalBlock pointing at /production?view=vocabulary with the
- *     spec'd label + description.
+ *   · computeProductionVocabSeconds — proportional sizing of the
+ *     vocab block (15% of available, clamped to [3, 10] min).
+ *   · buildProductionVocabBlock — produces a ProposalBlock pointing
+ *     at /production?view=vocabulary with the spec'd label +
+ *     description and the given duration.
  *   · countDueProductionVocabCards — Dexie integration; counts
  *     rows with cardId starting with `prod-vocab:` AND
  *     nextReviewDate ≤ now.
@@ -19,10 +21,12 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   buildProductionVocabBlock,
+  computeProductionVocabSeconds,
   countDueProductionVocabCards,
   hasProductionGoal,
   isProductionVocabBlockEligible,
-  PRODUCTION_VOCAB_PLANNED_SECONDS,
+  PRODUCTION_VOCAB_MAX_SECONDS,
+  PRODUCTION_VOCAB_MIN_SECONDS,
 } from '../sessionGenerator';
 import { db, type FlashcardState, type Goal } from '../../../lib/db';
 
@@ -160,24 +164,55 @@ describe('isProductionVocabBlockEligible', () => {
   });
 });
 
+describe('computeProductionVocabSeconds', () => {
+  it('returns 15% of available, rounded', () => {
+    // 30 min × 0.15 = 4.5 min = 270 s. In the [180, 600] window.
+    expect(computeProductionVocabSeconds(30 * 60)).toBe(270);
+    // 60 min × 0.15 = 9 min = 540 s.
+    expect(computeProductionVocabSeconds(60 * 60)).toBe(540);
+  });
+
+  it('clamps below the minimum (3 min) for short sessions', () => {
+    // 10 min × 0.15 = 90 s — under the 180 s floor.
+    expect(computeProductionVocabSeconds(10 * 60)).toBe(PRODUCTION_VOCAB_MIN_SECONDS);
+    expect(computeProductionVocabSeconds(15 * 60)).toBe(PRODUCTION_VOCAB_MIN_SECONDS);
+    expect(computeProductionVocabSeconds(0)).toBe(PRODUCTION_VOCAB_MIN_SECONDS);
+  });
+
+  it('clamps above the maximum (10 min) for long sessions', () => {
+    // 75 min × 0.15 = 11.25 min — over the 10-min cap.
+    expect(computeProductionVocabSeconds(75 * 60)).toBe(PRODUCTION_VOCAB_MAX_SECONDS);
+    expect(computeProductionVocabSeconds(120 * 60)).toBe(PRODUCTION_VOCAB_MAX_SECONDS);
+  });
+
+  it('exposes its constants for caller-side budget math', () => {
+    expect(PRODUCTION_VOCAB_MIN_SECONDS).toBe(180);
+    expect(PRODUCTION_VOCAB_MAX_SECONDS).toBe(600);
+  });
+});
+
 describe('buildProductionVocabBlock', () => {
-  it('produces a fixed-duration block with the curated quick-launch route', () => {
-    const block = buildProductionVocabBlock(3);
+  it('produces a block at the supplied duration with the curated quick-launch route', () => {
+    const block = buildProductionVocabBlock(3, 540);
     expect(block.id).toBe('block-production-vocab');
     expect(block.moduleRef).toBe('production');
     expect(block.moduleLabel).toBe('Production Vocab');
     expect(block.activityDescription).toBe('Flashcard review — terms and concepts');
-    expect(block.plannedSeconds).toBe(PRODUCTION_VOCAB_PLANNED_SECONDS);
-    expect(block.plannedSeconds).toBe(600);
+    expect(block.plannedSeconds).toBe(540);
     expect(block.quickLaunchRoute).toBe('/production?view=vocabulary');
     expect(block.itemRefs).toEqual([]);
     expect(block.isWarmup).toBe(false);
   });
 
+  it('honours the duration passed by the caller (no fixed default)', () => {
+    expect(buildProductionVocabBlock(3, 180).plannedSeconds).toBe(180);
+    expect(buildProductionVocabBlock(3, 600).plannedSeconds).toBe(600);
+  });
+
   it('pluralises the why-snippet correctly', () => {
-    expect(buildProductionVocabBlock(1).whySnippet).toContain('1 card');
-    expect(buildProductionVocabBlock(1).whySnippet).not.toContain('cards');
-    expect(buildProductionVocabBlock(7).whySnippet).toContain('7 cards');
+    expect(buildProductionVocabBlock(1, 300).whySnippet).toContain('1 card');
+    expect(buildProductionVocabBlock(1, 300).whySnippet).not.toContain('cards');
+    expect(buildProductionVocabBlock(7, 300).whySnippet).toContain('7 cards');
   });
 });
 

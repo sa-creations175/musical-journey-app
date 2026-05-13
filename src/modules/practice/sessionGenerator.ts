@@ -279,16 +279,34 @@ export async function buildSessionPlan(
     return { kind: 'abundance', reason: 'queue-cleared' };
   }
 
-  const cards = generateAndShape(
-    moduleBlocks,
-    inputs.timeMinutes * 60,
-    repertoireSplit,
-  );
+  // Decide on the Production-vocab block BEFORE allocation so its
+  // duration fits inside the user's requested time instead of
+  // bolting on top of it. The prior order — allocate full budget →
+  // prepend vocab → bump totalSeconds — meant a 15-min request
+  // rendered as a 25-min proposal (commit 26c4768 introduced the
+  // prepend; this restores honesty of the requested-time cap).
+  //
+  // maybeBuildProductionVocabBlock now sizes the block proportional
+  // to the session (15%, clamped to [3 min, 10 min]) and returns
+  // null when the carve-out would push practice below
+  // MIN_VIABLE_PRACTICE_SECONDS — in which case the full requested
+  // time flows to practice.
+  const requestedSeconds = inputs.timeMinutes * 60;
   const vocabBlock = await maybeBuildProductionVocabBlock({
     goals,
     context: inputs.context,
     now,
+    availableSeconds: requestedSeconds,
   });
+  const availableSeconds = vocabBlock !== null
+    ? requestedSeconds - vocabBlock.plannedSeconds
+    : requestedSeconds;
+
+  const cards = generateAndShape(
+    moduleBlocks,
+    availableSeconds,
+    repertoireSplit,
+  );
   return {
     kind: 'proposals',
     cards: vocabBlock ? cards.map(c => prependVocabBlock(c, vocabBlock)) : cards,
@@ -1012,13 +1030,42 @@ export function describeActivity(block: AllocatedBlock): string {
 // ---------------------------------------------------------------------
 
 /**
- * Fixed duration for the injected Production Vocab block. Bypasses
- * the algorithm's time allocator on purpose — vocab review is a
- * standalone parallel stream, not something the weighting layer
- * should compete with other modules for. 10 min lands in the typical
- * "quick refresh" window the SR scheduler is calibrated for.
+ * The Production Vocab block is sized proportionally to the user's
+ * requested session length: 15% of the session, clamped to the
+ * [PRODUCTION_VOCAB_MIN_SECONDS, PRODUCTION_VOCAB_MAX_SECONDS]
+ * window. A 60-min session yields ~9 min of vocab; a 15-min session
+ * yields the 3-min floor so practice still has room.
+ *
+ * The block is then subtracted from the budget passed to the
+ * allocator (see buildSessionPlan) so the displayed total stays at
+ * what the user asked for — not requested + vocab on top.
  */
-export const PRODUCTION_VOCAB_PLANNED_SECONDS = 600;
+export const PRODUCTION_VOCAB_MIN_SECONDS = 3 * 60;
+export const PRODUCTION_VOCAB_MAX_SECONDS = 10 * 60;
+export const PRODUCTION_VOCAB_FRACTION = 0.15;
+
+/**
+ * Floor on practice time AFTER carving out the Production Vocab
+ * block. When the user's requested session is short enough that
+ * subtracting vocab would leave less than this for the algorithm
+ * to distribute, the vocab block is dropped entirely and the full
+ * requested time flows to practice. Anything below 5 min of
+ * practice is mostly vocab — not a real session.
+ */
+export const MIN_VIABLE_PRACTICE_SECONDS = 5 * 60;
+
+/**
+ * Compute the Production Vocab block duration for a session of
+ * `availableSeconds`. Pure helper exposed so tests + callers share
+ * the same clamp math.
+ */
+export function computeProductionVocabSeconds(availableSeconds: number): number {
+  const raw = Math.round(availableSeconds * PRODUCTION_VOCAB_FRACTION);
+  return Math.max(
+    PRODUCTION_VOCAB_MIN_SECONDS,
+    Math.min(PRODUCTION_VOCAB_MAX_SECONDS, raw),
+  );
+}
 
 /** Internal: the cardId prefix that marks a Production-vocabulary
  *  flashcard row in the shared db.flashcardStates table (the same
@@ -1068,10 +1115,15 @@ export function isProductionVocabBlockEligible(opts: {
   return hasProductionGoal(opts.goals);
 }
 
-/** Construct the injected Production Vocab ProposalBlock. Routes the
- *  active-session quick-launch into the Vocabulary tab rather than
- *  the Production overview. */
-export function buildProductionVocabBlock(dueCount: number): ProposalBlock {
+/** Construct the injected Production Vocab ProposalBlock at the
+ *  given duration. `plannedSeconds` is computed by
+ *  `computeProductionVocabSeconds(availableSeconds)` so the block
+ *  scales with the session length. Routes the active-session
+ *  quick-launch into the Vocabulary tab. */
+export function buildProductionVocabBlock(
+  dueCount: number,
+  plannedSeconds: number,
+): ProposalBlock {
   const meta = moduleMetaById(PRODUCTION_MODULE_REF);
   return {
     id: 'block-production-vocab',
@@ -1079,7 +1131,7 @@ export function buildProductionVocabBlock(dueCount: number): ProposalBlock {
     moduleLabel: 'Production Vocab',
     moduleAccentHex: meta?.accentHex ?? '#3a4875',
     activityDescription: 'Flashcard review — terms and concepts',
-    plannedSeconds: PRODUCTION_VOCAB_PLANNED_SECONDS,
+    plannedSeconds,
     whySnippet: `${dueCount} card${dueCount === 1 ? '' : 's'} due — quick refresh on terms and concepts`,
     itemRefs: [],
     isWarmup: false,
@@ -1088,20 +1140,34 @@ export function buildProductionVocabBlock(dueCount: number): ProposalBlock {
 }
 
 /**
- * Async wrapper: returns the Production Vocab block when the user is
- * on laptop/phone, has a Production goal, and has at least one due
- * vocab card. Otherwise null. Caller prepends to each proposal card.
+ * Async wrapper: returns the Production Vocab block when the user
+ * is on laptop/phone, has a Production goal, and has at least one
+ * due vocab card. The block's duration is computed from
+ * `availableSeconds` via `computeProductionVocabSeconds`. Returns
+ * null when ineligible OR when the resulting block would leave
+ * less than `MIN_VIABLE_PRACTICE_SECONDS` for practice after the
+ * subtraction. Caller subtracts the block's plannedSeconds from
+ * the budget before allocating, then prepends the block to each
+ * proposal card so the displayed total equals the user's request.
  */
 export async function maybeBuildProductionVocabBlock(opts: {
   goals: ReadonlyArray<Goal>;
   context: PracticeSessionContext;
   now: number;
+  /** The user's full requested session time in seconds, BEFORE any
+   *  vocab carve-out. Used to compute the block's duration + to
+   *  gate on the minimum-practice floor. */
+  availableSeconds: number;
 }): Promise<ProposalBlock | null> {
   if (opts.context !== 'laptop' && opts.context !== 'phone') return null;
   if (!hasProductionGoal(opts.goals)) return null;
   const dueCount = await countDueProductionVocabCards(opts.now);
   if (dueCount <= 0) return null;
-  return buildProductionVocabBlock(dueCount);
+  const vocabSeconds = computeProductionVocabSeconds(opts.availableSeconds);
+  if (opts.availableSeconds - vocabSeconds < MIN_VIABLE_PRACTICE_SECONDS) {
+    return null;
+  }
+  return buildProductionVocabBlock(dueCount, vocabSeconds);
 }
 
 function prependVocabBlock(
