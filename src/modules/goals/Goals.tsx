@@ -122,6 +122,7 @@ import { MODULE_DISPLAY_NAME } from './YearlyAnchorFlow';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
+import { drain } from '../../lib/sync/engine';
 
 /**
  * Goals — page-level component.
@@ -1127,6 +1128,20 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
     setBusy(true);
     try {
       await db.goals.bulkDelete(goals.map(g => g.id));
+      // Close the sync-queue race: the `deleting` Dexie hook
+      // schedules an `enqueue` via setTimeout(0) (intentional — see
+      // hooks.ts comment about PSD escape). If the user refreshes
+      // before that task runs, the syncQueue stays empty, the next
+      // replace-pull sees the cloud rows still present, and bulkPuts
+      // them back into local Dexie — the confirmed plan reappears.
+      //
+      // Yield once so the queued setTimeout(0) callbacks fire and
+      // land their items in syncQueue, then drain so Supabase
+      // deletes the rows before the user can navigate away. The
+      // outer busy=true state already renders "Clearing…", so the
+      // wait is visible.
+      await new Promise(resolve => setTimeout(resolve, 0));
+      await drain();
       toast({
         message: "Plan cleared — set new targets to confirm.",
         variant: 'success',
