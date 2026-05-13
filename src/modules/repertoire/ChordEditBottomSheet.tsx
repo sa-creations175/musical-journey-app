@@ -40,10 +40,11 @@ const NUMBERS_PALETTE = ['1', '2', '3', '4', '5', '6', '7'] as const;
 // tap "#9", tap "#5" → "4#9#5") so the user can build up extended
 // chords without typing on the keyboard. ø = half-diminished.
 const SUFFIX_CATEGORIES: ReadonlyArray<{ label: string; tokens: readonly string[] }> = [
-  { label: 'Quality',     tokens: ['maj', 'min', 'dim', 'aug', 'sus2', 'sus4'] },
-  { label: '7ths',        tokens: ['7', 'maj7', 'min7', 'dim7', 'ø7'] },
+  { label: 'Quality',     tokens: ['maj', 'm', 'dim', 'aug', 'sus2', 'sus4'] },
+  { label: '7ths',        tokens: ['7', 'maj7', 'm7', 'm7b5', 'dim7'] },
   { label: 'Extensions',  tokens: ['9', '11', '13', 'add9', 'add2', '6', '6/9'] },
   { label: 'Alterations', tokens: ['b5', '#5', 'b9', '#9', 'b13', '#11'] },
+  { label: 'Slash',       tokens: ['/3', '/5', '/7', '/2', '/6', '/'] },
 ];
 
 /**
@@ -231,7 +232,7 @@ export default function ChordEditBottomSheet({
           onClick={() => void handleDeleteBeat()}
           className="text-needswork hover:opacity-80"
         >
-          🗑 Delete word
+          🗑 Delete word/beat
         </button>
         {onEditAsText && (
           <button
