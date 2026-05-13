@@ -1815,7 +1815,11 @@ function ModulePickerModal({
       <div className="flex flex-col gap-2 py-1">
         {PICKER_MODULES.map(moduleId => {
           const meta = moduleMetaById(moduleId);
-          const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
+          // moduleMetaById's labels are already lowercase (the app
+          // convention), but MODULE_DISPLAY_NAME's fallback for
+          // practice-consistency lands as "Practice consistency".
+          // Normalize at render so every row reads the same way.
+          const label = (meta?.label ?? MODULE_DISPLAY_NAME[moduleId]).toLowerCase();
           const accent = meta?.accentHex ?? GOALS_META.accentHex;
           return (
             <button
