@@ -21,8 +21,10 @@
  * sequence is always in the canonical (spec) notation.
  */
 
-/** The wheel, starting at C. Twelve entries, no enharmonic duplicates. */
-const CIRCLE_OF_FOURTHS: ReadonlyArray<string> = [
+/** The wheel, starting at C. Twelve entries, no enharmonic duplicates.
+ *  Exported so other modules (S&P session walk, scale mini-track key
+ *  ordering) share the same canonical sequence. */
+export const CIRCLE_OF_FOURTHS: ReadonlyArray<string> = [
   'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G',
 ];
 
