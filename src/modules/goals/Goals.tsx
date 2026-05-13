@@ -511,6 +511,11 @@ export default function Goals() {
                     // for parity with the by-module view. The flow
                     // needs a moduleId; the picker resolves that.
                     setModulePickerKind('monthly');
+                  } else if (layer.scope === 'yearly') {
+                    // Yearly anchors are also module-scoped — the
+                    // picker resolves the moduleId then we route
+                    // into YearlyAnchorFlow.
+                    setModulePickerKind('yearly');
                   } else {
                     setFormMode({ kind: 'create', scope: layer.scope });
                   }
@@ -809,23 +814,38 @@ function LayerSection({
         borderLeft: `3px solid ${LAYER_PALETTE.border}`,
       }}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={!collapsed}
-        className="w-full flex items-center gap-2 text-left rounded transition"
-      >
-        <Chevron open={!collapsed} />
-        <h2
-          className="text-sm font-medium flex-1"
-          style={{ color: LAYER_PALETTE.border }}
+      {/* Header: chevron+title (toggle) on the left, goal count +
+          per-layer "Add/Edit Goal" affordance on the right. The
+          add button routes via the parent's onAdd, which already
+          maps each scope to the right downstream flow (monthly →
+          module picker → suggestion flow, yearly → module picker
+          → anchor flow, weekly/other → creation flow). */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          className="flex-1 flex items-center gap-2 text-left rounded transition"
         >
-          {layer.title}
-        </h2>
-        <span className="text-xs text-neutral-500">
-          {goals.length === 0 ? '—' : `${goals.length} goal${goals.length === 1 ? '' : 's'}`}
-        </span>
-      </button>
+          <Chevron open={!collapsed} />
+          <h2
+            className="text-sm font-medium flex-1"
+            style={{ color: LAYER_PALETTE.border }}
+          >
+            {layer.title}
+          </h2>
+          <span className="text-xs text-neutral-500">
+            {goals.length === 0 ? '—' : `${goals.length} goal${goals.length === 1 ? '' : 's'}`}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={onAdd}
+          className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors shrink-0"
+        >
+          Add/Edit Goal
+        </button>
+      </div>
       {!collapsed && hasMonthlyAnchorWiring && (
         <div className="mt-3">
           <MonthlyLayerBody
@@ -2194,10 +2214,11 @@ function ByModuleSection({
         borderLeft: `3px solid ${palette.border}`,
       }}
     >
-      {/* Header — accent dot, module name, "+ Add goal" link. The
-          link opens the monthly suggestion flow (the suggestion
-          flow itself prompts to set a yearly anchor first when
-          one's missing — no need to gate the button here). */}
+      {/* Header — accent dot, module name, "Add/Edit Goal" link.
+          The link opens the monthly suggestion flow (the
+          suggestion flow itself prompts to set a yearly anchor
+          first when one's missing — no need to gate the button
+          here). */}
       <header className="flex items-center justify-between gap-2 mb-3">
         <h2
           className="flex items-center gap-2 text-sm font-medium"
@@ -2215,7 +2236,7 @@ function ByModuleSection({
           onClick={() => onAddMonthlyGoal(moduleId)}
           className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
         >
-          + Add goal
+          Add/Edit Goal
         </button>
       </header>
 
