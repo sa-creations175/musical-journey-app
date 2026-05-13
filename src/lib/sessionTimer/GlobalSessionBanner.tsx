@@ -18,16 +18,23 @@
  * Pause / End buttons stop propagation so taps on them don't also
  * navigate.
  */
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
 import { formatActiveTime } from './formatActiveTime';
 import { moduleMetaById } from '../moduleMeta';
 import { formatDriftText, shouldShowDrift } from './drift';
+import InstrumentSelector from '../../components/InstrumentSelector';
+import MetronomeControl from '../../components/MetronomeControl';
 
 export function GlobalSessionBanner() {
   const { state, pauseSession, resumeSession, endSession } = useSessionTimer();
   const times = useSessionTimes();
   const navigate = useNavigate();
+  // Local-only state — the banner unmounts on session end (the
+  // status === 'running' || 'paused' guard at the top), so the
+  // panel naturally resets to closed for the next session.
+  const [audioPanelOpen, setAudioPanelOpen] = useState(false);
 
   if (state.status !== 'running' && state.status !== 'paused') return null;
 
@@ -160,6 +167,19 @@ export function GlobalSessionBanner() {
         </button>
         <button
           type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setAudioPanelOpen(v => !v);
+          }}
+          aria-expanded={audioPanelOpen}
+          aria-label={audioPanelOpen ? 'hide audio controls' : 'show audio controls'}
+          title={audioPanelOpen ? 'hide audio controls' : 'show audio controls'}
+          className="text-sm leading-none w-7 h-7 inline-flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
+        >
+          <span aria-hidden>🎛</span>
+        </button>
+        <button
+          type="button"
           onClick={handlePauseResumeClick}
           aria-label={isPaused ? 'resume session' : 'pause session'}
           title={isPaused ? 'resume' : 'pause'}
@@ -175,6 +195,16 @@ export function GlobalSessionBanner() {
           end session
         </button>
       </div>
+      {audioPanelOpen && (
+        <div
+          className="px-4 py-2 border-t border-neutral-200 dark:border-neutral-800 flex items-center gap-2 flex-wrap"
+          data-testid="global-banner-audio-panel"
+        >
+          <InstrumentSelector />
+          <span className="text-neutral-300 dark:text-neutral-700">·</span>
+          <MetronomeControl />
+        </div>
+      )}
       {driftActive && (
         <div
           className="px-4 pb-1.5 text-[11px] italic text-neutral-500 dark:text-neutral-400"
