@@ -14,15 +14,21 @@ import {
   clonePhraseWithFreshIds,
   normalizeArrangements,
   normalizePhrase,
-  phraseFromLyrics,
   phraseFromLyricsPreserveChords,
+  phrasesFromLyrics,
   uid,
 } from './beatsModel';
 import { toRomanToken } from './chordFunction';
 import { useNotationMode } from '../../lib/notationPref';
+import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
 import { usePhraseClipboard } from './phraseClipboard';
+
+// On phone-class viewports (<640px) the lead sheet editor caps phrase
+// lines at this many words so they don't wrap badly. Word boundaries
+// only — `phrasesFromLyrics` never splits inside a token.
+const MOBILE_MAX_WORDS_PER_LINE = 6;
 
 interface Props {
   song: Song;
@@ -54,6 +60,7 @@ export default function LeadSheetSection({
   const stage = section.stage ?? song.stage ?? DEFAULT_STAGE;
   const { toast } = useToast();
   const [notationMode] = useNotationMode();
+  const isMobile = useIsMobile();
 
   const [showNotes, setShowNotes] = useState(Boolean(section.notes));
   const [notesDraft, setNotesDraft] = useState(section.notes ?? '');
@@ -130,12 +137,20 @@ export default function LeadSheetSection({
   };
 
   const commitDraft = async () => {
-    const fresh = phraseFromLyrics(draftLyrics);
-    const list = [...normalisedPhrases, fresh];
+    // On mobile, long pastes are auto-broken into multiple phrase
+    // lines (cap of MOBILE_MAX_WORDS_PER_LINE words). On desktop
+    // the helper returns exactly one phrase, preserving prior UX.
+    const fresh = phrasesFromLyrics(
+      draftLyrics,
+      isMobile ? MOBILE_MAX_WORDS_PER_LINE : undefined,
+    );
+    const list = [...normalisedPhrases, ...fresh];
     await commit({ phrases: list });
     setDrafting(false);
     setDraftLyrics('');
-    onPhraseAdded?.(fresh.id);
+    // Highlight the first newly-added line so the user's eye lands
+    // on it; subsequent split lines slot below in order.
+    onPhraseAdded?.(fresh[0].id);
   };
 
   // --- Edit-as-text on an existing phrase line --------------------

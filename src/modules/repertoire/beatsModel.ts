@@ -131,6 +131,48 @@ export function phraseFromLyrics(lyrics: string): Phrase {
 }
 
 /**
+ * Multi-phrase variant of `phraseFromLyrics`. When `maxWordsPerLine`
+ * is omitted (or non-positive) returns exactly one phrase — same
+ * shape as the single-phrase function, used on desktop so paste
+ * behaviour is unchanged.
+ *
+ * When a positive `maxWordsPerLine` is supplied (mobile auto-break):
+ *   1. Explicit `\n` line breaks in the input are honoured — each
+ *      becomes the start of a new phrase. So a user who paste-formats
+ *      lyrics line-by-line keeps that structure.
+ *   2. Within each line, words are chunked into phrases of at most
+ *      `maxWordsPerLine` tokens, splitting only at word boundaries
+ *      (we tokenise first, so mid-word splits are impossible).
+ *
+ * Always returns at least one phrase; empty input falls back to
+ * `newEmptyPhrase()` like the single-phrase variant.
+ */
+export function phrasesFromLyrics(
+  lyrics: string,
+  maxWordsPerLine?: number,
+): Phrase[] {
+  const cap = maxWordsPerLine && maxWordsPerLine > 0 ? maxWordsPerLine : 0;
+  if (!cap) {
+    // Desktop: existing single-phrase behaviour. Preserves
+    // backwards-compat with all callers that already use the
+    // singular helper.
+    return [phraseFromLyrics(lyrics)];
+  }
+  const lines = lyrics.split('\n').map(line => line.trim()).filter(Boolean);
+  if (lines.length === 0) return [newEmptyPhrase()];
+  const phrases: Phrase[] = [];
+  for (const line of lines) {
+    const tokens = line.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) continue;
+    for (let i = 0; i < tokens.length; i += cap) {
+      phrases.push(phraseFromLyrics(tokens.slice(i, i + cap).join(' ')));
+    }
+  }
+  if (phrases.length === 0) return [newEmptyPhrase()];
+  return phrases;
+}
+
+/**
  * Edit-as-text round-trip: rebuild a phrase from a new lyric string
  * while preserving chord placements that still apply.
  *
