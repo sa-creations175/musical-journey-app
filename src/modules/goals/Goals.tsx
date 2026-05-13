@@ -1873,16 +1873,16 @@ function ScopePickerModal({
     onClick: () => void;
   }> = [
     {
-      scope: 'monthly',
-      label: 'Monthly',
-      description: 'This month\'s focus — module-specific suggestions',
-      onClick: onPickMonthly,
-    },
-    {
       scope: 'weekly',
       label: 'Weekly',
       description: 'A target for this week',
       onClick: onPickWeekly,
+    },
+    {
+      scope: 'monthly',
+      label: 'Monthly',
+      description: 'This month\'s focus — module-specific suggestions',
+      onClick: onPickMonthly,
     },
     {
       scope: 'yearly',
