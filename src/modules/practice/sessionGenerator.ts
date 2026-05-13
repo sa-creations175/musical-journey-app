@@ -390,9 +390,10 @@ function generateAndShape(
 
 /**
  * Pre-load the Shapes & Patterns reshape context: spacingState
- * rows indexed by itemRef (drives starting-key pick + dueness) +
+ * rows indexed by itemRef (drives starting-key pick + dueness),
  * the user's unlocked tier (filters higher-tier items out of the
- * walk). Awaited once per session by the callers of
+ * walk), and active-song keys (drives scale-warm-down key
+ * priority). Awaited once per session by the callers of
  * generateAndShape; passed through to toProposalBlocks where
  * shapeShapesBlock consumes it.
  */
@@ -404,8 +405,22 @@ async function loadShapesSplitContext(
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
   }
-  const unlockedTier = await getSPUnlockedTier();
-  return { rowsByItemRef, unlockedTier, now };
+  const [unlockedTier, songs] = await Promise.all([
+    getSPUnlockedTier(),
+    db.songs.toArray(),
+  ]);
+  // Active-song keys: distinct, in song order. Hidden / no-key
+  // songs drop. Used by the scale warm-down to prioritise keys
+  // that bridge into Repertoire practice.
+  const seenKeys = new Set<string>();
+  const activeSongKeys: string[] = [];
+  for (const s of songs) {
+    if (!s.key) continue;
+    if (seenKeys.has(s.key)) continue;
+    seenKeys.add(s.key);
+    activeSongKeys.push(s.key);
+  }
+  return { rowsByItemRef, unlockedTier, now, activeSongKeys };
 }
 
 /**
@@ -1041,30 +1056,29 @@ function toProposalBlocks(
   const moduleAccentHex = meta?.accentHex ?? '#4a9088';
 
   // S&P key-by-key reshape — when the caller has pre-loaded the
-  // shapes context (spacingState rows + unlocked tier), the
-  // algorithm's weight-sorted itemRef order gets re-walked in
-  // circle-of-fourths key order with tier+inversion ordering inside
-  // each key. The label becomes "Major, Minor · C, F" instead of
-  // the generic "drills · 6 items". Falls through to the generic
-  // ProposalBlock path when no chord-shape items pass the tier
-  // gate — keeps the existing behaviour for scale / voice-leading
-  // sub-blocks.
+  // shapes context (spacingState rows + unlocked tier +
+  // active-song keys), the algorithm's weight-sorted itemRef
+  // order gets re-walked in circle-of-fourths key order with
+  // tier+inversion ordering inside each key. Blocks ≥ 15 min
+  // additionally surface a scale warm-down segment in the
+  // last 5–8 min, bridging into Repertoire practice. Each segment
+  // becomes its own ProposalBlock so the UI shows the warm-down
+  // as distinct work below the chord-shape walk. Falls through to
+  // the generic path when no segments come out.
   if (block.moduleRef === SHAPES_MODULE_REF && shapesContext) {
-    const reshape = shapeShapesBlock(block, shapesContext);
-    if (reshape) {
-      return [
-        {
-          id: block.id,
-          moduleRef: block.moduleRef,
-          moduleLabel,
-          moduleAccentHex,
-          activityDescription: reshape.label,
-          plannedSeconds: block.plannedSeconds,
-          whySnippet: reshape.why,
-          itemRefs: reshape.itemRefs,
-          isWarmup: false,
-        },
-      ];
+    const segments = shapeShapesBlock(block, shapesContext);
+    if (segments.length > 0) {
+      return segments.map(seg => ({
+        id: `${block.id}-${seg.kind}`,
+        moduleRef: block.moduleRef,
+        moduleLabel,
+        moduleAccentHex,
+        activityDescription: seg.label,
+        plannedSeconds: seg.plannedSeconds,
+        whySnippet: seg.why,
+        itemRefs: seg.itemRefs,
+        isWarmup: false,
+      }));
     }
   }
 
