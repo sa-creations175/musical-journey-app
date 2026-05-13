@@ -1108,47 +1108,71 @@ function PlanRowView(props: {
           </>
         )}
       </td>
-      <td className="px-3 py-2 align-top">
-        <div className="flex items-center gap-2">
-          {editable ? (
-            <input
-              type="number"
-              min={0}
-              value={row.target}
-              onChange={e => {
-                const n = Number(e.target.value);
-                onChangeTarget(Number.isFinite(n) && n >= 0 ? n : 0);
-              }}
-              className="w-20 px-2 py-1 text-sm rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
-            />
-          ) : (
-            <span className="font-medium tabular-nums">{row.target}</span>
+      <td className="px-3 py-2 align-top overflow-hidden">
+        {/* Inner overflow-hidden div clips any unit-label spill so
+            it can't visually leak into the adjacent Time column.
+            flex-wrap lets the input drop above the unit on tight
+            viewports instead of forcing the unit beyond the cell
+            boundary. */}
+        <div className="overflow-hidden">
+          <div className="flex items-center gap-2 flex-wrap">
+            {editable ? (
+              <input
+                type="number"
+                min={0}
+                value={row.target}
+                onChange={e => {
+                  const n = Number(e.target.value);
+                  onChangeTarget(Number.isFinite(n) && n >= 0 ? n : 0);
+                }}
+                className="w-20 px-2 py-1 text-sm rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
+              />
+            ) : (
+              <span className="font-medium tabular-nums">{row.target}</span>
+            )}
+            <span className="text-xs text-neutral-500 whitespace-nowrap">{row.unit}</span>
+          </div>
+          {adjusted && editable && (
+            <button
+              onClick={onResetTarget}
+              className="text-xs text-neutral-500 underline hover:text-neutral-700 mt-1"
+            >
+              reset to {row.suggested}
+            </button>
           )}
-          <span className="text-xs text-neutral-500">{row.unit}</span>
         </div>
-        {adjusted && editable && (
-          <button
-            onClick={onResetTarget}
-            className="text-xs text-neutral-500 underline hover:text-neutral-700 mt-1"
-          >
-            reset to {row.suggested}
-          </button>
-        )}
       </td>
-      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400 break-words">
+      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400 overflow-hidden">
+        {/* Three-line layout, stacked block elements so no line
+            visually overlaps another regardless of column width:
+              1. primary time estimate (~Xm/week)
+              2. muted count + unit footnote (context for the
+                 estimate — same numbers as Target cell, but here
+                 they document where the time came from)
+              3. muted consistency suffix (~Ym each · N days/week) */}
         {time === null ? (
           <span className="tabular-nums">—</span>
         ) : time.kind === 'per-session' ? (
-          <span className="tabular-nums whitespace-nowrap">~{formatMinutes(time.minutesPerSession)} each</span>
+          <>
+            <div className="tabular-nums whitespace-nowrap">
+              ~{formatMinutes(time.minutesPerSession)} each
+            </div>
+            {row.target > 0 && row.unit && (
+              <div className="tabular-nums text-xs text-neutral-500 mt-0.5 whitespace-nowrap">
+                {row.target} {row.unit}
+              </div>
+            )}
+          </>
         ) : (
           <>
-            {/* Primary estimate sits on its own line so it never
-                disappears under a long consistencySuffix when the
-                column is tight (inline mount is narrower than the
-                modal once page/section padding is subtracted). */}
             <div className="tabular-nums whitespace-nowrap">
               ~{formatTimeEstimate(time.estimate)}/week
             </div>
+            {row.target > 0 && row.unit && (
+              <div className="tabular-nums text-xs text-neutral-500 mt-0.5 whitespace-nowrap">
+                {row.target} {row.unit}
+              </div>
+            )}
             {time.consistencySuffix && (
               <div className="tabular-nums text-xs text-neutral-500 dark:text-neutral-500 mt-0.5">
                 {time.consistencySuffix}
