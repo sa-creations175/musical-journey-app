@@ -7,6 +7,7 @@ import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
 import GoalSuggestionFlow from './GoalSuggestionFlow';
+import { ScopePill } from './ScopePill';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
 // Side-effect import: registers `__deleteShortHorizonGoals` on
@@ -271,12 +272,18 @@ export default function Goals() {
     | { mode: 'edit'; goal: Goal }
     | null
   >(null);
-  /** By-timeframe view's "+ Add monthly goal" entry point. The
-   *  suggestion flow needs a module up front, but the timeframe
-   *  view isn't grouped by module — so we surface a small module
-   *  picker as an intermediary step. Pick → route into the
-   *  suggestion flow with that moduleId. */
-  const [monthlyModulePickerOpen, setMonthlyModulePickerOpen] = useState(false);
+  /** Two-stage entry for goal creation from the global "+ Set a
+   *  goal" / "+ Add goal" affordances:
+   *
+   *  Stage 1 — scope picker (Monthly / Weekly / Yearly / Other).
+   *  Stage 2 — for Monthly + Yearly, a module picker. The
+   *  `modulePickerKind` discriminator records which path produced
+   *  the module pick, so a single ModulePickerModal can serve both
+   *  flows without duplicating UI. */
+  const [scopePickerOpen, setScopePickerOpen] = useState(false);
+  const [modulePickerKind, setModulePickerKind] = useState<
+    'monthly' | 'yearly' | null
+  >(null);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which
@@ -420,7 +427,7 @@ export default function Goals() {
         </button>
         <button
           type="button"
-          onClick={() => setFormMode({ kind: 'create', scope: null })}
+          onClick={() => setScopePickerOpen(true)}
           className="px-3 py-1.5 rounded-md text-sm font-medium text-white"
           style={{ backgroundColor: GOALS_META.accentHex }}
         >
@@ -483,6 +490,20 @@ export default function Goals() {
 
       {activeView === 'timeframe' ? (
         <div className="flex flex-col">
+          {/* In-view shortcut to the scope picker. The toolbar
+              "+ Set a goal" button stays the global entry, but a
+              second affordance here gives users browsing the
+              timeframe layers a one-tap path without scrolling
+              back to the top. */}
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={() => setScopePickerOpen(true)}
+              className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent transition-colors"
+            >
+              + Add goal
+            </button>
+          </div>
           {visibleLayers.map(layer => {
             const layerGoals = goalsByScope.get(layer.scope) ?? [];
             const collapsed = effectiveCollapsed(
@@ -503,7 +524,7 @@ export default function Goals() {
                     // Monthly creates route through GoalSuggestionFlow
                     // for parity with the by-module view. The flow
                     // needs a moduleId; the picker resolves that.
-                    setMonthlyModulePickerOpen(true);
+                    setModulePickerKind('monthly');
                   } else {
                     setFormMode({ kind: 'create', scope: layer.scope });
                   }
@@ -594,13 +615,53 @@ export default function Goals() {
         onSetHidden={setLayerHidden}
       />
 
-      <MonthlyModulePickerModal
-        open={monthlyModulePickerOpen}
-        onClose={() => setMonthlyModulePickerOpen(false)}
-        onPick={moduleId => {
-          setMonthlyModulePickerOpen(false);
-          setSuggestionFlow({ mode: 'create', scope: 'monthly', moduleId });
+      <ScopePickerModal
+        open={scopePickerOpen}
+        onClose={() => setScopePickerOpen(false)}
+        onPickMonthly={() => {
+          setScopePickerOpen(false);
+          setModulePickerKind('monthly');
         }}
+        onPickYearly={() => {
+          setScopePickerOpen(false);
+          setModulePickerKind('yearly');
+        }}
+        onPickWeekly={() => {
+          setScopePickerOpen(false);
+          setFormMode({ kind: 'create', scope: 'weekly' });
+        }}
+        onPickOther={() => {
+          setScopePickerOpen(false);
+          setFormMode({ kind: 'create', scope: null });
+        }}
+      />
+
+      <ModulePickerModal
+        open={modulePickerKind !== null}
+        onClose={() => setModulePickerKind(null)}
+        onPick={moduleId => {
+          const kind = modulePickerKind;
+          setModulePickerKind(null);
+          if (kind === 'monthly') {
+            setSuggestionFlow({
+              mode: 'create',
+              scope: 'monthly',
+              moduleId,
+            });
+          } else if (kind === 'yearly') {
+            setAnchorMode({ moduleId: moduleId as AnchorModuleId });
+          }
+        }}
+        title={
+          modulePickerKind === 'yearly'
+            ? 'Set a yearly anchor'
+            : 'Add a monthly goal'
+        }
+        description={
+          modulePickerKind === 'yearly'
+            ? 'Which module is this year anchored to?'
+            : 'Which module is this month\'s focus?'
+        }
       />
 
       {/* Entry-point routing:
@@ -1722,7 +1783,7 @@ function ModuleSubheader({ moduleId }: { moduleId: GoalFlowModuleId }) {
  * row owns its own "+ Add monthly goal"), so the picker is only
  * needed from the timeframe entry point.
  */
-const MONTHLY_PICKER_MODULES: ReadonlyArray<GoalFlowModuleId> = [
+const PICKER_MODULES: ReadonlyArray<GoalFlowModuleId> = [
   'harmonic-fluency',
   'ear-training',
   'shapes-and-patterns',
@@ -1731,24 +1792,28 @@ const MONTHLY_PICKER_MODULES: ReadonlyArray<GoalFlowModuleId> = [
   'practice-consistency',
 ];
 
-function MonthlyModulePickerModal({
+function ModulePickerModal({
   open,
   onClose,
   onPick,
+  title,
+  description,
 }: {
   open: boolean;
   onClose: () => void;
   onPick: (moduleId: GoalFlowModuleId) => void;
+  title: string;
+  description: string;
 }) {
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Add a monthly goal"
-      description="Which module is this month's focus?"
+      title={title}
+      description={description}
     >
       <div className="flex flex-col gap-2 py-1">
-        {MONTHLY_PICKER_MODULES.map(moduleId => {
+        {PICKER_MODULES.map(moduleId => {
           const meta = moduleMetaById(moduleId);
           const label = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
           const accent = meta?.accentHex ?? GOALS_META.accentHex;
@@ -1766,6 +1831,98 @@ function MonthlyModulePickerModal({
             </button>
           );
         })}
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Lightweight scope picker shown when the user taps the global
+ * "+ Set a goal" / "+ Add goal" affordance. Four tappable rows that
+ * branch into the right flow for that horizon:
+ *
+ *   Monthly  → module picker → GoalSuggestionFlow
+ *   Yearly   → module picker → YearlyAnchorFlow
+ *   Weekly   → GoalCreationFlow with initialScope='weekly'
+ *   Other    → GoalCreationFlow with initialScope=null
+ *              (quarterly / 2–3 year / lifetime — user picks in-flow)
+ *
+ * The scope chip on each row mirrors the modal-header ScopePill so
+ * the user makes the connection between this picker and the badge
+ * they'll see on the next screen.
+ */
+function ScopePickerModal({
+  open,
+  onClose,
+  onPickMonthly,
+  onPickYearly,
+  onPickWeekly,
+  onPickOther,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPickMonthly: () => void;
+  onPickYearly: () => void;
+  onPickWeekly: () => void;
+  onPickOther: () => void;
+}) {
+  const options: Array<{
+    scope: GoalScope;
+    label: string;
+    description: string;
+    onClick: () => void;
+  }> = [
+    {
+      scope: 'monthly',
+      label: 'Monthly',
+      description: 'This month\'s focus — module-specific suggestions',
+      onClick: onPickMonthly,
+    },
+    {
+      scope: 'weekly',
+      label: 'Weekly',
+      description: 'A target for this week',
+      onClick: onPickWeekly,
+    },
+    {
+      scope: 'yearly',
+      label: 'Yearly',
+      description: 'A year-long anchor that frames the smaller scopes',
+      onClick: onPickYearly,
+    },
+    {
+      scope: 'two_to_three_year',
+      label: 'Other (quarterly / 2–3 year / lifetime)',
+      description: 'Pick the horizon inside the wizard',
+      onClick: onPickOther,
+    },
+  ];
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Set a goal"
+      description="Which horizon is this goal for?"
+    >
+      <div className="flex flex-col gap-2 py-1">
+        {options.map(opt => (
+          <button
+            key={opt.scope}
+            type="button"
+            onClick={opt.onClick}
+            className="w-full text-left rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 hover:border-fluent transition-colors"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <ScopePill scope={opt.scope} />
+              <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                {opt.label}
+              </span>
+            </div>
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">
+              {opt.description}
+            </div>
+          </button>
+        ))}
       </div>
     </Modal>
   );
