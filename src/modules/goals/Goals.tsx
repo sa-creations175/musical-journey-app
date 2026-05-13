@@ -17,6 +17,7 @@ import {
   startOfWeekLocal,
 } from './weeklyPlanData';
 import { getWeeklyTimeEstimate } from '../../lib/weeklyAttempts';
+import { buildRepertoireSessionBreakdownLines } from './repertoireBreakdown';
 // Side-effect import: registers `__deleteShortHorizonGoals` on
 // window so the operator can wipe all monthly + weekly goals from
 // the browser console. Manual one-shot only — see devCleanup.ts.
@@ -1075,6 +1076,18 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
 
+  // Song count drives whether the Repertoire breakdown shows the
+  // Maintenance line. ≥2 songs → at least one maintenance
+  // candidate exists (one for spotlight, anything else for
+  // maintenance); 0 or 1 → spotlight line only. Mirrors the gate
+  // used by WeeklyPlan's inline breakdown so both surfaces stay
+  // consistent. Defaults to 0 while the query hydrates — the
+  // Maintenance line appears as soon as the count resolves.
+  const songCount = useLiveQuery<number>(
+    async () => db.songs.count(),
+    [],
+  ) ?? 0;
+
   // Load the parent monthly goals so each weekly row can borrow its
   // activity name from the richer parent description. The weekly's
   // own description (written by WeeklyPlan.handleConfirm) is only
@@ -1160,6 +1173,57 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
           const meta = moduleMetaById(moduleId);
           const moduleLabel = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
           const accentHex = meta?.accentHex ?? GOALS_META.accentHex;
+
+          // Repertoire is special: instead of the per-goal listing
+          // (which surfaces vague rows like "Repertoire — 6 days
+          // this week" and gives the wrong ~18 min time estimate for
+          // sessions), render the canonical per-session split that
+          // matches what the session allocator actually delivers.
+          // Maintenance line is gated on songCount ≥ 2 so it
+          // doesn't appear when the user only has the spotlight.
+          if (moduleId === 'repertoire') {
+            const lines = buildRepertoireSessionBreakdownLines(songCount >= 2);
+            return (
+              <div key={moduleId}>
+                <div className="flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
+                  <span
+                    aria-hidden
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: accentHex }}
+                  />
+                  <span>{moduleLabel}</span>
+                </div>
+                <ul
+                  className="flex flex-col gap-1 pl-4 mt-1.5 border-l"
+                  style={{ borderColor: `${accentHex}55` }}
+                >
+                  {lines.map((line, idx) => {
+                    // Split on the em-dash that the helper inserts
+                    // between activity name and time so we can give
+                    // the activity portion the same "font-medium"
+                    // treatment as the other module rows. Falls back
+                    // to the whole line as bold if the dash is gone
+                    // (defensive — shouldn't happen in practice).
+                    const [name, rest] = line.split(' — ');
+                    return (
+                      <li
+                        key={idx}
+                        className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm text-neutral-700 dark:text-neutral-200"
+                      >
+                        <span className="font-medium">{name}</span>
+                        {rest && (
+                          <span className="text-neutral-600 dark:text-neutral-300">
+                            — {rest}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          }
+
           return (
             <div key={moduleId}>
               <div className="flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">

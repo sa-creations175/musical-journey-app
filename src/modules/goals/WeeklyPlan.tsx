@@ -15,6 +15,7 @@ import {
   getShapesCoverageGroup,
   shapesAreaFromUnit,
 } from './shapesCoverageGroups';
+import { buildRepertoireSessionBreakdownLines } from './repertoireBreakdown';
 import { deriveWeeklyGoals } from './weeklyDerivation';
 import {
   classifyPace,
@@ -136,26 +137,6 @@ type RowTimeDisplay =
       extraLines?: readonly string[];
     }
   | { kind: 'per-session'; minutesPerSession: number };
-
-/** Spotlight share of a typical repertoire session — matches the
- *  3:1 split used by repertoireSplit.ts (SPOTLIGHT_RATIO = 3/4).
- *  Surfaced as user-visible "~45 min" / "~15 min" lines below; both
- *  lines auto-rescale if REPERTOIRE_SESSION_DEFAULT_MINUTES shifts. */
-const REPERTOIRE_SPOTLIGHT_SHARE = 3 / 4;
-
-function buildRepertoireSessionBreakdown(
-  hasMaintenanceSongs: boolean,
-): string[] {
-  const spotlightMin = Math.round(
-    REPERTOIRE_SESSION_DEFAULT_MINUTES * REPERTOIRE_SPOTLIGHT_SHARE,
-  );
-  const maintenanceMin = REPERTOIRE_SESSION_DEFAULT_MINUTES - spotlightMin;
-  const lines = [`Song of the Month — ~${spotlightMin} min/session`];
-  if (hasMaintenanceSongs) {
-    lines.push(`Maintenance — ~${maintenanceMin} min/session`);
-  }
-  return lines;
-}
 
 /** Per-module consistency metrics that should fold into a sibling
  *  coverage row when both exist. Includes the new days-based metrics
@@ -553,7 +534,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
         return {
           kind: 'time',
           estimate,
-          extraLines: buildRepertoireSessionBreakdown(songCount >= 2),
+          extraLines: buildRepertoireSessionBreakdownLines(songCount >= 2),
         };
       }
       return { kind: 'time', estimate };
@@ -593,7 +574,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
         return {
           kind: 'time',
           estimate: { kind: 'point', minutes: totalMinutes },
-          extraLines: buildRepertoireSessionBreakdown(songCount >= 2),
+          extraLines: buildRepertoireSessionBreakdownLines(songCount >= 2),
         };
       }
       return null;
