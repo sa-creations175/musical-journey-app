@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
+import { resolveProposalStart } from './proposalAcceptance';
 import { recordEndOfMonth } from '../../lib/prompts';
 import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
 import { SongOfMonthCongratsBanner } from '../repertoire/SongOfMonthBanners';
@@ -422,10 +423,14 @@ export default function PracticeSessions() {
     opts: { hardBlock: boolean },
   ) => {
     if (card.blocks.length === 0) return;
-    const firstBlock = card.blocks[0];
-    const firstMeta = moduleMetaById(firstBlock.moduleRef);
-    const startRoute =
-      firstBlock.quickLaunchRoute ?? firstMeta?.route ?? '/practice-sessions/active';
+    // Single source of truth for route + arm payload, derived only
+    // from `card.blocks` — which is the user's (possibly reordered)
+    // block list as ProposalCard hands it back via the Start
+    // button's onClick spreading `{ ...data, blocks: orderedBlocks }`.
+    // The resolver iterates the list in order, so any reorder the
+    // user applied flows through to both the navigate target and
+    // the armed session's currentBlockIndex=0 landing.
+    const { startRoute, armBlocks } = resolveProposalStart(card.blocks);
 
     // Arm — don't start. The actual `start` action fires when the
     // user arrives at the first block's module (handled by
@@ -436,13 +441,7 @@ export default function PracticeSessions() {
       origin: 'practice-sessions',
       hardBlock: opts.hardBlock,
       context: lastInputs?.context ?? 'mixed',
-      blocks: card.blocks.map(b => ({
-        moduleRef: b.moduleRef,
-        itemRefs: [...b.itemRefs],
-        label: b.activityDescription,
-        plannedSeconds: b.plannedSeconds,
-        quickLaunchRoute: b.quickLaunchRoute,
-      })),
+      blocks: armBlocks,
     });
     navigate(startRoute);
   };
