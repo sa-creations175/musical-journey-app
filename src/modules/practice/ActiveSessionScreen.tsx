@@ -49,6 +49,8 @@ import {
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import type { PerformanceRating } from '../../lib/sessionTimer/types';
 import EndOfSessionSummary from './EndOfSessionSummary';
+import InstrumentSelector from '../../components/InstrumentSelector';
+import MetronomeControl from '../../components/MetronomeControl';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -103,6 +105,11 @@ export default function ActiveSessionScreen() {
 
   const [phase, setPhase] = useState<Phase>('running');
   const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
+  // Instrument + metronome controls were previously in the global
+  // header — they belong with the active session, not every page.
+  // Collapsed by default to keep the running phase focused; the user
+  // pops them out via the 🎛 toggle in the section header.
+  const [audioPanelOpen, setAudioPanelOpen] = useState(false);
 
   // Reset per-block UI state on block change.
   useEffect(() => {
@@ -357,17 +364,40 @@ export default function ActiveSessionScreen() {
           borderLeftWidth: 3,
         }}
       >
-        <header className="space-y-1">
-          <div
-            className="text-[11px] uppercase tracking-wider font-medium"
-            style={{ color: accent }}
-          >
-            {moduleLabel}
+        <header className="flex items-start gap-3">
+          <div className="flex-1 min-w-0 space-y-1">
+            <div
+              className="text-[11px] uppercase tracking-wider font-medium"
+              style={{ color: accent }}
+            >
+              {moduleLabel}
+            </div>
+            <h2 className="text-lg font-medium text-neutral-800 dark:text-neutral-100">
+              {currentBlock.label ?? currentBlock.moduleRef}
+            </h2>
           </div>
-          <h2 className="text-lg font-medium text-neutral-800 dark:text-neutral-100">
-            {currentBlock.label ?? currentBlock.moduleRef}
-          </h2>
+          <button
+            type="button"
+            onClick={() => setAudioPanelOpen(v => !v)}
+            aria-expanded={audioPanelOpen}
+            aria-label={audioPanelOpen ? 'hide audio controls' : 'show audio controls'}
+            title={audioPanelOpen ? 'hide audio controls' : 'show audio controls'}
+            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent text-sm leading-none"
+          >
+            <span aria-hidden>🎛</span>
+          </button>
         </header>
+
+        {audioPanelOpen && (
+          <div
+            className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/40 px-3 py-2 flex items-center gap-2 flex-wrap"
+            data-testid="active-session-audio-panel"
+          >
+            <InstrumentSelector />
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <MetronomeControl />
+          </div>
+        )}
 
         <div className="text-center py-3">
           <div

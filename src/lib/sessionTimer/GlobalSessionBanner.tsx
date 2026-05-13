@@ -101,7 +101,15 @@ export function GlobalSessionBanner() {
       role="region"
       aria-label="active practice session"
       className="sticky top-0 z-[150] w-full border-b border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur"
-      style={{ borderTopColor: accent, borderTopWidth: 2, borderTopStyle: 'solid' }}
+      style={{
+        borderTopColor: accent,
+        borderTopWidth: 2,
+        borderTopStyle: 'solid',
+        // Clear the iOS / Android status-bar + notch on mobile.
+        // viewport-fit=cover is set in index.html so env() resolves
+        // to the real inset.
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
     >
       <div className="flex items-center gap-3 px-4 py-2">
         <button
