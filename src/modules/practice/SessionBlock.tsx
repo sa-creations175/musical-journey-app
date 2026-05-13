@@ -92,7 +92,7 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
               </span>
             )}
           </div>
-          <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 truncate">
+          <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 break-words">
             {block.activityDescription}
           </div>
           {block.inlineActionText && (

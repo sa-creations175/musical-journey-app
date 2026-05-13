@@ -147,7 +147,8 @@ export async function buildSessionProposals(
     inputs.context,
   );
   if (withColdStart.length === 0) return [];
-  return generateAndShape(withColdStart, inputs.timeMinutes * 60, repertoireSplit);
+  const itemLabels = await loadShapesDrillLabels(withColdStart);
+  return generateAndShape(withColdStart, inputs.timeMinutes * 60, repertoireSplit, itemLabels);
 }
 
 // ---------------------------------------------------------------------
@@ -302,10 +303,12 @@ export async function buildSessionPlan(
     ? requestedSeconds - vocabBlock.plannedSeconds
     : requestedSeconds;
 
+  const itemLabels = await loadShapesDrillLabels(moduleBlocks);
   const cards = generateAndShape(
     moduleBlocks,
     availableSeconds,
     repertoireSplit,
+    itemLabels,
   );
   return {
     kind: 'proposals',
@@ -339,6 +342,14 @@ function generateAndShape(
   moduleBlocks: AlgorithmBlock[],
   availableSeconds: number,
   repertoireSplit: RepertoireSplitContext | null = null,
+  /** itemRef → human label resolver, supplied by the async caller
+   *  via `loadShapesDrillLabels`. Used by describeActivity for
+   *  Shapes & Patterns blocks so the proposal card names the
+   *  actual drill ("Major triads · 6 items") instead of the
+   *  generic "drills · 6 items". Undefined → no labels (fallback
+   *  behaviour preserved for callers / tests that haven't
+   *  pre-loaded). */
+  itemLabels: ReadonlyMap<string, string> | null = null,
 ): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
@@ -347,9 +358,36 @@ function generateAndShape(
   return proposals.map(p => ({
     kind: p.kind,
     title: p.title,
-    blocks: p.blocks.flatMap(b => toProposalBlocks(b, repertoireSplit)),
+    blocks: p.blocks.flatMap(b => toProposalBlocks(b, repertoireSplit, itemLabels)),
     totalSeconds: p.totalSeconds,
   }));
+}
+
+/**
+ * Pre-load denormalised labels from `db.drillSkills` for every
+ * Shapes & Patterns itemRef across the given block list. The
+ * proposal screen renders these in `describeActivity` so the user
+ * sees "Major triads · 6 items" instead of "drills · 6 items".
+ *
+ * Single bulkGet — the typical S&P session targets a handful of
+ * skills (one drill kind across a few keys), so the query is
+ * cheap. Non-S&P blocks are filtered out before the lookup.
+ */
+async function loadShapesDrillLabels(
+  blocks: ReadonlyArray<AlgorithmBlock>,
+): Promise<Map<string, string>> {
+  const ids: string[] = [];
+  for (const b of blocks) {
+    if (b.moduleRef !== SHAPES_MODULE_REF) continue;
+    for (const ref of b.itemRefs) ids.push(ref);
+  }
+  if (ids.length === 0) return new Map();
+  const rows = await db.drillSkills.bulkGet(ids);
+  const out = new Map<string, string>();
+  rows.forEach((row, i) => {
+    if (row?.label) out.set(ids[i], row.label);
+  });
+  return out;
 }
 
 // ---------------------------------------------------------------------
@@ -412,7 +450,13 @@ export async function buildSessionProposalsForPath(
     inputs.context,
   );
   if (filteredWithColdStart.length > 0) {
-    return generateAndShape(filteredWithColdStart, availableSeconds, repertoireSplit);
+    const filteredItemLabels = await loadShapesDrillLabels(filteredWithColdStart);
+    return generateAndShape(
+      filteredWithColdStart,
+      availableSeconds,
+      repertoireSplit,
+      filteredItemLabels,
+    );
   }
 
   // Fallback — shuffle the full pool so we still introduce fresh
@@ -433,7 +477,13 @@ export async function buildSessionProposalsForPath(
     inputs.context,
   );
   if (fallbackWithColdStart.length === 0) return [];
-  return generateAndShape(fallbackWithColdStart, availableSeconds, repertoireSplit);
+  const fallbackItemLabels = await loadShapesDrillLabels(fallbackWithColdStart);
+  return generateAndShape(
+    fallbackWithColdStart,
+    availableSeconds,
+    repertoireSplit,
+    fallbackItemLabels,
+  );
 }
 
 export function filterSpacingRowsByPath(
@@ -921,6 +971,7 @@ export function maybeInjectRepertoireColdStartBlock(
 function toProposalBlocks(
   block: AllocatedBlock,
   repertoireSplit: RepertoireSplitContext | null,
+  itemLabels: ReadonlyMap<string, string> | null = null,
 ): ProposalBlock[] {
   const meta = moduleMetaById(block.moduleRef);
   const moduleLabel = meta?.label ?? block.moduleRef;
@@ -981,7 +1032,7 @@ function toProposalBlocks(
       moduleRef: block.moduleRef,
       moduleLabel,
       moduleAccentHex,
-      activityDescription: describeActivity(block),
+      activityDescription: describeActivity(block, itemLabels),
       plannedSeconds: block.plannedSeconds,
       whySnippet: deriveWhySnippet(block),
       itemRefs: block.itemRefs,
@@ -1002,7 +1053,10 @@ function toProposalBlocks(
  * so the line can surface specific lesson titles, song names,
  * card categories, etc.
  */
-export function describeActivity(block: AllocatedBlock): string {
+export function describeActivity(
+  block: AllocatedBlock,
+  itemLabels: ReadonlyMap<string, string> | null = null,
+): string {
   const count = block.itemRefs.length;
   const plural = (n: number, singular: string, pluralForm: string) =>
     `${n} ${n === 1 ? singular : pluralForm}`;
@@ -1010,8 +1064,25 @@ export function describeActivity(block: AllocatedBlock): string {
   switch (block.memoryType) {
     case 'declarative':
       return `flashcards · ${plural(count, 'card', 'cards')}`;
-    case 'procedural':
-      return `drills · ${plural(count, 'item', 'items')}`;
+    case 'procedural': {
+      // Shapes & Patterns: name the actual drills via the
+      // pre-loaded itemLabels map (denormalised `label` field on
+      // db.drillSkills). When the map is empty / not supplied
+      // (tests, fallback paths), drop to the generic noun. Show
+      // up to 2 unique labels + a "+N more" tail so long
+      // sessions stay readable.
+      const labels = block.itemRefs
+        .map(id => itemLabels?.get(id))
+        .filter((s): s is string => typeof s === 'string' && s.length > 0);
+      if (labels.length === 0) {
+        return `drills · ${plural(count, 'item', 'items')}`;
+      }
+      const unique = Array.from(new Set(labels));
+      const head = unique.slice(0, 2).join(', ');
+      const rest = unique.length - 2;
+      const labelText = rest > 0 ? `${head}, +${rest} more` : head;
+      return `${labelText} · ${plural(count, 'item', 'items')}`;
+    }
     case 'integration':
       if (block.moduleRef === 'repertoire') {
         return `repertoire · ${plural(count, 'song', 'songs')}`;

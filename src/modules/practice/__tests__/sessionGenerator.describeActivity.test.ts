@@ -88,6 +88,83 @@ describe('describeActivity — tier 1 templates', () => {
       .toBe('freeform play');
   });
 
+  describe('procedural with itemLabels (S&P drill names)', () => {
+    it('names a single drill when one label resolves', () => {
+      const labels = new Map([['s1', 'Cmaj (major) — root position']]);
+      const result = describeActivity(
+        block({ moduleRef: 'shapes-and-patterns', memoryType: 'procedural', itemRefs: ['s1'] }),
+        labels,
+      );
+      expect(result).toBe('Cmaj (major) — root position · 1 item');
+    });
+
+    it('joins up to 2 unique labels, then appends "+N more"', () => {
+      const labels = new Map([
+        ['s1', 'Cmaj (major)'],
+        ['s2', 'Dmaj (major)'],
+        ['s3', 'Emaj (major)'],
+        ['s4', 'Fmaj (major)'],
+      ]);
+      const result = describeActivity(
+        block({
+          moduleRef: 'shapes-and-patterns',
+          memoryType: 'procedural',
+          itemRefs: ['s1', 's2', 's3', 's4'],
+        }),
+        labels,
+      );
+      expect(result).toBe('Cmaj (major), Dmaj (major), +2 more · 4 items');
+    });
+
+    it('dedupes labels — 6 items with the same label show one entry', () => {
+      const labels = new Map([
+        ['s1', 'Major triads'],
+        ['s2', 'Major triads'],
+        ['s3', 'Major triads'],
+      ]);
+      const result = describeActivity(
+        block({
+          moduleRef: 'shapes-and-patterns',
+          memoryType: 'procedural',
+          itemRefs: ['s1', 's2', 's3'],
+        }),
+        labels,
+      );
+      expect(result).toBe('Major triads · 3 items');
+    });
+
+    it('falls back to the generic noun when no labels resolve', () => {
+      // Empty map + items the resolver doesn't know about → drop
+      // to the pre-existing "drills · N items" output. Preserves
+      // the prior contract for tests / fallback paths that don't
+      // pre-load labels.
+      const result = describeActivity(
+        block({
+          moduleRef: 'shapes-and-patterns',
+          memoryType: 'procedural',
+          itemRefs: ['unknown-1', 'unknown-2'],
+        }),
+        new Map(),
+      );
+      expect(result).toBe('drills · 2 items');
+    });
+
+    it('mixes resolved + unresolved — uses the resolved ones', () => {
+      const labels = new Map([['s1', 'Major triads']]);
+      const result = describeActivity(
+        block({
+          moduleRef: 'shapes-and-patterns',
+          memoryType: 'procedural',
+          itemRefs: ['s1', 'unknown-1', 'unknown-2'],
+        }),
+        labels,
+      );
+      // item count stays at 3 (every itemRef counts), but only one
+      // label was resolvable.
+      expect(result).toBe('Major triads · 3 items');
+    });
+  });
+
   it('never repeats the module label or duration', () => {
     const result = describeActivity(
       block({
