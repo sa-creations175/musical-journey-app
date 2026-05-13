@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal, type GoalScope, type GoalStatus, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
 import Modal from '../../components/Modal';
+import { useToast } from '../../components/Toaster';
 import CustomizeLayersModal from './CustomizeLayersModal';
 import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
@@ -10,6 +11,11 @@ import GoalSuggestionFlow from './GoalSuggestionFlow';
 import { ScopePill } from './ScopePill';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
+import {
+  loadWeeklyGoalsForWeek,
+  startOfWeekLocal,
+} from './weeklyPlanData';
+import { getWeeklyTimeEstimate } from '../../lib/weeklyAttempts';
 // Side-effect import: registers `__deleteShortHorizonGoals` on
 // window so the operator can wipe all monthly + weekly goals from
 // the browser console. Manual one-shot only — see devCleanup.ts.
@@ -490,7 +496,23 @@ export default function Goals() {
       {activeView === 'timeframe' ? (
         <div className="flex flex-col">
           {visibleLayers.map(layer => {
-            const layerGoals = goalsByScope.get(layer.scope) ?? [];
+            let layerGoals = goalsByScope.get(layer.scope) ?? [];
+            // For the Weekly layer, hide goals whose parent is a
+            // monthly goal — those are confirmed-plan children
+            // already surfaced in the "This week's challenge"
+            // subsection summary. Stand-alone weekly goals (no
+            // monthly parent, or parented to a yearly anchor) keep
+            // appearing as explicit rows.
+            if (layer.scope === 'weekly') {
+              const monthlyGoalIds = new Set(
+                (goals ?? [])
+                  .filter(g => g.scope === 'monthly')
+                  .map(g => g.id),
+              );
+              layerGoals = layerGoals.filter(
+                g => !g.parentGoalId || !monthlyGoalIds.has(g.parentGoalId),
+              );
+            }
             const collapsed = effectiveCollapsed(
               collapseOverrides[layer.scope],
               layerGoals.length > 0,
@@ -958,17 +980,20 @@ function LayerSection({
 
 /**
  * "This week's challenge" subsection rendered at the top of the
- * by-timeframe Weekly LayerSection's body. Wraps the inline
- * WeeklyPlan content (last-week review + this-week's plan rows)
- * so the user can review + confirm/replan their week without
- * leaving the Goals home. Collapsible with default open; the
- * muted subtitle explains where the suggestions come from. */
+ * by-timeframe Weekly LayerSection's body. Two modes:
+ *
+ *   · unconfirmed — no weekly goal rows linked to a monthly
+ *     parent exist for this week. Shows the inline <WeeklyPlan />
+ *     planning UI: review + propose + Confirm.
+ *
+ *   · confirmed — at least one such weekly goal exists. Shows a
+ *     compact summary of the saved targets + a "Re-plan" button
+ *     that wipes the confirmed goals and restores the planning UI.
+ *
+ * Default collapsed so neither path mounts on every Goals page
+ * visit — the planning body and the confirmed-goals query both
+ * sit behind a user tap. */
 function WeeklyChallengeSection() {
-  // Default collapsed so the inline <WeeklyPlan /> doesn't mount —
-  // and therefore doesn't fire its loadActiveMonthlyGoals +
-  // loadLastWeekReview Dexie reads — on every Goals page visit.
-  // The user opts in with a tap; once open, the body mounts and
-  // loads normally.
   const [open, setOpen] = useState(false);
   return (
     <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/30">
@@ -992,11 +1017,148 @@ function WeeklyChallengeSection() {
       </button>
       {open && (
         <div className="px-3 pb-3 pt-1">
-          <WeeklyPlan inline open={false} onClose={() => {}} />
+          <WeeklyChallengeBody />
         </div>
       )}
     </section>
   );
+}
+
+/**
+ * Inner switch that picks confirmed-summary vs planning-UI based
+ * on whether weekly goals exist for the current local week. Lives
+ * as its own component so the live query only fires when the
+ * parent subsection is expanded (parent gates the mount).
+ */
+function WeeklyChallengeBody() {
+  const weekStart = useMemo(() => startOfWeekLocal(Date.now()), []);
+  const confirmedGoals = useLiveQuery<Goal[]>(
+    async () => loadWeeklyGoalsForWeek(weekStart),
+    [weekStart],
+  );
+
+  // Live query in flight — render nothing rather than flash the
+  // planning UI for a frame and then swap to the summary.
+  if (confirmedGoals === undefined) {
+    return (
+      <div className="text-sm text-neutral-500 italic py-3">Loading…</div>
+    );
+  }
+
+  if (confirmedGoals.length === 0) {
+    return <WeeklyPlan inline open={false} onClose={() => {}} />;
+  }
+
+  return <ConfirmedWeeklyPlanSummary goals={confirmedGoals} />;
+}
+
+/**
+ * Compact summary of an already-confirmed weekly plan: one row
+ * per confirmed goal showing the module and target, optionally
+ * with a small time estimate. "Re-plan" wipes the confirmed
+ * goals so the planning UI returns on the next render.
+ *
+ * Time hints reuse `getWeeklyTimeEstimate` for the standard
+ * attempt / session / lesson units. Unsupported units (days /
+ * minutes / hours where the per-unit math isn't honest) drop the
+ * time suffix rather than print a guess.
+ */
+function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const handleReplan = async () => {
+    if (busy) return;
+    if (!confirm("Clear this week's saved plan and start over?")) return;
+    setBusy(true);
+    try {
+      await db.goals.bulkDelete(goals.map(g => g.id));
+      toast({
+        message: "Plan cleared — set new targets to confirm.",
+        variant: 'success',
+      });
+    } catch (err) {
+      console.warn('[ConfirmedWeeklyPlanSummary] re-plan failed', err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 py-1">
+      <ul className="flex flex-col gap-1.5">
+        {goals.map(g => {
+          const moduleId = (g.relatedModules[0] as GoalFlowModuleId | undefined) ?? null;
+          const moduleLabel = moduleId
+            ? moduleMetaById(moduleId)?.label ?? MODULE_DISPLAY_NAME[moduleId]
+            : 'practice';
+          const target = g.targetValue ?? 0;
+          const unit = g.targetUnit ?? '';
+          const accentHex = moduleId
+            ? moduleMetaById(moduleId)?.accentHex ?? GOALS_META.accentHex
+            : GOALS_META.accentHex;
+
+          // Honest time estimate — reuses the weekly-time helper
+          // for the units it knows how to size. Unknown units drop
+          // the suffix rather than print a misleading number.
+          let timeText: string | null = null;
+          if (moduleId && (unit === 'attempts' || unit === 'sessions' || unit === 'lessons')) {
+            const est = getWeeklyTimeEstimate(moduleId, target);
+            timeText = est.kind === 'point'
+              ? `~${formatMins(est.minutes)}`
+              : `~${formatMins(est.minMinutes)}–${formatMins(est.maxMinutes)}`;
+          } else if (unit === 'hours' && target > 0) {
+            timeText = `~${formatMins(target * 60)}`;
+          } else if (unit === 'minutes' && target > 0) {
+            timeText = `~${formatMins(target)}`;
+          }
+
+          return (
+            <li
+              key={g.id}
+              className="flex items-baseline gap-2 text-sm text-neutral-700 dark:text-neutral-200"
+            >
+              <span
+                aria-hidden
+                className="inline-block w-2 h-2 rounded-full shrink-0 self-center"
+                style={{ backgroundColor: accentHex }}
+              />
+              <span className="font-medium">{moduleLabel}</span>
+              <span>
+                — {target} {unit} this week
+              </span>
+              {timeText && (
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                  · {timeText}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        onClick={() => void handleReplan()}
+        disabled={busy}
+        className="text-xs text-neutral-500 hover:text-fluent transition-colors disabled:opacity-50"
+      >
+        {busy ? 'Clearing…' : 'Re-plan'}
+      </button>
+    </div>
+  );
+}
+
+/** Compact "Xh Ym" / "Xm" formatter for inline summaries. Mirrors
+ *  WeeklyPlan's internal formatMinutes — duplicated here to keep
+ *  this file from importing internals across modules. */
+function formatMins(min: number): string {
+  if (!Number.isFinite(min) || min <= 0) return '0m';
+  const rounded = Math.round(min);
+  const h = Math.floor(rounded / 60);
+  const m = rounded - h * 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
 /**
