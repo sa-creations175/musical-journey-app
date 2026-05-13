@@ -15,7 +15,11 @@ interface Options {
 }
 
 const DEFAULT_THRESHOLD_MS = 450;
-const DEFAULT_MOVE_TOLERANCE_PX = 10;
+// 15px (up from 10) absorbs the natural finger drift on touchscreens
+// — a stationary thumb routinely wobbles 3–5px during a hold, and
+// momentum-scroll deltas can push that higher before the OS commits
+// the gesture. 10px proved too tight in real-finger testing.
+const DEFAULT_MOVE_TOLERANCE_PX = 15;
 const CLICK_SUPPRESS_WINDOW_MS = 1000;
 
 /**
