@@ -768,7 +768,16 @@ function ChordSlot({ beatId, chord, notationMode, sectionKey, autofocus, onCommi
         onKeyDown={handleKey}
         placeholder="1"
         spellCheck={false}
-        className={`bg-transparent border-0 border-b border-dashed text-center px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${
+        // `size={1}` caps iOS Safari's intrinsic-width hint so it
+        // can't blow past the inline `width: Xch`. `appearance-none`
+        // flattens iOS native input chrome (internal padding/border)
+        // that would otherwise widen the box. `text-left` anchors
+        // the chord glyph to the input's left edge — same edge as
+        // the word below — so chord + word align by construction
+        // instead of relying on the input's box being exactly the
+        // right width.
+        size={1}
+        className={`bg-transparent appearance-none border-0 border-b border-dashed text-left px-0.5 py-0 text-sm font-mono tracking-tight focus:outline-none focus:border-fluent transition-colors placeholder:text-neutral-300 dark:placeholder:text-neutral-600 ${
           unparsed
             ? 'text-developing border-developing/40'
             : filled
@@ -807,7 +816,7 @@ function ReadOnlyChordSlot({ chord, notationMode, sectionKey }: ReadOnlyChordSlo
   return (
     <span className="inline-flex flex-col items-center">
       <span
-        className={`inline-block text-center text-sm font-mono tracking-tight px-0.5 ${
+        className={`inline-block text-left text-sm font-mono tracking-tight px-0.5 ${
           empty ? 'text-neutral-300 dark:text-neutral-700' : 'text-neutral-600 dark:text-neutral-300'
         }`}
         style={{ minWidth: '1.5rem' }}
