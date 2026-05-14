@@ -16,7 +16,14 @@ import {
   shapesAreaFromUnit,
 } from './shapesCoverageGroups';
 import { buildRepertoireSessionBreakdownLines } from './repertoireBreakdown';
-import { deriveWeeklyGoals } from './weeklyDerivation';
+import {
+  deriveWeeklyGoals,
+  recomputeWeeklyTargetForMonthlyGoal,
+  computeOverrideDivergence,
+  type OverrideDivergence,
+} from './weeklyDerivation';
+import { getAttemptsInRange } from '../../lib/weeklyAttempts';
+import { TIME_PER_ATTEMPT_SECONDS } from '../../lib/sessionAlgorithm/sessionNeed';
 import {
   classifyPace,
   endOfWeekLocal,
@@ -397,6 +404,13 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
    *  songs → only the spotlight line surfaces. Snapshot is fine
    *  (modal is re-opened to refresh) — no live-query plumbing. */
   const [songCount, setSongCount] = useState(0);
+  /** Phase B — override-divergence prompts, keyed by the confirmed
+   *  weekly Goal record's id. Populated mid-week when the live
+   *  recompute of a confirmed HF / ET coverage slice disagrees with
+   *  what the user actually confirmed. Empty otherwise. */
+  const [overridePrompts, setOverridePrompts] = useState<
+    Map<string, OverrideDivergence>
+  >(new Map());
   /** Per-module collapse state. Empty set = everything expanded
    *  (the default — see spec: "expanded by default, collapse
    *  chevron on the right"). Only applies to multi-row module
@@ -482,6 +496,111 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   }, [open, weekStart, inline]);
 
   const isConfirmed = confirmedGoals.length > 0;
+
+  // Phase B — override-divergence detection. Once the week's plan is
+  // confirmed, re-run the live goal-pace recompute for each HF / ET
+  // coverage slice and compare it to what the user actually
+  // confirmed. A mismatch surfaces the "your monthly pace needs X,
+  // you planned Z" prompt. Only runs on the *current* week — a
+  // dev-pinned past/future weekStart has no live "now" to compare.
+  useEffect(() => {
+    if (!isConfirmed) {
+      setOverridePrompts(new Map());
+      return;
+    }
+    const now = Date.now();
+    if (startOfWeekLocal(now) !== weekStart) {
+      setOverridePrompts(new Map());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const prompts = new Map<string, OverrideDivergence>();
+      // Global practice-consistency cadence — the shared per-day
+      // divisor for the time translation.
+      const allActive = await db.goals
+        .where('status').equals('active')
+        .toArray();
+      const consistencyTargetDays =
+        allActive.find(g => g.targetMetric === 'practice_days_per_cadence')
+          ?.targetValue ?? 0;
+
+      for (const weekly of confirmedGoals) {
+        const moduleId = weekly.relatedModules[0];
+        // Scope: HF / ET coverage slices — the modules Phase B plans
+        // for, and the ones with a clean per-attempt time seed.
+        if (moduleId !== 'harmonic-fluency' && moduleId !== 'ear-training') {
+          continue;
+        }
+        if (weekly.targetUnit !== 'attempts') continue;
+        if (!weekly.parentGoalId) continue;
+        const monthly = allActive.find(g => g.id === weekly.parentGoalId)
+          ?? await db.goals.get(weekly.parentGoalId);
+        if (!monthly) continue;
+
+        const recomputed = await recomputeWeeklyTargetForMonthlyGoal(monthly, now);
+        if (!recomputed) continue;
+
+        const coveredSoFar = await getAttemptsInRange(
+          moduleId,
+          monthly.startDate,
+          now,
+        );
+        const weeksRemainingInMonth = Math.max(
+          1,
+          Math.ceil((monthly.targetDate - now) / (7 * 24 * 60 * 60 * 1000)),
+        );
+
+        const divergence = computeOverrideDivergence({
+          dynamicTarget: recomputed.weeklyTarget,
+          plannedTarget: weekly.targetValue ?? 0,
+          timePerAttemptSeconds: TIME_PER_ATTEMPT_SECONDS[moduleId],
+          consistencyTargetDays,
+          monthlyTarget: recomputed.monthlyAttemptTarget,
+          coveredSoFar,
+          weeksRemainingInMonth,
+        });
+        if (divergence) prompts.set(weekly.id, divergence);
+      }
+      if (!cancelled) setOverridePrompts(prompts);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isConfirmed, confirmedGoals, weekStart]);
+
+  /** Accept an override-divergence prompt — bump the confirmed
+   *  weekly Goal record's target to the live-recomputed value so
+   *  the user is back on monthly pace. */
+  async function handleAcceptOverride(weeklyGoalId: string): Promise<void> {
+    const divergence = overridePrompts.get(weeklyGoalId);
+    if (!divergence) return;
+    await db.goals.update(weeklyGoalId, {
+      targetValue: divergence.dynamicTarget,
+    });
+    setConfirmedGoals(prev =>
+      prev.map(g =>
+        g.id === weeklyGoalId
+          ? { ...g, targetValue: divergence.dynamicTarget }
+          : g,
+      ),
+    );
+    setOverridePrompts(prev => {
+      const next = new Map(prev);
+      next.delete(weeklyGoalId);
+      return next;
+    });
+  }
+
+  /** Dismiss an override-divergence prompt without changing the
+   *  plan — the user is choosing to keep their override. */
+  function handleDismissOverride(weeklyGoalId: string): void {
+    setOverridePrompts(prev => {
+      const next = new Map(prev);
+      next.delete(weeklyGoalId);
+      return next;
+    });
+  }
 
   // Per-row time display. Two shapes:
   //
@@ -864,6 +983,21 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               </div>
             ) : (
               <>
+                {overridePrompts.size > 0 && (
+                  <div className="space-y-2">
+                    {confirmedGoals
+                      .filter(g => overridePrompts.has(g.id))
+                      .map(g => (
+                        <OverrideDivergencePrompt
+                          key={g.id}
+                          moduleId={g.relatedModules[0] as GoalFlowModuleId}
+                          divergence={overridePrompts.get(g.id)!}
+                          onAccept={() => void handleAcceptOverride(g.id)}
+                          onDismiss={() => handleDismissOverride(g.id)}
+                        />
+                      ))}
+                  </div>
+                )}
                 <div className="overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
                   <table className="w-full text-sm table-fixed">
                     {/* Explicit column widths — the inline mount
@@ -1235,6 +1369,85 @@ function RepertoireGuidanceRow() {
         skip candidate.
       </td>
     </tr>
+  );
+}
+
+/**
+ * Phase B — override-divergence prompt. Surfaces above the plan
+ * table when a confirmed HF / ET weekly target no longer matches
+ * what the live monthly-pace recompute needs. The user either
+ * accepts the recomputed number (back on pace) or keeps their
+ * override (the consequence line spells out the cost).
+ */
+function OverrideDivergencePrompt({
+  moduleId,
+  divergence,
+  onAccept,
+  onDismiss,
+}: {
+  moduleId: GoalFlowModuleId;
+  divergence: OverrideDivergence;
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  const label = MODULE_LABEL[moduleId] ?? moduleId;
+  const behind = divergence.direction === 'under-planned';
+  return (
+    <div
+      className={`rounded-md border px-3 py-2.5 text-xs leading-relaxed ${
+        behind
+          ? 'border-amber-300 bg-amber-50 dark:border-amber-700/60 dark:bg-amber-900/20'
+          : 'border-sky-300 bg-sky-50 dark:border-sky-700/60 dark:bg-sky-900/20'
+      }`}
+    >
+      <div className="text-neutral-700 dark:text-neutral-200">
+        <span className="font-semibold">{label}</span>
+        {behind ? (
+          <>
+            {' '}— your monthly pace needs{' '}
+            <span className="font-mono font-medium">
+              {divergence.dynamicTarget} attempts
+            </span>{' '}
+            this week (~{divergence.dynamicMinPerDay} min/day). You planned{' '}
+            <span className="font-mono font-medium">
+              {divergence.plannedTarget} attempts
+            </span>{' '}
+            (~{divergence.plannedMinPerDay} min/day).
+          </>
+        ) : (
+          <>
+            {' '}— you planned{' '}
+            <span className="font-mono font-medium">
+              {divergence.plannedTarget} attempts
+            </span>{' '}
+            this week (~{divergence.plannedMinPerDay} min/day), more than
+            your monthly pace needs:{' '}
+            <span className="font-mono font-medium">
+              {divergence.dynamicTarget} attempts
+            </span>{' '}
+            (~{divergence.dynamicMinPerDay} min/day).
+          </>
+        )}
+      </div>
+      <div className="mt-1 text-neutral-500">
+        Keep your plan and you'll cover ~
+        {divergence.monthlyCoveragePercentIfKept}% of your monthly goal.
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={onAccept}
+          className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-xs hover:bg-emerald-700"
+        >
+          Update to {divergence.dynamicTarget}
+        </button>
+        <button
+          onClick={onDismiss}
+          className="px-2.5 py-1 rounded-md border border-neutral-300 dark:border-neutral-600 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          Keep my plan
+        </button>
+      </div>
+    </div>
   );
 }
 

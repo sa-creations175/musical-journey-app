@@ -2,6 +2,7 @@ import type { Goal } from '../../lib/db';
 import { isCoverageMetric } from './coverageMetrics';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import { getAttemptsInRange } from '../../lib/weeklyAttempts';
+import { startOfWeekLocal } from './weeklyPlanData';
 
 /**
  * Phase 4 Step 2 — derive weekly goals from active monthly goals.
@@ -387,4 +388,158 @@ async function computeWeeklyTargetForGoal(
       });
     }
   }
+}
+
+// ---------------------------------------------------------------------
+// Phase B — live mid-week recompute + override divergence
+// ---------------------------------------------------------------------
+
+export interface RecomputedWeeklyTarget {
+  /** Live-recomputed weekly attempt target for the week containing
+   *  `now` — what the monthly pace actually needs this week. */
+  weeklyTarget: number;
+  /** The monthly goal expressed in ATTEMPTS — items × per-item
+   *  multiplier for coverage goals, the raw target for completion.
+   *  Same unit as `weeklyTarget`; feeds the divergence consequence
+   *  projection. */
+  monthlyAttemptTarget: number;
+}
+
+/**
+ * Recompute a monthly goal's weekly target for the week containing
+ * `now`, live. `deriveWeeklyGoals` runs once on Sunday and persists
+ * a frozen weekly Goal record; this helper re-runs the same
+ * `computeWeeklyTarget` formula against the CURRENT week + the
+ * user's progress so far — so a mid-week consumer can compare the
+ * frozen confirmed target against where the monthly pace actually
+ * stands now.
+ *
+ * Returns null when the goal doesn't translate to a weekly attempt
+ * slice (umbrella, accuracy / mastery metric, past its window).
+ */
+export async function recomputeWeeklyTargetForMonthlyGoal(
+  monthly: Goal,
+  now: number = Date.now(),
+): Promise<RecomputedWeeklyTarget | null> {
+  if (monthly.scope !== 'monthly') return null;
+  if (monthly.isUmbrella) return null;
+  if (!monthly.targetMetric) return null;
+  if (monthly.targetDate <= now) return null;
+
+  const moduleId = moduleForMetric(monthly.targetMetric);
+  if (!moduleId) return null;
+  const kind = classifyMetric(monthly.targetMetric);
+  if (!kind) return null;
+
+  const weekStart = startOfWeekLocal(now);
+  const weekEnd = endOfWeekFromStart(weekStart);
+  const weeklyTarget = await computeWeeklyTargetForGoal(
+    monthly,
+    moduleId,
+    kind,
+    weekStart,
+    weekEnd,
+    now,
+  );
+
+  // Monthly target in the same attempt unit as weeklyTarget — only
+  // coverage + completion translate cleanly. consistency / song
+  // goals carry no monthly attempt total, so the divergence prompt
+  // (which guards monthlyTarget ≤ 0) simply won't fire for them.
+  let monthlyAttemptTarget = 0;
+  if (kind.kind === 'coverage') {
+    monthlyAttemptTarget = (monthly.targetValue ?? 0) * kind.multiplier;
+  } else if (kind.kind === 'completion') {
+    monthlyAttemptTarget = monthly.targetValue ?? 0;
+  }
+
+  return { weeklyTarget, monthlyAttemptTarget };
+}
+
+export interface ComputeOverrideDivergenceArgs {
+  /** The freshly-recomputed weekly target — what the monthly pace
+   *  actually needs this week, recalculated live. */
+  dynamicTarget: number;
+  /** What the user actually confirmed for this week — their manual
+   *  override, or the suggested value if they didn't change it. */
+  plannedTarget: number;
+  /** Seconds per attempt for the module — drives the "~Y min/day"
+   *  time translation. */
+  timePerAttemptSeconds: number;
+  /** Days/week the user practises (global practice-consistency
+   *  goal). 0 → the per-day display spreads across the 7-day
+   *  calendar week instead. */
+  consistencyTargetDays: number;
+  /** Total attempts the monthly goal aims at. */
+  monthlyTarget: number;
+  /** Attempts already logged against the monthly goal so far. */
+  coveredSoFar: number;
+  /** Whole weeks left in the monthly goal's window — drives the
+   *  "you'll cover ~X%" consequence projection. */
+  weeksRemainingInMonth: number;
+}
+
+export interface OverrideDivergence {
+  dynamicTarget: number;
+  plannedTarget: number;
+  /** Whole minutes/day the dynamic target implies. */
+  dynamicMinPerDay: number;
+  /** Whole minutes/day the user's planned (override) target implies. */
+  plannedMinPerDay: number;
+  /** 'under-planned' — the user planned FEWER attempts than the
+   *    monthly pace needs (the "update to stay on track" case).
+   *  'over-planned' — they planned more than the pace needs. */
+  direction: 'under-planned' | 'over-planned';
+  /** % of the monthly goal the user covers if they keep the planned
+   *  (override) target for every remaining week. Clamped 0–100. */
+  monthlyCoveragePercentIfKept: number;
+}
+
+/**
+ * Pure — compare a live-recomputed weekly target against what the
+ * user confirmed, and package the prompt's display numbers.
+ * Returns null when there's nothing to surface: the targets match,
+ * or the monthly target is degenerate.
+ *
+ * The consequence projection ("you'll cover ~X%") assumes the user
+ * holds the planned target for every remaining week — a straight-
+ * line extrapolation of their override, which is the honest "if you
+ * keep doing this" framing the design asks for.
+ */
+export function computeOverrideDivergence(
+  args: ComputeOverrideDivergenceArgs,
+): OverrideDivergence | null {
+  const {
+    dynamicTarget,
+    plannedTarget,
+    timePerAttemptSeconds,
+    consistencyTargetDays,
+    monthlyTarget,
+    coveredSoFar,
+    weeksRemainingInMonth,
+  } = args;
+
+  if (monthlyTarget <= 0) return null;
+  if (dynamicTarget === plannedTarget) return null;
+
+  // Per-day divisor: the user's cadence when they have one, else a
+  // flat 7-day spread so the "min/day" line is still meaningful.
+  const perDayDivisor = consistencyTargetDays > 0 ? consistencyTargetDays : 7;
+  const minPerDay = (target: number): number =>
+    Math.round((target * timePerAttemptSeconds) / 60 / perDayDivisor);
+
+  const weeksLeft = Math.max(1, weeksRemainingInMonth);
+  const projected = coveredSoFar + plannedTarget * weeksLeft;
+  const monthlyCoveragePercentIfKept = Math.round(
+    Math.max(0, Math.min(100, (projected / monthlyTarget) * 100)),
+  );
+
+  return {
+    dynamicTarget,
+    plannedTarget,
+    dynamicMinPerDay: minPerDay(dynamicTarget),
+    plannedMinPerDay: minPerDay(plannedTarget),
+    direction: plannedTarget < dynamicTarget ? 'under-planned' : 'over-planned',
+    monthlyCoveragePercentIfKept,
+  };
 }

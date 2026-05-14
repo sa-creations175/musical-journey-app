@@ -3,7 +3,9 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   computeWeeklyTarget,
+  computeOverrideDivergence,
   deriveWeeklyGoals,
+  recomputeWeeklyTargetForMonthlyGoal,
 } from '../weeklyDerivation';
 import { db, type AttemptRecord, type Goal } from '../../../lib/db';
 
@@ -558,5 +560,177 @@ describe('deriveWeeklyGoals — record shape', () => {
 
     const out = await deriveWeeklyGoals([monthly], WEEK_START, WEEK_START);
     expect(out).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Phase B Commit 4 — recomputeWeeklyTargetForMonthlyGoal (live)
+// ---------------------------------------------------------------------
+
+describe('recomputeWeeklyTargetForMonthlyGoal', () => {
+  beforeEach(async () => {
+    await db.attempts.clear();
+  });
+
+  it('recomputes the HF weekly target + monthly attempt total live', async () => {
+    // 130 cards × 10 attempts/item = 1300 monthly. Window is 4 weeks
+    // from WEEK_START, no attempts logged → 1300 / 4 = 325 this week.
+    const monthly = buildMonthly({
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      startDate: WEEK_START,
+      targetDate: MONTH_END,
+    });
+    const out = await recomputeWeeklyTargetForMonthlyGoal(monthly, WEEK_START);
+    expect(out).toEqual({ weeklyTarget: 325, monthlyAttemptTarget: 1300 });
+  });
+
+  it('reflects attempts already logged — remaining work shrinks the weekly target', async () => {
+    // Goal started a week before this Sunday; 400 HF attempts logged
+    // in the prior week. Remaining 1300 − 400 = 900. weeks_remaining
+    // is measured weekStart → monthlyTargetDate: WEEK_START → MONTH_END
+    // is 28 days → ceil(28/7) = 4 → ceil(900/4) = 225.
+    const monthly = buildMonthly({
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      startDate: WEEK_START - 7 * ONE_DAY,
+      targetDate: MONTH_END,
+    });
+    for (let i = 0; i < 400; i++) {
+      await db.attempts.add({
+        moduleId: 'harmonic-fluency',
+        itemId: `c-${i}`,
+        correct: true,
+        timestamp: WEEK_START - 3 * ONE_DAY,
+      } as AttemptRecord);
+    }
+    const out = await recomputeWeeklyTargetForMonthlyGoal(monthly, WEEK_START);
+    expect(out).toEqual({ weeklyTarget: 225, monthlyAttemptTarget: 1300 });
+  });
+
+  it('returns null for umbrella / non-translatable / past-window goals', async () => {
+    expect(
+      await recomputeWeeklyTargetForMonthlyGoal(
+        buildMonthly({ isUmbrella: true }),
+        WEEK_START,
+      ),
+    ).toBeNull();
+    // Accuracy metric doesn't translate to a weekly attempt slice.
+    expect(
+      await recomputeWeeklyTargetForMonthlyGoal(
+        buildMonthly({ targetMetric: 'harmonic_fluency_accuracy_overall' }),
+        WEEK_START,
+      ),
+    ).toBeNull();
+    // Window already over.
+    expect(
+      await recomputeWeeklyTargetForMonthlyGoal(
+        buildMonthly({ targetDate: WEEK_START - ONE_DAY }),
+        WEEK_START,
+      ),
+    ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------
+// Phase B Commit 4 — computeOverrideDivergence (pure)
+// ---------------------------------------------------------------------
+
+describe('computeOverrideDivergence', () => {
+  it('returns null when the targets match', () => {
+    expect(
+      computeOverrideDivergence({
+        dynamicTarget: 325,
+        plannedTarget: 325,
+        timePerAttemptSeconds: 30,
+        consistencyTargetDays: 5,
+        monthlyTarget: 1300,
+        coveredSoFar: 100,
+        weeksRemainingInMonth: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it('returns null when the monthly target is degenerate (≤ 0)', () => {
+    expect(
+      computeOverrideDivergence({
+        dynamicTarget: 325,
+        plannedTarget: 200,
+        timePerAttemptSeconds: 30,
+        consistencyTargetDays: 5,
+        monthlyTarget: 0,
+        coveredSoFar: 0,
+        weeksRemainingInMonth: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it('under-planned — surfaces the time translation + consequence', () => {
+    // dynamic 325, planned 200, 30 s/attempt, 5-day cadence.
+    //   dynamicMinPerDay = round(325 × 30 / 60 / 5) = 33
+    //   plannedMinPerDay = round(200 × 30 / 60 / 5) = 20
+    //   projected = 100 + 200 × 4 = 900 → 900/1300 = 69%
+    const out = computeOverrideDivergence({
+      dynamicTarget: 325,
+      plannedTarget: 200,
+      timePerAttemptSeconds: 30,
+      consistencyTargetDays: 5,
+      monthlyTarget: 1300,
+      coveredSoFar: 100,
+      weeksRemainingInMonth: 4,
+    });
+    expect(out).toEqual({
+      dynamicTarget: 325,
+      plannedTarget: 200,
+      dynamicMinPerDay: 33,
+      plannedMinPerDay: 20,
+      direction: 'under-planned',
+      monthlyCoveragePercentIfKept: 69,
+    });
+  });
+
+  it('over-planned — flips the direction; consequence can hit 100%', () => {
+    // planned 300 > dynamic 150 → over-planned.
+    //   projected = 100 + 300 × 4 = 1300 → exactly 100%.
+    const out = computeOverrideDivergence({
+      dynamicTarget: 150,
+      plannedTarget: 300,
+      timePerAttemptSeconds: 30,
+      consistencyTargetDays: 5,
+      monthlyTarget: 1300,
+      coveredSoFar: 100,
+      weeksRemainingInMonth: 4,
+    });
+    expect(out!.direction).toBe('over-planned');
+    expect(out!.monthlyCoveragePercentIfKept).toBe(100);
+  });
+
+  it('zero consistency target — per-day translation spreads across 7 days', () => {
+    // No cadence → divisor falls back to 7.
+    //   dynamicMinPerDay = round(350 × 30 / 60 / 7) = 25
+    const out = computeOverrideDivergence({
+      dynamicTarget: 350,
+      plannedTarget: 200,
+      timePerAttemptSeconds: 30,
+      consistencyTargetDays: 0,
+      monthlyTarget: 1400,
+      coveredSoFar: 0,
+      weeksRemainingInMonth: 4,
+    });
+    expect(out!.dynamicMinPerDay).toBe(25);
+  });
+
+  it('consequence percent clamps at 100 even when the projection overshoots', () => {
+    const out = computeOverrideDivergence({
+      dynamicTarget: 100,
+      plannedTarget: 500,
+      timePerAttemptSeconds: 30,
+      consistencyTargetDays: 5,
+      monthlyTarget: 1300,
+      coveredSoFar: 1000,
+      weeksRemainingInMonth: 2,
+    });
+    // projected = 1000 + 500 × 2 = 2000 → 153% → clamped to 100.
+    expect(out!.monthlyCoveragePercentIfKept).toBe(100);
   });
 });
