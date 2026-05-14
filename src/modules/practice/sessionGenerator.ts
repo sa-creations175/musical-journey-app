@@ -91,6 +91,8 @@ import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
 import { itemRefMatcherForCoverageGroup } from '../goals/shapesCoverageGroups';
 import { COVERAGE_SPECIFIC_METRIC } from '../goals/coverageMetrics';
+import { loadActiveSpotlight } from '../repertoire/songOfMonth';
+import { isSongComfortableInOriginalKey } from '../repertoire/songComfortable';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -462,10 +464,11 @@ export async function loadShapesSplitContext(
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
   }
-  const [unlockedTier, songs, allGoals] = await Promise.all([
+  const [unlockedTier, songs, allGoals, spotlight] = await Promise.all([
     getSPUnlockedTier(),
     db.songs.toArray(),
     db.goals.toArray(),
+    loadActiveSpotlight(now),
   ]);
 
   // Active-song keys — distinct, in song order, ONLY from songs
@@ -534,6 +537,25 @@ export async function loadShapesSplitContext(
     scalesGoalDueSeconds = total;
   }
 
+  // Song-of-the-Month anchor key — Phase 1 of the Scales warm-up
+  // key-ordering rule. When an active monthly umbrella has a
+  // specific song slot AND the user isn't yet comfortable in that
+  // song's original key, the warm-up walks circle-of-4ths from
+  // that key. Once the song hits comfortable, the anchor unsets
+  // and the picker falls back to the existing least-recently-
+  // touched logic (Phase 2).
+  let sotmAnchorKey: string | null = null;
+  const spotlightSlot = spotlight?.spotlight;
+  if (spotlightSlot && spotlightSlot.kind === 'song' && spotlightSlot.refId) {
+    const isComfortable = await isSongComfortableInOriginalKey(spotlightSlot.refId);
+    if (!isComfortable) {
+      const spotlightSong = songs.find(s => s.id === spotlightSlot.refId);
+      if (spotlightSong?.key) {
+        sotmAnchorKey = canonicaliseKey(spotlightSong.key);
+      }
+    }
+  }
+
   return {
     rowsByItemRef,
     unlockedTier,
@@ -541,6 +563,7 @@ export async function loadShapesSplitContext(
     activeSongKeys,
     activeSongTitlesByKey,
     scalesGoalDueSeconds,
+    sotmAnchorKey,
   };
 }
 
@@ -1228,8 +1251,10 @@ function toProposalBlocks(
         // launch destination can route into the specific song's
         // matrix / setup view rather than the generic Repertoire list.
         itemRefs: s.songId ? [s.songId] : [],
-        // Chord quiz is the warm-up affordance — surfaces the badge.
-        isWarmup: s.kind === 'chord-quiz',
+        // Chord quiz + scale prep are the warm-up affordances —
+        // both surface the badge above the song-practice block they
+        // precede.
+        isWarmup: s.kind === 'chord-quiz' || s.kind === 'scale-prep',
         // Whole-song-run blocks deep-link to the song's detail view
         // so the WholeSongTestBanner (already prominent at the top
         // of the matrix when the song is comfortable) is one tap

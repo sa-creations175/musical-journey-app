@@ -167,6 +167,14 @@ export interface ShapesSplitContext {
    *  why falls back to a generic "circle-of-fourths warm-up"
    *  phrasing for cold-start. */
   activeSongTitlesByKey?: ReadonlyMap<string, ReadonlyArray<string>>;
+  /** Phase-1 anchor key for the Scales warm-up: the canonical key
+   *  of the active Song-of-the-Month, set ONLY when a SotM exists
+   *  AND the song is not yet comfortable in its original key. When
+   *  present, the warm-up walks circle-of-4ths from this key and
+   *  ignores the activeSongKeys lead-priority (Phase 1). When null,
+   *  the picker falls back to the least-recently-touched scale key
+   *  with due cells (Phase 2). */
+  sotmAnchorKey?: string | null;
   /** Goal-aware proportional Scales budget — total drill seconds
    *  across every due scale cell that matches at least one active
    *  Scales coverage goal, computed once at the loader. The
@@ -312,33 +320,29 @@ function rotateToStart(start: string): string[] {
 }
 
 /**
- * Plain-language chord-shape walk label per the proposal-text spec:
+ * Plain-language chord-shape walk label:
  *
- *   "Drill major, minor, dim triads — C (root position, inversions + fluid run)"
+ *   "CHORD SHAPES — drill major, minor · C, F, Bb (root position, inversions + fluid)"
  *
- * Three moving parts:
- *   1. Quality list — short-form lowercase ("dim", "m7b5", "maj7"),
- *      with a "+N more" tail past three. Reads as plain English
- *      next to the chord-family noun.
- *   2. Chord-family noun — derived from which catalog kinds are
- *      represented in the kept cells. "triads" when only T1; "7th
- *      chords" when only T2; "extensions" / "altered dominants"
- *      for T3 / T4; mixed runs fall back to "chord shapes".
- *   3. Inversion descriptor — names what's actually being drilled
- *      voicing-wise. "root position, inversions + fluid run" when
- *      acquisition-path inversion cells are in the walk; "voicings"
- *      for extension/special only; mixed becomes "inversions + voicings".
+ * Four moving parts:
+ *   1. The "CHORD SHAPES" header — matches the "SCALES" header on
+ *      the Scales segment so block kinds are spottable at a glance.
+ *   2. Quality list — short-form lowercase ("dim", "m7b5", "maj7"),
+ *      with a "+N more" tail past three.
+ *   3. Key list — circle-of-4ths walk order, "+N more" past four.
+ *   4. Inversion descriptor — "root position, inversions + fluid"
+ *      when acquisition-path inversion cells are in the walk;
+ *      "voicings" for extension/special only; mixed becomes
+ *      "inversions + voicings".
  */
 function formatShapesLabel(cells: ReadonlyArray<ShapeCell>): string {
   const qualityShortNames: string[] = [];
   const seenQualities = new Set<string>();
-  const familyKinds = new Set<string>();
   for (const c of cells) {
     if (!seenQualities.has(c.quality)) {
       seenQualities.add(c.quality);
       const entry = CHORD_QUALITY_BY_ID.get(c.quality);
       qualityShortNames.push(shortQualityName(c.quality, entry?.label));
-      if (entry?.kind) familyKinds.add(entry.kind);
     }
   }
   const seenKeys = new Set<string>();
@@ -353,13 +357,12 @@ function formatShapesLabel(cells: ReadonlyArray<ShapeCell>): string {
   const qualityPart = qualityShortNames.length <= 3
     ? qualityShortNames.join(', ')
     : `${qualityShortNames.slice(0, 3).join(', ')}, +${qualityShortNames.length - 3} more`;
-  const familyNoun = familyNounFor(familyKinds);
   const keyPart = keys.length <= 4
     ? keys.join(', ')
     : `${keys.slice(0, 4).join(', ')}, +${keys.length - 4} more`;
   const inversionDescriptor = describeInversionStates(cells);
 
-  return `Drill ${qualityPart} ${familyNoun} — ${keyPart} (${inversionDescriptor})`;
+  return `CHORD SHAPES — drill ${qualityPart} · ${keyPart} (${inversionDescriptor})`;
 }
 
 /** Lowercase, abbreviation-friendly chord quality label. The
@@ -381,20 +384,7 @@ function shortQualityName(qualityId: string, catalogLabel: string | undefined): 
   return qualityId;
 }
 
-/** Map the set of QualityKind values in the kept cells to the
- *  best-fit family noun. Single-kind walks get specific nouns;
- *  mixed walks fall back to the generic "chord shapes". */
-function familyNounFor(familyKinds: ReadonlySet<string>): string {
-  if (familyKinds.size === 1) {
-    if (familyKinds.has('triad'))     return 'triads';
-    if (familyKinds.has('seventh'))   return '7th chords';
-    if (familyKinds.has('extension')) return 'extensions';
-    if (familyKinds.has('special'))   return 'altered dominants';
-  }
-  return 'chord shapes';
-}
-
-/** "(root position, inversions + fluid run)" for triads / sevenths;
+/** "(root position, inversions + fluid)" for triads / sevenths;
  *  "(voicings)" for extensions / special; "(inversions + voicings)"
  *  for mixed walks. Reads off the kept cells' inversionState
  *  field — cells with a non-null state are inversion-path, null
@@ -408,7 +398,7 @@ function describeInversionStates(cells: ReadonlyArray<ShapeCell>): string {
     if (hasInversions && hasVoicings) break;
   }
   if (hasInversions && hasVoicings) return 'inversions + voicings';
-  if (hasInversions) return 'root position, inversions + fluid run';
+  if (hasInversions) return 'root position, inversions + fluid';
   return 'voicings';
 }
 
@@ -514,7 +504,31 @@ interface ScaleKeyEntry {
  * Result is capped at SCALES_SEGMENT_MAX_KEYS so the warm-up
  * doesn't sprawl.
  */
+/** Walk circle-of-fourths starting at `anchor`, returning up to
+ *  `max` keys including the anchor. Falls back to the bare anchor
+ *  when it isn't on the canonical wheel (defensive against
+ *  non-canonical input — the caller should canonicalise first). */
+function walkCircleOfFourthsFrom(anchor: string, max: number): string[] {
+  if (max <= 0) return [];
+  const idx = CIRCLE_OF_FOURTHS.indexOf(anchor);
+  if (idx < 0) return [anchor];
+  const out: string[] = [];
+  for (let i = 0; i < CIRCLE_OF_FOURTHS.length && out.length < max; i++) {
+    out.push(CIRCLE_OF_FOURTHS[(idx + i) % CIRCLE_OF_FOURTHS.length]);
+  }
+  return out;
+}
+
 function pickScalesKeys(ctx: ShapesSplitContext): string[] {
+  // Phase 1 — when an active SotM exists and the user isn't yet
+  // comfortable in its original key, the warm-up walks circle-of-4ths
+  // from that key. The SotM anchor REPLACES the activeSongKeys
+  // lead-priority entirely so the user lands every session on the
+  // current month's spotlight key.
+  if (ctx.sotmAnchorKey) {
+    return walkCircleOfFourthsFrom(ctx.sotmAnchorKey, SCALES_SEGMENT_MAX_KEYS);
+  }
+
   // Aggregate per-key engagement stats from the user's scale rows.
   const byKey = new Map<string, ScaleKeyEntry>();
   for (const row of ctx.rowsByItemRef.values()) {
@@ -659,13 +673,14 @@ function buildScaleLadder(
 }
 
 /**
- * Plain-language Scales warm-up label per the proposal-text spec:
+ * Plain-language Scales warm-up label:
  *
- *   "Scales warm-up · B — major, minor + pentatonics · Gb — major, minor + pentatonics"
+ *   "SCALES — B, Gb (major, minor + pentatonics)"
  *
- * Each key gets a descriptor naming exactly the scale families
- * that actually appear in that key's ladder (the segment may
- * truncate before the full ladder lands). The mapping is:
+ * The scale families are aggregated across the whole ladder rather
+ * than enumerated per key — every key in the segment runs the same
+ * ladder under typical conditions, so a single parenthetical reads
+ * cleaner than a per-key breakdown. The mapping is:
  *
  *     major-scale cell      → "major"
  *     natural-minor cell    → "minor"   (parallel minor of the root)
@@ -677,26 +692,21 @@ function buildScaleLadder(
 function formatScalesLabel(steps: ReadonlyArray<ScaleLadderStep>): string {
   const orderedKeys: string[] = [];
   const seenKeys = new Set<string>();
-  const kindsByKey = new Map<string, Set<ScaleKind>>();
+  const kinds = new Set<ScaleKind>();
   for (const s of steps) {
     if (!seenKeys.has(s.keyName)) {
       seenKeys.add(s.keyName);
       orderedKeys.push(s.keyName);
     }
-    const set = kindsByKey.get(s.keyName) ?? new Set<ScaleKind>();
-    set.add(s.kind);
-    kindsByKey.set(s.keyName, set);
+    kinds.add(s.kind);
   }
-  const perKey = orderedKeys.map(k => {
-    const kinds = kindsByKey.get(k) ?? new Set<ScaleKind>();
-    return `${k} — ${describeKindsForKey(kinds)}`;
-  });
-  return `Scales warm-up · ${perKey.join(' · ')}`;
+  const keyPart = orderedKeys.join(', ');
+  return `SCALES — ${keyPart} (${describeKinds(kinds)})`;
 }
 
-/** Build the descriptor string for one key — "major, minor +
- *  pentatonics" or any subset depending on which families landed. */
-function describeKindsForKey(kinds: ReadonlySet<ScaleKind>): string {
+/** Build the family descriptor — "major, minor + pentatonics" or
+ *  any subset depending on which families landed. */
+function describeKinds(kinds: ReadonlySet<ScaleKind>): string {
   const parts: string[] = [];
   if (kinds.has('major')) parts.push('major');
   if (kinds.has('natural-minor')) parts.push('minor');

@@ -35,6 +35,7 @@ import {
 import { isSongPostComfortable } from '../repertoire/songComfortable';
 import { loadActiveSpotlight, type QueueSlot } from '../repertoire/songOfMonth';
 import { getSongReadiness, type SongReadiness } from '../repertoire/songReadiness';
+import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import {
   decidePostComfortableBlock,
   type PostComfortableBlockDecision,
@@ -274,8 +275,21 @@ export interface RepertoireSplitBlock {
    *                              to song detail (whole-song-test
    *                              banner is visible there); deepen /
    *                              maintenance paths use this. */
-  kind: 'spotlight' | 'maintenance' | 'setup' | 'chord-quiz' | 'whole-song-run';
+  kind: 'spotlight' | 'maintenance' | 'setup' | 'chord-quiz' | 'whole-song-run' | 'scale-prep';
 }
+
+/** Duration of a scale-prep block in seconds. Two scale types per
+ *  prep × ~45 s each — primes the user's hands and ears in the
+ *  song's home key without eating into the practice block. Carved
+ *  off the top of the song's allocation so the proposal's overall
+ *  budget stays honest. */
+const SCALE_PREP_SECONDS = 90;
+
+/** Minimum song-block allocation that earns a scale-prep block.
+ *  Below this floor the prep would dominate the playback window
+ *  and produce a worse experience than a single longer practice
+ *  block. */
+const SCALE_PREP_MIN_SONG_SECONDS = 4 * 60;
 
 /**
  * Split a Repertoire AllocatedBlock's plannedSeconds between
@@ -354,6 +368,8 @@ function buildSpotlightHalf(
     seconds,
     spotlight.refId,
     title,
+    ctx.spotlightSong?.key,
+    ctx.context,
     ctx.spotlightPostComfortable,
   );
   if (postBlocks) return postBlocks;
@@ -361,6 +377,7 @@ function buildSpotlightHalf(
     seconds,
     songId: spotlight.refId,
     title,
+    songKey: ctx.spotlightSong?.key,
     readiness: ctx.spotlightReadiness,
     context: ctx.context,
     practiceKind: 'spotlight',
@@ -379,6 +396,8 @@ function buildMaintenanceHalf(
     seconds,
     song.id,
     song.title,
+    song.key,
+    ctx.context,
     ctx.maintenancePostComfortable,
   );
   if (postBlocks) return postBlocks;
@@ -386,6 +405,7 @@ function buildMaintenanceHalf(
     seconds,
     songId: song.id,
     title: song.title,
+    songKey: song.key,
     readiness: ctx.maintenanceReadiness,
     context: ctx.context,
     practiceKind: 'maintenance',
@@ -408,15 +428,47 @@ function buildPostComfortableBlocks(
   seconds: number,
   songId: string,
   title: string,
+  songKey: string | null | undefined,
+  context: PracticeSessionContext,
   decision: PostComfortableBlockDecision | null,
 ): RepertoireSplitBlock[] | null {
   if (!decision) return null;
   if (decision.kind === 'skip') return null;
+  // Post-comfortable blocks play in a specific key — for whole-song-run
+  // we know the key from the decision; for cell-drill-expansion the
+  // user is moving to a new key. Prep keys off the song's home key
+  // for both: it's the anchor the user owns. Keys/mixed contexts
+  // with enough time earn the prep; laptop/phone + tight allocations
+  // skip.
+  const isKeysContext = context === 'keys' || context === 'mixed';
+  const wantsPrep = isKeysContext
+    && seconds >= SCALE_PREP_MIN_SONG_SECONDS + SCALE_PREP_SECONDS;
   if (decision.kind === 'whole-song-run') {
+    if (wantsPrep) {
+      const prep = scalePrepBlock(songId, title, songKey);
+      if (prep) {
+        return [prep, wholeSongRunBlock(seconds - SCALE_PREP_SECONDS, songId, title, decision.keyName)];
+      }
+    }
     return [wholeSongRunBlock(seconds, songId, title, decision.keyName)];
   }
   // cell-drill-expansion → use the practice-block kind but label
   // the slot as new-key expansion.
+  if (wantsPrep) {
+    const prep = scalePrepBlock(songId, title, songKey);
+    if (prep) {
+      return [
+        prep,
+        practiceBlock(
+          seconds - SCALE_PREP_SECONDS,
+          songId,
+          `Expand to ${decision.keyName}: ${title}`,
+          `Cell-drill the next key in your circle-of-4ths walk`,
+          'maintenance',
+        ),
+      ];
+    }
+  }
   return [
     practiceBlock(
       seconds,
@@ -432,6 +484,10 @@ interface SongHalfArgs {
   seconds: number;
   songId: string;
   title: string;
+  /** Song's home key as stored on the Song row (raw, pre-
+   *  canonicalisation). Optional — when null/undefined the
+   *  scale-prep block is skipped. */
+  songKey: string | null | undefined;
   readiness: import('../repertoire/songReadiness').SongReadiness | null;
   context: PracticeSessionContext;
   practiceKind: 'spotlight' | 'maintenance';
@@ -456,24 +512,59 @@ function buildSongHalf(args: SongHalfArgs): RepertoireSplitBlock[] {
 
   const isKeysContext = context === 'keys' || context === 'mixed';
 
+  // Carve a scale-prep block out of the top of the song allocation
+  // when it's a keys/mixed session AND the song's playback block
+  // would land afterward. The prep is keyed off the song's home
+  // key — primes the user's hands + ears before they touch the
+  // matrix. Skipped on laptop/phone (no piano), when readiness is
+  // 'ready' but only chord-quiz follows (no playback block), and
+  // when the allocation is too tight for a meaningful prep + play.
+  const wantsPrepBlock = isKeysContext
+    && readiness !== 'ready'  // chord-quiz handles ready below
+    && seconds >= SCALE_PREP_MIN_SONG_SECONDS;
+
   if (readiness === 'ready') {
     if (!isKeysContext) {
       // Laptop/phone: chord-quiz takes the full half — no piano needed.
       return [chordQuizBlock(seconds, songId, title)];
     }
-    // Keys/mixed: chord-quiz (3 min) + practice (rest). Only viable
-    // when the half has enough time for both; otherwise fall back to
-    // a single practice block at full duration.
+    // Keys/mixed: chord-quiz (3 min) + scale-prep (90 s) + practice
+    // (rest). Only inject the prep when the post-quiz remainder still
+    // has room for prep + a meaningful practice block; otherwise fall
+    // back to the prep-less chord-quiz + practice path so the user
+    // gets at least one block on the matrix.
     if (seconds > CHORD_QUIZ_SECONDS) {
-      const practiceSeconds = seconds - CHORD_QUIZ_SECONDS;
+      const afterQuiz = seconds - CHORD_QUIZ_SECONDS;
+      if (afterQuiz >= SCALE_PREP_MIN_SONG_SECONDS + SCALE_PREP_SECONDS) {
+        const prep = scalePrepBlock(songId, title, args.songKey);
+        if (prep) {
+          const practiceSeconds = afterQuiz - SCALE_PREP_SECONDS;
+          return [
+            chordQuizBlock(CHORD_QUIZ_SECONDS, songId, title),
+            prep,
+            practiceBlock(practiceSeconds, songId, args.practiceLabel, args.practiceWhy, practiceKind),
+          ];
+        }
+      }
       return [
         chordQuizBlock(CHORD_QUIZ_SECONDS, songId, title),
-        practiceBlock(practiceSeconds, songId, args.practiceLabel, args.practiceWhy, practiceKind),
+        practiceBlock(afterQuiz, songId, args.practiceLabel, args.practiceWhy, practiceKind),
       ];
     }
   }
 
-  // needs-chords (or ready on a too-small half) → single practice block.
+  // needs-chords (or ready on a too-small half) → single practice
+  // block, optionally prefaced by a scale-prep block when the
+  // allocation has room.
+  if (wantsPrepBlock) {
+    const prep = scalePrepBlock(songId, title, args.songKey);
+    if (prep) {
+      return [
+        prep,
+        practiceBlock(seconds - SCALE_PREP_SECONDS, songId, args.practiceLabel, args.practiceWhy, practiceKind),
+      ];
+    }
+  }
   return [practiceBlock(seconds, songId, args.practiceLabel, args.practiceWhy, practiceKind)];
 }
 
@@ -534,6 +625,60 @@ function chordQuizBlock(
     isTbdSpotlight: false,
     kind: 'chord-quiz',
   };
+}
+
+/** Two-scale prep that primes the user's hands and ears in the
+ *  song's home key. Returns null when the song key can't be
+ *  canonicalised — there's nothing honest to prep in if we don't
+ *  know what key to surface.
+ *
+ *  Scale selection follows the song's key quality:
+ *    Major key  → major scale + major pentatonic (sp 1)
+ *    Minor key  → natural minor + minor pentatonic (sp 1)
+ *
+ *  The Song schema doesn't carry an explicit quality field today —
+ *  Song.key is stored as a bare pitch class. We sniff a trailing
+ *  " minor" / "m" suffix as a defensive fallback so any future
+ *  schema extension flows through automatically; the default path
+ *  treats all songs as major keys (matching today's data shape). */
+function scalePrepBlock(
+  songId: string,
+  title: string,
+  rawKey: string | null | undefined,
+): RepertoireSplitBlock | null {
+  if (!rawKey) return null;
+  const parsed = parseSongKeyForPrep(rawKey);
+  if (!parsed) return null;
+  const { canonicalKey, isMinor } = parsed;
+  const scaleTypes = isMinor ? 'natural minor + minor pent' : 'major + major pent';
+  return {
+    label: `SCALES — prep for ${title} · ${canonicalKey} (${scaleTypes})`,
+    plannedSeconds: SCALE_PREP_SECONDS,
+    why: `Prime your hands and ears before playing in ${canonicalKey}`,
+    songId,
+    isTbdSpotlight: false,
+    kind: 'scale-prep',
+  };
+}
+
+function parseSongKeyForPrep(
+  rawKey: string,
+): { canonicalKey: string; isMinor: boolean } | null {
+  const trimmed = rawKey.trim();
+  // Strip the most common minor-key suffixes. The Song schema's
+  // example values are bare pitch classes ('C', 'Db', 'G'), so
+  // this is defensive — surfaces correctly if a future record
+  // ever lands with 'Am' / 'A minor' encoding.
+  let isMinor = false;
+  let pitchPart = trimmed;
+  const minorMatch = /^(.+?)\s*(?:m|min|minor)\s*$/i.exec(trimmed);
+  if (minorMatch && !/maj/i.test(trimmed)) {
+    pitchPart = minorMatch[1].trim();
+    isMinor = true;
+  }
+  const canonical = canonicaliseKey(pitchPart);
+  if (!canonical) return null;
+  return { canonicalKey: canonical, isMinor };
 }
 
 function wholeSongRunBlock(

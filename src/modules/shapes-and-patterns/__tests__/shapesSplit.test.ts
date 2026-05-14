@@ -240,7 +240,7 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
     expect(segs[0].itemRefs).toEqual(['chord-shape:maj:C:root']);
   });
 
-  it('builds a plain-language label naming the qualities, keys, and inversion descriptor', () => {
+  it('builds a "CHORD SHAPES — drill QUALITIES · KEYS (inversion descriptor)" label', () => {
     const rows = [
       row('chord-shape:maj:C:root', { lastEngagedAt: NOW - 5_000 }),
       row('chord-shape:maj:F:root', { lastEngagedAt: NOW - 1_000 }),
@@ -258,7 +258,7 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       ctx(rows, { unlockedTier: 1 }),
     );
     expect(segs[0].label).toBe(
-      'Drill major, minor triads — C, F (root position, inversions + fluid run)',
+      'CHORD SHAPES — drill major, minor · C, F (root position, inversions + fluid)',
     );
   });
 
@@ -430,13 +430,13 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.itemRefs).not.toContain('scale:major-pentatonic:1:C');
   });
 
-  it('builds a "Scales warm-up · KEY — major, minor + pentatonics" label', () => {
+  it('builds a "SCALES — KEYS (families)" label', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.label).toMatch(/^Scales warm-up · C/);
+    expect(scales.label.startsWith('SCALES — C')).toBe(true);
     expect(scales.label).toContain('major');
     expect(scales.label).toContain('minor');
     expect(scales.label).toContain('pentatonics');
@@ -446,15 +446,15 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.label).not.toMatch(/minor pent/);
   });
 
-  it('multi-key labels separate the per-key descriptors with " · "', () => {
+  it('multi-key labels join keys with ", " in the SCALES header', () => {
+    // 30-min block with 3 active song keys — the cap fills with the
+    // active keys in order, no circle-of-4ths fallback needed.
     const segs = shapeShapesBlock(
       block([], 30 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['B', 'Gb'] }),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['B', 'Gb', 'A'] }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.label).toContain('B —');
-    expect(scales.label).toContain('Gb —');
-    expect(scales.label.startsWith('Scales warm-up · ')).toBe(true);
+    expect(scales.label.startsWith('SCALES — B, Gb, A (')).toBe(true);
   });
 
   it('why-text names active songs when titles are supplied', () => {
@@ -592,6 +592,61 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
     const walk = segs.find(s => s.kind === 'shapes-walk')!;
     expect(scales.plannedSeconds).toBe(240);
     expect(scales.plannedSeconds + walk.plannedSeconds).toBe(30 * 60);
+  });
+});
+
+// -----------------------------------------------------------------
+// SotM-keyed walk (Phase 1 of the key-ordering rule)
+// -----------------------------------------------------------------
+
+describe('shapeShapesBlock — Phase 1 SotM-keyed walk', () => {
+  it('leads with the SotM anchor key regardless of activeSongKeys', () => {
+    // SotM anchor = B. activeSongKeys lists C first, but the SotM
+    // anchor wins in Phase 1.
+    const segs = shapeShapesBlock(
+      block([], 30 * 60),
+      {
+        rowsByItemRef: new Map(),
+        unlockedTier: 1,
+        now: NOW,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: null,
+        sotmAnchorKey: 'B',
+      },
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(parseScaleKeyName(scales.itemRefs[0])).toBe('B');
+  });
+
+  it('walks circle-of-4ths from the SotM anchor to fill the cap', () => {
+    // Anchor B → walk circle-of-4ths: B → E → A.
+    const segs = shapeShapesBlock(
+      block([], 30 * 60),
+      {
+        rowsByItemRef: new Map(),
+        unlockedTier: 1,
+        now: NOW,
+        activeSongKeys: [],
+        scalesGoalDueSeconds: null,
+        sotmAnchorKey: 'B',
+      },
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    const keys = Array.from(new Set(
+      scales.itemRefs
+        .map(ref => parseScaleKeyName(ref))
+        .filter((k): k is string => k !== null),
+    ));
+    expect(keys).toEqual(['B', 'E', 'A']);
+  });
+
+  it('Phase 2 (no SotM anchor) preserves the activeSongKeys-led path', () => {
+    const segs = shapeShapesBlock(
+      block([], 15 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(parseScaleKeyName(scales.itemRefs[0])).toBe('C');
   });
 });
 

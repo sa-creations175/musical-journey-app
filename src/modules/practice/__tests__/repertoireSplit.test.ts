@@ -327,6 +327,146 @@ describe('splitRepertoireAllocation — readiness routing', () => {
 });
 
 // ---------------------------------------------------------------------
+// Scale-prep blocks — primed-key warm-up before song practice
+// ---------------------------------------------------------------------
+
+describe('splitRepertoireAllocation — scale-prep injection', () => {
+  function songWithKey(songId: string, title: string, key: string): Song {
+    return { ...maint(songId, title), key };
+  }
+
+  it('injects a 90s scale-prep block before needs-chords spotlight on keys', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Mirror', 'Gb'),
+      spotlightReadiness: 'needs-chords',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    expect(out).toHaveLength(2);
+    expect(out[0].kind).toBe('scale-prep');
+    expect(out[0].plannedSeconds).toBe(90);
+    expect(out[0].label).toBe('SCALES — prep for Mirror · Gb (major + major pent)');
+    expect(out[0].why).toBe('Prime your hands and ears before playing in Gb');
+    expect(out[1].kind).toBe('spotlight');
+    expect(out[1].plannedSeconds).toBe(20 * 60 - 90);
+  });
+
+  it('inserts the prep AFTER chord-quiz on a ready-on-keys spotlight', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Mirror', 'B'),
+      spotlightReadiness: 'ready',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(45 * 60, ctx);
+    expect(out.map(b => b.kind)).toEqual(['chord-quiz', 'scale-prep', 'spotlight']);
+    // Chord-quiz keeps its 180s; prep takes 90s; spotlight gets the rest.
+    expect(out[0].plannedSeconds).toBe(180);
+    expect(out[1].plannedSeconds).toBe(90);
+    expect(out[2].plannedSeconds).toBe(45 * 60 - 180 - 90);
+  });
+
+  it('uses minor-key scales when the song key parses as minor (defensive fallback)', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Sade Tune'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Sade Tune', 'A minor'),
+      spotlightReadiness: 'needs-chords',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    const prep = out.find(b => b.kind === 'scale-prep');
+    expect(prep).toBeDefined();
+    expect(prep!.label).toBe(
+      'SCALES — prep for Sade Tune · A (natural minor + minor pent)',
+    );
+  });
+
+  it('skips prep on laptop/phone (no piano)', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Mirror', 'B'),
+      spotlightReadiness: 'needs-chords',
+      context: 'laptop',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    expect(out.some(b => b.kind === 'scale-prep')).toBe(false);
+  });
+
+  it('skips prep when allocation is below the 4-min floor', () => {
+    // 3 min spotlight + nothing else. Prep would dominate; we'd
+    // rather give the user a single short practice block.
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Mirror', 'B'),
+      spotlightReadiness: 'needs-chords',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(3 * 60, ctx);
+    expect(out.some(b => b.kind === 'scale-prep')).toBe(false);
+  });
+
+  it('skips prep on setup blocks (no song-playing block follows)', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Mirror', 'B'),
+      spotlightReadiness: 'needs-setup',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    expect(out.map(b => b.kind)).toEqual(['setup']);
+  });
+
+  it('skips prep when the song has no canonical key', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      // Song.key is null → prep can't pin a tonality, falls through
+      // to a single practice block.
+      spotlightSong: maint('s1', 'Mirror'),
+      spotlightReadiness: 'needs-chords',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    expect(out.map(b => b.kind)).toEqual(['spotlight']);
+  });
+
+  it('injects prep before maintenance song practice too', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: null,
+        maintenanceSong: songWithKey('m1', 'Lift Up', 'F'),
+      }),
+      maintenanceReadiness: 'needs-chords',
+      context: 'mixed',
+    };
+    const out = splitRepertoireAllocation(15 * 60, ctx);
+    expect(out.map(b => b.kind)).toEqual(['scale-prep', 'maintenance']);
+    expect(out[0].label).toBe('SCALES — prep for Lift Up · F (major + major pent)');
+  });
+});
+
+// ---------------------------------------------------------------------
 // Post-comfortable progression — whole-song-run + expand-keys blocks
 // ---------------------------------------------------------------------
 

@@ -75,6 +75,8 @@ beforeEach(async () => {
   await db.songs.clear();
   await db.goals.clear();
   await db.spacingState.clear();
+  await db.songKeys.clear();
+  await db.songCells.clear();
 });
 
 describe('loadShapesSplitContext — active-song filter', () => {
@@ -228,5 +230,88 @@ describe('loadShapesSplitContext — goal-aware Scales budget', () => {
     ];
     const ctx = await loadShapesSplitContext(rows, NOW);
     expect(ctx.scalesGoalDueSeconds).toBe(60);
+  });
+});
+
+describe('loadShapesSplitContext — SotM anchor key (Phase 1)', () => {
+  /** Seed a Repertoire monthly umbrella + a specific-song slot-1
+   *  child so loadActiveSpotlight resolves to a known song. */
+  async function seedSotm(songId: string) {
+    await db.goals.bulkAdd([
+      goal({
+        id: 'umbrella',
+        scope: 'monthly',
+        isUmbrella: true,
+        targetMetric: null,
+        // loadActiveSpotlight filters by relatedModules including
+        // 'repertoire' — the Scales-side default ('shapes-and-patterns')
+        // wouldn't match.
+        relatedModules: ['repertoire'],
+      }),
+      goal({
+        id: 'sotm-child',
+        parentGoalId: 'umbrella',
+        targetMetric: 'song_whole_at_level',
+        targetUnit: 'comfortable',
+        relatedItems: [songId],
+        relatedModules: ['repertoire'],
+      }),
+    ]);
+  }
+
+  it('returns null when no active SotM exists', async () => {
+    const ctx = await loadShapesSplitContext([], NOW);
+    expect(ctx.sotmAnchorKey).toBeNull();
+  });
+
+  it('returns the SotM song key canonicalised when not yet comfortable', async () => {
+    await db.songs.add(song({ id: 'sotm', key: 'F#', stage: 'learning' }));
+    await seedSotm('sotm');
+    const ctx = await loadShapesSplitContext([], NOW);
+    // F# canonicalises to Gb so the picker walks the wheel from there.
+    expect(ctx.sotmAnchorKey).toBe('Gb');
+  });
+
+  it('clears the anchor when the SotM is comfortable in its original key', async () => {
+    await db.songs.add(song({ id: 'sotm', key: 'C', stage: 'comfortable' }));
+    await seedSotm('sotm');
+    // Seed a song-key row + a single comfortable cell so the
+    // comfortable detector returns true.
+    await db.songKeys.add({
+      id: 'sk-1',
+      songId: 'sotm',
+      keyName: 'C',
+      isOriginalKey: true,
+      keyState: 'solid',
+      solidAt: NOW,
+      solidDecayState: null,
+      lastDecayCheckAt: null,
+      livedWithSessionCount: 0,
+      livedWithFirstSessionAt: null,
+      livedWithWindowStartAt: null,
+      livedWithSessionsInWindow: 0,
+      wholeSongTestPassedAt: null,
+      isRetestRecommended: false,
+      lastEngagedAt: NOW,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    await db.songCells.add({
+      id: 'sc-1',
+      songId: 'sotm',
+      sectionId: 'sec-1',
+      songKeyId: 'sk-1',
+      cellState: 'comfortable',
+      comfortableAt: NOW,
+      consecutiveCleanCount: 3,
+      lastRunAt: NOW,
+      lastRunWasClean: true,
+      notes: null,
+      lastEngagedAt: NOW,
+      createdAt: NOW,
+      updatedAt: NOW,
+    });
+    const ctx = await loadShapesSplitContext([], NOW);
+    expect(ctx.sotmAnchorKey).toBeNull();
   });
 });
