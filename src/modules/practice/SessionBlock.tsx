@@ -63,12 +63,12 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
       // h-full so the block fills the proportional height assigned
       // by SessionStack's parent flex container — without it, the
       // button would shrink to its intrinsic content height and the
-      // proportional layout would collapse. `overflow-visible`
-      // (default) lets activity-description wraps + warm-up badge
-      // extend past the rounded border when a short block hits its
-      // height floor; the stack-level container above still clips
-      // at the stack edge so nothing escapes the proposal card.
-      className="w-full h-full min-w-0 text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
+      // proportional layout would collapse. `overflow-hidden` clips
+      // the header + activity-description to THIS block's bounds:
+      // when a short block hits its height floor, content used to
+      // bleed past the rounded border into the neighbouring block;
+      // clipping per-block keeps each card self-contained.
+      className="w-full h-full min-w-0 overflow-hidden text-left rounded-md border transition-shadow hover:shadow-sm focus:outline-none"
       style={{
         backgroundColor: tint,
         borderColor: block.moduleAccentHex,
@@ -77,9 +77,12 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
     >
       <div className="px-3 py-2 flex items-start gap-3">
         <div className="flex-1 min-w-0 space-y-0.5">
-          <div className="flex items-center gap-1.5">
+          {/* flex-wrap so a long module label + warm-up badge drop
+              the badge to a second line instead of overflowing the
+              block's width into the neighbouring card. */}
+          <div className="flex flex-wrap items-center gap-1.5">
             <span
-              className="text-[10px] uppercase tracking-wider font-medium"
+              className="text-[9px] sm:text-[10px] uppercase tracking-wider font-medium break-words"
               style={{ color: block.moduleAccentHex }}
             >
               {label}
@@ -96,7 +99,7 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
               </span>
             )}
           </div>
-          <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 break-words">
+          <div className="text-sm sm:text-base font-medium text-neutral-800 dark:text-neutral-100 break-words">
             {block.activityDescription}
           </div>
           {block.inlineActionText && (
@@ -118,7 +121,7 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
             </span>
           )}
         </div>
-        <div className="shrink-0 font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
+        <div className="shrink-0 font-mono tabular-nums text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
       </div>
