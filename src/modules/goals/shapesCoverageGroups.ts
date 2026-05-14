@@ -3,10 +3,10 @@ import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
-  SCALES,
   VOICE_LEADING_PATTERNS,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
+import { SCALE_CELLS } from '../shapes-and-patterns/scaleSkills';
 import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
 
 /**
@@ -185,7 +185,10 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
     id: 'scale_drills',
     label: 'scale drills',
     activityArea: 'scale_drills',
-    denominator: SCALES.length * KEY_COUNT,
+    // Sourced from the SCALE_CELLS catalog — 96 after the pent fan-out
+    // (3 starting points × 12 keys for major-pent and minor-pent,
+    // plus 12 each for major and natural-minor).
+    denominator: SCALE_CELLS.length,
   },
   {
     id: 'voice_leading',

@@ -128,16 +128,20 @@ describe('shapesCounts', () => {
     expect(c.chordShapeDrills).toBe(852);
   });
 
-  it('scaleDrills = 4 scales × 12 keys = 48', () => {
-    expect(c.scaleDrills).toBe(48);
+  it('scaleDrills = 96 from the Scales-submodule catalog (12 + 36 + 12 + 36)', () => {
+    // major (12) + major-pent 3 sp × 12 keys (36) + nat-min (12)
+    // + minor-pent 3 sp × 12 keys (36) = 96. SCALE_CELLS in
+    // scaleSkills.ts is the source of truth.
+    expect(c.scaleDrills).toBe(96);
   });
 
   it('voiceLeading = 3 patterns × 12 keys = 36', () => {
     expect(c.voiceLeading).toBe(36);
   });
 
-  it('total = 936 (sum of sub-areas, post-inversion redesign)', () => {
-    expect(c.total).toBe(936);
+  it('total = 984 (sum of sub-areas, post-Scales fan-out)', () => {
+    // 852 chord-shape + 96 scale + 36 voice-leading.
+    expect(c.total).toBe(984);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 

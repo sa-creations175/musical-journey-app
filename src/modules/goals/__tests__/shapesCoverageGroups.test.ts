@@ -49,20 +49,37 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     }
   });
 
-  it('total count across all 12 picker options stays at 936', () => {
+  it('total count across all picker options sums to the def list', () => {
     // Important invariant: adding the 6 quality sub-groups can't
     // double-count items in module-wide aggregations. Picker UX
     // ensures the user picks either the shortcut OR the qualities,
     // not both — the SUM here is bookkeeping for the def list.
-    // Sum = legacy triads (288) + 6×48 (also 288) + sevenths (360)
-    //     + extensions (168) + special (36) + scale (48) + vl (36)
-    //     = 1224 in the def list (Layer 1 + Layer 2 entries co-exist
-    //       for picker convenience; aggregates use moduleItemCounts
-    //       which doesn't double-count).
+    // Sum = legacy triads (288) + 6×48 quality sub-groups (288) +
+    //       sevenths (360) + extensions (168) + special (36) +
+    //       scale (96 post-Scales fan-out) + vl (36) = 1272 in the
+    //       def list (Layer 1 + Layer 2 entries co-exist for picker
+    //       convenience; aggregates use moduleItemCounts which
+    //       doesn't double-count).
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
     );
-    expect(defSum).toBe(288 + 6 * 48 + 360 + 168 + 36 + 48 + 36);
+    expect(defSum).toBe(288 + 6 * 48 + 360 + 168 + 36 + 96 + 36);
+  });
+});
+
+describe('itemRefMatcherForCoverageGroup — scale_drills covers pent fan-out', () => {
+  it('matches both 3-part and 4-part scale itemRefs', () => {
+    const matcher = itemRefMatcherForCoverageGroup('scale_drills')!;
+    expect(matcher).not.toBeNull();
+    // Existing 3-part itemRefs (major / nat-min).
+    expect(matcher('scale:major:C')).toBe(true);
+    expect(matcher('scale:natural-minor:F')).toBe(true);
+    // 4-part pent itemRefs introduced by Scales submodule Part 1.
+    expect(matcher('scale:major-pentatonic:5:Eb')).toBe(true);
+    expect(matcher('scale:minor-pentatonic:b3:Bb')).toBe(true);
+    // Non-scale itemRefs still reject.
+    expect(matcher('chord-shape:maj:C:root')).toBe(false);
+    expect(matcher('vl:aba-251:C')).toBe(false);
   });
 });
 

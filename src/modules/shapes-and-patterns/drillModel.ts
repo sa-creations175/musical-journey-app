@@ -45,6 +45,12 @@ interface ScaleDescriptor {
   kind: 'scale';
   keyName: string;
   scale: string;
+  /** Pentatonic starting-point ("1" / "5" / "6" for major pent,
+   *  "1" / "b3" / "b7" for minor pent). Undefined for major and
+   *  natural-minor cells (their itemRef stays 3-part). The full
+   *  Scales catalog lives in scaleSkills.ts; drillModel only needs
+   *  enough of the shape to render labels + identify rows. */
+  startingPoint?: string;
 }
 interface VoiceLeadingDescriptor {
   kind: 'voice-leading';
@@ -330,8 +336,19 @@ export function parseShapesItemRef(itemRef: string): SkillDescriptor | null {
       };
     }
     case 'scale': {
-      // a=scale, b=keyName
-      if (!a || !b) return null;
+      // Two valid shapes:
+      //   scale:{kind}:{key}            (3 parts) — major / nat-min
+      //   scale:{kind}:{sp}:{key}       (4 parts) — major-pent / min-pent
+      // The pent fan-out (3 starting points per key) ships as Part 1
+      // of the Scales submodule (scaleSkills.ts) — we detect it here
+      // so existing callers (proposal labels, spTiers's scale-skip)
+      // don't mis-parse `parts[1]` as the key.
+      if (!a) return null;
+      if (parts.length === 4 && (a === 'major-pentatonic' || a === 'minor-pentatonic')) {
+        if (!b || !c) return null;
+        return { kind: 'scale', keyName: c, scale: a, startingPoint: b };
+      }
+      if (!b) return null;
       return { kind: 'scale', keyName: b, scale: a };
     }
     case 'vl': {
@@ -387,7 +404,11 @@ export function labelFor(desc: SkillDescriptor): string {
     }
     case 'scale': {
       const s = SCALES.find(x => x.id === desc.scale);
-      return `${desc.keyName} ${s?.label ?? 'Scale'}`;
+      const base = `${desc.keyName} ${s?.label ?? 'Scale'}`;
+      // Pent cells carry a starting-point segment — surface it so
+      // proposal labels distinguish "C Major Pentatonic — from 5"
+      // from "C Major Pentatonic — from 6" in the same key.
+      return desc.startingPoint ? `${base} — from ${desc.startingPoint}` : base;
     }
     case 'voice-leading': {
       const p = VOICE_LEADING_PATTERNS.find(x => x.id === desc.patternId);

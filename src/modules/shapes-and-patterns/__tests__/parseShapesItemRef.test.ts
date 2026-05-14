@@ -64,11 +64,37 @@ describe('parseShapesItemRef', () => {
   });
 
   describe('scale + voice-leading', () => {
-    it('parses a scale itemRef', () => {
+    it('parses a 3-part scale itemRef (major / nat-min)', () => {
       expect(parseShapesItemRef('scale:major:C')).toEqual({
         kind: 'scale',
         keyName: 'C',
         scale: 'major',
+      });
+      expect(parseShapesItemRef('scale:natural-minor:F')).toEqual({
+        kind: 'scale',
+        keyName: 'F',
+        scale: 'natural-minor',
+      });
+    });
+
+    it('parses a 4-part major-pentatonic itemRef with starting point', () => {
+      // Scales submodule Part 1 introduced the pent fan-out — 3
+      // starting points per key. itemRef shape inserts the starting
+      // point between the kind and the keyName.
+      expect(parseShapesItemRef('scale:major-pentatonic:5:Eb')).toEqual({
+        kind: 'scale',
+        keyName: 'Eb',
+        scale: 'major-pentatonic',
+        startingPoint: '5',
+      });
+    });
+
+    it('parses a 4-part minor-pentatonic itemRef with b-flavoured starting point', () => {
+      expect(parseShapesItemRef('scale:minor-pentatonic:b7:Bb')).toEqual({
+        kind: 'scale',
+        keyName: 'Bb',
+        scale: 'minor-pentatonic',
+        startingPoint: 'b7',
       });
     });
 
@@ -125,6 +151,15 @@ describe('labelForShapesItemRef', () => {
     const label = labelForShapesItemRef('scale:major:C');
     expect(label).toMatch(/C/);
     expect(label).toMatch(/Major/i);
+  });
+
+  it('appends the starting point on pent labels', () => {
+    // The pent fan-out needs visible disambiguation in proposal
+    // labels — three cells per key would otherwise read identical.
+    const label = labelForShapesItemRef('scale:major-pentatonic:6:G');
+    expect(label).toMatch(/G/);
+    expect(label).toMatch(/Major Pentatonic/i);
+    expect(label).toMatch(/from 6/);
   });
 
   it('renders the voice-leading label', () => {

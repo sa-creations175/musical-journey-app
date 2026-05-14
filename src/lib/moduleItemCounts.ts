@@ -34,7 +34,8 @@
  * knows the catalog → denominator mapping.
  */
 
-import { CHORD_QUALITIES, SCALES, VOICE_LEADING_PATTERNS, KEYS } from '../modules/shapes-and-patterns/catalog';
+import { CHORD_QUALITIES, VOICE_LEADING_PATTERNS, KEYS } from '../modules/shapes-and-patterns/catalog';
+import { SCALE_CELLS } from '../modules/shapes-and-patterns/scaleSkills';
 import { INTERVAL_SEEDS } from '../modules/ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../modules/ear-training/chord-recognition/seed';
 import { PROGRESSIONS } from '../modules/ear-training/chord-progressions/catalog';
@@ -139,7 +140,10 @@ export interface ShapesCounts {
    *  `supplementary` two-handed seventh rows — those are practice
    *  tools, not acquisition-gating items. */
   chordShapeDrills: number;
-  /** 4 scales × 12 keys = 48. */
+  /** Sourced from scaleSkills' SCALE_CELLS catalog — 96 after the
+   *  Scales-submodule pent fan-out (3 starting points × 12 keys for
+   *  both major-pent and minor-pent, plus 12 each for major and
+   *  natural-minor). */
   scaleDrills: number;
   /** 3 voice-leading patterns × 12 keys = 36. */
   voiceLeading: number;
@@ -158,7 +162,7 @@ export function shapesCounts(): ShapesCounts {
   const extensionCount = CHORD_QUALITIES.filter(q => q.kind === 'extension').length * KEYS.length;
   const specialCount   = CHORD_QUALITIES.filter(q => q.kind === 'special').length   * KEYS.length;
   const chordShapeDrills = triadCount + seventhCount + extensionCount + specialCount;
-  const scaleDrills = SCALES.length * KEYS.length;
+  const scaleDrills = SCALE_CELLS.length;
   const voiceLeading = VOICE_LEADING_PATTERNS.length * KEYS.length;
   return {
     chordShapeDrills,
