@@ -7,11 +7,16 @@
  * canonical signal, and there are no per-cell DrillType subdivisions
  * to pick from.
  *
- * On save the modal calls `recordEngagement` against the cell's
- * scale itemRef with the procedural-memory rating signal that comes
- * out of the user's Flying / Cruising / Crawling pick. No
- * DrillSession row is written — scale practice no longer rides the
- * legacy DrillSession history.
+ * On save the modal does two writes:
+ *
+ *   1. A DrillSession row via `logScaleDrillSession`, so the scale
+ *      attempt is counted — getWeeklyAttempts tallies S&P attempts
+ *      from db.drillSessions, the same bucket chord shapes write to.
+ *      The row carries no DrillSkill / DrillType (Scales has none);
+ *      see logScaleDrillSession.
+ *   2. A `recordEngagement` against the cell's scale itemRef with
+ *      the procedural-memory rating signal from the user's Flying /
+ *      Cruising / Crawling pick — the canonical proficiency signal.
  *
  * For natural-minor cells the assess phase surfaces the relative-
  * major callout from the design doc ("C natural minor → relative
@@ -20,7 +25,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/Modal';
 import { recordEngagement } from '../../lib/spacingState';
-import { formatDuration } from './drillModel';
+import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
+import { formatDuration, logScaleDrillSession } from './drillModel';
 import { relativeMajorOf } from './spTiers';
 import type { ScaleCell } from './scaleSkills';
 
@@ -67,13 +73,14 @@ const FEEL_OPTIONS: ReadonlyArray<{
   },
 ];
 
-/** Suggested per-cell drill duration in seconds. Maintenance scales
- *  (major) ride a fast 30 s warm-up; natural minor — the drill cell
- *  — gets 90 s; pent cells stay at 30 s. Matches the
- *  SCALES_SUBMODULE_DESIGN.md weighting split that the session
- *  algorithm reads. */
+/** Suggested per-cell drill duration in seconds — the canonical
+ *  SCALE_KIND_SECONDS seed (major + pents ride a fast 30 s warm-up;
+ *  natural minor — the drill cell — gets the 90 s drill window).
+ *  Was a local `cell.kind === 'natural-minor' ? 90 : 30` mirror; now
+ *  reads the timePerAttempt.ts source so the seed lives in one
+ *  place. */
 function suggestedDurationFor(cell: ScaleCell): number {
-  return cell.kind === 'natural-minor' ? 90 : 30;
+  return SCALE_KIND_SECONDS[cell.kind];
 }
 
 function cellTitle(cell: ScaleCell): string {
@@ -132,6 +139,16 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
     if (saving || feel === null) return;
     setSaving(true);
     try {
+      // DrillSession row first — this is the attempt-counting record
+      // getWeeklyAttempts reads. recordEngagement (the proficiency
+      // signal) follows: mirroring logSession's ordering, if the
+      // engagement write throws, the attempt still counted.
+      await logScaleDrillSession({
+        itemRef: cell.itemRef,
+        durationSeconds: elapsedSec,
+        rating: feel,
+        targetSeconds: suggested,
+      });
       await recordEngagement({
         itemRef: cell.itemRef,
         moduleRef: 'shapes-and-patterns',

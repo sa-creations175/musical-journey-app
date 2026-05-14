@@ -455,6 +455,24 @@ function feelToRating(feel: DrillSession['feelRating']): 'flying' | 'cruising' |
 }
 
 /**
+ * Inverse of `feelToRating`, for callers that work in the 3-point
+ * flying / cruising / crawling vocabulary directly (the Scales drill
+ * modal — Scales has no DrillSkill / DrillType rows behind it, so it
+ * never picks a 4-point feel). Lossy by nature: `feelToRating`
+ * collapses both "struggled" (1) and "working on it" (2) into
+ * "crawling", so the inverse maps crawling → "struggled" (1) — the
+ * closest match to the Scales modal's "struggle, breakdowns" copy.
+ */
+const RATING_TO_FEEL: Record<
+  'flying' | 'cruising' | 'crawling',
+  DrillSession['feelRating']
+> = {
+  flying: 4,
+  cruising: 3,
+  crawling: 1,
+};
+
+/**
  * Build a spacingState itemRef from a skill descriptor. Returns null
  * for mental-viz — Mental Visualization is excluded from spacingState
  * rows by design (it's a different cognitive mode for internalising
@@ -527,6 +545,62 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
       timestamp: session.timestamp,
     });
   }
+  return session;
+}
+
+export interface LogScaleDrillSessionInput {
+  /** Canonical scale itemRef from scaleSkills.ts — e.g.
+   *  "scale:major:C" or "scale:major-pentatonic:5:Eb". */
+  itemRef: string;
+  /** Actual elapsed drill time in seconds. */
+  durationSeconds: number;
+  /** 3-point Scales rating; mapped onto DrillSession.feelRating via
+   *  RATING_TO_FEEL. */
+  rating: 'flying' | 'cruising' | 'crawling';
+  /** Suggested per-cell drill seconds the user was working toward
+   *  (SCALE_KIND_SECONDS). Optional — mirrors logSession's
+   *  targetSeconds. */
+  targetSeconds?: number;
+  notes?: string;
+}
+
+/**
+ * Log a completed Scales-submodule drill as a DrillSession row.
+ *
+ * Scales diverges from the chord-shape / voice-leading drill model:
+ * it runs off the static scaleSkills.ts catalog, not db.drillSkills /
+ * db.drillTypes, so there's no DrillSkill row to attach. This helper
+ * mirrors `logSession` (same DrillSession shape, same `dses-` id
+ * prefix) but stands the scale `itemRef` in for both `skillId` and
+ * `drillTypeId` — the row is still a well-formed DrillSession, which
+ * is all getWeeklyAttempts() needs: it counts S&P attempts from
+ * db.drillSessions by `timestamp` alone, with no skillId / drillTypeId
+ * join (see weeklyAttempts.ts). Standing the itemRef in keeps scale
+ * rows self-identifying — they're the drillSessions whose skillId
+ * parses as a scale itemRef.
+ *
+ * Unlike `logSession` this does NOT update db.drillTypes (Scales has
+ * none) and does NOT record a spacingState engagement — the Scales
+ * drill modal records the rating against the precise cell itemRef
+ * itself (pentatonic starting point included), and `logSession`'s
+ * itemRef derivation would drop that starting point.
+ */
+export async function logScaleDrillSession(
+  input: LogScaleDrillSessionInput,
+): Promise<DrillSession> {
+  const session: DrillSession = {
+    id: uid('dses'),
+    drillTypeId: input.itemRef,
+    skillId: input.itemRef,
+    durationSeconds: Math.round(input.durationSeconds),
+    ...(input.targetSeconds !== undefined
+      ? { targetSeconds: Math.round(input.targetSeconds) }
+      : {}),
+    feelRating: RATING_TO_FEEL[input.rating],
+    notes: input.notes?.trim() || undefined,
+    timestamp: Date.now(),
+  };
+  await db.drillSessions.add(session);
   return session;
 }
 
