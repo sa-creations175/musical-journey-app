@@ -231,12 +231,14 @@ export default function VocabularySession({ onBack }: Props) {
     card,
     correct,
     timestamp,
+    targetSeconds,
   }: CardAnsweredArgs<VocabFlashcard>) {
     const record: AttemptRecord = {
       moduleId: MODULE_ID,
       itemId: card.id,
       correct,
       timestamp,
+      ...(targetSeconds !== undefined ? { targetSeconds } : {}),
     };
     await db.attempts.add(record);
     await recordSrAttempt(card.id, correct, timestamp);

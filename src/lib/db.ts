@@ -501,6 +501,15 @@ export interface DrillSession {
   /** How long this session actually ran (not the target). Minimum
    *  enforced at 30 s by the UI before a session can save. */
   durationSeconds: number;
+  /** Countdown duration the user picked before starting the drill,
+   *  in seconds. Defaults from `drillType.suggestedSeconds` and may
+   *  be adjusted via the setup-phase picker (30 / 60 / 90 / 120).
+   *  Optional for back-compat with rows logged before this field
+   *  was captured. The actualVsTarget ratio is what unlocks
+   *  rolling-average session planning later — current rows let
+   *  callers fall back to `drillType.suggestedSeconds` as a coarse
+   *  proxy. */
+  targetSeconds?: number;
   /** 1 = struggled, 2 = working on it, 3 = clean, 4 = in flow. */
   feelRating: 1 | 2 | 3 | 4;
   notes?: string;
@@ -804,6 +813,14 @@ export interface AttemptRecord {
       answer isn't a genuine fluency signal. Older records without the
       field are treated as normal fluency-tracked attempts. */
   excludeFromFluency?: boolean;
+  /** Per-card countdown in seconds when the user picked a timer
+   *  mode for the session (Harmonic Fluency + Production Vocab
+   *  flashcards expose 5 / 10 / 15 s options). Undefined when the
+   *  user picked "off" or when the module has no timer affordance
+   *  (intervals quiz, chord recognition, chord progressions, etc.).
+   *  Captured so a future rolling-average planner can reason about
+   *  the user's actual answer pace vs the cap they chose. */
+  targetSeconds?: number;
 }
 
 export interface DailySummary {
@@ -1164,6 +1181,19 @@ export interface PracticeBlock {
   performanceRating: PerformanceRating | null;
   blockColor: string | null;
   notes: string | null;
+  /** Wall-clock timestamp (ms) when the user first arrived at this
+   *  block's screen. Sourced from `SessionBlock.startedAt`. Null
+   *  for legacy rows logged before this field was captured and for
+   *  manual-log rows where the block was retroactively entered. */
+  blockStartedAt?: number | null;
+  /** Wall-clock timestamp (ms) when the user submitted their
+   *  rating and advanced past this block. Sourced from
+   *  `SessionBlock.endedAt`. Together with `blockStartedAt`,
+   *  captures total wall-clock time per block (including reading,
+   *  rating, transitions) so a future rolling-average planner can
+   *  reason about overhead vs `actualMinutes` (active practice
+   *  time). */
+  blockCompletedAt?: number | null;
 }
 
 /**

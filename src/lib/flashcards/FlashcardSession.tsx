@@ -60,6 +60,12 @@ export interface CardAnsweredArgs<TCard extends BaseFlashcard> {
   correct: boolean;
   timedOut: boolean;
   timestamp: number;
+  /** Per-card countdown in seconds when the user picked a non-'off'
+   *  timerMode for this session (5 / 10 / 15). Undefined when the
+   *  user chose 'off'. Module-side callers fold this onto the
+   *  AttemptRecord so future rolling-average planning can reason
+   *  about answer pace vs cap. */
+  targetSeconds?: number;
 }
 
 interface VisualAidArgs<TCard extends BaseFlashcard> {
@@ -252,6 +258,11 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       correct: isCorrect,
       timedOut,
       timestamp,
+      // Forward the user's per-card countdown selection so module
+      // callers can persist it on AttemptRecord. `timerSecs` is
+      // already parsed from `timerMode` upstream and is null when
+      // the user picked 'off'.
+      ...(timerSecs !== null ? { targetSeconds: timerSecs } : {}),
     });
 
     setOutcomes(prev => {

@@ -442,6 +442,12 @@ export async function persistSession(
       performanceRating: b.rating ?? null,
       blockColor: null,
       notes: null,
+      // Wall-clock arrival / departure captured by the session
+      // reducer's advance-block + end-session transitions. Persists
+      // alongside actualMinutes (active practice) so a future
+      // rolling-average planner can see overhead time directly.
+      blockStartedAt: b.startedAt,
+      blockCompletedAt: b.endedAt,
     }),
   );
 

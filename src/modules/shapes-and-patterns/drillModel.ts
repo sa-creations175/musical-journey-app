@@ -427,6 +427,11 @@ export interface LogSessionInput {
   skill: DrillSkill;
   drillType: DrillType;
   durationSeconds: number;
+  /** Countdown duration the user picked before starting the drill,
+   *  in seconds. Persists separately from durationSeconds so a
+   *  90 s drill the user ended at 47 s reads honestly as "47 of 90"
+   *  rather than collapsing into one number. */
+  targetSeconds?: number;
   feelRating: DrillSession['feelRating'];
   notes?: string;
 }
@@ -498,6 +503,9 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     drillTypeId: input.drillType.id,
     skillId: input.skill.id,
     durationSeconds: Math.round(input.durationSeconds),
+    ...(input.targetSeconds !== undefined
+      ? { targetSeconds: Math.round(input.targetSeconds) }
+      : {}),
     feelRating: input.feelRating,
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),

@@ -214,6 +214,11 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
       skill,
       drillType,
       durationSeconds: elapsedSeconds,
+      // Capture the user-selected countdown so future rolling-
+      // average planning has the target alongside the actual.
+      // `targetSeconds` defaults from `drillType.suggestedSeconds`
+      // and may have been adjusted via the setup-phase picker.
+      targetSeconds,
       feelRating: feel,
       notes,
     });

@@ -91,6 +91,7 @@ export default function HarmonicFluencySession({
     card,
     correct,
     timestamp,
+    targetSeconds,
   }: CardAnsweredArgs<Flashcard>) {
     const record: AttemptRecord = {
       moduleId: MODULE_ID,
@@ -98,6 +99,7 @@ export default function HarmonicFluencySession({
       correct,
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+      ...(targetSeconds !== undefined ? { targetSeconds } : {}),
     };
     await db.attempts.add(record);
     await recordEngagement({
