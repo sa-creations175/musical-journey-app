@@ -392,7 +392,7 @@ function generateAndShape(
  * Pre-load the Shapes & Patterns reshape context: spacingState
  * rows indexed by itemRef (drives starting-key pick + dueness),
  * the user's unlocked tier (filters higher-tier items out of the
- * walk), and active-song keys (drives scale-warm-down key
+ * walk), and active-song keys (drives Scales warm-up key
  * priority). Awaited once per session by the callers of
  * generateAndShape; passed through to toProposalBlocks where
  * shapeShapesBlock consumes it.
@@ -1060,11 +1060,13 @@ function toProposalBlocks(
   // active-song keys), the algorithm's weight-sorted itemRef
   // order gets re-walked in circle-of-fourths key order with
   // tier+inversion ordering inside each key. Blocks ≥ 15 min
-  // additionally surface a scale warm-down segment in the
-  // last 5–8 min, bridging into Repertoire practice. Each segment
-  // becomes its own ProposalBlock so the UI shows the warm-down
-  // as distinct work below the chord-shape walk. Falls through to
-  // the generic path when no segments come out.
+  // additionally surface a Scales warm-up segment FIRST (5–8 min,
+  // four-scale ladder × 1–2 prioritised keys per
+  // SCALES_SUBMODULE_DESIGN.md). Each segment becomes its own
+  // ProposalBlock so the UI shows scales above the chord-shape
+  // walk. Falls through to the generic path when no segments
+  // come out. The Scales segment gets isWarmup=true so the
+  // SessionStack chip renders the warm-up badge.
   if (block.moduleRef === SHAPES_MODULE_REF && shapesContext) {
     const segments = shapeShapesBlock(block, shapesContext);
     if (segments.length > 0) {
@@ -1077,7 +1079,7 @@ function toProposalBlocks(
         plannedSeconds: seg.plannedSeconds,
         whySnippet: seg.why,
         itemRefs: seg.itemRefs,
-        isWarmup: false,
+        isWarmup: seg.kind === 'scales',
       }));
     }
   }

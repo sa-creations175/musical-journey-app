@@ -1,28 +1,30 @@
 /**
- * Phase 1 Parts 2 + 3 of the Shapes & Patterns Session Structure
- * design (docs/SHAPES_AND_PATTERNS_SESSION_DESIGN.md).
- *
  * Reshapes the Shapes & Patterns AlgorithmBlock into:
+ *
+ *   · A Scales segment — FIRST, warm-up position. Walks 1–2 prioritised
+ *     keys, drilling the four-scale ladder per key in design order
+ *     (major → major-pent → natural-min → minor-pent). Keys come from
+ *     active-song keys first, then circle-of-fourths from the user's
+ *     least-recently-touched scale key with due cells. Maintenance
+ *     cells (major scale) get the fast 30 s pass; drill cells
+ *     (natural minor) get the 90 s drill window — matches the
+ *     SCALES_SUBMODULE_DESIGN.md weighting split.
  *
  *   · A chord-shape walk segment — circle-of-fourths key order,
  *     starting at the user's least-recently-touched key with due
  *     cells; within each key, tier ASC → quality declaration
  *     order → inversion order (root → inv1 → inv2 → inv3 → fluid).
- *     Replaces the prior weight-sorted itemRef order which
- *     interleaved keys.
- *
- *   · An optional scale warm-down segment — last 5–8 min of the
- *     S&P block when the block is ≥ 15 min. Drills the parallel +
- *     relative-major scale set (major / major-pent / natural-min /
- *     min-pent / relative-major) in 1–2 priority keys (active-song
- *     keys first, then circle-of-fourths order).
  *
  * Output is an ordered list of segments; toProposalBlocks expands
- * them into separate ProposalBlocks so the UI shows the scale
- * warm-down as a distinct piece of work below the chord-shape walk.
- * The two segments share the algorithm's plannedSeconds — the
- * scale segment's time is subtracted from the chord-shape budget
- * before the walk truncates.
+ * them into separate ProposalBlocks so the UI shows scales as the
+ * warm-up block sitting above the chord-shape walk. The two
+ * segments share the algorithm's plannedSeconds — the scale
+ * segment's time is subtracted from the chord-shape budget before
+ * the walk truncates.
+ *
+ * Phase 1 Parts 1–4 of the Shapes & Patterns Session Structure
+ * design (docs/SHAPES_AND_PATTERNS_SESSION_DESIGN.md) + Part 4 of
+ * src/docs/SCALES_SUBMODULE_DESIGN.md.
  *
  * Mirrors repertoireSplit.ts in placement (called from
  * toProposalBlocks in sessionGenerator.ts).
@@ -33,11 +35,15 @@ import type { AllocatedBlock } from '../../lib/sessionAlgorithm/timeAllocation';
 import { CHORD_QUALITY_BY_ID } from './catalog';
 import { parseShapesItemRef } from './drillModel';
 import {
+  itemRefForScale,
+  parseScaleItemRef,
+  type ScaleKind,
+} from './scaleSkills';
+import {
   CIRCLE_OF_FOURTHS,
   SP_TIERS,
   getTierForShape,
   isTrackedShape,
-  relativeMajorOf,
   type SPTier,
 } from './spTiers';
 
@@ -58,48 +64,67 @@ const INVERSION_ORDER: ReadonlyArray<string | null> = [
 ];
 
 // ---------------------------------------------------------------------
-// Scale warm-down constants
+// Scales segment constants
 // ---------------------------------------------------------------------
 
-/** Minimum S&P block length (seconds) at which the scale warm-down
- *  segment surfaces. Sub-15-min blocks stay chord-shape-only. */
-const SCALE_SEGMENT_MIN_BLOCK_SECONDS = 15 * 60;
+/** Minimum S&P block length (seconds) at which the Scales warm-up
+ *  segment surfaces. Sub-15-min blocks stay chord-shape-only.
+ *  Calibrated for the "warm-up" position — too tight a block leaves
+ *  no room for the chord-shape walk to also be meaningful. */
+const SCALES_SEGMENT_MIN_BLOCK_SECONDS = 15 * 60;
 
-/** Time allocated to the scale warm-down inside a typical 15–30 min
- *  S&P block. */
-const SCALE_SEGMENT_SHORT_SECONDS = 5 * 60;
+/** Time allocated to the Scales segment inside a 15–30 min S&P
+ *  block. ~5 min covers one full per-key ladder. */
+const SCALES_SEGMENT_SHORT_SECONDS = 5 * 60;
 
-/** Time allocated to the scale warm-down inside a 30+ min S&P
- *  block — slightly more room for the 2nd key. */
-const SCALE_SEGMENT_LONG_SECONDS = 8 * 60;
+/** Time allocated to the Scales segment inside a 30+ min S&P block.
+ *  ~8 min leaves room for the second prioritised key. */
+const SCALES_SEGMENT_LONG_SECONDS = 8 * 60;
 
-/** Threshold (seconds) above which the longer scale allocation
+/** Threshold (seconds) above which the longer Scales allocation
  *  kicks in. */
-const SCALE_SEGMENT_LONG_BLOCK_SECONDS = 30 * 60;
+const SCALES_SEGMENT_LONG_BLOCK_SECONDS = 30 * 60;
 
-/** Hard cap on how many keys the scale warm-down covers. */
-const SCALE_SEGMENT_MAX_KEYS = 2;
+/** Hard cap on how many keys the Scales segment covers — the
+ *  warm-up shouldn't sprawl. */
+const SCALES_SEGMENT_MAX_KEYS = 2;
 
-interface ScaleStep {
-  /** itemRef kind appended after the `scale:` prefix. */
-  kind: 'major' | 'major-pentatonic' | 'natural-minor' | 'minor-pentatonic' | 'relative-major';
-  /** Drill time target in seconds. */
-  seconds: number;
-  /** Human display label for the segment label. */
-  label: string;
-}
+/** Per-cell drill seconds, sourced from SCALES_SUBMODULE_DESIGN.md
+ *  Part 4: Time allocation. Maintenance scales (major) ride a fast
+ *  30 s pass; drill scales (nat-min) get the 90 s drill window.
+ *  Pent cells fan out to 3 starting points each — we surface ONE
+ *  starting point per pent per key (the most-due, defaulting to
+ *  the catalog's root position '1') to keep the warm-up tight. */
+const SCALE_KIND_SECONDS: Readonly<Record<ScaleKind, number>> = {
+  'major':            30,
+  'major-pentatonic': 30,
+  'natural-minor':    90,
+  'minor-pentatonic': 30,
+};
 
-/** Per-key scale ladder, in drill order. Major / major-pent / rel-maj
- *  ride a 30 s maintenance pass; nat-min + min-pent get the 90 s
- *  drill window — matches the design doc's "comfortable vs needs-
- *  work" split for this user. */
-const SCALE_STEPS: ReadonlyArray<ScaleStep> = [
-  { kind: 'major',             seconds: 30, label: 'major' },
-  { kind: 'major-pentatonic',  seconds: 30, label: 'major pent' },
-  { kind: 'natural-minor',     seconds: 90, label: 'natural min' },
-  { kind: 'minor-pentatonic',  seconds: 90, label: 'minor pent' },
-  { kind: 'relative-major',    seconds: 30, label: 'rel maj' },
+/** Default pentatonic starting points when no spacingState row
+ *  exists for a key (cold-start). The catalog's "1" position
+ *  matches both pent kinds. */
+const DEFAULT_MAJOR_PENT_SP = '1';
+const DEFAULT_MINOR_PENT_SP = '1';
+
+/** Per-key scale ladder, in design-doc drill order. Major rides
+ *  first (fast warm-up, hands' habit), then major-pent, then the
+ *  drill cells (nat-min + min-pent). */
+const SCALES_LADDER: ReadonlyArray<ScaleKind> = [
+  'major',
+  'major-pentatonic',
+  'natural-minor',
+  'minor-pentatonic',
 ];
+
+/** Display label for each scale kind in the segment label. */
+const SCALE_KIND_LABEL: Readonly<Record<ScaleKind, string>> = {
+  'major':            'major',
+  'major-pentatonic': 'major pent',
+  'natural-minor':    'natural min',
+  'minor-pentatonic': 'minor pent',
+};
 
 // ---------------------------------------------------------------------
 // Public types
@@ -125,11 +150,11 @@ export interface ShapesSplitContext {
 /** One segment of the reshaped S&P block. Each segment becomes one
  *  ProposalBlock at the toProposalBlocks layer. */
 export interface ShapesSplitSegment {
-  kind: 'shapes-walk' | 'scale-warm-down';
+  kind: 'shapes-walk' | 'scales';
   itemRefs: readonly string[];
   plannedSeconds: number;
   /** Human label: "Major, Minor · C, F, Bb" or
-   *  "Scale warm-down · C, F (major / nat min / min pent / rel maj)". */
+   *  "Scales · C, F (major / major pent / natural min / minor pent)". */
   label: string;
   /** whySnippet — short context for the proposal-card body. */
   why: string;
@@ -325,66 +350,186 @@ function buildShapesWalk(
 }
 
 // ---------------------------------------------------------------------
-// Scale warm-down
+// Scales segment (warm-up, first)
 // ---------------------------------------------------------------------
 
-function scaleSegmentBudget(blockSeconds: number): number {
-  if (blockSeconds < SCALE_SEGMENT_MIN_BLOCK_SECONDS) return 0;
-  return blockSeconds >= SCALE_SEGMENT_LONG_BLOCK_SECONDS
-    ? SCALE_SEGMENT_LONG_SECONDS
-    : SCALE_SEGMENT_SHORT_SECONDS;
+function scalesSegmentBudget(blockSeconds: number): number {
+  if (blockSeconds < SCALES_SEGMENT_MIN_BLOCK_SECONDS) return 0;
+  return blockSeconds >= SCALES_SEGMENT_LONG_BLOCK_SECONDS
+    ? SCALES_SEGMENT_LONG_SECONDS
+    : SCALES_SEGMENT_SHORT_SECONDS;
 }
 
-/** Build the prioritised list of scale-warm-down keys.
- *  1. Active-song keys (de-duped, in encounter order).
- *  2. Chord-shape walk keys (also in walk order) — fallback when
- *     no songs / fewer than the cap.
- *  Caps at SCALE_SEGMENT_MAX_KEYS. */
-function pickScaleKeys(
-  ctx: ShapesSplitContext,
-  walkKeys: ReadonlyArray<string>,
-): string[] {
+interface ScaleKeyEntry {
+  keyName: string;
+  /** Oldest lastEngagedAt across this key's scale rows; null when
+   *  no row exists yet. */
+  oldestEngagedAt: number | null;
+  /** Count of scale cells in this key with a due (or never-touched)
+   *  spacingState row. Drives the "least-recently-practiced key
+   *  with due cells" priority from the design doc. */
+  dueCellCount: number;
+}
+
+/**
+ * Walk every scale itemRef in the spacingState rows for this
+ * module, aggregate per-key engagement stats. The Scales segment
+ * uses this to choose its key order:
+ *
+ *   1. Active-song keys (de-duped, in encounter order) — bridges
+ *      into Repertoire practice in the same key set.
+ *   2. Circle-of-fourths from the user's least-recently-touched
+ *      scale key with due cells. Falls back to circle-of-fourths
+ *      from C when no scale rows exist yet (cold-start).
+ *
+ * Result is capped at SCALES_SEGMENT_MAX_KEYS so the warm-up
+ * doesn't sprawl.
+ */
+function pickScalesKeys(ctx: ShapesSplitContext): string[] {
+  // Aggregate per-key engagement stats from the user's scale rows.
+  const byKey = new Map<string, ScaleKeyEntry>();
+  for (const row of ctx.rowsByItemRef.values()) {
+    const desc = parseScaleItemRef(row.itemRef);
+    if (!desc) continue;
+    const entry = byKey.get(desc.keyName) ?? {
+      keyName: desc.keyName,
+      oldestEngagedAt: null,
+      dueCellCount: 0,
+    };
+    if (
+      row.lastEngagedAt !== null
+      && (entry.oldestEngagedAt === null || row.lastEngagedAt < entry.oldestEngagedAt)
+    ) {
+      entry.oldestEngagedAt = row.lastEngagedAt;
+    }
+    if (row.nextDueAt === null || row.nextDueAt <= ctx.now) {
+      entry.dueCellCount += 1;
+    }
+    byKey.set(desc.keyName, entry);
+  }
+
   const seen = new Set<string>();
   const out: string[] = [];
   const add = (key: string): boolean => {
-    if (seen.has(key)) return out.length >= SCALE_SEGMENT_MAX_KEYS;
+    if (seen.has(key)) return out.length >= SCALES_SEGMENT_MAX_KEYS;
     seen.add(key);
     out.push(key);
-    return out.length >= SCALE_SEGMENT_MAX_KEYS;
+    return out.length >= SCALES_SEGMENT_MAX_KEYS;
   };
+
+  // Active-song keys lead — same priority rule as the chord-shape
+  // walk's key picker, so the Scales warm-up bridges directly into
+  // Repertoire practice in the same key.
   for (const k of ctx.activeSongKeys) if (add(k)) return out;
-  for (const k of walkKeys) if (add(k)) return out;
+
+  // Least-recently-touched scale key WITH due cells. Falls back to
+  // any-key-with-due-cells if no key has both, then to
+  // oldest-engaged regardless of due status.
+  const remaining = Array.from(byKey.values()).filter(e => !seen.has(e.keyName));
+  const dueRemaining = remaining.filter(e => e.dueCellCount > 0);
+  const pool = dueRemaining.length > 0 ? dueRemaining : remaining;
+  pool.sort((a, b) => {
+    if (a.oldestEngagedAt === null && b.oldestEngagedAt === null) {
+      return CIRCLE_OF_FOURTHS.indexOf(a.keyName) - CIRCLE_OF_FOURTHS.indexOf(b.keyName);
+    }
+    if (a.oldestEngagedAt === null) return -1;
+    if (b.oldestEngagedAt === null) return 1;
+    return a.oldestEngagedAt - b.oldestEngagedAt;
+  });
+
+  // From the chosen lead-key, walk circle-of-fourths to fill the
+  // remaining slots. When no spacingState rows exist (cold-start),
+  // start at the first circle-of-fourths key (C) so the warm-up is
+  // deterministic.
+  const leadKey = pool[0]?.keyName ?? CIRCLE_OF_FOURTHS[0];
+  if (!seen.has(leadKey)) {
+    if (add(leadKey)) return out;
+  }
+  const startIdx = CIRCLE_OF_FOURTHS.indexOf(leadKey);
+  if (startIdx < 0) return out;
+  for (let i = 1; i < CIRCLE_OF_FOURTHS.length; i++) {
+    const k = CIRCLE_OF_FOURTHS[(startIdx + i) % CIRCLE_OF_FOURTHS.length];
+    if (add(k)) return out;
+  }
   return out;
 }
 
-function buildScaleItemRefs(
+/** Pick a starting point for a pentatonic cell in a given key.
+ *  Today: defaults to '1' (root position) when no spacingState row
+ *  exists. When rows exist, prefers the most-due starting point
+ *  (oldest engaged among the 3 sps). A future Part-5 hook can
+ *  promote a goal-scoped sp here; deferred until the practice UI
+ *  lands. */
+function pickPentStartingPoint(
+  kind: 'major-pentatonic' | 'minor-pentatonic',
+  keyName: string,
+  ctx: ShapesSplitContext,
+): string {
+  const defaultSp = kind === 'major-pentatonic'
+    ? DEFAULT_MAJOR_PENT_SP
+    : DEFAULT_MINOR_PENT_SP;
+  const candidates: Array<{ sp: string; lastEngagedAt: number | null }> = [];
+  for (const row of ctx.rowsByItemRef.values()) {
+    const desc = parseScaleItemRef(row.itemRef);
+    if (!desc) continue;
+    if (desc.kind !== kind || desc.keyName !== keyName) continue;
+    candidates.push({ sp: desc.startingPoint, lastEngagedAt: row.lastEngagedAt });
+  }
+  if (candidates.length === 0) return defaultSp;
+  // Oldest engaged first; never-engaged ranks before any engaged.
+  candidates.sort((a, b) => {
+    if (a.lastEngagedAt === null && b.lastEngagedAt === null) return 0;
+    if (a.lastEngagedAt === null) return -1;
+    if (b.lastEngagedAt === null) return 1;
+    return a.lastEngagedAt - b.lastEngagedAt;
+  });
+  return candidates[0].sp;
+}
+
+interface ScaleLadderStep {
+  itemRef: string;
+  seconds: number;
+  keyName: string;
+  kind: ScaleKind;
+}
+
+function buildScaleLadder(
   keys: ReadonlyArray<string>,
   budgetSeconds: number,
-): Array<{ itemRef: string; seconds: number; keyName: string; step: ScaleStep }> {
-  // Walk the scale ladder per key, in key order. Truncate when
-  // the time budget runs out so a tight scale window still surfaces
-  // SOMETHING (typically just the major / major-pent quick passes
-  // before time's up).
-  const out: Array<{ itemRef: string; seconds: number; keyName: string; step: ScaleStep }> = [];
+  ctx: ShapesSplitContext,
+): ScaleLadderStep[] {
+  const out: ScaleLadderStep[] = [];
   let budget = budgetSeconds;
   for (const keyName of keys) {
-    for (const step of SCALE_STEPS) {
+    for (const kind of SCALES_LADDER) {
       if (budget <= 0 && out.length > 0) return out;
+      let itemRef: string;
+      if (kind === 'major-pentatonic' || kind === 'minor-pentatonic') {
+        const sp = pickPentStartingPoint(kind, keyName, ctx);
+        // Narrowing: pickPentStartingPoint returns a runtime string;
+        // cast through the typed constructor so any future sp value
+        // outside the catalog short-circuits via parseScaleItemRef.
+        itemRef = itemRefForScale(
+          kind === 'major-pentatonic'
+            ? { kind, keyName, startingPoint: sp as '1' | '5' | '6' }
+            : { kind, keyName, startingPoint: sp as '1' | 'b3' | 'b7' },
+        );
+      } else {
+        itemRef = itemRefForScale({ kind, keyName });
+      }
       out.push({
-        itemRef: `scale:${step.kind}:${keyName}`,
-        seconds: step.seconds,
+        itemRef,
+        seconds: SCALE_KIND_SECONDS[kind],
         keyName,
-        step,
+        kind,
       });
-      budget -= step.seconds;
+      budget -= SCALE_KIND_SECONDS[kind];
     }
   }
   return out;
 }
 
-function formatScaleLabel(
-  steps: ReadonlyArray<{ keyName: string; step: ScaleStep }>,
-): string {
+function formatScalesLabel(steps: ReadonlyArray<ScaleLadderStep>): string {
   const seenKeys = new Set<string>();
   const keys: string[] = [];
   for (const s of steps) {
@@ -392,50 +537,41 @@ function formatScaleLabel(
     seenKeys.add(s.keyName);
     keys.push(s.keyName);
   }
-  const seenSteps = new Set<string>();
-  const stepLabels: string[] = [];
+  const seenKinds = new Set<ScaleKind>();
+  const kindLabels: string[] = [];
   for (const s of steps) {
-    if (seenSteps.has(s.step.label)) continue;
-    seenSteps.add(s.step.label);
-    stepLabels.push(s.step.label);
+    if (seenKinds.has(s.kind)) continue;
+    seenKinds.add(s.kind);
+    kindLabels.push(SCALE_KIND_LABEL[s.kind]);
   }
-  const keyPart = keys.join(', ');
-  const stepPart = stepLabels.join(' / ');
-  return `Scale warm-down · ${keyPart} (${stepPart})`;
+  return `Scales · ${keys.join(', ')} (${kindLabels.join(' / ')})`;
 }
 
 /**
- * Build the scale warm-down segment. Returns null when the block
+ * Build the Scales warm-up segment. Returns null when the block
  * is below the minimum threshold (15 min), or when no keys can be
- * resolved (no active songs + no chord-shape walk keys).
- *
- * Annotates the relative-major itemRef in the WHY so the user
- * knows the parallel/relative mapping at a glance (e.g. "Eb is
- * the relative major of C minor").
+ * resolved (extremely unusual — circle-of-fourths fallback covers
+ * the cold-start case so this only fires on bad input).
  */
-function buildScaleSegment(
+function buildScalesSegment(
   blockSeconds: number,
   ctx: ShapesSplitContext,
-  walkKeys: ReadonlyArray<string>,
 ): ShapesSplitSegment | null {
-  const budget = scaleSegmentBudget(blockSeconds);
+  const budget = scalesSegmentBudget(blockSeconds);
   if (budget <= 0) return null;
-  const keys = pickScaleKeys(ctx, walkKeys);
+  const keys = pickScalesKeys(ctx);
   if (keys.length === 0) return null;
-  const steps = buildScaleItemRefs(keys, budget);
+  const steps = buildScaleLadder(keys, budget, ctx);
   if (steps.length === 0) return null;
-  // why-text: name the relative-major mapping for the first key so
-  // the parallel/relative relationship is visible without opening
-  // the block.
-  const relMaj = relativeMajorOf(keys[0]);
+  const distinctKeyCount = new Set(steps.map(s => s.keyName)).size;
   return {
-    kind: 'scale-warm-down',
+    kind: 'scales',
     itemRefs: steps.map(s => s.itemRef),
     plannedSeconds: budget,
-    label: formatScaleLabel(steps),
-    why: keys.length === 1
-      ? `Bridge to song practice — relative major of ${keys[0]} is ${relMaj}`
-      : `Bridge to song practice across ${keys.length} keys`,
+    label: formatScalesLabel(steps),
+    why: `${steps.length} scale rep${steps.length === 1 ? '' : 's'} across ${
+      distinctKeyCount
+    } key${distinctKeyCount === 1 ? '' : 's'} — warm-up`,
   };
 }
 
@@ -444,11 +580,17 @@ function buildScaleSegment(
 // ---------------------------------------------------------------------
 
 /**
- * Reshape an S&P AlgorithmBlock into 1–2 segments: the chord-shape
- * key-by-key walk, optionally followed by the scale warm-down when
- * the block is long enough. Returns an empty array when nothing
+ * Reshape an S&P AlgorithmBlock into 1–2 segments: the Scales
+ * warm-up (when the block is long enough) followed by the
+ * chord-shape key-by-key walk. Returns an empty array when nothing
  * surfaces — caller falls through to the generic ProposalBlock
  * path.
+ *
+ * Block ordering follows SCALES_SUBMODULE_DESIGN.md ("Scales first,
+ * warm-up position"): the Scales segment leads, chord shapes
+ * follow. The two segments share the algorithm's plannedSeconds —
+ * the Scales budget is carved off the top before the walk
+ * truncates.
  *
  * Pure — tests pass fixture rowsByItemRef + plannedSeconds + now
  * directly. No DB access; that lives at the caller (loaded once
@@ -458,31 +600,14 @@ export function shapeShapesBlock(
   block: AllocatedBlock,
   ctx: ShapesSplitContext,
 ): ShapesSplitSegment[] {
-  const scaleBudget = scaleSegmentBudget(block.plannedSeconds);
-  const walkBudget = block.plannedSeconds - scaleBudget;
-  const walkSegment = buildShapesWalk(block, ctx, walkBudget);
-  // Walk-segment keys feed the scale segment's fallback when the
-  // user has no active songs. parseShapesItemRef returns a union
-  // (chord-shape / scale / voice-leading) — only chord-shape has
-  // `keyName` at this point in the pipeline, and that's what the
-  // walk yields, but we narrow defensively for the type-checker.
-  const walkKeys = walkSegment
-    ? Array.from(new Set(
-        walkSegment.itemRefs
-          .map(ref => {
-            const desc = parseShapesItemRef(ref);
-            if (!desc) return null;
-            if (desc.kind === 'chord-shape') return desc.keyName;
-            return null;
-          })
-          .filter((k): k is string => typeof k === 'string'),
-      ))
-    : [];
-  const scaleSegment = scaleBudget > 0
-    ? buildScaleSegment(block.plannedSeconds, ctx, walkKeys)
+  const scalesBudget = scalesSegmentBudget(block.plannedSeconds);
+  const walkBudget = block.plannedSeconds - scalesBudget;
+  const scalesSegment = scalesBudget > 0
+    ? buildScalesSegment(block.plannedSeconds, ctx)
     : null;
+  const walkSegment = buildShapesWalk(block, ctx, walkBudget);
   const segments: ShapesSplitSegment[] = [];
+  if (scalesSegment) segments.push(scalesSegment);
   if (walkSegment) segments.push(walkSegment);
-  if (scaleSegment) segments.push(scaleSegment);
   return segments;
 }

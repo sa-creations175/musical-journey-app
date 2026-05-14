@@ -1,6 +1,16 @@
 // @vitest-environment jsdom
 /**
- * Pins the key-by-key reshape contract from Phase 1 Parts 2 + 3:
+ * Pins the key-by-key reshape contract:
+ *
+ *   Scales warm-up segment (block ≥ 15 min) — FIRST:
+ *     · 5 min budget for 15–30 min blocks, 8 min for 30+ min blocks
+ *     · per-key ladder: major (30s) → major-pent (30s) → nat-min
+ *       (90s) → min-pent (30s); rel-maj is NOT a separate cell
+ *     · key priority: active-song keys first, then circle-of-4ths
+ *       from least-recently-touched scale key with due cells
+ *     · capped at 2 keys
+ *     · pent cells fan out to one starting point per key (default '1')
+ *     · scale time is carved off the top before the walk truncates
  *
  *   Chord-shape walk segment:
  *     · starting key = least-recently-touched key with due cells
@@ -10,14 +20,6 @@
  *     · truncate to plannedSeconds budget (≈90 s root/inv, 120 s fluid)
  *     · drop cells whose quality is above the unlocked tier
  *     · label = "Quality1, Quality2 · KeyA, KeyB"
- *
- *   Scale warm-down segment (block ≥ 15 min):
- *     · 5 min budget for 15–30 min blocks, 8 min for 30+ min blocks
- *     · drills major / major-pent / nat-min / min-pent / rel-maj
- *       per key, capped at 2 keys
- *     · priority keys = active-song keys, fallback to walk keys
- *     · scale time is subtracted from the chord-shape walk budget
- *     · itemRef format: `scale:{kind}:{keyName}`
  */
 import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
@@ -265,17 +267,16 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
 });
 
 // -----------------------------------------------------------------
-// Scale warm-down
+// Scales warm-up segment
 // -----------------------------------------------------------------
 
-describe('shapeShapesBlock — scale warm-down segment', () => {
+describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('does NOT surface below 15 min', () => {
-    // 14:59 block → no scale segment.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 14 * 60 + 59),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    expect(segs.some(s => s.kind === 'scale-warm-down')).toBe(false);
+    expect(segs.some(s => s.kind === 'scales')).toBe(false);
   });
 
   it('surfaces at 15 min with the 5-min short budget', () => {
@@ -283,9 +284,9 @@ describe('shapeShapesBlock — scale warm-down segment', () => {
       block(['chord-shape:maj:C:root'], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down');
-    expect(scale).toBeDefined();
-    expect(scale!.plannedSeconds).toBe(5 * 60);
+    const scales = segs.find(s => s.kind === 'scales');
+    expect(scales).toBeDefined();
+    expect(scales!.plannedSeconds).toBe(5 * 60);
   });
 
   it('jumps to the 8-min long budget at 30+ min', () => {
@@ -293,25 +294,25 @@ describe('shapeShapesBlock — scale warm-down segment', () => {
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down');
-    expect(scale!.plannedSeconds).toBe(8 * 60);
+    const scales = segs.find(s => s.kind === 'scales');
+    expect(scales!.plannedSeconds).toBe(8 * 60);
   });
 
-  it('subtracts the scale budget from the chord-shape walk budget', () => {
-    // 15-min block = 900 s. Scale takes 300 s → walk gets 600 s.
+  it('places Scales FIRST and carves the budget off the chord-shape walk', () => {
+    // 15-min block = 900 s. Scales takes 300 s → walk gets 600 s.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    const walk = segs.find(s => s.kind === 'shapes-walk');
-    const scale = segs.find(s => s.kind === 'scale-warm-down');
-    expect(walk!.plannedSeconds + scale!.plannedSeconds).toBe(15 * 60);
-    expect(walk!.plannedSeconds).toBe(10 * 60);
+    expect(segs[0].kind).toBe('scales');
+    expect(segs[1].kind).toBe('shapes-walk');
+    expect(segs[0].plannedSeconds + segs[1].plannedSeconds).toBe(15 * 60);
+    expect(segs[1].plannedSeconds).toBe(10 * 60);
   });
 
-  it('prioritises active-song keys for the scale segment', () => {
-    // Block has C / F / Bb chord shapes; active song key is Eb
-    // (not in the walk). Scale segment should drill Eb first.
+  it('prioritises active-song keys', () => {
+    // Active song key is Eb (no chord shapes in Eb in this setup).
+    // Scales should still lead with Eb.
     const segs = shapeShapesBlock(
       block(
         [
@@ -323,24 +324,38 @@ describe('shapeShapesBlock — scale warm-down segment', () => {
       ),
       ctx([], { unlockedTier: 1, activeSongKeys: ['Eb'] }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down')!;
-    expect(scale.itemRefs[0]).toBe('scale:major:Eb');
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.itemRefs[0]).toBe('scale:major:Eb');
   });
 
-  it('falls back to walk keys when no active songs exist', () => {
-    // No songs → uses the first chord-shape walk key (C in this
-    // setup).
+  it('falls back to circle-of-fourths (cold-start) when no active songs + no rows exist', () => {
+    // No songs, no spacingState scale rows → starts at C (the
+    // circle-of-fourths root).
     const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root', 'chord-shape:maj:F:root'], 15 * 60),
+      block(['chord-shape:maj:C:root'], 15 * 60),
       ctx([], { unlockedTier: 1 }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down')!;
-    // C is the starting walk key (circle-of-fourths index 0) →
-    // first scale itemRef is `scale:major:C`.
-    expect(scale.itemRefs[0]).toBe('scale:major:C');
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.itemRefs[0]).toBe('scale:major:C');
   });
 
-  it('caps at 2 keys', () => {
+  it('leads with the least-recently-touched scale key with due cells', () => {
+    // Three scale rows: Bb is oldest with a due cell; C + F are
+    // newer. Algorithm should pick Bb to lead.
+    const rows = [
+      row('scale:major:C', { lastEngagedAt: NOW - 1_000, nextDueAt: NOW - 100 }),
+      row('scale:major:F', { lastEngagedAt: NOW - 5_000, nextDueAt: NOW + 1_000 }),
+      row('scale:major:Bb', { lastEngagedAt: NOW - 10_000, nextDueAt: NOW - 100 }),
+    ];
+    const segs = shapeShapesBlock(
+      block([], 15 * 60),
+      ctx(rows, { unlockedTier: 1 }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.itemRefs[0]).toBe('scale:major:Bb');
+  });
+
+  it('caps at 2 keys even when active songs supply more', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], {
@@ -348,63 +363,99 @@ describe('shapeShapesBlock — scale warm-down segment', () => {
         activeSongKeys: ['C', 'F', 'Bb', 'Eb'],
       }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down')!;
+    const scales = segs.find(s => s.kind === 'scales')!;
     const distinctKeys = new Set(
-      scale.itemRefs.map(ref => ref.split(':')[2]),
+      scales.itemRefs
+        .map(ref => parseScaleKeyName(ref))
+        .filter((k): k is string => k !== null),
     );
     expect(distinctKeys.size).toBeLessThanOrEqual(2);
   });
 
-  it('drills the parallel set per key in the design-doc order', () => {
+  it('drills the four-scale ladder per key in design order; rel-maj is NOT a separate cell', () => {
     const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 15 * 60),
+      block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down')!;
-    // 5-min budget covers all 5 scales for one key
-    // (30+30+90+90+30 = 270 s ≤ 300 s).
-    expect(scale.itemRefs).toEqual([
+    const scales = segs.find(s => s.kind === 'scales')!;
+    // 5-min budget = 300 s. Single-key ladder = 30+30+90+30 = 180 s
+    // for one key, leaving 120 s for the next key — fits another
+    // ladder partially before the next key is added.
+    expect(scales.itemRefs.slice(0, 4)).toEqual([
       'scale:major:C',
-      'scale:major-pentatonic:C',
+      'scale:major-pentatonic:1:C',
       'scale:natural-minor:C',
-      'scale:minor-pentatonic:C',
-      'scale:relative-major:C',
+      'scale:minor-pentatonic:1:C',
     ]);
+    // Defensive: no rel-maj itemRef shape in the output.
+    for (const ref of scales.itemRefs) {
+      expect(ref.startsWith('scale:relative-major:')).toBe(false);
+    }
   });
 
-  it('builds a label naming the keys + scale steps', () => {
+  it('uses the default pent starting point (1) when no spacingState row exists', () => {
     const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 15 * 60),
+      block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down')!;
-    expect(scale.label).toMatch(/Scale warm-down · C/);
-    // Step labels are joined with ' / '.
-    expect(scale.label).toMatch(/major/);
-    expect(scale.label).toMatch(/rel maj/);
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.itemRefs).toContain('scale:major-pentatonic:1:C');
+    expect(scales.itemRefs).toContain('scale:minor-pentatonic:1:C');
   });
 
-  it('annotates the relative-major mapping in the why-text for single-key segments', () => {
+  it('prefers the most-due pent starting point when rows exist', () => {
+    // Two major-pent sps in C: '1' was practiced more recently
+    // than '5'. The segment should drill '5' (the older one).
+    const rows = [
+      row('scale:major-pentatonic:1:C', { lastEngagedAt: NOW - 1_000 }),
+      row('scale:major-pentatonic:5:C', { lastEngagedAt: NOW - 10_000 }),
+    ];
     const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 15 * 60),
+      block([], 15 * 60),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.itemRefs).toContain('scale:major-pentatonic:5:C');
+    expect(scales.itemRefs).not.toContain('scale:major-pentatonic:1:C');
+  });
+
+  it('builds a "Scales · KEYS (ladder)" label', () => {
+    const segs = shapeShapesBlock(
+      block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
-    const scale = segs.find(s => s.kind === 'scale-warm-down')!;
-    // Cm relative major = Eb.
-    expect(scale.why).toContain('Eb');
-    expect(scale.why).toContain('relative major of C');
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.label).toMatch(/^Scales · C/);
+    expect(scales.label).toMatch(/major/);
+    expect(scales.label).toMatch(/natural min/);
+    expect(scales.label).toMatch(/minor pent/);
   });
 
-  it('block ≥ 15 min with no chord-shape items still surfaces the scale segment alone', () => {
-    // Caller's algorithm produced an S&P block with only scale
-    // itemRefs (or nothing). The reshape returns the scale
-    // segment alone when there are no chord-shape items to walk.
-    // Active song keys → scale picks those.
+  it('why-text counts reps and keys in the warm-up framing', () => {
     const segs = shapeShapesBlock(
-      block(['scale:major:C'], 15 * 60),
+      block([], 15 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.why).toContain('warm-up');
+    expect(scales.why).toMatch(/\d+ scale reps?/);
+  });
+
+  it('Scales segment surfaces alone when the block has no chord-shape items', () => {
+    const segs = shapeShapesBlock(
+      block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     expect(segs).toHaveLength(1);
-    expect(segs[0].kind).toBe('scale-warm-down');
+    expect(segs[0].kind).toBe('scales');
   });
 });
+
+// Helper: extract the key name from a 3- or 4-part scale itemRef.
+function parseScaleKeyName(itemRef: string): string | null {
+  const parts = itemRef.split(':');
+  if (parts[0] !== 'scale') return null;
+  if (parts.length === 3) return parts[2];
+  if (parts.length === 4) return parts[3];
+  return null;
+}
