@@ -240,7 +240,7 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
     expect(segs[0].itemRefs).toEqual(['chord-shape:maj:C:root']);
   });
 
-  it('builds a human label naming the qualities and keys in walk order', () => {
+  it('builds a plain-language label naming the qualities, keys, and inversion descriptor', () => {
     const rows = [
       row('chord-shape:maj:C:root', { lastEngagedAt: NOW - 5_000 }),
       row('chord-shape:maj:F:root', { lastEngagedAt: NOW - 1_000 }),
@@ -257,7 +257,9 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       ),
       ctx(rows, { unlockedTier: 1 }),
     );
-    expect(segs[0].label).toBe('Major, Minor · C, F');
+    expect(segs[0].label).toBe(
+      'Drill major, minor triads — C, F (root position, inversions + fluid run)',
+    );
   });
 
   it('returns a "drills across N keys — circle-of-fourths order" why snippet', () => {
@@ -428,26 +430,65 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.itemRefs).not.toContain('scale:major-pentatonic:1:C');
   });
 
-  it('builds a "Scales · KEYS (ladder)" label', () => {
+  it('builds a "Scales warm-up · KEY — major, minor + pentatonics" label', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.label).toMatch(/^Scales · C/);
-    expect(scales.label).toMatch(/major/);
-    expect(scales.label).toMatch(/natural min/);
-    expect(scales.label).toMatch(/minor pent/);
+    expect(scales.label).toMatch(/^Scales warm-up · C/);
+    expect(scales.label).toContain('major');
+    expect(scales.label).toContain('minor');
+    expect(scales.label).toContain('pentatonics');
+    // No longer surfaces the kind-specific "natural min" / "minor
+    // pent" phrasing — those collapse into the plain-language list.
+    expect(scales.label).not.toMatch(/natural min/);
+    expect(scales.label).not.toMatch(/minor pent/);
   });
 
-  it('why-text counts reps and keys in the warm-up framing', () => {
+  it('multi-key labels separate the per-key descriptors with " · "', () => {
+    const segs = shapeShapesBlock(
+      block([], 30 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['B', 'Gb'] }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.label).toContain('B —');
+    expect(scales.label).toContain('Gb —');
+    expect(scales.label.startsWith('Scales warm-up · ')).toBe(true);
+  });
+
+  it('why-text names active songs when titles are supplied', () => {
+    const titlesByKey = new Map<string, ReadonlyArray<string>>([
+      ['B', ['I Want You Around']],
+      ['Gb', ['Mirror']],
+    ]);
+    const segs = shapeShapesBlock(
+      block([], 30 * 60),
+      {
+        rowsByItemRef: new Map(),
+        unlockedTier: 1,
+        now: NOW,
+        activeSongKeys: ['B', 'Gb'],
+        activeSongTitlesByKey: titlesByKey,
+        scalesGoalDueSeconds: null,
+      },
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.why).toContain('active song keys');
+    expect(scales.why).toContain('B (I Want You Around)');
+    expect(scales.why).toContain('Gb (Mirror)');
+    expect(scales.why).toContain(' and ');
+  });
+
+  it('why-text falls back to bare keys when no titles are supplied', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.why).toContain('warm-up');
-    expect(scales.why).toMatch(/\d+ scale reps?/);
+    expect(scales.why).toContain('Drilling parallel major/minor scales');
+    expect(scales.why).toContain('C');
+    expect(scales.why).not.toContain('(');
   });
 
   it('Scales segment surfaces alone when the block has no chord-shape items', () => {

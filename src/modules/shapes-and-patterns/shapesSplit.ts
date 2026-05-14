@@ -130,13 +130,11 @@ const SCALES_LADDER: ReadonlyArray<ScaleKind> = [
   'minor-pentatonic',
 ];
 
-/** Display label for each scale kind in the segment label. */
-const SCALE_KIND_LABEL: Readonly<Record<ScaleKind, string>> = {
-  'major':            'major',
-  'major-pentatonic': 'major pent',
-  'natural-minor':    'natural min',
-  'minor-pentatonic': 'minor pent',
-};
+// Per-kind display labels were inlined into the plain-language
+// label builder (see describeKindsForKey) — pentatonic kinds now
+// collapse into a single "pentatonics" word rather than calling out
+// "major pent" / "minor pent" separately, so a per-kind table no
+// longer carries its weight.
 
 // ---------------------------------------------------------------------
 // Public types
@@ -161,6 +159,14 @@ export interface ShapesSplitContext {
    *  touched scale key with due cells, then to circle-of-fourths
    *  from C on cold-start. */
   activeSongKeys: ReadonlyArray<string>;
+  /** Song titles indexed by canonical key — used to render the
+   *  plain-language why-text on the Scales warm-up segment ("B (I
+   *  Want You Around) and Gb (Mirror)"). Keys match
+   *  `activeSongKeys`; a key may map to multiple titles when two
+   *  active songs share a home key. Optional — when omitted the
+   *  why falls back to a generic "circle-of-fourths warm-up"
+   *  phrasing for cold-start. */
+  activeSongTitlesByKey?: ReadonlyMap<string, ReadonlyArray<string>>;
   /** Goal-aware proportional Scales budget — total drill seconds
    *  across every due scale cell that matches at least one active
    *  Scales coverage goal, computed once at the loader. The
@@ -305,29 +311,105 @@ function rotateToStart(start: string): string[] {
   ];
 }
 
+/**
+ * Plain-language chord-shape walk label per the proposal-text spec:
+ *
+ *   "Drill major, minor, dim triads — C (root position, inversions + fluid run)"
+ *
+ * Three moving parts:
+ *   1. Quality list — short-form lowercase ("dim", "m7b5", "maj7"),
+ *      with a "+N more" tail past three. Reads as plain English
+ *      next to the chord-family noun.
+ *   2. Chord-family noun — derived from which catalog kinds are
+ *      represented in the kept cells. "triads" when only T1; "7th
+ *      chords" when only T2; "extensions" / "altered dominants"
+ *      for T3 / T4; mixed runs fall back to "chord shapes".
+ *   3. Inversion descriptor — names what's actually being drilled
+ *      voicing-wise. "root position, inversions + fluid run" when
+ *      acquisition-path inversion cells are in the walk; "voicings"
+ *      for extension/special only; mixed becomes "inversions + voicings".
+ */
 function formatShapesLabel(cells: ReadonlyArray<ShapeCell>): string {
+  const qualityShortNames: string[] = [];
   const seenQualities = new Set<string>();
-  const qualityLabels: string[] = [];
+  const familyKinds = new Set<string>();
   for (const c of cells) {
-    if (seenQualities.has(c.quality)) continue;
-    seenQualities.add(c.quality);
-    const entry = CHORD_QUALITY_BY_ID.get(c.quality);
-    qualityLabels.push(entry?.label ?? c.quality);
+    if (!seenQualities.has(c.quality)) {
+      seenQualities.add(c.quality);
+      const entry = CHORD_QUALITY_BY_ID.get(c.quality);
+      qualityShortNames.push(shortQualityName(c.quality, entry?.label));
+      if (entry?.kind) familyKinds.add(entry.kind);
+    }
   }
   const seenKeys = new Set<string>();
   const keys: string[] = [];
   for (const c of cells) {
-    if (seenKeys.has(c.keyName)) continue;
-    seenKeys.add(c.keyName);
-    keys.push(c.keyName);
+    if (!seenKeys.has(c.keyName)) {
+      seenKeys.add(c.keyName);
+      keys.push(c.keyName);
+    }
   }
-  const qualityPart = qualityLabels.length <= 3
-    ? qualityLabels.join(', ')
-    : `${qualityLabels.slice(0, 3).join(', ')}, +${qualityLabels.length - 3} more`;
+
+  const qualityPart = qualityShortNames.length <= 3
+    ? qualityShortNames.join(', ')
+    : `${qualityShortNames.slice(0, 3).join(', ')}, +${qualityShortNames.length - 3} more`;
+  const familyNoun = familyNounFor(familyKinds);
   const keyPart = keys.length <= 4
     ? keys.join(', ')
     : `${keys.slice(0, 4).join(', ')}, +${keys.length - 4} more`;
-  return `${qualityPart} · ${keyPart}`;
+  const inversionDescriptor = describeInversionStates(cells);
+
+  return `Drill ${qualityPart} ${familyNoun} — ${keyPart} (${inversionDescriptor})`;
+}
+
+/** Lowercase, abbreviation-friendly chord quality label. The
+ *  catalog labels mostly read fine in lowercase ("Major" →
+ *  "major"); a few get explicit short forms so the proposal line
+ *  stays scannable ("Diminished" → "dim", "Half-diminished" →
+ *  "m7b5"). Unknown qualities fall back to the catalog label
+ *  lowercased, or the bare quality id when not in the catalog. */
+function shortQualityName(qualityId: string, catalogLabel: string | undefined): string {
+  switch (qualityId) {
+    case 'dim':       return 'dim';
+    case 'aug':       return 'aug';
+    case 'm7b5':      return 'm7b5';
+    case 'mmaj7':     return 'min-maj7';
+    case 'maj6_9':    return 'maj 6/9';
+    case 'dom7s9':    return 'dom7#9';
+  }
+  if (catalogLabel) return catalogLabel.toLowerCase();
+  return qualityId;
+}
+
+/** Map the set of QualityKind values in the kept cells to the
+ *  best-fit family noun. Single-kind walks get specific nouns;
+ *  mixed walks fall back to the generic "chord shapes". */
+function familyNounFor(familyKinds: ReadonlySet<string>): string {
+  if (familyKinds.size === 1) {
+    if (familyKinds.has('triad'))     return 'triads';
+    if (familyKinds.has('seventh'))   return '7th chords';
+    if (familyKinds.has('extension')) return 'extensions';
+    if (familyKinds.has('special'))   return 'altered dominants';
+  }
+  return 'chord shapes';
+}
+
+/** "(root position, inversions + fluid run)" for triads / sevenths;
+ *  "(voicings)" for extensions / special; "(inversions + voicings)"
+ *  for mixed walks. Reads off the kept cells' inversionState
+ *  field — cells with a non-null state are inversion-path, null
+ *  ones are voicing-path. */
+function describeInversionStates(cells: ReadonlyArray<ShapeCell>): string {
+  let hasInversions = false;
+  let hasVoicings = false;
+  for (const c of cells) {
+    if (c.inversionState === null) hasVoicings = true;
+    else hasInversions = true;
+    if (hasInversions && hasVoicings) break;
+  }
+  if (hasInversions && hasVoicings) return 'inversions + voicings';
+  if (hasInversions) return 'root position, inversions + fluid run';
+  return 'voicings';
 }
 
 /**
@@ -576,22 +658,98 @@ function buildScaleLadder(
   return out;
 }
 
+/**
+ * Plain-language Scales warm-up label per the proposal-text spec:
+ *
+ *   "Scales warm-up · B — major, minor + pentatonics · Gb — major, minor + pentatonics"
+ *
+ * Each key gets a descriptor naming exactly the scale families
+ * that actually appear in that key's ladder (the segment may
+ * truncate before the full ladder lands). The mapping is:
+ *
+ *     major-scale cell      → "major"
+ *     natural-minor cell    → "minor"   (parallel minor of the root)
+ *     either pent kind      → "pentatonics" (covers both flavours)
+ *
+ * Three families combine with " + " before the last item so the
+ * line reads like English: "major, minor + pentatonics".
+ */
 function formatScalesLabel(steps: ReadonlyArray<ScaleLadderStep>): string {
+  const orderedKeys: string[] = [];
   const seenKeys = new Set<string>();
-  const keys: string[] = [];
+  const kindsByKey = new Map<string, Set<ScaleKind>>();
   for (const s of steps) {
-    if (seenKeys.has(s.keyName)) continue;
-    seenKeys.add(s.keyName);
-    keys.push(s.keyName);
+    if (!seenKeys.has(s.keyName)) {
+      seenKeys.add(s.keyName);
+      orderedKeys.push(s.keyName);
+    }
+    const set = kindsByKey.get(s.keyName) ?? new Set<ScaleKind>();
+    set.add(s.kind);
+    kindsByKey.set(s.keyName, set);
   }
-  const seenKinds = new Set<ScaleKind>();
-  const kindLabels: string[] = [];
+  const perKey = orderedKeys.map(k => {
+    const kinds = kindsByKey.get(k) ?? new Set<ScaleKind>();
+    return `${k} — ${describeKindsForKey(kinds)}`;
+  });
+  return `Scales warm-up · ${perKey.join(' · ')}`;
+}
+
+/** Build the descriptor string for one key — "major, minor +
+ *  pentatonics" or any subset depending on which families landed. */
+function describeKindsForKey(kinds: ReadonlySet<ScaleKind>): string {
+  const parts: string[] = [];
+  if (kinds.has('major')) parts.push('major');
+  if (kinds.has('natural-minor')) parts.push('minor');
+  if (kinds.has('major-pentatonic') || kinds.has('minor-pentatonic')) {
+    parts.push('pentatonics');
+  }
+  if (parts.length === 0) return 'scales';
+  if (parts.length === 1) return parts[0];
+  // Final separator switches to "+" so the line reads as a list
+  // climbing to its capstone: "major, minor + pentatonics".
+  const head = parts.slice(0, -1).join(', ');
+  return `${head} + ${parts[parts.length - 1]}`;
+}
+
+/** Compose the why-text. Names the active songs that gave us each
+ *  key when activeSongTitlesByKey supplies them, falling back to
+ *  bare keys for the cold-start path. */
+function formatScalesWhy(
+  steps: ReadonlyArray<ScaleLadderStep>,
+  titlesByKey: ReadonlyMap<string, ReadonlyArray<string>> | undefined,
+): string {
+  const orderedKeys: string[] = [];
+  const seen = new Set<string>();
   for (const s of steps) {
-    if (seenKinds.has(s.kind)) continue;
-    seenKinds.add(s.kind);
-    kindLabels.push(SCALE_KIND_LABEL[s.kind]);
+    if (!seen.has(s.keyName)) {
+      seen.add(s.keyName);
+      orderedKeys.push(s.keyName);
+    }
   }
-  return `Scales · ${keys.join(', ')} (${kindLabels.join(' / ')})`;
+  if (orderedKeys.length === 0) return 'Drilling parallel major/minor scales — warm-up';
+  const rendered = orderedKeys.map(k => {
+    const titles = titlesByKey?.get(k);
+    if (titles && titles.length > 0) {
+      return `${k} (${titles.join(', ')})`;
+    }
+    return k;
+  });
+  const anyTitled = orderedKeys.some(k => (titlesByKey?.get(k)?.length ?? 0) > 0);
+  const tail = anyTitled
+    ? 'in your active song keys'
+    : 'across your warm-up keys';
+  const joined = joinWithAnd(rendered);
+  return `Drilling parallel major/minor scales ${tail} — ${joined}`;
+}
+
+/** Join 1-3+ items into "A", "A and B", "A, B, and C". Keeps the
+ *  why-text grammatical at every key-count without a separate
+ *  branch per cap. */
+function joinWithAnd(items: ReadonlyArray<string>): string {
+  if (items.length === 0) return '';
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
 /**
@@ -610,15 +768,12 @@ function buildScalesSegment(
   if (keys.length === 0) return null;
   const steps = buildScaleLadder(keys, budget, ctx);
   if (steps.length === 0) return null;
-  const distinctKeyCount = new Set(steps.map(s => s.keyName)).size;
   return {
     kind: 'scales',
     itemRefs: steps.map(s => s.itemRef),
     plannedSeconds: budget,
     label: formatScalesLabel(steps),
-    why: `${steps.length} scale rep${steps.length === 1 ? '' : 's'} across ${
-      distinctKeyCount
-    } key${distinctKeyCount === 1 ? '' : 's'} — warm-up`,
+    why: formatScalesWhy(steps, ctx.activeSongTitlesByKey),
   };
 }
 

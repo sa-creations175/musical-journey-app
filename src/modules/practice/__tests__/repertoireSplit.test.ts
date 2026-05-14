@@ -203,7 +203,7 @@ describe('splitRepertoireAllocation — readiness routing', () => {
     const out = splitRepertoireAllocation(45 * 60, ctx);
     expect(out).toHaveLength(1);
     expect(out[0].kind).toBe('setup');
-    expect(out[0].label).toBe('Set up Mirror');
+    expect(out[0].label).toBe('Set up Mirror — add sections and chords to unlock practice');
     expect(out[0].songId).toBe('song-A');
     expect(out[0].plannedSeconds).toBe(45 * 60);
   });
@@ -219,7 +219,7 @@ describe('splitRepertoireAllocation — readiness routing', () => {
     const out = splitRepertoireAllocation(20 * 60, ctx);
     expect(out).toHaveLength(1);
     expect(out[0].kind).toBe('setup');
-    expect(out[0].label).toBe('Set up Lift Up');
+    expect(out[0].label).toBe('Set up Lift Up — add sections and chords to unlock practice');
   });
 
   it('ready spotlight on keys/mixed → chord-quiz (3min) + practice (rest)', () => {
@@ -235,7 +235,7 @@ describe('splitRepertoireAllocation — readiness routing', () => {
     expect(out).toHaveLength(2);
     expect(out[0].kind).toBe('chord-quiz');
     expect(out[0].plannedSeconds).toBe(3 * 60);
-    expect(out[0].label).toBe('Chord Quiz — Mirror');
+    expect(out[0].label).toBe('Practice memorizing the chord progression — Mirror');
     expect(out[1].kind).toBe('spotlight');
     expect(out[1].plannedSeconds).toBe(45 * 60 - 3 * 60);
   });

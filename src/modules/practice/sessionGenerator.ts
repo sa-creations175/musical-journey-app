@@ -478,14 +478,23 @@ export async function loadShapesSplitContext(
   // own scale rows.
   const seenKeys = new Set<string>();
   const activeSongKeys: string[] = [];
+  const activeSongTitlesByKey = new Map<string, string[]>();
   for (const s of songs) {
     if (!s.key) continue;
     if (!isActiveSong(s.stage)) continue;
     const canonical = canonicaliseKey(s.key);
     if (!canonical) continue;
-    if (seenKeys.has(canonical)) continue;
-    seenKeys.add(canonical);
-    activeSongKeys.push(canonical);
+    if (!seenKeys.has(canonical)) {
+      seenKeys.add(canonical);
+      activeSongKeys.push(canonical);
+    }
+    // Track titles per canonical key so the Scales warm-up's
+    // why-text can name the songs that drove the key choice. Two
+    // songs in the same key (e.g. both in B) both surface in the
+    // parenthetical: "B (Song1, Song2)".
+    const titles = activeSongTitlesByKey.get(canonical) ?? [];
+    titles.push(s.title);
+    activeSongTitlesByKey.set(canonical, titles);
   }
 
   // Scales goal awareness — when at least one active Scales goal
@@ -530,6 +539,7 @@ export async function loadShapesSplitContext(
     unlockedTier,
     now,
     activeSongKeys,
+    activeSongTitlesByKey,
     scalesGoalDueSeconds,
   };
 }

@@ -512,7 +512,7 @@ function setupBlock(
   whyExtra: string,
 ): RepertoireSplitBlock {
   return {
-    label: `Set up ${title}`,
+    label: `Set up ${title} — add sections and chords to unlock practice`,
     plannedSeconds,
     why: `Enter sections and chords to unlock matrix practice — ${whyExtra}`,
     songId,
@@ -527,9 +527,9 @@ function chordQuizBlock(
   title: string,
 ): RepertoireSplitBlock {
   return {
-    label: `Chord Quiz — ${title}`,
+    label: `Practice memorizing the chord progression — ${title}`,
     plannedSeconds,
-    why: 'Quick recall before you play',
+    why: 'Quick recall before you play — know what\'s coming before your fingers do',
     songId,
     isTbdSpotlight: false,
     kind: 'chord-quiz',
