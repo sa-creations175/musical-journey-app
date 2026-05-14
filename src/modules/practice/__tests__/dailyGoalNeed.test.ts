@@ -7,7 +7,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Goal } from '../../../lib/db';
-import { computeDailyGoalNeed } from '../dailyGoalNeed';
+import {
+  computeDailyGoalNeed,
+  mergeDailyNeed,
+  type DailyNeed,
+} from '../dailyGoalNeed';
+import type { ModuleSessionNeed } from '../../../lib/sessionAlgorithm/sessionNeed';
+import type { GoalFlowModuleId } from '../../goals/goalVocabulary';
 import {
   REPERTOIRE_SESSION_DEFAULT_MINUTES,
   PRODUCTION_TIME_RANGE_MINUTES,
@@ -190,5 +196,106 @@ describe('computeDailyGoalNeed — Repertoire song goals', () => {
     const out = computeDailyGoalNeed(goals);
     expect(out!.entries[0].moduleId).toBe('repertoire');
     expect(out!.entries[0].dailyMinutes).toBe(REPERTOIRE_SESSION_DEFAULT_MINUTES);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Phase B Commit 3 — mergeDailyNeed (Phase B overrides legacy)
+// ---------------------------------------------------------------------
+
+function need(
+  attemptsToday: number,
+  timeNeededSeconds: number,
+  isOverPractice = false,
+): ModuleSessionNeed {
+  return { attemptsToday, timeNeededSeconds, isOverPractice };
+}
+
+function phaseBMap(
+  entries: Array<[GoalFlowModuleId, ModuleSessionNeed]>,
+): Map<GoalFlowModuleId, ModuleSessionNeed> {
+  return new Map(entries);
+}
+
+describe('mergeDailyNeed', () => {
+  it('returns null when both sources are empty', () => {
+    expect(mergeDailyNeed(null, phaseBMap([]))).toBeNull();
+  });
+
+  it('Phase B entry alone — produces a row with the breakdown attached', () => {
+    // 65 attempts × 30 s = 1950 s → 33 min (rounded).
+    const out = mergeDailyNeed(null, phaseBMap([
+      ['harmonic-fluency', need(65, 1950)],
+    ]));
+    expect(out).not.toBeNull();
+    const hf = out!.entries.find(e => e.moduleId === 'harmonic-fluency')!;
+    expect(hf.dailyMinutes).toBe(33);
+    expect(hf.phaseB).toEqual({
+      attemptsToday: 65,
+      timePerAttemptSeconds: 30,
+      isOverPractice: false,
+    });
+    expect(out!.totalMinutes).toBe(33);
+  });
+
+  it('Phase B OVERRIDES the legacy estimate for the same module', () => {
+    // Legacy says HF is 15 min; Phase B says 33 min — Phase B wins.
+    const legacy: DailyNeed = {
+      entries: [{ moduleId: 'harmonic-fluency', dailyMinutes: 15 }],
+      totalMinutes: 15,
+    };
+    const out = mergeDailyNeed(legacy, phaseBMap([
+      ['harmonic-fluency', need(65, 1950)],
+    ]));
+    const hf = out!.entries.find(e => e.moduleId === 'harmonic-fluency')!;
+    expect(hf.dailyMinutes).toBe(33);
+    expect(hf.phaseB).toBeDefined();
+  });
+
+  it('legacy-only modules pass through untouched alongside Phase B modules', () => {
+    // S&P + Repertoire are legacy-estimated; HF is Phase B. All three
+    // survive, ordered by MODULE_ORDER (S&P, Repertoire, …, HF).
+    const legacy: DailyNeed = {
+      entries: [
+        { moduleId: 'shapes-and-patterns', dailyMinutes: 20 },
+        { moduleId: 'repertoire', dailyMinutes: 60 },
+      ],
+      totalMinutes: 80,
+    };
+    const out = mergeDailyNeed(legacy, phaseBMap([
+      ['harmonic-fluency', need(20, 600)],
+    ]));
+    const ids = out!.entries.map(e => e.moduleId);
+    expect(ids).toEqual(['shapes-and-patterns', 'repertoire', 'harmonic-fluency']);
+    // Legacy entries keep their shape (no phaseB breakdown).
+    expect(out!.entries[0].phaseB).toBeUndefined();
+    expect(out!.entries[1].phaseB).toBeUndefined();
+    expect(out!.entries[2].phaseB).toBeDefined();
+    // Total = 20 + 60 + 10 (600 s).
+    expect(out!.totalMinutes).toBe(90);
+  });
+
+  it('over-practice module stays in the list, contributes 0 to the total', () => {
+    const legacy: DailyNeed = {
+      entries: [{ moduleId: 'shapes-and-patterns', dailyMinutes: 20 }],
+      totalMinutes: 20,
+    };
+    const out = mergeDailyNeed(legacy, phaseBMap([
+      ['harmonic-fluency', need(0, 0, /* isOverPractice */ true)],
+    ]));
+    const hf = out!.entries.find(e => e.moduleId === 'harmonic-fluency')!;
+    expect(hf.dailyMinutes).toBe(0);
+    expect(hf.phaseB?.isOverPractice).toBe(true);
+    // Total reflects only the S&P legacy entry — over-practice adds 0.
+    expect(out!.totalMinutes).toBe(20);
+  });
+
+  it('recovers the per-attempt seed exactly from timeNeeded ÷ attemptsToday', () => {
+    // 17 attempts × 30 s = 510 s. timePerAttempt must come back as 30.
+    const out = mergeDailyNeed(null, phaseBMap([
+      ['ear-training', need(17, 510)],
+    ]));
+    const et = out!.entries.find(e => e.moduleId === 'ear-training')!;
+    expect(et.phaseB!.timePerAttemptSeconds).toBe(30);
   });
 });

@@ -13,6 +13,10 @@ import {
   PRODUCTION_TIME_RANGE_MINUTES,
   type ShapesActivityArea,
 } from '../../lib/weeklyAttempts';
+import {
+  computeSessionNeedByModule,
+  type ModuleSessionNeed,
+} from '../../lib/sessionAlgorithm/sessionNeed';
 
 /**
  * Per-module per-day need estimate for the "What your goals need
@@ -25,11 +29,33 @@ import {
  * can't know in advance which days they'll skip. The total is a
  * "honest practice day" estimate, not a contractual obligation.
  */
+/** Phase B breakdown attached to entries computed by the goal-pace
+ *  formula (computeSessionNeedByModule). Present only for the
+ *  modules Phase B currently plans for — Harmonic Fluency + Ear
+ *  Training. Drives the plain-English detail line on
+ *  GoalsNeedTodayScreen ("65 attempts × 30s each"). Absent on
+ *  legacy-estimated entries (S&P / Repertoire / Production), which
+ *  keep the pre-Phase-B per-day estimate. */
+export interface DailyNeedPhaseB {
+  /** Attempts today's session targets for this module. 0 in
+   *  over-practice mode. */
+  attemptsToday: number;
+  /** Seconds per attempt — the seed (or, later, rolling average)
+   *  used in the breakdown. */
+  timePerAttemptSeconds: number;
+  /** True when the weekly target is already met — the screen
+   *  renders this as a "target met" state, not a time ask. */
+  isOverPractice: boolean;
+}
+
 export interface DailyNeedEntry {
   moduleId: GoalFlowModuleId;
   /** User-facing label — pulled from moduleMeta in the renderer. The
    *  helper stores only the canonical id. */
   dailyMinutes: number;
+  /** Phase B goal-pace breakdown. Undefined for legacy-estimated
+   *  modules — see DailyNeedPhaseB. */
+  phaseB?: DailyNeedPhaseB;
 }
 
 export interface DailyNeed {
@@ -38,16 +64,85 @@ export interface DailyNeed {
 }
 
 /**
- * Async entry: read active monthly goals, route to the pure
- * aggregator. Returns null when zero active goals exist — caller
- * skips the "goals need today" screen and goes straight to the
+ * Async entry for "What your goals need today". Hybrid by design:
+ *
+ *   · Harmonic Fluency + Ear Training go through the Phase B
+ *     goal-pace formula (computeSessionNeedByModule) — the same
+ *     source of truth the session planner uses, so the pre-session
+ *     screen and the proposal agree.
+ *   · Every other module keeps the legacy per-day estimate
+ *     (computeDailyGoalNeed) until Phase B's attempt-counting gaps
+ *     for S&P / Repertoire / Production close — dropping them from
+ *     the screen would be a visible regression, so they stay on
+ *     the cruder estimate for now.
+ *
+ * `mergeDailyNeed` does the pure merge; this wrapper just does the
+ * two Dexie reads. Returns null when neither source produces an
+ * entry — caller skips the screen and goes straight to the
  * questionnaire's time picker.
  */
-export async function loadDailyGoalNeed(): Promise<DailyNeed | null> {
+export async function loadDailyGoalNeed(
+  now: number = Date.now(),
+): Promise<DailyNeed | null> {
   const goals = await db.goals
     .where('status').equals('active')
     .toArray();
-  return computeDailyGoalNeed(goals);
+  const legacy = computeDailyGoalNeed(goals);
+  const phaseB = await computeSessionNeedByModule(now);
+  return mergeDailyNeed(legacy, phaseB);
+}
+
+/**
+ * Pure merge — Phase B entries OVERRIDE the legacy estimate for the
+ * modules they cover, legacy entries fill in the rest. Re-orders by
+ * MODULE_ORDER so the screen sequencing stays stable regardless of
+ * which source produced each row.
+ *
+ * Over-practice modules (weekly target met) are kept in the list
+ * with dailyMinutes 0 and the isOverPractice flag — the screen
+ * renders them as a "target met" win rather than hiding the
+ * positive signal. They contribute 0 to the total naturally.
+ *
+ * Returns null when the merged set is empty.
+ */
+export function mergeDailyNeed(
+  legacy: DailyNeed | null,
+  phaseBByModule: ReadonlyMap<GoalFlowModuleId, ModuleSessionNeed>,
+): DailyNeed | null {
+  const byModule = new Map<GoalFlowModuleId, DailyNeedEntry>();
+
+  if (legacy) {
+    for (const e of legacy.entries) byModule.set(e.moduleId, e);
+  }
+
+  for (const [moduleId, need] of phaseBByModule) {
+    // timeNeeded = attemptsToday × timePerAttempt by construction,
+    // so the division recovers the per-attempt seed exactly.
+    const timePerAttemptSeconds = need.attemptsToday > 0
+      ? need.timeNeededSeconds / need.attemptsToday
+      : 0;
+    byModule.set(moduleId, {
+      moduleId,
+      dailyMinutes: Math.round(need.timeNeededSeconds / 60),
+      phaseB: {
+        attemptsToday: need.attemptsToday,
+        timePerAttemptSeconds,
+        isOverPractice: need.isOverPractice,
+      },
+    });
+  }
+
+  if (byModule.size === 0) return null;
+
+  const entries: DailyNeedEntry[] = [];
+  for (const moduleId of MODULE_ORDER) {
+    const entry = byModule.get(moduleId);
+    if (entry) entries.push(entry);
+  }
+  if (entries.length === 0) return null;
+
+  const totalMinutes = entries.reduce((s, e) => s + e.dailyMinutes, 0);
+  return { entries, totalMinutes };
 }
 
 /**

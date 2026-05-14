@@ -153,26 +153,47 @@ function ReadyContent({
   return (
     <div className="flex flex-col gap-5">
       <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 px-4 py-3">
-        <ul className="flex flex-col gap-1.5" data-testid="daily-need-rows">
+        <ul className="flex flex-col gap-2" data-testid="daily-need-rows">
           {need.entries.map(entry => {
             const meta = moduleMetaById(entry.moduleId);
             const accent = meta?.accentHex ?? '#4a9088';
             const label = meta?.label ?? entry.moduleId;
+            const overPractice = entry.phaseB?.isOverPractice ?? false;
+            // Phase B entries (HF / ET) get a plain-English
+            // breakdown: "65 attempts × 30s each". Legacy-estimated
+            // modules show the minutes line alone.
+            const breakdown = entry.phaseB && !overPractice
+              ? `${entry.phaseB.attemptsToday} attempt${
+                  entry.phaseB.attemptsToday === 1 ? '' : 's'
+                } × ${Math.round(entry.phaseB.timePerAttemptSeconds)}s each`
+              : null;
             return (
               <li
                 key={entry.moduleId}
-                className="flex items-center justify-between gap-3"
+                className="flex items-start justify-between gap-3"
               >
-                <span className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-200">
+                <span className="flex items-start gap-2 text-sm text-neutral-700 dark:text-neutral-200">
                   <span
                     aria-hidden
-                    className="inline-block w-2 h-2 rounded-full"
+                    className="inline-block w-2 h-2 rounded-full mt-1.5"
                     style={{ backgroundColor: accent }}
                   />
-                  {label}
+                  <span className="flex flex-col">
+                    <span>{label}</span>
+                    {breakdown && (
+                      <span className="text-[11px] text-neutral-500 font-mono">
+                        {breakdown}
+                      </span>
+                    )}
+                    {overPractice && (
+                      <span className="text-[11px] text-fluent">
+                        weekly target met — over-practice
+                      </span>
+                    )}
+                  </span>
                 </span>
-                <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200">
-                  {entry.dailyMinutes} min
+                <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200 shrink-0">
+                  {overPractice ? '✓' : `~${entry.dailyMinutes} min`}
                 </span>
               </li>
             );
