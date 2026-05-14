@@ -12,7 +12,7 @@ import {
   REPERTOIRE_SESSION_DEFAULT_MINUTES,
   PRODUCTION_TIME_RANGE_MINUTES,
   type ShapesActivityArea,
-} from '../../lib/weeklyAttempts';
+} from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   computeSessionNeedByModule,
   type ModuleSessionNeed,

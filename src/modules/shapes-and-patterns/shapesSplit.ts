@@ -32,6 +32,11 @@
 
 import type { SpacingState } from '../../lib/db';
 import type { AllocatedBlock } from '../../lib/sessionAlgorithm/timeAllocation';
+import {
+  CHORD_SHAPE_CELL_SECONDS,
+  CHORD_SHAPE_FLUID_CELL_SECONDS,
+  SCALE_KIND_SECONDS,
+} from '../../lib/sessionAlgorithm/timePerAttempt';
 import { CHORD_QUALITY_BY_ID } from './catalog';
 import { parseShapesItemRef } from './drillModel';
 import {
@@ -51,12 +56,9 @@ import {
 // Chord-shape walk constants
 // ---------------------------------------------------------------------
 
-/** Per-cell drill time when an inversion state is null or one of
- *  root / inv1 / inv2 / inv3. */
-const CELL_SECONDS_DEFAULT = 90;
-/** Per-cell drill time for the fluid inversion state — slightly
- *  longer because the all-inversion run is a synthesis exercise. */
-const CELL_SECONDS_FLUID = 120;
+// Per-cell drill seconds (CHORD_SHAPE_CELL_SECONDS /
+// CHORD_SHAPE_FLUID_CELL_SECONDS) moved to the canonical
+// sessionAlgorithm/timePerAttempt.ts in Phase B Step 1.
 
 /** Order inversion states are drilled within each shape × key. */
 const INVERSION_ORDER: ReadonlyArray<string | null> = [
@@ -101,18 +103,8 @@ const SCALES_SEGMENT_MAX_KEYS = 3;
 const SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION = 0.20;
 const SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS = 20 * 60;
 
-/** Per-cell drill seconds, sourced from SCALES_SUBMODULE_DESIGN.md
- *  Part 4: Time allocation. Maintenance scales (major) ride a fast
- *  30 s pass; drill scales (nat-min) get the 90 s drill window.
- *  Pent cells fan out to 3 starting points each — we surface ONE
- *  starting point per pent per key (the most-due, defaulting to
- *  the catalog's root position '1') to keep the warm-up tight. */
-const SCALE_KIND_SECONDS: Readonly<Record<ScaleKind, number>> = {
-  'major':            30,
-  'major-pentatonic': 30,
-  'natural-minor':    90,
-  'minor-pentatonic': 30,
-};
+// Per-cell scale drill seconds (SCALE_KIND_SECONDS) moved to the
+// canonical sessionAlgorithm/timePerAttempt.ts in Phase B Step 1.
 
 /** Default pentatonic starting points when no spacingState row
  *  exists for a key (cold-start). The catalog's "1" position
@@ -224,7 +216,9 @@ interface KeyGroup {
 }
 
 function cellSeconds(inversionState: string | null): number {
-  return inversionState === 'fluid' ? CELL_SECONDS_FLUID : CELL_SECONDS_DEFAULT;
+  return inversionState === 'fluid'
+    ? CHORD_SHAPE_FLUID_CELL_SECONDS
+    : CHORD_SHAPE_CELL_SECONDS;
 }
 
 function inversionRank(s: string | null): number {

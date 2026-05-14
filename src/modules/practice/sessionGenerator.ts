@@ -52,6 +52,7 @@ import type {
   AlgorithmBlock,
   AllocatedBlock,
 } from '../../lib/sessionAlgorithm/timeAllocation';
+import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   weightForItem,
   type GoalContribution,
@@ -505,13 +506,11 @@ const SCALE_COVERAGE_GROUP_IDS: ReadonlySet<string> = new Set([
   'scale_minor_pentatonic_b7',
 ]);
 
-/** Per-cell drill seconds, mirroring SCALE_KIND_SECONDS in
- *  shapesSplit.ts — natural minor is the drill cell (90 s);
- *  everything else rides the 30 s pass. Used by the loader to
- *  compute the proportional scale budget without taking a dep on
- *  shapesSplit. */
-const PER_CELL_SECONDS_FALLBACK = 30;
-const PER_CELL_SECONDS_NAT_MIN = 90;
+// Per-cell scale drill seconds — the loader sums these to size the
+// proportional Scales warm-up budget. Previously a local mirror of
+// shapesSplit.ts's table (PER_CELL_SECONDS_FALLBACK / _NAT_MIN); it
+// now reads the canonical SCALE_KIND_SECONDS from
+// sessionAlgorithm/timePerAttempt.ts directly (Phase B Step 1).
 
 export async function loadShapesSplitContext(
   spacingRows: ReadonlyArray<SpacingState>,
@@ -587,9 +586,7 @@ export async function loadShapesSplitContext(
       if (row.nextDueAt !== null && row.nextDueAt > now) continue;
       // Union match — any active Scales goal pulls the cell in.
       if (!scaleMatchers.some(m => m(row.itemRef))) continue;
-      total += desc.kind === 'natural-minor'
-        ? PER_CELL_SECONDS_NAT_MIN
-        : PER_CELL_SECONDS_FALLBACK;
+      total += SCALE_KIND_SECONDS[desc.kind];
     }
     scalesGoalDueSeconds = total;
   }

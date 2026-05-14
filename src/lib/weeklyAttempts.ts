@@ -1,6 +1,14 @@
 import { db } from './db';
 import { ET_MODULE_REFS } from '../modules/goals/progress';
 import type { GoalFlowModuleId } from '../modules/goals/goalVocabulary';
+import {
+  TIME_PER_ATTEMPT_MINUTES,
+  SHAPES_TIME_PER_REP_MINUTES,
+  SHAPES_DEFAULT_TIME_PER_REP_MINUTES,
+  REPERTOIRE_SESSION_DEFAULT_MINUTES,
+  PRODUCTION_TIME_RANGE_MINUTES,
+  type ShapesActivityArea,
+} from './sessionAlgorithm/timePerAttempt';
 
 /**
  * Phase 4 Step 1 — weekly attempt aggregation + time estimation.
@@ -14,78 +22,23 @@ import type { GoalFlowModuleId } from '../modules/goals/goalVocabulary';
  */
 
 // ---------------------------------------------------------------------
-// Per-module time constants (first-pass; recalibrate after 3–4 weeks
-// of real usage data per the Phase 4 design)
+// Per-module time constants
 // ---------------------------------------------------------------------
+//
+// The time-per-attempt seeds moved to the canonical
+// sessionAlgorithm/timePerAttempt.ts in Phase B Step 1. They're
+// imported above (getWeeklyTimeEstimate below still consumes them
+// directly) and re-exported here unchanged so existing importers of
+// '../weeklyAttempts' keep working without a path change.
 
-/** Time per attempt in minutes for modules with a single point
- *  estimate. Shapes lives in its own per-activity-area table (see
- *  SHAPES_TIME_PER_REP_MINUTES below) because its three activity
- *  areas have materially different per-rep costs; Production is in
- *  PRODUCTION_TIME_RANGE_MINUTES because lesson length varies enough
- *  to warrant a range. */
-export const TIME_PER_ATTEMPT_MINUTES: Record<
-  Exclude<GoalFlowModuleId, 'production' | 'shapes-and-patterns'>,
-  number
-> = {
-  'harmonic-fluency':     20 / 60,  // 20 seconds per flashcard
-  'ear-training':         20 / 60,  // 20 seconds per quiz question
-  'repertoire':           17.5,     // midpoint of 15–20 min per cell session
-  'practice-consistency': 45,       // midpoint of 30–60 min per session
+export {
+  TIME_PER_ATTEMPT_MINUTES,
+  SHAPES_TIME_PER_REP_MINUTES,
+  SHAPES_DEFAULT_TIME_PER_REP_MINUTES,
+  REPERTOIRE_SESSION_DEFAULT_MINUTES,
+  PRODUCTION_TIME_RANGE_MINUTES,
 };
-
-/** Shapes & Patterns activity-area discriminator. Mirrors the
- *  ShapesActivityArea union in GoalCreationFlow.tsx but redeclared
- *  here so this lib stays UI-independent. */
-export type ShapesActivityArea =
-  | 'chord_shape_drills'
-  | 'scale_drills'
-  | 'voice_leading';
-
-/** Per-activity-area Shapes time-per-rep. The chord_shape_drills
- *  value is a weighted average across the post-inversion-redesign
- *  drill mix (90 s/rep for individual inversions, 120 s/rep for
- *  fluid + extensions/special voicings) — see Phase 4 inversion
- *  spec. Voice-leading reps are longer because the pattern itself
- *  is longer (a full ii–V–I cycle). Recalibrate alongside
- *  TIME_PER_ATTEMPT_MINUTES once there's enough real session data. */
-export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
-  chord_shape_drills: 1.6,  // weighted avg: triads ~1.625, sevenths ~1.6
-  scale_drills:       2,
-  voice_leading:      3,
-};
-
-/** Weighted-average fallback used when a Shapes time estimate is
- *  requested without a specific activity area (e.g., the WeeklyPlan
- *  last-week review, which counts drill sessions across all three
- *  areas without joining through db.drillSkills). Weights come from
- *  catalog cardinality at time of writing (Phase 4 inversion model):
- *    chord_shape_drills = 852 acquisition-path items
- *      (triads 6×12×4=288, sevenths 6×12×5=360, extensions 14×12=168, special 3×12=36)
- *    scale_drills       = 4 scales × 12 keys = 48
- *    voice_leading      = 3 patterns × 12 keys = 36
- *  → (852×1.6 + 48×2 + 36×3) / 936 ≈ 1.67 min/rep.
- *  Hardcoded (rather than computed from moduleItemCounts) so this
- *  file stays dependency-free. Re-derive if the catalog shifts. */
-export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 1.67;
-
-/** Default assumed length of a full Repertoire practice session
- *  (spotlight + maintenance combined), used by the WeeklyPlan when
- *  an hours- or days-based repertoire consistency goal needs a
- *  "~60 min · N sessions/week" cadence breakdown. The session
- *  breaks down as ~45 min Song of the Month + ~15 min maintenance
- *  in the session allocator; the WeeklyPlan surfaces both lines.
- *  Was 45 prior to the May 2026 rebalance — that value treated the
- *  full session as just the spotlight portion. Recalibrate after a
- *  few weeks of real song-cell run-through data inform what a
- *  typical repertoire session actually runs. */
-export const REPERTOIRE_SESSION_DEFAULT_MINUTES = 60;
-
-/** Production lesson time is highly variable — show as a range. */
-export const PRODUCTION_TIME_RANGE_MINUTES = {
-  minPerLesson: 30,
-  maxPerLesson: 90,
-} as const;
+export type { ShapesActivityArea };
 
 // ---------------------------------------------------------------------
 // getWeeklyAttempts

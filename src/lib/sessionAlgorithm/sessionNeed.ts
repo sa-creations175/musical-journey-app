@@ -32,27 +32,18 @@ import { db } from '../db';
 import type { GoalFlowModuleId } from '../../modules/goals/goalVocabulary';
 import { getWeeklyAttempts } from '../weeklyAttempts';
 import { startOfWeekLocal, endOfWeekLocal } from '../../modules/goals/weeklyPlanData';
+import { TIME_PER_ATTEMPT_SECONDS } from './timePerAttempt';
 
 // ---------------------------------------------------------------------
 // Time-per-attempt seeds
 // ---------------------------------------------------------------------
+//
+// The seed table moved to the canonical timePerAttempt.ts in Phase B
+// Step 1 — imported above for the loader below, and re-exported here
+// unchanged so existing importers of './sessionNeed' (WeeklyPlan.tsx)
+// keep working without a path change.
 
-/**
- * Conservative per-attempt seconds. Phase B design table — replace
- * with rolling averages once ≥20 sessions of real per-attempt data
- * exist per module (the `targetSeconds` / block-timing capture
- * landed May 2026; calibration is weeks out).
- *
- * Only the in-scope modules are listed. Adding a module here is the
- * one-line change that brings it into Phase B planning — but only
- * after its attempt-counting path is verified clean.
- */
-export const TIME_PER_ATTEMPT_SECONDS: Readonly<
-  Record<'harmonic-fluency' | 'ear-training', number>
-> = {
-  'harmonic-fluency': 30,
-  'ear-training':     30,
-};
+export { TIME_PER_ATTEMPT_SECONDS };
 
 /** Modules Phase B currently plans for. Anything not in this list
  *  falls through to the legacy MEMORY_TYPE_DURATIONS path. */
