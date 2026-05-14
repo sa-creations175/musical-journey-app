@@ -44,6 +44,10 @@ import {
   generateProposals,
   blockHasAcquiringItems,
 } from '../../lib/sessionAlgorithm/proposal';
+import {
+  computeSessionNeedByModule,
+  type ModuleSessionNeed,
+} from '../../lib/sessionAlgorithm/sessionNeed';
 import type {
   AlgorithmBlock,
   AllocatedBlock,
@@ -163,12 +167,18 @@ export async function buildSessionProposals(
   if (withColdStart.length === 0) return [];
   const itemLabels = resolveShapesDrillLabels(withColdStart);
   const shapesContext = await loadShapesSplitContext(spacingRows, now);
+  // Phase B — goal-pace time needs for HF / ET blocks. Modules with
+  // no active weekly coverage goal are absent from the map and fall
+  // back to the memory-type tier inside the allocators.
+  const sessionNeedByModule = await computeSessionNeedByModule(now);
+  const blockTimeNeeds = buildBlockTimeNeeds(withColdStart, sessionNeedByModule);
   return generateAndShape(
     withColdStart,
     inputs.timeMinutes * 60,
     repertoireSplit,
     itemLabels,
     shapesContext,
+    blockTimeNeeds,
   );
 }
 
@@ -326,12 +336,17 @@ export async function buildSessionPlan(
 
   const itemLabels = resolveShapesDrillLabels(moduleBlocks);
   const shapesContext = await loadShapesSplitContext(spacingRows, now);
+  // Phase B — goal-pace time needs for HF / ET blocks. See
+  // buildSessionProposals for the rationale; same wiring here.
+  const sessionNeedByModule = await computeSessionNeedByModule(now);
+  const blockTimeNeeds = buildBlockTimeNeeds(moduleBlocks, sessionNeedByModule);
   const cards = generateAndShape(
     moduleBlocks,
     availableSeconds,
     repertoireSplit,
     itemLabels,
     shapesContext,
+    blockTimeNeeds,
   );
   return {
     kind: 'proposals',
@@ -361,6 +376,42 @@ function computeGoalPaceRatios(goals: ReadonlyArray<Goal>): number[] {
   return ratios;
 }
 
+/**
+ * Phase B — translate a per-module session-need map into a per-block
+ * time-need map (keyed by block.id) for the allocators.
+ *
+ * A module need (e.g. "Ear Training needs 600 s today") may span
+ * multiple AlgorithmBlocks — ET in particular fans out into one
+ * block per sub-module (intervals / chord-recognition / …). The
+ * module's time need is split EVENLY across its blocks so the
+ * allocator sees a coherent total rather than each block claiming
+ * the full module budget. Over-practice modules contribute nothing
+ * — their blocks fall through to the memory-type tier.
+ */
+export function buildBlockTimeNeeds(
+  blocks: ReadonlyArray<AlgorithmBlock>,
+  sessionNeedByModule: ReadonlyMap<GoalFlowModuleId, ModuleSessionNeed>,
+): Map<string, number> {
+  const blocksByModule = new Map<GoalFlowModuleId, AlgorithmBlock[]>();
+  for (const b of blocks) {
+    const moduleId = goalFlowModuleForSpacingModuleRef(b.moduleRef);
+    if (!moduleId) continue;
+    const need = sessionNeedByModule.get(moduleId);
+    if (!need || need.isOverPractice || need.timeNeededSeconds <= 0) continue;
+    const arr = blocksByModule.get(moduleId) ?? [];
+    arr.push(b);
+    blocksByModule.set(moduleId, arr);
+  }
+  const out = new Map<string, number>();
+  for (const [moduleId, moduleBlocks] of blocksByModule) {
+    const need = sessionNeedByModule.get(moduleId);
+    if (!need) continue;
+    const perBlock = need.timeNeededSeconds / moduleBlocks.length;
+    for (const b of moduleBlocks) out.set(b.id, perBlock);
+  }
+  return out;
+}
+
 function generateAndShape(
   moduleBlocks: AlgorithmBlock[],
   availableSeconds: number,
@@ -379,10 +430,16 @@ function generateAndShape(
    *  Null preserves the pre-reshape behaviour for tests + fallback
    *  paths. */
   shapesContext: ShapesSplitContext | null = null,
+  /** Phase B — per-block goal-pace time needs. When supplied, the
+   *  allocators target the goal-pace time for Phase B blocks
+   *  instead of the memory-type typical band. Omit for the legacy
+   *  fixed-tier behaviour (path proposals + tests). */
+  blockTimeNeeds?: ReadonlyMap<string, number>,
 ): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
     availableSeconds,
+    blockTimeNeeds,
   });
   return proposals.map(p => ({
     kind: p.kind,

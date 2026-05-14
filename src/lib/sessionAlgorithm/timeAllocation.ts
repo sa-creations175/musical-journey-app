@@ -98,6 +98,37 @@ export function durationTierFor(memoryType: MemoryType, moduleRef?: string): Dur
   return { ...base, ...override };
 }
 
+/**
+ * Phase B — resolve the effective duration tier for a block,
+ * honoring a goal-pace time need when one is supplied.
+ *
+ * `blockTimeNeeds` maps `block.id` → the seconds the module's
+ * active coverage goal needs from today's session (computed by
+ * `computeSessionNeedByModule`). When a block carries a Phase B
+ * need, its goal-pace target REPLACES the memory-type typical band
+ * — the block wants exactly that many seconds. The memory-type
+ * minimum is preserved so the block can still compress when the
+ * session is short, except when the target is itself below that
+ * minimum (a 2-min goal shouldn't be force-inflated to a 3-min
+ * floor) — in that case the target wins.
+ *
+ * Blocks with no Phase B entry fall through to `durationTierFor`
+ * unchanged — that's the no-active-goal path the design specifies.
+ */
+export function tierForBlock(
+  block: AlgorithmBlock,
+  blockTimeNeeds?: ReadonlyMap<string, number>,
+): DurationTier {
+  const base = durationTierFor(block.memoryType, block.moduleRef);
+  const need = blockTimeNeeds?.get(block.id);
+  if (need === undefined || need <= 0) return base;
+  return {
+    minSeconds: Math.min(base.minSeconds, need),
+    typicalLowSeconds: need,
+    typicalHighSeconds: need,
+  };
+}
+
 // ---------------------------------------------------------------------
 // Block phase (sequencing)
 // ---------------------------------------------------------------------
@@ -169,13 +200,18 @@ export function phaseForBlock(block: AlgorithmBlock): BlockPhase {
 export function allocateBlockTime(
   blocks: ReadonlyArray<AlgorithmBlock>,
   availableSeconds: number,
+  /** Phase B — `block.id` → goal-pace time need in seconds. Blocks
+   *  with an entry have their typical band pinned to the need (see
+   *  `tierForBlock`); blocks without one keep the memory-type tier.
+   *  Omit entirely for the legacy no-Phase-B behaviour. */
+  blockTimeNeeds?: ReadonlyMap<string, number>,
 ): AllocatedBlock[] | null {
   if (availableSeconds <= 0) return null;
 
   let working = blocks.slice();
 
   while (working.length > 0) {
-    const tiers = working.map(b => durationTierFor(b.memoryType, b.moduleRef));
+    const tiers = working.map(b => tierForBlock(b, blockTimeNeeds));
     const minTotal = tiers.reduce((s, t) => s + t.minSeconds, 0);
     const typicalLowTotal = tiers.reduce((s, t) => s + t.typicalLowSeconds, 0);
     const typicalHighTotal = tiers.reduce((s, t) => s + t.typicalHighSeconds, 0);

@@ -9,8 +9,10 @@ import {
   PHASE_ORDER,
   type AlgorithmBlock,
   allocateBlockTime,
+  durationTierFor,
   phaseForBlock,
   sequenceBlocks,
+  tierForBlock,
 } from '../timeAllocation';
 
 function block(
@@ -260,5 +262,92 @@ describe('phase order constant', () => {
   it('matches the documented sequencing intent', () => {
     expect(PHASE_ORDER.acquisition).toBeLessThan(PHASE_ORDER.review);
     expect(PHASE_ORDER.review).toBeLessThan(PHASE_ORDER.expression);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Phase B — tierForBlock + allocateBlockTime with goal-pace needs
+// ---------------------------------------------------------------------
+
+describe('tierForBlock — Phase B goal-pace override', () => {
+  it('no Phase B map → falls through to durationTierFor unchanged', () => {
+    const b = block({ id: 'a', memoryType: 'declarative' });
+    expect(tierForBlock(b)).toEqual(durationTierFor('declarative', b.moduleRef));
+    expect(tierForBlock(b, new Map())).toEqual(
+      durationTierFor('declarative', b.moduleRef),
+    );
+  });
+
+  it('block absent from the map → memory-type tier unchanged', () => {
+    const b = block({ id: 'a', memoryType: 'procedural' });
+    const needs = new Map<string, number>([['some-other-block', 600]]);
+    expect(tierForBlock(b, needs)).toEqual(durationTierFor('procedural', b.moduleRef));
+  });
+
+  it('Phase B need above the memory-type min → typical band pins to the need', () => {
+    // declarative min is 3 min (180 s); a 600 s need sits above it.
+    const b = block({ id: 'a', memoryType: 'declarative' });
+    const tier = tierForBlock(b, new Map([['a', 600]]));
+    expect(tier).toEqual({
+      minSeconds: MEMORY_TYPE_DURATIONS.declarative.minSeconds,
+      typicalLowSeconds: 600,
+      typicalHighSeconds: 600,
+    });
+  });
+
+  it('Phase B need below the memory-type min → min drops to the need (no inverted tier)', () => {
+    // declarative min is 180 s; a 90 s need would otherwise produce
+    // min > typical. The min collapses to the need instead.
+    const b = block({ id: 'a', memoryType: 'declarative' });
+    const tier = tierForBlock(b, new Map([['a', 90]]));
+    expect(tier).toEqual({
+      minSeconds: 90,
+      typicalLowSeconds: 90,
+      typicalHighSeconds: 90,
+    });
+    expect(tier.minSeconds).toBeLessThanOrEqual(tier.typicalLowSeconds);
+  });
+
+  it('zero / negative need is ignored → memory-type tier unchanged', () => {
+    const b = block({ id: 'a', memoryType: 'procedural' });
+    expect(tierForBlock(b, new Map([['a', 0]]))).toEqual(
+      durationTierFor('procedural', b.moduleRef),
+    );
+    expect(tierForBlock(b, new Map([['a', -5]]))).toEqual(
+      durationTierFor('procedural', b.moduleRef),
+    );
+  });
+});
+
+describe('allocateBlockTime — Phase B blockTimeNeeds', () => {
+  it('a Phase B block lands at its goal-pace need; a non-Phase-B block keeps its tier', () => {
+    const phaseB = block({ id: 'hf', memoryType: 'declarative' });
+    const legacy = block({ id: 'sp', memoryType: 'procedural' });
+    // Phase B need 600 s for hf. Total available = 600 + procedural
+    // typical-high so the legacy block lands exactly at its own
+    // typical-high and the math is unambiguous.
+    const available = 600 + MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const out = allocateBlockTime(
+      [phaseB, legacy],
+      available,
+      new Map([['hf', 600]]),
+    );
+    expect(out).not.toBeNull();
+    const byId = new Map(out!.map(b => [b.id, b.plannedSeconds]));
+    expect(byId.get('hf')).toBe(600);
+    expect(byId.get('sp')).toBe(MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds);
+  });
+
+  it('omitting blockTimeNeeds preserves the legacy allocation exactly', () => {
+    const blocks = [
+      block({ id: 'a', memoryType: 'declarative' }),
+      block({ id: 'b', memoryType: 'procedural' }),
+    ];
+    const available =
+      MEMORY_TYPE_DURATIONS.declarative.typicalHighSeconds +
+      MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const withoutMap = allocateBlockTime(blocks, available);
+    const withEmptyMap = allocateBlockTime(blocks, available, new Map());
+    expect(withEmptyMap).toEqual(withoutMap);
   });
 });

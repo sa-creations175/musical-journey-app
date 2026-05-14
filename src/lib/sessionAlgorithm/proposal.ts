@@ -39,6 +39,11 @@ import {
   type AllocatedBlock,
 } from './timeAllocation';
 
+/** Phase B — `block.id` → goal-pace time need in seconds. Threaded
+ *  from `computeSessionNeedByModule` through the proposal builders
+ *  into both allocators. Omit for the legacy no-Phase-B path. */
+export type BlockTimeNeeds = ReadonlyMap<string, number>;
+
 export const BALANCED_MAX_BLOCKS = 5;
 export const FOCUSED_MAX_BLOCKS = 2;
 
@@ -55,6 +60,11 @@ export interface GenerateProposalsInput {
   blocks: ReadonlyArray<AlgorithmBlock>;
   /** Total session time the user declared (Q1 of the questionnaire). */
   availableSeconds: number;
+  /** Phase B — optional per-block goal-pace time needs. When a
+   *  block has an entry, its allocation targets that need instead
+   *  of the memory-type typical band. Absent blocks fall back to
+   *  MEMORY_TYPE_DURATIONS unchanged. */
+  blockTimeNeeds?: BlockTimeNeeds;
 }
 
 // ---------------------------------------------------------------------
@@ -67,8 +77,16 @@ export interface GenerateProposalsInput {
  * same block set (single candidate, very short session).
  */
 export function generateProposals(input: GenerateProposalsInput): Proposal[] {
-  const balanced = buildBalancedProposal(input.blocks, input.availableSeconds);
-  const focused = buildFocusedProposal(input.blocks, input.availableSeconds);
+  const balanced = buildBalancedProposal(
+    input.blocks,
+    input.availableSeconds,
+    input.blockTimeNeeds,
+  );
+  const focused = buildFocusedProposal(
+    input.blocks,
+    input.availableSeconds,
+    input.blockTimeNeeds,
+  );
 
   if (!balanced && !focused) return [];
   if (!balanced) return [focused!];
@@ -92,6 +110,7 @@ export function generateProposals(input: GenerateProposalsInput): Proposal[] {
 export function buildBalancedProposal(
   blocks: ReadonlyArray<AlgorithmBlock>,
   availableSeconds: number,
+  blockTimeNeeds?: BlockTimeNeeds,
 ): Proposal | null {
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);
 
@@ -108,7 +127,7 @@ export function buildBalancedProposal(
 
   if (picked.length === 0) return null;
 
-  const allocated = allocateBlockTime(picked, availableSeconds);
+  const allocated = allocateBlockTime(picked, availableSeconds, blockTimeNeeds);
   if (!allocated || allocated.length === 0) return null;
 
   const sequenced = sequenceBlocks(allocated);
@@ -129,6 +148,7 @@ export function buildBalancedProposal(
 export function buildFocusedProposal(
   blocks: ReadonlyArray<AlgorithmBlock>,
   availableSeconds: number,
+  blockTimeNeeds?: BlockTimeNeeds,
 ): Proposal | null {
   if (availableSeconds <= 0 || blocks.length === 0) return null;
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);
@@ -142,7 +162,7 @@ export function buildFocusedProposal(
   // Don't bother if this devolves into 'just the top block' AND that
   // block is already covered by the balanced proposal — caller's
   // generateProposals will collapse it anyway. Build it; collapse later.
-  const allocated = allocateFocused(picked, availableSeconds);
+  const allocated = allocateFocused(picked, availableSeconds, blockTimeNeeds);
   if (!allocated) return null;
 
   const sequenced = sequenceBlocks(allocated);
@@ -162,29 +182,50 @@ export function buildFocusedProposal(
  * extend past their typical-high since the user is intentionally
  * choosing depth. Constraints:
  *
- *   - Each block ≥ its memory-type minimum.
+ *   - Each block ≥ its effective minimum.
  *   - Sum equals availableSeconds (within rounding).
  *
- * One block: gets all availableSeconds (clamped to its min).
+ * One block: gets all availableSeconds (clamped to its min). The
+ *   single-block case stays uncapped on purpose — focused mode's
+ *   whole identity is "go deep" — so a Phase B need acts only as a
+ *   floor, never a ceiling, here.
  * Two blocks: split by weight share, each ≥ its min. If splitting
  *   would push a block under its min, give it the min and the rest
  *   to the other.
+ *
+ * Phase B: when a block carries a goal-pace time need, that need
+ * raises its effective minimum so a focused split can't starve a
+ * goal-driven block below the time its weekly target requires.
  *
  * Returns null when even the minimum doesn't fit.
  */
 function allocateFocused(
   blocks: ReadonlyArray<AlgorithmBlock>,
   availableSeconds: number,
+  blockTimeNeeds?: BlockTimeNeeds,
 ): AllocatedBlock[] | null {
   if (blocks.length === 0) return null;
 
-  const tiers = blocks.map(b => durationTierFor(b.memoryType));
+  // Effective min = max(memory-type min, Phase B goal-pace need).
+  // The need is a floor here, not a target — focused mode stays
+  // uncapped above it.
+  const tiers = blocks.map(b => {
+    const base = durationTierFor(b.memoryType);
+    const need = blockTimeNeeds?.get(b.id) ?? 0;
+    return need > base.minSeconds
+      ? { ...base, minSeconds: need }
+      : base;
+  });
   const minTotal = tiers.reduce((s, t) => s + t.minSeconds, 0);
   if (minTotal > availableSeconds) {
     // Drop the lowest-weight block and retry; if none left, null.
     if (blocks.length === 1) return null;
     const dropIdx = blocks[0].weight < blocks[1].weight ? 0 : 1;
-    return allocateFocused(blocks.filter((_, i) => i !== dropIdx), availableSeconds);
+    return allocateFocused(
+      blocks.filter((_, i) => i !== dropIdx),
+      availableSeconds,
+      blockTimeNeeds,
+    );
   }
 
   if (blocks.length === 1) {
