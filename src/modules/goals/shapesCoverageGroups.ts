@@ -6,7 +6,13 @@ import {
   VOICE_LEADING_PATTERNS,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
-import { SCALE_CELLS } from '../shapes-and-patterns/scaleSkills';
+import {
+  parseScaleItemRef,
+  SCALE_CELLS,
+  type ScaleKind,
+  type MajorPentStartingPoint,
+  type MinorPentStartingPoint,
+} from '../shapes-and-patterns/scaleSkills';
 import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
 
 /**
@@ -58,7 +64,23 @@ export type ShapesCoverageGroupId =
   | 'chord_shape_sevenths'
   | 'chord_shape_extensions'
   | 'chord_shape_special'
+  // Legacy broad "all scales" bucket — kept for back-compat with
+  // pre-Scales-submodule saved goals. Picker hides it in favour of
+  // the four sub-area ids below.
   | 'scale_drills'
+  // Scales submodule (Part 3) — four sub-area pills in the picker,
+  // each with its own coverage matcher. Pent ids fan out to
+  // per-starting-point variants for narrower scoping.
+  | 'scale_major'
+  | 'scale_natural_minor'
+  | 'scale_major_pentatonic'
+  | 'scale_major_pentatonic_1'
+  | 'scale_major_pentatonic_5'
+  | 'scale_major_pentatonic_6'
+  | 'scale_minor_pentatonic'
+  | 'scale_minor_pentatonic_1'
+  | 'scale_minor_pentatonic_b3'
+  | 'scale_minor_pentatonic_b7'
   | 'voice_leading';
 
 /**
@@ -190,6 +212,81 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
     // plus 12 each for major and natural-minor).
     denominator: SCALE_CELLS.length,
   },
+  // -- Scales submodule sub-areas (Part 3). Denominators are
+  //    sourced from the SCALE_CELLS catalog so adding a key or
+  //    starting point flows through automatically.
+  {
+    id: 'scale_major',
+    label: 'major scales',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(c => c.kind === 'major').length,
+  },
+  {
+    id: 'scale_natural_minor',
+    label: 'natural minor',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(c => c.kind === 'natural-minor').length,
+  },
+  {
+    id: 'scale_major_pentatonic',
+    label: 'major pentatonic',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(c => c.kind === 'major-pentatonic').length,
+  },
+  {
+    id: 'scale_major_pentatonic_1',
+    label: 'major pent — from 1',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(
+      c => c.kind === 'major-pentatonic' && c.startingPoint === '1',
+    ).length,
+  },
+  {
+    id: 'scale_major_pentatonic_5',
+    label: 'major pent — from 5',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(
+      c => c.kind === 'major-pentatonic' && c.startingPoint === '5',
+    ).length,
+  },
+  {
+    id: 'scale_major_pentatonic_6',
+    label: 'major pent — from 6',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(
+      c => c.kind === 'major-pentatonic' && c.startingPoint === '6',
+    ).length,
+  },
+  {
+    id: 'scale_minor_pentatonic',
+    label: 'minor pentatonic',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(c => c.kind === 'minor-pentatonic').length,
+  },
+  {
+    id: 'scale_minor_pentatonic_1',
+    label: 'minor pent — from 1',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(
+      c => c.kind === 'minor-pentatonic' && c.startingPoint === '1',
+    ).length,
+  },
+  {
+    id: 'scale_minor_pentatonic_b3',
+    label: 'minor pent — from b3',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(
+      c => c.kind === 'minor-pentatonic' && c.startingPoint === 'b3',
+    ).length,
+  },
+  {
+    id: 'scale_minor_pentatonic_b7',
+    label: 'minor pent — from b7',
+    activityArea: 'scale_drills',
+    denominator: SCALE_CELLS.filter(
+      c => c.kind === 'minor-pentatonic' && c.startingPoint === 'b7',
+    ).length,
+  },
   {
     id: 'voice_leading',
     label: 'voice-leading',
@@ -254,6 +351,35 @@ export function shapesAreaFromUnit(
   return coverageGroupIdToActivityArea(head);
 }
 
+/** Broad-sub-area coverage-group id → ScaleKind. Drives both the
+ *  matcher in `itemRefMatcherForCoverageGroup` and any consumer
+ *  that needs to know which kind a group covers. */
+const SCALE_KIND_FOR_GROUP_ID: Readonly<Record<string, ScaleKind>> = {
+  scale_major:            'major',
+  scale_natural_minor:    'natural-minor',
+  scale_major_pentatonic: 'major-pentatonic',
+  scale_minor_pentatonic: 'minor-pentatonic',
+};
+
+/** Per-starting-point coverage-group id → (kind, startingPoint).
+ *  Defines the narrow scoping option for the two pentatonic
+ *  sub-areas — each pent kind has three exposed starting points
+ *  (major: 1/5/6, minor: 1/b3/b7). */
+const PENT_SP_FOR_GROUP_ID: Readonly<
+  Record<
+    string,
+    | { kind: 'major-pentatonic'; startingPoint: MajorPentStartingPoint }
+    | { kind: 'minor-pentatonic'; startingPoint: MinorPentStartingPoint }
+  >
+> = {
+  scale_major_pentatonic_1:   { kind: 'major-pentatonic', startingPoint: '1' },
+  scale_major_pentatonic_5:   { kind: 'major-pentatonic', startingPoint: '5' },
+  scale_major_pentatonic_6:   { kind: 'major-pentatonic', startingPoint: '6' },
+  scale_minor_pentatonic_1:   { kind: 'minor-pentatonic', startingPoint: '1' },
+  scale_minor_pentatonic_b3:  { kind: 'minor-pentatonic', startingPoint: 'b3' },
+  scale_minor_pentatonic_b7:  { kind: 'minor-pentatonic', startingPoint: 'b7' },
+};
+
 /**
  * itemRef predicate matching the coverage group's spacingState
  * rows. Mirrors the itemRef format from
@@ -280,6 +406,28 @@ export function itemRefMatcherForCoverageGroup(
   // chord-shape row, including supplementary. Used only by
   // back-compat consumers.
   if (groupId === 'chord_shape_drills') return ir => ir.startsWith('chord-shape:');
+
+  // Scales sub-area matchers (Part 3). Broad sub-area ids match by
+  // ScaleKind; per-starting-point ids match by (kind, startingPoint).
+  // Both parse through scaleSkills' parseScaleItemRef so any future
+  // catalog extension (new starting points, new scale kinds) flows
+  // through without touching the matcher.
+  const scaleKind = SCALE_KIND_FOR_GROUP_ID[groupId];
+  if (scaleKind !== undefined) {
+    return ir => {
+      const desc = parseScaleItemRef(ir);
+      return desc !== null && desc.kind === scaleKind;
+    };
+  }
+  const pentSp = PENT_SP_FOR_GROUP_ID[groupId];
+  if (pentSp !== undefined) {
+    return ir => {
+      const desc = parseScaleItemRef(ir);
+      if (desc === null) return false;
+      if (desc.kind !== pentSp.kind) return false;
+      return desc.startingPoint === pentSp.startingPoint;
+    };
+  }
 
   // Layer 2 — per-triad-quality sub-groups. Match the specific
   // chord-quality id in parts[1] and exclude supplementary state.

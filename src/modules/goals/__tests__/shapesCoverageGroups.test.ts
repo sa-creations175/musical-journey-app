@@ -50,20 +50,27 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
   });
 
   it('total count across all picker options sums to the def list', () => {
-    // Important invariant: adding the 6 quality sub-groups can't
-    // double-count items in module-wide aggregations. Picker UX
-    // ensures the user picks either the shortcut OR the qualities,
-    // not both — the SUM here is bookkeeping for the def list.
-    // Sum = legacy triads (288) + 6×48 quality sub-groups (288) +
-    //       sevenths (360) + extensions (168) + special (36) +
-    //       scale (96 post-Scales fan-out) + vl (36) = 1272 in the
-    //       def list (Layer 1 + Layer 2 entries co-exist for picker
-    //       convenience; aggregates use moduleItemCounts which
-    //       doesn't double-count).
+    // Important invariant: adding sub-groups can't double-count
+    // items in module-wide aggregations. Picker UX ensures the user
+    // picks either the shortcut OR the qualities, not both — the
+    // SUM here is bookkeeping for the def list.
+    //
+    // Chord-shape side:
+    //   legacy triads (288) + 6×48 quality sub-groups (288) +
+    //   sevenths (360) + extensions (168) + special (36) = 1140
+    // Scales side (Layer 1 + Layer 2 entries co-exist):
+    //   legacy scale_drills (96) +
+    //   scale_major (12) + scale_natural_minor (12) +
+    //   scale_major_pentatonic (36) + 3×12 sp sub-groups (36) +
+    //   scale_minor_pentatonic (36) + 3×12 sp sub-groups (36) = 264
+    // Voice leading: 36
+    // Aggregates use moduleItemCounts which doesn't double-count.
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
     );
-    expect(defSum).toBe(288 + 6 * 48 + 360 + 168 + 36 + 96 + 36);
+    const chordShapeSide = 288 + 6 * 48 + 360 + 168 + 36;
+    const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
+    expect(defSum).toBe(chordShapeSide + scalesSide + 36);
   });
 });
 
@@ -80,6 +87,111 @@ describe('itemRefMatcherForCoverageGroup — scale_drills covers pent fan-out', 
     // Non-scale itemRefs still reject.
     expect(matcher('chord-shape:maj:C:root')).toBe(false);
     expect(matcher('vl:aba-251:C')).toBe(false);
+  });
+});
+
+describe('Scales sub-area coverage groups (Part 3)', () => {
+  it('exposes all four Scales sub-area defs with catalog-sourced denominators', () => {
+    expect(getShapesCoverageGroup('scale_major')!.denominator).toBe(12);
+    expect(getShapesCoverageGroup('scale_natural_minor')!.denominator).toBe(12);
+    expect(getShapesCoverageGroup('scale_major_pentatonic')!.denominator).toBe(36);
+    expect(getShapesCoverageGroup('scale_minor_pentatonic')!.denominator).toBe(36);
+  });
+
+  it('exposes the six pent starting-point sub-defs at 12 cells each', () => {
+    for (const id of [
+      'scale_major_pentatonic_1',
+      'scale_major_pentatonic_5',
+      'scale_major_pentatonic_6',
+      'scale_minor_pentatonic_1',
+      'scale_minor_pentatonic_b3',
+      'scale_minor_pentatonic_b7',
+    ] as const) {
+      expect(getShapesCoverageGroup(id)!.denominator).toBe(12);
+    }
+  });
+
+  it('routes every Scales sub-area to the scale_drills activity area', () => {
+    for (const id of [
+      'scale_major',
+      'scale_natural_minor',
+      'scale_major_pentatonic',
+      'scale_major_pentatonic_1',
+      'scale_major_pentatonic_5',
+      'scale_major_pentatonic_6',
+      'scale_minor_pentatonic',
+      'scale_minor_pentatonic_1',
+      'scale_minor_pentatonic_b3',
+      'scale_minor_pentatonic_b7',
+    ]) {
+      expect(coverageGroupIdToActivityArea(id)).toBe('scale_drills');
+    }
+  });
+
+  describe('matchers — broad sub-areas', () => {
+    it('scale_major accepts only major itemRefs', () => {
+      const m = itemRefMatcherForCoverageGroup('scale_major')!;
+      expect(m('scale:major:C')).toBe(true);
+      expect(m('scale:major:Bb')).toBe(true);
+      expect(m('scale:natural-minor:F')).toBe(false);
+      expect(m('scale:major-pentatonic:1:C')).toBe(false);
+      expect(m('chord-shape:maj:C:root')).toBe(false);
+    });
+
+    it('scale_natural_minor accepts only natural-minor itemRefs', () => {
+      const m = itemRefMatcherForCoverageGroup('scale_natural_minor')!;
+      expect(m('scale:natural-minor:F')).toBe(true);
+      expect(m('scale:major:C')).toBe(false);
+      expect(m('scale:minor-pentatonic:b3:C')).toBe(false);
+    });
+
+    it('scale_major_pentatonic accepts every starting point', () => {
+      const m = itemRefMatcherForCoverageGroup('scale_major_pentatonic')!;
+      expect(m('scale:major-pentatonic:1:C')).toBe(true);
+      expect(m('scale:major-pentatonic:5:G')).toBe(true);
+      expect(m('scale:major-pentatonic:6:Eb')).toBe(true);
+      expect(m('scale:minor-pentatonic:1:C')).toBe(false);
+      expect(m('scale:major:C')).toBe(false);
+    });
+
+    it('scale_minor_pentatonic accepts every starting point', () => {
+      const m = itemRefMatcherForCoverageGroup('scale_minor_pentatonic')!;
+      expect(m('scale:minor-pentatonic:1:C')).toBe(true);
+      expect(m('scale:minor-pentatonic:b3:F')).toBe(true);
+      expect(m('scale:minor-pentatonic:b7:Bb')).toBe(true);
+      expect(m('scale:major-pentatonic:1:C')).toBe(false);
+    });
+  });
+
+  describe('matchers — pent per-starting-point', () => {
+    it('major-pent starting-point matchers narrow correctly', () => {
+      const m1 = itemRefMatcherForCoverageGroup('scale_major_pentatonic_1')!;
+      const m5 = itemRefMatcherForCoverageGroup('scale_major_pentatonic_5')!;
+      const m6 = itemRefMatcherForCoverageGroup('scale_major_pentatonic_6')!;
+
+      expect(m1('scale:major-pentatonic:1:C')).toBe(true);
+      expect(m1('scale:major-pentatonic:5:C')).toBe(false);
+      expect(m5('scale:major-pentatonic:5:Eb')).toBe(true);
+      expect(m5('scale:major-pentatonic:6:Eb')).toBe(false);
+      expect(m6('scale:major-pentatonic:6:G')).toBe(true);
+      expect(m6('scale:major-pentatonic:1:G')).toBe(false);
+      // Reject minor-pent itemRefs even with matching sp digit.
+      expect(m1('scale:minor-pentatonic:1:C')).toBe(false);
+    });
+
+    it('minor-pent starting-point matchers narrow correctly', () => {
+      const m1 = itemRefMatcherForCoverageGroup('scale_minor_pentatonic_1')!;
+      const mB3 = itemRefMatcherForCoverageGroup('scale_minor_pentatonic_b3')!;
+      const mB7 = itemRefMatcherForCoverageGroup('scale_minor_pentatonic_b7')!;
+
+      expect(m1('scale:minor-pentatonic:1:C')).toBe(true);
+      expect(m1('scale:minor-pentatonic:b3:C')).toBe(false);
+      expect(mB3('scale:minor-pentatonic:b3:F')).toBe(true);
+      expect(mB3('scale:minor-pentatonic:b7:F')).toBe(false);
+      expect(mB7('scale:minor-pentatonic:b7:Bb')).toBe(true);
+      // Reject major-pent itemRefs even with matching sp digit.
+      expect(mB3('scale:major-pentatonic:1:C')).toBe(false);
+    });
   });
 });
 

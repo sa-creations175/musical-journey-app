@@ -1431,10 +1431,42 @@ const TRIAD_QUALITY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
   TRIAD_QUALITY_GROUP_IDS,
 );
 
+/** Per-starting-point pent ids — Layer 2 sub-options under each
+ *  broad pent pill. Same UX as the triad-qualities reveal. */
+const MAJOR_PENT_SP_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'scale_major_pentatonic_1',
+  'scale_major_pentatonic_5',
+  'scale_major_pentatonic_6',
+];
+const MINOR_PENT_SP_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'scale_minor_pentatonic_1',
+  'scale_minor_pentatonic_b3',
+  'scale_minor_pentatonic_b7',
+];
+const PENT_SP_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set([
+  ...MAJOR_PENT_SP_GROUP_IDS,
+  ...MINOR_PENT_SP_GROUP_IDS,
+]);
+
+/** Legacy "all scales" broad bucket. Hidden from the picker — the
+ *  four Scales sub-area pills (Part 3) replace it. Still recognised
+ *  by the matcher + activity-area router for pre-split saved goals. */
+const SCALES_LEGACY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set<ShapesCoverageGroupId>([
+  'scale_drills',
+]);
+
 const SHAPES_LAYER1_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
-  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => !TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(
+    g => !TRIAD_QUALITY_GROUP_ID_SET.has(g.id)
+      && !PENT_SP_GROUP_ID_SET.has(g.id)
+      && !SCALES_LEGACY_GROUP_ID_SET.has(g.id),
+  );
 const SHAPES_TRIAD_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
+const SHAPES_MAJOR_PENT_SP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => MAJOR_PENT_SP_GROUP_IDS.includes(g.id));
+const SHAPES_MINOR_PENT_SP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => MINOR_PENT_SP_GROUP_IDS.includes(g.id));
 
 function ShapesPatternsMonthlyBody({
   anchor,
@@ -1544,6 +1576,25 @@ function ShapesFocusSection({
     onChange({ ...target, coverageGroupIds: next });
   };
 
+  // Pentatonic starting-point reveals — same UX as triad qualities.
+  // The broad pent pill ("scale_major_pentatonic" / "scale_minor_
+  // pentatonic") behaves as both a coverage option in its own right
+  // (denom 36, all 3 sps) AND a visual cue that the 3 per-sp pills
+  // are available for narrower scope. The Layer 2 pills are
+  // independent toggles, mirroring how the triad-quality sub-pills
+  // sit beneath the triad inversions shortcut.
+  const majorPentBroadSelected = target.coverageGroupIds.includes('scale_major_pentatonic');
+  const anyMajorPentSpSelected = target.coverageGroupIds.some(
+    id => MAJOR_PENT_SP_GROUP_IDS.includes(id as ShapesCoverageGroupId),
+  );
+  const showMajorPentSpReveal = majorPentBroadSelected || anyMajorPentSpSelected;
+
+  const minorPentBroadSelected = target.coverageGroupIds.includes('scale_minor_pentatonic');
+  const anyMinorPentSpSelected = target.coverageGroupIds.some(
+    id => MINOR_PENT_SP_GROUP_IDS.includes(id as ShapesCoverageGroupId),
+  );
+  const showMinorPentSpReveal = minorPentBroadSelected || anyMinorPentSpSelected;
+
   const shapesAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
   const triadInversionsDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
     g => g.id === 'chord_shape_triads',
@@ -1611,6 +1662,44 @@ function ShapesFocusSection({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {SHAPES_TRIAD_QUALITY_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {showMajorPentSpReveal && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Major pentatonic starting points
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {SHAPES_MAJOR_PENT_SP_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {showMinorPentSpReveal && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Minor pentatonic starting points
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {SHAPES_MINOR_PENT_SP_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
                     label={`${group.label} (${group.denominator})`}
