@@ -87,6 +87,10 @@ import {
   type ShapesSplitContext,
 } from '../shapes-and-patterns/shapesSplit';
 import { getSPUnlockedTier } from '../shapes-and-patterns/spTiers';
+import { canonicaliseKey } from '../repertoire/circleOfFourths';
+import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
+import { itemRefMatcherForCoverageGroup } from '../goals/shapesCoverageGroups';
+import { COVERAGE_SPECIFIC_METRIC } from '../goals/coverageMetrics';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -397,7 +401,60 @@ function generateAndShape(
  * generateAndShape; passed through to toProposalBlocks where
  * shapeShapesBlock consumes it.
  */
-async function loadShapesSplitContext(
+/** Songs in these stages count as currently-being-practiced for the
+ *  purpose of seeding the Scales warm-up's key priority. Excludes:
+ *
+ *    'internalized' — the user has marked the song mastered; not
+ *                     pulling the warm-up toward those keys keeps
+ *                     the spotlight on still-developing songs.
+ *    'maintenance'  — light weekly rotation; the user explicitly
+ *                     called the song done.
+ *
+ *  Songs with `stage` undefined (older records or freshly added
+ *  songs that haven't been categorised) count as active — the
+ *  default state on song creation is 'learning' per the Song
+ *  interface docblock.
+ */
+const ACTIVE_REPERTOIRE_STAGES: ReadonlySet<string> = new Set([
+  'learning',
+  'comfortable',
+  'cross-key',
+]);
+
+function isActiveSong(stage: string | undefined): boolean {
+  if (stage === undefined) return true;
+  return ACTIVE_REPERTOIRE_STAGES.has(stage);
+}
+
+/** Coverage-group ids that map to "this user has a Scales goal".
+ *  Used by loadShapesSplitContext to decide whether the warm-up's
+ *  time budget grows proportionally (active goal) or stays at the
+ *  fixed 5/8-min fallback (no goal). The legacy `scale_drills`
+ *  bucket is included so pre-Scales-submodule goals still flip on
+ *  the proportional path. */
+const SCALE_COVERAGE_GROUP_IDS: ReadonlySet<string> = new Set([
+  'scale_drills',
+  'scale_major',
+  'scale_natural_minor',
+  'scale_major_pentatonic',
+  'scale_major_pentatonic_1',
+  'scale_major_pentatonic_5',
+  'scale_major_pentatonic_6',
+  'scale_minor_pentatonic',
+  'scale_minor_pentatonic_1',
+  'scale_minor_pentatonic_b3',
+  'scale_minor_pentatonic_b7',
+]);
+
+/** Per-cell drill seconds, mirroring SCALE_KIND_SECONDS in
+ *  shapesSplit.ts — natural minor is the drill cell (90 s);
+ *  everything else rides the 30 s pass. Used by the loader to
+ *  compute the proportional scale budget without taking a dep on
+ *  shapesSplit. */
+const PER_CELL_SECONDS_FALLBACK = 30;
+const PER_CELL_SECONDS_NAT_MIN = 90;
+
+export async function loadShapesSplitContext(
   spacingRows: ReadonlyArray<SpacingState>,
   now: number,
 ): Promise<ShapesSplitContext> {
@@ -405,22 +462,76 @@ async function loadShapesSplitContext(
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
   }
-  const [unlockedTier, songs] = await Promise.all([
+  const [unlockedTier, songs, allGoals] = await Promise.all([
     getSPUnlockedTier(),
     db.songs.toArray(),
+    db.goals.toArray(),
   ]);
-  // Active-song keys: distinct, in song order. Hidden / no-key
-  // songs drop. Used by the scale warm-down to prioritise keys
-  // that bridge into Repertoire practice.
+
+  // Active-song keys — distinct, in song order, ONLY from songs
+  // the user is currently practising (learning / comfortable /
+  // cross-key). 'internalized' + 'maintenance' songs drop so the
+  // warm-up doesn't burn budget on keys the user has called done.
+  // Each key flows through canonicaliseKey so 'F#' (matrix-side
+  // convention) lines up with 'Gb' (scaleSkills catalog convention)
+  // — without this step, F#-spelled songs would never match their
+  // own scale rows.
   const seenKeys = new Set<string>();
   const activeSongKeys: string[] = [];
   for (const s of songs) {
     if (!s.key) continue;
-    if (seenKeys.has(s.key)) continue;
-    seenKeys.add(s.key);
-    activeSongKeys.push(s.key);
+    if (!isActiveSong(s.stage)) continue;
+    const canonical = canonicaliseKey(s.key);
+    if (!canonical) continue;
+    if (seenKeys.has(canonical)) continue;
+    seenKeys.add(canonical);
+    activeSongKeys.push(canonical);
   }
-  return { rowsByItemRef, unlockedTier, now, activeSongKeys };
+
+  // Scales goal awareness — when at least one active Scales goal
+  // exists, the warm-up budget scales proportionally with the
+  // user's actual due-cell load. The loader does the cell-counting
+  // here (DB access lives here, not in the pure splitter) and
+  // hands shapesSplit a single number.
+  //
+  // Sum = Σ (per-cell drill seconds) for every scale spacingState
+  // row that (a) is due now AND (b) matches at least one active
+  // Scales goal's itemRefMatcher. Returns null when no Scales
+  // goal is active → shapesSplit falls back to the fixed 5/8-min
+  // warm-up.
+  const scaleMatchers: Array<(itemRef: string) => boolean> = [];
+  for (const g of allGoals) {
+    if (g.status !== 'active') continue;
+    if (g.targetMetric !== COVERAGE_SPECIFIC_METRIC.SHAPES) continue;
+    if (!g.targetUnit || !SCALE_COVERAGE_GROUP_IDS.has(g.targetUnit)) continue;
+    const m = itemRefMatcherForCoverageGroup(g.targetUnit);
+    if (m) scaleMatchers.push(m);
+  }
+  let scalesGoalDueSeconds: number | null = null;
+  if (scaleMatchers.length > 0) {
+    let total = 0;
+    for (const row of rowsByItemRef.values()) {
+      const desc = parseScaleItemRef(row.itemRef);
+      if (!desc) continue;
+      // Due means "no nextDueAt set yet" (cold-start cell) or
+      // nextDueAt has passed.
+      if (row.nextDueAt !== null && row.nextDueAt > now) continue;
+      // Union match — any active Scales goal pulls the cell in.
+      if (!scaleMatchers.some(m => m(row.itemRef))) continue;
+      total += desc.kind === 'natural-minor'
+        ? PER_CELL_SECONDS_NAT_MIN
+        : PER_CELL_SECONDS_FALLBACK;
+    }
+    scalesGoalDueSeconds = total;
+  }
+
+  return {
+    rowsByItemRef,
+    unlockedTier,
+    now,
+    activeSongKeys,
+    scalesGoalDueSeconds,
+  };
 }
 
 /**

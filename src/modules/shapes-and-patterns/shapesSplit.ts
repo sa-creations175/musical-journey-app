@@ -86,8 +86,20 @@ const SCALES_SEGMENT_LONG_SECONDS = 8 * 60;
 const SCALES_SEGMENT_LONG_BLOCK_SECONDS = 30 * 60;
 
 /** Hard cap on how many keys the Scales segment covers — the
- *  warm-up shouldn't sprawl. */
-const SCALES_SEGMENT_MAX_KEYS = 2;
+ *  warm-up shouldn't sprawl. Raised from 2 to 3 so users with
+ *  three or four active songs in distinct keys see all of their
+ *  song keys reflected in the warm-up rather than the first two
+ *  encountered. */
+const SCALES_SEGMENT_MAX_KEYS = 3;
+
+/** Hard ceiling for the goal-aware proportional budget. When an
+ *  active Scales goal pulls in a large pile of due cells, the
+ *  warm-up still won't exceed 20 % of the S&P block AND won't
+ *  exceed 20 min in absolute terms. Both clamps apply; the lower
+ *  wins. The fixed-fallback path (no Scales goal) keeps the
+ *  original 5/8-min budget unchanged. */
+const SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION = 0.20;
+const SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS = 20 * 60;
 
 /** Per-cell drill seconds, sourced from SCALES_SUBMODULE_DESIGN.md
  *  Part 4: Time allocation. Maintenance scales (major) ride a fast
@@ -141,10 +153,21 @@ export interface ShapesSplitContext {
   /** Reference time. Cells with nextDueAt ≤ now (or null) are due. */
   now: number;
   /** Distinct major-key names from the user's active songs (e.g.
-   *  ['C', 'F', 'Eb']). The scale warm-down prefers these so the
-   *  segment bridges into Repertoire practice in the same key set.
-   *  Empty array → fall back to chord-shape walk keys. */
+   *  ['C', 'F', 'Eb']). Keys are canonicalised at the loader so
+   *  F#-spelled songs come through as 'Gb' — matching the
+   *  scaleSkills catalog spelling. The Scales warm-up leads with
+   *  these so the segment bridges into Repertoire practice in the
+   *  same key set. Empty array → falls back to least-recently-
+   *  touched scale key with due cells, then to circle-of-fourths
+   *  from C on cold-start. */
   activeSongKeys: ReadonlyArray<string>;
+  /** Goal-aware proportional Scales budget — total drill seconds
+   *  across every due scale cell that matches at least one active
+   *  Scales coverage goal, computed once at the loader. The
+   *  splitter clamps this to min(20 % block, 20 min). When no
+   *  active Scales goal exists, callers pass `null` and the
+   *  splitter falls back to the fixed 5/8-min warm-up. */
+  scalesGoalDueSeconds: number | null;
 }
 
 /** One segment of the reshaped S&P block. Each segment becomes one
@@ -353,11 +376,35 @@ function buildShapesWalk(
 // Scales segment (warm-up, first)
 // ---------------------------------------------------------------------
 
-function scalesSegmentBudget(blockSeconds: number): number {
+/**
+ * Pick the Scales warm-up budget.
+ *
+ *   1. Below the 15-min block floor: no warm-up.
+ *   2. Active Scales goal: proportional — total drill seconds for
+ *      every due cell that matches at least one active goal,
+ *      clamped to min(20 % of block, 20 min). When zero cells are
+ *      due (everything's been practised recently) the segment
+ *      genuinely shouldn't appear; the caller treats a 0 budget
+ *      the same as "below the block floor" and returns null.
+ *   3. No active Scales goal: the fixed-budget warm-up — 5 min on
+ *      15–30 min blocks, 8 min on 30+ min blocks.
+ */
+function scalesSegmentBudget(
+  blockSeconds: number,
+  scalesGoalDueSeconds: number | null,
+): number {
   if (blockSeconds < SCALES_SEGMENT_MIN_BLOCK_SECONDS) return 0;
-  return blockSeconds >= SCALES_SEGMENT_LONG_BLOCK_SECONDS
-    ? SCALES_SEGMENT_LONG_SECONDS
-    : SCALES_SEGMENT_SHORT_SECONDS;
+  if (scalesGoalDueSeconds === null) {
+    return blockSeconds >= SCALES_SEGMENT_LONG_BLOCK_SECONDS
+      ? SCALES_SEGMENT_LONG_SECONDS
+      : SCALES_SEGMENT_SHORT_SECONDS;
+  }
+  if (scalesGoalDueSeconds <= 0) return 0;
+  const proportionalCap = Math.min(
+    blockSeconds * SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION,
+    SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS,
+  );
+  return Math.min(scalesGoalDueSeconds, proportionalCap);
 }
 
 interface ScaleKeyEntry {
@@ -557,7 +604,7 @@ function buildScalesSegment(
   blockSeconds: number,
   ctx: ShapesSplitContext,
 ): ShapesSplitSegment | null {
-  const budget = scalesSegmentBudget(blockSeconds);
+  const budget = scalesSegmentBudget(blockSeconds, ctx.scalesGoalDueSeconds);
   if (budget <= 0) return null;
   const keys = pickScalesKeys(ctx);
   if (keys.length === 0) return null;
@@ -600,7 +647,10 @@ export function shapeShapesBlock(
   block: AllocatedBlock,
   ctx: ShapesSplitContext,
 ): ShapesSplitSegment[] {
-  const scalesBudget = scalesSegmentBudget(block.plannedSeconds);
+  const scalesBudget = scalesSegmentBudget(
+    block.plannedSeconds,
+    ctx.scalesGoalDueSeconds,
+  );
   const walkBudget = block.plannedSeconds - scalesBudget;
   const scalesSegment = scalesBudget > 0
     ? buildScalesSegment(block.plannedSeconds, ctx)

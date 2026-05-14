@@ -51,6 +51,18 @@ const ENHARMONIC_TO_CANONICAL: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Map any common spelling of a major key root to its canonical
+ * CIRCLE_OF_FOURTHS form (flat-side, no enharmonic duplicates).
+ * Returns null when the input doesn't normalise to a known key —
+ * caller decides how to handle the freeform case.
+ *
+ * Shared between Repertoire and the S&P session walk so a song
+ * stored as 'F#' lines up with the Gb-spelled scale catalog. */
+export function canonicaliseKey(rawKey: string): string | null {
+  return ENHARMONIC_TO_CANONICAL[rawKey] ?? null;
+}
+
+/**
  * Walk the circle of fourths starting one step ahead of `originalKey`
  * and return every other key, in order, ending one step short of a
  * full rotation. Output excludes the original key itself.

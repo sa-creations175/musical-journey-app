@@ -55,6 +55,10 @@ function ctx(
     unlockedTier?: 1 | 2 | 3 | 4;
     now?: number;
     activeSongKeys?: ReadonlyArray<string>;
+    /** Active-Scales-goal proportional budget. `null` (default) ⇒
+     *  no goal, fixed 5/8-min fallback path. A number ⇒ goal-aware
+     *  proportional path (clamped at min(20 % block, 20 min)). */
+    scalesGoalDueSeconds?: number | null;
   } = {},
 ): ShapesSplitContext {
   return {
@@ -62,6 +66,7 @@ function ctx(
     unlockedTier: options.unlockedTier ?? 4,
     now: options.now ?? NOW,
     activeSongKeys: options.activeSongKeys ?? [],
+    scalesGoalDueSeconds: options.scalesGoalDueSeconds ?? null,
   };
 }
 
@@ -355,7 +360,9 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.itemRefs[0]).toBe('scale:major:Bb');
   });
 
-  it('caps at 2 keys even when active songs supply more', () => {
+  it('caps at 3 keys even when active songs supply more', () => {
+    // Raised from 2 to 3 so users with 3+ active songs in distinct
+    // keys see them all reflected in the warm-up.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], {
@@ -369,7 +376,9 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
         .map(ref => parseScaleKeyName(ref))
         .filter((k): k is string => k !== null),
     );
-    expect(distinctKeys.size).toBeLessThanOrEqual(2);
+    expect(distinctKeys.size).toBeLessThanOrEqual(3);
+    // And actually reaches 3 when supply allows.
+    expect(distinctKeys.size).toBe(3);
   });
 
   it('drills the four-scale ladder per key in design order; rel-maj is NOT a separate cell', () => {
@@ -448,6 +457,100 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     );
     expect(segs).toHaveLength(1);
     expect(segs[0].kind).toBe('scales');
+  });
+});
+
+// -----------------------------------------------------------------
+// Goal-aware proportional budget (Scales coverage goal active)
+// -----------------------------------------------------------------
+
+describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
+  it('uses the goal due-seconds when smaller than the 20% block cap', () => {
+    // 30 min block. Active Scales goal with 180 s of due cells.
+    // 20 % cap = 360 s. Floor (proportional branch) is 0. Budget
+    // should be 180 s (the goal value, since it's under the cap).
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx([], {
+        unlockedTier: 1,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: 180,
+      }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(180);
+  });
+
+  it('clamps a large goal-due to 20% of the block', () => {
+    // 60 min block. Goal due-seconds way over the cap.
+    // 20 % cap = 720 s. 20-min absolute cap = 1200 s.
+    // Lower (720) wins.
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 60 * 60),
+      ctx([], {
+        unlockedTier: 1,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: 9999,
+      }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(720);
+  });
+
+  it('clamps at the 20-min absolute ceiling on very large blocks', () => {
+    // 3-hour block. 20 % = 36 min, but the 20-min absolute ceiling
+    // wins → 1200 s.
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 3 * 60 * 60),
+      ctx([], {
+        unlockedTier: 1,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: 9999,
+      }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(20 * 60);
+  });
+
+  it('returns null Scales segment when goal due-seconds is 0', () => {
+    // Active Scales goal but everything's been practised today.
+    // No warm-up surfaces — honest signal "no scale work today".
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx([], {
+        unlockedTier: 1,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: 0,
+      }),
+    );
+    expect(segs.some(s => s.kind === 'scales')).toBe(false);
+  });
+
+  it('falls back to the fixed 5-min budget when no Scales goal exists', () => {
+    // scalesGoalDueSeconds = null (default) → fixed path.
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 15 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(5 * 60);
+  });
+
+  it('still carves the goal-aware budget off the chord-shape walk', () => {
+    // 30 min block. Goal due-seconds = 240 s. Cap = 360 s. Budget
+    // = 240 s. Walk gets the remaining 1560 s.
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx([], {
+        unlockedTier: 1,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: 240,
+      }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    const walk = segs.find(s => s.kind === 'shapes-walk')!;
+    expect(scales.plannedSeconds).toBe(240);
+    expect(scales.plannedSeconds + walk.plannedSeconds).toBe(30 * 60);
   });
 });
 
