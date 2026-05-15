@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   getEarTrainingAttemptsBySubActivity,
   getWeeklyAttempts,
+  getWeeklyRatedProductionAttempts,
   getWeeklyTimeEstimate,
   PRODUCTION_TIME_RANGE_MINUTES,
   SHAPES_DEFAULT_TIME_PER_REP_MINUTES,
@@ -15,6 +16,7 @@ import {
   type AttemptRecord,
   type DrillSession,
   type PracticeSession,
+  type ProductionLessonSession,
   type SongCellRunThrough,
   type SpacingState,
 } from '../db';
@@ -278,6 +280,53 @@ describe('getEarTrainingAttemptsBySubActivity', () => {
     });
     const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
     expect(result).toEqual({ intervals: 0, chordRecognition: 0, total: 0 });
+  });
+});
+
+describe('getWeeklyRatedProductionAttempts', () => {
+  beforeEach(async () => {
+    await db.productionLessonSessions.clear();
+  });
+
+  function mkSession(overrides: Partial<ProductionLessonSession>): ProductionLessonSession {
+    return {
+      id: `pls-${Math.random().toString(36).slice(2, 8)}`,
+      lessonId: 'wf-01',
+      timestamp: MID_WEEK,
+      openedDeepDive: false,
+      ...overrides,
+    };
+  }
+
+  it('counts only rated sessions within the window — open events stay uncounted', async () => {
+    await db.productionLessonSessions.bulkAdd([
+      // Rated, in window → counted.
+      mkSession({ id: 'a', rating: 'cruising', timestamp: WEEK_START + 1 }),
+      mkSession({ id: 'b', rating: 'flying',   timestamp: MID_WEEK }),
+      // Rated, outside window → not counted.
+      mkSession({ id: 'c', rating: 'crawling', timestamp: BEFORE }),
+      mkSession({ id: 'd', rating: 'flying',   timestamp: AFTER }),
+      // Unrated open events, in window → not counted (passive opens
+      // aren't Phase B "attempts").
+      mkSession({ id: 'e', timestamp: MID_WEEK }),
+      mkSession({ id: 'f', timestamp: MID_WEEK, openedDeepDive: true }),
+    ]);
+    expect(await getWeeklyRatedProductionAttempts(WEEK_START, WEEK_END)).toBe(2);
+  });
+
+  it('treats weekStart and weekEnd as inclusive boundaries', async () => {
+    await db.productionLessonSessions.bulkAdd([
+      mkSession({ id: 'start', rating: 'cruising', timestamp: WEEK_START }),
+      mkSession({ id: 'end',   rating: 'flying',   timestamp: WEEK_END }),
+    ]);
+    expect(await getWeeklyRatedProductionAttempts(WEEK_START, WEEK_END)).toBe(2);
+  });
+
+  it('returns 0 when there are no rated sessions in the window', async () => {
+    await db.productionLessonSessions.add(
+      mkSession({ id: 'open', timestamp: MID_WEEK }),
+    );
+    expect(await getWeeklyRatedProductionAttempts(WEEK_START, WEEK_END)).toBe(0);
   });
 });
 

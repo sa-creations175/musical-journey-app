@@ -196,6 +196,35 @@ export async function getEarTrainingAttemptsBySubActivity(
 }
 
 // ---------------------------------------------------------------------
+// getWeeklyRatedProductionAttempts
+// ---------------------------------------------------------------------
+
+/**
+ * Production attempts for the window — Phase B definition: rated
+ * ProductionLessonSession rows (Step 3 — a Production attempt counts
+ * when the user submits a Flying / Cruising / Crawling rating on the
+ * lesson session).
+ *
+ * Deliberately NOT the same as getWeeklyAttempts('production', …):
+ * that walks db.spacingState.performanceHistory (mastery-state
+ * changes), the pre-Step-3 notion of a Production "attempt", and the
+ * call-sites that consume it (existing weekly-plan UI, the
+ * Phase B-prototype loader in sessionNeed.ts) still want that shape.
+ * Phase B's keystone wants the rated-session count, so it gets its
+ * own helper rather than overloading getWeeklyAttempts's per-module
+ * contract.
+ */
+export async function getWeeklyRatedProductionAttempts(
+  weekStart: number,
+  weekEnd: number,
+): Promise<number> {
+  return db.productionLessonSessions
+    .where('timestamp').between(weekStart, weekEnd, true, true)
+    .filter(s => s.rating !== undefined)
+    .count();
+}
+
+// ---------------------------------------------------------------------
 // getDaysWithActivity
 // ---------------------------------------------------------------------
 
