@@ -59,6 +59,7 @@ import {
   type ModuleWeeklyNeed,
   type WeeklyPace,
 } from '../../lib/sessionAlgorithm/moduleWeeklyNeed';
+import { computeAlgoSpacingDemandSeconds } from '../../lib/sessionAlgorithm/algoSpacingDemand';
 import { getCarryoverBacklogItemRefs } from '../goals/carryover';
 import {
   durationTierFor,
@@ -201,8 +202,12 @@ export async function buildSessionProposals(
   // Phase B Step 6 — keystone-derived time budgets + pace. Modules
   // with no active weekly coverage goal are absent from both maps
   // and fall back to the memory-type tier inside the allocator.
+  // Step 9a Part B — spacingRows + now flow through so over-practice
+  // slices can expand to cover the algo's actual due-today demand.
   const { blockTimeNeeds, paceByBlock } =
-    buildBlockBudgetsFromWeeklyNeeds(withColdStart, moduleWeeklyNeeds);
+    buildBlockBudgetsFromWeeklyNeeds(
+      withColdStart, moduleWeeklyNeeds, spacingRows, now,
+    );
   return generateAndShape(
     withColdStart,
     inputs.timeMinutes * 60,
@@ -387,9 +392,12 @@ export async function buildSessionPlan(
   // Phase B Step 6 — keystone-derived time budgets + pace from the
   // moduleWeeklyNeeds load above. Modules without an active weekly
   // coverage goal stay absent → fall back to MEMORY_TYPE_DURATIONS
-  // inside the allocator.
+  // inside the allocator. Step 9a Part B — spacingRows + now flow
+  // through so over-practice slices can expand to cover algo demand.
   const { blockTimeNeeds, paceByBlock } =
-    buildBlockBudgetsFromWeeklyNeeds(moduleBlocks, moduleWeeklyNeeds);
+    buildBlockBudgetsFromWeeklyNeeds(
+      moduleBlocks, moduleWeeklyNeeds, spacingRows, now,
+    );
   const cards = generateAndShape(
     moduleBlocks,
     availableSeconds,
@@ -493,6 +501,14 @@ export function buildBlockTimeNeeds(
 export function buildBlockBudgetsFromWeeklyNeeds(
   blocks: ReadonlyArray<AlgorithmBlock>,
   moduleNeeds: ReadonlyArray<ModuleWeeklyNeed>,
+  /** Phase B Step 9a Part B — spacingState rows + now, threaded through
+   *  to `moduleTotalSliceSeconds` so the over-practice slice can expand
+   *  to the algo's actual due-today demand (capped at the tier).
+   *  Optional for callers / tests that don't have rows handy; absent →
+   *  Part B's floor is 0 (Part A behaviour preserved).
+   */
+  spacingRows: ReadonlyArray<SpacingState> = [],
+  asOf: number = Date.now(),
 ): {
   blockTimeNeeds: Map<string, number>;
   paceByBlock: Map<string, WeeklyPace>;
@@ -525,7 +541,9 @@ export function buildBlockBudgetsFromWeeklyNeeds(
   for (const [moduleId, moduleBlocks] of blocksByModule) {
     const need = needByModule.get(moduleId);
     if (!need) continue;
-    const totalSeconds = moduleTotalSliceSeconds(need, moduleBlocks);
+    const totalSeconds = moduleTotalSliceSeconds(
+      need, moduleBlocks, spacingRows, asOf,
+    );
     if (totalSeconds <= 0) continue;
     phaseBModules.add(moduleId);
     const perBlockSeconds = totalSeconds / moduleBlocks.length;
@@ -544,14 +562,24 @@ export function buildBlockBudgetsFromWeeklyNeeds(
  *
  *   · 'none'    → the keystone's `estimatedMinutesNeeded × 60`
  *                 (the Step 5/6 path).
- *   · 'weekly'  → 50% of the memory-type tier's typical-high, capped
- *                 at the tier itself (never larger than normal).
- *   · 'monthly' → 25% of the same tier, same cap.
+ *   · 'weekly'  → 50% of the memory-type tier's typical-high.
+ *   · 'monthly' → 25% of the same tier.
  *
- * Spacing floor is parameterised as 0 in this pass (Step 9a Part B is
- * a follow-up — see report). When Part B lands, the floor is the
- * module's algo-spacing demand and the slice expands to fit (still
- * capped at the tier constant).
+ * Step 9a Part B — the slice expands to clear the algo's actual
+ * due-today demand when that exceeds the target. Final shape:
+ *
+ *   slice = min(max(target, spacing_demand), tier_cap)
+ *
+ * - target  = 50% / 25% of typical-high (the Part A fractional floor)
+ * - spacing_demand = `computeAlgoSpacingDemandSeconds` — items the
+ *   SR algorithm has scheduled at-or-before now, weighted by the
+ *   module's per-attempt time seed.
+ * - tier_cap = typical-high — the slice never grows larger than a
+ *   normal session.
+ *
+ * Modules without a clean due-today concept (repertoire, production)
+ * return demand = 0 from the helper and so fall through to the Part
+ * A target. See algoSpacingDemand.ts.
  *
  * All blocks within a module share `memoryType` and `moduleRef`
  * (S&P is one block, ET fans out but every fan-out has memoryType
@@ -562,6 +590,8 @@ export function buildBlockBudgetsFromWeeklyNeeds(
 function moduleTotalSliceSeconds(
   need: ModuleWeeklyNeed,
   moduleBlocks: ReadonlyArray<AlgorithmBlock>,
+  spacingRows: ReadonlyArray<SpacingState>,
+  asOf: number,
 ): number {
   if (need.overPractice === 'none') {
     return need.estimatedMinutesNeeded * 60;
@@ -571,7 +601,9 @@ function moduleTotalSliceSeconds(
   const tier = durationTierFor(firstBlock.memoryType, firstBlock.moduleRef);
   const fraction = need.overPractice === 'monthly' ? 0.25 : 0.50;
   const target = tier.typicalHighSeconds * fraction;
-  const spacingFloorSeconds = 0; // Step 9a Part B: algo demand, deferred.
+  const spacingFloorSeconds = computeAlgoSpacingDemandSeconds(
+    need.moduleId, spacingRows, asOf,
+  );
   const cap = tier.typicalHighSeconds;
   return Math.min(Math.max(target, spacingFloorSeconds), cap);
 }

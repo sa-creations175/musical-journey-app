@@ -32,6 +32,7 @@ import {
   MEMORY_TYPE_DURATIONS,
   type AlgorithmBlock,
 } from '../../../lib/sessionAlgorithm/timeAllocation';
+import type { SpacingState } from '../../../lib/db';
 
 function block(
   id: string,
@@ -310,7 +311,8 @@ describe('buildBlockBudgetsFromWeeklyNeeds — over-practice slice', () => {
 
   it("over-practice slice never exceeds the tier cap (defensive)", () => {
     // The fraction (≤ 1) × typical-high cannot exceed typical-high,
-    // and the spacing floor is 0 in Part A. Pinning the invariant.
+    // and the spacing floor stays bounded by `cap` in Part B.
+    // Pinning the invariant.
     const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
     const needs: ModuleWeeklyNeed[] = [
       need({
@@ -405,5 +407,225 @@ describe('allocator end-to-end — saved over-practice time flows to behind-pace
     expect(out[0].plannedSeconds).toBe(5 * 60);
     expect(out[1].plannedSeconds).toBe(30 * 60 - 5 * 60); // 25 min
     expect(out.reduce((s, b) => s + b.plannedSeconds, 0)).toBe(30 * 60);
+  });
+});
+
+// =====================================================================
+// Phase B Step 9a Part B — spacing floor expansion
+//
+// The over-practice slice expands to clear the SR algorithm's actual
+// due-today demand when that exceeds the 50% / 25% target — capped at
+// the tier so the slice never grows larger than a normal session.
+//
+//   slice = min(max(target, spacing_demand), tier_cap)
+// =====================================================================
+
+describe('buildBlockBudgetsFromWeeklyNeeds — Step 9a Part B spacing floor', () => {
+  const NOW = 1_700_000_000_000;
+  const PAST = NOW - 1000;
+
+  function spacingRow(
+    itemRef: string,
+    moduleRef: string,
+    nextDueAt: number | null,
+  ): SpacingState {
+    return {
+      id: `row-${itemRef}-${moduleRef}`,
+      itemRef,
+      moduleRef,
+      memoryType: 'declarative',
+      acquisitionStage: 'acquiring',
+      currentIntervalDays: 0,
+      lastEngagedAt: nextDueAt,
+      nextDueAt,
+      performanceHistory: [],
+    };
+  }
+
+  it('HF weekly over-practice — demand < target → target wins (7.5 min)', () => {
+    // declarative typical-high = 10 min = 600 s; 50% = 300 s = 5 min.
+    // Hmm — the design-doc example uses 15-min typical-high (different
+    // tier shape); our declarative tier is 10 min. Same math:
+    //   target  = 50% × 600 s   = 300 s
+    //   demand  = 5 items × 30s = 150 s
+    //   slice   = max(300, 150) = 300 s (target wins)
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const spacingRows = Array.from({ length: 5 }, (_, i) =>
+      spacingRow(`card-${i}`, 'harmonic-fluency', PAST),
+    );
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(300);
+  });
+
+  it('HF weekly over-practice — demand > target & < cap → demand wins (slice expands)', () => {
+    // target  = 50% × 600 s     = 300 s   (5 min)
+    // demand  = 15 items × 30 s = 450 s   (7.5 min)
+    // cap     = 600 s
+    // slice   = min(max(300, 450), 600) = 450 s
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const spacingRows = Array.from({ length: 15 }, (_, i) =>
+      spacingRow(`card-${i}`, 'harmonic-fluency', PAST),
+    );
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(450);
+  });
+
+  it('HF weekly over-practice — demand > cap → cap wins (slice clamped at tier)', () => {
+    // target  = 300 s
+    // demand  = 40 items × 30 s = 1200 s (20 min)
+    // cap     = 600 s
+    // slice   = min(max(300, 1200), 600) = 600 s
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const spacingRows = Array.from({ length: 40 }, (_, i) =>
+      spacingRow(`card-${i}`, 'harmonic-fluency', PAST),
+    );
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(600); // tier cap
+  });
+
+  it('monthly over-practice — high spacing demand still expands above the 25% target', () => {
+    // declarative typical-high = 600 s
+    // target  = 25% × 600 = 150 s (2.5 min)
+    // demand  = 12 items × 30 s = 360 s (6 min)
+    // slice   = max(150, 360) = 360 s
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'monthly',
+      }),
+    ];
+    const spacingRows = Array.from({ length: 12 }, (_, i) =>
+      spacingRow(`card-${i}`, 'harmonic-fluency', PAST),
+    );
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(360);
+  });
+
+  it('Repertoire — spacing demand returns 0, slice falls through to Part A target (regression)', () => {
+    // Repertoire has no spacing-state due-today concept. Even with
+    // spacing rows present under moduleRef='repertoire', the demand
+    // helper returns 0 → slice stays at the 50% / 25% Part A target.
+    const blocks = [block('rep-1', 'repertoire', { memoryType: 'integration' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'repertoire',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const spacingRows = [
+      spacingRow('song:bag-lady:chorus', 'repertoire', PAST),
+      spacingRow('song:bag-lady:verse',  'repertoire', PAST),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    // Repertoire override → 60 min typical-high; 50% = 1800 s.
+    expect(out.blockTimeNeeds.get('rep-1')).toBe(1800);
+  });
+
+  it('Production — spacing demand returns 0, slice falls through to target (regression)', () => {
+    const blocks = [block('prod-1', 'production', { memoryType: 'procedural' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'production',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const spacingRows = [
+      spacingRow('wf-01',   'production', PAST),
+      spacingRow('lang-01', 'production', PAST),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    // procedural typical-high = 15 min = 900 s; 50% = 450 s.
+    expect(out.blockTimeNeeds.get('prod-1')).toBe(450);
+  });
+
+  it("'none' over-practice ignores the spacing floor entirely (regression)", () => {
+    // The Step 5/6 path (estimatedMinutesNeeded × 60) is untouched by
+    // Part B — the spacing floor only applies to over-practice slices.
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        estimatedMinutesNeeded: 8,
+        overPractice: 'none',
+      }),
+    ];
+    // 100 due items would be a 50-min spacing demand — ignored entirely.
+    const spacingRows = Array.from({ length: 100 }, (_, i) =>
+      spacingRow(`card-${i}`, 'harmonic-fluency', PAST),
+    );
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(8 * 60); // 480 s, unchanged
+  });
+
+  it('saved time still routes to behind-pace modules when spacing demand stays below the target', () => {
+    // Part A → Part B integration regression: with demand < target,
+    // the over-practice slice stays at the target and the overflow
+    // path keeps routing saved time to behind-pace modules.
+    const blocks = [
+      block('hf-1',  'harmonic-fluency', { memoryType: 'declarative' }),
+      block('rep-1', 'repertoire',       { memoryType: 'integration' }),
+    ];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+      need({
+        moduleId: 'repertoire',
+        estimatedMinutesNeeded: 20,
+        pace: 'behind',
+        overPractice: 'none',
+      }),
+    ];
+    // 3 due HF items × 30 s = 90 s — well under the 300-s target.
+    const spacingRows = Array.from({ length: 3 }, (_, i) =>
+      spacingRow(`card-${i}`, 'harmonic-fluency', PAST),
+    );
+    const { blockTimeNeeds, paceByBlock } =
+      buildBlockBudgetsFromWeeklyNeeds(blocks, needs, spacingRows, NOW);
+    expect(blockTimeNeeds.get('hf-1')).toBe(300); // target wins
+    const out = allocateBlockTime(blocks, 30 * 60, blockTimeNeeds, paceByBlock)!;
+    expect(out[0].plannedSeconds).toBe(300);
+    expect(out[1].plannedSeconds).toBe(30 * 60 - 300);
   });
 });
