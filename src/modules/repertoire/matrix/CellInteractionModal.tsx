@@ -7,6 +7,7 @@ import {
   type SongCellState,
   type SongKey,
   type SongMatrixSection,
+  type SongRunThroughRating,
 } from '../../../lib/db';
 import {
   type AttemptDraft,
@@ -85,12 +86,18 @@ export default function CellInteractionModal({
   // Notes init from cell.notes — the cell carries notes across
   // sessions, consistent with the rest of the data model.
   const [notesInput, setNotesInput] = useState<string>(cell.notes ?? '');
+  // Session feel — Flying / Cruising / Crawling. Optional: null until
+  // the user picks one, in which case the run-through rows from this
+  // save carry no rating (pre-v22 / unrated semantics). Always starts
+  // null — a feel rating describes one session, it doesn't carry over.
+  const [rating, setRating] = useState<SongRunThroughRating | null>(null);
   const [busy, setBusy] = useState(false);
 
   const handleClose = useCallback(() => {
     setAttempts([]);
     setBpmInput('');
     setNotesInput('');
+    setRating(null);
     setBusy(false);
     onClose();
   }, [onClose]);
@@ -147,6 +154,7 @@ export default function CellInteractionModal({
         siblingCells,
         attempts,
         notes: trimmedNotes === '' ? null : trimmedNotes,
+        rating,
         markComfortable,
         performanceTempo,
         expectedSectionCount: totalSections,
@@ -221,6 +229,8 @@ export default function CellInteractionModal({
           onClean={() => handleAddAttempt(true)}
           onNotClean={() => handleAddAttempt(false)}
         />
+
+        <SessionFeelPicker value={rating} onChange={setRating} />
 
         <NotesField
           value={notesInput}
@@ -463,6 +473,82 @@ function AddAttemptArea({
         >
           ✗ Not clean
         </button>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------------------
+
+const FEEL_OPTIONS: ReadonlyArray<{
+  value: SongRunThroughRating;
+  label: string;
+  hint: string;
+  activeClass: string;
+  inactiveClass: string;
+}> = [
+  {
+    value: 'flying',
+    label: 'Flying',
+    hint: 'effortless',
+    activeClass: 'bg-amber-500 text-white border-amber-500',
+    inactiveClass: 'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
+  },
+  {
+    value: 'cruising',
+    label: 'Cruising',
+    hint: 'steady, clean',
+    activeClass: 'bg-fluent text-white border-fluent',
+    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
+  },
+  {
+    value: 'crawling',
+    label: 'Crawling',
+    hint: 'breakdowns',
+    activeClass: 'bg-needswork text-white border-needswork',
+    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
+  },
+];
+
+/**
+ * Session feel picker — Flying / Cruising / Crawling. Optional: the
+ * user can save a block without rating it (the run-through rows then
+ * carry no rating, exactly like pre-v22 data). When picked, the
+ * rating is stamped on every run-through row from the save — Phase B
+ * reads it to tell an exploration session from a drill session on
+ * this section. Clicking the active option again clears it.
+ */
+function SessionFeelPicker({
+  value,
+  onChange,
+}: {
+  value: SongRunThroughRating | null;
+  onChange: (next: SongRunThroughRating | null) => void;
+}) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
+        How did this section feel?{' '}
+        <span className="text-neutral-400 font-normal">(optional)</span>
+      </div>
+      <div className="flex items-stretch gap-2">
+        {FEEL_OPTIONS.map(opt => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(active ? null : opt.value)}
+              aria-pressed={active}
+              className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
+                active ? opt.activeClass : opt.inactiveClass
+              }`}
+            >
+              <span className="font-medium">{opt.label}</span>
+              <span className="ml-1.5 opacity-70 text-[11px]">{opt.hint}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

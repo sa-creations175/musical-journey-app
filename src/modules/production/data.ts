@@ -5,6 +5,7 @@ import {
   type LessonReferenceTrack,
   type ProductionLesson,
   type ProductionLessonMastery,
+  type ProductionLessonRating,
   type ProductionLessonSession,
   type ReferenceTrack,
 } from '../../lib/db';
@@ -278,6 +279,39 @@ export async function recordLessonOpen(
     openedDeepDive,
   };
   await db.productionLessonSessions.add(session);
+}
+
+/**
+ * Log a rated Production lesson session — Phase B Decision 4. Writes
+ * a ProductionLessonSession row carrying the self-reported feel plus
+ * the start / end timestamps. This is the row that counts as a
+ * Production "attempt"; the open events written by recordLessonOpen
+ * stay rating-less and don't count.
+ *
+ * `startedAt` is lessonStartedAt (captured when the lesson page
+ * mounted, passed in by the caller); `timestamp` doubles as
+ * lessonEndedAt (now); `durationSeconds` is the honest difference,
+ * floored at 0 against clock skew. `openedDeepDive` is false — this
+ * row marks the rating event, not a deep-dive open (those get their
+ * own row from recordLessonOpen).
+ */
+export async function recordLessonRating(
+  lessonId: string,
+  rating: ProductionLessonRating,
+  startedAt: number,
+): Promise<ProductionLessonSession> {
+  const endedAt = Date.now();
+  const session: ProductionLessonSession = {
+    id: uid('pls'),
+    lessonId,
+    timestamp: endedAt,
+    startedAt,
+    durationSeconds: Math.max(0, Math.round((endedAt - startedAt) / 1000)),
+    openedDeepDive: false,
+    rating,
+  };
+  await db.productionLessonSessions.add(session);
+  return session;
 }
 
 // --- Glossary state CRUD -------------------------------------------

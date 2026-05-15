@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type ProductionLessonMastery } from '../../lib/db';
+import { db, type ProductionLessonMastery, type ProductionLessonRating } from '../../lib/db';
+import Modal from '../../components/Modal';
 import { lessonById } from './content/lessons';
 import { glossaryById } from './content/glossary';
 import { pathById } from './content/paths';
-import { recordLessonOpen, updateLessonMastery } from './data';
+import { recordLessonOpen, recordLessonRating, updateLessonMastery } from './data';
 import GlossaryOverlay from './GlossaryOverlay';
 import LessonReferenceSection from './LessonReferenceSection';
 
@@ -49,6 +50,11 @@ export default function LessonView({ lessonId, onBack }: Props) {
   const [showDeepDive, setShowDeepDive] = useState(false);
   const deepDiveLoggedRef = useRef(false);
   const [glossaryOpen, setGlossaryOpen] = useState<string | null>(null);
+  const [ratingOpen, setRatingOpen] = useState(false);
+  // lessonStartedAt — when the user entered this lesson page. Seeded
+  // at first render and refreshed by the mount effect below when the
+  // user navigates between lessons without unmounting.
+  const startedAtRef = useRef(Date.now());
 
   // Record an open event once per mount. The effect is guarded so
   // re-opening Deep Dive doesn't double-count.
@@ -56,8 +62,20 @@ export default function LessonView({ lessonId, onBack }: Props) {
     if (!lesson) return;
     void recordLessonOpen(lesson.id, false);
     deepDiveLoggedRef.current = false;
+    startedAtRef.current = Date.now();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
+
+  // Phase B Decision 4 — write the rated session row, then hand
+  // navigation back to the parent. The rating modal is the ONLY path
+  // to recordLessonRating, so leaving the lesson any other way
+  // (back button, sidebar, browser back) writes no rated row.
+  const handleSubmitRating = async (rating: ProductionLessonRating) => {
+    if (!lesson) return;
+    await recordLessonRating(lesson.id, rating, startedAtRef.current);
+    setRatingOpen(false);
+    onBack();
+  };
 
   // When the user opens Deep Dive, log a second (enriched) session
   // event — lets freshness heuristics see which lessons get the
@@ -208,13 +226,168 @@ export default function LessonView({ lessonId, onBack }: Props) {
 
       <MasteryLegend />
 
+      {/* Phase B Decision 4 — per-session self-report. Distinct from
+          the mastery declaration above (mastery is cumulative state;
+          this rates how THIS session felt) and is the row Phase B
+          counts as a Production attempt. Explicit done-flow: no rated
+          row is written unless the user opens this and submits. */}
+      <section className="pt-3 border-t border-neutral-200 dark:border-neutral-800">
+        <button
+          type="button"
+          onClick={() => setRatingOpen(true)}
+          className="w-full sm:w-auto px-4 py-2 rounded-md bg-production text-white text-sm font-medium hover:opacity-90"
+        >
+          Done — rate this session
+        </button>
+        <p className="mt-1.5 text-[11px] text-neutral-500">
+          A quick self-report — it's how Production practice shows up in your weekly plan.
+        </p>
+      </section>
+
       {glossaryOpen && (
         <GlossaryOverlay
           termId={glossaryOpen}
           onClose={() => setGlossaryOpen(null)}
         />
       )}
+
+      {ratingOpen && (
+        <LessonRatingModal
+          lessonTitle={lesson.title}
+          onClose={() => setRatingOpen(false)}
+          onSubmit={handleSubmitRating}
+        />
+      )}
     </div>
+  );
+}
+
+// -------------------------------------------------------------------
+// Session rating modal (Phase B Decision 4)
+// -------------------------------------------------------------------
+
+const LESSON_FEEL_OPTIONS: ReadonlyArray<{
+  value: ProductionLessonRating;
+  label: string;
+  hint: string;
+  activeClass: string;
+  inactiveClass: string;
+}> = [
+  {
+    value: 'flying',
+    label: 'Flying',
+    hint: 'clicked — I can apply this',
+    activeClass: 'bg-amber-500 text-white border-amber-500',
+    inactiveClass: 'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
+  },
+  {
+    value: 'cruising',
+    label: 'Cruising',
+    hint: 'followed it, need reps',
+    activeClass: 'bg-fluent text-white border-fluent',
+    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
+  },
+  {
+    value: 'crawling',
+    label: 'Crawling',
+    hint: 'still fuzzy',
+    activeClass: 'bg-needswork text-white border-needswork',
+    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
+  },
+];
+
+/**
+ * Explicit done-flow rating prompt. Opened by the "Done — rate this
+ * session" button; submitting writes the rated ProductionLessonSession
+ * row (via the parent's handleSubmitRating) and the parent navigates
+ * back. Cancelling — or leaving the lesson by any other route —
+ * writes nothing, since this modal is the only path to
+ * recordLessonRating. Navigate-away interception was rejected: the
+ * Production module navigates via react-router query params, browser
+ * back, and the sidebar, so a back-button wrap would miss most exit
+ * paths and a router/beforeunload block would be fragile.
+ */
+function LessonRatingModal({
+  lessonTitle,
+  onClose,
+  onSubmit,
+}: {
+  lessonTitle: string;
+  onClose: () => void;
+  onSubmit: (rating: ProductionLessonRating) => void | Promise<void>;
+}) {
+  const [selected, setSelected] = useState<ProductionLessonRating | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (selected === null || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(selected);
+      // No setSaving(false) on success — onSubmit navigates away and
+      // unmounts this modal; touching state here would warn.
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[production] lesson rating save failed', err);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="How did this session feel?"
+      description={lessonTitle}
+      footer={(
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={selected === null || saving}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium text-white ${
+              selected === null || saving
+                ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
+                : 'bg-production hover:opacity-90'
+            }`}
+          >
+            {saving ? 'Saving…' : 'Save & finish'}
+          </button>
+        </div>
+      )}
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-neutral-600 dark:text-neutral-300">
+          Self-assessed — how the ideas in this lesson sat with you this session.
+        </p>
+        <div className="grid grid-cols-1 gap-2">
+          {LESSON_FEEL_OPTIONS.map(opt => {
+            const active = selected === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setSelected(opt.value)}
+                aria-pressed={active}
+                className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
+                  active ? opt.activeClass : opt.inactiveClass
+                }`}
+              >
+                <span className="font-medium">{opt.label}</span>
+                <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

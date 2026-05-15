@@ -5,6 +5,7 @@ import {
   type SongKey,
   type SongKeyRunThrough,
   type SongKeyState,
+  type SongRunThroughRating,
 } from '../../../lib/db';
 import { decayStateAfterEngagement } from './solidDecay';
 
@@ -138,11 +139,18 @@ export function computeKeyStateFromCells(
  *
  * lastRunAt + lastRunWasClean only update when there's at least
  * one attempt; notes-only saves preserve the prior values.
+ *
+ * `rating` is the session-level Flying / Cruising / Crawling feel —
+ * stamped onto every run-through row from this save (it describes
+ * the session, not the individual attempt) when non-null. A null
+ * rating leaves the field off the rows entirely, reading as
+ * pre-rating / unrated data downstream.
  */
 export function applyAttemptsToCell(
   cell: SongCell,
   attempts: ReadonlyArray<AttemptDraft>,
   notes: string | null,
+  rating: SongRunThroughRating | null,
   markComfortable: boolean,
   performanceTempo: number | null,
   now: number,
@@ -165,6 +173,7 @@ export function applyAttemptsToCell(
     wasClean: a.wasClean,
     tempoBpm: Math.max(1, Math.floor(a.bpm)),
     notes: null, // per-attempt notes not surfaced in step 4; cell-level notes only
+    ...(rating ? { rating } : {}),
     createdAt: now + i,
   }));
 
@@ -212,6 +221,10 @@ export async function saveAttemptsAndRollup(args: {
   siblingCells: ReadonlyArray<SongCell>;
   attempts: ReadonlyArray<AttemptDraft>;
   notes: string | null;
+  /** Session-level Flying / Cruising / Crawling feel. Null when the
+   *  user didn't pick one — the run-through rows then carry no
+   *  rating, exactly like pre-v22 data. */
+  rating: SongRunThroughRating | null;
   markComfortable: boolean;
   performanceTempo: number | null;
   expectedSectionCount: number;
@@ -221,6 +234,7 @@ export async function saveAttemptsAndRollup(args: {
     args.cell,
     args.attempts,
     args.notes,
+    args.rating,
     args.markComfortable,
     args.performanceTempo,
     args.now,

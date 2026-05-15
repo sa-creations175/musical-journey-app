@@ -580,16 +580,35 @@ export interface ProductionLesson {
   updatedAt: number;
 }
 
+/** Self-reported feel for a Production lesson session — same 3-point
+ *  vocabulary as [[SongRunThroughRating]], kept as its own named type
+ *  so the two domains can diverge later without a shared-type ripple. */
+export type ProductionLessonRating = 'flying' | 'cruising' | 'crawling';
+
 export interface ProductionLessonSession {
   /** Generated uid. */
   id: string;
   lessonId: string;
+  /** When this session event was recorded. For a rated session (see
+   *  `rating`) this is lessonEndedAt — the moment the user submitted
+   *  the Flying / Cruising / Crawling rating. */
   timestamp: number;
-  /** Duration the user spent in this revisit (seconds). Optional —
-   *  the UI tracks this when the user closes the lesson. */
+  /** Duration the user spent in this session (seconds). Set on rated
+   *  sessions as `timestamp - startedAt`; otherwise optional and
+   *  currently unset on the passive open events. */
   durationSeconds?: number;
   /** Whether this visit opened the Deep Dive layer. */
   openedDeepDive: boolean;
+  /** lessonStartedAt — when the user entered the lesson page for the
+   *  session this row rates. Present only on rated sessions; paired
+   *  with `timestamp` (lessonEndedAt) it gives the honest session
+   *  duration for future calibration. */
+  startedAt?: number;
+  /** Self-reported feel for the lesson session (Phase B Decision 4).
+   *  A Production attempt counts when this is submitted — rows
+   *  without a rating are passive open events (recordLessonOpen), not
+   *  attempts. */
+  rating?: ProductionLessonRating;
 }
 
 /** Per-user understanding state for a glossary term. */
@@ -1439,6 +1458,11 @@ export interface SongCell {
  * SONG_PROGRESSION_DESIGN_3.md "Rollup logic". Never updated after
  * insert.
  */
+/** Self-reported feel for a song practice session — the 3-point
+ *  Flying / Cruising / Crawling vocabulary the rest of the app uses
+ *  for procedural / integration ratings. */
+export type SongRunThroughRating = 'flying' | 'cruising' | 'crawling';
+
 export interface SongCellRunThrough {
   id: string;
   cellId: string;
@@ -1450,6 +1474,14 @@ export interface SongCellRunThrough {
    *  user logged without a tempo (e.g., from a free-form session). */
   tempoBpm: number | null;
   notes: string | null;
+  /** Self-reported feel for the practice session that produced this
+   *  run-through. Optional — rows logged before the v22 rating
+   *  capture have no value, and absence reads as "pre-rating data"
+   *  (Phase B's exploration-vs-drill mode detection treats an unrated
+   *  section as still in exploration). Every run-through row from one
+   *  cell-modal save carries the same rating: it describes the
+   *  session, not the individual attempt. */
+  rating?: SongRunThroughRating;
   createdAt: number;
 }
 
@@ -2299,6 +2331,65 @@ export class AppDB extends Dexie {
       for (let i = 0; i < rows.length; i++) {
         await tx.table('songs').update(rows[i].id, { learningOrder: i + 1 });
       }
+    });
+
+    // v22 — Phase B Step 3. Adds two non-indexed fields to existing
+    // row shapes:
+    //   · SongCellRunThrough.rating          (Flying/Cruising/Crawling)
+    //   · ProductionLessonSession.rating + startedAt
+    // None are indexed or promoted to a top-level Postgres column —
+    // they ride the `data` JSONB blob server-side — so the stores
+    // schema is byte-identical to v21 and there's nothing to
+    // backfill: existing rows simply have no rating, which reads as
+    // pre-rating data. The version bump is the explicit marker that
+    // the persisted row shape grew.
+    this.version(22).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage, learningOrder',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
     });
   }
 }
