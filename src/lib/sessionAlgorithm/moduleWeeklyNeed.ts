@@ -28,9 +28,10 @@
  * See docs/PHASE_B_SESSION_PLANNING_DESIGN.md.
  */
 
-import { db } from '../db';
+import { db, type Goal } from '../db';
 import type { GoalFlowModuleId } from '../../modules/goals/goalVocabulary';
 import {
+  getAttemptsInRange,
   getEarTrainingAttemptsBySubActivity,
   getWeeklyAttempts,
   getWeeklyRatedProductionAttempts,
@@ -55,6 +56,18 @@ import {
  *  models this kind of thing as a discriminated string. */
 export type WeeklyPace = 'ahead' | 'on-pace' | 'behind';
 
+/** Phase B Step 9a — over-practice mode signal. Drives the time-slice
+ *  reduction in the allocator: a module the user has already met its
+ *  target on gets a fractional tier slice instead of its full goal-
+ *  pace need, freeing time for behind-pace modules (Step 6 overflow).
+ *
+ *  · 'none'    — weekly target not yet met (the default planning case).
+ *  · 'weekly'  — weekly target met but the monthly is still open
+ *                (or no monthly is configured). Slice = 50% of tier.
+ *  · 'monthly' — monthly target also met. Slice = 25% of tier.
+ *                Wins over 'weekly' when both fire. */
+export type WeeklyOverPracticeState = 'none' | 'weekly' | 'monthly';
+
 /** ET sub-activity completed-count breakdown. Phase B Step 4 split ET
  *  attempt counting by sub-activity; this carries that split up into
  *  the per-module need so Step 6's allocator can divide ET time
@@ -76,6 +89,12 @@ export interface ModuleWeeklyNeedInput {
   targetAttemptsThisWeek: number;
   /** Attempts logged for this module in [weekStart, weekEnd]. */
   completedAttemptsThisWeek: number;
+  /** Phase B Step 9a — monthly attempts still needed (monthly target
+   *  in the same attempt unit, minus monthly-covered-so-far through
+   *  `today`). Floors at 0 when met. `undefined` when no active
+   *  monthly goal feeds this module — the over-practice classifier
+   *  then only inspects the weekly side. */
+  monthlyRemainingAttempts?: number;
   /** ear-training only — the intervals / chord-recognition split of
    *  `completedAttemptsThisWeek` (getEarTrainingAttemptsBySubActivity).
    *  intervals + chordRecognition ≤ completedAttemptsThisWeek; the
@@ -101,6 +120,11 @@ export interface ModuleWeeklyNeed {
   estimatedMinutesNeeded: number;
   /** Pace vs. the expected fraction of the week elapsed. */
   pace: WeeklyPace;
+  /** Phase B Step 9a — whether the module has already exceeded its
+   *  weekly (or monthly) target. Drives the allocator's fractional
+   *  tier slice; 'none' is the default for an active-goal module
+   *  still in progress. */
+  overPractice: WeeklyOverPracticeState;
   /** ear-training only — completed-count breakdown by sub-activity
    *  (present when the input carried an earTrainingBreakdown). */
   subActivities?: ModuleWeeklyNeedSubActivity[];
@@ -235,6 +259,11 @@ export function computeModuleWeeklyNeeds(
       targetAttemptsThisWeek,
       completedAttemptsThisWeek,
     );
+    const overPractice = classifyOverPractice(
+      targetAttemptsThisWeek,
+      completedAttemptsThisWeek,
+      input.monthlyRemainingAttempts,
+    );
 
     const need: ModuleWeeklyNeed = {
       moduleId,
@@ -243,6 +272,7 @@ export function computeModuleWeeklyNeeds(
       remainingAttempts,
       estimatedMinutesNeeded,
       pace,
+      overPractice,
     };
 
     if (moduleId === 'ear-training' && input.earTrainingBreakdown) {
@@ -260,6 +290,35 @@ export function computeModuleWeeklyNeeds(
 
     return need;
   });
+}
+
+/**
+ * Phase B Step 9a — classify a module's over-practice state from
+ * its weekly + monthly attempt accounting. Pure.
+ *
+ *   · monthly target met (monthlyRemainingAttempts ≤ 0)
+ *       → 'monthly' (wins over 'weekly' when both fire).
+ *   · weekly target met but monthly still open
+ *       → 'weekly'.
+ *   · either: target = 0 (no goal) or remaining > 0 → 'none'.
+ *
+ * `monthlyRemainingAttempts === undefined` reads as "no monthly goal
+ * configured" — the classifier then only inspects the weekly side,
+ * never returns 'monthly'. The keystone wrapper passes `undefined`
+ * for modules without an active monthly parent.
+ */
+export function classifyOverPractice(
+  targetAttemptsThisWeek: number,
+  completedAttemptsThisWeek: number,
+  monthlyRemainingAttempts: number | undefined,
+): WeeklyOverPracticeState {
+  if (monthlyRemainingAttempts !== undefined && monthlyRemainingAttempts <= 0) {
+    return 'monthly';
+  }
+  if (targetAttemptsThisWeek > 0 && completedAttemptsThisWeek >= targetAttemptsThisWeek) {
+    return 'weekly';
+  }
+  return 'none';
 }
 
 /**
@@ -378,14 +437,25 @@ export async function loadModuleWeeklyNeeds(
     }
   }
 
+  // Step 9a — also collect, per module, the LEAST-done active monthly
+  // goal's remaining attempts. "Least done" = the monthly that still
+  // has the most work to do; if even one monthly per module is still
+  // open the module isn't in monthly-over-practice. Module passes
+  // `undefined` to the keystone when no active monthly feeds it.
+  const monthlyRemainingByModule = await loadMonthlyRemainingByModule(
+    allGoals, today,
+  );
+
   const inputs: ModuleWeeklyNeedInput[] = [];
   for (const [moduleId, targetAttemptsThisWeek] of targetByModule) {
+    const monthlyRemainingAttempts = monthlyRemainingByModule.get(moduleId);
     if (moduleId === 'ear-training') {
       const breakdown = await getEarTrainingAttemptsBySubActivity(weekStart, weekEnd);
       inputs.push({
         moduleId,
         targetAttemptsThisWeek,
         completedAttemptsThisWeek: breakdown.total,
+        monthlyRemainingAttempts,
         earTrainingBreakdown: {
           intervals: breakdown.intervals,
           chordRecognition: breakdown.chordRecognition,
@@ -393,12 +463,59 @@ export async function loadModuleWeeklyNeeds(
       });
     } else if (moduleId === 'production') {
       const completed = await getWeeklyRatedProductionAttempts(weekStart, weekEnd);
-      inputs.push({ moduleId, targetAttemptsThisWeek, completedAttemptsThisWeek: completed });
+      inputs.push({
+        moduleId, targetAttemptsThisWeek,
+        completedAttemptsThisWeek: completed,
+        monthlyRemainingAttempts,
+      });
     } else {
       const completed = await getWeeklyAttempts(moduleId, weekStart, weekEnd);
-      inputs.push({ moduleId, targetAttemptsThisWeek, completedAttemptsThisWeek: completed });
+      inputs.push({
+        moduleId, targetAttemptsThisWeek,
+        completedAttemptsThisWeek: completed,
+        monthlyRemainingAttempts,
+      });
     }
   }
 
   return computeModuleWeeklyNeeds(weekStart, weekEnd, today, inputs);
+}
+
+/**
+ * Walk active monthlies and produce, per Phase-B module, the largest
+ * remaining-attempts figure across that module's monthlies (the
+ * "least-done" monthly). When ANY monthly per module is still open,
+ * the module isn't in monthly-over-practice — so the max-remaining
+ * tiebreaker is the right honesty rule. Modules with no active
+ * monthly are absent from the result (caller reads that as
+ * `undefined` → only the weekly side matters).
+ *
+ * `monthlyAttemptTarget` comes from `recomputeWeeklyTargetForMonthlyGoal`
+ * — same items × multiplier translation Step 8 already uses, so the
+ * over-practice signal matches the recompute math the user sees in
+ * the WeeklyPlan modal.
+ */
+async function loadMonthlyRemainingByModule(
+  allGoals: ReadonlyArray<Goal>,
+  today: number,
+): Promise<Map<GoalFlowModuleId, number>> {
+  const out = new Map<GoalFlowModuleId, number>();
+  for (const monthly of allGoals) {
+    if (monthly.scope !== 'monthly') continue;
+    if (monthly.status !== 'active') continue;
+    if (monthly.isUmbrella) continue;
+    if (!monthly.targetMetric) continue;
+    const moduleId = moduleForMetric(monthly.targetMetric);
+    if (!moduleId || !KEYSTONE_MODULES.has(moduleId)) continue;
+
+    const recomputed = await recomputeWeeklyTargetForMonthlyGoal(monthly, today);
+    if (!recomputed || recomputed.monthlyAttemptTarget <= 0) continue;
+
+    const covered = await getAttemptsInRange(moduleId, monthly.startDate, today);
+    const remaining = Math.max(0, recomputed.monthlyAttemptTarget - covered);
+
+    const prev = out.get(moduleId);
+    if (prev === undefined || remaining > prev) out.set(moduleId, remaining);
+  }
+  return out;
 }

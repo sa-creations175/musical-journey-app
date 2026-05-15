@@ -59,9 +59,10 @@ import {
   type ModuleWeeklyNeed,
   type WeeklyPace,
 } from '../../lib/sessionAlgorithm/moduleWeeklyNeed';
-import type {
-  AlgorithmBlock,
-  AllocatedBlock,
+import {
+  durationTierFor,
+  type AlgorithmBlock,
+  type AllocatedBlock,
 } from '../../lib/sessionAlgorithm/timeAllocation';
 import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
@@ -494,7 +495,14 @@ export function buildBlockBudgetsFromWeeklyNeeds(
     const moduleId = goalFlowModuleForSpacingModuleRef(b.moduleRef);
     if (!moduleId) continue;
     const need = needByModule.get(moduleId);
-    if (!need || need.estimatedMinutesNeeded <= 0) continue;
+    if (!need) continue;
+    // Keep blocks for modules with a Phase B budget OR an over-practice
+    // state (Step 9a). The over-practice branch applies a fractional
+    // tier slice instead of skipping to the memory-type default, so
+    // saved time can flow to behind-pace modules via Step 6 overflow.
+    const hasBudget = need.estimatedMinutesNeeded > 0;
+    const isOverPractice = need.overPractice !== 'none';
+    if (!hasBudget && !isOverPractice) continue;
     const arr = blocksByModule.get(moduleId) ?? [];
     arr.push(b);
     blocksByModule.set(moduleId, arr);
@@ -506,8 +514,10 @@ export function buildBlockBudgetsFromWeeklyNeeds(
   for (const [moduleId, moduleBlocks] of blocksByModule) {
     const need = needByModule.get(moduleId);
     if (!need) continue;
+    const totalSeconds = moduleTotalSliceSeconds(need, moduleBlocks);
+    if (totalSeconds <= 0) continue;
     phaseBModules.add(moduleId);
-    const perBlockSeconds = (need.estimatedMinutesNeeded * 60) / moduleBlocks.length;
+    const perBlockSeconds = totalSeconds / moduleBlocks.length;
     for (const b of moduleBlocks) {
       blockTimeNeeds.set(b.id, perBlockSeconds);
       paceByBlock.set(b.id, need.pace);
@@ -515,6 +525,44 @@ export function buildBlockBudgetsFromWeeklyNeeds(
   }
 
   return { blockTimeNeeds, paceByBlock, phaseBModules };
+}
+
+/**
+ * Phase B Step 9a — the slice a module gets, in seconds, before
+ * distribution across its blocks.
+ *
+ *   · 'none'    → the keystone's `estimatedMinutesNeeded × 60`
+ *                 (the Step 5/6 path).
+ *   · 'weekly'  → 50% of the memory-type tier's typical-high, capped
+ *                 at the tier itself (never larger than normal).
+ *   · 'monthly' → 25% of the same tier, same cap.
+ *
+ * Spacing floor is parameterised as 0 in this pass (Step 9a Part B is
+ * a follow-up — see report). When Part B lands, the floor is the
+ * module's algo-spacing demand and the slice expands to fit (still
+ * capped at the tier constant).
+ *
+ * All blocks within a module share `memoryType` and `moduleRef`
+ * (S&P is one block, ET fans out but every fan-out has memoryType
+ * 'declarative'), so the first block's tier defines the module-level
+ * tier — `durationTierFor` already respects MODULE_DURATION_OVERRIDES
+ * for repertoire.
+ */
+function moduleTotalSliceSeconds(
+  need: ModuleWeeklyNeed,
+  moduleBlocks: ReadonlyArray<AlgorithmBlock>,
+): number {
+  if (need.overPractice === 'none') {
+    return need.estimatedMinutesNeeded * 60;
+  }
+  const firstBlock = moduleBlocks[0];
+  if (!firstBlock) return 0;
+  const tier = durationTierFor(firstBlock.memoryType, firstBlock.moduleRef);
+  const fraction = need.overPractice === 'monthly' ? 0.25 : 0.50;
+  const target = tier.typicalHighSeconds * fraction;
+  const spacingFloorSeconds = 0; // Step 9a Part B: algo demand, deferred.
+  const cap = tier.typicalHighSeconds;
+  return Math.min(Math.max(target, spacingFloorSeconds), cap);
 }
 
 /**

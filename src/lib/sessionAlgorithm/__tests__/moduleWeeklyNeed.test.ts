@@ -13,6 +13,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  classifyOverPractice,
   classifyWeeklyPace,
   computeModuleWeeklyNeeds,
   loadModuleWeeklyNeeds,
@@ -516,5 +517,201 @@ describe('loadModuleWeeklyNeeds — live-recompute fallback', () => {
     }));
     const result = await loadModuleWeeklyNeeds(SUN);
     expect(result).toEqual([]);
+  });
+});
+
+// =====================================================================
+// Phase B Step 9a — classifyOverPractice (pure)
+// =====================================================================
+
+describe('classifyOverPractice', () => {
+  it("'none' when weekly target is still open", () => {
+    expect(classifyOverPractice(100, 30, 700)).toBe('none');
+  });
+
+  it("'weekly' when weekly target met but monthly still has work", () => {
+    expect(classifyOverPractice(100, 100, 200)).toBe('weekly');
+    expect(classifyOverPractice(100, 130, 200)).toBe('weekly'); // over-completed weekly
+  });
+
+  it("'monthly' when monthly target is met — beats 'weekly' when both fire", () => {
+    expect(classifyOverPractice(100, 100, 0)).toBe('monthly');
+    // Even with weekly not yet at target, a hit monthly is 'monthly'
+    // (rare edge case: user retargeted monthly mid-period).
+    expect(classifyOverPractice(100, 50, 0)).toBe('monthly');
+  });
+
+  it("'none' when there's no weekly target to be over on", () => {
+    expect(classifyOverPractice(0, 0, undefined)).toBe('none');
+    expect(classifyOverPractice(0, 10, undefined)).toBe('none');
+  });
+
+  it('monthlyRemainingAttempts === undefined → only the weekly side fires', () => {
+    expect(classifyOverPractice(100, 100, undefined)).toBe('weekly');
+    expect(classifyOverPractice(100, 30, undefined)).toBe('none');
+  });
+
+  it('completed === target is the inclusive boundary for weekly', () => {
+    expect(classifyOverPractice(50, 50, 200)).toBe('weekly');
+    expect(classifyOverPractice(50, 49, 200)).toBe('none');
+  });
+});
+
+// =====================================================================
+// Phase B Step 9a — computeModuleWeeklyNeeds attaches overPractice
+// =====================================================================
+
+describe('computeModuleWeeklyNeeds — overPractice field', () => {
+  it("attaches 'none' when no over-practice signal", () => {
+    const out = need({
+      moduleId: 'harmonic-fluency',
+      targetAttemptsThisWeek: 100,
+      completedAttemptsThisWeek: 30,
+      monthlyRemainingAttempts: 700,
+    });
+    expect(out.overPractice).toBe('none');
+  });
+
+  it("attaches 'weekly' when weekly is met and monthly is still open", () => {
+    const out = need({
+      moduleId: 'ear-training',
+      targetAttemptsThisWeek: 100,
+      completedAttemptsThisWeek: 100,
+      monthlyRemainingAttempts: 50,
+    });
+    expect(out.overPractice).toBe('weekly');
+  });
+
+  it("attaches 'monthly' when monthly is met — overrides 'weekly'", () => {
+    const out = need({
+      moduleId: 'harmonic-fluency',
+      targetAttemptsThisWeek: 100,
+      completedAttemptsThisWeek: 130,
+      monthlyRemainingAttempts: 0,
+    });
+    expect(out.overPractice).toBe('monthly');
+  });
+
+  it("attaches 'weekly' (not 'monthly') when no monthly goal feeds the module", () => {
+    const out = need({
+      moduleId: 'harmonic-fluency',
+      targetAttemptsThisWeek: 100,
+      completedAttemptsThisWeek: 100,
+      // monthlyRemainingAttempts: undefined
+    });
+    expect(out.overPractice).toBe('weekly');
+  });
+});
+
+// =====================================================================
+// Phase B Step 9a — loadModuleWeeklyNeeds threads monthly remaining
+// =====================================================================
+
+describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classification', () => {
+  beforeEach(clearAll);
+
+  const SUN_9A = new Date(2026, 2, 1, 9, 0, 0).getTime(); // Mar 1, 2026 Sunday
+  const MONTH_END_9A = new Date(2026, 2, 28, 23, 59, 59, 999).getTime();
+
+  it("'monthly' over-practice when monthly attempts are all logged", async () => {
+    // 130 cards × 10 = 1300 monthly. Seed 1400 attempts (over target).
+    // Weekly Goal record at 50, completed 0 this week — weekly remaining > 0,
+    // but monthly hits trumps it.
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN_9A - 14 * DAY,
+      targetDate: MONTH_END_9A,
+    }));
+    await db.goals.add(mkGoal({
+      scope: 'weekly',
+      relatedModules: ['harmonic-fluency'],
+      targetValue: 50,
+      targetUnit: 'attempts',
+      startDate: SUN_9A,
+      targetDate: SUN_9A + 7 * DAY - 1,
+    }));
+    // 1400 historical attempts logged across the month.
+    for (let i = 0; i < 1400; i++) {
+      await db.attempts.add({
+        moduleId: 'harmonic-fluency',
+        itemId: `seed-${i}`,
+        correct: true,
+        timestamp: SUN_9A - 7 * DAY,
+      });
+    }
+    const result = await loadModuleWeeklyNeeds(SUN_9A);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf).toBeDefined();
+    expect(hf!.overPractice).toBe('monthly');
+  });
+
+  it("'weekly' over-practice when weekly is met but monthly is still open", async () => {
+    // 130 cards × 10 = 1300 monthly. Weekly target 50, completed 50.
+    // Only 50 historical attempts before this week.
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN_9A,
+      targetDate: MONTH_END_9A,
+    }));
+    await db.goals.add(mkGoal({
+      scope: 'weekly',
+      relatedModules: ['harmonic-fluency'],
+      targetValue: 50,
+      targetUnit: 'attempts',
+      startDate: SUN_9A,
+      targetDate: SUN_9A + 7 * DAY - 1,
+    }));
+    for (let i = 0; i < 50; i++) {
+      await db.attempts.add({
+        moduleId: 'harmonic-fluency',
+        itemId: `s-${i}`,
+        correct: true,
+        timestamp: SUN_9A + DAY,
+      });
+    }
+    const result = await loadModuleWeeklyNeeds(SUN_9A + 2 * DAY);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf).toBeDefined();
+    expect(hf!.overPractice).toBe('weekly');
+  });
+
+  it("'none' when weekly is still in progress", async () => {
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN_9A,
+      targetDate: MONTH_END_9A,
+    }));
+    await db.goals.add(mkGoal({
+      scope: 'weekly',
+      relatedModules: ['harmonic-fluency'],
+      targetValue: 100,
+      targetUnit: 'attempts',
+      startDate: SUN_9A,
+      targetDate: SUN_9A + 7 * DAY - 1,
+    }));
+    // 30 attempts this week — far from done.
+    for (let i = 0; i < 30; i++) {
+      await db.attempts.add({
+        moduleId: 'harmonic-fluency',
+        itemId: `s-${i}`,
+        correct: true,
+        timestamp: SUN_9A + DAY,
+      });
+    }
+    const result = await loadModuleWeeklyNeeds(SUN_9A + 2 * DAY);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf!.overPractice).toBe('none');
   });
 });

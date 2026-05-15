@@ -57,6 +57,7 @@ function need(partial: Partial<ModuleWeeklyNeed> & {
     remainingAttempts: 100,
     estimatedMinutesNeeded: 30,
     pace: 'on-pace',
+    overPractice: 'none',
     ...partial,
   };
 }
@@ -248,5 +249,161 @@ describe('allocator with Phase B budgets', () => {
     expect(out[1].plannedSeconds).toBeGreaterThanOrEqual(MEMORY_TYPE_DURATIONS.integration.minSeconds);
     expect(out[0].plannedSeconds).toBeLessThan(30 * 60);
     expect(out[1].plannedSeconds).toBeLessThan(30 * 60);
+  });
+});
+
+// =====================================================================
+// Phase B Step 9a — over-practice slice in buildBlockBudgetsFromWeeklyNeeds
+// =====================================================================
+
+describe('buildBlockBudgetsFromWeeklyNeeds — over-practice slice', () => {
+  it("weekly over-practice → 50% of tier typical-high (declarative HF)", () => {
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    // declarative typical-high = 10 min = 600 s; 50% = 300 s.
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(300);
+    expect(out.paceByBlock.get('hf-1')).toBe('ahead');
+    expect(out.phaseBModules.has('harmonic-fluency')).toBe(true);
+  });
+
+  it("monthly over-practice → 25% of tier typical-high (procedural S&P)", () => {
+    const blocks = [block('sp-1', 'shapes-and-patterns', { memoryType: 'procedural' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'shapes-and-patterns',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'monthly',
+      }),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    // procedural typical-high = 15 min = 900 s; 25% = 225 s.
+    expect(out.blockTimeNeeds.get('sp-1')).toBe(225);
+    expect(out.phaseBModules.has('shapes-and-patterns')).toBe(true);
+  });
+
+  it("over-practice respects MODULE_DURATION_OVERRIDES (Repertoire 60-min typical-high)", () => {
+    const blocks = [block('rep-1', 'repertoire', { memoryType: 'integration' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'repertoire',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    // Repertoire override pushes typicalHigh to 60 min = 3600 s; 50% = 1800 s.
+    expect(out.blockTimeNeeds.get('rep-1')).toBe(1800);
+  });
+
+  it("over-practice slice never exceeds the tier cap (defensive)", () => {
+    // The fraction (≤ 1) × typical-high cannot exceed typical-high,
+    // and the spacing floor is 0 in Part A. Pinning the invariant.
+    const blocks = [block('hf-1', 'harmonic-fluency', { memoryType: 'declarative' })];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'monthly', // smallest slice — 25%
+      }),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    const slice = out.blockTimeNeeds.get('hf-1')!;
+    expect(slice).toBeLessThanOrEqual(10 * 60); // ≤ declarative cap
+  });
+
+  it('ET fan-out distributes the module-level slice across sub-module blocks', () => {
+    // ET module total = 50% × declarative typical-high (10 min) = 5 min.
+    // Three ET blocks → 5 min / 3 ≈ 100 s per block.
+    const blocks = [
+      block('et-int', 'intervals',         { memoryType: 'declarative' }),
+      block('et-cr',  'chord-recognition', { memoryType: 'declarative' }),
+      block('et-cp',  'chord-progressions',{ memoryType: 'declarative' }),
+    ];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'ear-training',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly',
+      }),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    // 300 s total slice ÷ 3 blocks = 100 s each.
+    expect(out.blockTimeNeeds.get('et-int')).toBeCloseTo(100, 5);
+    expect(out.blockTimeNeeds.get('et-cr')).toBeCloseTo(100, 5);
+    expect(out.blockTimeNeeds.get('et-cp')).toBeCloseTo(100, 5);
+  });
+
+  it("'none' over-practice keeps the keystone's estimatedMinutesNeeded path unchanged", () => {
+    // Regression guard for Step 6 wiring: over-practice 'none' must
+    // still use estimatedMinutesNeeded × 60, not the tier fraction.
+    const blocks = [block('hf-1', 'harmonic-fluency')];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        estimatedMinutesNeeded: 8,
+        overPractice: 'none',
+      }),
+    ];
+    const out = buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    expect(out.blockTimeNeeds.get('hf-1')).toBe(8 * 60); // 480 s
+  });
+});
+
+// =====================================================================
+// Phase B Step 9a — allocator routes saved over-practice time to
+// behind-pace modules via Step 6's overflow path
+// =====================================================================
+
+describe('allocator end-to-end — saved over-practice time flows to behind-pace', () => {
+  it('over-practice block stays at 50% tier; behind-pace block claims the saved time', () => {
+    // HF is over-practiced (50% × 10 min = 5 min). Repertoire is
+    // behind pace. Session is 30 min — well past the typical-high
+    // total of 5 + 20 = 25 min, so the overflow branch fires.
+    // Step 6's pace-aware overflow routes all overflow to the
+    // behind-pace block, leaving HF at its over-practice slice.
+    const blocks = [
+      block('hf-1',  'harmonic-fluency', { memoryType: 'declarative' }),
+      block('rep-1', 'repertoire',       { memoryType: 'integration' }),
+    ];
+    const needs: ModuleWeeklyNeed[] = [
+      need({
+        moduleId: 'harmonic-fluency',
+        remainingAttempts: 0,
+        estimatedMinutesNeeded: 0,
+        pace: 'ahead',
+        overPractice: 'weekly', // → 5 min slice
+      }),
+      need({
+        moduleId: 'repertoire',
+        estimatedMinutesNeeded: 20,
+        pace: 'behind',
+        overPractice: 'none',
+      }),
+    ];
+    const { blockTimeNeeds, paceByBlock } =
+      buildBlockBudgetsFromWeeklyNeeds(blocks, needs);
+    const out = allocateBlockTime(blocks, 30 * 60, blockTimeNeeds, paceByBlock)!;
+    // HF stays at its 5-min over-practice slice (pace = ahead, doesn't
+    // claim overflow). Repertoire (behind) gets the rest of the 30 min.
+    expect(out[0].plannedSeconds).toBe(5 * 60);
+    expect(out[1].plannedSeconds).toBe(30 * 60 - 5 * 60); // 25 min
+    expect(out.reduce((s, b) => s + b.plannedSeconds, 0)).toBe(30 * 60);
   });
 });

@@ -36,6 +36,7 @@ function need(partial: Partial<ModuleWeeklyNeed> & {
     remainingAttempts: 70,
     estimatedMinutesNeeded: 35,
     pace: 'on-pace',
+    overPractice: 'none',
     ...partial,
   };
 }
