@@ -1,37 +1,36 @@
 /**
- * Phase B — Goal-pace-driven session planning.
+ * Phase B — pre-keystone `computeModuleSessionNeed` formula.
  *
- * The session planner historically allocated fixed time slices from
- * MEMORY_TYPE_DURATIONS with no connection to the user's coverage
- * goals. Phase B works backwards from goal-pace: how many attempts
- * does today's session need to keep the weekly target on track, and
- * how much time does that many attempts cost?
+ * Originally this file shipped a two-layer Phase B prototype: a pure
+ * formula (`computeModuleSessionNeed`) that produced a per-module
+ * "today's slice" of attempts + time, plus an async loader
+ * (`computeSessionNeedByModule`) that ran the formula against
+ * Dexie-loaded goals + attempt counts.
  *
- * Two layers, same as the rest of sessionAlgorithm/:
+ * Phase B Step 5 introduced the full keystone in
+ * `moduleWeeklyNeed.ts` with a weekly-remaining shape; Step 6 routed
+ * the allocator through it; Step 7 routed the GoalsNeedTodayScreen
+ * through it and retired the async loader (which had no remaining
+ * callers once dailyGoalNeed.ts was deleted).
  *
- *   computeModuleSessionNeed(input)   — pure formula, fixture-tested.
- *   computeSessionNeedByModule(now)   — async loader; pulls the
- *                                       weekly Goal records, the
- *                                       global practice-consistency
- *                                       target, and per-module
- *                                       attempts-so-far, then runs
- *                                       the pure formula per module.
- *
- * Scope (this pass): Harmonic Fluency + Ear Training only — the two
- * modules whose attempt data is clean (one db.attempts row per
- * answer). S&P, Repertoire, and Production join once their
- * attempt-counting gaps are closed (see
- * docs/PHASE_B_SESSION_PLANNING_DESIGN.md review notes).
- *
- * Modules with no active weekly coverage goal are simply absent
- * from the result map — callers fall back to MEMORY_TYPE_DURATIONS
- * for those, exactly as before Phase B.
+ * What stays:
+ *   · `computeModuleSessionNeed` — the pure "today's slice" formula,
+ *     kept for the fixture test suite that pins its derivation (the
+ *     formula itself stays useful as documentation of how today's
+ *     slice falls out of the weekly-remaining shape, and the design
+ *     doc references its variables by name).
+ *   · `ModuleSessionNeed` / `ModuleSessionNeedInput` — same; the
+ *     legacy `buildBlockTimeNeeds` in sessionGenerator.ts still
+ *     types its argument against them (its own test pins it). Both
+ *     are dead-in-production post-Step-6 and a follow-up cleanup
+ *     can remove them.
+ *   · `TIME_PER_ATTEMPT_SECONDS` — re-exported from
+ *     timePerAttempt.ts so existing importers of `./sessionNeed`
+ *     (WeeklyPlan.tsx) keep working.
+ *   · `calendarDaysRemainingInWeek` — small calendar helper, no
+ *     dependencies, harmless to keep.
  */
 
-import { db } from '../db';
-import type { GoalFlowModuleId } from '../../modules/goals/goalVocabulary';
-import { getWeeklyAttempts } from '../weeklyAttempts';
-import { startOfWeekLocal, endOfWeekLocal } from '../../modules/goals/weeklyPlanData';
 import { TIME_PER_ATTEMPT_SECONDS } from './timePerAttempt';
 
 // ---------------------------------------------------------------------
@@ -39,18 +38,10 @@ import { TIME_PER_ATTEMPT_SECONDS } from './timePerAttempt';
 // ---------------------------------------------------------------------
 //
 // The seed table moved to the canonical timePerAttempt.ts in Phase B
-// Step 1 — imported above for the loader below, and re-exported here
-// unchanged so existing importers of './sessionNeed' (WeeklyPlan.tsx)
-// keep working without a path change.
+// Step 1 — re-exported here unchanged so existing importers of
+// './sessionNeed' (WeeklyPlan.tsx) keep working without a path change.
 
 export { TIME_PER_ATTEMPT_SECONDS };
-
-/** Modules Phase B currently plans for. Anything not in this list
- *  falls through to the legacy MEMORY_TYPE_DURATIONS path. */
-export const PHASE_B_MODULES: ReadonlyArray<keyof typeof TIME_PER_ATTEMPT_SECONDS> = [
-  'harmonic-fluency',
-  'ear-training',
-];
 
 // ---------------------------------------------------------------------
 // Pure formula
@@ -91,9 +82,9 @@ export interface ModuleSessionNeed {
 }
 
 /**
- * Phase B formula. Pure — every input is a number, output is
- * deterministic. See docs/PHASE_B_SESSION_PLANNING_DESIGN.md
- * "The Formula" for the canonical derivation.
+ * Phase B formula — produces a "today's slice" of attempts + time
+ * for a single module. Pure: every input is a number, output is
+ * deterministic.
  *
  *   1. attempts_remaining = weekly_target − attempts_so_far
  *   2. fractional_days_completed = attempts_so_far ÷ daily_target
@@ -112,7 +103,11 @@ export interface ModuleSessionNeed {
  *       the honest "you'd need it all today" answer rather than a
  *       NaN from dividing by zero.
  *   · calendar_days_remaining is clamped to ≥ 1 defensively even
- *       though the loader always passes 1–7.
+ *       though prior callers always passed 1–7.
+ *
+ * Kept post-Step-7 for its fixture tests + as documentation of how
+ * the design doc's "today's slice" math falls out of the weekly-
+ * remaining shape the keystone returns. No production consumer.
  */
 export function computeModuleSessionNeed(
   input: ModuleSessionNeedInput,
@@ -178,93 +173,4 @@ export function computeModuleSessionNeed(
 export function calendarDaysRemainingInWeek(now: number): number {
   const dow = new Date(now).getDay(); // 0 = Sunday … 6 = Saturday
   return 7 - dow;
-}
-
-// ---------------------------------------------------------------------
-// Async loader
-// ---------------------------------------------------------------------
-
-/** Weekly Goal records carry `targetMetric: null` once confirmed
- *  (see WeeklyPlan.handleConfirm) — they're identified by scope +
- *  relatedModules + targetUnit instead. Coverage weekly slices use
- *  the 'attempts' unit; consistency slices use 'days' / 'sessions'. */
-const WEEKLY_COVERAGE_UNIT = 'attempts';
-
-/** Monthly metric for the global practice-consistency goal. Its
- *  targetValue is the days/week cadence that anchors
- *  potential_sessions_left for every module. */
-const PRACTICE_CONSISTENCY_METRIC = 'practice_days_per_cadence';
-
-/**
- * Load the per-module session need for `now`. Returns a map keyed by
- * GoalFlowModuleId — only modules with an active weekly coverage
- * goal appear. Callers treat an absent module as "no Phase B data,
- * fall back to MEMORY_TYPE_DURATIONS".
- *
- * One getWeeklyAttempts call per in-scope module that has a weekly
- * goal. The global practice-consistency target is read once.
- */
-export async function computeSessionNeedByModule(
-  now: number = Date.now(),
-): Promise<Map<GoalFlowModuleId, ModuleSessionNeed>> {
-  const weekStart = startOfWeekLocal(now);
-  const weekEnd = endOfWeekLocal(weekStart);
-  const daysRemaining = calendarDaysRemainingInWeek(now);
-
-  const allGoals = await db.goals.toArray();
-
-  // Global practice-consistency target → consistency_target_days.
-  // The doc treats Practice Consistency as the shared denominator;
-  // a module-specific *_days_per_cadence goal is NOT used here on
-  // purpose — the cadence that paces the week is the global one.
-  const consistencyGoal = allGoals.find(
-    g =>
-      g.status === 'active' &&
-      g.targetMetric === PRACTICE_CONSISTENCY_METRIC,
-  );
-  const consistencyTargetDays = consistencyGoal?.targetValue ?? 0;
-
-  // Active weekly coverage slices for the in-scope modules.
-  const weeklyCoverageGoals = allGoals.filter(
-    g =>
-      g.scope === 'weekly' &&
-      g.status === 'active' &&
-      g.startDate <= now &&
-      g.targetDate >= now &&
-      g.targetUnit === WEEKLY_COVERAGE_UNIT &&
-      (g.targetValue ?? 0) > 0 &&
-      isPhaseBModule(g.relatedModules[0]),
-  );
-
-  const out = new Map<GoalFlowModuleId, ModuleSessionNeed>();
-
-  for (const goal of weeklyCoverageGoals) {
-    const moduleId = goal.relatedModules[0] as keyof typeof TIME_PER_ATTEMPT_SECONDS;
-    const attemptsSoFarThisWeek = await getWeeklyAttempts(
-      moduleId,
-      weekStart,
-      weekEnd,
-    );
-    const need = computeModuleSessionNeed({
-      weeklyTarget: goal.targetValue ?? 0,
-      attemptsSoFarThisWeek,
-      consistencyTargetDays,
-      calendarDaysRemainingInWeek: daysRemaining,
-      timePerAttemptSeconds: TIME_PER_ATTEMPT_SECONDS[moduleId],
-    });
-    // Multiple weekly goals for one module (rare) — keep the one
-    // asking for the most time so the planner doesn't under-budget.
-    const prev = out.get(moduleId);
-    if (!prev || need.timeNeededSeconds > prev.timeNeededSeconds) {
-      out.set(moduleId, need);
-    }
-  }
-
-  return out;
-}
-
-function isPhaseBModule(
-  moduleId: string | undefined,
-): moduleId is keyof typeof TIME_PER_ATTEMPT_SECONDS {
-  return moduleId === 'harmonic-fluency' || moduleId === 'ear-training';
 }
