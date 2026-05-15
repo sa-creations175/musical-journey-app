@@ -24,39 +24,25 @@
  * make the derivation costly, the helper signature stays the same —
  * we'd just memoize the walk behind it.
  *
- * "Uncovered" definition follows the design-doc spec:
- *   · An item is in scope when the goal's matcher accepts its
- *     itemRef AND its spacingState moduleRef.
- *   · An item is uncovered when its current spacingState
- *     acquisitionStage is NOT in COVERED_STAGES — practically, when
- *     the user touched it (so we have a spacingState row) but didn't
- *     drive it to acquired+. Untouched-in-scope items don't appear
- *     in the count: they're future work, not "leftover from last
- *     month." This is a pragmatic departure from the strict "every
- *     scope item, touched or not" reading the design doc considers —
- *     surfacing thousands of untouched scope items would overwhelm
- *     the banner, and "items I started but didn't finish" is the
- *     useful signal for the carry-over UX.
+ * "Uncovered" definition (post-9b-follow-up):
+ *   · Scope items come from `enumerateScopeForGoal` (catalog walk)
+ *     UNION goal.relatedItems (explicit additions, including any
+ *     Accept-extended carry-over).
+ *   · An item is uncovered when its spacingState row's
+ *     acquisitionStage is NOT in COVERED_STAGES, OR the item has
+ *     no spacingState row yet (never touched — implicitly the
+ *     "new" stage and definitionally uncovered).
+ *
+ *   The previous commit narrowed to spacing-state-walked items to
+ *   prevent banner overload on huge scopes — but that lost real
+ *   signal for small scopes ("12 keys × augmented triads, you
+ *   touched 3" should surface the other 9). Banner-overload framing
+ *   is a render-layer concern now; the data layer honours scope.
  */
 
 import { db, type Goal, type SpacingState } from '../../lib/db';
-import {
-  COVERAGE_OVERALL_METRIC,
-  COVERAGE_SPECIFIC_METRIC,
-  isCoverageOverallMetric,
-  isCoverageSpecificMetric,
-} from './coverageMetrics';
-import {
-  COVERED_STAGES,
-  ET_MODULE_REFS,
-  HF_GROUP_CATEGORIES,
-  HF_MODULE_REF,
-  PRODUCTION_MODULE_REF,
-  SHAPES_MODULE_REF,
-} from './progress';
-import { cardById } from '../harmonic-fluency/catalog';
-import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
-import { lessonsByPath } from '../production/content/lessons';
+import { COVERED_STAGES } from './progress';
+import { effectiveScopeForGoal } from './scopeEnumeration';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 
 // =====================================================================
@@ -106,66 +92,10 @@ export function lastMonthBoundary(today: number): MonthBoundary {
 // Scope predicate per goal — uses existing per-metric infrastructure
 // =====================================================================
 
-/** Returns a predicate `(row) → boolean` matching a spacingState row
- *  to a goal's scope. null when the goal's metric has no enumerable
- *  item scope (consistency, accuracy, song goals — those don't
- *  produce carry-over because they don't gate items). */
-function scopeMatcherForGoal(
-  goal: Goal,
-): ((row: SpacingState) => boolean) | null {
-  const metric = goal.targetMetric;
-  if (!metric) return null;
-
-  // Coverage-overall metrics: entire module is in scope.
-  if (isCoverageOverallMetric(metric)) {
-    if (metric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) {
-      return row => row.moduleRef === HF_MODULE_REF;
-    }
-    if (metric === COVERAGE_OVERALL_METRIC.EAR_TRAINING) {
-      return row => ET_MODULE_REFS.includes(row.moduleRef);
-    }
-    if (metric === COVERAGE_OVERALL_METRIC.SHAPES) {
-      return row => row.moduleRef === SHAPES_MODULE_REF;
-    }
-    if (metric === COVERAGE_OVERALL_METRIC.PRODUCTION) {
-      return row => row.moduleRef === PRODUCTION_MODULE_REF;
-    }
-  }
-
-  // Coverage-specific metrics: sub-area drives the matcher.
-  if (isCoverageSpecificMetric(metric)) {
-    const subArea = goal.targetUnit ?? null;
-    if (!subArea) return null;
-
-    if (metric === COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY) {
-      const categories = HF_GROUP_CATEGORIES[subArea];
-      if (!categories) return null;
-      const set = new Set(categories);
-      return row => {
-        if (row.moduleRef !== HF_MODULE_REF) return false;
-        const card = cardById(row.itemRef);
-        return !!card && set.has(card.category);
-      };
-    }
-    if (metric === COVERAGE_SPECIFIC_METRIC.EAR_TRAINING) {
-      if (!ET_MODULE_REFS.includes(subArea)) return null;
-      return row => row.moduleRef === subArea;
-    }
-    if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
-      const matcher = itemRefMatcherForCoverageGroup(subArea);
-      if (!matcher) return null;
-      return row => row.moduleRef === SHAPES_MODULE_REF && matcher(row.itemRef);
-    }
-    if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
-      const lessons = new Set(lessonsByPath(subArea).map(l => l.id));
-      if (lessons.size === 0) return null;
-      return row => row.moduleRef === PRODUCTION_MODULE_REF
-        && lessons.has(row.itemRef);
-    }
-  }
-
-  return null;
-}
+// scopeMatcherForGoal removed in the 9b follow-up — the scope source
+// of truth is now `effectiveScopeForGoal` (catalog walk + relatedItems
+// union). Callers no longer need a per-row predicate because they
+// enumerate the scope ID set directly.
 
 // =====================================================================
 // Goal history walks
@@ -212,20 +142,33 @@ function lastConfiguredMonthlyPerModule(
   return out;
 }
 
-/** Uncovered scope items for a single monthly goal — `spacingRows`
- *  pre-loaded so callers walking many goals don't refetch. */
+/** Uncovered scope items for a single monthly goal. Walks the goal's
+ *  effective scope (catalog ∪ relatedItems) and drops any itemRef
+ *  whose spacingState row is already in COVERED_STAGES. Items with
+ *  no row are untouched — implicitly "new" stage, so uncovered. */
 function uncoveredForGoal(
   goal: Goal,
-  spacingRows: ReadonlyArray<SpacingState>,
+  rowByItemRef: ReadonlyMap<string, SpacingState>,
 ): string[] {
-  const matcher = scopeMatcherForGoal(goal);
-  if (!matcher) return [];
+  const scope = effectiveScopeForGoal(goal);
+  if (scope.length === 0) return [];
   const out: string[] = [];
-  for (const row of spacingRows) {
-    if (!matcher(row)) continue;
-    if (COVERED_STAGES.has(row.acquisitionStage)) continue;
-    out.push(row.itemRef);
+  for (const itemRef of scope) {
+    const row = rowByItemRef.get(itemRef);
+    if (row && COVERED_STAGES.has(row.acquisitionStage)) continue;
+    out.push(itemRef);
   }
+  return out;
+}
+
+/** Build a `Map<itemRef, SpacingState>` over the rows once, reused
+ *  across every goal in the carryover walk. O(rows) one-time cost
+ *  beats O(scope × rows) per goal. */
+function indexSpacingRows(
+  rows: ReadonlyArray<SpacingState>,
+): Map<string, SpacingState> {
+  const out = new Map<string, SpacingState>();
+  for (const r of rows) out.set(r.itemRef, r);
   return out;
 }
 
@@ -244,22 +187,62 @@ export async function getUncoveredItemsFromLastMonth(
   moduleIdFilter?: GoalFlowModuleId,
 ): Promise<ModuleUncoveredEntry[]> {
   const bounds = lastMonthBoundary(today);
+  const currentBounds = monthBoundary(today);
   const [allGoals, spacingRows] = await Promise.all([
     db.goals.toArray(),
     db.spacingState.toArray(),
   ]);
+  const rowByItemRef = indexSpacingRows(spacingRows);
   const lastByModule = lastConfiguredMonthlyPerModule(
     allGoals, bounds, moduleIdFilter,
   );
+
+  // Phase B Step 9b follow-up — exclude items the user has ALREADY
+  // pulled into this month's scope (Accept's effect). Detection
+  // naturally hides resolved modules without needing a localStorage
+  // decision marker.
+  const currentMonthScope = currentMonthScopeItems(
+    allGoals, currentBounds, moduleIdFilter,
+  );
+
   const out: ModuleUncoveredEntry[] = [];
   for (const [modId, goal] of lastByModule) {
-    const uncovered = uncoveredForGoal(goal, spacingRows);
-    if (uncovered.length === 0) continue;
+    const uncovered = uncoveredForGoal(goal, rowByItemRef);
+    const inScopeThisMonth = currentMonthScope.get(modId) ?? new Set();
+    const leftover = uncovered.filter(ref => !inScopeThisMonth.has(ref));
+    if (leftover.length === 0) continue;
     out.push({
       moduleId: modId,
-      uncoveredItemRefs: uncovered,
+      uncoveredItemRefs: leftover,
       monthlyGoalId: goal.id,
     });
+  }
+  return out;
+}
+
+/** Per-module set of itemRefs in scope for the user's current-month
+ *  monthly goal(s). The latest-configured monthly per module
+ *  defines the scope; multiple monthlies per module union their
+ *  scopes (multi-goal-per-module is rare but supported elsewhere). */
+function currentMonthScopeItems(
+  allGoals: ReadonlyArray<Goal>,
+  bounds: MonthBoundary,
+  moduleIdFilter: GoalFlowModuleId | undefined,
+): Map<GoalFlowModuleId, Set<string>> {
+  const out = new Map<GoalFlowModuleId, Set<string>>();
+  for (const g of allGoals) {
+    if (g.scope !== 'monthly') continue;
+    if (g.isUmbrella) continue;
+    if (!g.targetMetric) continue;
+    if (!overlapsBoundary(g, bounds)) continue;
+    const modId = moduleForMetric(g.targetMetric);
+    if (!modId) continue;
+    if (moduleIdFilter && modId !== moduleIdFilter) continue;
+    const scope = effectiveScopeForGoal(g);
+    if (scope.length === 0) continue;
+    const set = out.get(modId) ?? new Set<string>();
+    for (const ref of scope) set.add(ref);
+    out.set(modId, set);
   }
   return out;
 }
@@ -288,6 +271,7 @@ export async function getCarryoverBacklog(
     db.goals.toArray(),
     db.spacingState.toArray(),
   ]);
+  const rowByItemRef = indexSpacingRows(spacingRows);
 
   // Walk EVERY past monthly, grouping by (moduleId × the month it
   // closed in), and pick the latest-configured per group — same
@@ -317,16 +301,16 @@ export async function getCarryoverBacklog(
     if (g.startDate > prev.startDate) latestByPeriod.set(key, g);
   }
 
-  // Items in the CURRENT month's scope — excluded from the backlog
-  // so we don't double-count items the user is actively working on.
-  const currentLastByModule = lastConfiguredMonthlyPerModule(
+  // Items in the CURRENT month's effective scope — excluded from
+  // the backlog so we don't double-count items the user is actively
+  // working on (whether part of the metric scope or pulled in via
+  // an Accept-extended relatedItems list).
+  const currentScopeByModule = currentMonthScopeItems(
     allGoals, currentBounds, moduleIdFilter,
   );
   const currentScopeRefs = new Set<string>();
-  for (const [, goal] of currentLastByModule) {
-    for (const ref of uncoveredForGoal(goal, spacingRows)) {
-      currentScopeRefs.add(ref);
-    }
+  for (const set of currentScopeByModule.values()) {
+    for (const ref of set) currentScopeRefs.add(ref);
   }
 
   // Accumulate per module, dedupe across periods, drop currently-scoped.
@@ -337,7 +321,7 @@ export async function getCarryoverBacklog(
   for (const goal of latestByPeriod.values()) {
     const modId = moduleForMetric(goal.targetMetric!);
     if (!modId) continue;
-    const uncovered = uncoveredForGoal(goal, spacingRows);
+    const uncovered = uncoveredForGoal(goal, rowByItemRef);
     if (uncovered.length === 0) continue;
     const entry = accumByModule.get(modId) ?? {
       itemRefs: new Set<string>(),

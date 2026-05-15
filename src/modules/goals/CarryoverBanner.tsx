@@ -48,6 +48,7 @@ import {
   type CarryoverDecision,
   type DecisionsByModule,
 } from './carryoverBannerState';
+import { applyCarryoverAcceptance } from './carryoverAccept';
 import type { GoalFlowModuleId } from './goalVocabulary';
 
 interface BannerProps {
@@ -106,10 +107,24 @@ export default function CarryoverBanner({ reloadKey }: BannerProps) {
     setDismissed(true);
   }
 
-  function handleReviewSubmit(next: DecisionsByModule) {
+  async function handleReviewSubmit(next: DecisionsByModule) {
+    if (!detection) return;
+    // Phase B Step 9b follow-up — Accept actually modifies the
+    // goal record: append leftover itemRefs to the current monthly
+    // goal's relatedItems (or create a new monthly when no current
+    // exists). After this runs, the next detection sees the items
+    // in current scope and the module naturally drops from the
+    // banner — Decline is still tracked via localStorage so the
+    // user's explicit "skip this month" choice persists.
+    await applyCarryoverAcceptance(detection, next);
     saveCarryoverDecisions(next);
     setDecisions(next);
     setReviewOpen(false);
+    // Re-detect so the banner re-evaluates against the modified
+    // goal record. Accept-resolved modules drop out naturally;
+    // declined modules persist until X-dismiss.
+    const fresh = await getUncoveredItemsFromLastMonth();
+    setDetection(fresh);
   }
 
   const summary = formatPerModuleSummary(detection.filter(

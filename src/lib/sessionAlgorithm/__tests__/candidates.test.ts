@@ -284,3 +284,61 @@ describe('resolveCandidates — accuracy / consistency / passthrough', () => {
     ).toEqual([]);
   });
 });
+
+// =====================================================================
+// Phase B Step 9b follow-up — relatedItems extend coverage-specific scope
+// =====================================================================
+
+describe('candidateSpecForGoal — relatedItems extends coverage-specific scope', () => {
+  it('Shapes-specific: items added to relatedItems pass the filter even when the metric matcher would drop them', () => {
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_triads_aug',
+      // An item from a DIFFERENT quality (m7) carries over via
+      // Accept's relatedItems extension. The base matcher (aug only)
+      // would drop it; the wired filter should accept it.
+      relatedItems: ['chord-shape:min7:G:root'],
+    });
+    const spec = candidateSpecForGoal(goal);
+    expect(spec.kind).toBe('coverage');
+    if (spec.kind !== 'coverage') return;
+    expect(spec.itemRefFilter).toBeDefined();
+    // Base scope: an augmented-triad item still matches.
+    expect(spec.itemRefFilter!('chord-shape:aug:C:root')).toBe(true);
+    // relatedItems extension: a min7 item that wouldn't normally pass
+    // the matcher does pass now.
+    expect(spec.itemRefFilter!('chord-shape:min7:G:root')).toBe(true);
+    // Unrelated items: still dropped.
+    expect(spec.itemRefFilter!('chord-shape:dim:C:root')).toBe(false);
+  });
+
+  it('empty relatedItems is a no-op — base matcher unchanged', () => {
+    const withItems = candidateSpecForGoal(makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_triads_aug',
+      relatedItems: [],
+    }));
+    if (withItems.kind !== 'coverage') throw new Error('expected coverage spec');
+    expect(withItems.itemRefFilter!('chord-shape:aug:C:root')).toBe(true);
+    expect(withItems.itemRefFilter!('chord-shape:min:C:root')).toBe(false);
+  });
+
+  it('resolveCandidates surfaces a relatedItems-extension row through the candidate pool', () => {
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_triads_aug',
+      relatedItems: ['chord-shape:min7:G:root'],
+    });
+    const spec = candidateSpecForGoal(goal);
+    const rows: SpacingRow[] = [
+      row({ itemRef: 'chord-shape:aug:C:root', moduleRef: 'shapes-and-patterns' }),
+      row({ itemRef: 'chord-shape:min7:G:root', moduleRef: 'shapes-and-patterns' }),
+      row({ itemRef: 'chord-shape:dim:C:root', moduleRef: 'shapes-and-patterns' }),
+    ];
+    const out = [...resolveCandidates(spec, rows)].sort();
+    expect(out).toEqual([
+      'chord-shape:aug:C:root',
+      'chord-shape:min7:G:root',
+    ]);
+  });
+});

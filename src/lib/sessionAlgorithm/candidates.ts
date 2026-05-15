@@ -42,6 +42,31 @@ import { lessonsByPath } from '../../modules/production/content/lessons';
 import { SONG_METRIC } from '../../modules/goals/songTarget';
 import type { CandidateSpec, SpacingRow } from './types';
 
+/**
+ * Phase B Step 9b follow-up — extend a coverage goal's itemRefFilter
+ * with the goal's `relatedItems` so explicit scope additions
+ * (Accept's leftover items appended via the carry-over flow) are
+ * treated as in-scope alongside the metric predicate. Pure: returns
+ * the base filter unchanged when there are no relatedItems.
+ *
+ * Only takes effect for coverage-SPECIFIC metrics that carry an
+ * itemRefFilter — coverage-overall has no filter (the whole module
+ * is in scope) so relatedItems within the same module are already
+ * surfaced. Items in relatedItems whose `moduleRef` falls outside
+ * the goal's `moduleRefs` are dropped by the module-set check in
+ * `resolveCandidates`; that's a known limitation for the rare
+ * cross-sub-area carry-over case (e.g., accepting intervals leftover
+ * into a chord-recognition-only goal).
+ */
+function extendWithRelatedItems(
+  base: (itemRef: string) => boolean,
+  relatedItems: readonly string[],
+): (itemRef: string) => boolean {
+  if (relatedItems.length === 0) return base;
+  const extras = new Set(relatedItems);
+  return itemRef => base(itemRef) || extras.has(itemRef);
+}
+
 // ---------------------------------------------------------------------
 // Spec generation — pure
 // ---------------------------------------------------------------------
@@ -128,14 +153,15 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
       const categories = HF_GROUP_CATEGORIES[subArea];
       if (!categories) return { kind: 'unsupported' };
       const categorySet = new Set(categories);
+      const base = (itemRef: string) => {
+        const card = cardById(itemRef);
+        return card !== undefined && categorySet.has(card.category);
+      };
       return {
         kind: 'coverage',
         moduleRefs: [HF_MODULE_REF],
         excludeStages: COVERED_STAGES,
-        itemRefFilter: itemRef => {
-          const card = cardById(itemRef);
-          return card !== undefined && categorySet.has(card.category);
-        },
+        itemRefFilter: extendWithRelatedItems(base, goal.relatedItems),
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
@@ -145,17 +171,18 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         kind: 'coverage',
         moduleRefs: [SHAPES_MODULE_REF],
         excludeStages: COVERED_STAGES,
-        itemRefFilter: matcher,
+        itemRefFilter: extendWithRelatedItems(matcher, goal.relatedItems),
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
       const lessonIds = new Set(lessonsByPath(subArea).map(l => l.id));
       if (lessonIds.size === 0) return { kind: 'unsupported' };
+      const base = (itemRef: string) => lessonIds.has(itemRef);
       return {
         kind: 'coverage',
         moduleRefs: [PRODUCTION_MODULE_REF],
         excludeStages: COVERED_STAGES,
-        itemRefFilter: itemRef => lessonIds.has(itemRef),
+        itemRefFilter: extendWithRelatedItems(base, goal.relatedItems),
       };
     }
   }
