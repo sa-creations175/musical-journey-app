@@ -68,10 +68,10 @@ describe('getWeeklyTimeEstimate — point estimates', () => {
     ).toEqual({ kind: 'point', minutes: 20 });
   });
 
-  it('Shapes (voice_leading): 3 min per rep — slower because the pattern is longer', () => {
+  it('Shapes (voice_leading): 1.7 min per rep (weighted avg across 324 sub-cells)', () => {
     expect(
       getWeeklyTimeEstimate('shapes-and-patterns', 10, 'voice_leading'),
-    ).toEqual({ kind: 'point', minutes: 30 });
+    ).toEqual({ kind: 'point', minutes: 17 });
   });
 
   it('Repertoire: 17.5 minutes per cell session', () => {
@@ -135,8 +135,8 @@ describe('SHAPES_TIME_PER_REP_MINUTES — per-activity-area constants', () => {
     expect(SHAPES_TIME_PER_REP_MINUTES.scale_drills).toBe(2);
   });
 
-  it('voice_leading is slower per rep than the other two areas', () => {
-    expect(SHAPES_TIME_PER_REP_MINUTES.voice_leading).toBe(3);
+  it('voice_leading weighted-avg across the 324 sub-cell catalog (~1.7 min/rep)', () => {
+    expect(SHAPES_TIME_PER_REP_MINUTES.voice_leading).toBe(1.7);
     expect(SHAPES_TIME_PER_REP_MINUTES.voice_leading).toBeGreaterThan(
       SHAPES_TIME_PER_REP_MINUTES.chord_shape_drills,
     );

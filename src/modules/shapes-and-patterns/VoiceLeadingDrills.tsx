@@ -2,14 +2,31 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type DrillSkill } from '../../lib/db';
 import HeatGrid from './HeatGrid';
-import { KEYS, VOICE_LEADING_PATTERNS, type VoiceLeadingPattern } from './catalog';
+import { KEYS, VOICE_LEADING_PATTERNS } from './catalog';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
 
 const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 
-interface CustomPattern extends VoiceLeadingPattern {
+/** User-added VL pattern. Decoupled from the strict catalog
+ *  discriminated union so users can carry arbitrary string ids
+ *  without participating in the per-pattern sub-cell fan-out. The
+ *  heat grid renders these as a single row × 12 keys (no sub-cell
+ *  drill flow). */
+interface CustomPattern {
+  id: string;
+  label: string;
+  description?: string;
   createdAt: number;
+}
+
+/** UI-display shape — uniform projection of either a builtin
+ *  (catalog) pattern or a custom one. */
+interface DisplayPattern {
+  id: string;
+  label: string;
+  description?: string;
+  builtin: boolean;
 }
 
 /**
@@ -42,9 +59,19 @@ export default function VoiceLeadingDrills() {
     })();
   }, []);
 
-  const allPatterns: (VoiceLeadingPattern & { builtin?: boolean })[] = useMemo(() => [
-    ...VOICE_LEADING_PATTERNS.map(p => ({ ...p, builtin: true })),
-    ...custom,
+  const allPatterns: DisplayPattern[] = useMemo(() => [
+    ...VOICE_LEADING_PATTERNS.map(p => ({
+      id: p.id,
+      label: p.label,
+      description: p.description,
+      builtin: true,
+    })),
+    ...custom.map(c => ({
+      id: c.id,
+      label: c.label,
+      description: c.description,
+      builtin: false,
+    })),
   ], [custom]);
 
   const persistCustom = async (next: CustomPattern[]) => {
@@ -73,12 +100,16 @@ export default function VoiceLeadingDrills() {
     if (trimmed === '') { setRenamingId(null); return; }
 
     // Update the catalog-side label.
-    const isBuiltin = VOICE_LEADING_PATTERNS.some(p => p.id === patternId);
-    if (isBuiltin) {
+    const builtin = VOICE_LEADING_PATTERNS.find(p => p.id === patternId);
+    if (builtin) {
       // Convert the built-in to a custom override with the new name.
-      const base = VOICE_LEADING_PATTERNS.find(p => p.id === patternId)!;
-      const overriden = custom.filter(c => c.id !== base.id);
-      overriden.push({ ...base, label: trimmed, createdAt: Date.now() });
+      const overriden = custom.filter(c => c.id !== builtin.id);
+      overriden.push({
+        id: builtin.id,
+        label: trimmed,
+        description: builtin.description,
+        createdAt: Date.now(),
+      });
       await persistCustom(overriden);
     } else {
       await persistCustom(custom.map(c =>

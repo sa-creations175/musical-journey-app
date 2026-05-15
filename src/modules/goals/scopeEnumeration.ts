@@ -28,6 +28,7 @@ import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
 import { FLASHCARDS } from '../harmonic-fluency/catalog';
 import {
   CHORD_QUALITIES,
+  enumerateVoiceLeadingCells,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
   VOICE_LEADING_PATTERNS,
@@ -86,7 +87,9 @@ function enumerateAllVoiceLeading(): string[] {
   const out: string[] = [];
   for (const p of VOICE_LEADING_PATTERNS) {
     for (const key of KEYS) {
-      out.push(`vl:${p.id}:${key}`);
+      for (const ref of enumerateVoiceLeadingCells(p, key)) {
+        out.push(ref);
+      }
     }
   }
   return out;

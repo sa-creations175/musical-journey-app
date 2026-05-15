@@ -352,9 +352,18 @@ export function parseShapesItemRef(itemRef: string): SkillDescriptor | null {
       return { kind: 'scale', keyName: b, scale: a };
     }
     case 'vl': {
-      // a=patternId, b=keyName
-      if (!a || !b) return null;
-      return { kind: 'voice-leading', keyName: b, patternId: a };
+      // Two valid shapes:
+      //   vl:{patternId}:{keyName}                       (3 parts — legacy / display-only)
+      //   vl:{patternId}:{seg1}:{seg2}?:{keyName}        (4–5 parts — sub-cell)
+      // For the SkillDescriptor model we only carry patternId + keyName
+      // (keyName is always the LAST segment). Sub-cell dimensions
+      // (level / position / target / direction) are not part of the
+      // descriptor — callers needing them should use
+      // `parseVoiceLeadingItemRef` from catalog.ts.
+      if (!a) return null;
+      const key = parts[parts.length - 1];
+      if (!key) return null;
+      return { kind: 'voice-leading', keyName: key, patternId: a };
     }
     default:
       return null;

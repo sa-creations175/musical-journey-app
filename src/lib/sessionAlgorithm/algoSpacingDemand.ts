@@ -36,7 +36,9 @@
  *                        chord-shape:…:fluid        → 120 s (CHORD_SHAPE_FLUID_CELL_SECONDS)
  *                        chord-shape:…:(other)      →  90 s (CHORD_SHAPE_CELL_SECONDS)
  *                        scale:{kind}:…             → SCALE_KIND_SECONDS[kind]
- *                        vl:…                       → 180 s (voice_leading 3 min × 60)
+ *                        vl:…                       → voiceLeadingCellSeconds(parsed)
+ *                                                     (90 / 120 / 180 s depending on
+ *                                                     pattern + ABA-251 level)
  *
  *   repertoire         Returns 0. Repertoire scheduling is user-driven
  *                      — SongCell uses a 'empty' | 'learning' |
@@ -74,18 +76,18 @@ import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
   SCALE_KIND_SECONDS,
-  SHAPES_TIME_PER_REP_MINUTES,
   TIME_PER_ATTEMPT_SECONDS,
+  voiceLeadingCellSeconds,
 } from './timePerAttempt';
 import { parseShapesItemRef } from '../../modules/shapes-and-patterns/drillModel';
+import { parseVoiceLeadingItemRef } from '../../modules/shapes-and-patterns/catalog';
 
 const ET_MODULE_REF_SET: ReadonlySet<string> = new Set(ET_MODULE_REFS);
 
-/** Voice-leading per-cell seconds. Sourced from
- *  `SHAPES_TIME_PER_REP_MINUTES.voice_leading` so the demand math
- *  stays aligned with the same seed the keystone uses. */
-const VOICE_LEADING_CELL_SECONDS =
-  SHAPES_TIME_PER_REP_MINUTES.voice_leading * 60;
+/** Fallback for VL rows that don't parse against the new sub-cell
+ *  catalog (legacy 3-part `vl:{patternId}:{keyName}` rows, or hand-
+ *  edited values). Picks the modal per-cell baseline. */
+const VOICE_LEADING_FALLBACK_SECONDS = 90;
 
 /**
  * Algo spacing demand for `moduleId` in SECONDS, as of `asOf`.
@@ -189,8 +191,14 @@ function secondsForShapesItem(itemRef: string): number {
       const s = SCALE_KIND_SECONDS[desc.scale as keyof typeof SCALE_KIND_SECONDS];
       return s ?? CHORD_SHAPE_CELL_SECONDS;
     }
-    case 'voice-leading':
-      return VOICE_LEADING_CELL_SECONDS;
+    case 'voice-leading': {
+      // The full sub-cell descriptor lives one layer down — re-parse
+      // here so we honor per-pattern (and per-level for ABA/BAB)
+      // time seeds rather than averaging across the catalog.
+      const vl = parseVoiceLeadingItemRef(itemRef);
+      if (!vl) return VOICE_LEADING_FALLBACK_SECONDS;
+      return voiceLeadingCellSeconds(vl);
+    }
     case 'mental-viz':
       // parseShapesItemRef never returns 'mental-viz' (no `mv:` prefix
       // path), so this branch is unreachable at runtime. Required for

@@ -270,30 +270,309 @@ export function defaultDrillTypesForScale(): DefaultDrill[] {
 }
 
 // --- Voice-leading patterns -----------------------------------------
+//
+// The VL catalog defines five passing-chord patterns drilled across
+// all 12 keys. Each pattern fans out into multiple sub-cells per key
+// — different voicing levels, starting positions, resolution targets,
+// or directions — so the spacing system can surface the right level
+// of detail.
+//
+// itemRef shape: `vl:{patternId}:{seg1}:{seg2?}:{keyName}` where the
+// sub-segments depend on the pattern's `kind`. See
+// `parseVoiceLeadingItemRef` for the canonical parse + the dimensions
+// per pattern. Total cells: 27 per key × 12 keys = 324.
+//
+// See src/docs/VOICE_LEADING_SUBMODULE_DESIGN.md for the full spec.
 
-export interface VoiceLeadingPattern {
-  id: string;
-  label: string;
-  description?: string;
-}
+export type VLLevel = 'level1' | 'level2' | 'level3';
+export type VLPosition = 'A' | 'B';
+export type VLCyclePos = 'pos1' | 'pos2' | 'pos3';
+export type VLMinTarget = 'min7' | 'min9' | 'min11';
+export type VLDim7Direction = 'up' | 'down';
+export type VLDim7Target = 'mintriad' | 'min7' | 'min9';
 
-export const VOICE_LEADING_PATTERNS: VoiceLeadingPattern[] = [
+/** Discriminated catalog entry for each VL pattern. The `kind` field
+ *  drives enumeration and parsing — adding a new pattern shape
+ *  involves adding a new variant here plus its parse + enumerate
+ *  branches below. No call site should switch on `id` directly. */
+export type VoiceLeadingPattern =
+  | {
+      id: 'aba-251';
+      kind: 'aba-251';
+      label: string;
+      description?: string;
+      levels: ReadonlyArray<VLLevel>;
+      positions: ReadonlyArray<VLPosition>;
+    }
+  | {
+      id: 'diatonic-cycle';
+      kind: 'diatonic-cycle';
+      label: string;
+      description?: string;
+      startingPositions: ReadonlyArray<VLCyclePos>;
+    }
+  | {
+      id: 'dom-sharp9sharp5' | 'dom7b9';
+      kind: 'dom-altered';
+      label: string;
+      description?: string;
+      positions: ReadonlyArray<VLPosition>;
+      targets: ReadonlyArray<VLMinTarget>;
+    }
+  | {
+      id: 'dim7';
+      kind: 'dim7-passing';
+      label: string;
+      description?: string;
+      directions: ReadonlyArray<VLDim7Direction>;
+      targets: ReadonlyArray<VLDim7Target>;
+    };
+
+export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'aba-251',
-    label: 'ABA 251 voice-leading',
-    description: 'ii → V → I shape-A / shape-B / shape-A alternation.',
+    kind: 'aba-251',
+    label: 'ABA / BAB 2-5-1',
+    description: 'Foundational ii → V → I voice leading. Three voicing levels (guide tones → 7ths → full color) and two starting positions (ABA / BAB).',
+    levels: ['level1', 'level2', 'level3'],
+    positions: ['A', 'B'],
   },
   {
-    id: 'bab-251',
-    label: 'BAB 251 voice-leading',
-    description: 'ii → V → I shape-B / shape-A / shape-B alternation.',
+    id: 'diatonic-cycle',
+    kind: 'diatonic-cycle',
+    label: '1-4-7-3-6-2-5-1 diatonic cycle',
+    description: 'Full diatonic cycle in 7th chords across three starting inversions.',
+    startingPositions: ['pos1', 'pos2', 'pos3'],
   },
   {
-    id: '1736251',
-    label: '1-7-3-6-2-5-1 voice-leading',
-    description: 'Extended diatonic cycle that moves cleanly through the common turnaround shape.',
+    id: 'dom-sharp9sharp5',
+    kind: 'dom-altered',
+    label: 'dom7♯9♯5 → minor',
+    description: 'Dark altered dominant resolving a 5th down to minor. Three resolution targets per position.',
+    positions: ['A', 'B'],
+    targets: ['min7', 'min9', 'min11'],
+  },
+  {
+    id: 'dom7b9',
+    kind: 'dom-altered',
+    label: 'dom7♭9 → minor',
+    description: 'Right-hand dim7 voicing over dominant bass, resolving a 5th down to minor.',
+    positions: ['A', 'B'],
+    targets: ['min7', 'min9', 'min11'],
+  },
+  {
+    id: 'dim7',
+    kind: 'dim7-passing',
+    label: 'dim7 → minor (passing)',
+    description: 'Diminished passing chord resolving a half step up or down to minor.',
+    directions: ['up', 'down'],
+    targets: ['mintriad', 'min7', 'min9'],
   },
 ];
+
+/** Index for parse-by-patternId. */
+export const VOICE_LEADING_PATTERN_BY_ID = new Map<string, VoiceLeadingPattern>(
+  VOICE_LEADING_PATTERNS.map(p => [p.id, p]),
+);
+
+/**
+ * Enumerate every sub-cell itemRef for `pattern` in `keyName`. The
+ * cardinality depends on the pattern's kind (3, 6, or up to 9 cells
+ * per key — see design doc § Pattern Definitions). Pure.
+ */
+/** Count of sub-cells for `pattern` (key-invariant — every key
+ *  fans out into the same dimension product). */
+export function voiceLeadingCellsPerKey(pattern: VoiceLeadingPattern): number {
+  switch (pattern.kind) {
+    case 'aba-251':       return pattern.levels.length * pattern.positions.length;
+    case 'diatonic-cycle': return pattern.startingPositions.length;
+    case 'dom-altered':   return pattern.positions.length * pattern.targets.length;
+    case 'dim7-passing':  return pattern.directions.length * pattern.targets.length;
+  }
+}
+
+/** Total VL cell count across the whole catalog: sum of per-pattern
+ *  fan-outs × number of keys. 324 today (27 sub-cells/key × 12). */
+export function voiceLeadingTotalCellCount(): number {
+  return VOICE_LEADING_PATTERNS.reduce(
+    (sum, p) => sum + voiceLeadingCellsPerKey(p), 0,
+  ) * KEYS.length;
+}
+
+export function enumerateVoiceLeadingCells(
+  pattern: VoiceLeadingPattern,
+  keyName: string,
+): string[] {
+  switch (pattern.kind) {
+    case 'aba-251': {
+      const out: string[] = [];
+      for (const level of pattern.levels) {
+        for (const position of pattern.positions) {
+          out.push(`vl:${pattern.id}:${level}:${position}:${keyName}`);
+        }
+      }
+      return out;
+    }
+    case 'diatonic-cycle':
+      return pattern.startingPositions.map(p => `vl:${pattern.id}:${p}:${keyName}`);
+    case 'dom-altered': {
+      const out: string[] = [];
+      for (const position of pattern.positions) {
+        for (const target of pattern.targets) {
+          out.push(`vl:${pattern.id}:${position}:${target}:${keyName}`);
+        }
+      }
+      return out;
+    }
+    case 'dim7-passing': {
+      const out: string[] = [];
+      for (const direction of pattern.directions) {
+        for (const target of pattern.targets) {
+          out.push(`vl:${pattern.id}:${direction}:${target}:${keyName}`);
+        }
+      }
+      return out;
+    }
+  }
+}
+
+/** Discriminated parse result. Carries the patternId for downstream
+ *  switching and the full sub-cell dimensions so callers don't need
+ *  to re-parse the segments. */
+export type VoiceLeadingItemRefDescriptor =
+  | {
+      patternId: 'aba-251';
+      kind: 'aba-251';
+      level: VLLevel;
+      position: VLPosition;
+      keyName: string;
+    }
+  | {
+      patternId: 'diatonic-cycle';
+      kind: 'diatonic-cycle';
+      startingPosition: VLCyclePos;
+      keyName: string;
+    }
+  | {
+      patternId: 'dom-sharp9sharp5' | 'dom7b9';
+      kind: 'dom-altered';
+      position: VLPosition;
+      target: VLMinTarget;
+      keyName: string;
+    }
+  | {
+      patternId: 'dim7';
+      kind: 'dim7-passing';
+      direction: VLDim7Direction;
+      target: VLDim7Target;
+      keyName: string;
+    };
+
+const KEY_SET: ReadonlySet<string> = new Set(KEYS);
+
+function isVLLevel(s: string): s is VLLevel {
+  return s === 'level1' || s === 'level2' || s === 'level3';
+}
+function isVLPosition(s: string): s is VLPosition {
+  return s === 'A' || s === 'B';
+}
+function isVLCyclePos(s: string): s is VLCyclePos {
+  return s === 'pos1' || s === 'pos2' || s === 'pos3';
+}
+function isVLMinTarget(s: string): s is VLMinTarget {
+  return s === 'min7' || s === 'min9' || s === 'min11';
+}
+function isVLDim7Direction(s: string): s is VLDim7Direction {
+  return s === 'up' || s === 'down';
+}
+function isVLDim7Target(s: string): s is VLDim7Target {
+  return s === 'mintriad' || s === 'min7' || s === 'min9';
+}
+
+/**
+ * Parse a `vl:` itemRef into a sub-cell descriptor. Dispatches on
+ * the patternId in segment 1; downstream segments are validated
+ * against the pattern's expected dimensions. Returns null for
+ * anything that doesn't match a known pattern shape — including the
+ * legacy 3-part `vl:{patternId}:{keyName}` form, which is no longer
+ * a valid sub-cell (callers that need legacy-tolerant parsing for
+ * label purposes should use `parseShapesItemRef` instead).
+ */
+export function parseVoiceLeadingItemRef(
+  itemRef: string,
+): VoiceLeadingItemRefDescriptor | null {
+  const parts = itemRef.split(':');
+  if (parts.length < 4 || parts[0] !== 'vl') return null;
+  const patternId = parts[1];
+  const keyName = parts[parts.length - 1];
+  if (!KEY_SET.has(keyName)) return null;
+
+  switch (patternId) {
+    case 'aba-251': {
+      if (parts.length !== 5) return null;
+      const level = parts[2];
+      const position = parts[3];
+      if (!isVLLevel(level) || !isVLPosition(position)) return null;
+      return { patternId, kind: 'aba-251', level, position, keyName };
+    }
+    case 'diatonic-cycle': {
+      if (parts.length !== 4) return null;
+      const startingPosition = parts[2];
+      if (!isVLCyclePos(startingPosition)) return null;
+      return { patternId, kind: 'diatonic-cycle', startingPosition, keyName };
+    }
+    case 'dom-sharp9sharp5':
+    case 'dom7b9': {
+      if (parts.length !== 5) return null;
+      const position = parts[2];
+      const target = parts[3];
+      if (!isVLPosition(position) || !isVLMinTarget(target)) return null;
+      return { patternId, kind: 'dom-altered', position, target, keyName };
+    }
+    case 'dim7': {
+      if (parts.length !== 5) return null;
+      const direction = parts[2];
+      const target = parts[3];
+      if (!isVLDim7Direction(direction) || !isVLDim7Target(target)) return null;
+      return { patternId, kind: 'dim7-passing', direction, target, keyName };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Human-friendly sub-cell label, suitable for display alongside the
+ *  pattern label. e.g. "Level 1, Position A" / "Starting position 1"
+ *  / "Position A → min9" / "Half step up → min9". */
+export function voiceLeadingSubCellLabel(
+  desc: VoiceLeadingItemRefDescriptor,
+): string {
+  switch (desc.kind) {
+    case 'aba-251': {
+      const levelText =
+        desc.level === 'level1' ? 'Level 1'
+          : desc.level === 'level2' ? 'Level 2'
+            : 'Level 3';
+      return `${levelText}, Position ${desc.position}`;
+    }
+    case 'diatonic-cycle': {
+      const n = desc.startingPosition === 'pos1' ? 1
+        : desc.startingPosition === 'pos2' ? 2 : 3;
+      return `Starting position ${n}`;
+    }
+    case 'dom-altered': {
+      const t = desc.target === 'min7' ? 'min7'
+        : desc.target === 'min9' ? 'min9' : 'min11';
+      return `Position ${desc.position} → ${t}`;
+    }
+    case 'dim7-passing': {
+      const dir = desc.direction === 'up' ? 'Half step up' : 'Half step down';
+      const t = desc.target === 'mintriad' ? 'min triad'
+        : desc.target === 'min7' ? 'min7' : 'min9';
+      return `${dir} → ${t}`;
+    }
+  }
+}
 
 export function defaultDrillTypesForVoiceLeading(): DefaultDrill[] {
   return [

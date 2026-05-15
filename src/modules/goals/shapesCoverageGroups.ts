@@ -3,7 +3,7 @@ import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
-  VOICE_LEADING_PATTERNS,
+  voiceLeadingTotalCellCount,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
 import {
@@ -45,7 +45,8 @@ const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
  *   chord_shape_extensions — 14 extension qualities × 12 keys = 168
  *   chord_shape_special    — 3 special/sixth qualities × 12 keys = 36
  *   scale_drills           — 4 scales × 12 keys = 48
- *   voice_leading          — 3 patterns × 12 keys = 36
+ *   voice_leading          — 27 sub-cells × 12 keys = 324
+ *                            (5 patterns; ABA/diatonic/dom-altered ×2/dim7)
  *
  * `chord_shape_drills` (the legacy single bucket) is intentionally
  * not in the union — saved goals from before the split still hit
@@ -291,7 +292,7 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
     id: 'voice_leading',
     label: 'voice-leading',
     activityArea: 'voice_leading',
-    denominator: VOICE_LEADING_PATTERNS.length * KEY_COUNT,
+    denominator: voiceLeadingTotalCellCount(),
   },
 ];
 

@@ -34,7 +34,11 @@
  * knows the catalog → denominator mapping.
  */
 
-import { CHORD_QUALITIES, VOICE_LEADING_PATTERNS, KEYS } from '../modules/shapes-and-patterns/catalog';
+import {
+  CHORD_QUALITIES,
+  KEYS,
+  voiceLeadingTotalCellCount,
+} from '../modules/shapes-and-patterns/catalog';
 import { SCALE_CELLS } from '../modules/shapes-and-patterns/scaleSkills';
 import { INTERVAL_SEEDS } from '../modules/ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../modules/ear-training/chord-recognition/seed';
@@ -145,7 +149,8 @@ export interface ShapesCounts {
    *  both major-pent and minor-pent, plus 12 each for major and
    *  natural-minor). */
   scaleDrills: number;
-  /** 3 voice-leading patterns × 12 keys = 36. */
+  /** 324 — sum of per-pattern sub-cell fan-outs × 12 keys (27 × 12).
+   *  See VOICE_LEADING_SUBMODULE_DESIGN.md § Total Cell Count. */
   voiceLeading: number;
   /** Sum of the three sub-areas. **Excludes Mental Visualization**
    *  per the April 27 design call — mental-viz counts toward
@@ -163,7 +168,7 @@ export function shapesCounts(): ShapesCounts {
   const specialCount   = CHORD_QUALITIES.filter(q => q.kind === 'special').length   * KEYS.length;
   const chordShapeDrills = triadCount + seventhCount + extensionCount + specialCount;
   const scaleDrills = SCALE_CELLS.length;
-  const voiceLeading = VOICE_LEADING_PATTERNS.length * KEYS.length;
+  const voiceLeading = voiceLeadingTotalCellCount();
   return {
     chordShapeDrills,
     scaleDrills,

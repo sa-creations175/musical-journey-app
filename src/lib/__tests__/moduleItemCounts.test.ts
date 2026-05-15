@@ -135,13 +135,16 @@ describe('shapesCounts', () => {
     expect(c.scaleDrills).toBe(96);
   });
 
-  it('voiceLeading = 3 patterns × 12 keys = 36', () => {
-    expect(c.voiceLeading).toBe(36);
+  it('voiceLeading = 27 sub-cells × 12 keys = 324 (Phase 1 VL fan-out)', () => {
+    // Per src/docs/VOICE_LEADING_SUBMODULE_DESIGN.md § Total Cell Count:
+    // ABA-251 (6) + diatonic-cycle (3) + dom-sharp9sharp5 (6) +
+    // dom7b9 (6) + dim7 (6) = 27 sub-cells per key × 12 keys.
+    expect(c.voiceLeading).toBe(324);
   });
 
-  it('total = 984 (sum of sub-areas, post-Scales fan-out)', () => {
-    // 852 chord-shape + 96 scale + 36 voice-leading.
-    expect(c.total).toBe(984);
+  it('total = 1272 (sum of sub-areas, post-VL fan-out)', () => {
+    // 852 chord-shape + 96 scale + 324 voice-leading.
+    expect(c.total).toBe(1272);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 
