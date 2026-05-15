@@ -14,6 +14,7 @@ import {
   sequenceBlocks,
   tierForBlock,
 } from '../timeAllocation';
+import type { WeeklyPace } from '../moduleWeeklyNeed';
 
 function block(
   partial: Partial<AlgorithmBlock> & { id: string; memoryType: MemoryType },
@@ -117,12 +118,12 @@ describe('allocateBlockTime — overflow (available > typicalHighTotal)', () => 
     );
   });
 
-  it('integration memory type gets a larger overflow share at equal block weight', () => {
-    // Two equal-weight blocks: procedural (Shapes) vs integration
-    // (Repertoire). With integration's 1.5x bias vs procedural's
-    // 1.0x, the overflow split should be 60/40 in favor of
-    // Repertoire — matches the design rationale that long Keys
-    // sessions want more song playthroughs, not more drill reps.
+  it('no pace data → overflow splits equally regardless of memory type (Phase B Step 6 rule)', () => {
+    // Pre-Phase-B this favored integration via OVERFLOW_MEMORY_BIAS
+    // (1.5×). The Phase B rule replaces that with: behind-pace
+    // modules first; on-pace modules equal split. With no paceByBlock
+    // supplied, every block reads as on-pace → equal split, with the
+    // last block absorbing the rounding remainder.
     const blocks = [
       block({ id: 'shapes', memoryType: 'procedural', weight: 4 }),
       block({ id: 'repertoire', memoryType: 'integration', weight: 4 }),
@@ -130,24 +131,50 @@ describe('allocateBlockTime — overflow (available > typicalHighTotal)', () => 
     const out = allocateBlockTime(blocks, 60 * 60)!;
     const shapesExtra = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
     const repExtra = out[1].plannedSeconds - MEMORY_TYPE_DURATIONS.integration.typicalHighSeconds;
-    expect(repExtra).toBeGreaterThan(shapesExtra);
-    // Ratio of extras matches the bias ratio (approximate due to
-    // rounding + last-block remainder absorption).
-    expect(repExtra / shapesExtra).toBeGreaterThan(1.3);
-    expect(repExtra / shapesExtra).toBeLessThan(1.7);
+    // Equal split within the rounding remainder.
+    expect(Math.abs(shapesExtra - repExtra)).toBeLessThanOrEqual(1);
   });
 
-  it('block.weight dominates when both blocks share the same memory type', () => {
-    // Same memory type cancels the bias multiplier — block.weight
-    // alone drives the split.
+  it('behind-pace block claims overflow first (proportional to weight); on-pace block stays at typical-high', () => {
+    // Two equal-weight blocks; one is behind pace. Overflow goes
+    // entirely to the behind-pace block.
     const blocks = [
-      block({ id: 'low', memoryType: 'procedural', weight: 1 }),
-      block({ id: 'high', memoryType: 'procedural', weight: 3 }),
+      block({ id: 'shapes', memoryType: 'procedural', weight: 4 }),
+      block({ id: 'repertoire', memoryType: 'integration', weight: 4 }),
     ];
-    const out = allocateBlockTime(blocks, 60 * 60)!;
-    const lowExtra = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const paceByBlock = new Map<string, WeeklyPace>([
+      ['shapes', 'on-pace'],
+      ['repertoire', 'behind'],
+    ]);
+    const out = allocateBlockTime(blocks, 60 * 60, undefined, paceByBlock)!;
+    const shapesExtra = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const repExtra = out[1].plannedSeconds - MEMORY_TYPE_DURATIONS.integration.typicalHighSeconds;
+    expect(shapesExtra).toBe(0);
+    expect(repExtra).toBeGreaterThan(0);
+    // Total still equals the requested time.
+    expect(out.reduce((s, b) => s + b.plannedSeconds, 0)).toBe(60 * 60);
+  });
+
+  it('multiple behind-pace blocks share overflow proportional to block.weight', () => {
+    const blocks = [
+      block({ id: 'low',  memoryType: 'procedural', weight: 1 }),
+      block({ id: 'high', memoryType: 'procedural', weight: 3 }),
+      block({ id: 'okay', memoryType: 'integration', weight: 5 }),
+    ];
+    const paceByBlock = new Map<string, WeeklyPace>([
+      ['low',  'behind'],
+      ['high', 'behind'],
+      ['okay', 'on-pace'],
+    ]);
+    const out = allocateBlockTime(blocks, 90 * 60, undefined, paceByBlock)!;
+    const lowExtra  = out[0].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
     const highExtra = out[1].plannedSeconds - MEMORY_TYPE_DURATIONS.procedural.typicalHighSeconds;
+    const okayExtra = out[2].plannedSeconds - MEMORY_TYPE_DURATIONS.integration.typicalHighSeconds;
+    expect(okayExtra).toBe(0);
+    // high (weight 3) gets ~3× what low (weight 1) gets, within
+    // rounding + last-recipient remainder absorption.
     expect(highExtra).toBeGreaterThan(lowExtra * 2.5);
+    expect(out.reduce((s, b) => s + b.plannedSeconds, 0)).toBe(90 * 60);
   });
 
   it('sum equals available exactly even with rounding (last block absorbs remainder)', () => {

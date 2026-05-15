@@ -38,11 +38,18 @@ import {
   type AlgorithmBlock,
   type AllocatedBlock,
 } from './timeAllocation';
+import type { WeeklyPace } from './moduleWeeklyNeed';
 
 /** Phase B — `block.id` → goal-pace time need in seconds. Threaded
- *  from `computeSessionNeedByModule` through the proposal builders
- *  into both allocators. Omit for the legacy no-Phase-B path. */
+ *  from `loadModuleWeeklyNeeds` through the proposal builders into
+ *  both allocators. Omit for the legacy no-Phase-B path. */
 export type BlockTimeNeeds = ReadonlyMap<string, number>;
+
+/** Phase B Step 6 — `block.id` → weekly pace ('ahead' | 'on-pace' |
+ *  'behind'). Drives the pace-aware overflow distribution in
+ *  `allocateBlockTime` (overflow → behind-pace blocks first). Omit
+ *  → all blocks read as on-pace (equal-split overflow). */
+export type PaceByBlock = ReadonlyMap<string, WeeklyPace>;
 
 export const BALANCED_MAX_BLOCKS = 5;
 export const FOCUSED_MAX_BLOCKS = 2;
@@ -65,6 +72,10 @@ export interface GenerateProposalsInput {
    *  of the memory-type typical band. Absent blocks fall back to
    *  MEMORY_TYPE_DURATIONS unchanged. */
   blockTimeNeeds?: BlockTimeNeeds;
+  /** Phase B Step 6 — optional per-block weekly pace. Drives the
+   *  pace-aware overflow distribution; ignored when the session
+   *  fits inside the typical-high band. */
+  paceByBlock?: PaceByBlock;
 }
 
 // ---------------------------------------------------------------------
@@ -81,11 +92,13 @@ export function generateProposals(input: GenerateProposalsInput): Proposal[] {
     input.blocks,
     input.availableSeconds,
     input.blockTimeNeeds,
+    input.paceByBlock,
   );
   const focused = buildFocusedProposal(
     input.blocks,
     input.availableSeconds,
     input.blockTimeNeeds,
+    input.paceByBlock,
   );
 
   if (!balanced && !focused) return [];
@@ -111,6 +124,7 @@ export function buildBalancedProposal(
   blocks: ReadonlyArray<AlgorithmBlock>,
   availableSeconds: number,
   blockTimeNeeds?: BlockTimeNeeds,
+  paceByBlock?: PaceByBlock,
 ): Proposal | null {
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);
 
@@ -127,7 +141,7 @@ export function buildBalancedProposal(
 
   if (picked.length === 0) return null;
 
-  const allocated = allocateBlockTime(picked, availableSeconds, blockTimeNeeds);
+  const allocated = allocateBlockTime(picked, availableSeconds, blockTimeNeeds, paceByBlock);
   if (!allocated || allocated.length === 0) return null;
 
   const sequenced = sequenceBlocks(allocated);
@@ -149,6 +163,12 @@ export function buildFocusedProposal(
   blocks: ReadonlyArray<AlgorithmBlock>,
   availableSeconds: number,
   blockTimeNeeds?: BlockTimeNeeds,
+  // Reserved for future symmetry with the balanced path; the focused
+  // allocator routes through allocateFocused (not allocateBlockTime),
+  // which doesn't carry a typical-high overflow branch, so pace-aware
+  // overflow doesn't apply here today. Accepted at the surface so
+  // generateProposals can pass it uniformly.
+  _paceByBlock?: PaceByBlock,
 ): Proposal | null {
   if (availableSeconds <= 0 || blocks.length === 0) return null;
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);

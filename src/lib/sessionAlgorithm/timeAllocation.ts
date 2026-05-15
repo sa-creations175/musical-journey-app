@@ -25,6 +25,7 @@
  */
 
 import type { MemoryType } from '../db';
+import type { WeeklyPace } from './moduleWeeklyNeed';
 
 const SECONDS_PER_MINUTE = 60;
 
@@ -205,6 +206,14 @@ export function allocateBlockTime(
    *  `tierForBlock`); blocks without one keep the memory-type tier.
    *  Omit entirely for the legacy no-Phase-B behaviour. */
   blockTimeNeeds?: ReadonlyMap<string, number>,
+  /** Phase B Step 6 — `block.id` → weekly pace ('ahead' | 'on-pace'
+   *  | 'behind'). When the session runs in overflow (available >
+   *  typical-high total) the extra seconds go to behind-pace blocks
+   *  first, then equal-split across on-pace blocks. Omitted entirely
+   *  → all blocks treated as on-pace (equal split). Replaces the
+   *  pre-Phase-B OVERFLOW_MEMORY_BIAS heuristic, which double-counted
+   *  urgency against Phase B's time-allocation signal. */
+  paceByBlock?: ReadonlyMap<string, WeeklyPace>,
 ): AllocatedBlock[] | null {
   if (availableSeconds <= 0) return null;
 
@@ -224,7 +233,11 @@ export function allocateBlockTime(
     }
 
     // We can fit. Pick a target distribution.
-    const allocated = distribute(working, tiers, availableSeconds, typicalLowTotal, typicalHighTotal);
+    const allocated = distribute(
+      working, tiers, availableSeconds,
+      typicalLowTotal, typicalHighTotal,
+      paceByBlock,
+    );
     return allocated.map(({ block, seconds }) => ({
       ...block,
       plannedSeconds: seconds,
@@ -241,19 +254,21 @@ function distribute(
   available: number,
   typicalLowTotal: number,
   typicalHighTotal: number,
+  paceByBlock: ReadonlyMap<string, WeeklyPace> | undefined,
 ): Array<{ block: AlgorithmBlock; seconds: number }> {
   const out: Array<{ block: AlgorithmBlock; seconds: number }> = [];
 
   if (available > typicalHighTotal) {
     // Overflow — the user asked for more than the typical-high
     // total. Start every block at its typical-high (the default
-    // sweet spot) and distribute the leftover into blocks weighted
-    // by block.weight × memory-type bias. Without this branch the
-    // remaining time would silently drop on the floor, which on
-    // Keys/Mixed (where the context hard filter limits to Shapes +
-    // Repertoire) means any session > 35 min loses everything past
-    // the cap.
-    return distributeOverflow(blocks, tiers, available, typicalHighTotal);
+    // sweet spot) and distribute the leftover per the Phase B rule:
+    // behind-pace blocks first (proportional to block.weight); if
+    // no block is behind, equal split across all blocks. Without
+    // this branch the remaining time would silently drop on the
+    // floor, which on Keys/Mixed (where the context hard filter
+    // limits to Shapes + Repertoire) means any session > 35 min
+    // loses everything past the cap.
+    return distributeOverflow(blocks, tiers, available, typicalHighTotal, paceByBlock);
   }
 
   if (available === typicalHighTotal) {
@@ -296,27 +311,25 @@ function distribute(
 }
 
 /**
- * Memory-type bias for overflow distribution. Integration (Repertoire,
- * Production) gets a larger share of any time past the typical-high
- * total — on Keys/Mixed, Repertoire is the primary activity and
- * benefits most from longer playthroughs, so we lean the extra time
- * toward it rather than padding Shapes drills past their useful
- * length. Other memory types get a neutral 1.0 multiplier so the
- * existing block.weight ordering still dominates.
- */
-const OVERFLOW_MEMORY_BIAS: Record<MemoryType, number> = {
-  integration: 1.5,
-  procedural:  1.0,
-  declarative: 1.0,
-  expression:  1.0,
-};
-
-/**
- * Stack overflow seconds on top of each block's typical-high. Share
- * each block receives is `block.weight × OVERFLOW_MEMORY_BIAS[mem]`,
- * normalized. When all combined shares are zero (every block has
- * weight 0 — defensive), the overflow splits evenly. The last block
- * absorbs the rounding remainder so the sum exactly equals
+ * Stack overflow seconds on top of each block's typical-high — the
+ * Phase B rule (design doc §"Legacy Systems to Deprecate/Replace"):
+ *
+ *   · Any block behind pace?  → Overflow goes to those blocks only,
+ *                                proportional to block.weight (the
+ *                                "behind-pace modules first" share).
+ *                                On-pace blocks stay at typical-high.
+ *   · No block behind pace?   → Overflow splits equally across every
+ *                                block (the "equal split for on-track
+ *                                modules" branch).
+ *
+ * Replaces the pre-Phase-B OVERFLOW_MEMORY_BIAS heuristic (integration
+ * +1.5×) which biased Repertoire on Keys sessions; that turned out to
+ * double-count urgency against Phase B's time-allocation signal.
+ *
+ * When `paceByBlock` is omitted (legacy callers, focused-proposal
+ * path) every block is treated as on-pace → equal split. Defensive
+ * floor at 0-weight: equal split among the relevant set. The LAST
+ * recipient absorbs the rounding remainder so the sum exactly equals
  * `available` — no time silently dropped.
  */
 function distributeOverflow(
@@ -324,32 +337,54 @@ function distributeOverflow(
   tiers: ReadonlyArray<DurationTier>,
   available: number,
   typicalHighTotal: number,
+  paceByBlock: ReadonlyMap<string, WeeklyPace> | undefined,
 ): Array<{ block: AlgorithmBlock; seconds: number }> {
   const overflow = available - typicalHighTotal;
-  const shares = blocks.map(b => b.weight * OVERFLOW_MEMORY_BIAS[b.memoryType]);
+
+  // Recipients: behind-pace blocks if any are behind, else all
+  // blocks. Pace is read off paceByBlock (absent → on-pace).
+  const behindIndices: number[] = [];
+  if (paceByBlock) {
+    blocks.forEach((b, i) => {
+      if (paceByBlock.get(b.id) === 'behind') behindIndices.push(i);
+    });
+  }
+  const useBehindOnly = behindIndices.length > 0;
+  const recipientIndices = useBehindOnly
+    ? behindIndices
+    : blocks.map((_, i) => i);
+
+  // Shares: behind branch uses block.weight (proportional); on-pace
+  // equal-split uses 1 per block. Defensive zero-share fallback
+  // mirrors the pre-Phase-B behaviour.
+  const shares = recipientIndices.map(i =>
+    useBehindOnly ? blocks[i].weight : 1,
+  );
   const totalShare = shares.reduce((s, v) => s + v, 0);
 
-  const out: Array<{ block: AlgorithmBlock; seconds: number }> = [];
+  const extras = new Array<number>(blocks.length).fill(0);
   let allocatedOverflow = 0;
-  blocks.forEach((b, i) => {
+  recipientIndices.forEach((blockIdx, j) => {
     let extra: number;
-    if (i === blocks.length - 1) {
-      // Last block soaks up any rounding remainder so the total
-      // matches `available` exactly.
+    if (j === recipientIndices.length - 1) {
+      // Last recipient absorbs the rounding remainder so the sum
+      // exactly equals `available`.
       extra = overflow - allocatedOverflow;
     } else if (totalShare === 0) {
-      // Defensive — split evenly when every share is zero.
-      extra = Math.round(overflow / blocks.length);
+      // Defensive — every share is zero (e.g. all weights 0 in the
+      // behind branch). Split evenly across the recipients.
+      extra = Math.round(overflow / recipientIndices.length);
     } else {
-      extra = Math.round(overflow * (shares[i] / totalShare));
+      extra = Math.round(overflow * (shares[j] / totalShare));
     }
+    extras[blockIdx] = extra;
     allocatedOverflow += extra;
-    out.push({
-      block: b,
-      seconds: tiers[i].typicalHighSeconds + extra,
-    });
   });
-  return out;
+
+  return blocks.map((b, i) => ({
+    block: b,
+    seconds: tiers[i].typicalHighSeconds + extras[i],
+  }));
 }
 
 function lowestWeightIndex(blocks: ReadonlyArray<AlgorithmBlock>): number {

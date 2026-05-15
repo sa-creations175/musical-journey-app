@@ -260,6 +260,24 @@ export function computeModuleWeeklyNeeds(
   });
 }
 
+/**
+ * Set of modules Phase B is actively budgeting time for — every
+ * module need with `estimatedMinutesNeeded > 0`. Modules with no
+ * active weekly coverage goal are absent from the input list and so
+ * absent from the returned set. Step 6's wiring uses this set to
+ * neutralize weeklyPace.factorByModule for Phase-B-active modules
+ * (the design-doc "double-counting urgency" fix).
+ */
+export function phaseBModulesFromNeeds(
+  needs: ReadonlyArray<ModuleWeeklyNeed>,
+): Set<GoalFlowModuleId> {
+  const out = new Set<GoalFlowModuleId>();
+  for (const n of needs) {
+    if (n.estimatedMinutesNeeded > 0) out.add(n.moduleId);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------
 // Async wrapper
 // ---------------------------------------------------------------------

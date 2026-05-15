@@ -44,10 +44,21 @@ import {
   generateProposals,
   blockHasAcquiringItems,
 } from '../../lib/sessionAlgorithm/proposal';
+// `computeSessionNeedByModule` (the Phase B prototype loader) and
+// the legacy `buildBlockTimeNeeds` are no longer called from this
+// file — Phase B Step 6 routed the allocation path through the
+// keystone `loadModuleWeeklyNeeds`. The ModuleSessionNeed type is
+// still imported because the legacy `buildBlockTimeNeeds` helper
+// stays exported (its existing test pins behaviour); the prototype
+// loader itself is still used by GoalsNeedTodayScreen via
+// dailyGoalNeed.ts (Step 7 will retire it).
+import type { ModuleSessionNeed } from '../../lib/sessionAlgorithm/sessionNeed';
 import {
-  computeSessionNeedByModule,
-  type ModuleSessionNeed,
-} from '../../lib/sessionAlgorithm/sessionNeed';
+  loadModuleWeeklyNeeds,
+  phaseBModulesFromNeeds,
+  type ModuleWeeklyNeed,
+  type WeeklyPace,
+} from '../../lib/sessionAlgorithm/moduleWeeklyNeed';
 import type {
   AlgorithmBlock,
   AllocatedBlock,
@@ -145,7 +156,19 @@ export async function buildSessionProposals(
   const goals = await db.goals.where('status').equals('active').toArray();
   const spacingRows = await db.spacingState.toArray();
   const now = Date.now();
-  const weeklyPace = await loadWeeklyPace(now);
+  // Phase B Step 6 — load weeklyPace + keystone needs together so
+  // factorByModule can be neutralized for Phase-B-active modules
+  // BEFORE aggregation (design-doc "double-counting urgency" fix):
+  // Phase B's time allocation already encodes urgency, so the
+  // weight-boost on top would double-count.
+  const [weeklyPace, moduleWeeklyNeeds] = await Promise.all([
+    loadWeeklyPace(now),
+    loadModuleWeeklyNeeds(now),
+  ]);
+  const phaseBModules = phaseBModulesFromNeeds(moduleWeeklyNeeds);
+  const factorByModule = neutralizePhaseBPaceFactors(
+    weeklyPace.factorByModule, phaseBModules,
+  );
   const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
 
   const moduleBlocks = aggregateGoalCandidatesByModule(
@@ -153,7 +176,7 @@ export async function buildSessionProposals(
     spacingRows,
     now,
     inputs.context,
-    weeklyPace.factorByModule,
+    factorByModule,
     undefined,
     chordRecognitionEligibleItems,
   );
@@ -168,11 +191,11 @@ export async function buildSessionProposals(
   if (withColdStart.length === 0) return [];
   const itemLabels = resolveShapesDrillLabels(withColdStart);
   const shapesContext = await loadShapesSplitContext(spacingRows, now);
-  // Phase B — goal-pace time needs for HF / ET blocks. Modules with
-  // no active weekly coverage goal are absent from the map and fall
-  // back to the memory-type tier inside the allocators.
-  const sessionNeedByModule = await computeSessionNeedByModule(now);
-  const blockTimeNeeds = buildBlockTimeNeeds(withColdStart, sessionNeedByModule);
+  // Phase B Step 6 — keystone-derived time budgets + pace. Modules
+  // with no active weekly coverage goal are absent from both maps
+  // and fall back to the memory-type tier inside the allocator.
+  const { blockTimeNeeds, paceByBlock } =
+    buildBlockBudgetsFromWeeklyNeeds(withColdStart, moduleWeeklyNeeds);
   return generateAndShape(
     withColdStart,
     inputs.timeMinutes * 60,
@@ -180,6 +203,7 @@ export async function buildSessionProposals(
     itemLabels,
     shapesContext,
     blockTimeNeeds,
+    paceByBlock,
   );
 }
 
@@ -260,14 +284,25 @@ export async function buildSessionPlan(
   // filtering so a user on a keys session can still see "behind on
   // HF" — the yes-action uses + Add module to inject the named
   // module past the hard filter.
-  const weeklyPace = await loadWeeklyPace(now);
+  //
+  // Phase B Step 6 — load keystone needs alongside weeklyPace so
+  // factorByModule is neutralized for Phase-B-active modules BEFORE
+  // aggregation (design-doc "double-counting urgency" fix).
+  const [weeklyPace, moduleWeeklyNeeds] = await Promise.all([
+    loadWeeklyPace(now),
+    loadModuleWeeklyNeeds(now),
+  ]);
+  const phaseBModules = phaseBModulesFromNeeds(moduleWeeklyNeeds);
+  const factorByModule = neutralizePhaseBPaceFactors(
+    weeklyPace.factorByModule, phaseBModules,
+  );
   const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
   const aggregated = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
     now,
     inputs.context,
-    weeklyPace.factorByModule,
+    factorByModule,
     options.forceIncludeModules,
     chordRecognitionEligibleItems,
   );
@@ -337,10 +372,12 @@ export async function buildSessionPlan(
 
   const itemLabels = resolveShapesDrillLabels(moduleBlocks);
   const shapesContext = await loadShapesSplitContext(spacingRows, now);
-  // Phase B — goal-pace time needs for HF / ET blocks. See
-  // buildSessionProposals for the rationale; same wiring here.
-  const sessionNeedByModule = await computeSessionNeedByModule(now);
-  const blockTimeNeeds = buildBlockTimeNeeds(moduleBlocks, sessionNeedByModule);
+  // Phase B Step 6 — keystone-derived time budgets + pace from the
+  // moduleWeeklyNeeds load above. Modules without an active weekly
+  // coverage goal stay absent → fall back to MEMORY_TYPE_DURATIONS
+  // inside the allocator.
+  const { blockTimeNeeds, paceByBlock } =
+    buildBlockBudgetsFromWeeklyNeeds(moduleBlocks, moduleWeeklyNeeds);
   const cards = generateAndShape(
     moduleBlocks,
     availableSeconds,
@@ -348,6 +385,7 @@ export async function buildSessionPlan(
     itemLabels,
     shapesContext,
     blockTimeNeeds,
+    paceByBlock,
   );
   return {
     kind: 'proposals',
@@ -413,6 +451,96 @@ export function buildBlockTimeNeeds(
   return out;
 }
 
+/**
+ * Phase B Step 6 — translate the keystone's per-module ModuleWeeklyNeed
+ * list into the per-block inputs the allocator consumes:
+ *
+ *   · blockTimeNeeds → block.id → goal-pace seconds (pinned tier band)
+ *   · paceByBlock    → block.id → weekly pace (drives pace-aware
+ *                                  overflow in allocateBlockTime)
+ *   · phaseBModules  → modules with a live Phase B budget — used by
+ *                      neutralizePhaseBPaceFactors to drop the
+ *                      weeklyPace boost for those modules (the
+ *                      design-doc "double-counting urgency" fix).
+ *
+ * A module's `estimatedMinutesNeeded` is split EVENLY across its
+ * blocks — same shape as the legacy buildBlockTimeNeeds. ET fans out
+ * into per-sub-module blocks; the keystone's sub-activity breakdown
+ * (intervals / chord-recognition) is informational here, not yet a
+ * sub-allocation driver (the goal model doesn't carry per-sub-activity
+ * weekly targets — that's a later Phase B step). S&P and Repertoire
+ * stay one block at the allocator; their sub-module split happens
+ * downstream in shapeShapesBlock / repertoireSplit, which already
+ * implements the design-doc fallback ratios.
+ *
+ * Modules with no Phase B budget (no active weekly coverage goal, or
+ * remaining = 0) are absent from both maps — their blocks fall back
+ * to MEMORY_TYPE_DURATIONS inside the allocator, matching the
+ * "no active goal" path the design doc specifies.
+ */
+export function buildBlockBudgetsFromWeeklyNeeds(
+  blocks: ReadonlyArray<AlgorithmBlock>,
+  moduleNeeds: ReadonlyArray<ModuleWeeklyNeed>,
+): {
+  blockTimeNeeds: Map<string, number>;
+  paceByBlock: Map<string, WeeklyPace>;
+  phaseBModules: Set<GoalFlowModuleId>;
+} {
+  const needByModule = new Map<GoalFlowModuleId, ModuleWeeklyNeed>();
+  for (const n of moduleNeeds) needByModule.set(n.moduleId, n);
+
+  const blocksByModule = new Map<GoalFlowModuleId, AlgorithmBlock[]>();
+  for (const b of blocks) {
+    const moduleId = goalFlowModuleForSpacingModuleRef(b.moduleRef);
+    if (!moduleId) continue;
+    const need = needByModule.get(moduleId);
+    if (!need || need.estimatedMinutesNeeded <= 0) continue;
+    const arr = blocksByModule.get(moduleId) ?? [];
+    arr.push(b);
+    blocksByModule.set(moduleId, arr);
+  }
+
+  const blockTimeNeeds = new Map<string, number>();
+  const paceByBlock = new Map<string, WeeklyPace>();
+  const phaseBModules = new Set<GoalFlowModuleId>();
+  for (const [moduleId, moduleBlocks] of blocksByModule) {
+    const need = needByModule.get(moduleId);
+    if (!need) continue;
+    phaseBModules.add(moduleId);
+    const perBlockSeconds = (need.estimatedMinutesNeeded * 60) / moduleBlocks.length;
+    for (const b of moduleBlocks) {
+      blockTimeNeeds.set(b.id, perBlockSeconds);
+      paceByBlock.set(b.id, need.pace);
+    }
+  }
+
+  return { blockTimeNeeds, paceByBlock, phaseBModules };
+}
+
+/**
+ * Phase B Step 6 — neutralize the weeklyPace weight boost for modules
+ * Phase B is already budgeting time for. Design doc §"Legacy Systems":
+ * "factorByModule double-counting urgency. When Phase B is active for
+ * a module, set factorByModule = 1.0 (neutral) for that module. Phase
+ * B handles urgency through time allocation — weight boosting on top
+ * is double-counting."
+ *
+ * factorByModule consumers (aggregateGoalCandidatesByModule) default
+ * to 1.0 for absent keys, so dropping a key is equivalent to setting
+ * it to 1.0 — no extra work needed at the call sites.
+ */
+export function neutralizePhaseBPaceFactors(
+  factorByModule: ReadonlyMap<string, number>,
+  phaseBModules: ReadonlySet<GoalFlowModuleId>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [moduleId, factor] of factorByModule) {
+    if (phaseBModules.has(moduleId as GoalFlowModuleId)) continue;
+    out.set(moduleId, factor);
+  }
+  return out;
+}
+
 function generateAndShape(
   moduleBlocks: AlgorithmBlock[],
   availableSeconds: number,
@@ -436,11 +564,17 @@ function generateAndShape(
    *  instead of the memory-type typical band. Omit for the legacy
    *  fixed-tier behaviour (path proposals + tests). */
   blockTimeNeeds?: ReadonlyMap<string, number>,
+  /** Phase B Step 6 — per-block weekly pace. Drives the pace-aware
+   *  overflow distribution: when a session runs past the typical-high
+   *  total, behind-pace blocks claim the extra time first. Omit and
+   *  every block reads as on-pace (equal-split overflow). */
+  paceByBlock?: ReadonlyMap<string, WeeklyPace>,
 ): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
     availableSeconds,
     blockTimeNeeds,
+    paceByBlock,
   });
   return proposals.map(p => ({
     kind: p.kind,
