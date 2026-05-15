@@ -11,6 +11,7 @@ import GoalSuggestionFlow from './GoalSuggestionFlow';
 import { ScopePill } from './ScopePill';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
+import CarryoverBanner from './CarryoverBanner';
 import {
   endOfWeekLocal,
   loadConfirmedPlanForWeek,
@@ -430,8 +431,13 @@ export default function Goals() {
         </button>
       </header>
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-2">
         <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
+        {/* Phase B Step 9b — surfaces uncovered items from last
+            month's monthly target. Persistent: hides only on user
+            decision (Accept/Decline per module via the review
+            modal) or explicit X-dismiss. */}
+        <CarryoverBanner />
       </div>
 
       {/* Small muted label introduces the view toggle. */}
