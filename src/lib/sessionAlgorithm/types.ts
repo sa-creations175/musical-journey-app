@@ -37,6 +37,17 @@ export type CandidateSpec =
       moduleRefs: readonly string[];
       excludeStages: ReadonlySet<AcquisitionStage>;
       itemRefFilter?: (itemRef: string) => boolean;
+      /** Phase B Step 9b follow-up #2 — explicit Accept-extended scope
+       *  items. When present, `resolveCandidates` accepts a row whose
+       *  `itemRef` is in this set even if `row.moduleRef` falls
+       *  OUTSIDE `moduleRefs`. The mechanism that makes cross-
+       *  submodule ET carry-over surface as monthly-scope (rather
+       *  than backlog-only). For same-module coverage specs the
+       *  override is a no-op — `moduleRefs.has(row.moduleRef)`
+       *  already passes — and the existing
+       *  `extendWithRelatedItems(filter)` keeps doing the
+       *  itemRefFilter half of the work. */
+      relatedItems?: ReadonlySet<string>;
     }
   | {
       kind: 'accuracy';

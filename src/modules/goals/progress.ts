@@ -39,12 +39,12 @@ import {
   COVERAGE_SPECIFIC_METRIC,
   isCoverageMetric,
   isCoverageOverallMetric,
-  isCoverageSpecificMetric,
   type CoverageMetric,
 } from './coverageMetrics';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import { mondayOf } from './activity/dailyActivity';
 import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
+import { effectiveScopeForGoal } from './scopeEnumeration';
 
 // =====================================================================
 // Constants
@@ -243,6 +243,42 @@ export async function getCoverageCount(
   return 0;
 }
 
+/**
+ * Phase B Step 9b follow-up #2 — coverage progress that honours a
+ * goal's `relatedItems` extension (Accept's carryover items).
+ *
+ * The metric-only `getCoverageCount(metric, subArea)` above can't
+ * see explicit additions because it doesn't take the goal record.
+ * This helper walks the goal's effective scope (metric scope ∪
+ * relatedItems, deduped — see `effectiveScopeForGoal`) against
+ * spacingState and counts rows in COVERED_STAGES. Each scope itemRef
+ * counts at most once — duplicate rows for the same itemRef across
+ * moduleRefs don't double-count.
+ *
+ * Dedup also covers the predicate ∩ relatedItems overlap: if an
+ * item matches the metric AND is in relatedItems, the effective
+ * scope set holds it once → counted once. The task's "dedup works"
+ * requirement falls out of Set semantics.
+ *
+ * Walk strategy: pulls every spacingState row and filters in memory.
+ * Coverage rows are small (≤ ~600 across all modules) and the
+ * primary alternative — `where('moduleRef').anyOf(...)` — would
+ * need a goal-to-moduleRefs map that gets non-trivial for ET
+ * cross-submodule relatedItems. Full walk is simpler and cheap.
+ */
+export async function getEffectiveCoverageCount(goal: Goal): Promise<number> {
+  const scope = new Set(effectiveScopeForGoal(goal));
+  if (scope.size === 0) return 0;
+  const rows = await db.spacingState.toArray();
+  const coveredRefs = new Set<string>();
+  for (const row of rows) {
+    if (!scope.has(row.itemRef)) continue;
+    if (!COVERED_STAGES.has(row.acquisitionStage)) continue;
+    coveredRefs.add(row.itemRef);
+  }
+  return coveredRefs.size;
+}
+
 // =====================================================================
 // Accuracy primitives
 // =====================================================================
@@ -355,10 +391,12 @@ export async function getGoalProgress(goal: Goal): Promise<GoalProgress> {
     return { kind: 'unsupported', current: null, target, source: 'no-metric' };
   }
 
-  // Coverage routing
+  // Coverage routing — uses the effective scope (metric ∪
+  // relatedItems) so Accept-extended carry-over items count toward
+  // both the numerator and (via targetValue's Accept-bump in
+  // carryoverAccept.ts) the denominator. See Step 9b follow-up #2.
   if (isCoverageMetric(metric)) {
-    const subArea = isCoverageSpecificMetric(metric) ? goal.targetUnit : null;
-    const count = await getCoverageCount(metric, subArea);
+    const count = await getEffectiveCoverageCount(goal);
     return {
       kind: 'coverage',
       current: count,

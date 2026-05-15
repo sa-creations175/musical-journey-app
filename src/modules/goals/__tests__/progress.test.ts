@@ -27,6 +27,7 @@ import {
   countCoveredSpacingRows,
   getCoverageCount,
   getEarTrainingAccuracy,
+  getEffectiveCoverageCount,
   getGoalProgress,
   getHarmonicFluencyAccuracy,
   moduleAccuracy,
@@ -315,6 +316,122 @@ describe('getCoverageCount — specific (Production)', () => {
 });
 
 // -------------------------------------------------------------------
+// getEffectiveCoverageCount — Step 9b follow-up #2
+//
+// Adds two semantics on top of getCoverageCount:
+//   (1) honors goal.relatedItems (Accept-extended carry-over scope —
+//       items outside the metric predicate / outside the metric's
+//       sub-area still count toward the numerator)
+//   (2) dedupes — an item in both predicate AND relatedItems counts
+//       once, not twice
+//
+// Tests below use real catalog itemRefs so they pass the
+// effectiveScopeForGoal enumeration. Synthetic IDs wouldn't be in the
+// catalog and would silently drop to zero.
+// -------------------------------------------------------------------
+
+describe('getEffectiveCoverageCount — relatedItems-aware coverage', () => {
+  // Reuses the local `makeGoal` defined below (hoisted via function
+  // declaration). Body referenced before declaration — fine for
+  // function statements, not for `const = function`.
+  function _mkGoal(partial: Partial<Goal>): Goal {
+    return {
+      id: partial.id ?? 'eff-cov-goal',
+      scope: partial.scope ?? 'monthly',
+      description: partial.description ?? '',
+      targetMetric: partial.targetMetric ?? null,
+      targetValue: partial.targetValue ?? 0,
+      targetUnit: partial.targetUnit ?? null,
+      currentValue: partial.currentValue ?? 0,
+      contextTag: partial.contextTag ?? null,
+      relatedModules: partial.relatedModules ?? [],
+      relatedItems: partial.relatedItems ?? [],
+      startDate: partial.startDate ?? 0,
+      targetDate: partial.targetDate ?? 0,
+      status: partial.status ?? 'active',
+      parentGoalId: partial.parentGoalId ?? null,
+      contributesNumericallyToParent: partial.contributesNumericallyToParent ?? false,
+      isUmbrella: partial.isUmbrella ?? false,
+      lastEngagedAt: partial.lastEngagedAt ?? null,
+    };
+  }
+
+  it('counts items only in relatedItems when they reach COVERED_STAGES (Fix 1 primary)', async () => {
+    // Monthly goal scoped to chord_shape_drills (matches every
+    // `chord-shape:` ref). Carryover Accept extended scope with a
+    // scale row (NOT matched by the chord-shape predicate). Both
+    // covered → both should count.
+    await db.spacingState.bulkAdd([
+      makeSpacingRow('chord-shape:maj7:C:root', 'shapes-and-patterns', 'acquired'),
+      makeSpacingRow('scale:major:C',           'shapes-and-patterns', 'acquired'),
+    ]);
+    const goal = _mkGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_drills',
+      relatedItems: ['scale:major:C'],
+    });
+    expect(await getEffectiveCoverageCount(goal)).toBe(2);
+  });
+
+  it('counts predicate-matching items normally (regression guard)', async () => {
+    await db.spacingState.bulkAdd([
+      makeSpacingRow('chord-shape:maj7:C:root', 'shapes-and-patterns', 'acquired'),
+      makeSpacingRow('chord-shape:min7:C:root', 'shapes-and-patterns', 'mastered'),
+    ]);
+    const goal = _mkGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_drills',
+      relatedItems: [], // no Accept-extension; behaves like getCoverageCount
+    });
+    expect(await getEffectiveCoverageCount(goal)).toBe(2);
+  });
+
+  it('dedupes — item in BOTH predicate match and relatedItems counts once', async () => {
+    // chord-shape:maj7:C:root matches the chord_shape_drills predicate
+    // AND is explicitly listed in relatedItems. Must not double-count.
+    await db.spacingState.bulkAdd([
+      makeSpacingRow('chord-shape:maj7:C:root', 'shapes-and-patterns', 'acquired'),
+    ]);
+    const goal = _mkGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_drills',
+      relatedItems: ['chord-shape:maj7:C:root'],
+    });
+    expect(await getEffectiveCoverageCount(goal)).toBe(1);
+  });
+
+  it('cross-submodule ET — chord-recognition goal counting an intervals relatedItem', async () => {
+    // The primary Accept use case per the user's reframing: leftover
+    // items from a *different* sub-area than the active monthly goal.
+    // ET specific goals scope to a single submodule by moduleRef;
+    // relatedItems extension lets cross-submodule items count.
+    await db.spacingState.bulkAdd([
+      makeSpacingRow('maj',     'chord-recognition', 'acquired'),
+      makeSpacingRow('M3:asc',  'intervals',         'acquired'),
+    ]);
+    const goal = _mkGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: ['M3:asc'], // leftover from a prior intervals month
+    });
+    expect(await getEffectiveCoverageCount(goal)).toBe(2);
+  });
+
+  it('does not count items in non-COVERED stages', async () => {
+    await db.spacingState.bulkAdd([
+      makeSpacingRow('chord-shape:maj7:C:root', 'shapes-and-patterns', 'acquiring'),
+      makeSpacingRow('scale:major:C',           'shapes-and-patterns', 'new'),
+    ]);
+    const goal = _mkGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'chord_shape_drills',
+      relatedItems: ['scale:major:C'],
+    });
+    expect(await getEffectiveCoverageCount(goal)).toBe(0);
+  });
+});
+
+// -------------------------------------------------------------------
 // moduleAccuracy primitive
 // -------------------------------------------------------------------
 
@@ -505,9 +622,13 @@ function makeGoal(partial: Partial<Goal>): Goal {
 
 describe('getGoalProgress — coverage routing', () => {
   it('routes ear_training_coverage_at_acquired to ET overall coverage', async () => {
+    // Real catalog itemRefs — getEffectiveCoverageCount (Step 9b
+    // follow-up #2) walks effectiveScopeForGoal, which enumerates
+    // from source catalogs. Synthetic IDs that don't match the
+    // catalog wouldn't count post-fix.
     await db.spacingState.bulkAdd([
-      makeSpacingRow('a', 'intervals',         'acquired'),
-      makeSpacingRow('b', 'chord-recognition', 'mastered'),
+      makeSpacingRow('M3:asc', 'intervals',         'acquired'),
+      makeSpacingRow('maj',    'chord-recognition', 'mastered'),
     ]);
     const goal = makeGoal({
       targetMetric: 'ear_training_coverage_at_acquired',
@@ -521,9 +642,12 @@ describe('getGoalProgress — coverage routing', () => {
   });
 
   it('routes shapes_coverage_at_acquired_specific with targetUnit sub-area', async () => {
+    // chord_shape_drills sub-area matches every chord-shape: itemRef.
+    // Real catalog IDs: sevenths use the 4-part `:state` form;
+    // scales use the SCALE_CELLS catalog refs.
     await db.spacingState.bulkAdd([
-      makeSpacingRow('chord-shape:maj7:C', 'shapes-and-patterns', 'acquired'),
-      makeSpacingRow('scale:major:C',       'shapes-and-patterns', 'acquired'),
+      makeSpacingRow('chord-shape:maj7:C:root', 'shapes-and-patterns', 'acquired'),
+      makeSpacingRow('scale:major:C',           'shapes-and-patterns', 'acquired'),
     ]);
     const goal = makeGoal({
       targetMetric: 'shapes_coverage_at_acquired_specific',

@@ -103,6 +103,15 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
   const metric = goal.targetMetric;
   if (!metric) return { kind: 'unsupported' };
 
+  // Phase B Step 9b follow-up #2 — Accept-extended scope items.
+  // Populated on every coverage spec so `resolveCandidates` can
+  // bypass the module-set check when a row's itemRef is in this set
+  // (the cross-submodule ET case; a no-op for same-module HF /
+  // Shapes / Production).
+  const relatedItems = goal.relatedItems.length > 0
+    ? new Set(goal.relatedItems)
+    : undefined;
+
   // --- Coverage (overall) -----------------------------------------
   if (isCoverageOverallMetric(metric)) {
     if (metric === COVERAGE_OVERALL_METRIC.EAR_TRAINING) {
@@ -110,6 +119,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         kind: 'coverage',
         moduleRefs: ET_MODULE_REFS,
         excludeStages: COVERED_STAGES,
+        relatedItems,
       };
     }
     if (metric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) {
@@ -117,6 +127,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         kind: 'coverage',
         moduleRefs: [HF_MODULE_REF],
         excludeStages: COVERED_STAGES,
+        relatedItems,
       };
     }
     if (metric === COVERAGE_OVERALL_METRIC.SHAPES) {
@@ -124,6 +135,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         kind: 'coverage',
         moduleRefs: [SHAPES_MODULE_REF],
         excludeStages: COVERED_STAGES,
+        relatedItems,
       };
     }
     if (metric === COVERAGE_OVERALL_METRIC.PRODUCTION) {
@@ -131,6 +143,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         kind: 'coverage',
         moduleRefs: [PRODUCTION_MODULE_REF],
         excludeStages: COVERED_STAGES,
+        relatedItems,
       };
     }
   }
@@ -147,6 +160,12 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         kind: 'coverage',
         moduleRefs: [subArea],
         excludeStages: COVERED_STAGES,
+        // ET-specific has no itemRefFilter — `relatedItems` is the
+        // ONLY mechanism that lets cross-submodule Accept-extended
+        // items (e.g., intervals leftover in a chord-recognition
+        // goal) bypass the moduleRefs gate and surface as
+        // monthly-scope candidates rather than backlog-factor only.
+        relatedItems,
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY) {
@@ -162,6 +181,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         moduleRefs: [HF_MODULE_REF],
         excludeStages: COVERED_STAGES,
         itemRefFilter: extendWithRelatedItems(base, goal.relatedItems),
+        relatedItems,
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
@@ -172,6 +192,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         moduleRefs: [SHAPES_MODULE_REF],
         excludeStages: COVERED_STAGES,
         itemRefFilter: extendWithRelatedItems(matcher, goal.relatedItems),
+        relatedItems,
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
@@ -183,6 +204,7 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
         moduleRefs: [PRODUCTION_MODULE_REF],
         excludeStages: COVERED_STAGES,
         itemRefFilter: extendWithRelatedItems(base, goal.relatedItems),
+        relatedItems,
       };
     }
   }
@@ -319,10 +341,20 @@ export function resolveCandidates(
   if (spec.kind === 'song_proficiency' || spec.kind === 'production_count') return [];
 
   const moduleSet = new Set(spec.moduleRefs);
+  // Phase B Step 9b follow-up #2 — Accept-extended scope items.
+  // When present on a coverage spec, a row whose itemRef is in this
+  // set bypasses the moduleSet check (the row may live in a
+  // different ET sub-module than the goal's primary subArea).
+  // Non-coverage specs don't carry the field so the check is a
+  // straight false → behaves as before.
+  const acceptedRefs: ReadonlySet<string> | undefined =
+    spec.kind === 'coverage' ? spec.relatedItems : undefined;
   const out: string[] = [];
 
   for (const row of rows) {
-    if (!moduleSet.has(row.moduleRef)) continue;
+    const inModule = moduleSet.has(row.moduleRef);
+    const inAccepted = acceptedRefs?.has(row.itemRef) ?? false;
+    if (!inModule && !inAccepted) continue;
 
     // Chord-recognition tier/staged-introduction gate. Applied
     // after the moduleRef match so the cost is paid only for the

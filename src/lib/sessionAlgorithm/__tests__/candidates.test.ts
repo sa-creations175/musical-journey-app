@@ -342,3 +342,109 @@ describe('candidateSpecForGoal — relatedItems extends coverage-specific scope'
     ]);
   });
 });
+
+// =====================================================================
+// Step 9b follow-up #2 — Fix 2: ET-specific cross-submodule relatedItems
+//
+// ET specific goals scope by moduleRef (no itemRefFilter), so the
+// extendWithRelatedItems trick used by HF/Shapes/Production can't
+// surface cross-submodule items. The spec's new `relatedItems`
+// field tells resolveCandidates to bypass the moduleRefs gate for
+// listed itemRefs. This is the PRIMARY Accept use case per the
+// user's reframing: leftover items from a *different* sub-area
+// than the active monthly goal.
+// =====================================================================
+
+describe('candidateSpecForGoal — ET-specific cross-submodule relatedItems (Fix 2)', () => {
+  it('spec carries relatedItems on ET-specific coverage', () => {
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: ['M3:asc', 'P5:asc'], // leftover from intervals
+    });
+    const spec = candidateSpecForGoal(goal);
+    expect(spec.kind).toBe('coverage');
+    if (spec.kind !== 'coverage') return;
+    expect(spec.moduleRefs).toEqual(['chord-recognition']);
+    expect(spec.relatedItems).toBeDefined();
+    expect(spec.relatedItems!.has('M3:asc')).toBe(true);
+    expect(spec.relatedItems!.has('P5:asc')).toBe(true);
+    // ET-specific intentionally has NO itemRefFilter — the bypass
+    // happens in resolveCandidates via the moduleSet check.
+    expect(spec.itemRefFilter).toBeUndefined();
+  });
+
+  it('empty relatedItems → relatedItems omitted on the spec (no override)', () => {
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: [],
+    });
+    const spec = candidateSpecForGoal(goal);
+    if (spec.kind !== 'coverage') throw new Error('expected coverage spec');
+    expect(spec.relatedItems).toBeUndefined();
+  });
+
+  it('resolveCandidates: intervals item added to a chord-recognition goal surfaces in the pool', () => {
+    // The "primary use case" test per the spec: a chord-recognition
+    // monthly goal with an intervals item in relatedItems. The
+    // intervals row's moduleRef is OUTSIDE the goal's moduleRefs
+    // ([chord-recognition]) — only the relatedItems bypass can
+    // surface it.
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: ['M3:asc'],
+    });
+    const spec = candidateSpecForGoal(goal);
+    const rows: SpacingRow[] = [
+      row({ itemRef: 'maj',     moduleRef: 'chord-recognition', acquisitionStage: 'new' }),
+      row({ itemRef: 'M3:asc',  moduleRef: 'intervals',         acquisitionStage: 'new' }),
+      row({ itemRef: 'mixo',    moduleRef: 'scales-modes',      acquisitionStage: 'new' }),
+    ];
+    const out = [...resolveCandidates(spec, rows)].sort();
+    // 'maj' surfaces via moduleSet (it's in chord-recognition).
+    // 'M3:asc' surfaces via relatedItems bypass (intervals would
+    // be dropped by moduleSet).
+    // 'mixo' is dropped — neither in moduleSet nor in relatedItems.
+    expect(out).toEqual(['M3:asc', 'maj']);
+  });
+
+  it('resolveCandidates: same-sub-module candidates still work (regression)', () => {
+    // Without any relatedItems, ET-specific behaves exactly as
+    // before — only chord-recognition rows in non-COVERED stages
+    // come through.
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: [],
+    });
+    const spec = candidateSpecForGoal(goal);
+    const rows: SpacingRow[] = [
+      row({ itemRef: 'maj', moduleRef: 'chord-recognition', acquisitionStage: 'new' }),
+      row({ itemRef: 'min', moduleRef: 'chord-recognition', acquisitionStage: 'acquiring' }),
+      row({ itemRef: 'dim', moduleRef: 'chord-recognition', acquisitionStage: 'acquired' }), // excluded
+      row({ itemRef: 'M3:asc', moduleRef: 'intervals', acquisitionStage: 'new' }), // wrong module
+    ];
+    const out = [...resolveCandidates(spec, rows)].sort();
+    expect(out).toEqual(['maj', 'min']);
+  });
+
+  it('relatedItems bypass still honors excludeStages', () => {
+    // An accepted carryover item that has already reached acquired
+    // is no longer a candidate — the COVERED_STAGES filter applies
+    // to all rows uniformly, both in-module and bypass.
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: ['M3:asc', 'P5:asc'],
+    });
+    const spec = candidateSpecForGoal(goal);
+    const rows: SpacingRow[] = [
+      row({ itemRef: 'M3:asc', moduleRef: 'intervals', acquisitionStage: 'new' }),
+      row({ itemRef: 'P5:asc', moduleRef: 'intervals', acquisitionStage: 'acquired' }), // excluded
+    ];
+    const out = resolveCandidates(spec, rows);
+    expect(out).toEqual(['M3:asc']);
+  });
+});
