@@ -391,3 +391,130 @@ describe('loadModuleWeeklyNeeds — wrapper integration', () => {
     expect(result).toEqual([]);
   });
 });
+
+// =====================================================================
+// loadModuleWeeklyNeeds — Step 8 live-recompute fallback
+// =====================================================================
+//
+// When a Phase-B module has an active monthly coverage goal but no
+// weekly Goal record for the current week, the loader live-recomputes
+// the weekly target from the monthly's remaining work. When a weekly
+// Goal record DOES exist, it wins — that's the user's confirmed plan
+// (the implicit override per design-doc Decision 1). Frozen weekly
+// records from past or future weeks are filtered by the date-range
+// guard and never feed planning.
+
+describe('loadModuleWeeklyNeeds — live-recompute fallback', () => {
+  beforeEach(clearAll);
+
+  /** Anchor at a Sunday so calendarDaysRemainingInWeek + the recompute
+   *  math both run on clean week boundaries. Mar 1, 2026 is a Sunday. */
+  const SUN = new Date(2026, 2, 1, 9, 0, 0).getTime();
+  const MONTH_END = new Date(2026, 2, 28, 23, 59, 59, 999).getTime();
+
+  it('live-recomputes weekly target from the monthly goal when no weekly record exists', async () => {
+    // HF monthly: 130 cards × 10 attempts/item = 1300 monthly. Window
+    // is 4 weeks. No weekly Goal record. Live recompute → 1300 / 4 =
+    // 325 weekly attempts. estimatedMinutesNeeded = 325 × 30s = 162.5 min.
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN,
+      targetDate: MONTH_END,
+    }));
+    const result = await loadModuleWeeklyNeeds(SUN);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf).toBeDefined();
+    expect(hf!.targetAttemptsThisWeek).toBe(325);
+    expect(hf!.estimatedMinutesNeeded).toBe(162.5);
+  });
+
+  it('weekly Goal record wins over live recompute when both exist (sticky user override)', async () => {
+    // Same monthly as above (recompute → 325), PLUS a weekly Goal
+    // record at 200. The user's confirmed plan is the override.
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN,
+      targetDate: MONTH_END,
+    }));
+    await db.goals.add(mkGoal({
+      scope: 'weekly',
+      relatedModules: ['harmonic-fluency'],
+      targetValue: 200,
+      targetUnit: 'attempts',
+      startDate: SUN,
+      targetDate: SUN + 7 * DAY - 1,
+    }));
+    const result = await loadModuleWeeklyNeeds(SUN);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf!.targetAttemptsThisWeek).toBe(200); // override, not 325
+  });
+
+  it('frozen weekly Goal records from a past week do not feed planning', async () => {
+    // A weekly Goal record from LAST week (before the current week).
+    // The date-range filter drops it; live recompute fills the gap
+    // from the active monthly goal.
+    const lastWeekStart = SUN - 7 * DAY;
+    const lastWeekEnd   = SUN - 1;
+    await db.goals.add(mkGoal({
+      scope: 'weekly',
+      relatedModules: ['harmonic-fluency'],
+      targetValue: 999, // intentionally large — would dominate if leaked
+      targetUnit: 'attempts',
+      startDate: lastWeekStart,
+      targetDate: lastWeekEnd,
+    }));
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN,
+      targetDate: MONTH_END,
+    }));
+    const result = await loadModuleWeeklyNeeds(SUN);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf!.targetAttemptsThisWeek).toBe(325); // recompute, not 999
+  });
+
+  it('no cap — live recompute surfaces 800 attempts when math says 800', async () => {
+    // 160 cards × 10 = 1600 monthly, no attempts logged, 2 weeks
+    // remaining → 800 this week. Surface as-is.
+    const twoWeeksLeftEnd = new Date(2026, 2, 14, 23, 59, 59, 999).getTime();
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 160,
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN - 14 * DAY,
+      targetDate: twoWeeksLeftEnd,
+    }));
+    const result = await loadModuleWeeklyNeeds(SUN);
+    const hf = result.find(n => n.moduleId === 'harmonic-fluency');
+    expect(hf!.targetAttemptsThisWeek).toBe(800);
+  });
+
+  it('monthly goal past its window does not produce a recompute entry', async () => {
+    // Monthly window ended yesterday. recomputeWeeklyTargetForMonthlyGoal
+    // returns null → no entry for this module.
+    await db.goals.add(mkGoal({
+      scope: 'monthly',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 130,
+      relatedModules: ['harmonic-fluency'],
+      startDate: SUN - 30 * DAY,
+      targetDate: SUN - DAY,
+    }));
+    const result = await loadModuleWeeklyNeeds(SUN);
+    expect(result).toEqual([]);
+  });
+});

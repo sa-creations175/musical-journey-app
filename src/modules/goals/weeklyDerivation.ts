@@ -495,6 +495,25 @@ export interface OverrideDivergence {
   monthlyCoveragePercentIfKept: number;
 }
 
+/** Minimum attempt-count gap that counts as a "meaningful" weekly-plan
+ *  divergence — drives whether the WeeklyPlan modal surfaces a prompt
+ *  at all. A 1-attempt difference is noise (and likely a Math.ceil
+ *  rounding boundary in the dynamic recompute); a 5-attempt or
+ *  10%-of-dynamic gap is a deliberate disagreement worth flagging.
+ *  See `computeOverrideDivergence` for application. */
+export const OVERRIDE_PROMPT_MIN_ABS_DIFF = 5;
+export const OVERRIDE_PROMPT_MIN_REL_DIFF = 0.10;
+
+/** Pure helper — the threshold the divergence math uses. Exported so
+ *  the WeeklyPlan UI (or future caller) can re-render the same band
+ *  the prompt logic applies. */
+export function overridePromptThreshold(dynamicTarget: number): number {
+  return Math.max(
+    OVERRIDE_PROMPT_MIN_ABS_DIFF,
+    Math.ceil(Math.abs(dynamicTarget) * OVERRIDE_PROMPT_MIN_REL_DIFF),
+  );
+}
+
 /**
  * Pure — compare a live-recomputed weekly target against what the
  * user confirmed, and package the prompt's display numbers.
@@ -521,6 +540,14 @@ export function computeOverrideDivergence(
 
   if (monthlyTarget <= 0) return null;
   if (dynamicTarget === plannedTarget) return null;
+
+  // Step 8 — only surface a prompt for a MEANINGFUL gap. A 1-attempt
+  // difference is noise (Math.ceil rounding boundary in the recompute);
+  // the threshold below applies max(5 absolute, 10% relative) so small
+  // drift doesn't pester the user.
+  if (Math.abs(dynamicTarget - plannedTarget) < overridePromptThreshold(dynamicTarget)) {
+    return null;
+  }
 
   // Per-day divisor: the user's cadence when they have one, else a
   // flat 7-day spread so the "min/day" line is still meaningful.

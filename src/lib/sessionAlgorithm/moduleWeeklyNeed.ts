@@ -36,6 +36,8 @@ import {
   getWeeklyRatedProductionAttempts,
 } from '../weeklyAttempts';
 import { startOfWeekLocal, endOfWeekLocal } from '../../modules/goals/weeklyPlanData';
+import { recomputeWeeklyTargetForMonthlyGoal } from '../../modules/goals/weeklyDerivation';
+import { moduleForMetric } from '../../modules/goals/goalVocabulary';
 import {
   PRODUCTION_TIME_RANGE_MINUTES,
   SHAPES_DEFAULT_TIME_PER_REP_MINUTES,
@@ -327,6 +329,12 @@ export async function loadModuleWeeklyNeeds(
   // weekly coverage goals on one module is rare; take the most
   // demanding so the planner doesn't under-budget. Mirrors the
   // earlier prototype loader's tie-breaker.
+  //
+  // A weekly Goal record landing here represents the user's
+  // confirmed plan for the week — the implicit override (per design
+  // doc Decision 1: "Phase B respects the override if kept"). When
+  // no record exists for a Phase-B module, we live-recompute from
+  // its monthly parent below.
   const targetByModule = new Map<GoalFlowModuleId, number>();
   for (const g of allGoals) {
     if (g.scope !== 'weekly' || g.status !== 'active') continue;
@@ -338,6 +346,36 @@ export async function loadModuleWeeklyNeeds(
     if (!moduleId || !KEYSTONE_MODULES.has(moduleId)) continue;
     const prev = targetByModule.get(moduleId) ?? 0;
     if (target > prev) targetByModule.set(moduleId, target);
+  }
+
+  // Step 8 fallback — for any Phase-B module with an active monthly
+  // coverage goal but NO weekly Goal record for the current week,
+  // live-recompute the weekly target from monthly remaining. This is
+  // the design-doc rule ("Phase B always live-recomputes from monthly
+  // remaining") applied to modules the user hasn't explicitly
+  // confirmed a weekly plan for this week. When a record DOES exist,
+  // it wins (the user's confirmed plan stays sticky until they
+  // explicitly update via the WeeklyPlan modal's divergence prompt).
+  //
+  // Weekly Goal records OUTSIDE the current week (past or future)
+  // never reach this loop — the date-range filter above drops them.
+  // That's the "frozen weekly Goal records become display-only" rule
+  // (design doc Legacy Systems #4) — past records are reference-only
+  // in WeeklyPlan; the session planner never sees them.
+  for (const monthly of allGoals) {
+    if (monthly.scope !== 'monthly') continue;
+    if (monthly.status !== 'active') continue;
+    if (monthly.isUmbrella) continue;
+    if (!monthly.targetMetric) continue;
+    const moduleId = moduleForMetric(monthly.targetMetric);
+    if (!moduleId || !KEYSTONE_MODULES.has(moduleId)) continue;
+    if (targetByModule.has(moduleId)) continue; // confirmed plan wins
+    const recomputed = await recomputeWeeklyTargetForMonthlyGoal(monthly, today);
+    if (!recomputed || recomputed.weeklyTarget <= 0) continue;
+    const prev = targetByModule.get(moduleId) ?? 0;
+    if (recomputed.weeklyTarget > prev) {
+      targetByModule.set(moduleId, recomputed.weeklyTarget);
+    }
   }
 
   const inputs: ModuleWeeklyNeedInput[] = [];

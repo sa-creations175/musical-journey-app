@@ -6,6 +6,8 @@ import {
   computeOverrideDivergence,
   deriveWeeklyGoals,
   recomputeWeeklyTargetForMonthlyGoal,
+  overridePromptThreshold,
+  OVERRIDE_PROMPT_MIN_ABS_DIFF,
 } from '../weeklyDerivation';
 import { db, type AttemptRecord, type Goal } from '../../../lib/db';
 
@@ -732,5 +734,104 @@ describe('computeOverrideDivergence', () => {
     });
     // projected = 1000 + 500 × 2 = 2000 → 153% → clamped to 100.
     expect(out!.monthlyCoveragePercentIfKept).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Phase B Step 8 — meaningful-disagreement threshold
+// ---------------------------------------------------------------------
+
+describe('overridePromptThreshold + computeOverrideDivergence noise filter', () => {
+  it('threshold is max(5 absolute, 10% relative) of the dynamic target', () => {
+    expect(overridePromptThreshold(10)).toBe(OVERRIDE_PROMPT_MIN_ABS_DIFF); // 5
+    expect(overridePromptThreshold(50)).toBe(OVERRIDE_PROMPT_MIN_ABS_DIFF); // ceil(5)=5
+    expect(overridePromptThreshold(100)).toBe(10);                          // ceil(10)
+    expect(overridePromptThreshold(325)).toBe(33);                          // ceil(32.5)
+    expect(overridePromptThreshold(800)).toBe(80);                          // ceil(80)
+  });
+
+  it('1-attempt drift does NOT prompt — the design-doc noise floor', () => {
+    expect(
+      computeOverrideDivergence({
+        dynamicTarget: 325,
+        plannedTarget: 324,
+        timePerAttemptSeconds: 30,
+        consistencyTargetDays: 5,
+        monthlyTarget: 1300,
+        coveredSoFar: 100,
+        weeksRemainingInMonth: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it('drift just under the threshold does NOT prompt (boundary − 1)', () => {
+    // dynamicTarget 100 → threshold 10. diff 9 stays quiet.
+    expect(
+      computeOverrideDivergence({
+        dynamicTarget: 100,
+        plannedTarget: 91,
+        timePerAttemptSeconds: 30,
+        consistencyTargetDays: 5,
+        monthlyTarget: 400,
+        coveredSoFar: 0,
+        weeksRemainingInMonth: 4,
+      }),
+    ).toBeNull();
+  });
+
+  it('drift at the threshold PROMPTS (boundary inclusive)', () => {
+    // dynamicTarget 100 → threshold 10. diff 10 fires.
+    const out = computeOverrideDivergence({
+      dynamicTarget: 100,
+      plannedTarget: 90,
+      timePerAttemptSeconds: 30,
+      consistencyTargetDays: 5,
+      monthlyTarget: 400,
+      coveredSoFar: 0,
+      weeksRemainingInMonth: 4,
+    });
+    expect(out).not.toBeNull();
+    expect(out!.direction).toBe('under-planned');
+  });
+
+  it('low-target case — threshold floors at 5 absolute, not 1', () => {
+    // dynamicTarget 10 → ceil(1) = 1, but the 5-absolute floor wins.
+    // diff 4 → quiet (4 < 5).
+    expect(
+      computeOverrideDivergence({
+        dynamicTarget: 10,
+        plannedTarget: 6,
+        timePerAttemptSeconds: 30,
+        consistencyTargetDays: 5,
+        monthlyTarget: 40,
+        coveredSoFar: 0,
+        weeksRemainingInMonth: 4,
+      }),
+    ).toBeNull();
+    // diff 5 → prompts.
+    expect(
+      computeOverrideDivergence({
+        dynamicTarget: 10,
+        plannedTarget: 5,
+        timePerAttemptSeconds: 30,
+        consistencyTargetDays: 5,
+        monthlyTarget: 40,
+        coveredSoFar: 0,
+        weeksRemainingInMonth: 4,
+      }),
+    ).not.toBeNull();
+  });
+
+  it('no cap — recompute returns 800 attempts when the math says 800', async () => {
+    // Behind-pace user, monthly target 1600 attempts (e.g. 160 cards
+    // × 10), nothing logged, only 2 weeks left → 800 this week.
+    const monthly = buildMonthly({
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetValue: 160,
+      startDate: WEEK_START - 14 * ONE_DAY,
+      targetDate: new Date(2026, 2, 14, 23, 59, 59, 999).getTime(),
+    });
+    const out = await recomputeWeeklyTargetForMonthlyGoal(monthly, WEEK_START);
+    expect(out).toEqual({ weeklyTarget: 800, monthlyAttemptTarget: 1600 });
   });
 });
