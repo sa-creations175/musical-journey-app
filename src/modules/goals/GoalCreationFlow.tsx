@@ -18,6 +18,7 @@ import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
 import { assignNextLearningOrder } from '../repertoire/seedSongs';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
+import { YearlyAnchorSuggestionPanel } from './YearlyAnchorSuggestionPanel';
 import {
   CHORD_QUALITIES,
   KEYS as SHAPES_KEYS,
@@ -165,6 +166,26 @@ interface ModuleCard {
 /** Format a list of strings as natural English: "a", "a and b",
  *  "a, b, and c". Oxford comma. Used by preview-text builders that
  *  need to read multi-pick selections back to the user. */
+/**
+ * Phase B Step 9c Part D — merge two itemRef lists, deduping. The
+ * Step 2 panel calls this when the user one-taps Accept on a
+ * progression suggestion. New items appended; order preserved per
+ * the order they appear across both lists.
+ */
+export function dedupeItems(
+  existing: ReadonlyArray<string>,
+  incoming: ReadonlyArray<string>,
+): string[] {
+  const seen = new Set(existing);
+  const out = [...existing];
+  for (const ref of incoming) {
+    if (seen.has(ref)) continue;
+    seen.add(ref);
+    out.push(ref);
+  }
+  return out;
+}
+
 function joinAnd(parts: ReadonlyArray<string>): string {
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0];
@@ -249,6 +270,20 @@ interface Draft {
   targetDate: number | null;
   // Step 3.5 — parent goal (build step 10)
   parentGoal: ParentGoalChoice;
+  /**
+   * Phase B Step 9c Part D — pending Accept-extended itemRefs.
+   * Populated when the user one-taps a yearly-anchor progression
+   * suggestion in the Step 2 panel; consumed on save by appending to
+   * the encoded record's `relatedItems` (single-coverage-record path
+   * only). Mirrors the carryover-Accept mechanism from Step 9b so the
+   * downstream goal-row UI + candidate pool already know how to
+   * read the extension. */
+  pendingRelatedItems: string[];
+  /** Phase B Step 9c Part D — count to add to the encoded record's
+   *  targetValue on save. Matches `pendingRelatedItems.length` after
+   *  deduping against the existing scope; tracked separately so the
+   *  UI can preview the bump without re-deriving it. */
+  pendingTargetBump: number;
 }
 
 /**
@@ -574,6 +609,10 @@ const EMPTY_DRAFT: Draft = {
   // and made it easy to accidentally click an auto-suggested
   // umbrella when the user really wanted standalone.)
   parentGoal: { kind: 'none' },
+  // Phase B Step 9c Part D — nothing pending until the user Accepts a
+  // progression suggestion in the Step 2 panel.
+  pendingRelatedItems: [],
+  pendingTargetBump: 0,
 };
 
 /**
@@ -874,9 +913,30 @@ export default function GoalCreationFlow({
         : false;
       let originalIdReused = false;
 
+      // Phase B Step 9c Part D — apply the user's pending Accept on a
+      // yearly-anchor progression suggestion. The Accept appends
+      // itemRefs to the goal's `relatedItems` AND bumps targetValue
+      // (mirrors the carryover Accept's data path). Only valid when
+      // the draft encodes to a single COVERAGE record — multi-record
+      // drafts disable the Accept button in the panel, so this branch
+      // only fires for the supported case. Conservative no-op when
+      // records.length !== 1 keeps the contract honest if a future
+      // panel change loosens that constraint without updating here.
+      const coverageRecordIdx = records.findIndex(
+        r => r.targetMetric !== null && !isConsistencySlice(r.targetMetric),
+      );
+      const pendingItems = draft.pendingRelatedItems;
+      const pendingBump = draft.pendingTargetBump;
+      const hasPending = pendingItems.length > 0 && pendingBump > 0;
+      const applyPending =
+        hasPending
+        && coverageRecordIdx !== -1
+        && records.filter(r => r.targetMetric !== null && !isConsistencySlice(r.targetMetric)).length === 1;
+
       // Multi-target: two records share parent_goal_id (per spec) but
       // are otherwise independent rows. Single-target: one record.
-      for (const record of records) {
+      for (let recordIdx = 0; recordIdx < records.length; recordIdx++) {
+        const record = records[recordIdx];
         // Defensive: if the encoder produced a malformed record,
         // skip with a loud error rather than persisting junk into
         // db.goals. This guard caught a real bug during step 11
@@ -889,17 +949,30 @@ export default function GoalCreationFlow({
         const reuseOriginalId =
           isEditing && !originalIdReused && recordIsConsistency === originalIsConsistency;
 
+        // Phase B Step 9c Part D — for THIS record (the coverage one),
+        // splice the Accept pending fields into the saved row. Items
+        // dedupe against `relatedItems` (the on-disk merge in the
+        // carryover Accept follows the same rule); bump adds onto the
+        // encoded targetValue.
+        const isCoverageTarget = applyPending && recordIdx === coverageRecordIdx;
+        const effectiveTargetValue = isCoverageTarget && record.targetValue !== null
+          ? record.targetValue + pendingBump
+          : record.targetValue;
+        const effectiveRelatedItems = isCoverageTarget
+          ? Array.from(new Set([...relatedItems, ...pendingItems]))
+          : relatedItems;
+
         const goal: Goal = {
           id: reuseOriginalId ? initialGoal!.id : uid('goal'),
           scope: draft.scope,
           description: record.description,
           targetMetric: record.targetMetric,
-          targetValue: record.targetValue,
+          targetValue: effectiveTargetValue,
           targetUnit: record.targetUnit,
           currentValue: reuseOriginalId ? initialGoal!.currentValue : 0,
           contextTag,
           relatedModules,
-          relatedItems,
+          relatedItems: effectiveRelatedItems,
           startDate: reuseOriginalId ? initialGoal!.startDate : now,
           targetDate: draft.targetDate,
           status: reuseOriginalId ? initialGoal!.status : 'active',
@@ -1753,6 +1826,22 @@ function Step2EarTraining({
         coverageWeeklyMinutes={coverageMinutes}
       />
       <EarTrainingPreview target={target} />
+      {draft.scope === 'monthly' && (
+        <YearlyAnchorSuggestionPanel
+          draft={{
+            moduleId: 'ear-training',
+            encodedRecords: encodeEarTraining(target),
+            pendingRelatedItems: draft.pendingRelatedItems,
+            pendingTargetBump: draft.pendingTargetBump,
+          }}
+          onAcceptSuggestion={(refs, addCount) =>
+            onUpdate({
+              pendingRelatedItems: dedupeItems(draft.pendingRelatedItems, refs),
+              pendingTargetBump: draft.pendingTargetBump + addCount,
+            })
+          }
+        />
+      )}
     </div>
   );
 }
@@ -2096,6 +2185,22 @@ function Step2HarmonicFluency({
         coverageWeeklyMinutes={coverageMinutes}
       />
       <TargetPreview text={previewHarmonicFluencyTarget(target)} />
+      {draft.scope === 'monthly' && (
+        <YearlyAnchorSuggestionPanel
+          draft={{
+            moduleId: 'harmonic-fluency',
+            encodedRecords: encodeHarmonicFluency(target),
+            pendingRelatedItems: draft.pendingRelatedItems,
+            pendingTargetBump: draft.pendingTargetBump,
+          }}
+          onAcceptSuggestion={(refs, addCount) =>
+            onUpdate({
+              pendingRelatedItems: dedupeItems(draft.pendingRelatedItems, refs),
+              pendingTargetBump: draft.pendingTargetBump + addCount,
+            })
+          }
+        />
+      )}
     </div>
   );
 }
@@ -2415,6 +2520,22 @@ function Step2ShapesPatterns({
         coverageWeeklyMinutes={coverageMinutes}
       />
       <TargetPreview text={previewShapesPatternsTarget(target)} />
+      {draft.scope === 'monthly' && (
+        <YearlyAnchorSuggestionPanel
+          draft={{
+            moduleId: 'shapes-and-patterns',
+            encodedRecords: encodeShapesPatterns(target),
+            pendingRelatedItems: draft.pendingRelatedItems,
+            pendingTargetBump: draft.pendingTargetBump,
+          }}
+          onAcceptSuggestion={(refs, addCount) =>
+            onUpdate({
+              pendingRelatedItems: dedupeItems(draft.pendingRelatedItems, refs),
+              pendingTargetBump: draft.pendingTargetBump + addCount,
+            })
+          }
+        />
+      )}
     </div>
   );
 }
@@ -2763,6 +2884,22 @@ function Step2Production({
         hint="Lessons completed per week. Depth varies; no per-lesson estimate."
       />
       <TargetPreview text={previewProductionTarget(target)} />
+      {draft.scope === 'monthly' && (
+        <YearlyAnchorSuggestionPanel
+          draft={{
+            moduleId: 'production',
+            encodedRecords: encodeProduction(target),
+            pendingRelatedItems: draft.pendingRelatedItems,
+            pendingTargetBump: draft.pendingTargetBump,
+          }}
+          onAcceptSuggestion={(refs, addCount) =>
+            onUpdate({
+              pendingRelatedItems: dedupeItems(draft.pendingRelatedItems, refs),
+              pendingTargetBump: draft.pendingTargetBump + addCount,
+            })
+          }
+        />
+      )}
     </div>
   );
 }
