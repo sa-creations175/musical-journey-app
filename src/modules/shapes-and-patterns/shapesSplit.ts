@@ -36,8 +36,13 @@ import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
   SCALE_KIND_SECONDS,
+  voiceLeadingCellSeconds,
 } from '../../lib/sessionAlgorithm/timePerAttempt';
-import { CHORD_QUALITY_BY_ID } from './catalog';
+import {
+  CHORD_QUALITY_BY_ID,
+  parseVoiceLeadingItemRef,
+  VOICE_LEADING_PATTERN_BY_ID,
+} from './catalog';
 import { parseShapesItemRef } from './drillModel';
 import {
   itemRefForScale,
@@ -179,7 +184,7 @@ export interface ShapesSplitContext {
 /** One segment of the reshaped S&P block. Each segment becomes one
  *  ProposalBlock at the toProposalBlocks layer. */
 export interface ShapesSplitSegment {
-  kind: 'shapes-walk' | 'scales';
+  kind: 'shapes-walk' | 'scales' | 'voice-leading';
   itemRefs: readonly string[];
   plannedSeconds: number;
   /** Human label: "Major, Minor · C, F, Bb" or
@@ -188,6 +193,25 @@ export interface ShapesSplitSegment {
   /** whySnippet — short context for the proposal-card body. */
   why: string;
 }
+
+// ---------------------------------------------------------------------
+// Voice-leading segment (third position, after chord shapes)
+// ---------------------------------------------------------------------
+
+/** Minimum block length (seconds) at which the VL segment can
+ *  surface. Mirrors SCALES_SEGMENT_MIN_BLOCK_SECONDS so the 25/50/25
+ *  three-way split lines up cleanly: tiny blocks stay chord-shape-
+ *  only. */
+const VL_SEGMENT_MIN_BLOCK_SECONDS = 15 * 60;
+
+/** The three-way split percentages from VOICE_LEADING_SUBMODULE_DESIGN.md
+ *  § Session Algorithm. Active only when the incoming block carries
+ *  vl: itemRefs in its candidate pool — otherwise Scales' existing
+ *  fixed/proportional logic applies and the walk gets the rest. */
+const VL_SPLIT_SCALES_FRACTION = 0.25;
+const VL_SPLIT_WALK_FRACTION = 0.50;
+// VL fraction = 0.25 by construction — derived as the remainder after
+// scales + walk, so rounding doesn't drop a second.
 
 // ---------------------------------------------------------------------
 // Chord-shape walk
@@ -782,27 +806,175 @@ function buildScalesSegment(
 }
 
 // ---------------------------------------------------------------------
+// Voice-leading segment
+// ---------------------------------------------------------------------
+
+interface VLCell {
+  itemRef: string;
+  patternId: string;
+  patternLabel: string;
+  keyName: string;
+  seconds: number;
+  lastEngagedAt: number | null;
+  /** Position in the block's original itemRefs array — used as a
+   *  deterministic tiebreaker when lastEngagedAt is equal (or null
+   *  for both). */
+  blockIndex: number;
+}
+
+/**
+ * Build the VL segment from the block's vl: items. Ordering:
+ *   1. lastEngagedAt ASC — least-recently-touched first (nulls
+ *      treated as "never touched" → highest priority).
+ *   2. blockIndex ASC — deterministic catalog-order tiebreak.
+ *
+ * Returns null when no vl: items are in the block, when no items
+ * parse against the strict sub-cell catalog, or when the resolved
+ * budget is non-positive.
+ */
+function buildVoiceLeadingSegment(
+  block: AllocatedBlock,
+  ctx: ShapesSplitContext,
+  plannedSeconds: number,
+): ShapesSplitSegment | null {
+  if (plannedSeconds <= 0) return null;
+  const cells: VLCell[] = [];
+  block.itemRefs.forEach((itemRef, blockIndex) => {
+    if (!itemRef.startsWith('vl:')) return;
+    const desc = parseVoiceLeadingItemRef(itemRef);
+    if (!desc) return;
+    const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
+    if (!pattern) return;
+    const row = ctx.rowsByItemRef.get(itemRef);
+    cells.push({
+      itemRef,
+      patternId: desc.patternId,
+      patternLabel: pattern.label,
+      keyName: desc.keyName,
+      seconds: voiceLeadingCellSeconds(desc),
+      lastEngagedAt: row?.lastEngagedAt ?? null,
+      blockIndex,
+    });
+  });
+  if (cells.length === 0) return null;
+
+  cells.sort((a, b) => {
+    if (a.lastEngagedAt === null && b.lastEngagedAt === null) {
+      return a.blockIndex - b.blockIndex;
+    }
+    if (a.lastEngagedAt === null) return -1;
+    if (b.lastEngagedAt === null) return 1;
+    if (a.lastEngagedAt !== b.lastEngagedAt) {
+      return a.lastEngagedAt - b.lastEngagedAt;
+    }
+    return a.blockIndex - b.blockIndex;
+  });
+
+  // Truncate to plannedSeconds. Always keep at least one cell so a
+  // block that can only fit a partial pattern still surfaces it.
+  let budget = plannedSeconds;
+  const kept: VLCell[] = [];
+  for (const c of cells) {
+    if (budget <= 0 && kept.length > 0) break;
+    kept.push(c);
+    budget -= c.seconds;
+  }
+
+  return {
+    kind: 'voice-leading',
+    itemRefs: kept.map(c => c.itemRef),
+    plannedSeconds,
+    label: formatVoiceLeadingLabel(kept),
+    why: formatVoiceLeadingWhy(kept),
+  };
+}
+
+/** Plain-language VL segment label:
+ *
+ *   "VOICE LEADING — drill {patternLabels} · {keys}"
+ *
+ * Truncates pattern labels and keys to keep the line readable when
+ * the cell pool fans wide. */
+function formatVoiceLeadingLabel(cells: ReadonlyArray<VLCell>): string {
+  const seenPatterns = new Set<string>();
+  const patternLabels: string[] = [];
+  for (const c of cells) {
+    if (!seenPatterns.has(c.patternId)) {
+      seenPatterns.add(c.patternId);
+      patternLabels.push(c.patternLabel);
+    }
+  }
+  const seenKeys = new Set<string>();
+  const keys: string[] = [];
+  for (const c of cells) {
+    if (!seenKeys.has(c.keyName)) {
+      seenKeys.add(c.keyName);
+      keys.push(c.keyName);
+    }
+  }
+  const patternPart = patternLabels.length <= 2
+    ? patternLabels.join(', ')
+    : `${patternLabels.slice(0, 2).join(', ')}, +${patternLabels.length - 2} more`;
+  const keyPart = keys.length <= 4
+    ? keys.join(', ')
+    : `${keys.slice(0, 4).join(', ')}, +${keys.length - 4} more`;
+  return `VOICE LEADING — drill ${patternPart} · ${keyPart}`;
+}
+
+function formatVoiceLeadingWhy(cells: ReadonlyArray<VLCell>): string {
+  const keyCount = new Set(cells.map(c => c.keyName)).size;
+  return `${cells.length} drill${cells.length === 1 ? '' : 's'} across ${
+    keyCount
+  } key${keyCount === 1 ? '' : 's'} — most-due first`;
+}
+
+// ---------------------------------------------------------------------
 // Public composition
 // ---------------------------------------------------------------------
 
 /**
- * Reshape an S&P AlgorithmBlock into 1–2 segments: the Scales
- * warm-up (when the block is long enough) followed by the
- * chord-shape key-by-key walk. Returns an empty array when nothing
- * surfaces — caller falls through to the generic ProposalBlock
- * path.
+ * Reshape an S&P AlgorithmBlock into 1–3 segments. Block ordering
+ * follows SCALES_SUBMODULE_DESIGN.md + VOICE_LEADING_SUBMODULE_DESIGN.md:
+ * Scales (warm-up) → Chord Shapes → Voice Leading. Returns an empty
+ * array when nothing surfaces — caller falls through to the generic
+ * ProposalBlock path.
  *
- * Block ordering follows SCALES_SUBMODULE_DESIGN.md ("Scales first,
- * warm-up position"): the Scales segment leads, chord shapes
- * follow. The two segments share the algorithm's plannedSeconds —
- * the Scales budget is carved off the top before the walk
- * truncates.
+ * Two-vs-three-segment routing:
+ *
+ *   · When `block.itemRefs` carries any `vl:` items AND the block is
+ *     ≥ 15 min, the splitter emits the three-way 25 % / 50 % / 25 %
+ *     budget (Scales / Chord Shapes / Voice Leading). The Scales
+ *     goal-proportional + fixed-budget rules are bypassed in this
+ *     mode — the design's three-way split is explicit and ignoring
+ *     the goal-aware math keeps the proportions predictable.
+ *
+ *   · When no VL items are in the candidate pool, the existing
+ *     two-segment path runs unchanged: Scales' fixed/goal-proportional
+ *     budget off the top, walk gets the remainder. Existing tests
+ *     pin this contract.
  *
  * Pure — tests pass fixture rowsByItemRef + plannedSeconds + now
  * directly. No DB access; that lives at the caller (loaded once
  * per session via loadShapesSplitContext).
  */
 export function shapeShapesBlock(
+  block: AllocatedBlock,
+  ctx: ShapesSplitContext,
+): ShapesSplitSegment[] {
+  const hasVoiceLeadingItems = block.itemRefs.some(ref => ref.startsWith('vl:'));
+  const vlEligible =
+    hasVoiceLeadingItems && block.plannedSeconds >= VL_SEGMENT_MIN_BLOCK_SECONDS;
+
+  if (vlEligible) {
+    return buildThreeWaySplit(block, ctx);
+  }
+  return buildTwoSegmentSplit(block, ctx);
+}
+
+/** Existing Scales-then-walk path. Pulled out of the entry point so
+ *  the VL-active path doesn't have to inherit Scales' fixed/goal-
+ *  proportional budgeting. */
+function buildTwoSegmentSplit(
   block: AllocatedBlock,
   ctx: ShapesSplitContext,
 ): ShapesSplitSegment[] {
@@ -819,4 +991,51 @@ export function shapeShapesBlock(
   if (scalesSegment) segments.push(scalesSegment);
   if (walkSegment) segments.push(walkSegment);
   return segments;
+}
+
+/** 25 % / 50 % / 25 % split — Scales / Chord Shapes / Voice Leading.
+ *  Used only when the block actually carries VL items so the three
+ *  segments each have something concrete to surface. Unused budget
+ *  (e.g. when chord-shape items are absent) does NOT redistribute
+ *  — segments retain their declared planned seconds so the
+ *  proportions stay honest at the proposal layer. */
+function buildThreeWaySplit(
+  block: AllocatedBlock,
+  ctx: ShapesSplitContext,
+): ShapesSplitSegment[] {
+  const total = block.plannedSeconds;
+  const scalesBudget = Math.floor(total * VL_SPLIT_SCALES_FRACTION);
+  const walkBudget   = Math.floor(total * VL_SPLIT_WALK_FRACTION);
+  const vlBudget     = total - scalesBudget - walkBudget;
+
+  const scalesSegment = buildScalesSegmentWithBudget(scalesBudget, ctx);
+  const walkSegment = buildShapesWalk(block, ctx, walkBudget);
+  const vlSegment = buildVoiceLeadingSegment(block, ctx, vlBudget);
+
+  const segments: ShapesSplitSegment[] = [];
+  if (scalesSegment) segments.push(scalesSegment);
+  if (walkSegment) segments.push(walkSegment);
+  if (vlSegment) segments.push(vlSegment);
+  return segments;
+}
+
+/** Variant of buildScalesSegment that takes an explicit budget,
+ *  bypassing scalesSegmentBudget's fixed / goal-proportional rules.
+ *  Used by the three-way split. */
+function buildScalesSegmentWithBudget(
+  budget: number,
+  ctx: ShapesSplitContext,
+): ShapesSplitSegment | null {
+  if (budget <= 0) return null;
+  const keys = pickScalesKeys(ctx);
+  if (keys.length === 0) return null;
+  const steps = buildScaleLadder(keys, budget, ctx);
+  if (steps.length === 0) return null;
+  return {
+    kind: 'scales',
+    itemRefs: steps.map(s => s.itemRef),
+    plannedSeconds: budget,
+    label: formatScalesLabel(steps),
+    why: formatScalesWhy(steps, ctx.activeSongTitlesByKey),
+  };
 }

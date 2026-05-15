@@ -596,6 +596,165 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
 });
 
 // -----------------------------------------------------------------
+// Voice-leading three-way 25 / 50 / 25 split
+// -----------------------------------------------------------------
+
+describe('shapeShapesBlock — VL three-way split', () => {
+  it('fires the 25/50/25 split when the block carries vl: items + block ≥ 15 min', () => {
+    const block30min = block(
+      [
+        'chord-shape:maj:C:root',
+        'vl:aba-251:level1:A:C',
+        'vl:aba-251:level2:A:F',
+      ],
+      30 * 60,
+    );
+    const segs = shapeShapesBlock(
+      block30min,
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    expect(segs.map(s => s.kind)).toEqual(['scales', 'shapes-walk', 'voice-leading']);
+    const total = segs.reduce((acc, s) => acc + s.plannedSeconds, 0);
+    expect(total).toBe(30 * 60);
+    const [scales, walk, vl] = segs;
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.25));
+    expect(walk.plannedSeconds).toBe(Math.floor(30 * 60 * 0.50));
+    expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - walk.plannedSeconds);
+  });
+
+  it('falls back to the 30/70 (Scales + walk) path when no VL items are in the block', () => {
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    // No VL segment.
+    expect(segs.some(s => s.kind === 'voice-leading')).toBe(false);
+    const scales = segs.find(s => s.kind === 'scales')!;
+    // Existing fixed budget (8 min for 30-min block) — unchanged.
+    expect(scales.plannedSeconds).toBe(8 * 60);
+  });
+
+  it('stays on the two-segment path when block < 15 min even with VL items', () => {
+    const segs = shapeShapesBlock(
+      block(
+        ['chord-shape:maj:C:root', 'vl:aba-251:level1:A:C'],
+        14 * 60 + 59,
+      ),
+      ctx([], { unlockedTier: 1 }),
+    );
+    expect(segs.some(s => s.kind === 'voice-leading')).toBe(false);
+    expect(segs.some(s => s.kind === 'scales')).toBe(false);
+  });
+
+  it('VL segment surfaces a label of the form "VOICE LEADING — drill PATTERNS · KEYS"', () => {
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'chord-shape:maj:C:root',
+          'vl:aba-251:level1:A:C',
+          'vl:dim7:up:min9:F',
+        ],
+        30 * 60,
+      ),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.label.startsWith('VOICE LEADING — drill ')).toBe(true);
+    // Both pattern labels in the line (catalog has the official copy).
+    expect(vl.label).toMatch(/2-5-1/);
+    expect(vl.label).toMatch(/dim7/);
+    expect(vl.label).toContain('C');
+    expect(vl.label).toContain('F');
+  });
+
+  it('VL why-text reads "N drills across M keys — most-due first"', () => {
+    const segs = shapeShapesBlock(
+      block(
+        ['chord-shape:maj:C:root', 'vl:aba-251:level1:A:C'],
+        30 * 60,
+      ),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.why).toMatch(/^\d+ drill/);
+    expect(vl.why).toContain('most-due first');
+  });
+
+  it('VL cells are ordered by least-recently-engaged first', () => {
+    const rows = [
+      row('vl:aba-251:level1:A:C', { lastEngagedAt: NOW - 1_000 }),   // newest
+      row('vl:aba-251:level1:A:F', { lastEngagedAt: NOW - 10_000 }),  // oldest
+      // 'vl:aba-251:level1:A:Bb' has no row → null lastEngagedAt → top priority
+    ];
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'vl:aba-251:level1:A:C',
+          'vl:aba-251:level1:A:F',
+          'vl:aba-251:level1:A:Bb',
+        ],
+        30 * 60,
+      ),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs[0]).toBe('vl:aba-251:level1:A:Bb');
+    expect(vl.itemRefs[1]).toBe('vl:aba-251:level1:A:F');
+    expect(vl.itemRefs[2]).toBe('vl:aba-251:level1:A:C');
+  });
+
+  it('drops legacy 3-part vl: refs that no longer parse against the strict catalog', () => {
+    // `vl:aba-251:C` is the pre-Phase-1 shape — parseVoiceLeadingItemRef
+    // returns null, so the splitter should skip it without crashing.
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'chord-shape:maj:C:root',
+          'vl:aba-251:C',                   // legacy — drop
+          'vl:aba-251:level1:A:C',          // valid
+        ],
+        30 * 60,
+      ),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs).toEqual(['vl:aba-251:level1:A:C']);
+  });
+
+  it('three-way split runs even when there are no chord-shape items (walk returns null)', () => {
+    const segs = shapeShapesBlock(
+      block(['vl:aba-251:level1:A:C'], 30 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    expect(segs.map(s => s.kind)).toEqual(['scales', 'voice-leading']);
+    // Walk slot's planned seconds aren't redistributed — segments keep
+    // their declared proportions even when one is empty.
+    const scales = segs.find(s => s.kind === 'scales')!;
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.25));
+    expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - Math.floor(30 * 60 * 0.50));
+  });
+
+  it('three-way path bypasses the Scales goal-proportional budget rules', () => {
+    // Existing 2-segment path: goal-due 180 s would clamp scales to 180 s.
+    // 3-segment path: scales is fixed at 25 % regardless of the goal value.
+    const segs = shapeShapesBlock(
+      block(
+        ['chord-shape:maj:C:root', 'vl:aba-251:level1:A:C'],
+        30 * 60,
+      ),
+      ctx([], {
+        unlockedTier: 1,
+        activeSongKeys: ['C'],
+        scalesGoalDueSeconds: 180,
+      }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.25)); // 450, not 180
+  });
+});
+
+// -----------------------------------------------------------------
 // SotM-keyed walk (Phase 1 of the key-ordering rule)
 // -----------------------------------------------------------------
 
