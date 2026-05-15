@@ -634,15 +634,17 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
       startDate: SUN_9A,
       targetDate: SUN_9A + 7 * DAY - 1,
     }));
-    // 1400 historical attempts logged across the month.
-    for (let i = 0; i < 1400; i++) {
-      await db.attempts.add({
-        moduleId: 'harmonic-fluency',
-        itemId: `seed-${i}`,
-        correct: true,
-        timestamp: SUN_9A - 7 * DAY,
-      });
-    }
+    // 1400 historical attempts logged across the month. bulkAdd
+    // keeps the test fast under parallel-test pressure (sequential
+    // `add` calls churn fake-indexeddb's microtask queue enough to
+    // time out the 5s default when other tests run alongside).
+    const seedRows = Array.from({ length: 1400 }, (_, i) => ({
+      moduleId: 'harmonic-fluency',
+      itemId: `seed-${i}`,
+      correct: true,
+      timestamp: SUN_9A - 7 * DAY,
+    }));
+    await db.attempts.bulkAdd(seedRows);
     const result = await loadModuleWeeklyNeeds(SUN_9A);
     const hf = result.find(n => n.moduleId === 'harmonic-fluency');
     expect(hf).toBeDefined();

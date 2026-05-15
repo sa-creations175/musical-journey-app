@@ -267,3 +267,59 @@ describe('weightForItem — scoped-coverage boost', () => {
     expect(goalMatched.weight / nonGoal.weight).toBeCloseTo(SCOPED_COVERAGE_BOOST_FACTOR);
   });
 });
+
+// ---------------------------------------------------------------------
+// Phase B Step 9b — carryover backlog pace lift
+// ---------------------------------------------------------------------
+
+describe('weightForItem — Phase B Step 9b carryover backlog', () => {
+  it('isCarryoverBacklog=true lifts pace from baseline 1.0 to 1.15 when no active goals', () => {
+    const baseline = weightForItem({
+      row: row('new'),
+      goals: [],
+      now: T0,
+    });
+    const backlog = weightForItem({
+      row: row('new'),
+      goals: [],
+      isCarryoverBacklog: true,
+      now: T0,
+    });
+    expect(backlog.factors.pace).toBeCloseTo(1.15);
+    expect(baseline.factors.pace).toBe(1.0);
+    expect(backlog.weight).toBeGreaterThan(baseline.weight);
+  });
+
+  it('a behind-pace active goal (1.6) wins over the backlog factor (1.15) via MAX', () => {
+    // An item that's in both a behind-pace active goal AND the
+    // backlog should keep the 1.6 active-goal lift — backlog's
+    // 1.15 doesn't drag the pace down.
+    const out = weightForItem({
+      row: row('new'),
+      goals: [{ scope: 'monthly', paceFactor: 1.6 }],
+      isCarryoverBacklog: true,
+      now: T0,
+    });
+    expect(out.factors.pace).toBeCloseTo(1.6);
+  });
+
+  it("a backlog item with no active-goal contribution lifts to 1.15 even without scoped coverage", () => {
+    const out = weightForItem({
+      row: row('new'),
+      goals: [],
+      isCarryoverBacklog: true,
+      now: T0,
+    });
+    expect(out.factors.pace).toBeCloseTo(1.15);
+    // goalAlignment stays at the NONE baseline — backlog only lifts
+    // pace, not goal-alignment. Documenting the design separation.
+    expect(out.factors.goalAlignment).toBe(GOAL_ALIGNMENT_FACTOR_NONE);
+  });
+
+  it('isCarryoverBacklog undefined / false → no lift (regression guard)', () => {
+    const undef = weightForItem({ row: row('new'), goals: [], now: T0 });
+    const exp = weightForItem({ row: row('new'), goals: [], isCarryoverBacklog: false, now: T0 });
+    expect(undef.factors.pace).toBe(1.0);
+    expect(exp.factors.pace).toBe(1.0);
+  });
+});

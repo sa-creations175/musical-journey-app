@@ -44,6 +44,15 @@ export const PACE_FACTOR_AT_RISK = 1.2;
 export const PACE_FACTOR_BEHIND = 1.6;
 export const PACE_FACTOR_SIGNIFICANTLY_BEHIND = 2.0;
 
+/** Phase B Step 9b — carryover backlog factor. Items in the backlog
+ *  (uncovered from a previous month, not yet in this month's scope)
+ *  get a modest lift so they surface above bare yearly-anchor pool
+ *  items but stay below current monthly-scope items. Sits between
+ *  AHEAD (1.05, "barely lifted") and AT_RISK (1.2, "real urgency")
+ *  by design — backlog is "still on the user's mind" without being
+ *  a present commitment. */
+export const PACE_FACTOR_CARRYOVER_BACKLOG = 1.15;
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export interface PaceInput {

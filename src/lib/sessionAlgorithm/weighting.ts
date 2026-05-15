@@ -33,6 +33,7 @@
 
 import type { GoalScope } from '../db';
 import type { SpacingRow } from './types';
+import { PACE_FACTOR_CARRYOVER_BACKLOG } from './pace';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -196,6 +197,14 @@ export interface WeightContext {
   goals: ReadonlyArray<GoalContribution>;
   /** Per-item priority. Phase 3 ships without UI; default undefined → 1.0. */
   priority?: ItemPriority;
+  /** Phase B Step 9b — the item is in the carryover backlog
+   *  (uncovered from a previous month's goal, not in this month's
+   *  active scope). Lifts pace to PACE_FACTOR_CARRYOVER_BACKLOG so
+   *  the item surfaces above bare yearly-pool items but below
+   *  current monthly-scope items. Composes with active-goal pace
+   *  via MAX, so a backlog item that's ALSO in a behind-pace goal
+   *  keeps its higher factor. */
+  isCarryoverBacklog?: boolean;
   /** Reference time. */
   now: number;
 }
@@ -211,10 +220,16 @@ export function weightForItem(ctx: WeightContext): WeightResult {
       ? GOAL_ALIGNMENT_FACTOR_NONE
       : Math.max(...ctx.goals.map(g => goalAlignmentFactor(g.scope)));
 
-  const pace =
-    ctx.goals.length === 0
-      ? 1.0
-      : Math.max(...ctx.goals.map(g => g.paceFactor));
+  // MAX across active-goal pace factors + the carryover-backlog
+  // signal (Phase B Step 9b). An item in a behind-pace active goal
+  // keeps its higher factor (1.6) over backlog's modest 1.15; an
+  // item with no active goal but in the backlog still gets the
+  // 1.15 lift instead of the 1.0 baseline.
+  const activeGoalPace = ctx.goals.length === 0
+    ? 1.0
+    : Math.max(...ctx.goals.map(g => g.paceFactor));
+  const backlogPace = ctx.isCarryoverBacklog ? PACE_FACTOR_CARRYOVER_BACKLOG : 1.0;
+  const pace = Math.max(activeGoalPace, backlogPace);
 
   const scopedCoverage = ctx.goals.some(g => g.viaScopedCoverage)
     ? SCOPED_COVERAGE_BOOST_FACTOR

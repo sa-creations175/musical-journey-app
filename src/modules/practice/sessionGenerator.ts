@@ -59,6 +59,7 @@ import {
   type ModuleWeeklyNeed,
   type WeeklyPace,
 } from '../../lib/sessionAlgorithm/moduleWeeklyNeed';
+import { getCarryoverBacklogItemRefs } from '../goals/carryover';
 import {
   durationTierFor,
   type AlgorithmBlock,
@@ -162,9 +163,13 @@ export async function buildSessionProposals(
   // BEFORE aggregation (design-doc "double-counting urgency" fix):
   // Phase B's time allocation already encodes urgency, so the
   // weight-boost on top would double-count.
-  const [weeklyPace, moduleWeeklyNeeds] = await Promise.all([
+  const [weeklyPace, moduleWeeklyNeeds, carryoverBacklog] = await Promise.all([
     loadWeeklyPace(now),
     loadModuleWeeklyNeeds(now),
+    // Phase B Step 9b — surface items in the carryover backlog with
+    // a modest pace lift so the candidate pool keeps them visible
+    // even after the user dismissed their carry-over banner.
+    getCarryoverBacklogItemRefs(now),
   ]);
   const phaseBModules = phaseBModulesFromNeeds(moduleWeeklyNeeds);
   const factorByModule = neutralizePhaseBPaceFactors(
@@ -180,6 +185,7 @@ export async function buildSessionProposals(
     factorByModule,
     undefined,
     chordRecognitionEligibleItems,
+    carryoverBacklog,
   );
 
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
@@ -289,9 +295,13 @@ export async function buildSessionPlan(
   // Phase B Step 6 — load keystone needs alongside weeklyPace so
   // factorByModule is neutralized for Phase-B-active modules BEFORE
   // aggregation (design-doc "double-counting urgency" fix).
-  const [weeklyPace, moduleWeeklyNeeds] = await Promise.all([
+  const [weeklyPace, moduleWeeklyNeeds, carryoverBacklog] = await Promise.all([
     loadWeeklyPace(now),
     loadModuleWeeklyNeeds(now),
+    // Phase B Step 9b — backlog items get a modest pace lift in the
+    // candidate pool so they stay visible after the user dismissed
+    // their carry-over banner.
+    getCarryoverBacklogItemRefs(now),
   ]);
   const phaseBModules = phaseBModulesFromNeeds(moduleWeeklyNeeds);
   const factorByModule = neutralizePhaseBPaceFactors(
@@ -306,6 +316,7 @@ export async function buildSessionPlan(
     factorByModule,
     options.forceIncludeModules,
     chordRecognitionEligibleItems,
+    carryoverBacklog,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   // Inject a Repertoire cold-start block before abundance detection so
@@ -1179,6 +1190,13 @@ export function aggregateGoalCandidatesByModule(
    *  chord-recognition tiering. Production callers compute via
    *  `getUnlockedTier` + `getEligibleItems` once per session. */
   chordRecognitionEligibleItems?: ReadonlySet<string>,
+  /** Phase B Step 9b — itemRefs in the carryover backlog (uncovered
+   *  from a previous month's monthly goal, not in this month's
+   *  current scope). These items get an `isCarryoverBacklog` lift
+   *  in the weighting layer, and surface in the candidate pool even
+   *  when they have no active-goal contribution. Undefined / empty
+   *  preserves pre-9b behaviour. */
+  carryoverBacklogItemRefs?: ReadonlySet<string>,
 ): AlgorithmBlock[] {
   // Build the inverse of goalFlowModuleForSpacingModuleRef: which
   // spacingState moduleRefs are protected from the hard filter for
@@ -1269,6 +1287,24 @@ export function aggregateGoalCandidatesByModule(
     }
   }
 
+  // Phase B Step 9b — surface carryover-backlog items even when they
+  // have no active-goal contribution. They land in the same per-item
+  // map with an empty goals[]; the isCarryoverBacklog flag below
+  // gives them the 1.15 pace lift in `weightForItem`. Items already
+  // contributed by an active goal stay in their existing entry —
+  // the flag adds a backlog-pace MAX comparison without erasing the
+  // goal contribution.
+  if (carryoverBacklogItemRefs && carryoverBacklogItemRefs.size > 0) {
+    for (const itemRef of carryoverBacklogItemRefs) {
+      const row = rowByItemRef.get(itemRef);
+      if (!row) continue; // not in this session's filtered context
+      const key = `${itemRef}\x00${row.moduleRef}`;
+      if (!contributingByItemModule.has(key)) {
+        contributingByItemModule.set(key, []);
+      }
+    }
+  }
+
   // Compute per-item weight, group by module.
   type ItemWithWeight = { itemRef: string; weight: number };
   const byModule = new Map<string, ItemWithWeight[]>();
@@ -1278,11 +1314,13 @@ export function aggregateGoalCandidatesByModule(
     const itemRef = key.slice(0, sep);
     const moduleRef = key.slice(sep + 1);
     const row = rowByItemRef.get(itemRef);
+    const isCarryoverBacklog = carryoverBacklogItemRefs?.has(itemRef) ?? false;
 
     const { weight } = weightForItem({
       row,
       goals: contributingGoals,
       priority: undefined, // Phase 3: no per-item priority UI yet.
+      isCarryoverBacklog,
       now,
     });
 
