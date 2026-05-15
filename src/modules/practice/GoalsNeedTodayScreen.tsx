@@ -233,11 +233,12 @@ function EntryRow({ entry }: { entry: GoalsNeedTodayEntry }) {
   const meta = moduleMetaById(entry.moduleId);
   const accent = meta?.accentHex ?? '#4a9088';
   const label = meta?.label ?? entry.moduleId;
-  // Plain-English breakdown for active rows — recovered from the
-  // keystone's remainingAttempts + estimatedMinutesNeeded.
-  const breakdown = !entry.isTargetMet && entry.remainingAttempts > 0
-    ? `${entry.remainingAttempts} attempt${
-        entry.remainingAttempts === 1 ? '' : 's'
+  // Plain-English breakdown for active rows — today's-slice attempts
+  // and the per-attempt seed. "20 attempts × 30s each" reads as the
+  // session's recommended HF reps at the current seed.
+  const breakdown = !entry.isTargetMet && entry.attemptsToday > 0
+    ? `${entry.attemptsToday} attempt${
+        entry.attemptsToday === 1 ? '' : 's'
       } × ${Math.round(entry.perAttemptSeconds)}s each`
     : null;
   return (
