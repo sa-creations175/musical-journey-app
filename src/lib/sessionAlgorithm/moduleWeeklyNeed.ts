@@ -155,7 +155,7 @@ const SECONDS_PER_MINUTE = 60;
  * length range to its midpoint — the same choice dailyGoalNeed.ts
  * already makes, so no third value enters the codebase.
  */
-function minutesPerAttemptForModule(moduleId: GoalFlowModuleId): number {
+export function minutesPerAttemptForModule(moduleId: GoalFlowModuleId): number {
   switch (moduleId) {
     case 'harmonic-fluency':
       return TIME_PER_ATTEMPT_SECONDS['harmonic-fluency'] / SECONDS_PER_MINUTE;
