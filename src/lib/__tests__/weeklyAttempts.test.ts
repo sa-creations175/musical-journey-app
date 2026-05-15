@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  getEarTrainingAttemptsBySubActivity,
   getWeeklyAttempts,
   getWeeklyTimeEstimate,
   PRODUCTION_TIME_RANGE_MINUTES,
@@ -199,6 +200,84 @@ describe('getWeeklyAttempts — ET', () => {
     ];
     for (const a of attempts) await db.attempts.add(a);
     expect(await getWeeklyAttempts('ear-training', WEEK_START, WEEK_END)).toBe(4);
+  });
+});
+
+describe('getEarTrainingAttemptsBySubActivity', () => {
+  beforeEach(async () => {
+    await db.attempts.clear();
+  });
+
+  it('counts intervals and chord-recognition rows separately', async () => {
+    const attempts: Array<Omit<AttemptRecord, 'id'>> = [
+      { moduleId: 'intervals',         itemId: 'M3',  correct: true,  timestamp: MID_WEEK },
+      { moduleId: 'intervals',         itemId: 'P5',  correct: false, timestamp: MID_WEEK },
+      { moduleId: 'intervals',         itemId: 'm7',  correct: true,  timestamp: MID_WEEK },
+      { moduleId: 'chord-recognition', itemId: 'maj', correct: true,  timestamp: MID_WEEK },
+      { moduleId: 'chord-recognition', itemId: 'min', correct: true,  timestamp: MID_WEEK },
+    ];
+    for (const a of attempts) await db.attempts.add(a);
+
+    const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
+    expect(result).toEqual({ intervals: 3, chordRecognition: 2, total: 5 });
+  });
+
+  it('total counts every ET sub-module; "other" rows land in total only', async () => {
+    const attempts: Array<Omit<AttemptRecord, 'id'>> = [
+      { moduleId: 'intervals',          itemId: 'M3',     correct: true, timestamp: MID_WEEK },
+      { moduleId: 'chord-recognition',  itemId: 'maj',    correct: true, timestamp: MID_WEEK },
+      // "other" ET sub-activities — not yet Phase-B-planned. Counted
+      // toward total, never toward the two named buckets.
+      { moduleId: 'chord-progressions', itemId: 'I-V',    correct: true, timestamp: MID_WEEK },
+      { moduleId: 'chord-progressions', itemId: 'ii-V-I', correct: true, timestamp: MID_WEEK },
+      { moduleId: 'scales-modes',       itemId: 'dorian', correct: true, timestamp: MID_WEEK },
+    ];
+    for (const a of attempts) await db.attempts.add(a);
+
+    const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
+    expect(result.intervals).toBe(1);
+    expect(result.chordRecognition).toBe(1);
+    expect(result.total).toBe(5);
+    // total ≥ intervals + chordRecognition — the gap is the "other" bucket.
+    expect(result.total - result.intervals - result.chordRecognition).toBe(3);
+  });
+
+  it('total stays identical to getWeeklyAttempts("ear-training") — parallel, not a replacement', async () => {
+    const attempts: Array<Omit<AttemptRecord, 'id'>> = [
+      { moduleId: 'intervals',          itemId: 'M3',     correct: true, timestamp: MID_WEEK },
+      { moduleId: 'chord-recognition',  itemId: 'maj',    correct: true, timestamp: MID_WEEK },
+      { moduleId: 'chord-progressions', itemId: 'I-V',    correct: true, timestamp: MID_WEEK },
+      { moduleId: 'scales-modes',       itemId: 'dorian', correct: true, timestamp: MID_WEEK },
+      { moduleId: 'harmonic-fluency',   itemId: 'maj',    correct: true, timestamp: MID_WEEK }, // not ET
+    ];
+    for (const a of attempts) await db.attempts.add(a);
+
+    const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
+    const legacyTotal = await getWeeklyAttempts('ear-training', WEEK_START, WEEK_END);
+    expect(result.total).toBe(legacyTotal);
+    expect(result.total).toBe(4); // the HF row is excluded
+  });
+
+  it('respects the window and ignores non-ET attempts', async () => {
+    const attempts: Array<Omit<AttemptRecord, 'id'>> = [
+      { moduleId: 'intervals',         itemId: 'M3',  correct: true, timestamp: WEEK_START }, // inclusive
+      { moduleId: 'intervals',         itemId: 'P5',  correct: true, timestamp: BEFORE },     // before
+      { moduleId: 'chord-recognition', itemId: 'maj', correct: true, timestamp: WEEK_END },   // inclusive
+      { moduleId: 'chord-recognition', itemId: 'min', correct: true, timestamp: AFTER },      // after
+      { moduleId: 'harmonic-fluency',  itemId: 'maj', correct: true, timestamp: MID_WEEK },   // not ET
+    ];
+    for (const a of attempts) await db.attempts.add(a);
+
+    const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
+    expect(result).toEqual({ intervals: 1, chordRecognition: 1, total: 2 });
+  });
+
+  it('returns all-zero when there are no ET attempts in the window', async () => {
+    await db.attempts.add({
+      moduleId: 'harmonic-fluency', itemId: 'maj', correct: true, timestamp: MID_WEEK,
+    });
+    const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
+    expect(result).toEqual({ intervals: 0, chordRecognition: 0, total: 0 });
   });
 });
 

@@ -137,6 +137,65 @@ export async function getWeeklyAttempts(
 export const getAttemptsInRange = getWeeklyAttempts;
 
 // ---------------------------------------------------------------------
+// getEarTrainingAttemptsBySubActivity
+// ---------------------------------------------------------------------
+
+/** ET sub-activity moduleIds Phase B budgets time for independently.
+ *  Each ET quiz already writes db.attempts rows under its own
+ *  MODULE_ID ('intervals', 'chord-recognition', …) — the sub-activity
+ *  is encoded in the existing schema, so there's no new field. */
+const ET_INTERVALS_MODULE_ID = 'intervals';
+const ET_CHORD_RECOGNITION_MODULE_ID = 'chord-recognition';
+
+export interface EarTrainingAttemptsBySubActivity {
+  /** Attempts logged in the intervals quiz this window. */
+  intervals: number;
+  /** Attempts logged in the chord-recognition quiz this window. */
+  chordRecognition: number;
+  /** Every ET attempt in the window, across all ET sub-modules —
+   *  equal by construction to getWeeklyAttempts('ear-training', …)
+   *  (same query, same filter). Always ≥ intervals + chordRecognition;
+   *  the remainder is the "other" ET sub-activities
+   *  (chord-progressions, scales-modes), which count toward the total
+   *  but don't yet get their own Phase B time slice. */
+  total: number;
+}
+
+/**
+ * ET attempt counts for the window, broken out by the sub-activities
+ * Phase B plans time for independently (intervals, chord
+ * recognition). Parallel to — not a replacement for —
+ * getWeeklyAttempts('ear-training', …): that stays the single uniform
+ * per-module count; this slices the same rows so
+ * computeSessionNeedByModule can budget each sub-activity.
+ *
+ * No schema change needed — the sub-activity is already the
+ * AttemptRecord's `moduleId` (each ET quiz writes its own MODULE_ID).
+ * Rows whose moduleId is an ET sub-module other than intervals /
+ * chord-recognition fold into `total` only, never into the two named
+ * buckets — the "handled gracefully" path for anything that isn't one
+ * of the two Phase-B-planned sub-activities.
+ */
+export async function getEarTrainingAttemptsBySubActivity(
+  weekStart: number,
+  weekEnd: number,
+): Promise<EarTrainingAttemptsBySubActivity> {
+  const rows = await db.attempts
+    .where('moduleId').anyOf(ET_MODULE_REFS as readonly string[] as string[])
+    .filter(a => a.timestamp >= weekStart && a.timestamp <= weekEnd)
+    .toArray();
+
+  let intervals = 0;
+  let chordRecognition = 0;
+  for (const a of rows) {
+    if (a.moduleId === ET_INTERVALS_MODULE_ID) intervals += 1;
+    else if (a.moduleId === ET_CHORD_RECOGNITION_MODULE_ID) chordRecognition += 1;
+  }
+
+  return { intervals, chordRecognition, total: rows.length };
+}
+
+// ---------------------------------------------------------------------
 // getDaysWithActivity
 // ---------------------------------------------------------------------
 
