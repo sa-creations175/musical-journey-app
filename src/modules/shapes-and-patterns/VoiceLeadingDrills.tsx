@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type DrillSkill } from '../../lib/db';
-import HeatGrid from './HeatGrid';
-import { KEYS, VOICE_LEADING_PATTERNS } from './catalog';
+import VoiceLeadingPatternGrid from './VoiceLeadingPatternGrid';
+import VoiceLeadingDrillModal from './VoiceLeadingDrillModal';
+import { VOICE_LEADING_PATTERNS } from './catalog';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
 
@@ -42,6 +43,7 @@ export default function VoiceLeadingDrills() {
   const [newDescription, setNewDescription] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
+  const [activeDrill, setActiveDrill] = useState<{ patternId: string; keyName: string } | null>(null);
   const { toast } = useToast();
 
   // Live query of voice-leading skills so we can update labels on
@@ -140,15 +142,6 @@ export default function VoiceLeadingDrills() {
         // If user renamed a builtin, our custom list carries the
         // override; pick the last matching entry (custom wins).
         const effective = custom.find(c => c.id === pattern.id) ?? pattern;
-        const rows = [{
-          id: effective.id,
-          label: `across 12 keys`,
-          descriptorFor: (keyName: string) => ({
-            kind: 'voice-leading' as const,
-            keyName,
-            patternId: effective.id,
-          }),
-        }];
         return (
           <section
             key={effective.id}
@@ -194,10 +187,23 @@ export default function VoiceLeadingDrills() {
                 </button>
               )}
             </div>
-            <HeatGrid rows={rows} keyList={KEYS} />
+            <VoiceLeadingPatternGrid
+              patternId={effective.id}
+              onCellOpen={pattern.builtin
+                ? (keyName) => setActiveDrill({ patternId: effective.id, keyName })
+                : undefined}
+            />
           </section>
         );
       })}
+
+      {activeDrill && (
+        <VoiceLeadingDrillModal
+          patternId={activeDrill.patternId}
+          keyName={activeDrill.keyName}
+          onClose={() => setActiveDrill(null)}
+        />
+      )}
 
       {adding ? (
         <section className="rounded-card border border-fluent/40 bg-fluent/5 p-3 sm:p-5 space-y-2">

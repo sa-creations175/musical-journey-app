@@ -594,6 +594,55 @@ export interface LogScaleDrillSessionInput {
  * itself (pentatonic starting point included), and `logSession`'s
  * itemRef derivation would drop that starting point.
  */
+export interface LogVoiceLeadingDrillSessionInput {
+  /** Canonical sub-cell itemRef from `enumerateVoiceLeadingCells` —
+   *  the new 5-part vl: form, e.g. `vl:aba-251:level1:A:C`. The
+   *  modal resolves this from `pickMostDueVoiceLeadingSubCell`. */
+  itemRef: string;
+  /** Actual elapsed drill time in seconds. */
+  durationSeconds: number;
+  /** 3-point rating; mapped onto DrillSession.feelRating via RATING_TO_FEEL. */
+  rating: 'flying' | 'cruising' | 'crawling';
+  /** Suggested per-cell drill seconds (`voiceLeadingCellSeconds`) the
+   *  user was working toward. Optional — mirrors logSession's
+   *  targetSeconds. */
+  targetSeconds?: number;
+  notes?: string;
+}
+
+/**
+ * Log a completed Voice-Leading sub-cell drill as a DrillSession row.
+ *
+ * Mirrors `logScaleDrillSession`: VL sub-cells run off the static
+ * catalog in catalog.ts (no DrillSkill / DrillType rows), so the
+ * itemRef stands in for both `skillId` and `drillTypeId`. That
+ * keeps the row a well-formed DrillSession for getWeeklyAttempts
+ * to count, and self-identifies as a VL row (its skillId parses
+ * back into the sub-cell descriptor via parseVoiceLeadingItemRef).
+ *
+ * Does NOT update db.drillTypes (VL has none here) and does NOT
+ * record a spacingState engagement — the VL drill modal records
+ * the rating against the precise sub-cell itemRef itself.
+ */
+export async function logVoiceLeadingDrillSession(
+  input: LogVoiceLeadingDrillSessionInput,
+): Promise<DrillSession> {
+  const session: DrillSession = {
+    id: uid('dses'),
+    drillTypeId: input.itemRef,
+    skillId: input.itemRef,
+    durationSeconds: Math.round(input.durationSeconds),
+    ...(input.targetSeconds !== undefined
+      ? { targetSeconds: Math.round(input.targetSeconds) }
+      : {}),
+    feelRating: RATING_TO_FEEL[input.rating],
+    notes: input.notes?.trim() || undefined,
+    timestamp: Date.now(),
+  };
+  await db.drillSessions.add(session);
+  return session;
+}
+
 export async function logScaleDrillSession(
   input: LogScaleDrillSessionInput,
 ): Promise<DrillSession> {

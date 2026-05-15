@@ -582,6 +582,58 @@ export function defaultDrillTypesForVoiceLeading(): DefaultDrill[] {
   ];
 }
 
+/** Minimal spacing-state shape the sub-cell picker needs. Decoupled
+ *  from `SpacingState` itself so this module stays free of any
+ *  database type imports. */
+export interface VoiceLeadingPickerRow {
+  itemRef: string;
+  nextDueAt: number | null;
+}
+
+/**
+ * Pick the most-due sub-cell for a given pattern × key. Priority:
+ *   1. Sub-cells with no spacingState row (never practised → most due).
+ *   2. Sub-cells whose row has `nextDueAt === null` (unscheduled).
+ *   3. Sub-cells whose row has the earliest `nextDueAt`.
+ *
+ * Returns null when the patternId isn't in the catalog (custom
+ * patterns); callers fall back to a legacy whole-pattern drill or
+ * surface a "no sub-cell catalog" affordance. Pure — tests pass
+ * fixture rows directly.
+ */
+export function pickMostDueVoiceLeadingSubCell(
+  patternId: string,
+  keyName: string,
+  rows: ReadonlyArray<VoiceLeadingPickerRow>,
+): string | null {
+  const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
+  if (!pattern) return null;
+  const candidates = enumerateVoiceLeadingCells(pattern, keyName);
+  if (candidates.length === 0) return null;
+  const rowByRef = new Map<string, VoiceLeadingPickerRow>();
+  for (const r of rows) rowByRef.set(r.itemRef, r);
+  type Tier = 0 | 1 | 2;
+  const scored: Array<{ itemRef: string; tier: Tier; nextDueAt: number; idx: number }> = [];
+  candidates.forEach((itemRef, idx) => {
+    const row = rowByRef.get(itemRef);
+    if (!row) {
+      scored.push({ itemRef, tier: 0, nextDueAt: 0, idx });
+    } else if (row.nextDueAt === null) {
+      scored.push({ itemRef, tier: 1, nextDueAt: 0, idx });
+    } else {
+      scored.push({ itemRef, tier: 2, nextDueAt: row.nextDueAt, idx });
+    }
+  });
+  scored.sort((a, b) => {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    if (a.tier === 2 && a.nextDueAt !== b.nextDueAt) return a.nextDueAt - b.nextDueAt;
+    // Stable: catalog enumeration order (idx) breaks ties so the
+    // pick stays deterministic across renders.
+    return a.idx - b.idx;
+  });
+  return scored[0].itemRef;
+}
+
 // --- Mental visualisation drills -----------------------------------
 
 export interface MentalVizVariant {
