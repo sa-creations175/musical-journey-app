@@ -151,31 +151,6 @@ export interface ShapesSplitContext {
   unlockedTier: SPTier;
   /** Reference time. Cells with nextDueAt ≤ now (or null) are due. */
   now: number;
-  /** Distinct major-key names from the user's active songs (e.g.
-   *  ['C', 'F', 'Eb']). Keys are canonicalised at the loader so
-   *  F#-spelled songs come through as 'Gb' — matching the
-   *  scaleSkills catalog spelling. The Scales warm-up leads with
-   *  these so the segment bridges into Repertoire practice in the
-   *  same key set. Empty array → falls back to least-recently-
-   *  touched scale key with due cells, then to circle-of-fourths
-   *  from C on cold-start. */
-  activeSongKeys: ReadonlyArray<string>;
-  /** Song titles indexed by canonical key — used to render the
-   *  plain-language why-text on the Scales warm-up segment ("B (I
-   *  Want You Around) and Gb (Mirror)"). Keys match
-   *  `activeSongKeys`; a key may map to multiple titles when two
-   *  active songs share a home key. Optional — when omitted the
-   *  why falls back to a generic "circle-of-fourths warm-up"
-   *  phrasing for cold-start. */
-  activeSongTitlesByKey?: ReadonlyMap<string, ReadonlyArray<string>>;
-  /** Phase-1 anchor key for the Scales warm-up: the canonical key
-   *  of the active Song-of-the-Month, set ONLY when a SotM exists
-   *  AND the song is not yet comfortable in its original key. When
-   *  present, the warm-up walks circle-of-4ths from this key and
-   *  ignores the activeSongKeys lead-priority (Phase 1). When null,
-   *  the picker falls back to the least-recently-touched scale key
-   *  with due cells (Phase 2). */
-  sotmAnchorKey?: string | null;
   /** Goal-aware proportional Scales budget — total drill seconds
    *  across every due scale cell that matches at least one active
    *  Scales coverage goal, computed once at the loader. The
@@ -526,31 +501,23 @@ interface ScaleKeyEntry {
  * Result is capped at SCALES_SEGMENT_MAX_KEYS so the warm-up
  * doesn't sprawl.
  */
-/** Walk circle-of-fourths starting at `anchor`, returning up to
- *  `max` keys including the anchor. Falls back to the bare anchor
- *  when it isn't on the canonical wheel (defensive against
- *  non-canonical input — the caller should canonicalise first). */
-function walkCircleOfFourthsFrom(anchor: string, max: number): string[] {
-  if (max <= 0) return [];
-  const idx = CIRCLE_OF_FOURTHS.indexOf(anchor);
-  if (idx < 0) return [anchor];
-  const out: string[] = [];
-  for (let i = 0; i < CIRCLE_OF_FOURTHS.length && out.length < max; i++) {
-    out.push(CIRCLE_OF_FOURTHS[(idx + i) % CIRCLE_OF_FOURTHS.length]);
-  }
-  return out;
-}
-
+/**
+ * Pick warm-up keys purely from spacing-state. No song-key or
+ * SotM-key influence — those are handled by the per-song
+ * `scale-prep` blocks in repertoireSplit.ts that surface
+ * immediately before each song block. The general warm-up's job
+ * is to clear the spacing-state queue, not to bridge into the
+ * current session's song work.
+ *
+ * Priority:
+ *   1. Least-recently-touched scale key with at least one due cell.
+ *   2. Falls back to oldest-engaged key regardless of due status.
+ *   3. From that lead key, walks circle-of-fourths to fill the
+ *      remaining slots (capped at SCALES_SEGMENT_MAX_KEYS).
+ *   4. Cold-start (no scale rows yet) starts at C — the canonical
+ *      circle-of-fourths root.
+ */
 function pickScalesKeys(ctx: ShapesSplitContext): string[] {
-  // Phase 1 — when an active SotM exists and the user isn't yet
-  // comfortable in its original key, the warm-up walks circle-of-4ths
-  // from that key. The SotM anchor REPLACES the activeSongKeys
-  // lead-priority entirely so the user lands every session on the
-  // current month's spotlight key.
-  if (ctx.sotmAnchorKey) {
-    return walkCircleOfFourthsFrom(ctx.sotmAnchorKey, SCALES_SEGMENT_MAX_KEYS);
-  }
-
   // Aggregate per-key engagement stats from the user's scale rows.
   const byKey = new Map<string, ScaleKeyEntry>();
   for (const row of ctx.rowsByItemRef.values()) {
@@ -582,15 +549,10 @@ function pickScalesKeys(ctx: ShapesSplitContext): string[] {
     return out.length >= SCALES_SEGMENT_MAX_KEYS;
   };
 
-  // Active-song keys lead — same priority rule as the chord-shape
-  // walk's key picker, so the Scales warm-up bridges directly into
-  // Repertoire practice in the same key.
-  for (const k of ctx.activeSongKeys) if (add(k)) return out;
-
-  // Least-recently-touched scale key WITH due cells. Falls back to
-  // any-key-with-due-cells if no key has both, then to
-  // oldest-engaged regardless of due status.
-  const remaining = Array.from(byKey.values()).filter(e => !seen.has(e.keyName));
+  // Lead with least-recently-touched scale key WITH due cells.
+  // Falls back to any-key-with-due-cells if no key has both, then
+  // to oldest-engaged regardless of due status.
+  const remaining = Array.from(byKey.values());
   const dueRemaining = remaining.filter(e => e.dueCellCount > 0);
   const pool = dueRemaining.length > 0 ? dueRemaining : remaining;
   pool.sort((a, b) => {
@@ -607,9 +569,7 @@ function pickScalesKeys(ctx: ShapesSplitContext): string[] {
   // start at the first circle-of-fourths key (C) so the warm-up is
   // deterministic.
   const leadKey = pool[0]?.keyName ?? CIRCLE_OF_FOURTHS[0];
-  if (!seen.has(leadKey)) {
-    if (add(leadKey)) return out;
-  }
+  if (add(leadKey)) return out;
   const startIdx = CIRCLE_OF_FOURTHS.indexOf(leadKey);
   if (startIdx < 0) return out;
   for (let i = 1; i < CIRCLE_OF_FOURTHS.length; i++) {
@@ -743,13 +703,11 @@ function describeKinds(kinds: ReadonlySet<ScaleKind>): string {
   return `${head} + ${parts[parts.length - 1]}`;
 }
 
-/** Compose the why-text. Names the active songs that gave us each
- *  key when activeSongTitlesByKey supplies them, falling back to
- *  bare keys for the cold-start path. */
-function formatScalesWhy(
-  steps: ReadonlyArray<ScaleLadderStep>,
-  titlesByKey: ReadonlyMap<string, ReadonlyArray<string>> | undefined,
-): string {
+/** Compose the why-text. Keys come from spacing-state-driven
+ *  warm-up selection — no song-title overlay since the warm-up
+ *  no longer leads with active-song keys (song-specific prep
+ *  lives in `scale-prep` blocks in repertoireSplit.ts). */
+function formatScalesWhy(steps: ReadonlyArray<ScaleLadderStep>): string {
   const orderedKeys: string[] = [];
   const seen = new Set<string>();
   for (const s of steps) {
@@ -759,19 +717,8 @@ function formatScalesWhy(
     }
   }
   if (orderedKeys.length === 0) return 'Drilling parallel major/minor scales — warm-up';
-  const rendered = orderedKeys.map(k => {
-    const titles = titlesByKey?.get(k);
-    if (titles && titles.length > 0) {
-      return `${k} (${titles.join(', ')})`;
-    }
-    return k;
-  });
-  const anyTitled = orderedKeys.some(k => (titlesByKey?.get(k)?.length ?? 0) > 0);
-  const tail = anyTitled
-    ? 'in your active song keys'
-    : 'across your warm-up keys';
-  const joined = joinWithAnd(rendered);
-  return `Drilling parallel major/minor scales ${tail} — ${joined}`;
+  const joined = joinWithAnd(orderedKeys);
+  return `Drilling parallel major/minor scales across your warm-up keys — ${joined}`;
 }
 
 /** Join 1-3+ items into "A", "A and B", "A, B, and C". Keeps the
@@ -805,7 +752,7 @@ function buildScalesSegment(
     itemRefs: steps.map(s => s.itemRef),
     plannedSeconds: budget,
     label: formatScalesLabel(steps),
-    why: formatScalesWhy(steps, ctx.activeSongTitlesByKey),
+    why: formatScalesWhy(steps),
   };
 }
 
@@ -1166,6 +1113,6 @@ function buildScalesSegmentWithBudget(
     itemRefs: steps.map(s => s.itemRef),
     plannedSeconds: budget,
     label: formatScalesLabel(steps),
-    why: formatScalesWhy(steps, ctx.activeSongTitlesByKey),
+    why: formatScalesWhy(steps),
   };
 }

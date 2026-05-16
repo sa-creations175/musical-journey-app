@@ -54,7 +54,6 @@ function ctx(
   options: {
     unlockedTier?: 1 | 2 | 3 | 4;
     now?: number;
-    activeSongKeys?: ReadonlyArray<string>;
     /** Active-Scales-goal proportional budget. `null` (default) ⇒
      *  no goal, fixed 5/8-min fallback path. A number ⇒ goal-aware
      *  proportional path (clamped at min(20 % block, 20 min)). */
@@ -65,7 +64,6 @@ function ctx(
     rowsByItemRef: new Map(rows.map(r => [r.itemRef, r])),
     unlockedTier: options.unlockedTier ?? 4,
     now: options.now ?? NOW,
-    activeSongKeys: options.activeSongKeys ?? [],
     scalesGoalDueSeconds: options.scalesGoalDueSeconds ?? null,
   };
 }
@@ -281,7 +279,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('does NOT surface below 15 min', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 14 * 60 + 59),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     expect(segs.some(s => s.kind === 'scales')).toBe(false);
   });
@@ -289,7 +287,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('surfaces at 15 min with the 5-min short budget', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales');
     expect(scales).toBeDefined();
@@ -299,7 +297,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('jumps to the 8-min long budget at 30+ min', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales');
     expect(scales!.plannedSeconds).toBe(8 * 60);
@@ -309,7 +307,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     // 15-min block = 900 s. Scales takes 300 s → walk gets 600 s.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     expect(segs[0].kind).toBe('scales');
     expect(segs[1].kind).toBe('shapes-walk');
@@ -317,9 +315,11 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(segs[1].plannedSeconds).toBe(10 * 60);
   });
 
-  it('prioritises active-song keys', () => {
-    // Active song key is Eb (no chord shapes in Eb in this setup).
-    // Scales should still lead with Eb.
+  it('does NOT bias key selection by song keys (warm-up is spacing-state-only)', () => {
+    // Pre-fix the warm-up led with active-song keys, which leaked the
+    // current SotM song's key (Db) into every general warm-up. The
+    // warm-up now selects keys purely from spacing-state — with no
+    // scale rows and no song input, cold-start lands on C.
     const segs = shapeShapesBlock(
       block(
         [
@@ -329,10 +329,10 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
         ],
         15 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['Eb'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.itemRefs[0]).toBe('scale:major:Eb');
+    expect(scales.itemRefs[0]).toBe('scale:major:C');
   });
 
   it('falls back to circle-of-fourths (cold-start) when no active songs + no rows exist', () => {
@@ -362,15 +362,13 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.itemRefs[0]).toBe('scale:major:Bb');
   });
 
-  it('caps at 3 keys even when active songs supply more', () => {
-    // Raised from 2 to 3 so users with 3+ active songs in distinct
-    // keys see them all reflected in the warm-up.
+  it('caps at SCALES_SEGMENT_MAX_KEYS (3) keys via spacing-state-driven walk', () => {
+    // Cold-start with no scale rows and a long 30-min block — the
+    // circle-of-4ths walk from C fills up to 3 distinct keys before
+    // the cap stops it.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
-      ctx([], {
-        unlockedTier: 1,
-        activeSongKeys: ['C', 'F', 'Bb', 'Eb'],
-      }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     const distinctKeys = new Set(
@@ -379,14 +377,14 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
         .filter((k): k is string => k !== null),
     );
     expect(distinctKeys.size).toBeLessThanOrEqual(3);
-    // And actually reaches 3 when supply allows.
+    // And actually reaches 3 when the budget allows.
     expect(distinctKeys.size).toBe(3);
   });
 
   it('drills the four-scale ladder per key in design order; rel-maj is NOT a separate cell', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     // 5-min budget = 300 s. Single-key ladder = 30+30+90+30 = 180 s
@@ -407,7 +405,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('uses the default pent starting point (1) when no spacingState row exists', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.itemRefs).toContain('scale:major-pentatonic:1:C');
@@ -423,7 +421,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     ];
     const segs = shapeShapesBlock(
       block([], 15 * 60),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.itemRefs).toContain('scale:major-pentatonic:5:C');
@@ -433,7 +431,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('builds a "SCALES — KEYS (families)" label', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.label.startsWith('SCALES — C')).toBe(true);
@@ -447,43 +445,41 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   });
 
   it('multi-key labels join keys with ", " in the SCALES header', () => {
-    // 30-min block with 3 active song keys — the cap fills with the
-    // active keys in order, no circle-of-4ths fallback needed.
+    // Three least-recently-engaged scale keys with due cells — the
+    // picker leads with the oldest (B) and walks circle-of-4ths from
+    // there (B → E → A). The label surfaces the resulting key list.
+    const rows = [
+      row('scale:major:B',  { lastEngagedAt: NOW - 30_000, nextDueAt: NOW - 100 }),
+      row('scale:major:E',  { lastEngagedAt: NOW - 20_000, nextDueAt: NOW - 100 }),
+      row('scale:major:A',  { lastEngagedAt: NOW - 10_000, nextDueAt: NOW - 100 }),
+    ];
     const segs = shapeShapesBlock(
       block([], 30 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['B', 'Gb', 'A'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.label.startsWith('SCALES — B, Gb, A (')).toBe(true);
+    expect(scales.label.startsWith('SCALES — B, E, A (')).toBe(true);
   });
 
-  it('why-text names active songs when titles are supplied', () => {
-    const titlesByKey = new Map<string, ReadonlyArray<string>>([
-      ['B', ['I Want You Around']],
-      ['Gb', ['Mirror']],
-    ]);
+  it('why-text reads "across your warm-up keys — {keys}" (no song-title overlay)', () => {
+    // Post-fix the warm-up doesn't carry active-song titles, so the
+    // why-text never names songs — just the key list driven by
+    // spacing-state.
     const segs = shapeShapesBlock(
-      block([], 30 * 60),
-      {
-        rowsByItemRef: new Map(),
-        unlockedTier: 1,
-        now: NOW,
-        activeSongKeys: ['B', 'Gb'],
-        activeSongTitlesByKey: titlesByKey,
-        scalesGoalDueSeconds: null,
-      },
+      block([], 15 * 60),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.why).toContain('active song keys');
-    expect(scales.why).toContain('B (I Want You Around)');
-    expect(scales.why).toContain('Gb (Mirror)');
-    expect(scales.why).toContain(' and ');
+    expect(scales.why).toContain('across your warm-up keys');
+    expect(scales.why).toContain('C');
+    // No parenthetical song titles.
+    expect(scales.why).not.toContain('(');
   });
 
   it('why-text falls back to bare keys when no titles are supplied', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.why).toContain('Drilling parallel major/minor scales');
@@ -494,7 +490,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('Scales segment surfaces alone when the block has no chord-shape items', () => {
     const segs = shapeShapesBlock(
       block([], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     expect(segs).toHaveLength(1);
     expect(segs[0].kind).toBe('scales');
@@ -514,7 +510,6 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], {
         unlockedTier: 1,
-        activeSongKeys: ['C'],
         scalesGoalDueSeconds: 180,
       }),
     );
@@ -530,7 +525,6 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
       block(['chord-shape:maj:C:root'], 60 * 60),
       ctx([], {
         unlockedTier: 1,
-        activeSongKeys: ['C'],
         scalesGoalDueSeconds: 9999,
       }),
     );
@@ -545,7 +539,6 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
       block(['chord-shape:maj:C:root'], 3 * 60 * 60),
       ctx([], {
         unlockedTier: 1,
-        activeSongKeys: ['C'],
         scalesGoalDueSeconds: 9999,
       }),
     );
@@ -560,7 +553,6 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], {
         unlockedTier: 1,
-        activeSongKeys: ['C'],
         scalesGoalDueSeconds: 0,
       }),
     );
@@ -571,7 +563,7 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
     // scalesGoalDueSeconds = null (default) → fixed path.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.plannedSeconds).toBe(5 * 60);
@@ -584,7 +576,6 @@ describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], {
         unlockedTier: 1,
-        activeSongKeys: ['C'],
         scalesGoalDueSeconds: 240,
       }),
     );
@@ -611,7 +602,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
     );
     const segs = shapeShapesBlock(
       block30min,
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     expect(segs.map(s => s.kind)).toEqual(['scales', 'shapes-walk', 'voice-leading']);
     const total = segs.reduce((acc, s) => acc + s.plannedSeconds, 0);
@@ -625,7 +616,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
   it('falls back to the 30/70 (Scales + walk) path when no VL items are in the block', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     // No VL segment.
     expect(segs.some(s => s.kind === 'voice-leading')).toBe(false);
@@ -656,7 +647,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ],
         30 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.label.startsWith('VOICE LEADING — drill ')).toBe(true);
@@ -673,7 +664,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ['chord-shape:maj:C:root', 'vl:major-251:guide-tones:A:C'],
         30 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.why).toMatch(/^\d+ drill/);
@@ -699,7 +690,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ],
         30 * 60,
       ),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs[0]).toBe('vl:major-251:guide-tones:A:C');
@@ -724,7 +715,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ['vl:diatonic-cycle:pos1:C', 'vl:dom7b9:pos1:C'],
         30 * 60,
       ),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs[0]).toBe('vl:dom7b9:pos1:C');
@@ -744,7 +735,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ],
         30 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs[0]).toBe('vl:diatonic-cycle:pos1:C');
@@ -766,7 +757,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ],
         30 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     // Note: vl:major-251:seventh-chords:A:F is eligible because its
@@ -793,7 +784,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
         ],
         30 * 60,
       ),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs[0]).toBe('vl:dom7b9:pos1:C');           // DUE
@@ -815,7 +806,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
         ['vl:major-251:seventh-chords:A:C'],
         30 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading');
     // No eligible VL cells → no VL segment.
@@ -830,7 +821,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
     ];
     const segs = shapeShapesBlock(
       block(['vl:major-251:seventh-chords:A:C'], 30 * 60),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     expect(segs.find(s => s.kind === 'voice-leading')).toBeUndefined();
   });
@@ -842,7 +833,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
     ];
     const segs = shapeShapesBlock(
       block(['vl:major-251:seventh-chords:A:C'], 30 * 60),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs).toEqual(['vl:major-251:seventh-chords:A:C']);
@@ -857,7 +848,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
     ];
     const segs = shapeShapesBlock(
       block(['vl:major-251:aba-structure:A:C'], 30 * 60),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     expect(segs.find(s => s.kind === 'voice-leading')).toBeUndefined();
   });
@@ -876,7 +867,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
         ],
         30 * 60,
       ),
-      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs).toEqual(['vl:major-251:seventh-chords:A:C']);
@@ -892,7 +883,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
     ];
     const segs = shapeShapesBlock(
       block(itemRefs, 30 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     // All four surface (sorted by catalog index ASC within unstarted).
@@ -919,7 +910,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
         ],
         30 * 60,
       ),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs).toEqual(['vl:major-251:guide-tones:A:C']);
@@ -928,7 +919,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
   it('three-way split runs even when there are no chord-shape items (walk returns null)', () => {
     const segs = shapeShapesBlock(
       block(['vl:major-251:guide-tones:A:C'], 30 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+      ctx([], { unlockedTier: 1 }),
     );
     expect(segs.map(s => s.kind)).toEqual(['scales', 'voice-leading']);
     // Walk slot's planned seconds aren't redistributed — segments keep
@@ -949,7 +940,6 @@ describe('shapeShapesBlock — VL per-key gating', () => {
       ),
       ctx([], {
         unlockedTier: 1,
-        activeSongKeys: ['C'],
         scalesGoalDueSeconds: 180,
       }),
     );
@@ -958,60 +948,11 @@ describe('shapeShapesBlock — VL per-key gating', () => {
   });
 });
 
-// -----------------------------------------------------------------
-// SotM-keyed walk (Phase 1 of the key-ordering rule)
-// -----------------------------------------------------------------
-
-describe('shapeShapesBlock — Phase 1 SotM-keyed walk', () => {
-  it('leads with the SotM anchor key regardless of activeSongKeys', () => {
-    // SotM anchor = B. activeSongKeys lists C first, but the SotM
-    // anchor wins in Phase 1.
-    const segs = shapeShapesBlock(
-      block([], 30 * 60),
-      {
-        rowsByItemRef: new Map(),
-        unlockedTier: 1,
-        now: NOW,
-        activeSongKeys: ['C'],
-        scalesGoalDueSeconds: null,
-        sotmAnchorKey: 'B',
-      },
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    expect(parseScaleKeyName(scales.itemRefs[0])).toBe('B');
-  });
-
-  it('walks circle-of-4ths from the SotM anchor to fill the cap', () => {
-    // Anchor B → walk circle-of-4ths: B → E → A.
-    const segs = shapeShapesBlock(
-      block([], 30 * 60),
-      {
-        rowsByItemRef: new Map(),
-        unlockedTier: 1,
-        now: NOW,
-        activeSongKeys: [],
-        scalesGoalDueSeconds: null,
-        sotmAnchorKey: 'B',
-      },
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    const keys = Array.from(new Set(
-      scales.itemRefs
-        .map(ref => parseScaleKeyName(ref))
-        .filter((k): k is string => k !== null),
-    ));
-    expect(keys).toEqual(['B', 'E', 'A']);
-  });
-
-  it('Phase 2 (no SotM anchor) preserves the activeSongKeys-led path', () => {
-    const segs = shapeShapesBlock(
-      block([], 15 * 60),
-      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    expect(parseScaleKeyName(scales.itemRefs[0])).toBe('C');
-  });
-});
+// The Phase 1 SotM-keyed-walk describe block was removed entirely
+// — `sotmAnchorKey` is no longer a field on ShapesSplitContext.
+// The warm-up's key selection is fully spacing-state-driven; the
+// "cold-start → C" behavior is covered by the "falls back to
+// circle-of-fourths (cold-start)" test above.
 
 // Helper: extract the key name from a 3- or 4-part scale itemRef.
 function parseScaleKeyName(itemRef: string): string | null {

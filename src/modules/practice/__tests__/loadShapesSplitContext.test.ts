@@ -80,67 +80,36 @@ beforeEach(async () => {
   await db.songMatrixSections.clear();
 });
 
-describe('loadShapesSplitContext — active-song filter', () => {
-  it('drops internalized + maintenance songs from activeSongKeys', async () => {
+describe('loadShapesSplitContext — song keys are NOT threaded into the warm-up context', () => {
+  // The Scales warm-up is purely spacing-state-driven. Song-key
+  // priming lives in the per-song `scale-prep` blocks built by
+  // repertoireSplit.ts. These tests pin that the loader doesn't
+  // expose any song-derived key surface on the returned context.
+
+  it('returns no song-derived key fields regardless of which songs exist', async () => {
     await db.songs.bulkAdd([
       song({ id: 's1', key: 'C', stage: 'learning' }),
-      song({ id: 's2', key: 'F', stage: 'comfortable' }),
-      song({ id: 's3', key: 'Bb', stage: 'cross-key' }),
-      song({ id: 's4', key: 'Db', stage: 'internalized' }),   // drop
-      song({ id: 's5', key: 'G', stage: 'maintenance' }),     // drop
+      song({ id: 's2', key: 'F#', stage: 'comfortable' }),
+      song({ id: 's3', key: 'Db', stage: 'cross-key' }),
     ]);
     const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['C', 'F', 'Bb']);
+    // Pre-fix, the loader populated activeSongKeys / activeSongTitlesByKey
+    // / sotmAnchorKey. Post-fix, none of those fields exist on the
+    // context type. Defensive: also assert no leaked properties.
+    expect((ctx as unknown as Record<string, unknown>).activeSongKeys).toBeUndefined();
+    expect((ctx as unknown as Record<string, unknown>).activeSongTitlesByKey).toBeUndefined();
+    expect((ctx as unknown as Record<string, unknown>).sotmAnchorKey).toBeUndefined();
   });
 
-  it('treats songs with no stage set as active (defaults to learning)', async () => {
-    await db.songs.add(song({ id: 's-undef', key: 'C' }));
+  it('returns only spacing-state-relevant fields (rowsByItemRef, unlockedTier, now, scalesGoalDueSeconds)', async () => {
+    await db.songs.add(song({ id: 's1', key: 'Db', stage: 'learning' }));
     const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['C']);
-  });
-
-  it('skips songs without a key', async () => {
-    await db.songs.bulkAdd([
-      song({ id: 's1', key: undefined, stage: 'learning' }),
-      song({ id: 's2', key: 'C', stage: 'learning' }),
+    expect(Object.keys(ctx).sort()).toEqual([
+      'now',
+      'rowsByItemRef',
+      'scalesGoalDueSeconds',
+      'unlockedTier',
     ]);
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['C']);
-  });
-});
-
-describe('loadShapesSplitContext — key canonicalisation', () => {
-  it('maps F# to Gb so it lines up with the scaleSkills catalog', async () => {
-    await db.songs.add(song({ id: 's1', key: 'F#', stage: 'learning' }));
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['Gb']);
-  });
-
-  it('preserves already-canonical spellings (B and Gb pass through)', async () => {
-    await db.songs.bulkAdd([
-      song({ id: 's1', key: 'B', stage: 'learning' }),
-      song({ id: 's2', key: 'Gb', stage: 'learning' }),
-    ]);
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['B', 'Gb']);
-  });
-
-  it('deduplicates two songs at the same canonical key (F# and Gb collapse)', async () => {
-    await db.songs.bulkAdd([
-      song({ id: 's1', key: 'F#', stage: 'learning' }),  // → Gb
-      song({ id: 's2', key: 'Gb', stage: 'learning' }),  // already Gb
-    ]);
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['Gb']);
-  });
-
-  it('drops freeform/unparseable keys', async () => {
-    await db.songs.bulkAdd([
-      song({ id: 's1', key: 'C', stage: 'learning' }),
-      song({ id: 's2', key: 'D minor', stage: 'learning' }), // not canonical
-    ]);
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.activeSongKeys).toEqual(['C']);
   });
 });
 
@@ -234,52 +203,8 @@ describe('loadShapesSplitContext — goal-aware Scales budget', () => {
   });
 });
 
-describe('loadShapesSplitContext — SotM anchor key (warm-up isolation)', () => {
-  /** Seed a Repertoire monthly umbrella + a specific-song slot-1
-   *  child. Originally this seeded an active SotM that the loader
-   *  would surface as sotmAnchorKey; after the warm-up isolation
-   *  fix, the loader ignores SotM state entirely — these tests
-   *  verify that ignoring. */
-  async function seedSotm(songId: string) {
-    await db.goals.bulkAdd([
-      goal({
-        id: 'umbrella',
-        scope: 'monthly',
-        isUmbrella: true,
-        targetMetric: null,
-        relatedModules: ['repertoire'],
-      }),
-      goal({
-        id: 'sotm-child',
-        parentGoalId: 'umbrella',
-        targetMetric: 'song_whole_at_level',
-        targetUnit: 'comfortable',
-        relatedItems: [songId],
-        relatedModules: ['repertoire'],
-      }),
-    ]);
-  }
-
-  it('never returns a sotmAnchorKey from the warm-up loader — no SotM exists', async () => {
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.sotmAnchorKey).toBeNull();
-  });
-
-  it('never returns a sotmAnchorKey even when a SotM song exists in a non-comfortable stage', async () => {
-    // Pre-fix this would have surfaced 'Gb' as the anchor and the
-    // warm-up would have walked from Gb — the bug the user saw as
-    // Db (or whatever the SotM key happened to be) appearing in
-    // the general warm-up. The warm-up loader must ignore SotM.
-    await db.songs.add(song({ id: 'sotm', key: 'F#', stage: 'learning' }));
-    await seedSotm('sotm');
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.sotmAnchorKey).toBeNull();
-  });
-
-  it('still null when a SotM exists for an Eb / Db / etc. key (regression for the warm-up Db bug)', async () => {
-    await db.songs.add(song({ id: 'sotm', key: 'Db', stage: 'learning' }));
-    await seedSotm('sotm');
-    const ctx = await loadShapesSplitContext([], NOW);
-    expect(ctx.sotmAnchorKey).toBeNull();
-  });
-});
+// The `sotmAnchorKey` field was removed from ShapesSplitContext
+// entirely (the warm-up no longer takes any song-derived key
+// input). Regression tests for the Db-keeps-appearing bug now
+// live as field-absence assertions in the "song keys are NOT
+// threaded" describe block above.

@@ -106,7 +106,6 @@ import {
   type ShapesSplitContext,
 } from '../shapes-and-patterns/shapesSplit';
 import { getSPUnlockedTier } from '../shapes-and-patterns/spTiers';
-import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
 import { itemRefMatcherForCoverageGroup } from '../goals/shapesCoverageGroups';
 import { COVERAGE_SPECIFIC_METRIC } from '../goals/coverageMetrics';
@@ -684,36 +683,13 @@ function generateAndShape(
  * Pre-load the Shapes & Patterns reshape context: spacingState
  * rows indexed by itemRef (drives starting-key pick + dueness),
  * the user's unlocked tier (filters higher-tier items out of the
- * walk), and active-song keys (drives Scales warm-up key
- * priority). Awaited once per session by the callers of
- * generateAndShape; passed through to toProposalBlocks where
- * shapeShapesBlock consumes it.
- */
-/** Songs in these stages count as currently-being-practiced for the
- *  purpose of seeding the Scales warm-up's key priority. Excludes:
+ * walk), and the goal-aware Scales budget. Awaited once per
+ * session by the callers of generateAndShape; passed through to
+ * toProposalBlocks where shapeShapesBlock consumes it.
  *
- *    'internalized' — the user has marked the song mastered; not
- *                     pulling the warm-up toward those keys keeps
- *                     the spotlight on still-developing songs.
- *    'maintenance'  — light weekly rotation; the user explicitly
- *                     called the song done.
- *
- *  Songs with `stage` undefined (older records or freshly added
- *  songs that haven't been categorised) count as active — the
- *  default state on song creation is 'learning' per the Song
- *  interface docblock.
+ * Song-derived key data is no longer threaded in — see the comment
+ * inside loadShapesSplitContext for the rationale.
  */
-const ACTIVE_REPERTOIRE_STAGES: ReadonlySet<string> = new Set([
-  'learning',
-  'comfortable',
-  'cross-key',
-]);
-
-function isActiveSong(stage: string | undefined): boolean {
-  if (stage === undefined) return true;
-  return ACTIVE_REPERTOIRE_STAGES.has(stage);
-}
-
 /** Coverage-group ids that map to "this user has a Scales goal".
  *  Used by loadShapesSplitContext to decide whether the warm-up's
  *  time budget grows proportionally (active goal) or stays at the
@@ -748,40 +724,17 @@ export async function loadShapesSplitContext(
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
   }
-  const [unlockedTier, songs, allGoals] = await Promise.all([
+  const [unlockedTier, allGoals] = await Promise.all([
     getSPUnlockedTier(),
-    db.songs.toArray(),
     db.goals.toArray(),
   ]);
 
-  // Active-song keys — distinct, in song order, ONLY from songs
-  // the user is currently practising (learning / comfortable /
-  // cross-key). 'internalized' + 'maintenance' songs drop so the
-  // warm-up doesn't burn budget on keys the user has called done.
-  // Each key flows through canonicaliseKey so 'F#' (matrix-side
-  // convention) lines up with 'Gb' (scaleSkills catalog convention)
-  // — without this step, F#-spelled songs would never match their
-  // own scale rows.
-  const seenKeys = new Set<string>();
-  const activeSongKeys: string[] = [];
-  const activeSongTitlesByKey = new Map<string, string[]>();
-  for (const s of songs) {
-    if (!s.key) continue;
-    if (!isActiveSong(s.stage)) continue;
-    const canonical = canonicaliseKey(s.key);
-    if (!canonical) continue;
-    if (!seenKeys.has(canonical)) {
-      seenKeys.add(canonical);
-      activeSongKeys.push(canonical);
-    }
-    // Track titles per canonical key so the Scales warm-up's
-    // why-text can name the songs that drove the key choice. Two
-    // songs in the same key (e.g. both in B) both surface in the
-    // parenthetical: "B (Song1, Song2)".
-    const titles = activeSongTitlesByKey.get(canonical) ?? [];
-    titles.push(s.title);
-    activeSongTitlesByKey.set(canonical, titles);
-  }
+  // Note: song-derived key data (formerly activeSongKeys +
+  // activeSongTitlesByKey + sotmAnchorKey) is no longer threaded
+  // into the warm-up — the general Scales warm-up is purely
+  // spacing-state-driven. Song-key priming lives in the per-song
+  // `scale-prep` blocks built by repertoireSplit.ts, which run
+  // immediately before each Repertoire song block.
 
   // Scales goal awareness — when at least one active Scales goal
   // exists, the warm-up budget scales proportionally with the
@@ -818,28 +771,11 @@ export async function loadShapesSplitContext(
     scalesGoalDueSeconds = total;
   }
 
-  // Song-of-the-Month anchor key — DELIBERATELY UNSET.
-  //
-  // The general Scales warm-up must NOT bias key selection toward the
-  // current SotM key (regression Db-keeps-appearing-in-warm-ups: the
-  // SotM key was overriding the spacing-state / active-song-keys
-  // priority for the whole warm-up). The agreed design: SotM key
-  // influence only applies to scales generated immediately before a
-  // Repertoire/song block, never to the general warm-up.
-  //
-  // The `sotmAnchorKey` field on ShapesSplitContext + its consumer in
-  // pickScalesKeys (shapesSplit.ts) are intentionally preserved so a
-  // future scales-before-song loader can populate the field through
-  // its own context-build path. This loader feeds the general warm-up
-  // only, so it always returns null here.
   return {
     rowsByItemRef,
     unlockedTier,
     now,
-    activeSongKeys,
-    activeSongTitlesByKey,
     scalesGoalDueSeconds,
-    sotmAnchorKey: null,
   };
 }
 
