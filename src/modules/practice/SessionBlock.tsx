@@ -29,11 +29,12 @@ interface Props {
   expanded?: boolean;
   /** Controlled-mode toggle handler. Required when `expanded` is set. */
   onToggle?: () => void;
-  /** When supplied (and the block is NOT a warm-up), a small × button
-   *  appears in the header. Tapping invokes the handler with the block
-   *  id; the parent owns the actual list mutation. Warm-up blocks are
-   *  locked to their anchor — they go via the anchor's delete, not
-   *  their own. */
+  /** When supplied, a small × button appears in the header. Tapping
+   *  invokes the handler with the block id; the parent owns the
+   *  actual list mutation. Warm-ups are deletable on their own
+   *  (removes just that warm-up); deleting a Repertoire song-practice
+   *  anchor pulls its paired warm-ups via the parent's deletionUnit
+   *  helper. */
   onDelete?: (blockId: string) => void;
 }
 
@@ -208,7 +209,7 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete }: Pr
         <div className="shrink-0 font-mono tabular-nums text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
-        {onDelete && !block.isWarmup && (
+        {onDelete && (
           <span
             role="button"
             tabIndex={0}

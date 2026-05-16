@@ -85,6 +85,28 @@ describe('deletionUnit', () => {
     const blocks = [mkBlock({ id: 'a' })];
     expect(deletionUnit(blocks, 'nope')).toEqual(['nope']);
   });
+
+  it('returns just the warm-up id when a Rep warm-up is deleted solo', () => {
+    // Warm-ups are now independently deletable. Deleting a warm-up
+    // must NOT pull its anchor with it — that's the inverse direction
+    // of the song-anchor → warm-ups rule, and the song should survive
+    // its warm-up being removed.
+    const blocks = [
+      mkBlock({ id: 'rep-quiz', moduleRef: 'repertoire', isWarmup: true }),
+      mkBlock({ id: 'rep-prep', moduleRef: 'repertoire', isWarmup: true }),
+      mkBlock({ id: 'rep-song', moduleRef: 'repertoire', isSongPractice: true }),
+    ];
+    expect(deletionUnit(blocks, 'rep-quiz')).toEqual(['rep-quiz']);
+    expect(deletionUnit(blocks, 'rep-prep')).toEqual(['rep-prep']);
+  });
+
+  it('returns just the warm-up id when an S&P scales warm-up is deleted', () => {
+    const blocks = [
+      mkBlock({ id: 'sp-warmup', moduleRef: 'shapes-and-patterns', isWarmup: true }),
+      mkBlock({ id: 'sp-walk',   moduleRef: 'shapes-and-patterns' }),
+    ];
+    expect(deletionUnit(blocks, 'sp-warmup')).toEqual(['sp-warmup']);
+  });
 });
 
 // ---------------------------------------------------------------------
