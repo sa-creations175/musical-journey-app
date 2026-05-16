@@ -172,6 +172,8 @@ function startSession(
     label: b.label,
     quickLaunchRoute: b.quickLaunchRoute,
     plannedSeconds: b.plannedSeconds,
+    isKeyboardRequired: b.isKeyboardRequired,
+    isWarmup: b.isWarmup,
     extensionSeconds: 0,
     status: i === 0 ? 'running' : 'pending',
     startedAt: i === 0 ? now : null,

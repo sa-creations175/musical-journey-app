@@ -58,6 +58,13 @@ export interface SessionBlock {
    *  Production). Optional for back-compat with sessions that
    *  pre-date the field. */
   isKeyboardRequired?: boolean;
+  /** True for warm-up blocks paired with a downstream song / cell
+   *  (chord-quiz + scale-prep before a Repertoire song, scales
+   *  warm-up before the Shapes walk). Surfaced so the active-session
+   *  UI can suppress the per-block skip affordance — warm-ups are
+   *  bound to their parent practice slot and shouldn't be skipped
+   *  independently. Optional for back-compat. */
+  isWarmup?: boolean;
   /**
    * User-applied extension on top of plannedSeconds (seconds).
    * Soft-block: tapping +2/+5/+10 in the global expiry modal bumps this.
@@ -126,6 +133,8 @@ export interface PendingStartConfig {
     /** Forwarded onto SessionBlock.isKeyboardRequired. Optional for
      *  back-compat with callers that pre-date the field. */
     isKeyboardRequired?: boolean;
+    /** Forwarded onto SessionBlock.isWarmup. */
+    isWarmup?: boolean;
   }>;
 }
 
@@ -211,6 +220,8 @@ export interface StartSessionInput {
     quickLaunchRoute?: string;
     /** Forwarded onto SessionBlock.isKeyboardRequired. */
     isKeyboardRequired?: boolean;
+    /** Forwarded onto SessionBlock.isWarmup. */
+    isWarmup?: boolean;
   }>;
   /**
    * Optional override for the session id. Used by tests to make

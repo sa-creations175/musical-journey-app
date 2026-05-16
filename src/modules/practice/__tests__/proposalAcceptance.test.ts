@@ -130,6 +130,7 @@ describe('resolveProposalStart', () => {
         label: 'Song of the Month: Mirror',
         plannedSeconds: 45 * 60,
         quickLaunchRoute: undefined,
+        isWarmup: false,
       },
       {
         moduleRef: 'harmonic-fluency',
@@ -137,6 +138,7 @@ describe('resolveProposalStart', () => {
         label: 'HF cards',
         plannedSeconds: 10 * 60,
         quickLaunchRoute: undefined,
+        isWarmup: false,
       },
     ]);
     // itemRefs is a fresh array, not the input reference.
@@ -145,6 +147,22 @@ describe('resolveProposalStart', () => {
 
   it('throws on empty input — handleProposalAccept gates on empty upstream', () => {
     expect(() => resolveProposalStart([])).toThrow(/empty block list/);
+  });
+
+  it('threads isWarmup from ProposalBlock onto each armBlock', () => {
+    // ActiveSessionScreen consumes block.isWarmup to suppress the
+    // per-block "skip this block" affordance — warm-ups (chord-quiz,
+    // scale-prep, scales warm-up segment) are paired with a parent
+    // practice slot and shouldn't be skipped independently. The
+    // arming layer is the only place this signal can travel from
+    // the proposal screen into the timer's SessionBlock, so pin
+    // that the boolean isn't dropped en route.
+    const blocks = [
+      mkBlock({ id: 'warmup', isWarmup: true }),
+      mkBlock({ id: 'song', isWarmup: false }),
+    ];
+    const out = resolveProposalStart(blocks);
+    expect(out.armBlocks.map(b => b.isWarmup)).toEqual([true, false]);
   });
 
   it('block.quickLaunchRoute wins over the moduleMeta route', () => {

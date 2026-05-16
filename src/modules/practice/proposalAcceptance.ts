@@ -34,6 +34,11 @@ export interface ProposalStartArmedBlock {
   label: string;
   plannedSeconds: number;
   quickLaunchRoute: string | undefined;
+  /** Forwarded onto the timer's SessionBlock.isWarmup so the active-
+   *  session UI can suppress per-block skip on warm-up blocks (those
+   *  are bound to a downstream song / cell — skipping them
+   *  independently leaves the parent block without prep). */
+  isWarmup: boolean | undefined;
 }
 
 export interface ProposalStartResolution {
@@ -67,6 +72,7 @@ export function resolveProposalStart(
     label: b.activityDescription,
     plannedSeconds: b.plannedSeconds,
     quickLaunchRoute: b.quickLaunchRoute,
+    isWarmup: b.isWarmup,
   }));
   return { firstBlock, startRoute, armBlocks };
 }

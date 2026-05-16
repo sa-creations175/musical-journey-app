@@ -61,6 +61,41 @@ describe('sessionTimerReducer — start', () => {
     expect(s.activeModuleRef).toBe('practice-sessions');
   });
 
+  it('threads isWarmup + isKeyboardRequired from input blocks onto SessionBlock', () => {
+    // ActiveSessionScreen reads currentBlock.isWarmup to suppress
+    // the per-block skip affordance. Pin that the reducer doesn't
+    // drop the flag when constructing SessionBlock — both flags
+    // were dropped by an earlier version of startSession.
+    const s = sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'start',
+      input: {
+        origin: 'practice-sessions',
+        activeModuleRef: 'practice-sessions',
+        blocks: [
+          {
+            moduleRef: 'repertoire',
+            plannedSeconds: 90,
+            label: 'Chord quiz',
+            isWarmup: true,
+            isKeyboardRequired: true,
+          },
+          {
+            moduleRef: 'ear-training',
+            plannedSeconds: 600,
+            label: 'ET',
+            isWarmup: false,
+            isKeyboardRequired: false,
+          },
+        ],
+        sessionId: 'sess-warmup',
+        now: T0,
+      },
+      blockIds: ['b1', 'b2'],
+    });
+    expect(s.blocks.map(b => b.isWarmup)).toEqual([true, false]);
+    expect(s.blocks.map(b => b.isKeyboardRequired)).toEqual([true, false]);
+  });
+
   it('refuses to start when a session is already running', () => {
     const running = startState();
     const same = sessionTimerReducer(running, {

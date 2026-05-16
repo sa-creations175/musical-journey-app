@@ -186,6 +186,38 @@ export default function ActiveSessionScreen() {
     setPhase('rating');
   };
 
+  // Skip — advance past this block without marking it completed.
+  // The reducer's advanceBlock with markStatus='skipped' finalises
+  // the block as 'skipped'; recordBlockEngagements (end-of-session
+  // pipeline) only writes spacingState for status==='completed', so
+  // skipped blocks don't count toward session stats. The skipped
+  // block stays skipped — advanceBlock only walks forward, so it
+  // doesn't reappear later in the session. Hidden for warm-up blocks
+  // (chord-quiz / scale-prep / S&P scales warm-up): those are bound
+  // to a downstream song / cell and shouldn't be skipped on their
+  // own — skipping the parent block is the right escape hatch.
+  const handleSkipBlock = () => {
+    const isLast =
+      state.currentBlockIndex !== null &&
+      state.currentBlockIndex >= state.blocks.length - 1;
+    const nextBlock =
+      !isLast && state.currentBlockIndex !== null
+        ? state.blocks[state.currentBlockIndex + 1]
+        : null;
+    const nextMeta = nextBlock ? moduleMetaById(nextBlock.moduleRef) : null;
+
+    advanceBlock({ markStatus: 'skipped' });
+
+    // Mirror handleRatingNext: hand the user to the next block's
+    // module. On the last block, advanceBlock auto-ends — stay put
+    // so the 'ended'-status branch renders EndOfSessionSummary.
+    const nextRoute = nextBlock?.quickLaunchRoute ?? nextMeta?.route ?? null;
+    if (nextBlock && nextRoute) {
+      setActiveModuleRef(nextBlock.moduleRef);
+      navigate(nextRoute);
+    }
+  };
+
   const handleRatingNext = () => {
     const isLast =
       state.currentBlockIndex !== null &&
@@ -435,7 +467,20 @@ export default function ActiveSessionScreen() {
         end this activity
       </button>
 
-      <div className="text-center">
+      <div className="flex items-center justify-center gap-4">
+        {!currentBlock.isWarmup && (
+          <button
+            type="button"
+            onClick={handleSkipBlock}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+            title="advance past this block without logging it as completed"
+          >
+            skip this block
+          </button>
+        )}
+        {!currentBlock.isWarmup && (
+          <span className="text-neutral-300 dark:text-neutral-700">·</span>
+        )}
         <button
           type="button"
           onClick={() => setDiscardOpen(true)}

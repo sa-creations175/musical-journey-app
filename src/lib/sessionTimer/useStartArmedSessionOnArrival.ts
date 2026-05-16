@@ -42,6 +42,8 @@ export function useStartArmedSessionOnArrival(): void {
         label: b.label,
         plannedSeconds: b.plannedSeconds,
         quickLaunchRoute: b.quickLaunchRoute,
+        isKeyboardRequired: b.isKeyboardRequired,
+        isWarmup: b.isWarmup,
       })),
     });
   }, [location.pathname, state.pendingStart, state.status, startSession]);
