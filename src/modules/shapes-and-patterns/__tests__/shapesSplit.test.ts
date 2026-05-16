@@ -680,27 +680,231 @@ describe('shapeShapesBlock — VL three-way split', () => {
     expect(vl.why).toContain('most-due first');
   });
 
-  it('VL cells are ordered by least-recently-engaged first', () => {
+  it('VL cells: due items surface before unstarted items (tier ordering)', () => {
+    // Same sub-cell type / position, but C is due and F/Bb are
+    // never-practised. C must come first because the DUE tier
+    // outranks the UNSTARTED tier.
     const rows = [
-      row('vl:major-251:guide-tones:A:C', { lastEngagedAt: NOW - 1_000 }),   // newest
-      row('vl:major-251:guide-tones:A:F', { lastEngagedAt: NOW - 10_000 }),  // oldest
-      // 'vl:major-251:guide-tones:A:Bb' has no row → null lastEngagedAt → top priority
+      row('vl:major-251:guide-tones:A:C', {
+        lastEngagedAt: NOW - 10_000,
+        nextDueAt: NOW - 1_000, // due
+      }),
     ];
     const segs = shapeShapesBlock(
       block(
         [
-          'vl:major-251:guide-tones:A:C',
           'vl:major-251:guide-tones:A:F',
           'vl:major-251:guide-tones:A:Bb',
+          'vl:major-251:guide-tones:A:C',
         ],
         30 * 60,
       ),
       ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs[0]).toBe('vl:major-251:guide-tones:A:Bb');
-    expect(vl.itemRefs[1]).toBe('vl:major-251:guide-tones:A:F');
-    expect(vl.itemRefs[2]).toBe('vl:major-251:guide-tones:A:C');
+    expect(vl.itemRefs[0]).toBe('vl:major-251:guide-tones:A:C');
+    // The other two are unstarted; their relative order is the
+    // key-index ASC tiebreak (KEYS is chromatic, so F before Bb).
+    expect(vl.itemRefs.slice(1)).toEqual([
+      'vl:major-251:guide-tones:A:F',
+      'vl:major-251:guide-tones:A:Bb',
+    ]);
+  });
+
+  it('within DUE tier, cells sort by nextDueAt ASC (soft pattern order does NOT apply to due items)', () => {
+    // dom7b9 cell is due longer ago than diatonic-cycle cell. The
+    // dom7b9 cell wins despite dom7b9 being a later pattern in
+    // catalog order — spacing-repetition trumps soft pattern order.
+    const rows = [
+      row('vl:diatonic-cycle:pos1:C', { nextDueAt: NOW - 1_000 }),
+      row('vl:dom7b9:pos1:C',         { nextDueAt: NOW - 10_000 }),
+    ];
+    const segs = shapeShapesBlock(
+      block(
+        ['vl:diatonic-cycle:pos1:C', 'vl:dom7b9:pos1:C'],
+        30 * 60,
+      ),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs[0]).toBe('vl:dom7b9:pos1:C');
+    expect(vl.itemRefs[1]).toBe('vl:diatonic-cycle:pos1:C');
+  });
+
+  it('within UNSTARTED tier, cells sort by catalog pattern index ASC (soft priority)', () => {
+    // Three unstarted cells, one per pattern. Catalog order is
+    // diatonic-cycle (0) → five-one (1) → ... → dom7b9 (5).
+    // diatonic-cycle should surface first, dom7b9 last.
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'vl:dom7b9:pos1:C',
+          'vl:five-one:guide-tones:A:C',
+          'vl:diatonic-cycle:pos1:C',
+        ],
+        30 * 60,
+      ),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs[0]).toBe('vl:diatonic-cycle:pos1:C');
+    expect(vl.itemRefs[1]).toBe('vl:five-one:guide-tones:A:C');
+    expect(vl.itemRefs[2]).toBe('vl:dom7b9:pos1:C');
+  });
+
+  it('within UNSTARTED tier, type index ASC orders the type progression (guide-tones first)', () => {
+    // Both cells are unstarted, same pattern + same position + same
+    // key. Eligibility is bypassed by the test below; here we
+    // verify the sort: guide-tones (typeIdx 0) before seventh-chords
+    // (typeIdx 1). Cells in different keys so eligibility doesn't
+    // matter — we're testing the sort, not the gate.
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'vl:major-251:seventh-chords:A:F', // typeIdx 1
+          'vl:major-251:guide-tones:A:C',    // typeIdx 0
+        ],
+        30 * 60,
+      ),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    // Note: vl:major-251:seventh-chords:A:F is eligible because its
+    // prerequisite (vl:major-251:guide-tones:{A,B}:F) check fails
+    // → cell dropped. So result is just guide-tones:C.
+    expect(vl.itemRefs).toEqual(['vl:major-251:guide-tones:A:C']);
+  });
+
+  it('NOT_DUE tier comes last (after both DUE and UNSTARTED)', () => {
+    const future = NOW + 10_000;
+    const rows = [
+      // Practised + scheduled in the future (NOT_DUE)
+      row('vl:diatonic-cycle:pos1:C', { nextDueAt: future }),
+      // Due now (DUE)
+      row('vl:dom7b9:pos1:C',         { nextDueAt: NOW - 1_000 }),
+      // unstarted: vl:five-one:guide-tones:A:C has no row
+    ];
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'vl:diatonic-cycle:pos1:C',
+          'vl:dom7b9:pos1:C',
+          'vl:five-one:guide-tones:A:C',
+        ],
+        30 * 60,
+      ),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs[0]).toBe('vl:dom7b9:pos1:C');           // DUE
+    expect(vl.itemRefs[1]).toBe('vl:five-one:guide-tones:A:C'); // UNSTARTED
+    expect(vl.itemRefs[2]).toBe('vl:diatonic-cycle:pos1:C');   // NOT_DUE
+  });
+});
+
+// -----------------------------------------------------------------
+// Voice-leading per-key gating (intra-pattern hard gate)
+// -----------------------------------------------------------------
+
+describe('shapeShapesBlock — VL per-key gating', () => {
+  it('seventh-chords cell ineligible when guide-tones prerequisites are still "new"', () => {
+    // No spacingState rows for the guide-tones cells → they default
+    // to 'new' → seventh-chords cell at the same key fails the gate.
+    const segs = shapeShapesBlock(
+      block(
+        ['vl:major-251:seventh-chords:A:C'],
+        30 * 60,
+      ),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading');
+    // No eligible VL cells → no VL segment.
+    expect(vl).toBeUndefined();
+  });
+
+  it('seventh-chords cell ineligible when ONLY ONE of the two guide-tones positions is at acquiring', () => {
+    // Pos A is at acquiring; Pos B is still 'new' → gate blocks.
+    const rows = [
+      row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
+      // Pos B has no row → defaults to 'new'.
+    ];
+    const segs = shapeShapesBlock(
+      block(['vl:major-251:seventh-chords:A:C'], 30 * 60),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    expect(segs.find(s => s.kind === 'voice-leading')).toBeUndefined();
+  });
+
+  it('seventh-chords cell becomes eligible once both guide-tones positions reach acquiring+', () => {
+    const rows = [
+      row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
+      row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquired' }),
+    ];
+    const segs = shapeShapesBlock(
+      block(['vl:major-251:seventh-chords:A:C'], 30 * 60),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs).toEqual(['vl:major-251:seventh-chords:A:C']);
+  });
+
+  it('ABA-structure (capstone) cell gates on seventh-chords prerequisites, not guide-tones', () => {
+    // Both guide-tones cells at acquired+ but seventh-chords cells
+    // still 'new' → ABA-structure stays blocked.
+    const rows = [
+      row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquired' }),
+      row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquired' }),
+    ];
+    const segs = shapeShapesBlock(
+      block(['vl:major-251:aba-structure:A:C'], 30 * 60),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    expect(segs.find(s => s.kind === 'voice-leading')).toBeUndefined();
+  });
+
+  it('per-key: pos A guide-tones acquiring on key C unlocks key-C seventh-chords but NOT key-F seventh-chords', () => {
+    const rows = [
+      row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
+      row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquiring' }),
+      // Key F: no rows → guide-tones still 'new' there.
+    ];
+    const segs = shapeShapesBlock(
+      block(
+        [
+          'vl:major-251:seventh-chords:A:C', // eligible
+          'vl:major-251:seventh-chords:A:F', // gated — F guide-tones still new
+        ],
+        30 * 60,
+      ),
+      ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs).toEqual(['vl:major-251:seventh-chords:A:C']);
+  });
+
+  it('non-type-position patterns (diatonic-cycle, dom7b9, dim7, minor-aba) have no gating — all positions always eligible', () => {
+    // Untouched positions for each non-type-position pattern.
+    const itemRefs = [
+      'vl:diatonic-cycle:pos2:C', // unstarted
+      'vl:minor-aba:pos-B:C',     // unstarted
+      'vl:dom7b9:pos3:C',         // unstarted
+      'vl:dim7:pos4:C',           // unstarted
+    ];
+    const segs = shapeShapesBlock(
+      block(itemRefs, 30 * 60),
+      ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    // All four surface (sorted by catalog index ASC within unstarted).
+    expect(new Set(vl.itemRefs)).toEqual(new Set(itemRefs));
+    // Order check: diatonic-cycle (idx 0) before minor-aba (idx 4)
+    // before dom7b9 (idx 5) before dim7 (idx 6).
+    expect(vl.itemRefs).toEqual([
+      'vl:diatonic-cycle:pos2:C',
+      'vl:minor-aba:pos-B:C',
+      'vl:dom7b9:pos3:C',
+      'vl:dim7:pos4:C',
+    ]);
   });
 
   it('drops legacy / unparseable vl: refs that no longer parse against the strict catalog', () => {

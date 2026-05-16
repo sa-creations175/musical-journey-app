@@ -40,8 +40,12 @@ import {
 } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   CHORD_QUALITY_BY_ID,
+  KEYS,
   parseVoiceLeadingItemRef,
   VOICE_LEADING_PATTERN_BY_ID,
+  VOICE_LEADING_PATTERN_INDEX,
+  type VoiceLeadingItemRefDescriptor,
+  type VoiceLeadingPattern,
 } from './catalog';
 import { parseShapesItemRef } from './drillModel';
 import {
@@ -809,27 +813,137 @@ function buildScalesSegment(
 // Voice-leading segment
 // ---------------------------------------------------------------------
 
+/** Tier classification for the VL surfacing sort.
+ *    DUE        — nextDueAt set and ≤ now. Pure nextDueAt ASC inside the tier.
+ *    UNSTARTED  — no spacingState row OR row with null nextDueAt. Ordered by
+ *                 pattern catalog index → type index → position index → key index.
+ *    NOT_DUE    — nextDueAt set and > now. Pure nextDueAt ASC inside the tier. */
+const VL_TIER_DUE = 0;
+const VL_TIER_UNSTARTED = 1;
+const VL_TIER_NOT_DUE = 2;
+type VLTier = typeof VL_TIER_DUE | typeof VL_TIER_UNSTARTED | typeof VL_TIER_NOT_DUE;
+
 interface VLCell {
   itemRef: string;
-  patternId: string;
+  desc: VoiceLeadingItemRefDescriptor;
+  pattern: VoiceLeadingPattern;
   patternLabel: string;
   keyName: string;
   seconds: number;
-  lastEngagedAt: number | null;
-  /** Position in the block's original itemRefs array — used as a
-   *  deterministic tiebreaker when lastEngagedAt is equal (or null
-   *  for both). */
+  nextDueAt: number | null;
+  tier: VLTier;
+  /** Catalog index of the pattern (0 = highest priority). */
+  patternIndex: number;
+  /** For type-position patterns, the type's index in pattern.types.
+   *  For other patterns, 0. */
+  typeIndex: number;
+  /** Index of the position / starting-position within the pattern's
+   *  dimension array. */
+  positionIndex: number;
+  /** Index of the key in KEYS (chromatic catalog order). */
+  keyIndex: number;
+  /** Position in the block's original itemRefs array — final
+   *  deterministic tiebreaker. */
   blockIndex: number;
 }
 
+const KEY_INDEX: ReadonlyMap<string, number> = new Map(
+  KEYS.map((k, i) => [k, i]),
+);
+
+/** Compute (typeIndex, positionIndex) for a descriptor against its
+ *  pattern's dimension arrays. Used both as a sort key and (for
+ *  type-position patterns) the basis for the per-key gating check. */
+function vlSubIndexes(
+  desc: VoiceLeadingItemRefDescriptor,
+  pattern: VoiceLeadingPattern,
+): { typeIndex: number; positionIndex: number } {
+  switch (desc.kind) {
+    case 'type-position': {
+      if (pattern.kind !== 'type-position') return { typeIndex: 0, positionIndex: 0 };
+      const types: readonly string[] = pattern.types;
+      const positions: readonly string[] = pattern.positions;
+      return {
+        typeIndex: types.indexOf(desc.type),
+        positionIndex: positions.indexOf(desc.position),
+      };
+    }
+    case 'diatonic-cycle': {
+      if (pattern.kind !== 'diatonic-cycle') return { typeIndex: 0, positionIndex: 0 };
+      const positions: readonly string[] = pattern.startingPositions;
+      return { typeIndex: 0, positionIndex: positions.indexOf(desc.startingPosition) };
+    }
+    case 'minor-aba': {
+      if (pattern.kind !== 'minor-aba') return { typeIndex: 0, positionIndex: 0 };
+      const positions: readonly string[] = pattern.positions;
+      return { typeIndex: 0, positionIndex: positions.indexOf(desc.position) };
+    }
+    case 'inversion-4': {
+      if (pattern.kind !== 'inversion-4') return { typeIndex: 0, positionIndex: 0 };
+      const positions: readonly string[] = pattern.positions;
+      return { typeIndex: 0, positionIndex: positions.indexOf(desc.position) };
+    }
+  }
+}
+
+/** Per-key gating rule for type-position patterns.
+ *
+ * A cell of type T (typeIndex i) is ineligible to surface until ALL
+ * cells of the immediate predecessor type T-1 at the same key have
+ * reached `acquiring` stage or above in spacingState. A missing
+ * spacingState row counts as `new` and fails the gate.
+ *
+ * The first type in the catalog (`guide-tones`) is always eligible.
+ * Non-type-position patterns have no type progression so all their
+ * cells are always eligible. */
+function vlIsEligible(
+  desc: VoiceLeadingItemRefDescriptor,
+  rowsByItemRef: ReadonlyMap<string, SpacingState>,
+): boolean {
+  if (desc.kind !== 'type-position') return true;
+  const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
+  if (!pattern || pattern.kind !== 'type-position') return true;
+  const types: readonly string[] = pattern.types;
+  const typeIdx = types.indexOf(desc.type);
+  if (typeIdx <= 0) return true;
+  const prereqType = types[typeIdx - 1];
+  for (const pos of pattern.positions) {
+    const prereqRef = `vl:${pattern.id}:${prereqType}:${pos}:${desc.keyName}`;
+    const row = rowsByItemRef.get(prereqRef);
+    const stage = row?.acquisitionStage ?? 'new';
+    if (stage === 'new') return false;
+  }
+  return true;
+}
+
+function vlTierFor(nextDueAt: number | null, now: number): VLTier {
+  if (nextDueAt === null) return VL_TIER_UNSTARTED;
+  if (nextDueAt <= now) return VL_TIER_DUE;
+  return VL_TIER_NOT_DUE;
+}
+
 /**
- * Build the VL segment from the block's vl: items. Ordering:
- *   1. lastEngagedAt ASC — least-recently-touched first (nulls
- *      treated as "never touched" → highest priority).
- *   2. blockIndex ASC — deterministic catalog-order tiebreak.
+ * Build the VL segment from the block's vl: items.
+ *
+ * Eligibility filter (intra-pattern, per-key hard gate):
+ *   For type-position patterns, a cell of type T+1 at key K only
+ *   surfaces once both position cells of type T at key K have
+ *   reached `acquiring` stage or above. Non-type-position patterns
+ *   (diatonic-cycle, minor-aba, dom7b9, dim7) have no gating.
+ *
+ * Sort order (eligible cells):
+ *   1. Tier ASC — due (nextDueAt ≤ now) first, then unstarted
+ *      (null nextDueAt), then not-yet-due (nextDueAt > now).
+ *   2. Within DUE / NOT_DUE tiers: nextDueAt ASC.
+ *   3. Within UNSTARTED tier: pattern catalog index ASC → type
+ *      index ASC → position index ASC → key index ASC. Catalog
+ *      order is the source of truth for inter-pattern soft
+ *      priority (diatonic-cycle / five-one first; later patterns
+ *      surface only when earlier ones are exhausted).
+ *   4. Block-position tiebreaker (deterministic across renders).
  *
  * Returns null when no vl: items are in the block, when no items
- * parse against the strict sub-cell catalog, or when the resolved
+ * parse + survive the eligibility filter, or when the resolved
  * budget is non-positive.
  */
 function buildVoiceLeadingSegment(
@@ -845,28 +959,44 @@ function buildVoiceLeadingSegment(
     if (!desc) return;
     const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
     if (!pattern) return;
+    if (!vlIsEligible(desc, ctx.rowsByItemRef)) return;
     const row = ctx.rowsByItemRef.get(itemRef);
+    const nextDueAt = row?.nextDueAt ?? null;
+    const { typeIndex, positionIndex } = vlSubIndexes(desc, pattern);
     cells.push({
       itemRef,
-      patternId: desc.patternId,
+      desc,
+      pattern,
       patternLabel: pattern.label,
       keyName: desc.keyName,
       seconds: voiceLeadingCellSeconds(desc),
-      lastEngagedAt: row?.lastEngagedAt ?? null,
+      nextDueAt,
+      tier: vlTierFor(nextDueAt, ctx.now),
+      patternIndex: VOICE_LEADING_PATTERN_INDEX.get(desc.patternId) ?? Number.MAX_SAFE_INTEGER,
+      typeIndex,
+      positionIndex,
+      keyIndex: KEY_INDEX.get(desc.keyName) ?? KEYS.length,
       blockIndex,
     });
   });
   if (cells.length === 0) return null;
 
   cells.sort((a, b) => {
-    if (a.lastEngagedAt === null && b.lastEngagedAt === null) {
+    if (a.tier !== b.tier) return a.tier - b.tier;
+    // DUE / NOT_DUE tiers — both have nextDueAt non-null by tier
+    // construction. Pure nextDueAt ASC; soft pattern ordering does
+    // not apply (spacing-repetition wins).
+    if (a.tier === VL_TIER_DUE || a.tier === VL_TIER_NOT_DUE) {
+      const aDue = a.nextDueAt ?? 0;
+      const bDue = b.nextDueAt ?? 0;
+      if (aDue !== bDue) return aDue - bDue;
       return a.blockIndex - b.blockIndex;
     }
-    if (a.lastEngagedAt === null) return -1;
-    if (b.lastEngagedAt === null) return 1;
-    if (a.lastEngagedAt !== b.lastEngagedAt) {
-      return a.lastEngagedAt - b.lastEngagedAt;
-    }
+    // UNSTARTED tier — catalog priority + within-pattern progression.
+    if (a.patternIndex !== b.patternIndex) return a.patternIndex - b.patternIndex;
+    if (a.typeIndex !== b.typeIndex) return a.typeIndex - b.typeIndex;
+    if (a.positionIndex !== b.positionIndex) return a.positionIndex - b.positionIndex;
+    if (a.keyIndex !== b.keyIndex) return a.keyIndex - b.keyIndex;
     return a.blockIndex - b.blockIndex;
   });
 
@@ -899,8 +1029,8 @@ function formatVoiceLeadingLabel(cells: ReadonlyArray<VLCell>): string {
   const seenPatterns = new Set<string>();
   const patternLabels: string[] = [];
   for (const c of cells) {
-    if (!seenPatterns.has(c.patternId)) {
-      seenPatterns.add(c.patternId);
+    if (!seenPatterns.has(c.pattern.id)) {
+      seenPatterns.add(c.pattern.id);
       patternLabels.push(c.patternLabel);
     }
   }

@@ -362,7 +362,19 @@ export type VoiceLeadingPattern =
       positions: ReadonlyArray<InversionPosition>;
     };
 
+// Array order IS the session-surfacing priority. The session
+// algorithm uses the catalog index as a soft deprioritization
+// factor for the unstarted-cell tier in buildVoiceLeadingSegment
+// — earlier patterns surface before later patterns when nothing
+// is due. Don't reorder without updating that ordering rule.
 export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
+  {
+    id: 'diatonic-cycle',
+    kind: 'diatonic-cycle',
+    label: 'Diatonic Cycle (1-4-7-3-6-2-5-1)',
+    description: 'Full diatonic cycle in 7th chords across three starting inversions of the 1 chord.',
+    startingPositions: ['pos1', 'pos2', 'pos3'],
+  },
   {
     id: 'five-one',
     kind: 'type-position',
@@ -388,13 +400,6 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     positions: ['A', 'B'],
   },
   {
-    id: 'diatonic-cycle',
-    kind: 'diatonic-cycle',
-    label: 'Diatonic Cycle (1-4-7-3-6-2-5-1)',
-    description: 'Full diatonic cycle in 7th chords across three starting inversions of the 1 chord.',
-    startingPositions: ['pos1', 'pos2', 'pos3'],
-  },
-  {
     id: 'minor-aba',
     kind: 'minor-aba',
     label: 'Minor ABA (dom7#9#5 → minor)',
@@ -416,6 +421,12 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
 ];
+
+/** Map of patternId → catalog index. Used by the session algorithm
+ *  to deprioritize later patterns within the unstarted-cell tier. */
+export const VOICE_LEADING_PATTERN_INDEX: ReadonlyMap<string, number> = new Map(
+  VOICE_LEADING_PATTERNS.map((p, i) => [p.id, i]),
+);
 
 /** Index for parse-by-patternId. */
 export const VOICE_LEADING_PATTERN_BY_ID = new Map<string, VoiceLeadingPattern>(
