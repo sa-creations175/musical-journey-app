@@ -16,6 +16,7 @@ import {
   itemRefForScale,
   labelForScaleItemRef,
   parseScaleItemRef,
+  scaleCellForItemRef,
 } from '../scaleSkills';
 import { CIRCLE_OF_FOURTHS } from '../../repertoire/circleOfFourths';
 
@@ -157,5 +158,28 @@ describe('labelForScaleItemRef', () => {
   it('returns null for un-recognised itemRefs', () => {
     expect(labelForScaleItemRef('chord-shape:maj:C:root')).toBeNull();
     expect(labelForScaleItemRef('scale:phrygian:C')).toBeNull();
+  });
+});
+
+describe('scaleCellForItemRef', () => {
+  it('returns the matching ScaleCell for a canonical scale itemRef', () => {
+    const cell = scaleCellForItemRef('scale:major:C');
+    expect(cell).not.toBeNull();
+    expect(cell!.kind).toBe('major');
+    expect(cell!.keyName).toBe('C');
+    expect(cell!.itemRef).toBe('scale:major:C');
+  });
+
+  it('returns the pentatonic ScaleCell carrying the startingPoint', () => {
+    const cell = scaleCellForItemRef('scale:major-pentatonic:1:Eb');
+    expect(cell).not.toBeNull();
+    expect(cell!.kind).toBe('major-pentatonic');
+    expect(cell!.keyName).toBe('Eb');
+    expect(cell!.startingPoint).toBe('1');
+  });
+
+  it('returns null for un-recognised itemRefs', () => {
+    expect(scaleCellForItemRef('chord-shape:maj:C:root')).toBeNull();
+    expect(scaleCellForItemRef('scale:phrygian:C')).toBeNull();
   });
 });

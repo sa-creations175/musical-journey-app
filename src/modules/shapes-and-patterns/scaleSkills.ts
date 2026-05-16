@@ -227,6 +227,14 @@ export function itemRefForScale(desc: ScaleDescriptor): string {
   }
 }
 
+/** Look up the canonical `ScaleCell` for a scale itemRef. Returns
+ *  null when the itemRef isn't a recognised cell — used by the
+ *  session UI to convert a scale-prep block's itemRefs into the
+ *  cells `ScalesDrillModal` consumes. */
+export function scaleCellForItemRef(itemRef: string): ScaleCell | null {
+  return SCALE_CELL_BY_ITEMREF.get(itemRef) ?? null;
+}
+
 /** Tier for the scale at this itemRef. Throws when the itemRef
  *  isn't a recognised scale — call `isScaleItem` first when the
  *  source is untrusted. */

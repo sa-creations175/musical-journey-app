@@ -1558,13 +1558,13 @@ function toProposalBlocks(
               quickLaunchRoute: `/repertoire?tab=detail&songId=${encodeURIComponent(s.songId)}&action=whole-song-test`,
             }
           : {}),
-        // Scale-prep blocks deep-link to the S&P module's Scales tab —
-        // the heat-grid surface that opens ScalesDrillModal on tap,
-        // matching the general warm-up's interactive drill flow. The
-        // user lands on the right tab regardless of their last
-        // S&P-module tab preference.
+        // Scale-prep blocks open ScalesDrillModal in place on the
+        // session screen — no navigation away from the proposal. The
+        // block's itemRefs drive which cells the modal walks through.
+        // SessionBlock consumes this flag and renders the modal as an
+        // overlay (see SessionBlock.tsx).
         ...(s.kind === 'scale-prep'
-          ? { quickLaunchRoute: '/shapes-and-patterns?tab=scales' }
+          ? { inSessionDrillKind: 'scales' as const }
           : {}),
         // TBD spotlight surfaces an inline "Add a song in Goals"
         // action — the block still renders normally so the
@@ -1576,12 +1576,10 @@ function toProposalBlocks(
               inlineActionTarget: 'goals' as const,
             }
           : {}),
-        // scale-prep routes to the Scales surface (no piano below
-        // the modal), but the prep itself IS a keyboard activity —
-        // the prep block lives inside the Repertoire half and
-        // surfaces alongside a song-practice block. Other Repertoire
-        // splits inherit the parent block's keyboard requirement
-        // (always true for the Repertoire module).
+        // Other Repertoire splits inherit the parent block's
+        // keyboard requirement (always true for the Repertoire
+        // module — scale-prep, chord-quiz, and matrix practice are
+        // all keyboard activities).
         isKeyboardRequired: block.isKeyboardRequired,
       }));
     }

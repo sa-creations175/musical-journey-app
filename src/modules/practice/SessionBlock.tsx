@@ -16,6 +16,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
+import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
+import { scaleCellForItemRef } from '../shapes-and-patterns/scaleSkills';
 import type { ProposalBlock } from './proposalTypes';
 
 interface Props {
@@ -31,12 +33,30 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
   const isControlled = expanded !== undefined;
   const isExpanded = isControlled ? !!expanded : internalExpanded;
 
+  // Index of the scale cell currently open in ScalesDrillModal for
+  // an in-session scale-prep drill. null = no modal open. On save the
+  // index advances to the next itemRef; when it walks past the end
+  // (or the user dismisses) the modal closes and the user is back at
+  // the session screen — no navigation away.
+  const [scalesCellIdx, setScalesCellIdx] = useState<number | null>(null);
+
   const navigate = useNavigate();
   const moduleMeta = moduleMetaById(block.moduleRef);
   const label = block.moduleLabel || moduleMeta?.label || block.moduleRef;
   // Per-block override (e.g. Production Vocab → vocab tab) wins over
   // the module's default route.
   const route = block.quickLaunchRoute ?? moduleMeta?.route ?? null;
+
+  // In-session drill blocks (today: scale-prep) open a modal in place
+  // instead of routing away. The fallback to navigate(route) stays
+  // active for every other block kind.
+  const inSessionScaleCells =
+    block.inSessionDrillKind === 'scales'
+      ? block.itemRefs
+          .map(ref => scaleCellForItemRef(ref))
+          .filter((c): c is NonNullable<typeof c> => c !== null)
+      : [];
+  const hasInSessionScales = inSessionScaleCells.length > 0;
 
   const handleToggle = () => {
     if (isControlled) onToggle?.();
@@ -45,6 +65,10 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
 
   const handleQuickLaunch = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (hasInSessionScales) {
+      setScalesCellIdx(0);
+      return;
+    }
     if (route) navigate(route);
   };
 
@@ -55,7 +79,23 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
 
   const tint = `${block.moduleAccentHex}14`; // ~8% alpha
 
+  const activeScalesCell =
+    scalesCellIdx !== null ? inSessionScaleCells[scalesCellIdx] ?? null : null;
+  const handleScalesModalClose = () => setScalesCellIdx(null);
+  const handleScalesLogged = () => {
+    // Walk to the next cell in the sequence — typically scale-prep
+    // carries 2 cells (e.g. major + major-pentatonic for a major key).
+    // When we run past the last one, close the modal: the user is
+    // back at the session screen with no navigation needed.
+    setScalesCellIdx(idx => {
+      if (idx === null) return null;
+      const next = idx + 1;
+      return next < inSessionScaleCells.length ? next : null;
+    });
+  };
+
   return (
+    <>
     <button
       type="button"
       onClick={handleToggle}
@@ -136,7 +176,7 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
               {block.whySnippet}
             </p>
           )}
-          {route && (
+          {(route || hasInSessionScales) && (
             <span
               role="button"
               tabIndex={0}
@@ -153,12 +193,20 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
                 borderColor: block.moduleAccentHex,
               }}
             >
-              <span aria-hidden>↗</span>
-              <span>open {label}</span>
+              <span aria-hidden>{hasInSessionScales ? '▶' : '↗'}</span>
+              <span>{hasInSessionScales ? 'start drill' : `open ${label}`}</span>
             </span>
           )}
         </div>
       )}
     </button>
+    {activeScalesCell && (
+      <ScalesDrillModal
+        cell={activeScalesCell}
+        onClose={handleScalesModalClose}
+        onLogged={handleScalesLogged}
+      />
+    )}
+    </>
   );
 }

@@ -70,6 +70,12 @@ export interface ProposalBlock {
    *  block to land on `/production?view=vocabulary` rather than
    *  the Production overview. */
   quickLaunchRoute?: string;
+  /** When set, tapping the block opens the matching drill modal in
+   *  place rather than navigating away from the session. Today the
+   *  only kind is `'scales'` (scale-prep blocks → ScalesDrillModal,
+   *  with the block's `itemRefs` driving which cells to drill in
+   *  sequence). Wins over `quickLaunchRoute` at the block surface. */
+  inSessionDrillKind?: 'scales';
 }
 
 export interface ProposalCardData {
