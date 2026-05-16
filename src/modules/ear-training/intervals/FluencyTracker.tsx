@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
+import EtItemCurationButton from '../EtItemCurationButton';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
 import { daysBetween, lastPracticedDaysAgo, localDayKey } from '../../../lib/dailyGoal';
 import {
@@ -293,6 +294,11 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-medium">{iv.name}</span>
                   <span className="text-xs font-mono text-neutral-400">{iv.id}</span>
+                  <EtItemCurationButton
+                    itemRef={iv.id}
+                    defaultLabel={iv.name}
+                    itemKindLabel="Interval"
+                  />
                   {bothMastered && (
                     <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border inline-flex items-center gap-1 ${TIER_BADGE_CLASS.mastered}`}>
                       <span aria-hidden>★</span> mastered

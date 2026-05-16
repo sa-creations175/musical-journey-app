@@ -114,6 +114,9 @@ import {
   getUnlockedTier as getChordRecognitionUnlockedTier,
 } from '../ear-training/chord-recognition/tierUnlock';
 import { loadProgressionsEligibleSet } from '../ear-training/chord-progressions/progressionTierUnlock';
+import { loadHiddenItemRefs } from '../ear-training/etCuration';
+import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
+import { MODES } from '../ear-training/scales-modes/catalog';
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import {
   shapeShapesBlock,
@@ -171,14 +174,32 @@ import type { InputQuestionnaireResult } from './inputs';
 async function loadEtEligibleByModule(
   spacingRows: ReadonlyArray<SpacingState>,
 ): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
-  const [crTier, progressions] = await Promise.all([
+  const [crTier, progressions, hidden] = await Promise.all([
     getChordRecognitionUnlockedTier(),
     loadProgressionsEligibleSet(spacingRows),
+    loadHiddenItemRefs(),
   ]);
   const cr = new Set(getChordRecognitionEligibleItems(crTier, spacingRows));
+  // Subtract user-hidden items from each module's eligible set
+  // BEFORE building the map. Hidden items never reach the proposal
+  // regardless of tier/stage state — that's the curation contract.
+  const subtractHidden = (set: ReadonlySet<string>): ReadonlySet<string> => {
+    if (hidden.size === 0) return set;
+    const out = new Set<string>();
+    for (const ref of set) if (!hidden.has(ref)) out.add(ref);
+    return out;
+  };
+  // Intervals + scales-modes have no tier gate (commit 2 in the ET
+  // tier-progression build will add a stage system for modes). Their
+  // map entries enumerate the full catalog minus hidden, so the
+  // curation hide path works uniformly across all ET submodules.
+  const intervalAll = new Set(INTERVAL_SEEDS.map(s => s.id));
+  const modesAll = new Set(MODES.map(m => m.id));
   return new Map<string, ReadonlySet<string>>([
-    ['chord-recognition', cr],
-    ['chord-progressions', progressions],
+    ['chord-recognition', subtractHidden(cr)],
+    ['chord-progressions', subtractHidden(progressions)],
+    ['intervals', subtractHidden(intervalAll)],
+    ['scales-modes', subtractHidden(modesAll)],
   ]);
 }
 

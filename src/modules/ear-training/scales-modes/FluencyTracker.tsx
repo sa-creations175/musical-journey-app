@@ -13,6 +13,7 @@ import {
 } from '../../../lib/tier';
 import { sortModes, type Mode, type ModeSortOrder } from './catalog';
 import { MODULE_ID, scaleItemId, vampItemId } from './shared';
+import EtItemCurationButton from '../EtItemCurationButton';
 
 interface Stats {
   correct: number;
@@ -88,6 +89,11 @@ function ModeRow({ mode, attempts }: { mode: Mode; attempts: AttemptRecord[] }) 
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{mode.name}</span>
+          <EtItemCurationButton
+            itemRef={mode.id}
+            defaultLabel={mode.name}
+            itemKindLabel="Mode"
+          />
           <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[scaleStats.tier]}`}>
             {TIER_LABEL[scaleStats.tier]}
           </span>

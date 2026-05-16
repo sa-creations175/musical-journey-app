@@ -1531,6 +1531,43 @@ export interface SongKeyEngagement {
   createdAt: number;
 }
 
+/**
+ * Per-ET-item user curation overlay (v23). One row per ET itemRef
+ * the user has touched via the curation sheet. Allows:
+ *
+ *   · customLabel — user-edited display name (overrides the
+ *     catalog's default `name`).
+ *   · flagged — marked for review / swap / future deletion.
+ *     Items still surface in sessions; the UI just shows a flag
+ *     indicator so the user can find them.
+ *   · flagNote — optional free-text note explaining why.
+ *   · hidden — soft delete. Hidden items are filtered out of
+ *     session eligibility (sessionGenerator.loadEtEligibleByModule)
+ *     and grayed/absent in the quiz item lists.
+ *
+ * The static ET catalogs (intervals/seed.ts, chord-recognition/seed.ts,
+ * chord-progressions/catalog.ts, scales-modes/catalog.ts) stay
+ * untouched — this is a pure overlay so curation doesn't fight the
+ * canonical content.
+ *
+ * itemRef format matches the per-submodule conventions:
+ *   · intervals          → bare interval ID ('m3')
+ *   · chord-recognition  → bare chordId for root ('maj') or
+ *                          'chordId:inv' for inversions ('maj:1')
+ *   · chord-progressions → bare progression ID ('1-4-5')
+ *   · scales-modes       → bare mode ID ('ionian')
+ */
+export interface EtItemCuration {
+  itemRef: string;
+  customLabel?: string;
+  flagged?: boolean;
+  flagNote?: string;
+  hidden?: boolean;
+  /** Server-side write timestamp (ms). Used by the sync layer +
+   *  for "most-recently-curated" sorting in admin views. */
+  updatedAt: number;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -1580,6 +1617,8 @@ export class AppDB extends Dexie {
   songCellRunThroughs!: Table<SongCellRunThrough, string>;
   songKeyRunThroughs!: Table<SongKeyRunThrough, string>;
   songKeyEngagements!: Table<SongKeyEngagement, string>;
+  // ET per-item curation overlay — v23
+  etItemCuration!: Table<EtItemCuration, string>;
 
   constructor() {
     super('musical-journey');
@@ -2390,6 +2429,66 @@ export class AppDB extends Dexie {
       songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
       songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
       songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+    });
+
+    // v23 — ET per-item curation overlay. Adds the `etItemCuration`
+    // table: one row per ET itemRef the user has touched via the
+    // curation sheet. Empty by default; rows are created lazily on
+    // first edit/flag/hide. No backfill (the table starts empty by
+    // design — opt-in curation, not bulk default state).
+    this.version(23).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage, learningOrder',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+      // ET curation overlay. Primary key on itemRef so writes are
+      // upserts and reads are O(1). `updatedAt` indexed for
+      // chronological admin views. `hidden`/`flagged` filtering
+      // uses a table scan (cheap — the table size is bounded by
+      // the ET catalog of ~150 items).
+      etItemCuration: 'itemRef, updatedAt',
     });
   }
 }

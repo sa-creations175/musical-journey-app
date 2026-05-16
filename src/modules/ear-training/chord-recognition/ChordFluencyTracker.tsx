@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
+import EtItemCurationButton from '../EtItemCurationButton';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import {
@@ -189,6 +190,11 @@ function ChordRow({ chord, attempts }: ChordRowProps) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-medium text-sm">{chord.name}</span>
+            <EtItemCurationButton
+              itemRef={chord.id}
+              defaultLabel={chord.name}
+              itemKindLabel="Chord"
+            />
             <span className={`text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 border ${FAMILY_BADGE[chord.family]}`}>
               {FAMILY_LABEL[chord.family]}
             </span>

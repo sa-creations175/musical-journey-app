@@ -13,6 +13,7 @@ import {
 } from '../../../lib/tier';
 import { PROGRESSIONS, TIER_NAMES, type Progression } from './catalog';
 import { KEYS, containsSlashChords } from './progressionTheory';
+import EtItemCurationButton from '../EtItemCurationButton';
 import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './ChordMotionTab';
 import AssociationsEditor from './AssociationsEditor';
 
@@ -62,6 +63,11 @@ function ProgRow({ progression, attempts }: ProgRowProps) {
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{progression.name}</span>
+          <EtItemCurationButton
+            itemRef={progression.id}
+            defaultLabel={progression.name}
+            itemKindLabel="Progression"
+          />
           {progression.isMustKnow && (
             <span className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border border-fluent/40 bg-fluent/10 text-fluent">
               ★ must-know
