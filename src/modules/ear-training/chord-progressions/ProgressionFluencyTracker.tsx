@@ -14,6 +14,13 @@ import {
 import { PROGRESSIONS, TIER_NAMES, type Progression } from './catalog';
 import { KEYS, containsSlashChords } from './progressionTheory';
 import EtItemCurationButton from '../EtItemCurationButton';
+import EtItemStatus from '../EtItemStatus';
+import EtRowCheckbox from '../EtRowCheckbox';
+import EtBulkActionBar from '../EtBulkActionBar';
+import EtSelectToggle from '../EtSelectToggle';
+import { useEtCurationsLive } from '../useEtCurations';
+import { useEtSelection, type EtSelectionState } from '../useEtSelection';
+import type { EtItemCuration } from '../../../lib/db';
 import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './ChordMotionTab';
 import AssociationsEditor from './AssociationsEditor';
 
@@ -50,19 +57,27 @@ function rollingFor(attempts: AttemptRecord[], itemId: string): RollingStats {
   };
 }
 
-interface ProgRowProps { progression: Progression; attempts: AttemptRecord[]; }
+interface ProgRowProps {
+  progression: Progression;
+  attempts: AttemptRecord[];
+  curation?: EtItemCuration;
+  selection?: EtSelectionState;
+}
 
-function ProgRow({ progression, attempts }: ProgRowProps) {
+function ProgRow({ progression, attempts, curation, selection }: ProgRowProps) {
   const chord = rollingFor(attempts, progression.id);
   const pattern = rollingFor(attempts, `${progression.id}-pattern`);
   const inversion = rollingFor(attempts, `${progression.id}-inversion`);
   const hasSlash = containsSlashChords(progression.numerals);
+  const dim = curation?.hidden ? 'opacity-60' : '';
 
   return (
-    <div className="py-3 first:pt-0 last:pb-0 grid lg:grid-cols-[280px,1fr] gap-3 sm:gap-4">
+    <div className={`py-3 first:pt-0 last:pb-0 grid lg:grid-cols-[280px,1fr] gap-3 sm:gap-4 ${dim}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
+          {selection && <EtRowCheckbox itemRef={progression.id} selection={selection} />}
           <span className="font-medium text-sm">{progression.name}</span>
+          <EtItemStatus curation={curation} />
           <EtItemCurationButton
             itemRef={progression.id}
             defaultLabel={progression.name}
@@ -156,7 +171,13 @@ function SimpleStatRow({ label, stats, extra }: { label: string; stats: RollingS
 
 // --- Full progression / must-knows views -----------------------------
 
-function FullProgressionView({ attempts }: { attempts: AttemptRecord[] }) {
+interface CuratableViewProps {
+  attempts: AttemptRecord[];
+  curations: ReadonlyMap<string, EtItemCuration>;
+  selection: EtSelectionState;
+}
+
+function FullProgressionView({ attempts, curations, selection }: CuratableViewProps) {
   const tierGroups = useMemo(() => (
     Object.keys(TIER_NAMES).map(n => Number(n)).sort((a, b) => a - b).map(tier => ({
       key: String(tier),
@@ -171,7 +192,13 @@ function FullProgressionView({ attempts }: { attempts: AttemptRecord[] }) {
           <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{group.title}</h3>
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
             {group.progressions.map(prog => (
-              <ProgRow key={prog.id} progression={prog} attempts={attempts} />
+              <ProgRow
+                key={prog.id}
+                progression={prog}
+                attempts={attempts}
+                curation={curations.get(prog.id)}
+                selection={selection}
+              />
             ))}
           </div>
         </div>
@@ -180,7 +207,7 @@ function FullProgressionView({ attempts }: { attempts: AttemptRecord[] }) {
   );
 }
 
-function MustKnowsView({ attempts }: { attempts: AttemptRecord[] }) {
+function MustKnowsView({ attempts, curations, selection }: CuratableViewProps) {
   const mustKnows = useMemo(() => PROGRESSIONS.filter(p => p.isMustKnow), []);
   return (
     <div>
@@ -188,7 +215,15 @@ function MustKnowsView({ attempts }: { attempts: AttemptRecord[] }) {
         must-know progressions ({mustKnows.length})
       </h3>
       <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-        {mustKnows.map(prog => <ProgRow key={prog.id} progression={prog} attempts={attempts} />)}
+        {mustKnows.map(prog => (
+          <ProgRow
+            key={prog.id}
+            progression={prog}
+            attempts={attempts}
+            curation={curations.get(prog.id)}
+            selection={selection}
+          />
+        ))}
       </div>
     </div>
   );
@@ -287,11 +322,20 @@ const VIEW_TABS: Array<{ id: ViewMode; label: string }> = [
 
 export default function ProgressionFluencyTracker({ attempts }: Props) {
   const [view, setView] = useState<ViewMode>('full-progression');
+  const allRefs = useMemo(() => PROGRESSIONS.map(p => p.id), []);
+  const curations = useEtCurationsLive(allRefs);
+  const selection = useEtSelection();
+  // Bulk select only meaningful on the progression-listing views;
+  // key-detection / chord-motion don't render per-progression rows.
+  const selectionApplies = view === 'full-progression' || view === 'must-knows';
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+          {selectionApplies && <EtSelectToggle selection={selection} />}
+        </div>
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap">
           {VIEW_TABS.map(opt => (
             <button
@@ -308,10 +352,22 @@ export default function ProgressionFluencyTracker({ attempts }: Props) {
           ))}
         </div>
       </div>
-      {view === 'full-progression' && <FullProgressionView attempts={attempts} />}
-      {view === 'must-knows' && <MustKnowsView attempts={attempts} />}
+      {view === 'full-progression' && (
+        <FullProgressionView attempts={attempts} curations={curations} selection={selection} />
+      )}
+      {view === 'must-knows' && (
+        <MustKnowsView attempts={attempts} curations={curations} selection={selection} />
+      )}
       {view === 'key-detection' && <KeyDetectionView attempts={attempts} />}
       {view === 'chord-motion' && <ChordMotionView attempts={attempts} />}
+      {selectionApplies && selection.active && (
+        <EtBulkActionBar
+          selected={selection.selected}
+          curations={curations}
+          onClear={selection.clear}
+          onExit={selection.exit}
+        />
+      )}
     </section>
   );
 }

@@ -14,6 +14,13 @@ import {
 import { sortModes, type Mode, type ModeSortOrder } from './catalog';
 import { MODULE_ID, scaleItemId, vampItemId } from './shared';
 import EtItemCurationButton from '../EtItemCurationButton';
+import EtItemStatus from '../EtItemStatus';
+import EtRowCheckbox from '../EtRowCheckbox';
+import EtBulkActionBar from '../EtBulkActionBar';
+import EtSelectToggle from '../EtSelectToggle';
+import { useEtCurationsLive } from '../useEtCurations';
+import { useEtSelection, type EtSelectionState } from '../useEtSelection';
+import type { EtItemCuration } from '../../../lib/db';
 
 interface Stats {
   correct: number;
@@ -64,31 +71,64 @@ interface Props {
 
 export default function FluencyTracker({ attempts, sort }: Props) {
   const modes = useMemo(() => sortModes(sort), [sort]);
+  const itemRefs = useMemo(() => modes.map(m => m.id), [modes]);
+  const curations = useEtCurationsLive(itemRefs);
+  const selection = useEtSelection();
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-4">
       <div className="flex items-baseline justify-between flex-wrap gap-2">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+          <EtSelectToggle selection={selection} />
+        </div>
         <p className="text-[11px] text-neutral-500">scale recognition · vamp recognition · last practiced</p>
       </div>
       <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
         {modes.map(mode => (
-          <ModeRow key={mode.id} mode={mode} attempts={attempts} />
+          <ModeRow
+            key={mode.id}
+            mode={mode}
+            attempts={attempts}
+            curation={curations.get(mode.id)}
+            selection={selection}
+          />
         ))}
       </div>
+      {selection.active && (
+        <EtBulkActionBar
+          selected={selection.selected}
+          curations={curations}
+          onClear={selection.clear}
+          onExit={selection.exit}
+        />
+      )}
     </section>
   );
 }
 
-function ModeRow({ mode, attempts }: { mode: Mode; attempts: AttemptRecord[] }) {
+function ModeRow({
+  mode,
+  attempts,
+  curation,
+  selection,
+}: {
+  mode: Mode;
+  attempts: AttemptRecord[];
+  curation: EtItemCuration | undefined;
+  selection: EtSelectionState;
+}) {
   const scaleStats = rollingFor(attempts, scaleItemId(mode));
   const vampStats = rollingFor(attempts, vampItemId(mode));
+  const dim = curation?.hidden ? 'opacity-60' : '';
 
   return (
-    <div className="py-3 first:pt-0 last:pb-0 grid lg:grid-cols-[220px,1fr] gap-3 sm:gap-4">
+    <div className={`py-3 first:pt-0 last:pb-0 grid lg:grid-cols-[220px,1fr] gap-3 sm:gap-4 ${dim}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
+          <EtRowCheckbox itemRef={mode.id} selection={selection} />
           <span className="font-medium text-sm">{mode.name}</span>
+          <EtItemStatus curation={curation} />
           <EtItemCurationButton
             itemRef={mode.id}
             defaultLabel={mode.name}

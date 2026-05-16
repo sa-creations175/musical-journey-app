@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
-import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
+import { db, type AttemptRecord, type ChordData, type EtItemCuration } from '../../../lib/db';
 import EtItemCurationButton from '../EtItemCurationButton';
+import EtItemStatus from '../EtItemStatus';
+import EtRowCheckbox from '../EtRowCheckbox';
+import EtBulkActionBar from '../EtBulkActionBar';
+import EtSelectToggle from '../EtSelectToggle';
+import { useEtCurationsLive } from '../useEtCurations';
+import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import {
@@ -166,12 +172,18 @@ function DescriptionEditor({ chord }: DescriptionEditorProps) {
   );
 }
 
-interface ChordRowProps { chord: ChordData; attempts: AttemptRecord[]; }
+interface ChordRowProps {
+  chord: ChordData;
+  attempts: AttemptRecord[];
+  curation: EtItemCuration | undefined;
+  selection: EtSelectionState;
+}
 
-function ChordRow({ chord, attempts }: ChordRowProps) {
+function ChordRow({ chord, attempts, curation, selection }: ChordRowProps) {
   const [expanded, setExpanded] = useState(false);
   const rolling = rollingFor(attempts, chord.id);
   const isUntouched = rolling.tier === 'untouched';
+  const dim = curation?.hidden ? 'opacity-60' : '';
 
   // Per-inversion drill-down — only meaningful for foundational triads
   // where inversion training is enabled. Sevenths could expand later;
@@ -185,11 +197,13 @@ function ChordRow({ chord, attempts }: ChordRowProps) {
     : [];
 
   return (
-    <div className="py-3 first:pt-0 last:pb-0">
+    <div className={`py-3 first:pt-0 last:pb-0 ${dim}`}>
       <div className="grid lg:grid-cols-[280px,1fr] gap-3 sm:gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            <EtRowCheckbox itemRef={chord.id} selection={selection} />
             <span className="font-medium text-sm">{chord.name}</span>
+            <EtItemStatus curation={curation} />
             <EtItemCurationButton
               itemRef={chord.id}
               defaultLabel={chord.name}
@@ -321,11 +335,17 @@ export default function ChordFluencyTracker({ chords, attempts }: Props) {
   }, [chords]);
 
   const groups = view === 'tier' ? tierGroups : familyGroups;
+  const itemRefs = useMemo(() => chords.map(c => c.id), [chords]);
+  const curations = useEtCurationsLive(itemRefs);
+  const selection = useEtSelection();
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+          <EtSelectToggle selection={selection} />
+        </div>
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
           {([
             { id: 'tier', label: 'tier view' },
@@ -351,12 +371,26 @@ export default function ChordFluencyTracker({ chords, attempts }: Props) {
             <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{group.title}</h3>
             <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
               {group.chords.map(chord => (
-                <ChordRow key={chord.id} chord={chord} attempts={attempts} />
+                <ChordRow
+                  key={chord.id}
+                  chord={chord}
+                  attempts={attempts}
+                  curation={curations.get(chord.id)}
+                  selection={selection}
+                />
               ))}
             </div>
           </div>
         ))}
       </div>
+      {selection.active && (
+        <EtBulkActionBar
+          selected={selection.selected}
+          curations={curations}
+          onClear={selection.clear}
+          onExit={selection.exit}
+        />
+      )}
     </section>
   );
 }

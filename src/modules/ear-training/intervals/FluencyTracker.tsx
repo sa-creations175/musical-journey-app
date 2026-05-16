@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
 import EtItemCurationButton from '../EtItemCurationButton';
+import EtItemStatus from '../EtItemStatus';
+import EtRowCheckbox from '../EtRowCheckbox';
+import EtBulkActionBar from '../EtBulkActionBar';
+import EtSelectToggle from '../EtSelectToggle';
+import { useEtCurationsLive } from '../useEtCurations';
+import { useEtSelection } from '../useEtSelection';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
 import { daysBetween, lastPracticedDaysAgo, localDayKey } from '../../../lib/dailyGoal';
 import {
@@ -268,13 +274,17 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
     () => [...intervals].sort((a, b) => a.semitones - b.semitones),
     [intervals],
   );
+  const itemRefs = useMemo(() => sorted.map(iv => iv.id), [sorted]);
+  const curations = useEtCurationsLive(itemRefs);
+  const selection = useEtSelection();
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
           <TierLegend />
+          <EtSelectToggle selection={selection} />
         </div>
         <span className="text-[11px] sm:text-xs text-neutral-500">
           rolling window: last {ROLLING_WINDOW_SIZE} attempts per direction
@@ -288,12 +298,16 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
           const anyStale = ascRolling.tier === 'stale' || descRolling.tier === 'stale';
           const ivAttempts = attempts.filter(a => a.moduleId === MODULE_ID && a.itemId === iv.id);
           const daysAgo = lastPracticedDaysAgo(ivAttempts);
+          const curation = curations.get(iv.id);
+          const dim = curation?.hidden ? 'opacity-60' : '';
           return (
-            <div key={iv.id} className="py-4 first:pt-0 last:pb-0 grid lg:grid-cols-[220px,1fr] gap-3 sm:gap-4">
+            <div key={iv.id} className={`py-4 first:pt-0 last:pb-0 grid lg:grid-cols-[220px,1fr] gap-3 sm:gap-4 ${dim}`}>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <EtRowCheckbox itemRef={iv.id} selection={selection} />
                   <span className="font-medium">{iv.name}</span>
                   <span className="text-xs font-mono text-neutral-400">{iv.id}</span>
+                  <EtItemStatus curation={curation} />
                   <EtItemCurationButton
                     itemRef={iv.id}
                     defaultLabel={iv.name}
@@ -328,6 +342,14 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
           );
         })}
       </div>
+      {selection.active && (
+        <EtBulkActionBar
+          selected={selection.selected}
+          curations={curations}
+          onClear={selection.clear}
+          onExit={selection.exit}
+        />
+      )}
     </section>
   );
 }
