@@ -22,6 +22,36 @@ import { recordEngagement } from '../../lib/spacingState';
 /** Minimum seconds a drill session must run to count as a rep. */
 export const MIN_REP_SECONDS = 30;
 
+/**
+ * Brief two-tone cue played when a countdown drill timer hits zero.
+ * Lives at module scope so DrillSessionModal, ScalesDrillModal, and
+ * VoiceLeadingDrillModal all share the same end-of-drill audio
+ * signature. Intentionally short + distinct so a finished drill
+ * feels like a timed block. Audio import is dynamic so the module
+ * stays tree-shake-friendly for non-modal callers.
+ */
+export async function playDrillEndCue(): Promise<void> {
+  try {
+    const { ensureRunning } = await import('../../lib/audio');
+    const ctx = await ensureRunning();
+    const t = ctx.currentTime + 0.02;
+    for (let i = 0; i < 2; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 780 + i * 260;
+      gain.gain.setValueAtTime(0, t + i * 0.22);
+      gain.gain.linearRampToValueAtTime(0.25, t + i * 0.22 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.22 + 0.18);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t + i * 0.22);
+      osc.stop(t + i * 0.22 + 0.2);
+    }
+  } catch {
+    // non-fatal
+  }
+}
+
 export function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
 }

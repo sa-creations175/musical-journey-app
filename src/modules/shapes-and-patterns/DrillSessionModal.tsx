@@ -11,6 +11,7 @@ import {
   formatDuration,
   logSession,
   MIN_REP_SECONDS,
+  playDrillEndCue,
 } from './drillModel';
 
 interface Props {
@@ -161,7 +162,7 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
           window.clearInterval(intervalRef.current!);
           intervalRef.current = null;
           metronome.stop('drill');
-          void playEndCue();
+          void playDrillEndCue();
           setPhase('assess');
           return 0;
         }
@@ -455,26 +456,6 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
   );
 }
 
-// Brief two-tone cue when the countdown completes. Intentionally
-// short + distinct so the drill session feels like a timed block.
-async function playEndCue() {
-  try {
-    const { ensureRunning } = await import('../../lib/audio');
-    const ctx = await ensureRunning();
-    const t = ctx.currentTime + 0.02;
-    for (let i = 0; i < 2; i++) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = 780 + i * 260;
-      gain.gain.setValueAtTime(0, t + i * 0.22);
-      gain.gain.linearRampToValueAtTime(0.25, t + i * 0.22 + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.22 + 0.18);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t + i * 0.22);
-      osc.stop(t + i * 0.22 + 0.2);
-    }
-  } catch {
-    // non-fatal
-  }
-}
+// playDrillEndCue lives in ./drillModel — shared with the Scales /
+// VL drill modals so all three S&P countdown timers have the same
+// end-of-drill audio signature.

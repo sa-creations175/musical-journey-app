@@ -1,27 +1,37 @@
 /**
- * Slim drill runner for a single Voice-Leading sub-cell.
+ * Slim drill runner for a single Voice-Leading sub-cell. Mirrors
+ * DrillSessionModal's countdown flow exactly (setup → running →
+ * paused → assess), minus the global-session integration and
+ * metronome — VL drilling is independent of the active Practice
+ * Sessions timer.
  *
- * Mirrors ScalesDrillModal: setup → running → paused → assess.
- * Accepts a specific sub-cell itemRef (e.g.
- * `vl:major-251:guide-tones:A:C`) — the grid tap routes the exact
- * cell the user picked rather than relying on a most-due re-pick
- * at click time. The session-algorithm path still uses
- * `pickMostDueVoiceLeadingSubCell` exported from catalog.ts to
- * surface candidate sub-cells when proposing blocks; that picker
- * is no longer called inside this modal.
+ *   · setup     — user picks a target duration via slider + preset
+ *                 chips. Default = `voiceLeadingCellSeconds(desc)`
+ *                 (90 / 120 / 180 s depending on pattern + type).
+ *   · running   — timer counts DOWN from target. "Complete early"
+ *                 button skips ahead to assess (disabled below
+ *                 MIN_REP_SECONDS).
+ *   · paused    — resume / complete early / reset to setup.
+ *   · assess    — auto-entered when the countdown reaches zero
+ *                 (with a brief two-tone end-cue chime via
+ *                 playDrillEndCue). User picks Flying / Cruising /
+ *                 Crawling and saves; save is disabled below
+ *                 MIN_REP_SECONDS.
  *
- * On save the modal does two writes:
+ * Two writes happen on save:
+ *   1. A DrillSession row via `logVoiceLeadingDrillSession` —
+ *      records BOTH `targetSeconds` (the user-set countdown) and
+ *      `durationSeconds` (actual elapsed). Matches DrillSessionModal's
+ *      save shape.
+ *   2. `recordEngagement` against the sub-cell itemRef with the
+ *      procedural-memory rating signal.
  *
- *   1. A DrillSession row via `logVoiceLeadingDrillSession`, so
- *      the VL attempt is counted in getWeeklyAttempts. The row
- *      carries no DrillSkill / DrillType (VL sub-cells have none).
- *   2. A `recordEngagement` against the sub-cell itemRef with the
- *      procedural-memory rating signal — the canonical proficiency
- *      signal that flows through to the heat-grid stage color.
+ * Accepts a specific sub-cell itemRef. The session-algorithm path
+ * still uses `pickMostDueVoiceLeadingSubCell` exported from
+ * catalog.ts to pick candidate sub-cells when proposing blocks;
+ * that picker is not called inside this modal.
  *
- * Unparseable itemRefs (e.g. a future patternId, or hand-edited
- * data) short-circuit to a placeholder state rather than crashing
- * the modal.
+ * Unparseable itemRefs short-circuit to a placeholder state.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Modal from '../../components/Modal';
@@ -30,6 +40,8 @@ import { voiceLeadingCellSeconds } from '../../lib/sessionAlgorithm/timePerAttem
 import {
   formatDuration,
   logVoiceLeadingDrillSession,
+  MIN_REP_SECONDS,
+  playDrillEndCue,
 } from './drillModel';
 import {
   parseVoiceLeadingItemRef,
@@ -81,6 +93,9 @@ const FEEL_OPTIONS: ReadonlyArray<{
   },
 ];
 
+/** Mirror of DrillSessionModal's setup-phase preset chips. */
+const PRESETS = [60, 120, 180, 300, 420, 600] as const;
+
 export default function VoiceLeadingDrillModal({
   itemRef,
   onClose,
@@ -92,48 +107,92 @@ export default function VoiceLeadingDrillModal({
   const suggested = desc ? voiceLeadingCellSeconds(desc) : 90;
   const keyName = desc?.keyName ?? '';
 
+  const [targetSeconds, setTargetSeconds] = useState(suggested);
+  const [remainingSeconds, setRemainingSeconds] = useState(suggested);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [phase, setPhase] = useState<Phase>('setup');
-  const [elapsedSec, setElapsedSec] = useState(0);
   const [feel, setFeel] = useState<FeelRating | null>(null);
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (phase !== 'running') {
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      return;
-    }
-    intervalRef.current = window.setInterval(() => {
-      setElapsedSec(s => s + 1);
-    }, 1000);
     return () => {
       if (intervalRef.current !== null) {
         window.clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
     };
-  }, [phase]);
+  }, []);
+
+  const startTick = () => {
+    if (intervalRef.current !== null) window.clearInterval(intervalRef.current);
+    intervalRef.current = window.setInterval(() => {
+      setElapsedSeconds(prev => prev + 1);
+      setRemainingSeconds(prev => {
+        const next = prev - 1;
+        if (next <= 0) {
+          if (intervalRef.current !== null) {
+            window.clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+          void playDrillEndCue();
+          setPhase('assess');
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+  };
+
+  const stopTick = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
 
   const handleStart = () => {
     setPhase('running');
-    setElapsedSec(0);
+    setElapsedSeconds(0);
+    setRemainingSeconds(targetSeconds);
+    startTick();
   };
-  const handlePause = () => setPhase('paused');
-  const handleResume = () => setPhase('running');
-  const handleEnd = () => setPhase('assess');
+
+  const handlePause = () => {
+    stopTick();
+    setPhase('paused');
+  };
+
+  const handleResume = () => {
+    setPhase('running');
+    startTick();
+  };
+
+  const handleCompleteEarly = () => {
+    stopTick();
+    setPhase('assess');
+  };
+
+  const handleResetToSetup = () => {
+    stopTick();
+    setPhase('setup');
+    setElapsedSeconds(0);
+    setRemainingSeconds(targetSeconds);
+  };
 
   const handleSave = async () => {
-    if (saving || feel === null || !desc) return;
+    if (saving || feel === null || !desc || belowMin) return;
     setSaving(true);
     try {
+      // DrillSession row first — the attempt-counting record. Records
+      // BOTH the user-set countdown (`targetSeconds`) and the actual
+      // elapsed (`durationSeconds`). recordEngagement (the proficiency
+      // signal) follows.
       await logVoiceLeadingDrillSession({
         itemRef,
-        durationSeconds: elapsedSec,
+        durationSeconds: elapsedSeconds,
         rating: feel,
-        targetSeconds: suggested,
+        targetSeconds,
       });
       await recordEngagement({
         itemRef,
@@ -150,156 +209,232 @@ export default function VoiceLeadingDrillModal({
     }
   };
 
-  const overSuggested = elapsedSec > suggested;
+  const belowMin = elapsedSeconds < MIN_REP_SECONDS;
   const title = pattern && keyName
     ? `${pattern.label} in ${keyName}`
     : 'Voice-leading drill';
   const description = subCellLabel
     ? `${subCellLabel} · ~${suggested}s suggested`
     : `~${suggested}s suggested`;
+  // Display: countdown in setup/running/paused, elapsed in assess.
+  const displaySeconds = phase === 'assess' ? elapsedSeconds : remainingSeconds;
 
   return (
     <Modal
       open
-      onClose={onClose}
+      // Prevent accidental close during running — matches DrillSessionModal.
+      onClose={phase === 'running' ? () => {} : onClose}
       title={title}
       description={description}
-      footer={(
+      footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            Close
+            cancel — don't log
           </button>
-          {phase === 'assess' && (
-            <button
-              onClick={() => void handleSave()}
-              disabled={feel === null || saving || !desc}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium text-white ${
-                feel === null || saving || !desc
-                  ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
-                  : 'bg-fluent hover:opacity-90'
-              }`}
-            >
-              {saving ? 'Saving…' : 'Save rating'}
-            </button>
-          )}
+          <button
+            onClick={() => void handleSave()}
+            disabled={feel === null || saving || !desc || belowMin}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium text-white ${
+              feel === null || saving || !desc || belowMin
+                ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
+                : 'bg-fluent hover:opacity-90'
+            }`}
+          >
+            {saving ? 'Saving…' : 'Save rating'}
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-end">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+          >
+            cancel
+          </button>
         </div>
       )}
     >
-      <div className="space-y-4">
-        {!desc && (
-          <div className="text-sm text-neutral-600 dark:text-neutral-300">
-            This sub-cell isn't in the built-in voice-leading catalog. Try
-            tapping one of the highlighted cells in the grid.
-          </div>
-        )}
-
-        {desc && phase === 'setup' && (
-          <div className="space-y-3">
-            {subCellLabel && (
-              <div className="rounded-md border border-fluent/30 bg-fluent/5 p-3 text-xs">
-                <div className="text-[10px] uppercase tracking-wide text-fluent mb-1">
-                  Sub-cell
+      {!desc ? (
+        <div className="text-sm text-neutral-600 dark:text-neutral-300">
+          This sub-cell isn't in the built-in voice-leading catalog. Try
+          tapping one of the highlighted cells in the grid.
+        </div>
+      ) : phase !== 'assess' ? (
+        <div className="space-y-4 text-sm">
+          {/* Target-duration picker (setup phase only) */}
+          {phase === 'setup' && (
+            <>
+              {subCellLabel && (
+                <div className="rounded-md border border-fluent/30 bg-fluent/5 p-3 text-xs">
+                  <div className="text-[10px] uppercase tracking-wide text-fluent mb-1">
+                    Sub-cell
+                  </div>
+                  <div className="text-neutral-700 dark:text-neutral-200 font-medium">
+                    {subCellLabel}
+                  </div>
                 </div>
-                <div className="text-neutral-700 dark:text-neutral-200 font-medium">
-                  {subCellLabel}
-                </div>
-              </div>
-            )}
-            <p className="text-sm text-neutral-600 dark:text-neutral-300">
-              Run the progression in {keyName} repeatedly for the duration.
-              Aim for ~{suggested}s; longer is fine if you want to settle in.
-              Rate Flying / Cruising / Crawling when you're done.
-            </p>
-            <button
-              onClick={handleStart}
-              className="w-full px-4 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
-            >
-              Start drill
-            </button>
-          </div>
-        )}
-
-        {desc && (phase === 'running' || phase === 'paused') && (
-          <div className="space-y-4 text-center">
-            <div className="text-5xl font-mono tabular-nums">
-              {formatDuration(elapsedSec)}
-            </div>
-            <div
-              className={`text-[11px] uppercase tracking-wide ${
-                overSuggested ? 'text-developing' : 'text-neutral-500'
-              }`}
-            >
-              {overSuggested
-                ? `over suggested · ${suggested}s target`
-                : `running · ~${suggested}s target`}
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              {phase === 'running' ? (
-                <button
-                  onClick={handlePause}
-                  className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-                >
-                  Pause
-                </button>
-              ) : (
-                <button
-                  onClick={handleResume}
-                  className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-sm"
-                >
-                  Resume
-                </button>
               )}
-              <button
-                onClick={handleEnd}
-                className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
-              >
-                End drill
-              </button>
-            </div>
-          </div>
-        )}
-
-        {desc && phase === 'assess' && (
-          <div className="space-y-4">
-            <div className="text-center">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-                Drilled for
-              </div>
-              <div className="text-2xl font-mono tabular-nums">
-                {formatDuration(elapsedSec)}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-                How did it feel?
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {FEEL_OPTIONS.map(opt => {
-                  const active = feel === opt.value;
-                  return (
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-neutral-500 uppercase tracking-wide text-xs">target time</span>
+                  <span className="font-mono tabular-nums">{formatDuration(targetSeconds)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={30}
+                  max={600}
+                  step={15}
+                  value={targetSeconds}
+                  onChange={e => {
+                    const next = Number(e.target.value);
+                    setTargetSeconds(next);
+                    setRemainingSeconds(next);
+                  }}
+                  className="w-full accent-fluent"
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {PRESETS.map(s => (
                     <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setFeel(opt.value)}
-                      aria-pressed={active}
-                      className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
-                        active ? opt.activeClass : opt.inactiveClass
+                      key={s}
+                      onClick={() => { setTargetSeconds(s); setRemainingSeconds(s); }}
+                      className={`px-2 py-0.5 rounded border text-xs ${
+                        targetSeconds === s
+                          ? 'bg-fluent text-white border-fluent'
+                          : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
                       }`}
                     >
-                      <span className="font-medium">{opt.label}</span>
-                      <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
+                      {formatDuration(s)}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
+            </>
+          )}
+
+          {/* Countdown display */}
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 flex items-center justify-center">
+            <div
+              className={`font-mono tabular-nums text-5xl sm:text-6xl ${
+                phase === 'running' ? 'text-fluent' : 'text-neutral-700 dark:text-neutral-200'
+              }`}
+            >
+              {formatDuration(displaySeconds)}
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Transport */}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {phase === 'setup' && (
+              <button
+                onClick={handleStart}
+                className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+              >
+                start drill
+              </button>
+            )}
+            {phase === 'running' && (
+              <>
+                <button
+                  onClick={handlePause}
+                  className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
+                >
+                  pause
+                </button>
+                <button
+                  onClick={handleCompleteEarly}
+                  disabled={belowMin}
+                  className={`px-4 py-2 rounded-lg border text-sm ${
+                    belowMin
+                      ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
+                  }`}
+                >
+                  complete early
+                </button>
+              </>
+            )}
+            {phase === 'paused' && (
+              <>
+                <button
+                  onClick={handleResume}
+                  className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+                >
+                  resume
+                </button>
+                <button
+                  onClick={handleCompleteEarly}
+                  disabled={belowMin}
+                  className={`px-4 py-2 rounded-lg border text-sm ${
+                    belowMin
+                      ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
+                      : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
+                  }`}
+                >
+                  complete early
+                </button>
+                <button
+                  onClick={handleResetToSetup}
+                  className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-500"
+                >
+                  reset
+                </button>
+              </>
+            )}
+          </div>
+
+          {belowMin && (phase === 'running' || phase === 'paused') && (
+            <p className="text-[11px] text-neutral-500 text-center italic">
+              practice for at least {MIN_REP_SECONDS} seconds before completing — cancel to exit without logging.
+            </p>
+          )}
+        </div>
+      ) : (
+        // --- Assessment phase -----------------------------------
+        <div className="space-y-4">
+          <div className="text-center">
+            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+              Drilled for
+            </div>
+            <div className="text-2xl font-mono tabular-nums">
+              {formatDuration(elapsedSeconds)}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+              How did it feel?
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {FEEL_OPTIONS.map(opt => {
+                const active = feel === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setFeel(opt.value)}
+                    aria-pressed={active}
+                    className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
+                      active ? opt.activeClass : opt.inactiveClass
+                    }`}
+                  >
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {belowMin && (
+            <p className="text-xs text-developing italic">
+              practice for at least {MIN_REP_SECONDS} seconds to log as a rep.
+            </p>
+          )}
+        </div>
+      )}
     </Modal>
   );
 }
