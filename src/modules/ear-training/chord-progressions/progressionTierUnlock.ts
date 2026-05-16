@@ -22,7 +22,11 @@ import {
   stageForProgression,
   type ProgressionStage,
 } from './progressionStages';
-import { getUnlockedTier as getChordRecognitionUnlockedTier } from '../chord-recognition/tierUnlock';
+import {
+  isSubmoduleGated,
+  loadEtSubmoduleStatus,
+  maxAllowedProgressionStage,
+} from '../etStageGate';
 
 const MODULE_REF = 'chord-progressions';
 
@@ -140,25 +144,28 @@ export function getEligibleProgressionItems(
 }
 
 /**
- * Cross-submodule gate. Stage 1 of chord-progressions is locked
- * behind chord-recognition Tier 1 being CLEARED (i.e. the user
- * has unlocked at least Tier 2 on chord-recognition). Returns
- * the empty set when the gate isn't met; otherwise returns the
- * normal eligible set for the stage progression has earned.
+ * Cross-submodule gate. Delegates to `etStageGate.ts` so the gate
+ * rules live in one place (this file used to inline a CR T1 check;
+ * the gate utility now enforces the full Stage 1-5 layered logic).
  *
- * Wired into the session generator the same way
- * `loadChordRecognitionEligibleSet` is — see sessionGenerator.ts.
+ *   · ET Stage 2 not met → progressions fully locked (empty set).
+ *   · Otherwise: the eligible set is built for
+ *     `min(within-submodule earned stage, max allowed by gate)`.
+ *
+ * The clamp matters because the spec ties each progressions stage
+ * to a cross-submodule prerequisite — e.g. progressions Stage 2
+ * needs CR T2 cleared even after progressions Stage 1 is earned
+ * within the submodule.
  */
 export async function loadProgressionsEligibleSet(
   spacingRows: ReadonlyArray<SpacingState>,
 ): Promise<ReadonlySet<string>> {
-  const crTier = await getChordRecognitionUnlockedTier();
-  if (crTier < 2) {
-    // CR Tier 1 not yet cleared → progressions stay fully locked.
-    return new Set<string>();
-  }
-  const stage = await getUnlockedProgressionStage();
-  return new Set(getEligibleProgressionItems(stage, spacingRows));
+  const status = await loadEtSubmoduleStatus();
+  if (isSubmoduleGated(status)) return new Set<string>();
+  const earned = await getUnlockedProgressionStage();
+  const ceiling = maxAllowedProgressionStage(status);
+  const effective = Math.min(earned, ceiling) as ProgressionStage;
+  return new Set(getEligibleProgressionItems(effective, spacingRows));
 }
 
 export { MODULE_REF as CHORD_PROGRESSIONS_MODULE_REF };

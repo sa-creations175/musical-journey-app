@@ -27,7 +27,11 @@
  */
 import { db, type SpacingState } from '../../../lib/db';
 import { MODES, MAX_SCALE_MODE_STAGE, type ScaleModeStage, type ModeId } from './catalog';
-import { getUnlockedTier as getChordRecognitionUnlockedTier } from '../chord-recognition/tierUnlock';
+import {
+  isSubmoduleGated,
+  loadEtSubmoduleStatus,
+  maxAllowedScaleModesStage,
+} from '../etStageGate';
 
 const MODULE_REF = 'scales-modes';
 
@@ -156,24 +160,21 @@ export function getEligibleScaleModeItems(
 }
 
 /**
- * Cross-submodule gate. Returns the empty set when chord-recognition
- * Tier 1 isn't cleared yet (gates the entire scales-modes submodule
- * behind basic chord-quality ear); otherwise returns the per-tab
- * eligible set for the user's current scales-modes stage.
- *
- * Wired into the session generator the same way
- * `loadProgressionsEligibleSet` is — see sessionGenerator.ts.
+ * Cross-submodule gate. Delegates to `etStageGate.ts` so the gate
+ * rules live in one place. Scales-modes Stage 2 (harmonic /
+ * melodic minor) is gated behind ET Stage 3 — meaning CR T2
+ * cleared AND progressions Stage 1 cleared — even after scales-
+ * modes Stage 1 is earned within the submodule.
  */
 export async function loadScaleModesEligibleSet(
   spacingRows: ReadonlyArray<SpacingState>,
 ): Promise<ReadonlySet<string>> {
-  const crTier = await getChordRecognitionUnlockedTier();
-  if (crTier < 2) {
-    // CR Tier 1 not yet cleared → scales-modes stays fully locked.
-    return new Set<string>();
-  }
-  const stage = await getUnlockedScaleModesStage();
-  return new Set(getEligibleScaleModeItems(stage, spacingRows));
+  const status = await loadEtSubmoduleStatus();
+  if (isSubmoduleGated(status)) return new Set<string>();
+  const earned = await getUnlockedScaleModesStage();
+  const ceiling = maxAllowedScaleModesStage(status);
+  const effective = Math.min(earned, ceiling) as ScaleModeStage;
+  return new Set(getEligibleScaleModeItems(effective, spacingRows));
 }
 
 export { MODULE_REF as SCALES_MODES_MODULE_REF };
