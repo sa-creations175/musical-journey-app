@@ -122,6 +122,24 @@ export async function setHidden(itemRef: string, hidden: boolean): Promise<void>
   await upsert(itemRef, { hidden: hidden ? true : null });
 }
 
+/**
+ * Permanently remove the curation row for `itemRef`. Used by the
+ * "Delete permanently" affordance on already-hidden items in the
+ * curation sheet (and its bulk equivalent in the action bar).
+ *
+ * Distinct from setHidden(_, false), which only clears the hidden
+ * flag — the row stays around with whatever label / flag overlay
+ * the user had on it. `deleteCuration` blows the row away entirely:
+ * any customLabel / flag / hidden state is gone. Catalog defaults
+ * resume from this point.
+ *
+ * Safe on a missing row — Dexie's delete is a no-op for unknown
+ * keys, so the caller doesn't need to gate on existence first.
+ */
+export async function deleteCuration(itemRef: string): Promise<void> {
+  await db.etItemCuration.delete(itemRef);
+}
+
 /** Resolve the display label for an ET item: prefer a non-empty
  *  customLabel, fall back to the catalog's default name. Used by
  *  the quiz surfaces to render the user's preferred label without

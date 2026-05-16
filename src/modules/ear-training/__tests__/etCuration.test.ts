@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../../../lib/db';
 import {
+  deleteCuration,
   loadFlaggedItemRefs,
   loadHiddenItemRefs,
   readCuration,
@@ -86,6 +87,30 @@ describe('setHidden', () => {
     await setHidden('1-4-5', true);
     await setHidden('1-4-5', false);
     expect((await readCuration('1-4-5'))?.hidden).toBeUndefined();
+  });
+});
+
+describe('deleteCuration', () => {
+  it('removes the row entirely', async () => {
+    await setHidden('maj', true);
+    await setCustomLabel('maj', 'My major');
+    await setFlag('maj', true, 'check me');
+    expect(await readCuration('maj')).not.toBeNull();
+    await deleteCuration('maj');
+    expect(await readCuration('maj')).toBeNull();
+  });
+
+  it('is a no-op on a missing itemRef', async () => {
+    await expect(deleteCuration('never-existed')).resolves.toBeUndefined();
+    expect(await readCuration('never-existed')).toBeNull();
+  });
+
+  it('drops the deleted ref out of loadHiddenItemRefs', async () => {
+    await setHidden('maj', true);
+    await setHidden('min', true);
+    await deleteCuration('maj');
+    const hidden = await loadHiddenItemRefs();
+    expect(hidden).toEqual(new Set(['min']));
   });
 });
 

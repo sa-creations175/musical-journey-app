@@ -23,9 +23,11 @@
  * refresh its local read (label / flag / hidden indicators).
  */
 import { useEffect, useState } from 'react';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
 import {
+  deleteCuration,
   readCuration,
   setCustomLabel,
   setFlag,
@@ -63,6 +65,7 @@ export default function EtItemCurationSheet({
   const [labelDraft, setLabelDraft] = useState('');
   const [flagDraft, setFlagDraft] = useState(false);
   const [flagNoteDraft, setFlagNoteDraft] = useState('');
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Hydrate from Dexie on mount + each time itemRef changes.
   useEffect(() => {
@@ -128,6 +131,26 @@ export default function EtItemCurationSheet({
           : 'Item restored.',
         variant: 'success',
       });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    setConfirmDeleteOpen(false);
+    setSaving(true);
+    try {
+      await deleteCuration(itemRef);
+      await refresh();
+      toast({
+        message: 'Curation row deleted. Catalog defaults restored.',
+        variant: 'warning',
+      });
+      // The row is gone — the curation overlay no longer exists for
+      // this item. Close the sheet so the parent re-reads against
+      // the now-cleared row (label / flag / hidden indicators all
+      // reset to catalog defaults).
+      onClose();
     } finally {
       setSaving(false);
     }
@@ -246,7 +269,23 @@ export default function EtItemCurationSheet({
                 ? 'This item is hidden from sessions and quiz pools.'
                 : 'Hide this item to keep it out of sessions and quiz pools until restored.'}
             </p>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {/* Permanent delete only surfaces on already-hidden
+                  items — the path is hide → confirm-then-delete, not
+                  delete-from-zero. Mirrors the soft-then-hard delete
+                  pattern in DrillListModal and elsewhere. */}
+              {row?.hidden && (
+                <button
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  disabled={saving}
+                  className={`px-3 py-1 rounded-md text-xs font-medium border border-needswork text-needswork hover:bg-needswork/10 ${
+                    saving ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title="Remove this row from the curation table entirely. Any custom label or flag on this item is lost."
+                >
+                  delete permanently
+                </button>
+              )}
               <button
                 onClick={() => void handleToggleHidden()}
                 disabled={saving}
@@ -262,6 +301,28 @@ export default function EtItemCurationSheet({
           </section>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Delete this curation row?"
+        message={(
+          <>
+            <p>
+              Removes the curation row for <span className="font-medium">{defaultLabel}</span>{' '}
+              entirely. Any custom label or flag on this item is
+              lost; catalog defaults resume.
+            </p>
+            <p className="text-xs text-neutral-500">
+              The catalog item itself isn't affected — it just stops
+              being hidden. To skip it again you'd hide it from the
+              quiz surface like you did the first time.
+            </p>
+          </>
+        )}
+        confirmLabel="Delete permanently"
+        onCancel={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => void handlePermanentDelete()}
+      />
     </Modal>
   );
 }

@@ -17,8 +17,9 @@
  * the bar on wide layouts.
  */
 import { useState } from 'react';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
-import { setFlag, setHidden } from './etCuration';
+import { deleteCuration, setFlag, setHidden } from './etCuration';
 import type { EtItemCuration } from '../../lib/db';
 
 interface Props {
@@ -36,6 +37,7 @@ export default function EtBulkActionBar({
 }: Props) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const count = selected.size;
   const allFlagged = count > 0 && [...selected].every(id => curations.get(id)?.flagged);
@@ -74,6 +76,14 @@ export default function EtBulkActionBar({
     );
   };
 
+  const handleDeleteAllHidden = () => {
+    setConfirmDeleteOpen(false);
+    void runBulk(
+      id => deleteCuration(id),
+      `Deleted ${count} curation row${count === 1 ? '' : 's'}.`,
+    );
+  };
+
   return (
     <div
       role="region"
@@ -109,6 +119,23 @@ export default function EtBulkActionBar({
         >
           {allHidden ? 'Unhide' : 'Hide'} selected
         </button>
+        {/* Permanent delete only when every selected item is already
+            hidden — mirrors the per-item sheet rule. The path is
+            hide → confirm → delete; the bar never surfaces a
+            single-step delete on visible items. */}
+        {allHidden && (
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteOpen(true)}
+            disabled={busy}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium border border-needswork text-needswork hover:bg-needswork/10 ${
+              busy ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            title="Remove the curation rows for these items entirely. Custom labels and flags are lost; catalog defaults resume."
+          >
+            Delete all hidden
+          </button>
+        )}
         <button
           type="button"
           onClick={onExit}
@@ -118,6 +145,29 @@ export default function EtBulkActionBar({
           Cancel
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title={`Delete ${count} curation row${count === 1 ? '' : 's'}?`}
+        message={(
+          <>
+            <p>
+              Removes the curation rows for the {count} selected
+              item{count === 1 ? '' : 's'} entirely. Any custom
+              labels or flags on these items are lost; catalog
+              defaults resume.
+            </p>
+            <p className="text-xs text-neutral-500">
+              The catalog items themselves aren't affected — they
+              just stop being hidden. To skip them again you'd hide
+              them from the quiz surface like you did the first time.
+            </p>
+          </>
+        )}
+        confirmLabel={`Delete ${count} permanently`}
+        onCancel={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteAllHidden}
+      />
     </div>
   );
 }
