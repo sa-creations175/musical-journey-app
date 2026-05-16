@@ -77,6 +77,7 @@ beforeEach(async () => {
   await db.spacingState.clear();
   await db.songKeys.clear();
   await db.songCells.clear();
+  await db.songMatrixSections.clear();
 });
 
 describe('loadShapesSplitContext — active-song filter', () => {
@@ -233,9 +234,12 @@ describe('loadShapesSplitContext — goal-aware Scales budget', () => {
   });
 });
 
-describe('loadShapesSplitContext — SotM anchor key (Phase 1)', () => {
+describe('loadShapesSplitContext — SotM anchor key (warm-up isolation)', () => {
   /** Seed a Repertoire monthly umbrella + a specific-song slot-1
-   *  child so loadActiveSpotlight resolves to a known song. */
+   *  child. Originally this seeded an active SotM that the loader
+   *  would surface as sotmAnchorKey; after the warm-up isolation
+   *  fix, the loader ignores SotM state entirely — these tests
+   *  verify that ignoring. */
   async function seedSotm(songId: string) {
     await db.goals.bulkAdd([
       goal({
@@ -243,9 +247,6 @@ describe('loadShapesSplitContext — SotM anchor key (Phase 1)', () => {
         scope: 'monthly',
         isUmbrella: true,
         targetMetric: null,
-        // loadActiveSpotlight filters by relatedModules including
-        // 'repertoire' — the Scales-side default ('shapes-and-patterns')
-        // wouldn't match.
         relatedModules: ['repertoire'],
       }),
       goal({
@@ -259,58 +260,25 @@ describe('loadShapesSplitContext — SotM anchor key (Phase 1)', () => {
     ]);
   }
 
-  it('returns null when no active SotM exists', async () => {
+  it('never returns a sotmAnchorKey from the warm-up loader — no SotM exists', async () => {
     const ctx = await loadShapesSplitContext([], NOW);
     expect(ctx.sotmAnchorKey).toBeNull();
   });
 
-  it('returns the SotM song key canonicalised when not yet comfortable', async () => {
+  it('never returns a sotmAnchorKey even when a SotM song exists in a non-comfortable stage', async () => {
+    // Pre-fix this would have surfaced 'Gb' as the anchor and the
+    // warm-up would have walked from Gb — the bug the user saw as
+    // Db (or whatever the SotM key happened to be) appearing in
+    // the general warm-up. The warm-up loader must ignore SotM.
     await db.songs.add(song({ id: 'sotm', key: 'F#', stage: 'learning' }));
     await seedSotm('sotm');
     const ctx = await loadShapesSplitContext([], NOW);
-    // F# canonicalises to Gb so the picker walks the wheel from there.
-    expect(ctx.sotmAnchorKey).toBe('Gb');
+    expect(ctx.sotmAnchorKey).toBeNull();
   });
 
-  it('clears the anchor when the SotM is comfortable in its original key', async () => {
-    await db.songs.add(song({ id: 'sotm', key: 'C', stage: 'comfortable' }));
+  it('still null when a SotM exists for an Eb / Db / etc. key (regression for the warm-up Db bug)', async () => {
+    await db.songs.add(song({ id: 'sotm', key: 'Db', stage: 'learning' }));
     await seedSotm('sotm');
-    // Seed a song-key row + a single comfortable cell so the
-    // comfortable detector returns true.
-    await db.songKeys.add({
-      id: 'sk-1',
-      songId: 'sotm',
-      keyName: 'C',
-      isOriginalKey: true,
-      keyState: 'solid',
-      solidAt: NOW,
-      solidDecayState: null,
-      lastDecayCheckAt: null,
-      livedWithSessionCount: 0,
-      livedWithFirstSessionAt: null,
-      livedWithWindowStartAt: null,
-      livedWithSessionsInWindow: 0,
-      wholeSongTestPassedAt: null,
-      isRetestRecommended: false,
-      lastEngagedAt: NOW,
-      createdAt: NOW,
-      updatedAt: NOW,
-    });
-    await db.songCells.add({
-      id: 'sc-1',
-      songId: 'sotm',
-      sectionId: 'sec-1',
-      songKeyId: 'sk-1',
-      cellState: 'comfortable',
-      comfortableAt: NOW,
-      consecutiveCleanCount: 3,
-      lastRunAt: NOW,
-      lastRunWasClean: true,
-      notes: null,
-      lastEngagedAt: NOW,
-      createdAt: NOW,
-      updatedAt: NOW,
-    });
     const ctx = await loadShapesSplitContext([], NOW);
     expect(ctx.sotmAnchorKey).toBeNull();
   });

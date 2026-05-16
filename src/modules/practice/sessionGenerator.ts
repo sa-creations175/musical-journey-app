@@ -110,8 +110,11 @@ import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
 import { itemRefMatcherForCoverageGroup } from '../goals/shapesCoverageGroups';
 import { COVERAGE_SPECIFIC_METRIC } from '../goals/coverageMetrics';
-import { loadActiveSpotlight } from '../repertoire/songOfMonth';
-import { isSongComfortableInOriginalKey } from '../repertoire/songComfortable';
+// loadActiveSpotlight / isSongComfortableInOriginalKey are no longer
+// imported here — the SotM-anchor injection into the general Scales
+// warm-up was removed (see loadShapesSplitContext for the rationale).
+// A future scales-before-song loader will re-introduce these where
+// they actually belong.
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 import type {
   ProposalBlock,
@@ -745,11 +748,10 @@ export async function loadShapesSplitContext(
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
   }
-  const [unlockedTier, songs, allGoals, spotlight] = await Promise.all([
+  const [unlockedTier, songs, allGoals] = await Promise.all([
     getSPUnlockedTier(),
     db.songs.toArray(),
     db.goals.toArray(),
-    loadActiveSpotlight(now),
   ]);
 
   // Active-song keys — distinct, in song order, ONLY from songs
@@ -816,25 +818,20 @@ export async function loadShapesSplitContext(
     scalesGoalDueSeconds = total;
   }
 
-  // Song-of-the-Month anchor key — Phase 1 of the Scales warm-up
-  // key-ordering rule. When an active monthly umbrella has a
-  // specific song slot AND the user isn't yet comfortable in that
-  // song's original key, the warm-up walks circle-of-4ths from
-  // that key. Once the song hits comfortable, the anchor unsets
-  // and the picker falls back to the existing least-recently-
-  // touched logic (Phase 2).
-  let sotmAnchorKey: string | null = null;
-  const spotlightSlot = spotlight?.spotlight;
-  if (spotlightSlot && spotlightSlot.kind === 'song' && spotlightSlot.refId) {
-    const isComfortable = await isSongComfortableInOriginalKey(spotlightSlot.refId);
-    if (!isComfortable) {
-      const spotlightSong = songs.find(s => s.id === spotlightSlot.refId);
-      if (spotlightSong?.key) {
-        sotmAnchorKey = canonicaliseKey(spotlightSong.key);
-      }
-    }
-  }
-
+  // Song-of-the-Month anchor key — DELIBERATELY UNSET.
+  //
+  // The general Scales warm-up must NOT bias key selection toward the
+  // current SotM key (regression Db-keeps-appearing-in-warm-ups: the
+  // SotM key was overriding the spacing-state / active-song-keys
+  // priority for the whole warm-up). The agreed design: SotM key
+  // influence only applies to scales generated immediately before a
+  // Repertoire/song block, never to the general warm-up.
+  //
+  // The `sotmAnchorKey` field on ShapesSplitContext + its consumer in
+  // pickScalesKeys (shapesSplit.ts) are intentionally preserved so a
+  // future scales-before-song loader can populate the field through
+  // its own context-build path. This loader feeds the general warm-up
+  // only, so it always returns null here.
   return {
     rowsByItemRef,
     unlockedTier,
@@ -842,7 +839,7 @@ export async function loadShapesSplitContext(
     activeSongKeys,
     activeSongTitlesByKey,
     scalesGoalDueSeconds,
-    sotmAnchorKey,
+    sotmAnchorKey: null,
   };
 }
 
