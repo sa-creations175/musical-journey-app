@@ -14,11 +14,14 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { DrillSkill, DrillType } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
+import DrillSessionModal from '../shapes-and-patterns/DrillSessionModal';
 import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
+import { drillContextForChordShapeItemRef } from '../shapes-and-patterns/drillModel';
 import { scaleCellForItemRef } from '../shapes-and-patterns/scaleSkills';
 import type { ProposalBlock } from './proposalTypes';
 
@@ -127,6 +130,14 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
   // the session screen — no navigation away.
   const [scalesCellIdx, setScalesCellIdx] = useState<number | null>(null);
 
+  // In-session chord-shapes drill state — mirrors the scales pattern
+  // but resolves the skill + drillType asynchronously per itemRef.
+  // `idx` tracks position in the block's itemRefs sequence; the
+  // resolved skill/drillType pair drives the active DrillSessionModal.
+  const [activeChordShape, setActiveChordShape] = useState<
+    { idx: number; itemRef: string; skill: DrillSkill; drillType: DrillType } | null
+  >(null);
+
   const navigate = useNavigate();
   const moduleMeta = moduleMetaById(block.moduleRef);
   const label = block.moduleLabel || moduleMeta?.label || block.moduleRef;
@@ -134,9 +145,9 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
   // the module's default route.
   const route = block.quickLaunchRoute ?? moduleMeta?.route ?? null;
 
-  // In-session drill blocks (today: scale-prep) open a modal in place
-  // instead of routing away. The fallback to navigate(route) stays
-  // active for every other block kind.
+  // In-session drill blocks open a modal in place instead of routing
+  // away. The fallback to navigate(route) stays active for every
+  // other block kind.
   const inSessionScaleCells =
     block.inSessionDrillKind === 'scales'
       ? block.itemRefs
@@ -144,16 +155,37 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
           .filter((c): c is NonNullable<typeof c> => c !== null)
       : [];
   const hasInSessionScales = inSessionScaleCells.length > 0;
+  const hasInSessionChordShapes =
+    block.inSessionDrillKind === 'chord-shapes' && block.itemRefs.length > 0;
 
   const handleToggle = () => {
     if (isControlled) onToggle?.();
     else setInternalExpanded(v => !v);
   };
 
+  // Walk to the chord-shape itemRef at `idx`, resolving its skill +
+  // drillType. Skips unresolvable refs (rare — defensive against bad
+  // data). Closes the modal when the sequence finishes.
+  const openChordShapeAt = async (idx: number) => {
+    for (let i = idx; i < block.itemRefs.length; i++) {
+      const itemRef = block.itemRefs[i];
+      const ctx = await drillContextForChordShapeItemRef(itemRef);
+      if (ctx) {
+        setActiveChordShape({ idx: i, itemRef, ...ctx });
+        return;
+      }
+    }
+    setActiveChordShape(null);
+  };
+
   const handleQuickLaunch = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (hasInSessionScales) {
       setScalesCellIdx(0);
+      return;
+    }
+    if (hasInSessionChordShapes) {
+      void openChordShapeAt(0);
       return;
     }
     if (route) navigate(route);
@@ -180,6 +212,12 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
       return next < inSessionScaleCells.length ? next : null;
     });
   };
+  const handleChordShapeClose = () => setActiveChordShape(null);
+  const handleChordShapeLogged = () => {
+    if (!activeChordShape) return;
+    void openChordShapeAt(activeChordShape.idx + 1);
+  };
+  const hasInSessionDrillModal = hasInSessionScales || hasInSessionChordShapes;
 
   return (
     <>
@@ -268,7 +306,7 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
               {block.whySnippet}
             </p>
           )}
-          {(route || hasInSessionScales) && (
+          {(route || hasInSessionDrillModal) && (
             <span
               role="button"
               tabIndex={0}
@@ -285,8 +323,8 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
                 borderColor: block.moduleAccentHex,
               }}
             >
-              <span aria-hidden>{hasInSessionScales ? '▶' : '↗'}</span>
-              <span>{hasInSessionScales ? 'start drill' : `open ${label}`}</span>
+              <span aria-hidden>{hasInSessionDrillModal ? '▶' : '↗'}</span>
+              <span>{hasInSessionDrillModal ? 'start drill' : `open ${label}`}</span>
             </span>
           )}
         </div>
@@ -297,6 +335,18 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
         cell={activeScalesCell}
         onClose={handleScalesModalClose}
         onLogged={handleScalesLogged}
+      />
+    )}
+    {activeChordShape && (
+      // Key on itemRef so React fully remounts DrillSessionModal
+      // between drills — its internal setup/running/assess state
+      // and target-time picker reset cleanly for each new chord.
+      <DrillSessionModal
+        key={activeChordShape.itemRef}
+        skill={activeChordShape.skill}
+        drillType={activeChordShape.drillType}
+        onClose={handleChordShapeClose}
+        onLogged={handleChordShapeLogged}
       />
     )}
     </>

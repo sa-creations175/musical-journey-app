@@ -425,6 +425,31 @@ export function labelForShapesItemRef(itemRef: string): string | null {
   return labelFor(desc);
 }
 
+/**
+ * Resolve a chord-shape spacingState itemRef to the DrillSkill +
+ * lowest-order DrillType needed to launch DrillSessionModal. Used by
+ * SessionBlock's in-session chord-shape walk: each itemRef in the
+ * block opens as its own drill modal in sequence.
+ *
+ * Materialises the cell's skill rows if they don't yet exist (via
+ * findOrCreateSkill — idempotent). Returns null when the itemRef
+ * doesn't parse as a chord-shape ref or the cell has no drill types
+ * (extremely unusual — defaults are seeded alongside the skill).
+ */
+export async function drillContextForChordShapeItemRef(
+  itemRef: string,
+): Promise<{ skill: DrillSkill; drillType: DrillType } | null> {
+  const desc = parseShapesItemRef(itemRef);
+  if (!desc || desc.kind !== 'chord-shape') return null;
+  const skill = await findOrCreateSkill(desc);
+  const drillTypes = await db.drillTypes
+    .where('skillId').equals(skill.id)
+    .sortBy('order');
+  const drillType = drillTypes[0];
+  if (!drillType) return null;
+  return { skill, drillType };
+}
+
 export function labelFor(desc: SkillDescriptor): string {
   switch (desc.kind) {
     case 'chord-shape': {

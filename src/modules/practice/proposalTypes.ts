@@ -71,11 +71,16 @@ export interface ProposalBlock {
    *  the Production overview. */
   quickLaunchRoute?: string;
   /** When set, tapping the block opens the matching drill modal in
-   *  place rather than navigating away from the session. Today the
-   *  only kind is `'scales'` (scale-prep blocks → ScalesDrillModal,
-   *  with the block's `itemRefs` driving which cells to drill in
-   *  sequence). Wins over `quickLaunchRoute` at the block surface. */
-  inSessionDrillKind?: 'scales';
+   *  place rather than navigating away from the session. Supported
+   *  kinds:
+   *    · `'scales'`       — scale-prep blocks → ScalesDrillModal,
+   *      with the block's `itemRefs` driving which cells to drill in
+   *      sequence.
+   *    · `'chord-shapes'` — shapes-walk segments → DrillSessionModal,
+   *      with each chord-shape itemRef opening as its own drill in
+   *      sequence (skill + drillType resolved from the itemRef).
+   *  Wins over `quickLaunchRoute` at the block surface. */
+  inSessionDrillKind?: 'scales' | 'chord-shapes';
   /** True for song practice blocks (spotlight / maintenance /
    *  whole-song-run). Drives the inline metronome widget that
    *  SessionBlock surfaces in the block body — song blocks are the

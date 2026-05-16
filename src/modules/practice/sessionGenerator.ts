@@ -1583,6 +1583,13 @@ function toProposalBlocks(
         whySnippet: seg.why,
         itemRefs: seg.itemRefs,
         isWarmup: seg.kind === 'scales',
+        // shapes-walk segments open DrillSessionModal in place — the
+        // block's chord-shape itemRefs walk through one drill at a
+        // time without dumping the user out of the session. Mirrors
+        // the scale-prep `'scales'` pattern.
+        ...(seg.kind === 'shapes-walk'
+          ? { inSessionDrillKind: 'chord-shapes' as const }
+          : {}),
         isKeyboardRequired: block.isKeyboardRequired,
       }));
     }
