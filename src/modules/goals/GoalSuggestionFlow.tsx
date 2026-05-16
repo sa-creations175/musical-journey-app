@@ -1448,21 +1448,51 @@ const PENT_SP_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set([
   ...MINOR_PENT_SP_GROUP_IDS,
 ]);
 
-/** Legacy "all scales" broad bucket. Hidden from the picker — the
- *  four Scales sub-area pills (Part 3) replace it. Still recognised
- *  by the matcher + activity-area router for pre-split saved goals. */
-const SCALES_LEGACY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set<ShapesCoverageGroupId>([
-  'scale_drills',
-]);
+/** Scale-kind sub-pills — moved behind the "All scales" shortcut
+ *  reveal so the four kinds mirror the six triad-quality sub-pills.
+ *  The shortcut id is `scale_drills` (kept as a select-all label
+ *  source); it doesn't get written to coverageGroupIds, only the
+ *  four kind ids do. */
+const SCALE_KIND_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'scale_major',
+  'scale_natural_minor',
+  'scale_major_pentatonic',
+  'scale_minor_pentatonic',
+];
+const SCALE_KIND_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
+  SCALE_KIND_GROUP_IDS,
+);
+
+/** Per-pattern VL sub-pills — behind the "All voice-leading"
+ *  shortcut reveal, mirroring triad qualities. The shortcut id is
+ *  `voice_leading` (label source); only the seven pattern ids get
+ *  written to coverageGroupIds. */
+const VL_PATTERN_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'voice_leading_diatonic_cycle',
+  'voice_leading_five_one',
+  'voice_leading_major_251',
+  'voice_leading_minor_251',
+  'voice_leading_minor_aba',
+  'voice_leading_dom7b9',
+  'voice_leading_dim7',
+];
+const VL_PATTERN_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
+  VL_PATTERN_GROUP_IDS,
+);
 
 const SHAPES_LAYER1_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(
     g => !TRIAD_QUALITY_GROUP_ID_SET.has(g.id)
       && !PENT_SP_GROUP_ID_SET.has(g.id)
-      && !SCALES_LEGACY_GROUP_ID_SET.has(g.id),
+      && !SCALE_KIND_GROUP_ID_SET.has(g.id)
+      && !VL_PATTERN_GROUP_ID_SET.has(g.id),
   );
 const SHAPES_TRIAD_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
+const SHAPES_SCALE_KIND_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => SCALE_KIND_GROUP_ID_SET.has(g.id));
+const SHAPES_VL_PATTERN_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => VL_PATTERN_GROUP_ID_SET.has(g.id));
 const SHAPES_MAJOR_PENT_SP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => MAJOR_PENT_SP_GROUP_IDS.includes(g.id));
 const SHAPES_MINOR_PENT_SP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
@@ -1576,6 +1606,51 @@ function ShapesFocusSection({
     onChange({ ...target, coverageGroupIds: next });
   };
 
+  // "All scales" select-all — mirrors the triad shortcut. Toggles
+  // the four scale-kind ids on/off as a batch. Active state mirrors
+  // whether all four kinds are selected; partial states read as
+  // inactive so the user has a clear "select all" affordance.
+  // Tapping the shortcut REPLACES the legacy `scale_drills` id with
+  // the four kind ids — older single-id selections get migrated
+  // silently when the user touches the picker.
+  const allScaleKindsSelected = SCALE_KIND_GROUP_IDS.every(id =>
+    target.coverageGroupIds.includes(id),
+  );
+  const anyScaleSelected = target.coverageGroupIds.some(
+    id =>
+      SCALE_KIND_GROUP_ID_SET.has(id)
+      || PENT_SP_GROUP_ID_SET.has(id)
+      || id === 'scale_drills',
+  );
+  const toggleAllScaleKinds = () => {
+    const withoutScaleKinds = target.coverageGroupIds.filter(
+      id => !SCALE_KIND_GROUP_ID_SET.has(id) && id !== 'scale_drills',
+    );
+    const next = allScaleKindsSelected
+      ? withoutScaleKinds
+      : [...withoutScaleKinds, ...SCALE_KIND_GROUP_IDS];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  // "All voice-leading" select-all — same shape as the triad and
+  // scales shortcuts. Toggles the seven VL pattern ids on/off as a
+  // batch; replaces the legacy single `voice_leading` id.
+  const allVlPatternsSelected = VL_PATTERN_GROUP_IDS.every(id =>
+    target.coverageGroupIds.includes(id),
+  );
+  const anyVlSelected = target.coverageGroupIds.some(
+    id => VL_PATTERN_GROUP_ID_SET.has(id) || id === 'voice_leading',
+  );
+  const toggleAllVlPatterns = () => {
+    const withoutVl = target.coverageGroupIds.filter(
+      id => !VL_PATTERN_GROUP_ID_SET.has(id) && id !== 'voice_leading',
+    );
+    const next = allVlPatternsSelected
+      ? withoutVl
+      : [...withoutVl, ...VL_PATTERN_GROUP_IDS];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
   // Pentatonic starting-point reveals — same UX as triad qualities.
   // The broad pent pill ("scale_major_pentatonic" / "scale_minor_
   // pentatonic") behaves as both a coverage option in its own right
@@ -1602,6 +1677,14 @@ function ShapesFocusSection({
   const triadInversionsLabel = triadInversionsDef
     ? `${triadInversionsDef.label} (${triadInversionsDef.denominator})`
     : 'triad inversions (288)';
+  const allScalesDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'scale_drills');
+  const allScalesLabel = allScalesDef
+    ? `all scales (${allScalesDef.denominator})`
+    : 'all scales (96)';
+  const allVlDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'voice_leading');
+  const allVlLabel = allVlDef
+    ? `all voice-leading (${allVlDef.denominator})`
+    : 'all voice-leading (372)';
 
   return (
     <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
@@ -1637,16 +1720,36 @@ function ShapesFocusSection({
               onClick={toggleAllTriadQualities}
               selectedStyle="accent"
             />
-            {SHAPES_LAYER1_OPTIONS.filter(g => g.id !== 'chord_shape_triads').map(group => (
-              <CategoryPillButton
-                key={group.id}
-                label={`${group.label} (${group.denominator})`}
-                accentHex={shapesAccent}
-                active={target.coverageGroupIds.includes(group.id)}
-                onClick={() => toggleGroup(group.id)}
-                selectedStyle="accent"
-              />
-            ))}
+            {SHAPES_LAYER1_OPTIONS
+              .filter(g => g.id !== 'chord_shape_triads')
+              .map(group => (
+                <CategoryPillButton
+                  key={group.id}
+                  label={`${group.label} (${group.denominator})`}
+                  accentHex={shapesAccent}
+                  active={target.coverageGroupIds.includes(group.id)}
+                  onClick={() => toggleGroup(group.id)}
+                  selectedStyle="accent"
+                />
+              ))}
+            {/* All-scales select-all shortcut — same shape as triads. */}
+            <CategoryPillButton
+              key="scale_drills"
+              label={allScalesLabel}
+              accentHex={shapesAccent}
+              active={allScaleKindsSelected}
+              onClick={toggleAllScaleKinds}
+              selectedStyle="accent"
+            />
+            {/* All-voice-leading select-all shortcut. */}
+            <CategoryPillButton
+              key="voice_leading"
+              label={allVlLabel}
+              accentHex={shapesAccent}
+              active={allVlPatternsSelected}
+              onClick={toggleAllVlPatterns}
+              selectedStyle="accent"
+            />
           </div>
           {/* Layer 2 — individual triad-quality sub-pills, revealed
               when any triad selection is active. The "Triad
@@ -1662,6 +1765,44 @@ function ShapesFocusSection({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {SHAPES_TRIAD_QUALITY_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {anyScaleSelected && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Scale kinds
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {SHAPES_SCALE_KIND_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {anyVlSelected && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Voice-leading patterns
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {SHAPES_VL_PATTERN_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
                     label={`${group.label} (${group.denominator})`}

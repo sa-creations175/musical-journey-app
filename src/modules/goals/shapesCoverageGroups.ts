@@ -3,7 +3,10 @@ import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
+  parseVoiceLeadingItemRef,
+  voiceLeadingCellsPerKey,
   voiceLeadingTotalCellCount,
+  VOICE_LEADING_PATTERN_BY_ID,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
 import {
@@ -82,7 +85,18 @@ export type ShapesCoverageGroupId =
   | 'scale_minor_pentatonic_1'
   | 'scale_minor_pentatonic_b3'
   | 'scale_minor_pentatonic_b7'
-  | 'voice_leading';
+  | 'voice_leading'
+  // Voice-leading submodule per-pattern sub-groups. Each = 12 keys ×
+  // pattern fan-out cells. Picker exposes them as Layer 2 reveals
+  // beneath the "all voice-leading" shortcut, mirroring how the six
+  // triad-quality sub-pills sit beneath "triad inversions".
+  | 'voice_leading_diatonic_cycle'
+  | 'voice_leading_five_one'
+  | 'voice_leading_major_251'
+  | 'voice_leading_minor_251'
+  | 'voice_leading_minor_aba'
+  | 'voice_leading_dom7b9'
+  | 'voice_leading_dim7';
 
 /**
  * Per-triad-quality coverage groups (Layer 2). Each represents a
@@ -294,7 +308,59 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
     activityArea: 'voice_leading',
     denominator: voiceLeadingTotalCellCount(),
   },
+  // Voice-leading submodule sub-groups. Denominators sourced from
+  // `voiceLeadingCellsPerKey × 12` so any future fan-out change in
+  // the catalog flows through without touching this file. Inlined
+  // (rather than built via a helper that reads a later-declared
+  // map) to avoid a temporal-dead-zone ReferenceError at module
+  // init — SHAPES_COVERAGE_GROUP_DEFS is consumed eagerly by other
+  // module-level constants in this file.
+  ...vlPatternGroupDef('voice_leading_diatonic_cycle', 'diatonic-cycle', 'diatonic cycle'),
+  ...vlPatternGroupDef('voice_leading_five_one',       'five-one',       '5→1 movement'),
+  ...vlPatternGroupDef('voice_leading_major_251',      'major-251',      'major 2-5-1'),
+  ...vlPatternGroupDef('voice_leading_minor_251',      'minor-251',      'minor 2-5-1'),
+  ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      'minor ABA'),
+  ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
+  ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
 ];
+
+/** Per-pattern VL coverage-group id → catalog patternId. Drives the
+ *  matcher in `itemRefMatcherForCoverageGroup`. Declared AFTER the
+ *  DEFS array because the array is built via inline calls to
+ *  `vlPatternGroupDef` rather than reading this map — keeps the
+ *  array readable while the map stays the single source of truth
+ *  for the matcher lookup. */
+const VL_PATTERN_ID_FOR_GROUP_ID: Readonly<
+  Partial<Record<ShapesCoverageGroupId, string>>
+> = {
+  voice_leading_diatonic_cycle: 'diatonic-cycle',
+  voice_leading_five_one:       'five-one',
+  voice_leading_major_251:      'major-251',
+  voice_leading_minor_251:      'minor-251',
+  voice_leading_minor_aba:      'minor-aba',
+  voice_leading_dom7b9:         'dom7b9',
+  voice_leading_dim7:           'dim7',
+};
+
+/** Build the single per-pattern VL coverage-group def. Returns an
+ *  empty array when the catalog has no matching pattern — defensive
+ *  against catalog drift; the picker silently drops the missing
+ *  group rather than crashing module init. Function declaration
+ *  (not const) so it's hoisted above the DEFS array literal. */
+function vlPatternGroupDef(
+  groupId: ShapesCoverageGroupId,
+  patternId: string,
+  label: string,
+): ReadonlyArray<ShapesCoverageGroupDef> {
+  const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
+  if (!pattern) return [];
+  return [{
+    id: groupId,
+    label,
+    activityArea: 'voice_leading',
+    denominator: voiceLeadingCellsPerKey(pattern) * KEY_COUNT,
+  }];
+}
 
 const COVERAGE_GROUP_BY_ID: ReadonlyMap<string, ShapesCoverageGroupDef> = new Map(
   SHAPES_COVERAGE_GROUP_DEFS.map(g => [g.id, g]),
@@ -403,6 +469,18 @@ export function itemRefMatcherForCoverageGroup(
 ): ((itemRef: string) => boolean) | null {
   if (groupId === 'scale_drills') return ir => ir.startsWith('scale:');
   if (groupId === 'voice_leading') return ir => ir.startsWith('vl:');
+
+  // Per-pattern VL sub-groups. Parse-based so any future VL schema
+  // evolution (new patterns, new dimension axes) flows through
+  // parseVoiceLeadingItemRef without touching the matcher.
+  const vlPatternId =
+    VL_PATTERN_ID_FOR_GROUP_ID[groupId as ShapesCoverageGroupId];
+  if (vlPatternId !== undefined) {
+    return ir => {
+      const desc = parseVoiceLeadingItemRef(ir);
+      return desc !== null && desc.patternId === vlPatternId;
+    };
+  }
   // Legacy single-bucket id — keeps pre-split goals matching every
   // chord-shape row, including supplementary. Used only by
   // back-compat consumers.

@@ -63,14 +63,20 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     //   scale_major (12) + scale_natural_minor (12) +
     //   scale_major_pentatonic (36) + 3×12 sp sub-groups (36) +
     //   scale_minor_pentatonic (36) + 3×12 sp sub-groups (36) = 264
-    // Voice leading: 372 (31 sub-cells × 12 keys, post Phase-1 catalog correction)
+    // Voice leading side (Layer 1 + Layer 2 entries co-exist, same
+    // shape as the Scales side):
+    //   legacy voice_leading (372) +
+    //   diatonic-cycle (36) + five-one (72) + major-251 (72) +
+    //   minor-251 (72) + minor-aba (24) + dom7b9 (48) + dim7 (48) = 744
+    // Per-pattern denominators sum to 372 — same as the legacy bucket.
     // Aggregates use moduleItemCounts which doesn't double-count.
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
     );
     const chordShapeSide = 288 + 6 * 48 + 360 + 168 + 36;
     const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
-    expect(defSum).toBe(chordShapeSide + scalesSide + 372);
+    const vlSide = 372 + 36 + 72 + 72 + 72 + 24 + 48 + 48;
+    expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
   });
 });
 
@@ -241,5 +247,110 @@ describe('itemRefMatcherForCoverageGroup — Layer 2 quality matchers', () => {
     expect(sus2('chord-shape:sus4:C:root')).toBe(false);
     expect(sus4('chord-shape:sus4:C:root')).toBe(true);
     expect(sus4('chord-shape:sus2:C:root')).toBe(false);
+  });
+});
+
+describe('Voice-leading per-pattern coverage groups', () => {
+  const VL_PATTERN_DEFS: ReadonlyArray<{
+    id: ShapesCoverageGroupId;
+    patternId: string;
+    denominator: number;
+    sampleRef: string;
+  }> = [
+    {
+      id: 'voice_leading_diatonic_cycle',
+      patternId: 'diatonic-cycle',
+      denominator: 36,
+      sampleRef: 'vl:diatonic-cycle:pos1:C',
+    },
+    {
+      id: 'voice_leading_five_one',
+      patternId: 'five-one',
+      denominator: 72,
+      sampleRef: 'vl:five-one:guide-tones:A:C',
+    },
+    {
+      id: 'voice_leading_major_251',
+      patternId: 'major-251',
+      denominator: 72,
+      sampleRef: 'vl:major-251:seventh-chords:B:Bb',
+    },
+    {
+      id: 'voice_leading_minor_251',
+      patternId: 'minor-251',
+      denominator: 72,
+      sampleRef: 'vl:minor-251:full-voicing:A:F',
+    },
+    {
+      id: 'voice_leading_minor_aba',
+      patternId: 'minor-aba',
+      denominator: 24,
+      sampleRef: 'vl:minor-aba:pos-A:G',
+    },
+    {
+      id: 'voice_leading_dom7b9',
+      patternId: 'dom7b9',
+      denominator: 48,
+      sampleRef: 'vl:dom7b9:pos2:D',
+    },
+    {
+      id: 'voice_leading_dim7',
+      patternId: 'dim7',
+      denominator: 48,
+      sampleRef: 'vl:dim7:pos4:Eb',
+    },
+  ];
+
+  it('exposes all 7 per-pattern defs with catalog-sourced denominators', () => {
+    for (const d of VL_PATTERN_DEFS) {
+      const def = getShapesCoverageGroup(d.id);
+      expect(def, `missing def for ${d.id}`).toBeDefined();
+      expect(def!.denominator).toBe(d.denominator);
+      expect(def!.activityArea).toBe('voice_leading');
+    }
+  });
+
+  it('per-pattern denominators sum to the broad voice_leading bucket (372)', () => {
+    const sum = VL_PATTERN_DEFS.reduce(
+      (acc, d) => acc + getShapesCoverageGroup(d.id)!.denominator,
+      0,
+    );
+    expect(sum).toBe(getShapesCoverageGroup('voice_leading')!.denominator);
+    expect(sum).toBe(372);
+  });
+
+  it('every per-pattern id routes to the voice_leading activity area', () => {
+    for (const d of VL_PATTERN_DEFS) {
+      expect(coverageGroupIdToActivityArea(d.id)).toBe('voice_leading');
+    }
+  });
+
+  it('each matcher accepts only its own pattern\'s itemRefs', () => {
+    for (const target of VL_PATTERN_DEFS) {
+      const m = itemRefMatcherForCoverageGroup(target.id)!;
+      expect(m, `missing matcher for ${target.id}`).not.toBeNull();
+      // Accepts its own sample.
+      expect(m(target.sampleRef)).toBe(true);
+      // Rejects every sibling pattern's sample.
+      for (const other of VL_PATTERN_DEFS) {
+        if (other.id === target.id) continue;
+        expect(
+          m(other.sampleRef),
+          `${target.id} should reject ${other.sampleRef}`,
+        ).toBe(false);
+      }
+      // Rejects non-VL itemRefs.
+      expect(m('chord-shape:maj:C:root')).toBe(false);
+      expect(m('scale:major:C')).toBe(false);
+      // Rejects malformed VL refs.
+      expect(m('vl:not-a-pattern:C')).toBe(false);
+    }
+  });
+
+  it('broad voice_leading matcher still accepts every pattern (back-compat)', () => {
+    const broad = itemRefMatcherForCoverageGroup('voice_leading')!;
+    for (const d of VL_PATTERN_DEFS) {
+      expect(broad(d.sampleRef)).toBe(true);
+    }
   });
 });
