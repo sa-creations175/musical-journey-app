@@ -30,7 +30,6 @@ export type DayPlanChoice =
 export type IntentChoice =
   | { kind: 'balanced' }
   | { kind: 'lean_to_goals' }
-  | { kind: 'recover' }
   | { kind: 'push_on_item'; itemRef: string | null };
 
 export interface EnergyChoice {

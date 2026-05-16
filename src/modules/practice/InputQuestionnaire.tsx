@@ -474,7 +474,6 @@ function Q3DayPlan({
 const INTENT_DESCRIPTIONS = {
   balanced: 'Mix of all your active goals, weighted by urgency and pace',
   lean_to_goals: 'Prioritizes your most behind or time-sensitive goals',
-  recover: 'Lighter session focused on items you already know well',
   push_on_item: 'Deep focus on one module or goal for the full session',
 } as const;
 
@@ -530,7 +529,6 @@ function Q4Intent({
 }) {
   const isBal = value?.kind === 'balanced';
   const isLean = value?.kind === 'lean_to_goals';
-  const isRecover = value?.kind === 'recover';
   const isPush = value?.kind === 'push_on_item';
   const pushedRef = isPush ? value.itemRef : null;
 
@@ -556,12 +554,6 @@ function Q4Intent({
             lean to goals
           </button>
           <IntentInfoTip text={INTENT_DESCRIPTIONS.lean_to_goals} />
-        </span>
-        <span className="flex items-center gap-1">
-          <button onClick={() => onChange({ kind: 'recover' })} className={pill(isRecover)}>
-            recover
-          </button>
-          <IntentInfoTip text={INTENT_DESCRIPTIONS.recover} />
         </span>
         <span className="flex items-center gap-1">
           <button onClick={handlePushClick} className={pill(isPush)}>

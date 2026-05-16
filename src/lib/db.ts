@@ -1150,8 +1150,8 @@ export interface PracticeSession {
   timeOfDay: PracticeSessionTimeOfDay;
   sessionRole: PracticeSessionRole;
   /** Per-session intent (e.g. 'balanced', 'lean_to_goals',
-   *  'recover', 'push_on_X'). Replaces the multi-week mode
-   *  declarations from earlier drafts. */
+   *  'push_on_X'). Replaces the multi-week mode declarations from
+   *  earlier drafts. */
   sessionIntent: string | null;
   hardBlocks: boolean;
   energyFocus: number | null;       // 1-5
