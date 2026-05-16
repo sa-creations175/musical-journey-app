@@ -28,6 +28,11 @@ import {
   shapeShapesBlock,
   type ShapesSplitContext,
 } from '../shapesSplit';
+import {
+  enumerateVoiceLeadingCells,
+  KEYS,
+  VOICE_LEADING_PATTERNS,
+} from '../catalog';
 
 const NOW = 1_700_000_000_000;
 
@@ -66,6 +71,31 @@ function ctx(
     now: options.now ?? NOW,
     scalesGoalDueSeconds: options.scalesGoalDueSeconds ?? null,
   };
+}
+
+/** Build NOT_DUE rows for every catalog cell whose itemRef is NOT
+ *  in `keepUnstarted`. Lets a test push higher-priority patterns
+ *  out of the UNSTARTED tier so a specific gated/ungated cell can
+ *  surface in the truncated VL window. Uses `acquisitionStage='new'`
+ *  for the bulk NOT_DUE rows so they don't accidentally satisfy
+ *  downstream prereq gates (vlIsEligible counts a 'new' or missing
+ *  row as failing the gate). Callers override specific cells via
+ *  `extra` when they need a non-'new' stage. */
+function notDueAllExcept(
+  keepUnstarted: ReadonlySet<string>,
+  extra: SpacingState[] = [],
+): SpacingState[] {
+  const future = NOW + 10_000;
+  const rows: SpacingState[] = [];
+  for (const pattern of VOICE_LEADING_PATTERNS) {
+    for (const key of KEYS) {
+      for (const ref of enumerateVoiceLeadingCells(pattern, key)) {
+        if (keepUnstarted.has(ref)) continue;
+        rows.push(row(ref, { nextDueAt: future, acquisitionStage: 'new' }));
+      }
+    }
+  }
+  return [...rows, ...extra];
 }
 
 function block(itemRefs: string[], plannedSeconds = 1800): AllocatedBlock {
@@ -285,35 +315,41 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(segs.some(s => s.kind === 'scales')).toBe(false);
   });
 
-  it('surfaces at 15 min with the 5-min short budget', () => {
+  it('surfaces at 15 min with the three-way 15 % budget', () => {
+    // VL is catalog-driven (unconditional three-way for blocks ≥ 15 min),
+    // so Scales gets a flat 15 % of the block rather than the legacy
+    // two-way SHORT/LONG budgets.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 15 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales');
     expect(scales).toBeDefined();
-    expect(scales!.plannedSeconds).toBe(5 * 60);
+    expect(scales!.plannedSeconds).toBe(Math.floor(15 * 60 * 0.15));
   });
 
-  it('jumps to the 8-min long budget at 30+ min', () => {
+  it('Scales budget stays at the 15 % three-way share on a 30-min block (no SHORT/LONG distinction in three-way)', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales');
-    expect(scales!.plannedSeconds).toBe(8 * 60);
+    expect(scales!.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
   });
 
-  it('places Scales FIRST and carves the budget off the chord-shape walk', () => {
-    // 15-min block = 900 s. Scales takes 300 s → walk gets 600 s.
+  it('places Scales FIRST in the segment list and includes the chord-shape walk + VL', () => {
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 15 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     expect(segs[0].kind).toBe('scales');
-    expect(segs[1].kind).toBe('shapes-walk');
-    expect(segs[0].plannedSeconds + segs[1].plannedSeconds).toBe(15 * 60);
-    expect(segs[1].plannedSeconds).toBe(10 * 60);
+    // Three-way: scales / walk / voice-leading. Walk may surface if
+    // any chord-shape cells survive the unlocked-tier filter; in this
+    // test the C major shape is tier 1 so it does.
+    expect(segs.map(s => s.kind)).toContain('shapes-walk');
+    expect(segs.map(s => s.kind)).toContain('voice-leading');
+    const total = segs.reduce((acc, s) => acc + s.plannedSeconds, 0);
+    expect(total).toBe(15 * 60);
   });
 
   it('does NOT bias key selection by song keys (warm-up is spacing-state-only)', () => {
@@ -517,13 +553,14 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.why).not.toContain('(');
   });
 
-  it('Scales segment surfaces alone when the block has no chord-shape items', () => {
+  it('Scales segment surfaces alongside VL when the block has no chord-shape items (catalog-driven VL)', () => {
+    // Three-way always fires on ≥ 15 min: walk returns null (no chord-
+    // shape items) but Scales + VL both surface from the catalog.
     const segs = shapeShapesBlock(
       block([], 15 * 60),
       ctx([], { unlockedTier: 1 }),
     );
-    expect(segs).toHaveLength(1);
-    expect(segs[0].kind).toBe('scales');
+    expect(segs.map(s => s.kind)).toEqual(['scales', 'voice-leading']);
   });
 });
 
@@ -531,90 +568,14 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
 // Goal-aware proportional budget (Scales coverage goal active)
 // -----------------------------------------------------------------
 
-describe('shapeShapesBlock — Scales goal-aware proportional budget', () => {
-  it('uses the goal due-seconds when smaller than the 20% block cap', () => {
-    // 30 min block. Active Scales goal with 180 s of due cells.
-    // 20 % cap = 360 s. Floor (proportional branch) is 0. Budget
-    // should be 180 s (the goal value, since it's under the cap).
-    const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 30 * 60),
-      ctx([], {
-        unlockedTier: 1,
-        scalesGoalDueSeconds: 180,
-      }),
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(180);
-  });
-
-  it('clamps a large goal-due to 20% of the block', () => {
-    // 60 min block. Goal due-seconds way over the cap.
-    // 20 % cap = 720 s. 20-min absolute cap = 1200 s.
-    // Lower (720) wins.
-    const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 60 * 60),
-      ctx([], {
-        unlockedTier: 1,
-        scalesGoalDueSeconds: 9999,
-      }),
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(720);
-  });
-
-  it('clamps at the 20-min absolute ceiling on very large blocks', () => {
-    // 3-hour block. 20 % = 36 min, but the 20-min absolute ceiling
-    // wins → 1200 s.
-    const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 3 * 60 * 60),
-      ctx([], {
-        unlockedTier: 1,
-        scalesGoalDueSeconds: 9999,
-      }),
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(20 * 60);
-  });
-
-  it('returns null Scales segment when goal due-seconds is 0', () => {
-    // Active Scales goal but everything's been practised today.
-    // No warm-up surfaces — honest signal "no scale work today".
-    const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 30 * 60),
-      ctx([], {
-        unlockedTier: 1,
-        scalesGoalDueSeconds: 0,
-      }),
-    );
-    expect(segs.some(s => s.kind === 'scales')).toBe(false);
-  });
-
-  it('falls back to the fixed 5-min budget when no Scales goal exists', () => {
-    // scalesGoalDueSeconds = null (default) → fixed path.
-    const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 15 * 60),
-      ctx([], { unlockedTier: 1 }),
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(5 * 60);
-  });
-
-  it('still carves the goal-aware budget off the chord-shape walk', () => {
-    // 30 min block. Goal due-seconds = 240 s. Cap = 360 s. Budget
-    // = 240 s. Walk gets the remaining 1560 s.
-    const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 30 * 60),
-      ctx([], {
-        unlockedTier: 1,
-        scalesGoalDueSeconds: 240,
-      }),
-    );
-    const scales = segs.find(s => s.kind === 'scales')!;
-    const walk = segs.find(s => s.kind === 'shapes-walk')!;
-    expect(scales.plannedSeconds).toBe(240);
-    expect(scales.plannedSeconds + walk.plannedSeconds).toBe(30 * 60);
-  });
-});
+// The "Scales goal-aware proportional budget" describe block was
+// removed: that path lived in scalesSegmentBudget's proportional
+// branch (called from buildTwoSegmentSplit). Since VL is now catalog-
+// driven and the three-way split fires unconditionally on blocks
+// ≥ 15 min, the two-way path no longer surfaces Scales at all —
+// Scales gets a flat 15 % of the block via buildScalesSegmentWithBudget
+// in three-way, bypassing scalesSegmentBudget entirely. See the
+// three-way Scales tests above for the active contract.
 
 // -----------------------------------------------------------------
 // Voice-leading three-way 25 / 50 / 25 split
@@ -643,16 +604,21 @@ describe('shapeShapesBlock — VL three-way split', () => {
     expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - walk.plannedSeconds);
   });
 
-  it('falls back to the 30/70 (Scales + walk) path when no VL items are in the block', () => {
+  it('fires the three-way split even when the block has NO vl: items (catalog-driven VL)', () => {
+    // Pre-fix this fell back to the two-way 30/70 (Scales + walk)
+    // path. Post-fix VL is catalog-driven so the three-way split
+    // fires on every block ≥ 15 min — unstarted catalog cells
+    // (notably diatonic-cycle) surface for users who haven't drilled
+    // any VL yet.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1 }),
     );
-    // No VL segment.
-    expect(segs.some(s => s.kind === 'voice-leading')).toBe(false);
-    const scales = segs.find(s => s.kind === 'scales')!;
-    // Existing fixed budget (8 min for 30-min block) — unchanged.
-    expect(scales.plannedSeconds).toBe(8 * 60);
+    expect(segs.map(s => s.kind)).toEqual(['scales', 'shapes-walk', 'voice-leading']);
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    // Top-priority pattern is diatonic-cycle (catalog index 0); a
+    // cold-start session surfaces its cells first.
+    expect(vl.itemRefs[0]?.startsWith('vl:diatonic-cycle:')).toBe(true);
   });
 
   it('stays on the two-segment path when block < 15 min even with VL items', () => {
@@ -668,24 +634,16 @@ describe('shapeShapesBlock — VL three-way split', () => {
   });
 
   it('VL segment surfaces a label of the form "VOICE LEADING — drill PATTERNS · KEYS"', () => {
+    // Catalog-driven: the surfaced cells are the top of the catalog
+    // priority order (diatonic-cycle first), so the label mentions
+    // the diatonic-cycle pattern + the keys it spans.
     const segs = shapeShapesBlock(
-      block(
-        [
-          'chord-shape:maj:C:root',
-          'vl:major-251:guide-tones:A:C',
-          'vl:dim7:pos1:F',
-        ],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.label.startsWith('VOICE LEADING — drill ')).toBe(true);
-    // Both pattern labels in the line (catalog has the official copy).
-    expect(vl.label).toMatch(/2-5-1/);
-    expect(vl.label).toMatch(/dim7/);
-    expect(vl.label).toContain('C');
-    expect(vl.label).toContain('F');
+    expect(vl.label).toMatch(/Diatonic Cycle/);
   });
 
   it('VL why-text reads "N drills across M keys — most-due first"', () => {
@@ -702,9 +660,11 @@ describe('shapeShapesBlock — VL three-way split', () => {
   });
 
   it('VL cells: due items surface before unstarted items (tier ordering)', () => {
-    // Same sub-cell type / position, but C is due and F/Bb are
-    // never-practised. C must come first because the DUE tier
-    // outranks the UNSTARTED tier.
+    // Catalog-driven enumeration: every catalog cell competes in the
+    // sort. The DUE major-251 cell at C wins the first slot because
+    // tier 0 (DUE) outranks tier 1 (UNSTARTED). The rest of the
+    // truncated list is unstarted diatonic-cycle cells (catalog
+    // priority 0).
     const rows = [
       row('vl:major-251:guide-tones:A:C', {
         lastEngagedAt: NOW - 10_000,
@@ -712,24 +672,88 @@ describe('shapeShapesBlock — VL three-way split', () => {
       }),
     ];
     const segs = shapeShapesBlock(
-      block(
-        [
-          'vl:major-251:guide-tones:A:F',
-          'vl:major-251:guide-tones:A:Bb',
-          'vl:major-251:guide-tones:A:C',
-        ],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs[0]).toBe('vl:major-251:guide-tones:A:C');
-    // The other two are unstarted; their relative order is the
-    // key-index ASC tiebreak (KEYS is chromatic, so F before Bb).
-    expect(vl.itemRefs.slice(1)).toEqual([
-      'vl:major-251:guide-tones:A:F',
-      'vl:major-251:guide-tones:A:Bb',
-    ]);
+    // Remaining slots are unstarted diatonic-cycle cells (highest-
+    // priority pattern in catalog order).
+    expect(vl.itemRefs.slice(1).every(r => r.startsWith('vl:diatonic-cycle:'))).toBe(true);
+  });
+
+  it('cold-start: unstarted diatonic-cycle cells beat practised major-251 cells (bug fix)', () => {
+    // Regression test for the reported bug: a user with practised
+    // major-251 cells (created during testing) would see major-251
+    // surface over diatonic-cycle even though diatonic-cycle has
+    // higher catalog priority. The bug was that buildVoiceLeadingSegment
+    // only saw cells in block.itemRefs, and diatonic-cycle cells
+    // (never practised → no spacingState row → not in block) couldn't
+    // compete. Post-fix: catalog enumeration surfaces unstarted
+    // diatonic-cycle cells in the UNSTARTED tier; since major-251 is
+    // ALSO in the UNSTARTED tier (or any other tier where pattern
+    // priority applies), diatonic-cycle wins by patternIndex.
+    //
+    // To pin the bug specifically: make major-251 cells UNSTARTED
+    // (row exists with null nextDueAt) so we're comparing both in
+    // the UNSTARTED tier where patternIndex ASC decides.
+    const rows = [
+      row('vl:major-251:guide-tones:A:C', { nextDueAt: null }),
+      row('vl:major-251:guide-tones:A:F', { nextDueAt: null }),
+    ];
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx(rows, { unlockedTier: 1 }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    // First cell must be diatonic-cycle (patternIndex 0), not
+    // major-251 (patternIndex 2).
+    expect(vl.itemRefs[0]).toMatch(/^vl:diatonic-cycle:/);
+  });
+
+  it('catalog cells with no spacingState row land in the UNSTARTED tier', () => {
+    // Verify a never-practised cell is treated as UNSTARTED, not
+    // DUE or NOT_DUE, by checking it's positioned after any DUE
+    // cells but before any NOT_DUE cells.
+    const future = NOW + 10_000;
+    const rows = [
+      row('vl:dom7b9:pos1:C',  { nextDueAt: NOW - 1_000 }),   // DUE
+      row('vl:dim7:pos1:C',    { nextDueAt: future }),         // NOT_DUE
+      // diatonic-cycle:pos1:C has no row → UNSTARTED
+    ];
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx(rows, { unlockedTier: 1 }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    const dom7Idx = vl.itemRefs.indexOf('vl:dom7b9:pos1:C');
+    const diaIdx = vl.itemRefs.indexOf('vl:diatonic-cycle:pos1:C');
+    const dimIdx = vl.itemRefs.indexOf('vl:dim7:pos1:C');
+    // DUE (dom7b9) first, UNSTARTED diatonic-cycle next, NOT_DUE
+    // (dim7) last — when all three are in the kept window.
+    expect(dom7Idx).toBeGreaterThanOrEqual(0);
+    expect(diaIdx).toBeGreaterThanOrEqual(0);
+    // dom7b9 is DUE → before unstarted diatonic-cycle.
+    expect(dom7Idx).toBeLessThan(diaIdx);
+    if (dimIdx >= 0) {
+      // dim7 is NOT_DUE → after unstarted diatonic-cycle (when
+      // it makes it into the kept window at all).
+      expect(diaIdx).toBeLessThan(dimIdx);
+    }
+  });
+
+  it('VL segment fires even when no VL spacingState rows exist', () => {
+    // No VL rows at all in ctx — purely catalog-driven cold-start.
+    // Pre-fix, an empty ctx + no VL items in block meant zero VL
+    // cells reached buildVoiceLeadingSegment → null segment. Post-fix,
+    // catalog enumeration always produces eligible cells.
+    const segs = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx([], { unlockedTier: 1 }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading');
+    expect(vl).toBeDefined();
+    expect(vl!.itemRefs.length).toBeGreaterThan(0);
   });
 
   it('within DUE tier, cells sort by nextDueAt ASC (soft pattern order does NOT apply to due items)', () => {
@@ -753,73 +777,76 @@ describe('shapeShapesBlock — VL three-way split', () => {
   });
 
   it('within UNSTARTED tier, cells sort by catalog pattern index ASC (soft priority)', () => {
-    // Three unstarted cells, one per pattern. Catalog order is
-    // diatonic-cycle (0) → five-one (1) → ... → dom7b9 (5).
-    // diatonic-cycle should surface first, dom7b9 last.
+    // Cold-start: every catalog cell is UNSTARTED. The first surfaced
+    // cells are diatonic-cycle (catalog index 0). five-one (1) only
+    // shows up once diatonic-cycle is exhausted (after 36 cells —
+    // beyond the 30-min budget). Asserting "first cell is diatonic-
+    // cycle" pins the sort key precedence.
     const segs = shapeShapesBlock(
-      block(
-        [
-          'vl:dom7b9:pos1:C',
-          'vl:five-one:guide-tones:A:C',
-          'vl:diatonic-cycle:pos1:C',
-        ],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(vl.itemRefs[0]).toBe('vl:diatonic-cycle:pos1:C');
-    expect(vl.itemRefs[1]).toBe('vl:five-one:guide-tones:A:C');
-    expect(vl.itemRefs[2]).toBe('vl:dom7b9:pos1:C');
+    // Within diatonic-cycle, positionIndex ASC then keyIndex ASC.
+    // The first 12 cells are pos1 across all keys, then pos2 × 12, etc.
+    expect(vl.itemRefs.every(r => r.startsWith('vl:diatonic-cycle:'))).toBe(true);
   });
 
   it('within UNSTARTED tier, type index ASC orders the type progression (guide-tones first)', () => {
-    // Both cells are unstarted, same pattern + same position + same
-    // key. Eligibility is bypassed by the test below; here we
-    // verify the sort: guide-tones (typeIdx 0) before seventh-chords
-    // (typeIdx 1). Cells in different keys so eligibility doesn't
-    // matter — we're testing the sort, not the gate.
+    // Isolate two cells in UNSTARTED tier at the same pattern + key:
+    // major-251 guide-tones A:C and seventh-chords A:C. With prereqs
+    // for seventh-chords satisfied, both are eligible. The sort must
+    // place guide-tones (typeIdx 0) before seventh-chords (typeIdx 1).
+    const rows = notDueAllExcept(
+      new Set([
+        'vl:major-251:guide-tones:A:C',
+        'vl:major-251:seventh-chords:A:C',
+      ]),
+      [
+        row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
+        row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquiring' }),
+      ],
+    );
     const segs = shapeShapesBlock(
-      block(
-        [
-          'vl:major-251:seventh-chords:A:F', // typeIdx 1
-          'vl:major-251:guide-tones:A:C',    // typeIdx 0
-        ],
-        30 * 60,
-      ),
-      ctx([], { unlockedTier: 1 }),
+      block([], 30 * 60),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    // Note: vl:major-251:seventh-chords:A:F is eligible because its
-    // prerequisite (vl:major-251:guide-tones:{A,B}:F) check fails
-    // → cell dropped. So result is just guide-tones:C.
-    expect(vl.itemRefs).toEqual(['vl:major-251:guide-tones:A:C']);
+    const gtIdx = vl.itemRefs.indexOf('vl:major-251:guide-tones:A:C');
+    const scIdx = vl.itemRefs.indexOf('vl:major-251:seventh-chords:A:C');
+    expect(gtIdx).toBeGreaterThanOrEqual(0);
+    expect(scIdx).toBeGreaterThanOrEqual(0);
+    // guide-tones (typeIdx 0) before seventh-chords (typeIdx 1).
+    expect(gtIdx).toBeLessThan(scIdx);
   });
 
   it('NOT_DUE tier comes last (after both DUE and UNSTARTED)', () => {
     const future = NOW + 10_000;
     const rows = [
-      // Practised + scheduled in the future (NOT_DUE)
-      row('vl:diatonic-cycle:pos1:C', { nextDueAt: future }),
-      // Due now (DUE)
-      row('vl:dom7b9:pos1:C',         { nextDueAt: NOW - 1_000 }),
-      // unstarted: vl:five-one:guide-tones:A:C has no row
+      row('vl:diatonic-cycle:pos1:C', { nextDueAt: future }),  // NOT_DUE
+      row('vl:dom7b9:pos1:C',         { nextDueAt: NOW - 1_000 }),  // DUE
+      // diatonic-cycle:pos2:C and other unstarted catalog cells
+      // sit in UNSTARTED tier (catalog-driven, no block dependency).
     ];
     const segs = shapeShapesBlock(
-      block(
-        [
-          'vl:diatonic-cycle:pos1:C',
-          'vl:dom7b9:pos1:C',
-          'vl:five-one:guide-tones:A:C',
-        ],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs[0]).toBe('vl:dom7b9:pos1:C');           // DUE
-    expect(vl.itemRefs[1]).toBe('vl:five-one:guide-tones:A:C'); // UNSTARTED
-    expect(vl.itemRefs[2]).toBe('vl:diatonic-cycle:pos1:C');   // NOT_DUE
+    const dueIdx = vl.itemRefs.indexOf('vl:dom7b9:pos1:C');
+    const notDueIdx = vl.itemRefs.indexOf('vl:diatonic-cycle:pos1:C');
+    expect(dueIdx).toBe(0); // DUE tier first
+    if (notDueIdx >= 0) {
+      // NOT_DUE diatonic-cycle:pos1:C ends up AFTER unstarted
+      // diatonic-cycle cells (pos2, pos3 across keys).
+      const firstUnstarted = vl.itemRefs.findIndex(
+        r => r.startsWith('vl:diatonic-cycle:') && r !== 'vl:diatonic-cycle:pos1:C',
+      );
+      if (firstUnstarted >= 0) {
+        expect(firstUnstarted).toBeLessThan(notDueIdx);
+      }
+    }
   });
 });
 
@@ -829,131 +856,131 @@ describe('shapeShapesBlock — VL three-way split', () => {
 
 describe('shapeShapesBlock — VL per-key gating', () => {
   it('seventh-chords cell ineligible when guide-tones prerequisites are still "new"', () => {
-    // No spacingState rows for the guide-tones cells → they default
-    // to 'new' → seventh-chords cell at the same key fails the gate.
+    // No prereq rows → seventh-chords stays gated. The VL segment
+    // still fires (catalog-driven), but the gated cell is absent.
     const segs = shapeShapesBlock(
-      block(
-        ['vl:major-251:seventh-chords:A:C'],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1 }),
     );
-    const vl = segs.find(s => s.kind === 'voice-leading');
-    // No eligible VL cells → no VL segment.
-    expect(vl).toBeUndefined();
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs).not.toContain('vl:major-251:seventh-chords:A:C');
   });
 
   it('seventh-chords cell ineligible when ONLY ONE of the two guide-tones positions is at acquiring', () => {
-    // Pos A is at acquiring; Pos B is still 'new' → gate blocks.
     const rows = [
       row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
       // Pos B has no row → defaults to 'new'.
     ];
     const segs = shapeShapesBlock(
-      block(['vl:major-251:seventh-chords:A:C'], 30 * 60),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
-    expect(segs.find(s => s.kind === 'voice-leading')).toBeUndefined();
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs).not.toContain('vl:major-251:seventh-chords:A:C');
   });
 
   it('seventh-chords cell becomes eligible once both guide-tones positions reach acquiring+', () => {
-    const rows = [
-      row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
-      row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquired' }),
-    ];
+    // Push every higher-priority unstarted cell to NOT_DUE so the
+    // seventh-chords:A:C cell can fit inside the truncated window.
+    // Keep major-251 guide-tones at C as UNSTARTED so they (a) satisfy
+    // the prereq gate at acquiring+ and (b) precede seventh-chords:A:C
+    // in the sort.
+    const rows = notDueAllExcept(
+      new Set([
+        'vl:major-251:guide-tones:A:C',
+        'vl:major-251:guide-tones:B:C',
+        'vl:major-251:seventh-chords:A:C',
+        'vl:major-251:seventh-chords:B:C',
+      ]),
+      [
+        row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
+        row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquired' }),
+      ],
+    );
     const segs = shapeShapesBlock(
-      block(['vl:major-251:seventh-chords:A:C'], 30 * 60),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs).toEqual(['vl:major-251:seventh-chords:A:C']);
+    expect(vl.itemRefs).toContain('vl:major-251:seventh-chords:A:C');
   });
 
   it('ABA-structure (capstone) cell gates on seventh-chords prerequisites, not guide-tones', () => {
-    // Both guide-tones cells at acquired+ but seventh-chords cells
-    // still 'new' → ABA-structure stays blocked.
     const rows = [
       row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquired' }),
       row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquired' }),
+      // seventh-chords still 'new' → ABA-structure stays gated.
     ];
     const segs = shapeShapesBlock(
-      block(['vl:major-251:aba-structure:A:C'], 30 * 60),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
-    expect(segs.find(s => s.kind === 'voice-leading')).toBeUndefined();
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    expect(vl.itemRefs).not.toContain('vl:major-251:aba-structure:A:C');
   });
 
   it('per-key: pos A guide-tones acquiring on key C unlocks key-C seventh-chords but NOT key-F seventh-chords', () => {
-    const rows = [
-      row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
-      row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquiring' }),
-      // Key F: no rows → guide-tones still 'new' there.
-    ];
+    // Same isolation as the prior test — push higher-priority
+    // unstarted cells out of the window so the eligible seventh-chords
+    // cell at C can surface.
+    const rows = notDueAllExcept(
+      new Set([
+        'vl:major-251:guide-tones:A:C',
+        'vl:major-251:guide-tones:B:C',
+        'vl:major-251:seventh-chords:A:C',
+        'vl:major-251:seventh-chords:B:C',
+        'vl:major-251:seventh-chords:A:F',
+        'vl:major-251:seventh-chords:B:F',
+      ]),
+      [
+        row('vl:major-251:guide-tones:A:C', { acquisitionStage: 'acquiring' }),
+        row('vl:major-251:guide-tones:B:C', { acquisitionStage: 'acquiring' }),
+        // Key F: no rows for guide-tones → defaults to 'new' → F seventh-chords stays gated.
+      ],
+    );
     const segs = shapeShapesBlock(
-      block(
-        [
-          'vl:major-251:seventh-chords:A:C', // eligible
-          'vl:major-251:seventh-chords:A:F', // gated — F guide-tones still new
-        ],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs).toEqual(['vl:major-251:seventh-chords:A:C']);
+    expect(vl.itemRefs).toContain('vl:major-251:seventh-chords:A:C');
+    expect(vl.itemRefs).not.toContain('vl:major-251:seventh-chords:A:F');
   });
 
   it('non-type-position patterns (diatonic-cycle, dom7b9, dim7, minor-aba) have no gating — all positions always eligible', () => {
-    // Untouched positions for each non-type-position pattern.
-    const itemRefs = [
-      'vl:diatonic-cycle:pos2:C', // unstarted
-      'vl:minor-aba:pos-B:C',     // unstarted
-      'vl:dom7b9:pos3:C',         // unstarted
-      'vl:dim7:pos4:C',           // unstarted
-    ];
-    const segs = shapeShapesBlock(
-      block(itemRefs, 30 * 60),
-      ctx([], { unlockedTier: 1 }),
-    );
-    const vl = segs.find(s => s.kind === 'voice-leading')!;
-    // All four surface (sorted by catalog index ASC within unstarted).
-    expect(new Set(vl.itemRefs)).toEqual(new Set(itemRefs));
-    // Order check: diatonic-cycle (idx 0) before minor-aba (idx 4)
-    // before dom7b9 (idx 5) before dim7 (idx 6).
-    expect(vl.itemRefs).toEqual([
+    // Push all higher-priority patterns out of UNSTARTED so the lower
+    // non-type-position patterns (minor-aba=4, dom7b9=5, dim7=6) can
+    // surface and we can verify each of their positions is eligible
+    // without any prereq-based gate.
+    const targets = new Set([
       'vl:diatonic-cycle:pos2:C',
       'vl:minor-aba:pos-B:C',
       'vl:dom7b9:pos3:C',
       'vl:dim7:pos4:C',
     ]);
-  });
-
-  it('drops legacy / unparseable vl: refs that no longer parse against the strict catalog', () => {
-    // `vl:aba-251:level1:A:C` is the pre-correction shape — parseVoiceLeadingItemRef
-    // returns null, so the splitter should skip it without crashing.
+    const rows = notDueAllExcept(targets);
     const segs = shapeShapesBlock(
-      block(
-        [
-          'chord-shape:maj:C:root',
-          'vl:aba-251:level1:A:C',                  // pre-correction — drop
-          'vl:major-251:guide-tones:A:C',           // valid
-        ],
-        30 * 60,
-      ),
-      ctx([], { unlockedTier: 1 }),
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx(rows, { unlockedTier: 1 }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs).toEqual(['vl:major-251:guide-tones:A:C']);
+    for (const ref of targets) {
+      expect(vl.itemRefs).toContain(ref);
+    }
   });
+
+  // Removed: 'drops legacy / unparseable vl: refs that no longer parse
+  // against the strict catalog'. Catalog enumeration only produces
+  // refs that round-trip cleanly through parseVoiceLeadingItemRef,
+  // so there's no longer a code path that could surface a legacy/
+  // unparseable ref. block.itemRefs aren't consulted at all.
 
   it('three-way split runs even when there are no chord-shape items (walk returns null)', () => {
     const segs = shapeShapesBlock(
-      block(['vl:major-251:guide-tones:A:C'], 30 * 60),
+      block([], 30 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     expect(segs.map(s => s.kind)).toEqual(['scales', 'voice-leading']);
-    // Walk slot's planned seconds aren't redistributed — segments keep
-    // their declared proportions even when one is empty.
     const scales = segs.find(s => s.kind === 'scales')!;
     const vl = segs.find(s => s.kind === 'voice-leading')!;
     expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
@@ -961,20 +988,17 @@ describe('shapeShapesBlock — VL per-key gating', () => {
   });
 
   it('three-way path bypasses the Scales goal-proportional budget rules', () => {
-    // Existing 2-segment path: goal-due 180 s would clamp scales to 180 s.
-    // 3-segment path: scales is fixed at 25 % regardless of the goal value.
+    // The three-way Scales budget is a flat 15 % regardless of an
+    // active Scales coverage goal's due-seconds.
     const segs = shapeShapesBlock(
-      block(
-        ['chord-shape:maj:C:root', 'vl:major-251:guide-tones:A:C'],
-        30 * 60,
-      ),
+      block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], {
         unlockedTier: 1,
         scalesGoalDueSeconds: 180,
       }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15)); // 270 (15 %), not 180
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
   });
 });
 

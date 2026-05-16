@@ -40,10 +40,12 @@ import {
 } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   CHORD_QUALITY_BY_ID,
+  enumerateVoiceLeadingCells,
   KEYS,
   parseVoiceLeadingItemRef,
   VOICE_LEADING_PATTERN_BY_ID,
   VOICE_LEADING_PATTERN_INDEX,
+  VOICE_LEADING_PATTERNS,
   type VoiceLeadingItemRefDescriptor,
   type VoiceLeadingPattern,
 } from './catalog';
@@ -902,7 +904,18 @@ function vlTierFor(nextDueAt: number | null, now: number): VLTier {
 }
 
 /**
- * Build the VL segment from the block's vl: items.
+ * Build the VL segment by enumerating the full catalog. VL is
+ * catalog-driven: every (pattern × key × sub-cell) ref is
+ * considered, then merged with `ctx.rowsByItemRef` so practised
+ * cells carry their spacingState (tier + nextDueAt) and unstarted
+ * cells land in the UNSTARTED tier with `nextDueAt = null`.
+ *
+ * The block's `itemRefs` aren't consulted — the upstream candidate
+ * pipeline (aggregateGoalCandidatesByModule) only walks spacingState
+ * rows, so an untouched pattern like diatonic-cycle would otherwise
+ * never reach the splitter even though it's the highest-priority
+ * pattern. Catalog enumeration here is what lets diatonic-cycle
+ * surface for users who haven't drilled any VL yet.
  *
  * Eligibility filter (intra-pattern, per-key hard gate):
  *   For type-position patterns, a cell of type T+1 at key K only
@@ -919,45 +932,48 @@ function vlTierFor(nextDueAt: number | null, now: number): VLTier {
  *      order is the source of truth for inter-pattern soft
  *      priority (diatonic-cycle / five-one first; later patterns
  *      surface only when earlier ones are exhausted).
- *   4. Block-position tiebreaker (deterministic across renders).
+ *   4. Enumeration-order tiebreaker (deterministic across renders).
  *
- * Returns null when no vl: items are in the block, when no items
- * parse + survive the eligibility filter, or when the resolved
- * budget is non-positive.
+ * Returns null when no catalog cell survives the eligibility filter
+ * (rare — only happens when every pattern's prerequisites are
+ * blocked) or when the resolved budget is non-positive.
  */
 function buildVoiceLeadingSegment(
-  block: AllocatedBlock,
+  _block: AllocatedBlock,
   ctx: ShapesSplitContext,
   plannedSeconds: number,
 ): ShapesSplitSegment | null {
   if (plannedSeconds <= 0) return null;
   const cells: VLCell[] = [];
-  block.itemRefs.forEach((itemRef, blockIndex) => {
-    if (!itemRef.startsWith('vl:')) return;
-    const desc = parseVoiceLeadingItemRef(itemRef);
-    if (!desc) return;
-    const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
-    if (!pattern) return;
-    if (!vlIsEligible(desc, ctx.rowsByItemRef)) return;
-    const row = ctx.rowsByItemRef.get(itemRef);
-    const nextDueAt = row?.nextDueAt ?? null;
-    const { typeIndex, positionIndex } = vlSubIndexes(desc, pattern);
-    cells.push({
-      itemRef,
-      desc,
-      pattern,
-      patternLabel: pattern.label,
-      keyName: desc.keyName,
-      seconds: voiceLeadingCellSeconds(desc),
-      nextDueAt,
-      tier: vlTierFor(nextDueAt, ctx.now),
-      patternIndex: VOICE_LEADING_PATTERN_INDEX.get(desc.patternId) ?? Number.MAX_SAFE_INTEGER,
-      typeIndex,
-      positionIndex,
-      keyIndex: KEY_INDEX.get(desc.keyName) ?? KEYS.length,
-      blockIndex,
-    });
-  });
+  let enumIdx = 0;
+  for (const pattern of VOICE_LEADING_PATTERNS) {
+    for (const keyName of KEYS) {
+      const itemRefs = enumerateVoiceLeadingCells(pattern, keyName);
+      for (const itemRef of itemRefs) {
+        const desc = parseVoiceLeadingItemRef(itemRef);
+        if (!desc) continue;
+        if (!vlIsEligible(desc, ctx.rowsByItemRef)) continue;
+        const row = ctx.rowsByItemRef.get(itemRef);
+        const nextDueAt = row?.nextDueAt ?? null;
+        const { typeIndex, positionIndex } = vlSubIndexes(desc, pattern);
+        cells.push({
+          itemRef,
+          desc,
+          pattern,
+          patternLabel: pattern.label,
+          keyName: desc.keyName,
+          seconds: voiceLeadingCellSeconds(desc),
+          nextDueAt,
+          tier: vlTierFor(nextDueAt, ctx.now),
+          patternIndex: VOICE_LEADING_PATTERN_INDEX.get(desc.patternId) ?? Number.MAX_SAFE_INTEGER,
+          typeIndex,
+          positionIndex,
+          keyIndex: KEY_INDEX.get(desc.keyName) ?? KEYS.length,
+          blockIndex: enumIdx++,
+        });
+      }
+    }
+  }
   if (cells.length === 0) return null;
 
   cells.sort((a, b) => {
@@ -1070,10 +1086,14 @@ export function shapeShapesBlock(
   block: AllocatedBlock,
   ctx: ShapesSplitContext,
 ): ShapesSplitSegment[] {
-  const hasVoiceLeadingItems = block.itemRefs.some(ref => ref.startsWith('vl:'));
-  const vlEligible =
-    hasVoiceLeadingItems && block.plannedSeconds >= VL_SEGMENT_MIN_BLOCK_SECONDS;
-
+  // VL is catalog-driven: buildVoiceLeadingSegment enumerates the
+  // full catalog rather than walking the block's vl: itemRefs, so
+  // unstarted patterns (notably diatonic-cycle, the top-priority
+  // pattern) can surface even when the user has never drilled VL.
+  // The three-way split therefore fires whenever the block is large
+  // enough; sub-15-min blocks stay on the two-way path so a tiny
+  // S&P slice doesn't try to split three ways.
+  const vlEligible = block.plannedSeconds >= VL_SEGMENT_MIN_BLOCK_SECONDS;
   if (vlEligible) {
     return buildThreeWaySplit(block, ctx);
   }
