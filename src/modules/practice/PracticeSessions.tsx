@@ -487,6 +487,9 @@ export default function PracticeSessions() {
           onRegeneratePath={activePath ? handleRegeneratePath : undefined}
           regenerating={generating}
           showColdStartBanner={showColdStart}
+          // Block-swap picker needs the context to filter the
+          // "Different module" list to context-allowed modules.
+          context={lastInputs?.context ?? 'keys'}
           feasibilityBanner={
             <FeasibilityBanner
               entries={feasibilityEntries}

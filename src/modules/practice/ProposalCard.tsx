@@ -13,6 +13,7 @@
  * Each substep edits this file.
  */
 import { useEffect, useState } from 'react';
+import { db, type PracticeSessionContext, type Song, type SpacingState } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import AffirmationSurface from './AffirmationSurface';
@@ -24,6 +25,15 @@ import {
   recipientIdsForModule,
   redistributeProportionally,
 } from './proposalRedistribute';
+import {
+  applySwap,
+  differentSubmoduleAlternatives,
+  sameSubmoduleAlternatives,
+  type DifferentSubmoduleOption,
+  type SameSubmoduleOption,
+  type SwapAlternatives,
+  type SwapChoice,
+} from './proposalSwap';
 import type { ProposalBlock, ProposalCardData } from './proposalTypes';
 
 interface Props {
@@ -68,6 +78,9 @@ interface Props {
    * pool; null hides the surface entirely.
    */
   affirmation?: string | null;
+  /** User's practice context (keys / laptop / phone / full) — drives
+   *  the block-swap picker's "Different module" filtering. */
+  context: PracticeSessionContext;
 }
 
 export default function ProposalCard({
@@ -80,6 +93,7 @@ export default function ProposalCard({
   onAddNextPriority,
   onAddPickYourOwn,
   affirmation,
+  context,
 }: Props) {
   const [whyOpen, setWhyOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
@@ -98,11 +112,54 @@ export default function ProposalCard({
   // and the per-module / split-evenly options. Cleared alongside
   // orderedBlocks on upstream proposal change.
   const [pendingPrompts, setPendingPrompts] = useState<PendingPrompt[]>([]);
+  // Block-swap state. Only one panel open at a time — tapping ⇄ on a
+  // different block while another is open simply moves the panel.
+  // `alternatives` is fetched async after the panel opens; while it
+  // loads the panel shows a brief placeholder.
+  const [swapBlockId, setSwapBlockId] = useState<string | null>(null);
+  const [swapAlternatives, setSwapAlternatives] = useState<SwapAlternatives | null>(null);
   useEffect(() => {
     setOrderedBlocks(data.blocks);
     setPendingPrompts([]);
+    setSwapBlockId(null);
+    setSwapAlternatives(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockIdSignature]);
+
+  // Async-load spacingState + songs once the user opens the swap
+  // panel. Cancelled on close / unmount. Recomputes per swapBlockId
+  // change so each open gets a fresh snapshot.
+  useEffect(() => {
+    if (swapBlockId === null) {
+      setSwapAlternatives(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const [spacingRows, songs] = await Promise.all([
+        db.spacingState.toArray() as Promise<SpacingState[]>,
+        db.songs.toArray() as Promise<Song[]>,
+      ]);
+      if (cancelled) return;
+      const block = orderedBlocks.find(b => b.id === swapBlockId);
+      if (!block) return;
+      const now = Date.now();
+      setSwapAlternatives({
+        sameSubmodule: sameSubmoduleAlternatives({
+          block, allBlocks: orderedBlocks, spacingRows, songs, now,
+        }),
+        differentSubmodule: differentSubmoduleAlternatives({
+          block, allBlocks: orderedBlocks, spacingRows, songs, context, now,
+        }),
+      });
+    })();
+    return () => { cancelled = true; };
+    // orderedBlocks isn't in deps on purpose — re-running on every
+    // block mutation would thrash the panel mid-interaction. The
+    // alternatives reflect the snapshot at open time; if the user
+    // wants fresh alternatives they re-open the panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swapBlockId, context]);
 
   const handleDelete = (blockId: string) => {
     const idsToRemove = deletionUnit(orderedBlocks, blockId);
@@ -214,6 +271,23 @@ export default function ProposalCard({
     setPendingPrompts(prev => prev.filter(p => p.status !== 'committed'));
   };
 
+  const handleSwapOpen = (blockId: string) => {
+    setSwapBlockId(blockId);
+  };
+
+  const handleSwapClose = () => {
+    setSwapBlockId(null);
+  };
+
+  const handleSwapPick = (blockId: string, choice: SwapChoice) => {
+    setOrderedBlocks(prev => applySwap(prev, blockId, choice));
+    setSwapBlockId(null);
+    // Swap is a structural change — same as delete/reorder, it
+    // invalidates any pending committed-undo snapshot from a prior
+    // delete-redistribute.
+    setPendingPrompts(prev => prev.filter(p => p.status !== 'committed'));
+  };
+
   // Wrap prompts into the InlinePrompt shape SessionStack expects.
   // The renderer reads orderedBlocks live so the per-module button
   // list reflects deletions that happened after this prompt was
@@ -237,6 +311,24 @@ export default function ProposalCard({
       />
     ),
   }));
+
+  // Swap panel — one at a time, rendered as another InlinePrompt
+  // anchored to the block being swapped. The render function reads
+  // swapAlternatives live so the loading→ready transition swaps the
+  // panel content in place without remounting.
+  if (swapBlockId !== null) {
+    inlinePrompts.push({
+      id: `swap-${swapBlockId}`,
+      anchorGroupId: swapBlockId,
+      render: () => (
+        <BlockSwapPanel
+          alternatives={swapAlternatives}
+          onPick={choice => handleSwapPick(swapBlockId, choice)}
+          onClose={handleSwapClose}
+        />
+      ),
+    });
+  }
 
   // Live total = sum of surviving block seconds. The pre-deletion
   // total came from `data.totalSeconds` (computed upstream); once the
@@ -302,6 +394,7 @@ export default function ProposalCard({
         blocks={orderedBlocks}
         onReorder={handleReorder}
         onDelete={handleDelete}
+        onSwap={handleSwapOpen}
         inlinePrompts={inlinePrompts}
       />
 
@@ -660,4 +753,212 @@ function PostCommitUndoBanner({
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------
+// Block swap panel
+// ---------------------------------------------------------------------
+
+/**
+ * In-place picker rendered when the user taps ⇄ on a block. Two
+ * sections per spec:
+ *
+ *   "Different focus, same module" — flat list of items in the same
+ *     submodule, sorted by spacing urgency. Tap → swap.
+ *   "Different module" — one row per other available submodule,
+ *     sorted by their top item's urgency. Tap a submodule row → it
+ *     expands to show the top 3 most-due items from that submodule.
+ *     Tap an item → swap.
+ *
+ * Empty sections are hidden entirely. Both empty → "No alternatives"
+ * message + close. While alternatives load (~50ms), shows a brief
+ * loading placeholder.
+ */
+function BlockSwapPanel({
+  alternatives,
+  onPick,
+  onClose,
+}: {
+  alternatives: SwapAlternatives | null;
+  onPick: (choice: SwapChoice) => void;
+  onClose: () => void;
+}) {
+  const [expandedSubmodule, setExpandedSubmodule] = useState<string | null>(null);
+
+  if (alternatives === null) {
+    return (
+      <div className="rounded-md border border-dashed border-fluent/40 bg-fluent/5 px-3 py-2 flex items-center justify-between gap-2">
+        <span className="text-[11px] text-neutral-500 italic">
+          Loading alternatives…
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+        >
+          cancel
+        </button>
+      </div>
+    );
+  }
+
+  const { sameSubmodule, differentSubmodule } = alternatives;
+  const isEmpty = sameSubmodule.length === 0 && differentSubmodule.length === 0;
+
+  return (
+    <div className="rounded-md border border-dashed border-fluent/40 bg-fluent/5 px-3 py-2 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+          Swap this block
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-neutral-500 hover:text-fluent text-sm leading-none px-1"
+          aria-label="Close swap picker"
+          title="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      {isEmpty && (
+        <div className="text-[11px] text-neutral-600 dark:text-neutral-300 italic">
+          No swap options available right now.
+        </div>
+      )}
+
+      {sameSubmodule.length > 0 && (
+        <section className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+            Different focus, same module
+          </div>
+          <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
+            {sameSubmodule.map(opt => (
+              <SwapItemButton
+                key={opt.itemRef}
+                option={opt}
+                onClick={() => onPick({
+                  kind: 'same-submodule',
+                  itemRef: opt.itemRef,
+                  label: opt.label,
+                })}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {differentSubmodule.length > 0 && (
+        <section className="space-y-1">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+            Different module
+          </div>
+          <div className="space-y-1">
+            {differentSubmodule.map(sub => (
+              <DifferentSubmoduleRow
+                key={sub.submoduleKey}
+                option={sub}
+                expanded={expandedSubmodule === sub.submoduleKey}
+                onExpandToggle={() => setExpandedSubmodule(prev =>
+                  prev === sub.submoduleKey ? null : sub.submoduleKey,
+                )}
+                onPickItem={item => onPick({
+                  kind: 'different-submodule',
+                  submoduleKey: sub.submoduleKey,
+                  moduleRef: sub.moduleRef,
+                  itemRef: item.itemRef,
+                  label: item.label,
+                })}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Render a single same-submodule item row with an urgency badge. */
+function SwapItemButton({
+  option,
+  onClick,
+}: {
+  option: SameSubmoduleOption;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:bg-fluent/5 text-left"
+    >
+      <span className="text-[11px] text-neutral-800 dark:text-neutral-100 truncate min-w-0 flex-1">
+        {option.label}
+      </span>
+      <span className="text-[10px] text-neutral-500 shrink-0 font-mono tabular-nums">
+        {urgencyBadge(option.urgencyMs)}
+      </span>
+    </button>
+  );
+}
+
+/** A different-module row: shows the submodule label + a preview of
+ *  the top item; tap → expand to show top 1-3 items. */
+function DifferentSubmoduleRow({
+  option,
+  expanded,
+  onExpandToggle,
+  onPickItem,
+}: {
+  option: DifferentSubmoduleOption;
+  expanded: boolean;
+  onExpandToggle: () => void;
+  onPickItem: (item: SameSubmoduleOption) => void;
+}) {
+  const top = option.topItems[0];
+  return (
+    <div className="rounded border border-neutral-200 dark:border-neutral-700">
+      <button
+        type="button"
+        onClick={onExpandToggle}
+        aria-expanded={expanded}
+        className="w-full flex items-center justify-between gap-2 px-2 py-1 hover:bg-fluent/5 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-medium text-neutral-800 dark:text-neutral-100 truncate">
+            {option.submoduleLabel}
+          </div>
+          {!expanded && top && (
+            <div className="text-[10px] text-neutral-500 truncate">
+              Top: {top.label}
+            </div>
+          )}
+        </div>
+        <span aria-hidden className="text-[10px] text-neutral-400 shrink-0">
+          {expanded ? '↑' : '↓'}
+        </span>
+      </button>
+      {expanded && (
+        <div className="border-t border-neutral-200 dark:border-neutral-700 p-1 space-y-1">
+          {option.topItems.map(item => (
+            <SwapItemButton
+              key={item.itemRef}
+              option={item}
+              onClick={() => onPickItem(item)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Compact text badge summarizing how overdue an item is. */
+function urgencyBadge(urgencyMs: number | null): string {
+  if (urgencyMs === null) return 'new';
+  const days = Math.round(urgencyMs / (24 * 60 * 60 * 1000));
+  if (days > 0) return `+${days}d`;
+  if (days < 0) return `${days}d`;
+  return 'today';
 }

@@ -78,6 +78,10 @@ interface Props {
    *  Invoked with the block's id; the caller owns the list mutation
    *  and the redistribution prompt that replaces the row. */
   onDelete?: (blockId: string) => void;
+  /** When supplied, non-warm-up blocks render a ⇄ swap button next
+   *  to ×. Invoked with the block's id; the caller opens the swap
+   *  picker as an inlinePrompt anchored to this block. */
+  onSwap?: (blockId: string) => void;
   /** Inline prompts to render between groups. See InlinePrompt. */
   inlinePrompts?: ReadonlyArray<InlinePrompt>;
 }
@@ -149,7 +153,7 @@ function sumSeconds(items: ReadonlyArray<ProposalBlock>): number {
   return items.reduce((s, b) => s + Math.max(1, b.plannedSeconds), 0);
 }
 
-export default function SessionStack({ blocks, onReorder, onDelete, inlinePrompts }: Props) {
+export default function SessionStack({ blocks, onReorder, onDelete, onSwap, inlinePrompts }: Props) {
   const groups = useMemo(() => groupBlocks(blocks), [blocks]);
   // Group prompts by their anchor for O(1) lookup during render.
   // End-of-list (anchor null OR anchor no longer in groups) bucket
@@ -225,8 +229,8 @@ export default function SessionStack({ blocks, onReorder, onDelete, inlinePrompt
           <Fragment key={group.id}>
             {promptsHere.map(renderPromptRow)}
             {onReorder
-              ? <SortableGroupRow group={group} onDelete={onDelete} />
-              : <StaticGroupRow group={group} onDelete={onDelete} />}
+              ? <SortableGroupRow group={group} onDelete={onDelete} onSwap={onSwap} />
+              : <StaticGroupRow group={group} onDelete={onDelete} onSwap={onSwap} />}
           </Fragment>
         );
       })}
@@ -257,9 +261,11 @@ export default function SessionStack({ blocks, onReorder, onDelete, inlinePrompt
 function StaticGroupRow({
   group,
   onDelete,
+  onSwap,
 }: {
   group: BlockGroup;
   onDelete?: (blockId: string) => void;
+  onSwap?: (blockId: string) => void;
 }) {
   const seconds = sumSeconds(group.items);
   // minHeight = (#items × MIN_BLOCK_PX) — paired groups stack two
@@ -272,7 +278,7 @@ function StaticGroupRow({
   };
   return (
     <div style={style} className="flex flex-col gap-0.5">
-      <GroupBlocks group={group} onDelete={onDelete} />
+      <GroupBlocks group={group} onDelete={onDelete} onSwap={onSwap} />
     </div>
   );
 }
@@ -283,9 +289,11 @@ function StaticGroupRow({
 function SortableGroupRow({
   group,
   onDelete,
+  onSwap,
 }: {
   group: BlockGroup;
   onDelete?: (blockId: string) => void;
+  onSwap?: (blockId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: group.id });
@@ -318,7 +326,7 @@ function SortableGroupRow({
         <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
       </button>
       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <GroupBlocks group={group} onDelete={onDelete} />
+        <GroupBlocks group={group} onDelete={onDelete} onSwap={onSwap} />
       </div>
     </div>
   );
@@ -333,12 +341,14 @@ function SortableGroupRow({
 function GroupBlocks({
   group,
   onDelete,
+  onSwap,
 }: {
   group: BlockGroup;
   onDelete?: (blockId: string) => void;
+  onSwap?: (blockId: string) => void;
 }) {
   if (group.items.length === 1) {
-    return <SessionBlock block={group.items[0]} onDelete={onDelete} />;
+    return <SessionBlock block={group.items[0]} onDelete={onDelete} onSwap={onSwap} />;
   }
   return (
     <>
@@ -359,7 +369,7 @@ function GroupBlocks({
             }}
             className="flex flex-col"
           >
-            <SessionBlock block={b} onDelete={onDelete} />
+            <SessionBlock block={b} onDelete={onDelete} onSwap={onSwap} />
           </div>
         );
       })}

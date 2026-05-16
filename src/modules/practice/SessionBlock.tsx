@@ -36,9 +36,16 @@ interface Props {
    *  anchor pulls its paired warm-ups via the parent's deletionUnit
    *  helper. */
   onDelete?: (blockId: string) => void;
+  /** When supplied (and the block is NOT a warm-up), a small ⇄ swap
+   *  button appears in the header next to ×. Tapping opens the
+   *  parent's swap picker for this block. Warm-ups don't get a swap
+   *  affordance — they're locked to their anchor; users who want to
+   *  change a warm-up should delete it or swap the song anchor it
+   *  prepares for. */
+  onSwap?: (blockId: string) => void;
 }
 
-export default function SessionBlock({ block, expanded, onToggle, onDelete }: Props) {
+export default function SessionBlock({ block, expanded, onToggle, onDelete, onSwap }: Props) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isControlled = expanded !== undefined;
   const isExpanded = isControlled ? !!expanded : internalExpanded;
@@ -209,6 +216,28 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete }: Pr
         <div className="shrink-0 font-mono tabular-nums text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
+        {onSwap && !block.isWarmup && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`Swap ${label} block`}
+            title="Swap this block for a different focus or module"
+            onClick={e => {
+              e.stopPropagation();
+              onSwap(block.id);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onSwap(block.id);
+              }
+            }}
+            className="shrink-0 px-1.5 py-0.5 text-neutral-400 hover:text-fluent cursor-pointer text-sm leading-none"
+          >
+            ⇄
+          </span>
+        )}
         {onDelete && (
           <span
             role="button"

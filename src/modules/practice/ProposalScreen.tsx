@@ -19,6 +19,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import ColdStartBanner from './ColdStartBanner';
+import type { PracticeSessionContext } from '../../lib/db';
 import ProposalCard from './ProposalCard';
 import type { ProposalCardData } from './proposalTypes';
 
@@ -77,6 +78,10 @@ interface Props {
   onRegeneratePath?: () => void;
   /** True while a regenerate is in flight — disables the button. */
   regenerating?: boolean;
+  /** User's practice context (keys / laptop / phone / full) — passed
+   *  down to ProposalCard's block-swap picker so the "Different
+   *  module" section can filter to context-allowed modules. */
+  context: PracticeSessionContext;
 }
 
 export default function ProposalScreen({
@@ -94,6 +99,7 @@ export default function ProposalScreen({
   onBackToPaths,
   onRegeneratePath,
   regenerating,
+  context,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -191,6 +197,7 @@ export default function ProposalScreen({
               onAddNextPriority={onAddNextPriority}
               onAddPickYourOwn={onAddPickYourOwn}
               affirmation={affirmation}
+              context={context}
             />
           </div>
         ))}
