@@ -264,8 +264,11 @@ class Metronome {
   private listeners = new Set<(s: MetronomeState) => void>();
 
   // Runtime flags: track "why" we started so auto-stop from a drill
-  // doesn't kill a user-initiated session.
-  private driverStack: Array<'user' | 'drill'> = [];
+  // (or a song-block inline control) doesn't kill a user-initiated
+  // session. Drivers stack: a 'user' start, a 'drill' start, and a
+  // 'song' start all push; only when the stack empties does the
+  // click actually stop.
+  private driverStack: Array<'user' | 'drill' | 'song'> = [];
 
   get isPlaying(): boolean {
     return this.state.playing;
@@ -289,7 +292,7 @@ class Metronome {
     this.emit();
   }
 
-  async start(driver: 'user' | 'drill' = 'user') {
+  async start(driver: 'user' | 'drill' | 'song' = 'user') {
     this.driverStack.push(driver);
     if (this.state.playing) return;
     this.ctx = await ensureRunning();
@@ -300,7 +303,7 @@ class Metronome {
     this.scheduler();
   }
 
-  stop(driver: 'user' | 'drill' = 'user') {
+  stop(driver: 'user' | 'drill' | 'song' = 'user') {
     // Pop the matching driver; only actually stop when the stack
     // empties. This lets the drill-timer auto-start nest safely
     // inside a user-started metronome without being killed.

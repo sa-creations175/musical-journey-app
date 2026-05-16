@@ -76,6 +76,14 @@ export interface ProposalBlock {
    *  with the block's `itemRefs` driving which cells to drill in
    *  sequence). Wins over `quickLaunchRoute` at the block surface. */
   inSessionDrillKind?: 'scales';
+  /** True for song practice blocks (spotlight / maintenance /
+   *  whole-song-run). Drives the inline metronome widget that
+   *  SessionBlock surfaces in the block body — song blocks are the
+   *  longest in the session and benefit from one-tap tempo control
+   *  without opening the header audio panel. Other block kinds
+   *  (warm-up, chord-quiz, scale-prep, drill modules) defer to the
+   *  global header control. */
+  isSongPractice?: boolean;
 }
 
 export interface ProposalCardData {

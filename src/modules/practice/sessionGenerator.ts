@@ -1566,6 +1566,14 @@ function toProposalBlocks(
         ...(s.kind === 'scale-prep'
           ? { inSessionDrillKind: 'scales' as const }
           : {}),
+        // Song practice blocks (spotlight / maintenance / whole-song-
+        // run) get an inline metronome widget on the block surface
+        // (see SessionBlock.tsx). Warm-up / chord-quiz / scale-prep
+        // are excluded — those are short focused slots that don't
+        // need the metronome scratchpad.
+        ...(s.kind === 'spotlight' || s.kind === 'maintenance' || s.kind === 'whole-song-run'
+          ? { isSongPractice: true }
+          : {}),
         // TBD spotlight surfaces an inline "Add a song in Goals"
         // action — the block still renders normally so the
         // sibling Maintenance block keeps its allocation; this is
