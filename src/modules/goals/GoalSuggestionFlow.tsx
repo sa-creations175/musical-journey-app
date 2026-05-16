@@ -1431,6 +1431,35 @@ const TRIAD_QUALITY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
   TRIAD_QUALITY_GROUP_IDS,
 );
 
+/** Per-quality seventh sub-ids — Layer 2 under the sevenths
+ *  shortcut, parallel to the triad-qualities reveal. */
+const SEVENTH_QUALITY_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'chord_shape_sevenths_maj7',
+  'chord_shape_sevenths_min7',
+  'chord_shape_sevenths_dom7',
+  'chord_shape_sevenths_m7b5',
+  'chord_shape_sevenths_dim7',
+  'chord_shape_sevenths_mmaj7',
+];
+const SEVENTH_QUALITY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
+  SEVENTH_QUALITY_GROUP_IDS,
+);
+
+/** Extension family sub-ids — Layer 2 under the extensions shortcut.
+ *  Includes the `diminished` + `augmented` forward-compat placeholders;
+ *  picker rendering filters by denominator > 0 so empties hide. */
+const EXTENSION_FAMILY_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
+  'chord_shape_extensions_major',
+  'chord_shape_extensions_minor',
+  'chord_shape_extensions_dominant',
+  'chord_shape_extensions_altered_dominant',
+  'chord_shape_extensions_diminished',
+  'chord_shape_extensions_augmented',
+];
+const EXTENSION_FAMILY_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
+  EXTENSION_FAMILY_GROUP_IDS,
+);
+
 /** Per-starting-point pent ids — Layer 2 sub-options under each
  *  broad pent pill. Same UX as the triad-qualities reveal. */
 const MAJOR_PENT_SP_GROUP_IDS: ReadonlyArray<ShapesCoverageGroupId> = [
@@ -1480,15 +1509,40 @@ const VL_PATTERN_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set(
   VL_PATTERN_GROUP_IDS,
 );
 
+// Ids that are surfaced as dedicated shortcut pills (rendered
+// separately from the plain Layer 1 grid). Each one is the area-level
+// "tap to expand + pre-select all sub-pills" entry point. Excluded
+// from the plain filter so they don't show up twice.
+const SHAPES_SHORTCUT_GROUP_ID_SET: ReadonlySet<ShapesCoverageGroupId> = new Set<ShapesCoverageGroupId>([
+  'chord_shape_triads',
+  'chord_shape_sevenths',
+  'chord_shape_extensions',
+  'scale_drills',
+  'voice_leading',
+]);
+
 const SHAPES_LAYER1_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(
     g => !TRIAD_QUALITY_GROUP_ID_SET.has(g.id)
+      && !SEVENTH_QUALITY_GROUP_ID_SET.has(g.id)
+      && !EXTENSION_FAMILY_GROUP_ID_SET.has(g.id)
       && !PENT_SP_GROUP_ID_SET.has(g.id)
       && !SCALE_KIND_GROUP_ID_SET.has(g.id)
-      && !VL_PATTERN_GROUP_ID_SET.has(g.id),
+      && !VL_PATTERN_GROUP_ID_SET.has(g.id)
+      && !SHAPES_SHORTCUT_GROUP_ID_SET.has(g.id),
   );
 const SHAPES_TRIAD_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
+const SHAPES_SEVENTH_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => SEVENTH_QUALITY_GROUP_ID_SET.has(g.id));
+// Picker filter: forward-compat placeholders (denominator 0) are
+// hidden until the catalog gains items in that family. Once items
+// land, the denominator becomes nonzero automatically (sourced from
+// the catalog) and the pill starts rendering.
+const SHAPES_EXTENSION_FAMILY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(
+    g => EXTENSION_FAMILY_GROUP_ID_SET.has(g.id) && g.denominator > 0,
+  );
 const SHAPES_SCALE_KIND_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => SCALE_KIND_GROUP_ID_SET.has(g.id));
 const SHAPES_VL_PATTERN_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
@@ -1651,6 +1705,46 @@ function ShapesFocusSection({
     onChange({ ...target, coverageGroupIds: next });
   };
 
+  // Sevenths shortcut — six quality sub-ids, mirrors triads exactly.
+  const allSeventhQualitiesSelected = SEVENTH_QUALITY_GROUP_IDS.every(id =>
+    target.coverageGroupIds.includes(id),
+  );
+  const anySeventhSelected = target.coverageGroupIds.some(
+    id => SEVENTH_QUALITY_GROUP_ID_SET.has(id) || id === 'chord_shape_sevenths',
+  );
+  const toggleAllSeventhQualities = () => {
+    const withoutSevenths = target.coverageGroupIds.filter(
+      id => !SEVENTH_QUALITY_GROUP_ID_SET.has(id) && id !== 'chord_shape_sevenths',
+    );
+    const next = allSeventhQualitiesSelected
+      ? withoutSevenths
+      : [...withoutSevenths, ...SEVENTH_QUALITY_GROUP_IDS];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
+  // Extensions shortcut — six family sub-ids (4 active + 2 forward-
+  // compat placeholders). The placeholder ids exist in the data
+  // layer but are filtered out of the picker via the 0-denominator
+  // check, so the batch toggle only writes ids that the picker
+  // actually exposes.
+  const visibleExtensionFamilyIds: ReadonlyArray<ShapesCoverageGroupId> =
+    SHAPES_EXTENSION_FAMILY_OPTIONS.map(o => o.id);
+  const allExtensionFamiliesSelected = visibleExtensionFamilyIds.every(id =>
+    target.coverageGroupIds.includes(id),
+  );
+  const anyExtensionSelected = target.coverageGroupIds.some(
+    id => EXTENSION_FAMILY_GROUP_ID_SET.has(id) || id === 'chord_shape_extensions',
+  );
+  const toggleAllExtensionFamilies = () => {
+    const withoutExtensions = target.coverageGroupIds.filter(
+      id => !EXTENSION_FAMILY_GROUP_ID_SET.has(id) && id !== 'chord_shape_extensions',
+    );
+    const next = allExtensionFamiliesSelected
+      ? withoutExtensions
+      : [...withoutExtensions, ...visibleExtensionFamilyIds];
+    onChange({ ...target, coverageGroupIds: next });
+  };
+
   // Pentatonic starting-point reveals — same UX as triad qualities.
   // The broad pent pill ("scale_major_pentatonic" / "scale_minor_
   // pentatonic") behaves as both a coverage option in its own right
@@ -1677,14 +1771,26 @@ function ShapesFocusSection({
   const triadInversionsLabel = triadInversionsDef
     ? `${triadInversionsDef.label} (${triadInversionsDef.denominator})`
     : 'triad inversions (288)';
-  const allScalesDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'scale_drills');
-  const allScalesLabel = allScalesDef
-    ? `all scales (${allScalesDef.denominator})`
-    : 'all scales (96)';
-  const allVlDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'voice_leading');
-  const allVlLabel = allVlDef
-    ? `all voice-leading (${allVlDef.denominator})`
-    : 'all voice-leading (372)';
+  const seventhsShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
+    g => g.id === 'chord_shape_sevenths',
+  );
+  const seventhsShortcutLabel = seventhsShortcutDef
+    ? `${seventhsShortcutDef.label} (${seventhsShortcutDef.denominator})`
+    : 'seventh-chord inversions (360)';
+  const extensionsShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
+    g => g.id === 'chord_shape_extensions',
+  );
+  const extensionsShortcutLabel = extensionsShortcutDef
+    ? `${extensionsShortcutDef.label} (${extensionsShortcutDef.denominator})`
+    : 'extensions (168)';
+  const scalesShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'scale_drills');
+  const scalesShortcutLabel = scalesShortcutDef
+    ? `${scalesShortcutDef.label} (${scalesShortcutDef.denominator})`
+    : 'scale drills (96)';
+  const vlShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'voice_leading');
+  const vlShortcutLabel = vlShortcutDef
+    ? `${vlShortcutDef.label} (${vlShortcutDef.denominator})`
+    : 'voice-leading (372)';
 
   return (
     <section className="rounded-md border border-fluent/30 bg-fluent/5 p-3 space-y-3">
@@ -1709,9 +1815,10 @@ function ShapesFocusSection({
       {target.coverageScope === 'specific' && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-            {/* Triad inversions select-all shortcut. Behaves as a
-                tri-state pill: "active" only when all 6 qualities
-                are selected. Clicking flips the whole batch. */}
+            {/* Triad inversions shortcut — area-level entry point;
+                tap to pre-select all six quality sub-pills and
+                reveal them in Layer 2. Other shortcut pills below
+                follow the same pattern. */}
             <CategoryPillButton
               key="chord_shape_triads"
               label={triadInversionsLabel}
@@ -1720,31 +1827,48 @@ function ShapesFocusSection({
               onClick={toggleAllTriadQualities}
               selectedStyle="accent"
             />
-            {SHAPES_LAYER1_OPTIONS
-              .filter(g => g.id !== 'chord_shape_triads')
-              .map(group => (
-                <CategoryPillButton
-                  key={group.id}
-                  label={`${group.label} (${group.denominator})`}
-                  accentHex={shapesAccent}
-                  active={target.coverageGroupIds.includes(group.id)}
-                  onClick={() => toggleGroup(group.id)}
-                  selectedStyle="accent"
-                />
-              ))}
-            {/* All-scales select-all shortcut — same shape as triads. */}
+            <CategoryPillButton
+              key="chord_shape_sevenths"
+              label={seventhsShortcutLabel}
+              accentHex={shapesAccent}
+              active={allSeventhQualitiesSelected}
+              onClick={toggleAllSeventhQualities}
+              selectedStyle="accent"
+            />
+            <CategoryPillButton
+              key="chord_shape_extensions"
+              label={extensionsShortcutLabel}
+              accentHex={shapesAccent}
+              active={allExtensionFamiliesSelected}
+              onClick={toggleAllExtensionFamilies}
+              selectedStyle="accent"
+            />
+            {SHAPES_LAYER1_OPTIONS.map(group => (
+              <CategoryPillButton
+                key={group.id}
+                label={`${group.label} (${group.denominator})`}
+                accentHex={shapesAccent}
+                active={target.coverageGroupIds.includes(group.id)}
+                onClick={() => toggleGroup(group.id)}
+                selectedStyle="accent"
+              />
+            ))}
+            {/* Scale Drills shortcut — area-level entry point that
+                pre-selects + reveals the four scale-kind sub-pills.
+                Same expand+preselect mechanic as the triad shortcut. */}
             <CategoryPillButton
               key="scale_drills"
-              label={allScalesLabel}
+              label={scalesShortcutLabel}
               accentHex={shapesAccent}
               active={allScaleKindsSelected}
               onClick={toggleAllScaleKinds}
               selectedStyle="accent"
             />
-            {/* All-voice-leading select-all shortcut. */}
+            {/* Voice Leading shortcut — pre-selects + reveals the
+                seven VL pattern sub-pills. */}
             <CategoryPillButton
               key="voice_leading"
-              label={allVlLabel}
+              label={vlShortcutLabel}
               accentHex={shapesAccent}
               active={allVlPatternsSelected}
               onClick={toggleAllVlPatterns}
@@ -1765,6 +1889,44 @@ function ShapesFocusSection({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                 {SHAPES_TRIAD_QUALITY_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {anySeventhSelected && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Seventh qualities
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {SHAPES_SEVENTH_QUALITY_OPTIONS.map(group => (
+                  <CategoryPillButton
+                    key={group.id}
+                    label={`${group.label} (${group.denominator})`}
+                    accentHex={shapesAccent}
+                    active={target.coverageGroupIds.includes(group.id)}
+                    onClick={() => toggleGroup(group.id)}
+                    selectedStyle="accent"
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {anyExtensionSelected && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+                Extension families
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {SHAPES_EXTENSION_FAMILY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
                     label={`${group.label} (${group.denominator})`}

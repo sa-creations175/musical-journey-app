@@ -73,7 +73,19 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
     );
-    const chordShapeSide = 288 + 6 * 48 + 360 + 168 + 36;
+    // Chord-shape side now includes Layer 2 quality sub-groups for
+    // sevenths and Layer 2 family sub-groups for extensions:
+    //   triads bucket (288) + 6 triad-quality subs (6×48=288) +
+    //   sevenths bucket (360) + 6 seventh-quality subs (6×60=360) +
+    //   extensions bucket (168) +
+    //   extension families: major (60) + minor (36) + dominant (36) +
+    //     altered_dominant (36) + diminished (0) + augmented (0) = 168
+    //   special bucket (36)
+    const chordShapeSide =
+      288 + 6 * 48 +
+      360 + 6 * 60 +
+      168 + (60 + 36 + 36 + 36 + 0 + 0) +
+      36;
     const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
     const vlSide = 372 + 36 + 72 + 72 + 72 + 24 + 48 + 48;
     expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
@@ -351,6 +363,181 @@ describe('Voice-leading per-pattern coverage groups', () => {
     const broad = itemRefMatcherForCoverageGroup('voice_leading')!;
     for (const d of VL_PATTERN_DEFS) {
       expect(broad(d.sampleRef)).toBe(true);
+    }
+  });
+});
+
+// =====================================================================
+// Seventh-chord Layer 2 (per-quality sub-groups)
+// =====================================================================
+
+describe('Seventh-chord per-quality coverage groups', () => {
+  const SEVENTH_QUALITY_IDS: ReadonlyArray<{
+    id: ShapesCoverageGroupId;
+    quality: string;
+  }> = [
+    { id: 'chord_shape_sevenths_maj7',  quality: 'maj7' },
+    { id: 'chord_shape_sevenths_min7',  quality: 'min7' },
+    { id: 'chord_shape_sevenths_dom7',  quality: 'dom7' },
+    { id: 'chord_shape_sevenths_m7b5',  quality: 'm7b5' },
+    { id: 'chord_shape_sevenths_dim7',  quality: 'dim7' },
+    { id: 'chord_shape_sevenths_mmaj7', quality: 'mmaj7' },
+  ];
+
+  it('exposes all 6 per-quality seventh defs at 60 cells each', () => {
+    for (const d of SEVENTH_QUALITY_IDS) {
+      const def = getShapesCoverageGroup(d.id);
+      expect(def, `missing def for ${d.id}`).toBeDefined();
+      // 12 keys × 5 acquisition-path inversion states = 60.
+      expect(def!.denominator).toBe(60);
+      expect(def!.activityArea).toBe('chord_shape_drills');
+    }
+  });
+
+  it('Layer 2 denominators sum to the broad sevenths denominator', () => {
+    const sum = SEVENTH_QUALITY_IDS.reduce(
+      (acc, d) => acc + getShapesCoverageGroup(d.id)!.denominator,
+      0,
+    );
+    expect(sum).toBe(getShapesCoverageGroup('chord_shape_sevenths')!.denominator);
+    expect(sum).toBe(360);
+  });
+
+  it('each matcher accepts only its own quality', () => {
+    for (const target of SEVENTH_QUALITY_IDS) {
+      const m = itemRefMatcherForCoverageGroup(target.id)!;
+      expect(m, `missing matcher for ${target.id}`).not.toBeNull();
+      expect(m(`chord-shape:${target.quality}:C:root`)).toBe(true);
+      expect(m(`chord-shape:${target.quality}:Eb:inv3`)).toBe(true);
+      for (const other of SEVENTH_QUALITY_IDS) {
+        if (other.id === target.id) continue;
+        expect(
+          m(`chord-shape:${other.quality}:C:root`),
+          `${target.id} should reject ${other.quality}`,
+        ).toBe(false);
+      }
+      // Reject non-seventh chord-shape refs + non-chord-shape refs.
+      expect(m('chord-shape:maj:C:root')).toBe(false);
+      expect(m('scale:major:C')).toBe(false);
+      expect(m('vl:diatonic-cycle:pos1:C')).toBe(false);
+    }
+  });
+
+  it('matchers reject the supplementary state', () => {
+    // Sevenths have a `supplementary` inversion state (two-handed
+    // drills). Coverage matchers exclude it — same rule as triads.
+    const m = itemRefMatcherForCoverageGroup('chord_shape_sevenths_min7')!;
+    expect(m('chord-shape:min7:C:supplementary')).toBe(false);
+  });
+});
+
+// =====================================================================
+// Extension family Layer 2 (4 active + 2 forward-compat placeholders)
+// =====================================================================
+
+describe('Extension-family coverage groups', () => {
+  const EXTENSION_FAMILIES: ReadonlyArray<{
+    id: ShapesCoverageGroupId;
+    qualities: ReadonlyArray<string>;
+    denominator: number;
+  }> = [
+    {
+      id: 'chord_shape_extensions_major',
+      qualities: ['maj9', 'maj11', 'maj13', 'maj7s11', 'add9'],
+      denominator: 60,
+    },
+    {
+      id: 'chord_shape_extensions_minor',
+      qualities: ['min9', 'min11', 'min13'],
+      denominator: 36,
+    },
+    {
+      id: 'chord_shape_extensions_dominant',
+      qualities: ['dom9', 'dom11', 'dom13'],
+      denominator: 36,
+    },
+    {
+      id: 'chord_shape_extensions_altered_dominant',
+      qualities: ['dom7b9', 'dom7s9', 'dom7b13'],
+      denominator: 36,
+    },
+  ];
+
+  it('exposes all four active family defs with catalog-sourced denominators', () => {
+    for (const f of EXTENSION_FAMILIES) {
+      const def = getShapesCoverageGroup(f.id);
+      expect(def, `missing def for ${f.id}`).toBeDefined();
+      expect(def!.denominator).toBe(f.denominator);
+      expect(def!.activityArea).toBe('chord_shape_drills');
+    }
+  });
+
+  it('exposes diminished + augmented as forward-compat placeholders (0 cells)', () => {
+    expect(getShapesCoverageGroup('chord_shape_extensions_diminished')!.denominator).toBe(0);
+    expect(getShapesCoverageGroup('chord_shape_extensions_augmented')!.denominator).toBe(0);
+  });
+
+  it('active family denominators sum to the broad extensions denominator', () => {
+    const sum = EXTENSION_FAMILIES.reduce(
+      (acc, f) => acc + getShapesCoverageGroup(f.id)!.denominator,
+      0,
+    );
+    expect(sum).toBe(getShapesCoverageGroup('chord_shape_extensions')!.denominator);
+    expect(sum).toBe(168);
+  });
+
+  it('each family matcher accepts only its own qualities', () => {
+    for (const target of EXTENSION_FAMILIES) {
+      const m = itemRefMatcherForCoverageGroup(target.id)!;
+      expect(m, `missing matcher for ${target.id}`).not.toBeNull();
+      // Accepts every quality in its family.
+      for (const q of target.qualities) {
+        expect(m(`chord-shape:${q}:C`), `${target.id} should accept ${q}`).toBe(true);
+      }
+      // Rejects every quality from every other family.
+      for (const other of EXTENSION_FAMILIES) {
+        if (other.id === target.id) continue;
+        for (const q of other.qualities) {
+          expect(
+            m(`chord-shape:${q}:C`),
+            `${target.id} should reject ${q}`,
+          ).toBe(false);
+        }
+      }
+      // Rejects non-extension chord-shape refs and non-chord-shape refs.
+      expect(m('chord-shape:maj:C:root')).toBe(false);
+      expect(m('chord-shape:maj7:C:root')).toBe(false);
+      expect(m('scale:major:C')).toBe(false);
+      expect(m('vl:diatonic-cycle:pos1:C')).toBe(false);
+    }
+  });
+
+  it('placeholder matchers return false for every input today', () => {
+    const dim = itemRefMatcherForCoverageGroup('chord_shape_extensions_diminished')!;
+    const aug = itemRefMatcherForCoverageGroup('chord_shape_extensions_augmented')!;
+    for (const sample of [
+      'chord-shape:maj:C:root',
+      'chord-shape:maj7:C:root',
+      'chord-shape:maj9:C',
+      'chord-shape:dom7b9:C',
+      'scale:major:C',
+      'vl:diatonic-cycle:pos1:C',
+    ]) {
+      expect(dim(sample)).toBe(false);
+      expect(aug(sample)).toBe(false);
+    }
+  });
+
+  it('routes every family id (incl. placeholders) to chord_shape_drills', () => {
+    for (const id of [
+      'chord_shape_extensions_major',
+      'chord_shape_extensions_minor',
+      'chord_shape_extensions_dominant',
+      'chord_shape_extensions_altered_dominant',
+      'chord_shape_extensions_diminished',
+      'chord_shape_extensions_augmented',
+    ]) {
+      expect(coverageGroupIdToActivityArea(id)).toBe('chord_shape_drills');
     }
   });
 });

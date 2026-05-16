@@ -66,7 +66,27 @@ export type ShapesCoverageGroupId =
   | 'chord_shape_triads_sus2'
   | 'chord_shape_triads_sus4'
   | 'chord_shape_sevenths'
+  // Per-quality seventh-chord sub-groups (Layer 2). Each = 12 keys ×
+  // 5 acquisition-path inversion states = 60 items. Mirrors the
+  // per-quality triad sub-groups (`chord_shape_triads_*`).
+  | 'chord_shape_sevenths_maj7'
+  | 'chord_shape_sevenths_min7'
+  | 'chord_shape_sevenths_dom7'
+  | 'chord_shape_sevenths_m7b5'
+  | 'chord_shape_sevenths_dim7'
+  | 'chord_shape_sevenths_mmaj7'
   | 'chord_shape_extensions'
+  // Extension family sub-groups (Layer 2). Cells per family derive
+  // from `EXTENSION_FAMILY_FOR_QUALITY_ID` × 12 keys; `diminished`
+  // and `augmented` are forward-compat placeholders — catalog has
+  // no items in these families today, so denominators are 0 and
+  // matchers return false.
+  | 'chord_shape_extensions_major'
+  | 'chord_shape_extensions_minor'
+  | 'chord_shape_extensions_dominant'
+  | 'chord_shape_extensions_altered_dominant'
+  | 'chord_shape_extensions_diminished'
+  | 'chord_shape_extensions_augmented'
   | 'chord_shape_special'
   // Legacy broad "all scales" bucket — kept for back-compat with
   // pre-Scales-submodule saved goals. Picker hides it in favour of
@@ -119,6 +139,81 @@ const TRIAD_QUALITY_FOR_GROUP_ID: Readonly<
   chord_shape_triads_sus2: 'sus2',
   chord_shape_triads_sus4: 'sus4',
 };
+
+/** Per-quality seventh sub-groups (Layer 2). Same shape as
+ *  TRIAD_QUALITY_FOR_GROUP_ID — each maps to the catalog `quality.id`
+ *  in `parts[1]` of a chord-shape itemRef. */
+const SEVENTH_QUALITY_FOR_GROUP_ID: Readonly<
+  Partial<Record<ShapesCoverageGroupId, string>>
+> = {
+  chord_shape_sevenths_maj7:  'maj7',
+  chord_shape_sevenths_min7:  'min7',
+  chord_shape_sevenths_dom7:  'dom7',
+  chord_shape_sevenths_m7b5:  'm7b5',
+  chord_shape_sevenths_dim7:  'dim7',
+  chord_shape_sevenths_mmaj7: 'mmaj7',
+};
+
+/** Extension-family classification per chord-quality id. Drives the
+ *  extension sub-group matchers + denominators (count × 12 keys).
+ *  `add9` rolls into the major family — typically voiced over a
+ *  major triad. Altered dominants live in their own bucket so the
+ *  user can target tension-loaded voicings separately from the
+ *  natural dominant extensions. Diminished + augmented families
+ *  have no catalog entries today; the sub-groups exist as
+ *  forward-compat placeholders. */
+type ExtensionFamily =
+  | 'major'
+  | 'minor'
+  | 'dominant'
+  | 'altered_dominant'
+  | 'diminished'
+  | 'augmented';
+
+const EXTENSION_FAMILY_FOR_QUALITY_ID: Readonly<Record<string, ExtensionFamily>> = {
+  // Major family — natural extensions of the major triad, plus add9
+  // which is typically voiced over major.
+  maj9:    'major',
+  maj11:   'major',
+  maj13:   'major',
+  maj7s11: 'major',
+  add9:    'major',
+  // Minor family
+  min9:  'minor',
+  min11: 'minor',
+  min13: 'minor',
+  // Dominant family — natural extensions of the dom7.
+  dom9:  'dominant',
+  dom11: 'dominant',
+  dom13: 'dominant',
+  // Altered dominants — tension-loaded voicings on the V chord.
+  dom7b9:  'altered_dominant',
+  dom7s9:  'altered_dominant',
+  dom7b13: 'altered_dominant',
+};
+
+const EXTENSION_FAMILY_FOR_GROUP_ID: Readonly<
+  Partial<Record<ShapesCoverageGroupId, ExtensionFamily>>
+> = {
+  chord_shape_extensions_major:            'major',
+  chord_shape_extensions_minor:            'minor',
+  chord_shape_extensions_dominant:         'dominant',
+  chord_shape_extensions_altered_dominant: 'altered_dominant',
+  chord_shape_extensions_diminished:       'diminished',
+  chord_shape_extensions_augmented:        'augmented',
+};
+
+/** Count of catalog extension qualities in a given family. Used for
+ *  the per-family denominator (multiplied by KEY_COUNT). Returns 0
+ *  for `diminished` / `augmented` until the catalog grows. */
+function countExtensionsInFamily(family: ExtensionFamily): number {
+  let count = 0;
+  for (const q of CHORD_QUALITIES) {
+    if (q.kind !== 'extension') continue;
+    if (EXTENSION_FAMILY_FOR_QUALITY_ID[q.id] === family) count += 1;
+  }
+  return count;
+}
 
 export interface ShapesCoverageGroupDef {
   id: ShapesCoverageGroupId;
@@ -206,12 +301,31 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
     denominator:
       CHORD_QUALITIES_BY_KIND.seventh.length * KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.seventh,
   },
+  // Layer 2 — per-quality seventh sub-groups. Each = 12 keys × 5
+  // inversion states (acquisition path) = 60 items. Same shape as
+  // the per-quality triad sub-groups.
+  ...sevenths7QualityDef('chord_shape_sevenths_maj7',  'maj7',  'major 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_min7',  'min7',  'minor 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_dom7',  'dom7',  'dominant 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_m7b5',  'm7b5',  'half-diminished'),
+  ...sevenths7QualityDef('chord_shape_sevenths_dim7',  'dim7',  'diminished 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_mmaj7', 'mmaj7', 'minor-major 7'),
   {
     id: 'chord_shape_extensions',
     label: 'extensions',
     activityArea: 'chord_shape_drills',
     denominator: CHORD_QUALITIES_BY_KIND.extension.length * KEY_COUNT,
   },
+  // Layer 2 — extension family sub-groups. Denominators sourced from
+  // the catalog via EXTENSION_FAMILY_FOR_QUALITY_ID. `diminished`
+  // and `augmented` are forward-compat placeholders (0 cells today;
+  // the picker hides any group with a 0 denominator).
+  extensionsFamilyDef('chord_shape_extensions_major',            'major',            'major extensions'),
+  extensionsFamilyDef('chord_shape_extensions_minor',            'minor',            'minor extensions'),
+  extensionsFamilyDef('chord_shape_extensions_dominant',         'dominant',         'dominant extensions'),
+  extensionsFamilyDef('chord_shape_extensions_altered_dominant', 'altered_dominant', 'altered dominants'),
+  extensionsFamilyDef('chord_shape_extensions_diminished',       'diminished',       'diminished extensions'),
+  extensionsFamilyDef('chord_shape_extensions_augmented',        'augmented',        'augmented extensions'),
   {
     id: 'chord_shape_special',
     label: 'special / sixth',
@@ -360,6 +474,43 @@ function vlPatternGroupDef(
     activityArea: 'voice_leading',
     denominator: voiceLeadingCellsPerKey(pattern) * KEY_COUNT,
   }];
+}
+
+/** Build a per-quality seventh sub-group def. Same shape as the
+ *  inlined triad-quality entries, but produced via a helper to keep
+ *  the DEFS array readable. Returns empty when the catalog has no
+ *  matching quality (defensive against catalog drift). Hoisted via
+ *  function declaration. */
+function sevenths7QualityDef(
+  groupId: ShapesCoverageGroupId,
+  qualityId: string,
+  label: string,
+): ReadonlyArray<ShapesCoverageGroupDef> {
+  const quality = CHORD_QUALITY_BY_ID.get(qualityId);
+  if (!quality || quality.kind !== 'seventh') return [];
+  return [{
+    id: groupId,
+    label,
+    activityArea: 'chord_shape_drills',
+    denominator: KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.seventh,
+  }];
+}
+
+/** Build an extension-family sub-group def. Denominator = count of
+ *  catalog qualities in the family × 12 keys. Diminished + augmented
+ *  return denominator 0 today (no catalog entries); the picker UI
+ *  filters out 0-cell groups so empty placeholders don't render. */
+function extensionsFamilyDef(
+  groupId: ShapesCoverageGroupId,
+  family: ExtensionFamily,
+  label: string,
+): ShapesCoverageGroupDef {
+  return {
+    id: groupId,
+    label,
+    activityArea: 'chord_shape_drills',
+    denominator: countExtensionsInFamily(family) * KEY_COUNT,
+  };
 }
 
 const COVERAGE_GROUP_BY_ID: ReadonlyMap<string, ShapesCoverageGroupDef> = new Map(
@@ -519,6 +670,36 @@ export function itemRefMatcherForCoverageGroup(
       if (parts[1] !== quality) return false;
       if (parts.length >= 4 && parts[3] === 'supplementary') return false;
       return true;
+    };
+  }
+
+  // Layer 2 — per-quality seventh sub-groups. Same matcher shape as
+  // triads: exact parts[1] match + supplementary exclusion.
+  const seventhQuality =
+    SEVENTH_QUALITY_FOR_GROUP_ID[groupId as ShapesCoverageGroupId];
+  if (seventhQuality !== undefined) {
+    return ir => {
+      if (!ir.startsWith('chord-shape:')) return false;
+      const parts = ir.split(':');
+      if (parts.length < 3) return false;
+      if (parts[1] !== seventhQuality) return false;
+      if (parts.length >= 4 && parts[3] === 'supplementary') return false;
+      return true;
+    };
+  }
+
+  // Layer 2 — extension family sub-groups. Match by family
+  // classification of parts[1] against EXTENSION_FAMILY_FOR_QUALITY_ID.
+  // Diminished + augmented families have no entries today → matcher
+  // returns false for every input (intentional, placeholder groups).
+  const extensionFamily =
+    EXTENSION_FAMILY_FOR_GROUP_ID[groupId as ShapesCoverageGroupId];
+  if (extensionFamily !== undefined) {
+    return ir => {
+      if (!ir.startsWith('chord-shape:')) return false;
+      const parts = ir.split(':');
+      if (parts.length < 3) return false;
+      return EXTENSION_FAMILY_FOR_QUALITY_ID[parts[1]] === extensionFamily;
     };
   }
 
