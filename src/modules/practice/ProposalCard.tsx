@@ -141,6 +141,10 @@ export default function ProposalCard({
         freedSeconds,
         deletedBlocks: removedBlocks,
         preDeleteSnapshot,
+        // Default false; flipped to true if the user picks a module
+        // / Split evenly. Skip leaves it false so the banner labels
+        // the suffix as "time dropped" instead of "time redistributed".
+        redistributed: false,
       },
     ]);
   };
@@ -162,15 +166,26 @@ export default function ProposalCard({
     setPendingPrompts(prev =>
       prev
         .filter(p => p.id === promptId || p.status !== 'committed')
-        .map(p => p.id === promptId ? { ...p, status: 'committed' as const } : p),
+        .map(p => p.id === promptId
+          ? { ...p, status: 'committed' as const, redistributed: true }
+          : p),
     );
   };
 
   const handleSkip = (promptId: string) => {
-    // Skip dismisses without redistributing AND without offering
-    // undo — per spec, freed time drops the session length and
-    // there's no committed-undo follow-up.
-    setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
+    // Skip dismisses the redistribution question — freed time stays
+    // dropped (session length shrinks) — but still transitions to
+    // 'committed' so the undo banner appears. Skip + redistribute
+    // are both terminal user actions on the deletion; both deserve
+    // a regret window. Same staleness rule as redistribute: drop
+    // OTHER committeds since only the most recent action is undoable.
+    setPendingPrompts(prev =>
+      prev
+        .filter(p => p.id === promptId || p.status !== 'committed')
+        .map(p => p.id === promptId
+          ? { ...p, status: 'committed' as const, redistributed: false }
+          : p),
+    );
   };
 
   const handleUndo = (promptId: string) => {
@@ -216,6 +231,7 @@ export default function ProposalCard({
     ) : (
       <PostCommitUndoBanner
         deletedBlocks={p.deletedBlocks}
+        redistributed={p.redistributed}
         onUndo={() => handleUndo(p.id)}
         onDismiss={() => handleDismissCommitted(p.id)}
       />
@@ -449,15 +465,16 @@ function AddBlockOption({
  * Two-stage prompt lifecycle:
  *
  *   'pending'   — user just deleted; redistribution prompt asks
- *                 where the freed time should go. Skip dismisses
- *                 without redistribution. No undo here — undo is a
- *                 post-commit regret action, not a pre-commit
- *                 cancel.
- *   'committed' — user picked a module / Split evenly. Redistribution
- *                 has already applied. A compact undo banner offers
- *                 to revert the whole thing (deletion + redistribute).
- *                 Stale once the user takes another structural action
- *                 (new delete, reorder) — those drop committed prompts.
+ *                 where the freed time should go. Picking a module /
+ *                 Split evenly OR tapping Skip transitions to
+ *                 'committed' — both are terminal user actions on
+ *                 the deletion and both are undoable.
+ *   'committed' — user took a terminal action (redistribute or
+ *                 skip). The compact undo banner offers to revert
+ *                 the whole thing (deletion + whatever follow-up
+ *                 the user chose). Stale once another structural
+ *                 action lands (new delete, reorder) — those drop
+ *                 committed prompts.
  */
 type PromptStatus = 'pending' | 'committed';
 
@@ -473,10 +490,19 @@ interface PendingPrompt {
    *  committed-undo label ("Removed: <activityDescription>"). */
   deletedBlocks: ProposalBlock[];
   /** Full snapshot of orderedBlocks taken BEFORE the delete (and
-   *  thus before redistribution). Undo restores orderedBlocks to
-   *  this snapshot in one shot, reversing both the deletion and the
-   *  subsequent redistribution atomically. */
+   *  thus before any redistribution). Undo restores orderedBlocks
+   *  to this snapshot in one shot, reversing both the deletion and
+   *  any subsequent redistribution atomically. Works the same for
+   *  the skip case — the snapshot still holds the pre-delete state,
+   *  so undo restores the deleted block(s) AND the freed time the
+   *  skip dropped. */
   preDeleteSnapshot: ProposalBlock[];
+  /** True when the user picked a redistribution destination, false
+   *  when the user tapped Skip (freed time dropped). Drives the
+   *  banner suffix ("time redistributed" vs "time dropped") so the
+   *  label tells the truth about what just happened. Only meaningful
+   *  on committed prompts. */
+  redistributed: boolean;
 }
 
 function RedistributionPrompt({
@@ -583,10 +609,15 @@ function RedistributionPrompt({
  */
 function PostCommitUndoBanner({
   deletedBlocks,
+  redistributed,
   onUndo,
   onDismiss,
 }: {
   deletedBlocks: ReadonlyArray<ProposalBlock>;
+  /** True when the user picked a redistribution destination, false
+   *  when they tapped Skip. Drives the suffix copy so the banner
+   *  doesn't lie about whether the freed time went somewhere. */
+  redistributed: boolean;
   onUndo: () => void;
   onDismiss: () => void;
 }) {
@@ -599,11 +630,14 @@ function PostCommitUndoBanner({
   const extraSuffix = extraCount > 0
     ? ` (+ ${extraCount} warm-up${extraCount === 1 ? '' : 's'})`
     : '';
+  const outcomeSuffix = redistributed
+    ? ' · time redistributed'
+    : ' · time dropped';
 
   return (
     <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 flex items-center justify-between gap-3">
       <div className="text-[11px] text-amber-900 dark:text-amber-200 truncate min-w-0 flex-1">
-        Removed: <span className="font-medium">{primaryLabel}</span>{extraSuffix} · time redistributed
+        Removed: <span className="font-medium">{primaryLabel}</span>{extraSuffix}{outcomeSuffix}
       </div>
       <div className="shrink-0 flex items-center gap-1.5">
         <button
