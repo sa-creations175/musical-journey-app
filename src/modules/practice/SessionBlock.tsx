@@ -16,99 +16,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DrillSkill, DrillType } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
-import { metronome } from '../../lib/metronome';
-import { useMetronomeState } from '../../lib/useMetronome';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import DrillSessionModal from '../shapes-and-patterns/DrillSessionModal';
 import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
 import { drillContextForChordShapeItemRef } from '../shapes-and-patterns/drillModel';
 import { scaleCellForItemRef } from '../shapes-and-patterns/scaleSkills';
 import type { ProposalBlock } from './proposalTypes';
-
-const BPM_MIN = 40;
-const BPM_MAX = 220;
-function clampBpm(v: number): number {
-  return Math.max(BPM_MIN, Math.min(BPM_MAX, v));
-}
-
-/** Inline metronome widget for song practice blocks. Mirrors the
- *  header MetronomeControl's pill design (play/pause + BPM display
- *  + −/+ steppers) without the settings popover — groove + time-sig
- *  + volume stay in the header. Uses driver key `'song'` so toggles
- *  here stack independently of `'user'` (header) and `'drill'`
- *  (drill modals) per metronome.ts:303-316. */
-function InlineSongMetronome() {
-  const state = useMetronomeState();
-  const stop = (e: React.MouseEvent | React.KeyboardEvent) => e.stopPropagation();
-  const toggle = (e: React.MouseEvent) => {
-    stop(e);
-    if (state.playing) metronome.stop('song');
-    else void metronome.start('song');
-  };
-  const adjust = (delta: number) => (e: React.MouseEvent) => {
-    stop(e);
-    metronome.update({ bpm: clampBpm(state.bpm + delta) });
-  };
-  return (
-    <span
-      onClick={stop}
-      onKeyDown={stop}
-      className="inline-flex items-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white/70 dark:bg-neutral-900/70 overflow-hidden text-[11px]"
-    >
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={toggle}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            toggle(e as unknown as React.MouseEvent);
-          }
-        }}
-        aria-label={state.playing ? 'stop metronome' : 'start metronome'}
-        className={`px-2 py-0.5 cursor-pointer transition ${
-          state.playing ? 'bg-fluent text-white' : 'text-neutral-500 hover:text-fluent'
-        }`}
-      >
-        {state.playing ? '■' : '▶'}
-      </span>
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={adjust(-1)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            adjust(-1)(e as unknown as React.MouseEvent);
-          }
-        }}
-        aria-label="decrease bpm"
-        className="px-1.5 py-0.5 border-l border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent cursor-pointer font-mono"
-      >
-        −
-      </span>
-      <span className="px-1.5 py-0.5 border-l border-neutral-200 dark:border-neutral-700 font-mono tabular-nums text-neutral-700 dark:text-neutral-200">
-        {state.bpm}
-        <span className="text-neutral-400 ml-0.5">bpm</span>
-      </span>
-      <span
-        role="button"
-        tabIndex={0}
-        onClick={adjust(1)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            adjust(1)(e as unknown as React.MouseEvent);
-          }
-        }}
-        aria-label="increase bpm"
-        className="px-1.5 py-0.5 border-l border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent cursor-pointer font-mono"
-      >
-        +
-      </span>
-    </span>
-  );
-}
 
 interface Props {
   block: ProposalBlock;
@@ -267,11 +180,6 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
           <div className="text-sm sm:text-base font-medium text-neutral-800 dark:text-neutral-100 break-words">
             {block.activityDescription}
           </div>
-          {block.isSongPractice && (
-            <div className="pt-1">
-              <InlineSongMetronome />
-            </div>
-          )}
           {block.inlineActionText && (
             <span
               role="button"
