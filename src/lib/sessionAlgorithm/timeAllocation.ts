@@ -29,6 +29,7 @@ import type { WeeklyPace } from './moduleWeeklyNeed';
 import {
   MEMORY_TYPE_DURATIONS,
   MODULE_DURATION_OVERRIDES,
+  NON_KEYBOARD_MODULE_ORDER,
   PHASE_ORDER,
   sPRepSplitForSession,
   type BlockPhase,
@@ -438,13 +439,30 @@ function lowestWeightIndex(blocks: ReadonlyArray<AlgorithmBlock>): number {
  */
 export function sequenceBlocks(
   blocks: ReadonlyArray<AllocatedBlock>,
-  /** Optional practice context. When 'full', keyboard-required
-   *  blocks sort before non-keyboard blocks within the existing
-   *  phase → weight → input-order chain ("keys first, then
-   *  everything"). Other contexts leave sort order unchanged. */
+  /** Optional practice context. Drives two non-keyboard-aware
+   *  rules per SESSION_DESIGN.md:
+   *
+   *    'full' → keyboard-required blocks sort before non-keyboard
+   *             blocks at the outer sort layer ("keys first, then
+   *             everything").
+   *
+   *    'laptop' / 'phone' / 'full' (non-keyboard bucket only)
+   *           → blocks within the non-keyboard set sort by
+   *             NON_KEYBOARD_MODULE_ORDER as the primary sort key,
+   *             enforcing the designed mental viz → ET → HF →
+   *             Production sequence. Parallel-track modules
+   *             (chord-progressions ∥ scales-modes) share an
+   *             index and fall through to the phase / weight sort
+   *             so the per-block urgency picks the one that
+   *             surfaces first when both are present.
+   *
+   *   Other contexts (no context arg supplied, or 'keys') leave
+   *   sort order unchanged (phase → weight → input order). */
   context?: import('../db').PracticeSessionContext,
 ): AllocatedBlock[] {
   const keyboardFirst = context === 'full';
+  const nonKeyboardSequencingActive =
+    context === 'laptop' || context === 'phone' || context === 'full';
   const indexed = blocks.map((b, i) => ({ b, i }));
   indexed.sort((a, b) => {
     // 'full' context outer sort: keyboard-required blocks first so
@@ -453,6 +471,21 @@ export function sequenceBlocks(
     // each keyboard / non-keyboard bucket.
     if (keyboardFirst && a.b.isKeyboardRequired !== b.b.isKeyboardRequired) {
       return a.b.isKeyboardRequired ? -1 : 1;
+    }
+    // Non-keyboard sequencing: enforce NON_KEYBOARD_MODULE_ORDER
+    // as the primary sort key for non-keyboard blocks. In
+    // 'laptop' / 'phone' this applies to every block (no keyboard
+    // blocks survive the hard filter). In 'full' this applies
+    // only inside the non-keyboard bucket because the keyboardFirst
+    // partition above already separated kb vs non-kb.
+    if (
+      nonKeyboardSequencingActive
+      && !a.b.isKeyboardRequired
+      && !b.b.isKeyboardRequired
+    ) {
+      const aOrder = NON_KEYBOARD_MODULE_ORDER.get(a.b.moduleRef) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = NON_KEYBOARD_MODULE_ORDER.get(b.b.moduleRef) ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
     }
     const phaseDiff = PHASE_ORDER[a.b.phase] - PHASE_ORDER[b.b.phase];
     if (phaseDiff !== 0) return phaseDiff;

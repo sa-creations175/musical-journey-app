@@ -320,6 +320,47 @@ describe('sequenceBlocks', () => {
     const seq = sequenceBlocks([cogAcq, kbReview], 'full');
     expect(seq.map(b => b.id)).toEqual(['kb-rev', 'cg-acq']);
   });
+
+  it('non-keyboard contexts enforce NON_KEYBOARD_MODULE_ORDER: mental viz → ET → HF → Production', () => {
+    // Mental viz (moduleRef='shapes-and-patterns', isKeyboardRequired=false)
+    // surfaces FIRST under the non-keyboard sequencing rule. Then
+    // ET in its catalog order (intervals → chord-recognition →
+    // chord-progressions ∥ scales-modes). HF and Production tail.
+    const mv = { id: 'mv', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 300, phase: 'review' as const };
+    const iv = { id: 'iv', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals',          itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const cr = { id: 'cr', memoryType: 'declarative' as MemoryType, moduleRef: 'chord-recognition', itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const hf = { id: 'hf', memoryType: 'declarative' as MemoryType, moduleRef: 'harmonic-fluency',  itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const pr = { id: 'pr', memoryType: 'integration' as MemoryType, moduleRef: 'production',        itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    // Insertion order intentionally scrambled.
+    const seq = sequenceBlocks([pr, hf, cr, iv, mv], 'laptop');
+    expect(seq.map(b => b.id)).toEqual(['mv', 'iv', 'cr', 'hf', 'pr']);
+  });
+
+  it('chord-progressions ∥ scales-modes share an index — relative order falls to weight (parallel tracks)', () => {
+    // Both at NON_KEYBOARD_MODULE_ORDER index 3 → primary sort ties
+    // → falls through to weight DESC. Higher-weight scales-modes
+    // surfaces ahead of chord-progressions even though
+    // chord-progressions comes first in the spec text.
+    const cp = { id: 'cp', memoryType: 'declarative' as MemoryType, moduleRef: 'chord-progressions', itemRefs: [], weight: 1.0, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const sm = { id: 'sm', memoryType: 'declarative' as MemoryType, moduleRef: 'scales-modes',       itemRefs: [], weight: 2.0, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const seq = sequenceBlocks([cp, sm], 'phone');
+    expect(seq.map(b => b.id)).toEqual(['sm', 'cp']);
+    // Reverse weight: cp wins.
+    const cpHigh = { ...cp, weight: 3.0 };
+    const seq2 = sequenceBlocks([sm, cpHigh], 'phone');
+    expect(seq2.map(b => b.id)).toEqual(['cp', 'sm']);
+  });
+
+  it('non-keyboard sequencing does NOT apply in keys-context (existing behavior preserved)', () => {
+    // Keys context: NON_KEYBOARD_MODULE_ORDER is irrelevant — only
+    // S&P + Repertoire surface there and the phase/weight sort
+    // handles them. Verify by passing a (theoretically-impossible)
+    // mixed bag and confirming the order matches pure weight DESC.
+    const a = { id: 'a', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals',          itemRefs: [], weight: 1.0, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const b = { id: 'b', memoryType: 'declarative' as MemoryType, moduleRef: 'harmonic-fluency',  itemRefs: [], weight: 2.0, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const seq = sequenceBlocks([a, b], 'keys');
+    expect(seq.map(b => b.id)).toEqual(['b', 'a']);
+  });
 });
 
 describe('phase order constant', () => {

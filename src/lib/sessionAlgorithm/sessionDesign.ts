@@ -261,20 +261,46 @@ export const CONTEXT_RANK: Record<PracticeSessionContext, number> = {
 //
 // Designed module sequence for laptop / phone / non-keyboard phase
 // of full sessions per SESSION_DESIGN.md § "Non-keyboard session —
-// Block order". Defined here as the canonical ordering; enforcement
-// in sequenceBlocks lands in a later commit. Module refs at the
-// same index are parallel — neither outranks the other; their
-// surfacing order is decided by per-block weight.
+// Block order". Map keys are spacingState moduleRefs; values are
+// the sort index (lower surfaces first). Modules at the SAME index
+// are parallel tracks — their relative order is decided by weight
+// (chord-progressions ∥ scales-modes share index 3 per the design
+// rationale that the two are different ear-training dimensions
+// without a strong sequential dependency on each other).
+//
+// Mental viz rides under the shapes-and-patterns moduleRef but is
+// distinguishable by isKeyboardRequired === false; the non-keyboard
+// sequencer in sequenceBlocks only applies this map within the
+// non-keyboard bucket, so the S&P moduleRef at index 0 unambiguously
+// resolves to mental viz when it surfaces.
 
-export const NON_KEYBOARD_MODULE_ORDER: ReadonlyArray<string> = [
-  'shapes-and-patterns',  // mental-viz block rides under the S&P module ref
-  'intervals',
-  'chord-recognition',
-  'chord-progressions',
-  'scales-modes',
-  HF_MODULE_REF,
-  PRODUCTION_MODULE_REF,
-];
+export const NON_KEYBOARD_MODULE_ORDER: ReadonlyMap<string, number> = new Map([
+  [SHAPES_MODULE_REF,     0],  // mental viz (only non-keyboard S&P block)
+  ['intervals',           1],
+  ['chord-recognition',   2],
+  ['chord-progressions',  3],  // parallel with scales-modes
+  ['scales-modes',        3],  // parallel with chord-progressions
+  [HF_MODULE_REF,         4],
+  [PRODUCTION_MODULE_REF, 5],
+]);
+
+// ─── Mental visualization ─────────────────────────────────────────────────
+//
+// Mental viz is a fixed-time prepended block in laptop / phone /
+// full-session non-keyboard contexts. NO SpacingState — duration is
+// the planned seconds scaled by the per-context weight. Phone is
+// primary (1.4 ×) because it's the most cognitively-suited surface
+// for away-from-keyboard mental drills; laptop is secondary (0.8 ×)
+// since the laptop also has piano-less affordances competing for
+// attention (DAW work, ET quizzes, HF flashcards).
+
+export const MENTAL_VIZ_PLANNED_SECONDS = 5 * SECONDS_PER_MINUTE;
+export const MENTAL_VIZ_WEIGHT_PHONE = 1.4;
+export const MENTAL_VIZ_WEIGHT_LAPTOP = 0.8;
+/** Full sessions get the laptop-style secondary weight on the
+ *  non-keyboard arc — the keyboard work is already the primary
+ *  cognitive load for the session. */
+export const MENTAL_VIZ_WEIGHT_FULL = 0.8;
 
 // ─── Production vocab ─────────────────────────────────────────────────────
 //

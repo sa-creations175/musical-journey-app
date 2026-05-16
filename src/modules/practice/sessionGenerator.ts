@@ -71,6 +71,10 @@ import {
   COLD_START_REPERTOIRE_WEIGHT,
   CONTEXT_RANK,
   MAX_ITEMS_PER_BLOCK,
+  MENTAL_VIZ_PLANNED_SECONDS,
+  MENTAL_VIZ_WEIGHT_FULL,
+  MENTAL_VIZ_WEIGHT_LAPTOP,
+  MENTAL_VIZ_WEIGHT_PHONE,
   MIN_VIABLE_PRACTICE_SECONDS,
   PRODUCTION_VOCAB_FRACTION,
   PRODUCTION_VOCAB_MAX_SECONDS,
@@ -395,9 +399,20 @@ export async function buildSessionPlan(
     now,
     availableSeconds: requestedSeconds,
   });
-  const availableSeconds = vocabBlock !== null
+  const afterVocabSeconds = vocabBlock !== null
     ? requestedSeconds - vocabBlock.plannedSeconds
     : requestedSeconds;
+  // Mental viz block — fires on laptop / phone / full, carving
+  // off MENTAL_VIZ_PLANNED_SECONDS × per-context weight (no
+  // SpacingState; no goal check). Stacks with the vocab carve-out
+  // so the displayed total stays at the user's requested time.
+  const mentalVizBlock = await maybeBuildMentalVizBlock({
+    context: inputs.context,
+    availableSeconds: afterVocabSeconds,
+  });
+  const availableSeconds = mentalVizBlock !== null
+    ? afterVocabSeconds - mentalVizBlock.plannedSeconds
+    : afterVocabSeconds;
 
   const itemLabels = resolveShapesDrillLabels(moduleBlocks);
   const shapesContext = await loadShapesSplitContext(spacingRows, now);
@@ -420,9 +435,25 @@ export async function buildSessionPlan(
     paceByBlock,
     inputs.context,
   );
+  // Prepend mental viz THEN vocab so the rendered order reads
+  // vocab → mental viz → allocator blocks (vocab is the outermost
+  // prepend, mental viz sits between vocab and the allocator output).
+  // SESSION_DESIGN.md § "Non-keyboard session — Block order" puts
+  // mental viz first inside the non-keyboard arc, with Production
+  // vocab coming after the ET stack — for now the prepend order
+  // (vocab outermost) keeps the existing vocab-first card shape;
+  // explicit non-keyboard sequencing inside the allocator output
+  // lands via sequenceBlocks' NON_KEYBOARD_MODULE_ORDER rule below.
+  let shapedCards = cards;
+  if (mentalVizBlock) {
+    shapedCards = shapedCards.map(c => prependMentalVizBlock(c, mentalVizBlock));
+  }
+  if (vocabBlock) {
+    shapedCards = shapedCards.map(c => prependVocabBlock(c, vocabBlock));
+  }
   return {
     kind: 'proposals',
-    cards: vocabBlock ? cards.map(c => prependVocabBlock(c, vocabBlock)) : cards,
+    cards: shapedCards,
     behindPaceNotices: weeklyPace.notices,
   };
 }
@@ -1772,6 +1803,82 @@ export async function maybeBuildProductionVocabBlock(opts: {
 }
 
 function prependVocabBlock(
+  card: ProposalCardData,
+  block: ProposalBlock,
+): ProposalCardData {
+  return {
+    ...card,
+    blocks: [block, ...card.blocks],
+    totalSeconds: card.totalSeconds + block.plannedSeconds,
+  };
+}
+
+// ---------------------------------------------------------------------
+// Mental visualization — parallel candidate stream (non-keyboard contexts)
+// ---------------------------------------------------------------------
+
+/**
+ * Mental viz duration scaled by the per-context weight. Phone is
+ * the primary surface (1.4 × the base 5 min); laptop + full's
+ * non-keyboard arc are secondary (0.8 ×). Keys returns 0 — the
+ * block doesn't surface there.
+ */
+function mentalVizSecondsFor(context: PracticeSessionContext): number {
+  switch (context) {
+    case 'phone':  return Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_PHONE);
+    case 'laptop': return Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_LAPTOP);
+    case 'full':   return Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_FULL);
+    case 'keys':   return 0;
+  }
+}
+
+/** Construct the injected Mental Viz ProposalBlock. Rides under
+ *  the shapes-and-patterns moduleRef so the existing module-color
+ *  + label flow works; deep-links to the Mental Visualization
+ *  tab so the user lands on the right surface immediately. */
+export function buildMentalVizBlock(plannedSeconds: number): ProposalBlock {
+  const meta = moduleMetaById(SHAPES_MODULE_REF);
+  return {
+    id: 'block-mental-viz',
+    moduleRef: SHAPES_MODULE_REF,
+    moduleLabel: 'Mental Visualization',
+    moduleAccentHex: meta?.accentHex ?? '#4a9088',
+    activityDescription: 'Visualize chord shapes away from the keyboard',
+    plannedSeconds,
+    whySnippet: 'Cognitive command of the shapes — no piano required',
+    itemRefs: [],
+    isWarmup: false,
+    isKeyboardRequired: false,
+    quickLaunchRoute: '/shapes-and-patterns?tab=mental-viz',
+  };
+}
+
+/**
+ * Async wrapper: returns the Mental Viz block when the user is on
+ * laptop / phone / full (any non-keyboard arc). Drops the block when
+ * the carve-out would leave less than MIN_VIABLE_PRACTICE_SECONDS
+ * for the rest of the session. No goal check, no due-count check
+ * — mental viz has no SpacingState; it's always offered when the
+ * context permits and there's room for it.
+ */
+export async function maybeBuildMentalVizBlock(opts: {
+  context: PracticeSessionContext;
+  availableSeconds: number;
+}): Promise<ProposalBlock | null> {
+  const planned = mentalVizSecondsFor(opts.context);
+  if (planned <= 0) return null;
+  if (opts.availableSeconds - planned < MIN_VIABLE_PRACTICE_SECONDS) {
+    return null;
+  }
+  return buildMentalVizBlock(planned);
+}
+
+/** Same shape as prependVocabBlock — added separately for clarity
+ *  even though the body is identical. Lets the prepend order be
+ *  explicit at the call site (mental viz prepended FIRST, then
+ *  vocab on top, so the rendered order is vocab → mental viz →
+ *  allocator blocks). */
+function prependMentalVizBlock(
   card: ProposalCardData,
   block: ProposalBlock,
 ): ProposalCardData {
