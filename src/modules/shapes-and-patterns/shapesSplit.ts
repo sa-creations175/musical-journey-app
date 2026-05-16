@@ -60,6 +60,18 @@ import {
   isTrackedShape,
   type SPTier,
 } from './spTiers';
+import {
+  SCALES_SEGMENT_LONG_BLOCK_SECONDS,
+  SCALES_SEGMENT_LONG_SECONDS,
+  SCALES_SEGMENT_MAX_KEYS,
+  SCALES_SEGMENT_MIN_BLOCK_SECONDS,
+  SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION,
+  SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS,
+  SCALES_SEGMENT_SHORT_SECONDS,
+  VL_SEGMENT_MIN_BLOCK_SECONDS,
+  VL_SPLIT_SCALES_FRACTION,
+  VL_SPLIT_WALK_FRACTION,
+} from '../../lib/sessionAlgorithm/sessionDesign';
 
 // ---------------------------------------------------------------------
 // Chord-shape walk constants
@@ -74,43 +86,15 @@ const INVERSION_ORDER: ReadonlyArray<string | null> = [
   null, 'root', 'inv1', 'inv2', 'inv3', 'fluid',
 ];
 
-// ---------------------------------------------------------------------
-// Scales segment constants
-// ---------------------------------------------------------------------
-
-/** Minimum S&P block length (seconds) at which the Scales warm-up
- *  segment surfaces. Sub-15-min blocks stay chord-shape-only.
- *  Calibrated for the "warm-up" position — too tight a block leaves
- *  no room for the chord-shape walk to also be meaningful. */
-const SCALES_SEGMENT_MIN_BLOCK_SECONDS = 15 * 60;
-
-/** Time allocated to the Scales segment inside a 15–30 min S&P
- *  block. ~5 min covers one full per-key ladder. */
-const SCALES_SEGMENT_SHORT_SECONDS = 5 * 60;
-
-/** Time allocated to the Scales segment inside a 30+ min S&P block.
- *  ~8 min leaves room for the second prioritised key. */
-const SCALES_SEGMENT_LONG_SECONDS = 8 * 60;
-
-/** Threshold (seconds) above which the longer Scales allocation
- *  kicks in. */
-const SCALES_SEGMENT_LONG_BLOCK_SECONDS = 30 * 60;
-
-/** Hard cap on how many keys the Scales segment covers — the
- *  warm-up shouldn't sprawl. Raised from 2 to 3 so users with
- *  three or four active songs in distinct keys see all of their
- *  song keys reflected in the warm-up rather than the first two
- *  encountered. */
-const SCALES_SEGMENT_MAX_KEYS = 3;
-
-/** Hard ceiling for the goal-aware proportional budget. When an
- *  active Scales goal pulls in a large pile of due cells, the
- *  warm-up still won't exceed 20 % of the S&P block AND won't
- *  exceed 20 min in absolute terms. Both clamps apply; the lower
- *  wins. The fixed-fallback path (no Scales goal) keeps the
- *  original 5/8-min budget unchanged. */
-const SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION = 0.20;
-const SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS = 20 * 60;
+// Scales segment constants moved to
+// ../../lib/sessionAlgorithm/sessionDesign:
+//   SCALES_SEGMENT_MIN_BLOCK_SECONDS
+//   SCALES_SEGMENT_SHORT_SECONDS
+//   SCALES_SEGMENT_LONG_SECONDS
+//   SCALES_SEGMENT_LONG_BLOCK_SECONDS
+//   SCALES_SEGMENT_MAX_KEYS
+//   SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION
+//   SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS
 
 // Per-cell scale drill seconds (SCALE_KIND_SECONDS) moved to the
 // canonical sessionAlgorithm/timePerAttempt.ts in Phase B Step 1.
@@ -177,20 +161,11 @@ export interface ShapesSplitSegment {
 // Voice-leading segment (third position, after chord shapes)
 // ---------------------------------------------------------------------
 
-/** Minimum block length (seconds) at which the VL segment can
- *  surface. Mirrors SCALES_SEGMENT_MIN_BLOCK_SECONDS so the 25/50/25
- *  three-way split lines up cleanly: tiny blocks stay chord-shape-
- *  only. */
-const VL_SEGMENT_MIN_BLOCK_SECONDS = 15 * 60;
-
-/** The three-way split percentages from VOICE_LEADING_SUBMODULE_DESIGN.md
- *  § Session Algorithm. Active only when the incoming block carries
- *  vl: itemRefs in its candidate pool — otherwise Scales' existing
- *  fixed/proportional logic applies and the walk gets the rest. */
-const VL_SPLIT_SCALES_FRACTION = 0.25;
-const VL_SPLIT_WALK_FRACTION = 0.50;
-// VL fraction = 0.25 by construction — derived as the remainder after
-// scales + walk, so rounding doesn't drop a second.
+// VL_SEGMENT_MIN_BLOCK_SECONDS + VL_SPLIT_SCALES_FRACTION +
+// VL_SPLIT_WALK_FRACTION moved to
+// ../../lib/sessionAlgorithm/sessionDesign — imported below.
+// VL fraction = 0.25 by construction (derived as the remainder
+// after scales + walk so rounding doesn't drop a second).
 
 // ---------------------------------------------------------------------
 // Chord-shape walk

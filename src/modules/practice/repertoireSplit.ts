@@ -41,21 +41,19 @@ import {
   type PostComfortableBlockDecision,
 } from '../repertoire/songProgression';
 import { itemRefForScale } from '../shapes-and-patterns/scaleSkills';
+import {
+  CHORD_QUIZ_SECONDS,
+  MIN_MAINTENANCE_SECONDS,
+  MIN_SPOTLIGHT_SECONDS,
+  SCALE_PREP_MIN_SONG_SECONDS,
+  SCALE_PREP_SECONDS,
+  SPOTLIGHT_RATIO,
+} from '../../lib/sessionAlgorithm/sessionDesign';
 
-const MIN_SPOTLIGHT_SECONDS = 15 * 60;
-/** Spotlight share of a two-slot repertoire allocation. 3:1 matches
- *  the design intent: ~45 min spotlight + ~15 min maintenance on a
- *  60-min repertoire block. Was 2/3 (40/20 on 60 min) prior to the
- *  May 2026 rebalance. */
-const SPOTLIGHT_RATIO = 3 / 4;
-/** Floor for the maintenance half AFTER the split. When the
- *  computed maintenance share falls below this, the slot is
- *  dropped and spotlight absorbs the whole allocation — a
- *  sub-5-min maintenance turn isn't worth the context switch. */
-const MIN_MAINTENANCE_SECONDS = 5 * 60;
-/** Chord-quiz warm-up duration that prepends Repertoire practice in
- *  keys/mixed sessions (or stands alone in laptop/phone sessions). */
-export const CHORD_QUIZ_SECONDS = 3 * 60;
+// Re-export CHORD_QUIZ_SECONDS so downstream consumers keep their
+// existing import paths into this module. Canonical home is
+// sessionDesign.ts.
+export { CHORD_QUIZ_SECONDS };
 
 export interface RepertoireSplitContext {
   /** Slot 1 from the active monthly umbrella. Null when no
@@ -296,18 +294,9 @@ export interface RepertoireSplitBlock {
   scaleItemRefs?: readonly string[];
 }
 
-/** Duration of a scale-prep block in seconds. Two scale types per
- *  prep × ~45 s each — primes the user's hands and ears in the
- *  song's home key without eating into the practice block. Carved
- *  off the top of the song's allocation so the proposal's overall
- *  budget stays honest. */
-const SCALE_PREP_SECONDS = 90;
-
-/** Minimum song-block allocation that earns a scale-prep block.
- *  Below this floor the prep would dominate the playback window
- *  and produce a worse experience than a single longer practice
- *  block. */
-const SCALE_PREP_MIN_SONG_SECONDS = 4 * 60;
+// SCALE_PREP_SECONDS + SCALE_PREP_MIN_SONG_SECONDS moved to
+// ../../lib/sessionAlgorithm/sessionDesign — imported at the top
+// of this file.
 
 /**
  * Split a Repertoire AllocatedBlock's plannedSeconds between

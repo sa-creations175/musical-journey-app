@@ -29,26 +29,19 @@
  */
 
 import type { PracticeSessionContext } from '../db';
+import { ET_MODULE_REFS, SHAPES_MODULE_REF } from '../../modules/goals/progress';
 import {
-  ET_MODULE_REFS,
-  HF_MODULE_REF,
-  PRODUCTION_MODULE_REF,
-  REPERTOIRE_MODULE_REF,
-  SHAPES_MODULE_REF,
-} from '../../modules/goals/progress';
+  CONTEXT_FACTOR_NEUTRAL,
+  FULL_FACTORS,
+  KEYS_DEFAULT_ALLOWED_MODULES,
+  KEYS_FACTORS,
+  LAPTOP_FACTORS,
+  PHONE_FACTORS,
+} from './sessionDesign';
 
-// ---------------------------------------------------------------------
-// Hard filter — keys/mixed allowlist
-// ---------------------------------------------------------------------
-
-/**
- * Spec § "Keys (hard filter — not weighted)": include ONLY Shapes &
- * Patterns and Repertoire in the default proposal.
- */
-const KEYS_DEFAULT_ALLOWED_MODULES: ReadonlySet<string> = new Set([
-  SHAPES_MODULE_REF,
-  REPERTOIRE_MODULE_REF,
-]);
+// Re-export the weight constants moved to sessionDesign.ts so
+// downstream callers keep their existing import paths.
+export { CONTEXT_FACTOR_NEUTRAL };
 
 /**
  * True when the module is eligible to surface in the proposal for
@@ -129,68 +122,10 @@ export function isModuleAllowedForContext(
  *     this constant to the intended phone/laptop weight at that
  *     point.
  */
-export const CONTEXT_FACTOR_NEUTRAL = 1.0;
-
-// TODO: replace with real moduleRef when the chord-progression-quiz
-// feature lands. Until then this constant is unused — see the
-// LAPTOP_FACTORS / PHONE_FACTORS tables below for the matching
-// 0-weight placeholder entries.
-const CHORD_PROGRESSION_QUIZ_MODULE_REF = 'chord-progression-quiz';
-/** Weight the chord-progression quiz earns on phone + laptop once
- *  built. Set to 0 (excluded) for now — flip when the quiz feature
- *  ships so it starts surfacing on phone/laptop arcs. */
-const CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR = 0;
-
-const KEYS_FACTORS: Readonly<Record<string, number>> = {
-  [SHAPES_MODULE_REF]:     CONTEXT_FACTOR_NEUTRAL,
-  [REPERTOIRE_MODULE_REF]: CONTEXT_FACTOR_NEUTRAL,
-};
-
-const LAPTOP_FACTORS: Readonly<Record<string, number>> = {
-  [HF_MODULE_REF]:                          1.2, // moderate warm-up lift
-  'intervals':                              1.0,
-  'chord-recognition':                      1.0,
-  'chord-progressions':                     1.6, // spec § "chord progression review" on laptop
-  'scales-modes':                           1.0,
-  [REPERTOIRE_MODULE_REF]:                  CONTEXT_FACTOR_NEUTRAL,
-  [PRODUCTION_MODULE_REF]:                  1.5, // spec § "Production dominant"
-  // Placeholder — see CHORD_PROGRESSION_QUIZ_* constants above.
-  [CHORD_PROGRESSION_QUIZ_MODULE_REF]:      CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR,
-};
-
-const PHONE_FACTORS: Readonly<Record<string, number>> = {
-  [HF_MODULE_REF]:                          1.4, // spec § "HF/ET higher weight than laptop"
-  'intervals':                              1.4,
-  'chord-recognition':                      1.4,
-  'chord-progressions':                     1.4,
-  'scales-modes':                           1.4,
-  [REPERTOIRE_MODULE_REF]:                  CONTEXT_FACTOR_NEUTRAL,
-  [PRODUCTION_MODULE_REF]:                  1.0, // spec § "Production lower weight than laptop"
-  // Placeholder — see CHORD_PROGRESSION_QUIZ_* constants above.
-  [CHORD_PROGRESSION_QUIZ_MODULE_REF]:      CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR,
-};
-
-/** 'full' context — keyboard + device available. Mixes keys-context
- *  weights for keyboard modules with laptop weights for cognitive
- *  modules. Block ordering (sequenceBlocks) puts keyboard-required
- *  blocks first regardless of weight; these factors only tune the
- *  relative priority within each bucket. */
-const FULL_FACTORS: Readonly<Record<string, number>> = {
-  // Keyboard modules — use the keys-context neutral weight.
-  [SHAPES_MODULE_REF]:                      CONTEXT_FACTOR_NEUTRAL,
-  [REPERTOIRE_MODULE_REF]:                  CONTEXT_FACTOR_NEUTRAL,
-  // Cognitive modules — use the laptop-context weights so
-  // chord-progressions / Production retain their context-appropriate
-  // boosts.
-  [HF_MODULE_REF]:                          1.2,
-  'intervals':                              1.0,
-  'chord-recognition':                      1.0,
-  'chord-progressions':                     1.6,
-  'scales-modes':                           1.0,
-  [PRODUCTION_MODULE_REF]:                  1.5,
-  // Placeholder — see CHORD_PROGRESSION_QUIZ_* constants above.
-  [CHORD_PROGRESSION_QUIZ_MODULE_REF]:      CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR,
-};
+// Factor tables (KEYS_FACTORS, LAPTOP_FACTORS, PHONE_FACTORS,
+// FULL_FACTORS) and the CONTEXT_FACTOR_NEUTRAL / placeholder weight
+// constants moved to ./sessionDesign. Imported at the top of this
+// file and consumed below by contextFactorForModule.
 
 /**
  * Multiplicative weight factor for (context, moduleRef). Returns

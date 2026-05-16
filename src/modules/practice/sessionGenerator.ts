@@ -68,6 +68,15 @@ import {
 } from '../../lib/sessionAlgorithm/timeAllocation';
 import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
+  COLD_START_REPERTOIRE_WEIGHT,
+  CONTEXT_RANK,
+  MAX_ITEMS_PER_BLOCK,
+  MIN_VIABLE_PRACTICE_SECONDS,
+  PRODUCTION_VOCAB_FRACTION,
+  PRODUCTION_VOCAB_MAX_SECONDS,
+  PRODUCTION_VOCAB_MIN_SECONDS,
+} from '../../lib/sessionAlgorithm/sessionDesign';
+import {
   weightForItem,
   type GoalContribution,
 } from '../../lib/sessionAlgorithm/weighting';
@@ -951,9 +960,8 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 // Goal-driven module aggregation
 // ---------------------------------------------------------------------
 
-/** Cap on items carried into a block. Beyond this the per-item
- *  weight ranking still picks the most urgent items first. */
-const MAX_ITEMS_PER_BLOCK = 20;
+// MAX_ITEMS_PER_BLOCK moved to ../../lib/sessionAlgorithm/sessionDesign;
+// imported as part of the SESSION_DESIGN-consolidation import block.
 
 // ---------------------------------------------------------------------
 // Phase 4 Step 4 — Weekly-pace integration helpers
@@ -1043,17 +1051,8 @@ export async function loadWeeklyPace(now: number = Date.now()): Promise<{
 // Context-based hard filtering
 // ---------------------------------------------------------------------
 
-/**
- * Capability rank per practice context. A user on a higher-rank
- * context can do anything a lower-rank context can do, plus more.
- * 'full' is the most-capable rank — keyboard AND device available.
- */
-const CONTEXT_RANK: Record<PracticeSessionContext, number> = {
-  full: 4,
-  keys: 3,
-  laptop: 2,
-  phone: 1,
-};
+// CONTEXT_RANK moved to ../../lib/sessionAlgorithm/sessionDesign;
+// imported below.
 
 /**
  * True when the user's current context can satisfy the goal's
@@ -1355,13 +1354,8 @@ function safeMemoryType(moduleRef: string): AlgorithmBlock['memoryType'] {
   }
 }
 
-/**
- * Moderate weight for synthetic cold-start Repertoire blocks. Pitched
- * to land between "neutral" (~1.0) and "heavy pace pressure" (~13)
- * so a Repertoire goal with no spacing data still ranks competitively
- * but doesn't crowd out genuinely urgent items elsewhere.
- */
-const COLD_START_REPERTOIRE_WEIGHT = 5;
+// COLD_START_REPERTOIRE_WEIGHT moved to
+// ../../lib/sessionAlgorithm/sessionDesign — imported below.
 
 /**
  * Cold-start support for song goals. The aggregator above only emits a
@@ -1648,19 +1642,17 @@ export function describeActivity(
  * allocator (see buildSessionPlan) so the displayed total stays at
  * what the user asked for — not requested + vocab on top.
  */
-export const PRODUCTION_VOCAB_MIN_SECONDS = 3 * 60;
-export const PRODUCTION_VOCAB_MAX_SECONDS = 10 * 60;
-export const PRODUCTION_VOCAB_FRACTION = 0.15;
-
-/**
- * Floor on practice time AFTER carving out the Production Vocab
- * block. When the user's requested session is short enough that
- * subtracting vocab would leave less than this for the algorithm
- * to distribute, the vocab block is dropped entirely and the full
- * requested time flows to practice. Anything below 5 min of
- * practice is mostly vocab — not a real session.
- */
-export const MIN_VIABLE_PRACTICE_SECONDS = 5 * 60;
+// PRODUCTION_VOCAB_{MIN,MAX}_SECONDS + PRODUCTION_VOCAB_FRACTION +
+// MIN_VIABLE_PRACTICE_SECONDS moved to
+// ../../lib/sessionAlgorithm/sessionDesign — imported below and
+// re-exported for back-compat with consumers that still target
+// the old import path.
+export {
+  PRODUCTION_VOCAB_FRACTION,
+  PRODUCTION_VOCAB_MAX_SECONDS,
+  PRODUCTION_VOCAB_MIN_SECONDS,
+  MIN_VIABLE_PRACTICE_SECONDS,
+} from '../../lib/sessionAlgorithm/sessionDesign';
 
 /**
  * Compute the Production Vocab block duration for a session of

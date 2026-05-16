@@ -26,62 +26,19 @@
 
 import type { MemoryType } from '../db';
 import type { WeeklyPace } from './moduleWeeklyNeed';
+import {
+  MEMORY_TYPE_DURATIONS,
+  MODULE_DURATION_OVERRIDES,
+  PHASE_ORDER,
+  type BlockPhase,
+  type DurationTier,
+} from './sessionDesign';
 
-const SECONDS_PER_MINUTE = 60;
-
-// ---------------------------------------------------------------------
-// Per-memory-type duration table
-// ---------------------------------------------------------------------
-
-export interface DurationTier {
-  /** Minimum block duration in seconds — never go below this. */
-  minSeconds: number;
-  /** Typical low end (default block size). */
-  typicalLowSeconds: number;
-  /** Typical high end. */
-  typicalHighSeconds: number;
-}
-
-export const MEMORY_TYPE_DURATIONS: Record<MemoryType, DurationTier> = {
-  declarative: {
-    minSeconds:         3 * SECONDS_PER_MINUTE,
-    typicalLowSeconds:  5 * SECONDS_PER_MINUTE,
-    typicalHighSeconds: 10 * SECONDS_PER_MINUTE,
-  },
-  procedural: {
-    minSeconds:         5 * SECONDS_PER_MINUTE,
-    typicalLowSeconds:  10 * SECONDS_PER_MINUTE,
-    typicalHighSeconds: 15 * SECONDS_PER_MINUTE,
-  },
-  integration: {
-    minSeconds:         10 * SECONDS_PER_MINUTE,
-    typicalLowSeconds:  15 * SECONDS_PER_MINUTE,
-    typicalHighSeconds: 20 * SECONDS_PER_MINUTE,
-  },
-  expression: {
-    minSeconds:         5 * SECONDS_PER_MINUTE,
-    typicalLowSeconds:  10 * SECONDS_PER_MINUTE,
-    typicalHighSeconds: 20 * SECONDS_PER_MINUTE,
-  },
-};
-
-/**
- * Per-module overrides that take precedence over MEMORY_TYPE_DURATIONS
- * when the module needs a different default block shape than the rest
- * of its memory type. Merged shallow on top of the base tier — keys
- * not present in the override fall through.
- *
- * Repertoire (integration) needs ~60 min at typical-high so the
- * spotlight + maintenance split has room to deliver the design
- * intent (~45 min spotlight + ~15 min maintenance per session).
- * Production stays at the integration default — its sessions are
- * shorter and bursty.
- */
-export const MODULE_DURATION_OVERRIDES: Readonly<Record<string, Partial<DurationTier>>> = {
-  repertoire: {
-    typicalHighSeconds: 60 * SECONDS_PER_MINUTE,
-  },
-};
+// Re-export the structure constants moved to sessionDesign.ts so
+// downstream consumers (tests, algorithm internals) keep their
+// existing import paths. sessionDesign.ts is the canonical home.
+export { MEMORY_TYPE_DURATIONS, MODULE_DURATION_OVERRIDES, PHASE_ORDER };
+export type { BlockPhase, DurationTier };
 
 /**
  * Resolve the duration tier for a block. `moduleRef` is the
@@ -130,17 +87,8 @@ export function tierForBlock(
   };
 }
 
-// ---------------------------------------------------------------------
-// Block phase (sequencing)
-// ---------------------------------------------------------------------
-
-export type BlockPhase = 'acquisition' | 'review' | 'expression';
-
-export const PHASE_ORDER: Record<BlockPhase, number> = {
-  acquisition: 0,
-  review:      1,
-  expression:  2,
-};
+// Block phase (BlockPhase + PHASE_ORDER) moved to ./sessionDesign.
+// Re-exported above so import paths into this module stay stable.
 
 // ---------------------------------------------------------------------
 // Algorithm block shape
