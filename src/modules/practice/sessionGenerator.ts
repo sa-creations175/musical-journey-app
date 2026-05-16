@@ -113,6 +113,7 @@ import {
   getEligibleItems as getChordRecognitionEligibleItems,
   getUnlockedTier as getChordRecognitionUnlockedTier,
 } from '../ear-training/chord-recognition/tierUnlock';
+import { loadProgressionsEligibleSet } from '../ear-training/chord-progressions/progressionTierUnlock';
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import {
   shapeShapesBlock,
@@ -152,20 +153,33 @@ import type { InputQuestionnaireResult } from './inputs';
  *      moduleMeta + a per-module activity description.
  */
 /**
- * Resolve the chord-recognition progressive-difficulty gate once
- * per session. Reads attempt history (for the unlock walk) +
- * spacingState rows (for the staged-introduction signal), then
- * returns the set of itemRefs the chord-recognition module is
- * allowed to surface this session. Passed through
- * `aggregateGoalCandidatesByModule` → `resolveCandidates` so locked
- * tiers + not-yet-introduced items drop before they reach proposal
- * weighting.
+ * Resolve every ET-submodule tier/stage gate once per session.
+ * Reads attempt history (for the unlock walks) + spacingState rows
+ * (for staged-introduction signals) and returns the per-moduleRef
+ * eligibility map that flows through
+ * `aggregateGoalCandidatesByModule` → `resolveCandidates`.
+ *
+ * Today this covers:
+ *   · 'chord-recognition' — T1-T5 tier progression
+ *   · 'chord-progressions' — Stage 1-4 progression, cross-gated by
+ *     chord-recognition Tier 1 (see progressionTierUnlock.ts)
+ *
+ * Submodules without a tier system (intervals, scales-modes today)
+ * are omitted from the map and stay ungated. They'll land here as
+ * the ET tier-progression build extends them.
  */
-async function loadChordRecognitionEligibleSet(
+async function loadEtEligibleByModule(
   spacingRows: ReadonlyArray<SpacingState>,
-): Promise<ReadonlySet<string>> {
-  const tier = await getChordRecognitionUnlockedTier();
-  return new Set(getChordRecognitionEligibleItems(tier, spacingRows));
+): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
+  const [crTier, progressions] = await Promise.all([
+    getChordRecognitionUnlockedTier(),
+    loadProgressionsEligibleSet(spacingRows),
+  ]);
+  const cr = new Set(getChordRecognitionEligibleItems(crTier, spacingRows));
+  return new Map<string, ReadonlySet<string>>([
+    ['chord-recognition', cr],
+    ['chord-progressions', progressions],
+  ]);
 }
 
 export async function buildSessionProposals(
@@ -191,7 +205,7 @@ export async function buildSessionProposals(
   const factorByModule = neutralizePhaseBPaceFactors(
     weeklyPace.factorByModule, phaseBModules,
   );
-  const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
+  const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
 
   const moduleBlocks = aggregateGoalCandidatesByModule(
     goals,
@@ -200,7 +214,7 @@ export async function buildSessionProposals(
     inputs.context,
     factorByModule,
     undefined,
-    chordRecognitionEligibleItems,
+    etEligibleByModule,
     carryoverBacklog,
   );
 
@@ -328,7 +342,7 @@ export async function buildSessionPlan(
   const factorByModule = neutralizePhaseBPaceFactors(
     weeklyPace.factorByModule, phaseBModules,
   );
-  const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
+  const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
   const aggregated = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
@@ -336,7 +350,7 @@ export async function buildSessionPlan(
     inputs.context,
     factorByModule,
     options.forceIncludeModules,
-    chordRecognitionEligibleItems,
+    etEligibleByModule,
     carryoverBacklog,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
@@ -896,7 +910,7 @@ export async function buildSessionProposalsForPath(
   // "introduced" signal isn't accidentally narrowed by the path
   // filter. Path-filtered + fallback aggregations both consume the
   // same set.
-  const chordRecognitionEligibleItems = await loadChordRecognitionEligibleSet(spacingRows);
+  const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
 
   const filteredBlocks = aggregateGoalCandidatesByModule(
     goals,
@@ -905,7 +919,7 @@ export async function buildSessionProposalsForPath(
     inputs.context,
     weeklyPace.factorByModule,
     undefined,
-    chordRecognitionEligibleItems,
+    etEligibleByModule,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   const filteredWithColdStart = maybeInjectRepertoireColdStartBlock(
@@ -938,7 +952,7 @@ export async function buildSessionProposalsForPath(
     inputs.context,
     weeklyPace.factorByModule,
     undefined,
-    chordRecognitionEligibleItems,
+    etEligibleByModule,
   );
   const fallbackWithColdStart = maybeInjectRepertoireColdStartBlock(
     fallbackBlocks,
@@ -1190,13 +1204,13 @@ export function aggregateGoalCandidatesByModule(
    *  moduleRefs internally via goalFlowModuleForSpacingModuleRef's
    *  inverse. Empty by default. */
   forceIncludeModules: ReadonlyArray<GoalFlowModuleId> = [],
-  /** Chord-recognition progressive-difficulty eligibility set —
-   *  passed through to `resolveCandidates`. Undefined preserves
-   *  pre-progressive-difficulty behaviour, used by tests of the
-   *  surrounding aggregation logic that don't care about
-   *  chord-recognition tiering. Production callers compute via
-   *  `getUnlockedTier` + `getEligibleItems` once per session. */
-  chordRecognitionEligibleItems?: ReadonlySet<string>,
+  /** ET per-module eligibility map — passed through to
+   *  `resolveCandidates`. Each entry gates one ET submodule's
+   *  itemRefs against its tier/stage progression. Submodules
+   *  without an entry are ungated. Undefined preserves pre-tier-
+   *  system behaviour, used by tests of the surrounding
+   *  aggregation logic that don't care about ET tiering. */
+  etEligibleByModule?: ReadonlyMap<string, ReadonlySet<string>>,
   /** Phase B Step 9b — itemRefs in the carryover backlog (uncovered
    *  from a previous month's monthly goal, not in this month's
    *  current scope). These items get an `isCarryoverBacklog` lift
@@ -1272,7 +1286,7 @@ export function aggregateGoalCandidatesByModule(
     // Resolve against filtered rows so module-level drops cascade
     // automatically — a goal that targets only Shapes items will
     // produce zero candidates under non-keys.
-    const itemRefs = resolveCandidates(spec, filteredRows, chordRecognitionEligibleItems);
+    const itemRefs = resolveCandidates(spec, filteredRows, etEligibleByModule);
 
     for (const itemRef of itemRefs) {
       const row = rowByItemRef.get(itemRef);

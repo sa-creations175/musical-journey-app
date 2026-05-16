@@ -327,15 +327,15 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
 export function resolveCandidates(
   spec: CandidateSpec,
   rows: ReadonlyArray<SpacingRow>,
-  /** Chord-recognition progressive-difficulty gate. When supplied,
-   *  rows with `moduleRef === 'chord-recognition'` whose `itemRef`
-   *  isn't in this set are dropped — locked tiers and not-yet-
-   *  introduced items don't reach session proposals. Undefined
-   *  preserves the pre-progressive-difficulty behaviour (used by
-   *  unit tests of the unrelated specs). The set is supplied by
-   *  the session pipeline upstream, computed once per session via
-   *  `getUnlockedTier` + `getEligibleItems`. */
-  chordRecognitionEligibleItems?: ReadonlySet<string>,
+  /** ET progressive-difficulty gate map, keyed by moduleRef. When
+   *  a row's moduleRef has an entry, the row is dropped unless its
+   *  itemRef is in the set — locked tiers / stages + not-yet-
+   *  introduced items don't reach session proposals. ModuleRefs
+   *  absent from the map are ungated (current behaviour for
+   *  intervals + scales-modes; eventually all ET submodules with
+   *  tier systems land here). Undefined preserves pre-tier-system
+   *  behaviour, used by unit tests of the surrounding specs. */
+  etEligibleByModule?: ReadonlyMap<string, ReadonlySet<string>>,
 ): readonly string[] {
   if (spec.kind === 'umbrella' || spec.kind === 'unsupported') return [];
   if (spec.kind === 'song_proficiency' || spec.kind === 'production_count') return [];
@@ -356,15 +356,13 @@ export function resolveCandidates(
     const inAccepted = acceptedRefs?.has(row.itemRef) ?? false;
     if (!inModule && !inAccepted) continue;
 
-    // Chord-recognition tier/staged-introduction gate. Applied
-    // after the moduleRef match so the cost is paid only for the
-    // small chord-recognition slice of the candidate pool.
-    if (
-      row.moduleRef === 'chord-recognition'
-      && chordRecognitionEligibleItems !== undefined
-      && !chordRecognitionEligibleItems.has(row.itemRef)
-    ) {
-      continue;
+    // ET tier/stage gate. Applied after the moduleRef match so the
+    // cost is paid only for ET-module rows. ModuleRefs absent from
+    // the map are ungated; modules present in the map drop rows
+    // whose itemRef isn't in their eligible set.
+    if (etEligibleByModule !== undefined) {
+      const moduleGate = etEligibleByModule.get(row.moduleRef);
+      if (moduleGate !== undefined && !moduleGate.has(row.itemRef)) continue;
     }
 
     if (spec.kind === 'coverage') {
