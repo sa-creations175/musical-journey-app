@@ -124,40 +124,25 @@ export default function ProposalCard({
       .find(b => !idsToRemoveSet.has(b.id));
     const anchorGroupId = nextBlock?.id ?? null;
 
+    // Snapshot orderedBlocks BEFORE the removal so committed-undo
+    // (later, after the user picks a redistribution destination) can
+    // restore deletion + redistribution atomically.
+    const preDeleteSnapshot = orderedBlocks;
+
     setOrderedBlocks(prev => prev.filter(b => !idsToRemoveSet.has(b.id)));
     setPendingPrompts(prev => [
-      ...prev,
+      // Drop any existing committed prompts — their snapshots become
+      // stale the moment a new structural change lands.
+      ...prev.filter(p => p.status !== 'committed'),
       {
         id: `prompt-${blockId}-${Date.now()}`,
+        status: 'pending',
         anchorGroupId,
         freedSeconds,
         deletedBlocks: removedBlocks,
+        preDeleteSnapshot,
       },
     ]);
-  };
-
-  const handleUndo = (promptId: string) => {
-    const prompt = pendingPrompts.find(p => p.id === promptId);
-    if (!prompt) return;
-    setOrderedBlocks(prev => {
-      // Insert the deleted blocks BEFORE the anchor id; if the anchor
-      // is null OR the anchor was itself deleted by a later action,
-      // fall back to appending at the tail. The original
-      // intra-deletion-unit order is preserved by the snapshot's
-      // array order.
-      const anchorIdx = prompt.anchorGroupId === null
-        ? -1
-        : prev.findIndex(b => b.id === prompt.anchorGroupId);
-      if (anchorIdx < 0) {
-        return [...prev, ...prompt.deletedBlocks];
-      }
-      return [
-        ...prev.slice(0, anchorIdx),
-        ...prompt.deletedBlocks,
-        ...prev.slice(anchorIdx),
-      ];
-    });
-    setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
   };
 
   const handleRedistribute = (
@@ -170,11 +155,48 @@ export default function ProposalCard({
     setOrderedBlocks(prev =>
       redistributeProportionally(prev, prompt.freedSeconds, recipientIds),
     );
+    // Transition this prompt to 'committed' (post-redistribute undo
+    // banner). Drop any OTHER committed prompts — only the most
+    // recent commit is undoable; older ones became stale the moment
+    // this one landed.
+    setPendingPrompts(prev =>
+      prev
+        .filter(p => p.id === promptId || p.status !== 'committed')
+        .map(p => p.id === promptId ? { ...p, status: 'committed' as const } : p),
+    );
+  };
+
+  const handleSkip = (promptId: string) => {
+    // Skip dismisses without redistributing AND without offering
+    // undo — per spec, freed time drops the session length and
+    // there's no committed-undo follow-up.
     setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
   };
 
-  const handleDismissPrompt = (promptId: string) => {
+  const handleUndo = (promptId: string) => {
+    const prompt = pendingPrompts.find(p => p.id === promptId);
+    if (!prompt) return;
+    // Restore orderedBlocks to its pre-delete state — reverses both
+    // the deletion and any subsequent redistribution in one shot.
+    setOrderedBlocks(prompt.preDeleteSnapshot);
+    // Hard reset on the prompt stack: undo invalidates any other
+    // pending/committed prompts because their snapshots/anchors
+    // referenced a state we just reversed.
+    setPendingPrompts([]);
+  };
+
+  const handleDismissCommitted = (promptId: string) => {
+    // User accepts the committed redistribution — drop the undo
+    // banner without reversing anything.
     setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
+  };
+
+  // Drag-reorder wrapper: also drops committed prompts since their
+  // snapshots reference the prior block order, and an undo would
+  // wipe the reorder.
+  const handleReorder = (next: ProposalBlock[]) => {
+    setOrderedBlocks(next);
+    setPendingPrompts(prev => prev.filter(p => p.status !== 'committed'));
   };
 
   // Wrap prompts into the InlinePrompt shape SessionStack expects.
@@ -184,14 +206,18 @@ export default function ProposalCard({
   const inlinePrompts: InlinePrompt[] = pendingPrompts.map(p => ({
     id: p.id,
     anchorGroupId: p.anchorGroupId,
-    render: () => (
+    render: () => p.status === 'pending' ? (
       <RedistributionPrompt
         freedSeconds={p.freedSeconds}
-        deletedBlocks={p.deletedBlocks}
         blocks={orderedBlocks}
         onPick={moduleRef => handleRedistribute(p.id, moduleRef)}
+        onSkip={() => handleSkip(p.id)}
+      />
+    ) : (
+      <PostCommitUndoBanner
+        deletedBlocks={p.deletedBlocks}
         onUndo={() => handleUndo(p.id)}
-        onDismiss={() => handleDismissPrompt(p.id)}
+        onDismiss={() => handleDismissCommitted(p.id)}
       />
     ),
   }));
@@ -258,7 +284,7 @@ export default function ProposalCard({
       )}
       <SessionStack
         blocks={orderedBlocks}
-        onReorder={setOrderedBlocks}
+        onReorder={handleReorder}
         onDelete={handleDelete}
         inlinePrompts={inlinePrompts}
       />
@@ -419,44 +445,55 @@ function AddBlockOption({
 // Block-delete redistribution prompt
 // ---------------------------------------------------------------------
 
+/**
+ * Two-stage prompt lifecycle:
+ *
+ *   'pending'   — user just deleted; redistribution prompt asks
+ *                 where the freed time should go. Skip dismisses
+ *                 without redistribution. No undo here — undo is a
+ *                 post-commit regret action, not a pre-commit
+ *                 cancel.
+ *   'committed' — user picked a module / Split evenly. Redistribution
+ *                 has already applied. A compact undo banner offers
+ *                 to revert the whole thing (deletion + redistribute).
+ *                 Stale once the user takes another structural action
+ *                 (new delete, reorder) — those drop committed prompts.
+ */
+type PromptStatus = 'pending' | 'committed';
+
 interface PendingPrompt {
   id: string;
+  status: PromptStatus;
   /** Id of the block this prompt should render above (= first block
    *  of the next surviving group). null when the deletion was the
-   *  tail of the list. Also used as the insertion anchor on undo —
-   *  the snapshotted deletedBlocks land BEFORE this id, or at the
-   *  tail if the anchor no longer exists (e.g. it got deleted later). */
+   *  tail of the list. */
   anchorGroupId: string | null;
   freedSeconds: number;
-  /** Snapshot of the blocks removed by this deletion (with their
-   *  original plannedSeconds, so undo restores durations intact —
-   *  no redistribution has happened while the prompt is live). */
+  /** Snapshot of the blocks removed by this deletion — used for the
+   *  committed-undo label ("Removed: <activityDescription>"). */
   deletedBlocks: ProposalBlock[];
+  /** Full snapshot of orderedBlocks taken BEFORE the delete (and
+   *  thus before redistribution). Undo restores orderedBlocks to
+   *  this snapshot in one shot, reversing both the deletion and the
+   *  subsequent redistribution atomically. */
+  preDeleteSnapshot: ProposalBlock[];
 }
 
 function RedistributionPrompt({
   freedSeconds,
-  deletedBlocks,
   blocks,
   onPick,
-  onUndo,
-  onDismiss,
+  onSkip,
 }: {
   freedSeconds: number;
-  /** Snapshot of the just-deleted blocks (for the undo row label).
-   *  Multi-block deletions (Rep anchor + warm-ups) show the last
-   *  block's activityDescription — that's the anchor, the warm-ups
-   *  are visually subordinate. */
-  deletedBlocks: ReadonlyArray<ProposalBlock>;
   blocks: ReadonlyArray<ProposalBlock>;
   /** moduleRef → per-module redistribution; null → split evenly. */
   onPick: (moduleRef: string | null) => void;
-  /** Restore the deleted block(s) at their original position with
-   *  original durations. Only available while the prompt is live —
-   *  picking a destination removes the prompt and the undo window
-   *  with it. */
-  onUndo: () => void;
-  onDismiss: () => void;
+  /** Dismiss without redistributing — freed time drops the session
+   *  length. Per spec: skip does NOT offer undo (undo is a
+   *  post-commit regret action, only shown after a redistribution
+   *  destination is picked). */
+  onSkip: () => void;
 }) {
   // Per spec: show one button per module that still has non-warm-up
   // blocks. "Split evenly" only when 2+ modules qualify.
@@ -467,107 +504,125 @@ function RedistributionPrompt({
     ? `${freedMinutes} min`
     : `${freedSeconds} sec`;
 
-  // Label for the undo row. Pick the LAST block in the deletion
-  // snapshot — for Rep song-anchor deletions this is the song
-  // (the warm-ups are subordinate); for solo deletions it's just
-  // the one block. Extra-blocks subtitle calls out the warm-ups
-  // that went with the anchor so the user doesn't think only one
-  // thing got removed.
-  const primary = deletedBlocks[deletedBlocks.length - 1] ?? null;
-  const extraCount = Math.max(0, deletedBlocks.length - 1);
-  const primaryLabel = primary?.activityDescription ?? 'block';
-
-  const undoRow = (
-    <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 flex items-center justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-[11px] text-amber-900 dark:text-amber-200 truncate">
-          Removed: <span className="font-medium">{primaryLabel}</span>
-        </div>
-        {extraCount > 0 && (
-          <div className="text-[10px] text-amber-800/70 dark:text-amber-200/70">
-            + {extraCount} paired warm-up{extraCount === 1 ? '' : 's'}
-          </div>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onUndo}
-        className="shrink-0 px-3 py-1 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700"
-        aria-label="Undo — restore the deleted block(s) with original durations"
-      >
-        Undo
-      </button>
-    </div>
-  );
-
   if (moduleRefs.length === 0) {
     // No surviving non-warm-up blocks anywhere — nothing to receive
-    // the freed time. Undo row above, single dismiss action below.
+    // the freed time. Single dismiss action.
     return (
-      <div className="space-y-1.5">
-        {undoRow}
-        <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 px-3 py-2 flex items-center justify-between gap-2">
-          <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
-            Freed {freedLabel} — no remaining blocks to redistribute into.
-          </div>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
-          >
-            dismiss
-          </button>
+      <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 px-3 py-2 flex items-center justify-between gap-2">
+        <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
+          Freed {freedLabel} — no remaining blocks to redistribute into.
         </div>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+        >
+          dismiss
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-1.5">
-      {undoRow}
-      <div className="rounded-md border border-dashed border-fluent/40 bg-fluent/5 px-3 py-2 space-y-2">
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="text-[11px] text-neutral-700 dark:text-neutral-200">
-            Freed <span className="font-mono tabular-nums">{freedLabel}</span> —
-            where should it go?
-          </div>
+    <div className="rounded-md border border-dashed border-fluent/40 bg-fluent/5 px-3 py-2 space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-[11px] text-neutral-700 dark:text-neutral-200">
+          Freed <span className="font-mono tabular-nums">{freedLabel}</span> —
+          where should it go?
+        </div>
+        <button
+          type="button"
+          onClick={onSkip}
+          className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+          aria-label="Dismiss without redistributing"
+          title="Dismiss without redistributing — freed time drops the session length"
+        >
+          skip
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {moduleRefs.map(moduleRef => {
+          const meta = moduleMetaById(moduleRef);
+          const label = meta?.label ?? moduleRef;
+          const accent = meta?.accentHex ?? '#4a9088';
+          return (
+            <button
+              key={moduleRef}
+              type="button"
+              onClick={() => onPick(moduleRef)}
+              className="px-2.5 py-1 rounded-md border text-[11px] font-medium hover:opacity-90"
+              style={{ color: accent, borderColor: accent }}
+            >
+              {label}
+            </button>
+          );
+        })}
+        {showSplit && (
           <button
             type="button"
-            onClick={onDismiss}
-            className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
-            aria-label="Dismiss without redistributing"
-            title="Dismiss without redistributing — freed time drops the session length"
+            onClick={() => onPick(null)}
+            className="px-2.5 py-1 rounded-md border border-neutral-400 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
           >
-            skip
+            Split evenly
           </button>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {moduleRefs.map(moduleRef => {
-            const meta = moduleMetaById(moduleRef);
-            const label = meta?.label ?? moduleRef;
-            const accent = meta?.accentHex ?? '#4a9088';
-            return (
-              <button
-                key={moduleRef}
-                type="button"
-                onClick={() => onPick(moduleRef)}
-                className="px-2.5 py-1 rounded-md border text-[11px] font-medium hover:opacity-90"
-                style={{ color: accent, borderColor: accent }}
-              >
-                {label}
-              </button>
-            );
-          })}
-          {showSplit && (
-            <button
-              type="button"
-              onClick={() => onPick(null)}
-              className="px-2.5 py-1 rounded-md border border-neutral-400 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
-            >
-              Split evenly
-            </button>
-          )}
-        </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Post-commit undo banner. Appears after the user picks a
+ * redistribution destination — restores the deleted block(s) AND
+ * reverses the redistribution in one action (full-snapshot restore
+ * on the ProposalCard side).
+ *
+ * Compact one-liner so it doesn't dominate the session stack; the
+ * redistribution is already applied and visible in the surviving
+ * blocks' durations, this is just the regret affordance.
+ */
+function PostCommitUndoBanner({
+  deletedBlocks,
+  onUndo,
+  onDismiss,
+}: {
+  deletedBlocks: ReadonlyArray<ProposalBlock>;
+  onUndo: () => void;
+  onDismiss: () => void;
+}) {
+  // Label = the LAST block in the deletion snapshot. For Rep
+  // song-anchor deletions this is the song (warm-ups subordinate);
+  // for solo deletions it's just the one block.
+  const primary = deletedBlocks[deletedBlocks.length - 1] ?? null;
+  const extraCount = Math.max(0, deletedBlocks.length - 1);
+  const primaryLabel = primary?.activityDescription ?? 'Block';
+  const extraSuffix = extraCount > 0
+    ? ` (+ ${extraCount} warm-up${extraCount === 1 ? '' : 's'})`
+    : '';
+
+  return (
+    <div className="rounded-md border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 flex items-center justify-between gap-3">
+      <div className="text-[11px] text-amber-900 dark:text-amber-200 truncate min-w-0 flex-1">
+        Removed: <span className="font-medium">{primaryLabel}</span>{extraSuffix} · time redistributed
+      </div>
+      <div className="shrink-0 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={onUndo}
+          className="px-2.5 py-0.5 rounded-md bg-amber-600 text-white text-xs font-medium hover:bg-amber-700"
+          aria-label="Undo — restore the deleted block(s) and reverse the redistribution"
+        >
+          Undo
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-amber-800/70 dark:text-amber-200/70 hover:text-amber-900 dark:hover:text-amber-100 text-sm leading-none px-1"
+          aria-label="Dismiss undo banner"
+          title="Dismiss"
+        >
+          ×
+        </button>
       </div>
     </div>
   );
