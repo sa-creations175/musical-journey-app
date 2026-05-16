@@ -116,7 +116,7 @@ import {
 import { loadProgressionsEligibleSet } from '../ear-training/chord-progressions/progressionTierUnlock';
 import { loadHiddenItemRefs } from '../ear-training/etCuration';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
-import { MODES } from '../ear-training/scales-modes/catalog';
+import { loadScaleModesEligibleSet } from '../ear-training/scales-modes/scaleModeTierUnlock';
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import {
   shapeShapesBlock,
@@ -174,32 +174,67 @@ import type { InputQuestionnaireResult } from './inputs';
 async function loadEtEligibleByModule(
   spacingRows: ReadonlyArray<SpacingState>,
 ): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
-  const [crTier, progressions, hidden] = await Promise.all([
+  const [crTier, progressions, scalesModes, hidden] = await Promise.all([
     getChordRecognitionUnlockedTier(),
     loadProgressionsEligibleSet(spacingRows),
+    loadScaleModesEligibleSet(spacingRows),
     loadHiddenItemRefs(),
   ]);
   const cr = new Set(getChordRecognitionEligibleItems(crTier, spacingRows));
-  // Subtract user-hidden items from each module's eligible set
-  // BEFORE building the map. Hidden items never reach the proposal
-  // regardless of tier/stage state — that's the curation contract.
-  const subtractHidden = (set: ReadonlySet<string>): ReadonlySet<string> => {
-    if (hidden.size === 0) return set;
+
+  // Intervals don't have a tier system; the full catalog is always
+  // eligible. itemRef format on spacingState is `${interval.id}:${dir}`
+  // (asc / desc) — emit both variants so the candidates filter
+  // matches actual row shape rather than bare IDs (the C4 wiring
+  // used bare IDs by mistake, silently filtering all interval rows
+  // out of sessions; fixed here).
+  const intervalAll = new Set<string>();
+  for (const seed of INTERVAL_SEEDS) {
+    intervalAll.add(`${seed.id}:asc`);
+    intervalAll.add(`${seed.id}:desc`);
+  }
+
+  // Per-module hidden-variant expansion. Curation stores bare IDs
+  // (the curation buttons in fluency trackers pass chord.id / iv.id
+  // / progression.id / mode.id), but spacingState rows carry the
+  // variant suffix forms. Expand on subtraction so a single hide of
+  // 'maj' kills all four 'maj:0..3' inversions, hide of 'm3' kills
+  // both 'm3:asc' + 'm3:desc', etc.
+  const expandHidden = (moduleRef: string): Set<string> => {
     const out = new Set<string>();
-    for (const ref of set) if (!hidden.has(ref)) out.add(ref);
+    for (const id of hidden) {
+      if (moduleRef === 'intervals') {
+        out.add(`${id}:asc`); out.add(`${id}:desc`);
+      } else if (moduleRef === 'scales-modes') {
+        out.add(`${id}-tab1`); out.add(`${id}-tab2`);
+      } else if (moduleRef === 'chord-recognition' && !id.includes(':')) {
+        // Bare chord id → kill root + all three inversions.
+        out.add(`${id}:0`); out.add(`${id}:1`); out.add(`${id}:2`); out.add(`${id}:3`);
+      } else {
+        // chord-progressions, or already-specific chord inversion
+        // refs (e.g. 'maj:1' — though those aren't authored via the
+        // tracker UI today): pass through unchanged.
+        out.add(id);
+      }
+    }
     return out;
   };
-  // Intervals + scales-modes have no tier gate (commit 2 in the ET
-  // tier-progression build will add a stage system for modes). Their
-  // map entries enumerate the full catalog minus hidden, so the
-  // curation hide path works uniformly across all ET submodules.
-  const intervalAll = new Set(INTERVAL_SEEDS.map(s => s.id));
-  const modesAll = new Set(MODES.map(m => m.id));
+  const subtractHidden = (
+    set: ReadonlySet<string>,
+    moduleRef: string,
+  ): ReadonlySet<string> => {
+    if (hidden.size === 0) return set;
+    const expanded = expandHidden(moduleRef);
+    const out = new Set<string>();
+    for (const ref of set) if (!expanded.has(ref)) out.add(ref);
+    return out;
+  };
+
   return new Map<string, ReadonlySet<string>>([
-    ['chord-recognition', subtractHidden(cr)],
-    ['chord-progressions', subtractHidden(progressions)],
-    ['intervals', subtractHidden(intervalAll)],
-    ['scales-modes', subtractHidden(modesAll)],
+    ['chord-recognition', subtractHidden(cr, 'chord-recognition')],
+    ['chord-progressions', subtractHidden(progressions, 'chord-progressions')],
+    ['intervals', subtractHidden(intervalAll, 'intervals')],
+    ['scales-modes', subtractHidden(scalesModes, 'scales-modes')],
   ]);
 }
 

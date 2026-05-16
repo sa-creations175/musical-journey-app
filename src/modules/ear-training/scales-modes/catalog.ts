@@ -13,6 +13,15 @@ export type ModeId =
   | 'melodic-minor'
   | 'locrian';
 
+/** ET tier-progression stage. Stage 1 = the seven church modes
+ *  (always available once CR T1 clears); Stage 2 = harmonic + melodic
+ *  minor (unlocked when every Stage 1 mode hits ≥10 attempts +
+ *  ≥75% accuracy). Cross-submodule gate lives in
+ *  scaleModeTierUnlock.ts. */
+export type ScaleModeStage = 1 | 2;
+
+export const MAX_SCALE_MODE_STAGE: ScaleModeStage = 2;
+
 export interface SongExample {
   title: string;
   artist: string;
@@ -62,6 +71,9 @@ export interface ModalVamp {
 export interface Mode {
   id: ModeId;
   name: string;
+  /** ET tier-progression stage. Stage 1 = the seven church modes;
+   *  Stage 2 = harmonic + melodic minor. Drives scaleModeTierUnlock.ts. */
+  stage: ScaleModeStage;
   /** Major-scale position (1-7) for church modes. For harmonic/melodic
    *  minor we use 8/9 so they sort after the church modes in parent-scale
    *  view. */
@@ -92,6 +104,7 @@ export const MODES: Mode[] = [
   {
     id: 'ionian',
     name: 'Ionian',
+    stage: 1,
     parentScalePosition: 1,
     brightnessRank: 2,
     scaleIntervals: [0, 2, 4, 5, 7, 9, 11, 12],
@@ -137,6 +150,7 @@ export const MODES: Mode[] = [
   {
     id: 'dorian',
     name: 'Dorian',
+    stage: 1,
     parentScalePosition: 2,
     brightnessRank: 5,
     scaleIntervals: [0, 2, 3, 5, 7, 9, 10, 12],
@@ -184,6 +198,7 @@ export const MODES: Mode[] = [
   {
     id: 'phrygian',
     name: 'Phrygian',
+    stage: 1,
     parentScalePosition: 3,
     brightnessRank: 8,
     scaleIntervals: [0, 1, 3, 5, 7, 8, 10, 12],
@@ -231,6 +246,7 @@ export const MODES: Mode[] = [
   {
     id: 'lydian',
     name: 'Lydian',
+    stage: 1,
     parentScalePosition: 4,
     brightnessRank: 1,
     scaleIntervals: [0, 2, 4, 6, 7, 9, 11, 12],
@@ -278,6 +294,7 @@ export const MODES: Mode[] = [
   {
     id: 'mixolydian',
     name: 'Mixolydian',
+    stage: 1,
     parentScalePosition: 5,
     brightnessRank: 3,
     scaleIntervals: [0, 2, 4, 5, 7, 9, 10, 12],
@@ -325,6 +342,7 @@ export const MODES: Mode[] = [
   {
     id: 'aeolian',
     name: 'Aeolian',
+    stage: 1,
     parentScalePosition: 6,
     brightnessRank: 6,
     scaleIntervals: [0, 2, 3, 5, 7, 8, 10, 12],
@@ -370,6 +388,7 @@ export const MODES: Mode[] = [
   {
     id: 'harmonic-minor',
     name: 'Harmonic minor',
+    stage: 2,
     parentScalePosition: 8,
     brightnessRank: 7,
     scaleIntervals: [0, 2, 3, 5, 7, 8, 11, 12],
@@ -416,6 +435,7 @@ export const MODES: Mode[] = [
   {
     id: 'melodic-minor',
     name: 'Melodic minor',
+    stage: 2,
     parentScalePosition: 9,
     brightnessRank: 4,
     scaleIntervals: [0, 2, 3, 5, 7, 9, 11, 12],
@@ -464,6 +484,7 @@ export const MODES: Mode[] = [
   {
     id: 'locrian',
     name: 'Locrian',
+    stage: 1,
     parentScalePosition: 7,
     brightnessRank: 9,
     scaleIntervals: [0, 1, 3, 5, 6, 8, 10, 12],
