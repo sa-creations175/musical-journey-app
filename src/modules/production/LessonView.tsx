@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type ProductionLessonMastery, type ProductionLessonRating } from '../../lib/db';
 import Modal from '../../components/Modal';
+import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import { lessonById } from './content/lessons';
 import { glossaryById } from './content/glossary';
 import { pathById } from './content/paths';
@@ -46,6 +47,16 @@ const MASTERY_LEGEND: Array<{ key: ProductionLessonMastery; label: string; meani
 export default function LessonView({ lessonId, onBack }: Props) {
   const lesson = lessonById(lessonId);
   const path = lesson ? pathById(lesson.pathId) : undefined;
+
+  // Phone-session affordance: the hands-on exercise needs Logic, but
+  // phone sessions don't have it. The badge is informational — not a
+  // gate, not a disable — so the user can read the exercise and run
+  // it later from a laptop / full session.
+  const { state: sessionState } = useSessionTimer();
+  const requiresLogicBadge =
+    sessionState.status !== 'idle'
+    && sessionState.status !== 'ended'
+    && sessionState.context === 'phone';
 
   const [showDeepDive, setShowDeepDive] = useState(false);
   const deepDiveLoggedRef = useRef(false);
@@ -143,10 +154,24 @@ export default function LessonView({ lessonId, onBack }: Props) {
         </div>
         <ProseWithGlossary text={lesson.surface} onOpenTerm={setGlossaryOpen} />
 
-        {/* Try now */}
+        {/* Try now — the hands-on exercise. On phone sessions the
+            user doesn't have Logic available, so a "Requires Logic"
+            badge surfaces alongside the section header. Informational
+            only; the exercise still renders so the user can read it
+            and run it later from a laptop / full session. */}
         <div className="rounded-md border border-production/40 bg-production/5 p-3 space-y-1">
-          <div className="text-[10px] uppercase tracking-wide text-production font-medium">
-            try now
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] uppercase tracking-wide text-production font-medium">
+              try now
+            </div>
+            {requiresLogicBadge && (
+              <span
+                title="This exercise needs Logic — open it on your laptop later"
+                className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-developing/40 text-developing font-medium"
+              >
+                Requires Logic
+              </span>
+            )}
           </div>
           <p className="text-sm leading-relaxed">{lesson.tryNow}</p>
         </div>
