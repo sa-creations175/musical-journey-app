@@ -131,8 +131,33 @@ export default function ProposalCard({
         id: `prompt-${blockId}-${Date.now()}`,
         anchorGroupId,
         freedSeconds,
+        deletedBlocks: removedBlocks,
       },
     ]);
+  };
+
+  const handleUndo = (promptId: string) => {
+    const prompt = pendingPrompts.find(p => p.id === promptId);
+    if (!prompt) return;
+    setOrderedBlocks(prev => {
+      // Insert the deleted blocks BEFORE the anchor id; if the anchor
+      // is null OR the anchor was itself deleted by a later action,
+      // fall back to appending at the tail. The original
+      // intra-deletion-unit order is preserved by the snapshot's
+      // array order.
+      const anchorIdx = prompt.anchorGroupId === null
+        ? -1
+        : prev.findIndex(b => b.id === prompt.anchorGroupId);
+      if (anchorIdx < 0) {
+        return [...prev, ...prompt.deletedBlocks];
+      }
+      return [
+        ...prev.slice(0, anchorIdx),
+        ...prompt.deletedBlocks,
+        ...prev.slice(anchorIdx),
+      ];
+    });
+    setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
   };
 
   const handleRedistribute = (
@@ -164,6 +189,7 @@ export default function ProposalCard({
         freedSeconds={p.freedSeconds}
         blocks={orderedBlocks}
         onPick={moduleRef => handleRedistribute(p.id, moduleRef)}
+        onUndo={() => handleUndo(p.id)}
         onDismiss={() => handleDismissPrompt(p.id)}
       />
     ),
@@ -396,21 +422,33 @@ interface PendingPrompt {
   id: string;
   /** Id of the block this prompt should render above (= first block
    *  of the next surviving group). null when the deletion was the
-   *  tail of the list. */
+   *  tail of the list. Also used as the insertion anchor on undo —
+   *  the snapshotted deletedBlocks land BEFORE this id, or at the
+   *  tail if the anchor no longer exists (e.g. it got deleted later). */
   anchorGroupId: string | null;
   freedSeconds: number;
+  /** Snapshot of the blocks removed by this deletion (with their
+   *  original plannedSeconds, so undo restores durations intact —
+   *  no redistribution has happened while the prompt is live). */
+  deletedBlocks: ProposalBlock[];
 }
 
 function RedistributionPrompt({
   freedSeconds,
   blocks,
   onPick,
+  onUndo,
   onDismiss,
 }: {
   freedSeconds: number;
   blocks: ReadonlyArray<ProposalBlock>;
   /** moduleRef → per-module redistribution; null → split evenly. */
   onPick: (moduleRef: string | null) => void;
+  /** Restore the deleted block(s) at their original position with
+   *  original durations. Only available while the prompt is live —
+   *  picking a destination removes the prompt and the undo window
+   *  with it. */
+  onUndo: () => void;
   onDismiss: () => void;
 }) {
   // Per spec: show one button per module that still has non-warm-up
@@ -424,19 +462,30 @@ function RedistributionPrompt({
 
   if (moduleRefs.length === 0) {
     // No surviving non-warm-up blocks anywhere — nothing to receive
-    // the freed time. Honest disclosure, single dismiss action.
+    // the freed time. Honest disclosure, undo + dismiss actions.
     return (
       <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 px-3 py-2 flex items-center justify-between gap-2">
         <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
           Freed {freedLabel} — no remaining blocks to redistribute into.
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
-        >
-          dismiss
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onUndo}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+            title="Restore the deleted block(s)"
+          >
+            undo
+          </button>
+          <span aria-hidden className="text-neutral-300 dark:text-neutral-700">·</span>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+          >
+            dismiss
+          </button>
+        </div>
       </div>
     );
   }
@@ -448,15 +497,27 @@ function RedistributionPrompt({
           Freed <span className="font-mono tabular-nums">{freedLabel}</span> —
           where should it go?
         </div>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline shrink-0"
-          aria-label="Dismiss without redistributing"
-          title="Dismiss without redistributing — freed time drops the session length"
-        >
-          skip
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onUndo}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+            aria-label="Undo — restore the deleted block(s)"
+            title="Restore the deleted block(s) with their original durations"
+          >
+            undo
+          </button>
+          <span aria-hidden className="text-neutral-300 dark:text-neutral-700">·</span>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+            aria-label="Dismiss without redistributing"
+            title="Dismiss without redistributing — freed time drops the session length"
+          >
+            skip
+          </button>
+        </div>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {moduleRefs.map(moduleRef => {
