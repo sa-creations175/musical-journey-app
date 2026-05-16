@@ -1,9 +1,11 @@
 /**
  * Slim drill runner for a single Scales cell. Mirrors
  * DrillSessionModal's countdown flow exactly (setup → running →
- * paused → assess), minus the global-session integration and
- * metronome — Scales drilling is independent of the active
- * Practice Sessions timer.
+ * paused → assess), minus the global-session integration —
+ * Scales drilling is independent of the active Practice Sessions
+ * timer. The metronome IS integrated (driver key `'drill'`,
+ * stacks with any other active driver) so the click runs while
+ * the drill is in progress; status surfaces under the transport.
  *
  *   · setup     — user picks a target duration via slider + preset
  *                 chips. Default = SCALE_KIND_SECONDS[cell.kind]
@@ -32,6 +34,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/Modal';
+import { metronome } from '../../lib/metronome';
+import { useMetronomeState } from '../../lib/useMetronome';
 import { recordEngagement } from '../../lib/spacingState';
 import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
@@ -114,6 +118,7 @@ function labelForKind(kind: ScaleCell['kind']): string {
 }
 
 export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
+  const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
   const [targetSeconds, setTargetSeconds] = useState(suggested);
   const [remainingSeconds, setRemainingSeconds] = useState(suggested);
@@ -123,14 +128,19 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
-  // Cleanup on unmount — stop the local interval.
+  // Cleanup on unmount — stop the local interval and metronome.
+  // Mirrors DrillSessionModal's cleanup pattern.
   useEffect(() => {
     return () => {
       if (intervalRef.current !== null) {
         window.clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      if (phase === 'running' || phase === 'paused') {
+        metronome.stop('drill');
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startTick = () => {
@@ -144,6 +154,7 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
             window.clearInterval(intervalRef.current);
             intervalRef.current = null;
           }
+          metronome.stop('drill');
           void playDrillEndCue();
           setPhase('assess');
           return 0;
@@ -164,29 +175,40 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
     setPhase('running');
     setElapsedSeconds(0);
     setRemainingSeconds(targetSeconds);
+    void metronome.start('drill');
     startTick();
   };
 
   const handlePause = () => {
     stopTick();
+    metronome.stop('drill');
     setPhase('paused');
   };
 
   const handleResume = () => {
     setPhase('running');
+    void metronome.start('drill');
     startTick();
   };
 
   const handleCompleteEarly = () => {
     stopTick();
+    metronome.stop('drill');
     setPhase('assess');
   };
 
   const handleResetToSetup = () => {
     stopTick();
+    metronome.stop('drill');
     setPhase('setup');
     setElapsedSeconds(0);
     setRemainingSeconds(targetSeconds);
+  };
+
+  const handleCancel = () => {
+    stopTick();
+    metronome.stop('drill');
+    onClose();
   };
 
   const handleSave = async () => {
@@ -233,7 +255,7 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
     <Modal
       open
       // Prevent accidental close during running — matches DrillSessionModal.
-      onClose={phase === 'running' ? () => {} : onClose}
+      onClose={phase === 'running' ? () => {} : handleCancel}
       title={title}
       description={
         cell.tier === 'maintenance'
@@ -243,7 +265,7 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
             cancel — don't log
@@ -263,7 +285,7 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
       ) : (
         <div className="flex items-center justify-end">
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
             cancel
@@ -387,6 +409,10 @@ export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
               practice for at least {MIN_REP_SECONDS} seconds before completing — cancel to exit without logging.
             </p>
           )}
+
+          <p className="text-[11px] text-neutral-500 text-center italic">
+            metronome: {metroState.playing ? 'on' : 'off'} · {metroState.bpm} bpm · {metroState.groove} · adjust from the header control.
+          </p>
         </div>
       ) : (
         // --- Assessment phase -----------------------------------
