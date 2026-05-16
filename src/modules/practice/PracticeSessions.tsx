@@ -4,8 +4,14 @@ import { db } from '../../lib/db';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import { resolveProposalStart } from './proposalAcceptance';
 import { recordEndOfMonth } from '../../lib/prompts';
-import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
-import { SongOfMonthCongratsBanner } from '../repertoire/SongOfMonthBanners';
+import {
+  evaluateSongComfortablePathPrompts,
+  evaluateSongOfMonthPrompts,
+} from '../repertoire/songOfMonthPrompts';
+import {
+  SongComfortablePathChoiceBanner,
+  SongOfMonthCongratsBanner,
+} from '../repertoire/SongOfMonthBanners';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import Modal from '../../components/Modal';
 import GoalsNudgeBanner from './GoalsNudgeBanner';
@@ -135,6 +141,12 @@ export default function PracticeSessions() {
   useEffect(() => {
     void evaluateSongOfMonthPrompts().catch(err => {
       console.warn('[PracticeSessions] evaluateSongOfMonthPrompts failed', err);
+    });
+    // Parallel evaluator for non-spotlight songs that reach
+    // comfortable in their original key. Same cadence — dedupe is
+    // per-songId per prompt type, so the two evaluators don't race.
+    void evaluateSongComfortablePathPrompts().catch(err => {
+      console.warn('[PracticeSessions] evaluateSongComfortablePathPrompts failed', err);
     });
   }, []);
 
@@ -577,6 +589,7 @@ export default function PracticeSessions() {
           onTapDeep={() => handleStartSession('deep')}
         />
         <SongOfMonthCongratsBanner />
+        <SongComfortablePathChoiceBanner />
         <GoalsNudgeBanner />
         <VacationManager />
         <RecentSessionsList />

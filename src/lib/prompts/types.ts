@@ -38,6 +38,15 @@ export const PROMPT_TYPE = {
    *  enqueuing again). Medium tier; payload carries
    *  umbrellaGoalId. */
   SONG_OF_MONTH_TBD_NUDGE: 'song_of_month_tbd_nudge',
+  /** Path-choice prompt for any non-spotlight song that reaches
+   *  comfortable in its original key. Same three-path UI as the
+   *  SotM congrats (deepen / expand-keys / maintenance) — minus
+   *  the SotM-specific congrats copy and the spotlight-queue
+   *  advancement. Enqueued when the song has no progressionPath
+   *  set and isn't the active spotlight. High tier; dedupe per
+   *  songId across the prompt's lifetime. Payload carries
+   *  songId + songTitle. */
+  SONG_COMFORTABLE_PATH_CHOICE: 'song_comfortable_path_choice',
 } as const;
 
 export type PromptType = typeof PROMPT_TYPE[keyof typeof PROMPT_TYPE];

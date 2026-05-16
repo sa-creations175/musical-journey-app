@@ -28,6 +28,7 @@
  * Fire-and-forget from session-end + Goals-mount. No throwing —
  * a stale schema or a bad goal record can't break the host.
  */
+import { db } from '../../lib/db';
 import { findByType } from '../../lib/prompts/queue';
 import { enqueue } from '../../lib/prompts/queue';
 import { PROMPT_TYPE } from '../../lib/prompts/types';
@@ -127,6 +128,95 @@ async function congratsAlreadyExistsForSong(songId: string): Promise<boolean> {
   return existing.some(
     p => p.payload?.songId === songId && p.status !== 'expired',
   );
+}
+
+/**
+ * Mirror of {@link congratsAlreadyExistsForSong} for the non-
+ * spotlight path-choice prompt. Separate prompt type → separate
+ * dedupe set; the two evaluators don't race for the same row.
+ */
+async function pathChoiceAlreadyExistsForSong(songId: string): Promise<boolean> {
+  const existing = await findByType(PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE);
+  return existing.some(
+    p => p.payload?.songId === songId && p.status !== 'expired',
+  );
+}
+
+/**
+ * Evaluator for the non-spotlight comfortable-path prompt. Any song
+ * that reaches "comfortable in original key" and hasn't yet picked
+ * a progression path triggers the same three-path choice UI the
+ * SotM spotlight uses — minus the SotM-specific congrats copy and
+ * spotlight-queue advancement.
+ *
+ * Skipped per song:
+ *   · Active SotM spotlight song → handled by evaluateSongOfMonthPrompts
+ *     (no double-prompt; the SotM congrats has the path-choice UI
+ *     plus the spotlight queue rotation).
+ *   · Song already has progressionPath set (any of deepen / expand-
+ *     keys / maintenance) — the user already picked.
+ *   · A non-expired prompt for this songId already exists.
+ *
+ * Bounded cost: iterates all songs with materialised matrix sections
+ * (~repertoire size). Per-song the predicate runs ~3 indexed Dexie
+ * queries. Safe to call on every mount of PracticeSessions / Goals.
+ *
+ * Fire-and-forget — `now` is overridable for tests.
+ */
+export async function evaluateSongComfortablePathPrompts(
+  now: number = Date.now(),
+): Promise<void> {
+  // Look up the active spotlight first so we can skip the spotlight
+  // song — the SotM evaluator owns it. A null spotlight (no active
+  // umbrella) just means every comfortable song is fair game.
+  let spotlightSongId: string | null = null;
+  try {
+    const spotlightState = await loadActiveSpotlight(now);
+    if (spotlightState?.spotlight?.kind === 'song') {
+      spotlightSongId = spotlightState.spotlight.refId ?? null;
+    }
+  } catch (err) {
+    console.warn(
+      '[songOfMonthPrompts] loadActiveSpotlight failed during path-choice eval',
+      err,
+    );
+    // Continue — worst case we double-prompt for one song, which the
+    // per-songId dedupe inside the SotM evaluator catches separately.
+  }
+
+  let songs;
+  try {
+    songs = await db.songs.toArray();
+  } catch (err) {
+    console.warn('[songOfMonthPrompts] songs read failed', err);
+    return;
+  }
+
+  for (const song of songs) {
+    if (song.id === spotlightSongId) continue;
+    // User already picked a path — nothing to prompt.
+    if (song.progressionPath) continue;
+
+    try {
+      if (!(await isSongComfortableInOriginalKey(song.id))) continue;
+      if (await pathChoiceAlreadyExistsForSong(song.id)) continue;
+      await enqueue({
+        promptType: PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE,
+        tier: 'high',
+        surface: 'banner',
+        payload: {
+          songId: song.id,
+          songTitle: song.title,
+        },
+        createdAt: now,
+      });
+    } catch (err) {
+      console.warn(
+        '[songOfMonthPrompts] path-choice eval failed for song',
+        { songId: song.id, error: err },
+      );
+    }
+  }
 }
 
 /** True when a TBD-nudge prompt for this umbrella already exists

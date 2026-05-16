@@ -18,7 +18,10 @@ import {
 } from '../../../lib/db';
 import { PROMPT_TYPE } from '../../../lib/prompts/types';
 import { SONG_OF_MONTH_METRIC } from '../songOfMonth';
-import { evaluateSongOfMonthPrompts } from '../songOfMonthPrompts';
+import {
+  evaluateSongComfortablePathPrompts,
+  evaluateSongOfMonthPrompts,
+} from '../songOfMonthPrompts';
 
 const NOW = 1_700_000_000_000;
 const FUTURE = NOW + 30 * 24 * 60 * 60 * 1000;
@@ -384,5 +387,107 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
     });
     await evaluateSongOfMonthPrompts(NOW + ONE_DAY_MS + 1000);
     expect(await db.prompts.count()).toBe(1);
+  });
+});
+
+// -------------------------------------------------------------
+// NON-SPOTLIGHT COMFORTABLE PATH CHOICE
+// -------------------------------------------------------------
+
+describe('evaluateSongComfortablePathPrompts', () => {
+  /** Build a song that satisfies the comfortable-in-original-key
+   *  predicate: one original-key songKey row + one non-archived
+   *  section + one comfortable cell at that section + key. */
+  async function seedComfortableSong(songId: string, keyId: string) {
+    await db.songs.add(song(songId));
+    await db.songKeys.add(songKey(keyId, songId));
+    await db.songMatrixSections.add(matrixSection(`sec-${songId}`, songId, 0));
+    await db.songCells.add(
+      songCell(`c-${songId}`, songId, keyId, 'comfortable', `sec-${songId}`),
+    );
+  }
+
+  it('does nothing when no songs exist', async () => {
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    expect(await db.prompts.count()).toBe(0);
+  });
+
+  it('does nothing when songs exist but none are comfortable', async () => {
+    await db.songs.add(song('s1'));
+    await db.songKeys.add(songKey('k1', 's1'));
+    await db.songMatrixSections.add(matrixSection('sec-1', 's1', 0));
+    await db.songCells.add(songCell('c1', 's1', 'k1', 'learning', 'sec-1'));
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    expect(await db.prompts.count()).toBe(0);
+  });
+
+  it('enqueues a high-tier path-choice prompt for a comfortable non-spotlight song', async () => {
+    await seedComfortableSong('s1', 'k1');
+    // No umbrella → spotlight is null → every comfortable song
+    // becomes eligible.
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    const prompts = await db.prompts.toArray();
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toMatchObject({
+      promptType: PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE,
+      tier: 'high',
+      surface: 'banner',
+      status: 'queued',
+    });
+    expect(prompts[0].payload).toMatchObject({
+      songId: 's1',
+      songTitle: 'Song s1',
+    });
+  });
+
+  it('skips the active SotM spotlight song (handed off to the SotM evaluator)', async () => {
+    await seedComfortableSong('s1', 'k1');
+    await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    // s1 is the spotlight → the SotM evaluator owns this case, the
+    // path-choice evaluator must not enqueue a duplicate prompt.
+    const prompts = await db.prompts
+      .where('promptType').equals(PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE)
+      .toArray();
+    expect(prompts).toHaveLength(0);
+  });
+
+  it('fires for a non-spotlight comfortable song while another song is the spotlight', async () => {
+    await seedComfortableSong('s1', 'k1'); // spotlight
+    await seedComfortableSong('s2', 'k2'); // non-spotlight, also comfy
+    await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    const prompts = await db.prompts
+      .where('promptType').equals(PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE)
+      .toArray();
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0].payload.songId).toBe('s2');
+  });
+
+  it('skips songs that already have progressionPath set', async () => {
+    await seedComfortableSong('s1', 'k1');
+    await db.songs.update('s1', { progressionPath: 'deepen' });
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    expect(await db.prompts.count()).toBe(0);
+  });
+
+  it('dedupes per songId across calls (no second enqueue while a non-expired prompt exists)', async () => {
+    await seedComfortableSong('s1', 'k1');
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    await evaluateSongComfortablePathPrompts(NOW + 100);
+    expect(await db.prompts.count()).toBe(1);
+  });
+
+  it('enqueues one prompt per comfortable non-spotlight song', async () => {
+    await seedComfortableSong('s1', 'k1');
+    await seedComfortableSong('s2', 'k2');
+    await seedComfortableSong('s3', 'k3');
+    await evaluateSongComfortablePathPrompts(NOW + 1);
+    const prompts = await db.prompts
+      .where('promptType').equals(PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE)
+      .toArray();
+    expect(prompts.map(p => p.payload.songId).sort()).toEqual(
+      ['s1', 's2', 's3'],
+    );
   });
 });

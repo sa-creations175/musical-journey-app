@@ -34,7 +34,10 @@ import { isSuggestionFlowEditCandidate } from './editLoad';
 import OnboardingFlow from './onboarding/OnboardingFlow';
 import { seedProficiencyDefinitionsIfNeeded } from './data';
 import { backfillSpacingStateIfNeeded } from '../../lib/spacingStateBackfill';
-import { evaluateSongOfMonthPrompts } from '../repertoire/songOfMonthPrompts';
+import {
+  evaluateSongComfortablePathPrompts,
+  evaluateSongOfMonthPrompts,
+} from '../repertoire/songOfMonthPrompts';
 import { SongOfMonthTbdNudgeBanner } from '../repertoire/SongOfMonthBanners';
 import { describeGoalTarget, describeDimensionTarget } from './describeGoal';
 import {
@@ -237,6 +240,12 @@ export default function Goals() {
   useEffect(() => {
     void evaluateSongOfMonthPrompts().catch(err => {
       console.warn('[goals] evaluateSongOfMonthPrompts failed', err);
+    });
+    // Parallel evaluator for non-spotlight comfortable songs —
+    // surfaces the same three-path choice (minus SotM copy +
+    // queue advancement) on the next mount of PracticeSessions.
+    void evaluateSongComfortablePathPrompts().catch(err => {
+      console.warn('[goals] evaluateSongComfortablePathPrompts failed', err);
     });
   }, []);
 
