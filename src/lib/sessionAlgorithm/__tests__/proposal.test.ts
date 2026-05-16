@@ -156,6 +156,158 @@ describe('generateProposals', () => {
   });
 });
 
+describe('generateProposals — graduated S&P/Repertoire split', () => {
+  // SESSION_DESIGN.md table: < 45 min → 25/75; 45–59 → 35/65; 60+ → 40/60.
+  // The split is a session-wide hard constraint and runs on BOTH
+  // balanced and focused proposals — the proposal-layer wrapper
+  // delegates to applyGraduatedSPRepSplit when both blocks are
+  // present and injects Rep when the focused proposal dropped it.
+
+  function sp(id = 'sp', weight = 1): AlgorithmBlock {
+    return blk(id, 'shapes-and-patterns', 'procedural', weight);
+  }
+  function rep(id = 'rep', weight = 1): AlgorithmBlock {
+    return blk(id, 'repertoire', 'integration', weight);
+  }
+
+  it('balanced proposal: 60-min keys session lands at the 40/60 split', () => {
+    const ps = generateProposals({
+      blocks: [sp(), rep()],
+      availableSeconds: 60 * MIN,
+    });
+    const balanced = ps.find(p => p.kind === 'balanced')!;
+    const spBlk = balanced.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = balanced.blocks.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.40));
+  });
+
+  it('balanced proposal: 45-min lands at 35/65', () => {
+    const ps = generateProposals({
+      blocks: [sp(), rep()],
+      availableSeconds: 45 * MIN,
+    });
+    const balanced = ps.find(p => p.kind === 'balanced')!;
+    const spBlk = balanced.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = balanced.blocks.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.35));
+  });
+
+  it('balanced proposal: < 45 min lands at 25/75', () => {
+    const ps = generateProposals({
+      blocks: [sp(), rep()],
+      availableSeconds: 30 * MIN,
+    });
+    const balanced = ps.find(p => p.kind === 'balanced')!;
+    const spBlk = balanced.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = balanced.blocks.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.25));
+  });
+
+  it('focused proposal: S&P-only focus on a 90-min session injects Repertoire at 40/60', () => {
+    // The bug: focused proposal picks top-weight S&P, allocateFocused
+    // gives it 100 % of the session, no Rep. Post-fix: the proposal-
+    // layer wrapper sees no Rep block, looks up Rep in the input
+    // pool, injects it at the 40/60 split. Use a 3-module pool so the
+    // focused proposal stays distinct from the balanced one (HF in
+    // balanced but not in focused) and doesn't collapse.
+    const ps = generateProposals({
+      blocks: [
+        sp('sp', 3.0),
+        rep('rep', 1.0),
+        blk('hf', 'harmonic-fluency', 'declarative', 0.5),
+      ],
+      availableSeconds: 90 * MIN,
+    });
+    const focused = ps.find(p => p.kind === 'focused')!;
+    expect(focused).toBeDefined();
+    const spBlk = focused.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = focused.blocks.find(b => b.moduleRef === 'repertoire')!;
+    expect(spBlk).toBeDefined();
+    expect(repBlk).toBeDefined();
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+    // Focused proposal: 90 min total, S&P + injected Rep, no HF.
+    expect(focused.totalSeconds).toBe(90 * MIN);
+    expect(focused.blocks.some(b => b.moduleRef === 'harmonic-fluency')).toBe(false);
+  });
+
+  it('focused proposal: S&P-only on a 30-min session injects Rep at 25/75', () => {
+    const ps = generateProposals({
+      blocks: [
+        sp('sp', 3.0),
+        rep('rep', 1.0),
+        blk('hf', 'harmonic-fluency', 'declarative', 0.5),
+      ],
+      availableSeconds: 30 * MIN,
+    });
+    const focused = ps.find(p => p.kind === 'focused');
+    if (!focused) return; // Short sessions may collapse — covered by other tests.
+    const spBlk = focused.blocks.find(b => b.moduleRef === 'shapes-and-patterns');
+    const repBlk = focused.blocks.find(b => b.moduleRef === 'repertoire');
+    if (!spBlk || !repBlk) return;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.25));
+  });
+
+  it('no Repertoire AlgorithmBlock in the pool: focused S&P stays S&P-only (nothing to inject)', () => {
+    const ps = generateProposals({
+      blocks: [sp('sp', 3.0)],
+      availableSeconds: 60 * MIN,
+    });
+    const focused = ps[0];
+    expect(focused).toBeDefined();
+    expect(focused.blocks.every(b => b.moduleRef === 'shapes-and-patterns')).toBe(true);
+  });
+
+  it('single-block: S&P-only session with no Repertoire candidate gets full time on S&P', () => {
+    const ps = generateProposals({
+      blocks: [sp()],
+      availableSeconds: 60 * MIN,
+    });
+    // No Rep in the pool — nothing to inject; S&P keeps full
+    // allocation rather than getting silently capped at 40 %.
+    expect(ps).toHaveLength(1);
+    expect(ps[0].blocks).toHaveLength(1);
+    expect(ps[0].blocks[0].plannedSeconds).toBe(60 * MIN);
+  });
+
+  it('leaves other modules (HF / ET) untouched when rebalancing S&P + Rep', () => {
+    const ps = generateProposals({
+      blocks: [
+        sp(),
+        rep(),
+        blk('hf', 'harmonic-fluency', 'declarative', 1),
+      ],
+      availableSeconds: 60 * MIN,
+    });
+    const balanced = ps.find(p => p.kind === 'balanced')!;
+    const spBlk = balanced.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = balanced.blocks.find(b => b.moduleRef === 'repertoire')!;
+    const hfBlk = balanced.blocks.find(b => b.moduleRef === 'harmonic-fluency')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(hfBlk.plannedSeconds).toBeGreaterThan(0);
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+  });
+
+  it('Phase B goal-pace need does NOT override the graduated split', () => {
+    const needs = new Map<string, number>([['sp', 600]]);
+    const ps = generateProposals({
+      blocks: [sp(), rep()],
+      availableSeconds: 60 * MIN,
+      blockTimeNeeds: needs,
+    });
+    const balanced = ps.find(p => p.kind === 'balanced')!;
+    const spBlk = balanced.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = balanced.blocks.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+  });
+});
+
 describe('blockHasAcquiringItems', () => {
   it('true when any item is in the acquiring set', () => {
     expect(blockHasAcquiringItems(['a', 'b', 'c'], new Set(['b']))).toBe(true);

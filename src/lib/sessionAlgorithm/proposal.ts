@@ -32,12 +32,18 @@ import type { MemoryType } from '../db';
 import { moduleMetaById } from '../moduleMeta';
 import {
   allocateBlockTime,
+  applyGraduatedSPRepSplit,
   durationTierFor,
   phaseForBlock,
   sequenceBlocks,
   type AlgorithmBlock,
   type AllocatedBlock,
 } from './timeAllocation';
+import { sPRepSplitForSession } from './sessionDesign';
+import {
+  REPERTOIRE_MODULE_REF,
+  SHAPES_MODULE_REF,
+} from '../../modules/goals/progress';
 import type { WeeklyPace } from './moduleWeeklyNeed';
 
 /** Phase B — `block.id` → goal-pace time need in seconds. Threaded
@@ -92,20 +98,32 @@ export interface GenerateProposalsInput {
  * same block set (single candidate, very short session).
  */
 export function generateProposals(input: GenerateProposalsInput): Proposal[] {
-  const balanced = buildBalancedProposal(
+  const balancedRaw = buildBalancedProposal(
     input.blocks,
     input.availableSeconds,
     input.blockTimeNeeds,
     input.paceByBlock,
     input.context,
   );
-  const focused = buildFocusedProposal(
+  const focusedRaw = buildFocusedProposal(
     input.blocks,
     input.availableSeconds,
     input.blockTimeNeeds,
     input.paceByBlock,
     input.context,
   );
+
+  // SESSION_DESIGN.md: the graduated S&P/Repertoire split is a
+  // session-wide hard constraint. Both balanced and focused
+  // proposals run through the same enforcement point so neither
+  // allocator can produce an SP-only or Rep-only proposal that
+  // violates the table.
+  const balanced = balancedRaw
+    ? ensureGraduatedSPRepBalance(balancedRaw, input.blocks, input.availableSeconds, input.context)
+    : null;
+  const focused = focusedRaw
+    ? ensureGraduatedSPRepBalance(focusedRaw, input.blocks, input.availableSeconds, input.context)
+    : null;
 
   if (!balanced && !focused) return [];
   if (!balanced) return [focused!];
@@ -120,6 +138,98 @@ export function generateProposals(input: GenerateProposalsInput): Proposal[] {
   }
 
   return [balanced, focused];
+}
+
+/**
+ * Proposal-layer enforcement of the SESSION_DESIGN graduated
+ * S&P/Repertoire split. Runs on every proposal regardless of which
+ * allocator (allocateBlockTime / allocateFocused) produced it.
+ *
+ * Two cases:
+ *
+ *   · Both S&P and Repertoire present → delegate to
+ *     `applyGraduatedSPRepSplit` (rebalance combined seconds).
+ *
+ *   · S&P present, Repertoire absent (the focused-on-S&P bug):
+ *     inject a Repertoire AllocatedBlock at the designed fraction
+ *     by finding the dropped Rep AlgorithmBlock in the input pool.
+ *     Take the time from S&P. When multiple S&P blocks exist
+ *     (focused two-block depth), distribute the reduction
+ *     proportionally so the relative split between them is
+ *     preserved.
+ *
+ *   · Neither S&P nor Repertoire present, or only Rep present →
+ *     no-op (no S&P to constrain).
+ */
+function ensureGraduatedSPRepBalance(
+  proposal: Proposal,
+  allBlocks: ReadonlyArray<AlgorithmBlock>,
+  sessionSeconds: number,
+  context: import('../db').PracticeSessionContext | undefined,
+): Proposal {
+  const spBlocks = proposal.blocks.filter(b => b.moduleRef === SHAPES_MODULE_REF);
+  const hasRep = proposal.blocks.some(b => b.moduleRef === REPERTOIRE_MODULE_REF);
+
+  // Both present — standard rebalance, no injection needed.
+  if (spBlocks.length > 0 && hasRep) {
+    const rebalanced = applyGraduatedSPRepSplit(proposal.blocks, sessionSeconds);
+    return {
+      ...proposal,
+      blocks: rebalanced,
+      totalSeconds: rebalanced.reduce((s, b) => s + b.plannedSeconds, 0),
+    };
+  }
+
+  // S&P-only proposal — inject Rep when the Rep AlgorithmBlock
+  // exists in the pool (it was dropped by the focused allocator,
+  // not by the upstream candidate filter).
+  if (spBlocks.length > 0 && !hasRep) {
+    const repAlgoBlock = allBlocks.find(b => b.moduleRef === REPERTOIRE_MODULE_REF);
+    if (!repAlgoBlock) return proposal; // No Rep candidate to inject.
+
+    const totalSP = spBlocks.reduce((s, b) => s + b.plannedSeconds, 0);
+    const split = sPRepSplitForSession(sessionSeconds);
+    let targetSP = Math.round(totalSP * split.spFraction);
+    let targetRep = totalSP - targetSP;
+
+    // Floor enforcement — natural memory-type minimums for both
+    // blocks. Bail if neither floor can be met; in that case the
+    // S&P-only proposal stands.
+    const spFloor = durationTierFor(spBlocks[0].memoryType, spBlocks[0].moduleRef).minSeconds;
+    const repFloor = durationTierFor(repAlgoBlock.memoryType, repAlgoBlock.moduleRef).minSeconds;
+    if (targetSP < spFloor) {
+      targetSP = spFloor;
+      targetRep = totalSP - targetSP;
+    }
+    if (targetRep < repFloor) {
+      targetRep = repFloor;
+      targetSP = totalSP - targetRep;
+      if (targetSP < spFloor) return proposal;
+    }
+
+    // Distribute the (reduced) targetSP across all S&P blocks in
+    // proportion to their original allocation, preserving the
+    // focused-mode weight split between multi-block S&P pickings.
+    const ratio = totalSP > 0 ? targetSP / totalSP : 0;
+    const newBlocks: AllocatedBlock[] = proposal.blocks.map(b =>
+      b.moduleRef === SHAPES_MODULE_REF
+        ? { ...b, plannedSeconds: Math.round(b.plannedSeconds * ratio) }
+        : b,
+    );
+    newBlocks.push({
+      ...repAlgoBlock,
+      plannedSeconds: targetRep,
+      phase: phaseForBlock(repAlgoBlock),
+    });
+    const sequenced = sequenceBlocks(newBlocks, context);
+    return {
+      ...proposal,
+      blocks: sequenced,
+      totalSeconds: sequenced.reduce((s, b) => s + b.plannedSeconds, 0),
+    };
+  }
+
+  return proposal;
 }
 
 // ---------------------------------------------------------------------

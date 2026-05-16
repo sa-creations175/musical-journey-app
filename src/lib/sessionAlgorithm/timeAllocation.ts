@@ -197,12 +197,11 @@ export function allocateBlockTime(
       typicalLowTotal, typicalHighTotal,
       paceByBlock,
     );
-    const built: AllocatedBlock[] = allocated.map(({ block, seconds }) => ({
+    return allocated.map(({ block, seconds }) => ({
       ...block,
       plannedSeconds: seconds,
       phase: phaseForBlock(block),
     }));
-    return applyGraduatedSPRepSplit(built, availableSeconds);
   }
 
   return null;
@@ -226,8 +225,14 @@ export function allocateBlockTime(
  * block's natural memory-type minSeconds floor (a hard physical
  * constraint, not a goal-pace signal); bails if either floor can't
  * be met.
+ *
+ * Called at the PROPOSAL layer (proposal.ts:ensureGraduatedSPRepBalance)
+ * so every proposal — balanced AND focused — honors the split. The
+ * focused proposal's allocator (allocateFocused) doesn't call this
+ * directly; the proposal-layer wrapper does and also injects a
+ * Repertoire block when the focused proposal dropped it.
  */
-function applyGraduatedSPRepSplit(
+export function applyGraduatedSPRepSplit(
   blocks: AllocatedBlock[],
   sessionSeconds: number,
 ): AllocatedBlock[] {

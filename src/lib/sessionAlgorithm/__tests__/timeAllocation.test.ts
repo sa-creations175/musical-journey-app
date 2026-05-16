@@ -457,11 +457,13 @@ describe('allocateBlockTime — Phase B blockTimeNeeds', () => {
   });
 });
 
-describe('allocateBlockTime — graduated S&P/Repertoire split', () => {
-  // Per SESSION_DESIGN.md table: < 45 min → 25/75; 45–59 → 35/65;
-  // 60+ → 40/60. The rebalance applies to the COMBINED S&P +
-  // Repertoire allocation; other modules (or single-module sessions)
-  // pass through unchanged.
+describe('allocateBlockTime — graduated S&P/Repertoire split moved to proposal layer', () => {
+  // Per SESSION_DESIGN.md the graduated split is a session-wide
+  // hard constraint; enforcement moved to the proposal layer so
+  // both balanced AND focused proposals honor it. See
+  // proposal.test.ts → "generateProposals — graduated S&P/Rep split"
+  // for the contract tests. The bare allocator now just distributes
+  // by tier and pace; no split.
 
   function sp(): AlgorithmBlock {
     return block({
@@ -482,74 +484,11 @@ describe('allocateBlockTime — graduated S&P/Repertoire split', () => {
     });
   }
 
-  it('29-min session: 25 / 75 split', () => {
-    const out = allocateBlockTime([sp(), rep()], 29 * 60)!;
-    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
-    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.25));
-    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.25));
-  });
-
-  it('45-min session: 35 / 65 split', () => {
-    const out = allocateBlockTime([sp(), rep()], 45 * 60)!;
-    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
-    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.35));
-    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.35));
-  });
-
-  it('90-min session: 40 / 60 split', () => {
+  it('bare allocator returns both blocks with positive seconds (split runs upstream)', () => {
     const out = allocateBlockTime([sp(), rep()], 90 * 60)!;
     const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
     const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
-    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.40));
-  });
-
-  it('does not rebalance when only one of S&P / Repertoire is present', () => {
-    const out = allocateBlockTime([sp()], 60 * 60)!;
-    // Single block — gets the full allocation, no S&P/Rep split
-    // logic applies.
-    expect(out).toHaveLength(1);
-    expect(out[0].plannedSeconds).toBeGreaterThan(0);
-  });
-
-  it('leaves other modules (HF / ET) untouched when rebalancing S&P + Rep', () => {
-    const hf = block({
-      id: 'hf',
-      memoryType: 'declarative',
-      moduleRef: 'harmonic-fluency',
-      weight: 1,
-      isKeyboardRequired: false,
-    });
-    const out = allocateBlockTime([sp(), rep(), hf], 60 * 60)!;
-    const hfBlk = out.find(b => b.moduleRef === 'harmonic-fluency')!;
-    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
-    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    // HF allocation comes from the standard allocator — defer to
-    // whatever it picked; just assert it's positive and the S&P+Rep
-    // pair honored the 40/60 split of THEIR combined seconds.
-    expect(hfBlk.plannedSeconds).toBeGreaterThan(0);
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
-  });
-
-  it('Phase B goal-pace need does NOT override the graduated split', () => {
-    // The graduated split is a hard structural constraint per
-    // SESSION_DESIGN.md — S&P backlog catches up across multiple
-    // sessions, not by overriding within-session structure. Phase B
-    // can shape the allocator's initial distribution, but the
-    // rebalance still re-divides the COMBINED S&P+Rep seconds at
-    // the 40/60 (60-min) ratio.
-    const needs = new Map<string, number>([['sp', 600]]);
-    const out = allocateBlockTime([sp(), rep()], 60 * 60, needs)!;
-    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
-    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
-    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.40));
+    expect(spBlk.plannedSeconds).toBeGreaterThan(0);
+    expect(repBlk.plannedSeconds).toBeGreaterThan(0);
   });
 });
