@@ -531,6 +531,11 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
   });
 
   it('expand-keys with un-mastered next key → cell-drill block on the new key', () => {
+    // The prep is keyed off the expansion key (decision.keyName), so
+    // it surfaces here even though the song's home key isn't set —
+    // a fresh expansion in F gets a prep in F regardless of what
+    // home-key state the song record carries. The practice block
+    // labels itself with the expansion target.
     const ctx: RepertoireSplitContext = {
       spotlight: specificSpotlight('s-exp', 'Alpha & Omega'),
       spotlightSong: maint('s-exp', 'Alpha & Omega'),
@@ -542,10 +547,62 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       context: 'mixed',
     };
     const out = splitRepertoireAllocation(45 * 60, ctx);
-    expect(out).toHaveLength(1);
-    expect(out[0].label).toContain('Expand to F');
-    expect(out[0].label).toContain('Alpha & Omega');
-    expect(out[0].kind).not.toBe('whole-song-run');
+    expect(out.map(b => b.kind)).toEqual(['scale-prep', 'maintenance']);
+    expect(out[1].label).toContain('Expand to F');
+    expect(out[1].label).toContain('Alpha & Omega');
+  });
+
+  it('expand-keys scale-prep uses the EXPANSION key (decision.keyName), not the song\'s home key', () => {
+    // Song's home key is C (already mastered — that's how it
+    // reached expand-keys mode). The next un-mastered key in the
+    // walk is F. The prep block must drill F scales, not C scales:
+    // the user is about to play the song in F.
+    const ctx: RepertoireSplitContext = {
+      spotlight: specificSpotlight('s-exp', 'Alpha & Omega'),
+      spotlightSong: { ...maint('s-exp', 'Alpha & Omega'), key: 'C' },
+      spotlightReadiness: 'ready',
+      spotlightPostComfortable: { kind: 'cell-drill-expansion', keyName: 'F' },
+      maintenanceSong: null,
+      maintenanceReadiness: null,
+      maintenancePostComfortable: null,
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(45 * 60, ctx);
+    const prep = out.find(b => b.kind === 'scale-prep');
+    expect(prep).toBeDefined();
+    expect(prep!.label).toBe(
+      'SCALES — prep for Alpha & Omega · F (major + major pent)',
+    );
+    expect(prep!.scaleItemRefs).toEqual([
+      'scale:major:F',
+      'scale:major-pentatonic:1:F',
+    ]);
+    // Defensive: NOT keyed off the home key (C).
+    expect(prep!.scaleItemRefs).not.toContain('scale:major:C');
+  });
+
+  it('expand-keys whole-song-run scale-prep STILL uses the home key (deepen-style fallback)', () => {
+    // A finished circle-of-4ths walk degrades cell-drill-expansion
+    // to whole-song-run in the original key (per songProgression).
+    // Prep should match the practice key — the song's home key — so
+    // this branch keeps its songKey-driven prep.
+    const ctx: RepertoireSplitContext = {
+      spotlight: specificSpotlight('s-exp', 'Alpha & Omega'),
+      spotlightSong: { ...maint('s-exp', 'Alpha & Omega'), key: 'C' },
+      spotlightReadiness: 'ready',
+      spotlightPostComfortable: { kind: 'whole-song-run', keyName: 'C' },
+      maintenanceSong: null,
+      maintenanceReadiness: null,
+      maintenancePostComfortable: null,
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(45 * 60, ctx);
+    const prep = out.find(b => b.kind === 'scale-prep');
+    expect(prep).toBeDefined();
+    expect(prep!.scaleItemRefs).toEqual([
+      'scale:major:C',
+      'scale:major-pentatonic:1:C',
+    ]);
   });
 
   it('maintenance path that decided "skip" returns no slot blocks (caller falls back)', () => {

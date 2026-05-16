@@ -452,12 +452,15 @@ function buildPostComfortableBlocks(
 ): RepertoireSplitBlock[] | null {
   if (!decision) return null;
   if (decision.kind === 'skip') return null;
-  // Post-comfortable blocks play in a specific key — for whole-song-run
-  // we know the key from the decision; for cell-drill-expansion the
-  // user is moving to a new key. Prep keys off the song's home key
-  // for both: it's the anchor the user owns. Keys/mixed contexts
-  // with enough time earn the prep; laptop/phone + tight allocations
-  // skip.
+  // Post-comfortable blocks play in a specific key. For
+  // whole-song-run the user keeps practising in the song's home
+  // key (deepen / maintenance paths) — prep keys off `songKey`.
+  // For cell-drill-expansion the user is moving to a NEW key (the
+  // next un-mastered key in the song's circle-of-4ths walk) — prep
+  // keys off `decision.keyName` so the user warms up in the key
+  // they're actually about to drill, not the one they've already
+  // mastered. Keys/mixed contexts with enough time earn the prep;
+  // laptop/phone + tight allocations skip.
   const isKeysContext = context === 'keys' || context === 'mixed';
   const wantsPrep = isKeysContext
     && seconds >= SCALE_PREP_MIN_SONG_SECONDS + SCALE_PREP_SECONDS;
@@ -471,9 +474,11 @@ function buildPostComfortableBlocks(
     return [wholeSongRunBlock(seconds, songId, title, decision.keyName)];
   }
   // cell-drill-expansion → use the practice-block kind but label
-  // the slot as new-key expansion.
+  // the slot as new-key expansion. Prep is keyed off the expansion
+  // key (`decision.keyName`) — the key the user is about to play
+  // in, not the home key they've already moved past.
   if (wantsPrep) {
-    const prep = scalePrepBlock(songId, title, songKey);
+    const prep = scalePrepBlock(songId, title, decision.keyName);
     if (prep) {
       return [
         prep,
