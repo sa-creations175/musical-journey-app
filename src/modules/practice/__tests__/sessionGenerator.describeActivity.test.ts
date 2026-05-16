@@ -18,6 +18,7 @@ function block(partial: Partial<AllocatedBlock>): AllocatedBlock {
     itemRefs: [],
     weight: 1,
     hasAcquiringItems: false,
+    isKeyboardRequired: false,
     plannedSeconds: 600,
     phase: 'review',
     ...partial,

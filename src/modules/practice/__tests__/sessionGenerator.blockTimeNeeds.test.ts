@@ -22,6 +22,7 @@ function block(id: string, moduleRef: string): AlgorithmBlock {
     itemRefs: ['x'],
     weight: 1,
     hasAcquiringItems: false,
+    isKeyboardRequired: false,
   };
 }
 

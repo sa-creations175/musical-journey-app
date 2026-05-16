@@ -76,6 +76,7 @@ function block(itemRefs: string[], plannedSeconds = 1800): AllocatedBlock {
     itemRefs,
     weight: 1,
     hasAcquiringItems: false,
+    isKeyboardRequired: false,
     plannedSeconds,
     phase: 'review',
   };

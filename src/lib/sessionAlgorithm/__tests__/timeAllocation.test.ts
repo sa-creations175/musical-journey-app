@@ -24,6 +24,7 @@ function block(
     itemRefs: partial.itemRefs ?? ['x'],
     weight: partial.weight ?? 1.0,
     hasAcquiringItems: partial.hasAcquiringItems ?? false,
+    isKeyboardRequired: partial.isKeyboardRequired ?? false,
     ...partial,
   };
 }
@@ -252,9 +253,9 @@ describe('allocateBlockTime — squeeze + drop', () => {
 describe('sequenceBlocks', () => {
   it('orders acquisition → review → expression', () => {
     const blocks = [
-      { id: 'rev', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
-      { id: 'exp', memoryType: 'expression' as MemoryType, moduleRef: 'just-play', itemRefs: [], weight: 1, hasAcquiringItems: false, plannedSeconds: 600, phase: 'expression' as const },
-      { id: 'acq', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals', itemRefs: [], weight: 1, hasAcquiringItems: true, plannedSeconds: 600, phase: 'acquisition' as const },
+      { id: 'rev', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const },
+      { id: 'exp', memoryType: 'expression' as MemoryType, moduleRef: 'just-play', itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'expression' as const },
+      { id: 'acq', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals', itemRefs: [], weight: 1, hasAcquiringItems: true, isKeyboardRequired: false, plannedSeconds: 600, phase: 'acquisition' as const },
     ];
     const seq = sequenceBlocks(blocks);
     expect(seq.map(b => b.id)).toEqual(['acq', 'rev', 'exp']);
@@ -262,8 +263,8 @@ describe('sequenceBlocks', () => {
 
   it('within phase, higher weight comes first', () => {
     const blocks = [
-      { id: 'a', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes', itemRefs: [], weight: 1.0, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
-      { id: 'b', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals', itemRefs: [], weight: 1.5, hasAcquiringItems: false, plannedSeconds: 600, phase: 'review' as const },
+      { id: 'a', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes', itemRefs: [], weight: 1.0, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const },
+      { id: 'b', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals', itemRefs: [], weight: 1.5, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const },
     ];
     const seq = sequenceBlocks(blocks);
     expect(seq.map(b => b.id)).toEqual(['b', 'a']);
@@ -277,11 +278,47 @@ describe('sequenceBlocks', () => {
       itemRefs: [],
       weight: 1.0,
       hasAcquiringItems: false,
+    isKeyboardRequired: false,
       plannedSeconds: 600,
       phase: 'review' as const,
     });
     const seq = sequenceBlocks([same('a'), same('b'), same('c')]);
     expect(seq.map(b => b.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it("'full' context: keyboard-required blocks sort before non-keyboard within phase", () => {
+    // Same phase, different keyboard requirement. In a 'full' session
+    // the keys-side blocks go first, then everything else. Without
+    // the context arg (or with any non-'full' context) the existing
+    // weight/phase sort applies and the order is unchanged.
+    const kbHigh = { id: 'kb-hi', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1.0, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const };
+    const kbLow  = { id: 'kb-lo', memoryType: 'procedural' as MemoryType, moduleRef: 'repertoire',          itemRefs: [], weight: 0.5, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const };
+    const cogHigh = { id: 'cg-hi', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals',         itemRefs: [], weight: 2.0, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+    const cogLow  = { id: 'cg-lo', memoryType: 'declarative' as MemoryType, moduleRef: 'harmonic-fluency',  itemRefs: [], weight: 0.3, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
+
+    const fullSeq = sequenceBlocks([cogHigh, kbLow, cogLow, kbHigh], 'full');
+    // Keyboard bucket first (sorted by weight inside): kb-hi, kb-lo.
+    // Then non-keyboard bucket (sorted by weight inside): cg-hi, cg-lo.
+    expect(fullSeq.map(b => b.id)).toEqual(['kb-hi', 'kb-lo', 'cg-hi', 'cg-lo']);
+
+    // Other contexts: pure weight order — cognitive 2.0 wins.
+    const keysSeq = sequenceBlocks([cogHigh, kbLow, cogLow, kbHigh], 'keys');
+    expect(keysSeq.map(b => b.id)).toEqual(['cg-hi', 'kb-hi', 'kb-lo', 'cg-lo']);
+
+    // No context supplied — same as non-'full' contexts.
+    const defaultSeq = sequenceBlocks([cogHigh, kbLow, cogLow, kbHigh]);
+    expect(defaultSeq.map(b => b.id)).toEqual(['cg-hi', 'kb-hi', 'kb-lo', 'cg-lo']);
+  });
+
+  it("'full' context: keyboard-first preserves phase order within each bucket", () => {
+    // Phase wins over keyboard-bucket placement? No — keyboard-bucket
+    // wins at the OUTER sort, phase wins within each bucket. So an
+    // acquisition non-keyboard block STILL surfaces after a review
+    // keyboard block under 'full'.
+    const kbReview = { id: 'kb-rev', memoryType: 'procedural' as MemoryType, moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1, hasAcquiringItems: false, isKeyboardRequired: true,  plannedSeconds: 600, phase: 'review' as const };
+    const cogAcq  = { id: 'cg-acq', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals',          itemRefs: [], weight: 1, hasAcquiringItems: true,  isKeyboardRequired: false, plannedSeconds: 600, phase: 'acquisition' as const };
+    const seq = sequenceBlocks([cogAcq, kbReview], 'full');
+    expect(seq.map(b => b.id)).toEqual(['kb-rev', 'cg-acq']);
   });
 });
 

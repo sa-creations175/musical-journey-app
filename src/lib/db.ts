@@ -952,7 +952,7 @@ export interface SyncQueueItem {
 // The Dexie write hooks enqueue to syncQueue automatically — no
 // `syncedWrite` wrapper exists or is needed in this codebase.
 
-export type PracticeSessionContext = 'keys' | 'laptop' | 'phone';
+export type PracticeSessionContext = 'keys' | 'laptop' | 'phone' | 'full';
 /**
  * Time-of-day window a session was practiced in. Auto-labeled by
  * the app from the wall clock at session start:

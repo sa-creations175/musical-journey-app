@@ -75,4 +75,31 @@ describe('contextFactorForModule — per-context weight tables', () => {
     expect(contextFactorForModule('chord-progression-quiz', 'laptop')).toBe(0);
     expect(contextFactorForModule('chord-progression-quiz', 'phone')).toBe(0);
   });
+
+  it("'full' context: keyboard modules neutral, cognitive modules carry laptop weights", () => {
+    // Mixes keys-context weights (neutral) for keyboard modules
+    // with laptop-context weights for cognitive modules.
+    expect(contextFactorForModule('shapes-and-patterns', 'full')).toBe(1.0);
+    expect(contextFactorForModule('repertoire', 'full')).toBe(1.0);
+    expect(contextFactorForModule('harmonic-fluency', 'full')).toBe(1.2);
+    expect(contextFactorForModule('chord-progressions', 'full')).toBe(1.6);
+    expect(contextFactorForModule('intervals', 'full')).toBe(1.0);
+    expect(contextFactorForModule('chord-recognition', 'full')).toBe(1.0);
+    expect(contextFactorForModule('scales-modes', 'full')).toBe(1.0);
+    expect(contextFactorForModule('production', 'full')).toBe(1.5);
+  });
+});
+
+describe('isModuleAllowedForContext — full context', () => {
+  it("'full' passes EVERY module (no hard filter; user has keyboard + device)", () => {
+    const ctx = 'full' as const;
+    expect(isModuleAllowedForContext('shapes-and-patterns', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('repertoire', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('harmonic-fluency', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('intervals', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('chord-recognition', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('chord-progressions', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('scales-modes', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('production', ctx)).toBe(true);
+  });
 });

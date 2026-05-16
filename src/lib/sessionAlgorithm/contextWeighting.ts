@@ -67,6 +67,12 @@ const KEYS_DEFAULT_ALLOWED_MODULES: ReadonlySet<string> = new Set([
  *                    rule the Phase 3 filter ships); everything
  *                    else passes the hard filter (weighting takes
  *                    over from there).
+ *
+ *   full → no hard filter. Keyboard is available so S&P and
+ *          Repertoire pass; the user is also in front of a
+ *          laptop/phone so HF, ET, Production pass too. Block
+ *          ordering puts keyboard work first ("keys first, then
+ *          everything") — that ordering lives in sequenceBlocks.
  */
 export function isModuleAllowedForContext(
   moduleRef: string,
@@ -74,6 +80,11 @@ export function isModuleAllowedForContext(
 ): boolean {
   if (context === 'keys') {
     return KEYS_DEFAULT_ALLOWED_MODULES.has(moduleRef);
+  }
+  if (context === 'full') {
+    // Every module is in scope on a full session — keyboard +
+    // device available at once.
+    return true;
   }
   // laptop / phone — only the existing shapes-and-patterns exclusion
   // applies. Mental-viz isn't in spacingState so it's already absent.
@@ -159,6 +170,28 @@ const PHONE_FACTORS: Readonly<Record<string, number>> = {
   [CHORD_PROGRESSION_QUIZ_MODULE_REF]:      CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR,
 };
 
+/** 'full' context — keyboard + device available. Mixes keys-context
+ *  weights for keyboard modules with laptop weights for cognitive
+ *  modules. Block ordering (sequenceBlocks) puts keyboard-required
+ *  blocks first regardless of weight; these factors only tune the
+ *  relative priority within each bucket. */
+const FULL_FACTORS: Readonly<Record<string, number>> = {
+  // Keyboard modules — use the keys-context neutral weight.
+  [SHAPES_MODULE_REF]:                      CONTEXT_FACTOR_NEUTRAL,
+  [REPERTOIRE_MODULE_REF]:                  CONTEXT_FACTOR_NEUTRAL,
+  // Cognitive modules — use the laptop-context weights so
+  // chord-progressions / Production retain their context-appropriate
+  // boosts.
+  [HF_MODULE_REF]:                          1.2,
+  'intervals':                              1.0,
+  'chord-recognition':                      1.0,
+  'chord-progressions':                     1.6,
+  'scales-modes':                           1.0,
+  [PRODUCTION_MODULE_REF]:                  1.5,
+  // Placeholder — see CHORD_PROGRESSION_QUIZ_* constants above.
+  [CHORD_PROGRESSION_QUIZ_MODULE_REF]:      CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR,
+};
+
 /**
  * Multiplicative weight factor for (context, moduleRef). Returns
  * 1.0 for any combo not explicitly tabled — keeps the default
@@ -184,6 +217,9 @@ export function contextFactorForModule(
       break;
     case 'phone':
       table = PHONE_FACTORS;
+      break;
+    case 'full':
+      table = FULL_FACTORS;
       break;
   }
   return table[moduleRef] ?? CONTEXT_FACTOR_NEUTRAL;

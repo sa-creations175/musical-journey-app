@@ -218,6 +218,7 @@ export async function buildSessionProposals(
     shapesContext,
     blockTimeNeeds,
     paceByBlock,
+    inputs.context,
   );
 }
 
@@ -408,6 +409,7 @@ export async function buildSessionPlan(
     shapesContext,
     blockTimeNeeds,
     paceByBlock,
+    inputs.context,
   );
   return {
     kind: 'proposals',
@@ -662,12 +664,16 @@ function generateAndShape(
    *  total, behind-pace blocks claim the extra time first. Omit and
    *  every block reads as on-pace (equal-split overflow). */
   paceByBlock?: ReadonlyMap<string, WeeklyPace>,
+  /** Practice context. Threaded into generateProposals so the
+   *  'full' context's keyboard-first block ordering can fire. */
+  context?: PracticeSessionContext,
 ): ProposalCardData[] {
   const proposals = generateProposals({
     blocks: moduleBlocks,
     availableSeconds,
     blockTimeNeeds,
     paceByBlock,
+    context,
   });
   return proposals.map(p => ({
     kind: p.kind,
@@ -877,6 +883,9 @@ export async function buildSessionProposalsForPath(
       repertoireSplit,
       filteredItemLabels,
       filteredShapesCtx,
+      undefined,
+      undefined,
+      inputs.context,
     );
   }
 
@@ -906,6 +915,9 @@ export async function buildSessionProposalsForPath(
     repertoireSplit,
     fallbackItemLabels,
     fallbackShapesCtx,
+    undefined,
+    undefined,
+    inputs.context,
   );
 }
 
@@ -1034,8 +1046,10 @@ export async function loadWeeklyPace(now: number = Date.now()): Promise<{
 /**
  * Capability rank per practice context. A user on a higher-rank
  * context can do anything a lower-rank context can do, plus more.
+ * 'full' is the most-capable rank — keyboard AND device available.
  */
 const CONTEXT_RANK: Record<PracticeSessionContext, number> = {
+  full: 4,
   keys: 3,
   laptop: 2,
   phone: 1,
@@ -1325,6 +1339,7 @@ export function aggregateGoalCandidatesByModule(
       itemRefs,
       weight: blockWeight,
       hasAcquiringItems: blockHasAcquiringItems(itemRefs, acquiringItemRefs),
+      isKeyboardRequired: isKeyboardRequiredModule(moduleRef),
     });
     idx++;
   }
@@ -1410,8 +1425,20 @@ export function maybeInjectRepertoireColdStartBlock(
       itemRefs,
       weight: COLD_START_REPERTOIRE_WEIGHT,
       hasAcquiringItems: false,
+      isKeyboardRequired: isKeyboardRequiredModule(REPERTOIRE_MODULE_REF),
     },
   ];
+}
+
+/** True when a module's practice surface needs a physical keyboard.
+ *  S&P drills and Repertoire matrix work are keyboard-required;
+ *  cognitive modules (HF, ET, Production) are not. Used to populate
+ *  AlgorithmBlock.isKeyboardRequired at block-creation time so the
+ *  'full' context's keyboard-first sequencing rule has the bit
+ *  available at sort time. */
+function isKeyboardRequiredModule(moduleRef: string): boolean {
+  return moduleRef === SHAPES_MODULE_REF
+    || moduleRef === REPERTOIRE_MODULE_REF;
 }
 
 // ---------------------------------------------------------------------
@@ -1461,6 +1488,7 @@ function toProposalBlocks(
         whySnippet: seg.why,
         itemRefs: seg.itemRefs,
         isWarmup: seg.kind === 'scales',
+        isKeyboardRequired: block.isKeyboardRequired,
       }));
     }
   }
@@ -1523,6 +1551,13 @@ function toProposalBlocks(
               inlineActionTarget: 'goals' as const,
             }
           : {}),
+        // scale-prep routes to the Scales surface (no piano below
+        // the modal), but the prep itself IS a keyboard activity —
+        // the prep block lives inside the Repertoire half and
+        // surfaces alongside a song-practice block. Other Repertoire
+        // splits inherit the parent block's keyboard requirement
+        // (always true for the Repertoire module).
+        isKeyboardRequired: block.isKeyboardRequired,
       }));
     }
   }
@@ -1538,6 +1573,7 @@ function toProposalBlocks(
       whySnippet: deriveWhySnippet(block),
       itemRefs: block.itemRefs,
       isWarmup: false,
+      isKeyboardRequired: block.isKeyboardRequired,
     },
   ];
 }
@@ -1707,6 +1743,7 @@ export function buildProductionVocabBlock(
     whySnippet: `${dueCount} card${dueCount === 1 ? '' : 's'} due — quick refresh on terms and concepts`,
     itemRefs: [],
     isWarmup: false,
+    isKeyboardRequired: false,
     quickLaunchRoute: '/production?view=vocabulary',
   };
 }

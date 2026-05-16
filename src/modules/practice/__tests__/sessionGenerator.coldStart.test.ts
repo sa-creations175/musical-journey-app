@@ -63,6 +63,7 @@ function hfBlock(): AlgorithmBlock {
     itemRefs: ['card-1'],
     weight: 4,
     hasAcquiringItems: false,
+    isKeyboardRequired: false,
   };
 }
 
@@ -74,6 +75,7 @@ function repertoireBlock(): AlgorithmBlock {
     itemRefs: ['song-X'],
     weight: 3,
     hasAcquiringItems: false,
+    isKeyboardRequired: false,
   };
 }
 

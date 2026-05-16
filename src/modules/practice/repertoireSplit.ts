@@ -137,7 +137,7 @@ export async function loadRepertoireSplitContext(
       (b.learningOrder ?? Number.MAX_SAFE_INTEGER),
   );
 
-  const isKeysContext = context === 'keys';
+  const isKeysContext = context === 'keys' || context === 'full';
 
   // Per-song helpers reading from the bulk-loaded arrays. Avoids
   // re-filtering in every branch below.
@@ -461,7 +461,7 @@ function buildPostComfortableBlocks(
   // they're actually about to drill, not the one they've already
   // mastered. Keys/mixed contexts with enough time earn the prep;
   // laptop/phone + tight allocations skip.
-  const isKeysContext = context === 'keys';
+  const isKeysContext = context === 'keys' || context === 'full';
   const wantsPrep = isKeysContext
     && seconds >= SCALE_PREP_MIN_SONG_SECONDS + SCALE_PREP_SECONDS;
   if (decision.kind === 'whole-song-run') {
@@ -533,7 +533,7 @@ function buildSongHalf(args: SongHalfArgs): RepertoireSplitBlock[] {
     return [setupBlock(seconds, songId, title, args.setupWhyExtra)];
   }
 
-  const isKeysContext = context === 'keys';
+  const isKeysContext = context === 'keys' || context === 'full';
 
   // Carve a scale-prep block out of the top of the song allocation
   // when it's a keys/mixed session AND the song's playback block

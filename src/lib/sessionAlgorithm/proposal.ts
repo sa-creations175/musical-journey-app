@@ -76,6 +76,10 @@ export interface GenerateProposalsInput {
    *  pace-aware overflow distribution; ignored when the session
    *  fits inside the typical-high band. */
   paceByBlock?: PaceByBlock;
+  /** Practice context — threaded into sequenceBlocks so the 'full'
+   *  context's keyboard-first ordering can fire. Other contexts
+   *  leave the existing sort unchanged. Optional for back-compat. */
+  context?: import('../db').PracticeSessionContext;
 }
 
 // ---------------------------------------------------------------------
@@ -93,12 +97,14 @@ export function generateProposals(input: GenerateProposalsInput): Proposal[] {
     input.availableSeconds,
     input.blockTimeNeeds,
     input.paceByBlock,
+    input.context,
   );
   const focused = buildFocusedProposal(
     input.blocks,
     input.availableSeconds,
     input.blockTimeNeeds,
     input.paceByBlock,
+    input.context,
   );
 
   if (!balanced && !focused) return [];
@@ -125,6 +131,7 @@ export function buildBalancedProposal(
   availableSeconds: number,
   blockTimeNeeds?: BlockTimeNeeds,
   paceByBlock?: PaceByBlock,
+  context?: import('../db').PracticeSessionContext,
 ): Proposal | null {
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);
 
@@ -144,7 +151,7 @@ export function buildBalancedProposal(
   const allocated = allocateBlockTime(picked, availableSeconds, blockTimeNeeds, paceByBlock);
   if (!allocated || allocated.length === 0) return null;
 
-  const sequenced = sequenceBlocks(allocated);
+  const sequenced = sequenceBlocks(allocated, context);
   const total = sequenced.reduce((s, b) => s + b.plannedSeconds, 0);
 
   return {
@@ -169,6 +176,7 @@ export function buildFocusedProposal(
   // overflow doesn't apply here today. Accepted at the surface so
   // generateProposals can pass it uniformly.
   _paceByBlock?: PaceByBlock,
+  context?: import('../db').PracticeSessionContext,
 ): Proposal | null {
   if (availableSeconds <= 0 || blocks.length === 0) return null;
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);
@@ -185,7 +193,7 @@ export function buildFocusedProposal(
   const allocated = allocateFocused(picked, availableSeconds, blockTimeNeeds);
   if (!allocated) return null;
 
-  const sequenced = sequenceBlocks(allocated);
+  const sequenced = sequenceBlocks(allocated, context);
   const total = sequenced.reduce((s, b) => s + b.plannedSeconds, 0);
   const moduleLabel = moduleMetaById(top.moduleRef)?.label ?? top.moduleRef;
 

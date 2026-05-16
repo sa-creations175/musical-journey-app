@@ -47,6 +47,12 @@ export interface ProposalBlock {
    *  block per card to flag as warm-up; this component just paints
    *  the badge when told. */
   isWarmup?: boolean;
+  /** True when this block's module needs a physical keyboard (S&P,
+   *  Repertoire). False for cognitive modules (HF, ET, Production).
+   *  Mirrors the AllocatedBlock field; threaded through so the UI
+   *  can apply 'full'-context affordances (e.g. visual grouping or
+   *  Logic-required badges in non-keyboard blocks). */
+  isKeyboardRequired?: boolean;
   /** Optional inline action surfaced next to the activity
    *  description. Used by the Song-of-the-Month TBD spotlight to
    *  point the user at the Goals page to pick a song — the block

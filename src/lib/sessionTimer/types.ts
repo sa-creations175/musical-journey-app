@@ -53,6 +53,11 @@ export interface SessionBlock {
   quickLaunchRoute?: string;
   /** Intended duration in seconds. */
   plannedSeconds: number;
+  /** True when this block's module needs a physical keyboard
+   *  (S&P, Repertoire). False for cognitive modules (HF, ET,
+   *  Production). Optional for back-compat with sessions that
+   *  pre-date the field. */
+  isKeyboardRequired?: boolean;
   /**
    * User-applied extension on top of plannedSeconds (seconds).
    * Soft-block: tapping +2/+5/+10 in the global expiry modal bumps this.
@@ -118,6 +123,9 @@ export interface PendingStartConfig {
     plannedSeconds: number;
     /** Optional route override forwarded onto the SessionBlock. */
     quickLaunchRoute?: string;
+    /** Forwarded onto SessionBlock.isKeyboardRequired. Optional for
+     *  back-compat with callers that pre-date the field. */
+    isKeyboardRequired?: boolean;
   }>;
 }
 
@@ -201,6 +209,8 @@ export interface StartSessionInput {
     plannedSeconds: number;
     /** Optional route override forwarded onto the SessionBlock. */
     quickLaunchRoute?: string;
+    /** Forwarded onto SessionBlock.isKeyboardRequired. */
+    isKeyboardRequired?: boolean;
   }>;
   /**
    * Optional override for the session id. Used by tests to make

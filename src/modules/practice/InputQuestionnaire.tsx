@@ -334,22 +334,23 @@ function stepperBtn(disabled: boolean): string {
 // ---------------------------------------------------------------------
 
 const CONTEXT_OPTIONS: ReadonlyArray<{
-  value: 'keys' | 'laptop' | 'phone';
+  value: 'keys' | 'laptop' | 'phone' | 'full';
   glyph: string;
   label: string;
   subtitle: string;
 }> = [
-  { value: 'keys',   glyph: '⌨', label: 'Keys',   subtitle: 'keyboard + everything' },
-  { value: 'laptop', glyph: '▭', label: 'Laptop', subtitle: 'no keyboard, DAW available' },
-  { value: 'phone',  glyph: '▯', label: 'Phone',  subtitle: 'most constrained' },
+  { value: 'keys',   glyph: '⌨', label: 'Keys',         subtitle: 'keyboard only' },
+  { value: 'laptop', glyph: '▭', label: 'Laptop',       subtitle: 'no keyboard, DAW available' },
+  { value: 'phone',  glyph: '▯', label: 'Phone',        subtitle: 'most constrained' },
+  { value: 'full',   glyph: '⊕', label: 'Full session', subtitle: 'keys first, then everything' },
 ];
 
 function Q2Context({
   value,
   onChange,
 }: {
-  value: 'keys' | 'laptop' | 'phone' | null;
-  onChange: (c: 'keys' | 'laptop' | 'phone') => void;
+  value: 'keys' | 'laptop' | 'phone' | 'full' | null;
+  onChange: (c: 'keys' | 'laptop' | 'phone' | 'full') => void;
 }) {
   return (
     <section>

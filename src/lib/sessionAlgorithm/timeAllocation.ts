@@ -158,6 +158,11 @@ export interface AlgorithmBlock {
   /** True when at least one of the block's items is in the acquiring
    *  stage. Drives phase classification. */
   hasAcquiringItems: boolean;
+  /** True when this block's module needs a physical keyboard to
+   *  practise (S&P, Repertoire). False for cognitive / DAW modules
+   *  that work on a laptop or phone (HF, ET, Production, etc.).
+   *  Used by the 'full' context's keyboard-first block ordering. */
+  isKeyboardRequired: boolean;
 }
 
 export interface AllocatedBlock extends AlgorithmBlock {
@@ -413,9 +418,24 @@ function lowestWeightIndex(blocks: ReadonlyArray<AlgorithmBlock>): number {
  * Sort is stable: blocks with the same phase + weight retain their
  * input order. Pure; doesn't mutate input.
  */
-export function sequenceBlocks(blocks: ReadonlyArray<AllocatedBlock>): AllocatedBlock[] {
+export function sequenceBlocks(
+  blocks: ReadonlyArray<AllocatedBlock>,
+  /** Optional practice context. When 'full', keyboard-required
+   *  blocks sort before non-keyboard blocks within the existing
+   *  phase → weight → input-order chain ("keys first, then
+   *  everything"). Other contexts leave sort order unchanged. */
+  context?: import('../db').PracticeSessionContext,
+): AllocatedBlock[] {
+  const keyboardFirst = context === 'full';
   const indexed = blocks.map((b, i) => ({ b, i }));
   indexed.sort((a, b) => {
+    // 'full' context outer sort: keyboard-required blocks first so
+    // the user lands at the piano before anything else in the
+    // session. Inner phase/weight ordering still applies within
+    // each keyboard / non-keyboard bucket.
+    if (keyboardFirst && a.b.isKeyboardRequired !== b.b.isKeyboardRequired) {
+      return a.b.isKeyboardRequired ? -1 : 1;
+    }
     const phaseDiff = PHASE_ORDER[a.b.phase] - PHASE_ORDER[b.b.phase];
     if (phaseDiff !== 0) return phaseDiff;
     if (a.b.weight !== b.b.weight) return b.b.weight - a.b.weight;

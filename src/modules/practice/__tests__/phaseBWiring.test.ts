@@ -46,6 +46,7 @@ function block(
     itemRefs: partial.itemRefs ?? ['x'],
     weight: partial.weight ?? 1,
     hasAcquiringItems: partial.hasAcquiringItems ?? false,
+    isKeyboardRequired: partial.isKeyboardRequired ?? false,
   };
 }
 

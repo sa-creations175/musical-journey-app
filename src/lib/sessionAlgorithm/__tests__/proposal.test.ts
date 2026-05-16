@@ -29,6 +29,7 @@ function blk(
     itemRefs: [`item-${id}`],
     weight,
     hasAcquiringItems,
+    isKeyboardRequired: moduleRef === 'shapes-and-patterns' || moduleRef === 'repertoire',
   };
 }
 
