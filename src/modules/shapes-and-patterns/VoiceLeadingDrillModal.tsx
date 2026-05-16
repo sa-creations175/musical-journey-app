@@ -52,6 +52,7 @@ import {
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingSubCellLabel,
 } from './catalog';
+import DrillMetronomeSetup from './DrillMetronomeSetup';
 
 interface Props {
   /** Canonical VL sub-cell itemRef. The grid tap supplies this
@@ -287,7 +288,7 @@ export default function VoiceLeadingDrillModal({
         </div>
       ) : phase !== 'assess' ? (
         <div className="space-y-4 text-sm">
-          {/* Target-duration picker (setup phase only) */}
+          {/* Target-duration picker + metronome setup (setup phase only) */}
           {phase === 'setup' && (
             <>
               {subCellLabel && (
@@ -334,6 +335,7 @@ export default function VoiceLeadingDrillModal({
                   ))}
                 </div>
               </div>
+              <DrillMetronomeSetup />
             </>
           )}
 

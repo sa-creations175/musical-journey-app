@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toaster';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
+import DrillMetronomeSetup from './DrillMetronomeSetup';
 import {
   FEEL_EMOJI,
   FEEL_LABEL,
@@ -287,42 +288,45 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
     >
       {phase !== 'assess' ? (
         <div className="space-y-4 text-sm">
-          {/* Target-time editor (setup phase only) */}
+          {/* Target-time editor + metronome setup (setup phase only) */}
           {phase === 'setup' && (
-            <div className="space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="text-neutral-500 uppercase tracking-wide text-xs">target time</span>
-                <span className="font-mono tabular-nums">{formatDuration(targetSeconds)}</span>
+            <>
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-neutral-500 uppercase tracking-wide text-xs">target time</span>
+                  <span className="font-mono tabular-nums">{formatDuration(targetSeconds)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={30}
+                  max={600}
+                  step={15}
+                  value={targetSeconds}
+                  onChange={e => {
+                    const next = Number(e.target.value);
+                    setTargetSeconds(next);
+                    setRemainingSeconds(next);
+                  }}
+                  className="w-full accent-fluent"
+                />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[60, 120, 180, 300, 420, 600].map(s => (
+                    <button
+                      key={s}
+                      onClick={() => { setTargetSeconds(s); setRemainingSeconds(s); }}
+                      className={`px-2 py-0.5 rounded border text-xs ${
+                        targetSeconds === s
+                          ? 'bg-fluent text-white border-fluent'
+                          : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+                      }`}
+                    >
+                      {formatDuration(s)}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <input
-                type="range"
-                min={30}
-                max={600}
-                step={15}
-                value={targetSeconds}
-                onChange={e => {
-                  const next = Number(e.target.value);
-                  setTargetSeconds(next);
-                  setRemainingSeconds(next);
-                }}
-                className="w-full accent-fluent"
-              />
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {[60, 120, 180, 300, 420, 600].map(s => (
-                  <button
-                    key={s}
-                    onClick={() => { setTargetSeconds(s); setRemainingSeconds(s); }}
-                    className={`px-2 py-0.5 rounded border text-xs ${
-                      targetSeconds === s
-                        ? 'bg-fluent text-white border-fluent'
-                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-                    }`}
-                  >
-                    {formatDuration(s)}
-                  </button>
-                ))}
-              </div>
-            </div>
+              <DrillMetronomeSetup />
+            </>
           )}
 
           {/* Timer display */}
