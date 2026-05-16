@@ -68,6 +68,7 @@ import {
   SCALES_SEGMENT_PROPORTIONAL_BLOCK_FRACTION,
   SCALES_SEGMENT_PROPORTIONAL_MAX_SECONDS,
   SCALES_SEGMENT_SHORT_SECONDS,
+  SCALES_TYPES_PER_KEY,
   VL_SEGMENT_MIN_BLOCK_SECONDS,
   VL_SPLIT_SCALES_FRACTION,
   VL_SPLIT_WALK_FRACTION,
@@ -593,6 +594,61 @@ interface ScaleLadderStep {
   kind: ScaleKind;
 }
 
+/** Dueness score for a scale type at a key — lower = more due.
+ *  Returns Number.NEGATIVE_INFINITY when no spacingState row exists
+ *  for the (type, key) combo (never-practised → top priority).
+ *  Otherwise returns the smallest nextDueAt across the type's rows
+ *  for that key (pent kinds aggregate across starting points). */
+function duenessForScaleType(
+  kind: ScaleKind,
+  keyName: string,
+  ctx: ShapesSplitContext,
+): number {
+  let best: number | null = null;
+  let sawRow = false;
+  for (const row of ctx.rowsByItemRef.values()) {
+    const desc = parseScaleItemRef(row.itemRef);
+    if (!desc) continue;
+    if (desc.kind !== kind || desc.keyName !== keyName) continue;
+    sawRow = true;
+    if (row.nextDueAt === null) return Number.NEGATIVE_INFINITY;
+    if (best === null || row.nextDueAt < best) best = row.nextDueAt;
+  }
+  if (!sawRow) return Number.NEGATIVE_INFINITY;
+  return best ?? Number.NEGATIVE_INFINITY;
+}
+
+/** Catalog order tiebreaker so two equally-due types pick the
+ *  same way across renders. Mirrors the historical SCALES_LADDER
+ *  walk order. */
+const SCALE_KIND_CATALOG_ORDER: ReadonlyArray<ScaleKind> = SCALES_LADDER;
+
+/** Select the SCALES_TYPES_PER_KEY most-due scale types for `keyName`.
+ *  Per SESSION_DESIGN.md § "Scales warm-up rules": the picker is
+ *  purely spacing-state driven. Major-tonality keys tend to surface
+ *  major + major-pent (those types are least-recently-practised in
+ *  minor-keyed contexts) and vice versa — but the rule isn't
+ *  hard-coded by tonality.
+ *
+ *  Cold-start (no scale rows) returns the first SCALES_TYPES_PER_KEY
+ *  types from the catalog ladder (major + major-pent for the legacy
+ *  default). */
+function pickScaleTypesForKey(
+  keyName: string,
+  ctx: ShapesSplitContext,
+): ScaleKind[] {
+  const ranked = SCALE_KIND_CATALOG_ORDER.map((kind, idx) => ({
+    kind,
+    idx,
+    due: duenessForScaleType(kind, keyName, ctx),
+  }));
+  ranked.sort((a, b) => {
+    if (a.due !== b.due) return a.due - b.due;
+    return a.idx - b.idx;
+  });
+  return ranked.slice(0, SCALES_TYPES_PER_KEY).map(r => r.kind);
+}
+
 function buildScaleLadder(
   keys: ReadonlyArray<string>,
   budgetSeconds: number,
@@ -601,7 +657,8 @@ function buildScaleLadder(
   const out: ScaleLadderStep[] = [];
   let budget = budgetSeconds;
   for (const keyName of keys) {
-    for (const kind of SCALES_LADDER) {
+    const kindsForKey = pickScaleTypesForKey(keyName, ctx);
+    for (const kind of kindsForKey) {
       if (budget <= 0 && out.length > 0) return out;
       let itemRef: string;
       if (kind === 'major-pentatonic' || kind === 'minor-pentatonic') {

@@ -30,9 +30,14 @@ import {
   MEMORY_TYPE_DURATIONS,
   MODULE_DURATION_OVERRIDES,
   PHASE_ORDER,
+  sPRepSplitForSession,
   type BlockPhase,
   type DurationTier,
 } from './sessionDesign';
+import {
+  REPERTOIRE_MODULE_REF,
+  SHAPES_MODULE_REF,
+} from '../../modules/goals/progress';
 
 // Re-export the structure constants moved to sessionDesign.ts so
 // downstream consumers (tests, algorithm internals) keep their
@@ -191,14 +196,79 @@ export function allocateBlockTime(
       typicalLowTotal, typicalHighTotal,
       paceByBlock,
     );
-    return allocated.map(({ block, seconds }) => ({
+    const built: AllocatedBlock[] = allocated.map(({ block, seconds }) => ({
       ...block,
       plannedSeconds: seconds,
       phase: phaseForBlock(block),
     }));
+    return applyGraduatedSPRepSplit(built, availableSeconds, blockTimeNeeds);
   }
 
   return null;
+}
+
+/**
+ * Post-allocation rebalance: when an S&P block AND a Repertoire
+ * block both survived the allocator, rebalance them to hit the
+ * SESSION_DESIGN graduated split table for the requested session
+ * length. Other blocks (HF, ET, Production, etc.) keep their
+ * allocations untouched.
+ *
+ * The rebalance operates on the COMBINED S&P+Repertoire allocation
+ * — whatever combined seconds the allocator chose for those two
+ * modules gets re-divided per the table fractions. Honors each
+ * block's minSeconds floor; bails if either floor can't be met
+ * (rare — the allocator already enforced minimums before drop-and-
+ * retry, so a successful allocation has room).
+ *
+ * Phase B goal-pace needs override the rebalance: when either
+ * block carries a `blockTimeNeeds` entry, the allocator pinned its
+ * size to a goal-derived target and the rebalance would fight that
+ * signal. Skip in that case.
+ */
+function applyGraduatedSPRepSplit(
+  blocks: AllocatedBlock[],
+  sessionSeconds: number,
+  blockTimeNeeds?: ReadonlyMap<string, number>,
+): AllocatedBlock[] {
+  const spIdx = blocks.findIndex(b => b.moduleRef === SHAPES_MODULE_REF);
+  const repIdx = blocks.findIndex(b => b.moduleRef === REPERTOIRE_MODULE_REF);
+  if (spIdx < 0 || repIdx < 0) return blocks;
+
+  // Defer to Phase B's goal-pace target when either block carries
+  // a need — that signal is more specific than the graduated split.
+  if (blockTimeNeeds && (
+    blockTimeNeeds.has(blocks[spIdx].id)
+    || blockTimeNeeds.has(blocks[repIdx].id)
+  )) return blocks;
+
+  const split = sPRepSplitForSession(sessionSeconds);
+  const sp = blocks[spIdx];
+  const rep = blocks[repIdx];
+  const combined = sp.plannedSeconds + rep.plannedSeconds;
+  const spTier = tierForBlock(sp, blockTimeNeeds);
+  const repTier = tierForBlock(rep, blockTimeNeeds);
+
+  let targetSP = Math.round(combined * split.spFraction);
+  let targetRep = combined - targetSP;
+
+  // Floor enforcement — bail when both floors can't be met. (A
+  // successful allocation already passed minTotal ≤ available, so
+  // this is defensive against weird tier configurations.)
+  if (targetSP < spTier.minSeconds) {
+    targetSP = spTier.minSeconds;
+    targetRep = combined - targetSP;
+  }
+  if (targetRep < repTier.minSeconds) {
+    targetRep = repTier.minSeconds;
+    targetSP = combined - targetRep;
+    if (targetSP < spTier.minSeconds) return blocks;
+  }
+
+  const out = blocks.slice();
+  out[spIdx] = { ...sp, plannedSeconds: targetSP };
+  out[repIdx] = { ...rep, plannedSeconds: targetRep };
+  return out;
 }
 
 function distribute(

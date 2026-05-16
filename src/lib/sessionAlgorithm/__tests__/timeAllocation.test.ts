@@ -415,3 +415,95 @@ describe('allocateBlockTime — Phase B blockTimeNeeds', () => {
     expect(withEmptyMap).toEqual(withoutMap);
   });
 });
+
+describe('allocateBlockTime — graduated S&P/Repertoire split', () => {
+  // Per SESSION_DESIGN.md table: < 45 min → 25/75; 45–59 → 35/65;
+  // 60+ → 40/60. The rebalance applies to the COMBINED S&P +
+  // Repertoire allocation; other modules (or single-module sessions)
+  // pass through unchanged.
+
+  function sp(): AlgorithmBlock {
+    return block({
+      id: 'sp',
+      memoryType: 'procedural',
+      moduleRef: 'shapes-and-patterns',
+      weight: 1,
+      isKeyboardRequired: true,
+    });
+  }
+  function rep(): AlgorithmBlock {
+    return block({
+      id: 'rep',
+      memoryType: 'integration',
+      moduleRef: 'repertoire',
+      weight: 1,
+      isKeyboardRequired: true,
+    });
+  }
+
+  it('29-min session: 25 / 75 split', () => {
+    const out = allocateBlockTime([sp(), rep()], 29 * 60)!;
+    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.25));
+    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.25));
+  });
+
+  it('45-min session: 35 / 65 split', () => {
+    const out = allocateBlockTime([sp(), rep()], 45 * 60)!;
+    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.35));
+    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.35));
+  });
+
+  it('90-min session: 40 / 60 split', () => {
+    const out = allocateBlockTime([sp(), rep()], 90 * 60)!;
+    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.40));
+  });
+
+  it('does not rebalance when only one of S&P / Repertoire is present', () => {
+    const out = allocateBlockTime([sp()], 60 * 60)!;
+    // Single block — gets the full allocation, no S&P/Rep split
+    // logic applies.
+    expect(out).toHaveLength(1);
+    expect(out[0].plannedSeconds).toBeGreaterThan(0);
+  });
+
+  it('leaves other modules (HF / ET) untouched when rebalancing S&P + Rep', () => {
+    const hf = block({
+      id: 'hf',
+      memoryType: 'declarative',
+      moduleRef: 'harmonic-fluency',
+      weight: 1,
+      isKeyboardRequired: false,
+    });
+    const out = allocateBlockTime([sp(), rep(), hf], 60 * 60)!;
+    const hfBlk = out.find(b => b.moduleRef === 'harmonic-fluency')!;
+    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    // HF allocation comes from the standard allocator — defer to
+    // whatever it picked; just assert it's positive and the S&P+Rep
+    // pair honored the 40/60 split of THEIR combined seconds.
+    expect(hfBlk.plannedSeconds).toBeGreaterThan(0);
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+  });
+
+  it('Phase B goal-pace need on S&P or Rep overrides the rebalance', () => {
+    // When the goal-pace planner pins a target via blockTimeNeeds,
+    // the rebalance defers — the planner's signal is more specific.
+    const needs = new Map<string, number>([['sp', 600]]);
+    const out = allocateBlockTime([sp(), rep()], 60 * 60, needs)!;
+    const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
+    // sp pinned to 600 s by Phase B; the rebalance shouldn't push
+    // it to 40 % of combined.
+    expect(spBlk.plannedSeconds).toBe(600);
+  });
+});

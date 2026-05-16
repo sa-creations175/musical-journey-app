@@ -37,10 +37,47 @@ const SECONDS_PER_MINUTE = 60;
 // ─── S&P / Repertoire split ───────────────────────────────────────────────
 //
 // How a keyboard session's total time divides between Shapes & Patterns
-// drilling and Repertoire (song) practice. Currently a fixed split;
-// graduated lookup-by-session-length lands in a later commit per
-// SESSION_DESIGN.md § "S&P / Repertoire split — graduated by session
-// length".
+// drilling and Repertoire (song) practice. Graduated by total session
+// length per SESSION_DESIGN.md § "S&P / Repertoire split". Shorter
+// sessions skew toward Repertoire; longer ones balance toward S&P.
+
+interface SPRepSplit {
+  /** Share of session time allocated to S&P (chord shapes, scales,
+   *  VL). The remainder goes to Repertoire. */
+  spFraction: number;
+  /** Repertoire's share — kept as a separate field rather than
+   *  derived so the table reads at a glance. spFraction +
+   *  repertoireFraction === 1.0 by construction. */
+  repertoireFraction: number;
+}
+
+/** Graduated S&P/Repertoire split lookup keyed on the total session
+ *  duration (seconds). Each entry's `minSeconds` is the inclusive
+ *  lower bound for that bucket; the lookup returns the LAST entry
+ *  whose minSeconds is ≤ the session length. Per SESSION_DESIGN.md:
+ *
+ *    < 30 min: 25 % / 75 %   (small session — Repertoire dominant)
+ *    30–44:    25 % / 75 %
+ *    45–59:    35 % / 65 %
+ *    60+:      40 % / 60 %   (full session — balanced)
+ */
+const SP_REP_SPLIT_TABLE: ReadonlyArray<{ minSeconds: number; split: SPRepSplit }> = [
+  { minSeconds: 0,            split: { spFraction: 0.25, repertoireFraction: 0.75 } },
+  { minSeconds: 45 * 60,      split: { spFraction: 0.35, repertoireFraction: 0.65 } },
+  { minSeconds: 60 * 60,      split: { spFraction: 0.40, repertoireFraction: 0.60 } },
+];
+
+/** Look up the S&P / Repertoire split for a session of
+ *  `sessionSeconds` total. Returns the highest-minSeconds entry
+ *  whose threshold the session meets. Cold-path / edge: a zero-
+ *  length session returns the 0-bucket entry (defensive). */
+export function sPRepSplitForSession(sessionSeconds: number): SPRepSplit {
+  let chosen = SP_REP_SPLIT_TABLE[0].split;
+  for (const row of SP_REP_SPLIT_TABLE) {
+    if (sessionSeconds >= row.minSeconds) chosen = row.split;
+  }
+  return chosen;
+}
 
 // ─── S&P internal split ───────────────────────────────────────────────────
 //
@@ -50,14 +87,18 @@ const SECONDS_PER_MINUTE = 60;
 // floor; otherwise the two-way path runs and Scales takes its
 // fixed/proportional budget off the top.
 
-/** Three-way split fraction: Scales warm-up share. Per
- *  SESSION_DESIGN.md the design target is 15 % but the legacy code
- *  shipped at 25 %; this commit migrates the constant unchanged and
- *  Commit 2 of the SESSION_DESIGN build updates it to the design value. */
-export const VL_SPLIT_SCALES_FRACTION = 0.25;
+/** Three-way split fraction (VL active): Scales warm-up share.
+ *  Per SESSION_DESIGN.md design table § "S&P internal split". */
+export const VL_SPLIT_SCALES_FRACTION = 0.15;
 
-/** Three-way split fraction: Chord shapes walk share. */
-export const VL_SPLIT_WALK_FRACTION = 0.50;
+/** Three-way split fraction (VL active): Chord shapes walk share.
+ *  VL share = 1 - scales - walk by construction (0.40). */
+export const VL_SPLIT_WALK_FRACTION = 0.45;
+
+/** Two-way split fraction (no VL): Scales warm-up share.
+ *  Chord shapes get the remainder (0.80). Per SESSION_DESIGN.md
+ *  § "Two-way fallback (no VL)". */
+export const TWO_WAY_SCALES_FRACTION = 0.20;
 
 // ─── Scales warm-up ───────────────────────────────────────────────────────
 
@@ -77,10 +118,17 @@ export const SCALES_SEGMENT_LONG_SECONDS = 8 * SECONDS_PER_MINUTE;
  *  kicks in. */
 export const SCALES_SEGMENT_LONG_BLOCK_SECONDS = 30 * SECONDS_PER_MINUTE;
 
-/** Hard cap on how many keys the Scales segment covers. Per
- *  SESSION_DESIGN.md the design target is 2 (currently 3); Commit 2
- *  of the SESSION_DESIGN build updates it. */
-export const SCALES_SEGMENT_MAX_KEYS = 3;
+/** Hard cap on how many keys the Scales warm-up covers per session.
+ *  Per SESSION_DESIGN.md § "Scales warm-up rules" — 1 key default,
+ *  2 keys max. */
+export const SCALES_SEGMENT_MAX_KEYS = 2;
+
+/** Number of scale TYPES drilled per key in the warm-up. The picker
+ *  selects the most-due pair for each key from the four-scale
+ *  catalog. Per SESSION_DESIGN.md:
+ *    Major-tonality keys: major + major pentatonic
+ *    Minor-tonality keys: natural minor + minor pentatonic */
+export const SCALES_TYPES_PER_KEY = 2;
 
 /** Hard ceiling for the goal-aware proportional budget: warm-up
  *  won't exceed this fraction of the S&P block. */

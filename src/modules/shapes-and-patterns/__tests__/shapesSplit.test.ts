@@ -349,7 +349,11 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
 
   it('leads with the least-recently-touched scale key with due cells', () => {
     // Three scale rows: Bb is oldest with a due cell; C + F are
-    // newer. Algorithm should pick Bb to lead.
+    // newer. Algorithm should pick Bb to lead. After the
+    // SESSION_DESIGN 2-types-per-key change, only the most-due
+    // pair for each key surfaces — Bb has a major row, so
+    // major-pent (no row → top dueness) wins for Bb. The
+    // assertion below pins the key, not the type.
     const rows = [
       row('scale:major:C', { lastEngagedAt: NOW - 1_000, nextDueAt: NOW - 100 }),
       row('scale:major:F', { lastEngagedAt: NOW - 5_000, nextDueAt: NOW + 1_000 }),
@@ -360,13 +364,13 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.itemRefs[0]).toBe('scale:major:Bb');
+    expect(parseScaleKeyName(scales.itemRefs[0])).toBe('Bb');
   });
 
-  it('caps at SCALES_SEGMENT_MAX_KEYS (3) keys via spacing-state-driven walk', () => {
+  it('caps at SCALES_SEGMENT_MAX_KEYS (2) keys via spacing-state-driven walk', () => {
     // Cold-start with no scale rows and a long 30-min block — the
-    // circle-of-4ths walk from C fills up to 3 distinct keys before
-    // the cap stops it.
+    // circle-of-4ths walk from C fills up to 2 distinct keys (the
+    // SESSION_DESIGN cap) before stopping.
     const segs = shapeShapesBlock(
       block(['chord-shape:maj:C:root'], 30 * 60),
       ctx([], { unlockedTier: 1 }),
@@ -377,25 +381,25 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
         .map(ref => parseScaleKeyName(ref))
         .filter((k): k is string => k !== null),
     );
-    expect(distinctKeys.size).toBeLessThanOrEqual(3);
-    // And actually reaches 3 when the budget allows.
-    expect(distinctKeys.size).toBe(3);
+    expect(distinctKeys.size).toBeLessThanOrEqual(2);
+    expect(distinctKeys.size).toBe(2);
   });
 
-  it('drills the four-scale ladder per key in design order; rel-maj is NOT a separate cell', () => {
+  it('drills the 2 most-due types per key (cold-start = major + major pent)', () => {
+    // Post SESSION_DESIGN: scales picker selects SCALES_TYPES_PER_KEY
+    // most-due types per key. Cold-start (no rows) → catalog ladder
+    // tiebreak surfaces major + major-pent first. Natural-minor +
+    // minor-pent are NOT included unless they're more-due than the
+    // major pair.
     const segs = shapeShapesBlock(
       block([], 15 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    // 5-min budget = 300 s. Single-key ladder = 30+30+90+30 = 180 s
-    // for one key, leaving 120 s for the next key — fits another
-    // ladder partially before the next key is added.
-    expect(scales.itemRefs.slice(0, 4)).toEqual([
+    // First 2 itemRefs are the C-key pair.
+    expect(scales.itemRefs.slice(0, 2)).toEqual([
       'scale:major:C',
       'scale:major-pentatonic:1:C',
-      'scale:natural-minor:C',
-      'scale:minor-pentatonic:1:C',
     ]);
     // Defensive: no rel-maj itemRef shape in the output.
     for (const ref of scales.itemRefs) {
@@ -410,7 +414,32 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.itemRefs).toContain('scale:major-pentatonic:1:C');
-    expect(scales.itemRefs).toContain('scale:minor-pentatonic:1:C');
+    // minor-pent is NOT selected at cold-start — only major +
+    // major-pent surface per the 2-types-per-key cap.
+  });
+
+  it('picker selects nat-min + min-pent for a key when the major pair has been recently practised', () => {
+    // The major-tonality pair (major + major-pent) has been
+    // practised; major + major-pent rows exist with nextDueAt in
+    // the future. natural-minor + minor-pent have no rows → more
+    // due → picker pivots to the minor pair.
+    const rows = [
+      row('scale:major:C',                 { nextDueAt: NOW + 10_000 }),
+      row('scale:major-pentatonic:1:C',    { nextDueAt: NOW + 10_000 }),
+      // nat-min and min-pent have no rows → NEGATIVE_INFINITY dueness.
+    ];
+    const segs = shapeShapesBlock(
+      block([], 15 * 60),
+      ctx(rows, { unlockedTier: 1 }),
+    );
+    const scales = segs.find(s => s.kind === 'scales')!;
+    // C is the lead-key (most due, since major+major-pent due-score
+    // wins among existing rows). For C the picker surfaces nat-min
+    // + min-pent (the most-due pair for that key).
+    const cRefs = scales.itemRefs.filter(r => r.endsWith(':C'));
+    expect(cRefs).toContain('scale:natural-minor:C');
+    expect(cRefs).toContain('scale:minor-pentatonic:1:C');
+    expect(cRefs).not.toContain('scale:major:C');
   });
 
   it('prefers the most-due pent starting point when rows exist', () => {
@@ -436,8 +465,9 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     );
     const scales = segs.find(s => s.kind === 'scales')!;
     expect(scales.label.startsWith('SCALES — C')).toBe(true);
+    // Cold-start surfaces the major pair only — major + major-pent —
+    // so the families list reads as "major + pentatonics".
     expect(scales.label).toContain('major');
-    expect(scales.label).toContain('minor');
     expect(scales.label).toContain('pentatonics');
     // No longer surfaces the kind-specific "natural min" / "minor
     // pent" phrasing — those collapse into the plain-language list.
@@ -445,21 +475,20 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     expect(scales.label).not.toMatch(/minor pent/);
   });
 
-  it('multi-key labels join keys with ", " in the SCALES header', () => {
-    // Three least-recently-engaged scale keys with due cells — the
-    // picker leads with the oldest (B) and walks circle-of-4ths from
-    // there (B → E → A). The label surfaces the resulting key list.
+  it('multi-key labels join keys with ", " in the SCALES header (max 2 keys)', () => {
+    // Two least-recently-engaged scale keys with due cells — the
+    // picker leads with the oldest (B) and walks circle-of-4ths
+    // from there (B → E). SESSION_DESIGN caps at 2 keys.
     const rows = [
       row('scale:major:B',  { lastEngagedAt: NOW - 30_000, nextDueAt: NOW - 100 }),
       row('scale:major:E',  { lastEngagedAt: NOW - 20_000, nextDueAt: NOW - 100 }),
-      row('scale:major:A',  { lastEngagedAt: NOW - 10_000, nextDueAt: NOW - 100 }),
     ];
     const segs = shapeShapesBlock(
       block([], 30 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.label.startsWith('SCALES — B, E, A (')).toBe(true);
+    expect(scales.label.startsWith('SCALES — B, E (')).toBe(true);
   });
 
   it('why-text reads "across your warm-up keys — {keys}" (no song-title overlay)', () => {
@@ -609,8 +638,8 @@ describe('shapeShapesBlock — VL three-way split', () => {
     const total = segs.reduce((acc, s) => acc + s.plannedSeconds, 0);
     expect(total).toBe(30 * 60);
     const [scales, walk, vl] = segs;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.25));
-    expect(walk.plannedSeconds).toBe(Math.floor(30 * 60 * 0.50));
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
+    expect(walk.plannedSeconds).toBe(Math.floor(30 * 60 * 0.45));
     expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - walk.plannedSeconds);
   });
 
@@ -927,8 +956,8 @@ describe('shapeShapesBlock — VL per-key gating', () => {
     // their declared proportions even when one is empty.
     const scales = segs.find(s => s.kind === 'scales')!;
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.25));
-    expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - Math.floor(30 * 60 * 0.50));
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
+    expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - Math.floor(30 * 60 * 0.45));
   });
 
   it('three-way path bypasses the Scales goal-proportional budget rules', () => {
@@ -945,7 +974,7 @@ describe('shapeShapesBlock — VL per-key gating', () => {
       }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.25)); // 450, not 180
+    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15)); // 270 (15 %), not 180
   });
 });
 
