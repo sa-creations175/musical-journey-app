@@ -1486,10 +1486,13 @@ function toProposalBlocks(
         activityDescription: s.label,
         plannedSeconds: s.plannedSeconds,
         whySnippet: s.why,
-        // Carry the per-block song id (when known) so the quick-
-        // launch destination can route into the specific song's
-        // matrix / setup view rather than the generic Repertoire list.
-        itemRefs: s.songId ? [s.songId] : [],
+        // scale-prep blocks carry concrete scale itemRefs (so the
+        // Scales-drilling surface can route the user into the right
+        // cells). Every other block falls back to the [songId]
+        // routing target the song-detail / matrix / setup paths use.
+        itemRefs: s.scaleItemRefs
+          ? [...s.scaleItemRefs]
+          : (s.songId ? [s.songId] : []),
         // Chord quiz + scale prep are the warm-up affordances —
         // both surface the badge above the song-practice block they
         // precede.
@@ -1503,6 +1506,14 @@ function toProposalBlocks(
           ? {
               quickLaunchRoute: `/repertoire?tab=detail&songId=${encodeURIComponent(s.songId)}&action=whole-song-test`,
             }
+          : {}),
+        // Scale-prep blocks deep-link to the S&P module's Scales tab —
+        // the heat-grid surface that opens ScalesDrillModal on tap,
+        // matching the general warm-up's interactive drill flow. The
+        // user lands on the right tab regardless of their last
+        // S&P-module tab preference.
+        ...(s.kind === 'scale-prep'
+          ? { quickLaunchRoute: '/shapes-and-patterns?tab=scales' }
           : {}),
         // TBD spotlight surfaces an inline "Add a song in Goals"
         // action — the block still renders normally so the

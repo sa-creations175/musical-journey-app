@@ -40,6 +40,7 @@ import {
   decidePostComfortableBlock,
   type PostComfortableBlockDecision,
 } from '../repertoire/songProgression';
+import { itemRefForScale } from '../shapes-and-patterns/scaleSkills';
 
 const MIN_SPOTLIGHT_SECONDS = 15 * 60;
 /** Spotlight share of a two-slot repertoire allocation. 3:1 matches
@@ -122,12 +123,14 @@ export async function loadRepertoireSplitContext(
   // post-comfortable decision run per-song without a Dexie round-
   // trip per candidate (the inner loop walks every song in the
   // worst case).
-  const [allSongs, allKeys, allCells, allSections] = await Promise.all([
-    db.songs.toArray(),
-    db.songKeys.toArray(),
-    db.songCells.toArray(),
-    db.songSections.toArray(),
-  ]);
+  const [allSongs, allKeys, allCells, allSections, allMatrixSections] =
+    await Promise.all([
+      db.songs.toArray(),
+      db.songKeys.toArray(),
+      db.songCells.toArray(),
+      db.songSections.toArray(),
+      db.songMatrixSections.toArray(),
+    ]);
   const sorted = [...allSongs].sort(
     (a, b) =>
       (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
@@ -142,6 +145,8 @@ export async function loadRepertoireSplitContext(
   const cellsFor = (songId: string) => allCells.filter(c => c.songId === songId);
   const sectionsFor = (songId: string) =>
     allSections.filter(s => s.songId === songId);
+  const matrixSectionsFor = (songId: string) =>
+    allMatrixSections.filter(s => s.songId === songId);
   const originalKeyEngagedAt = (songId: string): number | null => {
     const ok = allKeys.find(k => k.songId === songId && k.isOriginalKey);
     return ok?.lastEngagedAt ?? null;
@@ -158,7 +163,7 @@ export async function loadRepertoireSplitContext(
     const sKeys = keysFor(s.id);
     const sCells = cellsFor(s.id);
     const readiness = getSongReadiness(s, sKeys, sectionsFor(s.id));
-    if (isSongPostComfortable(s, sKeys, sCells)) {
+    if (isSongPostComfortable(s, sKeys, sCells, matrixSectionsFor(s.id))) {
       const decision = decidePostComfortableBlock({
         song: s,
         songKeys: sKeys,
@@ -219,7 +224,14 @@ export async function loadRepertoireSplitContext(
         sKeys,
         sectionsFor(spotlightSong.id),
       );
-      if (isSongPostComfortable(spotlightSong, sKeys, sCells)) {
+      if (
+        isSongPostComfortable(
+          spotlightSong,
+          sKeys,
+          sCells,
+          matrixSectionsFor(spotlightSong.id),
+        )
+      ) {
         const decision = decidePostComfortableBlock({
           song: spotlightSong,
           songKeys: sKeys,
@@ -276,6 +288,12 @@ export interface RepertoireSplitBlock {
    *                              banner is visible there); deepen /
    *                              maintenance paths use this. */
   kind: 'spotlight' | 'maintenance' | 'setup' | 'chord-quiz' | 'whole-song-run' | 'scale-prep';
+  /** Concrete scale itemRefs the block drills, when known. Populated
+   *  by `scalePrepBlock` so the proposal-side rendering can route
+   *  the user into the Scales-drilling surface with the right cells
+   *  ready to drill. Other block kinds leave this undefined; the
+   *  proposal layer falls back to `[songId]` for them. */
+  scaleItemRefs?: readonly string[];
 }
 
 /** Duration of a scale-prep block in seconds. Two scale types per
@@ -651,6 +669,22 @@ function scalePrepBlock(
   if (!parsed) return null;
   const { canonicalKey, isMinor } = parsed;
   const scaleTypes = isMinor ? 'natural minor + minor pent' : 'major + major pent';
+  // Emit the concrete sub-cell itemRefs the user will drill — the
+  // session UI routes scale-prep blocks to the Scales heat-grid
+  // surface, and these itemRefs are what surface there. Major songs
+  // drill the major scale + major pentatonic from sp1; minor songs
+  // drill the natural minor + minor pentatonic from sp1. sp1 mirrors
+  // the warm-up's pent default and is the most generally-useful
+  // starting point for a 90 s prep window.
+  const scaleItemRefs: string[] = isMinor
+    ? [
+        itemRefForScale({ kind: 'natural-minor',    keyName: canonicalKey }),
+        itemRefForScale({ kind: 'minor-pentatonic', keyName: canonicalKey, startingPoint: '1' }),
+      ]
+    : [
+        itemRefForScale({ kind: 'major',            keyName: canonicalKey }),
+        itemRefForScale({ kind: 'major-pentatonic', keyName: canonicalKey, startingPoint: '1' }),
+      ];
   return {
     label: `SCALES — prep for ${title} · ${canonicalKey} (${scaleTypes})`,
     plannedSeconds: SCALE_PREP_SECONDS,
@@ -658,6 +692,7 @@ function scalePrepBlock(
     songId,
     isTbdSpotlight: false,
     kind: 'scale-prep',
+    scaleItemRefs,
   };
 }
 

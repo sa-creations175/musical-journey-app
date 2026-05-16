@@ -355,6 +355,42 @@ describe('splitRepertoireAllocation — scale-prep injection', () => {
     expect(out[1].plannedSeconds).toBe(20 * 60 - 90);
   });
 
+  it('scale-prep emits scale itemRefs for the song\'s key (major: major + major-pent sp1)', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Mirror'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Mirror', 'Gb'),
+      spotlightReadiness: 'needs-chords',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    const prep = out.find(b => b.kind === 'scale-prep')!;
+    expect(prep.scaleItemRefs).toEqual([
+      'scale:major:Gb',
+      'scale:major-pentatonic:1:Gb',
+    ]);
+  });
+
+  it('scale-prep emits scale itemRefs for minor-key songs (natural-minor + minor-pent sp1)', () => {
+    const ctx: RepertoireSplitContext = {
+      ...splitCtx({
+        spotlight: specificSpotlight('s1', 'Sade Tune'),
+        maintenanceSong: null,
+      }),
+      spotlightSong: songWithKey('s1', 'Sade Tune', 'A minor'),
+      spotlightReadiness: 'needs-chords',
+      context: 'keys',
+    };
+    const out = splitRepertoireAllocation(20 * 60, ctx);
+    const prep = out.find(b => b.kind === 'scale-prep')!;
+    expect(prep.scaleItemRefs).toEqual([
+      'scale:natural-minor:A',
+      'scale:minor-pentatonic:1:A',
+    ]);
+  });
+
   it('inserts the prep AFTER chord-quiz on a ready-on-keys spotlight', () => {
     const ctx: RepertoireSplitContext = {
       ...splitCtx({
