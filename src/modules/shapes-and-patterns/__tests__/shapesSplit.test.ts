@@ -793,6 +793,26 @@ describe('shapeShapesBlock — VL three-way split', () => {
     expect(vl.itemRefs.every(r => r.startsWith('vl:diatonic-cycle:'))).toBe(true);
   });
 
+  it('within UNSTARTED tier, keys surface in circle-of-fourths order (C → F → Bb → Eb → ...)', () => {
+    // Cold-start: every catalog cell is UNSTARTED. The first
+    // diatonic-cycle pos1 cells should walk C → F → Bb → Eb → Ab →
+    // Db → Gb → ... rather than chromatic C → Db → D → Eb → ....
+    // Use a 90-min block so 24+ VL cells fit in the window.
+    const segs = shapeShapesBlock(
+      block([], 90 * 60),
+      ctx([], { unlockedTier: 1 }),
+    );
+    const vl = segs.find(s => s.kind === 'voice-leading')!;
+    // Pull the first 7 diatonic-cycle:pos1 cells (one per key in
+    // circle-of-fourths order). Note 'Gb' is the catalog's flat
+    // spelling of F# — the chromatic KEYS array uses 'F#' so the
+    // enumerated cell is 'vl:diatonic-cycle:pos1:F#', but the sort
+    // canonicalises before lookup.
+    const pos1Cells = vl.itemRefs.filter(r => r.startsWith('vl:diatonic-cycle:pos1:'));
+    const keysOrder = pos1Cells.map(r => r.split(':').pop()!);
+    expect(keysOrder.slice(0, 7)).toEqual(['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#']);
+  });
+
   it('within UNSTARTED tier, type index ASC orders the type progression (guide-tones first)', () => {
     // Isolate two cells in UNSTARTED tier at the same pattern + key:
     // major-251 guide-tones A:C and seventh-chords A:C. With prereqs

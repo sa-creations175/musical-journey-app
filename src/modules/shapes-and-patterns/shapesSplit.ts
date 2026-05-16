@@ -62,6 +62,7 @@ import {
   isTrackedShape,
   type SPTier,
 } from './spTiers';
+import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import {
   SCALES_SEGMENT_LONG_BLOCK_SECONDS,
   SCALES_SEGMENT_LONG_SECONDS,
@@ -828,9 +829,22 @@ interface VLCell {
   blockIndex: number;
 }
 
-const KEY_INDEX: ReadonlyMap<string, number> = new Map(
-  KEYS.map((k, i) => [k, i]),
+/** Circle-of-fourths key ordering for VL sort tiebreak. Unstarted
+ *  VL cells within the same pattern/type/position group surface in
+ *  C → F → Bb → Eb → Ab → Db → Gb → B → E → A → D → G order rather
+ *  than chromatic — the design wants users walking the wheel as
+ *  they extend a pattern across keys. */
+const VL_CIRCLE_KEY_INDEX: ReadonlyMap<string, number> = new Map(
+  CIRCLE_OF_FOURTHS.map((k, i) => [k, i]),
 );
+
+/** Lookup a key's circle-of-fourths position. Canonicalises sharp
+ *  spellings (e.g. 'F#' → 'Gb') so VL cells enumerated from the
+ *  chromatic KEYS array match the flat-side circle of fourths. */
+function vlKeyIndex(keyName: string): number {
+  const canonical = canonicaliseKey(keyName) ?? keyName;
+  return VL_CIRCLE_KEY_INDEX.get(canonical) ?? CIRCLE_OF_FOURTHS.length;
+}
 
 /** Compute (typeIndex, positionIndex) for a descriptor against its
  *  pattern's dimension arrays. Used both as a sort key and (for
@@ -968,7 +982,7 @@ function buildVoiceLeadingSegment(
           patternIndex: VOICE_LEADING_PATTERN_INDEX.get(desc.patternId) ?? Number.MAX_SAFE_INTEGER,
           typeIndex,
           positionIndex,
-          keyIndex: KEY_INDEX.get(desc.keyName) ?? KEYS.length,
+          keyIndex: vlKeyIndex(desc.keyName),
           blockIndex: enumIdx++,
         });
       }
