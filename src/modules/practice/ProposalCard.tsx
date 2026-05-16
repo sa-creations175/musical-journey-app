@@ -13,10 +13,17 @@
  * Each substep edits this file.
  */
 import { useEffect, useState } from 'react';
+import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import AffirmationSurface from './AffirmationSurface';
-import SessionStack from './SessionStack';
+import SessionStack, { type InlinePrompt } from './SessionStack';
 import TimePicker from './TimePicker';
+import {
+  deletionUnit,
+  modulesWithRecipients,
+  recipientIdsForModule,
+  redistributeProportionally,
+} from './proposalRedistribute';
 import type { ProposalBlock, ProposalCardData } from './proposalTypes';
 
 interface Props {
@@ -77,7 +84,6 @@ export default function ProposalCard({
   const [whyOpen, setWhyOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const totalMinutes = Math.round(data.totalSeconds / 60);
 
   // Locally-tracked block order so the user can drag-to-reorder
   // before accepting without mutating the upstream proposal. Reset
@@ -87,10 +93,87 @@ export default function ProposalCard({
   // user reorder.
   const blockIdSignature = data.blocks.map(b => b.id).join('|');
   const [orderedBlocks, setOrderedBlocks] = useState<ProposalBlock[]>(data.blocks);
+  // Pending redistribution prompts. Each is the in-place picker that
+  // appears when the user deletes a block — shows the freed seconds
+  // and the per-module / split-evenly options. Cleared alongside
+  // orderedBlocks on upstream proposal change.
+  const [pendingPrompts, setPendingPrompts] = useState<PendingPrompt[]>([]);
   useEffect(() => {
     setOrderedBlocks(data.blocks);
+    setPendingPrompts([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockIdSignature]);
+
+  const handleDelete = (blockId: string) => {
+    const idsToRemove = deletionUnit(orderedBlocks, blockId);
+    const idsToRemoveSet = new Set(idsToRemove);
+    const removedBlocks = orderedBlocks.filter(b => idsToRemoveSet.has(b.id));
+    const freedSeconds = removedBlocks.reduce((s, b) => s + b.plannedSeconds, 0);
+
+    // Anchor for the inline prompt = id of the next surviving group's
+    // first block. The deleted unit might span multiple consecutive
+    // blocks (Rep song anchor + its warm-ups), so look forward from
+    // the last removed index.
+    const lastRemovedIdx = (() => {
+      let last = -1;
+      orderedBlocks.forEach((b, i) => { if (idsToRemoveSet.has(b.id)) last = i; });
+      return last;
+    })();
+    const nextBlock = orderedBlocks
+      .slice(lastRemovedIdx + 1)
+      .find(b => !idsToRemoveSet.has(b.id));
+    const anchorGroupId = nextBlock?.id ?? null;
+
+    setOrderedBlocks(prev => prev.filter(b => !idsToRemoveSet.has(b.id)));
+    setPendingPrompts(prev => [
+      ...prev,
+      {
+        id: `prompt-${blockId}-${Date.now()}`,
+        anchorGroupId,
+        freedSeconds,
+      },
+    ]);
+  };
+
+  const handleRedistribute = (
+    promptId: string,
+    targetModuleRef: string | null,
+  ) => {
+    const prompt = pendingPrompts.find(p => p.id === promptId);
+    if (!prompt) return;
+    const recipientIds = recipientIdsForModule(orderedBlocks, targetModuleRef);
+    setOrderedBlocks(prev =>
+      redistributeProportionally(prev, prompt.freedSeconds, recipientIds),
+    );
+    setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
+  };
+
+  const handleDismissPrompt = (promptId: string) => {
+    setPendingPrompts(prev => prev.filter(p => p.id !== promptId));
+  };
+
+  // Wrap prompts into the InlinePrompt shape SessionStack expects.
+  // The renderer reads orderedBlocks live so the per-module button
+  // list reflects deletions that happened after this prompt was
+  // created.
+  const inlinePrompts: InlinePrompt[] = pendingPrompts.map(p => ({
+    id: p.id,
+    anchorGroupId: p.anchorGroupId,
+    render: () => (
+      <RedistributionPrompt
+        freedSeconds={p.freedSeconds}
+        blocks={orderedBlocks}
+        onPick={moduleRef => handleRedistribute(p.id, moduleRef)}
+        onDismiss={() => handleDismissPrompt(p.id)}
+      />
+    ),
+  }));
+
+  // Live total = sum of surviving block seconds. The pre-deletion
+  // total came from `data.totalSeconds` (computed upstream); once the
+  // user edits the list, that number is stale.
+  const totalSecondsLive = orderedBlocks.reduce((s, b) => s + b.plannedSeconds, 0);
+  const totalMinutesLive = Math.round(totalSecondsLive / 60);
 
   const showAddPicker =
     onAddDeeperOnExisting !== undefined ||
@@ -127,12 +210,12 @@ export default function ProposalCard({
             aria-expanded={timeOpen}
             className="font-mono tabular-nums text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
           >
-            <span>{formatActiveTime(data.totalSeconds * 1000)} total</span>
+            <span>{formatActiveTime(totalSecondsLive * 1000)} total</span>
             <span aria-hidden>{timeOpen ? '↑' : '↓'}</span>
           </button>
         ) : (
           <span className="font-mono tabular-nums text-xs text-neutral-500">
-            {formatActiveTime(data.totalSeconds * 1000)} total
+            {formatActiveTime(totalSecondsLive * 1000)} total
           </span>
         )}
       </header>
@@ -140,13 +223,18 @@ export default function ProposalCard({
       {timeOpen && onTimeChange && (
         <div className="rounded-md border border-neutral-200 dark:border-neutral-700 p-2.5">
           <TimePicker
-            value={totalMinutes}
+            value={totalMinutesLive}
             onChange={handleTimeChange}
             helperText="Adjust session length"
           />
         </div>
       )}
-      <SessionStack blocks={orderedBlocks} onReorder={setOrderedBlocks} />
+      <SessionStack
+        blocks={orderedBlocks}
+        onReorder={setOrderedBlocks}
+        onDelete={handleDelete}
+        inlinePrompts={inlinePrompts}
+      />
 
       {showAddPicker && (
         <div className="space-y-1.5">
@@ -297,5 +385,106 @@ function AddBlockOption({
       <div className="text-xs font-medium">{title}</div>
       <div className="text-[10px] text-neutral-500">{subtitle}</div>
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Block-delete redistribution prompt
+// ---------------------------------------------------------------------
+
+interface PendingPrompt {
+  id: string;
+  /** Id of the block this prompt should render above (= first block
+   *  of the next surviving group). null when the deletion was the
+   *  tail of the list. */
+  anchorGroupId: string | null;
+  freedSeconds: number;
+}
+
+function RedistributionPrompt({
+  freedSeconds,
+  blocks,
+  onPick,
+  onDismiss,
+}: {
+  freedSeconds: number;
+  blocks: ReadonlyArray<ProposalBlock>;
+  /** moduleRef → per-module redistribution; null → split evenly. */
+  onPick: (moduleRef: string | null) => void;
+  onDismiss: () => void;
+}) {
+  // Per spec: show one button per module that still has non-warm-up
+  // blocks. "Split evenly" only when 2+ modules qualify.
+  const moduleRefs = modulesWithRecipients(blocks);
+  const showSplit = moduleRefs.length >= 2;
+  const freedMinutes = Math.round(freedSeconds / 60);
+  const freedLabel = freedMinutes >= 1
+    ? `${freedMinutes} min`
+    : `${freedSeconds} sec`;
+
+  if (moduleRefs.length === 0) {
+    // No surviving non-warm-up blocks anywhere — nothing to receive
+    // the freed time. Honest disclosure, single dismiss action.
+    return (
+      <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900/40 px-3 py-2 flex items-center justify-between gap-2">
+        <div className="text-[11px] text-neutral-600 dark:text-neutral-300">
+          Freed {freedLabel} — no remaining blocks to redistribute into.
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+        >
+          dismiss
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-dashed border-fluent/40 bg-fluent/5 px-3 py-2 space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-[11px] text-neutral-700 dark:text-neutral-200">
+          Freed <span className="font-mono tabular-nums">{freedLabel}</span> —
+          where should it go?
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline shrink-0"
+          aria-label="Dismiss without redistributing"
+          title="Dismiss without redistributing — freed time drops the session length"
+        >
+          skip
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {moduleRefs.map(moduleRef => {
+          const meta = moduleMetaById(moduleRef);
+          const label = meta?.label ?? moduleRef;
+          const accent = meta?.accentHex ?? '#4a9088';
+          return (
+            <button
+              key={moduleRef}
+              type="button"
+              onClick={() => onPick(moduleRef)}
+              className="px-2.5 py-1 rounded-md border text-[11px] font-medium hover:opacity-90"
+              style={{ color: accent, borderColor: accent }}
+            >
+              {label}
+            </button>
+          );
+        })}
+        {showSplit && (
+          <button
+            type="button"
+            onClick={() => onPick(null)}
+            className="px-2.5 py-1 rounded-md border border-neutral-400 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
+          >
+            Split evenly
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

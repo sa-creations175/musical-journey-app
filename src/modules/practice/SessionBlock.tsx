@@ -29,9 +29,15 @@ interface Props {
   expanded?: boolean;
   /** Controlled-mode toggle handler. Required when `expanded` is set. */
   onToggle?: () => void;
+  /** When supplied (and the block is NOT a warm-up), a small × button
+   *  appears in the header. Tapping invokes the handler with the block
+   *  id; the parent owns the actual list mutation. Warm-up blocks are
+   *  locked to their anchor — they go via the anchor's delete, not
+   *  their own. */
+  onDelete?: (blockId: string) => void;
 }
 
-export default function SessionBlock({ block, expanded, onToggle }: Props) {
+export default function SessionBlock({ block, expanded, onToggle, onDelete }: Props) {
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isControlled = expanded !== undefined;
   const isExpanded = isControlled ? !!expanded : internalExpanded;
@@ -202,6 +208,28 @@ export default function SessionBlock({ block, expanded, onToggle }: Props) {
         <div className="shrink-0 font-mono tabular-nums text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
+        {onDelete && !block.isWarmup && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={`Remove ${label} block`}
+            title="Remove this block from the proposal"
+            onClick={e => {
+              e.stopPropagation();
+              onDelete(block.id);
+            }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(block.id);
+              }
+            }}
+            className="shrink-0 -mr-1 px-1.5 py-0.5 text-neutral-400 hover:text-needswork cursor-pointer text-sm leading-none"
+          >
+            ×
+          </span>
+        )}
       </div>
 
       {isExpanded && (

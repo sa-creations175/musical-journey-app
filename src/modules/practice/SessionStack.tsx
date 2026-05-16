@@ -16,7 +16,7 @@
  * produced by the reorder is passed back via `onReorder`;
  * SessionStack stays stateless.
  */
-import { useMemo, type CSSProperties } from 'react';
+import { Fragment, useMemo, type CSSProperties } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -48,6 +48,24 @@ import type { ProposalBlock } from './proposalTypes';
  *  floor (which starved short blocks via flex-grow distribution). */
 const MIN_BLOCK_PX = 120;
 
+/** Inline prompt slot — used by ProposalCard's block-delete flow to
+ *  surface a redistribution picker in place of the just-deleted block.
+ *  The stack renders the prompt as a stand-alone row between groups,
+ *  outside the proportional-flex sizing math, so its presence doesn't
+ *  resize the surviving blocks. */
+export interface InlinePrompt {
+  /** Stable id for React key. */
+  id: string;
+  /** Id of the group (= first block's id) the prompt should appear
+   *  ABOVE. `null` → render after the last group. If the matching
+   *  group is no longer in the list (e.g. it got deleted later), the
+   *  prompt falls back to end-of-list rendering. */
+  anchorGroupId: string | null;
+  /** Rendered into a non-flex row. The caller supplies the full inner
+   *  markup; the stack only owns the row container. */
+  render: () => React.ReactNode;
+}
+
 interface Props {
   blocks: ReadonlyArray<ProposalBlock>;
   /** Drag-to-reorder hook. When supplied, the stack becomes
@@ -56,11 +74,17 @@ interface Props {
    *  user can't separate a chord-quiz or scale-prep from the
    *  song they set up. */
   onReorder?: (next: ProposalBlock[]) => void;
+  /** When supplied, non-warm-up blocks render a × delete button.
+   *  Invoked with the block's id; the caller owns the list mutation
+   *  and the redistribution prompt that replaces the row. */
+  onDelete?: (blockId: string) => void;
+  /** Inline prompts to render between groups. See InlinePrompt. */
+  inlinePrompts?: ReadonlyArray<InlinePrompt>;
 }
 
 /** A drag unit. Single-block groups contain one item; paired
  *  groups contain a warm-up followed by its practice block. */
-interface BlockGroup {
+export interface BlockGroup {
   /** Stable id for SortableContext — uses the first item's id. */
   id: string;
   items: ProposalBlock[];
@@ -80,7 +104,7 @@ interface BlockGroup {
  *     when no song anchor follows.
  *
  *   · All other blocks → own independent unit. */
-function groupBlocks(blocks: ReadonlyArray<ProposalBlock>): BlockGroup[] {
+export function groupBlocks(blocks: ReadonlyArray<ProposalBlock>): BlockGroup[] {
   const groups: BlockGroup[] = [];
   let i = 0;
   while (i < blocks.length) {
@@ -125,8 +149,26 @@ function sumSeconds(items: ReadonlyArray<ProposalBlock>): number {
   return items.reduce((s, b) => s + Math.max(1, b.plannedSeconds), 0);
 }
 
-export default function SessionStack({ blocks, onReorder }: Props) {
+export default function SessionStack({ blocks, onReorder, onDelete, inlinePrompts }: Props) {
   const groups = useMemo(() => groupBlocks(blocks), [blocks]);
+  // Group prompts by their anchor for O(1) lookup during render.
+  // End-of-list (anchor null OR anchor no longer in groups) bucket
+  // renders after the final group so stranded prompts don't vanish.
+  const groupIdSet = useMemo(() => new Set(groups.map(g => g.id)), [groups]);
+  const promptsByAnchor = useMemo(() => {
+    const map = new Map<string, InlinePrompt[]>();
+    const tail: InlinePrompt[] = [];
+    for (const p of inlinePrompts ?? []) {
+      if (p.anchorGroupId !== null && groupIdSet.has(p.anchorGroupId)) {
+        const list = map.get(p.anchorGroupId) ?? [];
+        list.push(p);
+        map.set(p.anchorGroupId, list);
+      } else {
+        tail.push(p);
+      }
+    }
+    return { byAnchor: map, tail };
+  }, [inlinePrompts, groupIdSet]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -159,16 +201,36 @@ export default function SessionStack({ blocks, onReorder }: Props) {
     onReorder(nextGroups.flatMap(g => g.items));
   };
 
+  const renderPromptRow = (p: InlinePrompt) => (
+    <div
+      key={`prompt-${p.id}`}
+      className="w-full min-w-0"
+      // Non-flex row: takes its own intrinsic height, doesn't
+      // participate in the proportional sizing math that drives the
+      // surviving blocks.
+      style={{ flex: '0 0 auto' }}
+    >
+      {p.render()}
+    </div>
+  );
+
   const stackInner = (
     <div
       className="w-full min-w-0 overflow-hidden flex flex-col gap-0.5 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
       style={{ minHeight: `${minTotalPx}px` }}
     >
-      {groups.map(group => (
-        onReorder
-          ? <SortableGroupRow key={group.id} group={group} />
-          : <StaticGroupRow key={group.id} group={group} />
-      ))}
+      {groups.map(group => {
+        const promptsHere = promptsByAnchor.byAnchor.get(group.id) ?? [];
+        return (
+          <Fragment key={group.id}>
+            {promptsHere.map(renderPromptRow)}
+            {onReorder
+              ? <SortableGroupRow group={group} onDelete={onDelete} />
+              : <StaticGroupRow group={group} onDelete={onDelete} />}
+          </Fragment>
+        );
+      })}
+      {promptsByAnchor.tail.map(renderPromptRow)}
     </div>
   );
 
@@ -192,7 +254,13 @@ export default function SessionStack({ blocks, onReorder }: Props) {
 
 /** Non-sortable group — same proportional layout, no drag handle.
  *  Used when the caller didn't opt into reordering. */
-function StaticGroupRow({ group }: { group: BlockGroup }) {
+function StaticGroupRow({
+  group,
+  onDelete,
+}: {
+  group: BlockGroup;
+  onDelete?: (blockId: string) => void;
+}) {
   const seconds = sumSeconds(group.items);
   // minHeight = (#items × MIN_BLOCK_PX) — paired groups stack two
   // blocks vertically, so the floor stretches accordingly.
@@ -204,7 +272,7 @@ function StaticGroupRow({ group }: { group: BlockGroup }) {
   };
   return (
     <div style={style} className="flex flex-col gap-0.5">
-      <GroupBlocks group={group} />
+      <GroupBlocks group={group} onDelete={onDelete} />
     </div>
   );
 }
@@ -212,7 +280,13 @@ function StaticGroupRow({ group }: { group: BlockGroup }) {
 /** Sortable group — drag handle on the left, blocks on the right.
  *  Height is proportional to the sum of contained block seconds,
  *  bounded below by (#items × MIN_BLOCK_PX). */
-function SortableGroupRow({ group }: { group: BlockGroup }) {
+function SortableGroupRow({
+  group,
+  onDelete,
+}: {
+  group: BlockGroup;
+  onDelete?: (blockId: string) => void;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: group.id });
   const seconds = sumSeconds(group.items);
@@ -244,7 +318,7 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
         <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
       </button>
       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <GroupBlocks group={group} />
+        <GroupBlocks group={group} onDelete={onDelete} />
       </div>
     </div>
   );
@@ -256,9 +330,15 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
  *  both blocks stacked, each row sized by its own plannedSeconds
  *  so the within-group proportions match a session-wide single
  *  block of the same total duration. */
-function GroupBlocks({ group }: { group: BlockGroup }) {
+function GroupBlocks({
+  group,
+  onDelete,
+}: {
+  group: BlockGroup;
+  onDelete?: (blockId: string) => void;
+}) {
   if (group.items.length === 1) {
-    return <SessionBlock block={group.items[0]} />;
+    return <SessionBlock block={group.items[0]} onDelete={onDelete} />;
   }
   return (
     <>
@@ -279,7 +359,7 @@ function GroupBlocks({ group }: { group: BlockGroup }) {
             }}
             className="flex flex-col"
           >
-            <SessionBlock block={b} />
+            <SessionBlock block={b} onDelete={onDelete} />
           </div>
         );
       })}
