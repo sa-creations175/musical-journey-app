@@ -31,7 +31,7 @@ function mkGoal(overrides: Partial<Goal> = {}): Goal {
     targetValue: null,
     targetUnit: null,
     currentValue: 0,
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: [],
     relatedItems: [],
     startDate: now - 14 * 86_400_000,

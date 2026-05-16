@@ -38,8 +38,9 @@ export default function Layout() {
       setSidebarCollapsed(stored);
     });
     // One-shot legacy-data migration: relax repertoire goals tagged
-    // 'keys' to 'mixed' so the polish-sprint context filter doesn't
-    // drop them under non-keys contexts. Idempotent.
+    // 'keys' to null so the context filter doesn't drop them under
+    // non-keys contexts. Also migrates any legacy 'mixed' contextTag
+    // rows to null. Idempotent.
     void cleanupRepertoireGoalContextIfNeeded();
     return () => {
       cancelled = true;

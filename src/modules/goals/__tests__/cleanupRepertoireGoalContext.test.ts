@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 /**
- * Polish-sprint test — locks in the one-time migration that
- * relaxes legacy repertoire goals tagged 'keys' to 'mixed' so the
- * polish-sprint context-filter intersection stops dropping them
- * under non-keys contexts.
+ * Pins the cleanup migration that:
+ *   (1) Relaxes legacy repertoire goals tagged 'keys' to null so
+ *       the context-filter intersection stops dropping them under
+ *       non-keys contexts.
+ *   (2) Migrates any legacy `contextTag: 'mixed'` rows to null
+ *       (the 'mixed' value was removed from PracticeSessionContext).
  */
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -40,7 +42,7 @@ describe('cleanupRepertoireGoalContextIfNeeded', () => {
     await db.goals.clear();
   });
 
-  it('relaxes active repertoire-tagged keys-context goals to mixed', async () => {
+  it('relaxes active repertoire-tagged keys-context goals to null', async () => {
     await db.goals.bulkAdd([
       goal({ id: 'g1', contextTag: 'keys', relatedModules: ['repertoire'] }),
       goal({
@@ -53,15 +55,33 @@ describe('cleanupRepertoireGoalContextIfNeeded', () => {
     await cleanupRepertoireGoalContextIfNeeded();
 
     const after = await db.goals.toArray();
-    expect(after.find(g => g.id === 'g1')?.contextTag).toBe('mixed');
-    expect(after.find(g => g.id === 'g2')?.contextTag).toBe('mixed');
+    expect(after.find(g => g.id === 'g1')?.contextTag).toBe(null);
+    expect(after.find(g => g.id === 'g2')?.contextTag).toBe(null);
   });
 
-  it('does not touch non-repertoire goals', async () => {
+  it('migrates any legacy contextTag="mixed" row to null (regardless of module)', async () => {
+    // 'mixed' is no longer a valid PracticeSessionContext — any row
+    // carrying it from a pre-migration release gets relaxed to null.
+    // Cast through unknown because the type union no longer admits
+    // the string 'mixed'.
     await db.goals.bulkAdd([
-      goal({ id: 'g-shapes', contextTag: 'keys', relatedModules: ['shapes-and-patterns'] }),
+      goal({ id: 'g-rep',   contextTag: 'mixed' as unknown as Goal['contextTag'], relatedModules: ['repertoire'] }),
+      goal({ id: 'g-hf',    contextTag: 'mixed' as unknown as Goal['contextTag'], relatedModules: ['harmonic-fluency'] }),
+      goal({ id: 'g-multi', contextTag: 'mixed' as unknown as Goal['contextTag'], relatedModules: ['repertoire', 'ear-training'] }),
+    ]);
+
+    await cleanupRepertoireGoalContextIfNeeded();
+
+    const after = await db.goals.toArray();
+    expect(after.find(g => g.id === 'g-rep')?.contextTag).toBe(null);
+    expect(after.find(g => g.id === 'g-hf')?.contextTag).toBe(null);
+    expect(after.find(g => g.id === 'g-multi')?.contextTag).toBe(null);
+  });
+
+  it('does not touch non-repertoire keys-context goals (only mixed is relaxed across modules)', async () => {
+    await db.goals.bulkAdd([
+      goal({ id: 'g-shapes', contextTag: 'keys',   relatedModules: ['shapes-and-patterns'] }),
       goal({ id: 'g-prod',   contextTag: 'laptop', relatedModules: ['production'] }),
-      goal({ id: 'g-hf',     contextTag: 'mixed',  relatedModules: ['harmonic-fluency'] }),
     ]);
 
     await cleanupRepertoireGoalContextIfNeeded();
@@ -69,20 +89,17 @@ describe('cleanupRepertoireGoalContextIfNeeded', () => {
     const after = await db.goals.toArray();
     expect(after.find(g => g.id === 'g-shapes')?.contextTag).toBe('keys');
     expect(after.find(g => g.id === 'g-prod')?.contextTag).toBe('laptop');
-    expect(after.find(g => g.id === 'g-hf')?.contextTag).toBe('mixed');
   });
 
-  it('does not touch repertoire goals already tagged mixed/null/laptop/phone', async () => {
+  it('does not touch repertoire goals already tagged null/laptop/phone', async () => {
     await db.goals.bulkAdd([
-      goal({ id: 'g-mixed', contextTag: 'mixed',  relatedModules: ['repertoire'] }),
-      goal({ id: 'g-null',  contextTag: null,     relatedModules: ['repertoire'] }),
-      goal({ id: 'g-phone', contextTag: 'phone',  relatedModules: ['repertoire'] }),
+      goal({ id: 'g-null',  contextTag: null,    relatedModules: ['repertoire'] }),
+      goal({ id: 'g-phone', contextTag: 'phone', relatedModules: ['repertoire'] }),
     ]);
 
     await cleanupRepertoireGoalContextIfNeeded();
 
     const after = await db.goals.toArray();
-    expect(after.find(g => g.id === 'g-mixed')?.contextTag).toBe('mixed');
     expect(after.find(g => g.id === 'g-null')?.contextTag).toBe(null);
     expect(after.find(g => g.id === 'g-phone')?.contextTag).toBe('phone');
   });
@@ -95,7 +112,7 @@ describe('cleanupRepertoireGoalContextIfNeeded', () => {
     await cleanupRepertoireGoalContextIfNeeded();
 
     const after = await db.goals.get('g-paused');
-    expect(after?.contextTag).toBe('mixed');
+    expect(after?.contextTag).toBe(null);
   });
 
   it('skips completed/abandoned goals — terminal states stay untouched', async () => {
@@ -122,6 +139,6 @@ describe('cleanupRepertoireGoalContextIfNeeded', () => {
     const afterSecond = await db.goals.toArray();
 
     expect(afterSecond).toEqual(afterFirst);
-    expect(afterSecond[0].contextTag).toBe('mixed');
+    expect(afterSecond[0].contextTag).toBe(null);
   });
 });

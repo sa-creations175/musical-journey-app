@@ -31,7 +31,6 @@ const CONTEXT_OPTIONS: ReadonlyArray<{ value: PracticeSessionContext; label: str
   { value: 'keys',   label: 'At the keyboard' },
   { value: 'laptop', label: 'On my laptop' },
   { value: 'phone',  label: 'On my phone' },
-  { value: 'mixed',  label: 'Keyboard + device (laptop or phone)' },
 ];
 
 interface FormState {

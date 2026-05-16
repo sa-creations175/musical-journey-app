@@ -11,7 +11,7 @@ function makeSession(id: string, overrides: Partial<PracticeSession> = {}): Prac
     endedAt: null,
     plannedDurationMin: 30,
     actualDurationMin: 25,
-    context: 'mixed',
+    context: 'keys',
     timeOfDay: 'morning',
     sessionRole: 'only',
     sessionIntent: null,

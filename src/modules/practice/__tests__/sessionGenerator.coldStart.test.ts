@@ -86,7 +86,7 @@ function splitCtx(partial: Partial<RepertoireSplitContext>): RepertoireSplitCont
     maintenanceSong: null,
     maintenanceReadiness: null,
     maintenancePostComfortable: null,
-    context: 'mixed',
+    context: 'keys',
     ...partial,
   };
 }
@@ -128,7 +128,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [hfBlock()],
       [mkGoal({})],
       SPLIT_WITH_MAINTENANCE,
-      'mixed',
+      'keys',
     );
     expect(out).toHaveLength(2);
     const injected = out.find(b => b.moduleRef === 'repertoire');
@@ -141,7 +141,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [],
       [mkGoal({})],
       SPLIT_WITH_SPOTLIGHT_AND_MAINT,
-      'mixed',
+      'keys',
     );
     const injected = out.find(b => b.moduleRef === 'repertoire');
     expect(injected?.itemRefs).toEqual(['song-spot', 'song-maint']);
@@ -152,7 +152,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [hfBlock(), repertoireBlock()],
       [mkGoal({})],
       SPLIT_WITH_MAINTENANCE,
-      'mixed',
+      'keys',
     );
     expect(out).toHaveLength(2);
     expect(out.filter(b => b.moduleRef === 'repertoire')).toHaveLength(1);
@@ -164,7 +164,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [hfBlock()],
       [mkGoal({ targetMetric: 'harmonic_fluency_days_per_cadence' })],
       SPLIT_WITH_MAINTENANCE,
-      'mixed',
+      'keys',
     );
     expect(out).toHaveLength(1);
     expect(out.every(b => b.moduleRef !== 'repertoire')).toBe(true);
@@ -175,7 +175,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [hfBlock()],
       [mkGoal({})],
       SPLIT_EMPTY,
-      'mixed',
+      'keys',
     );
     expect(out).toHaveLength(1);
   });
@@ -188,7 +188,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [],
       [mkGoal({})],
       SPLIT_TBD_ONLY,
-      'mixed',
+      'keys',
     );
     const injected = out.find(b => b.moduleRef === 'repertoire');
     expect(injected).toBeDefined();
@@ -214,7 +214,7 @@ describe('maybeInjectRepertoireColdStartBlock', () => {
       [hfBlock()],
       [mkGoal({})],
       null,
-      'mixed',
+      'keys',
     );
     expect(out).toHaveLength(1);
   });

@@ -220,7 +220,7 @@ export default function PracticeSessions() {
     });
     const inputs: InputQuestionnaireResult = {
       timeMinutes: minutes,
-      context: prefill.context ?? 'mixed',
+      context: prefill.context ?? 'keys',
       dayPlan: prefill.dayPlan ?? { kind: 'just_this_session' },
       intent: { kind: 'balanced' },
       energy: { focus: null, motivation: null, inspiration: null },
@@ -440,7 +440,7 @@ export default function PracticeSessions() {
     armSession({
       origin: 'practice-sessions',
       hardBlock: opts.hardBlock,
-      context: lastInputs?.context ?? 'mixed',
+      context: lastInputs?.context ?? 'keys',
       blocks: armBlocks,
     });
     navigate(startRoute);

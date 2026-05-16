@@ -3549,15 +3549,15 @@ function relatedModulesForCard(id: ModuleCardId | null): string[] {
  */
 function contextForModule(id: ModuleCardId | null): PracticeSessionContext | null {
   switch (id) {
-    // Repertoire used to default to 'keys'. Polish-sprint context-
-    // filter rules treat repertoire as study-anywhere (chord-progression
-    // study works on phone / laptop without a keyboard), so the default
-    // is now 'mixed'. Existing repertoire goals tagged 'keys' are
-    // migrated by cleanupRepertoireGoalContextIfNeeded at app boot.
-    case 'repertoire':           return 'mixed';
+    // null = no context restriction (goal applies across all
+    // session contexts). Repertoire / ET / HF default to null
+    // because the chord-progression / flashcard / ear-quiz study
+    // path works on phone / laptop / keys equally. SP requires
+    // a physical keyboard; Production lives in a DAW (laptop).
+    case 'repertoire':           return null;
     case 'shapes-and-patterns':  return 'keys';   // physical keyboard
-    case 'ear-training':         return 'mixed';  // laptop or phone
-    case 'harmonic-fluency':     return 'mixed';  // keyboard / laptop / phone
+    case 'ear-training':         return null;     // laptop or phone or keys
+    case 'harmonic-fluency':     return null;     // keyboard / laptop / phone
     case 'production':           return 'laptop'; // DAW
     case 'practice-consistency': return null;
     case null:                   return null;

@@ -11,18 +11,17 @@ import {
   isModuleAllowedForContext,
 } from '../contextWeighting';
 
-describe('isModuleAllowedForContext — keys/mixed allowlist', () => {
-  it('keys + mixed pass only Shapes + Repertoire', () => {
-    for (const ctx of ['keys', 'mixed'] as const) {
-      expect(isModuleAllowedForContext('shapes-and-patterns', ctx)).toBe(true);
-      expect(isModuleAllowedForContext('repertoire', ctx)).toBe(true);
-      expect(isModuleAllowedForContext('harmonic-fluency', ctx)).toBe(false);
-      expect(isModuleAllowedForContext('intervals', ctx)).toBe(false);
-      expect(isModuleAllowedForContext('chord-recognition', ctx)).toBe(false);
-      expect(isModuleAllowedForContext('chord-progressions', ctx)).toBe(false);
-      expect(isModuleAllowedForContext('scales-modes', ctx)).toBe(false);
-      expect(isModuleAllowedForContext('production', ctx)).toBe(false);
-    }
+describe('isModuleAllowedForContext — keys allowlist', () => {
+  it('keys passes only Shapes + Repertoire', () => {
+    const ctx = 'keys' as const;
+    expect(isModuleAllowedForContext('shapes-and-patterns', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('repertoire', ctx)).toBe(true);
+    expect(isModuleAllowedForContext('harmonic-fluency', ctx)).toBe(false);
+    expect(isModuleAllowedForContext('intervals', ctx)).toBe(false);
+    expect(isModuleAllowedForContext('chord-recognition', ctx)).toBe(false);
+    expect(isModuleAllowedForContext('chord-progressions', ctx)).toBe(false);
+    expect(isModuleAllowedForContext('scales-modes', ctx)).toBe(false);
+    expect(isModuleAllowedForContext('production', ctx)).toBe(false);
   });
 
   it('laptop + phone drop Shapes; everything else passes', () => {
@@ -37,14 +36,13 @@ describe('isModuleAllowedForContext — keys/mixed allowlist', () => {
 });
 
 describe('contextFactorForModule — per-context weight tables', () => {
-  it('keys + mixed: Shapes + Repertoire neutral; defaults stay neutral', () => {
-    for (const ctx of ['keys', 'mixed'] as const) {
-      expect(contextFactorForModule('shapes-and-patterns', ctx)).toBe(1.0);
-      expect(contextFactorForModule('repertoire', ctx)).toBe(1.0);
-      // Excluded-by-filter modules still get a neutral default
-      // factor at this layer — the hard filter does the gating.
-      expect(contextFactorForModule('harmonic-fluency', ctx)).toBe(1.0);
-    }
+  it('keys: Shapes + Repertoire neutral; defaults stay neutral', () => {
+    const ctx = 'keys' as const;
+    expect(contextFactorForModule('shapes-and-patterns', ctx)).toBe(1.0);
+    expect(contextFactorForModule('repertoire', ctx)).toBe(1.0);
+    // Excluded-by-filter modules still get a neutral default
+    // factor at this layer — the hard filter does the gating.
+    expect(contextFactorForModule('harmonic-fluency', ctx)).toBe(1.0);
   });
 
   it('laptop: HF 1.2, chord-progressions 1.6, other ET 1.0, Production 1.5', () => {

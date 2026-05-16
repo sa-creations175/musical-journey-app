@@ -103,9 +103,9 @@ export interface PendingStartConfig {
   hardBlock?: boolean;
   /**
    * Practice context the user picked at questionnaire time (keys /
-   * laptop / phone / mixed). Carried through to SessionState so the
+   * laptop / phone). Carried through to SessionState so the
    * end-of-session pipeline can persist it on practiceSessions.context
-   * instead of falling back to the 'mixed' default. Defaults to 'mixed'
+   * instead of falling back to the 'keys' default. Defaults to 'keys'
    * when omitted. Algorithm filtering uses inputs.context directly at
    * generation time; this field is for persistence + survives an
    * abandon-and-restart.
@@ -158,7 +158,7 @@ export interface SessionState {
    * Drives algorithm filtering at generation time; this copy is what
    * the end-of-session pipeline persists onto practiceSessions.context
    * (so the row reflects the user's actual choice instead of the
-   * 'mixed' fallback). Defaults to 'mixed' for legacy sessions / when
+   * 'keys' fallback). Defaults to 'keys' for legacy sessions / when
    * the questionnaire didn't supply one.
    */
   context: import('../db').PracticeSessionContext;
@@ -191,7 +191,7 @@ export interface StartSessionInput {
   activeModuleRef: string;
   /** Hard-block mode. Defaults to false. */
   hardBlock?: boolean;
-  /** Practice context. Defaults to 'mixed'. */
+  /** Practice context. Defaults to 'keys'. */
   context?: import('../db').PracticeSessionContext;
   /** Initial block plan. Must be non-empty. */
   blocks: Array<{

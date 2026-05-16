@@ -143,10 +143,10 @@ const MODULE_LABEL: Record<SuggestionFlowModule, string> = {
 
 function contextForSuggestionModule(id: SuggestionFlowModule): PracticeSessionContext | null {
   switch (id) {
-    case 'harmonic-fluency':     return 'mixed';
-    case 'ear-training':         return 'mixed';
+    case 'harmonic-fluency':     return null;     // any context
+    case 'ear-training':         return null;     // any context
     case 'shapes-and-patterns':  return 'keys';
-    case 'repertoire':           return 'mixed';
+    case 'repertoire':           return null;     // any context
     case 'production':           return 'laptop';
     case 'practice-consistency': return null;
   }
@@ -2606,7 +2606,7 @@ export async function persistRepertoireMonthlyGoal(
   const now = Date.now();
   const baseFields = {
     scope,
-    contextTag: 'mixed' as const,
+    contextTag: null,
     relatedModules: ['repertoire'],
     startDate: now,
     targetDate,
@@ -2628,7 +2628,7 @@ export async function persistRepertoireMonthlyGoal(
       return {
         ...matched,
         ...fields,
-        contextTag: 'mixed',
+        contextTag: null,
         relatedModules: ['repertoire'],
         targetDate,
         parentGoalId: umbrellaId,
@@ -2742,7 +2742,7 @@ export async function persistRepertoireMonthlyGoal(
       targetMetric: null,
       targetValue: null,
       targetUnit: null,
-      contextTag: 'mixed',
+      contextTag: null,
       relatedModules: ['repertoire'],
       relatedItems: [],
       targetDate,

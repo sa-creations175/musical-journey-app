@@ -13,7 +13,7 @@ function goal(overrides: Partial<Goal>): Goal {
     id: 't',
     scope: 'weekly',
     description: '',
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: [],
     startDate: 0,
     targetDate: 0,

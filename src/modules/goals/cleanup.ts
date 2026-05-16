@@ -1,22 +1,35 @@
 import { db } from '../../lib/db';
 
 /**
- * One-time cleanup: repertoire goals used to be auto-tagged with
- * `contextTag: 'keys'` because the original `contextForModule` rule
- * assumed all repertoire practice required a physical keyboard. The
- * polish-sprint context-filter rules treat repertoire as
- * study-anywhere — chord-progression study works on phone or laptop
- * without keys — so the default was relaxed to 'mixed'.
+ * Two cleanups in one pass:
  *
- * For users who created repertoire goals before that change, the
- * legacy 'keys' tag would cause the new goal-context-tag intersection
- * filter to drop those goals from candidate proposals under non-keys
- * context. This migration relaxes any such rows in place.
+ *   (1) Repertoire goals used to be auto-tagged with
+ *       `contextTag: 'keys'` because the original `contextForModule`
+ *       rule assumed all repertoire practice required a physical
+ *       keyboard. The polish-sprint context-filter rules treat
+ *       repertoire as study-anywhere — chord-progression study works
+ *       on phone or laptop without keys — so the default was relaxed
+ *       to `null` (no context restriction).
  *
- * Match criteria: `contextTag === 'keys'` AND `relatedModules`
- * includes 'repertoire'. The check on relatedModules ensures we don't
- * accidentally relax tags on goals that the user explicitly tagged
- * 'keys' for non-repertoire reasons.
+ *   (2) The `'mixed'` context value was removed entirely (it was a
+ *       zombie type-union value that behaved identically to `'keys'`
+ *       and was never shown in the picker). Any existing goal rows
+ *       carrying `contextTag: 'mixed'` are migrated to `null` —
+ *       semantically equivalent to the original intent of
+ *       "applies in any context."
+ *
+ * For users who created repertoire goals before either change, the
+ * legacy tag would cause the goal-context-tag intersection filter
+ * to either drop the goal under non-keys contexts (case 1) or
+ * carry an invalid type-narrowed value (case 2). This migration
+ * relaxes both in place.
+ *
+ * Match criteria:
+ *   (1) `contextTag === 'keys'` AND `relatedModules` includes
+ *       'repertoire' — narrow check so we don't relax tags on
+ *       non-repertoire goals the user explicitly tagged 'keys'.
+ *   (2) `contextTag === 'mixed'` (any module) — the value is
+ *       no longer a valid PracticeSessionContext.
  *
  * Idempotent — no-ops once the data is migrated.
  */
@@ -26,18 +39,24 @@ export async function cleanupRepertoireGoalContextIfNeeded(): Promise<void> {
     .anyOf('active', 'paused')
     .toArray();
 
-  const toMigrate = candidates.filter(
-    g =>
+  const toMigrate = candidates.filter(g => {
+    // Case 2: any legacy 'mixed' tag — cast through unknown because
+    // 'mixed' is no longer a valid PracticeSessionContext at the
+    // type level.
+    if (g.contextTag as unknown === 'mixed') return true;
+    // Case 1: keys-tagged repertoire goals.
+    return (
       g.contextTag === 'keys' &&
       Array.isArray(g.relatedModules) &&
-      g.relatedModules.includes('repertoire'),
-  );
+      g.relatedModules.includes('repertoire')
+    );
+  });
 
   if (toMigrate.length === 0) return;
 
   await db.transaction('rw', [db.goals], async () => {
     for (const goal of toMigrate) {
-      await db.goals.update(goal.id, { contextTag: 'mixed' });
+      await db.goals.update(goal.id, { contextTag: null });
     }
   });
 }

@@ -137,7 +137,7 @@ describe('isProductionVocabBlockEligible', () => {
     expect(
       isProductionVocabBlockEligible({
         goals: [productionGoal],
-        context: 'mixed',
+        context: 'keys',
         dueVocabCount: 5,
       }),
     ).toBe(false);

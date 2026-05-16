@@ -1034,11 +1034,9 @@ export async function loadWeeklyPace(now: number = Date.now()): Promise<{
 /**
  * Capability rank per practice context. A user on a higher-rank
  * context can do anything a lower-rank context can do, plus more.
- * Mixed is treated as keys-equivalent (most permissive).
  */
 const CONTEXT_RANK: Record<PracticeSessionContext, number> = {
   keys: 3,
-  mixed: 3,
   laptop: 2,
   phone: 1,
 };
@@ -1135,7 +1133,7 @@ export function aggregateGoalCandidatesByModule(
   goals: ReadonlyArray<Goal>,
   spacingRows: ReadonlyArray<SpacingState>,
   now: number = Date.now(),
-  context: PracticeSessionContext = 'mixed',
+  context: PracticeSessionContext = 'keys',
   /** Phase 4 Step 4 — per-GoalFlowModuleId pace boost applied as a
    *  block-weight multiplier. Falls through to 1.0 (no boost) when
    *  the module isn't in the map or when no weekly goal exists for

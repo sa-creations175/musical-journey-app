@@ -407,7 +407,7 @@ export async function persistSession(
       ) / 60,
     ),
     actualDurationMin: Math.round(activeMs / 60_000),
-    context: extras.context ?? 'mixed',
+    context: extras.context ?? 'keys',
     timeOfDay: timeOfDayFor(startedAt),
     sessionRole: extras.sessionRole ?? 'only',
     sessionIntent: extras.sessionIntent ?? null,

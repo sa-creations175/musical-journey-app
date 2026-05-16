@@ -14,6 +14,7 @@ import {
   type Song,
   type SongCell,
   type SongKey,
+  type SongMatrixSection,
 } from '../../../lib/db';
 import { PROMPT_TYPE } from '../../../lib/prompts/types';
 import { SONG_OF_MONTH_METRIC } from '../songOfMonth';
@@ -29,7 +30,7 @@ function umbrella(): Goal {
     id: UMBRELLA_ID,
     scope: 'monthly',
     description: 'Repertoire month',
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: ['repertoire'],
     startDate: NOW,
     targetDate: FUTURE,
@@ -51,7 +52,7 @@ function spotlightSongChild(songId: string): Goal {
     id: 'c-spotlight',
     scope: 'monthly',
     description: '',
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: ['repertoire'],
     startDate: NOW,
     targetDate: FUTURE,
@@ -73,7 +74,7 @@ function tbdSlotChild(slotIndex: number): Goal {
     id: `c-slot-${slotIndex}`,
     scope: 'monthly',
     description: '',
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: ['repertoire'],
     startDate: NOW,
     targetDate: FUTURE,
@@ -129,11 +130,12 @@ function songCell(
   songId: string,
   songKeyId: string,
   cellState: SongCell['cellState'],
+  sectionId = 'sec-1',
 ): SongCell {
   return {
     id,
     songId,
-    sectionId: 'sec-1',
+    sectionId,
     songKeyId,
     cellState,
     comfortableAt: null,
@@ -147,11 +149,32 @@ function songCell(
   };
 }
 
+/** The comfortable predicates denominate by non-archived matrix
+ *  sections, so every cell fixture needs a matching section row. */
+function matrixSection(
+  id: string,
+  songId: string,
+  displayOrder = 0,
+): SongMatrixSection {
+  return {
+    id,
+    songId,
+    name: id,
+    displayOrder,
+    isArchived: false,
+    splitFromSectionId: null,
+    songSectionId: null,
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+}
+
 beforeEach(async () => {
   await db.goals.clear();
   await db.songs.clear();
   await db.songKeys.clear();
   await db.songCells.clear();
+  await db.songMatrixSections.clear();
   await db.prompts.clear();
 });
 
@@ -168,9 +191,13 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
   it('does nothing when spotlight is not yet comfortable', async () => {
     await db.songs.add(song('s1'));
     await db.songKeys.add(songKey('k1', 's1'));
+    await db.songMatrixSections.bulkAdd([
+      matrixSection('sec-1', 's1', 0),
+      matrixSection('sec-2', 's1', 1),
+    ]);
     await db.songCells.bulkAdd([
-      songCell('c1', 's1', 'k1', 'comfortable'),
-      songCell('c2', 's1', 'k1', 'learning'),
+      songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
+      songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
     ]);
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
     await evaluateSongOfMonthPrompts(NOW + 1);
@@ -180,9 +207,13 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
   it('enqueues a high-tier congrats when spotlight reaches comfortable', async () => {
     await db.songs.add(song('s1'));
     await db.songKeys.add(songKey('k1', 's1'));
+    await db.songMatrixSections.bulkAdd([
+      matrixSection('sec-1', 's1', 0),
+      matrixSection('sec-2', 's1', 1),
+    ]);
     await db.songCells.bulkAdd([
-      songCell('c1', 's1', 'k1', 'comfortable'),
-      songCell('c2', 's1', 'k1', 'comfortable'),
+      songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
+      songCell('c2', 's1', 'k1', 'comfortable', 'sec-2'),
     ]);
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
 
@@ -205,7 +236,8 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
   it('does not re-enqueue congrats when one already exists for the same song', async () => {
     await db.songs.add(song('s1'));
     await db.songKeys.add(songKey('k1', 's1'));
-    await db.songCells.add(songCell('c1', 's1', 'k1', 'comfortable'));
+    await db.songMatrixSections.add(matrixSection('sec-1', 's1', 0));
+    await db.songCells.add(songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'));
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
 
     await evaluateSongOfMonthPrompts(NOW + 1);
@@ -217,9 +249,13 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
   it('re-enqueues congrats for a different spotlight song', async () => {
     await db.songs.bulkAdd([song('s1'), song('s2')]);
     await db.songKeys.bulkAdd([songKey('k1', 's1'), songKey('k2', 's2')]);
+    await db.songMatrixSections.bulkAdd([
+      matrixSection('sec-s1', 's1', 0),
+      matrixSection('sec-s2', 's2', 0),
+    ]);
     await db.songCells.bulkAdd([
-      songCell('c1', 's1', 'k1', 'comfortable'),
-      songCell('c2', 's2', 'k2', 'comfortable'),
+      songCell('c1', 's1', 'k1', 'comfortable', 'sec-s1'),
+      songCell('c2', 's2', 'k2', 'comfortable', 'sec-s2'),
     ]);
 
     // First spotlight = s1.
@@ -246,10 +282,14 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
   async function setupHalfComfortableSpotlightWithTbdNext() {
     await db.songs.add(song('s1'));
     await db.songKeys.add(songKey('k1', 's1'));
-    // 2 cells: 1 comfortable, 1 learning → ratio = 0.5.
+    await db.songMatrixSections.bulkAdd([
+      matrixSection('sec-1', 's1', 0),
+      matrixSection('sec-2', 's1', 1),
+    ]);
+    // 2 sections: 1 comfortable, 1 learning → ratio = 0.5.
     await db.songCells.bulkAdd([
-      songCell('c1', 's1', 'k1', 'comfortable'),
-      songCell('c2', 's1', 'k1', 'learning'),
+      songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
+      songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
     ]);
     await db.goals.bulkAdd([
       umbrella(),
@@ -261,9 +301,13 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
   it('does nothing when next slot is not TBD', async () => {
     await db.songs.bulkAdd([song('s1'), song('s2')]);
     await db.songKeys.add(songKey('k1', 's1'));
+    await db.songMatrixSections.bulkAdd([
+      matrixSection('sec-1', 's1', 0),
+      matrixSection('sec-2', 's1', 1),
+    ]);
     await db.songCells.bulkAdd([
-      songCell('c1', 's1', 'k1', 'comfortable'),
-      songCell('c2', 's1', 'k1', 'learning'),
+      songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
+      songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
     ]);
     await db.goals.bulkAdd([
       umbrella(),
@@ -282,11 +326,16 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
   it('does nothing when spotlight is below 50% comfortable', async () => {
     await db.songs.add(song('s1'));
     await db.songKeys.add(songKey('k1', 's1'));
-    // 1 of 3 comfortable → ratio = 0.33.
+    await db.songMatrixSections.bulkAdd([
+      matrixSection('sec-1', 's1', 0),
+      matrixSection('sec-2', 's1', 1),
+      matrixSection('sec-3', 's1', 2),
+    ]);
+    // 1 of 3 sections comfortable → ratio = 0.33.
     await db.songCells.bulkAdd([
-      songCell('c1', 's1', 'k1', 'comfortable'),
-      songCell('c2', 's1', 'k1', 'learning'),
-      songCell('c3', 's1', 'k1', 'learning'),
+      songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
+      songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
+      songCell('c3', 's1', 'k1', 'learning', 'sec-3'),
     ]);
     await db.goals.bulkAdd([
       umbrella(),

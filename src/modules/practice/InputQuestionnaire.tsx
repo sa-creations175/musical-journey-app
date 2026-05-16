@@ -348,7 +348,7 @@ function Q2Context({
   value,
   onChange,
 }: {
-  value: 'keys' | 'laptop' | 'phone' | 'mixed' | null;
+  value: 'keys' | 'laptop' | 'phone' | null;
   onChange: (c: 'keys' | 'laptop' | 'phone') => void;
 }) {
   return (

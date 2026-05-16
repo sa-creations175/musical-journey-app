@@ -63,7 +63,7 @@ function legacyGoal(metric: string, value: number, unit: string): Goal {
     targetValue: value,
     targetUnit: unit,
     description: 'legacy',
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: [],
     startDate: 0,
     targetDate: 0,

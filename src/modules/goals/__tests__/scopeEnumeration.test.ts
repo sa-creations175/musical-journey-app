@@ -25,7 +25,7 @@ function shapesGoal(overrides: Partial<Goal>): Goal {
     targetValue: 1,
     targetUnit: null,
     currentValue: 0,
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: ['shapes-and-patterns'],
     relatedItems: [],
     startDate: 0,

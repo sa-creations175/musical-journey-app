@@ -19,7 +19,7 @@ function goal(partial: Partial<Goal>): Goal {
     targetValue: null,
     targetUnit: null,
     currentValue: 0,
-    contextTag: 'mixed',
+    contextTag: null,
     relatedModules: ['harmonic-fluency'],
     relatedItems: [],
     startDate: NOW,

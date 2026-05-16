@@ -76,7 +76,7 @@ import {
  * rollup toggle).
  */
 
-const CONTEXT_OPTIONS: PracticeSessionContext[] = ['keys', 'laptop', 'phone', 'mixed'];
+const CONTEXT_OPTIONS: PracticeSessionContext[] = ['keys', 'laptop', 'phone'];
 
 interface Props {
   open: boolean;

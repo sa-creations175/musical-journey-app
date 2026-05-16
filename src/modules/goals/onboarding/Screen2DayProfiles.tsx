@@ -31,7 +31,7 @@ import {
 type ProfileName = Exclude<DayProfileName, 'custom'>;
 type SlotKey = keyof DayProfileExpectedSessions;
 const SLOT_KEYS: ReadonlyArray<SlotKey> = ['morning', 'midday', 'evening'];
-const CONTEXT_OPTIONS: PracticeSessionContext[] = ['keys', 'laptop', 'phone', 'mixed'];
+const CONTEXT_OPTIONS: PracticeSessionContext[] = ['keys', 'laptop', 'phone'];
 
 /** Display labels for the context dropdown. Keys map to the stored
  *  PracticeSessionContext values; the strings are user-facing only. */
@@ -39,7 +39,6 @@ const CONTEXT_LABELS: Record<PracticeSessionContext, string> = {
   keys:   'At the keyboard',
   laptop: 'On my laptop',
   phone:  'On my phone',
-  mixed:  'Keyboard + device (laptop or phone)',
 };
 
 export interface Screen2Handle {

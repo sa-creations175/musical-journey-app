@@ -43,8 +43,7 @@ import {
 
 /**
  * Spec § "Keys (hard filter — not weighted)": include ONLY Shapes &
- * Patterns and Repertoire in the default proposal. Mixed context is
- * treated as keys-equivalent (matches Phase 3's CONTEXT_RANK ladder).
+ * Patterns and Repertoire in the default proposal.
  */
 const KEYS_DEFAULT_ALLOWED_MODULES: ReadonlySet<string> = new Set([
   SHAPES_MODULE_REF,
@@ -60,9 +59,9 @@ const KEYS_DEFAULT_ALLOWED_MODULES: ReadonlySet<string> = new Set([
  *
  * Filter rules:
  *
- *   keys / mixed → only Shapes + Repertoire pass; HF, all ET subs,
- *                  Production are excluded by default (user can
- *                  manually add via + Add module).
+ *   keys → only Shapes + Repertoire pass; HF, all ET subs,
+ *          Production are excluded by default (user can manually
+ *          add via + Add module).
  *
  *   laptop / phone → Shapes excluded (physical-keys-only — same
  *                    rule the Phase 3 filter ships); everything
@@ -73,7 +72,7 @@ export function isModuleAllowedForContext(
   moduleRef: string,
   context: PracticeSessionContext,
 ): boolean {
-  if (context === 'keys' || context === 'mixed') {
+  if (context === 'keys') {
     return KEYS_DEFAULT_ALLOWED_MODULES.has(moduleRef);
   }
   // laptop / phone — only the existing shapes-and-patterns exclusion
@@ -178,7 +177,6 @@ export function contextFactorForModule(
   let table: Readonly<Record<string, number>>;
   switch (context) {
     case 'keys':
-    case 'mixed':
       table = KEYS_FACTORS;
       break;
     case 'laptop':

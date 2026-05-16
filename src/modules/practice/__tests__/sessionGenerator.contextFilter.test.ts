@@ -74,7 +74,7 @@ describe('isGoalCompatibleWithContext — rank ladder', () => {
   it('keys-tagged goal needs keys or mixed; drops on laptop or phone', () => {
     const g = coverageGoal({ contextTag: 'keys' });
     expect(isGoalCompatibleWithContext(g, 'keys')).toBe(true);
-    expect(isGoalCompatibleWithContext(g, 'mixed')).toBe(true);
+    expect(isGoalCompatibleWithContext(g, 'keys')).toBe(true);
     expect(isGoalCompatibleWithContext(g, 'laptop')).toBe(false);
     expect(isGoalCompatibleWithContext(g, 'phone')).toBe(false);
   });
@@ -82,37 +82,36 @@ describe('isGoalCompatibleWithContext — rank ladder', () => {
   it('laptop-tagged goal passes on keys/mixed/laptop; drops on phone', () => {
     const g = coverageGoal({ contextTag: 'laptop' });
     expect(isGoalCompatibleWithContext(g, 'keys')).toBe(true);
-    expect(isGoalCompatibleWithContext(g, 'mixed')).toBe(true);
+    expect(isGoalCompatibleWithContext(g, 'keys')).toBe(true);
     expect(isGoalCompatibleWithContext(g, 'laptop')).toBe(true);
     expect(isGoalCompatibleWithContext(g, 'phone')).toBe(false);
   });
 
   it('phone-tagged goal passes everywhere (least constrained)', () => {
     const g = coverageGoal({ contextTag: 'phone' });
-    for (const ctx of ['keys', 'laptop', 'phone', 'mixed'] as PracticeSessionContext[]) {
+    for (const ctx of ['keys', 'laptop', 'phone'] as PracticeSessionContext[]) {
       expect(isGoalCompatibleWithContext(g, ctx)).toBe(true);
     }
   });
 });
 
 describe('isSpacingRowCompatibleWithContext — context arc hard filters', () => {
-  it('keys + mixed pass Shapes + Repertoire; drop HF + ET + Production (Phase 4 Step 5)', () => {
+  it('keys passes Shapes + Repertoire; drops HF + ET + Production (Phase 4 Step 5)', () => {
     const shapes = spacingRow({ moduleRef: 'shapes-and-patterns' });
     const rep = spacingRow({ moduleRef: 'repertoire' });
     const hf = spacingRow({ moduleRef: 'harmonic-fluency' });
     const et = spacingRow({ moduleRef: 'intervals' });
     const prod = spacingRow({ moduleRef: 'production' });
-    for (const ctx of ['keys', 'mixed'] as PracticeSessionContext[]) {
-      expect(isSpacingRowCompatibleWithContext(shapes, ctx)).toBe(true);
-      expect(isSpacingRowCompatibleWithContext(rep, ctx)).toBe(true);
-      // Phase 4 Step 5: physical-instrument sessions exclude the
-      // cognitive modules from the default proposal — they're
-      // available via + Add module if the user wants them, but the
-      // algorithm doesn't surface them on its own.
-      expect(isSpacingRowCompatibleWithContext(hf, ctx)).toBe(false);
-      expect(isSpacingRowCompatibleWithContext(et, ctx)).toBe(false);
-      expect(isSpacingRowCompatibleWithContext(prod, ctx)).toBe(false);
-    }
+    const ctx = 'keys' as PracticeSessionContext;
+    expect(isSpacingRowCompatibleWithContext(shapes, ctx)).toBe(true);
+    expect(isSpacingRowCompatibleWithContext(rep, ctx)).toBe(true);
+    // Phase 4 Step 5: physical-instrument sessions exclude the
+    // cognitive modules from the default proposal — they're
+    // available via + Add module if the user wants them, but the
+    // algorithm doesn't surface them on its own.
+    expect(isSpacingRowCompatibleWithContext(hf, ctx)).toBe(false);
+    expect(isSpacingRowCompatibleWithContext(et, ctx)).toBe(false);
+    expect(isSpacingRowCompatibleWithContext(prod, ctx)).toBe(false);
   });
 
   it('laptop + phone drop Shapes & Patterns; keep all others', () => {

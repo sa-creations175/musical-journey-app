@@ -63,7 +63,7 @@ function splitCtx(
     maintenanceSong: partial.maintenanceSong,
     maintenanceReadiness: partial.maintenanceSong ? 'needs-chords' : null,
     maintenancePostComfortable: null,
-    context: 'mixed',
+    context: 'keys',
   };
 }
 
@@ -229,7 +229,7 @@ describe('splitRepertoireAllocation — readiness routing', () => {
         maintenanceSong: null,
       }),
       spotlightReadiness: 'ready',
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(45 * 60, ctx);
     expect(out).toHaveLength(2);
@@ -279,7 +279,7 @@ describe('splitRepertoireAllocation — readiness routing', () => {
         maintenanceSong: maint('m1', 'Tight'),
       }),
       maintenanceReadiness: 'ready',
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(2 * 60, ctx);
     expect(out).toHaveLength(1);
@@ -494,7 +494,7 @@ describe('splitRepertoireAllocation — scale-prep injection', () => {
         maintenanceSong: songWithKey('m1', 'Lift Up', 'F'),
       }),
       maintenanceReadiness: 'needs-chords',
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(15 * 60, ctx);
     expect(out.map(b => b.kind)).toEqual(['scale-prep', 'maintenance']);
@@ -516,7 +516,7 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       maintenanceSong: null,
       maintenanceReadiness: null,
       maintenancePostComfortable: null,
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(45 * 60, ctx);
     expect(out).toHaveLength(1);
@@ -544,7 +544,7 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       maintenanceSong: null,
       maintenanceReadiness: null,
       maintenancePostComfortable: null,
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(45 * 60, ctx);
     expect(out.map(b => b.kind)).toEqual(['scale-prep', 'maintenance']);
@@ -624,7 +624,7 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       maintenanceSong: song,
       maintenanceReadiness: 'needs-chords',
       maintenancePostComfortable: { kind: 'skip' },
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(20 * 60, ctx);
     expect(out).toHaveLength(1);
@@ -641,7 +641,7 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       maintenanceSong: maint('s-maint', 'How Great'),
       maintenanceReadiness: 'ready',
       maintenancePostComfortable: { kind: 'whole-song-run', keyName: 'G' },
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(20 * 60, ctx);
     expect(out).toHaveLength(1);
@@ -659,7 +659,7 @@ describe('splitRepertoireAllocation — post-comfortable progression', () => {
       maintenanceSong: maint('s-2', 'Song Two'),
       maintenanceReadiness: 'ready',
       maintenancePostComfortable: { kind: 'whole-song-run', keyName: 'D' },
-      context: 'mixed',
+      context: 'keys',
     };
     const out = splitRepertoireAllocation(60 * 60, ctx);
     expect(out).toHaveLength(2);

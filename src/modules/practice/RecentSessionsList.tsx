@@ -224,7 +224,6 @@ function contextLabel(c: string): string {
     case 'keys':   return 'at the keyboard';
     case 'laptop': return 'on laptop';
     case 'phone':  return 'on phone';
-    case 'mixed':  return 'mixed';
     default:       return c;
   }
 }

@@ -458,7 +458,7 @@ describe('getWeeklyAttempts — Practice Consistency', () => {
       endedAt: null,
       plannedDurationMin: 30,
       actualDurationMin: null,
-      context: 'mixed',
+      context: 'keys',
       timeOfDay: 'morning',
       sessionRole: 'only',
       sessionIntent: null,
