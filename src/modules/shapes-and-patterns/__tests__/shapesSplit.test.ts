@@ -604,8 +604,8 @@ describe('shapeShapesBlock — VL three-way split', () => {
     const block30min = block(
       [
         'chord-shape:maj:C:root',
-        'vl:aba-251:level1:A:C',
-        'vl:aba-251:level2:A:F',
+        'vl:major-251:guide-tones:A:C',
+        'vl:major-251:seventh-chords:A:F',
       ],
       30 * 60,
     );
@@ -637,7 +637,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
   it('stays on the two-segment path when block < 15 min even with VL items', () => {
     const segs = shapeShapesBlock(
       block(
-        ['chord-shape:maj:C:root', 'vl:aba-251:level1:A:C'],
+        ['chord-shape:maj:C:root', 'vl:major-251:guide-tones:A:C'],
         14 * 60 + 59,
       ),
       ctx([], { unlockedTier: 1 }),
@@ -651,8 +651,8 @@ describe('shapeShapesBlock — VL three-way split', () => {
       block(
         [
           'chord-shape:maj:C:root',
-          'vl:aba-251:level1:A:C',
-          'vl:dim7:up:min9:F',
+          'vl:major-251:guide-tones:A:C',
+          'vl:dim7:pos1:F',
         ],
         30 * 60,
       ),
@@ -670,7 +670,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
   it('VL why-text reads "N drills across M keys — most-due first"', () => {
     const segs = shapeShapesBlock(
       block(
-        ['chord-shape:maj:C:root', 'vl:aba-251:level1:A:C'],
+        ['chord-shape:maj:C:root', 'vl:major-251:guide-tones:A:C'],
         30 * 60,
       ),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
@@ -682,48 +682,48 @@ describe('shapeShapesBlock — VL three-way split', () => {
 
   it('VL cells are ordered by least-recently-engaged first', () => {
     const rows = [
-      row('vl:aba-251:level1:A:C', { lastEngagedAt: NOW - 1_000 }),   // newest
-      row('vl:aba-251:level1:A:F', { lastEngagedAt: NOW - 10_000 }),  // oldest
-      // 'vl:aba-251:level1:A:Bb' has no row → null lastEngagedAt → top priority
+      row('vl:major-251:guide-tones:A:C', { lastEngagedAt: NOW - 1_000 }),   // newest
+      row('vl:major-251:guide-tones:A:F', { lastEngagedAt: NOW - 10_000 }),  // oldest
+      // 'vl:major-251:guide-tones:A:Bb' has no row → null lastEngagedAt → top priority
     ];
     const segs = shapeShapesBlock(
       block(
         [
-          'vl:aba-251:level1:A:C',
-          'vl:aba-251:level1:A:F',
-          'vl:aba-251:level1:A:Bb',
+          'vl:major-251:guide-tones:A:C',
+          'vl:major-251:guide-tones:A:F',
+          'vl:major-251:guide-tones:A:Bb',
         ],
         30 * 60,
       ),
       ctx(rows, { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs[0]).toBe('vl:aba-251:level1:A:Bb');
-    expect(vl.itemRefs[1]).toBe('vl:aba-251:level1:A:F');
-    expect(vl.itemRefs[2]).toBe('vl:aba-251:level1:A:C');
+    expect(vl.itemRefs[0]).toBe('vl:major-251:guide-tones:A:Bb');
+    expect(vl.itemRefs[1]).toBe('vl:major-251:guide-tones:A:F');
+    expect(vl.itemRefs[2]).toBe('vl:major-251:guide-tones:A:C');
   });
 
-  it('drops legacy 3-part vl: refs that no longer parse against the strict catalog', () => {
-    // `vl:aba-251:C` is the pre-Phase-1 shape — parseVoiceLeadingItemRef
+  it('drops legacy / unparseable vl: refs that no longer parse against the strict catalog', () => {
+    // `vl:aba-251:level1:A:C` is the pre-correction shape — parseVoiceLeadingItemRef
     // returns null, so the splitter should skip it without crashing.
     const segs = shapeShapesBlock(
       block(
         [
           'chord-shape:maj:C:root',
-          'vl:aba-251:C',                   // legacy — drop
-          'vl:aba-251:level1:A:C',          // valid
+          'vl:aba-251:level1:A:C',                  // pre-correction — drop
+          'vl:major-251:guide-tones:A:C',           // valid
         ],
         30 * 60,
       ),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(vl.itemRefs).toEqual(['vl:aba-251:level1:A:C']);
+    expect(vl.itemRefs).toEqual(['vl:major-251:guide-tones:A:C']);
   });
 
   it('three-way split runs even when there are no chord-shape items (walk returns null)', () => {
     const segs = shapeShapesBlock(
-      block(['vl:aba-251:level1:A:C'], 30 * 60),
+      block(['vl:major-251:guide-tones:A:C'], 30 * 60),
       ctx([], { unlockedTier: 1, activeSongKeys: ['C'] }),
     );
     expect(segs.map(s => s.kind)).toEqual(['scales', 'voice-leading']);
@@ -740,7 +740,7 @@ describe('shapeShapesBlock — VL three-way split', () => {
     // 3-segment path: scales is fixed at 25 % regardless of the goal value.
     const segs = shapeShapesBlock(
       block(
-        ['chord-shape:maj:C:root', 'vl:aba-251:level1:A:C'],
+        ['chord-shape:maj:C:root', 'vl:major-251:guide-tones:A:C'],
         30 * 60,
       ),
       ctx([], {

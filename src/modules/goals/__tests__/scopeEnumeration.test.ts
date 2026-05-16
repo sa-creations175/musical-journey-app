@@ -40,13 +40,13 @@ function shapesGoal(overrides: Partial<Goal>): Goal {
 }
 
 describe('enumerateScopeForGoal — voice-leading scope', () => {
-  it('VL sub-area returns exactly 324 cells (27 × 12 keys)', () => {
+  it('VL sub-area returns exactly 372 cells (31 × 12 keys)', () => {
     const goal = shapesGoal({
       targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
       targetUnit: 'voice_leading',
     });
     const refs = enumerateScopeForGoal(goal);
-    expect(refs).toHaveLength(324);
+    expect(refs).toHaveLength(372);
     // All start with vl: — the prefix-based matcher should accept them all.
     for (const r of refs) {
       expect(r.startsWith('vl:')).toBe(true);
@@ -57,7 +57,7 @@ describe('enumerateScopeForGoal — voice-leading scope', () => {
     const goal = shapesGoal({ targetMetric: COVERAGE_OVERALL_METRIC.SHAPES });
     const refs = enumerateScopeForGoal(goal);
     const vlRefs = refs.filter(r => r.startsWith('vl:'));
-    expect(vlRefs).toHaveLength(324);
+    expect(vlRefs).toHaveLength(372);
   });
 
   it('VL scope contains the expected per-pattern cardinalities × 12 keys', () => {
@@ -71,10 +71,12 @@ describe('enumerateScopeForGoal — voice-leading scope', () => {
       const patternId = ref.split(':')[1];
       byPattern.set(patternId, (byPattern.get(patternId) ?? 0) + 1);
     }
-    expect(byPattern.get('aba-251')).toBe(72);          // 6 sub × 12 keys
+    expect(byPattern.get('five-one')).toBe(72);         // 6 sub × 12 keys
+    expect(byPattern.get('major-251')).toBe(72);        // 6 sub × 12 keys
+    expect(byPattern.get('minor-251')).toBe(72);        // 6 sub × 12 keys
     expect(byPattern.get('diatonic-cycle')).toBe(36);   // 3 sub × 12 keys
-    expect(byPattern.get('dom-sharp9sharp5')).toBe(72); // 6 sub × 12 keys
-    expect(byPattern.get('dom7b9')).toBe(72);           // 6 sub × 12 keys
-    expect(byPattern.get('dim7')).toBe(72);             // 6 sub × 12 keys
+    expect(byPattern.get('minor-aba')).toBe(24);        // 2 sub × 12 keys
+    expect(byPattern.get('dom7b9')).toBe(48);           // 4 sub × 12 keys
+    expect(byPattern.get('dim7')).toBe(48);             // 4 sub × 12 keys
   });
 });

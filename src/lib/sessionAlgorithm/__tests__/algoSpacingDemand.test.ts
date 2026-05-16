@@ -135,14 +135,16 @@ describe('computeAlgoSpacingDemandSeconds — shapes-and-patterns', () => {
       .toBe(30 + 90 + 30 + 30);
   });
 
-  it('voice-leading ABA-251 levels 1–2 → 90 s, level 3 → 120 s', () => {
+  it('VL type-position guide-tones / seventh-chords → 90 s, capstone types → 120 s', () => {
     const rows: SpacingState[] = [
-      row('vl:aba-251:level1:A:C', 'shapes-and-patterns', PAST), // 90
-      row('vl:aba-251:level2:B:F', 'shapes-and-patterns', PAST), // 90
-      row('vl:aba-251:level3:A:G', 'shapes-and-patterns', PAST), // 120
+      row('vl:major-251:guide-tones:A:C',    'shapes-and-patterns', PAST), // 90
+      row('vl:major-251:seventh-chords:B:F', 'shapes-and-patterns', PAST), // 90
+      row('vl:major-251:aba-structure:A:G',  'shapes-and-patterns', PAST), // 120
+      row('vl:five-one:full-voicing:A:Bb',   'shapes-and-patterns', PAST), // 120
+      row('vl:minor-251:full-voicing:B:Eb',  'shapes-and-patterns', PAST), // 120
     ];
     expect(computeAlgoSpacingDemandSeconds('shapes-and-patterns', rows, NOW))
-      .toBe(90 + 90 + 120);
+      .toBe(90 + 90 + 120 + 120 + 120);
   });
 
   it('voice-leading diatonic-cycle → 180 s', () => {
@@ -154,25 +156,26 @@ describe('computeAlgoSpacingDemandSeconds — shapes-and-patterns', () => {
       .toBe(2 * 180);
   });
 
-  it('voice-leading dom-altered + dim7 patterns → 90 s each', () => {
+  it('voice-leading minor-aba / dom7b9 / dim7 patterns → 90 s each', () => {
     const rows: SpacingState[] = [
-      row('vl:dom-sharp9sharp5:A:min9:C', 'shapes-and-patterns', PAST),
-      row('vl:dom7b9:B:min7:Eb',          'shapes-and-patterns', PAST),
-      row('vl:dim7:up:min9:G',            'shapes-and-patterns', PAST),
-      row('vl:dim7:down:mintriad:A',      'shapes-and-patterns', PAST),
+      row('vl:minor-aba:pos-A:C', 'shapes-and-patterns', PAST),
+      row('vl:minor-aba:pos-B:F', 'shapes-and-patterns', PAST),
+      row('vl:dom7b9:pos1:G',     'shapes-and-patterns', PAST),
+      row('vl:dom7b9:pos4:Eb',    'shapes-and-patterns', PAST),
+      row('vl:dim7:pos2:A',       'shapes-and-patterns', PAST),
+      row('vl:dim7:pos3:C',       'shapes-and-patterns', PAST),
     ];
     expect(computeAlgoSpacingDemandSeconds('shapes-and-patterns', rows, NOW))
-      .toBe(4 * 90);
+      .toBe(6 * 90);
   });
 
-  it('legacy 3-part `vl:patternId:key` falls back to the modal 90 s baseline', () => {
-    // Pre-Phase-1 itemRefs (e.g. user-typed customs or rows from
-    // before the sub-cell fan-out) won't parse against the strict
-    // new catalog. We fall back to the modal cell seed rather than
-    // dropping the row.
+  it('unparseable vl: rows (legacy / hand-edited) fall through to the chord-shape baseline (90 s)', () => {
+    // No VL spacingState rows pre-date the Phase 1 catalog, so an
+    // unparseable vl: row signals corrupt / future data. Falls through
+    // to CHORD_SHAPE_CELL_SECONDS rather than dropping the row.
     const rows: SpacingState[] = [
-      row('vl:aba-251:C',  'shapes-and-patterns', PAST),
-      row('vl:1736251:Bb', 'shapes-and-patterns', PAST),
+      row('vl:aba-251:level1:A:C',          'shapes-and-patterns', PAST), // pre-correction
+      row('vl:dom-sharp9sharp5:A:min9:C',   'shapes-and-patterns', PAST), // pre-correction
     ];
     expect(computeAlgoSpacingDemandSeconds('shapes-and-patterns', rows, NOW))
       .toBe(2 * 90);

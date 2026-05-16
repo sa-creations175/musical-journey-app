@@ -271,102 +271,149 @@ export function defaultDrillTypesForScale(): DefaultDrill[] {
 
 // --- Voice-leading patterns -----------------------------------------
 //
-// The VL catalog defines five passing-chord patterns drilled across
+// The VL catalog defines seven passing-chord patterns drilled across
 // all 12 keys. Each pattern fans out into multiple sub-cells per key
-// — different voicing levels, starting positions, resolution targets,
-// or directions — so the spacing system can surface the right level
-// of detail.
+// — different voicing types, starting positions, or inversions — so
+// the spacing system can surface the right level of detail.
 //
 // itemRef shape: `vl:{patternId}:{seg1}:{seg2?}:{keyName}` where the
 // sub-segments depend on the pattern's `kind`. See
 // `parseVoiceLeadingItemRef` for the canonical parse + the dimensions
-// per pattern. Total cells: 27 per key × 12 keys = 324.
+// per pattern.
 //
-// See src/docs/VOICE_LEADING_SUBMODULE_DESIGN.md for the full spec.
+// Total cells: 31 per key × 12 keys = 372. Breakdown:
+//   five-one          6 (3 types × 2 positions)
+//   major-251         6 (3 types × 2 positions)
+//   minor-251         6 (3 types × 2 positions)
+//   diatonic-cycle    3 (3 starting positions)
+//   minor-aba         2 (2 positions)
+//   dom7b9            4 (4 inversions of the dominant)
+//   dim7              4 (4 inversions of the diminished)
 
-export type VLLevel = 'level1' | 'level2' | 'level3';
-export type VLPosition = 'A' | 'B';
-export type VLCyclePos = 'pos1' | 'pos2' | 'pos3';
-export type VLMinTarget = 'min7' | 'min9' | 'min11';
-export type VLDim7Direction = 'up' | 'down';
-export type VLDim7Target = 'mintriad' | 'min7' | 'min9';
+/** Shared position tag on the type-position patterns. */
+export type VLABPosition = 'A' | 'B';
 
-/** Discriminated catalog entry for each VL pattern. The `kind` field
+/** Types for the 5→1 movement pattern. */
+export type FiveOneType = 'guide-tones' | 'seventh-chords' | 'full-voicing';
+/** Types for the Major 2-5-1 pattern. ABA structure is the "long"
+ *  capstone type — the pattern's namesake voice-leading exercise. */
+export type Major251Type = 'guide-tones' | 'seventh-chords' | 'aba-structure';
+/** Types for the Minor 2-5-1 pattern. */
+export type Minor251Type = 'guide-tones' | 'seventh-chords' | 'full-voicing';
+
+/** Diatonic-cycle starting position — three voicings of the 1 chord. */
+export type DiatonicCyclePosition = 'pos1' | 'pos2' | 'pos3';
+/** Minor-ABA position — A or B starting voicing. Hyphenated tags
+ *  keep these distinct from the `A`/`B` positions used by the
+ *  type-position patterns. */
+export type MinorAbaPosition = 'pos-A' | 'pos-B';
+/** Dominant-flat-9 / diminished-7 starting inversion — root + three
+ *  inversions = four cells per key. */
+export type InversionPosition = 'pos1' | 'pos2' | 'pos3' | 'pos4';
+
+/** Discriminated catalog entry per VL pattern. The `kind` field
  *  drives enumeration and parsing — adding a new pattern shape
  *  involves adding a new variant here plus its parse + enumerate
  *  branches below. No call site should switch on `id` directly. */
 export type VoiceLeadingPattern =
   | {
-      id: 'aba-251';
-      kind: 'aba-251';
+      id: 'five-one';
+      kind: 'type-position';
       label: string;
       description?: string;
-      levels: ReadonlyArray<VLLevel>;
-      positions: ReadonlyArray<VLPosition>;
+      types: ReadonlyArray<FiveOneType>;
+      positions: ReadonlyArray<VLABPosition>;
+    }
+  | {
+      id: 'major-251';
+      kind: 'type-position';
+      label: string;
+      description?: string;
+      types: ReadonlyArray<Major251Type>;
+      positions: ReadonlyArray<VLABPosition>;
+    }
+  | {
+      id: 'minor-251';
+      kind: 'type-position';
+      label: string;
+      description?: string;
+      types: ReadonlyArray<Minor251Type>;
+      positions: ReadonlyArray<VLABPosition>;
     }
   | {
       id: 'diatonic-cycle';
       kind: 'diatonic-cycle';
       label: string;
       description?: string;
-      startingPositions: ReadonlyArray<VLCyclePos>;
+      startingPositions: ReadonlyArray<DiatonicCyclePosition>;
     }
   | {
-      id: 'dom-sharp9sharp5' | 'dom7b9';
-      kind: 'dom-altered';
+      id: 'minor-aba';
+      kind: 'minor-aba';
       label: string;
       description?: string;
-      positions: ReadonlyArray<VLPosition>;
-      targets: ReadonlyArray<VLMinTarget>;
+      positions: ReadonlyArray<MinorAbaPosition>;
     }
   | {
-      id: 'dim7';
-      kind: 'dim7-passing';
+      id: 'dom7b9' | 'dim7';
+      kind: 'inversion-4';
       label: string;
       description?: string;
-      directions: ReadonlyArray<VLDim7Direction>;
-      targets: ReadonlyArray<VLDim7Target>;
+      positions: ReadonlyArray<InversionPosition>;
     };
 
 export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
-    id: 'aba-251',
-    kind: 'aba-251',
-    label: 'ABA / BAB 2-5-1',
-    description: 'Foundational ii → V → I voice leading. Three voicing levels (guide tones → 7ths → full color) and two starting positions (ABA / BAB).',
-    levels: ['level1', 'level2', 'level3'],
+    id: 'five-one',
+    kind: 'type-position',
+    label: '5→1 Movement',
+    description: 'Dominant to tonic resolution. Three skill types (guide tones, seventh chords, full voicing) across two starting positions.',
+    types: ['guide-tones', 'seventh-chords', 'full-voicing'],
+    positions: ['A', 'B'],
+  },
+  {
+    id: 'major-251',
+    kind: 'type-position',
+    label: 'Major 2-5-1',
+    description: 'Foundational ii → V → I voice leading. Three skill types (guide tones, seventh chords, ABA structure) across two starting positions.',
+    types: ['guide-tones', 'seventh-chords', 'aba-structure'],
+    positions: ['A', 'B'],
+  },
+  {
+    id: 'minor-251',
+    kind: 'type-position',
+    label: 'Minor 2-5-1',
+    description: 'iiø → V → i voice leading. Three skill types (guide tones, seventh chords, full voicing) across two starting positions.',
+    types: ['guide-tones', 'seventh-chords', 'full-voicing'],
     positions: ['A', 'B'],
   },
   {
     id: 'diatonic-cycle',
     kind: 'diatonic-cycle',
-    label: '1-4-7-3-6-2-5-1 diatonic cycle',
-    description: 'Full diatonic cycle in 7th chords across three starting inversions.',
+    label: 'Diatonic Cycle (1-4-7-3-6-2-5-1)',
+    description: 'Full diatonic cycle in 7th chords across three starting inversions of the 1 chord.',
     startingPositions: ['pos1', 'pos2', 'pos3'],
   },
   {
-    id: 'dom-sharp9sharp5',
-    kind: 'dom-altered',
-    label: 'dom7♯9♯5 → minor',
-    description: 'Dark altered dominant resolving a 5th down to minor. Three resolution targets per position.',
-    positions: ['A', 'B'],
-    targets: ['min7', 'min9', 'min11'],
+    id: 'minor-aba',
+    kind: 'minor-aba',
+    label: 'Minor ABA (dom7#9#5 → minor)',
+    description: 'Dark altered dominant resolving a 5th down to minor. Two starting positions.',
+    positions: ['pos-A', 'pos-B'],
   },
   {
     id: 'dom7b9',
-    kind: 'dom-altered',
-    label: 'dom7♭9 → minor',
-    description: 'Right-hand dim7 voicing over dominant bass, resolving a 5th down to minor.',
-    positions: ['A', 'B'],
-    targets: ['min7', 'min9', 'min11'],
+    kind: 'inversion-4',
+    label: 'dom7b9 → minor',
+    description: 'Right-hand dim7 voicing over dominant bass, resolving to minor. Four starting positions — root plus three inversions of the dominant.',
+    positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
   {
     id: 'dim7',
-    kind: 'dim7-passing',
-    label: 'dim7 → minor (passing)',
-    description: 'Diminished passing chord resolving a half step up or down to minor.',
-    directions: ['up', 'down'],
-    targets: ['mintriad', 'min7', 'min9'],
+    kind: 'inversion-4',
+    label: 'dim7 → minor',
+    description: 'Diminished passing chord resolving to minor. Four starting positions — root plus three inversions of the dim7.',
+    positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
 ];
 
@@ -375,64 +422,50 @@ export const VOICE_LEADING_PATTERN_BY_ID = new Map<string, VoiceLeadingPattern>(
   VOICE_LEADING_PATTERNS.map(p => [p.id, p]),
 );
 
-/**
- * Enumerate every sub-cell itemRef for `pattern` in `keyName`. The
- * cardinality depends on the pattern's kind (3, 6, or up to 9 cells
- * per key — see design doc § Pattern Definitions). Pure.
- */
 /** Count of sub-cells for `pattern` (key-invariant — every key
  *  fans out into the same dimension product). */
 export function voiceLeadingCellsPerKey(pattern: VoiceLeadingPattern): number {
   switch (pattern.kind) {
-    case 'aba-251':       return pattern.levels.length * pattern.positions.length;
+    case 'type-position':  return pattern.types.length * pattern.positions.length;
     case 'diatonic-cycle': return pattern.startingPositions.length;
-    case 'dom-altered':   return pattern.positions.length * pattern.targets.length;
-    case 'dim7-passing':  return pattern.directions.length * pattern.targets.length;
+    case 'minor-aba':      return pattern.positions.length;
+    case 'inversion-4':    return pattern.positions.length;
   }
 }
 
 /** Total VL cell count across the whole catalog: sum of per-pattern
- *  fan-outs × number of keys. 324 today (27 sub-cells/key × 12). */
+ *  fan-outs × number of keys. 372 today (31 sub-cells/key × 12). */
 export function voiceLeadingTotalCellCount(): number {
   return VOICE_LEADING_PATTERNS.reduce(
     (sum, p) => sum + voiceLeadingCellsPerKey(p), 0,
   ) * KEYS.length;
 }
 
+/**
+ * Enumerate every sub-cell itemRef for `pattern` in `keyName`. The
+ * cardinality depends on the pattern's kind (2, 3, 4, or 6 cells
+ * per key — see catalog header). Pure.
+ */
 export function enumerateVoiceLeadingCells(
   pattern: VoiceLeadingPattern,
   keyName: string,
 ): string[] {
   switch (pattern.kind) {
-    case 'aba-251': {
+    case 'type-position': {
       const out: string[] = [];
-      for (const level of pattern.levels) {
+      for (const type of pattern.types) {
         for (const position of pattern.positions) {
-          out.push(`vl:${pattern.id}:${level}:${position}:${keyName}`);
+          out.push(`vl:${pattern.id}:${type}:${position}:${keyName}`);
         }
       }
       return out;
     }
     case 'diatonic-cycle':
       return pattern.startingPositions.map(p => `vl:${pattern.id}:${p}:${keyName}`);
-    case 'dom-altered': {
-      const out: string[] = [];
-      for (const position of pattern.positions) {
-        for (const target of pattern.targets) {
-          out.push(`vl:${pattern.id}:${position}:${target}:${keyName}`);
-        }
-      }
-      return out;
-    }
-    case 'dim7-passing': {
-      const out: string[] = [];
-      for (const direction of pattern.directions) {
-        for (const target of pattern.targets) {
-          out.push(`vl:${pattern.id}:${direction}:${target}:${keyName}`);
-        }
-      }
-      return out;
-    }
+    case 'minor-aba':
+      return pattern.positions.map(p => `vl:${pattern.id}:${p}:${keyName}`);
+    case 'inversion-4':
+      return pattern.positions.map(p => `vl:${pattern.id}:${p}:${keyName}`);
   }
 }
 
@@ -441,62 +474,76 @@ export function enumerateVoiceLeadingCells(
  *  to re-parse the segments. */
 export type VoiceLeadingItemRefDescriptor =
   | {
-      patternId: 'aba-251';
-      kind: 'aba-251';
-      level: VLLevel;
-      position: VLPosition;
+      patternId: 'five-one';
+      kind: 'type-position';
+      type: FiveOneType;
+      position: VLABPosition;
+      keyName: string;
+    }
+  | {
+      patternId: 'major-251';
+      kind: 'type-position';
+      type: Major251Type;
+      position: VLABPosition;
+      keyName: string;
+    }
+  | {
+      patternId: 'minor-251';
+      kind: 'type-position';
+      type: Minor251Type;
+      position: VLABPosition;
       keyName: string;
     }
   | {
       patternId: 'diatonic-cycle';
       kind: 'diatonic-cycle';
-      startingPosition: VLCyclePos;
+      startingPosition: DiatonicCyclePosition;
       keyName: string;
     }
   | {
-      patternId: 'dom-sharp9sharp5' | 'dom7b9';
-      kind: 'dom-altered';
-      position: VLPosition;
-      target: VLMinTarget;
+      patternId: 'minor-aba';
+      kind: 'minor-aba';
+      position: MinorAbaPosition;
       keyName: string;
     }
   | {
-      patternId: 'dim7';
-      kind: 'dim7-passing';
-      direction: VLDim7Direction;
-      target: VLDim7Target;
+      patternId: 'dom7b9' | 'dim7';
+      kind: 'inversion-4';
+      position: InversionPosition;
       keyName: string;
     };
 
 const KEY_SET: ReadonlySet<string> = new Set(KEYS);
 
-function isVLLevel(s: string): s is VLLevel {
-  return s === 'level1' || s === 'level2' || s === 'level3';
-}
-function isVLPosition(s: string): s is VLPosition {
+function isVLABPosition(s: string): s is VLABPosition {
   return s === 'A' || s === 'B';
 }
-function isVLCyclePos(s: string): s is VLCyclePos {
+function isFiveOneType(s: string): s is FiveOneType {
+  return s === 'guide-tones' || s === 'seventh-chords' || s === 'full-voicing';
+}
+function isMajor251Type(s: string): s is Major251Type {
+  return s === 'guide-tones' || s === 'seventh-chords' || s === 'aba-structure';
+}
+function isMinor251Type(s: string): s is Minor251Type {
+  return s === 'guide-tones' || s === 'seventh-chords' || s === 'full-voicing';
+}
+function isDiatonicCyclePosition(s: string): s is DiatonicCyclePosition {
   return s === 'pos1' || s === 'pos2' || s === 'pos3';
 }
-function isVLMinTarget(s: string): s is VLMinTarget {
-  return s === 'min7' || s === 'min9' || s === 'min11';
+function isMinorAbaPosition(s: string): s is MinorAbaPosition {
+  return s === 'pos-A' || s === 'pos-B';
 }
-function isVLDim7Direction(s: string): s is VLDim7Direction {
-  return s === 'up' || s === 'down';
-}
-function isVLDim7Target(s: string): s is VLDim7Target {
-  return s === 'mintriad' || s === 'min7' || s === 'min9';
+function isInversionPosition(s: string): s is InversionPosition {
+  return s === 'pos1' || s === 'pos2' || s === 'pos3' || s === 'pos4';
 }
 
 /**
  * Parse a `vl:` itemRef into a sub-cell descriptor. Dispatches on
  * the patternId in segment 1; downstream segments are validated
- * against the pattern's expected dimensions. Returns null for
- * anything that doesn't match a known pattern shape — including the
- * legacy 3-part `vl:{patternId}:{keyName}` form, which is no longer
- * a valid sub-cell (callers that need legacy-tolerant parsing for
- * label purposes should use `parseShapesItemRef` instead).
+ * against the pattern's expected dimensions. Returns null for any
+ * shape that doesn't match a known pattern — no back-compat for the
+ * earlier `aba-251` / `level1` schema or the pre-Phase-1 3-part
+ * shape; no VL spacingState rows pre-date this catalog.
  */
 export function parseVoiceLeadingItemRef(
   itemRef: string,
@@ -508,69 +555,96 @@ export function parseVoiceLeadingItemRef(
   if (!KEY_SET.has(keyName)) return null;
 
   switch (patternId) {
-    case 'aba-251': {
+    case 'five-one': {
       if (parts.length !== 5) return null;
-      const level = parts[2];
+      const type = parts[2];
       const position = parts[3];
-      if (!isVLLevel(level) || !isVLPosition(position)) return null;
-      return { patternId, kind: 'aba-251', level, position, keyName };
+      if (!isFiveOneType(type) || !isVLABPosition(position)) return null;
+      return { patternId, kind: 'type-position', type, position, keyName };
+    }
+    case 'major-251': {
+      if (parts.length !== 5) return null;
+      const type = parts[2];
+      const position = parts[3];
+      if (!isMajor251Type(type) || !isVLABPosition(position)) return null;
+      return { patternId, kind: 'type-position', type, position, keyName };
+    }
+    case 'minor-251': {
+      if (parts.length !== 5) return null;
+      const type = parts[2];
+      const position = parts[3];
+      if (!isMinor251Type(type) || !isVLABPosition(position)) return null;
+      return { patternId, kind: 'type-position', type, position, keyName };
     }
     case 'diatonic-cycle': {
       if (parts.length !== 4) return null;
       const startingPosition = parts[2];
-      if (!isVLCyclePos(startingPosition)) return null;
+      if (!isDiatonicCyclePosition(startingPosition)) return null;
       return { patternId, kind: 'diatonic-cycle', startingPosition, keyName };
     }
-    case 'dom-sharp9sharp5':
-    case 'dom7b9': {
-      if (parts.length !== 5) return null;
+    case 'minor-aba': {
+      if (parts.length !== 4) return null;
       const position = parts[2];
-      const target = parts[3];
-      if (!isVLPosition(position) || !isVLMinTarget(target)) return null;
-      return { patternId, kind: 'dom-altered', position, target, keyName };
+      if (!isMinorAbaPosition(position)) return null;
+      return { patternId, kind: 'minor-aba', position, keyName };
     }
+    case 'dom7b9':
     case 'dim7': {
-      if (parts.length !== 5) return null;
-      const direction = parts[2];
-      const target = parts[3];
-      if (!isVLDim7Direction(direction) || !isVLDim7Target(target)) return null;
-      return { patternId, kind: 'dim7-passing', direction, target, keyName };
+      if (parts.length !== 4) return null;
+      const position = parts[2];
+      if (!isInversionPosition(position)) return null;
+      return { patternId, kind: 'inversion-4', position, keyName };
     }
     default:
       return null;
   }
 }
 
+/** Human-friendly type label used in row gutters + modal headers. */
+function typeLabel(type: FiveOneType | Major251Type | Minor251Type): string {
+  switch (type) {
+    case 'guide-tones':    return 'Guide tones';
+    case 'seventh-chords': return 'Seventh chords';
+    case 'full-voicing':   return 'Full voicing';
+    case 'aba-structure':  return 'ABA structure';
+  }
+}
+
+/** Number for the diatonic-cycle / inversion positions. */
+function positionNumber(p: DiatonicCyclePosition | InversionPosition): number {
+  switch (p) {
+    case 'pos1': return 1;
+    case 'pos2': return 2;
+    case 'pos3': return 3;
+    case 'pos4': return 4;
+  }
+}
+
+/** Strip the `pos-` prefix from minor-aba positions. */
+function minorAbaLetter(p: MinorAbaPosition): 'A' | 'B' {
+  return p === 'pos-A' ? 'A' : 'B';
+}
+
 /** Human-friendly sub-cell label, suitable for display alongside the
- *  pattern label. e.g. "Level 1, Position A" / "Starting position 1"
- *  / "Position A → min9" / "Half step up → min9". */
+ *  pattern label. Examples:
+ *    "Guide tones · Pos A"
+ *    "ABA structure · Pos B"
+ *    "Starting position 2"
+ *    "Position A"        (minor-aba)
+ *    "Position 3"        (dom7b9 / dim7)
+ */
 export function voiceLeadingSubCellLabel(
   desc: VoiceLeadingItemRefDescriptor,
 ): string {
   switch (desc.kind) {
-    case 'aba-251': {
-      const levelText =
-        desc.level === 'level1' ? 'Level 1'
-          : desc.level === 'level2' ? 'Level 2'
-            : 'Level 3';
-      return `${levelText}, Position ${desc.position}`;
-    }
-    case 'diatonic-cycle': {
-      const n = desc.startingPosition === 'pos1' ? 1
-        : desc.startingPosition === 'pos2' ? 2 : 3;
-      return `Starting position ${n}`;
-    }
-    case 'dom-altered': {
-      const t = desc.target === 'min7' ? 'min7'
-        : desc.target === 'min9' ? 'min9' : 'min11';
-      return `Position ${desc.position} → ${t}`;
-    }
-    case 'dim7-passing': {
-      const dir = desc.direction === 'up' ? 'Half step up' : 'Half step down';
-      const t = desc.target === 'mintriad' ? 'min triad'
-        : desc.target === 'min7' ? 'min7' : 'min9';
-      return `${dir} → ${t}`;
-    }
+    case 'type-position':
+      return `${typeLabel(desc.type)} · Pos ${desc.position}`;
+    case 'diatonic-cycle':
+      return `Starting position ${positionNumber(desc.startingPosition)}`;
+    case 'minor-aba':
+      return `Position ${minorAbaLetter(desc.position)}`;
+    case 'inversion-4':
+      return `Position ${positionNumber(desc.position)}`;
   }
 }
 

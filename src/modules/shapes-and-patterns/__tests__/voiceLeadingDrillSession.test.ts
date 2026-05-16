@@ -36,7 +36,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
   it('writes a DrillSession row with the VL sub-cell itemRef as skillId + drillTypeId', async () => {
     const before = Date.now();
     const session = await logVoiceLeadingDrillSession({
-      itemRef: 'vl:aba-251:level1:A:C',
+      itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 92,
       rating: 'cruising',
       targetSeconds: 90,
@@ -48,8 +48,8 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
     const row = rows[0];
     expect(row).toEqual(session);
     expect(row.id.startsWith('dses-')).toBe(true);
-    expect(row.skillId).toBe('vl:aba-251:level1:A:C');
-    expect(row.drillTypeId).toBe('vl:aba-251:level1:A:C');
+    expect(row.skillId).toBe('vl:major-251:guide-tones:A:C');
+    expect(row.drillTypeId).toBe('vl:major-251:guide-tones:A:C');
     expect(row.durationSeconds).toBe(92);
     expect(row.targetSeconds).toBe(90);
     expect(row.feelRating).toBe(3); // cruising → 3
@@ -59,34 +59,34 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
 
   it('maps the 3-point rating onto feelRating (flying → 4, cruising → 3, crawling → 1)', async () => {
     await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:C', durationSeconds: 180, rating: 'flying' });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:dom7b9:A:min9:G', durationSeconds: 90, rating: 'cruising' });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:dim7:up:min9:F', durationSeconds: 90, rating: 'crawling' });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:dom7b9:pos2:G',         durationSeconds: 90,  rating: 'cruising' });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:dim7:pos3:F',           durationSeconds: 90,  rating: 'crawling' });
 
     const byItem = new Map(
       (await db.drillSessions.toArray()).map(r => [r.skillId, r.feelRating]),
     );
     expect(byItem.get('vl:diatonic-cycle:pos1:C')).toBe(4);
-    expect(byItem.get('vl:dom7b9:A:min9:G')).toBe(3);
-    expect(byItem.get('vl:dim7:up:min9:F')).toBe(1);
+    expect(byItem.get('vl:dom7b9:pos2:G')).toBe(3);
+    expect(byItem.get('vl:dim7:pos3:F')).toBe(1);
   });
 
   it('rounds durationSeconds + targetSeconds and trims notes', async () => {
     await logVoiceLeadingDrillSession({
-      itemRef: 'vl:aba-251:level3:B:F',
+      itemRef: 'vl:major-251:aba-structure:B:F',
       durationSeconds: 121.6,
       rating: 'cruising',
       targetSeconds: 119.4,
-      notes: '  level 3 is tougher in F  ',
+      notes: '  capstone type is tougher in F  ',
     });
     const row = (await db.drillSessions.toArray())[0];
     expect(row.durationSeconds).toBe(122);
     expect(row.targetSeconds).toBe(119);
-    expect(row.notes).toBe('level 3 is tougher in F');
+    expect(row.notes).toBe('capstone type is tougher in F');
   });
 
   it('omits targetSeconds when not supplied and notes when blank', async () => {
     await logVoiceLeadingDrillSession({
-      itemRef: 'vl:aba-251:level1:A:C',
+      itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 90,
       rating: 'flying',
       notes: '   ',
@@ -98,7 +98,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
 
   it('does not touch db.drillTypes or db.spacingState (caller drives those separately)', async () => {
     await logVoiceLeadingDrillSession({
-      itemRef: 'vl:aba-251:level1:A:C',
+      itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 90,
       rating: 'cruising',
     });
@@ -116,14 +116,14 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
 
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:aba-251:level1:A:C', durationSeconds: 90, rating: 'cruising' });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, rating: 'cruising' });
     await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:F', durationSeconds: 180, rating: 'flying' });
 
     // Out-of-window row — must not count.
     await db.drillSessions.add({
       id: 'old-1',
-      drillTypeId: 'vl:aba-251:level1:A:Bb',
-      skillId: 'vl:aba-251:level1:A:Bb',
+      drillTypeId: 'vl:major-251:guide-tones:A:Bb',
+      skillId: 'vl:major-251:guide-tones:A:Bb',
       durationSeconds: 90,
       feelRating: 3,
       timestamp: now - 30 * DAY,
@@ -149,7 +149,7 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
       feelRating: 3,
       timestamp: now,
     });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:aba-251:level1:A:C', durationSeconds: 90, rating: 'flying' });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, rating: 'flying' });
 
     const count = await getWeeklyAttempts(
       'shapes-and-patterns',
@@ -170,38 +170,39 @@ const HOUR = 60 * 60 * 1000;
 describe('pickMostDueVoiceLeadingSubCell — priority tiers', () => {
   it('returns null for a pattern id not in the catalog (custom patterns)', () => {
     expect(pickMostDueVoiceLeadingSubCell('custom-foo', 'C', [])).toBeNull();
-    expect(pickMostDueVoiceLeadingSubCell('bab-251', 'C', [])).toBeNull(); // bab-251 collapsed into aba-251
+    // Pre-correction patternId no longer in the catalog.
+    expect(pickMostDueVoiceLeadingSubCell('aba-251', 'C', [])).toBeNull();
   });
 
   it('with no rows at all, returns the first enumerated sub-cell for the pattern × key (deterministic)', () => {
-    const pat = VOICE_LEADING_PATTERN_BY_ID.get('aba-251')!;
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
     const expected = enumerateVoiceLeadingCells(pat, 'C')[0];
-    expect(pickMostDueVoiceLeadingSubCell('aba-251', 'C', [])).toBe(expected);
+    expect(pickMostDueVoiceLeadingSubCell('major-251', 'C', [])).toBe(expected);
   });
 
   it('prefers sub-cells with no spacingState row over any practised cell', () => {
-    // ABA-251 in C has 6 sub-cells. Fill the FIRST sub-cell with a row
-    // that has a long-overdue nextDueAt. The picker should still
+    // major-251 in C has 6 sub-cells. Fill the FIRST sub-cell with a
+    // row that has a long-overdue nextDueAt. The picker should still
     // prefer an untouched sub-cell over the first one.
-    const pat = VOICE_LEADING_PATTERN_BY_ID.get('aba-251')!;
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
     const rows: VoiceLeadingPickerRow[] = [
       { itemRef: cells[0], nextDueAt: NOW - 100 * HOUR },
     ];
-    const picked = pickMostDueVoiceLeadingSubCell('aba-251', 'C', rows);
+    const picked = pickMostDueVoiceLeadingSubCell('major-251', 'C', rows);
     // Must be one of the 5 untouched cells, never the first.
     expect(picked).not.toBe(cells[0]);
     expect(cells.slice(1)).toContain(picked);
   });
 
   it('among untouched cells, returns the first in catalog enumeration order (deterministic tiebreak)', () => {
-    const pat = VOICE_LEADING_PATTERN_BY_ID.get('aba-251')!;
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
     // Fill cells[3] only — first untouched cell is cells[0].
     const rows: VoiceLeadingPickerRow[] = [
       { itemRef: cells[3], nextDueAt: NOW },
     ];
-    expect(pickMostDueVoiceLeadingSubCell('aba-251', 'C', rows)).toBe(cells[0]);
+    expect(pickMostDueVoiceLeadingSubCell('major-251', 'C', rows)).toBe(cells[0]);
   });
 
   it('all cells practised: prefers a row with null nextDueAt (unscheduled) over any scheduled row', () => {
@@ -228,15 +229,15 @@ describe('pickMostDueVoiceLeadingSubCell — priority tiers', () => {
   });
 
   it('ignores rows for OTHER patterns or OTHER keys when selecting', () => {
-    const pat = VOICE_LEADING_PATTERN_BY_ID.get('aba-251')!;
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
     // Stuff the row list with unrelated sub-cells — picker must still
-    // pick the first untouched cells of (aba-251, C).
+    // pick the first untouched cells of (major-251, C).
     const rows: VoiceLeadingPickerRow[] = [
-      { itemRef: 'vl:aba-251:level1:A:G',   nextDueAt: NOW - 100 * HOUR },
-      { itemRef: 'vl:dim7:up:min9:C',       nextDueAt: NOW - 100 * HOUR },
-      { itemRef: 'scale:major:C',           nextDueAt: NOW - 100 * HOUR },
+      { itemRef: 'vl:major-251:guide-tones:A:G', nextDueAt: NOW - 100 * HOUR },
+      { itemRef: 'vl:dim7:pos1:C',               nextDueAt: NOW - 100 * HOUR },
+      { itemRef: 'scale:major:C',                nextDueAt: NOW - 100 * HOUR },
     ];
-    expect(pickMostDueVoiceLeadingSubCell('aba-251', 'C', rows)).toBe(cells[0]);
+    expect(pickMostDueVoiceLeadingSubCell('major-251', 'C', rows)).toBe(cells[0]);
   });
 });

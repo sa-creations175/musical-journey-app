@@ -84,11 +84,6 @@ import { parseVoiceLeadingItemRef } from '../../modules/shapes-and-patterns/cata
 
 const ET_MODULE_REF_SET: ReadonlySet<string> = new Set(ET_MODULE_REFS);
 
-/** Fallback for VL rows that don't parse against the new sub-cell
- *  catalog (legacy 3-part `vl:{patternId}:{keyName}` rows, or hand-
- *  edited values). Picks the modal per-cell baseline. */
-const VOICE_LEADING_FALLBACK_SECONDS = 90;
-
 /**
  * Algo spacing demand for `moduleId` in SECONDS, as of `asOf`.
  *
@@ -193,11 +188,15 @@ function secondsForShapesItem(itemRef: string): number {
     }
     case 'voice-leading': {
       // The full sub-cell descriptor lives one layer down — re-parse
-      // here so we honor per-pattern (and per-level for ABA/BAB)
-      // time seeds rather than averaging across the catalog.
+      // here so we honor per-pattern (and per-type for the
+      // type-position patterns) time seeds rather than averaging
+      // across the catalog. Unparseable rows fall through to the
+      // generic CHORD_SHAPE_CELL_SECONDS baseline at the end (no
+      // VL spacingState rows pre-date this catalog, so an
+      // unparseable vl: row signals hand-edited / future data).
       const vl = parseVoiceLeadingItemRef(itemRef);
-      if (!vl) return VOICE_LEADING_FALLBACK_SECONDS;
-      return voiceLeadingCellSeconds(vl);
+      if (vl) return voiceLeadingCellSeconds(vl);
+      return CHORD_SHAPE_CELL_SECONDS;
     }
     case 'mental-viz':
       // parseShapesItemRef never returns 'mental-viz' (no `mv:` prefix

@@ -149,7 +149,7 @@ export interface ShapesCounts {
    *  both major-pent and minor-pent, plus 12 each for major and
    *  natural-minor). */
   scaleDrills: number;
-  /** 324 — sum of per-pattern sub-cell fan-outs × 12 keys (27 × 12).
+  /** 372 — sum of per-pattern sub-cell fan-outs × 12 keys (31 × 12).
    *  See VOICE_LEADING_SUBMODULE_DESIGN.md § Total Cell Count. */
   voiceLeading: number;
   /** Sum of the three sub-areas. **Excludes Mental Visualization**

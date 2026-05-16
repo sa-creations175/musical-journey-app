@@ -45,8 +45,8 @@ const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
  *   chord_shape_extensions — 14 extension qualities × 12 keys = 168
  *   chord_shape_special    — 3 special/sixth qualities × 12 keys = 36
  *   scale_drills           — 4 scales × 12 keys = 48
- *   voice_leading          — 27 sub-cells × 12 keys = 324
- *                            (5 patterns; ABA/diatonic/dom-altered ×2/dim7)
+ *   voice_leading          — 31 sub-cells × 12 keys = 372
+ *                            (7 patterns; see voiceLeadingTotalCellCount)
  *
  * `chord_shape_drills` (the legacy single bucket) is intentionally
  * not in the union — saved goals from before the split still hit

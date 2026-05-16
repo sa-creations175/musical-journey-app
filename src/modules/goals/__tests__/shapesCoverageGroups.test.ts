@@ -63,14 +63,14 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     //   scale_major (12) + scale_natural_minor (12) +
     //   scale_major_pentatonic (36) + 3×12 sp sub-groups (36) +
     //   scale_minor_pentatonic (36) + 3×12 sp sub-groups (36) = 264
-    // Voice leading: 324 (27 sub-cells × 12 keys, post Phase-1 fan-out)
+    // Voice leading: 372 (31 sub-cells × 12 keys, post Phase-1 catalog correction)
     // Aggregates use moduleItemCounts which doesn't double-count.
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
     );
     const chordShapeSide = 288 + 6 * 48 + 360 + 168 + 36;
     const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
-    expect(defSum).toBe(chordShapeSide + scalesSide + 324);
+    expect(defSum).toBe(chordShapeSide + scalesSide + 372);
   });
 });
 

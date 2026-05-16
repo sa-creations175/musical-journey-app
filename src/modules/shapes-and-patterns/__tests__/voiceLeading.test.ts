@@ -3,11 +3,11 @@
  * Voice-leading catalog + parser + per-cell time seed tests.
  *
  * Covers the Phase 1 VL submodule data layer:
- *   · VOICE_LEADING_PATTERNS shape (5 patterns, 27 sub-cells per key)
+ *   · VOICE_LEADING_PATTERNS shape (7 patterns, 31 sub-cells per key)
  *   · enumerateVoiceLeadingCells (per-pattern fan-out)
  *   · parseVoiceLeadingItemRef (round-trips per pattern + defensive cases)
  *   · voiceLeadingSubCellLabel (display strings)
- *   · voiceLeadingCellSeconds (per-pattern + ABA-level-3 bump)
+ *   · voiceLeadingCellSeconds (per-pattern + per-type capstone bump)
  *
  * See src/docs/VOICE_LEADING_SUBMODULE_DESIGN.md.
  */
@@ -27,14 +27,16 @@ import {
 } from '../../../lib/sessionAlgorithm/timePerAttempt';
 
 describe('VOICE_LEADING_PATTERNS catalog', () => {
-  it('ships exactly the 5 design-doc patterns', () => {
+  it('ships exactly the 7 design-doc patterns', () => {
     const ids = VOICE_LEADING_PATTERNS.map(p => p.id).sort();
     expect(ids).toEqual([
-      'aba-251',
+      'five-one',
+      'major-251',
+      'minor-251',
       'diatonic-cycle',
-      'dim7',
-      'dom-sharp9sharp5',
+      'minor-aba',
       'dom7b9',
+      'dim7',
     ].sort());
   });
 
@@ -56,15 +58,30 @@ describe('VOICE_LEADING_PATTERNS catalog', () => {
 // ---------------------------------------------------------------------
 
 describe('enumerateVoiceLeadingCells', () => {
-  it('ABA-251 → 6 cells per key (3 levels × 2 positions)', () => {
-    const pat = VOICE_LEADING_PATTERN_BY_ID.get('aba-251')!;
+  it('five-one → 6 cells per key (3 types × 2 positions)', () => {
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('five-one')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
     expect(cells).toHaveLength(6);
-    expect(cells).toContain('vl:aba-251:level1:A:C');
-    expect(cells).toContain('vl:aba-251:level3:B:C');
+    expect(cells).toContain('vl:five-one:guide-tones:A:C');
+    expect(cells).toContain('vl:five-one:full-voicing:B:C');
   });
 
-  it('diatonic-cycle → 3 cells per key (starting positions)', () => {
+  it('major-251 → 6 cells per key (guide-tones, seventh-chords, aba-structure × A/B)', () => {
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
+    const cells = enumerateVoiceLeadingCells(pat, 'C');
+    expect(cells).toHaveLength(6);
+    expect(cells).toContain('vl:major-251:guide-tones:A:C');
+    expect(cells).toContain('vl:major-251:aba-structure:B:C');
+  });
+
+  it('minor-251 → 6 cells per key (guide-tones, seventh-chords, full-voicing × A/B)', () => {
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('minor-251')!;
+    const cells = enumerateVoiceLeadingCells(pat, 'C');
+    expect(cells).toHaveLength(6);
+    expect(cells).toContain('vl:minor-251:full-voicing:A:C');
+  });
+
+  it('diatonic-cycle → 3 cells per key (3 starting positions)', () => {
     const pat = VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!;
     const cells = enumerateVoiceLeadingCells(pat, 'F');
     expect(cells).toEqual([
@@ -74,45 +91,53 @@ describe('enumerateVoiceLeadingCells', () => {
     ]);
   });
 
-  it('dom-sharp9sharp5 → 6 cells per key (2 positions × 3 targets)', () => {
-    const pat = VOICE_LEADING_PATTERN_BY_ID.get('dom-sharp9sharp5')!;
+  it('minor-aba → 2 cells per key (pos-A, pos-B)', () => {
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!;
     const cells = enumerateVoiceLeadingCells(pat, 'Eb');
-    expect(cells).toHaveLength(6);
-    expect(cells).toContain('vl:dom-sharp9sharp5:A:min7:Eb');
-    expect(cells).toContain('vl:dom-sharp9sharp5:B:min11:Eb');
+    expect(cells).toEqual([
+      'vl:minor-aba:pos-A:Eb',
+      'vl:minor-aba:pos-B:Eb',
+    ]);
   });
 
-  it('dom7b9 → 6 cells per key (same shape as dom-sharp9sharp5)', () => {
+  it('dom7b9 → 4 cells per key (root + 3 inversions)', () => {
     const pat = VOICE_LEADING_PATTERN_BY_ID.get('dom7b9')!;
     const cells = enumerateVoiceLeadingCells(pat, 'G');
-    expect(cells).toHaveLength(6);
-    expect(cells).toContain('vl:dom7b9:A:min9:G');
+    expect(cells).toEqual([
+      'vl:dom7b9:pos1:G',
+      'vl:dom7b9:pos2:G',
+      'vl:dom7b9:pos3:G',
+      'vl:dom7b9:pos4:G',
+    ]);
   });
 
-  it('dim7 → 6 cells per key (2 directions × 3 targets)', () => {
+  it('dim7 → 4 cells per key (root + 3 inversions)', () => {
     const pat = VOICE_LEADING_PATTERN_BY_ID.get('dim7')!;
     const cells = enumerateVoiceLeadingCells(pat, 'A');
-    expect(cells).toHaveLength(6);
-    expect(cells).toContain('vl:dim7:up:mintriad:A');
-    expect(cells).toContain('vl:dim7:down:min9:A');
+    expect(cells).toEqual([
+      'vl:dim7:pos1:A',
+      'vl:dim7:pos2:A',
+      'vl:dim7:pos3:A',
+      'vl:dim7:pos4:A',
+    ]);
   });
 
-  it('total catalog cell count = 27 × 12 keys = 324', () => {
+  it('total catalog cell count = 31 × 12 keys = 372', () => {
     let total = 0;
     for (const p of VOICE_LEADING_PATTERNS) {
       for (const k of KEYS) {
         total += enumerateVoiceLeadingCells(p, k).length;
       }
     }
-    expect(total).toBe(324);
+    expect(total).toBe(372);
   });
 
-  it('per-key cell totals: 6 + 3 + 6 + 6 + 6 = 27', () => {
+  it('per-key cell totals: 6 + 6 + 6 + 3 + 2 + 4 + 4 = 31', () => {
     let perKey = 0;
     for (const p of VOICE_LEADING_PATTERNS) {
       perKey += enumerateVoiceLeadingCells(p, 'C').length;
     }
-    expect(perKey).toBe(27);
+    expect(perKey).toBe(31);
   });
 });
 
@@ -122,13 +147,33 @@ describe('enumerateVoiceLeadingCells', () => {
 
 describe('parseVoiceLeadingItemRef', () => {
   describe('round-trips', () => {
-    it('parses ABA-251 level + position + key', () => {
-      expect(parseVoiceLeadingItemRef('vl:aba-251:level2:A:C')).toEqual({
-        patternId: 'aba-251',
-        kind: 'aba-251',
-        level: 'level2',
+    it('parses five-one type + position + key', () => {
+      expect(parseVoiceLeadingItemRef('vl:five-one:guide-tones:A:C')).toEqual({
+        patternId: 'five-one',
+        kind: 'type-position',
+        type: 'guide-tones',
         position: 'A',
         keyName: 'C',
+      });
+    });
+
+    it('parses major-251 with the ABA-structure capstone type', () => {
+      expect(parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:F')).toEqual({
+        patternId: 'major-251',
+        kind: 'type-position',
+        type: 'aba-structure',
+        position: 'B',
+        keyName: 'F',
+      });
+    });
+
+    it('parses minor-251 with the full-voicing capstone type', () => {
+      expect(parseVoiceLeadingItemRef('vl:minor-251:full-voicing:A:G')).toEqual({
+        patternId: 'minor-251',
+        kind: 'type-position',
+        type: 'full-voicing',
+        position: 'A',
+        keyName: 'G',
       });
     });
 
@@ -141,33 +186,36 @@ describe('parseVoiceLeadingItemRef', () => {
       });
     });
 
-    it('parses dom-sharp9sharp5 position + target + key', () => {
-      expect(parseVoiceLeadingItemRef('vl:dom-sharp9sharp5:A:min9:C')).toEqual({
-        patternId: 'dom-sharp9sharp5',
-        kind: 'dom-altered',
-        position: 'A',
-        target: 'min9',
+    it('parses minor-aba with pos-A / pos-B tags', () => {
+      expect(parseVoiceLeadingItemRef('vl:minor-aba:pos-A:Eb')).toEqual({
+        patternId: 'minor-aba',
+        kind: 'minor-aba',
+        position: 'pos-A',
+        keyName: 'Eb',
+      });
+      expect(parseVoiceLeadingItemRef('vl:minor-aba:pos-B:C')).toEqual({
+        patternId: 'minor-aba',
+        kind: 'minor-aba',
+        position: 'pos-B',
         keyName: 'C',
       });
     });
 
-    it('parses dom7b9 with the same dom-altered shape', () => {
-      expect(parseVoiceLeadingItemRef('vl:dom7b9:B:min11:Eb')).toEqual({
+    it('parses dom7b9 with four-position inversion vocab', () => {
+      expect(parseVoiceLeadingItemRef('vl:dom7b9:pos3:G')).toEqual({
         patternId: 'dom7b9',
-        kind: 'dom-altered',
-        position: 'B',
-        target: 'min11',
-        keyName: 'Eb',
+        kind: 'inversion-4',
+        position: 'pos3',
+        keyName: 'G',
       });
     });
 
-    it('parses dim7 direction + target + key', () => {
-      expect(parseVoiceLeadingItemRef('vl:dim7:up:min9:G')).toEqual({
+    it('parses dim7 with four-position inversion vocab', () => {
+      expect(parseVoiceLeadingItemRef('vl:dim7:pos4:Bb')).toEqual({
         patternId: 'dim7',
-        kind: 'dim7-passing',
-        direction: 'up',
-        target: 'min9',
-        keyName: 'G',
+        kind: 'inversion-4',
+        position: 'pos4',
+        keyName: 'Bb',
       });
     });
 
@@ -189,35 +237,39 @@ describe('parseVoiceLeadingItemRef', () => {
     it('returns null for empty / too-short strings', () => {
       expect(parseVoiceLeadingItemRef('')).toBeNull();
       expect(parseVoiceLeadingItemRef('vl')).toBeNull();
-      expect(parseVoiceLeadingItemRef('vl:aba-251')).toBeNull();
+      expect(parseVoiceLeadingItemRef('vl:five-one')).toBeNull();
     });
 
-    it('returns null for legacy 3-part (no sub-cell)', () => {
-      // The pre-Phase-1 `vl:patternId:keyName` shape is no longer a
-      // valid sub-cell. Callers that need legacy-tolerant labelling
-      // should fall back to `parseShapesItemRef` instead.
-      expect(parseVoiceLeadingItemRef('vl:aba-251:C')).toBeNull();
+    it('returns null for the legacy aba-251 / level1 shape (catalog superseded)', () => {
+      // The pre-correction shape `vl:aba-251:level1:A:C` is no longer
+      // a valid pattern id — `aba-251` was rolled into `major-251`.
+      expect(parseVoiceLeadingItemRef('vl:aba-251:level1:A:C')).toBeNull();
+      expect(parseVoiceLeadingItemRef('vl:dom-sharp9sharp5:A:min9:C')).toBeNull();
     });
 
     it('returns null for unknown pattern ids', () => {
-      expect(parseVoiceLeadingItemRef('vl:made-up:level1:A:C')).toBeNull();
-      expect(parseVoiceLeadingItemRef('vl:bab-251:level1:A:C')).toBeNull(); // bab-251 collapsed into aba-251
+      expect(parseVoiceLeadingItemRef('vl:made-up:guide-tones:A:C')).toBeNull();
+      expect(parseVoiceLeadingItemRef('vl:bab-251:guide-tones:A:C')).toBeNull();
     });
 
-    it('returns null when sub-dimensions are out of vocabulary', () => {
-      expect(parseVoiceLeadingItemRef('vl:aba-251:level4:A:C')).toBeNull();
-      expect(parseVoiceLeadingItemRef('vl:aba-251:level1:Z:C')).toBeNull();
-      expect(parseVoiceLeadingItemRef('vl:dim7:sideways:min7:C')).toBeNull();
-      expect(parseVoiceLeadingItemRef('vl:dom7b9:A:min13:C')).toBeNull();
+    it('returns null when sub-dimensions are out of vocabulary for the pattern', () => {
+      // major-251 has aba-structure but five-one does not.
+      expect(parseVoiceLeadingItemRef('vl:five-one:aba-structure:A:C')).toBeNull();
+      // diatonic-cycle has pos1..pos3 only.
+      expect(parseVoiceLeadingItemRef('vl:diatonic-cycle:pos4:C')).toBeNull();
+      // minor-aba uses pos-A / pos-B, not plain A / B.
+      expect(parseVoiceLeadingItemRef('vl:minor-aba:A:C')).toBeNull();
+      // inversion-4 patterns reject 5-segment shapes.
+      expect(parseVoiceLeadingItemRef('vl:dom7b9:pos1:extra:C')).toBeNull();
     });
 
     it('returns null when the key is not in the canonical KEYS list', () => {
-      expect(parseVoiceLeadingItemRef('vl:aba-251:level1:A:Gb')).toBeNull(); // catalog uses F#
+      expect(parseVoiceLeadingItemRef('vl:major-251:guide-tones:A:Gb')).toBeNull();
       expect(parseVoiceLeadingItemRef('vl:diatonic-cycle:pos1:H')).toBeNull();
     });
 
     it('returns null when the prefix is not "vl"', () => {
-      expect(parseVoiceLeadingItemRef('xl:aba-251:level1:A:C')).toBeNull();
+      expect(parseVoiceLeadingItemRef('xl:major-251:guide-tones:A:C')).toBeNull();
     });
   });
 });
@@ -227,9 +279,13 @@ describe('parseVoiceLeadingItemRef', () => {
 // ---------------------------------------------------------------------
 
 describe('voiceLeadingSubCellLabel', () => {
-  it('ABA-251 reads as "Level N, Position X"', () => {
-    const desc = parseVoiceLeadingItemRef('vl:aba-251:level2:B:C')!;
-    expect(voiceLeadingSubCellLabel(desc)).toBe('Level 2, Position B');
+  it('type-position reads as "<type> · Pos <position>"', () => {
+    const major = parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:C')!;
+    expect(voiceLeadingSubCellLabel(major)).toBe('ABA structure · Pos B');
+    const five = parseVoiceLeadingItemRef('vl:five-one:guide-tones:A:F')!;
+    expect(voiceLeadingSubCellLabel(five)).toBe('Guide tones · Pos A');
+    const minor = parseVoiceLeadingItemRef('vl:minor-251:full-voicing:B:G')!;
+    expect(voiceLeadingSubCellLabel(minor)).toBe('Full voicing · Pos B');
   });
 
   it('diatonic-cycle reads as "Starting position N"', () => {
@@ -237,16 +293,16 @@ describe('voiceLeadingSubCellLabel', () => {
     expect(voiceLeadingSubCellLabel(desc)).toBe('Starting position 3');
   });
 
-  it('dom-altered reads as "Position X → minN"', () => {
-    const desc = parseVoiceLeadingItemRef('vl:dom7b9:A:min9:G')!;
-    expect(voiceLeadingSubCellLabel(desc)).toBe('Position A → min9');
+  it('minor-aba strips the pos- prefix', () => {
+    const a = parseVoiceLeadingItemRef('vl:minor-aba:pos-A:C')!;
+    const b = parseVoiceLeadingItemRef('vl:minor-aba:pos-B:Eb')!;
+    expect(voiceLeadingSubCellLabel(a)).toBe('Position A');
+    expect(voiceLeadingSubCellLabel(b)).toBe('Position B');
   });
 
-  it('dim7 reads as "Half step <dir> → <target>"', () => {
-    const up = parseVoiceLeadingItemRef('vl:dim7:up:mintriad:C')!;
-    expect(voiceLeadingSubCellLabel(up)).toBe('Half step up → min triad');
-    const down = parseVoiceLeadingItemRef('vl:dim7:down:min9:Eb')!;
-    expect(voiceLeadingSubCellLabel(down)).toBe('Half step down → min9');
+  it('inversion-4 reads as "Position N"', () => {
+    const desc = parseVoiceLeadingItemRef('vl:dom7b9:pos4:G')!;
+    expect(voiceLeadingSubCellLabel(desc)).toBe('Position 4');
   });
 });
 
@@ -255,13 +311,28 @@ describe('voiceLeadingSubCellLabel', () => {
 // ---------------------------------------------------------------------
 
 describe('voiceLeadingCellSeconds', () => {
-  it('ABA-251 levels 1 and 2 → 90 s, level 3 → 120 s', () => {
-    const l1 = parseVoiceLeadingItemRef('vl:aba-251:level1:A:C')!;
-    const l2 = parseVoiceLeadingItemRef('vl:aba-251:level2:B:C')!;
-    const l3 = parseVoiceLeadingItemRef('vl:aba-251:level3:A:C')!;
-    expect(voiceLeadingCellSeconds(l1)).toBe(90);
-    expect(voiceLeadingCellSeconds(l2)).toBe(90);
-    expect(voiceLeadingCellSeconds(l3)).toBe(120);
+  it('type-position guide-tones / seventh-chords → 90 s', () => {
+    const cases = [
+      'vl:five-one:guide-tones:A:C',
+      'vl:five-one:seventh-chords:B:F',
+      'vl:major-251:guide-tones:A:G',
+      'vl:major-251:seventh-chords:B:Eb',
+      'vl:minor-251:guide-tones:A:Bb',
+      'vl:minor-251:seventh-chords:B:A',
+    ];
+    for (const ref of cases) {
+      const desc = parseVoiceLeadingItemRef(ref)!;
+      expect(voiceLeadingCellSeconds(desc), ref).toBe(90);
+    }
+  });
+
+  it('capstone types bump to 120 s', () => {
+    const five = parseVoiceLeadingItemRef('vl:five-one:full-voicing:A:C')!;
+    expect(voiceLeadingCellSeconds(five)).toBe(120);
+    const major = parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:F')!;
+    expect(voiceLeadingCellSeconds(major)).toBe(120);
+    const minor = parseVoiceLeadingItemRef('vl:minor-251:full-voicing:A:G')!;
+    expect(voiceLeadingCellSeconds(minor)).toBe(120);
   });
 
   it('diatonic-cycle → 180 s', () => {
@@ -269,24 +340,29 @@ describe('voiceLeadingCellSeconds', () => {
     expect(voiceLeadingCellSeconds(d)).toBe(180);
   });
 
-  it('dom-sharp9sharp5 and dom7b9 → 90 s', () => {
-    const a = parseVoiceLeadingItemRef('vl:dom-sharp9sharp5:A:min7:C')!;
-    const b = parseVoiceLeadingItemRef('vl:dom7b9:B:min11:G')!;
+  it('minor-aba → 90 s', () => {
+    const a = parseVoiceLeadingItemRef('vl:minor-aba:pos-A:C')!;
+    const b = parseVoiceLeadingItemRef('vl:minor-aba:pos-B:G')!;
     expect(voiceLeadingCellSeconds(a)).toBe(90);
     expect(voiceLeadingCellSeconds(b)).toBe(90);
   });
 
-  it('dim7 → 90 s regardless of direction or target', () => {
-    const up = parseVoiceLeadingItemRef('vl:dim7:up:mintriad:C')!;
-    const down = parseVoiceLeadingItemRef('vl:dim7:down:min9:Bb')!;
-    expect(voiceLeadingCellSeconds(up)).toBe(90);
-    expect(voiceLeadingCellSeconds(down)).toBe(90);
+  it('dom7b9 and dim7 → 90 s for every inversion', () => {
+    for (const ref of [
+      'vl:dom7b9:pos1:C', 'vl:dom7b9:pos2:F', 'vl:dom7b9:pos3:G', 'vl:dom7b9:pos4:Bb',
+      'vl:dim7:pos1:A',  'vl:dim7:pos2:C',  'vl:dim7:pos3:Eb', 'vl:dim7:pos4:F',
+    ]) {
+      const desc = parseVoiceLeadingItemRef(ref)!;
+      expect(voiceLeadingCellSeconds(desc), ref).toBe(90);
+    }
   });
 
   it('matches the published per-pattern baseline table', () => {
-    expect(VOICE_LEADING_PATTERN_SECONDS['aba-251']).toBe(90);
+    expect(VOICE_LEADING_PATTERN_SECONDS['five-one']).toBe(90);
+    expect(VOICE_LEADING_PATTERN_SECONDS['major-251']).toBe(90);
+    expect(VOICE_LEADING_PATTERN_SECONDS['minor-251']).toBe(90);
     expect(VOICE_LEADING_PATTERN_SECONDS['diatonic-cycle']).toBe(180);
-    expect(VOICE_LEADING_PATTERN_SECONDS['dom-sharp9sharp5']).toBe(90);
+    expect(VOICE_LEADING_PATTERN_SECONDS['minor-aba']).toBe(90);
     expect(VOICE_LEADING_PATTERN_SECONDS['dom7b9']).toBe(90);
     expect(VOICE_LEADING_PATTERN_SECONDS['dim7']).toBe(90);
   });
@@ -298,19 +374,21 @@ describe('voiceLeadingCellSeconds', () => {
 
 describe('VoiceLeadingItemRefDescriptor type-narrowing', () => {
   it('exhaustively dispatches on kind', () => {
-    // Compile-time exhaustiveness: this function would fail to type-
-    // check if a new kind were added without a branch here. Mirrors
-    // the dispatch pattern used by enumerateVoiceLeadingCells and
-    // voiceLeadingCellSeconds.
     function dispatch(desc: VoiceLeadingItemRefDescriptor): string {
       switch (desc.kind) {
-        case 'aba-251':       return `aba ${desc.level}`;
+        case 'type-position':  return `tp ${desc.type}/${desc.position}`;
         case 'diatonic-cycle': return `cyc ${desc.startingPosition}`;
-        case 'dom-altered':   return `alt ${desc.position}/${desc.target}`;
-        case 'dim7-passing':  return `dim ${desc.direction}/${desc.target}`;
+        case 'minor-aba':      return `mab ${desc.position}`;
+        case 'inversion-4':    return `inv ${desc.position}`;
       }
     }
-    const desc = parseVoiceLeadingItemRef('vl:aba-251:level1:A:C')!;
-    expect(dispatch(desc)).toBe('aba level1');
+    expect(dispatch(parseVoiceLeadingItemRef('vl:major-251:guide-tones:A:C')!))
+      .toBe('tp guide-tones/A');
+    expect(dispatch(parseVoiceLeadingItemRef('vl:diatonic-cycle:pos1:C')!))
+      .toBe('cyc pos1');
+    expect(dispatch(parseVoiceLeadingItemRef('vl:minor-aba:pos-A:C')!))
+      .toBe('mab pos-A');
+    expect(dispatch(parseVoiceLeadingItemRef('vl:dim7:pos1:C')!))
+      .toBe('inv pos1');
   });
 });

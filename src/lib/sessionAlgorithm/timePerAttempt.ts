@@ -66,15 +66,15 @@ export type ShapesActivityArea =
  *  drill mix (90 s/rep for individual inversions, 120 s/rep for
  *  fluid + extensions/special voicings) — see Phase 4 inversion
  *  spec. Voice-leading became per-sub-cell with the Phase 1 VL
- *  submodule build: the 324-cell catalog mixes 90 s, 120 s, and
- *  180 s drills, weighted average ~1.7 min — see VOICE_LEADING_PATTERN_SECONDS
+ *  submodule build: the 372-cell catalog mixes 90 s, 120 s, and
+ *  180 s drills, weighted average ~1.6 min — see VOICE_LEADING_PATTERN_SECONDS
  *  for the per-pattern table and `voiceLeadingCellSeconds` for the
  *  sub-cell-precise lookup the algo uses. Recalibrate alongside
  *  TIME_PER_ATTEMPT_MINUTES once there's enough real session data. */
 export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
   chord_shape_drills: 1.6,  // weighted avg: triads ~1.625, sevenths ~1.6
   scale_drills:       2,
-  voice_leading:      1.7,  // weighted avg across 324 sub-cells (see VOICE_LEADING_PATTERN_SECONDS)
+  voice_leading:      1.7,  // weighted avg ≈1.74 across 372 sub-cells (see VOICE_LEADING_PATTERN_SECONDS)
 };
 
 /** Weighted-average fallback used when a Shapes time estimate is
@@ -82,18 +82,25 @@ export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
  *  last-week review, which counts drill sessions across all three
  *  areas without joining through db.drillSkills). Weights come from
  *  catalog cardinality at time of writing (Phase 4 inversion model
- *  + Phase 1 VL submodule fan-out):
+ *  + Phase 1 VL submodule catalog correction):
  *    chord_shape_drills = 852 acquisition-path items
  *      (triads 6×12×4=288, sevenths 6×12×5=360, extensions 14×12=168, special 3×12=36)
  *    scale_drills       = 4 scales × 12 keys = 48
- *    voice_leading      = 324 sub-cells (27 sub-cells/key × 12 keys)
- *      weighted time = 12 keys × (4·90 + 2·120 + 3·180 + 6·90 + 6·90 + 6·90) s
- *                    = 12 × 2760 s = 33 120 s = 552 min
- *      → 552 min / 324 cells ≈ 1.70 min/rep on average for VL.
- *  → (852×1.6 + 48×2 + 552) / 1224 ≈ 1.64 min/rep overall.
+ *    voice_leading      = 372 sub-cells (31 sub-cells/key × 12 keys)
+ *      Per-pattern per-key time:
+ *        five-one     = (2 × 90) + (2 × 90) + (2 × 120) =  600 s
+ *        major-251    = (2 × 90) + (2 × 90) + (2 × 120) =  600 s
+ *        minor-251    = (2 × 90) + (2 × 90) + (2 × 120) =  600 s
+ *        diatonic-cyc = 3 × 180                          =  540 s
+ *        minor-aba    = 2 × 90                           =  180 s
+ *        dom7b9       = 4 × 90                           =  360 s
+ *        dim7         = 4 × 90                           =  360 s
+ *      Per-key total = 3240 s; × 12 keys = 38 880 s = 648 min.
+ *      → 648 min / 372 cells ≈ 1.742 min/rep on average for VL.
+ *  → (852×1.6 + 48×2 + 648) / 1272 ≈ 1.66 min/rep overall.
  *  Hardcoded (rather than computed from moduleItemCounts) so this
  *  file stays dependency-free. Re-derive if the catalog shifts. */
-export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 1.64;
+export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 1.66;
 
 /** Default assumed length of a full Repertoire practice session
  *  (spotlight + maintenance combined), used by the WeeklyPlan when
@@ -176,35 +183,47 @@ export const SCALE_KIND_SECONDS: Readonly<Record<ScaleKind, number>> = {
 // Voice-leading per-sub-cell seeds — seconds per cell
 // ---------------------------------------------------------------------
 
-/** Per-pattern baseline seed in seconds. The ABA/BAB 2-5-1 pattern's
- *  level 3 (full color) cell runs longer than levels 1–2 — call
+/** Per-pattern baseline seed in seconds. For the three "type-position"
+ *  patterns (five-one / major-251 / minor-251), the "capstone" type
+ *  (full-voicing / aba-structure / full-voicing) runs longer than
+ *  the simpler guide-tones / seventh-chords cells — call
  *  `voiceLeadingCellSeconds` with the parsed sub-cell descriptor to
- *  get the level-aware value. */
+ *  get the type-aware value. */
 export const VOICE_LEADING_PATTERN_SECONDS: Readonly<Record<
-  'aba-251' | 'diatonic-cycle' | 'dom-sharp9sharp5' | 'dom7b9' | 'dim7',
+  'five-one' | 'major-251' | 'minor-251' | 'diatonic-cycle' | 'minor-aba' | 'dom7b9' | 'dim7',
   number
 >> = {
-  'aba-251':          90,   // levels 1–2 baseline; level 3 overrides to 120 (see fn)
-  'diatonic-cycle':   180,  // 8-chord cycle — longest sub-cell
-  'dom-sharp9sharp5': 90,
-  'dom7b9':           90,
-  'dim7':             90,
+  'five-one':       90,   // guide-tones / seventh-chords baseline; full-voicing → 120 (see fn)
+  'major-251':      90,   // guide-tones / seventh-chords baseline; aba-structure → 120 (see fn)
+  'minor-251':      90,   // guide-tones / seventh-chords baseline; full-voicing → 120 (see fn)
+  'diatonic-cycle': 180,  // 8-chord cycle — longest sub-cell
+  'minor-aba':      90,
+  'dom7b9':         90,
+  'dim7':           90,
 };
 
 /** Per-sub-cell time-per-attempt for a parsed VL itemRef. Routes by
- *  the descriptor's `kind`/`patternId` and honors the ABA-251 level-3
- *  bump (120 s) over the level-1/2 baseline (90 s). Pure. */
+ *  the descriptor's `kind` and (for type-position patterns) honors
+ *  the capstone-type bump (120 s) over the simpler-type baseline
+ *  (90 s). Pure. */
 export function voiceLeadingCellSeconds(
   desc: VoiceLeadingItemRefDescriptor,
 ): number {
   switch (desc.kind) {
-    case 'aba-251':
-      return desc.level === 'level3' ? 120 : 90;
+    case 'type-position': {
+      // Capstone types per pattern that warrant the 120 s window.
+      if (desc.patternId === 'major-251' && desc.type === 'aba-structure') return 120;
+      if (
+        (desc.patternId === 'five-one' || desc.patternId === 'minor-251')
+        && desc.type === 'full-voicing'
+      ) return 120;
+      return 90;
+    }
     case 'diatonic-cycle':
       return VOICE_LEADING_PATTERN_SECONDS['diatonic-cycle'];
-    case 'dom-altered':
+    case 'minor-aba':
+      return VOICE_LEADING_PATTERN_SECONDS['minor-aba'];
+    case 'inversion-4':
       return VOICE_LEADING_PATTERN_SECONDS[desc.patternId];
-    case 'dim7-passing':
-      return VOICE_LEADING_PATTERN_SECONDS['dim7'];
   }
 }
