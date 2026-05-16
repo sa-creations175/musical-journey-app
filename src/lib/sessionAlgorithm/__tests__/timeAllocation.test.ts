@@ -537,14 +537,19 @@ describe('allocateBlockTime — graduated S&P/Repertoire split', () => {
     expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
   });
 
-  it('Phase B goal-pace need on S&P or Rep overrides the rebalance', () => {
-    // When the goal-pace planner pins a target via blockTimeNeeds,
-    // the rebalance defers — the planner's signal is more specific.
+  it('Phase B goal-pace need does NOT override the graduated split', () => {
+    // The graduated split is a hard structural constraint per
+    // SESSION_DESIGN.md — S&P backlog catches up across multiple
+    // sessions, not by overriding within-session structure. Phase B
+    // can shape the allocator's initial distribution, but the
+    // rebalance still re-divides the COMBINED S&P+Rep seconds at
+    // the 40/60 (60-min) ratio.
     const needs = new Map<string, number>([['sp', 600]]);
     const out = allocateBlockTime([sp(), rep()], 60 * 60, needs)!;
     const spBlk = out.find(b => b.moduleRef === 'shapes-and-patterns')!;
-    // sp pinned to 600 s by Phase B; the rebalance shouldn't push
-    // it to 40 % of combined.
-    expect(spBlk.plannedSeconds).toBe(600);
+    const repBlk = out.find(b => b.moduleRef === 'repertoire')!;
+    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
+    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
+    expect(repBlk.plannedSeconds).toBe(combined - Math.round(combined * 0.40));
   });
 });
