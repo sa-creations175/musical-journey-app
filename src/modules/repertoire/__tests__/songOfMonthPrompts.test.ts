@@ -478,6 +478,25 @@ describe('evaluateSongComfortablePathPrompts', () => {
     expect(await db.prompts.count()).toBe(1);
   });
 
+  it('serialises concurrent calls — no duplicate prompts for the same songId', async () => {
+    // React StrictMode double-invokes useEffect in dev, firing the
+    // evaluator twice in quick succession on every PracticeSessions
+    // / Goals mount. Without an in-flight guard the two calls race
+    // the per-songId dedupe check — both see no existing prompt and
+    // both enqueue. The duplicate then breaks banner dismiss:
+    // markEngaged acks one prompt, useLiveBanner picks up the
+    // still-queued sibling, and the banner persists.
+    await seedComfortableSong('s1', 'k1');
+    await Promise.all([
+      evaluateSongComfortablePathPrompts(NOW + 1),
+      evaluateSongComfortablePathPrompts(NOW + 1),
+    ]);
+    const prompts = await db.prompts
+      .where('promptType').equals(PROMPT_TYPE.SONG_COMFORTABLE_PATH_CHOICE)
+      .toArray();
+    expect(prompts).toHaveLength(1);
+  });
+
   it('enqueues one prompt per comfortable non-spotlight song', async () => {
     await seedComfortableSong('s1', 'k1');
     await seedComfortableSong('s2', 'k2');

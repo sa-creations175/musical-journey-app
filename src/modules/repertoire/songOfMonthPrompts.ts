@@ -142,6 +142,18 @@ async function pathChoiceAlreadyExistsForSong(songId: string): Promise<boolean> 
   );
 }
 
+/** In-flight guard for evaluateSongComfortablePathPrompts. React
+ *  StrictMode double-invokes useEffect in dev, and the host
+ *  PracticeSessions / Goals mount-effects fire the evaluator each
+ *  time. Without a guard, two concurrent calls both pass the
+ *  per-songId dedupe check (neither sees the other's not-yet-
+ *  committed enqueue) and both write prompts for the same songId.
+ *  The dupes then break the banner-dismiss flow: markEngaged
+ *  acks one prompt, useLiveBanner picks up the other still-queued
+ *  duplicate, and the banner persists. Mirrors the in-flight
+ *  pattern documented in modules/harmonic-diary/data.ts:25–32. */
+let evalInFlight: Promise<void> | null = null;
+
 /**
  * Evaluator for the non-spotlight comfortable-path prompt. Any song
  * that reaches "comfortable in original key" and hasn't yet picked
@@ -161,10 +173,24 @@ async function pathChoiceAlreadyExistsForSong(songId: string): Promise<boolean> 
  * (~repertoire size). Per-song the predicate runs ~3 indexed Dexie
  * queries. Safe to call on every mount of PracticeSessions / Goals.
  *
+ * Concurrent calls deduplicate via `evalInFlight` — the second
+ * caller awaits the first call's result instead of racing the
+ * per-songId dedupe check.
+ *
  * Fire-and-forget — `now` is overridable for tests.
  */
 export async function evaluateSongComfortablePathPrompts(
   now: number = Date.now(),
+): Promise<void> {
+  if (evalInFlight) return evalInFlight;
+  evalInFlight = doEvaluateSongComfortablePathPrompts(now).finally(() => {
+    evalInFlight = null;
+  });
+  return evalInFlight;
+}
+
+async function doEvaluateSongComfortablePathPrompts(
+  now: number,
 ): Promise<void> {
   // Look up the active spotlight first so we can skip the spotlight
   // song — the SotM evaluator owns it. A null spotlight (no active
