@@ -43,7 +43,7 @@ export default function VoiceLeadingDrills() {
   const [newDescription, setNewDescription] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
-  const [activeDrill, setActiveDrill] = useState<{ patternId: string; keyName: string } | null>(null);
+  const [activeDrillItemRef, setActiveDrillItemRef] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Live query of voice-leading skills so we can update labels on
@@ -190,18 +190,17 @@ export default function VoiceLeadingDrills() {
             <VoiceLeadingPatternGrid
               patternId={effective.id}
               onCellOpen={pattern.builtin
-                ? (keyName) => setActiveDrill({ patternId: effective.id, keyName })
+                ? (itemRef) => setActiveDrillItemRef(itemRef)
                 : undefined}
             />
           </section>
         );
       })}
 
-      {activeDrill && (
+      {activeDrillItemRef && (
         <VoiceLeadingDrillModal
-          patternId={activeDrill.patternId}
-          keyName={activeDrill.keyName}
-          onClose={() => setActiveDrill(null)}
+          itemRef={activeDrillItemRef}
+          onClose={() => setActiveDrillItemRef(null)}
         />
       )}
 

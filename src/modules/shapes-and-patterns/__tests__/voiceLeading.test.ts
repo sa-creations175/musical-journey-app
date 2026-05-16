@@ -18,6 +18,7 @@ import {
   parseVoiceLeadingItemRef,
   VOICE_LEADING_PATTERNS,
   VOICE_LEADING_PATTERN_BY_ID,
+  voiceLeadingGridRows,
   voiceLeadingSubCellLabel,
   type VoiceLeadingItemRefDescriptor,
 } from '../catalog';
@@ -365,6 +366,96 @@ describe('voiceLeadingCellSeconds', () => {
     expect(VOICE_LEADING_PATTERN_SECONDS['minor-aba']).toBe(90);
     expect(VOICE_LEADING_PATTERN_SECONDS['dom7b9']).toBe(90);
     expect(VOICE_LEADING_PATTERN_SECONDS['dim7']).toBe(90);
+  });
+});
+
+// ---------------------------------------------------------------------
+// voiceLeadingGridRows — per sub-dimension row enumeration for the
+// heat-grid display layer
+// ---------------------------------------------------------------------
+
+describe('voiceLeadingGridRows', () => {
+  it('type-position patterns return 6 rows (3 types × 2 positions)', () => {
+    for (const id of ['five-one', 'major-251', 'minor-251'] as const) {
+      const pat = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
+      const rows = voiceLeadingGridRows(pat);
+      expect(rows, id).toHaveLength(6);
+    }
+  });
+
+  it('diatonic-cycle returns 3 rows (3 starting positions)', () => {
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!;
+    const rows = voiceLeadingGridRows(pat);
+    expect(rows).toHaveLength(3);
+    expect(rows.map(r => r.rowId)).toEqual(['pos1', 'pos2', 'pos3']);
+  });
+
+  it('minor-aba returns 2 rows (pos-A, pos-B)', () => {
+    const pat = VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!;
+    const rows = voiceLeadingGridRows(pat);
+    expect(rows.map(r => r.rowId)).toEqual(['pos-A', 'pos-B']);
+  });
+
+  it('inversion-4 patterns return 4 rows (root + 3 inversions)', () => {
+    for (const id of ['dom7b9', 'dim7'] as const) {
+      const pat = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
+      const rows = voiceLeadingGridRows(pat);
+      expect(rows.map(r => r.rowId)).toEqual(['pos1', 'pos2', 'pos3', 'pos4']);
+    }
+  });
+
+  it('row labels are human-friendly for the gutter', () => {
+    const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
+    expect(major[0].label).toBe('Guide tones · Pos A');
+    expect(major[5].label).toBe('ABA structure · Pos B');
+
+    const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
+    expect(cycle[0].label).toBe('Starting position 1');
+    expect(cycle[2].label).toBe('Starting position 3');
+
+    const aba = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!);
+    expect(aba[0].label).toBe('Position A');
+    expect(aba[1].label).toBe('Position B');
+
+    const dom = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('dom7b9')!);
+    expect(dom[0].label).toBe('Position 1');
+    expect(dom[3].label).toBe('Position 4');
+  });
+
+  it('itemRefForKey produces the canonical sub-cell itemRef', () => {
+    const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
+    expect(major[0].itemRefForKey('C')).toBe('vl:major-251:guide-tones:A:C');
+    expect(major[5].itemRefForKey('Bb')).toBe('vl:major-251:aba-structure:B:Bb');
+
+    const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
+    expect(cycle[1].itemRefForKey('F')).toBe('vl:diatonic-cycle:pos2:F');
+
+    const aba = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!);
+    expect(aba[0].itemRefForKey('Eb')).toBe('vl:minor-aba:pos-A:Eb');
+
+    const dim = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('dim7')!);
+    expect(dim[2].itemRefForKey('G')).toBe('vl:dim7:pos3:G');
+  });
+
+  it('row × key product matches enumerateVoiceLeadingCells for every pattern', () => {
+    // Sanity invariant: every itemRef produced by row.itemRefForKey
+    // across all 12 keys equals the full sub-cell catalog for that
+    // pattern. No cells lost, no extras added.
+    for (const p of VOICE_LEADING_PATTERNS) {
+      const fromRows = voiceLeadingGridRows(p)
+        .flatMap(r => KEYS.map(k => r.itemRefForKey(k)));
+      const fromCatalog = KEYS.flatMap(k => enumerateVoiceLeadingCells(p, k));
+      expect(new Set(fromRows), p.id).toEqual(new Set(fromCatalog));
+      expect(fromRows.length).toBe(fromCatalog.length);
+    }
+  });
+
+  it('row ids are unique within a pattern', () => {
+    for (const p of VOICE_LEADING_PATTERNS) {
+      const rows = voiceLeadingGridRows(p);
+      const ids = new Set(rows.map(r => r.rowId));
+      expect(ids.size, p.id).toBe(rows.length);
+    }
   });
 });
 

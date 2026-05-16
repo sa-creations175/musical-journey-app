@@ -648,6 +648,67 @@ export function voiceLeadingSubCellLabel(
   }
 }
 
+/** One row in the per-sub-dimension heat-grid for a pattern. Each
+ *  row corresponds to a unique combination of the pattern's
+ *  non-key dimensions; the row's cells are the 12 sub-cells one
+ *  per key. */
+export interface VoiceLeadingGridRow {
+  /** Stable id, unique within the pattern. e.g. "guide-tones:A"
+   *  for a type-position pattern, "pos1" for a single-dimension
+   *  pattern. */
+  rowId: string;
+  /** Display label for the row gutter. */
+  label: string;
+  /** Build the canonical sub-cell itemRef for this row × key. */
+  itemRefForKey: (keyName: string) => string;
+}
+
+/**
+ * Build the per-sub-dimension row list for a pattern. Each row is
+ * one drillable sub-cell template across the 12 keys. Pure — no
+ * spacingState dependency; the caller layers stage colors on top.
+ *
+ * Row ordering mirrors the catalog enumeration order so the grid
+ * surfaces the simpler types / earlier positions at the top.
+ */
+export function voiceLeadingGridRows(
+  pattern: VoiceLeadingPattern,
+): VoiceLeadingGridRow[] {
+  switch (pattern.kind) {
+    case 'type-position': {
+      const out: VoiceLeadingGridRow[] = [];
+      for (const type of pattern.types) {
+        for (const position of pattern.positions) {
+          out.push({
+            rowId: `${type}:${position}`,
+            label: `${typeLabel(type)} · Pos ${position}`,
+            itemRefForKey: (k) => `vl:${pattern.id}:${type}:${position}:${k}`,
+          });
+        }
+      }
+      return out;
+    }
+    case 'diatonic-cycle':
+      return pattern.startingPositions.map(p => ({
+        rowId: p,
+        label: `Starting position ${positionNumber(p)}`,
+        itemRefForKey: (k) => `vl:${pattern.id}:${p}:${k}`,
+      }));
+    case 'minor-aba':
+      return pattern.positions.map(p => ({
+        rowId: p,
+        label: `Position ${minorAbaLetter(p)}`,
+        itemRefForKey: (k) => `vl:${pattern.id}:${p}:${k}`,
+      }));
+    case 'inversion-4':
+      return pattern.positions.map(p => ({
+        rowId: p,
+        label: `Position ${positionNumber(p)}`,
+        itemRefForKey: (k) => `vl:${pattern.id}:${p}:${k}`,
+      }));
+  }
+}
+
 export function defaultDrillTypesForVoiceLeading(): DefaultDrill[] {
   return [
     { name: 'Slow and clean',                    suggestedSeconds: 120 },

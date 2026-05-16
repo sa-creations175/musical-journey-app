@@ -1,95 +1,75 @@
 /**
- * Stage-aware heat grid for a single Voice-Leading pattern × 12 keys.
+ * Stage-aware heat grid for a single Voice-Leading pattern.
  *
- * Unlike the generic HeatGrid (which colors from DrillSkill /
- * DrillType aggregates), VL sub-cells live in spacingState only —
- * no per-sub-cell DrillSkill rows. This grid pulls the spacingState
- * rows that match `vl:${patternId}:` and renders the worst (lowest)
- * acquisitionStage across the sub-cells for each key.
+ * Renders one row per sub-dimension across the 12 keys. Each cell
+ * represents one specific VL sub-cell itemRef; its color reflects
+ * the acquisitionStage of that exact spacingState row (not worst-
+ * of-sub-cells). Tapping a cell hands the specific itemRef to the
+ * parent so the modal opens against the exact sub-cell — no
+ * most-due re-pick at click time.
  *
- * Custom user-added patterns: rendered with the same shell but
- * cells are not clickable (no sub-cell catalog → no drill flow).
+ * Row composition comes from `voiceLeadingGridRows(pattern)` —
+ * type-position patterns yield 6 rows, diatonic-cycle yields 3,
+ * minor-aba yields 2, inversion-4 patterns yield 4. Mirrors the
+ * scale-drills layout (ScaleDrills.tsx) which renders one row per
+ * scale-kind × starting-point.
+ *
+ * Custom user-added patterns are rendered with a placeholder shell
+ * (no sub-cell catalog → no rows to draw, no drill flow).
  */
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SpacingState, type AcquisitionStage } from '../../lib/db';
-import { KEYS, VOICE_LEADING_PATTERN_BY_ID, enumerateVoiceLeadingCells } from './catalog';
+import {
+  KEYS,
+  VOICE_LEADING_PATTERN_BY_ID,
+  voiceLeadingGridRows,
+} from './catalog';
 
 interface Props {
   /** Pattern id — built-in or custom. Custom ids aren't in the
-   *  catalog and produce non-interactive cells. */
+   *  catalog and render the placeholder shell. */
   patternId: string;
-  /** Optional click handler. Called with `keyName` when a cell is
-   *  tapped (only fires for built-in patterns). */
-  onCellOpen?: (keyName: string) => void;
+  /** Optional click handler. Called with the specific sub-cell
+   *  itemRef when a cell is tapped. Only fires for built-in
+   *  patterns. */
+  onCellOpen?: (itemRef: string) => void;
 }
 
-/** Lowest-rank (worst) stage across a set of cells. `null` when the
- *  set is empty. A missing row counts as 'new' — the worst possible
- *  stage — so cells with any sub-cell never practised always color
- *  as untouched. */
-function worstStageAcross(
-  itemRefs: ReadonlyArray<string>,
-  rowsByRef: ReadonlyMap<string, SpacingState>,
-): AcquisitionStage {
-  if (itemRefs.length === 0) return 'new';
-  let worstRank = STAGE_RANK.mastered + 1;
-  let worst: AcquisitionStage = 'new';
-  for (const ref of itemRefs) {
-    const row = rowsByRef.get(ref);
-    const stage = row?.acquisitionStage ?? 'new';
-    const rank = STAGE_RANK[stage];
-    if (rank < worstRank) {
-      worstRank = rank;
-      worst = stage;
-      if (stage === 'new') return 'new';
-    }
+/** Three-bucket stage palette, matching ScaleDrills.tsx so the
+ *  S&P submodule visuals stay consistent. `consolidated` and
+ *  `mastered` collapse into `acquired` — heat-grid color reflects
+ *  acquisition state, not longer-term decay. */
+type StageBucket = 'new' | 'acquiring' | 'acquired';
+
+function bucketFor(stage: AcquisitionStage | undefined): StageBucket {
+  if (stage === 'acquired' || stage === 'consolidated' || stage === 'mastered') {
+    return 'acquired';
   }
-  return worst;
+  if (stage === 'acquiring') return 'acquiring';
+  return 'new';
 }
 
-const STAGE_RANK: Readonly<Record<AcquisitionStage, number>> = {
-  new:           0,
-  acquiring:     1,
-  acquired:      2,
-  consolidated:  3,
-  mastered:      4,
+const STAGE_BG: Readonly<Record<StageBucket, string>> = {
+  acquired:  'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
+  acquiring: 'bg-developing/25 hover:bg-developing/40 border-developing/40',
+  new:       'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
 };
 
-/** Background style per stage. Mirrors the heat-grid green ramp
- *  in HeatGrid.tsx so visual continuity is preserved across the
- *  three S&P submodules. */
-function stageOpacity(stage: AcquisitionStage, anyRowExists: boolean): number {
-  if (!anyRowExists) return 0.05;
-  switch (stage) {
-    case 'new':          return 0.15;
-    case 'acquiring':    return 0.30;
-    case 'acquired':     return 0.55;
-    case 'consolidated': return 0.75;
-    case 'mastered':     return 0.90;
-  }
-}
-
-function stageTitle(stage: AcquisitionStage, anyRowExists: boolean): string {
-  if (!anyRowExists) return 'untouched — click to drill';
-  switch (stage) {
-    case 'new':          return 'just started — click to drill';
-    case 'acquiring':    return 'acquiring — click to drill';
-    case 'acquired':     return 'acquired — click to drill';
-    case 'consolidated': return 'consolidated — click to drill';
-    case 'mastered':     return 'mastered — click to drill';
-  }
-}
+const STAGE_LEGEND_LABEL: Readonly<Record<StageBucket, string>> = {
+  acquired:  'acquired',
+  acquiring: 'in progress',
+  new:       'not started',
+};
 
 export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props) {
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
 
   // Pull every spacingState row whose itemRef belongs to this
-  // pattern. The compound index `[moduleRef+itemRef]` exists but
-  // prefix queries within a compound require dropping to a string
-  // index; filter in-memory off the moduleRef-scoped subset since
-  // the dataset is small (≤324 VL rows even when fully populated).
-  const rows = useLiveQuery<SpacingState[]>(
+  // pattern. The dataset is small (≤72 rows even for the
+  // type-position patterns when fully populated) so the in-memory
+  // filter on the moduleRef-indexed subset is cheap.
+  const spacingRows = useLiveQuery<SpacingState[]>(
     () => db.spacingState
       .where('moduleRef').equals('shapes-and-patterns')
       .filter(r => r.itemRef.startsWith(`vl:${patternId}:`))
@@ -97,35 +77,37 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
     [patternId],
   ) ?? [];
 
-  const rowsByRef = useMemo(() => {
-    const m = new Map<string, SpacingState>();
-    for (const r of rows) m.set(r.itemRef, r);
+  const stageByItemRef = useMemo(() => {
+    const m = new Map<string, AcquisitionStage>();
+    for (const r of spacingRows) m.set(r.itemRef, r.acquisitionStage);
     return m;
-  }, [rows]);
+  }, [spacingRows]);
 
-  // Pre-compute worst-stage per key.
-  const stageByKey = useMemo(() => {
-    const m = new Map<string, { stage: AcquisitionStage; anyRowExists: boolean }>();
-    if (!pattern) return m;
-    for (const k of KEYS) {
-      const refs = enumerateVoiceLeadingCells(pattern, k);
-      const anyRowExists = refs.some(r => rowsByRef.has(r));
-      m.set(k, {
-        stage: worstStageAcross(refs, rowsByRef),
-        anyRowExists,
-      });
-    }
-    return m;
-  }, [pattern, rowsByRef]);
+  const rows = useMemo(
+    () => (pattern ? voiceLeadingGridRows(pattern) : []),
+    [pattern],
+  );
 
-  const interactive = pattern !== undefined;
+  // Custom (non-catalog) pattern — render a friendly shell with no
+  // sub-cell rows. The custom-pattern feature was always display-
+  // only; this preserves that.
+  if (!pattern) {
+    return (
+      <div className="text-xs text-neutral-500 italic">
+        Custom pattern — sub-cell drill flow isn't available for user-added patterns yet.
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-max">
+      <div className="min-w-max space-y-1">
+        {/* Column header — key names */}
         <div
           className="grid"
-          style={{ gridTemplateColumns: `minmax(160px, 1fr) repeat(${KEYS.length}, minmax(42px, 56px))` }}
+          style={{
+            gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS.length}, minmax(34px, 44px))`,
+          }}
         >
           <div />
           {KEYS.map(k => (
@@ -137,38 +119,38 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             </div>
           ))}
         </div>
-        <div
-          className="grid items-center"
-          style={{ gridTemplateColumns: `minmax(160px, 1fr) repeat(${KEYS.length}, minmax(42px, 56px))` }}
-        >
-          <div className="text-xs pr-3 py-1 truncate text-neutral-500">
-            across 12 keys
+
+        {/* One row per sub-dimension */}
+        {rows.map(row => (
+          <div
+            key={row.rowId}
+            className="grid items-center"
+            style={{
+              gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS.length}, minmax(34px, 44px))`,
+            }}
+          >
+            <div
+              className="text-xs pr-2 py-0.5 truncate text-neutral-600 dark:text-neutral-300"
+              title={row.label}
+            >
+              {row.label}
+            </div>
+            {KEYS.map(k => {
+              const itemRef = row.itemRefForKey(k);
+              const bucket = bucketFor(stageByItemRef.get(itemRef));
+              const title = `${row.label} in ${k} — ${STAGE_LEGEND_LABEL[bucket]}`;
+              return (
+                <button
+                  key={k}
+                  onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
+                  title={title}
+                  aria-label={title}
+                  className={`aspect-square mx-0.5 my-0.5 rounded-sm border transition focus:outline-none focus:ring-2 focus:ring-fluent/50 ${STAGE_BG[bucket]}`}
+                />
+              );
+            })}
           </div>
-          {KEYS.map(k => {
-            const summary = stageByKey.get(k) ?? { stage: 'new' as const, anyRowExists: false };
-            const opacity = stageOpacity(summary.stage, summary.anyRowExists);
-            const title = interactive
-              ? stageTitle(summary.stage, summary.anyRowExists)
-              : 'custom pattern — sub-cell drill flow not yet available';
-            return (
-              <button
-                key={k}
-                onClick={interactive && onCellOpen ? () => onCellOpen(k) : undefined}
-                disabled={!interactive}
-                title={title}
-                aria-label={`${k} · ${title}`}
-                className={`relative aspect-square mx-0.5 my-0.5 rounded-sm border border-neutral-200/60 dark:border-neutral-800/60 transition focus:outline-none ${
-                  interactive
-                    ? 'hover:ring-2 hover:ring-fluent/50 cursor-pointer'
-                    : 'opacity-60 cursor-not-allowed'
-                }`}
-                style={{
-                  backgroundColor: `rgba(29, 158, 117, ${opacity})`,
-                }}
-              />
-            );
-          })}
-        </div>
+        ))}
       </div>
     </div>
   );
