@@ -9,11 +9,12 @@
  *
  * Drag-to-reorder: when the caller supplies `onReorder`, each
  * top-level group gets a drag handle and the user can shuffle the
- * order. Adjacent warm-up + practice pairs (chord-quiz before a
- * Repertoire block) drag as a single unit so the quiz can't be
- * stranded from its practice. The flat block order produced by the
- * reorder is passed back via `onReorder`; SessionStack stays
- * stateless.
+ * order. Repertoire warm-ups (chord-quiz, scale-prep) chain forward
+ * to the next song-practice anchor and drag as one locked unit so
+ * the warm-ups can't be stranded from the song they prep. S&P
+ * warm-ups (scales) are independent units. The flat block order
+ * produced by the reorder is passed back via `onReorder`;
+ * SessionStack stays stateless.
  */
 import { useMemo, type CSSProperties } from 'react';
 import {
@@ -50,10 +51,10 @@ const MIN_BLOCK_PX = 120;
 interface Props {
   blocks: ReadonlyArray<ProposalBlock>;
   /** Drag-to-reorder hook. When supplied, the stack becomes
-   *  sortable and emits the reordered list on drop. Each
-   *  warm-up + practice pair (chord-quiz immediately followed by
-   *  its repertoire practice block) moves as one — the user can't
-   *  separate the quiz from the practice it sets up. */
+   *  sortable and emits the reordered list on drop. Repertoire
+   *  warm-ups chain to their song anchor and move as one — the
+   *  user can't separate a chord-quiz or scale-prep from the
+   *  song they set up. */
   onReorder?: (next: ProposalBlock[]) => void;
 }
 
@@ -65,19 +66,54 @@ interface BlockGroup {
   items: ProposalBlock[];
 }
 
-/** Group adjacent (isWarmup → next-block) into draggable pairs.
- *  Order-stable across reorders: a regrouped list returns the same
- *  shape because chord-quiz keeps its practice partner immediately
- *  after it on every move. */
+/** Group blocks into draggable units. Rules:
+ *
+ *   · S&P warm-up (scales) → own independent unit. The scales
+ *     segment is itself a self-contained warm-up, not paired with
+ *     the chord-shape or VL block that happens to follow it.
+ *
+ *   · Repertoire warm-up (chord-quiz, scale-prep) → chain forward
+ *     to the next song-practice anchor. The full chain (one or
+ *     more warm-ups + the song block) drags as a single locked
+ *     unit so the warm-ups can't be stranded from the song they
+ *     prep. Falls back to pairing with the immediately next block
+ *     when no song anchor follows.
+ *
+ *   · All other blocks → own independent unit. */
 function groupBlocks(blocks: ReadonlyArray<ProposalBlock>): BlockGroup[] {
   const groups: BlockGroup[] = [];
   let i = 0;
   while (i < blocks.length) {
     const b = blocks[i];
-    if (b.isWarmup && i + 1 < blocks.length) {
-      groups.push({ id: b.id, items: [b, blocks[i + 1]] });
-      i += 2;
+    const isRepWarmup = b.moduleRef === 'repertoire' && !!b.isWarmup;
+
+    if (isRepWarmup) {
+      // Chain forward until the next isSongPractice anchor.
+      let anchorIdx = -1;
+      for (let j = i + 1; j < blocks.length; j++) {
+        if (blocks[j].isSongPractice) {
+          anchorIdx = j;
+          break;
+        }
+      }
+      if (anchorIdx >= 0) {
+        groups.push({
+          id: b.id,
+          items: blocks.slice(i, anchorIdx + 1) as ProposalBlock[],
+        });
+        i = anchorIdx + 1;
+      } else if (i + 1 < blocks.length) {
+        // No song anchor in the rest of the list — pair with the
+        // immediately next block so the warm-up isn't orphaned.
+        groups.push({ id: b.id, items: [b, blocks[i + 1]] });
+        i += 2;
+      } else {
+        // End of list with no follow-up — emit alone.
+        groups.push({ id: b.id, items: [b] });
+        i += 1;
+      }
     } else {
+      // S&P warm-up, song practice, or any non-warm-up block: own unit.
       groups.push({ id: b.id, items: [b] });
       i += 1;
     }
@@ -194,7 +230,7 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
     position: isDragging ? 'relative' : undefined,
   };
   const ariaLabel = group.items.length > 1
-    ? `drag to reorder warm-up + ${group.items[1].moduleLabel} pair`
+    ? `drag to reorder ${group.items[group.items.length - 1].moduleLabel} group`
     : `drag to reorder ${group.items[0].moduleLabel} block`;
   return (
     <div ref={setNodeRef} style={style} className="flex items-stretch gap-1.5">
@@ -203,7 +239,7 @@ function SortableGroupRow({ group }: { group: BlockGroup }) {
         aria-label={ariaLabel}
         {...attributes}
         {...listeners}
-        className="shrink-0 w-5 flex items-center justify-center rounded-md text-neutral-300 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-grab active:cursor-grabbing touch-none select-none"
+        className="shrink-0 w-5 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-grab active:cursor-grabbing touch-none select-none"
       >
         <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
       </button>
