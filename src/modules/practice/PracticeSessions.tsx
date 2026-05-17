@@ -223,16 +223,19 @@ export default function PracticeSessions() {
 
   const handleGoalsNeedFullSession = async (minutes: number) => {
     // Bypass the questionnaire entirely — the user committed to the
-    // full session length, balanced intent, and their saved context
-    // / day plan from prior sessions. Builds a complete
-    // InputQuestionnaireResult and runs the same generate pipeline
-    // the questionnaire's Generate button would have triggered.
+    // full session length, balanced intent, and a 'full' context
+    // (the whole point of the Full session button: keyboard + device
+    // available, every module in scope). Day plan still falls back
+    // to the saved prefill since it's an axis the button doesn't
+    // express. Builds a complete InputQuestionnaireResult and runs
+    // the same generate pipeline the questionnaire's Generate would
+    // have triggered.
     const prefill = await loadPrefill({
       hasEarlierSessionsToday,
     });
     const inputs: InputQuestionnaireResult = {
       timeMinutes: minutes,
-      context: prefill.context ?? 'keys',
+      context: 'full',
       dayPlan: prefill.dayPlan ?? { kind: 'just_this_session' },
       intent: { kind: 'balanced' },
       energy: { focus: null, motivation: null, inspiration: null },
