@@ -1646,11 +1646,15 @@ function GoalRow({
             <FeasibilityPill feasibility={feasibility} />
           </div>
         </button>
-        {!omitRowActions && (
-          <div className="shrink-0 pt-1.5 -mr-1">
-            <DeleteGoalButton goal={goal} />
-          </div>
-        )}
+        {/* DeleteGoalButton renders on every row regardless of
+            omitRowActions — that prop only suppresses the expanded-
+            panel Edit affordance for ByModuleSection's per-dimension
+            children. The header-level delete should always be
+            reachable per spec ("each goal row"); the component
+            handles its own yearly-anchor exclusion internally. */}
+        <div className="shrink-0 pt-1.5 -mr-1">
+          <DeleteGoalButton goal={goal} />
+        </div>
       </div>
 
       {expanded && (
