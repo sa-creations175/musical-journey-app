@@ -310,10 +310,15 @@ export async function buildSessionProposals(
   );
 
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
-  const withColdStart = maybeInjectRepertoireColdStartBlock(
+  const withRepColdStart = maybeInjectRepertoireColdStartBlock(
     moduleBlocks,
     goals,
     repertoireSplit,
+    inputs.context,
+  );
+  const withColdStart = maybeInjectNonKeyboardColdStartBlocks(
+    withRepColdStart,
+    goals,
     inputs.context,
   );
   if (withColdStart.length === 0) return [];
@@ -475,10 +480,20 @@ export async function buildSessionPlan(
   // a song goal with no spacing data doesn't trigger queue-cleared —
   // there IS work waiting (the spotlight + maintenance songs), it
   // just isn't recorded in spacingState yet.
-  const moduleBlocks = maybeInjectRepertoireColdStartBlock(
+  const repBlocks = maybeInjectRepertoireColdStartBlock(
     aggregated,
     goals,
     repertoireSplit,
+    inputs.context,
+  );
+  // Full-session cold-start for non-keyboard modules — when the user
+  // has HF / ET / Production goals but no spacing-state rows yet, the
+  // aggregator produces zero candidates for them. This seeds a
+  // discoverable entry point per module so first full sessions don't
+  // surface keyboard-only proposals.
+  const moduleBlocks = maybeInjectNonKeyboardColdStartBlocks(
+    repBlocks,
+    goals,
     inputs.context,
   );
 
@@ -1114,10 +1129,15 @@ export async function buildSessionProposalsForPath(
     etEligibleByModule,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
-  const filteredWithColdStart = maybeInjectRepertoireColdStartBlock(
+  const filteredWithRepColdStart = maybeInjectRepertoireColdStartBlock(
     filteredBlocks,
     goals,
     repertoireSplit,
+    inputs.context,
+  );
+  const filteredWithColdStart = maybeInjectNonKeyboardColdStartBlocks(
+    filteredWithRepColdStart,
+    goals,
     inputs.context,
   );
   if (filteredWithColdStart.length > 0) {
@@ -1149,10 +1169,15 @@ export async function buildSessionProposalsForPath(
     undefined,
     etEligibleByModule,
   );
-  const fallbackWithColdStart = maybeInjectRepertoireColdStartBlock(
+  const fallbackWithRepColdStart = maybeInjectRepertoireColdStartBlock(
     fallbackBlocks,
     goals,
     repertoireSplit,
+    inputs.context,
+  );
+  const fallbackWithColdStart = maybeInjectNonKeyboardColdStartBlocks(
+    fallbackWithRepColdStart,
+    goals,
     inputs.context,
   );
   if (fallbackWithColdStart.length === 0) return [];
@@ -1673,6 +1698,76 @@ export function maybeInjectRepertoireColdStartBlock(
 function isKeyboardRequiredModule(moduleRef: string): boolean {
   return moduleRef === SHAPES_MODULE_REF
     || moduleRef === REPERTOIRE_MODULE_REF;
+}
+
+/** Non-keyboard modules eligible for the full-session cold-start
+ *  injector. Repertoire has its own injector
+ *  (maybeInjectRepertoireColdStartBlock) and S&P doesn't surface on
+ *  non-keys arcs through this path. */
+const NON_KEYBOARD_COLD_START_MODULES: ReadonlyArray<string> = [
+  HF_MODULE_REF,
+  'intervals',
+  'chord-recognition',
+  'chord-progressions',
+  'scales-modes',
+  PRODUCTION_MODULE_REF,
+];
+
+/**
+ * Full-session cold-start for non-keyboard modules.
+ *
+ * Mirror of `maybeInjectRepertoireColdStartBlock`. When a user has
+ * goals targeting HF / ET / Production but those modules have no
+ * spacing-state rows yet (first-time-in-module case), the goal-driven
+ * aggregator produces zero candidates for them — so the proposal
+ * surfaces only the keyboard arc. This injector seeds a synthetic
+ * AlgorithmBlock per eligible module so the user gets a discoverable
+ * entry point into each module on their first full session.
+ *
+ * Empty itemRefs by design — the block surfaces with a generic
+ * activity description and the module's default route. The module's
+ * own UI handles "what to practice first" with domain knowledge
+ * that doesn't belong in the algorithm layer.
+ *
+ * Gated on context === 'full' inside the helper — no-op for keys /
+ * laptop / phone arcs (which have their own filtering logic).
+ */
+export function maybeInjectNonKeyboardColdStartBlocks(
+  blocks: AlgorithmBlock[],
+  goals: ReadonlyArray<Goal>,
+  context: PracticeSessionContext,
+): AlgorithmBlock[] {
+  if (context !== 'full') return blocks;
+
+  // Build the set of moduleRefs any active goal touches via its
+  // candidate spec. Umbrella / unsupported / song_proficiency /
+  // production_count specs all yield no moduleRefs here — they're
+  // handled elsewhere in the pipeline.
+  const goalTouchedModules = new Set<string>();
+  for (const goal of goals) {
+    const spec = candidateSpecForGoal(goal);
+    if (!('moduleRefs' in spec)) continue;
+    for (const m of spec.moduleRefs) goalTouchedModules.add(m);
+  }
+  if (goalTouchedModules.size === 0) return blocks;
+
+  const existingModules = new Set(blocks.map(b => b.moduleRef));
+  const additions: AlgorithmBlock[] = [];
+  for (const moduleRef of NON_KEYBOARD_COLD_START_MODULES) {
+    if (existingModules.has(moduleRef)) continue;
+    if (!goalTouchedModules.has(moduleRef)) continue;
+    additions.push({
+      id: `block-${moduleRef}-cold-start`,
+      moduleRef,
+      memoryType: safeMemoryType(moduleRef),
+      itemRefs: [],
+      weight: COLD_START_REPERTOIRE_WEIGHT,
+      hasAcquiringItems: false,
+      isKeyboardRequired: false,
+    });
+  }
+  if (additions.length === 0) return blocks;
+  return [...blocks, ...additions];
 }
 
 // ---------------------------------------------------------------------
