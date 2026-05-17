@@ -1,11 +1,19 @@
 import type { GoalScope } from '../../lib/db';
+import { endOfWeekLocal, startOfWeekLocal } from './weeklyPlanData';
 
 /**
  * Scope vocabulary + date-default helpers shared between the
  * existing GoalFormModal and the new GoalCreationFlow Step 3.
  * Extracted as part of Phase 1.6 build step 9 so both surfaces
  * source from the same constants and date math.
+ *
+ * Week boundaries: Sunday 00:00 → Saturday 23:59:59.999 (delegated
+ * to `weeklyPlanData`, which is the canonical week-boundary source
+ * also used by the Weekly Plan UI, banner, derivation, and the
+ * useThisWeekActivity hook).
  */
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export const SCOPE_ORDER: GoalScope[] = [
   'weekly',
@@ -31,16 +39,10 @@ export const SCOPE_LABEL: Record<GoalScope, string> = {
 export const VISION_SCOPES = new Set<GoalScope>(['two_to_three_year', 'lifetime']);
 
 function endOfWeek(now: number): number {
-  const d = new Date(now);
-  // 0=Sun, 1=Mon, ..., 6=Sat. The coming Sunday is `7 - dayOfWeek`
-  // days away — except when today *is* Sunday, in which case "end of
-  // this week" reads more naturally as the upcoming Sunday (7 days
-  // out) rather than today, so push forward by a full week.
-  const dayOfWeek = d.getDay();
-  const daysToAdd = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
-  d.setDate(d.getDate() + daysToAdd);
-  d.setHours(23, 59, 59, 999);
-  return d.getTime();
+  // Saturday 23:59:59.999 of the Sun–Sat week containing `now`.
+  // Delegates to weeklyPlanData so goal periods align with the
+  // Weekly Plan UI's week boundaries.
+  return endOfWeekLocal(startOfWeekLocal(now));
 }
 
 function endOfMonth(now: number): number {
@@ -79,6 +81,36 @@ export function defaultTargetDate(scope: GoalScope, now: number = Date.now()): n
     case 'two_to_three_year': return now + 2 * 365 * 24 * 60 * 60 * 1000;
     case 'lifetime':          return new Date(2100, 0, 1, 23, 59, 59, 999).getTime();
   }
+}
+
+/** Sensible start-date default per scope. Weekly goals start at the
+ *  most recent Sunday 00:00 (the start of the current Sun–Sat week)
+ *  so pace / coverage math runs across the full week regardless of
+ *  when the user actually clicked Create. Every other scope starts
+ *  at `now` — monthly / quarterly / yearly use rolling-start +
+ *  calendar-end semantics. */
+export function defaultStartDate(scope: GoalScope, now: number = Date.now()): number {
+  if (scope === 'weekly') return startOfWeekLocal(now);
+  return now;
+}
+
+/** True when `now` falls on a Friday or Saturday (local). Drives the
+ *  "Next week" toggle in the weekly goal creation UI — when the
+ *  current Sun–Sat window is almost over, the user can opt to plan
+ *  the upcoming week instead. */
+export function isFriOrSatLocal(now: number = Date.now()): boolean {
+  const dow = new Date(now).getDay(); // 0=Sun, 5=Fri, 6=Sat
+  return dow === 5 || dow === 6;
+}
+
+/** Sunday 00:00 of the week AFTER the one containing `now`. */
+export function nextWeekStartLocal(now: number = Date.now()): number {
+  return startOfWeekLocal(now) + 7 * ONE_DAY_MS;
+}
+
+/** Saturday 23:59:59.999 of the week after the one containing `now`. */
+export function nextWeekEndLocal(now: number = Date.now()): number {
+  return endOfWeekLocal(nextWeekStartLocal(now));
 }
 
 /** Render an epoch-ms timestamp into the YYYY-MM-DD shape an

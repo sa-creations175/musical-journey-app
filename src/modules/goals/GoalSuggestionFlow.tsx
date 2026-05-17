@@ -19,6 +19,7 @@ import {
   ToggleCard,
 } from './atoms';
 import {
+  defaultStartDate,
   defaultTargetDate,
   dateInputValue,
   SCOPE_LABEL,
@@ -1047,7 +1048,7 @@ export async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
     contextTag: context,
     relatedModules,
     relatedItems: [] as string[],
-    startDate: now,
+    startDate: defaultStartDate(scope, now),
     targetDate,
     status: 'active' as const,
     contributesNumericallyToParent: false,
@@ -2911,7 +2912,7 @@ export async function persistRepertoireMonthlyGoal(
     scope,
     contextTag: null,
     relatedModules: ['repertoire'],
-    startDate: now,
+    startDate: defaultStartDate(scope, now),
     targetDate,
     status: 'active' as const,
     contributesNumericallyToParent: false,

@@ -39,10 +39,15 @@ import {
   SCOPE_ORDER,
   SCOPE_LABEL,
   VISION_SCOPES,
+  defaultStartDate,
   defaultTargetDate,
   dateInputValue,
   dateInputToMs,
+  isFriOrSatLocal,
+  nextWeekEndLocal,
+  nextWeekStartLocal,
 } from './scopeMeta';
+import { startOfWeekLocal, endOfWeekLocal } from './weeklyPlanData';
 
 /**
  * Goal creation / edit modal.
@@ -133,7 +138,7 @@ function emptyFormState(scope: GoalScope, now: number = Date.now()): FormState {
     targetMetric: '',
     targetValue: '',
     targetUnit: '',
-    startDate: now,
+    startDate: defaultStartDate(scope, now),
     targetDate: defaultTargetDate(scope, now),
     contextTag: '',
     relatedModules: [],
@@ -357,9 +362,10 @@ export default function GoalFormModal({
       ...f,
       scope: next,
       // When the user explicitly changes scope on a fresh form,
-      // refresh the targetDate default to match the new scope.
-      // (Existing edits to targetDate are kept when editing an
-      // existing goal — they typed a value on purpose.)
+      // refresh the start + target date defaults to match the new
+      // scope. (Existing edits are kept when editing an existing
+      // goal — the user typed those values on purpose.)
+      startDate: initialGoal ? f.startDate : defaultStartDate(next),
       targetDate: initialGoal ? f.targetDate : defaultTargetDate(next),
     }));
   };
@@ -373,6 +379,7 @@ export default function GoalFormModal({
       targetValue: '',
       targetUnit: '',
       contextTag: '',
+      startDate: initialGoal ? f.startDate : defaultStartDate(pendingScopeChange),
       targetDate: initialGoal ? f.targetDate : defaultTargetDate(pendingScopeChange),
     }));
     setPendingScopeChange(null);
@@ -678,6 +685,22 @@ export default function GoalFormModal({
           />
         )}
 
+        {/* Weekly: This week / Next week picker — only on Fri/Sat
+            when the current Sun–Sat window is almost over and the
+            user might want to plan the upcoming week instead. Hidden
+            on edits (the user already committed to their window). */}
+        {form.scope === 'weekly' && !initialGoal && isFriOrSatLocal(now) && (
+          <Field label="Which week?">
+            <WeekChoicePicker
+              now={now}
+              startDate={form.startDate}
+              onChange={(start, end) => setForm(f => ({
+                ...f, startDate: start, targetDate: end,
+              }))}
+            />
+          </Field>
+        )}
+
         {/* Target date — visible in all modes */}
         <Field label="Target date">
           <input
@@ -788,6 +811,63 @@ export default function GoalFormModal({
         </div>
       )}
     </Modal>
+  );
+}
+
+// -------------------------------------------------------------------
+
+/** Fri/Sat-only weekly choice: keep the current Sun–Sat window, or
+ *  jump to the upcoming Sun–Sat window. State is derived from the
+ *  parent's current startDate — no separate ui field. */
+function WeekChoicePicker({
+  now,
+  startDate,
+  onChange,
+}: {
+  now: number;
+  startDate: number;
+  onChange: (start: number, end: number) => void;
+}) {
+  const thisStart = startOfWeekLocal(now);
+  const thisEnd = endOfWeekLocal(thisStart);
+  const nextStart = nextWeekStartLocal(now);
+  const nextEnd = nextWeekEndLocal(now);
+  const isNext = startDate >= nextStart;
+
+  const rangeLabel = (start: number, end: number) => {
+    const s = new Date(start);
+    const e = new Date(end);
+    const fmt = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return `${fmt(s)} → ${fmt(e)}`;
+  };
+
+  const pill = (active: boolean): string =>
+    active
+      ? 'flex-1 px-3 py-1.5 rounded-md text-xs font-medium bg-fluent text-white border border-fluent'
+      : 'flex-1 px-3 py-1.5 rounded-md text-xs font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(thisStart, thisEnd)}
+          className={pill(!isNext)}
+        >
+          This week
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(nextStart, nextEnd)}
+          className={pill(isNext)}
+        >
+          Next week
+        </button>
+      </div>
+      <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
+        {isNext ? rangeLabel(nextStart, nextEnd) : rangeLabel(thisStart, thisEnd)}
+      </div>
+    </div>
   );
 }
 
