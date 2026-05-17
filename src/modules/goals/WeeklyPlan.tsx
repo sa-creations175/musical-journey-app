@@ -727,9 +727,14 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     //     practice-consistency umbrella covers any module.
     if (row.unit === 'days') {
       if (row.parentMetric === 'repertoire_days_per_cadence' && row.target > 0) {
-        // Days row shows pure cadence — the per-session breakdown
-        // (Spotlight + Maintenance) is carried by the SotM +
-        // synthetic-maintenance rows above this one.
+        // When a SotM row is also present, the SotM + synthetic
+        // maintenance rows already cover all Repertoire time —
+        // returning a time here would double-count into totalTime.
+        // The days row stays in the table (cadence is still
+        // meaningful display copy) but contributes null time.
+        const hasSotmRow = planRows.some(r => r.parentMetric === 'song_whole_at_level');
+        if (hasSotmRow) return null;
+        // No SotM → days row is the only Repertoire time signal.
         return {
           kind: 'time',
           estimate: { kind: 'point', minutes: row.target * REPERTOIRE_SESSION_DEFAULT_MINUTES },
