@@ -17,7 +17,7 @@ import { db, type PracticeSessionContext, type Song, type SpacingState } from '.
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import AffirmationSurface from './AffirmationSurface';
-import SessionStack, { type InlinePrompt } from './SessionStack';
+import SessionStack, { groupBlocks, type InlinePrompt } from './SessionStack';
 import TimePicker from './TimePicker';
 import {
   deletionUnit,
@@ -327,13 +327,25 @@ export default function ProposalCard({
   }));
 
   // Swap panel — one at a time, rendered as another InlinePrompt
-  // anchored to the block being swapped. The render function reads
-  // swapAlternatives live so the loading→ready transition swaps the
-  // panel content in place without remounting.
+  // anchored so it appears immediately below the tapped block's
+  // GROUP. SessionStack keys groups by the first block's id and
+  // renders prompts BEFORE the matching group, so to render below
+  // the tapped block we anchor to the NEXT group's id (mirrors how
+  // the delete-redistribution prompt anchors to the next surviving
+  // block after the deleted unit). When the tapped block is in the
+  // last group, anchorGroupId stays null and the prompt falls into
+  // the tail bucket — which is the visual bottom of the stack,
+  // i.e. right below the last block. Correct in both cases.
   if (swapBlockId !== null) {
+    const groups = groupBlocks(orderedBlocks);
+    const swapGroupIdx = groups.findIndex(g =>
+      g.items.some(item => item.id === swapBlockId),
+    );
+    const nextGroup = swapGroupIdx >= 0 ? groups[swapGroupIdx + 1] : undefined;
+    const swapAnchor = nextGroup?.id ?? null;
     inlinePrompts.push({
       id: `swap-${swapBlockId}`,
-      anchorGroupId: swapBlockId,
+      anchorGroupId: swapAnchor,
       render: () => (
         <BlockSwapPanel
           alternatives={swapAlternatives}
