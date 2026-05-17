@@ -58,6 +58,11 @@ export type BlockTimeNeeds = ReadonlyMap<string, number>;
 export type PaceByBlock = ReadonlyMap<string, WeeklyPace>;
 
 export const BALANCED_MAX_BLOCKS = 5;
+/** Full sessions have keyboard + non-keyboard arcs to populate, so the
+ *  module cap is wider — otherwise S&P + Repertoire (high item-pool
+ *  weight) crowd out HF/ET/Production from the top-5 sort even when
+ *  the user has active goals there. Keys/laptop/phone stay at 5. */
+export const BALANCED_MAX_BLOCKS_FULL = 8;
 export const FOCUSED_MAX_BLOCKS = 2;
 
 export interface Proposal {
@@ -228,14 +233,19 @@ export function buildBalancedProposal(
   const sorted = [...blocks].sort((a, b) => b.weight - a.weight);
 
   // Walk in weight order, take blocks from distinct modules until
-  // we hit BALANCED_MAX_BLOCKS or run out.
+  // we hit the cap or run out. Full sessions get a wider cap
+  // (BALANCED_MAX_BLOCKS_FULL) so the keyboard arc doesn't crowd
+  // every non-keyboard module off the proposal.
+  const maxBlocks = context === 'full'
+    ? BALANCED_MAX_BLOCKS_FULL
+    : BALANCED_MAX_BLOCKS;
   const seen = new Set<string>();
   const picked: AlgorithmBlock[] = [];
   for (const b of sorted) {
     if (seen.has(b.moduleRef)) continue;
     seen.add(b.moduleRef);
     picked.push(b);
-    if (picked.length >= BALANCED_MAX_BLOCKS) break;
+    if (picked.length >= maxBlocks) break;
   }
 
   if (picked.length === 0) return null;

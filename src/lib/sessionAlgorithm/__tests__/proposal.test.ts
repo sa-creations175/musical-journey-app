@@ -10,6 +10,7 @@ import {
   buildFocusedProposal,
   generateProposals,
   BALANCED_MAX_BLOCKS,
+  BALANCED_MAX_BLOCKS_FULL,
 } from '../proposal';
 import type { AlgorithmBlock } from '../timeAllocation';
 
@@ -63,6 +64,27 @@ describe('buildBalancedProposal', () => {
   it('returns null when no blocks can fit', () => {
     const blocks: AlgorithmBlock[] = [blk('a', 'repertoire', 'integration', 1.0)];
     expect(buildBalancedProposal(blocks, 30)).toBeNull();
+  });
+
+  it('full context widens the cap to BALANCED_MAX_BLOCKS_FULL so non-keyboard modules survive', () => {
+    // 8 distinct modules — keys cap (5) would drop 3, full cap (8) keeps all.
+    const blocks: AlgorithmBlock[] = [
+      blk('sp',   'shapes-and-patterns', 'procedural', 3.0),
+      blk('rep',  'repertoire',          'integration', 2.8),
+      blk('hf',   'harmonic-fluency',    'declarative', 1.2),
+      blk('iv',   'intervals',           'declarative', 1.0),
+      blk('cr',   'chord-recognition',   'declarative', 1.0),
+      blk('cp',   'chord-progressions',  'declarative', 1.6),
+      blk('sm',   'scales-modes',        'declarative', 1.0),
+      blk('prod', 'production',          'integration', 1.5),
+    ];
+    const keysCap = buildBalancedProposal(blocks, 90 * MIN)!;
+    expect(keysCap.blocks).toHaveLength(BALANCED_MAX_BLOCKS); // 5
+
+    const fullCap = buildBalancedProposal(blocks, 90 * MIN, undefined, undefined, 'full')!;
+    expect(fullCap.blocks).toHaveLength(BALANCED_MAX_BLOCKS_FULL); // 8
+    // Every distinct module surfaces on full — no NK modules dropped.
+    expect(new Set(fullCap.blocks.map(b => b.moduleRef)).size).toBe(8);
   });
 
   it('sequences blocks acquisition → review → expression', () => {
