@@ -19,7 +19,7 @@ import ManualLogForm from './ManualLogForm';
 import RecentSessionsList from './RecentSessionsList';
 import VacationManager from './VacationManager';
 import GoalsNeedTodayScreen from './GoalsNeedTodayScreen';
-import { loadPrefill } from './inputsPrefill';
+import { loadPrefill, saveLastIntentKind } from './inputsPrefill';
 import InputQuestionnaire from './InputQuestionnaire';
 import ProposalScreen from './ProposalScreen';
 import FeasibilityBanner from './FeasibilityBanner';
@@ -443,6 +443,13 @@ export default function PracticeSessions() {
     // user applied flows through to both the navigate target and
     // the armed session's currentBlockIndex=0 landing.
     const { startRoute, armBlocks } = resolveProposalStart(card.blocks);
+
+    // Persist the intent kind the user committed to. Surfaces as a
+    // "Last time: …" hint on the next questionnaire open — purely
+    // informational, no pre-selection.
+    if (lastInputs) {
+      void saveLastIntentKind(lastInputs.intent.kind);
+    }
 
     // Arm — don't start. The actual `start` action fires when the
     // user arrives at the first block's module (handled by

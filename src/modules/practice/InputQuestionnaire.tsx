@@ -30,7 +30,12 @@ import {
   type InputQuestionnaireDraft,
   type InputQuestionnaireResult,
 } from './inputs';
-import { loadPrefill, savePrefill } from './inputsPrefill';
+import {
+  loadLastIntentKind,
+  loadPrefill,
+  savePrefill,
+  type IntentKind,
+} from './inputsPrefill';
 import {
   deepFocusModuleOptions,
   shouldOfferDeepFocusSong,
@@ -85,6 +90,10 @@ export default function InputQuestionnaire({
     songOptions: ReadonlyArray<{ songId: string; title: string }>;
     now: number;
   } | null>(null);
+  // Last intent the user committed to (persisted on Accept, not
+  // Generate). Surfaced as a "Last time: …" hint on Q4 — informational
+  // only; never pre-selects.
+  const [lastIntentKind, setLastIntentKind] = useState<IntentKind | null>(null);
 
   // Reset draft on every open. Order: EMPTY_DRAFT → userPrefs
   // pre-fill (Context + Day plan from last session) → initialDayProfile
@@ -95,9 +104,10 @@ export default function InputQuestionnaire({
     let cancelled = false;
 
     void (async () => {
-      const prefill = await loadPrefill({
-        hasEarlierSessionsToday: !!hasEarlierSessionsToday,
-      });
+      const [prefill, lastIntent] = await Promise.all([
+        loadPrefill({ hasEarlierSessionsToday: !!hasEarlierSessionsToday }),
+        loadLastIntentKind(),
+      ]);
       if (cancelled) return;
 
       setDraft(
@@ -108,6 +118,7 @@ export default function InputQuestionnaire({
           initialTimeMinutes: initialTimeMinutes ?? null,
         }),
       );
+      setLastIntentKind(lastIntent);
     })();
 
     return () => {
@@ -237,6 +248,7 @@ export default function InputQuestionnaire({
             moduleOptions={pushOnItemModuleOptions}
             songOptions={pushOnItemSongOptions}
             timeMinutes={draft.timeMinutes}
+            lastIntentKind={lastIntentKind}
             onChange={i => setDraft(d => ({ ...d, intent: i }))}
           />
           <Q5Energy
@@ -523,79 +535,50 @@ function Q3DayPlan({
 // Q4 — Intent (+ inline item picker for push-on-specific)
 // ---------------------------------------------------------------------
 
-/** Plain-English descriptions shown via the IntentInfoTip popover
- *  next to each intent pill. Used as both popover text and
- *  aria-label so screen readers see the same explanation hover users
- *  do. */
+/** Plain-English descriptions rendered inline under each intent
+ *  option's label. Doubles as aria-label so screen readers hear the
+ *  same explanation sighted users read. */
 const INTENT_DESCRIPTIONS = {
-  balanced: 'Mix of all your active goals, weighted by urgency and pace',
-  lean_to_goals: 'Prioritizes your most behind or time-sensitive goals',
-  push_on_item: 'Deep focus on one module or goal for the full session',
+  balanced: 'The algo decides. Covers your most urgent items at the right balance.',
+  lean_to_goals: 'Shifts time toward your most behind modules and submodules.',
+  push_on_item: 'Full session on one module, or one module and a song at 60+ min.',
 } as const;
 
-/**
- * ⓘ icon with a hover/focus/tap-triggered popover. The shared
- * `InfoTip` in goals/atoms.tsx uses the native HTML `title`
- * attribute, which has a ~1.5s reveal delay on desktop and never
- * shows on touch — wrong fit for a questionnaire where the user is
- * actively deciding between options and needs the description
- * promptly. This variant renders the text inline as a positioned
- * span so the user sees it instantly on hover or focus, and on
- * touch by tapping the icon.
- */
-function IntentInfoTip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        type="button"
-        aria-label={text}
-        aria-expanded={open}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus:text-fluent"
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 1a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7h1.5v5h-1.5V7z" />
-        </svg>
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute z-10 left-1/2 -translate-x-1/2 top-full mt-1.5 w-56 px-2.5 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[11px] leading-snug shadow-lg pointer-events-none"
-        >
-          {text}
-        </span>
-      )}
-    </span>
-  );
-}
+const INTENT_LABELS: Record<IntentKind, string> = {
+  balanced: 'Balanced',
+  lean_to_goals: 'Lean to goals',
+  push_on_item: 'Push on item',
+};
+
+const INTENT_ORDER: ReadonlyArray<IntentKind> = ['balanced', 'lean_to_goals', 'push_on_item'];
 
 function Q4Intent({
   value,
   moduleOptions,
   songOptions,
   timeMinutes,
+  lastIntentKind,
   onChange,
 }: {
   value: import('./inputs').IntentChoice | null;
   moduleOptions: ReadonlyArray<DeepFocusModuleOption>;
   songOptions: ReadonlyArray<{ songId: string; title: string }>;
   timeMinutes: number | null;
+  lastIntentKind: IntentKind | null;
   onChange: (i: import('./inputs').IntentChoice) => void;
 }) {
-  const isBal = value?.kind === 'balanced';
-  const isLean = value?.kind === 'lean_to_goals';
   const isPush = value?.kind === 'push_on_item';
   const pickedModuleRef = isPush ? value.moduleRef : null;
   const pickedSongId = isPush ? value.songId : null;
 
-  const handlePushClick = () => {
-    if (isPush) return;
-    onChange({ kind: 'push_on_item', moduleRef: null, songId: null });
+  const handleIntentPick = (kind: IntentKind) => {
+    if (kind === 'push_on_item') {
+      // Re-picking push keeps any existing module/song pick.
+      if (isPush) return;
+      onChange({ kind: 'push_on_item', moduleRef: null, songId: null });
+      return;
+    }
+    onChange({ kind });
   };
 
   const handlePickModule = (key: string) => {
@@ -617,28 +600,26 @@ function Q4Intent({
 
   return (
     <section>
-      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
-        Intent
+      <div className="flex items-baseline justify-between mb-1.5">
+        <div className="text-[10px] uppercase tracking-wide text-neutral-500">
+          Intent
+        </div>
+        {lastIntentKind && (
+          <div className="text-[10px] text-neutral-400 dark:text-neutral-500">
+            Last time: <span className="text-neutral-500 dark:text-neutral-400">{INTENT_LABELS[lastIntentKind]}</span>
+          </div>
+        )}
       </div>
-      <div className="flex flex-wrap gap-x-2 gap-y-1.5">
-        <span className="flex items-center gap-1">
-          <button onClick={() => onChange({ kind: 'balanced' })} className={pill(isBal)}>
-            balanced
-          </button>
-          <IntentInfoTip text={INTENT_DESCRIPTIONS.balanced} />
-        </span>
-        <span className="flex items-center gap-1">
-          <button onClick={() => onChange({ kind: 'lean_to_goals' })} className={pill(isLean)}>
-            lean to goals
-          </button>
-          <IntentInfoTip text={INTENT_DESCRIPTIONS.lean_to_goals} />
-        </span>
-        <span className="flex items-center gap-1">
-          <button onClick={handlePushClick} className={pill(isPush)}>
-            push on item
-          </button>
-          <IntentInfoTip text={INTENT_DESCRIPTIONS.push_on_item} />
-        </span>
+      <div className="space-y-1.5">
+        {INTENT_ORDER.map(kind => (
+          <IntentOptionCard
+            key={kind}
+            label={INTENT_LABELS[kind]}
+            description={INTENT_DESCRIPTIONS[kind]}
+            active={value?.kind === kind}
+            onClick={() => handleIntentPick(kind)}
+          />
+        ))}
       </div>
       {isPush && (
         <div className="mt-2 space-y-2">
@@ -696,6 +677,40 @@ function Q4Intent({
         </div>
       )}
     </section>
+  );
+}
+
+/** Full-width intent option card — stacked × 3 to make the choice
+ *  feel deliberate. Label + inline one-line description; active state
+ *  swaps to a tinted accent fill with colored text. */
+function IntentOptionCard({
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      aria-label={`${label}. ${description}`}
+      className={`w-full text-left rounded-md border px-3 py-2 transition-colors ${
+        active
+          ? 'border-fluent bg-fluent/10 text-fluent'
+          : 'border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:bg-fluent/5'
+      }`}
+    >
+      <div className="text-sm font-medium leading-tight">{label}</div>
+      <div className={`text-[11px] leading-snug mt-0.5 ${active ? 'text-fluent/80' : 'text-neutral-500 dark:text-neutral-400'}`}>
+        {description}
+      </div>
+    </button>
   );
 }
 

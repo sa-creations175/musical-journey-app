@@ -18,10 +18,14 @@
 
 import { getPref, setPref } from '../../lib/userPrefs';
 import type { PracticeSessionContext } from '../../lib/db';
-import type { DayPlanChoice } from './inputs';
+import type { DayPlanChoice, IntentChoice } from './inputs';
 
 const KEY_CONTEXT = 'practice.questionnaire.lastContext';
 const KEY_DAY_PLAN = 'practice.questionnaire.lastDayPlan';
+/** Persists on Accept (not Generate) — see saveLastIntentKind. */
+const KEY_LAST_INTENT = 'practice.questionnaire.lastIntentKind';
+
+export type IntentKind = IntentChoice['kind'];
 
 export interface Prefill {
   context: PracticeSessionContext | null;
@@ -50,6 +54,21 @@ export async function savePrefill(input: {
     setPref(KEY_CONTEXT, input.context),
     setPref(KEY_DAY_PLAN, input.dayPlan),
   ]);
+}
+
+/**
+ * Last-used intent kind — surfaced on Q4 as a "Last time: …" hint.
+ * Informational only; the user always re-picks. Persisted on Accept
+ * (the user committed to this intent for a real session) rather than
+ * on Generate (where they're still browsing). Returns null when no
+ * intent has been accepted yet.
+ */
+export async function loadLastIntentKind(): Promise<IntentKind | null> {
+  return await getPref<IntentKind | null>(KEY_LAST_INTENT, null);
+}
+
+export async function saveLastIntentKind(kind: IntentKind): Promise<void> {
+  await setPref(KEY_LAST_INTENT, kind);
 }
 
 /**
