@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type Goal, type GoalScope, type GoalStatus, type ProficiencyDefinition, type Song } from '../../lib/db';
+import { db, type Goal, type GoalScope, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
@@ -1601,60 +1601,57 @@ function GoalRow({
     [goal],
   );
 
-  const handleDelete = async () => {
-    if (!confirm('Delete this goal? This moves it to abandoned status.')) return;
-    try {
-      await db.goals.update(goal.id, {
-        status: 'abandoned' satisfies GoalStatus,
-      });
-    } catch (err) {
-      console.warn('[goals] delete failed', err);
-    }
-  };
 
   return (
     <li data-testid="goal-row">
-      <button
-        type="button"
-        onClick={setExpanded}
-        aria-expanded={expanded}
-        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
-      >
-        <div className="flex-1 min-w-0">
-          {dimensionLabel && (
+      <div className="flex items-start gap-1">
+        <button
+          type="button"
+          onClick={setExpanded}
+          aria-expanded={expanded}
+          className="flex-1 min-w-0 text-left px-2 py-1.5 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
+        >
+          <div className="flex-1 min-w-0">
+            {dimensionLabel && (
+              <div
+                className="text-[10px] uppercase tracking-wide font-medium mb-0.5"
+                style={{ color: dimensionAccentHex ?? GOALS_META.accentHex }}
+              >
+                {dimensionLabel}
+              </div>
+            )}
             <div
-              className="text-[10px] uppercase tracking-wide font-medium mb-0.5"
-              style={{ color: dimensionAccentHex ?? GOALS_META.accentHex }}
+              className={
+                dimensionLabel
+                  ? 'text-sm font-bold italic text-neutral-700 dark:text-neutral-200'
+                  : 'text-sm text-neutral-700 dark:text-neutral-200'
+              }
             >
-              {dimensionLabel}
+              {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
             </div>
-          )}
-          <div
-            className={
-              dimensionLabel
-                ? 'text-sm font-bold italic text-neutral-700 dark:text-neutral-200'
-                : 'text-sm text-neutral-700 dark:text-neutral-200'
-            }
-          >
-            {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+            {target && (
+              <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
+            )}
           </div>
-          {target && (
-            <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
-          )}
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0 pt-0.5">
-          {showSlots && (
-            <span
-              data-progress-slot
-              className="text-xs tabular-nums text-neutral-600 dark:text-neutral-300 min-w-[3.5rem] text-right"
-            >
-              {progressText}
-            </span>
-          )}
-          <FeasibilityPill feasibility={feasibility} />
-        </div>
-      </button>
+          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+            {showSlots && (
+              <span
+                data-progress-slot
+                className="text-xs tabular-nums text-neutral-600 dark:text-neutral-300 min-w-[3.5rem] text-right"
+              >
+                {progressText}
+              </span>
+            )}
+            <FeasibilityPill feasibility={feasibility} />
+          </div>
+        </button>
+        {!omitRowActions && (
+          <div className="shrink-0 pt-1.5 -mr-1">
+            <DeleteGoalButton goal={goal} />
+          </div>
+        )}
+      </div>
 
       {expanded && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
@@ -1729,16 +1726,8 @@ function GoalRow({
                 >
                   Edit
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void handleDelete();
-                  }}
-                  className="text-xs px-2.5 py-1 rounded text-needswork hover:bg-needswork/10"
-                >
-                  Delete
-                </button>
+                {/* Delete moved to the row header (visible on the
+                    collapsed row, two-tap confirm) — see DeleteGoalButton. */}
               </div>
             </>
           )}
@@ -1921,6 +1910,78 @@ function umbrellaDisplayTitle(
 }
 
 /**
+ * Hard-delete a goal. For umbrellas, cascades into same-scope
+ * children only — yearly anchors share parentGoalId with both yearly
+ * children and any monthly stowaways, so a scope-filtered cascade
+ * avoids the same cross-scope hazard editLoad's sibling fetch
+ * already corrects for.
+ */
+async function hardDeleteGoal(goal: Goal): Promise<void> {
+  if (goal.isUmbrella) {
+    const children = await db.goals
+      .where('parentGoalId').equals(goal.id)
+      .filter(c => c.scope === goal.scope)
+      .toArray();
+    await db.goals.bulkDelete([...children.map(c => c.id), goal.id]);
+    return;
+  }
+  await db.goals.delete(goal.id);
+}
+
+/**
+ * Two-tap inline confirm delete. First tap flips the button to a
+ * red "Confirm" state; second tap within ~3 s fires the delete.
+ * Click outside or wait the timeout → resets. No modal, no native
+ * confirm() dialog. Hidden entirely on yearly anchor rows (those
+ * are intentionally more permanent — the user manages them through
+ * the yearly anchor flow).
+ */
+function DeleteGoalButton({ goal }: { goal: Goal }) {
+  const [armed, setArmed] = useState(false);
+
+  // Yearly anchors stay non-deletable from this surface — see
+  // umbrellaDisplayTitle for how they're rendered as permanent
+  // anchor cards in the yearly-anchor flow.
+  if (goal.scope === 'yearly' && goal.isUmbrella) return null;
+
+  useEffect(() => {
+    if (!armed) return;
+    const t = window.setTimeout(() => setArmed(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [armed]);
+
+  const handleClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    try {
+      await hardDeleteGoal(goal);
+    } catch (err) {
+      console.warn('[goals] hard delete failed', err);
+      setArmed(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      aria-label={armed ? `Confirm delete ${goal.description || 'goal'}` : `Delete ${goal.description || 'goal'}`}
+      title={armed ? 'Tap again to confirm' : 'Delete'}
+      className={
+        armed
+          ? 'inline-flex items-center justify-center w-6 h-6 rounded-md text-[11px] font-medium bg-needswork text-white hover:opacity-90'
+          : 'inline-flex items-center justify-center w-6 h-6 rounded-md text-neutral-400 hover:text-needswork hover:bg-needswork/10'
+      }
+    >
+      {armed ? '✓' : '×'}
+    </button>
+  );
+}
+
+/**
  * Return only goals that should appear at the top level of a
  * scope layer — excludes children whose parent is also in the
  * same list. Children render indented under their umbrella's
@@ -2020,66 +2081,55 @@ function UmbrellaRow({
     return rollupChildFeasibilities(childFeasibilities);
   }, [visibleChildGoals]);
 
-  const handleDelete = async () => {
-    if (
-      !confirm(
-        'Delete this umbrella goal? Its sub-goals stay active. This moves the umbrella to abandoned status.',
-      )
-    )
-      return;
-    try {
-      await db.goals.update(umbrella.id, {
-        status: 'abandoned' satisfies GoalStatus,
-      });
-    } catch (err) {
-      console.warn('[goals] umbrella delete failed', err);
-    }
-  };
-
   return (
     <li data-testid="goal-row" data-umbrella>
-      <button
-        type="button"
-        onClick={setExpanded}
-        aria-expanded={expanded}
-        className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
-      >
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-sm font-medium"
-            // Module accent applied to the whole title — single-
-            // module umbrellas wear their module's color so the
-            // user reads the row by-module at a glance. Cross-
-            // module umbrellas (no shared accent) fall back to
-            // the neutral palette.
-            style={{
-              color: moduleAccent ?? undefined,
-            }}
-          >
-            {displayTitle}
-          </div>
-          {subtitle && (
-            <div className="text-xs text-neutral-500 mt-0.5">{subtitle}</div>
-          )}
-        </div>
-
-        {showSlots && (
-          <div className="flex items-center gap-2 shrink-0 pt-0.5">
-            {/* Progress slot stays inert on umbrellas (aggregate
-                progress doesn't compose across child metrics).
-                Feasibility slot carries the rollup status pill. */}
-            <span
-              data-progress-slot
-              data-umbrella
-              aria-hidden
-              className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
+      <div className="flex items-start gap-1">
+        <button
+          type="button"
+          onClick={setExpanded}
+          aria-expanded={expanded}
+          className="flex-1 min-w-0 text-left px-2 py-1.5 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
+        >
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-sm font-medium"
+              // Module accent applied to the whole title — single-
+              // module umbrellas wear their module's color so the
+              // user reads the row by-module at a glance. Cross-
+              // module umbrellas (no shared accent) fall back to
+              // the neutral palette.
+              style={{
+                color: moduleAccent ?? undefined,
+              }}
             >
-              —
-            </span>
-            <UmbrellaFeasibilityPill rollup={rollup} />
+              {displayTitle}
+            </div>
+            {subtitle && (
+              <div className="text-xs text-neutral-500 mt-0.5">{subtitle}</div>
+            )}
           </div>
-        )}
-      </button>
+
+          {showSlots && (
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+              {/* Progress slot stays inert on umbrellas (aggregate
+                  progress doesn't compose across child metrics).
+                  Feasibility slot carries the rollup status pill. */}
+              <span
+                data-progress-slot
+                data-umbrella
+                aria-hidden
+                className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
+              >
+                —
+              </span>
+              <UmbrellaFeasibilityPill rollup={rollup} />
+            </div>
+          )}
+        </button>
+        <div className="shrink-0 pt-1.5 -mr-1">
+          <DeleteGoalButton goal={umbrella} />
+        </div>
+      </div>
 
       {expanded && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
@@ -2131,16 +2181,11 @@ function UmbrellaRow({
             >
               Edit
             </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                void handleDelete();
-              }}
-              className="text-xs px-2.5 py-1 rounded text-needswork hover:bg-needswork/10"
-            >
-              Delete
-            </button>
+            {/* Delete moved to the row header (visible on the
+                collapsed row, two-tap confirm) — see DeleteGoalButton.
+                Umbrella delete now hard-deletes + cascades to same-
+                scope children rather than abandoning the umbrella
+                alone. */}
           </div>
         </div>
       )}

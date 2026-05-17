@@ -3080,14 +3080,14 @@ function ProductionCompletionCard({
  * Preview phrasing:
  *   completion / path:    "Complete the Workflow Foundations path"
  *   completion / count:   "Complete 4 new production lessons"
- *   time-only:            "Spend at least 2 hours a week on production"
- *   both (path + time):   "Complete the Workflow Foundations path and spend at least 2 hours a week on production"
- *   both (count + time):  "Complete 4 new production lessons and spend at least 2 hours a week on production"
+ *   consistency-only:     "Complete at least 3 lessons a week on production"
+ *   both (path + cons.):  "Complete the Workflow Foundations path and complete at least 3 lessons a week on production"
+ *   both (count + cons.): "Complete 4 new production lessons and complete at least 3 lessons a week on production"
  *
- * Time clause uses "spend … on production" rather than the
- * "practice production" verb the other modules use — production
- * work is at-the-workstation time, which "spend" reads more
- * naturally for than "practice". Module name moves to a trailing
+ * Production consistency is lessons-per-week (production_lessons_per_cadence)
+ * — the prior "hours a week" phrasing predates the lessons-cadence
+ * migration and now contradicts the encoded metric. Verb stays
+ * "complete" to match the lesson framing; module name trails as
  * "on production" so the verb stays clean in both standalone and
  * combined cases.
  */
@@ -3124,9 +3124,9 @@ function previewProductionTarget(target: ProductionTarget): string | null {
   }
   if (target.consistencyEnabled) {
     if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
-    const verb = parts.length === 0 ? 'Spend' : 'spend';
-    const hoursWord = target.consistencyCount === 1 ? 'hour' : 'hours';
-    parts.push(`${verb} at least ${target.consistencyCount} ${hoursWord} a ${target.consistencyCadence} on production`);
+    const verb = parts.length === 0 ? 'Complete' : 'complete';
+    const lessonsWord = target.consistencyCount === 1 ? 'lesson' : 'lessons';
+    parts.push(`${verb} at least ${target.consistencyCount} ${lessonsWord} a ${target.consistencyCadence} on production`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
