@@ -176,7 +176,9 @@ export default function ProposalScreen({
 
       <div
         ref={scrollRef}
-        className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:grid md:grid-cols-2 md:overflow-visible md:gap-4 md:pb-0 md:mx-0 md:px-0"
+        className={`flex gap-3 overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:gap-4 md:pb-0 md:mx-0 md:px-0 ${
+          isPair ? 'md:grid md:grid-cols-2' : 'md:block'
+        }`}
       >
         {proposals.map(p => (
           <div

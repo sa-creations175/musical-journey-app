@@ -385,7 +385,7 @@ export default function ProposalCard({
       .map(b => ({ accentHex: b.moduleAccentHex, reason: b.whySnippet }));
 
   return (
-    <div className="w-full min-w-0 overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-3 space-y-3">
+    <div className="w-full min-w-0 overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-4 sm:p-5 space-y-4">
       <header className="flex items-baseline justify-between gap-2">
         <h4 className="text-sm font-medium tracking-tight text-neutral-800 dark:text-neutral-100">
           {data.title}

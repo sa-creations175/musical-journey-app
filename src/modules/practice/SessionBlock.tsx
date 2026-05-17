@@ -168,16 +168,13 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
         borderLeftWidth: 3,
       }}
     >
-      <div className="px-3 py-2 flex items-start gap-3">
+      <div className="px-3 py-1.5 flex items-start gap-3">
         <div className="flex-1 min-w-0 space-y-0.5">
           {/* flex-wrap so a long module label + warm-up badge drop
               the badge to a second line instead of overflowing the
               block's width into the neighbouring card. */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span
-              className="text-[9px] sm:text-[10px] uppercase tracking-wider font-medium break-words"
-              style={{ color: block.moduleAccentHex }}
-            >
+            <span className="text-[9px] uppercase tracking-wider font-normal text-neutral-500 dark:text-neutral-400 break-words">
               {label}
             </span>
             {block.isWarmup && (
@@ -192,7 +189,7 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
               </span>
             )}
           </div>
-          <div className="text-sm sm:text-base font-medium text-neutral-800 dark:text-neutral-100 break-words">
+          <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100 break-words">
             {block.activityDescription}
           </div>
           {block.inlineActionText && (
@@ -214,7 +211,7 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
             </span>
           )}
         </div>
-        <div className="shrink-0 font-mono tabular-nums text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
+        <div className="shrink-0 font-mono tabular-nums text-xs text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
         {onSwap && (

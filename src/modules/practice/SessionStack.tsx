@@ -40,13 +40,15 @@ import type { ProposalBlock } from './proposalTypes';
 /** Per-block height floor. Each group / inner block can't shrink
  *  below this even when its proportional share would. Trade-off:
  *  on sessions with a very large block alongside very small ones
- *  the proportions read compressed (the small block holds at
- *  120 px instead of, say, 18 px), but content NEVER gets clipped
+ *  the proportions read compressed (the small block holds at this
+ *  floor instead of, say, 18 px), but content NEVER gets clipped
  *  — a 3-min chord-quiz still shows its name + duration legibly
  *  even with the longer 2-line activity descriptions that S&P
  *  drill labels can produce. Picked over the prior container-level
- *  floor (which starved short blocks via flex-grow distribution). */
-const MIN_BLOCK_PX = 120;
+ *  floor (which starved short blocks via flex-grow distribution).
+ *  Tuned alongside SessionBlock's compact padding/font sizes — at
+ *  88 px a 2-line description still fits with breathing room. */
+const MIN_BLOCK_PX = 88;
 
 /** Inline prompt slot — used by ProposalCard's block-delete flow to
  *  surface a redistribution picker in place of the just-deleted block.
@@ -220,7 +222,7 @@ export default function SessionStack({ blocks, onReorder, onDelete, onSwap, inli
 
   const stackInner = (
     <div
-      className="w-full min-w-0 overflow-hidden flex flex-col gap-0.5 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+      className="w-full min-w-0 overflow-hidden flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
       style={{ minHeight: `${minTotalPx}px` }}
     >
       {groups.map(group => {
@@ -277,7 +279,7 @@ function StaticGroupRow({
     minHeight: `${group.items.length * MIN_BLOCK_PX}px`,
   };
   return (
-    <div style={style} className="flex flex-col gap-0.5">
+    <div style={style} className="flex flex-col gap-1.5">
       <GroupBlocks group={group} onDelete={onDelete} onSwap={onSwap} />
     </div>
   );
@@ -325,7 +327,7 @@ function SortableGroupRow({
       >
         <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
       </button>
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
         <GroupBlocks group={group} onDelete={onDelete} onSwap={onSwap} />
       </div>
     </div>
