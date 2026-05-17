@@ -320,6 +320,7 @@ export async function buildSessionProposals(
     withRepColdStart,
     goals,
     inputs.context,
+    etEligibleByModule,
   );
   if (withColdStart.length === 0) return [];
   const itemLabels = resolveShapesDrillLabels(withColdStart);
@@ -495,6 +496,7 @@ export async function buildSessionPlan(
     repBlocks,
     goals,
     inputs.context,
+    etEligibleByModule,
   );
 
   const candidatePoolSize = moduleBlocks.reduce(
@@ -1139,6 +1141,7 @@ export async function buildSessionProposalsForPath(
     filteredWithRepColdStart,
     goals,
     inputs.context,
+    etEligibleByModule,
   );
   if (filteredWithColdStart.length > 0) {
     const filteredItemLabels = resolveShapesDrillLabels(filteredWithColdStart);
@@ -1179,6 +1182,7 @@ export async function buildSessionProposalsForPath(
     fallbackWithRepColdStart,
     goals,
     inputs.context,
+    etEligibleByModule,
   );
   if (fallbackWithColdStart.length === 0) return [];
   const fallbackItemLabels = resolveShapesDrillLabels(fallbackWithColdStart);
@@ -1713,6 +1717,16 @@ const NON_KEYBOARD_COLD_START_MODULES: ReadonlyArray<string> = [
   PRODUCTION_MODULE_REF,
 ];
 
+/** ET submodules — used to gate cold-start injection against the
+ *  tier eligibility map. Non-ET modules (HF, Production) skip the
+ *  gate (no tier system). */
+const ET_COLD_START_GATED_MODULES: ReadonlySet<string> = new Set([
+  'intervals',
+  'chord-recognition',
+  'chord-progressions',
+  'scales-modes',
+]);
+
 /**
  * Full-session cold-start for non-keyboard modules.
  *
@@ -1731,11 +1745,24 @@ const NON_KEYBOARD_COLD_START_MODULES: ReadonlyArray<string> = [
  *
  * Gated on context === 'full' inside the helper — no-op for keys /
  * laptop / phone arcs (which have their own filtering logic).
+ *
+ * ET submodules also honor the tier-eligibility gate: a goal for
+ * 'chord-progressions' or 'scales-modes' that isn't yet unlocked
+ * via the tier system produces zero eligible items in regular
+ * candidate generation, so injecting a cold-start block would
+ * render as "0 cards" — confusing rather than helpful. When
+ * `etEligibleByModule` is supplied, only inject the cold-start for
+ * an ET submodule if its eligible set is non-empty. Non-ET modules
+ * (HF, Production) skip this gate — no tier system to respect.
  */
 export function maybeInjectNonKeyboardColdStartBlocks(
   blocks: AlgorithmBlock[],
   goals: ReadonlyArray<Goal>,
   context: PracticeSessionContext,
+  /** Same map the aggregator consumes. Omit only in tests that
+   *  don't care about tier gating; production callers always pass it
+   *  via `loadEtEligibleByModule`. */
+  etEligibleByModule?: ReadonlyMap<string, ReadonlySet<string>>,
 ): AlgorithmBlock[] {
   if (context !== 'full') return blocks;
 
@@ -1756,6 +1783,13 @@ export function maybeInjectNonKeyboardColdStartBlocks(
   for (const moduleRef of NON_KEYBOARD_COLD_START_MODULES) {
     if (existingModules.has(moduleRef)) continue;
     if (!goalTouchedModules.has(moduleRef)) continue;
+    // ET tier gate — skip submodules whose eligible set is empty
+    // (locked tiers or stages with no introduced items). Modules
+    // absent from the map are ungated.
+    if (etEligibleByModule && ET_COLD_START_GATED_MODULES.has(moduleRef)) {
+      const eligible = etEligibleByModule.get(moduleRef);
+      if (eligible !== undefined && eligible.size === 0) continue;
+    }
     additions.push({
       id: `block-${moduleRef}-cold-start`,
       moduleRef,

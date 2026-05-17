@@ -150,6 +150,47 @@ describe('maybeInjectNonKeyboardColdStartBlocks — per-module injection', () =>
     expect(out).toEqual([]);
   });
 
+  it('ET tier gate: locked submodule (empty eligible set) skipped, unlocked submodule injected', () => {
+    // ET overall goal would normally trigger all 4 ET sub cold-starts.
+    // With the eligible map showing chord-progressions + scales-modes
+    // locked (empty sets), only intervals + chord-recognition inject.
+    const goals = [mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' })];
+    const etEligibleByModule = new Map<string, ReadonlySet<string>>([
+      ['intervals',           new Set(['m3:asc'])],
+      ['chord-recognition',   new Set(['maj:0'])],
+      ['chord-progressions',  new Set()], // locked
+      ['scales-modes',        new Set()], // locked
+    ]);
+    const out = maybeInjectNonKeyboardColdStartBlocks([], goals, 'full', etEligibleByModule);
+    expect(out.map(b => b.moduleRef).sort()).toEqual(['chord-recognition', 'intervals']);
+  });
+
+  it('ET tier gate: omitting etEligibleByModule preserves the pre-gate behavior', () => {
+    // Tests + legacy paths that don't supply the map get the original
+    // "inject all touched modules" behavior. Safety net for future
+    // callers that forget the arg.
+    const goals = [mkGoal({ targetMetric: 'ear_training_coverage_at_acquired' })];
+    const out = maybeInjectNonKeyboardColdStartBlocks([], goals, 'full');
+    expect(out.map(b => b.moduleRef).sort()).toEqual([
+      'chord-progressions', 'chord-recognition', 'intervals', 'scales-modes',
+    ]);
+  });
+
+  it('ET tier gate: HF and Production skip the gate (no tier system)', () => {
+    // Even if the map has an empty set for HF or Production (impossible
+    // in practice, but defensive), those modules still inject because
+    // the gate only checks ET submodules.
+    const goals = [
+      mkGoal({ id: 'g-hf',   targetMetric: 'harmonic_fluency_coverage_at_acquired' }),
+      mkGoal({ id: 'g-prod', targetMetric: 'production_coverage_at_acquired' }),
+    ];
+    const etEligibleByModule = new Map<string, ReadonlySet<string>>([
+      ['intervals', new Set()], // locked, but no ET goal so irrelevant
+    ]);
+    const out = maybeInjectNonKeyboardColdStartBlocks([], goals, 'full', etEligibleByModule);
+    expect(out.map(b => b.moduleRef).sort()).toEqual(['harmonic-fluency', 'production']);
+  });
+
   it('preserves existing blocks and appends cold-start blocks at the end', () => {
     const goals = [mkGoal({ targetMetric: 'production_coverage_at_acquired' })];
     const existing = [blk('shapes-and-patterns', 'block-sp'), blk('repertoire', 'block-rep')];

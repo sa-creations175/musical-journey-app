@@ -95,11 +95,13 @@ export function applyLaptopTargetShares(args: {
 }
 
 // ---------------------------------------------------------------------
-// applyLaptopBlockOrdering — laptop-only block sequencing
+// applyLaptopBlockOrdering — block sequencing for laptop + full
 // ---------------------------------------------------------------------
 
 /**
- * Two laptop-scoped ordering rules per SESSION_DESIGN.md:
+ * Two ordering rules per SESSION_DESIGN.md, applied to any context
+ * that has both a device arc and (in full's case) a keyboard arc
+ * where Mental Viz needs to slot next to the Repertoire chord-quiz:
  *
  *   1. Same-module blocks cluster. The Production Vocab carve-out
  *      (moduleRef = 'production') sits with Production lessons rather
@@ -113,16 +115,18 @@ export function applyLaptopTargetShares(args: {
  *      recall — grouping them produces a coherent "mental prep" arc
  *      before the practice work begins.
  *
- * No-op on non-laptop contexts. Pure; rebuilds the blocks list in
- * the new order and recomputes totalSeconds defensively (totalSeconds
- * is the sum of block plannedSeconds — order doesn't change it, but
+ * Fires on laptop AND full contexts. No-op on keys / phone (phone
+ * uses NON_KEYBOARD_MODULE_ORDER in sequenceBlocks; keys has no
+ * non-keyboard content). Pure; rebuilds the blocks list in the new
+ * order and recomputes totalSeconds defensively (totalSeconds is the
+ * sum of block plannedSeconds — order doesn't change it, but
  * recompute keeps the helper a single source of truth).
  */
 export function applyLaptopBlockOrdering(args: {
   cards: ProposalCardData[];
   context: PracticeSessionContext;
 }): ProposalCardData[] {
-  if (args.context !== 'laptop') return args.cards;
+  if (args.context !== 'laptop' && args.context !== 'full') return args.cards;
 
   return args.cards.map(card => {
     let blocks = clusterSameModuleBlocks(card.blocks);

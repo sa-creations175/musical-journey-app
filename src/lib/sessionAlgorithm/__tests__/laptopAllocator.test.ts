@@ -167,16 +167,31 @@ describe('applyLaptopTargetShares', () => {
 // ---------------------------------------------------------------------
 
 describe('applyLaptopBlockOrdering', () => {
-  it('no-op on non-laptop contexts', () => {
+  it('no-op on keys / phone contexts (laptop + full are in scope)', () => {
     const card = mkCard([
       mkBlock({ id: 'block-production-vocab', moduleRef: 'production', plannedSeconds: 200 }),
       mkBlock({ id: 'hf',                     moduleRef: 'harmonic-fluency', plannedSeconds: 400 }),
       mkBlock({ id: 'prod',                   moduleRef: 'production', plannedSeconds: 800 }),
     ]);
-    for (const context of ['keys', 'phone', 'full'] as const) {
+    for (const context of ['keys', 'phone'] as const) {
       const out = applyLaptopBlockOrdering({ cards: [card], context });
       expect(out).toEqual([card]);
     }
+  });
+
+  it('also fires on full — same ordering rules', () => {
+    const card = mkCard([
+      mkBlock({ id: 'block-mental-viz', moduleRef: 'shapes-and-patterns', plannedSeconds: 240 }),
+      mkBlock({ id: 'sp',               moduleRef: 'shapes-and-patterns', plannedSeconds: 1500 }),
+      mkBlock({ id: 'chord-quiz',       moduleRef: 'repertoire', isWarmup: true, plannedSeconds: 180 }),
+      mkBlock({ id: 'rep',              moduleRef: 'repertoire', plannedSeconds: 1800 }),
+      mkBlock({ id: 'hf',               moduleRef: 'harmonic-fluency', plannedSeconds: 500 }),
+    ]);
+    const [out] = applyLaptopBlockOrdering({ cards: [card], context: 'full' });
+    // Mental Viz now sits immediately before the chord-quiz warm-up.
+    const idxMv = out.blocks.findIndex(b => b.id === 'block-mental-viz');
+    const idxCq = out.blocks.findIndex(b => b.id === 'chord-quiz');
+    expect(idxMv).toBe(idxCq - 1);
   });
 
   it('clusters same-module blocks (Production Vocab + Production lessons)', () => {
