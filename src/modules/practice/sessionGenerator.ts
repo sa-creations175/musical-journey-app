@@ -71,10 +71,10 @@ import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   COLD_START_REPERTOIRE_WEIGHT,
   CONTEXT_RANK,
+  LAPTOP_TARGET_SHARES,
   MAX_ITEMS_PER_BLOCK,
   MENTAL_VIZ_PLANNED_SECONDS,
   MENTAL_VIZ_WEIGHT_FULL,
-  MENTAL_VIZ_WEIGHT_LAPTOP,
   MENTAL_VIZ_WEIGHT_PHONE,
   MIN_VIABLE_PRACTICE_SECONDS,
   PRODUCTION_VOCAB_FRACTION,
@@ -97,6 +97,10 @@ import {
   leanFactorPerSPSubmodule,
   redistributePlannedSecondsBySubmodule,
 } from '../../lib/sessionAlgorithm/flexibleProposal';
+import {
+  applyLaptopBlockOrdering,
+  applyLaptopTargetShares,
+} from '../../lib/sessionAlgorithm/laptopAllocator';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
 import {
   loadRepertoireSplitContext,
@@ -337,11 +341,19 @@ export async function buildSessionProposals(
     goals, spacingRows, intent: inputs.intent, now,
   });
   const songsById = await loadDeepFocusSongsById(inputs.intent);
-  return applyDeepFocusAllocation({
+  const deepFocusedCards = applyDeepFocusAllocation({
     cards: leanedCards,
     intent: inputs.intent,
     timeMinutes: inputs.timeMinutes,
     songsById,
+  });
+  const laptopShared = applyLaptopTargetShares({
+    cards: deepFocusedCards,
+    context: inputs.context,
+  });
+  return applyLaptopBlockOrdering({
+    cards: laptopShared,
+    context: inputs.context,
   });
 }
 
@@ -523,6 +535,7 @@ export async function buildSessionPlan(
   const mentalVizBlock = await maybeBuildMentalVizBlock({
     context: inputs.context,
     availableSeconds: afterVocabSeconds,
+    sessionSecondsTotal: requestedSeconds,
   });
   const availableSeconds = mentalVizBlock !== null
     ? afterVocabSeconds - mentalVizBlock.plannedSeconds
@@ -574,6 +587,14 @@ export async function buildSessionPlan(
     intent: inputs.intent,
     timeMinutes: inputs.timeMinutes,
     songsById,
+  });
+  shapedCards = applyLaptopTargetShares({
+    cards: shapedCards,
+    context: inputs.context,
+  });
+  shapedCards = applyLaptopBlockOrdering({
+    cards: shapedCards,
+    context: inputs.context,
   });
   return {
     kind: 'proposals',
@@ -1047,12 +1068,18 @@ export async function buildSessionProposalsForPath(
   const now = Date.now();
   const weeklyPace = await loadWeeklyPace(now);
   const deepFocusSongsById = await loadDeepFocusSongsById(inputs.intent);
-  const applyDeepFocus = (cards: ProposalCardData[]) =>
-    applyDeepFocusAllocation({
-      cards,
-      intent: inputs.intent,
-      timeMinutes: inputs.timeMinutes,
-      songsById: deepFocusSongsById,
+  const applyPostProcesses = (cards: ProposalCardData[]) =>
+    applyLaptopBlockOrdering({
+      cards: applyLaptopTargetShares({
+        cards: applyDeepFocusAllocation({
+          cards,
+          intent: inputs.intent,
+          timeMinutes: inputs.timeMinutes,
+          songsById: deepFocusSongsById,
+        }),
+        context: inputs.context,
+      }),
+      context: inputs.context,
     });
   // Eligibility set built off the FULL spacingRows snapshot so the
   // "introduced" signal isn't accidentally narrowed by the path
@@ -1094,7 +1121,7 @@ export async function buildSessionProposalsForPath(
       undefined,
       inputs.context,
     );
-    return applyDeepFocus(applyLeanWithinSPSubmodule(cards, {
+    return applyPostProcesses(applyLeanWithinSPSubmodule(cards, {
       goals, spacingRows, intent: inputs.intent, now,
     }));
   }
@@ -1129,7 +1156,7 @@ export async function buildSessionProposalsForPath(
     undefined,
     inputs.context,
   );
-  return applyDeepFocus(applyLeanWithinSPSubmodule(fallbackCards, {
+  return applyPostProcesses(applyLeanWithinSPSubmodule(fallbackCards, {
     goals, spacingRows, intent: inputs.intent, now,
   }));
 }
@@ -1872,8 +1899,20 @@ export {
  * Compute the Production Vocab block duration for a session of
  * `availableSeconds`. Pure helper exposed so tests + callers share
  * the same clamp math.
+ *
+ * Laptop sessions use the LAPTOP_TARGET_SHARES.PRODUCTION_VOCAB
+ * share (7 % of total) without the global min/max clamp — the
+ * laptop allocator owns its own share math end-to-end. Other
+ * contexts keep the legacy PRODUCTION_VOCAB_FRACTION (15 %)
+ * clamped to [PRODUCTION_VOCAB_MIN_SECONDS, …MAX…].
  */
-export function computeProductionVocabSeconds(availableSeconds: number): number {
+export function computeProductionVocabSeconds(
+  availableSeconds: number,
+  context?: PracticeSessionContext,
+): number {
+  if (context === 'laptop') {
+    return Math.round(availableSeconds * LAPTOP_TARGET_SHARES.PRODUCTION_VOCAB);
+  }
   const raw = Math.round(availableSeconds * PRODUCTION_VOCAB_FRACTION);
   return Math.max(
     PRODUCTION_VOCAB_MIN_SECONDS,
@@ -1978,7 +2017,7 @@ export async function maybeBuildProductionVocabBlock(opts: {
   if (!hasProductionGoal(opts.goals)) return null;
   const dueCount = await countDueProductionVocabCards(opts.now);
   if (dueCount <= 0) return null;
-  const vocabSeconds = computeProductionVocabSeconds(opts.availableSeconds);
+  const vocabSeconds = computeProductionVocabSeconds(opts.availableSeconds, opts.context);
   if (opts.availableSeconds - vocabSeconds < MIN_VIABLE_PRACTICE_SECONDS) {
     return null;
   }
@@ -2002,14 +2041,20 @@ function prependVocabBlock(
 
 /**
  * Mental viz duration scaled by the per-context weight. Phone is
- * the primary surface (1.4 × the base 5 min); laptop + full's
- * non-keyboard arc are secondary (0.8 ×). Keys returns 0 — the
- * block doesn't surface there.
+ * the primary surface (1.4 × the base 5 min); full's non-keyboard
+ * arc is secondary (0.8 ×). Keys returns 0 — the block doesn't
+ * surface there.
+ *
+ * Laptop is share-driven (LAPTOP_TARGET_SHARES.MENTAL_VIZ × the
+ * original session length), so the caller passes that length in.
  */
-function mentalVizSecondsFor(context: PracticeSessionContext): number {
+function mentalVizSecondsFor(
+  context: PracticeSessionContext,
+  sessionSecondsTotal: number,
+): number {
   switch (context) {
     case 'phone':  return Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_PHONE);
-    case 'laptop': return Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_LAPTOP);
+    case 'laptop': return Math.round(sessionSecondsTotal * LAPTOP_TARGET_SHARES.MENTAL_VIZ);
     case 'full':   return Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_FULL);
     case 'keys':   return 0;
   }
@@ -2046,9 +2091,14 @@ export function buildMentalVizBlock(plannedSeconds: number): ProposalBlock {
  */
 export async function maybeBuildMentalVizBlock(opts: {
   context: PracticeSessionContext;
+  /** Remaining session budget AFTER the vocab carve-out — drives the
+   *  min-viable-practice gate. */
   availableSeconds: number;
+  /** Original full session length in seconds. The laptop allocator
+   *  uses this for share-of-original math; phone/full ignore it. */
+  sessionSecondsTotal: number;
 }): Promise<ProposalBlock | null> {
-  const planned = mentalVizSecondsFor(opts.context);
+  const planned = mentalVizSecondsFor(opts.context, opts.sessionSecondsTotal);
   if (planned <= 0) return null;
   if (opts.availableSeconds - planned < MIN_VIABLE_PRACTICE_SECONDS) {
     return null;

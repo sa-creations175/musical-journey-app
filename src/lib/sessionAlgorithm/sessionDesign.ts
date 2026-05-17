@@ -247,6 +247,42 @@ export const FULL_FACTORS: Readonly<Record<string, number>> = {
   [CHORD_PROGRESSION_QUIZ_MODULE_REF]:      CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR,
 };
 
+// ─── Laptop target time shares ────────────────────────────────────────────
+//
+// Declarative share-of-session-time targets for a laptop session. The
+// laptop allocator (applyLaptopTargetShares in sessionGenerator) uses
+// these directly instead of running the multiplier-driven distribute()
+// pipeline — so a 90-min laptop session produces blocks whose seconds
+// reflect these percentages. Shares MUST sum to 1.0.
+//
+// Vocab + mental-viz are deducted from the session length as
+// fixed-share carve-outs BEFORE practice allocation; the remaining
+// 85 % is rebalanced across Production lessons / HF / ET (intervals +
+// chord-recognition combined). ET's 15 % splits equally between
+// intervals and chord-recognition when both have content. Modules
+// outside this list (chord-progressions, scales-modes, Repertoire
+// song-practice, S&P drills) are dropped from laptop cards entirely;
+// Repertoire chord-quiz warm-ups are prepended separately and aren't
+// part of this allocation.
+
+export const LAPTOP_TARGET_SHARES = {
+  PRODUCTION_LESSONS: 0.55,
+  HARMONIC_FLUENCY:   0.15,
+  EAR_TRAINING:       0.15,
+  MENTAL_VIZ:         0.08,
+  PRODUCTION_VOCAB:   0.07,
+} as const;
+
+/** Module refs that participate in the laptop practice-time allocator
+ *  (Production / HF / ET). Vocab + mental-viz are separate carve-outs
+ *  applied upstream. */
+export const LAPTOP_PRACTICE_MODULE_SHARES: ReadonlyMap<string, number> = new Map([
+  [PRODUCTION_MODULE_REF, LAPTOP_TARGET_SHARES.PRODUCTION_LESSONS],
+  [HF_MODULE_REF,         LAPTOP_TARGET_SHARES.HARMONIC_FLUENCY],
+  ['intervals',           LAPTOP_TARGET_SHARES.EAR_TRAINING / 2],
+  ['chord-recognition',   LAPTOP_TARGET_SHARES.EAR_TRAINING / 2],
+]);
+
 /** Capability rank per context — a higher-rank context can do
  *  anything a lower-rank context can do plus more. 'full' tops
  *  the ladder (keyboard + device available at once). */

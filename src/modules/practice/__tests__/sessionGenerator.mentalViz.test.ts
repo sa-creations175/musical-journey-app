@@ -19,9 +19,9 @@ import {
   maybeBuildMentalVizBlock,
 } from '../sessionGenerator';
 import {
+  LAPTOP_TARGET_SHARES,
   MENTAL_VIZ_PLANNED_SECONDS,
   MENTAL_VIZ_WEIGHT_FULL,
-  MENTAL_VIZ_WEIGHT_LAPTOP,
   MENTAL_VIZ_WEIGHT_PHONE,
   MIN_VIABLE_PRACTICE_SECONDS,
 } from '../../../lib/sessionAlgorithm/sessionDesign';
@@ -31,6 +31,7 @@ describe('maybeBuildMentalVizBlock — context gating', () => {
     const block = await maybeBuildMentalVizBlock({
       context: 'phone',
       availableSeconds: 30 * 60,
+      sessionSecondsTotal: 30 * 60,
     });
     expect(block).not.toBeNull();
     expect(block!.plannedSeconds).toBe(
@@ -38,14 +39,16 @@ describe('maybeBuildMentalVizBlock — context gating', () => {
     );
   });
 
-  it('fires on laptop (secondary surface — weight 0.8 × planned)', async () => {
+  it('fires on laptop (share-driven — 8 % of original session length)', async () => {
+    const sessionSecondsTotal = 90 * 60; // 90-min canonical laptop
     const block = await maybeBuildMentalVizBlock({
       context: 'laptop',
-      availableSeconds: 30 * 60,
+      availableSeconds: sessionSecondsTotal,
+      sessionSecondsTotal,
     });
     expect(block).not.toBeNull();
     expect(block!.plannedSeconds).toBe(
-      Math.round(MENTAL_VIZ_PLANNED_SECONDS * MENTAL_VIZ_WEIGHT_LAPTOP),
+      Math.round(sessionSecondsTotal * LAPTOP_TARGET_SHARES.MENTAL_VIZ),
     );
   });
 
@@ -53,6 +56,7 @@ describe('maybeBuildMentalVizBlock — context gating', () => {
     const block = await maybeBuildMentalVizBlock({
       context: 'full',
       availableSeconds: 60 * 60,
+      sessionSecondsTotal: 60 * 60,
     });
     expect(block).not.toBeNull();
     expect(block!.plannedSeconds).toBe(
@@ -64,6 +68,7 @@ describe('maybeBuildMentalVizBlock — context gating', () => {
     const block = await maybeBuildMentalVizBlock({
       context: 'keys',
       availableSeconds: 30 * 60,
+      sessionSecondsTotal: 30 * 60,
     });
     expect(block).toBeNull();
   });
@@ -75,6 +80,7 @@ describe('maybeBuildMentalVizBlock — context gating', () => {
     const block = await maybeBuildMentalVizBlock({
       context: 'phone',
       availableSeconds: tightSeconds,
+      sessionSecondsTotal: tightSeconds,
     });
     expect(block).toBeNull();
   });
