@@ -370,3 +370,131 @@ describe('loadGoalForEdit — Practice Consistency', () => {
     expect(prefill.target.daysPerWeek).toBe(5);
   });
 });
+
+describe('fetchUmbrellaAndChildren — scope-isolated sibling fetch', () => {
+  // Regression: yearly anchors are isUmbrella:true and a single-target
+  // monthly goal sits directly under the anchor (no monthly umbrella
+  // exists). Without scope-filtering, a monthly edit would walk up to
+  // the anchor and pull yearly siblings into the edit pool —
+  // persistSuggestionGoal would then match new monthly records against
+  // yearly siblings by slice kind (scope-agnostic) and corrupt the
+  // yearly goals while leaving the actual monthly children duplicated.
+
+  it('single-target monthly under yearly anchor: only the monthly child surfaces, anchor is NOT the umbrella', async () => {
+    const anchor = mkGoal({
+      id: 'anchor-hf', scope: 'yearly', isUmbrella: true,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const yearlyCov = mkGoal({
+      id: 'yearly-cov', scope: 'yearly', parentGoalId: anchor.id,
+      targetMetric: COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY,
+      targetValue: 200, targetUnit: 'items',
+      relatedModules: ['harmonic-fluency'],
+    });
+    const yearlyAcc = mkGoal({
+      id: 'yearly-acc', scope: 'yearly', parentGoalId: anchor.id,
+      targetMetric: 'harmonic_fluency_accuracy_overall',
+      targetValue: 85, targetUnit: null,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const yearlyCons = mkGoal({
+      id: 'yearly-cons', scope: 'yearly', parentGoalId: anchor.id,
+      targetMetric: 'harmonic_fluency_days_per_cadence',
+      targetValue: 5, targetUnit: 'week',
+      relatedModules: ['harmonic-fluency'],
+    });
+    const monthly = mkGoal({
+      id: 'monthly-cons', scope: 'monthly', parentGoalId: anchor.id,
+      targetMetric: 'harmonic_fluency_days_per_cadence',
+      targetValue: 5, targetUnit: 'week',
+      relatedModules: ['harmonic-fluency'],
+    });
+    await db.goals.bulkPut([anchor, yearlyCov, yearlyAcc, yearlyCons, monthly]);
+
+    const prefill = await loadGoalForEdit(monthly);
+    expect(prefill).not.toBeNull();
+    if (!prefill) return;
+    expect(prefill.umbrellaId).toBeNull();
+    expect(prefill.umbrella).toBeNull();
+    expect(prefill.existingChildren.map(g => g.id).sort()).toEqual(['monthly-cons']);
+  });
+
+  it('multi-target monthly under monthly umbrella: walks to monthly umbrella + returns only monthly siblings', async () => {
+    const anchor = mkGoal({
+      id: 'anchor-hf', scope: 'yearly', isUmbrella: true,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const yearlySibling = mkGoal({
+      id: 'yearly-child', scope: 'yearly', parentGoalId: anchor.id,
+      targetMetric: 'harmonic_fluency_accuracy_overall',
+      targetValue: 85, targetUnit: null,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const monthlyUmbrella = mkGoal({
+      id: 'monthly-umb', scope: 'monthly', isUmbrella: true,
+      parentGoalId: anchor.id,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const cov = mkGoal({
+      id: 'monthly-cov', scope: 'monthly', parentGoalId: monthlyUmbrella.id,
+      targetMetric: COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY,
+      targetValue: 200, targetUnit: 'items',
+      relatedModules: ['harmonic-fluency'],
+    });
+    const acc = mkGoal({
+      id: 'monthly-acc', scope: 'monthly', parentGoalId: monthlyUmbrella.id,
+      targetMetric: 'harmonic_fluency_accuracy_overall',
+      targetValue: 80, targetUnit: null,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const cons = mkGoal({
+      id: 'monthly-cons', scope: 'monthly', parentGoalId: monthlyUmbrella.id,
+      targetMetric: 'harmonic_fluency_days_per_cadence',
+      targetValue: 5, targetUnit: 'week',
+      relatedModules: ['harmonic-fluency'],
+    });
+    await db.goals.bulkPut([anchor, yearlySibling, monthlyUmbrella, cov, acc, cons]);
+
+    // Click accuracy child — should walk to the monthly umbrella (not
+    // the yearly anchor) and pull only the 3 monthly slices.
+    const prefill = await loadGoalForEdit(acc);
+    expect(prefill).not.toBeNull();
+    if (!prefill) return;
+    expect(prefill.umbrellaId).toBe(monthlyUmbrella.id);
+    expect(prefill.existingChildren.map(g => g.id).sort()).toEqual([
+      'monthly-acc', 'monthly-cons', 'monthly-cov',
+    ]);
+  });
+
+  it('umbrella root clicked directly: returns only same-scope children, stowaways excluded', async () => {
+    const anchor = mkGoal({
+      id: 'anchor-hf', scope: 'yearly', isUmbrella: true,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const yearlyA = mkGoal({
+      id: 'yearly-a', scope: 'yearly', parentGoalId: anchor.id,
+      targetMetric: COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY,
+      targetValue: 200, targetUnit: 'items',
+      relatedModules: ['harmonic-fluency'],
+    });
+    const yearlyB = mkGoal({
+      id: 'yearly-b', scope: 'yearly', parentGoalId: anchor.id,
+      targetMetric: 'harmonic_fluency_accuracy_overall',
+      targetValue: 85, targetUnit: null,
+      relatedModules: ['harmonic-fluency'],
+    });
+    const monthlyStowaway = mkGoal({
+      id: 'stowaway', scope: 'monthly', parentGoalId: anchor.id,
+      targetMetric: 'harmonic_fluency_days_per_cadence',
+      targetValue: 5, targetUnit: 'week',
+      relatedModules: ['harmonic-fluency'],
+    });
+    await db.goals.bulkPut([anchor, yearlyA, yearlyB, monthlyStowaway]);
+
+    const prefill = await loadGoalForEdit(anchor);
+    expect(prefill).not.toBeNull();
+    if (!prefill) return;
+    expect(prefill.umbrellaId).toBe(anchor.id);
+    expect(prefill.existingChildren.map(g => g.id).sort()).toEqual(['yearly-a', 'yearly-b']);
+  });
+});

@@ -99,25 +99,44 @@ function moduleFromGoal(goal: Goal): SuggestionFlowModule | null {
  * Walk to the umbrella (if any) and fetch all children. Three shapes
  * are possible:
  *   1. Root is an umbrella → children = goals with parentGoalId === root.id.
- *   2. Root has a parent which is an umbrella → load parent + siblings.
- *   3. Root is a standalone child (parent is the yearly anchor or
- *      null) → children = [root], umbrella = null.
+ *   2. Root has a parent which is an umbrella of the same scope →
+ *      load parent + siblings.
+ *   3. Root is a standalone child (parent is a different-scope
+ *      umbrella, or null) → children = [root], umbrella = null.
+ *
+ * Scope-filtering is critical. Yearly anchors are `isUmbrella: true`
+ * and a single-target monthly goal sits directly under the anchor
+ * (no monthly umbrella between them). Without the scope filter, a
+ * monthly edit would walk up to the yearly anchor and pull yearly
+ * siblings into the edit pool — persistSuggestionGoal would then
+ * match new monthly records against yearly siblings by slice kind
+ * (which is scope-agnostic) and corrupt the yearly goals. Filtering
+ * children to `scope === rootGoal.scope` keeps each scope's edits
+ * isolated even when the rows share a parent.
  */
 async function fetchUmbrellaAndChildren(
   rootGoal: Goal,
 ): Promise<{ umbrella: Goal | null; children: Goal[] }> {
   if (rootGoal.isUmbrella) {
-    const children = await db.goals
+    const all = await db.goals
       .where('parentGoalId').equals(rootGoal.id)
       .toArray();
+    const children = all.filter(g => g.scope === rootGoal.scope);
     return { umbrella: rootGoal, children };
   }
   if (rootGoal.parentGoalId) {
     const parent = await db.goals.get(rootGoal.parentGoalId);
-    if (parent && parent.isUmbrella) {
-      const siblings = await db.goals
+    // Same-scope check: a yearly anchor is NOT the right edit
+    // umbrella for a monthly child even though it's flagged
+    // isUmbrella. Fall through so persistSuggestionGoal treats this
+    // as a single-target edit (umbrella: null, children: [root]),
+    // auto-creating a real monthly umbrella when the user adds more
+    // targets.
+    if (parent && parent.isUmbrella && parent.scope === rootGoal.scope) {
+      const all = await db.goals
         .where('parentGoalId').equals(parent.id)
         .toArray();
+      const siblings = all.filter(g => g.scope === rootGoal.scope);
       return { umbrella: parent, children: siblings };
     }
   }
