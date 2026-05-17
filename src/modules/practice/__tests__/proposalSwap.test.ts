@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DIFFERENT_SUBMODULE_TOP_N,
   applySwap,
+  applySwapWithCascade,
   differentSubmoduleAlternatives,
   moduleRefForSubmodule,
   sameSubmoduleAlternatives,
@@ -85,6 +86,23 @@ describe('submoduleKeyForBlock', () => {
     expect(submoduleKeyForBlock(mkBlock({
       id: 'sp', moduleRef: 'shapes-and-patterns', itemRefs: [],
     }))).toBe('shapes-and-patterns');
+  });
+
+  it('routes Rep scale-prep warm-up to the scales submodule (itemRef prefix wins)', () => {
+    // Scale-prep blocks have moduleRef='repertoire' but their
+    // itemRefs are scale: prefixed. They should swap-pool with the
+    // S&P scales segment, not with other songs.
+    expect(submoduleKeyForBlock(mkBlock({
+      id: 'prep', moduleRef: 'repertoire', isWarmup: true,
+      itemRefs: ['scale:major:C', 'scale:major-pentatonic:1:C'],
+    }))).toBe('shapes-and-patterns:scale');
+  });
+
+  it('routes Rep chord-quiz warm-up to repertoire (songId itemRef, not scale-prefixed)', () => {
+    expect(submoduleKeyForBlock(mkBlock({
+      id: 'quiz', moduleRef: 'repertoire', isWarmup: true,
+      itemRefs: ['song-mirror'],
+    }))).toBe('repertoire');
   });
 });
 
@@ -387,5 +405,215 @@ describe('applySwap', () => {
     });
     expect(out).toEqual(blocks);
     expect(out[0]).toBe(blocks[0]);
+  });
+});
+
+// ---------------------------------------------------------------------
+// applySwap — warm-up preservation
+// ---------------------------------------------------------------------
+
+describe('applySwap on warm-up blocks', () => {
+  it('preserves isWarmup=true on same-submodule chord-quiz swap', () => {
+    const quiz = mkBlock({
+      id: 'quiz', moduleRef: 'repertoire', isWarmup: true,
+      itemRefs: ['song-old'],
+      activityDescription: 'Practice memorizing the chord progression — Old Song',
+    });
+    const out = applySwap([quiz], 'quiz', {
+      kind: 'same-submodule', itemRef: 'song-new', label: 'New Song',
+    });
+    expect(out[0].isWarmup).toBe(true);
+    expect(out[0].itemRefs).toEqual(['song-new']);
+    // Chord-quiz template rebuilt with the new song's title.
+    expect(out[0].activityDescription).toBe(
+      'Practice memorizing the chord progression — New Song',
+    );
+  });
+
+  it('preserves isWarmup=true on same-submodule scale-prep swap (uses raw label)', () => {
+    const prep = mkBlock({
+      id: 'prep', moduleRef: 'repertoire', isWarmup: true,
+      itemRefs: ['scale:major:C', 'scale:major-pentatonic:1:C'],
+      activityDescription: 'SCALES — prep for Old Song · C (major + major pent)',
+    });
+    const out = applySwap([prep], 'prep', {
+      kind: 'same-submodule', itemRef: 'scale:natural-minor:F',
+      label: 'F natural minor scale',
+    });
+    expect(out[0].isWarmup).toBe(true);
+    expect(out[0].itemRefs).toEqual(['scale:natural-minor:F']);
+    // Scale-prep doesn't use a template — the swap-picker label
+    // stands in directly (acceptable per the plan; cascade flow
+    // rebuilds the prep template only when the anchor itself swaps).
+    expect(out[0].activityDescription).toBe('F natural minor scale');
+  });
+
+  it('preserves isWarmup=true on same-submodule S&P scales warm-up swap', () => {
+    const spWarmup = mkBlock({
+      id: 'sp-warmup', moduleRef: 'shapes-and-patterns', isWarmup: true,
+      itemRefs: ['scale:major:C'],
+    });
+    const out = applySwap([spWarmup], 'sp-warmup', {
+      kind: 'same-submodule', itemRef: 'scale:major-pentatonic:5:G',
+      label: 'G major pent from 5',
+    });
+    expect(out[0].isWarmup).toBe(true);
+  });
+
+  it('drops isWarmup on different-submodule swap (existing behaviour)', () => {
+    const quiz = mkBlock({
+      id: 'quiz', moduleRef: 'repertoire', isWarmup: true,
+      itemRefs: ['song-mirror'],
+    });
+    const out = applySwap([quiz], 'quiz', {
+      kind: 'different-submodule', submoduleKey: 'intervals',
+      moduleRef: 'intervals', itemRef: 'P5', label: 'Perfect 5th',
+    });
+    expect(out[0].isWarmup).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------
+// applySwapWithCascade — song-anchor cascade
+// ---------------------------------------------------------------------
+
+describe('applySwapWithCascade', () => {
+  // Layout for these tests: [chord-quiz, scale-prep, song-anchor].
+  // Mirrors the canonical Rep group from groupBlocks.
+  function buildAnchorGroup(songId: string, title: string) {
+    return [
+      mkBlock({
+        id: 'quiz', moduleRef: 'repertoire', isWarmup: true,
+        itemRefs: [songId],
+        activityDescription: `Practice memorizing the chord progression — ${title}`,
+      }),
+      mkBlock({
+        id: 'prep', moduleRef: 'repertoire', isWarmup: true,
+        itemRefs: ['scale:major:C', 'scale:major-pentatonic:1:C'],
+        activityDescription: `SCALES — prep for ${title} · C (major + major pent)`,
+      }),
+      mkBlock({
+        id: 'anchor', moduleRef: 'repertoire', isSongPractice: true,
+        itemRefs: [songId],
+        activityDescription: title,
+      }),
+    ];
+  }
+
+  it('cascade-updates chord-quiz + scale-prep when anchor swaps to another major-key song', () => {
+    const blocks = buildAnchorGroup('song-mirror', 'Mirror');
+    const newSong = mkSong({ id: 'song-newer', title: 'Newer Song', key: 'F' });
+    const songsById = new Map<string, Song>([[newSong.id, newSong]]);
+
+    const out = applySwapWithCascade({
+      blocks, blockId: 'anchor',
+      choice: {
+        kind: 'same-submodule', itemRef: newSong.id, label: newSong.title,
+      },
+      songsById,
+    });
+
+    const quiz = out.find(b => b.id === 'quiz')!;
+    expect(quiz.itemRefs).toEqual(['song-newer']);
+    expect(quiz.activityDescription).toBe(
+      'Practice memorizing the chord progression — Newer Song',
+    );
+
+    const prep = out.find(b => b.id === 'prep')!;
+    expect(prep.itemRefs).toEqual([
+      'scale:major:F',
+      'scale:major-pentatonic:1:F',
+    ]);
+    expect(prep.activityDescription).toBe(
+      'SCALES — prep for Newer Song · F (major + major pent)',
+    );
+
+    const anchor = out.find(b => b.id === 'anchor')!;
+    expect(anchor.itemRefs).toEqual(['song-newer']);
+    expect(anchor.activityDescription).toBe('Newer Song');
+  });
+
+  it('regenerates scale-prep with minor variants when the new song key is minor', () => {
+    const blocks = buildAnchorGroup('song-mirror', 'Mirror');
+    const minorSong = mkSong({
+      id: 'song-min', title: 'Minor Tune', key: 'A minor',
+    });
+    const songsById = new Map<string, Song>([[minorSong.id, minorSong]]);
+
+    const out = applySwapWithCascade({
+      blocks, blockId: 'anchor',
+      choice: {
+        kind: 'same-submodule', itemRef: minorSong.id, label: minorSong.title,
+      },
+      songsById,
+    });
+
+    const prep = out.find(b => b.id === 'prep')!;
+    expect(prep.itemRefs).toEqual([
+      'scale:natural-minor:A',
+      'scale:minor-pentatonic:1:A',
+    ]);
+    expect(prep.activityDescription).toBe(
+      'SCALES — prep for Minor Tune · A (natural minor + minor pent)',
+    );
+  });
+
+  it('strips paired warm-ups when anchor swaps to a non-Repertoire module', () => {
+    const blocks = buildAnchorGroup('song-mirror', 'Mirror');
+    const out = applySwapWithCascade({
+      blocks, blockId: 'anchor',
+      choice: {
+        kind: 'different-submodule', submoduleKey: 'intervals',
+        moduleRef: 'intervals', itemRef: 'P5', label: 'Perfect 5th',
+      },
+      songsById: new Map<string, Song>(),
+    });
+
+    // Warm-ups gone, anchor replaced with the intervals block.
+    expect(out.map(b => b.id)).toEqual(['anchor']);
+    expect(out[0].moduleRef).toBe('intervals');
+    expect(out[0].itemRefs).toEqual(['P5']);
+  });
+
+  it('does NOT cascade when the swapped block is not a song-anchor', () => {
+    const blocks = buildAnchorGroup('song-mirror', 'Mirror');
+    const out = applySwapWithCascade({
+      blocks, blockId: 'quiz',  // swapping the warm-up itself, not the anchor
+      choice: {
+        kind: 'same-submodule', itemRef: 'song-other', label: 'Other Song',
+      },
+      songsById: new Map<string, Song>(),
+    });
+    // Anchor + scale-prep stay untouched; only the chord-quiz changes.
+    const anchor = out.find(b => b.id === 'anchor')!;
+    expect(anchor.itemRefs).toEqual(['song-mirror']);
+    const prep = out.find(b => b.id === 'prep')!;
+    expect(prep.itemRefs).toEqual(['scale:major:C', 'scale:major-pentatonic:1:C']);
+  });
+
+  it('leaves scale-prep unchanged when the new song has no parseable key (defensive)', () => {
+    const blocks = buildAnchorGroup('song-mirror', 'Mirror');
+    const unparseable = mkSong({
+      id: 'song-bad', title: 'Bad Key', key: 'not-a-key',
+    });
+    const songsById = new Map<string, Song>([[unparseable.id, unparseable]]);
+
+    const out = applySwapWithCascade({
+      blocks, blockId: 'anchor',
+      choice: {
+        kind: 'same-submodule', itemRef: unparseable.id, label: unparseable.title,
+      },
+      songsById,
+    });
+
+    // Scale-prep keeps original itemRefs since regeneration failed.
+    const prep = out.find(b => b.id === 'prep')!;
+    expect(prep.itemRefs).toEqual(['scale:major:C', 'scale:major-pentatonic:1:C']);
+    // Chord-quiz still cascades — its template doesn't depend on key.
+    const quiz = out.find(b => b.id === 'quiz')!;
+    expect(quiz.itemRefs).toEqual(['song-bad']);
+    expect(quiz.activityDescription).toBe(
+      'Practice memorizing the chord progression — Bad Key',
+    );
   });
 });

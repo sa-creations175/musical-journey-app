@@ -690,7 +690,7 @@ function scalePrepBlock(
   };
 }
 
-function parseSongKeyForPrep(
+export function parseSongKeyForPrep(
   rawKey: string,
 ): { canonicalKey: string; isMinor: boolean } | null {
   const trimmed = rawKey.trim();

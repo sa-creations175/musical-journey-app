@@ -33,6 +33,8 @@ import { isModuleAllowedForContext } from '../../lib/sessionAlgorithm/contextWei
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { cardById } from '../harmonic-fluency/catalog';
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
+import { itemRefForScale } from '../shapes-and-patterns/scaleSkills';
+import { parseSongKeyForPrep } from './repertoireSplit';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../ear-training/chord-recognition/seed';
 import { PROGRESSIONS } from '../ear-training/chord-progressions/catalog';
@@ -110,20 +112,26 @@ const SP_PREFIX = 'shapes-and-patterns';
 // =====================================================================
 
 /**
- * Granular submodule id for a block. S&P gets a sub-classification by
- * itemRef prefix; every other module returns its moduleRef unchanged.
+ * Granular submodule id for a block. Classification by itemRef prefix
+ * wins ahead of moduleRef branching so scale-prep WARM-UPS (which
+ * sit under moduleRef='repertoire' but hold `scale:*` itemRefs)
+ * land in the same scales-submodule swap pool as the S&P scales
+ * segment itself — per the spec, swapping a scale-prep warm-up
+ * should surface other scale configurations, not other songs.
  *
  * Returns a stable string usable as a map / set key. The format is
  * `moduleRef` OR `moduleRef:subkind` (only used for S&P today; future
  * modules can extend if they need similar splits).
  */
 export function submoduleKeyForBlock(block: ProposalBlock): string {
-  if (block.moduleRef !== SP_PREFIX) return block.moduleRef;
   const first = block.itemRefs[0];
-  if (first?.startsWith('chord-shape:')) return `${SP_PREFIX}:chord-shape`;
+  // Scale-prefix wins regardless of moduleRef — covers both the S&P
+  // scales segment and the Rep scale-prep warm-up.
   if (first?.startsWith('scale:')) return `${SP_PREFIX}:scale`;
+  if (block.moduleRef !== SP_PREFIX) return block.moduleRef;
+  if (first?.startsWith('chord-shape:')) return `${SP_PREFIX}:chord-shape`;
   if (first?.startsWith('vl:')) return `${SP_PREFIX}:vl`;
-  // No itemRefs OR an unknown prefix — fall back to the top-level
+  // No itemRefs OR an unknown S&P prefix — fall back to the top-level
   // moduleRef so the swap picker still surfaces something rather
   // than getting stuck on classification.
   return block.moduleRef;
@@ -451,10 +459,22 @@ export function applySwap(
     if (b.id !== blockId) return b;
 
     if (choice.kind === 'same-submodule') {
+      // Chord-quiz warm-ups carry their identity in the activity
+      // description template — "Practice memorizing the chord
+      // progression — {title}". A bare song-title label after swap
+      // would erase the warm-up's purpose, so rebuild the template
+      // here when the source block is a chord-quiz warm-up.
+      const isChordQuizWarmup =
+        b.isWarmup === true &&
+        b.moduleRef === 'repertoire' &&
+        !b.itemRefs[0]?.startsWith('scale:');
+      const activityDescription = isChordQuizWarmup
+        ? `Practice memorizing the chord progression — ${choice.label}`
+        : choice.label;
       return {
         ...b,
         itemRefs: [choice.itemRef],
-        activityDescription: choice.label,
+        activityDescription,
         whySnippet: 'Swapped — most due in this submodule',
       };
     }
@@ -480,4 +500,138 @@ export function applySwap(
       inSessionDrillKind: undefined,
     };
   });
+}
+
+// =====================================================================
+// Song-anchor swap cascade
+// =====================================================================
+
+/**
+ * Apply a swap AND cascade the result to any paired Repertoire
+ * warm-ups when the swapped block is a song-anchor.
+ *
+ * Three cascade modes:
+ *
+ *   1. Anchor swapped to another song (same-submodule OR
+ *      different-submodule-into-repertoire):
+ *      Each paired warm-up rebuilds against the new song —
+ *      chord-quiz's itemRefs become the new songId + the chord-quiz
+ *      activityDescription template; scale-prep's scale itemRefs
+ *      regenerate from the new song's key (major vs minor variants).
+ *
+ *   2. Anchor swapped to a non-Repertoire module:
+ *      Paired warm-ups are stranded (their chord-quiz / scale-prep
+ *      pertains to a song that's no longer in the session). They
+ *      get removed from the result — mirrors the delete-cascade
+ *      behavior, same rationale.
+ *
+ *   3. Non-anchor block swapped:
+ *      No cascade. Returns the same result as applySwap alone.
+ */
+export function applySwapWithCascade(args: {
+  blocks: ReadonlyArray<ProposalBlock>;
+  blockId: string;
+  choice: SwapChoice;
+  songsById: ReadonlyMap<string, Song>;
+}): ProposalBlock[] {
+  const { blocks, blockId, choice, songsById } = args;
+  const target = blocks.find(b => b.id === blockId);
+  if (!target) return blocks.slice();
+
+  const swapped = applySwap(blocks, blockId, choice);
+
+  // Cascade only fires for song-anchor swaps.
+  if (target.moduleRef !== 'repertoire' || target.isSongPractice !== true) {
+    return swapped;
+  }
+
+  // Walk backward from the anchor to find contiguous Rep warm-ups
+  // (same paired-warm-ups rule as deletionUnit).
+  const anchorIdx = blocks.findIndex(b => b.id === blockId);
+  const pairedWarmupIds: string[] = [];
+  for (let i = anchorIdx - 1; i >= 0; i--) {
+    const prev = blocks[i];
+    if (prev.moduleRef !== 'repertoire' || !prev.isWarmup) break;
+    pairedWarmupIds.unshift(prev.id);
+  }
+  if (pairedWarmupIds.length === 0) return swapped;
+
+  // Determine the new songId (if the swap target is a song).
+  const swappedToSongId =
+    (choice.kind === 'same-submodule' && target.moduleRef === 'repertoire')
+      ? choice.itemRef
+      : (choice.kind === 'different-submodule' && choice.moduleRef === 'repertoire')
+        ? choice.itemRef
+        : null;
+
+  // Mode 2: anchor swapped to non-Repertoire — strip the stranded
+  // warm-ups.
+  if (swappedToSongId === null) {
+    const stripSet = new Set(pairedWarmupIds);
+    return swapped.filter(b => !stripSet.has(b.id));
+  }
+
+  // Mode 1: anchor swapped to a different song — cascade the warm-ups.
+  const newSong = songsById.get(swappedToSongId);
+  if (!newSong) return swapped; // defensive — should always resolve
+
+  const pairedSet = new Set(pairedWarmupIds);
+  return swapped.map(b => {
+    if (!pairedSet.has(b.id)) return b;
+    return updateWarmupForSong(b, newSong);
+  });
+}
+
+/** Mutate a single warm-up to follow a new song anchor. Returns the
+ *  block unchanged when it isn't a recognisable Rep warm-up kind. */
+function updateWarmupForSong(b: ProposalBlock, newSong: Song): ProposalBlock {
+  const first = b.itemRefs[0];
+  const isScalePrep = first?.startsWith('scale:') === true;
+
+  if (isScalePrep) {
+    // Regenerate scale itemRefs for the new song's key. If the new
+    // song has no parseable key, leave the warm-up as-is rather
+    // than crash — defensive against bad data.
+    const prep = scalePrepDataForSong(newSong);
+    if (!prep) return b;
+    return {
+      ...b,
+      itemRefs: prep.scaleItemRefs,
+      activityDescription:
+        `SCALES — prep for ${newSong.title} · ${prep.canonicalKey} (${prep.scaleTypesLabel})`,
+    };
+  }
+
+  // Chord-quiz: itemRefs[0] is the prior song's id; replace with the
+  // new song's id and rebuild the chord-quiz template label.
+  return {
+    ...b,
+    itemRefs: [newSong.id],
+    activityDescription:
+      `Practice memorizing the chord progression — ${newSong.title}`,
+  };
+}
+
+/** Mirror of `scalePrepBlock` from repertoireSplit.ts — returns the
+ *  scale itemRefs + label fragments the cascade needs to rebuild a
+ *  scale-prep warm-up's content for a different song. Returns null
+ *  when the song's key can't be parsed. */
+function scalePrepDataForSong(song: Song):
+  | { scaleItemRefs: string[]; canonicalKey: string; scaleTypesLabel: string }
+  | null {
+  if (!song.key) return null;
+  const parsed = parseSongKeyForPrep(song.key);
+  if (!parsed) return null;
+  const { canonicalKey, isMinor } = parsed;
+  const scaleTypesLabel = isMinor ? 'natural minor + minor pent' : 'major + major pent';
+  const scaleItemRefs = isMinor
+    ? [
+        itemRefForScale({ kind: 'natural-minor', keyName: canonicalKey }),
+        itemRefForScale({ kind: 'minor-pentatonic', keyName: canonicalKey, startingPoint: '1' }),
+      ]
+    : [
+        itemRefForScale({ kind: 'major', keyName: canonicalKey }),
+        itemRefForScale({ kind: 'major-pentatonic', keyName: canonicalKey, startingPoint: '1' }),
+      ];
+  return { scaleItemRefs, canonicalKey, scaleTypesLabel };
 }

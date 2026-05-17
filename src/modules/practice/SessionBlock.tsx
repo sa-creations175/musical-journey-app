@@ -36,12 +36,13 @@ interface Props {
    *  anchor pulls its paired warm-ups via the parent's deletionUnit
    *  helper. */
   onDelete?: (blockId: string) => void;
-  /** When supplied (and the block is NOT a warm-up), a small ⇄ swap
-   *  button appears in the header next to ×. Tapping opens the
-   *  parent's swap picker for this block. Warm-ups don't get a swap
-   *  affordance — they're locked to their anchor; users who want to
-   *  change a warm-up should delete it or swap the song anchor it
-   *  prepares for. */
+  /** When supplied, a small ⇄ swap button appears in the header next
+   *  to ×. Tapping opens the parent's swap picker for this block.
+   *  Warm-ups are swappable too: scale-prep → other scale configs,
+   *  chord-quiz → another song's progression, S&P scales warm-up →
+   *  other scale items. The shared classifier in proposalSwap routes
+   *  scale-prefixed warm-ups to the scales swap pool regardless of
+   *  the block's moduleRef. */
   onSwap?: (blockId: string) => void;
 }
 
@@ -216,7 +217,7 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
         <div className="shrink-0 font-mono tabular-nums text-xs sm:text-sm text-neutral-700 dark:text-neutral-200">
           {formatActiveTime(block.plannedSeconds * 1000)}
         </div>
-        {onSwap && !block.isWarmup && (
+        {onSwap && (
           <span
             role="button"
             tabIndex={0}

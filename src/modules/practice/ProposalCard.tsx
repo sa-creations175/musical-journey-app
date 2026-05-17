@@ -26,7 +26,7 @@ import {
   redistributeProportionally,
 } from './proposalRedistribute';
 import {
-  applySwap,
+  applySwapWithCascade,
   differentSubmoduleAlternatives,
   sameSubmoduleAlternatives,
   type DifferentSubmoduleOption,
@@ -118,11 +118,16 @@ export default function ProposalCard({
   // loads the panel shows a brief placeholder.
   const [swapBlockId, setSwapBlockId] = useState<string | null>(null);
   const [swapAlternatives, setSwapAlternatives] = useState<SwapAlternatives | null>(null);
+  // Songs snapshot loaded alongside swapAlternatives, retained so
+  // applySwapWithCascade has the new song's title + key to rebuild
+  // paired warm-ups when the user swaps a song-anchor.
+  const [swapSongsById, setSwapSongsById] = useState<ReadonlyMap<string, Song> | null>(null);
   useEffect(() => {
     setOrderedBlocks(data.blocks);
     setPendingPrompts([]);
     setSwapBlockId(null);
     setSwapAlternatives(null);
+    setSwapSongsById(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockIdSignature]);
 
@@ -132,6 +137,7 @@ export default function ProposalCard({
   useEffect(() => {
     if (swapBlockId === null) {
       setSwapAlternatives(null);
+      setSwapSongsById(null);
       return;
     }
     let cancelled = false;
@@ -152,6 +158,7 @@ export default function ProposalCard({
           block, allBlocks: orderedBlocks, spacingRows, songs, context, now,
         }),
       });
+      setSwapSongsById(new Map(songs.map(s => [s.id, s])));
     })();
     return () => { cancelled = true; };
     // orderedBlocks isn't in deps on purpose — re-running on every
@@ -280,7 +287,14 @@ export default function ProposalCard({
   };
 
   const handleSwapPick = (blockId: string, choice: SwapChoice) => {
-    setOrderedBlocks(prev => applySwap(prev, blockId, choice));
+    // Use applySwapWithCascade so song-anchor swaps update their
+    // paired chord-quiz / scale-prep warm-ups, and song→non-song
+    // swaps strip the now-stranded warm-ups. Falls back to plain
+    // applySwap behaviour for non-anchor blocks (no cascade).
+    const songsById = swapSongsById ?? new Map<string, Song>();
+    setOrderedBlocks(prev =>
+      applySwapWithCascade({ blocks: prev, blockId, choice, songsById }),
+    );
     setSwapBlockId(null);
     // Swap is a structural change — same as delete/reorder, it
     // invalidates any pending committed-undo snapshot from a prior
