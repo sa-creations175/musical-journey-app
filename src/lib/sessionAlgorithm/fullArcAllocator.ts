@@ -36,8 +36,17 @@ export function applyFullArcShares(args: {
     const kbNonWarmup: ProposalBlock[] = [];
     const nonKbNonWarmup: ProposalBlock[] = [];
     for (const block of card.blocks) {
-      if (block.isWarmup) warmups.push(block);
-      else if (block.isKeyboardRequired) kbNonWarmup.push(block);
+      // Explicit boolean checks so an unset (undefined) field doesn't
+      // silently flip a block into the wrong bucket. isWarmup defaults
+      // to false (warm-up status is opt-in). isKeyboardRequired
+      // defaults to TRUE (keyboard is the conservative pick — we'd
+      // rather under-fund the non-keyboard arc than accidentally
+      // drop keyboard content from a card whose blocks don't carry
+      // the flag for any reason).
+      const isWarmup = block.isWarmup === true;
+      const isKeyboardRequired = block.isKeyboardRequired !== false;
+      if (isWarmup) warmups.push(block);
+      else if (isKeyboardRequired) kbNonWarmup.push(block);
       else nonKbNonWarmup.push(block);
     }
 
