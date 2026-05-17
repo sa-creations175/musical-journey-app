@@ -129,19 +129,18 @@ describe('buildFocusedProposal', () => {
 });
 
 describe('generateProposals', () => {
-  it('returns both when there is genuine breadth-vs-depth tension', () => {
+  it('always returns a single balanced proposal — focused is retired in favor of the intent picker', () => {
     const blocks: AlgorithmBlock[] = [
       blk('a', 'shapes-and-patterns', 'procedural', 3.0),
       blk('b', 'intervals', 'declarative', 2.0),
       blk('c', 'harmonic-fluency', 'declarative', 1.5),
     ];
     const ps = generateProposals({ blocks, availableSeconds: 60 * MIN });
-    expect(ps).toHaveLength(2);
+    expect(ps).toHaveLength(1);
     expect(ps[0].kind).toBe('balanced');
-    expect(ps[1].kind).toBe('focused');
   });
 
-  it('collapses to one proposal when balanced and focused are identical', () => {
+  it('single-candidate session also returns one proposal', () => {
     const blocks: AlgorithmBlock[] = [
       blk('only', 'shapes-and-patterns', 'procedural', 3.0),
     ];
@@ -207,61 +206,10 @@ describe('generateProposals — graduated S&P/Repertoire split', () => {
     expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.25));
   });
 
-  it('focused proposal: S&P-only focus on a 90-min session injects Repertoire at 40/60', () => {
-    // The bug: focused proposal picks top-weight S&P, allocateFocused
-    // gives it 100 % of the session, no Rep. Post-fix: the proposal-
-    // layer wrapper sees no Rep block, looks up Rep in the input
-    // pool, injects it at the 40/60 split. Use a 3-module pool so the
-    // focused proposal stays distinct from the balanced one (HF in
-    // balanced but not in focused) and doesn't collapse.
-    const ps = generateProposals({
-      blocks: [
-        sp('sp', 3.0),
-        rep('rep', 1.0),
-        blk('hf', 'harmonic-fluency', 'declarative', 0.5),
-      ],
-      availableSeconds: 90 * MIN,
-    });
-    const focused = ps.find(p => p.kind === 'focused')!;
-    expect(focused).toBeDefined();
-    const spBlk = focused.blocks.find(b => b.moduleRef === 'shapes-and-patterns')!;
-    const repBlk = focused.blocks.find(b => b.moduleRef === 'repertoire')!;
-    expect(spBlk).toBeDefined();
-    expect(repBlk).toBeDefined();
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.40));
-    // Focused proposal: 90 min total, S&P + injected Rep, no HF.
-    expect(focused.totalSeconds).toBe(90 * MIN);
-    expect(focused.blocks.some(b => b.moduleRef === 'harmonic-fluency')).toBe(false);
-  });
-
-  it('focused proposal: S&P-only on a 30-min session injects Rep at 25/75', () => {
-    const ps = generateProposals({
-      blocks: [
-        sp('sp', 3.0),
-        rep('rep', 1.0),
-        blk('hf', 'harmonic-fluency', 'declarative', 0.5),
-      ],
-      availableSeconds: 30 * MIN,
-    });
-    const focused = ps.find(p => p.kind === 'focused');
-    if (!focused) return; // Short sessions may collapse — covered by other tests.
-    const spBlk = focused.blocks.find(b => b.moduleRef === 'shapes-and-patterns');
-    const repBlk = focused.blocks.find(b => b.moduleRef === 'repertoire');
-    if (!spBlk || !repBlk) return;
-    const combined = spBlk.plannedSeconds + repBlk.plannedSeconds;
-    expect(spBlk.plannedSeconds).toBe(Math.round(combined * 0.25));
-  });
-
-  it('no Repertoire AlgorithmBlock in the pool: focused S&P stays S&P-only (nothing to inject)', () => {
-    const ps = generateProposals({
-      blocks: [sp('sp', 3.0)],
-      availableSeconds: 60 * MIN,
-    });
-    const focused = ps[0];
-    expect(focused).toBeDefined();
-    expect(focused.blocks.every(b => b.moduleRef === 'shapes-and-patterns')).toBe(true);
-  });
+  // Focused-proposal split assertions retired alongside the focused
+  // proposal itself — see the generateProposals doc-comment in
+  // proposal.ts. The buildFocusedProposal helper still has unit
+  // coverage above for callers that invoke it directly (tests only).
 
   it('single-block: S&P-only session with no Repertoire candidate gets full time on S&P', () => {
     const ps = generateProposals({

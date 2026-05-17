@@ -93,9 +93,12 @@ export interface GenerateProposalsInput {
 // ---------------------------------------------------------------------
 
 /**
- * Returns one or two proposals. Two when there's genuine tension
- * between breadth and depth; one when the proposals would carry the
- * same block set (single candidate, very short session).
+ * Returns a single balanced proposal. The Flexible Session Proposal
+ * redesign moved depth-vs-breadth from the implicit balanced/focused
+ * two-card model to the explicit intent picker (balanced /
+ * lean_to_goals / push_on_item), which reshapes the single proposal.
+ * `buildFocusedProposal` stays exported for now so existing tests
+ * keep compiling, but it no longer ships in user-facing proposals.
  */
 export function generateProposals(input: GenerateProposalsInput): Proposal[] {
   const balancedRaw = buildBalancedProposal(
@@ -105,39 +108,18 @@ export function generateProposals(input: GenerateProposalsInput): Proposal[] {
     input.paceByBlock,
     input.context,
   );
-  const focusedRaw = buildFocusedProposal(
+  if (!balancedRaw) return [];
+  // SESSION_DESIGN.md: the graduated S&P/Repertoire split is a
+  // session-wide hard constraint applied at the proposal layer so the
+  // allocator can't produce an SP-only or Rep-only card that violates
+  // the table.
+  const balanced = ensureGraduatedSPRepBalance(
+    balancedRaw,
     input.blocks,
     input.availableSeconds,
-    input.blockTimeNeeds,
-    input.paceByBlock,
     input.context,
   );
-
-  // SESSION_DESIGN.md: the graduated S&P/Repertoire split is a
-  // session-wide hard constraint. Both balanced and focused
-  // proposals run through the same enforcement point so neither
-  // allocator can produce an SP-only or Rep-only proposal that
-  // violates the table.
-  const balanced = balancedRaw
-    ? ensureGraduatedSPRepBalance(balancedRaw, input.blocks, input.availableSeconds, input.context)
-    : null;
-  const focused = focusedRaw
-    ? ensureGraduatedSPRepBalance(focusedRaw, input.blocks, input.availableSeconds, input.context)
-    : null;
-
-  if (!balanced && !focused) return [];
-  if (!balanced) return [focused!];
-  if (!focused) return [balanced];
-
-  // Collapse when both end up with the same single block.
-  if (
-    balanced.blocks.length === focused.blocks.length &&
-    balanced.blocks.every((b, i) => b.id === focused.blocks[i].id)
-  ) {
-    return [balanced];
-  }
-
-  return [balanced, focused];
+  return [balanced];
 }
 
 /**
