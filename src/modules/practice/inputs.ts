@@ -27,10 +27,26 @@ export type DayPlanChoice =
   | { kind: 'first_of_multiple'; profile: DayProfileChoice }
   | { kind: 'continuing_today' };
 
+/**
+ * Deep-focus intent — formerly carried a single `itemRef`. Reworked
+ * to carry a `moduleRef` (the module / S&P submodule key the user
+ * wants to focus on) and an optional `songId` (only meaningful at
+ * 60+ min sessions per the flexible-proposal Step 4 spec).
+ *
+ *   moduleRef     — required when push_on_item; either a top-level
+ *                   moduleRef ('harmonic-fluency' / 'intervals' /
+ *                   'repertoire' / etc.) or an S&P submodule key
+ *                   ('shapes-and-patterns:chord-shape' / ':scale' /
+ *                   ':vl'). Same id space used by proposalSwap.
+ *   songId        — optional. When set + session length ≥
+ *                   DEEP_FOCUS_TWO_THING_MIN_MINUTES, the proposal
+ *                   carves DEEP_FOCUS_SONG_SPLIT of the available
+ *                   time for a dedicated song-anchor block.
+ */
 export type IntentChoice =
   | { kind: 'balanced' }
   | { kind: 'lean_to_goals' }
-  | { kind: 'push_on_item'; itemRef: string | null };
+  | { kind: 'push_on_item'; moduleRef: string | null; songId: string | null };
 
 export interface EnergyChoice {
   focus: number | null;
@@ -87,14 +103,15 @@ export function dayPlanForAlgorithm(
 /**
  * True when every required field is set. Energy is skippable; Time +
  * Context + DayPlan + Intent are required to enable Generate. For
- * 'push_on_item' intent the itemRef must also be picked.
+ * 'push_on_item' intent the moduleRef must also be picked (songId
+ * stays optional regardless).
  */
 export function isDraftComplete(draft: InputQuestionnaireDraft): boolean {
   if (draft.timeMinutes === null) return false;
   if (draft.context === null) return false;
   if (draft.dayPlan === null) return false;
   if (draft.intent === null) return false;
-  if (draft.intent.kind === 'push_on_item' && !draft.intent.itemRef) return false;
+  if (draft.intent.kind === 'push_on_item' && !draft.intent.moduleRef) return false;
   return true;
 }
 

@@ -24,6 +24,7 @@ import {
   type FlashcardState,
   type Goal,
   type PracticeSessionContext,
+  type Song,
   type SpacingState,
 } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
@@ -91,6 +92,7 @@ import {
   type WeeklyPaceResult,
 } from '../../lib/sessionAlgorithm/weeklyPace';
 import {
+  applyDeepFocusAllocation,
   leanFactorByModule,
   leanFactorPerSPSubmodule,
   redistributePlannedSecondsBySubmodule,
@@ -244,6 +246,22 @@ async function loadEtEligibleByModule(
   ]);
 }
 
+/**
+ * Step 4 of Flexible Session Proposal — load the (at most one) song
+ * referenced by a `push_on_item` intent so `applyDeepFocusAllocation`
+ * can build the dedicated song block at 60+ min sessions. Returns an
+ * empty map on any other intent / when the user hasn't picked a song.
+ */
+async function loadDeepFocusSongsById(
+  intent: InputQuestionnaireResult['intent'],
+): Promise<ReadonlyMap<string, Song>> {
+  if (intent.kind !== 'push_on_item') return new Map();
+  if (!intent.songId) return new Map();
+  const song = await db.songs.get(intent.songId);
+  if (!song) return new Map();
+  return new Map([[song.id, song]]);
+}
+
 export async function buildSessionProposals(
   inputs: InputQuestionnaireResult,
 ): Promise<ProposalCardData[]> {
@@ -315,8 +333,15 @@ export async function buildSessionProposals(
     paceByBlock,
     inputs.context,
   );
-  return applyLeanWithinSPSubmodule(cards, {
+  const leanedCards = applyLeanWithinSPSubmodule(cards, {
     goals, spacingRows, intent: inputs.intent, now,
+  });
+  const songsById = await loadDeepFocusSongsById(inputs.intent);
+  return applyDeepFocusAllocation({
+    cards: leanedCards,
+    intent: inputs.intent,
+    timeMinutes: inputs.timeMinutes,
+    songsById,
   });
 }
 
@@ -542,6 +567,13 @@ export async function buildSessionPlan(
   }
   shapedCards = applyLeanWithinSPSubmodule(shapedCards, {
     goals, spacingRows, intent: inputs.intent, now,
+  });
+  const songsById = await loadDeepFocusSongsById(inputs.intent);
+  shapedCards = applyDeepFocusAllocation({
+    cards: shapedCards,
+    intent: inputs.intent,
+    timeMinutes: inputs.timeMinutes,
+    songsById,
   });
   return {
     kind: 'proposals',
@@ -1014,6 +1046,14 @@ export async function buildSessionProposalsForPath(
   const availableSeconds = inputs.timeMinutes * 60;
   const now = Date.now();
   const weeklyPace = await loadWeeklyPace(now);
+  const deepFocusSongsById = await loadDeepFocusSongsById(inputs.intent);
+  const applyDeepFocus = (cards: ProposalCardData[]) =>
+    applyDeepFocusAllocation({
+      cards,
+      intent: inputs.intent,
+      timeMinutes: inputs.timeMinutes,
+      songsById: deepFocusSongsById,
+    });
   // Eligibility set built off the FULL spacingRows snapshot so the
   // "introduced" signal isn't accidentally narrowed by the path
   // filter. Path-filtered + fallback aggregations both consume the
@@ -1054,9 +1094,9 @@ export async function buildSessionProposalsForPath(
       undefined,
       inputs.context,
     );
-    return applyLeanWithinSPSubmodule(cards, {
+    return applyDeepFocus(applyLeanWithinSPSubmodule(cards, {
       goals, spacingRows, intent: inputs.intent, now,
-    });
+    }));
   }
 
   // Fallback — shuffle the full pool so we still introduce fresh
@@ -1089,9 +1129,9 @@ export async function buildSessionProposalsForPath(
     undefined,
     inputs.context,
   );
-  return applyLeanWithinSPSubmodule(fallbackCards, {
+  return applyDeepFocus(applyLeanWithinSPSubmodule(fallbackCards, {
     goals, spacingRows, intent: inputs.intent, now,
-  });
+  }));
 }
 
 export function filterSpacingRowsByPath(

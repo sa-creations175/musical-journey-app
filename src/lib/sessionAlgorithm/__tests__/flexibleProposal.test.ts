@@ -358,3 +358,296 @@ describe('redistributePlannedSecondsBySubmodule', () => {
     expect(redistributePlannedSecondsBySubmodule(blocks, lean)).toEqual(blocks);
   });
 });
+
+// =====================================================================
+// Deep-focus helpers
+// =====================================================================
+
+import {
+  DEEP_FOCUS_SONG_SPLIT,
+  DEEP_FOCUS_TWO_THING_MIN_MINUTES,
+  applyDeepFocusAllocation,
+  deepFocusModuleOptions,
+  shouldOfferDeepFocusSong,
+} from '../flexibleProposal';
+import type { ProposalCardData } from '../../../modules/practice/proposalTypes';
+import type { Song } from '../../db';
+
+function mkCard(blocks: ProposalBlock[]): ProposalCardData {
+  return {
+    kind: 'balanced',
+    title: 'Test card',
+    blocks,
+    totalSeconds: blocks.reduce((s, b) => s + b.plannedSeconds, 0),
+  };
+}
+
+function mkSong(p: Partial<Song> & { id: string; title: string }): Song {
+  return {
+    artist: 'Test artist',
+    learningOrder: 1,
+    audioLinks: [],
+    addedDate: NOW,
+    ...p,
+  } as Song;
+}
+
+const PUSH = (moduleRef: string | null, songId: string | null = null): IntentChoice =>
+  ({ kind: 'push_on_item', moduleRef, songId });
+
+describe('shouldOfferDeepFocusSong', () => {
+  it('true at or above the 60-min threshold', () => {
+    expect(shouldOfferDeepFocusSong(60)).toBe(true);
+    expect(shouldOfferDeepFocusSong(90)).toBe(true);
+  });
+  it('false below 60 min', () => {
+    expect(shouldOfferDeepFocusSong(45)).toBe(false);
+    expect(shouldOfferDeepFocusSong(0)).toBe(false);
+  });
+  it('exports the canonical constant', () => {
+    expect(DEEP_FOCUS_TWO_THING_MIN_MINUTES).toBe(60);
+    expect(DEEP_FOCUS_SONG_SPLIT).toBe(0.25);
+  });
+});
+
+describe('deepFocusModuleOptions', () => {
+  const emptyPace: WeeklyPaceResult = {
+    factorByModule: new Map(),
+    bandByModule: new Map(),
+    notices: [],
+  };
+
+  it('keys context: S&P submodules (3) + Repertoire only', () => {
+    const opts = deepFocusModuleOptions({
+      context: 'keys', weeklyPace: emptyPace,
+      goals: [], spacingRows: [], now: NOW,
+    });
+    const keys = opts.map(o => o.key).sort();
+    expect(keys).toEqual([
+      'repertoire',
+      'shapes-and-patterns:chord-shape',
+      'shapes-and-patterns:scale',
+      'shapes-and-patterns:vl',
+    ]);
+  });
+
+  it('laptop context: top-level modules excluding S&P (S&P filtered out)', () => {
+    const opts = deepFocusModuleOptions({
+      context: 'laptop', weeklyPace: emptyPace,
+      goals: [], spacingRows: [], now: NOW,
+    });
+    expect(opts.some(o => o.key.startsWith('shapes-and-patterns'))).toBe(false);
+    expect(opts.some(o => o.key === 'harmonic-fluency')).toBe(true);
+    expect(opts.some(o => o.key === 'production')).toBe(true);
+  });
+
+  it('full context: all top-level + 3 S&P submodules', () => {
+    const opts = deepFocusModuleOptions({
+      context: 'full', weeklyPace: emptyPace,
+      goals: [], spacingRows: [], now: NOW,
+    });
+    const keys = opts.map(o => o.key);
+    expect(keys).toContain('shapes-and-patterns:chord-shape');
+    expect(keys).toContain('shapes-and-patterns:vl');
+    expect(keys).toContain('harmonic-fluency');
+    expect(keys).toContain('production');
+  });
+
+  it('sorts behind-pace modules first', () => {
+    const pace: WeeklyPaceResult = {
+      factorByModule: new Map(),
+      bandByModule: new Map([
+        ['harmonic-fluency', 'well-ahead'],
+        ['intervals', 'significantly-behind'],
+        ['production', 'behind'],
+      ]),
+      notices: [],
+    };
+    const opts = deepFocusModuleOptions({
+      context: 'full', weeklyPace: pace,
+      goals: [], spacingRows: [], now: NOW,
+    });
+    const banded = opts.filter(o => o.band !== null).map(o => ({ k: o.key, b: o.band }));
+    expect(banded[0].k).toBe('intervals'); // significantly-behind first
+    expect(banded[1].k).toBe('production'); // behind next
+    // well-ahead lands AFTER bandless entries... actually well-ahead
+    // ranks 4, null ranks 5. So well-ahead comes BEFORE bandless.
+    // Just check well-ahead isn't first.
+    expect(opts.findIndex(o => o.key === 'harmonic-fluency'))
+      .toBeGreaterThan(opts.findIndex(o => o.key === 'intervals'));
+  });
+});
+
+describe('applyDeepFocusAllocation', () => {
+  it('no-op on non-push intents', () => {
+    const card = mkCard([
+      mkBlock({ id: 'a', moduleRef: 'harmonic-fluency', plannedSeconds: 600 }),
+      mkBlock({ id: 'b', moduleRef: 'intervals', plannedSeconds: 600 }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: { kind: 'balanced' },
+      timeMinutes: 30, songsById: new Map(),
+    });
+    expect(out).toEqual([card]);
+  });
+
+  it('no-op when moduleRef is null', () => {
+    const card = mkCard([
+      mkBlock({ id: 'a', moduleRef: 'harmonic-fluency', plannedSeconds: 600 }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH(null),
+      timeMinutes: 30, songsById: new Map(),
+    });
+    expect(out).toEqual([card]);
+  });
+
+  it('filters to the chosen top-level module + rescales to full session time', () => {
+    const card = mkCard([
+      mkBlock({ id: 'hf', moduleRef: 'harmonic-fluency', plannedSeconds: 600 }),
+      mkBlock({ id: 'et', moduleRef: 'intervals', plannedSeconds: 400 }),
+      mkBlock({ id: 'pr', moduleRef: 'production', plannedSeconds: 200 }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('harmonic-fluency'),
+      timeMinutes: 20, songsById: new Map(),
+    });
+    expect(out[0].blocks.map(b => b.id)).toEqual(['hf']);
+    // Original total 1200s → all goes to HF.
+    expect(out[0].blocks[0].plannedSeconds).toBe(1200);
+    expect(out[0].totalSeconds).toBe(1200);
+  });
+
+  it('filters to S&P submodule + keeps S&P scales warm-up segment', () => {
+    const card = mkCard([
+      mkBlock({
+        id: 'sp-warmup', moduleRef: 'shapes-and-patterns', isWarmup: true,
+        itemRefs: ['scale:major:C', 'scale:major-pentatonic:1:C'],
+        plannedSeconds: 300,
+      }),
+      mkBlock({
+        id: 'shapes', moduleRef: 'shapes-and-patterns',
+        itemRefs: ['chord-shape:maj:C:root'], plannedSeconds: 600,
+      }),
+      mkBlock({
+        id: 'vl', moduleRef: 'shapes-and-patterns',
+        itemRefs: ['vl:diatonic-cycle:pos1:C'], plannedSeconds: 300,
+      }),
+      mkBlock({
+        id: 'rep', moduleRef: 'repertoire', isSongPractice: true,
+        itemRefs: ['song-x'], plannedSeconds: 1800,
+      }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('shapes-and-patterns:chord-shape'),
+      timeMinutes: 50, songsById: new Map(),
+    });
+    // Keep: S&P scales warm-up + chord-shape block. Drop: VL, Rep.
+    expect(out[0].blocks.map(b => b.id).sort()).toEqual(['shapes', 'sp-warmup']);
+    // Total preserved: 300 + 600 + 300 + 1800 = 3000s. Warm-up stays
+    // at 300. Non-warm-up (chord-shape) gets remainder = 2700s.
+    expect(out[0].blocks.find(b => b.id === 'sp-warmup')!.plannedSeconds).toBe(300);
+    expect(out[0].blocks.find(b => b.id === 'shapes')!.plannedSeconds).toBe(2700);
+    expect(out[0].totalSeconds).toBe(3000);
+  });
+
+  it('S&P submodule pick: VL focus drops chord-shape AND scales-walk peers but keeps S&P scales warm-up', () => {
+    const card = mkCard([
+      mkBlock({
+        id: 'sp-warmup', moduleRef: 'shapes-and-patterns', isWarmup: true,
+        itemRefs: ['scale:major:C'], plannedSeconds: 300,
+      }),
+      mkBlock({
+        id: 'cs', moduleRef: 'shapes-and-patterns',
+        itemRefs: ['chord-shape:maj:C:root'], plannedSeconds: 600,
+      }),
+      mkBlock({
+        id: 'vl', moduleRef: 'shapes-and-patterns',
+        itemRefs: ['vl:diatonic-cycle:pos1:C'], plannedSeconds: 300,
+      }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('shapes-and-patterns:vl'),
+      timeMinutes: 30, songsById: new Map(),
+    });
+    expect(out[0].blocks.map(b => b.id).sort()).toEqual(['sp-warmup', 'vl']);
+    expect(out[0].blocks.find(b => b.id === 'vl')!.plannedSeconds).toBe(900); // 1200 - 300 warm-up
+  });
+
+  it('60+ min with songId: 75/25 split between module and song block', () => {
+    const card = mkCard([
+      mkBlock({ id: 'hf', moduleRef: 'harmonic-fluency', plannedSeconds: 3600 }),
+    ]);
+    const song = mkSong({ id: 'song-a', title: 'Mirror' });
+    const songsById = new Map<string, Song>([['song-a', song]]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('harmonic-fluency', 'song-a'),
+      timeMinutes: 60, songsById,
+    });
+    // Total 3600s → song 900s (25%), module 2700s (75%).
+    const songBlock = out[0].blocks.find(b => b.id === 'deep-focus-song-song-a')!;
+    expect(songBlock).toBeDefined();
+    expect(songBlock.moduleRef).toBe('repertoire');
+    expect(songBlock.isSongPractice).toBe(true);
+    expect(songBlock.activityDescription).toBe('Mirror');
+    expect(songBlock.plannedSeconds).toBe(900);
+    const moduleBlock = out[0].blocks.find(b => b.id === 'hf')!;
+    expect(moduleBlock.plannedSeconds).toBe(2700);
+    expect(out[0].totalSeconds).toBe(3600);
+  });
+
+  it('sub-60 min with songId: song is ignored, full time to module', () => {
+    const card = mkCard([
+      mkBlock({ id: 'hf', moduleRef: 'harmonic-fluency', plannedSeconds: 1800 }),
+    ]);
+    const song = mkSong({ id: 'song-a', title: 'Mirror' });
+    const songsById = new Map<string, Song>([['song-a', song]]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('harmonic-fluency', 'song-a'),
+      timeMinutes: 45, songsById,
+    });
+    expect(out[0].blocks.length).toBe(1);
+    expect(out[0].blocks[0].plannedSeconds).toBe(1800);
+  });
+
+  it('chosen module has no blocks: card returns unchanged (honest fallback)', () => {
+    const card = mkCard([
+      mkBlock({ id: 'a', moduleRef: 'harmonic-fluency', plannedSeconds: 600 }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('intervals'),
+      timeMinutes: 30, songsById: new Map(),
+    });
+    expect(out[0]).toBe(card); // returned unchanged
+  });
+
+  it('Repertoire pick: keeps song-anchor + paired chord-quiz / scale-prep warm-ups', () => {
+    const card = mkCard([
+      mkBlock({
+        id: 'quiz', moduleRef: 'repertoire', isWarmup: true,
+        itemRefs: ['song-mirror'], plannedSeconds: 180,
+      }),
+      mkBlock({
+        id: 'prep', moduleRef: 'repertoire', isWarmup: true,
+        itemRefs: ['scale:major:C'], plannedSeconds: 90,
+      }),
+      mkBlock({
+        id: 'song', moduleRef: 'repertoire', isSongPractice: true,
+        itemRefs: ['song-mirror'], plannedSeconds: 1800,
+      }),
+      mkBlock({ id: 'hf', moduleRef: 'harmonic-fluency', plannedSeconds: 600 }),
+    ]);
+    const out = applyDeepFocusAllocation({
+      cards: [card], intent: PUSH('repertoire'),
+      timeMinutes: 45, songsById: new Map(),
+    });
+    expect(out[0].blocks.map(b => b.id).sort())
+      .toEqual(['prep', 'quiz', 'song']);
+    // Warm-ups locked at 180 + 90 = 270; remainder 2400 to song.
+    const sw = out[0].blocks.find(b => b.id === 'quiz')!.plannedSeconds
+             + out[0].blocks.find(b => b.id === 'prep')!.plannedSeconds;
+    expect(sw).toBe(270);
+    expect(out[0].blocks.find(b => b.id === 'song')!.plannedSeconds).toBe(2400);
+    expect(out[0].totalSeconds).toBe(2670);
+  });
+});

@@ -15,7 +15,7 @@
  * tap-through hook.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CUSTOM_TIME_MAX,
@@ -31,6 +31,15 @@ import {
   type InputQuestionnaireResult,
 } from './inputs';
 import { loadPrefill, savePrefill } from './inputsPrefill';
+import {
+  deepFocusModuleOptions,
+  shouldOfferDeepFocusSong,
+  type DeepFocusModuleOption,
+} from '../../lib/sessionAlgorithm/flexibleProposal';
+import type { PaceBand } from '../../lib/sessionAlgorithm/pace';
+import { db, type Goal, type Song, type SpacingState } from '../../lib/db';
+import { loadWeeklyPace } from './sessionGenerator';
+import type { WeeklyPaceResult } from '../../lib/sessionAlgorithm/weeklyPace';
 
 interface Props {
   open: boolean;
@@ -52,14 +61,6 @@ interface Props {
    *  — gates Q3's "Continuing today's plan" option. Step 3d wires
    *  the gate; Step 3g pulls the value from the day's session log. */
   hasEarlierSessionsToday?: boolean;
-  /**
-   * Candidate items the user can pick for "push on a specific item"
-   * intent. Typically the algorithm's currently-acquiring + active-
-   * goal-linked set. Empty list is fine — the picker shows a
-   * graceful empty state and gently steers the user back to another
-   * intent. Wired by the Practice Sessions home in Step 7a.
-   */
-  pushOnItemCandidates?: ReadonlyArray<{ itemRef: string; label: string }>;
 }
 
 export default function InputQuestionnaire({
@@ -69,10 +70,21 @@ export default function InputQuestionnaire({
   initialDayProfile,
   initialTimeMinutes,
   hasEarlierSessionsToday,
-  pushOnItemCandidates,
 }: Props) {
   const [draft, setDraft] = useState<InputQuestionnaireDraft>(EMPTY_DRAFT);
   const panelRef = useRef<HTMLDivElement>(null);
+  // Deep-focus picker source data — loaded once per sheet open.
+  // `deepFocusModuleOptions` is filtered by draft.context inside a
+  // useMemo below so switching Q2 re-derives without re-querying.
+  // `songOptions` is context-independent (db.songs sorted by
+  // learningOrder).
+  const [deepFocusSource, setDeepFocusSource] = useState<{
+    goals: ReadonlyArray<Goal>;
+    spacingRows: ReadonlyArray<SpacingState>;
+    weeklyPace: WeeklyPaceResult;
+    songOptions: ReadonlyArray<{ songId: string; title: string }>;
+    now: number;
+  } | null>(null);
 
   // Reset draft on every open. Order: EMPTY_DRAFT → userPrefs
   // pre-fill (Context + Day plan from last session) → initialDayProfile
@@ -102,6 +114,48 @@ export default function InputQuestionnaire({
       cancelled = true;
     };
   }, [open, initialDayProfile, initialTimeMinutes, hasEarlierSessionsToday]);
+
+  // Load deep-focus picker source data on every open. The picker
+  // only renders inside Q4 (push_on_item), but loading on open keeps
+  // the data ready by the time the user gets to Q4 — typical
+  // questionnaire fills take longer than this query batch.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void (async () => {
+      const now = Date.now();
+      const [goals, spacingRows, weeklyPace, songs] = await Promise.all([
+        db.goals.where('status').equals('active').toArray(),
+        db.spacingState.toArray(),
+        loadWeeklyPace(now),
+        db.songs.orderBy('learningOrder').toArray(),
+      ]);
+      if (cancelled) return;
+      setDeepFocusSource({
+        goals,
+        spacingRows,
+        weeklyPace,
+        songOptions: songs.map((s: Song) => ({ songId: s.id, title: s.title })),
+        now,
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const pushOnItemModuleOptions = useMemo<ReadonlyArray<DeepFocusModuleOption>>(() => {
+    if (!deepFocusSource || !draft.context) return [];
+    return deepFocusModuleOptions({
+      context: draft.context,
+      weeklyPace: deepFocusSource.weeklyPace,
+      goals: deepFocusSource.goals,
+      spacingRows: deepFocusSource.spacingRows,
+      now: deepFocusSource.now,
+    });
+  }, [deepFocusSource, draft.context]);
+
+  const pushOnItemSongOptions = deepFocusSource?.songOptions ?? [];
 
   // Body scroll lock + Escape to close, mirroring the standard Modal.
   useEffect(() => {
@@ -180,7 +234,9 @@ export default function InputQuestionnaire({
           />
           <Q4Intent
             value={draft.intent}
-            candidates={pushOnItemCandidates ?? []}
+            moduleOptions={pushOnItemModuleOptions}
+            songOptions={pushOnItemSongOptions}
+            timeMinutes={draft.timeMinutes}
             onChange={i => setDraft(d => ({ ...d, intent: i }))}
           />
           <Q5Energy
@@ -520,22 +576,44 @@ function IntentInfoTip({ text }: { text: string }) {
 
 function Q4Intent({
   value,
-  candidates,
+  moduleOptions,
+  songOptions,
+  timeMinutes,
   onChange,
 }: {
   value: import('./inputs').IntentChoice | null;
-  candidates: ReadonlyArray<{ itemRef: string; label: string }>;
+  moduleOptions: ReadonlyArray<DeepFocusModuleOption>;
+  songOptions: ReadonlyArray<{ songId: string; title: string }>;
+  timeMinutes: number | null;
   onChange: (i: import('./inputs').IntentChoice) => void;
 }) {
   const isBal = value?.kind === 'balanced';
   const isLean = value?.kind === 'lean_to_goals';
   const isPush = value?.kind === 'push_on_item';
-  const pushedRef = isPush ? value.itemRef : null;
+  const pickedModuleRef = isPush ? value.moduleRef : null;
+  const pickedSongId = isPush ? value.songId : null;
 
   const handlePushClick = () => {
     if (isPush) return;
-    onChange({ kind: 'push_on_item', itemRef: null });
+    onChange({ kind: 'push_on_item', moduleRef: null, songId: null });
   };
+
+  const handlePickModule = (key: string) => {
+    // Switching modules clears any prior song pick — the song step
+    // is per-deep-focus-pick, not persistent across module changes.
+    onChange({ kind: 'push_on_item', moduleRef: key, songId: null });
+  };
+
+  const handlePickSong = (songId: string | null) => {
+    if (!isPush || pickedModuleRef === null) return;
+    onChange({ kind: 'push_on_item', moduleRef: pickedModuleRef, songId });
+  };
+
+  const songStepVisible =
+    isPush
+    && pickedModuleRef !== null
+    && timeMinutes !== null
+    && shouldOfferDeepFocusSong(timeMinutes);
 
   return (
     <section>
@@ -563,30 +641,118 @@ function Q4Intent({
         </span>
       </div>
       {isPush && (
-        <div className="mt-2">
-          <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
-            Pick an item
+        <div className="mt-2 space-y-2">
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+              Pick a module to focus on
+            </div>
+            {moduleOptions.length === 0 ? (
+              <p className="text-[11px] italic text-neutral-500">
+                No modules available for this context — pick a different context or intent.
+              </p>
+            ) : (
+              <div className="max-h-48 overflow-y-auto pr-1 space-y-1">
+                {moduleOptions.map(opt => (
+                  <ModulePickerRow
+                    key={opt.key}
+                    option={opt}
+                    active={opt.key === pickedModuleRef}
+                    onClick={() => handlePickModule(opt.key)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-          {candidates.length === 0 ? (
-            <p className="text-[11px] italic text-neutral-500">
-              No candidate items available — set a goal first, or pick a different intent.
-            </p>
-          ) : (
-            <div className="max-h-32 overflow-y-auto pr-1 space-y-1">
-              {candidates.map(c => (
-                <button
-                  key={c.itemRef}
-                  onClick={() => onChange({ kind: 'push_on_item', itemRef: c.itemRef })}
-                  className={`w-full text-left ${pill(c.itemRef === pushedRef)}`}
-                >
-                  {c.label}
-                </button>
-              ))}
+          {songStepVisible && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+                Add a song? <span className="text-neutral-400 normal-case">(optional)</span>
+              </div>
+              {songOptions.length === 0 ? (
+                <p className="text-[11px] italic text-neutral-500">
+                  No actively-learning songs yet — add one in Goals.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => handlePickSong(null)}
+                    className={pill(pickedSongId === null)}
+                  >
+                    skip
+                  </button>
+                  {songOptions.map(s => (
+                    <button
+                      key={s.songId}
+                      onClick={() => handlePickSong(s.songId)}
+                      className={pill(s.songId === pickedSongId)}
+                    >
+                      {s.title}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+/** One row in the deep-focus module picker. Shows the module label
+ *  + a urgency pill on the right. Tinted left border in the module
+ *  accent color so the user can scan by module color even with the
+ *  pills collapsed. */
+function ModulePickerRow({
+  option,
+  active,
+  onClick,
+}: {
+  option: DeepFocusModuleOption;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded border text-left ${
+        active
+          ? 'border-fluent bg-fluent/10 text-neutral-900 dark:text-neutral-100'
+          : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:bg-fluent/5'
+      }`}
+      style={{ borderLeftWidth: 3, borderLeftColor: option.accentHex }}
+    >
+      <span className="text-[12px] truncate min-w-0 flex-1">{option.label}</span>
+      <UrgencyPill band={option.band} />
+    </button>
+  );
+}
+
+/** Compact band indicator: ●● red (behind), ●○ amber (at-risk),
+ *  ○ neutral (on track / ahead), nothing when no signal. */
+function UrgencyPill({ band }: { band: PaceBand | null }) {
+  if (band === null) return null;
+  const { label, className } = (() => {
+    switch (band) {
+      case 'significantly-behind':
+        return { label: 'behind', className: 'bg-needswork/15 text-needswork border-needswork/40' };
+      case 'behind':
+        return { label: 'behind', className: 'bg-needswork/10 text-needswork border-needswork/30' };
+      case 'at-risk':
+        return { label: 'slip',   className: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300' };
+      case 'ahead':
+        return { label: 'ok',     className: 'bg-neutral-100 text-neutral-500 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700' };
+      case 'well-ahead':
+        return { label: 'ahead',  className: 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-500 dark:border-neutral-700' };
+    }
+  })();
+  return (
+    <span
+      className={`shrink-0 text-[9px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded border ${className}`}
+    >
+      {label}
+    </span>
   );
 }
 

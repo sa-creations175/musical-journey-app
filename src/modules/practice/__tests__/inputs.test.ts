@@ -40,13 +40,23 @@ describe('isDraftComplete', () => {
     expect(isDraftComplete(complete())).toBe(true);
   });
 
-  it('"push on item" intent requires an itemRef', () => {
+  it('"push on item" intent requires a moduleRef', () => {
     const d = complete();
     expect(
-      isDraftComplete({ ...d, intent: { kind: 'push_on_item', itemRef: null } }),
+      isDraftComplete({ ...d, intent: { kind: 'push_on_item', moduleRef: null, songId: null } }),
     ).toBe(false);
     expect(
-      isDraftComplete({ ...d, intent: { kind: 'push_on_item', itemRef: 'song-x' } }),
+      isDraftComplete({ ...d, intent: { kind: 'push_on_item', moduleRef: 'harmonic-fluency', songId: null } }),
+    ).toBe(true);
+  });
+
+  it('"push on item" with moduleRef + songId is also complete (deep-focus 60+ min)', () => {
+    const d = complete();
+    expect(
+      isDraftComplete({
+        ...d,
+        intent: { kind: 'push_on_item', moduleRef: 'harmonic-fluency', songId: 'song-x' },
+      }),
     ).toBe(true);
   });
 });
