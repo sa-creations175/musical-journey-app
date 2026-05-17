@@ -138,18 +138,20 @@ const SYNTHETIC_MAINT_ID = '__synthetic-repertoire-maintenance__';
  *  "~27m each" — used for standalone HF/ET consistency rows when
  *  there's no sibling coverage to merge into.
  *
- *  When a coverage row has a sibling consistency target (merged via
- *  consistencyInfo on the PlanRow), the time display additionally
- *  carries a `consistencySuffix` string — appended inline to make
- *  the user's full week read as a single line:
- *      "~1h 48m/week · across 4 sessions · ~27 min each"
- *  The standalone consistency row is dropped from the grid after
- *  the merge so the user doesn't see duplicated time estimates. */
+ *  `consistencySuffix` carries the second-line breakdown:
+ *      acrossText: "across 5 days"           — muted in render
+ *      eachText:   "~27m each" / "~45m each" — emphasized
+ *  Two structured pieces (not a single string) so PlanRowView can
+ *  style the per-day/per-session figure distinctly from the cadence
+ *  preamble. Resolved via daysPerWeekForModule, which walks every
+ *  module's consistency row (not just umbrella siblings) so ET subs
+ *  share the ET consistency cadence and Repertoire SotM/maintenance
+ *  share repertoire_days_per_cadence. */
 type RowTimeDisplay =
   | {
       kind: 'time';
       estimate: TimeEstimate;
-      consistencySuffix?: string;
+      consistencySuffix?: { acrossText: string; eachText: string };
       /** Additional muted lines rendered below the consistency
        *  suffix. Used by Repertoire rows to surface the
        *  spotlight / maintenance per-session breakdown so the
@@ -158,6 +160,41 @@ type RowTimeDisplay =
       extraLines?: readonly string[];
     }
   | { kind: 'per-session'; minutesPerSession: number };
+
+/** Module → consistency-metric mapping the per-day breakdown reads
+ *  from. ET subs all share the ET consistency target (one cadence
+ *  goal covers all 4 subs); Repertoire SotM + synthetic maintenance
+ *  share repertoire_days_per_cadence. Production uses lessons-per-
+ *  week which already IS the cadence — no suffix; absent here. */
+const DAYS_METRIC_BY_MODULE: ReadonlyMap<string, string> = new Map([
+  ['harmonic-fluency',     'harmonic_fluency_days_per_cadence'],
+  ['intervals',            'ear_training_days_per_cadence'],
+  ['chord-recognition',    'ear_training_days_per_cadence'],
+  ['chord-progressions',   'ear_training_days_per_cadence'],
+  ['scales-modes',         'ear_training_days_per_cadence'],
+  ['shapes-and-patterns',  'shapes_days_per_cadence'],
+  ['repertoire',           'repertoire_days_per_cadence'],
+  ['practice-consistency', 'practice_days_per_cadence'],
+]);
+
+/** Resolve the user's days/week consistency target for the given
+ *  module by scanning planRows. Returns null when no consistency
+ *  target exists for that module (caller skips the suffix). */
+function daysPerWeekForModule(
+  moduleId: string,
+  rows: ReadonlyArray<PlanRow>,
+): number | null {
+  const metric = DAYS_METRIC_BY_MODULE.get(moduleId);
+  if (!metric) return null;
+  const row = rows.find(r => r.parentMetric === metric);
+  if (!row || row.target <= 0) return null;
+  return row.target;
+}
+
+/** Pluralize "day" / "days" with the count baked in. */
+function daysPhrase(days: number): string {
+  return `${days} day${days === 1 ? '' : 's'}`;
+}
 
 /** Per-module consistency metrics that should fold into a sibling
  *  coverage row when both exist. Includes the new days-based metrics
@@ -645,9 +682,16 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     // per-session maintenance minutes × session count. Inserted by
     // augmentedPlanRows when songCount ≥ 2 and a SotM row exists.
     if (row.kind === 'synthetic-maintenance') {
+      const days = daysPerWeekForModule('repertoire', planRows);
       return {
         kind: 'time',
         estimate: { kind: 'point', minutes: row.target * REPERTOIRE_MAINTENANCE_MINUTES },
+        consistencySuffix: days
+          ? {
+              acrossText: `across ${daysPhrase(days)}`,
+              eachText: `~${REPERTOIRE_MAINTENANCE_MINUTES}m each`,
+            }
+          : undefined,
       };
     }
 
@@ -657,9 +701,16 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     // pre-redesign per-cell-session estimate and produces wildly
     // under-stated totals for SotM sessions.
     if (row.parentMetric === 'song_whole_at_level') {
+      const days = daysPerWeekForModule('repertoire', planRows);
       return {
         kind: 'time',
         estimate: { kind: 'point', minutes: row.target * REPERTOIRE_SPOTLIGHT_MINUTES },
+        consistencySuffix: days
+          ? {
+              acrossText: `across ${daysPhrase(days)}`,
+              eachText: `~${REPERTOIRE_SPOTLIGHT_MINUTES}m each`,
+            }
+          : undefined,
       };
     }
 
@@ -767,23 +818,26 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       } else {
         estimate = getWeeklyTimeEstimate(row.moduleId, row.target);
       }
-      let consistencySuffix: string | undefined;
-      if (
-        row.consistencyInfo
-        && (row.moduleId === 'harmonic-fluency' || row.moduleId === 'ear-training')
-        && row.consistencyInfo.count > 0
-      ) {
-        const minutesPerAttempt = TIME_PER_ATTEMPT_MINUTES[row.moduleId];
-        const attemptsPerUnit = row.target / row.consistencyInfo.count;
-        const minutesPerUnit = attemptsPerUnit * minutesPerAttempt;
-        const unitNoun =
-          row.consistencyInfo.unit === 'days'
-            ? row.consistencyInfo.count === 1 ? 'day' : 'days'
-            : row.consistencyInfo.count === 1 ? 'session' : 'sessions';
-        const cadenceNoun = row.consistencyInfo.cadence === 'month' ? '/month' : '';
-        consistencySuffix =
-          `across ${row.consistencyInfo.count} ${unitNoun}${cadenceNoun} · `
-          + `~${formatMinutes(minutesPerUnit)} each`;
+      // Per-day breakdown: divide the row's total weekly minutes by
+      // the user's days/week consistency target for that module.
+      // Walks every planRow for the matching consistency metric
+      // (DAYS_METRIC_BY_MODULE) — so ET-subs see ET consistency,
+      // S&P sees S&P consistency, etc. Falls back to no suffix when
+      // no consistency target exists. Estimate ranges (lessons-per-
+      // week from getWeeklyTimeEstimate) collapse to midpoint here so
+      // the per-day figure stays a single number.
+      let consistencySuffix: { acrossText: string; eachText: string } | undefined;
+      const days = daysPerWeekForModule(row.moduleId, planRows);
+      if (days) {
+        const totalMinutes =
+          estimate.kind === 'point'
+            ? estimate.minutes
+            : (estimate.minMinutes + estimate.maxMinutes) / 2;
+        const minutesPerDay = totalMinutes / days;
+        consistencySuffix = {
+          acrossText: `across ${daysPhrase(days)}`,
+          eachText: `~${formatMinutes(minutesPerDay)} each`,
+        };
       }
       return { kind: 'time', estimate, consistencySuffix };
     }
@@ -1438,8 +1492,13 @@ function PlanRowView(props: {
               </div>
             )}
             {time.consistencySuffix && (
-              <div className="tabular-nums text-xs text-neutral-500 dark:text-neutral-500 mt-0.5">
-                {time.consistencySuffix}
+              <div className="tabular-nums text-xs mt-0.5">
+                <span className="text-neutral-500 dark:text-neutral-500">
+                  {time.consistencySuffix.acrossText} ·{' '}
+                </span>
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                  {time.consistencySuffix.eachText}
+                </span>
               </div>
             )}
             {time.extraLines && time.extraLines.map((line, idx) => (
