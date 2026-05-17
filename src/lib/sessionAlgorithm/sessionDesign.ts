@@ -273,6 +273,18 @@ export const LAPTOP_TARGET_SHARES = {
   PRODUCTION_VOCAB:   0.07,
 } as const;
 
+// ─── Full-session non-keyboard arc floor ──────────────────────────────────
+//
+// Full sessions ('keys + device' in the SESSION_DESIGN vocabulary)
+// alternate keyboard work first → non-keyboard work second. The
+// goal-driven allocator can under-fund the non-keyboard arc when
+// keyboard candidates dominate by weight — applyFullArcShares enforces
+// a floor: non-keyboard content gets at least this share of card
+// total seconds. Warm-ups are held at their original seconds; the
+// rescale only touches non-warm-up blocks.
+
+export const FULL_NON_KEYBOARD_MIN_SHARE = 0.30;
+
 /** Module refs that participate in the laptop practice-time allocator
  *  (Production / HF / ET). Vocab + mental-viz are separate carve-outs
  *  applied upstream. */

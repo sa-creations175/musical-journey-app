@@ -101,6 +101,7 @@ import {
   applyLaptopBlockOrdering,
   applyLaptopTargetShares,
 } from '../../lib/sessionAlgorithm/laptopAllocator';
+import { applyFullArcShares } from '../../lib/sessionAlgorithm/fullArcAllocator';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
 import {
   loadRepertoireSplitContext,
@@ -351,8 +352,12 @@ export async function buildSessionProposals(
     cards: deepFocusedCards,
     context: inputs.context,
   });
-  return applyLaptopBlockOrdering({
+  const reordered = applyLaptopBlockOrdering({
     cards: laptopShared,
+    context: inputs.context,
+  });
+  return applyFullArcShares({
+    cards: reordered,
     context: inputs.context,
   });
 }
@@ -593,6 +598,10 @@ export async function buildSessionPlan(
     context: inputs.context,
   });
   shapedCards = applyLaptopBlockOrdering({
+    cards: shapedCards,
+    context: inputs.context,
+  });
+  shapedCards = applyFullArcShares({
     cards: shapedCards,
     context: inputs.context,
   });
@@ -1069,13 +1078,16 @@ export async function buildSessionProposalsForPath(
   const weeklyPace = await loadWeeklyPace(now);
   const deepFocusSongsById = await loadDeepFocusSongsById(inputs.intent);
   const applyPostProcesses = (cards: ProposalCardData[]) =>
-    applyLaptopBlockOrdering({
-      cards: applyLaptopTargetShares({
-        cards: applyDeepFocusAllocation({
-          cards,
-          intent: inputs.intent,
-          timeMinutes: inputs.timeMinutes,
-          songsById: deepFocusSongsById,
+    applyFullArcShares({
+      cards: applyLaptopBlockOrdering({
+        cards: applyLaptopTargetShares({
+          cards: applyDeepFocusAllocation({
+            cards,
+            intent: inputs.intent,
+            timeMinutes: inputs.timeMinutes,
+            songsById: deepFocusSongsById,
+          }),
+          context: inputs.context,
         }),
         context: inputs.context,
       }),
