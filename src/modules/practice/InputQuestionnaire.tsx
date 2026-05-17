@@ -659,7 +659,7 @@ function Q4Intent({
                     onClick={() => handlePickSong(null)}
                     className={pill(pickedSongId === null)}
                   >
-                    skip
+                    Skip
                   </button>
                   {songOptions.map(s => (
                     <button

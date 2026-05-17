@@ -433,10 +433,26 @@ export function deepFocusModuleOptions(args: {
   const topLevelEntries: DeepFocusModuleOption[] = [];
   for (const moduleRef of topLevelCandidates) {
     if (!isModuleAllowedForContext(moduleRef, context)) continue;
+    // Picker-specific filter: a deep-focus pick allocates the whole
+    // session to one module, so its core surface must be doable in
+    // the context. Repertoire passes the global filter on laptop/
+    // phone because chord-quiz warm-ups (not KB-required) surface
+    // there — but its CORE surface (song-practice) IS KB-required,
+    // so picking it as a deep-focus on laptop/phone would produce a
+    // broken session. S&P is already excluded by the global filter.
+    if (
+      (context === 'laptop' || context === 'phone')
+      && moduleRef === 'repertoire'
+    ) continue;
     const meta = moduleMetaById(moduleRef);
+    // Override the canonical lowercase repertoire label here only —
+    // sits next to the Title Case S&P submodule entries in this picker.
+    const label = moduleRef === 'repertoire'
+      ? 'Song Repertoire'
+      : meta?.label ?? moduleRef;
     topLevelEntries.push({
       key: moduleRef,
-      label: meta?.label ?? moduleRef,
+      label,
       accentHex: meta?.accentHex ?? '#4a9088',
       band: weeklyPace.bandByModule.get(moduleRef) ?? null,
     });

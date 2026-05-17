@@ -431,12 +431,24 @@ describe('deepFocusModuleOptions', () => {
     ]);
   });
 
-  it('laptop context: top-level modules excluding S&P (S&P filtered out)', () => {
+  it('laptop context: top-level modules excluding S&P + Repertoire (both keyboard-required)', () => {
     const opts = deepFocusModuleOptions({
       context: 'laptop', weeklyPace: emptyPace,
       goals: [], spacingRows: [], now: NOW,
     });
     expect(opts.some(o => o.key.startsWith('shapes-and-patterns'))).toBe(false);
+    expect(opts.some(o => o.key === 'repertoire')).toBe(false);
+    expect(opts.some(o => o.key === 'harmonic-fluency')).toBe(true);
+    expect(opts.some(o => o.key === 'production')).toBe(true);
+  });
+
+  it('phone context: top-level modules excluding S&P + Repertoire (both keyboard-required)', () => {
+    const opts = deepFocusModuleOptions({
+      context: 'phone', weeklyPace: emptyPace,
+      goals: [], spacingRows: [], now: NOW,
+    });
+    expect(opts.some(o => o.key.startsWith('shapes-and-patterns'))).toBe(false);
+    expect(opts.some(o => o.key === 'repertoire')).toBe(false);
     expect(opts.some(o => o.key === 'harmonic-fluency')).toBe(true);
     expect(opts.some(o => o.key === 'production')).toBe(true);
   });
