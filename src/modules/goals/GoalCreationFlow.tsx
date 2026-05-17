@@ -2054,9 +2054,9 @@ function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
   if (target.consistencyEnabled) {
     if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
     const verb = parts.length === 0 ? 'Practice ear training' : 'practice';
-    const times = target.consistencyCount === 1 ? 'time' : 'times';
+    const daysWord = target.consistencyCount === 1 ? 'day' : 'days';
     const cadence = target.consistencyCadence;
-    parts.push(`${verb} at least ${target.consistencyCount} ${times} a ${cadence}`);
+    parts.push(`${verb} at least ${target.consistencyCount} ${daysWord} a ${cadence}`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
@@ -2391,8 +2391,8 @@ function previewHarmonicFluencyTarget(target: HarmonicFluencyTarget): string | n
   if (target.consistencyEnabled) {
     if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
     const verb = parts.length === 0 ? 'Practice harmonic fluency' : 'practice';
-    const times = target.consistencyCount === 1 ? 'time' : 'times';
-    parts.push(`${verb} at least ${target.consistencyCount} ${times} a ${target.consistencyCadence}`);
+    const daysWord = target.consistencyCount === 1 ? 'day' : 'days';
+    parts.push(`${verb} at least ${target.consistencyCount} ${daysWord} a ${target.consistencyCadence}`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
@@ -2766,8 +2766,8 @@ function ShapeOptionsForArea({ area }: { area: ShapesActivityArea }) {
  *   proficiency / overall:    "Improve my overall Chord Shape Drills proficiency to Comfortable across all keys"
  *   proficiency / specific:   "Reach Comfortable proficiency level on Major 7 in C"
  *                             "Reach Solid proficiency level on Major scale in all 12 keys"
- *   consistency-only:         "Practice shapes & patterns at least 20 minutes a week"
- *   both:                     "<proficiency> and practice at least 20 minutes a week"
+ *   consistency-only:         "Practice shapes & patterns at least 5 days a week"
+ *   both:                     "<proficiency> and practice at least 5 days a week"
  *
  * Scale shapes get a " scale" suffix in the preview so labels like
  * "Major" / "Natural Minor" read as a complete noun ("Reach … on
@@ -2807,8 +2807,8 @@ function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | nul
   if (target.consistencyEnabled) {
     if (target.consistencyCount < 1) return parts.length > 0 ? parts.join(' and ') : null;
     const verb = parts.length === 0 ? 'Practice shapes & patterns' : 'practice';
-    const minutesWord = target.consistencyCount === 1 ? 'minute' : 'minutes';
-    parts.push(`${verb} at least ${target.consistencyCount} ${minutesWord} a ${target.consistencyCadence}`);
+    const daysWord = target.consistencyCount === 1 ? 'day' : 'days';
+    parts.push(`${verb} at least ${target.consistencyCount} ${daysWord} a ${target.consistencyCadence}`);
   }
   if (parts.length === 0) return null;
   return parts.join(' and ');
