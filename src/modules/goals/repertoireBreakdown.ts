@@ -16,6 +16,16 @@ import { REPERTOIRE_SESSION_DEFAULT_MINUTES } from '../../lib/weeklyAttempts';
  *  3:1 split (SPOTLIGHT_RATIO = 3/4) used by repertoireSplit.ts. */
 export const REPERTOIRE_SPOTLIGHT_SHARE = 3 / 4;
 
+/** Per-session minutes for the spotlight (Song of the Month) slice. */
+export const REPERTOIRE_SPOTLIGHT_MINUTES = Math.round(
+  REPERTOIRE_SESSION_DEFAULT_MINUTES * REPERTOIRE_SPOTLIGHT_SHARE,
+);
+
+/** Per-session minutes for the maintenance rotation slice (remainder
+ *  after spotlight). */
+export const REPERTOIRE_MAINTENANCE_MINUTES =
+  REPERTOIRE_SESSION_DEFAULT_MINUTES - REPERTOIRE_SPOTLIGHT_MINUTES;
+
 /** Returns the per-session breakdown as a short list of display
  *  strings. Maintenance line is included only when
  *  `hasMaintenanceSongs` is true (the gating is the caller's

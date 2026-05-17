@@ -15,7 +15,10 @@ import {
   getShapesCoverageGroup,
   shapesAreaFromUnit,
 } from './shapesCoverageGroups';
-import { buildRepertoireSessionBreakdownLines } from './repertoireBreakdown';
+import {
+  REPERTOIRE_MAINTENANCE_MINUTES,
+  REPERTOIRE_SPOTLIGHT_MINUTES,
+} from './repertoireBreakdown';
 import {
   deriveWeeklyGoals,
   recomputeWeeklyTargetForMonthlyGoal,
@@ -116,7 +119,18 @@ interface PlanRow {
      *  noun ("days" vs "sessions"). */
     unit: 'days' | 'sessions';
   } | null;
+  /** When set, this row is synthetic — not backed by a Goal record.
+   *  Currently used for the Repertoire "Maintenance rotation" row
+   *  that surfaces alongside Song of the Month when the user has
+   *  ≥2 active songs. Synthetic rows render non-editable and are
+   *  filtered out of the save loop. */
+  kind?: 'synthetic-maintenance';
 }
+
+/** Sentinel monthlyGoalId for the synthetic maintenance row — keeps
+ *  setRowTarget / resetRowToSuggested from accidentally matching it
+ *  (real rows always have a non-empty monthlyGoalId). */
+const SYNTHETIC_MAINT_ID = '__synthetic-repertoire-maintenance__';
 
 /** Per-row time display. `time` carries a TimeEstimate to render
  *  "~1h 50m" / "~30 min" the same as before. `per-session`
@@ -396,14 +410,22 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   const [review, setReview] = useState<LastWeekReview | null>(null);
   const [planRows, setPlanRows] = useState<PlanRow[]>([]);
   const [confirmedGoals, setConfirmedGoals] = useState<Goal[]>([]);
+  /** Monthly goal snapshot, indexed by id for spotlight-song lookup
+   *  in the guidance copy. Re-loaded on every modal open. */
+  const [monthliesById, setMonthliesById] = useState<Map<string, Goal>>(() => new Map());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Song-count snapshot for the Repertoire session breakdown.
-   *  ≥2 songs → the user has at least one maintenance candidate
-   *  (one for the spotlight, anything else for maintenance). 0 / 1
-   *  songs → only the spotlight line surfaces. Snapshot is fine
-   *  (modal is re-opened to refresh) — no live-query plumbing. */
-  const [songCount, setSongCount] = useState(0);
+  /** Song catalog snapshot for the Repertoire row plumbing:
+   *    - songCount drives the synthetic maintenance row + guidance
+   *      (≥2 means at least one song beyond the spotlight, i.e. a
+   *      maintenance candidate exists).
+   *    - songsById resolves SotM goal.relatedItems[0] → title for
+   *      the guidance copy.
+   *  Snapshot is fine — modal re-opens refresh state. */
+  const [songsById, setSongsById] = useState<Map<string, { id: string; title: string }>>(
+    () => new Map(),
+  );
+  const songCount = songsById.size;
   /** Phase B — override-divergence prompts, keyed by the confirmed
    *  weekly Goal record's id. Populated mid-week when the live
    *  recompute of a confirmed HF / ET coverage slice disagrees with
@@ -434,12 +456,13 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
           loadLastWeekReview(weekStart),
           loadActiveMonthlyGoals(weekStart),
           loadWeeklyGoalsForWeek(weekStart),
-          db.songs.count(),
+          db.songs.toArray(),
         ]);
         if (cancelled) return;
         setReview(reviewData);
         setConfirmedGoals(alreadySaved);
-        setSongCount(songs);
+        setSongsById(new Map(songs.map(s => [s.id, { id: s.id, title: s.title }])));
+        setMonthliesById(new Map(monthlies.map(m => [m.id, m])));
 
         // Derive suggestions from monthly goals. If already confirmed,
         // we mirror the saved targets into editable rows instead so
@@ -618,6 +641,28 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   function rowTime(row: PlanRow): RowTimeDisplay | null {
     if (row.target <= 0) return null;
 
+    // Synthetic maintenance row — no Goal record; time is the
+    // per-session maintenance minutes × session count. Inserted by
+    // augmentedPlanRows when songCount ≥ 2 and a SotM row exists.
+    if (row.kind === 'synthetic-maintenance') {
+      return {
+        kind: 'time',
+        estimate: { kind: 'point', minutes: row.target * REPERTOIRE_MAINTENANCE_MINUTES },
+      };
+    }
+
+    // Song of the Month — the row IS the spotlight slice. Use the
+    // per-session spotlight minutes from repertoireBreakdown, not
+    // TIME_PER_ATTEMPT_MINUTES.repertoire (~17.5 min) which was the
+    // pre-redesign per-cell-session estimate and produces wildly
+    // under-stated totals for SotM sessions.
+    if (row.parentMetric === 'song_whole_at_level') {
+      return {
+        kind: 'time',
+        estimate: { kind: 'point', minutes: row.target * REPERTOIRE_SPOTLIGHT_MINUTES },
+      };
+    }
+
     // HF / ET consistency — divide sibling coverage attempts by
     // sessions to get attempts-per-session × per-attempt minutes.
     if (row.parentMetric != null && MERGEABLE_CONSISTENCY_METRICS.has(row.parentMetric)) {
@@ -643,19 +688,12 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 
     // Hours-per-cadence consistency rows (legacy
     // production_hours_per_cadence / repertoire_hours_per_cadence):
-    // target IS the weekly hour count. Repertoire additionally
-    // surfaces the per-session split (Song of the Month +
-    // Maintenance) so the user reads the cadence shape, not just
-    // the bulk hours figure.
+    // target IS the weekly hour count. The Repertoire per-session
+    // split (Song of the Month + Maintenance) now lives in dedicated
+    // SotM + synthetic-maintenance rows, so this row just shows
+    // the bulk cadence figure without the extraLines breakdown.
     if (row.unit === 'hours') {
       const estimate: TimeEstimate = { kind: 'point', minutes: row.target * 60 };
-      if (row.parentMetric === 'repertoire_hours_per_cadence' && row.target > 0) {
-        return {
-          kind: 'time',
-          estimate,
-          extraLines: buildRepertoireSessionBreakdownLines(songCount >= 2),
-        };
-      }
       return { kind: 'time', estimate };
     }
 
@@ -689,11 +727,12 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     //     practice-consistency umbrella covers any module.
     if (row.unit === 'days') {
       if (row.parentMetric === 'repertoire_days_per_cadence' && row.target > 0) {
-        const totalMinutes = row.target * REPERTOIRE_SESSION_DEFAULT_MINUTES;
+        // Days row shows pure cadence — the per-session breakdown
+        // (Spotlight + Maintenance) is carried by the SotM +
+        // synthetic-maintenance rows above this one.
         return {
           kind: 'time',
-          estimate: { kind: 'point', minutes: totalMinutes },
-          extraLines: buildRepertoireSessionBreakdownLines(songCount >= 2),
+          estimate: { kind: 'point', minutes: row.target * REPERTOIRE_SESSION_DEFAULT_MINUTES },
         };
       }
       return null;
@@ -748,9 +787,68 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     return null;
   }
 
+  /**
+   * planRows + a synthetic "Maintenance rotation" row injected when
+   * the user has a Song of the Month target AND at least 2 active
+   * songs (i.e. one song beyond the spotlight, so a maintenance
+   * candidate exists). The synthetic row inherits the SotM's
+   * session count so the user sees both spotlight + maintenance
+   * minutes scaling together as they adjust SotM.
+   *
+   * Used for render-side paths (grouping, totalTime, table render).
+   * The save loop keeps using `planRows` directly so synthetic rows
+   * never round-trip to db.goals.
+   */
+  /**
+   * Spotlight song title for the guidance copy — resolved from the
+   * SotM monthly goal's relatedItems[0] via songsById. Null when no
+   * SotM goal exists, or when the referenced song was deleted (the
+   * goal row may still surface but the title gracefully drops out of
+   * the guidance text).
+   */
+  const spotlightSongName = useMemo<string | null>(() => {
+    const sotmRow = planRows.find(r => r.parentMetric === 'song_whole_at_level');
+    if (!sotmRow) return null;
+    // The SotM row carries the goal description (often "Get 'X' to
+    // comfortable…") in parentDescription, but the songId lookup is
+    // more reliable. Fall back to the description if no songId is
+    // resolvable.
+    const songId = monthliesById.get(sotmRow.monthlyGoalId)?.relatedItems[0];
+    if (songId) {
+      const song = songsById.get(songId);
+      if (song) return song.title;
+    }
+    return null;
+  }, [planRows, songsById]);
+
+  const augmentedPlanRows = useMemo<PlanRow[]>(() => {
+    if (songCount < 2) return planRows;
+    const sotmIdx = planRows.findIndex(r => r.parentMetric === 'song_whole_at_level');
+    if (sotmIdx < 0) return planRows;
+    const sotm = planRows[sotmIdx];
+    const maintenance: PlanRow = {
+      moduleId: 'repertoire',
+      monthlyGoalId: SYNTHETIC_MAINT_ID,
+      suggested: sotm.target,
+      target: sotm.target,
+      unit: 'sessions',
+      parentDescription: `Maintenance rotation — ${songCount - 1} song${songCount - 1 === 1 ? '' : 's'}`,
+      parentMetric: null,
+      parentUmbrellaId: null,
+      parentUnit: null,
+      consistencyInfo: null,
+      kind: 'synthetic-maintenance',
+    };
+    return [
+      ...planRows.slice(0, sotmIdx + 1),
+      maintenance,
+      ...planRows.slice(sotmIdx + 1),
+    ];
+  }, [planRows, songCount]);
+
   const totalTime = useMemo<TimeEstimate>(() => {
     const estimates: TimeEstimate[] = [];
-    for (const row of planRows) {
+    for (const row of augmentedPlanRows) {
       const t = rowTime(row);
       if (!t) continue;
       // Per-session rows reframe the same time as their sibling
@@ -760,7 +858,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     }
     if (estimates.length === 0) return { kind: 'point', minutes: 0 };
     return sumTimeEstimates(estimates);
-  }, [planRows]);
+    // rowTime reads from planRows / songCount via closure; the
+    // augmentedPlanRows dep captures both indirectly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [augmentedPlanRows]);
 
   /**
    * Group rows by module so the grid can render a per-module header
@@ -777,7 +878,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   }
   const moduleGroups = useMemo<ModuleGroup[]>(() => {
     const byModule = new Map<GoalFlowModuleId, PlanRow[]>();
-    for (const row of planRows) {
+    for (const row of augmentedPlanRows) {
       const list = byModule.get(row.moduleId);
       if (list) list.push(row);
       else byModule.set(row.moduleId, [row]);
@@ -803,7 +904,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       out.push({ moduleId, rows, combinedTime });
     }
     return out;
-  }, [planRows]);
+    // rowTime reads from planRows / songCount via closure — captured
+    // indirectly by augmentedPlanRows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [augmentedPlanRows]);
 
   const toggleModuleCollapsed = (moduleId: GoalFlowModuleId) => {
     setCollapsedModules(prev => {
@@ -883,6 +987,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       setConfirmedGoals([]);
       // Re-derive from active monthlies.
       const monthlies = await loadActiveMonthlyGoals(weekStart);
+      setMonthliesById(new Map(monthlies.map(m => [m.id, m])));
       const derived = await deriveWeeklyGoals(monthlies, weekStart);
       const rows: PlanRow[] = derived.map(g => {
         const mod = (g.relatedModules[0] as GoalFlowModuleId) ?? 'practice-consistency';
@@ -1033,12 +1138,16 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                               <PlanRowView
                                 row={row}
                                 time={rowTime(row)}
-                                editable={!isConfirmed}
+                                editable={!isConfirmed && row.kind !== 'synthetic-maintenance'}
                                 onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
                                 onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
                               />
                               {isRepertoireRoutineRow(row.parentMetric) && (
-                                <RepertoireGuidanceRow />
+                                <RepertoireGuidanceRow
+                                  songCount={songCount}
+                                  sessionsPerWeek={row.target}
+                                  spotlightSongName={spotlightSongName}
+                                />
                               )}
                             </Fragment>
                           );
@@ -1059,14 +1168,18 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                                 <PlanRowView
                                   row={row}
                                   time={rowTime(row)}
-                                  editable={!isConfirmed}
+                                  editable={!isConfirmed && row.kind !== 'synthetic-maintenance'}
                                   onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
                                   onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
                                   subLabel={subLabelForPlanRow(row) ?? row.parentDescription}
                                   hideModuleHeading
                                 />
                                 {isRepertoireRoutineRow(row.parentMetric) && (
-                                  <RepertoireGuidanceRow />
+                                  <RepertoireGuidanceRow
+                                    songCount={songCount}
+                                    sessionsPerWeek={row.target}
+                                    spotlightSongName={spotlightSongName}
+                                  />
                                 )}
                               </Fragment>
                             ))}
@@ -1343,17 +1456,48 @@ function PlanRowView(props: {
 /**
  * Hint row rendered immediately under any repertoire-routine row
  * (the new `repertoire_days_per_cadence` and the legacy
- * `repertoire_hours_per_cadence`). Explains the recommended split
- * of a ~45 min repertoire session
- * — new-song learning vs. maintenance rotation — and how 6 sessions a
- * week cover 6 of 7 active songs with the spacing system surfacing
- * the most stale as the skip candidate.
+ * `repertoire_hours_per_cadence`). Explains the recommended per-
+ * session split and how the user's actual songCount + session cadence
+ * map onto the coverage-this-week math.
  *
- * Static guidance: doesn't read from the row's target (the math
- * holds at 4.5 h/week — recalibrate if the default ever moves and
- * the inline numbers stop matching the session cadence).
+ * All numbers driven by props — spotlight + maintenance minutes from
+ * the canonical constants, song count + sessions/week from the
+ * caller's plan state. Spotlight song name surfaces when resolvable;
+ * gracefully degraded when the SotM relatedItems[0] points at a
+ * deleted song.
  */
-function RepertoireGuidanceRow() {
+function RepertoireGuidanceRow({
+  songCount,
+  sessionsPerWeek,
+  spotlightSongName,
+}: {
+  songCount: number;
+  sessionsPerWeek: number;
+  spotlightSongName: string | null;
+}) {
+  const coverage = Math.min(songCount, sessionsPerWeek);
+  const songsPhrase = `${songCount} active song${songCount === 1 ? '' : 's'}`;
+  const sessionsPhrase = `${sessionsPerWeek} session${sessionsPerWeek === 1 ? '' : 's'}/week`;
+  const sotmPhrase = spotlightSongName
+    ? `Song of the Month (${spotlightSongName})`
+    : 'Song of the Month';
+  // Coverage clause: depends on songCount vs sessionsPerWeek.
+  //   sessions ≥ songs → "covers all N"
+  //   sessions <  songs → "covers M of N — the spacing system…"
+  //   degenerate (0 songs / 0 sessions) → skip the math clause
+  let coverageClause: string;
+  if (songCount === 0 || sessionsPerWeek === 0) {
+    coverageClause = '';
+  } else if (sessionsPerWeek >= songCount) {
+    coverageClause =
+      ` With ${songsPhrase} and ${sessionsPhrase}, one song per session covers `
+      + `all ${songCount}.`;
+  } else {
+    coverageClause =
+      ` With ${songsPhrase} and ${sessionsPhrase}, one song per session covers `
+      + `${coverage} of ${songCount} — the spacing system surfaces the most stale `
+      + `song as the skip candidate.`;
+  }
   return (
     <tr className="bg-neutral-50/40 dark:bg-neutral-800/20">
       <td
@@ -1363,10 +1507,8 @@ function RepertoireGuidanceRow() {
         <span className="font-medium text-neutral-700 dark:text-neutral-300">
           Suggested session split:
         </span>{' '}
-        ~30 min new-song learning + ~15 min maintenance rotation. With
-        7 active songs and 6 sessions/week, one song per session covers
-        6 of 7 — the spacing system surfaces the most stale song as the
-        skip candidate.
+        ~{REPERTOIRE_SPOTLIGHT_MINUTES} min on {sotmPhrase} +{' '}
+        ~{REPERTOIRE_MAINTENANCE_MINUTES} min maintenance rotation.{coverageClause}
       </td>
     </tr>
   );
