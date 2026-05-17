@@ -88,7 +88,13 @@ import { paceForCoverageGoal } from '../../lib/sessionAlgorithm/pace';
 import {
   computeWeeklyPaceByModule,
   type BehindPaceNotice,
+  type WeeklyPaceResult,
 } from '../../lib/sessionAlgorithm/weeklyPace';
+import {
+  leanFactorByModule,
+  leanFactorPerSPSubmodule,
+  redistributePlannedSecondsBySubmodule,
+} from '../../lib/sessionAlgorithm/flexibleProposal';
 import { isAcquiring } from '../../lib/sessionAlgorithm/acquisitionStage';
 import {
   loadRepertoireSplitContext,
@@ -258,9 +264,15 @@ export async function buildSessionProposals(
     getCarryoverBacklogItemRefs(now),
   ]);
   const phaseBModules = phaseBModulesFromNeeds(moduleWeeklyNeeds);
-  const factorByModule = neutralizePhaseBPaceFactors(
-    weeklyPace.factorByModule, phaseBModules,
-  );
+  // Step 3 of Flexible Session Proposal — when intent is
+  // 'lean_to_goals' on a non-keys session, swap the existing
+  // weeklyPaceFactor for the lean band-mapped multiplier (1.5×
+  // behind / 1.0× on-track / 0.6× ahead). Keys context + non-lean
+  // intents pass through unchanged.
+  const intentFactor = leanFactorByModule({
+    weeklyPace, intent: inputs.intent, context: inputs.context,
+  });
+  const factorByModule = neutralizePhaseBPaceFactors(intentFactor, phaseBModules);
   const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
 
   const moduleBlocks = aggregateGoalCandidatesByModule(
@@ -293,7 +305,7 @@ export async function buildSessionProposals(
     buildBlockBudgetsFromWeeklyNeeds(
       withColdStart, moduleWeeklyNeeds, spacingRows, now,
     );
-  return generateAndShape(
+  const cards = generateAndShape(
     withColdStart,
     inputs.timeMinutes * 60,
     repertoireSplit,
@@ -303,6 +315,9 @@ export async function buildSessionProposals(
     paceByBlock,
     inputs.context,
   );
+  return applyLeanWithinSPSubmodule(cards, {
+    goals, spacingRows, intent: inputs.intent, now,
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -395,9 +410,13 @@ export async function buildSessionPlan(
     getCarryoverBacklogItemRefs(now),
   ]);
   const phaseBModules = phaseBModulesFromNeeds(moduleWeeklyNeeds);
-  const factorByModule = neutralizePhaseBPaceFactors(
-    weeklyPace.factorByModule, phaseBModules,
-  );
+  // Lean-to-goals intent: swap weeklyPaceFactor for lean band-mapped
+  // multiplier (non-keys only). See buildSessionProposals for the
+  // rationale + the matching submodule post-process at the bottom.
+  const intentFactor = leanFactorByModule({
+    weeklyPace, intent: inputs.intent, context: inputs.context,
+  });
+  const factorByModule = neutralizePhaseBPaceFactors(intentFactor, phaseBModules);
   const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
   const aggregated = aggregateGoalCandidatesByModule(
     goals,
@@ -521,6 +540,9 @@ export async function buildSessionPlan(
   if (vocabBlock) {
     shapedCards = shapedCards.map(c => prependVocabBlock(c, vocabBlock));
   }
+  shapedCards = applyLeanWithinSPSubmodule(shapedCards, {
+    goals, spacingRows, intent: inputs.intent, now,
+  });
   return {
     kind: 'proposals',
     cards: shapedCards,
@@ -746,6 +768,36 @@ export function neutralizePhaseBPaceFactors(
   return out;
 }
 
+/**
+ * Post-process for lean-to-goals intent: shift the within-S&P
+ * submodule allocation toward behind-pace submodules without
+ * touching the outer S&P-vs-Repertoire split (which is hard on
+ * keys). No-op on non-lean intents, on cards with < 2 S&P segments,
+ * or when the user has no S&P coverage goals to drive a tilt.
+ *
+ * The module-level lean factor is applied earlier (during
+ * aggregateGoalCandidatesByModule). This handles the second half of
+ * the lean intent: per-submodule redistribution within whatever S&P
+ * bucket the allocator produced.
+ */
+function applyLeanWithinSPSubmodule(
+  cards: ProposalCardData[],
+  args: {
+    goals: ReadonlyArray<Goal>;
+    spacingRows: ReadonlyArray<SpacingState>;
+    intent: import('./inputs').IntentChoice;
+    now: number;
+  },
+): ProposalCardData[] {
+  if (args.intent.kind !== 'lean_to_goals') return cards;
+  const leanBySubmodule = leanFactorPerSPSubmodule(args);
+  if (leanBySubmodule.size === 0) return cards;
+  return cards.map(c => ({
+    ...c,
+    blocks: redistributePlannedSecondsBySubmodule(c.blocks, leanBySubmodule),
+  }));
+}
+
 function generateAndShape(
   moduleBlocks: AlgorithmBlock[],
   availableSeconds: number,
@@ -968,12 +1020,17 @@ export async function buildSessionProposalsForPath(
   // same set.
   const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
 
+  // Lean-to-goals intent: swap weeklyPaceFactor for lean band-mapped
+  // multiplier (non-keys only). See buildSessionProposals for rationale.
+  const intentFactor = leanFactorByModule({
+    weeklyPace, intent: inputs.intent, context: inputs.context,
+  });
   const filteredBlocks = aggregateGoalCandidatesByModule(
     goals,
     shuffledFiltered,
     now,
     inputs.context,
-    weeklyPace.factorByModule,
+    intentFactor,
     undefined,
     etEligibleByModule,
   );
@@ -987,7 +1044,7 @@ export async function buildSessionProposalsForPath(
   if (filteredWithColdStart.length > 0) {
     const filteredItemLabels = resolveShapesDrillLabels(filteredWithColdStart);
     const filteredShapesCtx = await loadShapesSplitContext(spacingRows, now);
-    return generateAndShape(
+    const cards = generateAndShape(
       filteredWithColdStart,
       availableSeconds,
       repertoireSplit,
@@ -997,6 +1054,9 @@ export async function buildSessionProposalsForPath(
       undefined,
       inputs.context,
     );
+    return applyLeanWithinSPSubmodule(cards, {
+      goals, spacingRows, intent: inputs.intent, now,
+    });
   }
 
   // Fallback — shuffle the full pool so we still introduce fresh
@@ -1006,7 +1066,7 @@ export async function buildSessionProposalsForPath(
     shuffleInPlace(spacingRows.slice()),
     now,
     inputs.context,
-    weeklyPace.factorByModule,
+    intentFactor,
     undefined,
     etEligibleByModule,
   );
@@ -1019,7 +1079,7 @@ export async function buildSessionProposalsForPath(
   if (fallbackWithColdStart.length === 0) return [];
   const fallbackItemLabels = resolveShapesDrillLabels(fallbackWithColdStart);
   const fallbackShapesCtx = await loadShapesSplitContext(spacingRows, now);
-  return generateAndShape(
+  const fallbackCards = generateAndShape(
     fallbackWithColdStart,
     availableSeconds,
     repertoireSplit,
@@ -1029,6 +1089,9 @@ export async function buildSessionProposalsForPath(
     undefined,
     inputs.context,
   );
+  return applyLeanWithinSPSubmodule(fallbackCards, {
+    goals, spacingRows, intent: inputs.intent, now,
+  });
 }
 
 export function filterSpacingRowsByPath(
@@ -1123,10 +1186,7 @@ async function loadAttemptsByModule(
  * the Dexie load for weekly Goal records + per-module attempt
  * counts. Pure helpers underneath; this just bridges to storage.
  */
-export async function loadWeeklyPace(now: number = Date.now()): Promise<{
-  factorByModule: Map<string, number>;
-  notices: BehindPaceNotice[];
-}> {
+export async function loadWeeklyPace(now: number = Date.now()): Promise<WeeklyPaceResult> {
   const weekStart = startOfWeekLocal(now);
   const weekEnd = endOfWeekLocal(weekStart);
   const allGoals = await db.goals.toArray();
@@ -1138,7 +1198,7 @@ export async function loadWeeklyPace(now: number = Date.now()): Promise<{
       g.targetDate >= now,
   );
   if (weeklyGoals.length === 0) {
-    return { factorByModule: new Map(), notices: [] };
+    return { factorByModule: new Map(), bandByModule: new Map(), notices: [] };
   }
   const attemptsByModule = await loadAttemptsByModule(weekStart, weekEnd);
   return computeWeeklyPaceByModule({

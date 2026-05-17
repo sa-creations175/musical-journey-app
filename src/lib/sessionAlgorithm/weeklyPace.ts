@@ -71,6 +71,12 @@ export interface WeeklyPaceResult {
    *  ladder, so the magnitudes compose cleanly with the existing
    *  per-goal pace factors in weightForItem. */
   factorByModule: Map<string, number>;
+  /** Per-module pace band — same key set as factorByModule. Exposed
+   *  separately so callers can map the band to their own multiplier
+   *  curve (e.g. the lean-to-goals intent in flexibleProposal.ts
+   *  collapses the 5-band ladder to a 3-tier 0.6/1.0/1.5 set
+   *  without needing to invert factorByModule). */
+  bandByModule: Map<string, PaceBand>;
   /** Modules meeting the stricter behind-pace threshold. Surfaced as
    *  user-facing notices on the proposal screen. */
   notices: BehindPaceNotice[];
@@ -161,6 +167,8 @@ export function computeWeeklyPaceByModule(args: {
   now: number;
 }): WeeklyPaceResult {
   const factorByModule = new Map<string, number>();
+  const bandByModule = new Map<string, PaceBand>();
+  const ratioByModule = new Map<string, number>();
   const noticeByModule = new Map<string, BehindPaceNotice>();
 
   for (const goal of args.weeklyGoals) {
@@ -170,6 +178,16 @@ export function computeWeeklyPaceByModule(args: {
 
     const prev = factorByModule.get(result.moduleId) ?? 1.0;
     factorByModule.set(result.moduleId, Math.max(prev, result.factor));
+
+    // Track per-module band — driven by the WORST (lowest) ratio
+    // across the module's weekly goals so a single behind goal lifts
+    // the whole module out of "ahead." Mirrors the factor's
+    // MAX-wins semantic at the band layer.
+    const prevRatio = ratioByModule.get(result.moduleId);
+    if (prevRatio === undefined || result.ratio < prevRatio) {
+      ratioByModule.set(result.moduleId, result.ratio);
+      bandByModule.set(result.moduleId, result.band);
+    }
 
     if (result.notice) {
       const prevNotice = noticeByModule.get(result.moduleId);
@@ -183,6 +201,7 @@ export function computeWeeklyPaceByModule(args: {
 
   return {
     factorByModule,
+    bandByModule,
     notices: Array.from(noticeByModule.values()),
   };
 }
