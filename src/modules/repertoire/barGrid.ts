@@ -373,65 +373,76 @@ function arrayMove<T>(arr: T[], from: number, to: number): T[] {
 }
 
 /**
- * Swap the chord values at two phrase-beat slots (Lead Sheet
- * Redesign — chord drag step). The slot keys are the
- * `${phraseId}:${beatId}` pairs that identify each chord placement.
+ * Reorder chord placements within the bar grid (Lead Sheet Redesign).
+ * Move/insert semantics: the chord at `fromIndex` is removed from its
+ * position and re-inserted at `toIndex`; every chord in between
+ * shifts to fill the gap and make room. Slot anchors (phrase + beat)
+ * stay put — only which chord lives at each slot changes — so the
+ * chord's own metadata (beats, harmonicTag, quality) is preserved
+ * at its new position.
  *
- * Unlike `reorderChordPlacements` (which does an arrayMove on the
- * full chord-value list and cascades shifts through every slot
- * between), this helper touches only the two slots involved: the
- * chord at `fromSlotKey` and the chord at `toSlotKey` exchange
- * places, leaving every other chord untouched. That matches the
- * "drag chord A into bar 2" mental model — A moves to where B was;
- * B moves to where A was; everything else is unchanged.
- *
- * Returns `null` for no-op swaps (same key, missing keys, or either
- * slot has no chord placement).
+ * Returns `null` for no-op moves (same index, out of range, empty
+ * section).
  */
-export function swapChordPlacements(
+export function reorderChordPlacements(
   section: SongSection,
   activeArrangementId: string,
-  fromSlotKey: string,
-  toSlotKey: string,
+  fromIndex: number,
+  toIndex: number,
 ): Phrase[] | null {
-  if (fromSlotKey === toSlotKey) return null;
+  if (fromIndex === toIndex) return null;
   const phrases = section.phrases ?? [];
   if (phrases.length === 0) return null;
 
-  const parseKey = (key: string): { phraseId: string; beatId: string } | null => {
-    const idx = key.indexOf(':');
-    if (idx < 0) return null;
-    return { phraseId: key.slice(0, idx), beatId: key.slice(idx + 1) };
-  };
-  const from = parseKey(fromSlotKey);
-  const to = parseKey(toSlotKey);
-  if (!from || !to) return null;
-
-  // Look up both chord values up-front so the rewrite below sees a
-  // consistent snapshot (same-phrase swaps would otherwise overwrite
-  // one before reading the other).
-  let fromChord: ChordFunction | undefined;
-  let toChord: ChordFunction | undefined;
+  const slots: Array<{ phraseId: string; beatId: string; chord: ChordFunction }> = [];
   for (const phrase of phrases) {
     const normalised = normalizePhrase(phrase);
     const placements = normalised.chordsByArrangement[activeArrangementId] ?? {};
-    if (phrase.id === from.phraseId) fromChord = placements[from.beatId];
-    if (phrase.id === to.phraseId) toChord = placements[to.beatId];
+    for (const beat of normalised.beats) {
+      const chord = placements[beat.id];
+      if (!chord) continue;
+      const isMeaningful =
+        chord.unparsed ||
+        chord.function !== '' ||
+        chord.quality !== '' ||
+        Boolean(chord.bass);
+      if (!isMeaningful) continue;
+      slots.push({ phraseId: phrase.id, beatId: beat.id, chord });
+    }
   }
-  if (!fromChord || !toChord) return null;
+  if (slots.length === 0) return null;
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= slots.length ||
+    toIndex >= slots.length
+  ) {
+    return null;
+  }
+
+  const chords = slots.map(s => s.chord);
+  const [moved] = chords.splice(fromIndex, 1);
+  chords.splice(toIndex, 0, moved);
+
+  const newBySlot = new Map<string, ChordFunction>();
+  for (let i = 0; i < slots.length; i++) {
+    const key = `${slots[i].phraseId}:${slots[i].beatId}`;
+    newBySlot.set(key, chords[i]);
+  }
 
   return phrases.map(phrase => {
     const normalised = normalizePhrase(phrase);
     const oldPlacements = normalised.chordsByArrangement[activeArrangementId] ?? {};
     let changed = false;
     const nextPlacements: Record<string, ChordFunction> = { ...oldPlacements };
-    if (phrase.id === from.phraseId && nextPlacements[from.beatId]) {
-      nextPlacements[from.beatId] = toChord;
-      changed = true;
-    }
-    if (phrase.id === to.phraseId && nextPlacements[to.beatId]) {
-      nextPlacements[to.beatId] = fromChord;
-      changed = true;
+    for (const beat of normalised.beats) {
+      const key = `${phrase.id}:${beat.id}`;
+      if (!newBySlot.has(key)) continue;
+      const next = newBySlot.get(key)!;
+      if (oldPlacements[beat.id] !== next) {
+        nextPlacements[beat.id] = next;
+        changed = true;
+      }
     }
     if (!changed) return phrase;
     return {

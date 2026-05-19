@@ -40,14 +40,14 @@ import { useNotationMode } from '../../lib/notationPref';
 import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
-import BarGridView from './BarGridView';
+import BarGridView, { DRAG_ID } from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
 import {
   deriveBarGrid,
   effectiveTimeSignature,
   parseTimeSignature,
   reorderBar,
-  swapChordPlacements,
+  reorderChordPlacements,
 } from './barGrid';
 import {
   applyEndMarkerDrag,
@@ -181,14 +181,13 @@ export default function LeadSheetSection({
     await updatePhraseInPlace(next);
   };
 
-  // Bar-grid drag swap. Dropping chord A onto chord B exchanges
-  // their slot positions — A's chord value lands at B's slot and
-  // vice versa; every other chord is untouched. Replaces the older
-  // arrayMove-style reorder, which cascaded shifts across slots
-  // whenever a chord was dropped on a non-adjacent target and made
-  // cross-bar drag feel like chords "disappeared and shifted up".
-  const handleChordSwap = async (fromSlotKey: string, toSlotKey: string) => {
-    const next = swapChordPlacements(section, activeArrangementId, fromSlotKey, toSlotKey);
+  // Bar-grid chord drag — move/insert semantics. Dragging chord A
+  // onto chord B removes A from its current slot and inserts it at
+  // B's position; chords between shift to make room. The chord's
+  // own metadata (beats, harmonicTag, quality) travels with it to
+  // the new slot.
+  const handleChordReorder = async (fromIndex: number, toIndex: number) => {
+    const next = reorderChordPlacements(section, activeArrangementId, fromIndex, toIndex);
     if (!next) return;
     await commit({ phrases: next });
   };
@@ -347,6 +346,10 @@ export default function LeadSheetSection({
   const handleDragEnd = async (event: DragEndEvent) => {
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
+    // [DEBUG step 6 — chord cross-bar drag] Diagnostic logging.
+    // Remove once the chord-drag issue is resolved.
+    // eslint-disable-next-line no-console
+    console.log('[handleDragEnd] active=%s over=%s', activeId, overId);
     if (!overId) return;
 
     // Bar reorder. Both active and over are `bar:` ids.
@@ -359,14 +362,25 @@ export default function LeadSheetSection({
       return;
     }
 
-    // Chord swap: dropping chord A onto chord B exchanges their
-    // slot positions. Each chord id is `chord:phraseId:beatId`;
-    // strip the prefix and pass the slot keys straight through.
+    // Chord drag. Both active and over are `chord:phraseId:beatId` ids.
+    // Compute fromIndex/toIndex from the bar-grid's flat chord list.
     if (activeId.startsWith('chord:') && overId.startsWith('chord:')) {
-      const fromSlotKey = activeId.slice('chord:'.length);
-      const toSlotKey = overId.slice('chord:'.length);
-      if (fromSlotKey === toSlotKey) return;
-      await handleChordSwap(fromSlotKey, toSlotKey);
+      const bars = deriveBarGrid(section, activeArrangementId, beatsPerBar);
+      const ids = bars
+        .flatMap(b => b.cells)
+        .filter(c => !c.tiedFromPrev)
+        .map(c => DRAG_ID.chord(c.phraseId, c.beatId));
+      const fromIndex = ids.indexOf(activeId);
+      const toIndex = ids.indexOf(overId);
+      // eslint-disable-next-line no-console
+      console.log(
+        '[handleDragEnd:chord] fromIndex=%d toIndex=%d ids.length=%d',
+        fromIndex,
+        toIndex,
+        ids.length,
+      );
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+      await handleChordReorder(fromIndex, toIndex);
       return;
     }
 

@@ -5,6 +5,7 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import type { DraggableAttributes } from '@dnd-kit/core';
+import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ChordFunction, LyricLine, Song, SongSection } from '../../lib/db';
 import { chordToDisplay } from './chordFunction';
@@ -116,6 +117,17 @@ export default function BarGridView({
   const bars = useMemo(
     () => deriveBarGrid(section, activeArrangementId, beatsPerBar),
     [section, activeArrangementId, beatsPerBar],
+  );
+
+  // Flat list of chord sortable ids across all bars so cross-bar
+  // drag-to-reorder uses one SortableContext.
+  const chordSortableIds = useMemo(
+    () =>
+      bars
+        .flatMap(b => b.cells)
+        .filter(c => !c.tiedFromPrev)
+        .map(c => DRAG_ID.chord(c.phraseId, c.beatId)),
+    [bars],
   );
 
   // Lines partitioned into pending (start == end == 0) and placed
@@ -291,7 +303,11 @@ export default function BarGridView({
       className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
       <BarGridHeader timeSignature={timeSignature} barCount={bars.length} />
-      {body}
+      {chordsAreSortable ? (
+        <SortableContext items={chordSortableIds}>{body}</SortableContext>
+      ) : (
+        body
+      )}
     </div>
   );
 }
@@ -504,7 +520,7 @@ function BarBox({
           const isLeadingHalf = !cell.tiedFromPrev;
           if (isLeadingHalf && draggable) {
             return (
-              <DraggableChordCell
+              <SortableChordCell
                 key={idx}
                 cell={cell}
                 widthPct={widthPct}
@@ -760,7 +776,7 @@ function WordChip({
   );
 }
 
-function DraggableChordCell({
+function SortableChordCell({
   cell,
   widthPct,
   sectionKey,
@@ -775,31 +791,14 @@ function DraggableChordCell({
   isEditing: boolean;
   onClick?: (cell: BarCell) => void;
 }) {
-  // Chord drag uses swap semantics. Each cell is both a draggable
-  // source and a droppable target with the same id (`chord:`-
-  // prefixed). The parent DndContext's `handleDragEnd` reads
-  // active/over ids and swaps the two slots' chord values via
-  // `swapChordPlacements`. No SortableContext / arrayMove — that
-  // model produced cascading shifts that read as "chord disappeared
-  // and everything shifted up" on cross-bar drops.
-  const id = DRAG_ID.chord(cell.phraseId, cell.beatId);
-  const chordDrop = useDroppable({ id });
-  const chordDrag = useDraggable({ id });
-  const setRefs = (node: HTMLElement | null) => {
-    chordDrop.setNodeRef(node);
-    chordDrag.setNodeRef(node);
-  };
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: DRAG_ID.chord(cell.phraseId, cell.beatId) });
   const dragStyle: CSSProperties = {
-    transform: CSS.Translate.toString(chordDrag.transform),
-    opacity: chordDrag.isDragging ? 0.4 : 1,
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
     width: `${widthPct}%`,
   };
-  // Drop-target highlight when another chord is hovering over this
-  // one (and we're not dragging this one ourselves).
-  const dropHighlight =
-    chordDrop.isOver && !chordDrag.isDragging
-      ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900'
-      : '';
   return (
     <ChordCellBox
       cell={cell}
@@ -808,11 +807,10 @@ function DraggableChordCell({
       notationMode={notationMode}
       isEditing={isEditing}
       onClick={onClick}
-      dragRef={setRefs}
-      dragAttributes={chordDrag.attributes}
-      dragListeners={chordDrag.listeners}
+      dragRef={setNodeRef}
+      dragAttributes={attributes}
+      dragListeners={listeners}
       dragStyle={dragStyle}
-      extraClassName={dropHighlight}
     />
   );
 }
