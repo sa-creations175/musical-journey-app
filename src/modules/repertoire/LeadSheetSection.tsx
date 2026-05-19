@@ -40,14 +40,14 @@ import { useNotationMode } from '../../lib/notationPref';
 import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
-import BarGridView, { DRAG_ID } from './BarGridView';
+import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
 import {
   deriveBarGrid,
   effectiveTimeSignature,
   parseTimeSignature,
   reorderBar,
-  reorderChordPlacements,
+  swapChordPlacements,
 } from './barGrid';
 import {
   applyEndMarkerDrag,
@@ -181,11 +181,14 @@ export default function LeadSheetSection({
     await updatePhraseInPlace(next);
   };
 
-  // Bar-grid drag-to-reorder. The pure helper rewrites every affected
-  // phrase's chord placements (slot anchors stay put; only which chord
-  // lives at each slot changes), then we commit the whole section.
-  const handleChordReorder = async (fromIndex: number, toIndex: number) => {
-    const next = reorderChordPlacements(section, activeArrangementId, fromIndex, toIndex);
+  // Bar-grid drag swap. Dropping chord A onto chord B exchanges
+  // their slot positions — A's chord value lands at B's slot and
+  // vice versa; every other chord is untouched. Replaces the older
+  // arrayMove-style reorder, which cascaded shifts across slots
+  // whenever a chord was dropped on a non-adjacent target and made
+  // cross-bar drag feel like chords "disappeared and shifted up".
+  const handleChordSwap = async (fromSlotKey: string, toSlotKey: string) => {
+    const next = swapChordPlacements(section, activeArrangementId, fromSlotKey, toSlotKey);
     if (!next) return;
     await commit({ phrases: next });
   };
@@ -356,17 +359,14 @@ export default function LeadSheetSection({
       return;
     }
 
-    // Chord reorder (sortable). Both active and over are `chord:` ids.
+    // Chord swap: dropping chord A onto chord B exchanges their
+    // slot positions. Each chord id is `chord:phraseId:beatId`;
+    // strip the prefix and pass the slot keys straight through.
     if (activeId.startsWith('chord:') && overId.startsWith('chord:')) {
-      const bars = deriveBarGrid(section, activeArrangementId, beatsPerBar);
-      const ids = bars
-        .flatMap(b => b.cells)
-        .filter(c => !c.tiedFromPrev)
-        .map(c => DRAG_ID.chord(c.phraseId, c.beatId));
-      const fromIndex = ids.indexOf(activeId);
-      const toIndex = ids.indexOf(overId);
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-      await handleChordReorder(fromIndex, toIndex);
+      const fromSlotKey = activeId.slice('chord:'.length);
+      const toSlotKey = overId.slice('chord:'.length);
+      if (fromSlotKey === toSlotKey) return;
+      await handleChordSwap(fromSlotKey, toSlotKey);
       return;
     }
 

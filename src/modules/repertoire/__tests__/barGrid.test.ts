@@ -8,7 +8,7 @@ import {
   isDominantQuality,
   parseTimeSignature,
   reorderBar,
-  reorderChordPlacements,
+  swapChordPlacements,
 } from '../barGrid';
 import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
 
@@ -348,60 +348,62 @@ describe('deriveBarGrid — section.barCount padding', () => {
   });
 });
 
-describe('reorderChordPlacements', () => {
-  // Drag-to-reorder helper. Slot anchors (phrase + beat) stay put;
-  // only which chord lives at each slot changes. Returns null for
-  // no-op moves so the caller can skip the Dexie commit.
-  function chordSequenceFor(
-    next: Phrase[],
-    arrId: string,
-  ): string[] {
-    const out: string[] = [];
-    for (const p of next) {
-      const placements = p.chordsByArrangement?.[arrId] ?? {};
-      for (const beat of p.beats ?? []) {
-        const c = placements[beat.id];
-        if (c) out.push(c.function);
-      }
-    }
-    return out;
-  }
-
-  it('reorders chords within a single phrase', () => {
+describe('swapChordPlacements', () => {
+  // Chord drag uses swap semantics (Option C): drag chord A onto
+  // chord B → A and B exchange slot positions; every other chord is
+  // untouched. Replaces the older arrayMove-style reorder which
+  // produced confusing cascading shifts.
+  it('swaps the chord values at two slots within a single phrase', () => {
     const section = mkSection([
       phraseWithChords([cf('1'), cf('4'), cf('5'), cf('6')]),
     ]);
-    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 2);
+    const beatIds = section.phrases![0].beats!.map(b => b.id);
+    const fromKey = `p1:${beatIds[0]}`;
+    const toKey = `p1:${beatIds[2]}`;
+    const next = swapChordPlacements(section, BASIC_ARRANGEMENT_ID, fromKey, toKey);
     expect(next).not.toBeNull();
-    expect(chordSequenceFor(next!, BASIC_ARRANGEMENT_ID)).toEqual(['4', '5', '1', '6']);
+    const placements = next![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    // Position 0 holds what was at position 2; position 2 holds what
+    // was at position 0; positions 1 and 3 are unchanged.
+    expect(placements[beatIds[0]].function).toBe('5');
+    expect(placements[beatIds[1]].function).toBe('4');
+    expect(placements[beatIds[2]].function).toBe('1');
+    expect(placements[beatIds[3]].function).toBe('6');
   });
 
-  it('reorders chords across phrases — chord values move, slots stay put', () => {
+  it('swaps across phrases — only the two slots change', () => {
     const section = mkSection([
       { ...phraseWithChords([cf('1'), cf('4')]), id: 'phr-A' },
       { ...phraseWithChords([cf('5'), cf('6')]), id: 'phr-B' },
     ]);
-    // Move document index 0 (1) to index 3 → expected ['4','5','6','1'].
-    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 3);
-    expect(next).not.toBeNull();
-    expect(chordSequenceFor(next!, BASIC_ARRANGEMENT_ID)).toEqual(['4', '5', '6', '1']);
-    // Phrase ids should be preserved; the 1 chord now lives on phr-B.
+    const aBeats = section.phrases![0].beats!.map(b => b.id);
+    const bBeats = section.phrases![1].beats!.map(b => b.id);
+    const fromKey = `phr-A:${aBeats[0]}`; // chord '1'
+    const toKey = `phr-B:${bBeats[1]}`; // chord '6'
+    const next = swapChordPlacements(section, BASIC_ARRANGEMENT_ID, fromKey, toKey);
+    const phrA = next!.find(p => p.id === 'phr-A')!;
     const phrB = next!.find(p => p.id === 'phr-B')!;
-    const phrBPlacements = phrB.chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    expect(phrBPlacements[phrB.beats![1].id].function).toBe('1');
+    expect(phrA.chordsByArrangement?.[BASIC_ARRANGEMENT_ID]?.[aBeats[0]].function).toBe('6');
+    expect(phrA.chordsByArrangement?.[BASIC_ARRANGEMENT_ID]?.[aBeats[1]].function).toBe('4');
+    expect(phrB.chordsByArrangement?.[BASIC_ARRANGEMENT_ID]?.[bBeats[0]].function).toBe('5');
+    expect(phrB.chordsByArrangement?.[BASIC_ARRANGEMENT_ID]?.[bBeats[1]].function).toBe('1');
   });
 
-  it('preserves chord metadata (beats, harmonicTag, quality) on the moved chord', () => {
+  it('preserves each chord\'s metadata across the swap (beats, harmonicTag, quality)', () => {
     const section = mkSection([
       phraseWithChords([
         cf('1', 'maj7', { beats: 2, harmonicTag: 'pedal' }),
         cf('5', '7'),
       ]),
     ]);
-    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 1);
+    const beatIds = section.phrases![0].beats!.map(b => b.id);
+    const next = swapChordPlacements(
+      section,
+      BASIC_ARRANGEMENT_ID,
+      `p1:${beatIds[0]}`,
+      `p1:${beatIds[1]}`,
+    );
     const placements = next![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    const beatIds = next![0].beats!.map(b => b.id);
-    // The 1maj7 chord (with beats=2, harmonicTag=pedal) now sits at slot 1.
     expect(placements[beatIds[1]]).toMatchObject({
       function: '1',
       quality: 'maj7',
@@ -411,12 +413,18 @@ describe('reorderChordPlacements', () => {
     expect(placements[beatIds[0]]).toMatchObject({ function: '5', quality: '7' });
   });
 
-  it('returns null for no-op moves (same index, out of range, empty section)', () => {
+  it('returns null for no-op swaps (same key, missing slot, empty section)', () => {
     const section = mkSection([phraseWithChords([cf('1'), cf('4')])]);
-    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 0)).toBeNull();
-    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, -1, 1)).toBeNull();
-    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 99)).toBeNull();
-    expect(reorderChordPlacements(mkSection([]), BASIC_ARRANGEMENT_ID, 0, 1)).toBeNull();
+    const beatIds = section.phrases![0].beats!.map(b => b.id);
+    expect(
+      swapChordPlacements(section, BASIC_ARRANGEMENT_ID, `p1:${beatIds[0]}`, `p1:${beatIds[0]}`),
+    ).toBeNull();
+    expect(
+      swapChordPlacements(section, BASIC_ARRANGEMENT_ID, `p1:${beatIds[0]}`, 'phrX:beatX'),
+    ).toBeNull();
+    expect(
+      swapChordPlacements(mkSection([]), BASIC_ARRANGEMENT_ID, 'p1:b0', 'p1:b1'),
+    ).toBeNull();
   });
 
   it('only rewrites the active arrangement; other arrangements untouched', () => {
@@ -432,7 +440,7 @@ describe('reorderChordPlacements', () => {
         alt: { b0: cf('2'), b1: cf('7') },
       },
     };
-    const next = reorderChordPlacements(mkSection([phrase]), BASIC_ARRANGEMENT_ID, 0, 1);
+    const next = swapChordPlacements(mkSection([phrase]), BASIC_ARRANGEMENT_ID, 'p1:b0', 'p1:b1');
     const placements = next![0].chordsByArrangement?.alt ?? {};
     expect(placements.b0.function).toBe('2');
     expect(placements.b1.function).toBe('7');

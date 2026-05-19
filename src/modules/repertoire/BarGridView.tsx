@@ -5,7 +5,6 @@ import {
   useDroppable,
 } from '@dnd-kit/core';
 import type { DraggableAttributes } from '@dnd-kit/core';
-import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ChordFunction, LyricLine, Song, SongSection } from '../../lib/db';
 import { chordToDisplay } from './chordFunction';
@@ -117,17 +116,6 @@ export default function BarGridView({
   const bars = useMemo(
     () => deriveBarGrid(section, activeArrangementId, beatsPerBar),
     [section, activeArrangementId, beatsPerBar],
-  );
-
-  // Chord sortable items keyed with the `chord:` prefix so the parent
-  // DndContext can route drag-end by id namespace.
-  const chordSortableIds = useMemo(
-    () =>
-      bars
-        .flatMap(b => b.cells)
-        .filter(c => !c.tiedFromPrev)
-        .map(c => DRAG_ID.chord(c.phraseId, c.beatId)),
-    [bars],
   );
 
   // Lines partitioned into pending (start == end == 0) and placed
@@ -303,11 +291,7 @@ export default function BarGridView({
       className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
       <BarGridHeader timeSignature={timeSignature} barCount={bars.length} />
-      {chordsAreSortable ? (
-        <SortableContext items={chordSortableIds}>{body}</SortableContext>
-      ) : (
-        body
-      )}
+      {body}
     </div>
   );
 }
@@ -520,7 +504,7 @@ function BarBox({
           const isLeadingHalf = !cell.tiedFromPrev;
           if (isLeadingHalf && draggable) {
             return (
-              <SortableChordCell
+              <DraggableChordCell
                 key={idx}
                 cell={cell}
                 widthPct={widthPct}
@@ -776,7 +760,7 @@ function WordChip({
   );
 }
 
-function SortableChordCell({
+function DraggableChordCell({
   cell,
   widthPct,
   sectionKey,
@@ -791,14 +775,31 @@ function SortableChordCell({
   isEditing: boolean;
   onClick?: (cell: BarCell) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: DRAG_ID.chord(cell.phraseId, cell.beatId) });
+  // Chord drag uses swap semantics. Each cell is both a draggable
+  // source and a droppable target with the same id (`chord:`-
+  // prefixed). The parent DndContext's `handleDragEnd` reads
+  // active/over ids and swaps the two slots' chord values via
+  // `swapChordPlacements`. No SortableContext / arrayMove — that
+  // model produced cascading shifts that read as "chord disappeared
+  // and everything shifted up" on cross-bar drops.
+  const id = DRAG_ID.chord(cell.phraseId, cell.beatId);
+  const chordDrop = useDroppable({ id });
+  const chordDrag = useDraggable({ id });
+  const setRefs = (node: HTMLElement | null) => {
+    chordDrop.setNodeRef(node);
+    chordDrag.setNodeRef(node);
+  };
   const dragStyle: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transform: CSS.Translate.toString(chordDrag.transform),
+    opacity: chordDrag.isDragging ? 0.4 : 1,
     width: `${widthPct}%`,
   };
+  // Drop-target highlight when another chord is hovering over this
+  // one (and we're not dragging this one ourselves).
+  const dropHighlight =
+    chordDrop.isOver && !chordDrag.isDragging
+      ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900'
+      : '';
   return (
     <ChordCellBox
       cell={cell}
@@ -807,10 +808,11 @@ function SortableChordCell({
       notationMode={notationMode}
       isEditing={isEditing}
       onClick={onClick}
-      dragRef={setNodeRef}
-      dragAttributes={attributes}
-      dragListeners={listeners}
+      dragRef={setRefs}
+      dragAttributes={chordDrag.attributes}
+      dragListeners={chordDrag.listeners}
       dragStyle={dragStyle}
+      extraClassName={dropHighlight}
     />
   );
 }
@@ -826,6 +828,7 @@ function ChordCellBox({
   dragAttributes,
   dragListeners,
   dragStyle,
+  extraClassName,
 }: {
   cell: BarCell;
   widthPct: number;
@@ -837,6 +840,7 @@ function ChordCellBox({
   dragAttributes?: DraggableAttributes;
   dragListeners?: DraggableSyntheticListeners;
   dragStyle?: CSSProperties;
+  extraClassName?: string;
 }) {
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
   const palette = colorForFunction(cell.chord);
@@ -868,7 +872,7 @@ function ChordCellBox({
       {...(dragListeners ?? {})}
       className={`flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
-      } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''}`}
+      } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${extraClassName ?? ''}`}
       style={baseStyle}
       title={cell.chord.raw ?? text}
     >

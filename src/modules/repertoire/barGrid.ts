@@ -365,86 +365,73 @@ export function deriveBarGrid(
   return bars;
 }
 
+function arrayMove<T>(arr: T[], from: number, to: number): T[] {
+  const copy = [...arr];
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
 /**
- * Reorder chord placements within the bar grid (Lead Sheet Redesign
- * step 3 — drag-to-reorder). The slot positions (phrase + beat
- * anchors) stay where they are; only which chord lives at each slot
- * changes. This keeps lyric anchoring intact and matches the
- * redesign's "lyrics decoupled from chord positions" intent.
+ * Swap the chord values at two phrase-beat slots (Lead Sheet
+ * Redesign — chord drag step). The slot keys are the
+ * `${phraseId}:${beatId}` pairs that identify each chord placement.
  *
- * Returns a new array of phrases with the active arrangement's
- * chord placements rewritten. Returns `null` when the move is a
- * no-op (same index, out of range, or section has no placements) so
- * the caller can skip the Dexie commit.
+ * Unlike `reorderChordPlacements` (which does an arrayMove on the
+ * full chord-value list and cascades shifts through every slot
+ * between), this helper touches only the two slots involved: the
+ * chord at `fromSlotKey` and the chord at `toSlotKey` exchange
+ * places, leaving every other chord untouched. That matches the
+ * "drag chord A into bar 2" mental model — A moves to where B was;
+ * B moves to where A was; everything else is unchanged.
+ *
+ * Returns `null` for no-op swaps (same key, missing keys, or either
+ * slot has no chord placement).
  */
-export function reorderChordPlacements(
+export function swapChordPlacements(
   section: SongSection,
   activeArrangementId: string,
-  fromIndex: number,
-  toIndex: number,
+  fromSlotKey: string,
+  toSlotKey: string,
 ): Phrase[] | null {
-  if (fromIndex === toIndex) return null;
+  if (fromSlotKey === toSlotKey) return null;
   const phrases = section.phrases ?? [];
   if (phrases.length === 0) return null;
 
-  // Snapshot every meaningful placement in document order, alongside
-  // its source phrase + beat. The order of `slots` is the canonical
-  // visual order shown in the bar grid.
-  const slots: Array<{ phraseId: string; beatId: string; chord: ChordFunction }> = [];
+  const parseKey = (key: string): { phraseId: string; beatId: string } | null => {
+    const idx = key.indexOf(':');
+    if (idx < 0) return null;
+    return { phraseId: key.slice(0, idx), beatId: key.slice(idx + 1) };
+  };
+  const from = parseKey(fromSlotKey);
+  const to = parseKey(toSlotKey);
+  if (!from || !to) return null;
+
+  // Look up both chord values up-front so the rewrite below sees a
+  // consistent snapshot (same-phrase swaps would otherwise overwrite
+  // one before reading the other).
+  let fromChord: ChordFunction | undefined;
+  let toChord: ChordFunction | undefined;
   for (const phrase of phrases) {
     const normalised = normalizePhrase(phrase);
     const placements = normalised.chordsByArrangement[activeArrangementId] ?? {};
-    for (const beat of normalised.beats) {
-      const chord = placements[beat.id];
-      if (!chord) continue;
-      const isMeaningful =
-        chord.unparsed ||
-        chord.function !== '' ||
-        chord.quality !== '' ||
-        Boolean(chord.bass);
-      if (!isMeaningful) continue;
-      slots.push({ phraseId: phrase.id, beatId: beat.id, chord });
-    }
+    if (phrase.id === from.phraseId) fromChord = placements[from.beatId];
+    if (phrase.id === to.phraseId) toChord = placements[to.beatId];
   }
-  if (slots.length === 0) return null;
-  if (
-    fromIndex < 0 ||
-    toIndex < 0 ||
-    fromIndex >= slots.length ||
-    toIndex >= slots.length
-  ) {
-    return null;
-  }
-
-  // Move just the chord values; the slot anchors stay put. Using
-  // arrayMove semantics (splice-remove + splice-insert) keeps the
-  // ordering predictable when fromIndex < toIndex vs the reverse.
-  const chords = slots.map(s => s.chord);
-  const [moved] = chords.splice(fromIndex, 1);
-  chords.splice(toIndex, 0, moved);
-
-  // Build a lookup: `${phraseId}:${beatId}` → new chord. Then rebuild
-  // each affected phrase's chordsByArrangement[activeArrangementId]
-  // by walking its beats and assigning the new value at each slot.
-  const newBySlot = new Map<string, ChordFunction>();
-  for (let i = 0; i < slots.length; i++) {
-    const key = `${slots[i].phraseId}:${slots[i].beatId}`;
-    newBySlot.set(key, chords[i]);
-  }
+  if (!fromChord || !toChord) return null;
 
   return phrases.map(phrase => {
     const normalised = normalizePhrase(phrase);
     const oldPlacements = normalised.chordsByArrangement[activeArrangementId] ?? {};
     let changed = false;
     const nextPlacements: Record<string, ChordFunction> = { ...oldPlacements };
-    for (const beat of normalised.beats) {
-      const key = `${phrase.id}:${beat.id}`;
-      if (!newBySlot.has(key)) continue;
-      const next = newBySlot.get(key)!;
-      if (oldPlacements[beat.id] !== next) {
-        nextPlacements[beat.id] = next;
-        changed = true;
-      }
+    if (phrase.id === from.phraseId && nextPlacements[from.beatId]) {
+      nextPlacements[from.beatId] = toChord;
+      changed = true;
+    }
+    if (phrase.id === to.phraseId && nextPlacements[to.beatId]) {
+      nextPlacements[to.beatId] = fromChord;
+      changed = true;
     }
     if (!changed) return phrase;
     return {
@@ -456,13 +443,6 @@ export function reorderChordPlacements(
       },
     };
   });
-}
-
-function arrayMove<T>(arr: T[], from: number, to: number): T[] {
-  const copy = [...arr];
-  const [item] = copy.splice(from, 1);
-  copy.splice(to, 0, item);
-  return copy;
 }
 
 /**
@@ -484,8 +464,7 @@ function arrayMove<T>(arr: T[], from: number, to: number): T[] {
  *   · If the moved bar was a chord bar, chord placements are also
  *     permuted: the chord chunk that lived at the source chord-index
  *     is moved to the destination chord-index, then re-flattened to
- *     a placement order and written back to phrase slots (same
- *     write-back pattern as `reorderChordPlacements`).
+ *     a placement order and written back to phrase slots.
  *   · Every lyric line's startBar / endBar is remapped via the
  *     bar-position permutation so anchors follow their bars.
  */
