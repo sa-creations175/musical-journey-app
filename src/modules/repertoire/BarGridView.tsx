@@ -298,7 +298,12 @@ function BarBox({
       <span className="absolute top-0.5 left-1 text-[9px] text-neutral-400 font-mono">
         {bar.index + 1}
       </span>
-      <div className="flex items-stretch gap-0.5 h-full">
+      {/* Inner flex row holds the chord cells. Cells have a min width
+          so chord glyphs like `1dom9(13)` aren't truncated on narrow
+          1-beat slots; when their natural sum exceeds the bar's
+          column width, the row scrolls horizontally within the bar
+          rather than overlapping into the next bar's column. */}
+      <div className="flex items-stretch gap-0.5 h-full overflow-x-auto">
         {bar.cells.map((cell, idx) => {
           const widthPct = (cell.beats / beatsPerBar) * 100;
           const isEditing =
@@ -446,7 +451,7 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none ${
+      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[56px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''}`}
       style={baseStyle}
