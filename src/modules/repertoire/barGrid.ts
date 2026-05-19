@@ -25,19 +25,21 @@ const DEFAULT_TIME_SIGNATURE = '4/4';
 // ---------------------------------------------------------------------
 
 /**
- * True when a quality string reads as a dominant chord. The rule:
- * the quality must START with a bare `7`, `9`, `11`, or `13` token
- * (after lowercasing). That's the convention for chords carrying an
- * implied flat-7: `7`, `7b9`, `9(13)`, `13b9`, `7sus4` all qualify.
+ * True when a quality string reads as a dominant chord. Two accepted
+ * prefixes (after lowercasing):
+ *   · explicit `dom` — `dom7`, `dom9`, `dom13` etc.
+ *   · bare extension — `7`, `9`, `11`, `13` (with `7b9`, `9(13)`,
+ *     `7sus4` etc. flowing from the leading number)
  *
  * Forms that contain those digits non-initially — `maj7`, `m7`,
  * `dim7`, `add9`, `6/9` — are rejected because the leading token
- * already classifies the chord as something else (major-7, minor,
- * diminished, added tone, sixth-with-nine respectively).
+ * classifies the chord as something else (major-7, minor, diminished,
+ * added tone, sixth-with-nine respectively).
  */
 export function isDominantQuality(quality: string): boolean {
   const q = quality.trim().toLowerCase();
   if (q === '') return false;
+  if (q.startsWith('dom')) return true;
   return /^(7|9|11|13)(?![0-9])/.test(q);
 }
 

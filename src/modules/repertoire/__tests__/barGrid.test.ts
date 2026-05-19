@@ -402,6 +402,14 @@ describe('isDominantQuality', () => {
     expect(isDominantQuality('13')).toBe(true);
   });
 
+  it('detects explicit `dom` prefix forms', () => {
+    expect(isDominantQuality('dom7')).toBe(true);
+    expect(isDominantQuality('dom9')).toBe(true);
+    expect(isDominantQuality('dom13')).toBe(true);
+    expect(isDominantQuality('dom9(13)')).toBe(true);
+    expect(isDominantQuality('Dom7')).toBe(true);
+  });
+
   it('detects dominants with altered/added tones', () => {
     expect(isDominantQuality('7b9')).toBe(true);
     expect(isDominantQuality('7#5')).toBe(true);

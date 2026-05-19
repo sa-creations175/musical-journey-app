@@ -462,8 +462,10 @@ function ChordCellBox({
   ].join(' ');
   // Harmonic tag → dashed border (auto detection OR manual tag). Fill
   // and text stay unchanged so the scale-degree color still dominates.
+  // Both tagged and untagged use border-2 so toggling the tag doesn't
+  // cause a 1px layout jiggle; tagged just swaps solid → dashed.
   const tagged = effectiveHarmonicTag(cell.chord) !== undefined;
-  const borderStyleClass = tagged ? 'border-dashed' : '';
+  const borderStyleClass = tagged ? 'border-dashed' : 'border-solid';
 
   const interactive = Boolean(onClick);
   const handleClick = (e: React.MouseEvent) => {
@@ -482,7 +484,7 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${borderStyleClass} ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
+      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''}`}
       style={baseStyle}
@@ -687,18 +689,16 @@ function ChordEditorPopover({
   );
 }
 
-// Per-degree color families. Per LEAD_SHEET_REDESIGN.md (step 4):
-//   1 → teal-600   (tonic, anchor)
-//   2 → purple-400 (subdominant family, weaker)
-//   3 → teal-400   (tonic family)
-//   4 → purple-600 (subdominant)
-//   5 → amber-600  (dominant)
-//   6 → teal-200   (tonic family, weakest)
-//   7 → amber-400  (dominant family)
+// Per-degree color families. Per LEAD_SHEET_REDESIGN.md:
+//   Tonic family:        1 green · 3 teal · 6 blue
+//   Subdominant family:  4 purple (strong) · 2 pink (lighter)
+//   Dominant family:     5 amber · 7 red
 //
 // Altered degrees (b2, b3, #4, b6, b7, b5) take the natural-degree
 // color so the scale-degree family stays visually consistent. Unparsed
-// or empty-function placements fall back to neutral.
+// or empty-function placements fall back to neutral. Slash chords
+// color by the BASS degree (see `colorForFunction`) — the bass is
+// what re-anchors the chord harmonically.
 const DEGREE_PALETTES: Record<string, {
   bg: string;
   text: string;
@@ -706,46 +706,46 @@ const DEGREE_PALETTES: Record<string, {
   dot: string;
 }> = {
   '1': {
-    bg: 'bg-teal-50 dark:bg-teal-950/40',
-    text: 'text-teal-700 dark:text-teal-200',
-    border: 'border-teal-600 dark:border-teal-500',
-    dot: 'text-teal-600',
+    bg: 'bg-green-50 dark:bg-green-950/40',
+    text: 'text-green-700 dark:text-green-200',
+    border: 'border-green-500 dark:border-green-500',
+    dot: 'text-green-500',
   },
   '2': {
-    bg: 'bg-purple-50 dark:bg-purple-950/40',
-    text: 'text-purple-700 dark:text-purple-200',
-    border: 'border-purple-400 dark:border-purple-500',
-    dot: 'text-purple-400',
+    bg: 'bg-pink-50 dark:bg-pink-950/40',
+    text: 'text-pink-700 dark:text-pink-200',
+    border: 'border-pink-400 dark:border-pink-400',
+    dot: 'text-pink-400',
   },
   '3': {
     bg: 'bg-teal-50 dark:bg-teal-950/40',
     text: 'text-teal-700 dark:text-teal-200',
-    border: 'border-teal-400 dark:border-teal-500',
-    dot: 'text-teal-400',
+    border: 'border-teal-500 dark:border-teal-500',
+    dot: 'text-teal-500',
   },
   '4': {
     bg: 'bg-purple-50 dark:bg-purple-950/40',
     text: 'text-purple-700 dark:text-purple-200',
-    border: 'border-purple-600 dark:border-purple-400',
+    border: 'border-purple-600 dark:border-purple-500',
     dot: 'text-purple-600',
   },
   '5': {
     bg: 'bg-amber-50 dark:bg-amber-950/40',
     text: 'text-amber-700 dark:text-amber-200',
-    border: 'border-amber-600 dark:border-amber-400',
-    dot: 'text-amber-600',
+    border: 'border-amber-500 dark:border-amber-500',
+    dot: 'text-amber-500',
   },
   '6': {
-    bg: 'bg-teal-50 dark:bg-teal-950/40',
-    text: 'text-teal-700 dark:text-teal-200',
-    border: 'border-teal-200 dark:border-teal-700',
-    dot: 'text-teal-300',
+    bg: 'bg-blue-50 dark:bg-blue-950/40',
+    text: 'text-blue-700 dark:text-blue-200',
+    border: 'border-blue-500 dark:border-blue-500',
+    dot: 'text-blue-500',
   },
   '7': {
-    bg: 'bg-amber-50 dark:bg-amber-950/40',
-    text: 'text-amber-700 dark:text-amber-200',
-    border: 'border-amber-400 dark:border-amber-500',
-    dot: 'text-amber-400',
+    bg: 'bg-red-50 dark:bg-red-950/40',
+    text: 'text-red-700 dark:text-red-200',
+    border: 'border-red-500 dark:border-red-500',
+    dot: 'text-red-500',
   },
 };
 
@@ -762,7 +762,13 @@ function colorForFunction(chord: ChordFunction): {
   border: string;
   dot: string;
 } {
-  if (chord.unparsed || chord.function === '') return NEUTRAL_PALETTE;
-  const digit = chord.function.replace(/^[b#]/, '');
+  if (chord.unparsed) return NEUTRAL_PALETTE;
+  // Slash chords color by their bass note's scale degree. The bass is
+  // the harmonic anchor in slash voicings (5min7/2 reads as a 2-rooted
+  // sound), so the colour follows it. Falls back to the chord root
+  // when no bass is present.
+  const source = chord.bass && chord.bass !== '' ? chord.bass : chord.function;
+  if (source === '') return NEUTRAL_PALETTE;
+  const digit = source.replace(/^[b#]/, '');
   return DEGREE_PALETTES[digit] ?? NEUTRAL_PALETTE;
 }
