@@ -44,6 +44,7 @@ import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
 import {
+  cascadeChordPlacements,
   deriveBarGrid,
   effectiveTimeSignature,
   isLegacyPlacementId,
@@ -164,18 +165,45 @@ export default function LeadSheetSection({
       stack.push(snap);
       while (stack.length > UNDO_STACK_MAX) stack.shift();
       setCanUndo(true);
+      // [DEBUG undo] Remove once root cause is confirmed.
+      // eslint-disable-next-line no-console
+      console.log(
+        '[commit] patch keys=%o snap=%o stack.length=%d',
+        Object.keys(patch),
+        snap,
+        stack.length,
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('[commit] patch had no tracked fields, no snapshot. keys=%o', Object.keys(patch));
     }
     await onChange(patch);
   };
 
+  // [DEBUG undo] Mirror canUndo transitions for visibility.
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[canUndo] %s', String(canUndo));
+  }, [canUndo]);
+
   const handleUndo = async () => {
     const stack = undoStackRef.current;
+    // eslint-disable-next-line no-console
+    console.log('[handleUndo] stack.length-before=%d', stack.length);
     const snap = stack.pop();
-    if (!snap) return;
+    if (!snap) {
+      // eslint-disable-next-line no-console
+      console.log('[handleUndo] nothing to pop');
+      return;
+    }
+    // eslint-disable-next-line no-console
+    console.log('[handleUndo] popping snap=%o → calling onChange', snap);
     setCanUndo(stack.length > 0);
     // Bypass `commit` so the undo restore itself doesn't get pushed
     // back onto the stack.
     await onChange(snap);
+    // eslint-disable-next-line no-console
+    console.log('[handleUndo] onChange resolved');
   };
 
   // --- Normalise arrangements + phrases at render time -----------
@@ -276,8 +304,17 @@ export default function LeadSheetSection({
   const handleChordBeatsChange = async (placementId: string, beats: number) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
     const clamped = Math.min(Math.max(1, Math.round(beats)), beatsPerBar);
-    const next = updateChordPlacement(placements, realPlacementId, { beats: clamped });
-    await commit({ chordPlacements: next });
+    const updated = updateChordPlacement(placements, realPlacementId, { beats: clamped });
+    // Expanding a chord can push following placements onto beats that
+    // are now covered — deriveBarGridAnchored would mask them. Cascade
+    // them forward in beat order so every chord stays visible.
+    const target = updated.find(p => p.id === realPlacementId);
+    const arrId = target?.arrangementId ?? activeArrangementId;
+    const cascaded = cascadeChordPlacements(updated, arrId, beatsPerBar);
+    const patch: Partial<SongSection> = { chordPlacements: cascaded };
+    const reconciled = reconcileBarLayout(section.barLayout, cascaded);
+    if (reconciled) patch.barLayout = reconciled;
+    await commit(patch);
   };
 
   // Chord drag onto another chord = swap positions (Option C). The

@@ -3,6 +3,7 @@ import type { ChordFunction, Phrase, SongSection } from '../../../lib/db';
 import {
   addChordPlacement,
   autoHarmonicTag,
+  cascadeChordPlacements,
   deriveBarGrid,
   effectiveHarmonicTag,
   effectiveTimeSignature,
@@ -802,5 +803,90 @@ describe('reorderBar', () => {
     // Layout under barCount=2: ['chord', 'empty']. Move empty 1 → 0.
     const result = reorderBar(sectionWithExtras, BASIC_ARRANGEMENT_ID, 1, 0, 4);
     expect(result!.barLayout).toEqual(['empty', 'chord']);
+  });
+});
+
+describe('cascadeChordPlacements (push overlaps aside)', () => {
+  function pl(
+    id: string,
+    barIndex: number,
+    beatPos: number,
+    beats: number,
+    arrangementId: string = BASIC_ARRANGEMENT_ID,
+  ): ChordPlacement {
+    return { id, arrangementId, barIndex, beatPos, beats, chord: cf('1') };
+  }
+
+  it('is a no-op when no chords overlap', () => {
+    const input = [pl('a', 0, 0, 1), pl('b', 0, 1, 1), pl('c', 0, 2, 2)];
+    const next = cascadeChordPlacements(input, BASIC_ARRANGEMENT_ID, 4);
+    // Same references back (only changed entries get cloned).
+    expect(next.map(p => p.id)).toEqual(['a', 'b', 'c']);
+    expect(next[0]).toBe(input[0]);
+    expect(next[1]).toBe(input[1]);
+    expect(next[2]).toBe(input[2]);
+  });
+
+  it('pushes a single overlapping chord forward', () => {
+    // a expands to beats=2 (covers 0..1). b at beat 1 now overlaps;
+    // gets pushed to beat 2.
+    const input = [pl('a', 0, 0, 2), pl('b', 0, 1, 1)];
+    const next = cascadeChordPlacements(input, BASIC_ARRANGEMENT_ID, 4);
+    expect(next.find(p => p.id === 'b')).toMatchObject({ barIndex: 0, beatPos: 2 });
+    expect(next.find(p => p.id === 'a')).toMatchObject({ barIndex: 0, beatPos: 0 });
+  });
+
+  it('cascades across multiple subsequent chords', () => {
+    // a expands to beats=3 (covers 0..2). b at beat 1, c at beat 2,
+    // d at beat 3. All three should cascade: b→3, c→4 (next bar
+    // beat 0), d→5 (next bar beat 1).
+    const input = [
+      pl('a', 0, 0, 3),
+      pl('b', 0, 1, 1),
+      pl('c', 0, 2, 1),
+      pl('d', 0, 3, 1),
+    ];
+    const next = cascadeChordPlacements(input, BASIC_ARRANGEMENT_ID, 4);
+    expect(next.find(p => p.id === 'b')).toMatchObject({ barIndex: 0, beatPos: 3 });
+    expect(next.find(p => p.id === 'c')).toMatchObject({ barIndex: 1, beatPos: 0 });
+    expect(next.find(p => p.id === 'd')).toMatchObject({ barIndex: 1, beatPos: 1 });
+  });
+
+  it('cascades across a bar boundary cleanly', () => {
+    // a at bar 0 beat 2 with beats=3 occupies abs 2,3,4 (bar 0 beats
+    // 2,3 + bar 1 beat 0). b at bar 1 beat 0 (abs 4) needs to start
+    // at cursor=5 → bar 1 beat 1.
+    const input = [pl('a', 0, 2, 3), pl('b', 1, 0, 1)];
+    const next = cascadeChordPlacements(input, BASIC_ARRANGEMENT_ID, 4);
+    expect(next.find(p => p.id === 'b')).toMatchObject({ barIndex: 1, beatPos: 1 });
+  });
+
+  it('only affects the target arrangement; others pass through', () => {
+    const input = [
+      pl('a', 0, 0, 2, 'basic'),
+      pl('b', 0, 1, 1, 'basic'),
+      pl('c', 0, 1, 1, 'alt'), // would overlap if cascade ran on alt
+    ];
+    const next = cascadeChordPlacements(input, 'basic', 4);
+    expect(next.find(p => p.id === 'b')).toMatchObject({ barIndex: 0, beatPos: 2 });
+    // 'alt' arrangement's placement untouched
+    expect(next.find(p => p.id === 'c')).toMatchObject({ barIndex: 0, beatPos: 1 });
+  });
+
+  it('preserves chord metadata when pushing a placement', () => {
+    const a = pl('a', 0, 0, 2);
+    const b: ChordPlacement = {
+      id: 'b',
+      arrangementId: BASIC_ARRANGEMENT_ID,
+      barIndex: 0,
+      beatPos: 1,
+      beats: 1,
+      chord: cf('5', '7', { harmonicTag: 'pedal' }),
+    };
+    const next = cascadeChordPlacements([a, b], BASIC_ARRANGEMENT_ID, 4);
+    const pushed = next.find(p => p.id === 'b')!;
+    expect(pushed.beatPos).toBe(2);
+    expect(pushed.beats).toBe(1);
+    expect(pushed.chord).toMatchObject({ function: '5', quality: '7', harmonicTag: 'pedal' });
   });
 });

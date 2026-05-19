@@ -663,6 +663,67 @@ export function remapPlacementBars(
   });
 }
 
+/**
+ * Push overlapping placements forward so no two chords claim the same
+ * beat. Used after `updateChordPlacement` increases a chord's `beats`
+ * — without the cascade the expanded chord visually masks anything at
+ * the now-overlapping beats (deriveBarGridAnchored skips beats covered
+ * by an earlier multi-beat chord).
+ *
+ * Algorithm: walk all placements in the arrangement in absolute-beat
+ * order (`barIndex * beatsPerBar + beatPos`). Each placement starts
+ * at `max(desired, cursor)` where cursor = previous placement's end.
+ * Translate the resulting absolute beat back to (barIndex, beatPos).
+ *
+ *   · No-op for chords that don't overlap (cursor never overtakes
+ *     their desired position).
+ *   · Cascades naturally across bar boundaries — pushing past
+ *     beatsPerBar carries into the next barIndex.
+ *   · Placements in OTHER arrangements pass through untouched.
+ *
+ * Safe to call unconditionally after any chord op: shrinks/no-changes
+ * leave the array unchanged; only true overlaps trigger movement.
+ */
+export function cascadeChordPlacements(
+  placements: ReadonlyArray<ChordPlacement>,
+  arrangementId: string,
+  beatsPerBar: number,
+): ChordPlacement[] {
+  if (beatsPerBar <= 0) return [...placements];
+  // Sort the active arrangement's placements by absolute beat,
+  // stable-ish on placement.id as a tiebreak to keep deterministic
+  // ordering when two placements coincide before the cascade fires.
+  const inArr: ChordPlacement[] = [];
+  const others: ChordPlacement[] = [];
+  for (const p of placements) {
+    if (p.arrangementId === arrangementId) inArr.push(p);
+    else others.push(p);
+  }
+  inArr.sort((a, b) => {
+    const ax = a.barIndex * beatsPerBar + a.beatPos;
+    const bx = b.barIndex * beatsPerBar + b.beatPos;
+    if (ax !== bx) return ax - bx;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+
+  let cursor = -Infinity;
+  const updated: ChordPlacement[] = [];
+  for (const p of inArr) {
+    const desired = p.barIndex * beatsPerBar + p.beatPos;
+    const beats = sanitiseBeats(p.beats);
+    const actualStart = Math.max(desired, cursor);
+    if (actualStart === desired) {
+      updated.push(p);
+    } else {
+      const newBar = Math.floor(actualStart / beatsPerBar);
+      const newBeat = actualStart - newBar * beatsPerBar;
+      updated.push({ ...p, barIndex: newBar, beatPos: newBeat });
+    }
+    cursor = actualStart + beats;
+  }
+  return [...others, ...updated];
+}
+
 function arrayMove<T>(arr: T[], from: number, to: number): T[] {
   const copy = [...arr];
   const [item] = copy.splice(from, 1);
