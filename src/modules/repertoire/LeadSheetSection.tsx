@@ -60,6 +60,8 @@ import {
   applyStartMarkerDrag,
   applyWordNudge,
   distributedWordPositions,
+  joinWords,
+  splitWord,
 } from './lyricLine';
 import BottomSheet from '../../components/BottomSheet';
 import LongPressWrapper from '../../components/LongPressWrapper';
@@ -279,6 +281,28 @@ export default function LeadSheetSection({
 
   const handleDeleteLyricLine = async (lineId: string) => {
     await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
+  };
+
+  // Syllable split / join (step 7). Both helpers are pure — the
+  // handler just runs them against the matching line and persists.
+  const handleWordSplit = async (
+    lineId: string,
+    wordIndex: number,
+    splitAt: number,
+  ) => {
+    const target = lyricLines.find(l => l.id === lineId);
+    if (!target) return;
+    const updated = splitWord(target, wordIndex, splitAt, beatsPerBar);
+    if (updated === target) return;
+    await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
+  };
+
+  const handleWordJoin = async (lineId: string, wordIndex: number) => {
+    const target = lyricLines.find(l => l.id === lineId);
+    if (!target) return;
+    const updated = joinWords(target, wordIndex);
+    if (updated === target) return;
+    await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
   };
 
   // --- Bar add / delete / reorder ---------------------------------
@@ -906,6 +930,8 @@ export default function LeadSheetSection({
               onAddBar={handleAddBar}
               onDeleteBar={handleDeleteBar}
               onBarReorder={handleBarReorder}
+              onWordSplit={handleWordSplit}
+              onWordJoin={handleWordJoin}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending

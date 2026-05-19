@@ -5,6 +5,8 @@ import {
   applyStartMarkerDrag,
   applyWordNudge,
   distributedWordPositions,
+  joinWords,
+  splitWord,
   tokenizeLyricLines,
 } from '../lyricLine';
 
@@ -178,5 +180,110 @@ describe('applyWordNudge', () => {
     const line = mkLine({ words: ['a'] });
     expect(applyWordNudge(line, 5, 0.25, 4)).toBe(line);
     expect(applyWordNudge(line, -1, 0.25, 4)).toBe(line);
+  });
+});
+
+describe('splitWord', () => {
+  it("splits 'somethin\\'' at position 4 into ['some','thin\\'']", () => {
+    const line = mkLine({ words: ["somethin'"], startBeat: 0, endBeat: 4 });
+    const next = splitWord(line, 0, 4, 4);
+    expect(next.words).toEqual(['some', "thin'"]);
+  });
+
+  it('inserts the second-syllable offset = first offset + 0.5 (clamped)', () => {
+    // 4-beat range, 3 words → base positions are 0, 2, 4.
+    // Pre-existing offsets [0, 0, 0]. Split middle word with no existing offset
+    // at position 1 → new offsets length 4. Second syllable inherits 0.5.
+    const line = mkLine({
+      words: ['abc', 'defgh', 'ijk'],
+      startBeat: 0,
+      endBeat: 4,
+      wordOffsets: [0, 0, 0],
+    });
+    const next = splitWord(line, 1, 2, 4);
+    expect(next.words).toEqual(['abc', 'de', 'fgh', 'ijk']);
+    // Word index 1 keeps offset 0 (was 0). New word at index 2 inherits 0.5.
+    expect(next.wordOffsets?.[1]).toBe(0);
+    expect(next.wordOffsets?.[2]).toBe(0.5);
+  });
+
+  it('initializes wordOffsets when previously undefined', () => {
+    const line = mkLine({ words: ['abcd'], startBeat: 0, endBeat: 4 });
+    const next = splitWord(line, 0, 2, 4);
+    expect(next.wordOffsets).toBeDefined();
+    expect(next.wordOffsets).toHaveLength(2);
+  });
+
+  it('preserves offsets of other words (literal carry; no recompute)', () => {
+    const line = mkLine({
+      words: ['ab', 'cd', 'ef'],
+      startBeat: 0,
+      endBeat: 4,
+      wordOffsets: [0, 0.25, -0.1],
+    });
+    const next = splitWord(line, 0, 1, 4);
+    expect(next.words).toEqual(['a', 'b', 'cd', 'ef']);
+    // Word 0 = 'a' keeps original offset 0; word 1 = 'b' inherits +0.5; word 2
+    // = 'cd' keeps the offset that 'cd' had (0.25); word 3 = 'ef' keeps -0.1.
+    expect(next.wordOffsets).toEqual([0, 0.5, 0.25, -0.1]);
+  });
+
+  it('clamps the new syllable so its position stays inside the line range', () => {
+    // Single-word line at start=end=(0,0) means position == startGlobal for all.
+    // Splitting and adding +0.5 would push past endGlobal; clamp pulls it back.
+    const line = mkLine({
+      words: ['abcd'],
+      startBar: 0,
+      startBeat: 0,
+      endBar: 0,
+      endBeat: 0,
+    });
+    const next = splitWord(line, 0, 2, 4);
+    // After split there are 2 words; base for both is startGlobal=0 (single
+    // point). Offset of +0.5 would put it at 0.5 > endGlobal=0 → clamp to 0.
+    expect(next.wordOffsets?.[1]).toBe(0);
+  });
+
+  it('no-ops for out-of-range wordIndex or boundary splitAt', () => {
+    const line = mkLine({ words: ['hi'] });
+    expect(splitWord(line, -1, 1, 4)).toBe(line);
+    expect(splitWord(line, 2, 1, 4)).toBe(line);
+    // splitAt at boundaries: 0 (empty first half) and word.length (empty second half).
+    expect(splitWord(line, 0, 0, 4)).toBe(line);
+    expect(splitWord(line, 0, 2, 4)).toBe(line);
+  });
+});
+
+describe('joinWords', () => {
+  it("joins ['some','thin\\''] back into ['somethin\\'']", () => {
+    const line = mkLine({ words: ['some', "thin'"], startBeat: 0, endBeat: 4 });
+    const next = joinWords(line, 0);
+    expect(next.words).toEqual(["somethin'"]);
+  });
+
+  it("keeps the first word's offset; drops the second", () => {
+    const line = mkLine({
+      words: ['a', 'b', 'c'],
+      startBeat: 0,
+      endBeat: 4,
+      wordOffsets: [0.1, 0.5, -0.2],
+    });
+    const next = joinWords(line, 0);
+    expect(next.words).toEqual(['ab', 'c']);
+    expect(next.wordOffsets).toEqual([0.1, -0.2]);
+  });
+
+  it('leaves wordOffsets undefined when no offsets were set', () => {
+    const line = mkLine({ words: ['a', 'b'] });
+    const next = joinWords(line, 0);
+    expect(next.words).toEqual(['ab']);
+    expect(next.wordOffsets).toBeUndefined();
+  });
+
+  it('no-ops for out-of-range wordIndex or last word', () => {
+    const line = mkLine({ words: ['a', 'b'] });
+    expect(joinWords(line, -1)).toBe(line);
+    expect(joinWords(line, 1)).toBe(line); // last word has no next
+    expect(joinWords(line, 5)).toBe(line);
   });
 });

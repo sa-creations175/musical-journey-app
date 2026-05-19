@@ -170,3 +170,113 @@ export function globalBeatToBarBeat(
 ): { bar: number; beat: number } {
   return toBarBeat(globalBeat, beatsPerBar);
 }
+
+// --- Syllable split / join (Lead Sheet Redesign step 7) ---------------
+//
+// A word in a LyricLine can be split into two syllables (e.g.
+// "somethin'" → ["some", "thin'"]). The two syllables become separate
+// entries in `words` and each gets its own offset so they can be
+// nudged independently. Joining is the inverse — merges adjacent
+// words back into one and keeps the first word's offset.
+
+/**
+ * Split `line.words[wordIndex]` at character position `splitAt` into
+ * two adjacent entries. The first piece keeps `words[wordIndex]`'s
+ * slot; the second piece is inserted at `wordIndex + 1`.
+ *
+ * `wordOffsets` grows by one entry. The new second-syllable offset
+ * defaults to `(existing offset for wordIndex) + 0.5`, clamped to
+ * keep the syllable's position inside the line's [startGlobal,
+ * endGlobal] range.
+ *
+ * No-op (returns the line unchanged) when `wordIndex` is out of
+ * range, `splitAt < 1`, or `splitAt >= word.length` (we refuse
+ * splits that would produce an empty string on either side).
+ */
+export function splitWord(
+  line: LyricLine,
+  wordIndex: number,
+  splitAt: number,
+  beatsPerBar: number,
+): LyricLine {
+  if (wordIndex < 0 || wordIndex >= line.words.length) return line;
+  const word = line.words[wordIndex];
+  if (splitAt < 1 || splitAt >= word.length) return line;
+
+  const firstHalf = word.slice(0, splitAt);
+  const secondHalf = word.slice(splitAt);
+
+  const newWords = [
+    ...line.words.slice(0, wordIndex),
+    firstHalf,
+    secondHalf,
+    ...line.words.slice(wordIndex + 1),
+  ];
+
+  // Carry existing offsets verbatim across the split. The new entry
+  // at wordIndex+1 inherits (offset of wordIndex) + 0.5 so the split
+  // syllable lands just after the first half by default.
+  const existing = line.wordOffsets ?? [];
+  const firstOffset = existing[wordIndex] ?? 0;
+  const newOffsets: number[] = [];
+  for (let i = 0; i < wordIndex; i++) newOffsets.push(existing[i] ?? 0);
+  newOffsets.push(firstOffset);
+  newOffsets.push(firstOffset + 0.5);
+  for (let i = wordIndex + 1; i < line.words.length; i++) {
+    newOffsets.push(existing[i] ?? 0);
+  }
+
+  // Clamp the new syllable's offset so its position stays inside the
+  // line's range. Uses the post-split distribution since the word
+  // count just grew — the new syllable's base position lives at the
+  // new (wordIndex+1) slot.
+  const draft: LyricLine = {
+    ...line,
+    words: newWords,
+    wordOffsets: undefined,
+  };
+  const newBase = distributedWordPositions(draft, beatsPerBar)[wordIndex + 1];
+  const startGlobal = toGlobalBeat(line.startBar, line.startBeat, beatsPerBar);
+  const endGlobal = toGlobalBeat(line.endBar, line.endBeat, beatsPerBar);
+  const desired = newBase + newOffsets[wordIndex + 1];
+  if (desired < startGlobal) {
+    newOffsets[wordIndex + 1] = startGlobal - newBase;
+  } else if (desired > endGlobal) {
+    newOffsets[wordIndex + 1] = endGlobal - newBase;
+  }
+
+  return { ...line, words: newWords, wordOffsets: newOffsets };
+}
+
+/**
+ * Join `line.words[wordIndex]` and `line.words[wordIndex + 1]` into a
+ * single entry. The merged word keeps the first word's offset; the
+ * second's offset is dropped. Other words' offsets stay put.
+ *
+ * No-op when `wordIndex` is out of range or there's no next word.
+ */
+export function joinWords(line: LyricLine, wordIndex: number): LyricLine {
+  if (wordIndex < 0 || wordIndex >= line.words.length - 1) return line;
+
+  const merged = line.words[wordIndex] + line.words[wordIndex + 1];
+  const newWords = [
+    ...line.words.slice(0, wordIndex),
+    merged,
+    ...line.words.slice(wordIndex + 2),
+  ];
+
+  const existing = line.wordOffsets ?? [];
+  // Only carry an offsets array forward if any were actually set;
+  // otherwise leave undefined so distributedWordPositions falls back
+  // to bare even distribution.
+  if (existing.length === 0) {
+    return { ...line, words: newWords };
+  }
+  const newOffsets: number[] = [];
+  for (let i = 0; i < wordIndex; i++) newOffsets.push(existing[i] ?? 0);
+  newOffsets.push(existing[wordIndex] ?? 0);
+  for (let i = wordIndex + 2; i < line.words.length; i++) {
+    newOffsets.push(existing[i] ?? 0);
+  }
+  return { ...line, words: newWords, wordOffsets: newOffsets };
+}

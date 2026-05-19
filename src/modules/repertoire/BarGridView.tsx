@@ -93,6 +93,17 @@ interface Props {
    *  `reorderBar` and persist the result (phrases + barLayout +
    *  lyricLines). When omitted, bar drag is disabled. */
   onBarReorder?: (fromIndex: number, toIndex: number) => void | Promise<void>;
+  /** Tap-syllable-split (Lead Sheet Redesign step 7). Called when the
+   *  user picks a split position inside a placed word. */
+  onWordSplit?: (
+    lineId: string,
+    wordIndex: number,
+    splitAt: number,
+  ) => void | Promise<void>;
+  /** Tap-syllable-join (Lead Sheet Redesign step 7). Called with the
+   *  wordIndex of the LEFT syllable; joinWords merges it with the
+   *  one immediately following. */
+  onWordJoin?: (lineId: string, wordIndex: number) => void | Promise<void>;
 }
 
 interface EditingState {
@@ -117,6 +128,8 @@ export default function BarGridView({
   onAddBar,
   onDeleteBar,
   onBarReorder,
+  onWordSplit,
+  onWordJoin,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -160,19 +173,28 @@ export default function BarGridView({
   }, [lyricLines]);
 
   const [editing, setEditing] = useState<EditingState | null>(null);
+  // Word-edit popover state (step 7). Anchored under the bar that
+  // contains the word's current visual position.
+  const [wordEditing, setWordEditing] = useState<{
+    lineId: string;
+    wordIndex: number;
+    barIndex: number;
+    mode: 'actions' | 'split';
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!editing) return;
+    if (!editing && !wordEditing) return;
     const onDown = (e: MouseEvent) => {
       const node = containerRef.current;
       if (!node) return;
       if (e.target instanceof Node && node.contains(e.target)) return;
       setEditing(null);
+      setWordEditing(null);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [editing]);
+  }, [editing, wordEditing]);
 
   useEffect(() => {
     if (!editing) return;
@@ -183,6 +205,14 @@ export default function BarGridView({
     );
     if (!stillVisible) setEditing(null);
   }, [bars, editing]);
+
+  useEffect(() => {
+    if (!wordEditing) return;
+    const line = lyricLines.find(l => l.id === wordEditing.lineId);
+    if (!line || wordEditing.wordIndex >= line.words.length) {
+      setWordEditing(null);
+    }
+  }, [lyricLines, wordEditing]);
 
   if (bars.length === 0) {
     return (
@@ -287,6 +317,27 @@ export default function BarGridView({
                   beatsPerBar={beatsPerBar}
                   placedLines={placedLines}
                   onLineDelete={onLineDelete}
+                  wordEditing={wordEditing}
+                  onWordClick={
+                    onWordSplit || onWordJoin
+                      ? (lineId, wordIndex) =>
+                          setWordEditing(prev =>
+                            prev &&
+                            prev.lineId === lineId &&
+                            prev.wordIndex === wordIndex
+                              ? null
+                              : {
+                                  lineId,
+                                  wordIndex,
+                                  barIndex: bar.index,
+                                  mode: 'actions',
+                                },
+                          )
+                      : undefined
+                  }
+                  onWordEditingChange={setWordEditing}
+                  onWordSplit={onWordSplit}
+                  onWordJoin={onWordJoin}
                 />
               ))}
               {row.length < BARS_PER_ROW &&
@@ -607,16 +658,37 @@ function BarBox({
 // this bar. The outer parent grid columns guarantee horizontal
 // alignment with the bar boxes above.
 
+interface WordEditingState {
+  lineId: string;
+  wordIndex: number;
+  barIndex: number;
+  mode: 'actions' | 'split';
+}
+
 function LyricBarSegment({
   barIndex,
   beatsPerBar,
   placedLines,
   onLineDelete,
+  wordEditing,
+  onWordClick,
+  onWordEditingChange,
+  onWordSplit,
+  onWordJoin,
 }: {
   barIndex: number;
   beatsPerBar: number;
   placedLines: LyricLine[];
   onLineDelete?: (lineId: string) => void;
+  wordEditing: WordEditingState | null;
+  onWordClick?: (lineId: string, wordIndex: number) => void;
+  onWordEditingChange: (next: WordEditingState | null) => void;
+  onWordSplit?: (
+    lineId: string,
+    wordIndex: number,
+    splitAt: number,
+  ) => void | Promise<void>;
+  onWordJoin?: (lineId: string, wordIndex: number) => void | Promise<void>;
 }) {
   // Compute, per beat slot, which words/markers belong here. A word
   // belongs to (bar, beat) when its global position floors to that
@@ -652,8 +724,17 @@ function LyricBarSegment({
     }
   }
 
+  const popoverWord =
+    wordEditing && wordEditing.barIndex === barIndex
+      ? placedLines.find(l => l.id === wordEditing.lineId)
+      : null;
+  const popoverWordText =
+    popoverWord && wordEditing
+      ? popoverWord.words[wordEditing.wordIndex]
+      : null;
+
   return (
-    <div className="flex gap-0.5 px-1">
+    <div className="relative flex gap-0.5 px-1">
       {Array.from({ length: beatsPerBar }).map((_, beatPos) => (
         <BeatDropSlot
           key={beatPos}
@@ -661,8 +742,36 @@ function LyricBarSegment({
           beatPos={beatPos}
           items={slots[beatPos]}
           onLineDelete={onLineDelete}
+          onWordClick={onWordClick}
         />
       ))}
+      {wordEditing && popoverWord && popoverWordText !== null && (
+        <WordEditPopover
+          state={wordEditing}
+          wordText={popoverWordText}
+          wordCount={popoverWord.words.length}
+          onClose={() => onWordEditingChange(null)}
+          onModeChange={mode =>
+            onWordEditingChange({ ...wordEditing, mode })
+          }
+          onSplit={
+            onWordSplit
+              ? splitAt => {
+                  void onWordSplit(wordEditing.lineId, wordEditing.wordIndex, splitAt);
+                  onWordEditingChange(null);
+                }
+              : undefined
+          }
+          onJoin={
+            onWordJoin
+              ? leftIndex => {
+                  void onWordJoin(wordEditing.lineId, leftIndex);
+                  onWordEditingChange(null);
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
   );
 }
@@ -672,6 +781,7 @@ function BeatDropSlot({
   beatPos,
   items,
   onLineDelete,
+  onWordClick,
 }: {
   barIndex: number;
   beatPos: number;
@@ -681,6 +791,7 @@ function BeatDropSlot({
     | { kind: 'endMarker'; line: LyricLine }
   >;
   onLineDelete?: (lineId: string) => void;
+  onWordClick?: (lineId: string, wordIndex: number) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: DRAG_ID.beat(barIndex, beatPos),
@@ -720,6 +831,7 @@ function BeatDropSlot({
             lineId={item.line.id}
             wordIndex={item.wordIndex}
             text={item.text}
+            onClick={onWordClick}
           />
         );
       })}
@@ -775,14 +887,129 @@ function LineMarker({
   );
 }
 
+/** Word edit popover (step 7 — syllable split / join). Anchored
+ *  inside the LyricBarSegment for the bar holding the tapped word.
+ *  Two modes: an action picker (Split / Join prev / Join next) and a
+ *  split editor (the word's characters with tappable inter-character
+ *  gaps that fire `onSplit(splitAt)` on tap). */
+function WordEditPopover({
+  state,
+  wordText,
+  wordCount,
+  onClose,
+  onModeChange,
+  onSplit,
+  onJoin,
+}: {
+  state: WordEditingState;
+  wordText: string;
+  wordCount: number;
+  onClose: () => void;
+  onModeChange: (mode: 'actions' | 'split') => void;
+  onSplit?: (splitAt: number) => void;
+  onJoin?: (leftIndex: number) => void;
+}) {
+  const canJoinPrev = state.wordIndex > 0;
+  const canJoinNext = state.wordIndex < wordCount - 1;
+
+  return (
+    <div
+      // Absolutely positioned below the segment row. left-1/2 +
+      // -translate-x-1/2 centers it under the bar; z-index keeps it
+      // above any neighbouring rows.
+      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-30 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md p-2 text-[11px]"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-neutral-500">word:</span>
+        <span className="font-mono text-neutral-700 dark:text-neutral-200">{wordText}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="close word editor"
+          className="ml-auto text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          ×
+        </button>
+      </div>
+
+      {state.mode === 'actions' && (
+        <div className="flex flex-wrap gap-1">
+          {onSplit && wordText.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onModeChange('split')}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+            >
+              Split
+            </button>
+          )}
+          {onJoin && (
+            <button
+              type="button"
+              onClick={() => onJoin(state.wordIndex - 1)}
+              disabled={!canJoinPrev}
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Join prev
+            </button>
+          )}
+          {onJoin && (
+            <button
+              type="button"
+              onClick={() => onJoin(state.wordIndex)}
+              disabled={!canJoinNext}
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Join next
+            </button>
+          )}
+        </div>
+      )}
+
+      {state.mode === 'split' && (
+        <div className="space-y-1">
+          <div className="text-neutral-500">tap between two letters:</div>
+          <div className="inline-flex items-center bg-neutral-50 dark:bg-neutral-800/60 rounded px-1 py-0.5">
+            {wordText.split('').map((ch, i) => (
+              <span key={`c-${i}`} className="contents">
+                <span className="font-mono text-neutral-700 dark:text-neutral-200 px-0.5">
+                  {ch}
+                </span>
+                {i < wordText.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onSplit?.(i + 1)}
+                    aria-label={`split after character ${i + 1}`}
+                    className="inline-block min-w-[12px] min-h-[32px] mx-0.5 rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
+                  />
+                )}
+              </span>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => onModeChange('actions')}
+            className="text-[10px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
+          >
+            ← back
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WordChip({
   lineId,
   wordIndex,
   text,
+  onClick,
 }: {
   lineId: string;
   wordIndex: number;
   text: string;
+  onClick?: (lineId: string, wordIndex: number) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: DRAG_ID.word(lineId, wordIndex),
@@ -797,7 +1024,23 @@ function WordChip({
       style={style}
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing select-none touch-none text-[10px] leading-tight italic text-neutral-700 dark:text-neutral-200 px-1 rounded bg-neutral-100 dark:bg-neutral-800 truncate max-w-[7rem]"
+      onClick={
+        onClick
+          ? e => {
+              // Drag's PointerSensor uses 5px activation distance, so a
+              // bare click (no movement) lands here without starting a
+              // drag. Stop propagation so the bar grid's container
+              // mousedown handler doesn't immediately close the popover.
+              e.stopPropagation();
+              onClick(lineId, wordIndex);
+            }
+          : undefined
+      }
+      className={`select-none touch-none text-[10px] leading-tight italic text-neutral-700 dark:text-neutral-200 px-1 rounded bg-neutral-100 dark:bg-neutral-800 truncate max-w-[7rem] ${
+        onClick
+          ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700'
+          : 'cursor-grab active:cursor-grabbing'
+      }`}
       title={text}
     >
       {text}
