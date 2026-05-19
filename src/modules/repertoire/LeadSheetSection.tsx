@@ -153,8 +153,6 @@ export default function LeadSheetSection({
   useEffect(() => {
     // Switching sections wipes BOTH stacks — undo/redo only apply to
     // the currently-rendered section.
-    // eslint-disable-next-line no-console
-    console.log('[undo-reset] effect fired, section.id=%s', section.id);
     undoStackRef.current = [];
     redoStackRef.current = [];
     setCanUndo(false);
@@ -169,8 +167,6 @@ export default function LeadSheetSection({
     const stack = undoStackRef.current;
     stack.push(snap);
     while (stack.length > UNDO_STACK_MAX) stack.shift();
-    // eslint-disable-next-line no-console
-    console.log('[undo-push] stack.length=%d', stack.length);
     // Any new edit invalidates the redo stack — you can't redo into
     // a branched future.
     if (redoStackRef.current.length > 0) {
