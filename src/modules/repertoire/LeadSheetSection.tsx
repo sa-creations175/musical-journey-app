@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   closestCenter,
   type CollisionDetection,
@@ -118,7 +118,65 @@ export default function LeadSheetSection({
     setCompareIds([]);
   }, [section.id]);
 
-  const commit = (patch: Partial<SongSection>) => onChange(patch);
+  // --- Undo stack ------------------------------------------------
+  // Captures the prior values of any commit-tracked fields before
+  // each `commit` so the bar-grid undo button can step back through
+  // recent edits. Capped at 20 entries to avoid unbounded memory.
+  // Stack lives in a ref (no re-render on push/pop); `canUndo` state
+  // mirrors `stack.length > 0` so the button enables/disables.
+  type UndoSnapshot = Partial<
+    Pick<
+      SongSection,
+      'chordPlacements' | 'barLayout' | 'barCount' | 'lyricLines' | 'phrases'
+    >
+  >;
+  const UNDO_STACK_MAX = 20;
+  const undoStackRef = useRef<UndoSnapshot[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+
+  useEffect(() => {
+    // Switching sections wipes the stack — undo only applies to the
+    // currently-rendered section.
+    undoStackRef.current = [];
+    setCanUndo(false);
+  }, [section.id]);
+
+  const commit = async (patch: Partial<SongSection>) => {
+    // Snapshot the previous values of every tracked field this patch
+    // touches. Object.keys includes keys whose value is `undefined`,
+    // so "was undefined" round-trips correctly.
+    const tracked: Array<keyof UndoSnapshot> = [
+      'chordPlacements',
+      'barLayout',
+      'barCount',
+      'lyricLines',
+      'phrases',
+    ];
+    const snap: UndoSnapshot = {};
+    let captured = 0;
+    for (const key of Object.keys(patch) as Array<keyof UndoSnapshot>) {
+      if (!tracked.includes(key)) continue;
+      (snap as Record<string, unknown>)[key] = (section as unknown as Record<string, unknown>)[key];
+      captured += 1;
+    }
+    if (captured > 0) {
+      const stack = undoStackRef.current;
+      stack.push(snap);
+      while (stack.length > UNDO_STACK_MAX) stack.shift();
+      setCanUndo(true);
+    }
+    await onChange(patch);
+  };
+
+  const handleUndo = async () => {
+    const stack = undoStackRef.current;
+    const snap = stack.pop();
+    if (!snap) return;
+    setCanUndo(stack.length > 0);
+    // Bypass `commit` so the undo restore itself doesn't get pushed
+    // back onto the stack.
+    await onChange(snap);
+  };
 
   // --- Normalise arrangements + phrases at render time -----------
   const arrangements: Arrangement[] = useMemo(() => normalizeArrangements(section), [section]);
@@ -932,6 +990,8 @@ export default function LeadSheetSection({
               onBarReorder={handleBarReorder}
               onWordSplit={handleWordSplit}
               onWordJoin={handleWordJoin}
+              onUndo={handleUndo}
+              canUndo={canUndo}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending

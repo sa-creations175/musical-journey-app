@@ -104,6 +104,11 @@ interface Props {
    *  wordIndex of the LEFT syllable; joinWords merges it with the
    *  one immediately following. */
   onWordJoin?: (lineId: string, wordIndex: number) => void | Promise<void>;
+  /** Tap the header's ↩ button. Pops the parent's undo stack and
+   *  restores the prior section state. */
+  onUndo?: () => void | Promise<void>;
+  /** Drives the undo button's enabled state. */
+  canUndo?: boolean;
 }
 
 interface EditingState {
@@ -130,6 +135,8 @@ export default function BarGridView({
   onBarReorder,
   onWordSplit,
   onWordJoin,
+  onUndo,
+  canUndo,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -217,7 +224,12 @@ export default function BarGridView({
   if (bars.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-neutral-200 dark:border-neutral-800 p-3">
-        <BarGridHeader timeSignature={timeSignature} barCount={0} />
+        <BarGridHeader
+          timeSignature={timeSignature}
+          barCount={0}
+          onUndo={onUndo}
+          canUndo={canUndo}
+        />
         <p className="mt-2 text-[11px] italic text-neutral-500">
           No chords yet — add chord placements on phrase lines below, or
           {' '}
@@ -361,7 +373,12 @@ export default function BarGridView({
       ref={containerRef}
       className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
-      <BarGridHeader timeSignature={timeSignature} barCount={bars.length} />
+      <BarGridHeader
+        timeSignature={timeSignature}
+        barCount={bars.length}
+        onUndo={onUndo}
+        canUndo={canUndo}
+      />
       {chordsAreSortable ? (
         <SortableContext items={chordSortableIds}>{body}</SortableContext>
       ) : (
@@ -389,16 +406,34 @@ function AddBarButton({ onAddBar }: { onAddBar: () => void }) {
 function BarGridHeader({
   timeSignature,
   barCount,
+  onUndo,
+  canUndo,
 }: {
   timeSignature: string;
   barCount: number;
+  onUndo?: () => void | Promise<void>;
+  canUndo?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
       <span>bar grid</span>
-      <span>
-        {barCount} bar{barCount === 1 ? '' : 's'} · {timeSignature}
-      </span>
+      <div className="flex items-center gap-2">
+        <span>
+          {barCount} bar{barCount === 1 ? '' : 's'} · {timeSignature}
+        </span>
+        {onUndo && (
+          <button
+            type="button"
+            onClick={() => void onUndo()}
+            disabled={!canUndo}
+            aria-label="Undo last edit"
+            title={canUndo ? 'Undo last edit' : 'Nothing to undo'}
+            className="text-[14px] leading-none px-1 text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↩
+          </button>
+        )}
+      </div>
     </div>
   );
 }
