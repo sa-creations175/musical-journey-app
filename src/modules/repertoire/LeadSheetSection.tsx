@@ -181,6 +181,38 @@ export default function LeadSheetSection({
     return { placements, realPlacementId: real };
   };
 
+  // After a chord op changes which bars hold placements, the
+  // `barLayout` array (when present) can fall out of sync — a bar
+  // marked 'empty' might now hold a placement, or vice versa. This
+  // reconciles the layout so deriveBarGridAnchored doesn't hide the
+  // moved chord behind an 'empty' entry (or render a phantom 'chord'
+  // entry for a bar that's now actually empty).
+  //
+  // Returns `undefined` when there's no layout to reconcile (in which
+  // case deriveBarGridAnchored derives the bar count from the
+  // placements' max barIndex + 1).
+  const reconcileBarLayout = (
+    layout: Array<'chord' | 'empty'> | undefined,
+    placements: ChordPlacement[],
+  ): Array<'chord' | 'empty'> | undefined => {
+    if (!layout) return undefined;
+    const occupied = new Set<number>();
+    for (const p of placements) occupied.add(p.barIndex);
+    let maxBar = -1;
+    for (const p of placements) {
+      if (p.barIndex > maxBar) maxBar = p.barIndex;
+    }
+    const next: Array<'chord' | 'empty'> = [];
+    const total = Math.max(layout.length, maxBar + 1);
+    for (let i = 0; i < total; i++) {
+      const existing = layout[i];
+      if (occupied.has(i)) next.push('chord');
+      else if (existing === 'empty' || existing === 'chord') next.push('empty');
+      else next.push('empty');
+    }
+    return next;
+  };
+
   const handleChordBeatsChange = async (placementId: string, beats: number) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
     const clamped = Math.min(Math.max(1, Math.round(beats)), beatsPerBar);
@@ -190,7 +222,10 @@ export default function LeadSheetSection({
 
   // Chord drag onto another chord = swap positions (Option C). The
   // two placements exchange (barIndex, beatPos); chord metadata
-  // travels with each placement so nothing else changes.
+  // travels with each placement so nothing else changes. A swap
+  // doesn't change which bars are occupied (both bars still hold
+  // a chord), but we still reconcile barLayout for safety in case
+  // the section's layout was already out of sync.
   const handleChordSwap = async (fromPlacementId: string, toPlacementId: string) => {
     const { placements: fromPlacements, realPlacementId: fromReal } =
       ensurePlacementsForOp(fromPlacementId);
@@ -199,11 +234,17 @@ export default function LeadSheetSection({
       : toPlacementId;
     if (fromReal === toReal) return;
     const next = swapChordPlacements(fromPlacements, fromReal, toReal);
-    await commit({ chordPlacements: next });
+    const patch: Partial<SongSection> = { chordPlacements: next };
+    const reconciled = reconcileBarLayout(section.barLayout, next);
+    if (reconciled) patch.barLayout = reconciled;
+    await commit(patch);
   };
 
   // Chord drag onto an empty beat slot = move chord to that position.
   // The source becomes truly empty; no other chords are touched.
+  // barLayout needs to follow: the destination bar may have been
+  // marked 'empty' (now needs to become 'chord'), and the source bar
+  // may now be empty (needs 'empty').
   const handleChordMoveToEmpty = async (
     placementId: string,
     barIndex: number,
@@ -211,7 +252,10 @@ export default function LeadSheetSection({
   ) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
     const next = moveChordPlacement(placements, realPlacementId, barIndex, beatPos);
-    await commit({ chordPlacements: next });
+    const patch: Partial<SongSection> = { chordPlacements: next };
+    const reconciled = reconcileBarLayout(section.barLayout, next);
+    if (reconciled) patch.barLayout = reconciled;
+    await commit(patch);
   };
 
   const commitLyricLines = async (next: LyricLine[]) => {
