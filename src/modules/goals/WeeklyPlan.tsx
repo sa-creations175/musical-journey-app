@@ -166,8 +166,14 @@ type RowTimeDisplay =
  *  goal covers all 4 subs); Repertoire SotM + synthetic maintenance
  *  share repertoire_days_per_cadence. Production uses lessons-per-
  *  week which already IS the cadence — no suffix; absent here. */
+// `ear-training` is the rollup key actually used by PlanRow.moduleId
+// for every ET sub coverage row (sub-area is encoded in parentUnit,
+// not the moduleId). The 'intervals' / 'chord-recognition' / etc.
+// entries are vestigial; leaving them defensive for future code that
+// might key off a sub-area moduleId directly.
 const DAYS_METRIC_BY_MODULE: ReadonlyMap<string, string> = new Map([
   ['harmonic-fluency',     'harmonic_fluency_days_per_cadence'],
+  ['ear-training',         'ear_training_days_per_cadence'],
   ['intervals',            'ear_training_days_per_cadence'],
   ['chord-recognition',    'ear_training_days_per_cadence'],
   ['chord-progressions',   'ear_training_days_per_cadence'],
@@ -185,6 +191,7 @@ const DAYS_METRIC_BY_MODULE: ReadonlyMap<string, string> = new Map([
  *  dropped the standalone consistency row. */
 const CONSISTENCY_CARRIER_MODULE: ReadonlyMap<string, string> = new Map([
   ['harmonic-fluency',     'harmonic-fluency'],
+  ['ear-training',         'ear-training'],
   ['intervals',            'ear-training'],
   ['chord-recognition',    'ear-training'],
   ['chord-progressions',   'ear-training'],
