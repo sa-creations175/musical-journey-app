@@ -160,6 +160,42 @@ export default function LeadSheetSection({
     await commit({ phrases: next });
   };
 
+  // Bar-grid harmonic-tag write-back (Lead Sheet Redesign step 4).
+  // tag === null clears the manual tag, letting the auto-detector
+  // take over again. Auto-detected tags are display-only — only
+  // manual selections reach this handler.
+  const handleChordTagChange = async (
+    phraseId: string,
+    beatId: string,
+    tag: string | null,
+  ) => {
+    const target = normalisedPhrases.find(p => p.id === phraseId);
+    if (!target) return;
+    const arrangementPlacements = target.chordsByArrangement[activeArrangementId];
+    if (!arrangementPlacements) return;
+    const existing = arrangementPlacements[beatId];
+    if (!existing) return;
+    if ((existing.harmonicTag ?? undefined) === (tag ?? undefined)) return;
+    const updatedChord = { ...existing };
+    if (tag === null) {
+      delete updatedChord.harmonicTag;
+    } else {
+      updatedChord.harmonicTag = tag;
+    }
+    const nextPlacements: Record<string, typeof existing> = {
+      ...arrangementPlacements,
+      [beatId]: updatedChord,
+    };
+    const next: Phrase = {
+      ...target,
+      chordsByArrangement: {
+        ...target.chordsByArrangement,
+        [activeArrangementId]: nextPlacements,
+      },
+    };
+    await updatePhraseInPlace(next);
+  };
+
   // --- Phrase list CRUD ------------------------------------------
   // `+ add phrase line` opens an inline lyric input rather than
   // committing immediately — gives the user a clear surface to type or
@@ -510,6 +546,7 @@ export default function LeadSheetSection({
             activeArrangementId={activeArrangementId}
             onChordBeatsChange={handleChordBeatsChange}
             onChordReorder={handleChordReorder}
+            onChordTagChange={handleChordTagChange}
           />
 
           {normalisedPhrases.length === 0 ? (

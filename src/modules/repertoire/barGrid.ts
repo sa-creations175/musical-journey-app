@@ -17,6 +17,57 @@ import { normalizePhrase } from './beatsModel';
 
 const DEFAULT_TIME_SIGNATURE = '4/4';
 
+// ---------------------------------------------------------------------
+// Harmonic tagging (Lead Sheet Redesign step 4). Auto-detection only
+// affects the rendered visual treatment — auto tags are never written
+// to Dexie. A manual tag set on `ChordFunction.harmonicTag` always
+// overrides whatever the auto-detector would suggest.
+// ---------------------------------------------------------------------
+
+/**
+ * True when a quality string reads as a dominant chord. The rule:
+ * the quality must START with a bare `7`, `9`, `11`, or `13` token
+ * (after lowercasing). That's the convention for chords carrying an
+ * implied flat-7: `7`, `7b9`, `9(13)`, `13b9`, `7sus4` all qualify.
+ *
+ * Forms that contain those digits non-initially — `maj7`, `m7`,
+ * `dim7`, `add9`, `6/9` — are rejected because the leading token
+ * already classifies the chord as something else (major-7, minor,
+ * diminished, added tone, sixth-with-nine respectively).
+ */
+export function isDominantQuality(quality: string): boolean {
+  const q = quality.trim().toLowerCase();
+  if (q === '') return false;
+  return /^(7|9|11|13)(?![0-9])/.test(q);
+}
+
+/**
+ * Returns the auto-detected harmonic tag for a chord, or undefined
+ * if no auto-rule fires. Currently detects secondary dominants:
+ * dominant-quality chords on any scale degree other than the literal
+ * diatonic V (altered fifths like `b5`/`#5` still count as secondary).
+ * Skips unparsed chords (we don't have enough structure to classify).
+ */
+export function autoHarmonicTag(chord: ChordFunction): string | undefined {
+  if (chord.unparsed) return undefined;
+  if (!isDominantQuality(chord.quality)) return undefined;
+  if (chord.function === '5') return undefined;
+  return 'secondary_dominant';
+}
+
+/**
+ * Effective harmonic tag for a chord, combining the user's manual
+ * label (which persists to Dexie) with the auto-detector (which is
+ * display-only). Manual always wins, including the explicit empty
+ * string which the caller can use to suppress an auto-tag.
+ */
+export function effectiveHarmonicTag(chord: ChordFunction): string | undefined {
+  if (chord.harmonicTag !== undefined) {
+    return chord.harmonicTag === '' ? undefined : chord.harmonicTag;
+  }
+  return autoHarmonicTag(chord);
+}
+
 export interface BarCell {
   /** Original chord placement. Undefined slots represent the empty
    *  remainder of a bar (e.g. a 2-beat chord in a 4/4 bar leaves 2

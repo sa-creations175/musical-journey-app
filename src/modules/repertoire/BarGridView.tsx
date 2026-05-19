@@ -22,6 +22,7 @@ import {
   type Bar,
   type BarCell,
   deriveBarGrid,
+  effectiveHarmonicTag,
   effectiveTimeSignature,
   parseTimeSignature,
 } from './barGrid';
@@ -67,6 +68,15 @@ interface Props {
    *  callback receives document-order indices and is expected to
    *  apply arrayMove + persist. When omitted, drag is disabled. */
   onChordReorder?: (fromIndex: number, toIndex: number) => Promise<void> | void;
+  /** When supplied, the chord editor popover gains harmonic-tag
+   *  controls. `tag === null` means clear any manual tag (auto
+   *  detection may still apply). Otherwise the string is persisted
+   *  to `ChordFunction.harmonicTag`. */
+  onChordTagChange?: (
+    phraseId: string,
+    beatId: string,
+    tag: string | null,
+  ) => Promise<void> | void;
 }
 
 interface EditingState {
@@ -85,6 +95,7 @@ export default function BarGridView({
   activeArrangementId,
   onChordBeatsChange,
   onChordReorder,
+  onChordTagChange,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -159,7 +170,9 @@ export default function BarGridView({
     rows.push(bars.slice(i, i + BARS_PER_ROW));
   }
 
-  const handleCellClick = onChordBeatsChange
+  const editable = Boolean(onChordBeatsChange || onChordTagChange);
+
+  const handleCellClick = editable
     ? (cell: BarCell, barIndex: number) => {
         const key = cellKey(cell);
         setEditing(prev => {
@@ -180,6 +193,12 @@ export default function BarGridView({
         const clamped = Math.min(Math.max(1, Math.round(nextBeats)), beatsPerBar);
         if (clamped === (cell.chord.beats ?? 1)) return;
         await onChordBeatsChange(cell.phraseId, cell.beatId, clamped);
+      }
+    : undefined;
+
+  const handleTagChange = onChordTagChange
+    ? async (cell: BarCell, tag: string | null) => {
+        await onChordTagChange(cell.phraseId, cell.beatId, tag);
       }
     : undefined;
 
@@ -215,6 +234,7 @@ export default function BarGridView({
               editing={editing}
               onCellClick={handleCellClick}
               onBeatsChange={handleBeatsChange}
+              onTagChange={handleTagChange}
               draggable={Boolean(onChordReorder)}
             />
           ))}
@@ -273,6 +293,7 @@ function BarBox({
   editing,
   onCellClick,
   onBeatsChange,
+  onTagChange,
   draggable,
 }: {
   bar: Bar;
@@ -282,6 +303,7 @@ function BarBox({
   editing: EditingState | null;
   onCellClick?: (cell: BarCell, barIndex: number) => void;
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
+  onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   draggable: boolean;
 }) {
   const filledBeats = bar.cells.reduce((sum, c) => sum + c.beats, 0);
@@ -354,13 +376,14 @@ function BarBox({
           />
         )}
       </div>
-      {editingCellInThisBar && onBeatsChange && (
-        <BeatCountPopover
+      {editingCellInThisBar && (onBeatsChange || onTagChange) && (
+        <ChordEditorPopover
           cell={editingCellInThisBar}
           beatsPerBar={beatsPerBar}
           sectionKey={sectionKey}
           notationMode={notationMode}
           onBeatsChange={onBeatsChange}
+          onTagChange={onTagChange}
         />
       )}
     </div>
@@ -437,6 +460,10 @@ function ChordCellBox({
     roundedLeft ? 'rounded-l-sm' : '',
     roundedRight ? 'rounded-r-sm' : '',
   ].join(' ');
+  // Harmonic tag → dashed border (auto detection OR manual tag). Fill
+  // and text stay unchanged so the scale-degree color still dominates.
+  const tagged = effectiveHarmonicTag(cell.chord) !== undefined;
+  const borderStyleClass = tagged ? 'border-dashed' : '';
 
   const interactive = Boolean(onClick);
   const handleClick = (e: React.MouseEvent) => {
@@ -455,7 +482,7 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
+      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${borderStyleClass} ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''}`}
       style={baseStyle}
@@ -473,126 +500,269 @@ function ChordCellBox({
   );
 }
 
-function BeatCountPopover({
+// Harmonic-tag preset list shown in the chord-editor popover. Custom
+// (free text) and "clear" actions live alongside in the picker.
+const TAG_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'secondary_dominant', label: 'Secondary dom' },
+  { value: 'borrowed', label: 'Borrowed' },
+  { value: 'passing', label: 'Passing' },
+  { value: 'pedal', label: 'Pedal' },
+];
+
+function labelForTag(tag: string): string {
+  const preset = TAG_PRESETS.find(p => p.value === tag);
+  return preset?.label ?? tag;
+}
+
+function ChordEditorPopover({
   cell,
   beatsPerBar,
   sectionKey,
   notationMode,
   onBeatsChange,
+  onTagChange,
 }: {
   cell: BarCell;
   beatsPerBar: number;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
-  onBeatsChange: (cell: BarCell, beats: number) => void | Promise<void>;
+  onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
+  onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
 }) {
   const chordBeats = cell.chord.beats ?? 1;
   const canDec = chordBeats > 1;
   const canInc = chordBeats < beatsPerBar;
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
+
+  const manualTag = cell.chord.harmonicTag;
+  const autoOnly = manualTag === undefined;
+  const effectiveTag = effectiveHarmonicTag(cell.chord);
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [customDraft, setCustomDraft] = useState('');
+
   const stepBy = (delta: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!onBeatsChange) return;
     void onBeatsChange(cell, chordBeats + delta);
   };
+
+  const applyTag = (tag: string | null) => {
+    if (!onTagChange) return;
+    void onTagChange(cell, tag);
+    setPickerOpen(false);
+    setCustomDraft('');
+  };
+
+  const applyCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = customDraft.trim();
+    if (trimmed === '') return;
+    applyTag(trimmed);
+  };
+
   return (
     <div
       // Popover anchored below the bar. z-index keeps it above the
-      // next row of bars; pointer-events-auto so click-throughs work
-      // while the parent grid uses pointer-events normally.
-      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 flex items-center gap-2 px-2 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md"
+      // next row of bars.
+      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[16rem] rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md"
       onClick={e => e.stopPropagation()}
     >
-      <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
-        {text ? <ChordGlyph text={text} /> : '—'}
-      </span>
-      <button
-        type="button"
-        onClick={stepBy(-1)}
-        disabled={!canDec}
-        className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed"
-        aria-label="decrease beat count"
-      >
-        −
-      </button>
-      <span className="font-mono tabular-nums text-sm min-w-[1.5ch] text-center text-neutral-700 dark:text-neutral-200">
-        {chordBeats}
-      </span>
-      <button
-        type="button"
-        onClick={stepBy(1)}
-        disabled={!canInc}
-        className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed"
-        aria-label="increase beat count"
-      >
-        +
-      </button>
-      <span className="text-[10px] text-neutral-400">
-        beat{chordBeats === 1 ? '' : 's'}
-      </span>
+      {/* Row 1: chord glyph + beat-count stepper */}
+      {onBeatsChange && (
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b border-neutral-200 dark:border-neutral-800">
+          <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
+            {text ? <ChordGlyph text={text} /> : '—'}
+          </span>
+          <button
+            type="button"
+            onClick={stepBy(-1)}
+            disabled={!canDec}
+            className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="decrease beat count"
+          >
+            −
+          </button>
+          <span className="font-mono tabular-nums text-sm min-w-[1.5ch] text-center text-neutral-700 dark:text-neutral-200">
+            {chordBeats}
+          </span>
+          <button
+            type="button"
+            onClick={stepBy(1)}
+            disabled={!canInc}
+            className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="increase beat count"
+          >
+            +
+          </button>
+          <span className="text-[10px] text-neutral-400">
+            beat{chordBeats === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
+
+      {/* Row 2: harmonic-tag chip + edit/+ tag affordance */}
+      {onTagChange && (
+        <div className="px-2 py-1.5">
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="text-neutral-500">tag:</span>
+            {effectiveTag ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200">
+                {labelForTag(effectiveTag)}
+                {autoOnly && <span className="text-neutral-400">· auto</span>}
+              </span>
+            ) : (
+              <span className="text-neutral-400 italic">none</span>
+            )}
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                setPickerOpen(prev => !prev);
+              }}
+              className="ml-auto text-fluent hover:underline"
+            >
+              {pickerOpen ? 'close' : effectiveTag ? 'edit' : '+ tag'}
+            </button>
+          </div>
+
+          {pickerOpen && (
+            <div className="mt-2 space-y-1.5">
+              <div className="flex flex-wrap gap-1">
+                {TAG_PRESETS.map(preset => {
+                  const selected = manualTag === preset.value;
+                  return (
+                    <button
+                      key={preset.value}
+                      type="button"
+                      onClick={e => {
+                        e.stopPropagation();
+                        applyTag(preset.value);
+                      }}
+                      className={`px-2 py-0.5 text-[11px] rounded-full border ${
+                        selected
+                          ? 'border-fluent bg-fluent/10 text-fluent'
+                          : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <form className="flex items-center gap-1" onSubmit={applyCustom}>
+                <input
+                  type="text"
+                  value={customDraft}
+                  onChange={e => setCustomDraft(e.target.value)}
+                  placeholder="custom…"
+                  className="flex-1 px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200"
+                  onClick={e => e.stopPropagation()}
+                />
+                <button
+                  type="submit"
+                  disabled={customDraft.trim() === ''}
+                  className="px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  apply
+                </button>
+              </form>
+              {manualTag !== undefined && (
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    applyTag(null);
+                  }}
+                  className="text-[11px] text-neutral-500 hover:text-needswork"
+                >
+                  clear tag
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-// Scale-degree color families. Per LEAD_SHEET_REDESIGN.md:
-//   1, 4         → teal
-//   2, 5         → purple
-//   3, 6         → amber
-//   7 / altered  → coral (rose family in Tailwind)
+// Per-degree color families. Per LEAD_SHEET_REDESIGN.md (step 4):
+//   1 → teal-600   (tonic, anchor)
+//   2 → purple-400 (subdominant family, weaker)
+//   3 → teal-400   (tonic family)
+//   4 → purple-600 (subdominant)
+//   5 → amber-600  (dominant)
+//   6 → teal-200   (tonic family, weakest)
+//   7 → amber-400  (dominant family)
 //
-// "Altered" = any function carrying a leading b/# accidental.
+// Altered degrees (b2, b3, #4, b6, b7, b5) take the natural-degree
+// color so the scale-degree family stays visually consistent. Unparsed
+// or empty-function placements fall back to neutral.
+const DEGREE_PALETTES: Record<string, {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+}> = {
+  '1': {
+    bg: 'bg-teal-50 dark:bg-teal-950/40',
+    text: 'text-teal-700 dark:text-teal-200',
+    border: 'border-teal-600 dark:border-teal-500',
+    dot: 'text-teal-600',
+  },
+  '2': {
+    bg: 'bg-purple-50 dark:bg-purple-950/40',
+    text: 'text-purple-700 dark:text-purple-200',
+    border: 'border-purple-400 dark:border-purple-500',
+    dot: 'text-purple-400',
+  },
+  '3': {
+    bg: 'bg-teal-50 dark:bg-teal-950/40',
+    text: 'text-teal-700 dark:text-teal-200',
+    border: 'border-teal-400 dark:border-teal-500',
+    dot: 'text-teal-400',
+  },
+  '4': {
+    bg: 'bg-purple-50 dark:bg-purple-950/40',
+    text: 'text-purple-700 dark:text-purple-200',
+    border: 'border-purple-600 dark:border-purple-400',
+    dot: 'text-purple-600',
+  },
+  '5': {
+    bg: 'bg-amber-50 dark:bg-amber-950/40',
+    text: 'text-amber-700 dark:text-amber-200',
+    border: 'border-amber-600 dark:border-amber-400',
+    dot: 'text-amber-600',
+  },
+  '6': {
+    bg: 'bg-teal-50 dark:bg-teal-950/40',
+    text: 'text-teal-700 dark:text-teal-200',
+    border: 'border-teal-200 dark:border-teal-700',
+    dot: 'text-teal-300',
+  },
+  '7': {
+    bg: 'bg-amber-50 dark:bg-amber-950/40',
+    text: 'text-amber-700 dark:text-amber-200',
+    border: 'border-amber-400 dark:border-amber-500',
+    dot: 'text-amber-400',
+  },
+};
+
+const NEUTRAL_PALETTE = {
+  bg: 'bg-neutral-100 dark:bg-neutral-800/60',
+  text: 'text-neutral-700 dark:text-neutral-200',
+  border: 'border-neutral-300 dark:border-neutral-700',
+  dot: 'text-neutral-400',
+};
+
 function colorForFunction(chord: ChordFunction): {
   bg: string;
   text: string;
   border: string;
   dot: string;
 } {
-  if (chord.unparsed || chord.function === '') {
-    return {
-      bg: 'bg-neutral-100 dark:bg-neutral-800/60',
-      text: 'text-neutral-700 dark:text-neutral-200',
-      border: 'border-neutral-300/60 dark:border-neutral-700/60',
-      dot: 'text-neutral-400',
-    };
-  }
-  const fn = chord.function;
-  const isAltered = fn.startsWith('b') || fn.startsWith('#');
-  const digit = fn.replace(/^[b#]/, '');
-  if (isAltered || digit === '7') {
-    return {
-      bg: 'bg-rose-50 dark:bg-rose-950/40',
-      text: 'text-rose-700 dark:text-rose-200',
-      border: 'border-rose-300/60 dark:border-rose-800/60',
-      dot: 'text-rose-400',
-    };
-  }
-  if (digit === '1' || digit === '4') {
-    return {
-      bg: 'bg-teal-50 dark:bg-teal-950/40',
-      text: 'text-teal-700 dark:text-teal-200',
-      border: 'border-teal-300/60 dark:border-teal-800/60',
-      dot: 'text-teal-400',
-    };
-  }
-  if (digit === '2' || digit === '5') {
-    return {
-      bg: 'bg-purple-50 dark:bg-purple-950/40',
-      text: 'text-purple-700 dark:text-purple-200',
-      border: 'border-purple-300/60 dark:border-purple-800/60',
-      dot: 'text-purple-400',
-    };
-  }
-  if (digit === '3' || digit === '6') {
-    return {
-      bg: 'bg-amber-50 dark:bg-amber-950/40',
-      text: 'text-amber-700 dark:text-amber-200',
-      border: 'border-amber-300/60 dark:border-amber-800/60',
-      dot: 'text-amber-400',
-    };
-  }
-  return {
-    bg: 'bg-neutral-100 dark:bg-neutral-800/60',
-    text: 'text-neutral-700 dark:text-neutral-200',
-    border: 'border-neutral-300/60 dark:border-neutral-700/60',
-    dot: 'text-neutral-400',
-  };
+  if (chord.unparsed || chord.function === '') return NEUTRAL_PALETTE;
+  const digit = chord.function.replace(/^[b#]/, '');
+  return DEGREE_PALETTES[digit] ?? NEUTRAL_PALETTE;
 }

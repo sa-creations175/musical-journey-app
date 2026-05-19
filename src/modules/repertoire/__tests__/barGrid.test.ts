@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ChordFunction, Phrase, SongSection } from '../../../lib/db';
 import {
+  autoHarmonicTag,
   deriveBarGrid,
+  effectiveHarmonicTag,
   effectiveTimeSignature,
+  isDominantQuality,
   parseTimeSignature,
   reorderChordPlacements,
 } from '../barGrid';
@@ -388,5 +391,104 @@ describe('reorderChordPlacements', () => {
     const placements = next![0].chordsByArrangement?.alt ?? {};
     expect(placements.b0.function).toBe('2');
     expect(placements.b1.function).toBe('7');
+  });
+});
+
+describe('isDominantQuality', () => {
+  it('detects bare dominant extensions', () => {
+    expect(isDominantQuality('7')).toBe(true);
+    expect(isDominantQuality('9')).toBe(true);
+    expect(isDominantQuality('11')).toBe(true);
+    expect(isDominantQuality('13')).toBe(true);
+  });
+
+  it('detects dominants with altered/added tones', () => {
+    expect(isDominantQuality('7b9')).toBe(true);
+    expect(isDominantQuality('7#5')).toBe(true);
+    expect(isDominantQuality('9(13)')).toBe(true);
+    expect(isDominantQuality('7sus4')).toBe(true);
+    expect(isDominantQuality('13b9')).toBe(true);
+  });
+
+  it('rejects major-seventh family', () => {
+    expect(isDominantQuality('maj7')).toBe(false);
+    expect(isDominantQuality('maj9')).toBe(false);
+    expect(isDominantQuality('maj13')).toBe(false);
+    expect(isDominantQuality('Maj7')).toBe(false);
+  });
+
+  it('rejects minor family', () => {
+    expect(isDominantQuality('m')).toBe(false);
+    expect(isDominantQuality('m7')).toBe(false);
+    expect(isDominantQuality('m9')).toBe(false);
+    expect(isDominantQuality('m11')).toBe(false);
+    expect(isDominantQuality('min7')).toBe(false);
+  });
+
+  it('rejects diminished / half-diminished / augmented', () => {
+    expect(isDominantQuality('dim')).toBe(false);
+    expect(isDominantQuality('dim7')).toBe(false);
+    expect(isDominantQuality('m7b5')).toBe(false);
+    expect(isDominantQuality('aug')).toBe(false);
+    expect(isDominantQuality('aug7')).toBe(false);
+  });
+
+  it('rejects empty / triad qualities', () => {
+    expect(isDominantQuality('')).toBe(false);
+    expect(isDominantQuality('sus4')).toBe(false);
+    expect(isDominantQuality('add9')).toBe(false);
+  });
+});
+
+describe('autoHarmonicTag', () => {
+  it('tags dominant chords on degrees other than 5 as secondary dominants', () => {
+    expect(autoHarmonicTag(cf('1', '7'))).toBe('secondary_dominant');
+    expect(autoHarmonicTag(cf('2', '7'))).toBe('secondary_dominant');
+    expect(autoHarmonicTag(cf('6', '9'))).toBe('secondary_dominant');
+    expect(autoHarmonicTag(cf('3', '13b9'))).toBe('secondary_dominant');
+  });
+
+  it('does NOT tag the diatonic V (literal "5")', () => {
+    expect(autoHarmonicTag(cf('5', '7'))).toBeUndefined();
+    expect(autoHarmonicTag(cf('5', '9'))).toBeUndefined();
+    expect(autoHarmonicTag(cf('5', '13b9'))).toBeUndefined();
+  });
+
+  it('tags altered fifths (b5/#5) as secondary dominants', () => {
+    expect(autoHarmonicTag(cf('b5', '7'))).toBe('secondary_dominant');
+    expect(autoHarmonicTag(cf('#5', '7'))).toBe('secondary_dominant');
+  });
+
+  it('does not tag non-dominant qualities', () => {
+    expect(autoHarmonicTag(cf('2', 'm7'))).toBeUndefined();
+    expect(autoHarmonicTag(cf('1', 'maj7'))).toBeUndefined();
+    expect(autoHarmonicTag(cf('7', 'm7b5'))).toBeUndefined();
+  });
+
+  it('returns undefined for unparsed chords', () => {
+    expect(autoHarmonicTag({ function: '', quality: '', raw: '?', unparsed: true })).toBeUndefined();
+  });
+});
+
+describe('effectiveHarmonicTag', () => {
+  it('uses the manual tag when set', () => {
+    expect(effectiveHarmonicTag(cf('2', '7', { harmonicTag: 'borrowed' }))).toBe('borrowed');
+  });
+
+  it('manual tag overrides auto detection', () => {
+    // 2(7) auto-detects as secondary_dominant but manual passing wins.
+    expect(effectiveHarmonicTag(cf('2', '7', { harmonicTag: 'passing' }))).toBe('passing');
+  });
+
+  it('falls back to auto when no manual tag', () => {
+    expect(effectiveHarmonicTag(cf('2', '7'))).toBe('secondary_dominant');
+  });
+
+  it('empty-string manual tag suppresses auto detection', () => {
+    expect(effectiveHarmonicTag(cf('2', '7', { harmonicTag: '' }))).toBeUndefined();
+  });
+
+  it('returns undefined when no tag applies', () => {
+    expect(effectiveHarmonicTag(cf('1', 'maj7'))).toBeUndefined();
   });
 });
