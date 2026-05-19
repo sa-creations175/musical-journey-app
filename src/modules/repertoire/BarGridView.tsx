@@ -113,6 +113,11 @@ interface Props {
   onRedo?: () => void | Promise<void>;
   /** Drives the redo button's enabled state. */
   canRedo?: boolean;
+  /** When supplied, the time-signature label in the header becomes a
+   *  picker that lets the user override the song-level default for
+   *  this section. `null` clears the override (fall back to song
+   *  default). */
+  onTimeSignatureChange?: (next: string | null) => void | Promise<void>;
 }
 
 interface EditingState {
@@ -143,6 +148,7 @@ export default function BarGridView({
   canUndo,
   onRedo,
   canRedo,
+  onTimeSignatureChange,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -194,20 +200,24 @@ export default function BarGridView({
     barIndex: number;
     mode: 'actions' | 'split';
   } | null>(null);
+  // Time-signature picker state (step 8). Anchored under the header
+  // time-signature label.
+  const [timeSigPickerOpen, setTimeSigPickerOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!editing && !wordEditing) return;
+    if (!editing && !wordEditing && !timeSigPickerOpen) return;
     const onDown = (e: MouseEvent) => {
       const node = containerRef.current;
       if (!node) return;
       if (e.target instanceof Node && node.contains(e.target)) return;
       setEditing(null);
       setWordEditing(null);
+      setTimeSigPickerOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [editing, wordEditing]);
+  }, [editing, wordEditing, timeSigPickerOpen]);
 
   useEffect(() => {
     if (!editing) return;
@@ -237,6 +247,10 @@ export default function BarGridView({
           canUndo={canUndo}
           onRedo={onRedo}
           canRedo={canRedo}
+          isOverridden={section.timeSignature !== undefined && section.timeSignature.trim() !== ''}
+          onTimeSignatureChange={onTimeSignatureChange}
+          pickerOpen={timeSigPickerOpen}
+          setPickerOpen={setTimeSigPickerOpen}
         />
         <p className="mt-2 text-[11px] italic text-neutral-500">
           No chords yet — add chord placements on phrase lines below, or
@@ -391,6 +405,10 @@ export default function BarGridView({
         canUndo={canUndo}
         onRedo={onRedo}
         canRedo={canRedo}
+        isOverridden={section.timeSignature !== undefined && section.timeSignature.trim() !== ''}
+        onTimeSignatureChange={onTimeSignatureChange}
+        pickerOpen={timeSigPickerOpen}
+        setPickerOpen={setTimeSigPickerOpen}
       />
       {chordsAreSortable ? (
         <SortableContext items={chordSortableIds}>{body}</SortableContext>
@@ -416,6 +434,11 @@ function AddBarButton({ onAddBar }: { onAddBar: () => void }) {
   );
 }
 
+// Time-signature presets surfaced in the section-level picker.
+// Mirrors `SongDetailView.TIME_SIGNATURE_PRESETS` so picks match
+// across the song-meta editor and the per-section override.
+const SECTION_TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
+
 function BarGridHeader({
   timeSignature,
   barCount,
@@ -423,6 +446,10 @@ function BarGridHeader({
   canUndo,
   onRedo,
   canRedo,
+  isOverridden,
+  onTimeSignatureChange,
+  pickerOpen,
+  setPickerOpen,
 }: {
   timeSignature: string;
   barCount: number;
@@ -430,13 +457,34 @@ function BarGridHeader({
   canUndo?: boolean;
   onRedo?: () => void | Promise<void>;
   canRedo?: boolean;
+  isOverridden: boolean;
+  onTimeSignatureChange?: (next: string | null) => void | Promise<void>;
+  pickerOpen: boolean;
+  setPickerOpen: (open: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
+    <div className="relative flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
       <span>bar grid</span>
       <div className="flex items-center gap-2">
         <span>
-          {barCount} bar{barCount === 1 ? '' : 's'} · {timeSignature}
+          {barCount} bar{barCount === 1 ? '' : 's'} ·{' '}
+          {onTimeSignatureChange ? (
+            <button
+              type="button"
+              onClick={() => setPickerOpen(!pickerOpen)}
+              title={
+                isOverridden
+                  ? 'Section override — tap to change or clear'
+                  : 'Inherits song time signature — tap to override'
+              }
+              className="font-mono hover:text-fluent"
+            >
+              {timeSignature}
+              {isOverridden && <span className="text-fluent ml-0.5">*</span>}
+            </button>
+          ) : (
+            <span className="font-mono">{timeSignature}</span>
+          )}
         </span>
         {onUndo && (
           <button
@@ -463,6 +511,101 @@ function BarGridHeader({
           </button>
         )}
       </div>
+
+      {pickerOpen && onTimeSignatureChange && (
+        <TimeSignaturePicker
+          current={timeSignature}
+          isOverridden={isOverridden}
+          onPick={value => {
+            void onTimeSignatureChange(value);
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function TimeSignaturePicker({
+  current,
+  isOverridden,
+  onPick,
+  onClose,
+}: {
+  current: string;
+  isOverridden: boolean;
+  onPick: (value: string | null) => void;
+  onClose: () => void;
+}) {
+  const [customDraft, setCustomDraft] = useState('');
+  const trimmedDraft = customDraft.trim();
+  const applyCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (trimmedDraft === '') return;
+    onPick(trimmedDraft);
+  };
+  return (
+    <div
+      className="absolute top-full right-0 mt-1 z-30 min-w-[14rem] rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md p-2 text-[11px] normal-case tracking-normal"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-neutral-500">time signature</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="close time signature picker"
+          className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          ×
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1 mb-2">
+        {SECTION_TIME_SIGNATURE_PRESETS.map(preset => {
+          const selected = current === preset && isOverridden;
+          return (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onPick(preset)}
+              className={`px-2 py-0.5 rounded-full border font-mono ${
+                selected
+                  ? 'border-fluent bg-fluent/10 text-fluent'
+                  : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent'
+              }`}
+            >
+              {preset}
+            </button>
+          );
+        })}
+      </div>
+      <form className="flex items-center gap-1 mb-1" onSubmit={applyCustom}>
+        <input
+          type="text"
+          value={customDraft}
+          onChange={e => setCustomDraft(e.target.value)}
+          placeholder="custom (e.g. 9/8)"
+          className="flex-1 px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 font-mono"
+          onClick={e => e.stopPropagation()}
+        />
+        <button
+          type="submit"
+          disabled={trimmedDraft === ''}
+          className="px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          apply
+        </button>
+      </form>
+      {isOverridden && (
+        <button
+          type="button"
+          onClick={() => onPick(null)}
+          className="text-[11px] text-neutral-500 hover:text-needswork"
+        >
+          clear override (use song default)
+        </button>
+      )}
     </div>
   );
 }

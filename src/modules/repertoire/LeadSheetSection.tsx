@@ -174,7 +174,19 @@ export default function LeadSheetSection({
       setCanRedo(false);
     }
     setCanUndo(true);
-    await onChange(patch);
+    // Dexie's `Table.update(key, patch)` strips `undefined` values, so
+    // any commit that wants to CLEAR a field can't go through onChange.
+    // Detect that case and route through `onReplace` (full-record put)
+    // instead so the field actually goes back to undefined. The undo
+    // restore already uses onReplace, so this keeps the round-trip
+    // consistent.
+    const hasUndefined = Object.values(patch).some(v => v === undefined);
+    if (hasUndefined && onReplace) {
+      const full: SongSection = { ...sectionRef.current, ...patch };
+      await onReplace(full);
+    } else {
+      await onChange(patch);
+    }
   };
 
   const handleUndo = async () => {
@@ -379,6 +391,17 @@ export default function LeadSheetSection({
 
   const handleDeleteLyricLine = async (lineId: string) => {
     await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
+  };
+
+  // Per-section time signature override (step 8). `null` clears the
+  // override so the section falls back to the song-level default.
+  // commit() routes the undefined-clear through onReplace so the
+  // field actually goes back to undefined in storage.
+  const handleTimeSignatureChange = async (next: string | null) => {
+    const cleaned =
+      next === null || next.trim() === '' ? undefined : next.trim();
+    if ((sectionRef.current.timeSignature ?? undefined) === cleaned) return;
+    await commit({ timeSignature: cleaned });
   };
 
   // Syllable split / join (step 7). Both helpers are pure — the
@@ -1035,6 +1058,7 @@ export default function LeadSheetSection({
               canUndo={canUndo}
               onRedo={handleRedo}
               canRedo={canRedo}
+              onTimeSignatureChange={handleTimeSignatureChange}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending
