@@ -32,6 +32,14 @@ export interface BarCell {
   tiedFromPrev?: boolean;
   /** True when this chord continues into the next bar. */
   tiedToNext?: boolean;
+  /** Source phrase id this chord placement lives on. Used by the
+   *  bar-grid editor to persist beat-count changes back to Dexie via
+   *  Phrase.chordsByArrangement[arrId][beatId]. Both halves of a
+   *  tie-split cell share the same phraseId + beatId since they
+   *  represent one underlying chord placement. */
+  phraseId: string;
+  /** Source beat id within the phrase. See `phraseId`. */
+  beatId: string;
 }
 
 export interface Bar {
@@ -79,13 +87,21 @@ export function effectiveTimeSignature(
   );
 }
 
+interface SourceChord {
+  chord: ChordFunction;
+  beats: number;
+  phraseId: string;
+  beatId: string;
+}
+
 /** Flatten a section's chord placements (for the active arrangement)
- *  into a single document-order list of `{ chord, beats }` pairs. */
+ *  into a single document-order list with source identifiers attached
+ *  so the bar-grid editor can write changes back to the right slot. */
 function collectChordCells(
   section: SongSection,
   activeArrangementId: string,
-): Array<{ chord: ChordFunction; beats: number }> {
-  const out: Array<{ chord: ChordFunction; beats: number }> = [];
+): SourceChord[] {
+  const out: SourceChord[] = [];
   for (const phrase of section.phrases ?? []) {
     const normalised = normalizePhrase(phrase);
     const placements = normalised.chordsByArrangement[activeArrangementId] ?? {};
@@ -101,7 +117,7 @@ function collectChordCells(
         Boolean(chord.bass);
       if (!isMeaningful) continue;
       const beats = sanitiseBeats(chord.beats);
-      out.push({ chord, beats });
+      out.push({ chord, beats, phraseId: phrase.id, beatId: beat.id });
     }
   }
   return out;
@@ -144,13 +160,13 @@ export function deriveBarGrid(
     remaining = beatsPerBar;
   };
 
-  for (const { chord, beats } of cells) {
+  for (const { chord, beats, phraseId, beatId } of cells) {
     let unplaced = beats;
     let firstChunk = true;
     while (unplaced > 0) {
       if (remaining === 0) flush();
       const take = Math.min(unplaced, remaining);
-      const cell: BarCell = { chord, beats: take };
+      const cell: BarCell = { chord, beats: take, phraseId, beatId };
       if (!firstChunk) cell.tiedFromPrev = true;
       if (take < unplaced) cell.tiedToNext = true;
       current.push(cell);

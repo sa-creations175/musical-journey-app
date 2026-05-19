@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChordFunction, Song, SongSection } from '../../lib/db';
 import { chordToDisplay } from './chordFunction';
 import { useNotationMode } from '../../lib/notationPref';
@@ -28,9 +28,22 @@ interface Props {
   song: Song;
   section: SongSection;
   activeArrangementId: string;
+  /** When supplied, chord cells become tappable: clicking a cell opens
+   *  an inline `−` / `+` editor that persists the new beat count via
+   *  this callback. When omitted, the view stays read-only. */
+  onChordBeatsChange?: (
+    phraseId: string,
+    beatId: string,
+    beats: number,
+  ) => Promise<void> | void;
 }
 
-export default function BarGridView({ song, section, activeArrangementId }: Props) {
+export default function BarGridView({
+  song,
+  section,
+  activeArrangementId,
+  onChordBeatsChange,
+}: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
   const { beatsPerBar } = parseTimeSignature(timeSignature);
@@ -39,6 +52,37 @@ export default function BarGridView({ song, section, activeArrangementId }: Prop
     () => deriveBarGrid(section, activeArrangementId, beatsPerBar),
     [section, activeArrangementId, beatsPerBar],
   );
+
+  // Inline editor identity = `${phraseId}:${beatId}`. Null = no editor
+  // open. Stored as a flat string so the two visible halves of a
+  // tie-split cell share one editor automatically.
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close the editor on any mousedown outside this grid. Listening on
+  // `mousedown` (not click) so the editor closes before any other
+  // click-handler runs — matches the rest of the app's popover pattern.
+  useEffect(() => {
+    if (!editingKey) return;
+    const onDown = (e: MouseEvent) => {
+      const node = containerRef.current;
+      if (!node) return;
+      if (e.target instanceof Node && node.contains(e.target)) return;
+      setEditingKey(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [editingKey]);
+
+  // If the section / arrangement re-renders into a new chord layout
+  // that no longer contains the editing target, drop the editor.
+  useEffect(() => {
+    if (!editingKey) return;
+    const stillVisible = bars.some(bar =>
+      bar.cells.some(c => cellKey(c) === editingKey),
+    );
+    if (!stillVisible) setEditingKey(null);
+  }, [bars, editingKey]);
 
   if (bars.length === 0) {
     return (
@@ -59,8 +103,26 @@ export default function BarGridView({ song, section, activeArrangementId }: Prop
     rows.push(bars.slice(i, i + BARS_PER_ROW));
   }
 
+  const handleCellClick = onChordBeatsChange
+    ? (cell: BarCell) => {
+        const key = cellKey(cell);
+        setEditingKey(prev => (prev === key ? null : key));
+      }
+    : undefined;
+
+  const handleBeatsChange = onChordBeatsChange
+    ? async (cell: BarCell, nextBeats: number) => {
+        const clamped = Math.min(Math.max(1, Math.round(nextBeats)), beatsPerBar);
+        if (clamped === (cell.chord.beats ?? 1)) return;
+        await onChordBeatsChange(cell.phraseId, cell.beatId, clamped);
+      }
+    : undefined;
+
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40">
+    <div
+      ref={containerRef}
+      className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
+    >
       <BarGridHeader timeSignature={timeSignature} barCount={bars.length} />
       <div className="mt-2 space-y-2">
         {rows.map((row, rowIdx) => (
@@ -76,6 +138,9 @@ export default function BarGridView({ song, section, activeArrangementId }: Prop
                 beatsPerBar={beatsPerBar}
                 sectionKey={song.key}
                 notationMode={notationMode}
+                editingKey={editingKey}
+                onCellClick={handleCellClick}
+                onBeatsChange={handleBeatsChange}
               />
             ))}
             {/* Pad the final row with empty cells so bar widths stay
@@ -89,6 +154,10 @@ export default function BarGridView({ song, section, activeArrangementId }: Prop
       </div>
     </div>
   );
+}
+
+function cellKey(cell: BarCell): string {
+  return `${cell.phraseId}:${cell.beatId}`;
 }
 
 function BarGridHeader({
@@ -113,11 +182,17 @@ function BarBox({
   beatsPerBar,
   sectionKey,
   notationMode,
+  editingKey,
+  onCellClick,
+  onBeatsChange,
 }: {
   bar: Bar;
   beatsPerBar: number;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
+  editingKey: string | null;
+  onCellClick?: (cell: BarCell) => void;
+  onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
 }) {
   // Empty trailing space in a partial bar — render as a flex spacer
   // so chord widths inside still scale to fractions of `beatsPerBar`.
@@ -137,6 +212,10 @@ function BarBox({
             widthPct={(cell.beats / beatsPerBar) * 100}
             sectionKey={sectionKey}
             notationMode={notationMode}
+            beatsPerBar={beatsPerBar}
+            isEditing={editingKey === cellKey(cell)}
+            onClick={onCellClick}
+            onBeatsChange={onBeatsChange}
           />
         ))}
         {emptyBeats > 0 && (
@@ -156,11 +235,19 @@ function ChordCellBox({
   widthPct,
   sectionKey,
   notationMode,
+  beatsPerBar,
+  isEditing,
+  onClick,
+  onBeatsChange,
 }: {
   cell: BarCell;
   widthPct: number;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
+  beatsPerBar: number;
+  isEditing: boolean;
+  onClick?: (cell: BarCell) => void;
+  onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
 }) {
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
   const palette = colorForFunction(cell.chord);
@@ -173,20 +260,74 @@ function ChordCellBox({
     roundedRight ? 'rounded-r-sm' : '',
   ].join(' ');
 
+  const interactive = Boolean(onClick);
+  // Authoritative beats count comes from the underlying chord, not
+  // from the (possibly tie-split) cell.beats, so the editor reflects
+  // and writes the chord's total span.
+  const chordBeats = cell.chord.beats ?? 1;
+  const canDec = chordBeats > 1;
+  const canInc = chordBeats < beatsPerBar;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (!onClick) return;
+    e.stopPropagation();
+    onClick(cell);
+  };
+
+  const stepBy = (delta: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onBeatsChange) return;
+    void onBeatsChange(cell, chordBeats + delta);
+  };
+
   return (
     <div
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden`}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={interactive ? handleClick : undefined}
+      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden ${
+        interactive ? 'cursor-pointer hover:brightness-105' : ''
+      } ${isEditing ? 'ring-1 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''}`}
       style={{ width: `${widthPct}%` }}
       title={cell.chord.raw ?? text}
     >
       <div className={`text-[11px] leading-tight font-semibold ${palette.text} truncate w-full text-center`}>
         {text ? <ChordGlyph text={text} /> : <span className="opacity-40">—</span>}
       </div>
-      <div className={`flex items-center justify-center gap-0.5 text-[8px] ${palette.dot}`}>
-        {Array.from({ length: cell.beats }).map((_, i) => (
-          <span key={i} aria-hidden>·</span>
-        ))}
-      </div>
+      {isEditing && onBeatsChange ? (
+        <div
+          className={`flex items-center justify-center gap-1 text-[10px] ${palette.text}`}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={stepBy(-1)}
+            disabled={!canDec}
+            className="px-1 leading-none rounded border border-current/30 hover:bg-white/50 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="decrease beat count"
+          >
+            −
+          </button>
+          <span className="font-mono tabular-nums min-w-[1ch] text-center">
+            {chordBeats}
+          </span>
+          <button
+            type="button"
+            onClick={stepBy(1)}
+            disabled={!canInc}
+            className="px-1 leading-none rounded border border-current/30 hover:bg-white/50 disabled:opacity-30 disabled:cursor-not-allowed"
+            aria-label="increase beat count"
+          >
+            +
+          </button>
+        </div>
+      ) : (
+        <div className={`flex items-center justify-center gap-0.5 text-[8px] ${palette.dot}`}>
+          {Array.from({ length: cell.beats }).map((_, i) => (
+            <span key={i} aria-hidden>·</span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

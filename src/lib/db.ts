@@ -239,6 +239,19 @@ export interface ChordFunction {
    *  user enriches them. Unindexed; lives in the section JSONB blob via
    *  Phrase.chordsByArrangement. */
   beats?: number;
+  /** Harmonic-function tag describing the chord's role beyond plain
+   *  diatonic placement. Convention values:
+   *    'secondary_dominant' — a V-of-X chord (e.g. V/ii in a major key)
+   *    'borrowed'           — borrowed from the parallel mode (modal mixture)
+   *    'passing'            — non-functional passing chord between two
+   *                           harmonically meaningful chords
+   *    'pedal'              — held bass / pedal-point chord
+   *  Free-form string so user-defined labels survive — undefined means
+   *  no tag (i.e. diatonic, the default). Surfaced by the bar-grid
+   *  renderer's color/badge layer and consumed by the lead-sheet → ET
+   *  pipeline (Lead Sheet Redesign step 9). Unindexed; lives in the
+   *  same JSONB blob as the rest of the ChordFunction. */
+  harmonicTag?: string;
 }
 
 /**

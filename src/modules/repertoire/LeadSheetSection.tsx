@@ -121,6 +121,35 @@ export default function LeadSheetSection({
     await commit({ phrases: list });
   };
 
+  // Bar-grid editor write-back (Lead Sheet Redesign step 3). Updates
+  // `ChordFunction.beats` on a specific placement and persists the
+  // phrase. Beat count is clamped by BarGridView before it gets here.
+  const handleChordBeatsChange = async (
+    phraseId: string,
+    beatId: string,
+    beats: number,
+  ) => {
+    const target = normalisedPhrases.find(p => p.id === phraseId);
+    if (!target) return;
+    const arrangementPlacements = target.chordsByArrangement[activeArrangementId];
+    if (!arrangementPlacements) return;
+    const existing = arrangementPlacements[beatId];
+    if (!existing) return;
+    if ((existing.beats ?? 1) === beats) return;
+    const nextPlacements: Record<string, typeof existing> = {
+      ...arrangementPlacements,
+      [beatId]: { ...existing, beats },
+    };
+    const next: Phrase = {
+      ...target,
+      chordsByArrangement: {
+        ...target.chordsByArrangement,
+        [activeArrangementId]: nextPlacements,
+      },
+    };
+    await updatePhraseInPlace(next);
+  };
+
   // --- Phrase list CRUD ------------------------------------------
   // `+ add phrase line` opens an inline lyric input rather than
   // committing immediately — gives the user a clear surface to type or
@@ -461,14 +490,15 @@ export default function LeadSheetSection({
             onPhraseChange={updatePhraseInPlace}
           />
 
-          {/* Lead Sheet Redesign step 2 — read-only bar-grid view of
-              the active arrangement. Renders above the phrase editor
-              so the user can compare the new measure-based layout
-              with the existing phrase/beat editor in real practice. */}
+          {/* Lead Sheet Redesign — bar-grid view of the active
+              arrangement. Click a chord box to edit its beat count
+              inline; changes persist immediately via
+              handleChordBeatsChange (step 3). */}
           <BarGridView
             song={song}
             section={section}
             activeArrangementId={activeArrangementId}
+            onChordBeatsChange={handleChordBeatsChange}
           />
 
           {normalisedPhrases.length === 0 ? (

@@ -220,6 +220,61 @@ describe('deriveBarGrid — multi-phrase sections', () => {
   });
 });
 
+describe('deriveBarGrid — source ids (for editor write-back)', () => {
+  it('attaches phraseId + beatId from the originating placement', () => {
+    const phrase: Phrase = {
+      id: 'phr-A',
+      beats: [
+        { id: 'beat-x', type: 'word', text: '' },
+        { id: 'beat-y', type: 'word', text: '' },
+      ],
+      chordsByArrangement: {
+        [BASIC_ARRANGEMENT_ID]: {
+          'beat-x': cf('1'),
+          'beat-y': cf('5'),
+        },
+      },
+    };
+    const bars = deriveBarGrid(mkSection([phrase]), BASIC_ARRANGEMENT_ID, 4);
+    expect(bars[0].cells[0]).toMatchObject({ phraseId: 'phr-A', beatId: 'beat-x' });
+    expect(bars[0].cells[1]).toMatchObject({ phraseId: 'phr-A', beatId: 'beat-y' });
+  });
+
+  it('shares phraseId + beatId across both halves of a tie-split chord', () => {
+    // Bar 1: A(2) fills 2/4. Bar then accepts B(3) which spills 2 + 1.
+    const phrase: Phrase = {
+      id: 'phr-1',
+      beats: [
+        { id: 'b-a', type: 'word', text: '' },
+        { id: 'b-b', type: 'word', text: '' },
+      ],
+      chordsByArrangement: {
+        [BASIC_ARRANGEMENT_ID]: {
+          'b-a': cf('1', '', { beats: 2 }),
+          'b-b': cf('5', '', { beats: 3 }),
+        },
+      },
+    };
+    const bars = deriveBarGrid(mkSection([phrase]), BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(2);
+    // First half of B in bar 1 + second half in bar 2 both reference b-b.
+    const splitFirst = bars[0].cells[1];
+    const splitSecond = bars[1].cells[0];
+    expect(splitFirst).toMatchObject({ phraseId: 'phr-1', beatId: 'b-b', tiedToNext: true });
+    expect(splitSecond).toMatchObject({ phraseId: 'phr-1', beatId: 'b-b', tiedFromPrev: true });
+  });
+
+  it('preserves phraseId across multi-phrase sections', () => {
+    const section = mkSection([
+      { ...phraseWithChords([cf('1')]), id: 'phr-1' },
+      { ...phraseWithChords([cf('5')]), id: 'phr-2' },
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars[0].cells[0].phraseId).toBe('phr-1');
+    expect(bars[0].cells[1].phraseId).toBe('phr-2');
+  });
+});
+
 describe('deriveBarGrid — edge cases', () => {
   it('coerces fractional / non-finite beat counts to >= 1', () => {
     const section = mkSection([
