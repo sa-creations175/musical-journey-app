@@ -25,7 +25,16 @@ import {
   STAGE_LABEL,
 } from './stage';
 import { parseChord } from './chordParser';
-import { detectProgressions } from '../../lib/progressionDetection';
+import {
+  detectProgressions,
+  type ProgressionMatch,
+} from '../../lib/progressionDetection';
+import { progressionById } from '../ear-training/chord-progressions/catalog';
+import {
+  setAddedFromRepertoire,
+  setCustomLabel as setEtCustomLabel,
+} from '../ear-training/etCuration';
+import { useAddedFromRepertoireSet } from '../ear-training/useEtCurations';
 import { useToast } from '../../components/Toaster';
 import {
   chordSequenceForArrangement,
@@ -116,6 +125,14 @@ export default function LeadSheetSection({
   const [nameDraft, setNameDraft] = useState(section.name);
   const [editingName, setEditingName] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
+
+  // Detected-progressions → ET pipeline (Lead Sheet Redesign step 9).
+  // `addedFromRepertoireSet` flags catalog progression ids the user
+  // has promoted via the chip's + affordance. Confirmation popover
+  // state for the in-flight add.
+  const addedFromRepertoireSet = useAddedFromRepertoireSet();
+  const [addingProgressionId, setAddingProgressionId] = useState<string | null>(null);
+  const [addLabelDraft, setAddLabelDraft] = useState('');
 
   // Re-sync drafts when a different section rotates in.
   useEffect(() => {
@@ -402,6 +419,46 @@ export default function LeadSheetSection({
       next === null || next.trim() === '' ? undefined : next.trim();
     if ((sectionRef.current.timeSignature ?? undefined) === cleaned) return;
     await commit({ timeSignature: cleaned });
+  };
+
+  // Lead-sheet → ET pipeline (step 9). Opens the inline confirmation
+  // popover; the actual add fires from `handleConfirmAddProgression`
+  // below. Resets the label draft each time so successive adds don't
+  // inherit stale text.
+  const beginAddProgression = (m: ProgressionMatch) => {
+    setAddingProgressionId(m.progressionId);
+    setAddLabelDraft('');
+  };
+
+  const cancelAddProgression = () => {
+    setAddingProgressionId(null);
+    setAddLabelDraft('');
+  };
+
+  const handleConfirmAddProgression = async () => {
+    const id = addingProgressionId;
+    if (!id) return;
+    const trimmed = addLabelDraft.trim();
+    const progName = progressionById(id)?.name ?? id;
+    await setAddedFromRepertoire(id, true);
+    if (trimmed !== '') {
+      await setEtCustomLabel(id, trimmed);
+    }
+    setAddingProgressionId(null);
+    setAddLabelDraft('');
+    toast({
+      message: `Added "${trimmed || progName}" to ET practice`,
+      variant: 'success',
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          await setAddedFromRepertoire(id, false);
+          if (trimmed !== '') {
+            await setEtCustomLabel(id, null);
+          }
+        },
+      },
+    });
   };
 
   // Syllable split / join (step 7). Both helpers are pure — the
@@ -1286,18 +1343,85 @@ export default function LeadSheetSection({
           )}
 
           {progressionMatches.length > 0 && !comparing && (
-            <div className="flex flex-wrap gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
-              <span className="uppercase tracking-wide">detected:</span>
-              {progressionMatches.slice(0, 3).map((m, idx) => (
-                <span
-                  key={`${m.progressionId}-${idx}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-fluent/30 bg-fluent/10 text-fluent px-2 py-0.5"
-                  title={`Tier ${m.tier} · ${m.tierName} · match type: ${m.matchType}`}
-                >
-                  <span aria-hidden>📍</span>
-                  {m.progressionName}
-                </span>
-              ))}
+            <div className="flex flex-col gap-1 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="uppercase tracking-wide">detected:</span>
+                {progressionMatches.slice(0, 3).map((m, idx) => {
+                  const isAdded = addedFromRepertoireSet.has(m.progressionId);
+                  return (
+                    <span
+                      key={`${m.progressionId}-${idx}`}
+                      className="inline-flex items-center gap-1 rounded-full border border-fluent/30 bg-fluent/10 text-fluent px-2 py-0.5"
+                      title={
+                        isAdded
+                          ? 'In your ET practice'
+                          : `Tier ${m.tier} · ${m.tierName} · match type: ${m.matchType}`
+                      }
+                    >
+                      <span aria-hidden>📍</span>
+                      {m.progressionName}
+                      {isAdded ? (
+                        <span
+                          aria-label="In your ET practice"
+                          className="ml-0.5 font-semibold"
+                        >
+                          ✓
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => beginAddProgression(m)}
+                          title="Add to ET practice"
+                          aria-label="Add to ET practice"
+                          className="ml-0.5 leading-none hover:underline"
+                        >
+                          +
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+              {addingProgressionId &&
+                (() => {
+                  const prog = progressionById(addingProgressionId);
+                  if (!prog) return null;
+                  return (
+                    <div className="rounded border border-fluent/40 bg-fluent/5 p-2 space-y-2 max-w-sm">
+                      <div className="text-[11px]">
+                        <div className="font-semibold text-neutral-700 dark:text-neutral-200">
+                          {prog.name}
+                        </div>
+                        <div className="font-mono text-neutral-500 mt-0.5">
+                          {prog.numerals.join(' – ')}
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        value={addLabelDraft}
+                        onChange={e => setAddLabelDraft(e.target.value)}
+                        placeholder="custom label (optional)"
+                        className="w-full px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void handleConfirmAddProgression()}
+                          className="px-2 py-0.5 text-[11px] rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20"
+                        >
+                          Add to ET practice
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelAddProgression}
+                          className="px-2 py-0.5 text-[11px] rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
           )}
 

@@ -1679,6 +1679,13 @@ export interface EtItemCuration {
   flagged?: boolean;
   flagNote?: string;
   hidden?: boolean;
+  /** Marked when the user promoted this catalog item from a song's
+   *  detected progression via the lead-sheet → ET pipeline (Lead
+   *  Sheet Redesign step 9). Drives the lead-sheet tag's "in your
+   *  ET practice" ✓ indicator and (future) a session-loader bias
+   *  toward repertoire-derived items. Unindexed; lives in the row
+   *  blob alongside the other curation fields. */
+  addedFromRepertoire?: boolean;
   /** Server-side write timestamp (ms). Used by the sync layer +
    *  for "most-recently-curated" sorting in admin views. */
   updatedAt: number;

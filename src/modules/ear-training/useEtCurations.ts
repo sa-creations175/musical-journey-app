@@ -31,3 +31,18 @@ export function useEtCurationsLive(
     return out;
   }, [allRows, refSet]);
 }
+
+/** Reactive set of itemRefs with `addedFromRepertoire: true`. Used by
+ *  the lead-sheet detected-progression chips to render `✓` for items
+ *  the user has promoted through the repertoire pipeline. Live-
+ *  updates so the indicator flips immediately when the user adds /
+ *  undoes from any surface. */
+export function useAddedFromRepertoireSet(): Set<string> {
+  const allRows = useLiveQuery(() => db.etItemCuration.toArray(), []);
+  return useMemo(() => {
+    if (!allRows) return new Set<string>();
+    return new Set(
+      allRows.filter(r => r.addedFromRepertoire).map(r => r.itemRef),
+    );
+  }, [allRows]);
+}

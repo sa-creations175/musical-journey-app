@@ -66,6 +66,7 @@ interface UpsertPatch {
   flagged?: PatchOp<boolean>;
   flagNote?: PatchOp<string>;
   hidden?: PatchOp<boolean>;
+  addedFromRepertoire?: PatchOp<boolean>;
 }
 
 async function upsert(itemRef: string, patch: UpsertPatch): Promise<void> {
@@ -82,6 +83,10 @@ async function upsert(itemRef: string, patch: UpsertPatch): Promise<void> {
     flagged: apply(patch.flagged, existing?.flagged),
     flagNote: apply(patch.flagNote, existing?.flagNote),
     hidden: apply(patch.hidden, existing?.hidden),
+    addedFromRepertoire: apply(
+      patch.addedFromRepertoire,
+      existing?.addedFromRepertoire,
+    ),
     updatedAt: Date.now(),
   };
   // Strip undefined keys so the IndexedDB row stays tidy.
@@ -120,6 +125,24 @@ export async function setFlag(
 
 export async function setHidden(itemRef: string, hidden: boolean): Promise<void> {
   await upsert(itemRef, { hidden: hidden ? true : null });
+}
+
+/** Mark / unmark this catalog item as "added from a song's detected
+ *  progression" (Lead Sheet Redesign step 9). `true` flips the flag
+ *  on; `false` clears it. The lead-sheet tag's ✓ indicator reads
+ *  from this; future session-loader work may bias toward these. */
+export async function setAddedFromRepertoire(
+  itemRef: string,
+  on: boolean,
+): Promise<void> {
+  await upsert(itemRef, { addedFromRepertoire: on ? true : null });
+}
+
+/** All itemRefs the user has promoted via the lead-sheet → ET
+ *  pipeline. Mirror of `loadHiddenItemRefs` / `loadFlaggedItemRefs`. */
+export async function loadAddedFromRepertoireRefs(): Promise<Set<string>> {
+  const rows = await db.etItemCuration.toArray();
+  return new Set(rows.filter(r => r.addedFromRepertoire).map(r => r.itemRef));
 }
 
 /**
