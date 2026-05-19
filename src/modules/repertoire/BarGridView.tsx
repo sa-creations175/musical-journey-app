@@ -269,7 +269,10 @@ export default function BarGridView({
   const handleBeatsChange = onChordBeatsChange
     ? async (cell: BarCell, nextBeats: number) => {
         const clamped = Math.min(Math.max(1, Math.round(nextBeats)), beatsPerBar);
-        if (clamped === (cell.chord.beats ?? 1)) return;
+        // Compare against `cell.beats` (the live placement.beats),
+        // not `cell.chord.beats` (the stale legacy ChordFunction
+        // field that's only set at materialization and never updated).
+        if (clamped === cell.beats) return;
         await onChordBeatsChange(cell.placementId, clamped);
       }
     : undefined;
@@ -1250,7 +1253,10 @@ function ChordEditorPopover({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
 }) {
-  const chordBeats = cell.chord.beats ?? 1;
+  // Source-of-truth beat count is `cell.beats` (= placement.beats).
+  // `cell.chord.beats` is a stale legacy field carried over from
+  // pre-Option-C materialization and isn't updated after edits.
+  const chordBeats = cell.beats;
   const canDec = chordBeats > 1;
   const canInc = chordBeats < beatsPerBar;
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
