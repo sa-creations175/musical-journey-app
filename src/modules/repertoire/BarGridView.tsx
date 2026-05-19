@@ -1,21 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  type DragEndEvent,
   type DraggableSyntheticListeners,
-  useSensor,
-  useSensors,
+  useDraggable,
+  useDroppable,
 } from '@dnd-kit/core';
 import type { DraggableAttributes } from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from '@dnd-kit/sortable';
+import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { ChordFunction, Song, SongSection } from '../../lib/db';
+import type { ChordFunction, LyricLine, Song, SongSection } from '../../lib/db';
 import { chordToDisplay } from './chordFunction';
 import { useNotationMode } from '../../lib/notationPref';
 import {
@@ -26,66 +18,70 @@ import {
   effectiveTimeSignature,
   parseTimeSignature,
 } from './barGrid';
+import { distributedWordPositions } from './lyricLine';
 import ChordGlyph from './chordGlyph';
 
 // Bar-grid renderer (Lead Sheet Redesign, May 2026 —
-// docs/LEAD_SHEET_REDESIGN.md). Renders chord placements as a measure
-// grid with proportional-width chord boxes inside each bar.
+// docs/LEAD_SHEET_REDESIGN.md).
 //
-// Interactions (when the parent supplies handlers):
-//   · click a chord box  → opens a popover below the bar with
-//                          [−] N [+] controls for the chord's beat
-//                          count (`onChordBeatsChange`).
-//   · drag a chord box   → reorders chord values across slots
-//                          (`onChordReorder`). Slot anchors stay
-//                          put; only which chord lives at each slot
-//                          changes — consistent with the redesign's
-//                          decoupling of lyrics from chord positions.
+// Renders chord placements as a measure grid. Below each bar's chord
+// row sits a lyric row: per-beat drop zones plus any placed lyric-
+// line words whose distributed position falls in this bar. Unplaced
+// lines (start == end == 0) live in a "pending tray" above the bars
+// and become draggable strips the user drops onto a beat slot.
 //
-// A chord split across bars (tie-split) renders as two visual cells
-// but is one placement. Only the leading half is draggable + clickable
-// so each sortable id stays unique; the trailing half is decorative.
+// All drag-and-drop is owned by the parent `DndContext` in
+// `LeadSheetSection` — this component just declares the draggables
+// and droppables via dnd-kit hooks. Chord cells stay sortable (chord
+// reorder), lyric markers / words / pending strips are free
+// draggables targeting the per-beat droppables.
 
-// 2 bars per row gives each bar enough horizontal space that bars
-// holding 4 single-beat chords in 4/4 fit comfortably (cell min-width
-// × beatsPerBar < bar's column width) without needing the inner
-// `overflow-x-auto` scroll fallback to kick in for typical usage.
+// Drag id prefixes used across BarGridView + LyricStagingArea +
+// LeadSheetSection's onDragEnd dispatch.
+export const DRAG_ID = {
+  chord: (phraseId: string, beatId: string) => `chord:${phraseId}:${beatId}`,
+  beat: (barIndex: number, beatPos: number) => `beat:${barIndex}:${beatPos}`,
+  pending: (lineId: string) => `pending:${lineId}`,
+  lineStart: (lineId: string) => `lineStart:${lineId}`,
+  lineEnd: (lineId: string) => `lineEnd:${lineId}`,
+  word: (lineId: string, wordIdx: number) => `word:${lineId}:${wordIdx}`,
+};
+
+// 2 bars per row keeps each bar wide enough for chord glyphs.
 const BARS_PER_ROW = 2;
 
 interface Props {
   song: Song;
   section: SongSection;
   activeArrangementId: string;
-  /** When supplied, chord cells become tappable: clicking a cell opens
-   *  a popover below the bar with `−` / `+` beat-count controls that
-   *  persist via this callback. When omitted, beats are read-only. */
+  /** Chord placements for the active arrangement, already split into
+   *  bar/cell shape. Re-derived from `section` here too, but exposed
+   *  as a prop would let a future caller mock it; currently internal. */
   onChordBeatsChange?: (
     phraseId: string,
     beatId: string,
     beats: number,
   ) => Promise<void> | void;
-  /** When supplied, chord boxes become draggable to reorder. The
-   *  callback receives document-order indices and is expected to
-   *  apply arrayMove + persist. When omitted, drag is disabled. */
-  onChordReorder?: (fromIndex: number, toIndex: number) => Promise<void> | void;
-  /** When supplied, the chord editor popover gains harmonic-tag
-   *  controls. `tag === null` means clear any manual tag (auto
-   *  detection may still apply). Otherwise the string is persisted
-   *  to `ChordFunction.harmonicTag`. */
   onChordTagChange?: (
     phraseId: string,
     beatId: string,
     tag: string | null,
   ) => Promise<void> | void;
+  /** Whether chord cells render as sortable (drag-to-reorder). Drag
+   *  end is handled by the parent DndContext; this flag just tells
+   *  us to wrap each cell in `useSortable`. */
+  chordsAreSortable?: boolean;
+  /** Lyric lines on this section. Pending lines (start == end) render
+   *  in the tray above the grid; placed lines render in their bars'
+   *  lyric rows. */
+  lyricLines?: LyricLine[];
+  /** Tap-× on a line removes it from the section entirely. */
+  onLineDelete?: (lineId: string) => void;
 }
 
 interface EditingState {
   phraseId: string;
   beatId: string;
-  /** Which bar to anchor the popover under. Tracked separately so a
-   *  tie-split chord can open the editor below the half the user
-   *  actually clicked (left half vs right half live in different
-   *  bars but share the same `phraseId:beatId`). */
   barIndex: number;
 }
 
@@ -94,8 +90,10 @@ export default function BarGridView({
   section,
   activeArrangementId,
   onChordBeatsChange,
-  onChordReorder,
   onChordTagChange,
+  chordsAreSortable = false,
+  lyricLines = [],
+  onLineDelete,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -106,24 +104,39 @@ export default function BarGridView({
     [section, activeArrangementId, beatsPerBar],
   );
 
-  // Flat list of unique placement ids in document order — counts each
-  // chord once (skips the trailing half of any tie-split). Drives the
-  // SortableContext and the fromIndex/toIndex math on drag-end.
-  const placementIds = useMemo(
+  // Chord sortable items keyed with the `chord:` prefix so the parent
+  // DndContext can route drag-end by id namespace.
+  const chordSortableIds = useMemo(
     () =>
       bars
         .flatMap(b => b.cells)
         .filter(c => !c.tiedFromPrev)
-        .map(c => cellKey(c)),
+        .map(c => DRAG_ID.chord(c.phraseId, c.beatId)),
     [bars],
   );
+
+  // Lines partitioned into pending (start == end == 0) and placed
+  // (anything with a range). The parent submits all lines into
+  // section.lyricLines with start/end = 0 initially; the first drop
+  // moves them out of the pending state.
+  const { pendingLines, placedLines } = useMemo(() => {
+    const pending: LyricLine[] = [];
+    const placed: LyricLine[] = [];
+    for (const line of lyricLines) {
+      const isPending =
+        line.startBar === 0 &&
+        line.startBeat === 0 &&
+        line.endBar === 0 &&
+        line.endBeat === 0;
+      if (isPending) pending.push(line);
+      else placed.push(line);
+    }
+    return { pendingLines: pending, placedLines: placed };
+  }, [lyricLines]);
 
   const [editing, setEditing] = useState<EditingState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close the editor on any mousedown outside the grid container.
-  // Listening on `mousedown` (not click) so the editor collapses
-  // before downstream click-handlers run.
   useEffect(() => {
     if (!editing) return;
     const onDown = (e: MouseEvent) => {
@@ -136,8 +149,6 @@ export default function BarGridView({
     return () => document.removeEventListener('mousedown', onDown);
   }, [editing]);
 
-  // If the underlying layout shifts (chord moved, deleted, etc.) and
-  // the editing target is gone, drop the editor.
   useEffect(() => {
     if (!editing) return;
     const key = `${editing.phraseId}:${editing.beatId}`;
@@ -148,11 +159,6 @@ export default function BarGridView({
     );
     if (!stillVisible) setEditing(null);
   }, [bars, editing]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
 
   if (bars.length === 0) {
     return (
@@ -202,49 +208,42 @@ export default function BarGridView({
       }
     : undefined;
 
-  const handleDragEnd = onChordReorder
-    ? async (event: DragEndEvent) => {
-        const { active, over } = event;
-        if (!over || active.id === over.id) return;
-        const fromIndex = placementIds.indexOf(String(active.id));
-        const toIndex = placementIds.indexOf(String(over.id));
-        if (fromIndex < 0 || toIndex < 0) return;
-        // Close any open editor before reordering so the popover
-        // doesn't briefly anchor to a stale slot.
-        setEditing(null);
-        await onChordReorder(fromIndex, toIndex);
-      }
-    : undefined;
-
-  const gridBody = (
-    <div className="mt-2 space-y-2">
-      {rows.map((row, rowIdx) => (
-        <div
-          key={rowIdx}
-          className="grid gap-2"
-          style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
-        >
-          {row.map(bar => (
-            <BarBox
-              key={bar.index}
-              bar={bar}
-              beatsPerBar={beatsPerBar}
-              sectionKey={song.key}
-              notationMode={notationMode}
-              editing={editing}
-              onCellClick={handleCellClick}
-              onBeatsChange={handleBeatsChange}
-              onTagChange={handleTagChange}
-              draggable={Boolean(onChordReorder)}
-            />
-          ))}
-          {row.length < BARS_PER_ROW &&
-            Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
-              <div key={`pad-${i}`} aria-hidden />
+  const body = (
+    <>
+      {pendingLines.length > 0 && (
+        <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
+      )}
+      <div className="mt-2 space-y-3">
+        {rows.map((row, rowIdx) => (
+          <div
+            key={rowIdx}
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
+          >
+            {row.map(bar => (
+              <BarBox
+                key={bar.index}
+                bar={bar}
+                beatsPerBar={beatsPerBar}
+                sectionKey={song.key}
+                notationMode={notationMode}
+                editing={editing}
+                onCellClick={handleCellClick}
+                onBeatsChange={handleBeatsChange}
+                onTagChange={handleTagChange}
+                draggable={chordsAreSortable}
+                placedLines={placedLines}
+                onLineDelete={onLineDelete}
+              />
             ))}
-        </div>
-      ))}
-    </div>
+            {row.length < BARS_PER_ROW &&
+              Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
+                <div key={`pad-${i}`} aria-hidden />
+              ))}
+          </div>
+        ))}
+      </div>
+    </>
   );
 
   return (
@@ -253,12 +252,10 @@ export default function BarGridView({
       className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
       <BarGridHeader timeSignature={timeSignature} barCount={bars.length} />
-      {handleDragEnd ? (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <SortableContext items={placementIds}>{gridBody}</SortableContext>
-        </DndContext>
+      {chordsAreSortable ? (
+        <SortableContext items={chordSortableIds}>{body}</SortableContext>
       ) : (
-        gridBody
+        body
       )}
     </div>
   );
@@ -285,6 +282,74 @@ function BarGridHeader({
   );
 }
 
+// --- Pending tray -----------------------------------------------------
+// Lines the user has just pasted but not yet placed. Each renders as
+// a draggable strip showing all words. Dropping on a beat slot
+// initialises the line's range to that beat + a default of 1 bar.
+
+function PendingTray({
+  lines,
+  onLineDelete,
+}: {
+  lines: LyricLine[];
+  onLineDelete?: (lineId: string) => void;
+}) {
+  return (
+    <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+        pending lyrics — drag onto a beat to place
+      </div>
+      <div className="flex flex-col gap-1">
+        {lines.map(line => (
+          <PendingLineStrip key={line.id} line={line} onDelete={onLineDelete} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PendingLineStrip({
+  line,
+  onDelete,
+}: {
+  line: LyricLine;
+  onDelete?: (lineId: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: DRAG_ID.pending(line.id),
+  });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        className="flex-1 inline-flex items-center gap-1 px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-[11px] text-neutral-700 dark:text-neutral-200 cursor-grab active:cursor-grabbing select-none touch-none"
+      >
+        <span className="text-neutral-400 mr-1" aria-hidden>≡</span>
+        <span className="truncate">{line.words.join(' ')}</span>
+      </div>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(line.id)}
+          aria-label="delete pending lyric line"
+          className="text-neutral-400 hover:text-needswork text-xs leading-none px-1"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+// --- Bar box -----------------------------------------------------------
+
 function BarBox({
   bar,
   beatsPerBar,
@@ -295,6 +360,8 @@ function BarBox({
   onBeatsChange,
   onTagChange,
   draggable,
+  placedLines,
+  onLineDelete,
 }: {
   bar: Bar;
   beatsPerBar: number;
@@ -305,17 +372,16 @@ function BarBox({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   draggable: boolean;
+  placedLines: LyricLine[];
+  onLineDelete?: (lineId: string) => void;
 }) {
   const filledBeats = bar.cells.reduce((sum, c) => sum + c.beats, 0);
   const emptyBeats = Math.max(0, beatsPerBar - filledBeats);
 
-  // The cell whose popover should anchor under this bar (if any).
   const editingCellInThisBar =
     editing && editing.barIndex === bar.index
       ? bar.cells.find(
-          c =>
-            c.phraseId === editing.phraseId &&
-            c.beatId === editing.beatId,
+          c => c.phraseId === editing.phraseId && c.beatId === editing.beatId,
         ) ?? null
       : null;
 
@@ -324,11 +390,6 @@ function BarBox({
       <span className="absolute top-0.5 left-1 text-[9px] text-neutral-400 font-mono">
         {bar.index + 1}
       </span>
-      {/* Inner flex row holds the chord cells. Cells have a min width
-          so chord glyphs like `1dom9(13)` aren't truncated on narrow
-          1-beat slots; when their natural sum exceeds the bar's
-          column width, the row scrolls horizontally within the bar
-          rather than overlapping into the next bar's column. */}
       <div className="flex items-stretch gap-0.5 h-full overflow-x-auto">
         {bar.cells.map((cell, idx) => {
           const widthPct = (cell.beats / beatsPerBar) * 100;
@@ -336,8 +397,6 @@ function BarBox({
             editing !== null &&
             editing.phraseId === cell.phraseId &&
             editing.beatId === cell.beatId;
-          // Only the leading half of a tie-split is interactive; the
-          // trailing half renders as a decorative continuation.
           const isLeadingHalf = !cell.tiedFromPrev;
           if (isLeadingHalf && draggable) {
             return (
@@ -376,6 +435,15 @@ function BarBox({
           />
         )}
       </div>
+
+      {/* Lyric row: per-beat drop zones with placed words / markers */}
+      <BarLyricRow
+        barIndex={bar.index}
+        beatsPerBar={beatsPerBar}
+        placedLines={placedLines}
+        onLineDelete={onLineDelete}
+      />
+
       {editingCellInThisBar && (onBeatsChange || onTagChange) && (
         <ChordEditorPopover
           cell={editingCellInThisBar}
@@ -387,6 +455,213 @@ function BarBox({
         />
       )}
     </div>
+  );
+}
+
+// --- Lyric row (per bar) ----------------------------------------------
+// Renders beatsPerBar beat columns. Each column is a droppable target
+// (`beat:${barIndex}:${beatPos}`) and stacks any placed words whose
+// global position falls in this bar at this beat. Start/end markers
+// live in the start-bar / end-bar respectively.
+
+function BarLyricRow({
+  barIndex,
+  beatsPerBar,
+  placedLines,
+  onLineDelete,
+}: {
+  barIndex: number;
+  beatsPerBar: number;
+  placedLines: LyricLine[];
+  onLineDelete?: (lineId: string) => void;
+}) {
+  // Compute, per beat slot, which words/markers belong here. A word
+  // belongs to (bar, beat) when its global position floors to that
+  // beat. Each line contributes at most one start marker (in start
+  // bar at startBeat) and one end marker (in end bar at endBeat).
+  type SlotItem =
+    | { kind: 'word'; line: LyricLine; wordIndex: number; text: string }
+    | { kind: 'startMarker'; line: LyricLine }
+    | { kind: 'endMarker'; line: LyricLine };
+
+  const slots: SlotItem[][] = Array.from({ length: beatsPerBar }, () => []);
+
+  for (const line of placedLines) {
+    if (line.startBar === barIndex) {
+      slots[line.startBeat]?.push({ kind: 'startMarker', line });
+    }
+    if (line.endBar === barIndex) {
+      slots[line.endBeat]?.push({ kind: 'endMarker', line });
+    }
+    const positions = distributedWordPositions(line, beatsPerBar);
+    for (let i = 0; i < positions.length; i++) {
+      const pos = positions[i];
+      const wordBar = Math.floor(pos / beatsPerBar);
+      const wordBeat = Math.round(pos - wordBar * beatsPerBar);
+      if (wordBar !== barIndex) continue;
+      const clampedBeat = Math.min(Math.max(0, wordBeat), beatsPerBar - 1);
+      slots[clampedBeat].push({
+        kind: 'word',
+        line,
+        wordIndex: i,
+        text: line.words[i],
+      });
+    }
+  }
+
+  return (
+    <div
+      className="mt-1 flex gap-0.5"
+      style={{ gridTemplateColumns: `repeat(${beatsPerBar}, minmax(0, 1fr))` }}
+    >
+      {Array.from({ length: beatsPerBar }).map((_, beatPos) => (
+        <BeatDropSlot
+          key={beatPos}
+          barIndex={barIndex}
+          beatPos={beatPos}
+          items={slots[beatPos]}
+          onLineDelete={onLineDelete}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BeatDropSlot({
+  barIndex,
+  beatPos,
+  items,
+  onLineDelete,
+}: {
+  barIndex: number;
+  beatPos: number;
+  items: Array<
+    | { kind: 'word'; line: LyricLine; wordIndex: number; text: string }
+    | { kind: 'startMarker'; line: LyricLine }
+    | { kind: 'endMarker'; line: LyricLine }
+  >;
+  onLineDelete?: (lineId: string) => void;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: DRAG_ID.beat(barIndex, beatPos),
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border ${
+        isOver
+          ? 'border-fluent bg-fluent/10'
+          : 'border-dashed border-neutral-200 dark:border-neutral-800'
+      }`}
+    >
+      {items.map((item, idx) => {
+        if (item.kind === 'startMarker') {
+          return (
+            <LineMarker
+              key={`s-${item.line.id}-${idx}`}
+              lineId={item.line.id}
+              edge="start"
+              onDelete={onLineDelete}
+            />
+          );
+        }
+        if (item.kind === 'endMarker') {
+          return (
+            <LineMarker
+              key={`e-${item.line.id}-${idx}`}
+              lineId={item.line.id}
+              edge="end"
+            />
+          );
+        }
+        return (
+          <WordChip
+            key={`w-${item.line.id}-${item.wordIndex}`}
+            lineId={item.line.id}
+            wordIndex={item.wordIndex}
+            text={item.text}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function LineMarker({
+  lineId,
+  edge,
+  onDelete,
+}: {
+  lineId: string;
+  edge: 'start' | 'end';
+  onDelete?: (lineId: string) => void;
+}) {
+  const dragId = edge === 'start' ? DRAG_ID.lineStart(lineId) : DRAG_ID.lineEnd(lineId);
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: dragId,
+  });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  const glyph = edge === 'start' ? '▸' : '◂';
+  return (
+    <div className="inline-flex items-center gap-0.5">
+      <span
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        title={`${edge} marker — drag to a beat`}
+        className="cursor-grab active:cursor-grabbing select-none touch-none text-[10px] leading-none text-fluent px-0.5 rounded border border-fluent/40 bg-fluent/5"
+      >
+        {glyph}
+      </span>
+      {edge === 'start' && onDelete && (
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation();
+            onDelete(lineId);
+          }}
+          aria-label="delete lyric line"
+          className="text-[10px] leading-none text-neutral-400 hover:text-needswork"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+function WordChip({
+  lineId,
+  wordIndex,
+  text,
+}: {
+  lineId: string;
+  wordIndex: number;
+  text: string;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: DRAG_ID.word(lineId, wordIndex),
+  });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <span
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing select-none touch-none text-[10px] leading-tight italic text-neutral-700 dark:text-neutral-200 px-1 rounded bg-neutral-100 dark:bg-neutral-800 truncate max-w-[7rem]"
+      title={text}
+    >
+      {text}
+    </span>
   );
 }
 
@@ -406,7 +681,7 @@ function SortableChordCell({
   onClick?: (cell: BarCell) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: cellKey(cell) });
+    useSortable({ id: DRAG_ID.chord(cell.phraseId, cell.beatId) });
   const dragStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -460,10 +735,6 @@ function ChordCellBox({
     roundedLeft ? 'rounded-l-sm' : '',
     roundedRight ? 'rounded-r-sm' : '',
   ].join(' ');
-  // Harmonic tag → dashed border (auto detection OR manual tag). Fill
-  // and text stay unchanged so the scale-degree color still dominates.
-  // Both tagged and untagged use border-2 so toggling the tag doesn't
-  // cause a 1px layout jiggle; tagged just swaps solid → dashed.
   const tagged = effectiveHarmonicTag(cell.chord) !== undefined;
   const borderStyleClass = tagged ? 'border-dashed' : 'border-solid';
 
@@ -502,8 +773,6 @@ function ChordCellBox({
   );
 }
 
-// Harmonic-tag preset list shown in the chord-editor popover. Custom
-// (free text) and "clear" actions live alongside in the picker.
 const TAG_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'secondary_dominant', label: 'Secondary dom' },
   { value: 'borrowed', label: 'Borrowed' },
@@ -565,12 +834,9 @@ function ChordEditorPopover({
 
   return (
     <div
-      // Popover anchored below the bar. z-index keeps it above the
-      // next row of bars.
       className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[16rem] rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md"
       onClick={e => e.stopPropagation()}
     >
-      {/* Row 1: chord glyph + beat-count stepper */}
       {onBeatsChange && (
         <div className="flex items-center gap-2 px-2 py-1.5 border-b border-neutral-200 dark:border-neutral-800">
           <span className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
@@ -603,7 +869,6 @@ function ChordEditorPopover({
         </div>
       )}
 
-      {/* Row 2: harmonic-tag chip + edit/+ tag affordance */}
       {onTagChange && (
         <div className="px-2 py-1.5">
           <div className="flex items-center gap-2 text-[11px]">
@@ -689,16 +954,6 @@ function ChordEditorPopover({
   );
 }
 
-// Per-degree color families. Per LEAD_SHEET_REDESIGN.md:
-//   Tonic family:        1 green · 3 teal · 6 blue
-//   Subdominant family:  4 purple (strong) · 2 pink (lighter)
-//   Dominant family:     5 amber · 7 red
-//
-// Altered degrees (b2, b3, #4, b6, b7, b5) take the natural-degree
-// color so the scale-degree family stays visually consistent. Unparsed
-// or empty-function placements fall back to neutral. Slash chords
-// color by the BASS degree (see `colorForFunction`) — the bass is
-// what re-anchors the chord harmonically.
 const DEGREE_PALETTES: Record<string, {
   bg: string;
   text: string;
@@ -763,10 +1018,6 @@ function colorForFunction(chord: ChordFunction): {
   dot: string;
 } {
   if (chord.unparsed) return NEUTRAL_PALETTE;
-  // Slash chords color by their bass note's scale degree. The bass is
-  // the harmonic anchor in slash voicings (5min7/2 reads as a 2-rooted
-  // sound), so the colour follows it. Falls back to the chord root
-  // when no bass is present.
   const source = chord.bass && chord.bass !== '' ? chord.bass : chord.function;
   if (source === '') return NEUTRAL_PALETTE;
   const digit = source.replace(/^[b#]/, '');

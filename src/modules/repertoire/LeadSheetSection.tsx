@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { Arrangement, Phrase, Song, SongSection } from '../../lib/db';
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import type {
+  Arrangement,
+  LyricLine,
+  Phrase,
+  Song,
+  SongSection,
+} from '../../lib/db';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -23,9 +38,20 @@ import { useNotationMode } from '../../lib/notationPref';
 import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
-import BarGridView from './BarGridView';
+import BarGridView, { DRAG_ID } from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
-import { reorderChordPlacements } from './barGrid';
+import {
+  deriveBarGrid,
+  effectiveTimeSignature,
+  parseTimeSignature,
+  reorderChordPlacements,
+} from './barGrid';
+import {
+  applyEndMarkerDrag,
+  applyStartMarkerDrag,
+  applyWordNudge,
+  distributedWordPositions,
+} from './lyricLine';
 import BottomSheet from '../../components/BottomSheet';
 import LongPressWrapper from '../../components/LongPressWrapper';
 import { usePhraseClipboard } from './phraseClipboard';
@@ -159,6 +185,148 @@ export default function LeadSheetSection({
     const next = reorderChordPlacements(section, activeArrangementId, fromIndex, toIndex);
     if (!next) return;
     await commit({ phrases: next });
+  };
+
+  // --- Lyric-line handlers (step 6) ------------------------------
+  const lyricLines = useMemo(() => section.lyricLines ?? [], [section.lyricLines]);
+  const timeSignature = effectiveTimeSignature(song, section);
+  const { beatsPerBar } = parseTimeSignature(timeSignature);
+
+  const commitLyricLines = async (next: LyricLine[]) => {
+    await commit({ lyricLines: next });
+  };
+
+  // Paste submit: one staged text line → one LyricLine in "pending"
+  // state (start == end == (0,0)). The user drags the strip onto a
+  // beat slot to place it.
+  const handleSubmitLyricLines = async (textLines: string[][]) => {
+    const fresh: LyricLine[] = textLines.map(words => ({
+      id: crypto.randomUUID(),
+      words,
+      startBar: 0,
+      startBeat: 0,
+      endBar: 0,
+      endBeat: 0,
+    }));
+    await commitLyricLines([...lyricLines, ...fresh]);
+  };
+
+  const handleDeleteLyricLine = async (lineId: string) => {
+    await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
+  };
+
+  // --- Unified DndContext drag-end dispatch (step 6) -------------
+  // Single onDragEnd handles every drag in the section: chord
+  // reorder, pending-line placement, marker drags, word nudges.
+  // Routes by id prefix so each draggable kind owns its own logic.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Default range on placement: 1 bar — drop sets the start to the
+  // drop target and the end to the last beat of that same bar.
+  const defaultEndForPlacement = (
+    startBar: number,
+    _startBeat: number,
+  ): { endBar: number; endBeat: number } => {
+    return { endBar: startBar, endBeat: Math.max(0, beatsPerBar - 1) };
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const activeId = String(event.active.id);
+    const overId = event.over?.id ? String(event.over.id) : null;
+    if (!overId) return;
+
+    // Chord reorder (sortable). Both active and over are `chord:` ids.
+    if (activeId.startsWith('chord:') && overId.startsWith('chord:')) {
+      const bars = deriveBarGrid(section, activeArrangementId, beatsPerBar);
+      const ids = bars
+        .flatMap(b => b.cells)
+        .filter(c => !c.tiedFromPrev)
+        .map(c => DRAG_ID.chord(c.phraseId, c.beatId));
+      const fromIndex = ids.indexOf(activeId);
+      const toIndex = ids.indexOf(overId);
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+      await handleChordReorder(fromIndex, toIndex);
+      return;
+    }
+
+    // Lyric drags all target beat drop zones.
+    if (!overId.startsWith('beat:')) return;
+    const [, barStr, beatStr] = overId.split(':');
+    const dropBar = parseInt(barStr, 10);
+    const dropBeat = parseInt(beatStr, 10);
+    if (!Number.isFinite(dropBar) || !Number.isFinite(dropBeat)) return;
+
+    if (activeId.startsWith('pending:')) {
+      const lineId = activeId.slice('pending:'.length);
+      const target = lyricLines.find(l => l.id === lineId);
+      if (!target) return;
+      const { endBar, endBeat } = defaultEndForPlacement(dropBar, dropBeat);
+      const next = lyricLines.map(l =>
+        l.id === lineId
+          ? {
+              ...l,
+              startBar: dropBar,
+              startBeat: dropBeat,
+              endBar,
+              endBeat,
+              wordOffsets: undefined,
+            }
+          : l,
+      );
+      await commitLyricLines(next);
+      return;
+    }
+
+    if (activeId.startsWith('lineStart:')) {
+      const lineId = activeId.slice('lineStart:'.length);
+      const target = lyricLines.find(l => l.id === lineId);
+      if (!target) return;
+      const updated = applyStartMarkerDrag(target, dropBar, dropBeat, beatsPerBar);
+      if (updated === target) return;
+      await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
+      return;
+    }
+
+    if (activeId.startsWith('lineEnd:')) {
+      const lineId = activeId.slice('lineEnd:'.length);
+      const target = lyricLines.find(l => l.id === lineId);
+      if (!target) return;
+      const updated = applyEndMarkerDrag(target, dropBar, dropBeat, beatsPerBar);
+      if (updated === target) return;
+      await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
+      return;
+    }
+
+    if (activeId.startsWith('word:')) {
+      const rest = activeId.slice('word:'.length);
+      const lastColon = rest.lastIndexOf(':');
+      if (lastColon < 0) return;
+      const lineId = rest.slice(0, lastColon);
+      const wordIndex = parseInt(rest.slice(lastColon + 1), 10);
+      if (!Number.isFinite(wordIndex)) return;
+      const target = lyricLines.find(l => l.id === lineId);
+      if (!target) return;
+      // Drop target maps to an absolute beat; subtract the word's base
+      // distributed position (without offsets) to derive a delta the
+      // applyWordNudge helper can apply on top of the existing offset.
+      const dropGlobal = dropBar * beatsPerBar + dropBeat;
+      const baseGlobal = distributedWordPositions(
+        { ...target, wordOffsets: undefined },
+        beatsPerBar,
+      )[wordIndex];
+      if (baseGlobal === undefined) return;
+      const currentOffset = (target.wordOffsets ?? [])[wordIndex] ?? 0;
+      const desiredOffset = dropGlobal - baseGlobal;
+      const delta = desiredOffset - currentOffset;
+      if (delta === 0) return;
+      const updated = applyWordNudge(target, wordIndex, delta, beatsPerBar);
+      if (updated === target) return;
+      await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
+      return;
+    }
   };
 
   // Bar-grid harmonic-tag write-back (Lead Sheet Redesign step 4).
@@ -537,23 +705,29 @@ export default function LeadSheetSection({
             onPhraseChange={updatePhraseInPlace}
           />
 
-          {/* Lead Sheet Redesign — bar-grid view of the active
-              arrangement. Click a chord box to open a beat-count
-              popover; drag a chord box to reorder placements
-              (step 3 + drag follow-on). */}
-          <BarGridView
-            song={song}
-            section={section}
-            activeArrangementId={activeArrangementId}
-            onChordBeatsChange={handleChordBeatsChange}
-            onChordReorder={handleChordReorder}
-            onChordTagChange={handleChordTagChange}
-          />
+          {/* Lead Sheet Redesign — bar-grid view + lyric placement.
+              One DndContext owns chord sortable, pending-line drag,
+              start/end marker drag, and per-word nudge drag. Dispatch
+              by active.id prefix lives in `handleDragEnd` above. */}
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <BarGridView
+              song={song}
+              section={section}
+              activeArrangementId={activeArrangementId}
+              onChordBeatsChange={handleChordBeatsChange}
+              onChordTagChange={handleChordTagChange}
+              chordsAreSortable
+              lyricLines={lyricLines}
+              onLineDelete={handleDeleteLyricLine}
+            />
 
-          {/* Lead Sheet Redesign step 5 — lyric staging. Pasted text
-              tokenizes into chips that wait here until step 6 wires
-              drag-to-beat. Local state only; no Dexie persistence. */}
-          <LyricStagingArea sectionId={section.id} />
+            {/* Step 6 lyric paste: each text line becomes a pending
+                LyricLine in the bar grid's tray. */}
+            <LyricStagingArea
+              sectionId={section.id}
+              onSubmitLines={handleSubmitLyricLines}
+            />
+          </DndContext>
 
           {normalisedPhrases.length === 0 ? (
             <p className="text-xs text-neutral-500 italic">

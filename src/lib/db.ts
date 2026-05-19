@@ -334,29 +334,39 @@ export interface SongSection {
    *  docs/LEAD_SHEET_REDESIGN.md). Used for songs with mid-song meter
    *  changes. Unindexed; lives in the section JSONB blob. */
   timeSignature?: string;
+  /** Lyric lines placed on the bar grid (Lead Sheet Redesign step 6).
+   *  Each entry carries its own bar/beat range; words distribute
+   *  evenly across the range and can be individually nudged via
+   *  `wordOffsets`. Unindexed; rides in the section JSONB blob. */
+  lyricLines?: LyricLine[];
 }
 
-/** One placeable lyric chunk in the bar-grid lead sheet (Lead Sheet
- *  Redesign, May 2026 — see docs/LEAD_SHEET_REDESIGN.md). Lyric tokens
- *  are positioned independently of the bar/chord grid: pasted lyric
- *  text tokenizes into individual word tokens that the user drags to
- *  beat positions. Multiple adjacent word tokens can be merged into a
- *  phrase token (`isPhrase: true`) that moves together; tapping a
- *  phrase token splits it back into individual words.
+/** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,
+ *  May 2026 — docs/LEAD_SHEET_REDESIGN.md). A line owns a range of
+ *  beats (start to end inclusive in document order) and a list of
+ *  words; words distribute evenly across the range at render time.
+ *  `wordOffsets`, when present, holds per-word beat deltas applied on
+ *  top of the even distribution for fine-tune nudging.
  *
- *  Not yet a Dexie table — this is the in-memory / future-storage
- *  shape only. Storage location (own table vs. nested on SongSection)
- *  is deferred to the lyric-paste step of the redesign build. */
-export interface LyricToken {
+ *  A newly created line has start == end == (0, 0) — that's the
+ *  "pending" state shown above the bar grid as a draggable strip
+ *  waiting to be placed. Dropping it on a beat slot widens the range
+ *  to a sensible default (1 bar). */
+export interface LyricLine {
   id: string;
-  text: string;
-  /** Which bar in the section this token is anchored to (0-indexed). */
-  barIndex: number;
-  /** Which beat within the bar this token starts on (0-indexed). */
-  beatPosition: number;
-  /** True when this token represents a merged group of adjacent words
-   *  that move as one; false for an individual word token. */
-  isPhrase: boolean;
+  words: string[];
+  /** 0-indexed bar within the section where the first word lands. */
+  startBar: number;
+  /** 0-indexed beat within `startBar`. */
+  startBeat: number;
+  /** 0-indexed bar where the last word lands. */
+  endBar: number;
+  /** 0-indexed beat within `endBar`. */
+  endBeat: number;
+  /** Per-word beat offset from the evenly-distributed position. Length
+   *  matches `words`. Undefined or shorter arrays are treated as zeros
+   *  for the missing indices. Reset when the start/end markers move. */
+  wordOffsets?: number[];
 }
 
 /** One parsed chord token inside a section. Populated by the chord
