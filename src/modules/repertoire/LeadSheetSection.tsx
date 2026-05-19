@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  closestCenter,
+  type CollisionDetection,
   DndContext,
   type DragEndEvent,
   KeyboardSensor,
@@ -296,6 +298,39 @@ export default function LeadSheetSection({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Collision detection routed by active.id prefix. Necessary because
+  // the bar `useDroppable` wraps the same DOM region as the chord
+  // sortable cells inside it — without filtering, the larger bar
+  // droppable rect always wins when a chord crosses bar boundaries,
+  // leaving `over.id` as `bar:N` and the chord-reorder branch never
+  // fires. Same logic protects lyric drags from picking up the bar
+  // droppable when crossing bar gaps.
+  const collisionDetection: CollisionDetection = args => {
+    const activeId = String(args.active.id);
+    let allowed: typeof args.droppableContainers = args.droppableContainers;
+    if (activeId.startsWith('chord:')) {
+      allowed = args.droppableContainers.filter(d =>
+        String(d.id).startsWith('chord:'),
+      );
+    } else if (activeId.startsWith('bar:')) {
+      allowed = args.droppableContainers.filter(d =>
+        String(d.id).startsWith('bar:'),
+      );
+    } else if (
+      activeId.startsWith('staged:') ||
+      activeId.startsWith('placed:') ||
+      activeId.startsWith('pending:') ||
+      activeId.startsWith('lineStart:') ||
+      activeId.startsWith('lineEnd:') ||
+      activeId.startsWith('word:')
+    ) {
+      allowed = args.droppableContainers.filter(d =>
+        String(d.id).startsWith('beat:'),
+      );
+    }
+    return closestCenter({ ...args, droppableContainers: allowed });
+  };
 
   // Default range on placement: 1 bar — drop sets the start to the
   // drop target and the end to the last beat of that same bar.
@@ -792,7 +827,11 @@ export default function LeadSheetSection({
               One DndContext owns chord sortable, pending-line drag,
               start/end marker drag, and per-word nudge drag. Dispatch
               by active.id prefix lives in `handleDragEnd` above. */}
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            onDragEnd={handleDragEnd}
+          >
             <BarGridView
               song={song}
               section={section}
