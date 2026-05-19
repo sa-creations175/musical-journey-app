@@ -45,7 +45,11 @@ import ChordGlyph from './chordGlyph';
 // but is one placement. Only the leading half is draggable + clickable
 // so each sortable id stays unique; the trailing half is decorative.
 
-const BARS_PER_ROW = 4;
+// 2 bars per row gives each bar enough horizontal space that bars
+// holding 4 single-beat chords in 4/4 fit comfortably (cell min-width
+// × beatsPerBar < bar's column width) without needing the inner
+// `overflow-x-auto` scroll fallback to kick in for typical usage.
+const BARS_PER_ROW = 2;
 
 interface Props {
   song: Song;
@@ -451,7 +455,7 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[56px] shrink-0 ${
+      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''}`}
       style={baseStyle}
