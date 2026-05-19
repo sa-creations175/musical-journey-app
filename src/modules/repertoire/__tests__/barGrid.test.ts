@@ -4,6 +4,7 @@ import {
   deriveBarGrid,
   effectiveTimeSignature,
   parseTimeSignature,
+  reorderChordPlacements,
 } from '../barGrid';
 import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
 
@@ -296,5 +297,96 @@ describe('deriveBarGrid — edge cases', () => {
     const section = mkSection([phraseWithChords([cf('1')])]);
     expect(deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 0)).toEqual([]);
     expect(deriveBarGrid(section, BASIC_ARRANGEMENT_ID, -2)).toEqual([]);
+  });
+});
+
+describe('reorderChordPlacements', () => {
+  // Drag-to-reorder helper. Slot anchors (phrase + beat) stay put;
+  // only which chord lives at each slot changes. Returns null for
+  // no-op moves so the caller can skip the Dexie commit.
+  function chordSequenceFor(
+    next: Phrase[],
+    arrId: string,
+  ): string[] {
+    const out: string[] = [];
+    for (const p of next) {
+      const placements = p.chordsByArrangement?.[arrId] ?? {};
+      for (const beat of p.beats ?? []) {
+        const c = placements[beat.id];
+        if (c) out.push(c.function);
+      }
+    }
+    return out;
+  }
+
+  it('reorders chords within a single phrase', () => {
+    const section = mkSection([
+      phraseWithChords([cf('1'), cf('4'), cf('5'), cf('6')]),
+    ]);
+    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 2);
+    expect(next).not.toBeNull();
+    expect(chordSequenceFor(next!, BASIC_ARRANGEMENT_ID)).toEqual(['4', '5', '1', '6']);
+  });
+
+  it('reorders chords across phrases — chord values move, slots stay put', () => {
+    const section = mkSection([
+      { ...phraseWithChords([cf('1'), cf('4')]), id: 'phr-A' },
+      { ...phraseWithChords([cf('5'), cf('6')]), id: 'phr-B' },
+    ]);
+    // Move document index 0 (1) to index 3 → expected ['4','5','6','1'].
+    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 3);
+    expect(next).not.toBeNull();
+    expect(chordSequenceFor(next!, BASIC_ARRANGEMENT_ID)).toEqual(['4', '5', '6', '1']);
+    // Phrase ids should be preserved; the 1 chord now lives on phr-B.
+    const phrB = next!.find(p => p.id === 'phr-B')!;
+    const phrBPlacements = phrB.chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    expect(phrBPlacements[phrB.beats![1].id].function).toBe('1');
+  });
+
+  it('preserves chord metadata (beats, harmonicTag, quality) on the moved chord', () => {
+    const section = mkSection([
+      phraseWithChords([
+        cf('1', 'maj7', { beats: 2, harmonicTag: 'pedal' }),
+        cf('5', '7'),
+      ]),
+    ]);
+    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 1);
+    const placements = next![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = next![0].beats!.map(b => b.id);
+    // The 1maj7 chord (with beats=2, harmonicTag=pedal) now sits at slot 1.
+    expect(placements[beatIds[1]]).toMatchObject({
+      function: '1',
+      quality: 'maj7',
+      beats: 2,
+      harmonicTag: 'pedal',
+    });
+    expect(placements[beatIds[0]]).toMatchObject({ function: '5', quality: '7' });
+  });
+
+  it('returns null for no-op moves (same index, out of range, empty section)', () => {
+    const section = mkSection([phraseWithChords([cf('1'), cf('4')])]);
+    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 0)).toBeNull();
+    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, -1, 1)).toBeNull();
+    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 99)).toBeNull();
+    expect(reorderChordPlacements(mkSection([]), BASIC_ARRANGEMENT_ID, 0, 1)).toBeNull();
+  });
+
+  it('only rewrites the active arrangement; other arrangements untouched', () => {
+    const beats = [
+      { id: 'b0', type: 'word' as const, text: '' },
+      { id: 'b1', type: 'word' as const, text: '' },
+    ];
+    const phrase: Phrase = {
+      id: 'p1',
+      beats,
+      chordsByArrangement: {
+        [BASIC_ARRANGEMENT_ID]: { b0: cf('1'), b1: cf('5') },
+        alt: { b0: cf('2'), b1: cf('7') },
+      },
+    };
+    const next = reorderChordPlacements(mkSection([phrase]), BASIC_ARRANGEMENT_ID, 0, 1);
+    const placements = next![0].chordsByArrangement?.alt ?? {};
+    expect(placements.b0.function).toBe('2');
+    expect(placements.b1.function).toBe('7');
   });
 });

@@ -24,6 +24,7 @@ import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
+import { reorderChordPlacements } from './barGrid';
 import BottomSheet from '../../components/BottomSheet';
 import LongPressWrapper from '../../components/LongPressWrapper';
 import { usePhraseClipboard } from './phraseClipboard';
@@ -148,6 +149,15 @@ export default function LeadSheetSection({
       },
     };
     await updatePhraseInPlace(next);
+  };
+
+  // Bar-grid drag-to-reorder. The pure helper rewrites every affected
+  // phrase's chord placements (slot anchors stay put; only which chord
+  // lives at each slot changes), then we commit the whole section.
+  const handleChordReorder = async (fromIndex: number, toIndex: number) => {
+    const next = reorderChordPlacements(section, activeArrangementId, fromIndex, toIndex);
+    if (!next) return;
+    await commit({ phrases: next });
   };
 
   // --- Phrase list CRUD ------------------------------------------
@@ -491,14 +501,15 @@ export default function LeadSheetSection({
           />
 
           {/* Lead Sheet Redesign — bar-grid view of the active
-              arrangement. Click a chord box to edit its beat count
-              inline; changes persist immediately via
-              handleChordBeatsChange (step 3). */}
+              arrangement. Click a chord box to open a beat-count
+              popover; drag a chord box to reorder placements
+              (step 3 + drag follow-on). */}
           <BarGridView
             song={song}
             section={section}
             activeArrangementId={activeArrangementId}
             onChordBeatsChange={handleChordBeatsChange}
+            onChordReorder={handleChordReorder}
           />
 
           {normalisedPhrases.length === 0 ? (

@@ -1,4 +1,4 @@
-import type { ChordFunction, Song, SongSection } from '../../lib/db';
+import type { ChordFunction, Phrase, Song, SongSection } from '../../lib/db';
 import { normalizePhrase } from './beatsModel';
 
 // Bar-grid derivation for the redesigned lead sheet view
@@ -177,4 +177,97 @@ export function deriveBarGrid(
   }
   flush();
   return bars;
+}
+
+/**
+ * Reorder chord placements within the bar grid (Lead Sheet Redesign
+ * step 3 — drag-to-reorder). The slot positions (phrase + beat
+ * anchors) stay where they are; only which chord lives at each slot
+ * changes. This keeps lyric anchoring intact and matches the
+ * redesign's "lyrics decoupled from chord positions" intent.
+ *
+ * Returns a new array of phrases with the active arrangement's
+ * chord placements rewritten. Returns `null` when the move is a
+ * no-op (same index, out of range, or section has no placements) so
+ * the caller can skip the Dexie commit.
+ */
+export function reorderChordPlacements(
+  section: SongSection,
+  activeArrangementId: string,
+  fromIndex: number,
+  toIndex: number,
+): Phrase[] | null {
+  if (fromIndex === toIndex) return null;
+  const phrases = section.phrases ?? [];
+  if (phrases.length === 0) return null;
+
+  // Snapshot every meaningful placement in document order, alongside
+  // its source phrase + beat. The order of `slots` is the canonical
+  // visual order shown in the bar grid.
+  const slots: Array<{ phraseId: string; beatId: string; chord: ChordFunction }> = [];
+  for (const phrase of phrases) {
+    const normalised = normalizePhrase(phrase);
+    const placements = normalised.chordsByArrangement[activeArrangementId] ?? {};
+    for (const beat of normalised.beats) {
+      const chord = placements[beat.id];
+      if (!chord) continue;
+      const isMeaningful =
+        chord.unparsed ||
+        chord.function !== '' ||
+        chord.quality !== '' ||
+        Boolean(chord.bass);
+      if (!isMeaningful) continue;
+      slots.push({ phraseId: phrase.id, beatId: beat.id, chord });
+    }
+  }
+  if (slots.length === 0) return null;
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= slots.length ||
+    toIndex >= slots.length
+  ) {
+    return null;
+  }
+
+  // Move just the chord values; the slot anchors stay put. Using
+  // arrayMove semantics (splice-remove + splice-insert) keeps the
+  // ordering predictable when fromIndex < toIndex vs the reverse.
+  const chords = slots.map(s => s.chord);
+  const [moved] = chords.splice(fromIndex, 1);
+  chords.splice(toIndex, 0, moved);
+
+  // Build a lookup: `${phraseId}:${beatId}` → new chord. Then rebuild
+  // each affected phrase's chordsByArrangement[activeArrangementId]
+  // by walking its beats and assigning the new value at each slot.
+  const newBySlot = new Map<string, ChordFunction>();
+  for (let i = 0; i < slots.length; i++) {
+    const key = `${slots[i].phraseId}:${slots[i].beatId}`;
+    newBySlot.set(key, chords[i]);
+  }
+
+  return phrases.map(phrase => {
+    const normalised = normalizePhrase(phrase);
+    const oldPlacements = normalised.chordsByArrangement[activeArrangementId] ?? {};
+    let changed = false;
+    const nextPlacements: Record<string, ChordFunction> = { ...oldPlacements };
+    for (const beat of normalised.beats) {
+      const key = `${phrase.id}:${beat.id}`;
+      if (!newBySlot.has(key)) continue;
+      const next = newBySlot.get(key)!;
+      if (oldPlacements[beat.id] !== next) {
+        nextPlacements[beat.id] = next;
+        changed = true;
+      }
+    }
+    if (!changed) return phrase;
+    return {
+      ...phrase,
+      beats: normalised.beats,
+      chordsByArrangement: {
+        ...normalised.chordsByArrangement,
+        [activeArrangementId]: nextPlacements,
+      },
+    };
+  });
 }
