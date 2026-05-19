@@ -1,0 +1,245 @@
+import { describe, expect, it } from 'vitest';
+import type { ChordFunction, Phrase, SongSection } from '../../../lib/db';
+import {
+  deriveBarGrid,
+  effectiveTimeSignature,
+  parseTimeSignature,
+} from '../barGrid';
+import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
+
+function cf(fn: string, quality = '', extras: Partial<ChordFunction> = {}): ChordFunction {
+  return { function: fn, quality, ...extras };
+}
+
+function mkSection(phrases: Phrase[], overrides: Partial<SongSection> = {}): SongSection {
+  return {
+    id: 'sec-1',
+    songId: 'song-1',
+    name: 'Verse',
+    order: 0,
+    lyrics: '',
+    phrases,
+    ...overrides,
+  };
+}
+
+/** Build a phrase whose beats carry the supplied chord placements in
+ *  order. Beats with `undefined` carry no chord; otherwise the chord
+ *  occupies `beats` (or 1) of bar time. */
+function phraseWithChords(
+  chords: Array<ChordFunction | undefined>,
+): Phrase {
+  const beats = chords.map((_, i) => ({ id: `b${i}`, type: 'word' as const, text: '' }));
+  const placements: Record<string, ChordFunction> = {};
+  chords.forEach((c, i) => {
+    if (c) placements[beats[i].id] = c;
+  });
+  return {
+    id: 'p1',
+    beats,
+    chordsByArrangement: { [BASIC_ARRANGEMENT_ID]: placements },
+  };
+}
+
+describe('parseTimeSignature', () => {
+  it('defaults to 4/4 for empty / missing input', () => {
+    expect(parseTimeSignature(undefined)).toEqual({ beatsPerBar: 4, beatUnit: 4 });
+    expect(parseTimeSignature('')).toEqual({ beatsPerBar: 4, beatUnit: 4 });
+    expect(parseTimeSignature(null)).toEqual({ beatsPerBar: 4, beatUnit: 4 });
+  });
+
+  it('parses common signatures', () => {
+    expect(parseTimeSignature('4/4')).toEqual({ beatsPerBar: 4, beatUnit: 4 });
+    expect(parseTimeSignature('3/4')).toEqual({ beatsPerBar: 3, beatUnit: 4 });
+    expect(parseTimeSignature('6/8')).toEqual({ beatsPerBar: 6, beatUnit: 8 });
+    expect(parseTimeSignature('12/8')).toEqual({ beatsPerBar: 12, beatUnit: 8 });
+    expect(parseTimeSignature('5/4')).toEqual({ beatsPerBar: 5, beatUnit: 4 });
+  });
+
+  it('tolerates whitespace and falls back on garbage', () => {
+    expect(parseTimeSignature('  6/8  ')).toEqual({ beatsPerBar: 6, beatUnit: 8 });
+    expect(parseTimeSignature('common')).toEqual({ beatsPerBar: 4, beatUnit: 4 });
+    expect(parseTimeSignature('4-4')).toEqual({ beatsPerBar: 4, beatUnit: 4 });
+  });
+});
+
+describe('effectiveTimeSignature', () => {
+  it('prefers the section override', () => {
+    expect(
+      effectiveTimeSignature({ timeSignature: '4/4' }, { timeSignature: '6/8' }),
+    ).toBe('6/8');
+  });
+
+  it('falls back to the song-level value', () => {
+    expect(effectiveTimeSignature({ timeSignature: '3/4' }, {})).toBe('3/4');
+  });
+
+  it('defaults to 4/4 when neither is set', () => {
+    expect(effectiveTimeSignature(undefined, undefined)).toBe('4/4');
+    expect(effectiveTimeSignature({}, {})).toBe('4/4');
+  });
+
+  it('ignores blank-string overrides', () => {
+    expect(
+      effectiveTimeSignature({ timeSignature: '3/4' }, { timeSignature: '   ' }),
+    ).toBe('3/4');
+  });
+});
+
+describe('deriveBarGrid — backward-compat defaults', () => {
+  it('returns an empty grid when the section has no chords', () => {
+    const section = mkSection([]);
+    expect(deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4)).toEqual([]);
+  });
+
+  it('treats chords with no beats field as 1 beat each', () => {
+    // 8 chords, all default-1-beat, in 4/4 → exactly 2 bars of 4.
+    const section = mkSection([
+      phraseWithChords([
+        cf('1'), cf('4'), cf('5'), cf('6'),
+        cf('1'), cf('4'), cf('5'), cf('6'),
+      ]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(2);
+    expect(bars[0].cells).toHaveLength(4);
+    expect(bars[1].cells).toHaveLength(4);
+    expect(bars[0].cells.every(c => c.beats === 1)).toBe(true);
+  });
+
+  it('skips placements that are entirely empty (no function, no raw)', () => {
+    const section = mkSection([
+      phraseWithChords([cf('1'), cf(''), cf('5')]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(1);
+    expect(bars[0].cells.map(c => c.chord.function)).toEqual(['1', '5']);
+  });
+
+  it('keeps unparsed placements so the user sees what they typed', () => {
+    const unparsed: ChordFunction = { function: '', quality: '', raw: 'huh?', unparsed: true };
+    const section = mkSection([phraseWithChords([cf('1'), unparsed])]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars[0].cells).toHaveLength(2);
+    expect(bars[0].cells[1].chord.unparsed).toBe(true);
+  });
+});
+
+describe('deriveBarGrid — multi-beat chords', () => {
+  it('packs two 2-beat chords into one 4/4 bar', () => {
+    const section = mkSection([
+      phraseWithChords([cf('1', '', { beats: 2 }), cf('5', '', { beats: 2 })]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(1);
+    expect(bars[0].cells).toHaveLength(2);
+    expect(bars[0].cells.map(c => c.beats)).toEqual([2, 2]);
+  });
+
+  it('starts a new bar when a chord would overflow', () => {
+    // 2 + 2 fills bar 1. The next 3-beat chord would overflow remaining
+    // capacity (0) of bar 1 → starts bar 2; only 3 of 4 beats consumed.
+    const section = mkSection([
+      phraseWithChords([
+        cf('1', '', { beats: 2 }),
+        cf('5', '', { beats: 2 }),
+        cf('4', '', { beats: 3 }),
+      ]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(2);
+    expect(bars[0].cells.map(c => c.beats)).toEqual([2, 2]);
+    expect(bars[1].cells.map(c => c.beats)).toEqual([3]);
+  });
+
+  it('splits a chord with tie flags when it overflows the bar', () => {
+    // Bar 1 has 2 beats remaining after a 2-beat chord; a 3-beat
+    // chord then takes the remaining 2 + 1 in the next bar.
+    const section = mkSection([
+      phraseWithChords([
+        cf('1', '', { beats: 2 }),
+        cf('5', '', { beats: 3 }),
+      ]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(2);
+    expect(bars[0].cells).toHaveLength(2);
+    expect(bars[0].cells[1]).toMatchObject({ beats: 2, tiedToNext: true });
+    expect(bars[0].cells[1].tiedFromPrev).toBeUndefined();
+    expect(bars[1].cells).toHaveLength(1);
+    expect(bars[1].cells[0]).toMatchObject({
+      beats: 1,
+      tiedFromPrev: true,
+    });
+    expect(bars[1].cells[0].tiedToNext).toBeUndefined();
+  });
+
+  it('respects different time signatures', () => {
+    // 3/4: 6 single-beat chords → 2 bars of 3.
+    const section = mkSection([
+      phraseWithChords([cf('1'), cf('4'), cf('5'), cf('1'), cf('4'), cf('5')]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 3);
+    expect(bars).toHaveLength(2);
+    expect(bars[0].cells).toHaveLength(3);
+    expect(bars[1].cells).toHaveLength(3);
+  });
+});
+
+describe('deriveBarGrid — multi-phrase sections', () => {
+  it('concatenates chord placements in phrase order', () => {
+    const section = mkSection([
+      phraseWithChords([cf('1', '', { beats: 4 })]),
+      phraseWithChords([cf('4', '', { beats: 4 })]),
+      phraseWithChords([cf('5', '', { beats: 4 })]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(3);
+    expect(bars.map(b => b.cells[0].chord.function)).toEqual(['1', '4', '5']);
+    expect(bars.every(b => b.cells.length === 1 && b.cells[0].beats === 4)).toBe(true);
+  });
+
+  it('only reads the active arrangement', () => {
+    const beats = [
+      { id: 'b0', type: 'word' as const, text: '' },
+      { id: 'b1', type: 'word' as const, text: '' },
+    ];
+    const phrase: Phrase = {
+      id: 'p1',
+      beats,
+      chordsByArrangement: {
+        [BASIC_ARRANGEMENT_ID]: { b0: cf('1') },
+        alt: { b1: cf('7') },
+      },
+    };
+    const section = mkSection([phrase]);
+    const basic = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    const alt = deriveBarGrid(section, 'alt', 4);
+    expect(basic[0].cells.map(c => c.chord.function)).toEqual(['1']);
+    expect(alt[0].cells.map(c => c.chord.function)).toEqual(['7']);
+  });
+});
+
+describe('deriveBarGrid — edge cases', () => {
+  it('coerces fractional / non-finite beat counts to >= 1', () => {
+    const section = mkSection([
+      phraseWithChords([
+        cf('1', '', { beats: 0 }),
+        cf('4', '', { beats: -3 }),
+        cf('5', '', { beats: 1.4 }),
+        cf('6', '', { beats: 1.6 }),
+      ]),
+    ]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    // 0 → 1, -3 → 1, 1.4 → 1, 1.6 → 2 → total 5 beats → bar 1 full (4) + bar 2 (1)
+    expect(bars).toHaveLength(2);
+    expect(bars[0].cells.map(c => c.beats).reduce((a, b) => a + b, 0)).toBe(4);
+    expect(bars[1].cells.map(c => c.beats).reduce((a, b) => a + b, 0)).toBe(1);
+  });
+
+  it('returns an empty grid for non-positive beatsPerBar', () => {
+    const section = mkSection([phraseWithChords([cf('1')])]);
+    expect(deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 0)).toEqual([]);
+    expect(deriveBarGrid(section, BASIC_ARRANGEMENT_ID, -2)).toEqual([]);
+  });
+});

@@ -23,6 +23,7 @@ import { useNotationMode } from '../../lib/notationPref';
 import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
+import BarGridView from './BarGridView';
 import BottomSheet from '../../components/BottomSheet';
 import LongPressWrapper from '../../components/LongPressWrapper';
 import { usePhraseClipboard } from './phraseClipboard';
@@ -458,6 +459,16 @@ export default function LeadSheetSection({
             onArrangementsChange={saveArrangements}
             phrases={normalisedPhrases}
             onPhraseChange={updatePhraseInPlace}
+          />
+
+          {/* Lead Sheet Redesign step 2 — read-only bar-grid view of
+              the active arrangement. Renders above the phrase editor
+              so the user can compare the new measure-based layout
+              with the existing phrase/beat editor in real practice. */}
+          <BarGridView
+            song={song}
+            section={section}
+            activeArrangementId={activeArrangementId}
           />
 
           {normalisedPhrases.length === 0 ? (
