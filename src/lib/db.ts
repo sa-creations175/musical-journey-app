@@ -354,6 +354,45 @@ export interface SongSection {
    *  chord-derived chunks outrun the layout. Unindexed; rides in
    *  the section JSONB blob. */
   barLayout?: Array<'chord' | 'empty'>;
+  /** Bar-anchored chord placements (Lead Sheet Redesign Option C).
+   *  When defined, this is the authoritative source for the bar
+   *  grid — each placement names its exact `(barIndex, beatPos)`
+   *  position. Lets chords live at arbitrary bar beats (including
+   *  empty positions other chords don't pack into) and lets drag-
+   *  to-empty-beat work cleanly.
+   *
+   *  When undefined, the renderer falls back to packing chords from
+   *  `phrases[].chordsByArrangement` in document order. Sections
+   *  migrate automatically on first interaction with the bar-grid
+   *  editor (legacy → bar-anchored). Unindexed; rides in the
+   *  section JSONB blob. */
+  chordPlacements?: ChordPlacement[];
+}
+
+/** Bar-anchored chord placement for the redesigned bar grid (Option
+ *  C). Each placement carries its own `(barIndex, beatPos)` anchor
+ *  plus the chord description and duration, untethered from the
+ *  phrase/beat lyric structure. Stored on `SongSection.chordPlacements`. */
+export interface ChordPlacement {
+  /** Unique placement id (crypto.randomUUID at creation). Used as
+   *  the dnd-kit sortable/droppable id (`chord:${id}`) and as the
+   *  parameter passed to chord-edit/drag handlers. */
+  id: string;
+  /** Which arrangement this placement belongs to. Each arrangement
+   *  has its own independent set of chord placements; the renderer
+   *  filters by the section's active arrangement. */
+  arrangementId: string;
+  /** 0-indexed bar within the section. */
+  barIndex: number;
+  /** 0-indexed beat position within the bar (0..beatsPerBar-1). */
+  beatPos: number;
+  /** Beats this chord occupies inside the bar. Always >= 1. Same
+   *  field that `ChordFunction.beats` used in the legacy model. */
+  beats: number;
+  /** Chord function/quality data — same shape as the legacy
+   *  `ChordFunction`, lifted into the placement entry so all chord
+   *  state lives in one record. */
+  chord: ChordFunction;
 }
 
 /** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,

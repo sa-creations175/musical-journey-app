@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import type { ChordFunction, Phrase, SongSection } from '../../../lib/db';
 import {
+  addChordPlacement,
   autoHarmonicTag,
   deriveBarGrid,
   effectiveHarmonicTag,
   effectiveTimeSignature,
   isDominantQuality,
+  materializeChordPlacements,
+  migratedPlacementId,
+  moveChordPlacement,
   parseTimeSignature,
+  removeChordPlacement,
   reorderBar,
-  reorderChordPlacements,
+  resolveLegacyPlacementId,
+  swapChordPlacements,
+  updateChordPlacement,
 } from '../barGrid';
+import type { ChordPlacement } from '../../../lib/db';
 import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
 
 function cf(fn: string, quality = '', extras: Partial<ChordFunction> = {}): ChordFunction {
@@ -348,90 +356,111 @@ describe('deriveBarGrid — section.barCount padding', () => {
   });
 });
 
-describe('reorderChordPlacements', () => {
-  // Chord drag uses move/insert semantics: dragging chord A onto
-  // chord B removes A from its slot and inserts it at B's position;
-  // chords in between shift to make room. Chord values move across
-  // stable slot anchors (phraseId+beatId) so each chord's metadata
-  // (beats, harmonicTag, quality) is preserved at its new position.
-  function chordSequenceFor(next: Phrase[], arrId: string): string[] {
-    const out: string[] = [];
-    for (const p of next) {
-      const placements = p.chordsByArrangement?.[arrId] ?? {};
-      for (const beat of p.beats ?? []) {
-        const c = placements[beat.id];
-        if (c) out.push(c.function);
-      }
-    }
-    return out;
-  }
+describe('materializeChordPlacements', () => {
+  it('returns the existing placements unchanged when already migrated', () => {
+    const existing: ChordPlacement[] = [
+      { id: 'x', arrangementId: BASIC_ARRANGEMENT_ID, barIndex: 0, beatPos: 0, beats: 4, chord: cf('1') },
+    ];
+    const section = mkSection([], { chordPlacements: existing });
+    expect(materializeChordPlacements(section, 4)).toBe(existing);
+  });
 
-  it('reorders chords within a single phrase', () => {
+  it('produces one placement per legacy chord across all arrangements', () => {
     const section = mkSection([
       phraseWithChords([cf('1'), cf('4'), cf('5'), cf('6')]),
     ]);
-    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 2);
-    expect(next).not.toBeNull();
-    expect(chordSequenceFor(next!, BASIC_ARRANGEMENT_ID)).toEqual(['4', '5', '1', '6']);
-  });
-
-  it('reorders chords across phrases — chord values move, slots stay put', () => {
-    const section = mkSection([
-      { ...phraseWithChords([cf('1'), cf('4')]), id: 'phr-A' },
-      { ...phraseWithChords([cf('5'), cf('6')]), id: 'phr-B' },
+    const placements = materializeChordPlacements(section, 4);
+    expect(placements).toHaveLength(4);
+    expect(placements.every(p => p.arrangementId === BASIC_ARRANGEMENT_ID)).toBe(true);
+    expect(placements.map(p => p.chord.function)).toEqual(['1', '4', '5', '6']);
+    // 4 single-beat chords in 4/4 → all in bar 0 at beat positions 0..3.
+    expect(placements.map(p => ({ bar: p.barIndex, beat: p.beatPos }))).toEqual([
+      { bar: 0, beat: 0 }, { bar: 0, beat: 1 },
+      { bar: 0, beat: 2 }, { bar: 0, beat: 3 },
     ]);
-    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 3);
-    expect(next).not.toBeNull();
-    expect(chordSequenceFor(next!, BASIC_ARRANGEMENT_ID)).toEqual(['4', '5', '6', '1']);
-    const phrB = next!.find(p => p.id === 'phr-B')!;
-    const phrBPlacements = phrB.chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    expect(phrBPlacements[phrB.beats![1].id].function).toBe('1');
   });
 
-  it('preserves chord metadata (beats, harmonicTag, quality) at the moved chord\'s new slot', () => {
-    const section = mkSection([
-      phraseWithChords([
-        cf('1', 'maj7', { beats: 2, harmonicTag: 'pedal' }),
-        cf('5', '7'),
-      ]),
-    ]);
-    const next = reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 1);
-    const placements = next![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    const beatIds = next![0].beats!.map(b => b.id);
-    expect(placements[beatIds[1]]).toMatchObject({
-      function: '1',
-      quality: 'maj7',
-      beats: 2,
-      harmonicTag: 'pedal',
-    });
-    expect(placements[beatIds[0]]).toMatchObject({ function: '5', quality: '7' });
+  it('uses deterministic migrated ids resolvable by resolveLegacyPlacementId', () => {
+    const phrase = phraseWithChords([cf('1')]);
+    const section = mkSection([phrase]);
+    const placements = materializeChordPlacements(section, 4);
+    const beatId = phrase.beats![0].id;
+    const legacyId = `legacy:${phrase.id}:${beatId}`;
+    const resolved = resolveLegacyPlacementId(legacyId, BASIC_ARRANGEMENT_ID);
+    expect(resolved).toBe(migratedPlacementId(BASIC_ARRANGEMENT_ID, phrase.id, beatId));
+    expect(placements[0].id).toBe(resolved);
+  });
+});
+
+describe('addChordPlacement / removeChordPlacement / updateChordPlacement', () => {
+  const sample: ChordPlacement = {
+    id: 'p1', arrangementId: BASIC_ARRANGEMENT_ID, barIndex: 0, beatPos: 0, beats: 4, chord: cf('1'),
+  };
+  const other: ChordPlacement = {
+    id: 'p2', arrangementId: BASIC_ARRANGEMENT_ID, barIndex: 1, beatPos: 0, beats: 4, chord: cf('5'),
+  };
+
+  it('addChordPlacement appends', () => {
+    const next = addChordPlacement([sample], other);
+    expect(next.map(p => p.id)).toEqual(['p1', 'p2']);
   });
 
-  it('returns null for no-op moves (same index, out of range, empty section)', () => {
-    const section = mkSection([phraseWithChords([cf('1'), cf('4')])]);
-    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 0)).toBeNull();
-    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, -1, 1)).toBeNull();
-    expect(reorderChordPlacements(section, BASIC_ARRANGEMENT_ID, 0, 99)).toBeNull();
-    expect(reorderChordPlacements(mkSection([]), BASIC_ARRANGEMENT_ID, 0, 1)).toBeNull();
+  it('removeChordPlacement drops the matching id', () => {
+    expect(removeChordPlacement([sample, other], 'p1').map(p => p.id)).toEqual(['p2']);
+    expect(removeChordPlacement([sample], 'ghost').map(p => p.id)).toEqual(['p1']);
   });
 
-  it('only rewrites the active arrangement; other arrangements untouched', () => {
-    const beats = [
-      { id: 'b0', type: 'word' as const, text: '' },
-      { id: 'b1', type: 'word' as const, text: '' },
-    ];
-    const phrase: Phrase = {
-      id: 'p1',
-      beats,
-      chordsByArrangement: {
-        [BASIC_ARRANGEMENT_ID]: { b0: cf('1'), b1: cf('5') },
-        alt: { b0: cf('2'), b1: cf('7') },
-      },
-    };
-    const next = reorderChordPlacements(mkSection([phrase]), BASIC_ARRANGEMENT_ID, 0, 1);
-    const placements = next![0].chordsByArrangement?.alt ?? {};
-    expect(placements.b0.function).toBe('2');
-    expect(placements.b1.function).toBe('7');
+  it('updateChordPlacement merges a patch onto the matching placement', () => {
+    const next = updateChordPlacement([sample, other], 'p1', { beats: 2 });
+    expect(next[0]).toMatchObject({ id: 'p1', beats: 2 });
+    expect(next[1]).toMatchObject({ id: 'p2', beats: 4 });
+  });
+});
+
+describe('moveChordPlacement (chord → empty beat)', () => {
+  const sample: ChordPlacement = {
+    id: 'p1', arrangementId: BASIC_ARRANGEMENT_ID, barIndex: 0, beatPos: 0, beats: 1, chord: cf('1'),
+  };
+
+  it('updates barIndex + beatPos for the matching id', () => {
+    const next = moveChordPlacement([sample], 'p1', 3, 2);
+    expect(next[0]).toMatchObject({ barIndex: 3, beatPos: 2 });
+  });
+
+  it('returns a copy unchanged for unknown ids', () => {
+    const next = moveChordPlacement([sample], 'ghost', 1, 1);
+    expect(next).toEqual([sample]);
+  });
+
+  it('returns a copy unchanged when destination matches current anchor', () => {
+    const next = moveChordPlacement([sample], 'p1', 0, 0);
+    expect(next).toEqual([sample]);
+  });
+});
+
+describe('swapChordPlacements (chord → chord)', () => {
+  const a: ChordPlacement = {
+    id: 'a', arrangementId: BASIC_ARRANGEMENT_ID, barIndex: 0, beatPos: 0, beats: 1, chord: cf('1'),
+  };
+  const b: ChordPlacement = {
+    id: 'b', arrangementId: BASIC_ARRANGEMENT_ID, barIndex: 2, beatPos: 3, beats: 1, chord: cf('5'),
+  };
+
+  it('exchanges the two placements\' (barIndex, beatPos); chord metadata travels with each', () => {
+    const next = swapChordPlacements([a, b], 'a', 'b');
+    const na = next.find(p => p.id === 'a')!;
+    const nb = next.find(p => p.id === 'b')!;
+    expect(na.barIndex).toBe(2);
+    expect(na.beatPos).toBe(3);
+    expect(na.chord.function).toBe('1'); // chord stays with placement
+    expect(nb.barIndex).toBe(0);
+    expect(nb.beatPos).toBe(0);
+    expect(nb.chord.function).toBe('5');
+  });
+
+  it('no-op for same id, missing id, identical positions', () => {
+    expect(swapChordPlacements([a, b], 'a', 'a')).toEqual([a, b]);
+    expect(swapChordPlacements([a, b], 'a', 'ghost')).toEqual([a, b]);
   });
 });
 
@@ -698,8 +727,8 @@ describe('reorderBar', () => {
     expect(result).not.toBeNull();
     expect(result!.barLayout).toEqual(['chord', 'chord', 'chord']);
     // After reorder: doc-order chord functions should be 6,1,4,5,6,1,1,4,5.
-    const placements = result!.phrases[0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    const beatIds = result!.phrases[0].beats!.map(b => b.id);
+    const placements = result!.phrases![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = result!.phrases![0].beats!.map(b => b.id);
     expect(beatIds.map(id => placements[id]?.function)).toEqual([
       '6', '1', '4', '5', '6', '1', '1', '4', '5',
     ]);
@@ -715,8 +744,8 @@ describe('reorderBar', () => {
     expect(result).not.toBeNull();
     expect(result!.barLayout).toEqual(['empty', 'chord', 'empty']);
     // Chord placements unchanged.
-    const placements = result!.phrases[0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    const beatIds = result!.phrases[0].beats!.map(b => b.id);
+    const placements = result!.phrases![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = result!.phrases![0].beats!.map(b => b.id);
     expect(beatIds.map(id => placements[id]?.function)).toEqual(['1', '4']);
   });
 
@@ -755,8 +784,8 @@ describe('reorderBar', () => {
     // 3/4 → 3 bars: [(1,1,1)], [(4,4,4)], [(5,5,5)]
     // Move bar 2 → 0. New order: [(5,5,5), (1,1,1), (4,4,4)].
     const result = reorderBar(section, BASIC_ARRANGEMENT_ID, 2, 0, 3);
-    const placements = result!.phrases[0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
-    const beatIds = result!.phrases[0].beats!.map(b => b.id);
+    const placements = result!.phrases![0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = result!.phrases![0].beats!.map(b => b.id);
     expect(beatIds.map(id => placements[id]?.function)).toEqual([
       '5', '5', '5', '1', '1', '1', '4', '4', '4',
     ]);

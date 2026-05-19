@@ -39,7 +39,13 @@ import ChordGlyph from './chordGlyph';
 // Drag id prefixes used across BarGridView + LyricStagingArea +
 // LeadSheetSection's onDragEnd dispatch.
 export const DRAG_ID = {
-  chord: (phraseId: string, beatId: string) => `chord:${phraseId}:${beatId}`,
+  chord: (placementId: string) => `chord:${placementId}`,
+  /** Empty beat slot in a bar (chord drop target). */
+  emptyBeat: (barIndex: number, beatPos: number) =>
+    `emptybeat:${barIndex}:${beatPos}`,
+  /** Lyric drop slot per beat (lyric drop target). Distinct prefix
+   *  from `emptybeat:` because chord drags only see emptybeat targets
+   *  and lyric drags only see beat targets. */
   beat: (barIndex: number, beatPos: number) => `beat:${barIndex}:${beatPos}`,
   pending: (lineId: string) => `pending:${lineId}`,
   lineStart: (lineId: string) => `lineStart:${lineId}`,
@@ -59,13 +65,11 @@ interface Props {
    *  bar/cell shape. Re-derived from `section` here too, but exposed
    *  as a prop would let a future caller mock it; currently internal. */
   onChordBeatsChange?: (
-    phraseId: string,
-    beatId: string,
+    placementId: string,
     beats: number,
   ) => Promise<void> | void;
   onChordTagChange?: (
-    phraseId: string,
-    beatId: string,
+    placementId: string,
     tag: string | null,
   ) => Promise<void> | void;
   /** Whether chord cells render as sortable (drag-to-reorder). Drag
@@ -92,8 +96,12 @@ interface Props {
 }
 
 interface EditingState {
-  phraseId: string;
-  beatId: string;
+  /** Bar-anchored placement id (or legacy `legacy:phraseId:beatId`
+   *  for unmigrated sections). Handlers route by this id end-to-end. */
+  placementId: string;
+  /** Which bar to anchor the popover under. A placement lives in
+   *  exactly one bar; tracked here so the popover renders below the
+   *  correct BarBox without re-walking the grid. */
   barIndex: number;
 }
 
@@ -120,13 +128,15 @@ export default function BarGridView({
   );
 
   // Flat list of chord sortable ids across all bars so cross-bar
-  // drag-to-reorder uses one SortableContext.
+  // drag-to-reorder uses one SortableContext. Each cell carries its
+  // bar-anchored placement id (or a legacy `legacy:phraseId:beatId`
+  // synthetic id for unmigrated sections).
   const chordSortableIds = useMemo(
     () =>
       bars
         .flatMap(b => b.cells)
         .filter(c => !c.tiedFromPrev)
-        .map(c => DRAG_ID.chord(c.phraseId, c.beatId)),
+        .map(c => DRAG_ID.chord(c.placementId)),
     [bars],
   );
 
@@ -166,11 +176,10 @@ export default function BarGridView({
 
   useEffect(() => {
     if (!editing) return;
-    const key = `${editing.phraseId}:${editing.beatId}`;
     const stillVisible = bars.some(
       bar =>
         bar.index === editing.barIndex &&
-        bar.cells.some(c => cellKey(c) === key),
+        bar.cells.some(c => c.placementId === editing.placementId),
     );
     if (!stillVisible) setEditing(null);
   }, [bars, editing]);
@@ -202,16 +211,15 @@ export default function BarGridView({
 
   const handleCellClick = editable
     ? (cell: BarCell, barIndex: number) => {
-        const key = cellKey(cell);
         setEditing(prev => {
           if (
             prev &&
-            `${prev.phraseId}:${prev.beatId}` === key &&
+            prev.placementId === cell.placementId &&
             prev.barIndex === barIndex
           ) {
             return null;
           }
-          return { phraseId: cell.phraseId, beatId: cell.beatId, barIndex };
+          return { placementId: cell.placementId, barIndex };
         });
       }
     : undefined;
@@ -220,13 +228,13 @@ export default function BarGridView({
     ? async (cell: BarCell, nextBeats: number) => {
         const clamped = Math.min(Math.max(1, Math.round(nextBeats)), beatsPerBar);
         if (clamped === (cell.chord.beats ?? 1)) return;
-        await onChordBeatsChange(cell.phraseId, cell.beatId, clamped);
+        await onChordBeatsChange(cell.placementId, clamped);
       }
     : undefined;
 
   const handleTagChange = onChordTagChange
     ? async (cell: BarCell, tag: string | null) => {
-        await onChordTagChange(cell.phraseId, cell.beatId, tag);
+        await onChordTagChange(cell.placementId, tag);
       }
     : undefined;
 
@@ -312,9 +320,8 @@ export default function BarGridView({
   );
 }
 
-function cellKey(cell: BarCell): string {
-  return `${cell.phraseId}:${cell.beatId}`;
-}
+// cellKey was the legacy `${phraseId}:${beatId}` join — placementId
+// is now the cell identity, so this helper is gone.
 
 function AddBarButton({ onAddBar }: { onAddBar: () => void }) {
   return (
@@ -438,17 +445,43 @@ function BarBox({
   onDeleteBar?: (barIndex: number) => void;
   barDragEnabled: boolean;
 }) {
-  const filledBeats = bar.cells.reduce((sum, c) => sum + c.beats, 0);
-  const emptyBeats = Math.max(0, beatsPerBar - filledBeats);
-
   const editingCellInThisBar =
     editing && editing.barIndex === bar.index
-      ? bar.cells.find(
-          c => c.phraseId === editing.phraseId && c.beatId === editing.beatId,
-        ) ?? null
+      ? bar.cells.find(c => c.placementId === editing.placementId) ?? null
       : null;
 
   const isEmptyBar = bar.cells.length === 0;
+
+  // Walk beats 0..beatsPerBar-1 to assemble the row. At each position
+  // we either emit a chord cell (its leading half), skip a position
+  // that's covered by a tied multi-beat chord, or emit an empty beat
+  // drop slot. This is what makes Option C work: empty positions —
+  // both gaps between chords AND trailing dashed space — become
+  // discrete droppables for chord drag.
+  type Item =
+    | { kind: 'cell'; cell: BarCell; widthPct: number }
+    | { kind: 'empty'; beatPos: number };
+  const items: Item[] = [];
+  let pos = 0;
+  while (pos < beatsPerBar) {
+    const cell = bar.cells.find(c => !c.tiedFromPrev && c.beatPos === pos);
+    if (cell) {
+      const widthPct = (cell.beats / beatsPerBar) * 100;
+      items.push({ kind: 'cell', cell, widthPct });
+      pos += Math.max(1, cell.beats);
+      continue;
+    }
+    // Skip positions covered by a multi-beat cell that started earlier.
+    const covering = bar.cells.find(
+      c => !c.tiedFromPrev && c.beatPos < pos && c.beatPos + c.beats > pos,
+    );
+    if (covering) {
+      pos += 1;
+      continue;
+    }
+    items.push({ kind: 'empty', beatPos: pos });
+    pos += 1;
+  }
 
   // Bar drag (whole-bar reorder). useDraggable supplies the visual
   // transform + drag listeners attached to a small handle in the
@@ -511,17 +544,24 @@ function BarBox({
         </button>
       )}
       <div className="flex items-stretch gap-0.5 h-full overflow-x-auto">
-        {bar.cells.map((cell, idx) => {
-          const widthPct = (cell.beats / beatsPerBar) * 100;
+        {items.map((item, idx) => {
+          if (item.kind === 'empty') {
+            return (
+              <EmptyBeatSlot
+                key={`e-${item.beatPos}`}
+                barIndex={bar.index}
+                beatPos={item.beatPos}
+                widthPct={(1 / beatsPerBar) * 100}
+              />
+            );
+          }
+          const { cell, widthPct } = item;
           const isEditing =
-            editing !== null &&
-            editing.phraseId === cell.phraseId &&
-            editing.beatId === cell.beatId;
-          const isLeadingHalf = !cell.tiedFromPrev;
-          if (isLeadingHalf && draggable) {
+            editing !== null && editing.placementId === cell.placementId;
+          if (draggable) {
             return (
               <SortableChordCell
-                key={idx}
+                key={`c-${cell.placementId}`}
                 cell={cell}
                 widthPct={widthPct}
                 sectionKey={sectionKey}
@@ -533,27 +573,16 @@ function BarBox({
           }
           return (
             <ChordCellBox
-              key={idx}
+              key={`c-${cell.placementId}-${idx}`}
               cell={cell}
               widthPct={widthPct}
               sectionKey={sectionKey}
               notationMode={notationMode}
               isEditing={isEditing}
-              onClick={
-                isLeadingHalf && onCellClick
-                  ? c => onCellClick(c, bar.index)
-                  : undefined
-              }
+              onClick={onCellClick ? c => onCellClick(c, bar.index) : undefined}
             />
           );
         })}
-        {emptyBeats > 0 && (
-          <div
-            className="rounded border border-dashed border-neutral-200 dark:border-neutral-800"
-            style={{ width: `${(emptyBeats / beatsPerBar) * 100}%` }}
-            aria-hidden
-          />
-        )}
       </div>
 
       {editingCellInThisBar && (onBeatsChange || onTagChange) && (
@@ -776,6 +805,36 @@ function WordChip({
   );
 }
 
+/** One unoccupied beat position inside a bar. Registers as a
+ *  droppable (`emptybeat:bar:pos`) so chord drags can land here.
+ *  Visual is the same dashed placeholder that used to render as one
+ *  big trailing block — now split into per-beat slots. */
+function EmptyBeatSlot({
+  barIndex,
+  beatPos,
+  widthPct,
+}: {
+  barIndex: number;
+  beatPos: number;
+  widthPct: number;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: DRAG_ID.emptyBeat(barIndex, beatPos),
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ width: `${widthPct}%` }}
+      className={`rounded border border-dashed shrink-0 transition-colors ${
+        isOver
+          ? 'border-fluent bg-fluent/10'
+          : 'border-neutral-200 dark:border-neutral-800'
+      }`}
+      aria-label={`empty beat slot bar ${barIndex + 1} beat ${beatPos + 1}`}
+    />
+  );
+}
+
 function SortableChordCell({
   cell,
   widthPct,
@@ -792,7 +851,7 @@ function SortableChordCell({
   onClick?: (cell: BarCell) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: DRAG_ID.chord(cell.phraseId, cell.beatId) });
+    useSortable({ id: DRAG_ID.chord(cell.placementId) });
   const dragStyle: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,

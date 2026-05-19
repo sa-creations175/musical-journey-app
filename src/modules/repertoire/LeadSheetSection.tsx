@@ -12,6 +12,7 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import type {
   Arrangement,
+  ChordPlacement,
   LyricLine,
   Phrase,
   Song,
@@ -40,14 +41,19 @@ import { useNotationMode } from '../../lib/notationPref';
 import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
-import BarGridView, { DRAG_ID } from './BarGridView';
+import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
 import {
   deriveBarGrid,
   effectiveTimeSignature,
+  isLegacyPlacementId,
+  materializeChordPlacements,
+  moveChordPlacement,
   parseTimeSignature,
   reorderBar,
-  reorderChordPlacements,
+  resolveLegacyPlacementId,
+  swapChordPlacements,
+  updateChordPlacement,
 } from './barGrid';
 import {
   applyEndMarkerDrag,
@@ -152,50 +158,61 @@ export default function LeadSheetSection({
     await commit({ phrases: list });
   };
 
-  // Bar-grid editor write-back (Lead Sheet Redesign step 3). Updates
-  // `ChordFunction.beats` on a specific placement and persists the
-  // phrase. Beat count is clamped by BarGridView before it gets here.
-  const handleChordBeatsChange = async (
-    phraseId: string,
-    beatId: string,
-    beats: number,
-  ) => {
-    const target = normalisedPhrases.find(p => p.id === phraseId);
-    if (!target) return;
-    const arrangementPlacements = target.chordsByArrangement[activeArrangementId];
-    if (!arrangementPlacements) return;
-    const existing = arrangementPlacements[beatId];
-    if (!existing) return;
-    if ((existing.beats ?? 1) === beats) return;
-    const nextPlacements: Record<string, typeof existing> = {
-      ...arrangementPlacements,
-      [beatId]: { ...existing, beats },
-    };
-    const next: Phrase = {
-      ...target,
-      chordsByArrangement: {
-        ...target.chordsByArrangement,
-        [activeArrangementId]: nextPlacements,
-      },
-    };
-    await updatePhraseInPlace(next);
-  };
-
-  // Bar-grid chord drag — move/insert semantics. Dragging chord A
-  // onto chord B removes A from its current slot and inserts it at
-  // B's position; chords between shift to make room. The chord's
-  // own metadata (beats, harmonicTag, quality) travels with it to
-  // the new slot.
-  const handleChordReorder = async (fromIndex: number, toIndex: number) => {
-    const next = reorderChordPlacements(section, activeArrangementId, fromIndex, toIndex);
-    if (!next) return;
-    await commit({ phrases: next });
-  };
-
   // --- Lyric-line handlers (step 6) ------------------------------
   const lyricLines = useMemo(() => section.lyricLines ?? [], [section.lyricLines]);
   const timeSignature = effectiveTimeSignature(song, section);
   const { beatsPerBar } = parseTimeSignature(timeSignature);
+
+  // Bar-grid chord ops (Option C). All chord interactions go through
+  // bar-anchored ChordPlacement entries on section.chordPlacements.
+  // For unmigrated sections (chordPlacements undefined), we materialize
+  // on the first op and resolve any in-flight legacy placement id to
+  // its post-migration counterpart before applying the change.
+  const ensurePlacementsForOp = (
+    placementId: string,
+  ): { placements: ChordPlacement[]; realPlacementId: string } => {
+    if (section.chordPlacements !== undefined) {
+      return { placements: section.chordPlacements, realPlacementId: placementId };
+    }
+    const placements = materializeChordPlacements(section, beatsPerBar);
+    const real = isLegacyPlacementId(placementId)
+      ? resolveLegacyPlacementId(placementId, activeArrangementId) ?? placementId
+      : placementId;
+    return { placements, realPlacementId: real };
+  };
+
+  const handleChordBeatsChange = async (placementId: string, beats: number) => {
+    const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
+    const clamped = Math.min(Math.max(1, Math.round(beats)), beatsPerBar);
+    const next = updateChordPlacement(placements, realPlacementId, { beats: clamped });
+    await commit({ chordPlacements: next });
+  };
+
+  // Chord drag onto another chord = swap positions (Option C). The
+  // two placements exchange (barIndex, beatPos); chord metadata
+  // travels with each placement so nothing else changes.
+  const handleChordSwap = async (fromPlacementId: string, toPlacementId: string) => {
+    const { placements: fromPlacements, realPlacementId: fromReal } =
+      ensurePlacementsForOp(fromPlacementId);
+    const toReal = isLegacyPlacementId(toPlacementId)
+      ? resolveLegacyPlacementId(toPlacementId, activeArrangementId) ?? toPlacementId
+      : toPlacementId;
+    if (fromReal === toReal) return;
+    const next = swapChordPlacements(fromPlacements, fromReal, toReal);
+    await commit({ chordPlacements: next });
+  };
+
+  // Chord drag onto an empty beat slot = move chord to that position.
+  // The source becomes truly empty; no other chords are touched.
+  const handleChordMoveToEmpty = async (
+    placementId: string,
+    barIndex: number,
+    beatPos: number,
+  ) => {
+    const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
+    const next = moveChordPlacement(placements, realPlacementId, barIndex, beatPos);
+    await commit({ chordPlacements: next });
+  };
 
   const commitLyricLines = async (next: LyricLine[]) => {
     await commit({ lyricLines: next });
@@ -285,11 +302,18 @@ export default function LeadSheetSection({
       beatsPerBar,
     );
     if (!result) return;
-    await commit({
-      phrases: result.phrases,
+    // reorderBar returns either `phrases` (legacy mode) or
+    // `chordPlacements` (bar-anchored / Option C). Commit whichever
+    // is present so we don't blow away the unused field.
+    const patch: Partial<SongSection> = {
       barLayout: result.barLayout,
       lyricLines: result.lyricLines,
-    });
+    };
+    if (result.phrases !== undefined) patch.phrases = result.phrases;
+    if (result.chordPlacements !== undefined) {
+      patch.chordPlacements = result.chordPlacements;
+    }
+    await commit(patch);
   };
 
   // --- Unified DndContext drag-end dispatch (step 6) -------------
@@ -312,9 +336,12 @@ export default function LeadSheetSection({
     const activeId = String(args.active.id);
     let allowed: typeof args.droppableContainers = args.droppableContainers;
     if (activeId.startsWith('chord:')) {
-      allowed = args.droppableContainers.filter(d =>
-        String(d.id).startsWith('chord:'),
-      );
+      // Chord active accepts chord drop targets (swap) and emptybeat
+      // drop targets (move to empty beat slot).
+      allowed = args.droppableContainers.filter(d => {
+        const id = String(d.id);
+        return id.startsWith('chord:') || id.startsWith('emptybeat:');
+      });
     } else if (activeId.startsWith('bar:')) {
       allowed = args.droppableContainers.filter(d =>
         String(d.id).startsWith('bar:'),
@@ -346,10 +373,6 @@ export default function LeadSheetSection({
   const handleDragEnd = async (event: DragEndEvent) => {
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
-    // [DEBUG step 6 — chord cross-bar drag] Diagnostic logging.
-    // Remove once the chord-drag issue is resolved.
-    // eslint-disable-next-line no-console
-    console.log('[handleDragEnd] active=%s over=%s', activeId, overId);
     if (!overId) return;
 
     // Bar reorder. Both active and over are `bar:` ids.
@@ -362,25 +385,25 @@ export default function LeadSheetSection({
       return;
     }
 
-    // Chord drag. Both active and over are `chord:phraseId:beatId` ids.
-    // Compute fromIndex/toIndex from the bar-grid's flat chord list.
-    if (activeId.startsWith('chord:') && overId.startsWith('chord:')) {
-      const bars = deriveBarGrid(section, activeArrangementId, beatsPerBar);
-      const ids = bars
-        .flatMap(b => b.cells)
-        .filter(c => !c.tiedFromPrev)
-        .map(c => DRAG_ID.chord(c.phraseId, c.beatId));
-      const fromIndex = ids.indexOf(activeId);
-      const toIndex = ids.indexOf(overId);
-      // eslint-disable-next-line no-console
-      console.log(
-        '[handleDragEnd:chord] fromIndex=%d toIndex=%d ids.length=%d',
-        fromIndex,
-        toIndex,
-        ids.length,
-      );
-      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-      await handleChordReorder(fromIndex, toIndex);
+    // Chord drag (Option C). Active id is `chord:placementId`.
+    //   · over `chord:` → swap the two placements' (barIndex, beatPos)
+    //   · over `emptybeat:bar:pos` → move chord placement to that beat
+    if (activeId.startsWith('chord:')) {
+      const fromPlacementId = activeId.slice('chord:'.length);
+      if (overId.startsWith('chord:')) {
+        const toPlacementId = overId.slice('chord:'.length);
+        if (fromPlacementId === toPlacementId) return;
+        await handleChordSwap(fromPlacementId, toPlacementId);
+        return;
+      }
+      if (overId.startsWith('emptybeat:')) {
+        const [, barStr, beatStr] = overId.split(':');
+        const dropBar = parseInt(barStr, 10);
+        const dropBeat = parseInt(beatStr, 10);
+        if (!Number.isFinite(dropBar) || !Number.isFinite(dropBeat)) return;
+        await handleChordMoveToEmpty(fromPlacementId, dropBar, dropBeat);
+        return;
+      }
       return;
     }
 
@@ -461,40 +484,21 @@ export default function LeadSheetSection({
     }
   };
 
-  // Bar-grid harmonic-tag write-back (Lead Sheet Redesign step 4).
-  // tag === null clears the manual tag, letting the auto-detector
-  // take over again. Auto-detected tags are display-only — only
-  // manual selections reach this handler.
-  const handleChordTagChange = async (
-    phraseId: string,
-    beatId: string,
-    tag: string | null,
-  ) => {
-    const target = normalisedPhrases.find(p => p.id === phraseId);
+  // Bar-grid harmonic-tag write-back. `tag === null` clears the
+  // manual tag, letting the auto-detector take over again. Auto-
+  // detected tags are display-only — only manual selections reach
+  // this handler. Operates on the bar-anchored chord placement.
+  const handleChordTagChange = async (placementId: string, tag: string | null) => {
+    const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
+    const target = placements.find(p => p.id === realPlacementId);
     if (!target) return;
-    const arrangementPlacements = target.chordsByArrangement[activeArrangementId];
-    if (!arrangementPlacements) return;
-    const existing = arrangementPlacements[beatId];
-    if (!existing) return;
-    if ((existing.harmonicTag ?? undefined) === (tag ?? undefined)) return;
-    const updatedChord = { ...existing };
-    if (tag === null) {
-      delete updatedChord.harmonicTag;
-    } else {
-      updatedChord.harmonicTag = tag;
-    }
-    const nextPlacements: Record<string, typeof existing> = {
-      ...arrangementPlacements,
-      [beatId]: updatedChord,
-    };
-    const next: Phrase = {
-      ...target,
-      chordsByArrangement: {
-        ...target.chordsByArrangement,
-        [activeArrangementId]: nextPlacements,
-      },
-    };
-    await updatePhraseInPlace(next);
+    const updatedChord = { ...target.chord };
+    if (tag === null) delete updatedChord.harmonicTag;
+    else updatedChord.harmonicTag = tag;
+    const next = updateChordPlacement(placements, realPlacementId, {
+      chord: updatedChord,
+    });
+    await commit({ chordPlacements: next });
   };
 
   // --- Phrase list CRUD ------------------------------------------
