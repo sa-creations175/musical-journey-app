@@ -1135,9 +1135,9 @@ export default function LeadSheetSection({
           {progressionMatches.length > 0 && !comparing && (
             <div className="flex flex-wrap gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
               <span className="uppercase tracking-wide">detected:</span>
-              {progressionMatches.slice(0, 3).map(m => (
+              {progressionMatches.slice(0, 3).map((m, idx) => (
                 <span
-                  key={m.progressionId}
+                  key={`${m.progressionId}-${idx}`}
                   className="inline-flex items-center gap-1 rounded-full border border-fluent/30 bg-fluent/10 text-fluent px-2 py-0.5"
                   title={`Tier ${m.tier} · ${m.tierName} · match type: ${m.matchType}`}
                 >
