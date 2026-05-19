@@ -8,7 +8,7 @@ import type { DraggableAttributes } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ChordFunction, LyricLine, Song, SongSection } from '../../lib/db';
-import { chordToDisplay } from './chordFunction';
+import { chordToDisplay, parseChordFunction } from './chordFunction';
 import { useNotationMode } from '../../lib/notationPref';
 import {
   type Bar,
@@ -118,6 +118,15 @@ interface Props {
    *  this section. `null` clears the override (fall back to song
    *  default). */
   onTimeSignatureChange?: (next: string | null) => void | Promise<void>;
+  /** When supplied, tapping an empty beat slot opens an inline chord-
+   *  add popover; on confirm this fires with the parsed chord and the
+   *  destination position. Caller is expected to create a new
+   *  `ChordPlacement` with these fields + a fresh id + beats:1. */
+  onChordAdd?: (
+    barIndex: number,
+    beatPos: number,
+    chord: ChordFunction,
+  ) => void | Promise<void>;
 }
 
 interface EditingState {
@@ -149,6 +158,7 @@ export default function BarGridView({
   onRedo,
   canRedo,
   onTimeSignatureChange,
+  onChordAdd,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -203,10 +213,15 @@ export default function BarGridView({
   // Time-signature picker state (step 8). Anchored under the header
   // time-signature label.
   const [timeSigPickerOpen, setTimeSigPickerOpen] = useState(false);
+  // Chord-add popover (step ?: tap-to-add chord on empty beat slot).
+  // Anchored under the bar containing the tapped empty slot.
+  const [newChordAt, setNewChordAt] = useState<
+    { barIndex: number; beatPos: number } | null
+  >(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!editing && !wordEditing && !timeSigPickerOpen) return;
+    if (!editing && !wordEditing && !timeSigPickerOpen && !newChordAt) return;
     const onDown = (e: MouseEvent) => {
       const node = containerRef.current;
       if (!node) return;
@@ -214,10 +229,11 @@ export default function BarGridView({
       setEditing(null);
       setWordEditing(null);
       setTimeSigPickerOpen(false);
+      setNewChordAt(null);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [editing, wordEditing, timeSigPickerOpen]);
+  }, [editing, wordEditing, timeSigPickerOpen, newChordAt]);
 
   useEffect(() => {
     if (!editing) return;
@@ -275,6 +291,10 @@ export default function BarGridView({
 
   const handleCellClick = editable
     ? (cell: BarCell, barIndex: number) => {
+        // Opening the chord-edit popover dismisses any chord-add
+        // popover in progress; the two anchor to the same bar and
+        // would visually collide.
+        setNewChordAt(null);
         setEditing(prev => {
           if (
             prev &&
@@ -285,6 +305,18 @@ export default function BarGridView({
           }
           return { placementId: cell.placementId, barIndex };
         });
+      }
+    : undefined;
+
+  const handleEmptyBeatClick = onChordAdd
+    ? (barIndex: number, beatPos: number) => {
+        // Opening chord-add dismisses any chord-edit popover.
+        setEditing(null);
+        setNewChordAt(prev =>
+          prev && prev.barIndex === barIndex && prev.beatPos === beatPos
+            ? null
+            : { barIndex, beatPos },
+        );
       }
     : undefined;
 
@@ -332,6 +364,17 @@ export default function BarGridView({
                   draggable={chordsAreSortable}
                   onDeleteBar={onDeleteBar}
                   barDragEnabled={Boolean(onBarReorder)}
+                  onEmptyBeatClick={handleEmptyBeatClick}
+                  newChordAt={newChordAt}
+                  onChordAddSubmit={
+                    onChordAdd
+                      ? (barIdx, beatPos, chord) => {
+                          void onChordAdd(barIdx, beatPos, chord);
+                          setNewChordAt(null);
+                        }
+                      : undefined
+                  }
+                  onChordAddCancel={() => setNewChordAt(null)}
                 />
               ))}
               {row.length < BARS_PER_ROW &&
@@ -690,6 +733,10 @@ function BarBox({
   draggable,
   onDeleteBar,
   barDragEnabled,
+  onEmptyBeatClick,
+  newChordAt,
+  onChordAddSubmit,
+  onChordAddCancel,
 }: {
   bar: Bar;
   beatsPerBar: number;
@@ -702,6 +749,14 @@ function BarBox({
   draggable: boolean;
   onDeleteBar?: (barIndex: number) => void;
   barDragEnabled: boolean;
+  onEmptyBeatClick?: (barIndex: number, beatPos: number) => void;
+  newChordAt: { barIndex: number; beatPos: number } | null;
+  onChordAddSubmit?: (
+    barIndex: number,
+    beatPos: number,
+    chord: ChordFunction,
+  ) => void;
+  onChordAddCancel: () => void;
 }) {
   const editingCellInThisBar =
     editing && editing.barIndex === bar.index
@@ -810,6 +865,16 @@ function BarBox({
                 barIndex={bar.index}
                 beatPos={item.beatPos}
                 widthPct={(1 / beatsPerBar) * 100}
+                onClick={
+                  onEmptyBeatClick
+                    ? () => onEmptyBeatClick(bar.index, item.beatPos)
+                    : undefined
+                }
+                isAdding={
+                  newChordAt !== null &&
+                  newChordAt.barIndex === bar.index &&
+                  newChordAt.beatPos === item.beatPos
+                }
               />
             );
           }
@@ -853,6 +918,21 @@ function BarBox({
           onTagChange={onTagChange}
         />
       )}
+
+      {newChordAt !== null &&
+        newChordAt.barIndex === bar.index &&
+        onChordAddSubmit && (
+          <ChordAddPopover
+            barIndex={newChordAt.barIndex}
+            beatPos={newChordAt.beatPos}
+            sectionKey={sectionKey}
+            notationMode={notationMode}
+            onSubmit={chord =>
+              onChordAddSubmit(newChordAt.barIndex, newChordAt.beatPos, chord)
+            }
+            onCancel={onChordAddCancel}
+          />
+        )}
     </div>
   );
 }
@@ -1259,14 +1339,110 @@ function WordChip({
  *  droppable (`emptybeat:bar:pos`) so chord drags can land here.
  *  Visual is the same dashed placeholder that used to render as one
  *  big trailing block — now split into per-beat slots. */
+/** Inline popover for tap-to-add chord on an empty beat slot.
+ *  Anchored under the BarBox that owns the slot. Parses Nashville
+ *  notation (or Roman / concrete chord names) via `parseChordFunction`
+ *  and previews the result as the user types. On submit fires
+ *  `onSubmit(parsedChord)`; on cancel fires `onCancel`. */
+function ChordAddPopover({
+  barIndex,
+  beatPos,
+  sectionKey,
+  notationMode,
+  onSubmit,
+  onCancel,
+}: {
+  barIndex: number;
+  beatPos: number;
+  sectionKey: string | undefined;
+  notationMode: ReturnType<typeof useNotationMode>[0];
+  onSubmit: (chord: ChordFunction) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const trimmed = draft.trim();
+  const parsed = trimmed === '' ? null : parseChordFunction(trimmed, sectionKey);
+  const isReady =
+    parsed !== null &&
+    (parsed.function !== '' || parsed.quality !== '' || Boolean(parsed.bass));
+  const previewText = parsed
+    ? chordToDisplay(parsed, notationMode, sectionKey)
+    : '';
+  const submit = () => {
+    if (!parsed || !isReady) return;
+    onSubmit(parsed);
+  };
+  return (
+    <div
+      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-30 min-w-[14rem] rounded-md border border-fluent/40 bg-white dark:bg-neutral-900 shadow-md p-2 space-y-1.5 text-[11px]"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between text-neutral-500">
+        <span>
+          add chord · bar {barIndex + 1} beat {beatPos + 1}
+        </span>
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="cancel"
+          className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          ×
+        </button>
+      </div>
+      <input
+        type="text"
+        autoFocus
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        placeholder="e.g. 4maj7, 1dom9(13), 5m7"
+        className="w-full px-2 py-1 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 font-mono"
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-neutral-500">
+          preview:{' '}
+          {previewText ? (
+            <span className="font-semibold text-neutral-700 dark:text-neutral-200">
+              <ChordGlyph text={previewText} />
+            </span>
+          ) : (
+            <span className="italic">—</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!isReady}
+          className="px-2 py-0.5 rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          Add
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function EmptyBeatSlot({
   barIndex,
   beatPos,
   widthPct,
+  onClick,
+  isAdding,
 }: {
   barIndex: number;
   beatPos: number;
   widthPct: number;
+  onClick?: () => void;
+  isAdding?: boolean;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: DRAG_ID.emptyBeat(barIndex, beatPos),
@@ -1275,11 +1451,24 @@ function EmptyBeatSlot({
     <div
       ref={setNodeRef}
       style={{ width: `${widthPct}%` }}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={
+        onClick
+          ? e => {
+              e.stopPropagation();
+              onClick();
+            }
+          : undefined
+      }
+      title={onClick ? 'Tap to add chord here' : undefined}
       className={`rounded border border-dashed shrink-0 transition-colors ${
         isOver
           ? 'border-fluent bg-fluent/10'
-          : 'border-neutral-200 dark:border-neutral-800'
-      }`}
+          : isAdding
+            ? 'border-fluent bg-fluent/5'
+            : 'border-neutral-200 dark:border-neutral-800'
+      } ${onClick ? 'cursor-pointer hover:border-fluent/50 hover:bg-fluent/5' : ''}`}
       aria-label={`empty beat slot bar ${barIndex + 1} beat ${beatPos + 1}`}
     />
   );

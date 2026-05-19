@@ -41,7 +41,6 @@ import {
   nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
-import { PhraseClipboardProvider } from './phraseClipboard';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import SongHeatmap from './SongHeatmap';
@@ -233,10 +232,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const { flash, isHighlighted } = useScrollHighlight();
   const [notationMode, setNotationMode] = useNotationMode();
 
-  // Which section / phrase to flash on next render — set by the
-  // action handlers below.
+  // Which section to flash on next render — set by the action
+  // handlers below.
   const [flashSectionId, setFlashSectionId] = useState<string | null>(null);
-  const [flashPhraseId, setFlashPhraseId] = useState<string | null>(null);
 
   // Confirm-dialog state. Separate state per dialog so the component
   // can open only one at a time (song delete vs. section delete).
@@ -651,11 +649,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     const t = window.setTimeout(() => setFlashSectionId(null), 1800);
     return () => window.clearTimeout(t);
   }, [flashSectionId]);
-  useEffect(() => {
-    if (flashPhraseId === null) return;
-    const t = window.setTimeout(() => setFlashPhraseId(null), 1800);
-    return () => window.clearTimeout(t);
-  }, [flashPhraseId]);
 
   if (!song) {
     return (
@@ -866,7 +859,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                     {sections.length === 0 ? (
                       <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
                     ) : (
-                      <PhraseClipboardProvider>
                       <DndContext
                         sensors={sensors}
                         collisionDetection={closestCenter}
@@ -885,23 +877,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                                   canMoveUp={idx > 0}
                                   canMoveDown={idx < sections.length - 1}
                                   highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
-                                  highlightedPhraseId={flashPhraseId}
                                   onChange={patch => updateSection(s.id, patch)}
                                   onReplace={replaceSection}
                                   onMoveUp={() => moveSection(s, -1)}
                                   onMoveDown={() => moveSection(s, 1)}
                                   onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
-                                  onPhraseAdded={pid => {
-                                    setFlashPhraseId(pid);
-                                    requestAnimationFrame(() => flash(`phrase-${pid}`));
-                                  }}
                                 />
                               </SortableLeadSheetItem>
                             ))}
                           </div>
                         </SortableContext>
                       </DndContext>
-                      </PhraseClipboardProvider>
                     )}
                     {/* Full lyrics collapsible — opens via "Show full
                         lyrics" toggle, closed by default. The full
