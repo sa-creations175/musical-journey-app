@@ -134,19 +134,31 @@ export default function LeadSheetSection({
   const sectionRef = useRef(section);
   sectionRef.current = section;
 
-  // --- Undo stack ------------------------------------------------
+  // --- Undo / Redo stacks ----------------------------------------
   // Snapshots are FULL `SongSection` records — restore goes through
   // `onReplace` (which uses `Table.put`, not `update`), so undefined
-  // fields are persisted correctly. Capped at 20 entries.
+  // fields are persisted correctly. Each stack capped at 20 entries.
+  //
+  // Standard semantics:
+  //   · commit pushes the prior state to undo; any new commit clears
+  //     redo (you can't redo into a branched future).
+  //   · undo pushes the current state to redo, restores from undo.
+  //   · redo pushes the current state to undo, restores from redo.
   const UNDO_STACK_MAX = 20;
   const undoStackRef = useRef<SongSection[]>([]);
+  const redoStackRef = useRef<SongSection[]>([]);
   const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   useEffect(() => {
-    // Switching sections wipes the stack — undo only applies to the
-    // currently-rendered section.
+    // Switching sections wipes BOTH stacks — undo/redo only apply to
+    // the currently-rendered section.
+    // eslint-disable-next-line no-console
+    console.log('[undo-reset] effect fired, section.id=%s', section.id);
     undoStackRef.current = [];
+    redoStackRef.current = [];
     setCanUndo(false);
+    setCanRedo(false);
   }, [section.id]);
 
   const commit = async (patch: Partial<SongSection>) => {
@@ -157,19 +169,44 @@ export default function LeadSheetSection({
     const stack = undoStackRef.current;
     stack.push(snap);
     while (stack.length > UNDO_STACK_MAX) stack.shift();
+    // eslint-disable-next-line no-console
+    console.log('[undo-push] stack.length=%d', stack.length);
+    // Any new edit invalidates the redo stack — you can't redo into
+    // a branched future.
+    if (redoStackRef.current.length > 0) {
+      redoStackRef.current = [];
+      setCanRedo(false);
+    }
     setCanUndo(true);
     await onChange(patch);
   };
 
   const handleUndo = async () => {
-    const stack = undoStackRef.current;
-    const snap = stack.pop();
+    const undo = undoStackRef.current;
+    const snap = undo.pop();
     if (!snap) return;
-    setCanUndo(stack.length > 0);
-    // Full-record replace via `onReplace` (Table.put). Falls back to
-    // a no-op when the caller hasn't wired onReplace — partial-patch
-    // restore through `onChange` doesn't work for fields that need
-    // to go back to undefined, so we'd rather no-op than half-restore.
+    // Push the CURRENT state onto the redo stack before restoring.
+    const redo = redoStackRef.current;
+    redo.push({ ...sectionRef.current });
+    while (redo.length > UNDO_STACK_MAX) redo.shift();
+    setCanUndo(undo.length > 0);
+    setCanRedo(true);
+    if (onReplace) {
+      await onReplace(snap);
+    }
+  };
+
+  const handleRedo = async () => {
+    const redo = redoStackRef.current;
+    const snap = redo.pop();
+    if (!snap) return;
+    // Mirror of handleUndo: push current state onto undo before
+    // restoring the redo snapshot.
+    const undo = undoStackRef.current;
+    undo.push({ ...sectionRef.current });
+    while (undo.length > UNDO_STACK_MAX) undo.shift();
+    setCanRedo(redo.length > 0);
+    setCanUndo(true);
     if (onReplace) {
       await onReplace(snap);
     }
@@ -1000,6 +1037,8 @@ export default function LeadSheetSection({
               onWordJoin={handleWordJoin}
               onUndo={handleUndo}
               canUndo={canUndo}
+              onRedo={handleRedo}
+              canRedo={canRedo}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending

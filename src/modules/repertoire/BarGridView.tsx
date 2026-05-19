@@ -109,6 +109,10 @@ interface Props {
   onUndo?: () => void | Promise<void>;
   /** Drives the undo button's enabled state. */
   canUndo?: boolean;
+  /** Tap the header's ↪ button. Pops the redo stack and restores. */
+  onRedo?: () => void | Promise<void>;
+  /** Drives the redo button's enabled state. */
+  canRedo?: boolean;
 }
 
 interface EditingState {
@@ -137,6 +141,8 @@ export default function BarGridView({
   onWordJoin,
   onUndo,
   canUndo,
+  onRedo,
+  canRedo,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -229,6 +235,8 @@ export default function BarGridView({
           barCount={0}
           onUndo={onUndo}
           canUndo={canUndo}
+          onRedo={onRedo}
+          canRedo={canRedo}
         />
         <p className="mt-2 text-[11px] italic text-neutral-500">
           No chords yet — add chord placements on phrase lines below, or
@@ -381,6 +389,8 @@ export default function BarGridView({
         barCount={bars.length}
         onUndo={onUndo}
         canUndo={canUndo}
+        onRedo={onRedo}
+        canRedo={canRedo}
       />
       {chordsAreSortable ? (
         <SortableContext items={chordSortableIds}>{body}</SortableContext>
@@ -411,11 +421,15 @@ function BarGridHeader({
   barCount,
   onUndo,
   canUndo,
+  onRedo,
+  canRedo,
 }: {
   timeSignature: string;
   barCount: number;
   onUndo?: () => void | Promise<void>;
   canUndo?: boolean;
+  onRedo?: () => void | Promise<void>;
+  canRedo?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
@@ -434,6 +448,18 @@ function BarGridHeader({
             className="text-[14px] leading-none px-1 text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
           >
             ↩
+          </button>
+        )}
+        {onRedo && (
+          <button
+            type="button"
+            onClick={() => void onRedo()}
+            disabled={!canRedo}
+            aria-label="Redo last undo"
+            title={canRedo ? 'Redo last undo' : 'Nothing to redo'}
+            className="text-[14px] leading-none px-1 text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            ↪
           </button>
         )}
       </div>
