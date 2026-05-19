@@ -44,17 +44,105 @@ export function isDominantQuality(quality: string): boolean {
 }
 
 /**
+ * Coarse quality classifier used by the diatonic-mismatch detector.
+ * Distinct from the cross-module `SongChord.quality` bucket because
+ * it operates on the user-facing quality string (`""`, `"m7"`,
+ * `"dom9(13)"`) rather than on a pre-parsed enum.
+ *
+ *   ''                                 → 'major' (bare triad)
+ *   'maj' / 'maj7' / '6' / 'add9'      → 'major'
+ *   'm' / 'm7' / 'min7'                → 'minor'
+ *   '7' / '9' / 'dom7' / '13b9'        → 'dominant'
+ *   'dim' / 'dim7' / '°'               → 'diminished'
+ *   'm7b5' / 'ø' / 'ø7'                → 'half-dim'
+ *   'aug' / '+' / 'aug7'               → 'augmented'
+ *   'sus' / 'sus4' / 'sus2'            → 'sus'
+ */
+type QualityClass =
+  | 'major'
+  | 'minor'
+  | 'dominant'
+  | 'diminished'
+  | 'half-dim'
+  | 'augmented'
+  | 'sus';
+
+function classifyQuality(quality: string): QualityClass {
+  const q = quality.trim().toLowerCase();
+  if (q === '') return 'major';
+  if (q.includes('m7b5') || q.startsWith('ø')) return 'half-dim';
+  if (q.startsWith('dim') || q.startsWith('°')) return 'diminished';
+  if (q.startsWith('aug') || q.startsWith('+')) return 'augmented';
+  if (isDominantQuality(q)) return 'dominant';
+  if (/^m(?!aj)/.test(q) || q.startsWith('min')) return 'minor';
+  if (q.startsWith('sus')) return 'sus';
+  return 'major';
+}
+
+// Diatonic-major chord-quality expectations per scale degree. A chord
+// whose quality classifies as one of the listed values is treated as
+// diatonic; anything else falls through to the borrowed-chord rule.
+// Degree 5 accepts both `dominant` (V7) and `major` (bare V triad).
+// Degree 7 accepts both `diminished` (vii°) and `half-dim` (viiø7).
+const DIATONIC_QUALITIES_MAJOR: Record<string, ReadonlyArray<QualityClass>> = {
+  '1': ['major'],
+  '2': ['minor'],
+  '3': ['minor'],
+  '4': ['major'],
+  '5': ['dominant', 'major'],
+  '6': ['minor'],
+  '7': ['diminished', 'half-dim'],
+};
+
+/**
  * Returns the auto-detected harmonic tag for a chord, or undefined
- * if no auto-rule fires. Currently detects secondary dominants:
- * dominant-quality chords on any scale degree other than the literal
- * diatonic V (altered fifths like `b5`/`#5` still count as secondary).
- * Skips unparsed chords (we don't have enough structure to classify).
+ * when no rule fires. Assumes the surrounding section is in a major
+ * key (minor-key detection is a future enhancement).
+ *
+ * Rule order (first match wins):
+ *   1. Dominant quality on any degree other than the literal V →
+ *      'secondary_dominant'. Altered fifths (b5/#5) with dominant
+ *      quality still count (tritone substitutions).
+ *   2. Minor quality on the literal V →  'secondary_ii'. The V chord
+ *      is functioning as ii of another local key.
+ *   3. Any other quality mismatch vs the diatonic-major expectations →
+ *      'borrowed'. Altered degrees (b2, b3, #4, b6, b7, b5, etc.)
+ *      are non-diatonic by definition and fall through here unless
+ *      rule 1 caught them.
+ *
+ * Sus and unknown qualities skip the borrowed check — they're
+ * ambiguous embellishments that rarely indicate actual borrowing.
+ * Unparsed chords always return undefined.
  */
 export function autoHarmonicTag(chord: ChordFunction): string | undefined {
   if (chord.unparsed) return undefined;
-  if (!isDominantQuality(chord.quality)) return undefined;
-  if (chord.function === '5') return undefined;
-  return 'secondary_dominant';
+  const cls = classifyQuality(chord.quality);
+
+  // Rule 1: secondary dominant.
+  if (cls === 'dominant' && chord.function !== '5') {
+    return 'secondary_dominant';
+  }
+
+  // Rule 2: minor on the literal diatonic V → secondary ii.
+  if (cls === 'minor' && chord.function === '5') {
+    return 'secondary_ii';
+  }
+
+  // Rule 3: diatonic-quality mismatch → borrowed. Skip ambiguous
+  // sus chords to avoid false positives (sus voicings are usually
+  // momentary embellishments rather than mode borrowings).
+  if (cls === 'sus') return undefined;
+
+  // Altered degrees are never diatonic in a major key; if rule 1
+  // didn't catch them already, the chord is borrowed.
+  if (chord.function.startsWith('b') || chord.function.startsWith('#')) {
+    return 'borrowed';
+  }
+
+  const expected = DIATONIC_QUALITIES_MAJOR[chord.function];
+  if (!expected) return undefined;
+  if (expected.includes(cls)) return undefined;
+  return 'borrowed';
 }
 
 /**

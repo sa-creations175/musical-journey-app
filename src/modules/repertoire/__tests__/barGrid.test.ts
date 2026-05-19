@@ -476,6 +476,83 @@ describe('autoHarmonicTag', () => {
   it('returns undefined for unparsed chords', () => {
     expect(autoHarmonicTag({ function: '', quality: '', raw: '?', unparsed: true })).toBeUndefined();
   });
+
+  describe('secondary ii (minor on degree 5)', () => {
+    it('tags minor v as secondary_ii', () => {
+      expect(autoHarmonicTag(cf('5', 'm'))).toBe('secondary_ii');
+      expect(autoHarmonicTag(cf('5', 'm7'))).toBe('secondary_ii');
+      expect(autoHarmonicTag(cf('5', 'm9'))).toBe('secondary_ii');
+      expect(autoHarmonicTag(cf('5', 'min7'))).toBe('secondary_ii');
+    });
+
+    it('does NOT apply to altered fifths (those are borrowed/secondary dom)', () => {
+      // b5m7 is a minor on altered fifth — not the diatonic V acting as ii.
+      expect(autoHarmonicTag(cf('b5', 'm7'))).toBe('borrowed');
+    });
+  });
+
+  describe('borrowed (diatonic quality mismatch)', () => {
+    it('tags minor i / iv / v-when-not-on-5 as borrowed', () => {
+      expect(autoHarmonicTag(cf('1', 'm'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('1', 'm7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('4', 'm'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('4', 'm7'))).toBe('borrowed');
+    });
+
+    it('tags major II / III / VI as borrowed', () => {
+      expect(autoHarmonicTag(cf('2', 'maj7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('3', 'maj'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('6', 'maj7'))).toBe('borrowed');
+    });
+
+    it('tags minor or major on degree 7 (not dim/half-dim) as borrowed', () => {
+      expect(autoHarmonicTag(cf('7', 'm7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('7', 'maj7'))).toBe('borrowed');
+    });
+
+    it('tags any chord on an altered degree as borrowed (when not secondary dom)', () => {
+      expect(autoHarmonicTag(cf('b3', 'maj7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('b6', 'maj7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('b7', 'maj7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('b2', 'maj7'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('#4', 'm7b5'))).toBe('borrowed');
+    });
+
+    it('still prefers secondary_dominant when both rules could apply', () => {
+      // b7dom7 (backdoor dom) is on altered degree AND dominant — rule 1
+      // wins (we don't try to disambiguate backdoor vs secondary).
+      expect(autoHarmonicTag(cf('b7', 'dom7'))).toBe('secondary_dominant');
+      expect(autoHarmonicTag(cf('b5', 'dom7'))).toBe('secondary_dominant');
+    });
+
+    it('augmented quality counts as a mismatch on any natural degree', () => {
+      expect(autoHarmonicTag(cf('1', 'aug'))).toBe('borrowed');
+      expect(autoHarmonicTag(cf('5', 'aug'))).toBe('borrowed');
+    });
+  });
+
+  describe('non-flagging cases', () => {
+    it('bare V triad on degree 5 stays diatonic', () => {
+      expect(autoHarmonicTag(cf('5', ''))).toBeUndefined();
+      expect(autoHarmonicTag(cf('5', 'maj'))).toBeUndefined();
+    });
+
+    it('sus chords are skipped (ambiguous)', () => {
+      expect(autoHarmonicTag(cf('1', 'sus4'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('5', 'sus4'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('4', 'sus2'))).toBeUndefined();
+    });
+
+    it('diatonic chords return no tag', () => {
+      expect(autoHarmonicTag(cf('1', ''))).toBeUndefined();
+      expect(autoHarmonicTag(cf('1', 'maj7'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('2', 'm7'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('4', '6'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('6', 'm7'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('7', 'dim'))).toBeUndefined();
+      expect(autoHarmonicTag(cf('7', 'm7b5'))).toBeUndefined();
+    });
+  });
 });
 
 describe('effectiveHarmonicTag', () => {
