@@ -230,6 +230,15 @@ export interface ChordFunction {
    *  functional position (e.g. a concrete chord name in a section
    *  whose key is unknown). Renderer shows `raw` with a small warning. */
   unparsed?: boolean;
+  /** How many beats this chord occupies inside its bar. Drives the
+   *  proportional width of the chord box in the bar-grid lead sheet
+   *  renderer (Lead Sheet Redesign, May 2026 — see
+   *  docs/LEAD_SHEET_REDESIGN.md). When undefined, renderers treat the
+   *  chord as 1 beat (`beats ?? 1`). Existing pre-redesign chords have
+   *  no value here, so they render as uniform 1-beat boxes until the
+   *  user enriches them. Unindexed; lives in the section JSONB blob via
+   *  Phrase.chordsByArrangement. */
+  beats?: number;
 }
 
 /**
@@ -305,6 +314,36 @@ export interface SongSection {
   notes?: string;
   /** User note explaining when/why an alternate chord is used. */
   alternateNote?: string;
+  /** Per-section time signature override (e.g. "4/4", "6/8", "3/4").
+   *  When undefined, inherits from `Song.timeSignature` (and ultimately
+   *  defaults to "4/4" at render time). Drives beats-per-bar in the
+   *  bar-grid lead sheet renderer (Lead Sheet Redesign, May 2026 — see
+   *  docs/LEAD_SHEET_REDESIGN.md). Used for songs with mid-song meter
+   *  changes. Unindexed; lives in the section JSONB blob. */
+  timeSignature?: string;
+}
+
+/** One placeable lyric chunk in the bar-grid lead sheet (Lead Sheet
+ *  Redesign, May 2026 — see docs/LEAD_SHEET_REDESIGN.md). Lyric tokens
+ *  are positioned independently of the bar/chord grid: pasted lyric
+ *  text tokenizes into individual word tokens that the user drags to
+ *  beat positions. Multiple adjacent word tokens can be merged into a
+ *  phrase token (`isPhrase: true`) that moves together; tapping a
+ *  phrase token splits it back into individual words.
+ *
+ *  Not yet a Dexie table — this is the in-memory / future-storage
+ *  shape only. Storage location (own table vs. nested on SongSection)
+ *  is deferred to the lyric-paste step of the redesign build. */
+export interface LyricToken {
+  id: string;
+  text: string;
+  /** Which bar in the section this token is anchored to (0-indexed). */
+  barIndex: number;
+  /** Which beat within the bar this token starts on (0-indexed). */
+  beatPosition: number;
+  /** True when this token represents a merged group of adjacent words
+   *  that move as one; false for an individual word token. */
+  isPhrase: boolean;
 }
 
 /** One parsed chord token inside a section. Populated by the chord
