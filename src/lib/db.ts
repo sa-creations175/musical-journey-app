@@ -339,12 +339,21 @@ export interface SongSection {
    *  evenly across the range and can be individually nudged via
    *  `wordOffsets`. Unindexed; rides in the section JSONB blob. */
   lyricLines?: LyricLine[];
-  /** Explicit bar count for the bar grid. When set, the renderer
-   *  shows `max(chordDerivedBarCount, barCount)` bars — so extra
-   *  empty bars appear after the chord-derived ones for lyric-only
-   *  placement. Adjusted by the `+ bar` / `×` affordances in the
-   *  bar grid. Undefined defaults to chord-derived count. */
+  /** Explicit bar count for the bar grid. Legacy field: used when
+   *  `barLayout` is undefined to pad N empty bars after the chord-
+   *  derived ones. Once any bar operation (add / delete / reorder)
+   *  happens, `barLayout` becomes authoritative and `barCount` is
+   *  ignored by the renderer. */
   barCount?: number;
+  /** Explicit bar layout — one entry per bar position, in order.
+   *  When set, the renderer walks this array left-to-right; each
+   *  `'chord'` entry consumes the next chord chunk from packing,
+   *  each `'empty'` entry renders as an empty bar. Lets the user
+   *  position empty bars at any point in the section (not just at
+   *  the end) and re-order whole bars via drag. Auto-grows when the
+   *  chord-derived chunks outrun the layout. Unindexed; rides in
+   *  the section JSONB blob. */
+  barLayout?: Array<'chord' | 'empty'>;
 }
 
 /** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,

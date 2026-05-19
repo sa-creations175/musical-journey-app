@@ -44,6 +44,7 @@ import {
   deriveBarGrid,
   effectiveTimeSignature,
   parseTimeSignature,
+  reorderBar,
   reorderChordPlacements,
 } from './barGrid';
 import {
@@ -215,23 +216,32 @@ export default function LeadSheetSection({
     await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
   };
 
-  // --- Bar add / delete (lyric-only empty bars) ------------------
-  const derivedBarCount = useMemo(
-    () => deriveBarGrid(section, activeArrangementId, beatsPerBar).length,
+  // --- Bar add / delete / reorder ---------------------------------
+  // Bar layout is the source of truth once any bar operation has
+  // happened: `section.barLayout: ('chord' | 'empty')[]` lists the
+  // kind of each bar position. Before the first operation, layout is
+  // derived from chord placements + the legacy `barCount` padding.
+  const allBars = useMemo(
+    () => deriveBarGrid(section, activeArrangementId, beatsPerBar),
     [section, activeArrangementId, beatsPerBar],
   );
 
+  const materializeBarLayout = (): ('chord' | 'empty')[] => {
+    if (section.barLayout) return [...section.barLayout];
+    return allBars.map(b => (b.isEmpty ? 'empty' : 'chord'));
+  };
+
   const handleAddBar = async () => {
-    const current = section.barCount ?? derivedBarCount;
-    await commit({ barCount: current + 1 });
+    const layout = materializeBarLayout();
+    layout.push('empty');
+    await commit({ barLayout: layout });
   };
 
   const handleDeleteBar = async (barIndex: number) => {
-    // UI guard: empty bars only. Defensive check here too in case of
-    // a stale render / data race.
-    if (barIndex < derivedBarCount) return;
-    const current = section.barCount ?? derivedBarCount;
-    if (current <= derivedBarCount) return;
+    const layout = materializeBarLayout();
+    if (barIndex < 0 || barIndex >= layout.length) return;
+    // Only empty bars can be deleted via this affordance.
+    if (layout[barIndex] !== 'empty') return;
 
     // Lines touching this bar: starts here, ends here, or spans across.
     const touchesBar = (l: LyricLine): boolean =>
@@ -249,8 +259,7 @@ export default function LeadSheetSection({
       if (!ok) return;
     }
 
-    // Build the next lyric list: drop lines touching this bar; shift
-    // lines that live entirely after it down by 1.
+    // Drop touching lines; shift lines past the deletion point down by 1.
     const nextLyrics = lyricLines
       .filter(l => !touchesBar(l))
       .map(l => ({
@@ -259,8 +268,24 @@ export default function LeadSheetSection({
         endBar: l.endBar > barIndex ? l.endBar - 1 : l.endBar,
       }));
 
-    const nextBarCount = Math.max(derivedBarCount, current - 1);
-    await commit({ barCount: nextBarCount, lyricLines: nextLyrics });
+    layout.splice(barIndex, 1);
+    await commit({ barLayout: layout, lyricLines: nextLyrics });
+  };
+
+  const handleBarReorder = async (fromIndex: number, toIndex: number) => {
+    const result = reorderBar(
+      section,
+      activeArrangementId,
+      fromIndex,
+      toIndex,
+      beatsPerBar,
+    );
+    if (!result) return;
+    await commit({
+      phrases: result.phrases,
+      barLayout: result.barLayout,
+      lyricLines: result.lyricLines,
+    });
   };
 
   // --- Unified DndContext drag-end dispatch (step 6) -------------
@@ -285,6 +310,16 @@ export default function LeadSheetSection({
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
     if (!overId) return;
+
+    // Bar reorder. Both active and over are `bar:` ids.
+    if (activeId.startsWith('bar:') && overId.startsWith('bar:')) {
+      const fromIndex = parseInt(activeId.slice('bar:'.length), 10);
+      const toIndex = parseInt(overId.slice('bar:'.length), 10);
+      if (Number.isFinite(fromIndex) && Number.isFinite(toIndex)) {
+        await handleBarReorder(fromIndex, toIndex);
+      }
+      return;
+    }
 
     // Chord reorder (sortable). Both active and over are `chord:` ids.
     if (activeId.startsWith('chord:') && overId.startsWith('chord:')) {
@@ -769,6 +804,7 @@ export default function LeadSheetSection({
               onLineDelete={handleDeleteLyricLine}
               onAddBar={handleAddBar}
               onDeleteBar={handleDeleteBar}
+              onBarReorder={handleBarReorder}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending

@@ -1,4 +1,10 @@
-import type { ChordFunction, Phrase, Song, SongSection } from '../../lib/db';
+import type {
+  ChordFunction,
+  LyricLine,
+  Phrase,
+  Song,
+  SongSection,
+} from '../../lib/db';
 import { normalizePhrase } from './beatsModel';
 
 // Bar-grid derivation for the redesigned lead sheet view
@@ -279,27 +285,22 @@ function sanitiseBeats(raw: number | undefined): number {
  * Returns an empty array when the section has no meaningful chord
  * placements (the renderer can fall back to an "add chords" hint).
  */
-export function deriveBarGrid(
-  section: SongSection,
-  activeArrangementId: string,
+/** Pack the section's chord placements into chord-chunk arrays of
+ *  cells (each chunk = one bar's worth). Exposed for use by reorder
+ *  helpers; the renderer uses `deriveBarGrid` which wraps this. */
+function packChordChunks(
+  cells: SourceChord[],
   beatsPerBar: number,
-): Bar[] {
-  if (beatsPerBar <= 0) return [];
-  const cells = collectChordCells(section, activeArrangementId);
-
-  const bars: Bar[] = [];
+): BarCell[][] {
+  const chunks: BarCell[][] = [];
   let current: BarCell[] = [];
   let remaining = beatsPerBar;
-  let barIndex = 0;
-
   const flush = () => {
     if (current.length === 0) return;
-    bars.push({ index: barIndex, cells: current, isEmpty: false });
-    barIndex += 1;
+    chunks.push(current);
     current = [];
     remaining = beatsPerBar;
   };
-
   for (const { chord, beats, phraseId, beatId } of cells) {
     let unplaced = beats;
     let firstChunk = true;
@@ -316,11 +317,47 @@ export function deriveBarGrid(
     }
   }
   flush();
+  return chunks;
+}
 
-  // Section-level barCount can extend the grid past the chord-derived
-  // count so the user can place lyrics (or just hold space) on bars
-  // with no chords. Lower values are ignored — we never hide chord
-  // bars to honor an undersized barCount.
+export function deriveBarGrid(
+  section: SongSection,
+  activeArrangementId: string,
+  beatsPerBar: number,
+): Bar[] {
+  if (beatsPerBar <= 0) return [];
+  const cells = collectChordCells(section, activeArrangementId);
+  const chordChunks = packChordChunks(cells, beatsPerBar);
+  const bars: Bar[] = [];
+
+  if (section.barLayout && section.barLayout.length > 0) {
+    // Explicit layout drives bar order. Chord chunks fill 'chord'
+    // entries in order; 'empty' entries render as empty bars; a
+    // 'chord' entry with no remaining chunk falls through as empty.
+    let chunkIdx = 0;
+    for (let i = 0; i < section.barLayout.length; i++) {
+      const kind = section.barLayout[i];
+      if (kind === 'chord' && chunkIdx < chordChunks.length) {
+        bars.push({ index: i, cells: chordChunks[chunkIdx], isEmpty: false });
+        chunkIdx += 1;
+      } else {
+        bars.push({ index: i, cells: [], isEmpty: true });
+      }
+    }
+    // Auto-grow: chord chunks beyond the explicit layout append as
+    // chord bars so a user adding new chords via the phrase editor
+    // doesn't silently lose bars.
+    while (chunkIdx < chordChunks.length) {
+      bars.push({ index: bars.length, cells: chordChunks[chunkIdx], isEmpty: false });
+      chunkIdx += 1;
+    }
+    return bars;
+  }
+
+  // Legacy / unset layout: chord chunks + barCount padding at end.
+  for (let i = 0; i < chordChunks.length; i++) {
+    bars.push({ index: i, cells: chordChunks[i], isEmpty: false });
+  }
   const requested = section.barCount ?? 0;
   while (bars.length < requested) {
     bars.push({ index: bars.length, cells: [], isEmpty: true });
@@ -419,4 +456,169 @@ export function reorderChordPlacements(
       },
     };
   });
+}
+
+function arrayMove<T>(arr: T[], from: number, to: number): T[] {
+  const copy = [...arr];
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
+/**
+ * Whole-bar reorder (Lead Sheet Redesign — bar drag step). Moves the
+ * bar at `fromIndex` to `toIndex` in the section's bar layout.
+ *
+ * Returns a transactional patch containing the updated phrases, the
+ * new explicit `barLayout`, and the shifted lyric lines. The caller
+ * commits all three together so chord placements, layout, and lyric
+ * anchors stay in sync.
+ *
+ * Returns `null` for no-op moves (same index, out of range, empty
+ * section) so the caller can skip the Dexie commit.
+ *
+ * Semantics:
+ *   · Layout is materialized first (from `section.barLayout` or
+ *     derived from chord packing + `barCount` padding).
+ *   · `arrayMove(layout, from, to)` produces the new layout.
+ *   · If the moved bar was a chord bar, chord placements are also
+ *     permuted: the chord chunk that lived at the source chord-index
+ *     is moved to the destination chord-index, then re-flattened to
+ *     a placement order and written back to phrase slots (same
+ *     write-back pattern as `reorderChordPlacements`).
+ *   · Every lyric line's startBar / endBar is remapped via the
+ *     bar-position permutation so anchors follow their bars.
+ */
+export function reorderBar(
+  section: SongSection,
+  activeArrangementId: string,
+  fromIndex: number,
+  toIndex: number,
+  beatsPerBar: number,
+): {
+  phrases: Phrase[];
+  barLayout: Array<'chord' | 'empty'>;
+  lyricLines: LyricLine[];
+} | null {
+  if (fromIndex === toIndex) return null;
+  if (beatsPerBar <= 0) return null;
+
+  const currentBars = deriveBarGrid(section, activeArrangementId, beatsPerBar);
+  if (currentBars.length === 0) return null;
+
+  const currentLayout: Array<'chord' | 'empty'> = section.barLayout
+    ? [...section.barLayout]
+    : currentBars.map(b => (b.isEmpty ? 'empty' : 'chord'));
+
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= currentLayout.length ||
+    toIndex >= currentLayout.length
+  ) {
+    return null;
+  }
+
+  const newLayout = arrayMove(currentLayout, fromIndex, toIndex);
+
+  // Bar-index permutation: for each old position, where does it land?
+  const oldToNew = new Map<number, number>();
+  for (let i = 0; i < currentLayout.length; i++) oldToNew.set(i, i);
+  if (fromIndex < toIndex) {
+    oldToNew.set(fromIndex, toIndex);
+    for (let i = fromIndex + 1; i <= toIndex; i++) oldToNew.set(i, i - 1);
+  } else {
+    oldToNew.set(fromIndex, toIndex);
+    for (let i = toIndex; i < fromIndex; i++) oldToNew.set(i, i + 1);
+  }
+
+  const lyricLines = (section.lyricLines ?? []).map(line => ({
+    ...line,
+    startBar: oldToNew.get(line.startBar) ?? line.startBar,
+    endBar: oldToNew.get(line.endBar) ?? line.endBar,
+  }));
+
+  let phrases = section.phrases ?? [];
+
+  // Chord placement permutation — only fires when the moved bar is
+  // a chord bar (empty-bar moves don't touch chord data).
+  if (currentLayout[fromIndex] === 'chord') {
+    const countChordsBefore = (
+      layout: Array<'chord' | 'empty'>,
+      pos: number,
+    ): number => {
+      let count = 0;
+      for (let i = 0; i < pos; i++) {
+        if (layout[i] === 'chord') count += 1;
+      }
+      return count;
+    };
+    const fromChunkIdx = countChordsBefore(currentLayout, fromIndex);
+    const toChunkIdx = countChordsBefore(newLayout, toIndex);
+
+    if (fromChunkIdx !== toChunkIdx) {
+      // Per-chunk placement groups (each = one bar's worth, leading
+      // halves only — trailing tied halves share the placement id).
+      const chordChunks = currentBars.filter(b => !b.isEmpty);
+      const placementGroups = chordChunks.map(chunk =>
+        chunk.cells
+          .filter(c => !c.tiedFromPrev)
+          .map(c => ({ phraseId: c.phraseId, beatId: c.beatId, chord: c.chord })),
+      );
+      const reorderedGroups = arrayMove(placementGroups, fromChunkIdx, toChunkIdx);
+      const newPlacementOrder = reorderedGroups.flat();
+
+      // Snapshot phrase/beat slots in document order so we can map
+      // the new chord values back to them position-by-position.
+      const slots: Array<{ phraseId: string; beatId: string }> = [];
+      for (const phrase of phrases) {
+        const normalised = normalizePhrase(phrase);
+        const placements = normalised.chordsByArrangement[activeArrangementId] ?? {};
+        for (const beat of normalised.beats) {
+          const chord = placements[beat.id];
+          if (!chord) continue;
+          const isMeaningful =
+            chord.unparsed ||
+            chord.function !== '' ||
+            chord.quality !== '' ||
+            Boolean(chord.bass);
+          if (!isMeaningful) continue;
+          slots.push({ phraseId: phrase.id, beatId: beat.id });
+        }
+      }
+
+      const newBySlot = new Map<string, ChordFunction>();
+      for (let i = 0; i < slots.length && i < newPlacementOrder.length; i++) {
+        const key = `${slots[i].phraseId}:${slots[i].beatId}`;
+        newBySlot.set(key, newPlacementOrder[i].chord);
+      }
+
+      phrases = phrases.map(phrase => {
+        const normalised = normalizePhrase(phrase);
+        const oldPlacements = normalised.chordsByArrangement[activeArrangementId] ?? {};
+        let changed = false;
+        const nextPlacements: Record<string, ChordFunction> = { ...oldPlacements };
+        for (const beat of normalised.beats) {
+          const key = `${phrase.id}:${beat.id}`;
+          if (!newBySlot.has(key)) continue;
+          const next = newBySlot.get(key)!;
+          if (oldPlacements[beat.id] !== next) {
+            nextPlacements[beat.id] = next;
+            changed = true;
+          }
+        }
+        if (!changed) return phrase;
+        return {
+          ...phrase,
+          beats: normalised.beats,
+          chordsByArrangement: {
+            ...normalised.chordsByArrangement,
+            [activeArrangementId]: nextPlacements,
+          },
+        };
+      });
+    }
+  }
+
+  return { phrases, barLayout: newLayout, lyricLines };
 }

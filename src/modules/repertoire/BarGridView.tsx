@@ -45,6 +45,7 @@ export const DRAG_ID = {
   lineStart: (lineId: string) => `lineStart:${lineId}`,
   lineEnd: (lineId: string) => `lineEnd:${lineId}`,
   word: (lineId: string, wordIdx: number) => `word:${lineId}:${wordIdx}`,
+  bar: (barIndex: number) => `bar:${barIndex}`,
 };
 
 // 2 bars per row keeps each bar wide enough for chord glyphs.
@@ -83,6 +84,11 @@ interface Props {
   /** Tap-× on an empty bar's header removes that bar. Caller is
    *  responsible for warning the user if the bar carries lyrics. */
   onDeleteBar?: (barIndex: number) => void;
+  /** When supplied, each bar gets a drag handle in its header that
+   *  fires this callback on drop. The handler is expected to call
+   *  `reorderBar` and persist the result (phrases + barLayout +
+   *  lyricLines). When omitted, bar drag is disabled. */
+  onBarReorder?: (fromIndex: number, toIndex: number) => void | Promise<void>;
 }
 
 interface EditingState {
@@ -102,6 +108,7 @@ export default function BarGridView({
   onLineDelete,
   onAddBar,
   onDeleteBar,
+  onBarReorder,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -249,6 +256,7 @@ export default function BarGridView({
                   onTagChange={handleTagChange}
                   draggable={chordsAreSortable}
                   onDeleteBar={onDeleteBar}
+                  barDragEnabled={Boolean(onBarReorder)}
                 />
               ))}
               {row.length < BARS_PER_ROW &&
@@ -416,6 +424,7 @@ function BarBox({
   onTagChange,
   draggable,
   onDeleteBar,
+  barDragEnabled,
 }: {
   bar: Bar;
   beatsPerBar: number;
@@ -427,6 +436,7 @@ function BarBox({
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   draggable: boolean;
   onDeleteBar?: (barIndex: number) => void;
+  barDragEnabled: boolean;
 }) {
   const filledBeats = bar.cells.reduce((sum, c) => sum + c.beats, 0);
   const emptyBeats = Math.max(0, beatsPerBar - filledBeats);
@@ -440,11 +450,55 @@ function BarBox({
 
   const isEmptyBar = bar.cells.length === 0;
 
+  // Bar drag (whole-bar reorder). useDraggable supplies the visual
+  // transform + drag listeners attached to a small handle in the
+  // header; useDroppable lets this bar accept other bars as drop
+  // targets. The two share the same id (`bar:N`) and combine refs
+  // on the bar's wrapper so the lift visual and drop region align.
+  const bardrop = useDroppable({
+    id: DRAG_ID.bar(bar.index),
+    disabled: !barDragEnabled,
+  });
+  const bardrag = useDraggable({
+    id: DRAG_ID.bar(bar.index),
+    disabled: !barDragEnabled,
+  });
+  const setBarRefs = (node: HTMLDivElement | null) => {
+    bardrop.setNodeRef(node);
+    bardrag.setNodeRef(node);
+  };
+  const barStyle: CSSProperties = barDragEnabled
+    ? {
+        transform: CSS.Translate.toString(bardrag.transform),
+        opacity: bardrag.isDragging ? 0.4 : 1,
+      }
+    : {};
+  const dropHighlight =
+    barDragEnabled && bardrop.isOver && !bardrag.isDragging
+      ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900'
+      : '';
+
   return (
-    <div className="relative rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1 pt-3 pb-1 min-h-[44px]">
+    <div
+      ref={setBarRefs}
+      style={barStyle}
+      className={`relative rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1 pt-3 pb-1 min-h-[44px] ${dropHighlight}`}
+    >
       <span className="absolute top-0.5 left-1 text-[9px] text-neutral-400 font-mono">
         {bar.index + 1}
       </span>
+      {barDragEnabled && (
+        <button
+          type="button"
+          {...bardrag.attributes}
+          {...bardrag.listeners}
+          aria-label={`drag bar ${bar.index + 1}`}
+          title="drag to reorder this bar"
+          className="absolute top-0.5 left-5 text-[10px] leading-none text-neutral-400 hover:text-fluent cursor-grab active:cursor-grabbing touch-none px-0.5"
+        >
+          ⋮⋮
+        </button>
+      )}
       {isEmptyBar && onDeleteBar && (
         <button
           type="button"

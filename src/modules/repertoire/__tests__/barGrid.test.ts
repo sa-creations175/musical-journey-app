@@ -7,6 +7,7 @@ import {
   effectiveTimeSignature,
   isDominantQuality,
   parseTimeSignature,
+  reorderBar,
   reorderChordPlacements,
 } from '../barGrid';
 import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
@@ -619,5 +620,162 @@ describe('effectiveHarmonicTag', () => {
 
   it('returns undefined when no tag applies', () => {
     expect(effectiveHarmonicTag(cf('1', 'maj7'))).toBeUndefined();
+  });
+});
+
+describe('deriveBarGrid — explicit barLayout', () => {
+  it('renders bars in the order specified by barLayout', () => {
+    const section = mkSection(
+      [phraseWithChords([cf('1'), cf('4'), cf('5')])],
+      { barLayout: ['chord', 'empty', 'chord'] },
+    );
+    // 3 single-beat chords pack into chunks of [{1,4,5}] (one chunk
+    // since they fit in one 4-beat bar). Layout has 2 chord slots —
+    // only chunk 0 fills the first, slot 2 has no chunk → empty.
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(3);
+    expect(bars[0].isEmpty).toBe(false);
+    expect(bars[0].cells).toHaveLength(3);
+    expect(bars[1].isEmpty).toBe(true);
+    expect(bars[2].isEmpty).toBe(true);
+  });
+
+  it('auto-grows when chord chunks exceed barLayout chord slots', () => {
+    // 8 single-beat chords pack into 2 chunks (4/4). barLayout has
+    // only 1 chord slot → second chunk auto-appends as a chord bar.
+    const section = mkSection(
+      [
+        phraseWithChords([
+          cf('1'), cf('4'), cf('5'), cf('6'),
+          cf('1'), cf('4'), cf('5'), cf('6'),
+        ]),
+      ],
+      { barLayout: ['chord', 'empty'] },
+    );
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(3);
+    expect(bars[0].isEmpty).toBe(false);
+    expect(bars[1].isEmpty).toBe(true);
+    expect(bars[2].isEmpty).toBe(false);
+  });
+
+  it('renders all empties when barLayout has no chord slots and no chords exist', () => {
+    const section = mkSection([], { barLayout: ['empty', 'empty', 'empty'] });
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(3);
+    expect(bars.every(b => b.isEmpty)).toBe(true);
+  });
+
+  it('ignores legacy barCount when barLayout is set', () => {
+    const section = mkSection([phraseWithChords([cf('1')])], {
+      barLayout: ['chord'],
+      barCount: 10, // would pad to 10 under legacy mode
+    });
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(1); // barLayout wins; no padding
+  });
+});
+
+describe('reorderBar', () => {
+  it('returns null for no-op moves (same index, out of range, empty section)', () => {
+    const section = mkSection([phraseWithChords([cf('1'), cf('4')])]);
+    expect(reorderBar(section, BASIC_ARRANGEMENT_ID, 0, 0, 4)).toBeNull();
+    expect(reorderBar(section, BASIC_ARRANGEMENT_ID, -1, 1, 4)).toBeNull();
+    expect(reorderBar(section, BASIC_ARRANGEMENT_ID, 0, 99, 4)).toBeNull();
+    expect(reorderBar(mkSection([]), BASIC_ARRANGEMENT_ID, 0, 1, 4)).toBeNull();
+  });
+
+  it('permutes barLayout and chord placements when a chord bar is moved', () => {
+    // 3 chord chunks: [(1,4,5)], [(6,1,4)], [(5,6,1)]. Layout = ['chord','chord','chord'].
+    // Move bar 0 → 2. New chord order: [(6,1,4), (5,6,1), (1,4,5)].
+    const section = mkSection(
+      [
+        phraseWithChords([
+          cf('1'), cf('4'), cf('5'), // bar 0
+          cf('6'), cf('1'), cf('4'), // splits...
+          cf('5'), cf('6'), cf('1'),
+        ]),
+      ],
+    );
+    // Bar packing in 3/4 = 3 chords per bar → 3 bars.
+    const result = reorderBar(section, BASIC_ARRANGEMENT_ID, 0, 2, 3);
+    expect(result).not.toBeNull();
+    expect(result!.barLayout).toEqual(['chord', 'chord', 'chord']);
+    // After reorder: doc-order chord functions should be 6,1,4,5,6,1,1,4,5.
+    const placements = result!.phrases[0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = result!.phrases[0].beats!.map(b => b.id);
+    expect(beatIds.map(id => placements[id]?.function)).toEqual([
+      '6', '1', '4', '5', '6', '1', '1', '4', '5',
+    ]);
+  });
+
+  it('reorders empty bars without touching chord placements', () => {
+    const section = mkSection(
+      [phraseWithChords([cf('1'), cf('4')])],
+      { barLayout: ['chord', 'empty', 'empty'] },
+    );
+    // Move empty bar at index 2 → 0.
+    const result = reorderBar(section, BASIC_ARRANGEMENT_ID, 2, 0, 4);
+    expect(result).not.toBeNull();
+    expect(result!.barLayout).toEqual(['empty', 'chord', 'empty']);
+    // Chord placements unchanged.
+    const placements = result!.phrases[0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = result!.phrases[0].beats!.map(b => b.id);
+    expect(beatIds.map(id => placements[id]?.function)).toEqual(['1', '4']);
+  });
+
+  it('updates lyric line startBar / endBar via the bar permutation', () => {
+    const section: SongSection = {
+      id: 'sec-1',
+      songId: 'song-1',
+      name: 'Verse',
+      order: 0,
+      lyrics: '',
+      phrases: [phraseWithChords([cf('1'), cf('4'), cf('5')])],
+      barLayout: ['chord', 'empty', 'empty'],
+      lyricLines: [
+        { id: 'L1', words: ['hi'], startBar: 0, startBeat: 0, endBar: 0, endBeat: 0 },
+        { id: 'L2', words: ['there'], startBar: 1, startBeat: 0, endBar: 2, endBeat: 0 },
+      ],
+    };
+    // Move bar 0 → 2. Lines on bar 0 should now reference bar 2;
+    // bar 1 → bar 0; bar 2 → bar 1.
+    const result = reorderBar(section, BASIC_ARRANGEMENT_ID, 0, 2, 4);
+    const byId = new Map(result!.lyricLines.map(l => [l.id, l]));
+    expect(byId.get('L1')).toMatchObject({ startBar: 2, endBar: 2 });
+    expect(byId.get('L2')).toMatchObject({ startBar: 0, endBar: 1 });
+  });
+
+  it('handles backward chord-bar reorder (from 2 to 0)', () => {
+    const section = mkSection(
+      [
+        phraseWithChords([
+          cf('1'), cf('1'), cf('1'),
+          cf('4'), cf('4'), cf('4'),
+          cf('5'), cf('5'), cf('5'),
+        ]),
+      ],
+    );
+    // 3/4 → 3 bars: [(1,1,1)], [(4,4,4)], [(5,5,5)]
+    // Move bar 2 → 0. New order: [(5,5,5), (1,1,1), (4,4,4)].
+    const result = reorderBar(section, BASIC_ARRANGEMENT_ID, 2, 0, 3);
+    const placements = result!.phrases[0].chordsByArrangement?.[BASIC_ARRANGEMENT_ID] ?? {};
+    const beatIds = result!.phrases[0].beats!.map(b => b.id);
+    expect(beatIds.map(id => placements[id]?.function)).toEqual([
+      '5', '5', '5', '1', '1', '1', '4', '4', '4',
+    ]);
+  });
+
+  it('materializes barLayout from current state when undefined', () => {
+    // No section.barLayout, no barCount → derive ['chord'] (1 bar of
+    // 2 chords in 4/4). To force a real move we need >=2 bars, so use
+    // barCount=2 to extend with one empty.
+    const sectionWithExtras = mkSection(
+      [phraseWithChords([cf('1'), cf('4')])],
+      { barCount: 2 },
+    );
+    // Layout under barCount=2: ['chord', 'empty']. Move empty 1 → 0.
+    const result = reorderBar(sectionWithExtras, BASIC_ARRANGEMENT_ID, 1, 0, 4);
+    expect(result!.barLayout).toEqual(['empty', 'chord']);
   });
 });
