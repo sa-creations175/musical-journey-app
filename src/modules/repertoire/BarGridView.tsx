@@ -215,31 +215,53 @@ export default function BarGridView({
       )}
       <div className="mt-2 space-y-3">
         {rows.map((row, rowIdx) => (
-          <div
-            key={rowIdx}
-            className="grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
-          >
-            {row.map(bar => (
-              <BarBox
-                key={bar.index}
-                bar={bar}
-                beatsPerBar={beatsPerBar}
-                sectionKey={song.key}
-                notationMode={notationMode}
-                editing={editing}
-                onCellClick={handleCellClick}
-                onBeatsChange={handleBeatsChange}
-                onTagChange={handleTagChange}
-                draggable={chordsAreSortable}
-                placedLines={placedLines}
-                onLineDelete={onLineDelete}
-              />
-            ))}
-            {row.length < BARS_PER_ROW &&
-              Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
-                <div key={`pad-${i}`} aria-hidden />
+          <div key={rowIdx}>
+            {/* Bar row (chord boxes). */}
+            <div
+              className="grid gap-2"
+              style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
+            >
+              {row.map(bar => (
+                <BarBox
+                  key={bar.index}
+                  bar={bar}
+                  beatsPerBar={beatsPerBar}
+                  sectionKey={song.key}
+                  notationMode={notationMode}
+                  editing={editing}
+                  onCellClick={handleCellClick}
+                  onBeatsChange={handleBeatsChange}
+                  onTagChange={handleTagChange}
+                  draggable={chordsAreSortable}
+                />
               ))}
+              {row.length < BARS_PER_ROW &&
+                Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
+                  <div key={`pad-${i}`} aria-hidden />
+                ))}
+            </div>
+            {/* Lyric row aligned beat-by-beat with the bar row above.
+                Same grid columns so each LyricBarSegment lines up
+                under its bar; inside each segment beatsPerBar equal-
+                width drop slots give beat-level alignment. */}
+            <div
+              className="grid gap-2 mt-1"
+              style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
+            >
+              {row.map(bar => (
+                <LyricBarSegment
+                  key={bar.index}
+                  barIndex={bar.index}
+                  beatsPerBar={beatsPerBar}
+                  placedLines={placedLines}
+                  onLineDelete={onLineDelete}
+                />
+              ))}
+              {row.length < BARS_PER_ROW &&
+                Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
+                  <div key={`pad-lyr-${i}`} aria-hidden />
+                ))}
+            </div>
           </div>
         ))}
       </div>
@@ -360,8 +382,6 @@ function BarBox({
   onBeatsChange,
   onTagChange,
   draggable,
-  placedLines,
-  onLineDelete,
 }: {
   bar: Bar;
   beatsPerBar: number;
@@ -372,8 +392,6 @@ function BarBox({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   draggable: boolean;
-  placedLines: LyricLine[];
-  onLineDelete?: (lineId: string) => void;
 }) {
   const filledBeats = bar.cells.reduce((sum, c) => sum + c.beats, 0);
   const emptyBeats = Math.max(0, beatsPerBar - filledBeats);
@@ -436,14 +454,6 @@ function BarBox({
         )}
       </div>
 
-      {/* Lyric row: per-beat drop zones with placed words / markers */}
-      <BarLyricRow
-        barIndex={bar.index}
-        beatsPerBar={beatsPerBar}
-        placedLines={placedLines}
-        onLineDelete={onLineDelete}
-      />
-
       {editingCellInThisBar && (onBeatsChange || onTagChange) && (
         <ChordEditorPopover
           cell={editingCellInThisBar}
@@ -458,13 +468,15 @@ function BarBox({
   );
 }
 
-// --- Lyric row (per bar) ----------------------------------------------
-// Renders beatsPerBar beat columns. Each column is a droppable target
-// (`beat:${barIndex}:${beatPos}`) and stacks any placed words whose
-// global position falls in this bar at this beat. Start/end markers
-// live in the start-bar / end-bar respectively.
+// --- Lyric bar segment ------------------------------------------------
+// One bar's slot in the lyric row that sits below each bar row.
+// Renders `beatsPerBar` equal-width drop targets — each is a
+// `beat:${barIndex}:${beatPos}` droppable that also stacks any words
+// / markers belonging to lines whose distributed positions land in
+// this bar. The outer parent grid columns guarantee horizontal
+// alignment with the bar boxes above.
 
-function BarLyricRow({
+function LyricBarSegment({
   barIndex,
   beatsPerBar,
   placedLines,
@@ -510,10 +522,7 @@ function BarLyricRow({
   }
 
   return (
-    <div
-      className="mt-1 flex gap-0.5"
-      style={{ gridTemplateColumns: `repeat(${beatsPerBar}, minmax(0, 1fr))` }}
-    >
+    <div className="flex gap-0.5 px-1">
       {Array.from({ length: beatsPerBar }).map((_, beatPos) => (
         <BeatDropSlot
           key={beatPos}
