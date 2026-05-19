@@ -24,6 +24,7 @@ import { useIsMobile } from '../../lib/useIsMobile';
 import PhraseLineEditor from './PhraseLineEditor';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
+import LyricStagingArea from './LyricStagingArea';
 import { reorderChordPlacements } from './barGrid';
 import BottomSheet from '../../components/BottomSheet';
 import LongPressWrapper from '../../components/LongPressWrapper';
@@ -548,6 +549,11 @@ export default function LeadSheetSection({
             onChordReorder={handleChordReorder}
             onChordTagChange={handleChordTagChange}
           />
+
+          {/* Lead Sheet Redesign step 5 — lyric staging. Pasted text
+              tokenizes into chips that wait here until step 6 wires
+              drag-to-beat. Local state only; no Dexie persistence. */}
+          <LyricStagingArea sectionId={section.id} />
 
           {normalisedPhrases.length === 0 ? (
             <p className="text-xs text-neutral-500 italic">
