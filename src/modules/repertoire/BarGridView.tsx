@@ -77,6 +77,12 @@ interface Props {
   lyricLines?: LyricLine[];
   /** Tap-× on a line removes it from the section entirely. */
   onLineDelete?: (lineId: string) => void;
+  /** Tap-`+ bar` appends an empty bar to the grid for lyric-only
+   *  placement. Increments `section.barCount`. */
+  onAddBar?: () => void;
+  /** Tap-× on an empty bar's header removes that bar. Caller is
+   *  responsible for warning the user if the bar carries lyrics. */
+  onDeleteBar?: (barIndex: number) => void;
 }
 
 interface EditingState {
@@ -94,6 +100,8 @@ export default function BarGridView({
   chordsAreSortable = false,
   lyricLines = [],
   onLineDelete,
+  onAddBar,
+  onDeleteBar,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -165,8 +173,15 @@ export default function BarGridView({
       <div className="rounded-md border border-dashed border-neutral-200 dark:border-neutral-800 p-3">
         <BarGridHeader timeSignature={timeSignature} barCount={0} />
         <p className="mt-2 text-[11px] italic text-neutral-500">
-          No chords yet — add chord placements on phrase lines below and they'll appear here as bars.
+          No chords yet — add chord placements on phrase lines below, or
+          {' '}
+          {onAddBar ? 'tap + bar to start an empty bar for lyrics.' : 'they\'ll appear here as bars.'}
         </p>
+        {onAddBar && (
+          <div className="mt-2">
+            <AddBarButton onAddBar={onAddBar} />
+          </div>
+        )}
       </div>
     );
   }
@@ -233,6 +248,7 @@ export default function BarGridView({
                   onBeatsChange={handleBeatsChange}
                   onTagChange={handleTagChange}
                   draggable={chordsAreSortable}
+                  onDeleteBar={onDeleteBar}
                 />
               ))}
               {row.length < BARS_PER_ROW &&
@@ -264,6 +280,11 @@ export default function BarGridView({
             </div>
           </div>
         ))}
+        {onAddBar && (
+          <div className="pt-1">
+            <AddBarButton onAddBar={onAddBar} />
+          </div>
+        )}
       </div>
     </>
   );
@@ -285,6 +306,18 @@ export default function BarGridView({
 
 function cellKey(cell: BarCell): string {
   return `${cell.phraseId}:${cell.beatId}`;
+}
+
+function AddBarButton({ onAddBar }: { onAddBar: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAddBar}
+      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent"
+    >
+      <span aria-hidden>+</span> bar
+    </button>
+  );
 }
 
 function BarGridHeader({
@@ -382,6 +415,7 @@ function BarBox({
   onBeatsChange,
   onTagChange,
   draggable,
+  onDeleteBar,
 }: {
   bar: Bar;
   beatsPerBar: number;
@@ -392,6 +426,7 @@ function BarBox({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   draggable: boolean;
+  onDeleteBar?: (barIndex: number) => void;
 }) {
   const filledBeats = bar.cells.reduce((sum, c) => sum + c.beats, 0);
   const emptyBeats = Math.max(0, beatsPerBar - filledBeats);
@@ -403,11 +438,24 @@ function BarBox({
         ) ?? null
       : null;
 
+  const isEmptyBar = bar.cells.length === 0;
+
   return (
     <div className="relative rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1 pt-3 pb-1 min-h-[44px]">
       <span className="absolute top-0.5 left-1 text-[9px] text-neutral-400 font-mono">
         {bar.index + 1}
       </span>
+      {isEmptyBar && onDeleteBar && (
+        <button
+          type="button"
+          onClick={() => onDeleteBar(bar.index)}
+          aria-label={`delete bar ${bar.index + 1}`}
+          title="delete this empty bar"
+          className="absolute top-0.5 right-1 text-[10px] leading-none text-neutral-400 hover:text-needswork px-0.5"
+        >
+          ×
+        </button>
+      )}
       <div className="flex items-stretch gap-0.5 h-full overflow-x-auto">
         {bar.cells.map((cell, idx) => {
           const widthPct = (cell.beats / beatsPerBar) * 100;

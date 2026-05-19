@@ -286,7 +286,6 @@ export function deriveBarGrid(
 ): Bar[] {
   if (beatsPerBar <= 0) return [];
   const cells = collectChordCells(section, activeArrangementId);
-  if (cells.length === 0) return [];
 
   const bars: Bar[] = [];
   let current: BarCell[] = [];
@@ -317,6 +316,15 @@ export function deriveBarGrid(
     }
   }
   flush();
+
+  // Section-level barCount can extend the grid past the chord-derived
+  // count so the user can place lyrics (or just hold space) on bars
+  // with no chords. Lower values are ignored — we never hide chord
+  // bars to honor an undersized barCount.
+  const requested = section.barCount ?? 0;
+  while (bars.length < requested) {
+    bars.push({ index: bars.length, cells: [], isEmpty: true });
+  }
   return bars;
 }
 

@@ -215,6 +215,54 @@ export default function LeadSheetSection({
     await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
   };
 
+  // --- Bar add / delete (lyric-only empty bars) ------------------
+  const derivedBarCount = useMemo(
+    () => deriveBarGrid(section, activeArrangementId, beatsPerBar).length,
+    [section, activeArrangementId, beatsPerBar],
+  );
+
+  const handleAddBar = async () => {
+    const current = section.barCount ?? derivedBarCount;
+    await commit({ barCount: current + 1 });
+  };
+
+  const handleDeleteBar = async (barIndex: number) => {
+    // UI guard: empty bars only. Defensive check here too in case of
+    // a stale render / data race.
+    if (barIndex < derivedBarCount) return;
+    const current = section.barCount ?? derivedBarCount;
+    if (current <= derivedBarCount) return;
+
+    // Lines touching this bar: starts here, ends here, or spans across.
+    const touchesBar = (l: LyricLine): boolean =>
+      l.startBar === barIndex ||
+      l.endBar === barIndex ||
+      (l.startBar < barIndex && l.endBar > barIndex);
+    const touched = lyricLines.filter(touchesBar);
+
+    if (touched.length > 0) {
+      const ok = window.confirm(
+        `Bar ${barIndex + 1} has ${touched.length} placed lyric ` +
+          `line${touched.length === 1 ? '' : 's'}. Delete the bar and ` +
+          `remove ${touched.length === 1 ? 'it' : 'them'}?`,
+      );
+      if (!ok) return;
+    }
+
+    // Build the next lyric list: drop lines touching this bar; shift
+    // lines that live entirely after it down by 1.
+    const nextLyrics = lyricLines
+      .filter(l => !touchesBar(l))
+      .map(l => ({
+        ...l,
+        startBar: l.startBar > barIndex ? l.startBar - 1 : l.startBar,
+        endBar: l.endBar > barIndex ? l.endBar - 1 : l.endBar,
+      }));
+
+    const nextBarCount = Math.max(derivedBarCount, current - 1);
+    await commit({ barCount: nextBarCount, lyricLines: nextLyrics });
+  };
+
   // --- Unified DndContext drag-end dispatch (step 6) -------------
   // Single onDragEnd handles every drag in the section: chord
   // reorder, pending-line placement, marker drags, word nudges.
@@ -719,6 +767,8 @@ export default function LeadSheetSection({
               chordsAreSortable
               lyricLines={lyricLines}
               onLineDelete={handleDeleteLyricLine}
+              onAddBar={handleAddBar}
+              onDeleteBar={handleDeleteBar}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending

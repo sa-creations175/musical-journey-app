@@ -303,6 +303,50 @@ describe('deriveBarGrid — edge cases', () => {
   });
 });
 
+describe('deriveBarGrid — section.barCount padding', () => {
+  it('pads with empty bars when barCount exceeds the chord-derived count', () => {
+    const section = mkSection(
+      [phraseWithChords([cf('1', '', { beats: 4 }), cf('5', '', { beats: 4 })])],
+      { barCount: 5 },
+    );
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(5);
+    expect(bars[0].cells).toHaveLength(1);
+    expect(bars[1].cells).toHaveLength(1);
+    for (let i = 2; i < 5; i++) {
+      expect(bars[i]).toMatchObject({ index: i, cells: [], isEmpty: true });
+    }
+  });
+
+  it('returns N empty bars when there are no chords but barCount is set', () => {
+    const section = mkSection([], { barCount: 3 });
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(3);
+    expect(bars.every(b => b.isEmpty && b.cells.length === 0)).toBe(true);
+    expect(bars.map(b => b.index)).toEqual([0, 1, 2]);
+  });
+
+  it('ignores barCount when it is less than the chord-derived count', () => {
+    const section = mkSection(
+      [phraseWithChords([cf('1'), cf('4'), cf('5'), cf('6')])],
+      { barCount: 0 },
+    );
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(1);
+    expect(bars[0].cells).toHaveLength(4);
+  });
+
+  it('barCount = undefined keeps the chord-derived count unchanged', () => {
+    const section = mkSection([phraseWithChords([cf('1')])]);
+    const bars = deriveBarGrid(section, BASIC_ARRANGEMENT_ID, 4);
+    expect(bars).toHaveLength(1);
+  });
+
+  it('returns [] when no chords AND no barCount', () => {
+    expect(deriveBarGrid(mkSection([]), BASIC_ARRANGEMENT_ID, 4)).toEqual([]);
+  });
+});
+
 describe('reorderChordPlacements', () => {
   // Drag-to-reorder helper. Slot anchors (phrase + beat) stay put;
   // only which chord lives at each slot changes. Returns null for

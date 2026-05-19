@@ -339,6 +339,12 @@ export interface SongSection {
    *  evenly across the range and can be individually nudged via
    *  `wordOffsets`. Unindexed; rides in the section JSONB blob. */
   lyricLines?: LyricLine[];
+  /** Explicit bar count for the bar grid. When set, the renderer
+   *  shows `max(chordDerivedBarCount, barCount)` bars — so extra
+   *  empty bars appear after the chord-derived ones for lyric-only
+   *  placement. Adjusted by the `+ bar` / `×` affordances in the
+   *  bar grid. Undefined defaults to chord-derived count. */
+  barCount?: number;
 }
 
 /** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,
