@@ -177,18 +177,61 @@ const DAYS_METRIC_BY_MODULE: ReadonlyMap<string, string> = new Map([
   ['practice-consistency', 'practice_days_per_cadence'],
 ]);
 
+/** Module → moduleId of the consistency goal that drives its days
+ *  cadence. Same as the row's own moduleId for HF / S&P / Repertoire,
+ *  but 'ear-training' for every ET sub (one consistency target on
+ *  the ET umbrella covers all four subs). Used to find the post-
+ *  merge consistencyInfo when mergeCoverageAndConsistencyRows has
+ *  dropped the standalone consistency row. */
+const CONSISTENCY_CARRIER_MODULE: ReadonlyMap<string, string> = new Map([
+  ['harmonic-fluency',     'harmonic-fluency'],
+  ['intervals',            'ear-training'],
+  ['chord-recognition',    'ear-training'],
+  ['chord-progressions',   'ear-training'],
+  ['scales-modes',         'ear-training'],
+  ['shapes-and-patterns',  'shapes-and-patterns'],
+  ['repertoire',           'repertoire'],
+  ['practice-consistency', 'practice-consistency'],
+]);
+
 /** Resolve the user's days/week consistency target for the given
- *  module by scanning planRows. Returns null when no consistency
- *  target exists for that module (caller skips the suffix). */
+ *  module by scanning planRows. Two sources, in order:
+ *
+ *    1. Standalone consistency row with the matching parentMetric.
+ *       This is the un-merged case — ET subs (Intervals, CR, etc.)
+ *       hit this path because their coverage is in a different
+ *       umbrella than the ET consistency goal, so the merge skips
+ *       them and the consistency row stays in planRows.
+ *
+ *    2. Merged coverage row in the consistency-carrier module,
+ *       carrying consistencyInfo. mergeCoverageAndConsistencyRows
+ *       folds the consistency row into the coverage row's
+ *       consistencyInfo field and drops the standalone row — so
+ *       HF / ET-overall / S&P coverage all need this fallback to
+ *       surface the days count.
+ *
+ *  Returns null when no consistency target exists for that module
+ *  (caller skips the suffix). */
 function daysPerWeekForModule(
   moduleId: string,
   rows: ReadonlyArray<PlanRow>,
 ): number | null {
   const metric = DAYS_METRIC_BY_MODULE.get(moduleId);
-  if (!metric) return null;
-  const row = rows.find(r => r.parentMetric === metric);
-  if (!row || row.target <= 0) return null;
-  return row.target;
+  if (metric) {
+    const row = rows.find(r => r.parentMetric === metric);
+    if (row && row.target > 0) return row.target;
+  }
+  const carrier = CONSISTENCY_CARRIER_MODULE.get(moduleId);
+  if (carrier) {
+    const merged = rows.find(r =>
+      r.moduleId === carrier
+      && r.consistencyInfo !== null
+      && r.consistencyInfo.unit === 'days'
+      && r.consistencyInfo.count > 0,
+    );
+    if (merged && merged.consistencyInfo) return merged.consistencyInfo.count;
+  }
+  return null;
 }
 
 /** Pluralize "day" / "days" with the count baked in. */
