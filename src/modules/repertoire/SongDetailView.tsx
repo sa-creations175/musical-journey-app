@@ -510,6 +510,16 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     await db.songSections.update(sectionId, patch);
   };
 
+  // Full-record replace used by the lead-sheet undo path. Necessary
+  // because `Table.update(key, patch)` strips `undefined` values from
+  // `patch` (treats them as "no change") rather than honoring them as
+  // deletions — so restoring a snapshot that captured `undefined`
+  // fields silently fails. `put` replaces the whole row, undefined and
+  // all, so the restore lands correctly.
+  const replaceSection = async (next: SongSection) => {
+    await db.songSections.put(next);
+  };
+
   // Section delete with full-state undo. Snapshot the section row +
   // every related progress/chord row so Undo restores the exact
   // prior state.
@@ -877,6 +887,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                                   highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
                                   highlightedPhraseId={flashPhraseId}
                                   onChange={patch => updateSection(s.id, patch)}
+                                  onReplace={replaceSection}
                                   onMoveUp={() => moveSection(s, -1)}
                                   onMoveDown={() => moveSection(s, 1)}
                                   onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}

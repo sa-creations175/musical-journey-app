@@ -81,6 +81,11 @@ interface Props {
   highlighted?: boolean;
   highlightedPhraseId?: string | null;
   onChange: (patch: Partial<SongSection>) => Promise<void>;
+  /** Full-record replace used by the bar-grid undo path. Required
+   *  because `Table.update(key, patch)` strips `undefined` values, so
+   *  restoring a snapshot with previously-undefined fields wouldn't
+   *  take effect. `put` replaces the whole row. */
+  onReplace?: (next: SongSection) => Promise<void>;
   onMoveUp?: () => Promise<void>;
   onMoveDown?: () => Promise<void>;
   onDelete?: () => Promise<void>;
@@ -95,6 +100,7 @@ export default function LeadSheetSection({
   highlighted,
   highlightedPhraseId,
   onChange,
+  onReplace,
   onMoveUp,
   onMoveDown,
   onDelete,
@@ -119,20 +125,21 @@ export default function LeadSheetSection({
     setCompareIds([]);
   }, [section.id]);
 
+  // --- sectionRef ------------------------------------------------
+  // Closures captured by handlers can outlive their render (rapid-
+  // fire clicks, async resolution gaps before dexie-react-hooks
+  // pushes a new section). `sectionRef.current` always points at the
+  // most recent section prop the component has seen, so handlers
+  // read fresh state regardless of which closure they live in.
+  const sectionRef = useRef(section);
+  sectionRef.current = section;
+
   // --- Undo stack ------------------------------------------------
-  // Captures the prior values of any commit-tracked fields before
-  // each `commit` so the bar-grid undo button can step back through
-  // recent edits. Capped at 20 entries to avoid unbounded memory.
-  // Stack lives in a ref (no re-render on push/pop); `canUndo` state
-  // mirrors `stack.length > 0` so the button enables/disables.
-  type UndoSnapshot = Partial<
-    Pick<
-      SongSection,
-      'chordPlacements' | 'barLayout' | 'barCount' | 'lyricLines' | 'phrases'
-    >
-  >;
+  // Snapshots are FULL `SongSection` records — restore goes through
+  // `onReplace` (which uses `Table.put`, not `update`), so undefined
+  // fields are persisted correctly. Capped at 20 entries.
   const UNDO_STACK_MAX = 20;
-  const undoStackRef = useRef<UndoSnapshot[]>([]);
+  const undoStackRef = useRef<SongSection[]>([]);
   const [canUndo, setCanUndo] = useState(false);
 
   useEffect(() => {
@@ -143,67 +150,29 @@ export default function LeadSheetSection({
   }, [section.id]);
 
   const commit = async (patch: Partial<SongSection>) => {
-    // Snapshot the previous values of every tracked field this patch
-    // touches. Object.keys includes keys whose value is `undefined`,
-    // so "was undefined" round-trips correctly.
-    const tracked: Array<keyof UndoSnapshot> = [
-      'chordPlacements',
-      'barLayout',
-      'barCount',
-      'lyricLines',
-      'phrases',
-    ];
-    const snap: UndoSnapshot = {};
-    let captured = 0;
-    for (const key of Object.keys(patch) as Array<keyof UndoSnapshot>) {
-      if (!tracked.includes(key)) continue;
-      (snap as Record<string, unknown>)[key] = (section as unknown as Record<string, unknown>)[key];
-      captured += 1;
-    }
-    if (captured > 0) {
-      const stack = undoStackRef.current;
-      stack.push(snap);
-      while (stack.length > UNDO_STACK_MAX) stack.shift();
-      setCanUndo(true);
-      // [DEBUG undo] Remove once root cause is confirmed.
-      // eslint-disable-next-line no-console
-      console.log(
-        '[commit] patch keys=%o snap=%o stack.length=%d',
-        Object.keys(patch),
-        snap,
-        stack.length,
-      );
-    } else {
-      // eslint-disable-next-line no-console
-      console.log('[commit] patch had no tracked fields, no snapshot. keys=%o', Object.keys(patch));
-    }
+    // Snapshot the full section BEFORE applying the patch. Reads from
+    // sectionRef.current so the captured state is always up-to-date,
+    // even if the closure here was created earlier.
+    const snap: SongSection = { ...sectionRef.current };
+    const stack = undoStackRef.current;
+    stack.push(snap);
+    while (stack.length > UNDO_STACK_MAX) stack.shift();
+    setCanUndo(true);
     await onChange(patch);
   };
 
-  // [DEBUG undo] Mirror canUndo transitions for visibility.
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log('[canUndo] %s', String(canUndo));
-  }, [canUndo]);
-
   const handleUndo = async () => {
     const stack = undoStackRef.current;
-    // eslint-disable-next-line no-console
-    console.log('[handleUndo] stack.length-before=%d', stack.length);
     const snap = stack.pop();
-    if (!snap) {
-      // eslint-disable-next-line no-console
-      console.log('[handleUndo] nothing to pop');
-      return;
-    }
-    // eslint-disable-next-line no-console
-    console.log('[handleUndo] popping snap=%o → calling onChange', snap);
+    if (!snap) return;
     setCanUndo(stack.length > 0);
-    // Bypass `commit` so the undo restore itself doesn't get pushed
-    // back onto the stack.
-    await onChange(snap);
-    // eslint-disable-next-line no-console
-    console.log('[handleUndo] onChange resolved');
+    // Full-record replace via `onReplace` (Table.put). Falls back to
+    // a no-op when the caller hasn't wired onReplace — partial-patch
+    // restore through `onChange` doesn't work for fields that need
+    // to go back to undefined, so we'd rather no-op than half-restore.
+    if (onReplace) {
+      await onReplace(snap);
+    }
   };
 
   // --- Normalise arrangements + phrases at render time -----------
@@ -259,10 +228,11 @@ export default function LeadSheetSection({
   const ensurePlacementsForOp = (
     placementId: string,
   ): { placements: ChordPlacement[]; realPlacementId: string } => {
-    if (section.chordPlacements !== undefined) {
-      return { placements: section.chordPlacements, realPlacementId: placementId };
+    const sec = sectionRef.current;
+    if (sec.chordPlacements !== undefined) {
+      return { placements: sec.chordPlacements, realPlacementId: placementId };
     }
-    const placements = materializeChordPlacements(section, beatsPerBar);
+    const placements = materializeChordPlacements(sec, beatsPerBar);
     const real = isLegacyPlacementId(placementId)
       ? resolveLegacyPlacementId(placementId, activeArrangementId) ?? placementId
       : placementId;
@@ -312,7 +282,7 @@ export default function LeadSheetSection({
     const arrId = target?.arrangementId ?? activeArrangementId;
     const cascaded = cascadeChordPlacements(updated, arrId, beatsPerBar);
     const patch: Partial<SongSection> = { chordPlacements: cascaded };
-    const reconciled = reconcileBarLayout(section.barLayout, cascaded);
+    const reconciled = reconcileBarLayout(sectionRef.current.barLayout, cascaded);
     if (reconciled) patch.barLayout = reconciled;
     await commit(patch);
   };
@@ -332,7 +302,7 @@ export default function LeadSheetSection({
     if (fromReal === toReal) return;
     const next = swapChordPlacements(fromPlacements, fromReal, toReal);
     const patch: Partial<SongSection> = { chordPlacements: next };
-    const reconciled = reconcileBarLayout(section.barLayout, next);
+    const reconciled = reconcileBarLayout(sectionRef.current.barLayout, next);
     if (reconciled) patch.barLayout = reconciled;
     await commit(patch);
   };
@@ -350,7 +320,7 @@ export default function LeadSheetSection({
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
     const next = moveChordPlacement(placements, realPlacementId, barIndex, beatPos);
     const patch: Partial<SongSection> = { chordPlacements: next };
-    const reconciled = reconcileBarLayout(section.barLayout, next);
+    const reconciled = reconcileBarLayout(sectionRef.current.barLayout, next);
     if (reconciled) patch.barLayout = reconciled;
     await commit(patch);
   };
@@ -411,7 +381,8 @@ export default function LeadSheetSection({
   );
 
   const materializeBarLayout = (): ('chord' | 'empty')[] => {
-    if (section.barLayout) return [...section.barLayout];
+    const sec = sectionRef.current;
+    if (sec.barLayout) return [...sec.barLayout];
     return allBars.map(b => (b.isEmpty ? 'empty' : 'chord'));
   };
 
@@ -458,7 +429,7 @@ export default function LeadSheetSection({
 
   const handleBarReorder = async (fromIndex: number, toIndex: number) => {
     const result = reorderBar(
-      section,
+      sectionRef.current,
       activeArrangementId,
       fromIndex,
       toIndex,
