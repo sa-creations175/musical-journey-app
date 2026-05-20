@@ -25,6 +25,7 @@ import { formatActiveTime } from './formatActiveTime';
 import { moduleMetaById } from '../moduleMeta';
 import { formatDriftText, shouldShowDrift } from './drift';
 import { metronome } from '../metronome';
+import { useMetronomeState } from '../useMetronome';
 import InstrumentSelector from '../../components/InstrumentSelector';
 import MetronomeControl from '../../components/MetronomeControl';
 
@@ -49,6 +50,11 @@ export function GlobalSessionBanner() {
     if (!sessionActive) metronome.forceStop();
   }, [sessionActive]);
   useEffect(() => () => metronome.forceStop(), []);
+
+  // Reactive metronome state for the compact in-strip toggle. Reads the
+  // same singleton the audio panel's full control uses, so the two stay
+  // in sync (and reflect forceStop on session end).
+  const metro = useMetronomeState();
 
   if (state.status !== 'running' && state.status !== 'paused') return null;
 
@@ -178,6 +184,24 @@ export function GlobalSessionBanner() {
             </span>
             {formatActiveTime(times.activeMs)}
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            metronome.toggle();
+          }}
+          aria-pressed={metro.playing}
+          aria-label={metro.playing ? 'stop metronome' : 'start metronome'}
+          title={metro.playing ? 'stop metronome' : 'start metronome'}
+          className={`h-7 px-2 inline-flex items-center gap-1 rounded-md border text-xs font-mono tabular-nums leading-none ${
+            metro.playing
+              ? 'border-fluent bg-fluent/10 text-fluent'
+              : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent'
+          }`}
+        >
+          <span aria-hidden>{metro.playing ? '■' : '▶'}</span>
+          {metro.bpm}
         </button>
         <button
           type="button"
