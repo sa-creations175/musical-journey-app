@@ -27,10 +27,10 @@ import {
 } from './stage';
 import { parseChord } from './chordParser';
 import {
-  detectProgressions,
-  type ProgressionMatch,
+  detectPatterns,
+  type DetectChord,
+  type PatternMatch,
 } from '../../lib/progressionDetection';
-import { progressionById } from '../ear-training/chord-progressions/catalog';
 import {
   setAddedFromRepertoire,
   setCustomLabel as setEtCustomLabel,
@@ -38,7 +38,6 @@ import {
 import { useAddedFromRepertoireSet } from '../ear-training/useEtCurations';
 import { useToast } from '../../components/Toaster';
 import {
-  chordSequenceForArrangement,
   normalizeArrangements,
   normalizePhrase,
   uid,
@@ -51,7 +50,9 @@ import {
   addChordPlacement,
   cascadeChordPlacements,
   deriveBarGrid,
+  effectiveHarmonicTag,
   effectiveTimeSignature,
+  isDominantQuality,
   isLegacyPlacementId,
   materializeChordPlacements,
   moveChordPlacement,
@@ -113,12 +114,15 @@ export default function LeadSheetSection({
   // to Dexie — clears on unmount.
   const [copiedChord, setCopiedChord] = useState<ChordFunction | null>(null);
 
-  // Detected-progressions → ET pipeline (Lead Sheet Redesign step 9).
-  // `addedFromRepertoireSet` flags catalog progression ids the user
-  // has promoted via the chip's + affordance. Confirmation popover
-  // state for the in-flight add.
+  // Detected-pattern → ET pipeline (Lead Sheet Redesign step 9).
+  // `addedFromRepertoireSet` flags ET catalog progression ids the user
+  // has promoted via a detected pattern's + affordance. Confirmation
+  // popover state holds the in-flight pattern (its ET id + display
+  // numerals) plus an optional custom label.
   const addedFromRepertoireSet = useAddedFromRepertoireSet();
-  const [addingProgressionId, setAddingProgressionId] = useState<string | null>(null);
+  const [addingPattern, setAddingPattern] = useState<
+    { etCatalogId: string; numerals: string[] } | null
+  >(null);
   const [addLabelDraft, setAddLabelDraft] = useState('');
 
   // Re-sync drafts when a different section rotates in.
@@ -478,31 +482,34 @@ export default function LeadSheetSection({
 
   // Lead-sheet → ET pipeline (step 9). Opens the inline confirmation
   // popover; the actual add fires from `handleConfirmAddProgression`
-  // below. Resets the label draft each time so successive adds don't
-  // inherit stale text.
-  const beginAddProgression = (m: ProgressionMatch) => {
-    setAddingProgressionId(m.progressionId);
+  // below. Only patterns with an ET catalog mapping are addable.
+  // Resets the label draft each time so successive adds don't inherit
+  // stale text.
+  const beginAddProgression = (m: PatternMatch) => {
+    if (!m.etCatalogId) return;
+    setAddingPattern({ etCatalogId: m.etCatalogId, numerals: m.numerals });
     setAddLabelDraft('');
   };
 
   const cancelAddProgression = () => {
-    setAddingProgressionId(null);
+    setAddingPattern(null);
     setAddLabelDraft('');
   };
 
   const handleConfirmAddProgression = async () => {
-    const id = addingProgressionId;
-    if (!id) return;
+    const pending = addingPattern;
+    if (!pending) return;
+    const id = pending.etCatalogId;
     const trimmed = addLabelDraft.trim();
-    const progName = progressionById(id)?.name ?? id;
+    const patternLabel = pending.numerals.join(' → ');
     await setAddedFromRepertoire(id, true);
     if (trimmed !== '') {
       await setEtCustomLabel(id, trimmed);
     }
-    setAddingProgressionId(null);
+    setAddingPattern(null);
     setAddLabelDraft('');
     toast({
-      message: `Added "${trimmed || progName}" to ET practice`,
+      message: `Added "${trimmed || patternLabel}" to ET practice`,
       variant: 'success',
       action: {
         label: 'Undo',
@@ -804,21 +811,47 @@ export default function LeadSheetSection({
   };
 
   // --- Progression detection -------------------------------------
-  // Runs on the active arrangement's functional data. Each
-  // ChordFunction converts to a Roman-numeral token that
-  // detectProgressions already knows how to read.
-  const progressionMatches = useMemo(() => {
-    const tokens: string[] = [];
-    for (const phrase of normalisedPhrases) {
-      const seq = chordSequenceForArrangement(phrase, activeArrangementId);
-      for (const cf of seq) {
-        const roman = toRomanToken(cf);
-        if (roman !== '') tokens.push(roman);
+  // Reads the bar grid (bar-anchored chords are the source of truth
+  // post-redesign), in left-to-right order, keeping each chord's bar
+  // index for position display.
+  const detectionSequence = useMemo(() => {
+    const seq: { chord: ChordFunction; barIndex: number }[] = [];
+    for (const bar of allBars) {
+      for (const cell of bar.cells) {
+        if (cell.tiedFromPrev) continue;
+        seq.push({ chord: cell.chord, barIndex: bar.index });
       }
     }
-    if (tokens.length < 2) return [];
-    return detectProgressions(tokens);
-  }, [normalisedPhrases, activeArrangementId]);
+    return seq;
+  }, [allBars]);
+
+  // Numeral strip: the whole sequence as scale-degree tokens (case
+  // encodes major/minor). Unparsed chords render as nothing.
+  const numeralStrip = useMemo(
+    () => detectionSequence.map(s => toRomanToken(s.chord)),
+    [detectionSequence],
+  );
+
+  // Pattern matches via flexible root-motion detection. The effective
+  // harmonic tag (manual over auto) decides whether a chord is acting
+  // as a secondary dominant and so can't fill a tonic/subdominant slot.
+  const patternMatches = useMemo(() => {
+    const chords: DetectChord[] = [];
+    for (const { chord, barIndex } of detectionSequence) {
+      if (chord.unparsed || chord.function === '') continue;
+      const q = chord.quality ?? '';
+      const qLower = q.toLowerCase();
+      const isMinor = qLower.startsWith('m') && !qLower.startsWith('maj');
+      chords.push({
+        degree: chord.function,
+        isMinor,
+        isDominant: isDominantQuality(q),
+        effectiveTag: effectiveHarmonicTag(chord),
+        barIndex,
+      });
+    }
+    return detectPatterns(chords);
+  }, [detectionSequence]);
 
   const setSectionStage = async (next: SongSection['stage']) => {
     await commit({ stage: next });
@@ -988,86 +1021,106 @@ export default function LeadSheetSection({
             />
           </DndContext>
 
-          {progressionMatches.length > 0 && !comparing && (
-            <div className="flex flex-col gap-1 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="uppercase tracking-wide">detected:</span>
-                {progressionMatches.slice(0, 3).map((m, idx) => {
-                  const isAdded = addedFromRepertoireSet.has(m.progressionId);
-                  return (
-                    <span
-                      key={`${m.progressionId}-${idx}`}
-                      className="inline-flex items-center gap-1 rounded-full border border-fluent/30 bg-fluent/10 text-fluent px-2 py-0.5"
-                      title={
-                        isAdded
-                          ? 'In your ET practice'
-                          : `Tier ${m.tier} · ${m.tierName} · match type: ${m.matchType}`
-                      }
-                    >
-                      <span aria-hidden>📍</span>
-                      {m.progressionName}
-                      {isAdded ? (
-                        <span
-                          aria-label="In your ET practice"
-                          className="ml-0.5 font-semibold"
-                        >
-                          ✓
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => beginAddProgression(m)}
-                          title="Add to ET practice"
-                          aria-label="Add to ET practice"
-                          className="ml-0.5 leading-none hover:underline"
-                        >
-                          +
-                        </button>
-                      )}
+          {numeralStrip.length > 0 && !comparing && (
+            <div className="flex flex-col gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
+              {/* Numeral strip — the full chord sequence as scale
+                  degrees, always shown regardless of detected patterns. */}
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="uppercase tracking-wide">numerals:</span>
+                <span className="font-mono text-neutral-700 dark:text-neutral-200">
+                  {numeralStrip.map((n, i) => (
+                    <span key={i}>
+                      {i > 0 && <span className="text-neutral-400"> · </span>}
+                      {n || '—'}
                     </span>
-                  );
-                })}
+                  ))}
+                </span>
               </div>
-              {addingProgressionId &&
-                (() => {
-                  const prog = progressionById(addingProgressionId);
-                  if (!prog) return null;
-                  return (
-                    <div className="rounded border border-fluent/40 bg-fluent/5 p-2 space-y-2 max-w-sm">
-                      <div className="text-[11px]">
-                        <div className="font-semibold text-neutral-700 dark:text-neutral-200">
-                          {prog.name}
-                        </div>
-                        <div className="font-mono text-neutral-500 mt-0.5">
-                          {prog.numerals.join(' – ')}
-                        </div>
+
+              {/* Pattern highlights — structural matches with bar
+                  positions and quality-deviation notes. No nicknames. */}
+              {patternMatches.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className="uppercase tracking-wide">patterns:</span>
+                  {patternMatches.map((m, idx) => {
+                    const isAdded = m.etCatalogId
+                      ? addedFromRepertoireSet.has(m.etCatalogId)
+                      : false;
+                    const barLabel =
+                      m.startBar === m.endBar
+                        ? `bar ${m.startBar + 1}`
+                        : `bars ${m.startBar + 1}–${m.endBar + 1}`;
+                    return (
+                      <div
+                        key={`${m.patternId}-${m.matchIndex}-${idx}`}
+                        className="flex items-center gap-2 flex-wrap"
+                      >
+                        <span className="font-mono text-neutral-700 dark:text-neutral-200">
+                          {m.numerals.join(' → ')}
+                        </span>
+                        <span className="text-neutral-400">{barLabel}</span>
+                        {m.deviations.length > 0 && (
+                          <span className="text-neutral-400 italic">
+                            ({m.deviations.join(', ')})
+                          </span>
+                        )}
+                        {m.etCatalogId &&
+                          (isAdded ? (
+                            <span
+                              aria-label="In your ET practice"
+                              title="In your ET practice"
+                              className="text-fluent font-semibold"
+                            >
+                              ✓
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => beginAddProgression(m)}
+                              title="Add to ET practice"
+                              aria-label="Add to ET practice"
+                              className="text-fluent hover:underline leading-none"
+                            >
+                              +
+                            </button>
+                          ))}
                       </div>
-                      <input
-                        type="text"
-                        value={addLabelDraft}
-                        onChange={e => setAddLabelDraft(e.target.value)}
-                        placeholder="custom label (optional)"
-                        className="w-full px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200"
-                      />
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void handleConfirmAddProgression()}
-                          className="px-2 py-0.5 text-[11px] rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20"
-                        >
-                          Add to ET practice
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelAddProgression}
-                          className="px-2 py-0.5 text-[11px] rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()}
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Add-to-ET confirmation popover. */}
+              {addingPattern && (
+                <div className="rounded border border-fluent/40 bg-fluent/5 p-2 space-y-2 max-w-sm">
+                  <div className="font-mono text-neutral-700 dark:text-neutral-200">
+                    {addingPattern.numerals.join(' → ')}
+                  </div>
+                  <input
+                    type="text"
+                    value={addLabelDraft}
+                    onChange={e => setAddLabelDraft(e.target.value)}
+                    placeholder="custom label (optional)"
+                    className="w-full px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200"
+                  />
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleConfirmAddProgression()}
+                      className="px-2 py-0.5 text-[11px] rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20"
+                    >
+                      Add to ET practice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelAddProgression}
+                      className="px-2 py-0.5 text-[11px] rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

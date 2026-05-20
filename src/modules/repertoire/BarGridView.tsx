@@ -241,6 +241,10 @@ export default function BarGridView({
   const [newChordAt, setNewChordAt] = useState<
     { barIndex: number; beatPos: number } | null
   >(null);
+  // Foundation view (detection redesign part 4). When on, harmonically-
+  // tagged chords (secondary dominants etc.) ghost out to reveal the
+  // structural skeleton. Local to this section view — not persisted.
+  const [foundationMode, setFoundationMode] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -290,6 +294,8 @@ export default function BarGridView({
           onTimeSignatureChange={onTimeSignatureChange}
           pickerOpen={timeSigPickerOpen}
           setPickerOpen={setTimeSigPickerOpen}
+          foundationMode={foundationMode}
+          onToggleFoundation={() => setFoundationMode(v => !v)}
         />
         <p className="mt-2 text-[11px] italic text-neutral-500">
           No chords yet — add chord placements on phrase lines below, or
@@ -401,6 +407,7 @@ export default function BarGridView({
                   onVoicingChange={handleVoicing}
                   onCopyChord={onCopyChord}
                   copiedChord={copiedChord}
+                  foundationMode={foundationMode}
                   draggable={chordsAreSortable}
                   onDeleteBar={onDeleteBar}
                   barDragEnabled={Boolean(onBarReorder)}
@@ -492,6 +499,8 @@ export default function BarGridView({
         onTimeSignatureChange={onTimeSignatureChange}
         pickerOpen={timeSigPickerOpen}
         setPickerOpen={setTimeSigPickerOpen}
+        foundationMode={foundationMode}
+        onToggleFoundation={() => setFoundationMode(v => !v)}
       />
       {chordsAreSortable ? (
         <SortableContext items={chordSortableIds}>{body}</SortableContext>
@@ -533,6 +542,8 @@ function BarGridHeader({
   onTimeSignatureChange,
   pickerOpen,
   setPickerOpen,
+  foundationMode,
+  onToggleFoundation,
 }: {
   timeSignature: string;
   barCount: number;
@@ -544,6 +555,8 @@ function BarGridHeader({
   onTimeSignatureChange?: (next: string | null) => void | Promise<void>;
   pickerOpen: boolean;
   setPickerOpen: (open: boolean) => void;
+  foundationMode: boolean;
+  onToggleFoundation: () => void;
 }) {
   return (
     <div className="relative flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
@@ -569,6 +582,23 @@ function BarGridHeader({
             <span className="font-mono">{timeSignature}</span>
           )}
         </span>
+        <button
+          type="button"
+          onClick={onToggleFoundation}
+          aria-pressed={foundationMode}
+          title={
+            foundationMode
+              ? 'Foundation view — tagged chords ghosted. Tap for full view.'
+              : 'Full view — tap to reveal the harmonic skeleton'
+          }
+          className={`rounded border px-1.5 py-0.5 normal-case ${
+            foundationMode
+              ? 'border-fluent bg-fluent/10 text-fluent'
+              : 'border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent'
+          }`}
+        >
+          {foundationMode ? 'Foundation' : 'Full'}
+        </button>
         {onUndo && (
           <button
             type="button"
@@ -774,6 +804,7 @@ function BarBox({
   onVoicingChange,
   onCopyChord,
   copiedChord,
+  foundationMode,
   draggable,
   onDeleteBar,
   barDragEnabled,
@@ -794,6 +825,7 @@ function BarBox({
   onVoicingChange?: (cell: BarCell, voicing: number[]) => void | Promise<void>;
   onCopyChord?: (chord: ChordFunction) => void;
   copiedChord?: ChordFunction | null;
+  foundationMode: boolean;
   draggable: boolean;
   onDeleteBar?: (barIndex: number) => void;
   barDragEnabled: boolean;
@@ -938,6 +970,7 @@ function BarBox({
                 sectionKey={sectionKey}
                 notationMode={notationMode}
                 isEditing={isEditing}
+                foundationMode={foundationMode}
                 onClick={onCellClick ? c => onCellClick(c, bar.index) : undefined}
               />
             );
@@ -950,6 +983,7 @@ function BarBox({
               sectionKey={sectionKey}
               notationMode={notationMode}
               isEditing={isEditing}
+              foundationMode={foundationMode}
               onClick={onCellClick ? c => onCellClick(c, bar.index) : undefined}
             />
           );
@@ -1548,6 +1582,7 @@ function SortableChordCell({
   sectionKey,
   notationMode,
   isEditing,
+  foundationMode,
   onClick,
 }: {
   cell: BarCell;
@@ -1555,6 +1590,7 @@ function SortableChordCell({
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
   isEditing: boolean;
+  foundationMode: boolean;
   onClick?: (cell: BarCell) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -1572,6 +1608,7 @@ function SortableChordCell({
       sectionKey={sectionKey}
       notationMode={notationMode}
       isEditing={isEditing}
+      foundationMode={foundationMode}
       onClick={onClick}
       dragRef={setNodeRef}
       dragAttributes={attributes}
@@ -1587,6 +1624,7 @@ function ChordCellBox({
   sectionKey,
   notationMode,
   isEditing,
+  foundationMode = false,
   onClick,
   dragRef,
   dragAttributes,
@@ -1599,6 +1637,7 @@ function ChordCellBox({
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
   isEditing: boolean;
+  foundationMode?: boolean;
   onClick?: (cell: BarCell) => void;
   dragRef?: (node: HTMLElement | null) => void;
   dragAttributes?: DraggableAttributes;
@@ -1614,8 +1653,18 @@ function ChordCellBox({
     roundedLeft ? 'rounded-l-sm' : '',
     roundedRight ? 'rounded-r-sm' : '',
   ].join(' ');
-  const tagged = effectiveHarmonicTag(cell.chord) !== undefined;
+  const tagValue = effectiveHarmonicTag(cell.chord);
+  const tagged = tagValue !== undefined;
   const borderStyleClass = tagged ? 'border-dashed' : 'border-solid';
+  // Foundation view: ghost out non-structural (tagged) chords so the
+  // harmonic skeleton reads through. Box size + beat dots are kept so
+  // bars and beat positions never shift — only the fill/text fade.
+  const ghosted =
+    foundationMode && tagValue !== undefined && GHOST_TAGS.has(tagValue);
+  const surfaceClass = ghosted
+    ? 'border-neutral-300 dark:border-neutral-700 bg-transparent opacity-40'
+    : `${palette.border} ${palette.bg}`;
+  const textClass = ghosted ? 'text-neutral-400' : palette.text;
 
   const interactive = Boolean(onClick);
   const handleClick = (e: React.MouseEvent) => {
@@ -1634,13 +1683,13 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${palette.border} ${palette.bg} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
+      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${extraClassName ?? ''}`}
       style={baseStyle}
       title={cell.chord.raw ?? text}
     >
-      <div className={`text-[11px] leading-tight font-semibold ${palette.text} truncate w-full text-center`}>
+      <div className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}>
         {text ? <ChordGlyph text={text} /> : <span className="opacity-40">—</span>}
       </div>
       <div className={`flex items-center justify-center gap-0.5 text-[8px] ${palette.dot}`}>
@@ -1658,6 +1707,15 @@ const TAG_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'passing', label: 'Passing' },
   { value: 'pedal', label: 'Pedal' },
 ];
+
+// Harmonic tags that Foundation view ghosts out as non-structural.
+// 'pedal' is intentionally excluded — a pedal point is structural.
+const GHOST_TAGS = new Set([
+  'secondary_dominant',
+  'secondary_ii',
+  'borrowed',
+  'passing',
+]);
 
 function labelForTag(tag: string): string {
   const preset = TAG_PRESETS.find(p => p.value === tag);
