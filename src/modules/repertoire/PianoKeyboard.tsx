@@ -64,9 +64,14 @@ export default function PianoKeyboard({
 }: Props) {
   const color = degreeColor(degree);
   const names = preferFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
-  const pcSet = new Set(voicing.map(v => (((v % 12) + 12) % 12)));
+  // Voicing entries are semitone offsets FROM THE ROOT, so a key is
+  // active when its offset-from-root is in the set — not its absolute
+  // pitch class. (Comparing pitch class directly only works when the
+  // root is C.)
+  const voicingOffsets = new Set(voicing.map(v => (((v % 12) + 12) % 12)));
 
   const offsetOf = (pc: number) => (pc - rootPc + 12) % 12;
+  const isActive = (pc: number) => voicingOffsets.has(offsetOf(pc));
   const toggle = (pc: number) => {
     if (!editable || !onToggle) return;
     onToggle(offsetOf(pc));
@@ -77,7 +82,7 @@ export default function PianoKeyboard({
   for (let gi = 0; gi < WHITE_COUNT; gi++) {
     const pc = WHITE_TO_PC[gi % 7];
     const x = gi * WW;
-    const active = pcSet.has(pc);
+    const active = isActive(pc);
     const isRoot = pc === rootPc;
     whiteKeys.push(
       <g
@@ -116,7 +121,7 @@ export default function PianoKeyboard({
     for (const { afterWhite, pc } of BLACK_ANCHORS) {
       const globalAnchor = o * 7 + afterWhite;
       const x = (globalAnchor + 1) * WW - BW / 2;
-      const active = pcSet.has(pc);
+      const active = isActive(pc);
       const isRoot = pc === rootPc;
       blackKeys.push(
         <g
