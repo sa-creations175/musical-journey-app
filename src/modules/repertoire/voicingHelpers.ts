@@ -28,9 +28,11 @@ export function chordRootNote(songKey: string, scaleDegree: string): string {
   return names[(keyPc + semi) % 12];
 }
 
-/** Convert a set of note names to pitch-class semitone offsets from a
- *  root note. Unrecognised names are dropped; result is deduped and
- *  sorted ascending. */
+/** Convert a set of note names to pitch-class semitone offsets (0–11)
+ *  from a root note. Note names carry no octave, so this is inherently
+ *  first-octave; callers that need octave-aware offsets (0–23) add
+ *  12 * octave themselves. Unrecognised names are dropped; result is
+ *  deduped and sorted ascending. */
 export function semitonesFromRoot(
   rootNote: string,
   noteNames: string[],
@@ -46,8 +48,10 @@ export function semitonesFromRoot(
   return [...offsets].sort((a, b) => a - b);
 }
 
-/** Convert pitch-class semitone offsets back to note names for display.
- *  Spelling: pass `preferFlats` (derived from the song key) for
+/** Convert semitone offsets back to note names for display. Handles
+ *  octave-aware offsets (0–23) by folding to pitch class — a note name
+ *  is octave-agnostic, so offset 4 and offset 16 both render the same
+ *  name. Spelling: pass `preferFlats` (derived from the song key) for
  *  key-correct accidentals; when omitted it's inferred from the root's
  *  own accidental (sharp root → sharps, otherwise flats). */
 export function notesFromVoicing(

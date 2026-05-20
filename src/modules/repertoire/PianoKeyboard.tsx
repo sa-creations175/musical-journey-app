@@ -2,10 +2,12 @@
 // voicing display (Lead Sheet Redesign, May 2026 —
 // docs/LEAD_SHEET_REDESIGN.md).
 //
-// Voicings are pitch-class semitone offsets from the chord root, so a
-// selected pitch class lights up in BOTH octaves. In editable mode,
-// tapping any key toggles that pitch class; keys are labeled with their
-// note name and their interval relative to the chord root (R, 3, 5, 7…).
+// Voicings are octave-aware semitone offsets from the chord root:
+// offset = pcOffsetFromRoot + 12 * displayOctave, so 0–11 = the first
+// rendered octave and 12–23 = the second. Each key in each octave is
+// independently toggleable (E in octave 1 is offset 4, E in octave 2 is
+// offset 16). Keys are labeled with their note name and their interval
+// relative to the chord root (R, 3, 5, 7…).
 
 import { degreeColor } from './voicingHelpers';
 import { NOTE_NAMES_FLAT, NOTE_NAMES_SHARP } from './chordFunction';
@@ -39,7 +41,7 @@ const TOTAL_W = WHITE_COUNT * WW;
 interface Props {
   /** Pitch class (0–11) of the chord root, for labels + root marker. */
   rootPc: number;
-  /** Selected pitch-class semitone offsets from the root. */
+  /** Selected octave-aware semitone offsets from the root (0–23). */
   voicing: number[];
   /** Chord scale degree (e.g. "4", "b6") — drives the highlight color. */
   degree: string;
@@ -47,7 +49,8 @@ interface Props {
   preferFlats?: boolean;
   /** When true, keys are tappable and labels show. */
   editable?: boolean;
-  /** Fired with the toggled semitone offset (0–11) in editable mode. */
+  /** Fired with the toggled octave-aware semitone offset (0–23) in
+   *  editable mode. */
   onToggle?: (offset: number) => void;
   /** Dim the whole keyboard (empty-state prompt). */
   faint?: boolean;
@@ -64,30 +67,36 @@ export default function PianoKeyboard({
 }: Props) {
   const color = degreeColor(degree);
   const names = preferFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
-  // Voicing entries are semitone offsets FROM THE ROOT, so a key is
-  // active when its offset-from-root is in the set — not its absolute
-  // pitch class. (Comparing pitch class directly only works when the
-  // root is C.)
-  const voicingOffsets = new Set(voicing.map(v => (((v % 12) + 12) % 12)));
+  // Voicing entries are octave-aware offsets from the root (0–23), so a
+  // key is active only when its full offset — pitch-class offset plus a
+  // 12-semitone bump for the second rendered octave — is in the set.
+  // Each octave's copy of a pitch class is therefore independent.
+  const voicingOffsets = new Set(voicing);
 
+  // Pitch-class offset from root (0–11), used for the interval label.
   const offsetOf = (pc: number) => (pc - rootPc + 12) % 12;
-  const isActive = (pc: number) => voicingOffsets.has(offsetOf(pc));
-  const toggle = (pc: number) => {
+  // Full octave-aware offset for a key in a given rendered octave.
+  const fullOffset = (pc: number, octaveIndex: number) =>
+    offsetOf(pc) + 12 * octaveIndex;
+  const isActive = (pc: number, octaveIndex: number) =>
+    voicingOffsets.has(fullOffset(pc, octaveIndex));
+  const toggle = (pc: number, octaveIndex: number) => {
     if (!editable || !onToggle) return;
-    onToggle(offsetOf(pc));
+    onToggle(fullOffset(pc, octaveIndex));
   };
 
   // White keys (rendered first so black keys overlay them).
   const whiteKeys = [];
   for (let gi = 0; gi < WHITE_COUNT; gi++) {
+    const octaveIndex = Math.floor(gi / 7);
     const pc = WHITE_TO_PC[gi % 7];
     const x = gi * WW;
-    const active = isActive(pc);
+    const active = isActive(pc, octaveIndex);
     const isRoot = pc === rootPc;
     whiteKeys.push(
       <g
         key={`w${gi}`}
-        onClick={editable ? () => toggle(pc) : undefined}
+        onClick={editable ? () => toggle(pc, octaveIndex) : undefined}
         style={{ cursor: editable ? 'pointer' : 'default' }}
       >
         <rect
@@ -121,12 +130,12 @@ export default function PianoKeyboard({
     for (const { afterWhite, pc } of BLACK_ANCHORS) {
       const globalAnchor = o * 7 + afterWhite;
       const x = (globalAnchor + 1) * WW - BW / 2;
-      const active = isActive(pc);
+      const active = isActive(pc, o);
       const isRoot = pc === rootPc;
       blackKeys.push(
         <g
           key={`b${o}-${pc}`}
-          onClick={editable ? () => toggle(pc) : undefined}
+          onClick={editable ? () => toggle(pc, o) : undefined}
           style={{ cursor: editable ? 'pointer' : 'default' }}
         >
           <rect

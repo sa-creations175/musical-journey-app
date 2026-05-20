@@ -82,6 +82,13 @@ describe('notesFromVoicing', () => {
     ]);
   });
 
+  it('folds octave-aware offsets (0–23) to note names', () => {
+    // C root: offset 0 = C, offset 16 (= 4 + 12) = E an octave up → "E".
+    expect(notesFromVoicing('C', [0, 16])).toEqual(['C', 'E']);
+    // Octave 2 root (offset 12) still spells the root note.
+    expect(notesFromVoicing('C', [12])).toEqual(['C']);
+  });
+
   it('round-trips through semitonesFromRoot', () => {
     const root = 'C';
     const offsets = [0, 3, 7, 10]; // m7
