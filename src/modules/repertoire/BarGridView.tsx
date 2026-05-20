@@ -8,7 +8,10 @@ import type { DraggableAttributes } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { ChordFunction, LyricLine, Song, SongSection } from '../../lib/db';
-import { chordToDisplay, parseChordFunction } from './chordFunction';
+import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
+import { pitchClassOf } from './chordParser';
+import { chordRootNote } from './voicingHelpers';
+import PianoKeyboard from './PianoKeyboard';
 import { useNotationMode } from '../../lib/notationPref';
 import {
   type Bar,
@@ -76,6 +79,12 @@ interface Props {
    *  placement from section.chordPlacements (caller reconciles
    *  barLayout). The popover closes once this resolves. */
   onChordDelete?: (placementId: string) => Promise<void> | void;
+  /** Save a piano voicing (pitch-class semitone offsets from the chord
+   *  root) from the chord-edit popover. */
+  onChordVoicingChange?: (
+    placementId: string,
+    voicing: number[],
+  ) => Promise<void> | void;
   /** Whether chord cells render as sortable (drag-to-reorder). Drag
    *  end is handled by the parent DndContext; this flag just tells
    *  us to wrap each cell in `useSortable`. */
@@ -131,6 +140,12 @@ interface Props {
     beatPos: number,
     chord: ChordFunction,
   ) => void | Promise<void>;
+  /** Session-lifetime chord clipboard. When set, the chord-add popover
+   *  on an empty beat shows a one-tap 'Paste' option. */
+  copiedChord?: ChordFunction | null;
+  /** Tap 'Copy chord' in the chord-edit popover; stores the chord's
+   *  function/quality/bass/harmonicTag in the parent's clipboard. */
+  onCopyChord?: (chord: ChordFunction) => void;
 }
 
 interface EditingState {
@@ -150,6 +165,7 @@ export default function BarGridView({
   onChordBeatsChange,
   onChordTagChange,
   onChordDelete,
+  onChordVoicingChange,
   chordsAreSortable = false,
   lyricLines = [],
   onLineDelete,
@@ -164,6 +180,8 @@ export default function BarGridView({
   canRedo,
   onTimeSignatureChange,
   onChordAdd,
+  copiedChord,
+  onCopyChord,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -349,6 +367,12 @@ export default function BarGridView({
       }
     : undefined;
 
+  const handleVoicing = onChordVoicingChange
+    ? async (cell: BarCell, voicing: number[]) => {
+        await onChordVoicingChange(cell.placementId, voicing);
+      }
+    : undefined;
+
   const body = (
     <>
       {pendingLines.length > 0 && (
@@ -374,6 +398,9 @@ export default function BarGridView({
                   onBeatsChange={handleBeatsChange}
                   onTagChange={handleTagChange}
                   onDelete={handleDelete}
+                  onVoicingChange={handleVoicing}
+                  onCopyChord={onCopyChord}
+                  copiedChord={copiedChord}
                   draggable={chordsAreSortable}
                   onDeleteBar={onDeleteBar}
                   barDragEnabled={Boolean(onBarReorder)}
@@ -744,6 +771,9 @@ function BarBox({
   onBeatsChange,
   onTagChange,
   onDelete,
+  onVoicingChange,
+  onCopyChord,
+  copiedChord,
   draggable,
   onDeleteBar,
   barDragEnabled,
@@ -761,6 +791,9 @@ function BarBox({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   onDelete?: (cell: BarCell) => void | Promise<void>;
+  onVoicingChange?: (cell: BarCell, voicing: number[]) => void | Promise<void>;
+  onCopyChord?: (chord: ChordFunction) => void;
+  copiedChord?: ChordFunction | null;
   draggable: boolean;
   onDeleteBar?: (barIndex: number) => void;
   barDragEnabled: boolean;
@@ -925,6 +958,7 @@ function BarBox({
 
       {editingCellInThisBar && (onBeatsChange || onTagChange) && (
         <ChordEditorPopover
+          key={editingCellInThisBar.placementId}
           cell={editingCellInThisBar}
           beatsPerBar={beatsPerBar}
           sectionKey={sectionKey}
@@ -932,6 +966,8 @@ function BarBox({
           onBeatsChange={onBeatsChange}
           onTagChange={onTagChange}
           onDelete={onDelete}
+          onVoicingChange={onVoicingChange}
+          onCopyChord={onCopyChord}
         />
       )}
 
@@ -943,6 +979,7 @@ function BarBox({
             beatPos={newChordAt.beatPos}
             sectionKey={sectionKey}
             notationMode={notationMode}
+            copiedChord={copiedChord}
             onSubmit={chord =>
               onChordAddSubmit(newChordAt.barIndex, newChordAt.beatPos, chord)
             }
@@ -1365,6 +1402,7 @@ function ChordAddPopover({
   beatPos,
   sectionKey,
   notationMode,
+  copiedChord,
   onSubmit,
   onCancel,
 }: {
@@ -1372,6 +1410,7 @@ function ChordAddPopover({
   beatPos: number;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
+  copiedChord?: ChordFunction | null;
   onSubmit: (chord: ChordFunction) => void;
   onCancel: () => void;
 }) {
@@ -1388,6 +1427,9 @@ function ChordAddPopover({
     if (!parsed || !isReady) return;
     onSubmit(parsed);
   };
+  const copiedText = copiedChord
+    ? chordToDisplay(copiedChord, notationMode, sectionKey)
+    : '';
   return (
     <div
       className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-30 min-w-[14rem] rounded-md border border-fluent/40 bg-white dark:bg-neutral-900 shadow-md p-2 space-y-1.5 text-[11px]"
@@ -1406,6 +1448,16 @@ function ChordAddPopover({
           ×
         </button>
       </div>
+      {copiedChord && (
+        <button
+          type="button"
+          onClick={() => onSubmit(copiedChord)}
+          className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20"
+        >
+          <span aria-hidden>📋</span> Paste{' '}
+          {copiedText ? <ChordGlyph text={copiedText} /> : 'chord'}
+        </button>
+      )}
       <input
         type="text"
         autoFocus
@@ -1620,6 +1672,8 @@ function ChordEditorPopover({
   onBeatsChange,
   onTagChange,
   onDelete,
+  onVoicingChange,
+  onCopyChord,
 }: {
   cell: BarCell;
   beatsPerBar: number;
@@ -1628,6 +1682,8 @@ function ChordEditorPopover({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   onDelete?: (cell: BarCell) => void | Promise<void>;
+  onVoicingChange?: (cell: BarCell, voicing: number[]) => void | Promise<void>;
+  onCopyChord?: (chord: ChordFunction) => void;
 }) {
   // Source-of-truth beat count is `cell.beats` (= placement.beats).
   // `cell.chord.beats` is a stale legacy field carried over from
@@ -1643,6 +1699,44 @@ function ChordEditorPopover({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState('');
+
+  // Piano voicing. The root resolves from the song key + chord degree;
+  // when the key is unknown we can't anchor offsets, so the voicing UI
+  // shows a "set the key" hint instead. Edit mode drives a local draft;
+  // Save commits via onVoicingChange. (The popover is keyed by
+  // placementId at the render site, so this local state resets cleanly
+  // when the user opens a different chord.)
+  const rootNote = sectionKey ? chordRootNote(sectionKey, cell.chord.function) : '';
+  const rootPc = pitchClassOf(rootNote);
+  const canVoice = Boolean(onVoicingChange) && rootPc >= 0;
+  const savedVoicing = cell.voicing;
+  const hasVoicing = Boolean(savedVoicing && savedVoicing.length > 0);
+  const preferFlats = sectionKey ? keyPrefersFlats(sectionKey) : true;
+  const [editingVoicing, setEditingVoicing] = useState(false);
+  const [draftVoicing, setDraftVoicing] = useState<number[]>([]);
+
+  const beginEditVoicing = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraftVoicing(savedVoicing ?? []);
+    setEditingVoicing(true);
+  };
+  const toggleVoicingOffset = (offset: number) => {
+    setDraftVoicing(prev =>
+      prev.includes(offset)
+        ? prev.filter(o => o !== offset)
+        : [...prev, offset].sort((a, b) => a - b),
+    );
+  };
+  const saveVoicing = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onVoicingChange) return;
+    void onVoicingChange(cell, [...draftVoicing].sort((a, b) => a - b));
+    setEditingVoicing(false);
+  };
+  const cancelVoicing = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingVoicing(false);
+  };
 
   const stepBy = (delta: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1783,19 +1877,87 @@ function ChordEditorPopover({
         </div>
       )}
 
-      {onDelete && (
-        <div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800">
-          <button
-            type="button"
-            onClick={e => {
-              e.stopPropagation();
-              void onDelete(cell);
-            }}
-            className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-needswork hover:text-needswork"
-            aria-label="delete chord"
-          >
-            <span aria-hidden>🗑</span> Delete chord
-          </button>
+      {onVoicingChange && (
+        <div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-neutral-500">voicing</span>
+            {canVoice ? (
+              editingVoicing ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={saveVoicing}
+                    className="text-fluent hover:underline"
+                  >
+                    Save voicing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelVoicing}
+                    className="text-neutral-500 hover:text-needswork"
+                  >
+                    cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={beginEditVoicing}
+                  className="text-fluent hover:underline"
+                >
+                  {hasVoicing ? 'Edit voicing' : '+ Add voicing'}
+                </button>
+              )
+            ) : null}
+          </div>
+          {canVoice ? (
+            <div onClick={e => e.stopPropagation()}>
+              <PianoKeyboard
+                rootPc={rootPc}
+                degree={cell.chord.function}
+                preferFlats={preferFlats}
+                voicing={editingVoicing ? draftVoicing : savedVoicing ?? []}
+                editable={editingVoicing}
+                onToggle={editingVoicing ? toggleVoicingOffset : undefined}
+                faint={!editingVoicing && !hasVoicing}
+              />
+            </div>
+          ) : (
+            <p className="text-[11px] text-neutral-400 italic">
+              set the song key to add a voicing
+            </p>
+          )}
+        </div>
+      )}
+
+      {(onCopyChord || onDelete) && (
+        <div className="flex items-center gap-2 px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800">
+          {onCopyChord && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                onCopyChord(cell.chord);
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
+              aria-label="copy chord"
+            >
+              <span aria-hidden>📋</span> Copy chord
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                void onDelete(cell);
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-needswork hover:text-needswork"
+              aria-label="delete chord"
+            >
+              <span aria-hidden>🗑</span> Delete chord
+            </button>
+          )}
         </div>
       )}
     </div>

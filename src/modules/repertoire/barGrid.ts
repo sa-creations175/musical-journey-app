@@ -195,6 +195,10 @@ export interface BarCell {
   phraseId?: string;
   /** Legacy source beat id. Pair with `phraseId`. */
   beatId?: string;
+  /** Pitch-class semitone offsets from the chord root (Option C
+   *  bar-anchored placements only). Mirrors `ChordPlacement.voicing`;
+   *  undefined for legacy cells. */
+  voicing?: number[];
 }
 
 export interface Bar {
@@ -459,6 +463,7 @@ function deriveBarGridAnchored(
       beats: sanitiseBeats(p.beats),
       beatPos: p.beatPos,
       placementId: p.id,
+      voicing: p.voicing,
     }));
     bars.push({ index: i, cells, isEmpty: cells.length === 0 });
   }

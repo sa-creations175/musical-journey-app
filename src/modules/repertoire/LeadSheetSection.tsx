@@ -108,6 +108,11 @@ export default function LeadSheetSection({
   const [editingName, setEditingName] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
 
+  // Session-lifetime chord clipboard. Set by the chord-edit popover's
+  // 'Copy chord'; read by the chord-add popover's 'Paste'. Not synced
+  // to Dexie — clears on unmount.
+  const [copiedChord, setCopiedChord] = useState<ChordFunction | null>(null);
+
   // Detected-progressions → ET pipeline (Lead Sheet Redesign step 9).
   // `addedFromRepertoireSet` flags catalog progression ids the user
   // has promoted via the chip's + affordance. Confirmation popover
@@ -341,6 +346,32 @@ export default function LeadSheetSection({
     const reconciled = reconcileBarLayout(sectionRef.current.barLayout, next);
     if (reconciled) patch.barLayout = reconciled;
     await commit(patch);
+  };
+
+  // Copy a chord's function data into the session clipboard. Only the
+  // harmonic content travels (function/quality/bass/harmonicTag) — not
+  // beats or placement identity — so a paste lands as a fresh beats:1
+  // chord at the target slot.
+  const handleCopyChord = (chord: ChordFunction) => {
+    setCopiedChord({
+      function: chord.function,
+      quality: chord.quality,
+      bass: chord.bass,
+      harmonicTag: chord.harmonicTag,
+    });
+  };
+
+  // Save a piano voicing onto a chord placement. Stores pitch-class
+  // semitone offsets from the chord root (key-agnostic). Mirrors
+  // handleChordBeatsChange; no barLayout reconcile needed since a
+  // voicing doesn't change bar occupancy. Undoable via the stack.
+  const handleChordVoicingChange = async (
+    placementId: string,
+    voicing: number[],
+  ) => {
+    const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
+    const next = updateChordPlacement(placements, realPlacementId, { voicing });
+    await commit({ chordPlacements: next });
   };
 
   // Chord drag onto another chord = swap positions (Option C). The
@@ -930,6 +961,9 @@ export default function LeadSheetSection({
               onChordBeatsChange={handleChordBeatsChange}
               onChordTagChange={handleChordTagChange}
               onChordDelete={handleChordDelete}
+              onChordVoicingChange={handleChordVoicingChange}
+              onCopyChord={handleCopyChord}
+              copiedChord={copiedChord}
               chordsAreSortable
               lyricLines={lyricLines}
               onLineDelete={handleDeleteLyricLine}

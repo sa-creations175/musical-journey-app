@@ -393,6 +393,13 @@ export interface ChordPlacement {
    *  `ChordFunction`, lifted into the placement entry so all chord
    *  state lives in one record. */
   chord: ChordFunction;
+  /** Piano voicing as pitch-class semitone offsets from the chord
+   *  root (key-agnostic, e.g. root-position maj7 = [0,4,7,11]). The
+   *  bar-grid chord-edit popover resolves these to absolute notes at
+   *  render time from song.key + chord.function, so a voicing entered
+   *  in one key transposes automatically when the song key changes.
+   *  Optional JSONB field on the placement — no Dexie version bump. */
+  voicing?: number[];
 }
 
 /** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,

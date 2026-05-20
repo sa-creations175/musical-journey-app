@@ -23,15 +23,15 @@ const DEGREE_BY_SEMI: Record<number, string> = {
   0: '1', 1: 'b2', 2: '2', 3: 'b3', 4: '3', 5: '4',
   6: '#4', 7: '5', 8: 'b6', 9: '6', 10: 'b7', 11: '7',
 };
-const SEMI_BY_DEGREE: Record<string, number> = {
+export const SEMI_BY_DEGREE: Record<string, number> = {
   '1': 0, 'b2': 1, '2': 2, 'b3': 3, '3': 4, '4': 5,
   '#4': 6, 'b5': 6, '5': 7, 'b6': 8, '6': 9, 'b7': 10, '7': 11,
 };
 // Keep two parallel tables so display honours the key's preferred
 // accidentals. Flats dominate in the functional label convention, so
 // we default to the flat note names at render time.
-const NOTE_NAMES_FLAT =  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+export const NOTE_NAMES_FLAT =  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+export const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const PITCH_CLASS: Record<string, number> = {
   C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4,
   F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9,
@@ -54,7 +54,7 @@ export function pitchClassOfKey(key: string): number {
   return pc === undefined ? -1 : pc;
 }
 
-function keyPrefersFlats(key: string): boolean {
+export function keyPrefersFlats(key: string): boolean {
   // Tonal convention: keys with flat accidentals in their signature
   // prefer flat spellings; F major also prefers flats (has Bb).
   return /b$/.test(key) || key === 'F';
