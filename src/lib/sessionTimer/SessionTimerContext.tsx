@@ -95,6 +95,16 @@ export interface SessionTimerContextValue {
    */
   requestBlockEnd: () => void;
   consumeBlockEndRequest: () => void;
+  // --- Prep-flow redesign: block phase transitions -------------
+  /** Enter the current block's prep phase (prep screen arrival). */
+  beginPrep: () => void;
+  /** prep → drill (countdown "GO"); starts the drill timer. */
+  startDrill: () => void;
+  /** drill → rating (drill timer hit 0 or user moved on). */
+  completeDrill: () => void;
+  /** Adjust the current block's drill duration by `deltaSeconds`
+   *  (prep-screen +/-). Clamped to [30s, planned * 2]. */
+  adjustDrillTime: (deltaSeconds: number) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -206,6 +216,22 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'consume-block-end' });
   }, []);
 
+  const beginPrep = useCallback(() => {
+    dispatch({ type: 'begin-prep', now: Date.now() });
+  }, []);
+
+  const startDrill = useCallback(() => {
+    dispatch({ type: 'start-drill', now: Date.now() });
+  }, []);
+
+  const completeDrill = useCallback(() => {
+    dispatch({ type: 'complete-drill', now: Date.now() });
+  }, []);
+
+  const adjustDrillTime = useCallback((deltaSeconds: number) => {
+    dispatch({ type: 'adjust-drill-time', deltaSeconds });
+  }, []);
+
   const value = useMemo<SessionTimerContextValue>(
     () => ({
       state,
@@ -222,6 +248,10 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       extendCurrentBlock,
       requestBlockEnd,
       consumeBlockEndRequest,
+      beginPrep,
+      startDrill,
+      completeDrill,
+      adjustDrillTime,
     }),
     [
       state,
@@ -238,6 +268,10 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       extendCurrentBlock,
       requestBlockEnd,
       consumeBlockEndRequest,
+      beginPrep,
+      startDrill,
+      completeDrill,
+      adjustDrillTime,
     ],
   );
 
@@ -271,6 +305,10 @@ export function useSessionTimes(intervalMs = 1000): SessionTimes {
     activeMs: 0,
     blockWallMs: 0,
     blockActiveMs: 0,
+    blockPhase: null,
+    drillElapsedMs: 0,
+    drillRemainingMs: 0,
+    blockPhaseActiveMs: 0,
   });
 
   useEffect(() => {

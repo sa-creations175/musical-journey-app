@@ -33,6 +33,7 @@ export function buildDraft(state: SessionState, now: number): ActiveSessionDraft
     state,
     savedSessionActiveMs: times.activeMs,
     savedBlockActiveMs: times.blockActiveMs,
+    savedPhaseActiveMs: times.blockPhaseActiveMs,
     savedAt: now,
     updatedAt: now,
   };
@@ -53,17 +54,27 @@ export function draftToSessionState(draft: ActiveSessionDraft, now: number): Ses
   const base = draft.state;
   const blocks: SessionBlock[] = base.blocks.map((b, i) => {
     if (i === base.currentBlockIndex) {
+      // Rebase the phase anchor too so the current phase's live
+      // segment continues with exactly its saved elapsed (offline gap
+      // excluded), mirroring the block-level rebase. Older drafts
+      // (pre-phase) fall back to the block-active value — equivalent
+      // for the legacy whole-block-is-drill case.
+      const savedPhaseActiveMs =
+        draft.savedPhaseActiveMs ?? draft.savedBlockActiveMs;
       return {
         ...b,
         status: 'running',
         startedAt: now - draft.savedBlockActiveMs,
         endedAt: null,
         pausedMs: 0,
+        phaseStartedAt: now - savedPhaseActiveMs,
+        phasePausedMs: 0,
       };
     }
-    // Pre-current blocks: keep finalized activeMs/rating; zero pausedMs
-    // so the session-level paused sum stays at 0 after rebasing.
-    return { ...b, pausedMs: 0 };
+    // Pre-current blocks: keep finalized activeMs/rating + per-phase
+    // accumulators; zero pausedMs/phasePausedMs so the session-level
+    // paused sum stays at 0 after rebasing.
+    return { ...b, pausedMs: 0, phasePausedMs: 0 };
   });
 
   return {

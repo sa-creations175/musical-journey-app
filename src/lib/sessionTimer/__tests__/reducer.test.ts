@@ -446,6 +446,10 @@ describe('getTimes', () => {
       activeMs: 0,
       blockWallMs: 0,
       blockActiveMs: 0,
+      blockPhase: null,
+      drillElapsedMs: 0,
+      drillRemainingMs: 0,
+      blockPhaseActiveMs: 0,
     });
   });
 
@@ -519,5 +523,141 @@ describe('getTimes', () => {
     expect(t.wallMs).toBe(90 * SECOND);
     expect(t.activeMs).toBe(60 * SECOND);
     expect(state.blocks[0].pausedMs).toBe(30 * SECOND);
+  });
+});
+
+describe('sessionTimerReducer — block phases + drill timer', () => {
+  it('starts the first block in the drill phase (legacy no-prep flow)', () => {
+    const s = startState({ plannedSeconds: 600 });
+    expect(s.blocks[0].phase).toBe('drill');
+    expect(s.blocks[0].phaseStartedAt).toBe(T0);
+    expect(s.blocks[0].adjustedDrillSeconds).toBe(600);
+    expect(s.blocks[0].prepMs).toBe(0);
+    expect(s.blocks[0].drillMs).toBe(0);
+    expect(s.blocks[0].ratingMs).toBe(0);
+  });
+
+  it('legacy drill phase: timer counts down from planned, elapsed counts up', () => {
+    const s = startState({ plannedSeconds: 120 });
+    const t = getTimes(s, T0 + 30 * SECOND);
+    expect(t.blockPhase).toBe('drill');
+    expect(t.drillElapsedMs).toBe(30 * SECOND);
+    expect(t.drillRemainingMs).toBe(90 * SECOND);
+    expect(t.blockPhaseActiveMs).toBe(30 * SECOND);
+  });
+
+  it('drill timer clamps to 0 once over the planned duration', () => {
+    const s = startState({ plannedSeconds: 60 });
+    const t = getTimes(s, T0 + 90 * SECOND);
+    expect(t.drillRemainingMs).toBe(0);
+    expect(t.drillElapsedMs).toBe(90 * SECOND);
+  });
+
+  it('walks prep → drill → rating, accruing per-phase active time', () => {
+    let s = startState({ plannedSeconds: 300 });
+    s = sessionTimerReducer(s, { type: 'begin-prep', now: T0 });
+    expect(s.blocks[0].phase).toBe('prep');
+
+    // 20s of prep.
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 + 20 * SECOND });
+    expect(s.blocks[0].phase).toBe('drill');
+    expect(s.blocks[0].prepMs).toBe(20 * SECOND);
+    expect(s.blocks[0].phaseStartedAt).toBe(T0 + 20 * SECOND);
+
+    // 5 min of drill.
+    s = sessionTimerReducer(s, {
+      type: 'complete-drill',
+      now: T0 + 20 * SECOND + 5 * MINUTE,
+    });
+    expect(s.blocks[0].phase).toBe('rating');
+    expect(s.blocks[0].drillMs).toBe(5 * MINUTE);
+
+    // 10s of rating, then end.
+    const ended = sessionTimerReducer(s, {
+      type: 'end-session',
+      now: T0 + 30 * SECOND + 5 * MINUTE,
+    });
+    expect(ended.blocks[0].prepMs).toBe(20 * SECOND);
+    expect(ended.blocks[0].drillMs).toBe(5 * MINUTE);
+    expect(ended.blocks[0].ratingMs).toBe(10 * SECOND);
+    expect(ended.blocks[0].phaseStartedAt).toBeNull();
+  });
+
+  it('in prep, drillRemaining previews the full duration and elapsed is 0', () => {
+    let s = startState({ plannedSeconds: 120 });
+    s = sessionTimerReducer(s, { type: 'begin-prep', now: T0 });
+    const t = getTimes(s, T0 + 15 * SECOND);
+    expect(t.blockPhase).toBe('prep');
+    expect(t.drillElapsedMs).toBe(0);
+    expect(t.drillRemainingMs).toBe(120 * SECOND);
+    expect(t.blockPhaseActiveMs).toBe(15 * SECOND);
+  });
+
+  it('adjust-drill-time changes the drill timer duration', () => {
+    let s = startState({ plannedSeconds: 120 });
+    s = sessionTimerReducer(s, { type: 'begin-prep', now: T0 });
+    s = sessionTimerReducer(s, { type: 'adjust-drill-time', deltaSeconds: 60 });
+    expect(s.blocks[0].adjustedDrillSeconds).toBe(180);
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 + 10 * SECOND });
+    const t = getTimes(s, T0 + 10 * SECOND + 30 * SECOND);
+    expect(t.drillRemainingMs).toBe(150 * SECOND);
+  });
+
+  it('adjust-drill-time clamps to [30s, planned * 2]', () => {
+    let s = startState({ plannedSeconds: 120 });
+    s = sessionTimerReducer(s, { type: 'adjust-drill-time', deltaSeconds: -1000 });
+    expect(s.blocks[0].adjustedDrillSeconds).toBe(30);
+    s = sessionTimerReducer(s, { type: 'adjust-drill-time', deltaSeconds: 1000 });
+    expect(s.blocks[0].adjustedDrillSeconds).toBe(240);
+  });
+
+  it('excludes paused time from the current phase accrual', () => {
+    let s = startState({ plannedSeconds: 300 });
+    s = sessionTimerReducer(s, { type: 'begin-prep', now: T0 });
+    // prep 0–10s, pause 10–40s, resume, then leave prep at 50s.
+    s = sessionTimerReducer(s, { type: 'pause', now: T0 + 10 * SECOND, reason: 'manual' });
+    s = sessionTimerReducer(s, { type: 'resume', now: T0 + 40 * SECOND });
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 + 50 * SECOND });
+    // Wall in prep 50s, paused 30s → 20s active prep.
+    expect(s.blocks[0].prepMs).toBe(20 * SECOND);
+  });
+
+  it('accumulates a second drill segment (rating-screen extend path)', () => {
+    let s = startState({ plannedSeconds: 300 });
+    // First drill T0 .. +2m.
+    s = sessionTimerReducer(s, { type: 'complete-drill', now: T0 + 2 * MINUTE });
+    expect(s.blocks[0].drillMs).toBe(2 * MINUTE);
+    // Rating 30s, then re-enter drill (extend).
+    s = sessionTimerReducer(s, {
+      type: 'start-drill',
+      now: T0 + 2 * MINUTE + 30 * SECOND,
+    });
+    expect(s.blocks[0].ratingMs).toBe(30 * SECOND);
+    // Second drill 1m.
+    s = sessionTimerReducer(s, {
+      type: 'complete-drill',
+      now: T0 + 3 * MINUTE + 30 * SECOND,
+    });
+    expect(s.blocks[0].drillMs).toBe(3 * MINUTE);
+  });
+
+  it('freezes the drill timer while the session is paused', () => {
+    const s = startState({ plannedSeconds: 600 });
+    const paused = sessionTimerReducer(s, {
+      type: 'pause',
+      now: T0 + 30 * SECOND,
+      reason: 'manual',
+    });
+    // 60s of wall pass while paused; drill should hold at 30s elapsed.
+    const t = getTimes(paused, T0 + 90 * SECOND);
+    expect(t.drillElapsedMs).toBe(30 * SECOND);
+    expect(t.drillRemainingMs).toBe(600 * SECOND - 30 * SECOND);
+  });
+
+  it('phase transitions are no-ops when the session is not running', () => {
+    const s = startState();
+    const paused = sessionTimerReducer(s, { type: 'pause', now: T0 + SECOND, reason: 'manual' });
+    const same = sessionTimerReducer(paused, { type: 'start-drill', now: T0 + 2 * SECOND });
+    expect(same).toBe(paused);
   });
 });

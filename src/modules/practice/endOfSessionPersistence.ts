@@ -391,6 +391,19 @@ export async function persistSession(
     0,
   );
 
+  // Prep-flow timing breakdown. "True practice" is the summed drill
+  // time; overhead is wall-clock session minus that.
+  const totalDrillMs = summary.blocksWithFinalRatings.reduce(
+    (sum, b) => sum + b.drillMs,
+    0,
+  );
+  const totalSessionSeconds = Math.round(finalizedTotalMs / 1000);
+  const totalDrillSeconds = Math.round(totalDrillMs / 1000);
+  const totalOverheadSeconds = Math.max(
+    0,
+    totalSessionSeconds - totalDrillSeconds,
+  );
+
   const trimmedAffirmation =
     summary.affirmation && summary.affirmation.trim().length > 0
       ? summary.affirmation.trim()
@@ -421,6 +434,8 @@ export async function persistSession(
     lastEngagedAt: endedAt,
     sessionRating: summary.sessionRating,
     affirmation: trimmedAffirmation,
+    totalDrillSeconds,
+    totalOverheadSeconds,
   };
 
   const blockRows: PracticeBlock[] = summary.blocksWithFinalRatings.map(
@@ -448,6 +463,17 @@ export async function persistSession(
       // rolling-average planner can see overhead time directly.
       blockStartedAt: b.startedAt,
       blockCompletedAt: b.endedAt,
+      // Prep-flow per-phase breakdown (seconds). For the legacy
+      // no-prep flow the whole block lands in actualDrillSeconds and
+      // prep/rating are 0.
+      prepSeconds: Math.round(b.prepMs / 1000),
+      actualDrillSeconds: Math.round(b.drillMs / 1000),
+      ratingSeconds: Math.round(b.ratingMs / 1000),
+      adjustedDrillSeconds: b.adjustedDrillSeconds,
+      totalBlockSeconds:
+        b.startedAt !== null && b.endedAt !== null
+          ? Math.round(Math.max(0, b.endedAt - b.startedAt) / 1000)
+          : 0,
     }),
   );
 

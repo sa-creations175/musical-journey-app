@@ -29,6 +29,13 @@ function block(partial: Partial<SessionBlock> & Pick<SessionBlock, 'id' | 'modul
     endedAt: partial.endedAt ?? null,
     activeMs: partial.activeMs ?? 0,
     pausedMs: partial.pausedMs ?? 0,
+    phase: partial.phase ?? 'drill',
+    phaseStartedAt: partial.phaseStartedAt ?? null,
+    prepMs: partial.prepMs ?? 0,
+    drillMs: partial.drillMs ?? 0,
+    ratingMs: partial.ratingMs ?? 0,
+    phasePausedMs: partial.phasePausedMs ?? 0,
+    adjustedDrillSeconds: partial.adjustedDrillSeconds ?? partial.plannedSeconds ?? 600,
     rating: partial.rating,
   };
 }

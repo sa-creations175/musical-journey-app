@@ -16,7 +16,16 @@ import type { SessionState, SessionTimes } from '../types';
 const T0 = 1_700_000_000_000;
 
 function times(active: number, wall: number): SessionTimes {
-  return { activeMs: active, wallMs: wall, blockActiveMs: active, blockWallMs: wall };
+  return {
+    activeMs: active,
+    wallMs: wall,
+    blockActiveMs: active,
+    blockWallMs: wall,
+    blockPhase: null,
+    drillElapsedMs: 0,
+    drillRemainingMs: 0,
+    blockPhaseActiveMs: 0,
+  };
 }
 
 describe('shouldShowDrift', () => {

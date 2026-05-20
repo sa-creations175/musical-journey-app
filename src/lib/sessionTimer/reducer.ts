@@ -8,6 +8,7 @@
  */
 
 import type {
+  BlockPhase,
   PerformanceRating,
   SessionBlock,
   SessionState,
@@ -15,6 +16,10 @@ import type {
   SessionTimes,
   StartSessionInput,
 } from './types';
+
+/** Drill-timer adjustment floor (seconds). Mirrors the design's Time
+ *  Adjustment UX: a drill can't be shortened below 30s. */
+const MIN_DRILL_SECONDS = 30;
 
 export const INITIAL_SESSION_STATE: SessionState = {
   status: 'idle',
@@ -145,6 +150,37 @@ export function sessionTimerReducer(
       if (!state.blockEndRequested) return state;
       return { ...state, blockEndRequested: false };
 
+    case 'begin-prep':
+      return transitionPhase(state, 'prep', action.now);
+
+    case 'start-drill':
+      return transitionPhase(state, 'drill', action.now);
+
+    case 'complete-drill':
+      return transitionPhase(state, 'rating', action.now);
+
+    case 'adjust-drill-time': {
+      if (state.currentBlockIndex === null) return state;
+      if (state.status !== 'running' && state.status !== 'paused') return state;
+      const idx = state.currentBlockIndex;
+      const cur = state.blocks[idx];
+      // Clamp to [30s, planned * 2] per the design's Time Adjustment UX.
+      const ceil = Math.max(MIN_DRILL_SECONDS, cur.plannedSeconds * 2);
+      const next = clamp(
+        cur.adjustedDrillSeconds + action.deltaSeconds,
+        MIN_DRILL_SECONDS,
+        ceil,
+      );
+      if (next === cur.adjustedDrillSeconds) return state;
+      return {
+        ...state,
+        blocks: replaceAt(state.blocks, idx, {
+          ...cur,
+          adjustedDrillSeconds: next,
+        }),
+      };
+    }
+
     default: {
       const _exhaustive: never = action;
       void _exhaustive;
@@ -187,6 +223,17 @@ function startSession(
     endedAt: null,
     activeMs: 0,
     pausedMs: 0,
+    // Prep-flow: blocks start directly in `drill` until a later step
+    // walks them through a prep screen. The first block's phase clock
+    // starts with the block; pending blocks start their phase clock
+    // when they become current (advance-block).
+    phase: 'drill',
+    phaseStartedAt: i === 0 ? now : null,
+    prepMs: 0,
+    drillMs: 0,
+    ratingMs: 0,
+    phasePausedMs: 0,
+    adjustedDrillSeconds: b.plannedSeconds,
   }));
 
   return {
@@ -258,6 +305,10 @@ function advanceBlock(
     id: action.nextBlockId ?? workingState.blocks[nextIdx].id,
     status: 'running',
     startedAt: action.now,
+    // Start the next block's phase clock (legacy default: drill).
+    phase: 'drill',
+    phaseStartedAt: action.now,
+    phasePausedMs: 0,
   };
 
   const blocks = workingState.blocks.map((b, i) => {
@@ -322,15 +373,21 @@ function finalizeBlock(
   markStatus: 'completed' | 'skipped',
   rating?: PerformanceRating,
 ): SessionBlock {
-  const startedAt = block.startedAt ?? now;
+  // Fold the in-progress phase segment into its accumulator first so
+  // the persisted prep/drill/rating breakdown is complete. (For the
+  // legacy no-prep flow this lands the whole block in drillMs.)
+  const accrued = accrueCurrentPhase(block, now);
+  const startedAt = accrued.startedAt ?? now;
   const wallMs = Math.max(0, now - startedAt);
-  const activeMs = Math.max(0, wallMs - block.pausedMs);
+  const activeMs = Math.max(0, wallMs - accrued.pausedMs);
   return {
-    ...block,
+    ...accrued,
     status: markStatus,
     endedAt: now,
     activeMs,
-    rating: rating ?? block.rating,
+    // No longer accruing — null the phase anchor.
+    phaseStartedAt: null,
+    rating: rating ?? accrued.rating,
   };
 }
 
@@ -342,10 +399,63 @@ function bumpCurrentBlockPause(
     return state.blocks;
   }
   const idx = state.currentBlockIndex;
+  const cur = state.blocks[idx];
   return replaceAt(state.blocks, idx, {
-    ...state.blocks[idx],
-    pausedMs: state.blocks[idx].pausedMs + pauseDurationMs,
+    ...cur,
+    // Whole-block + current-phase pause both grow by the segment so
+    // per-phase active time excludes the pause too.
+    pausedMs: cur.pausedMs + pauseDurationMs,
+    phasePausedMs: cur.phasePausedMs + pauseDurationMs,
   });
+}
+
+/**
+ * Fold the current phase segment's active time into its accumulator
+ * and reset the segment (phasePausedMs → 0). Does NOT change `phase`
+ * or set a new `phaseStartedAt` — the caller decides what comes next
+ * (a new phase via transitionPhase, or null on finalize).
+ *
+ * Expects to run while NOT mid-pause: advance/end/transition all
+ * unwind any in-progress pause into phasePausedMs first.
+ */
+function accrueCurrentPhase(block: SessionBlock, now: number): SessionBlock {
+  if (block.phaseStartedAt === null) return block;
+  const segWall = Math.max(0, now - block.phaseStartedAt);
+  const segActive = Math.max(0, segWall - block.phasePausedMs);
+  const next: SessionBlock = { ...block, phasePausedMs: 0 };
+  if (block.phase === 'prep') next.prepMs = block.prepMs + segActive;
+  else if (block.phase === 'drill') next.drillMs = block.drillMs + segActive;
+  else next.ratingMs = block.ratingMs + segActive;
+  return next;
+}
+
+/**
+ * Move the current block into `nextPhase`: unwind any in-progress
+ * pause, fold the leaving segment into its accumulator, then anchor
+ * the new phase at `now`. No-op unless there's a current block and
+ * the session is running.
+ */
+function transitionPhase(
+  state: SessionState,
+  nextPhase: BlockPhase,
+  now: number,
+): SessionState {
+  if (state.currentBlockIndex === null) return state;
+  if (state.status !== 'running') return state;
+  const idx = state.currentBlockIndex;
+  const accrued = accrueCurrentPhase(state.blocks[idx], now);
+  return {
+    ...state,
+    blocks: replaceAt(state.blocks, idx, {
+      ...accrued,
+      phase: nextPhase,
+      phaseStartedAt: now,
+    }),
+  };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
 }
 
 function replaceAt<T>(arr: T[], index: number, value: T): T[] {
@@ -361,7 +471,16 @@ function replaceAt<T>(arr: T[], index: number, value: T): T[] {
  */
 export function getTimes(state: SessionState, now: number): SessionTimes {
   if (state.status === 'idle' || state.startedAt === null) {
-    return { wallMs: 0, activeMs: 0, blockWallMs: 0, blockActiveMs: 0 };
+    return {
+      wallMs: 0,
+      activeMs: 0,
+      blockWallMs: 0,
+      blockActiveMs: 0,
+      blockPhase: null,
+      drillElapsedMs: 0,
+      drillRemainingMs: 0,
+      blockPhaseActiveMs: 0,
+    };
   }
 
   const sessionEnd = state.endedAt ?? now;
@@ -380,8 +499,13 @@ export function getTimes(state: SessionState, now: number): SessionTimes {
 
   let blockWallMs = 0;
   let blockActiveMs = 0;
+  let blockPhase: BlockPhase | null = null;
+  let drillElapsedMs = 0;
+  let drillRemainingMs = 0;
+  let blockPhaseActiveMs = 0;
   if (state.currentBlockIndex !== null) {
     const cur = state.blocks[state.currentBlockIndex];
+    blockPhase = cur.phase;
     if (cur.startedAt !== null) {
       const blockEnd = cur.endedAt ?? sessionEnd;
       blockWallMs = Math.max(0, blockEnd - cur.startedAt);
@@ -390,7 +514,47 @@ export function getTimes(state: SessionState, now: number): SessionTimes {
           ? Math.max(0, blockWallMs - cur.pausedMs - inProgressPausedMs)
           : cur.activeMs;
     }
+
+    // Live active time in the current phase segment (running only).
+    const accruing = cur.status === 'running' && cur.phaseStartedAt !== null;
+    const phaseSegActive = accruing
+      ? Math.max(
+          0,
+          Math.max(0, sessionEnd - cur.phaseStartedAt!) -
+            cur.phasePausedMs -
+            inProgressPausedMs,
+        )
+      : 0;
+    blockPhaseActiveMs = phaseSegActive;
+
+    // Cumulative drill time (count-up): finalized segments + the live
+    // one when we're in drill.
+    const liveDrill =
+      cur.status === 'running' && cur.phase === 'drill' ? phaseSegActive : 0;
+    drillElapsedMs = cur.drillMs + liveDrill;
+
+    // Count-down drill timer for the CURRENT segment. Resets per drill
+    // entry (a future extend re-anchors phaseStartedAt + adjustment).
+    const drillTotalMs =
+      (cur.adjustedDrillSeconds + cur.extensionSeconds) * 1000;
+    if (cur.status === 'running' && cur.phase === 'drill') {
+      drillRemainingMs = Math.max(0, drillTotalMs - phaseSegActive);
+    } else if (cur.status === 'running' && cur.phase === 'prep') {
+      // Drill hasn't started — preview the full duration.
+      drillRemainingMs = drillTotalMs;
+    } else {
+      drillRemainingMs = 0;
+    }
   }
 
-  return { wallMs, activeMs, blockWallMs, blockActiveMs };
+  return {
+    wallMs,
+    activeMs,
+    blockWallMs,
+    blockActiveMs,
+    blockPhase,
+    drillElapsedMs,
+    drillRemainingMs,
+    blockPhaseActiveMs,
+  };
 }

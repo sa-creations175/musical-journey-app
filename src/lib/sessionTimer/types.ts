@@ -23,6 +23,25 @@ export type SessionOrigin = 'practice-sessions' | 'shapes-drill' | 'song-detail'
 
 export type BlockStatus = 'pending' | 'running' | 'completed' | 'skipped';
 
+/**
+ * Prep-flow redesign — the three phases a running block moves through.
+ * The block timer measures their sum ("true block duration"); the
+ * drill timer counts down only during `drill`.
+ *
+ *   prep   — reading instructions, finding the key, setting the
+ *            metronome. Block timer running, drill timer NOT started.
+ *   drill  — active practice. Drill timer counts down from the
+ *            adjusted drill duration.
+ *   rating — Flying / Cruising / Crawling + optional extend.
+ *
+ * The prep-screen / countdown / rating UI that DRIVES these
+ * transitions ships in later steps. Phase 1 builds the state machine
+ * + timing capture; until a block is explicitly walked through prep,
+ * it starts directly in `drill` (legacy behavior — the whole block
+ * counts as drill time, prep/rating stay 0).
+ */
+export type BlockPhase = 'prep' | 'drill' | 'rating';
+
 export type PerformanceRating = 'flying' | 'cruising' | 'crawling';
 
 /**
@@ -90,6 +109,44 @@ export interface SessionBlock {
    * on advanceBlock / endSession if the session was still paused).
    */
   pausedMs: number;
+  // --- Prep-flow redesign: per-phase timing ----------------------
+  /**
+   * Which phase the running block is in. Only meaningful while
+   * `status === 'running'`; finalized blocks keep their last value
+   * but `phaseStartedAt` is nulled. Defaults to `drill` at start so
+   * the legacy (no-prep) flow accrues the whole block as drill time.
+   */
+  phase: BlockPhase;
+  /**
+   * Wall-clock (ms) when the CURRENT phase segment began. null when
+   * the block isn't accruing (pending / finalized). On a phase
+   * transition the leaving segment's active time is folded into the
+   * matching accumulator below and this resets to the new phase's
+   * start.
+   */
+  phaseStartedAt: number | null;
+  /** Cumulative active time (ms) spent in prep across all segments. */
+  prepMs: number;
+  /** Cumulative active time (ms) spent drilling across all segments
+   *  (a block can re-enter drill via a rating-screen extend). This is
+   *  the "true practice" time that feeds the efficiency metric. */
+  drillMs: number;
+  /** Cumulative active time (ms) spent on the rating screen. */
+  ratingMs: number;
+  /**
+   * Pause accrued within the CURRENT phase segment (ms). Resets to 0
+   * on each phase transition so the leaving segment's active time is
+   * computed correctly. Parallels `pausedMs` (whole-block) — both are
+   * bumped together on resume.
+   */
+  phasePausedMs: number;
+  /**
+   * Drill-timer duration in seconds after the user's prep-screen
+   * +/- adjustment. The drill timer counts down from this (+ any
+   * soft-block `extensionSeconds`). Defaults to `plannedSeconds` so
+   * an un-adjusted block behaves exactly as before.
+   */
+  adjustedDrillSeconds: number;
   /** Optional per-block rating, captured at advance/end time (Step 5c). */
   rating?: PerformanceRating;
 }
@@ -200,6 +257,30 @@ export interface SessionTimes {
   blockWallMs: number;
   /** Same as activeMs but scoped to the current block. 0 when no current block. */
   blockActiveMs: number;
+  // --- Prep-flow redesign: drill timer + phase ------------------
+  /** Current block's phase, or null when no current block. */
+  blockPhase: BlockPhase | null;
+  /**
+   * Cumulative active drill time (ms) for the current block —
+   * finalized drill segments plus the live segment when in `drill`.
+   * This is the count-UP "true practice" read. 0 when no current
+   * block.
+   */
+  drillElapsedMs: number;
+  /**
+   * Count-DOWN drill timer for the current segment (ms). When in
+   * `drill`, this is the time left of the adjusted drill duration
+   * (+ soft-block extension), clamped at 0. In `prep` it reads the
+   * full duration (drill hasn't started); in `rating` / no-block it
+   * is 0.
+   */
+  drillRemainingMs: number;
+  /**
+   * Active time (ms) in the CURRENT phase segment — used by the draft
+   * persistence to rebase the phase anchor on resume. 0 when no
+   * current block / not accruing.
+   */
+  blockPhaseActiveMs: number;
 }
 
 export interface StartSessionInput {
@@ -256,4 +337,14 @@ export type SessionTimerAction =
   | { type: 'set-active-module-ref'; moduleRef: string | null }
   | { type: 'extend-block'; mins: number }
   | { type: 'request-block-end'; now: number }
-  | { type: 'consume-block-end' };
+  | { type: 'consume-block-end' }
+  // --- Prep-flow redesign: phase transitions -------------------
+  /** Enter the prep phase for the current block (prep screen arrival). */
+  | { type: 'begin-prep'; now: number }
+  /** prep → drill (countdown "GO"). Drill timer starts counting down. */
+  | { type: 'start-drill'; now: number }
+  /** drill → rating (drill timer hit 0 or user moved on). */
+  | { type: 'complete-drill'; now: number }
+  /** Adjust the current block's drill duration by `deltaSeconds`
+   *  (prep-screen +/-). Clamped to [30s, plannedSeconds * 2]. */
+  | { type: 'adjust-drill-time'; deltaSeconds: number };

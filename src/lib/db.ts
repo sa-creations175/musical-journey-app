@@ -1321,6 +1321,20 @@ export interface PracticeSession {
    * pickRandomAffirmation (Step 4h).
    */
   affirmation: string | null;
+  // --- Prep-flow redesign: session timing breakdown --------------
+  /**
+   * Sum of per-block actual drill seconds across the session — the
+   * "true practice" total from the drill timers. Optional; null for
+   * sessions logged before the prep-flow redesign. Efficiency =
+   * totalDrillSeconds / wall-clock session seconds.
+   */
+  totalDrillSeconds?: number | null;
+  /**
+   * Wall-clock session seconds minus totalDrillSeconds — time spent
+   * prepping, rating, and navigating between blocks. Optional; null
+   * for pre-redesign sessions.
+   */
+  totalOverheadSeconds?: number | null;
 }
 
 /**
@@ -1354,6 +1368,26 @@ export interface PracticeBlock {
    *  reason about overhead vs `actualMinutes` (active practice
    *  time). */
   blockCompletedAt?: number | null;
+  // --- Prep-flow redesign: per-phase timing (seconds) ------------
+  // All optional + null for legacy rows. `actualMinutes` stays the
+  // coarse active-practice figure; these add the prep/drill/rating
+  // breakdown the prep-flow timers capture. Kept in seconds (not
+  // minutes) because drill blocks are often well under a minute.
+  /** Active seconds spent on the prep screen for this block. */
+  prepSeconds?: number | null;
+  /** Active seconds the drill timer actually ran (the "true
+   *  practice" figure; sums to PracticeSession.totalDrillSeconds). */
+  actualDrillSeconds?: number | null;
+  /** Active seconds spent on the rating screen. */
+  ratingSeconds?: number | null;
+  /** Drill duration in seconds after the user's prep-screen +/-
+   *  adjustment (vs `plannedMinutes` * 60, the proposed amount).
+   *  Reveals whether users consistently need more time on a block
+   *  type. */
+  adjustedDrillSeconds?: number | null;
+  /** Wall-clock seconds for the whole block (prep + drill + rating
+   *  + any pause) — the "true block duration". */
+  totalBlockSeconds?: number | null;
 }
 
 /**
@@ -1743,6 +1777,11 @@ export interface ActiveSessionDraft {
   savedSessionActiveMs: number;
   /** getTimes(state, savedAt).blockActiveMs at write time. */
   savedBlockActiveMs: number;
+  /** getTimes(state, savedAt).blockPhaseActiveMs at write time — the
+   *  current phase segment's active ms, used to rebase the phase
+   *  anchor on resume. Optional for drafts written before the
+   *  prep-flow redesign. */
+  savedPhaseActiveMs?: number;
   /** Date.now() at write time. */
   savedAt: number;
   updatedAt: number;
@@ -2725,6 +2764,67 @@ export class AppDB extends Dexie {
       songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
       etItemCuration: 'itemRef, updatedAt',
       // Single-row draft (key: 'current').
+      activeSessionDraft: 'key',
+    });
+
+    // v25 — Practice Session prep-flow redesign, Phase 1. Adds the
+    // three-timer breakdown:
+    //   PracticeSession: totalDrillSeconds + totalOverheadSeconds
+    //   PracticeBlock:   prepSeconds, actualDrillSeconds, ratingSeconds,
+    //                    adjustedDrillSeconds, totalBlockSeconds
+    //   ActiveSessionDraft: savedPhaseActiveMs
+    // All are non-indexed scalar fields, so .stores() is unchanged
+    // from v24 — this version exists only to document the additive
+    // schema change. No data migration; legacy rows leave the new
+    // fields undefined/null.
+    this.version(25).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage, learningOrder',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+      etItemCuration: 'itemRef, updatedAt',
       activeSessionDraft: 'key',
     });
   }
