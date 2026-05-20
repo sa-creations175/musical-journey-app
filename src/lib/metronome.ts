@@ -323,6 +323,22 @@ class Metronome {
     else void this.start('user');
   }
 
+  // Hard stop regardless of the driver stack. Used when the owning
+  // context tears down (e.g. a practice session ends) — the click must
+  // never outlive its session, no matter who started it or how many
+  // drivers are stacked.
+  forceStop() {
+    this.driverStack = [];
+    if (this.timer !== null) {
+      window.clearTimeout(this.timer);
+      this.timer = null;
+    }
+    if (this.state.playing) {
+      this.state = { ...this.state, playing: false };
+      this.emit();
+    }
+  }
+
   private scheduler = () => {
     if (!this.ctx) return;
     const lookaheadSec = 0.12;

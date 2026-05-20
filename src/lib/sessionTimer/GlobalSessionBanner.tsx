@@ -18,12 +18,13 @@
  * Pause / End buttons stop propagation so taps on them don't also
  * navigate.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
 import { formatActiveTime } from './formatActiveTime';
 import { moduleMetaById } from '../moduleMeta';
 import { formatDriftText, shouldShowDrift } from './drift';
+import { metronome } from '../metronome';
 import InstrumentSelector from '../../components/InstrumentSelector';
 import MetronomeControl from '../../components/MetronomeControl';
 
@@ -35,6 +36,19 @@ export function GlobalSessionBanner() {
   // status === 'running' || 'paused' guard at the top), so the
   // panel naturally resets to closed for the next session.
   const [audioPanelOpen, setAudioPanelOpen] = useState(false);
+
+  // The global metronome must never outlive its session. The user can
+  // only start it from this banner (and drills nest under it), so stop
+  // it whenever the session leaves the active/paused states — explicit
+  // "end session", advance-to-end, or reset — plus an unmount safety
+  // net. It intentionally keeps running across mid-session navigation
+  // (status stays 'running'), which is the whole point of a global
+  // click during practice.
+  const sessionActive = state.status === 'running' || state.status === 'paused';
+  useEffect(() => {
+    if (!sessionActive) metronome.forceStop();
+  }, [sessionActive]);
+  useEffect(() => () => metronome.forceStop(), []);
 
   if (state.status !== 'running' && state.status !== 'paused') return null;
 

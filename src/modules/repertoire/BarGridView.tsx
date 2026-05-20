@@ -1830,7 +1830,7 @@ function ChordEditorPopover({
 
   return (
     <div
-      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[16rem] rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md"
+      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[28rem] max-w-[90vw] rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md"
       onClick={e => e.stopPropagation()}
     >
       {onBeatsChange && (

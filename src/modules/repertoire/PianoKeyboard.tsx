@@ -38,9 +38,22 @@ const BLACK_ANCHORS: { afterWhite: number; pc: number }[] = [
 
 // Interval label relative to the chord root, by semitone offset.
 const INTERVAL_LABEL: Record<number, string> = {
-  0: 'R', 1: 'b2', 2: '2', 3: 'b3', 4: '3', 5: '4',
-  6: '#4', 7: '5', 8: 'b6', 9: '6', 10: 'b7', 11: '7',
+  0: 'R', 1: 'b2', 2: '9', 3: 'b3', 4: '3', 5: '4',
+  6: 'b5', 7: '5', 8: 'b6', 9: '6', 10: 'b7', 11: '7',
 };
+
+// Label text color that contrasts with a colored key fill: a dark shade
+// of the same hue for light fills, near-white for dark fills, so labels
+// stay legible across the whole interval color ramp.
+function labelColor(fill: string): string {
+  const h = fill.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+  if (luminance < 140) return '#ffffff';
+  return `rgb(${Math.round(r * 0.4)}, ${Math.round(g * 0.4)}, ${Math.round(b * 0.4)})`;
+}
 
 // viewBox geometry (scales to 100% width via the SVG viewBox).
 const WW = 24; // white-key width
@@ -130,13 +143,13 @@ export default function PianoKeyboard({
           stroke={isRoot ? '#111827' : '#d4d4d4'}
           strokeWidth={isRoot ? 2 : 1}
         />
-        {editable && (
+        {(hand || editable) && (
           <text
             x={x + WW / 2}
             y={WH - 8}
             textAnchor="middle"
-            fontSize={9}
-            fill={hand ? '#ffffff' : '#737373'}
+            fontSize={10}
+            fill={hand ? labelColor(colorForPc(pc)) : '#737373'}
           >
             {hand ? INTERVAL_LABEL[offsetOf(pc)] : names[pc]}
           </text>
@@ -170,13 +183,13 @@ export default function PianoKeyboard({
             stroke={isRoot ? '#f9fafb' : '#000000'}
             strokeWidth={isRoot ? 2 : 1}
           />
-          {editable && hand && (
+          {hand && (
             <text
               x={x + BW / 2}
               y={BH - 6}
               textAnchor="middle"
-              fontSize={7}
-              fill="#ffffff"
+              fontSize={8}
+              fill={labelColor(colorForPc(pc))}
             >
               {INTERVAL_LABEL[offsetOf(pc)]}
             </text>
