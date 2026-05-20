@@ -252,6 +252,7 @@ export type SessionTimerAction =
       markStatus?: 'completed' | 'skipped';
     }
   | { type: 'reset' }
+  | { type: 'restore'; state: SessionState }
   | { type: 'set-active-module-ref'; moduleRef: string | null }
   | { type: 'extend-block'; mins: number }
   | { type: 'request-block-end'; now: number }

@@ -82,6 +82,13 @@ export function sessionTimerReducer(
     case 'reset':
       return INITIAL_SESSION_STATE;
 
+    case 'restore':
+      // Replace state wholesale with a (rebased) snapshot recovered
+      // from the persisted draft. The caller (persistence layer) has
+      // already anchored timestamps to `now`, so the reducer just
+      // adopts it.
+      return action.state;
+
     case 'set-active-module-ref':
       return { ...state, activeModuleRef: action.moduleRef };
 

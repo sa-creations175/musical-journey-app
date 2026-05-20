@@ -1716,6 +1716,38 @@ export interface EtItemCuration {
   updatedAt: number;
 }
 
+/**
+ * In-progress session draft (v24). A single keyed record (`key:
+ * 'current'`) that mirrors the live session-timer state so a browser
+ * refresh / crash can offer to resume. Written while the session is
+ * running/paused (on every meaningful change + a 5s heartbeat) and
+ * cleared when the session ends normally or the user abandons the
+ * resume prompt.
+ *
+ * `state` is the full reducer SessionState blob (structural truth).
+ * The two `*ActiveMs` snapshots are captured at write time so the
+ * restore can rebase timestamps to the moment the user resumes —
+ * offline time (and resume-prompt decision time) is discarded rather
+ * than counted as practice.
+ */
+export interface ActiveSessionDraft {
+  /** Always 'current' — a single-row table. */
+  key: string;
+  sessionId: string;
+  status: 'running' | 'paused';
+  /** Full session-timer reducer snapshot. Typed loosely here to avoid
+   *  a runtime import cycle with the sessionTimer module; the
+   *  persistence layer casts it back to SessionState. */
+  state: import('./sessionTimer/types').SessionState;
+  /** getTimes(state, savedAt).activeMs at write time. */
+  savedSessionActiveMs: number;
+  /** getTimes(state, savedAt).blockActiveMs at write time. */
+  savedBlockActiveMs: number;
+  /** Date.now() at write time. */
+  savedAt: number;
+  updatedAt: number;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -1767,6 +1799,8 @@ export class AppDB extends Dexie {
   songKeyEngagements!: Table<SongKeyEngagement, string>;
   // ET per-item curation overlay — v23
   etItemCuration!: Table<EtItemCuration, string>;
+  // In-progress session draft for refresh/crash recovery — v24
+  activeSessionDraft!: Table<ActiveSessionDraft, string>;
 
   constructor() {
     super('musical-journey');
@@ -2638,6 +2672,61 @@ export class AppDB extends Dexie {
       // the ET catalog of ~150 items).
       etItemCuration: 'itemRef, updatedAt',
     });
+
+    // v24 — single-row in-progress session draft for refresh/crash
+    // recovery (Practice Session prep-flow redesign, Part 1). Additive
+    // table; no data migration.
+    this.version(24).stores({
+      intervals: 'id, name, semitones',
+      chordQualities: 'id, name, tier, family',
+      chordShapes: 'id, chordId, key, inversion',
+      songs: 'id, title, artist, addedDate, stage, learningOrder',
+      sessions: 'id, date, focus',
+      logicSkills: 'id, order',
+      producerStats: 'id, pillar',
+      quizStats: 'id, scope',
+      userPrefs: 'key',
+      attempts: '++id, timestamp, moduleId, [moduleId+itemId+direction]',
+      dailySummaries: '[date+moduleId], date, moduleId',
+      progressionAssociations: 'progressionId',
+      flashcardStates: 'cardId, nextReviewDate',
+      modeAssociations: 'modeId',
+      intervalDescriptions: 'intervalKey',
+      songSections: 'id, songId, order, [songId+order]',
+      songChords: 'id, songId, sectionId, [songId+sectionId+position]',
+      songPracticeLog: 'id, songId, timestamp, [songId+timestamp]',
+      songCrossKeyProgress: 'id, songId, sectionId, [songId+sectionId]',
+      wantToLearn: 'id, addedDate, priority',
+      drillSkills: 'id, kind, [kind+keyName+quality], [kind+keyName+scale], [kind+patternId+keyName], [kind+variant]',
+      drillTypes: 'id, skillId, [skillId+order]',
+      drillSessions: 'id, drillTypeId, skillId, timestamp, [skillId+timestamp], [drillTypeId+timestamp]',
+      creativeSessions: 'id, timestamp, mode, [mode+timestamp]',
+      skillAnnotations: 'skillId, priority, updatedAt',
+      harmonicDiaryEntries: 'entryId, skillId, lastEdited, legacySource',
+      productionLessons: 'id, pathId, [pathId+order], mastery, lastOpenedAt',
+      productionLessonSessions: 'id, lessonId, timestamp',
+      glossaryTermStates: 'id, mastery, lastEncounteredAt',
+      referenceTracks: 'id, artist, genre, archived, addedAt',
+      lessonReferenceTracks: 'id, lessonId, trackId, [lessonId+trackId]',
+      syncQueue: '++id, tableName, queuedAt, [tableName+queuedAt]',
+      practiceSessions: 'id, startedAt, sessionRole, dayProfileUsed',
+      practiceBlocks: 'id, sessionId, [sessionId+orderIndex]',
+      goals: 'id, scope, status, parentGoalId, targetDate, [scope+status]',
+      dayProfiles: 'id, name',
+      vacationPeriods: 'id, startDate, endDate',
+      proficiencyDefinitions: 'id, level, displayOrder',
+      spacingState: 'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef]',
+      prompts: 'id, status, tier, promptType, surface, expiresAt, createdAt, [status+tier]',
+      songMatrixSections: 'id, songId, displayOrder, [songId+displayOrder], isArchived',
+      songKeys: 'id, songId, keyName, isOriginalKey, keyState, solidDecayState, lastEngagedAt, [songId+keyName]',
+      songCells: 'id, songId, sectionId, songKeyId, cellState, [sectionId+songKeyId]',
+      songCellRunThroughs: 'id, cellId, songId, sectionId, songKeyId, createdAt, [cellId+createdAt]',
+      songKeyRunThroughs: 'id, songKeyId, songId, createdAt, isRetest, [songKeyId+createdAt]',
+      songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
+      etItemCuration: 'itemRef, updatedAt',
+      // Single-row draft (key: 'current').
+      activeSessionDraft: 'key',
+    });
   }
 }
 
@@ -2646,6 +2735,6 @@ export const db = new AppDB();
 // Dev-only: expose db on window for console debugging. Vite strips
 // the entire block from production builds via the import.meta.env.DEV
 // guard (it folds to `if (false)` and tree-shakes).
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && typeof window !== 'undefined') {
   (window as unknown as { db: AppDB }).db = db;
 }

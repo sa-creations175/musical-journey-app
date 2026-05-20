@@ -26,6 +26,10 @@ import {
   getTimes,
   sessionTimerReducer,
 } from './reducer';
+import {
+  clearActiveSessionDraft,
+  writeActiveSessionDraft,
+} from './activeSessionDraft';
 import type {
   PauseReason,
   PendingStartConfig,
@@ -71,6 +75,12 @@ export interface SessionTimerContextValue {
   endSession: (opts?: EndSessionOptions) => void;
   /** Returns to idle. Called from end-of-session "Done" (Step 6k). */
   reset: () => void;
+  /**
+   * Restore a session from a persisted draft (refresh/crash recovery).
+   * The caller passes an already-rebased SessionState (see
+   * activeSessionDraft.draftToSessionState); the reducer adopts it.
+   */
+  restoreSession: (next: SessionState) => void;
   setActiveModuleRef: (moduleRef: string | null) => void;
   /**
    * Bump the current block's extensionSeconds by `mins` minutes.
@@ -150,6 +160,36 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => dispatch({ type: 'reset' }), []);
 
+  const restoreSession = useCallback((next: SessionState) => {
+    dispatch({ type: 'restore', state: next });
+  }, []);
+
+  // --- Persistence (refresh / crash recovery) --------------------
+  // Mirror the live session into Dexie so a reload can offer to resume.
+  // Write on every meaningful state change while running/paused; clear
+  // on a normal end. Intentionally NOT cleared on 'idle' — the initial
+  // idle (and reset-after-end) must not wipe a resumable draft before
+  // ResumeSessionGate reads it (a real end already cleared it).
+  useEffect(() => {
+    if (state.status === 'running' || state.status === 'paused') {
+      void writeActiveSessionDraft(state);
+    } else if (state.status === 'ended') {
+      void clearActiveSessionDraft();
+    }
+  }, [state]);
+
+  // Heartbeat: refresh the draft's time snapshot every 5s while running
+  // so a crash loses at most ~5s of elapsed time. The timestamps in
+  // `state` don't change between ticks, but writeActiveSessionDraft
+  // recomputes the active-ms snapshot against the current clock.
+  useEffect(() => {
+    if (state.status !== 'running') return;
+    const id = window.setInterval(() => {
+      void writeActiveSessionDraft(state);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [state]);
+
   const setActiveModuleRef = useCallback((moduleRef: string | null) => {
     dispatch({ type: 'set-active-module-ref', moduleRef });
   }, []);
@@ -177,6 +217,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       advanceBlock,
       endSession,
       reset,
+      restoreSession,
       setActiveModuleRef,
       extendCurrentBlock,
       requestBlockEnd,
@@ -192,6 +233,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       advanceBlock,
       endSession,
       reset,
+      restoreSession,
       setActiveModuleRef,
       extendCurrentBlock,
       requestBlockEnd,
