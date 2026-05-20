@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   chordRootNote,
   degreeColor,
+  intervalColor,
+  normalizeVoicing,
   notesFromVoicing,
   semitonesFromRoot,
 } from '../voicingHelpers';
@@ -94,6 +96,65 @@ describe('notesFromVoicing', () => {
     const offsets = [0, 3, 7, 10]; // m7
     const names = notesFromVoicing(root, offsets);
     expect(semitonesFromRoot(root, names)).toEqual(offsets);
+  });
+});
+
+describe('intervalColor', () => {
+  it('maps each semitone interval to its color', () => {
+    expect(intervalColor(0)).toBe('#0F6E56'); // root
+    expect(intervalColor(1)).toBe('#E24B4A'); // b2/b9
+    expect(intervalColor(2)).toBe('#D4537E'); // maj2/9
+    expect(intervalColor(3)).toBe('#5DCAA5'); // min3/#9
+    expect(intervalColor(4)).toBe('#97C459'); // maj3
+    expect(intervalColor(5)).toBe('#534AB7'); // 4th/11th
+    expect(intervalColor(6)).toBe('#E24B4A'); // tritone
+    expect(intervalColor(7)).toBe('#888780'); // 5th
+    expect(intervalColor(8)).toBe('#185FA5'); // #5/b6
+    expect(intervalColor(9)).toBe('#378ADD'); // 6th/13th
+    expect(intervalColor(10)).toBe('#BA7517'); // min7/dom7
+    expect(intervalColor(11)).toBe('#FAC775'); // maj7
+  });
+
+  it('shares a color across enharmonic / octave equivalents', () => {
+    // b2 ≡ b9, #4 ≡ b5, #5 ≡ b6, #9 ≡ m3, 4 ≡ 11, 6 ≡ 13 — all by
+    // semitone class, so these are inherent to the 0–11 mapping.
+    expect(intervalColor(1)).toBe(intervalColor(13)); // b9 wraps to b2
+    expect(intervalColor(5)).toBe(intervalColor(17)); // 11th wraps to 4th
+    expect(intervalColor(9)).toBe(intervalColor(21)); // 13th wraps to 6th
+  });
+
+  it('normalizes out-of-range and negative input', () => {
+    expect(intervalColor(12)).toBe('#0F6E56'); // wraps to root
+    expect(intervalColor(-1)).toBe('#FAC775'); // wraps to maj7
+  });
+});
+
+describe('normalizeVoicing', () => {
+  it('reads legacy plain-number offsets as right-hand tones', () => {
+    expect(normalizeVoicing([0, 4, 7])).toEqual([
+      { offset: 0, hand: 'R' },
+      { offset: 4, hand: 'R' },
+      { offset: 7, hand: 'R' },
+    ]);
+  });
+
+  it('passes entry objects through unchanged', () => {
+    const entries = [
+      { offset: 0, hand: 'L' as const },
+      { offset: 7, hand: 'R' as const },
+    ];
+    expect(normalizeVoicing(entries)).toEqual(entries);
+  });
+
+  it('handles a mix of legacy numbers and entries', () => {
+    expect(normalizeVoicing([0, { offset: 4, hand: 'L' }])).toEqual([
+      { offset: 0, hand: 'R' },
+      { offset: 4, hand: 'L' },
+    ]);
+  });
+
+  it('returns [] for undefined', () => {
+    expect(normalizeVoicing(undefined)).toEqual([]);
   });
 });
 

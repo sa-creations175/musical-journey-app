@@ -7,10 +7,17 @@ import {
 import type { DraggableAttributes } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { ChordFunction, LyricLine, Song, SongSection } from '../../lib/db';
+import type {
+  ChordFunction,
+  LyricLine,
+  Song,
+  SongSection,
+  VoicingEntry,
+  VoicingHand,
+} from '../../lib/db';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
 import { pitchClassOf } from './chordParser';
-import { chordRootNote } from './voicingHelpers';
+import { chordRootNote, normalizeVoicing } from './voicingHelpers';
 import PianoKeyboard from './PianoKeyboard';
 import { useNotationMode } from '../../lib/notationPref';
 import {
@@ -79,11 +86,11 @@ interface Props {
    *  placement from section.chordPlacements (caller reconciles
    *  barLayout). The popover closes once this resolves. */
   onChordDelete?: (placementId: string) => Promise<void> | void;
-  /** Save a piano voicing (pitch-class semitone offsets from the chord
-   *  root) from the chord-edit popover. */
+  /** Save a piano voicing (octave-aware offset/hand entries) from the
+   *  chord-edit popover. */
   onChordVoicingChange?: (
     placementId: string,
-    voicing: number[],
+    voicing: VoicingEntry[],
   ) => Promise<void> | void;
   /** Whether chord cells render as sortable (drag-to-reorder). Drag
    *  end is handled by the parent DndContext; this flag just tells
@@ -374,7 +381,7 @@ export default function BarGridView({
     : undefined;
 
   const handleVoicing = onChordVoicingChange
-    ? async (cell: BarCell, voicing: number[]) => {
+    ? async (cell: BarCell, voicing: VoicingEntry[]) => {
         await onChordVoicingChange(cell.placementId, voicing);
       }
     : undefined;
@@ -822,7 +829,7 @@ function BarBox({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   onDelete?: (cell: BarCell) => void | Promise<void>;
-  onVoicingChange?: (cell: BarCell, voicing: number[]) => void | Promise<void>;
+  onVoicingChange?: (cell: BarCell, voicing: VoicingEntry[]) => void | Promise<void>;
   onCopyChord?: (chord: ChordFunction) => void;
   copiedChord?: ChordFunction | null;
   foundationMode: boolean;
@@ -1740,7 +1747,7 @@ function ChordEditorPopover({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   onDelete?: (cell: BarCell) => void | Promise<void>;
-  onVoicingChange?: (cell: BarCell, voicing: number[]) => void | Promise<void>;
+  onVoicingChange?: (cell: BarCell, voicing: VoicingEntry[]) => void | Promise<void>;
   onCopyChord?: (chord: ChordFunction) => void;
 }) {
   // Source-of-truth beat count is `cell.beats` (= placement.beats).
@@ -1771,24 +1778,29 @@ function ChordEditorPopover({
   const hasVoicing = Boolean(savedVoicing && savedVoicing.length > 0);
   const preferFlats = sectionKey ? keyPrefersFlats(sectionKey) : true;
   const [editingVoicing, setEditingVoicing] = useState(false);
-  const [draftVoicing, setDraftVoicing] = useState<number[]>([]);
+  const [draftVoicing, setDraftVoicing] = useState<VoicingEntry[]>([]);
 
   const beginEditVoicing = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setDraftVoicing(savedVoicing ?? []);
+    setDraftVoicing(normalizeVoicing(savedVoicing));
     setEditingVoicing(true);
   };
-  const toggleVoicingOffset = (offset: number) => {
+  // Tap a key: if its offset is already present (any hand) remove it,
+  // otherwise add it with the hand the keyboard's L/R pill has selected.
+  const toggleVoicingOffset = (offset: number, hand: VoicingHand) => {
     setDraftVoicing(prev =>
-      prev.includes(offset)
-        ? prev.filter(o => o !== offset)
-        : [...prev, offset].sort((a, b) => a - b),
+      prev.some(e => e.offset === offset)
+        ? prev.filter(e => e.offset !== offset)
+        : [...prev, { offset, hand }].sort((a, b) => a.offset - b.offset),
     );
   };
   const saveVoicing = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onVoicingChange) return;
-    void onVoicingChange(cell, [...draftVoicing].sort((a, b) => a - b));
+    void onVoicingChange(
+      cell,
+      [...draftVoicing].sort((a, b) => a.offset - b.offset),
+    );
     setEditingVoicing(false);
   };
   const cancelVoicing = (e: React.MouseEvent) => {
@@ -1972,7 +1984,6 @@ function ChordEditorPopover({
             <div onClick={e => e.stopPropagation()}>
               <PianoKeyboard
                 rootPc={rootPc}
-                degree={cell.chord.function}
                 preferFlats={preferFlats}
                 voicing={editingVoicing ? draftVoicing : savedVoicing ?? []}
                 editable={editingVoicing}

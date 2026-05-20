@@ -5,6 +5,7 @@ import type {
   Phrase,
   Song,
   SongSection,
+  VoicingEntry,
 } from '../../lib/db';
 import { normalizePhrase } from './beatsModel';
 
@@ -195,10 +196,10 @@ export interface BarCell {
   phraseId?: string;
   /** Legacy source beat id. Pair with `phraseId`. */
   beatId?: string;
-  /** Pitch-class semitone offsets from the chord root (Option C
-   *  bar-anchored placements only). Mirrors `ChordPlacement.voicing`;
-   *  undefined for legacy cells. */
-  voicing?: number[];
+  /** Piano voicing (Option C bar-anchored placements only). Mirrors
+   *  `ChordPlacement.voicing` — octave-aware offset/hand entries, with
+   *  legacy plain numbers tolerated. Undefined for legacy cells. */
+  voicing?: Array<number | VoicingEntry>;
 }
 
 export interface Bar {

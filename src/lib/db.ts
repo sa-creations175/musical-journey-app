@@ -373,6 +373,17 @@ export interface SongSection {
  *  C). Each placement carries its own `(barIndex, beatPos)` anchor
  *  plus the chord description and duration, untethered from the
  *  phrase/beat lyric structure. Stored on `SongSection.chordPlacements`. */
+/** Which hand plays a voicing tone, for the L/R color split in the
+ *  piano voicing editor. */
+export type VoicingHand = 'L' | 'R';
+
+/** One tone in a piano voicing: an octave-aware semitone offset from
+ *  the chord root plus the hand it's assigned to. */
+export interface VoicingEntry {
+  offset: number;
+  hand: VoicingHand;
+}
+
 export interface ChordPlacement {
   /** Unique placement id (crypto.randomUUID at creation). Used as
    *  the dnd-kit sortable/droppable id (`chord:${id}`) and as the
@@ -394,16 +405,19 @@ export interface ChordPlacement {
    *  state lives in one record. */
   chord: ChordFunction;
   /** Piano voicing as octave-aware semitone offsets from the chord
-   *  root across the editor's two octaves: offset = pcOffsetFromRoot +
-   *  12 * displayOctave, so 0–11 land in the first octave and 12–23 in
-   *  the second (e.g. a root-position maj7 in octave 1 = [0,4,7,11]).
-   *  Key-agnostic — the bar-grid chord-edit popover resolves these to
-   *  absolute notes at render time from song.key + chord.function, so a
-   *  voicing transposes automatically when the song key changes.
-   *  (Legacy voicings stored as pure pitch-class offsets are all 0–11
-   *  and remain valid — they render in the first octave.) Optional
-   *  JSONB field on the placement — no Dexie version bump. */
-  voicing?: number[];
+   *  root across the editor's three octaves: offset = pcOffsetFromRoot +
+   *  12 * displayOctave, so 0–11 land in the first octave, 12–23 in the
+   *  second, and 24–35 in the third (e.g. a root-position maj7 in
+   *  octave 1 = [0,4,7,11]). Key-agnostic — the bar-grid chord-edit
+   *  popover resolves these to absolute notes at render time from
+   *  song.key + chord.function, so a voicing transposes automatically
+   *  when the song key changes. Each tone carries the hand that plays
+   *  it (`{ offset, hand }`) for the L/R color split. (Legacy voicings
+   *  stored as plain numbers are read as right-hand offsets — see
+   *  `normalizeVoicing` — and remain valid; first-octave-only ones are
+   *  all 0–11.) Optional JSONB field on the placement — no Dexie
+   *  version bump. */
+  voicing?: Array<number | VoicingEntry>;
 }
 
 /** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,

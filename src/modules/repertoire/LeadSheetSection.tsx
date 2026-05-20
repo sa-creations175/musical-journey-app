@@ -18,6 +18,7 @@ import type {
   Phrase,
   Song,
   SongSection,
+  VoicingEntry,
 } from '../../lib/db';
 import {
   DEFAULT_STAGE,
@@ -365,13 +366,13 @@ export default function LeadSheetSection({
     });
   };
 
-  // Save a piano voicing onto a chord placement. Stores pitch-class
-  // semitone offsets from the chord root (key-agnostic). Mirrors
+  // Save a piano voicing onto a chord placement. Stores octave-aware
+  // offset/hand entries from the chord root (key-agnostic). Mirrors
   // handleChordBeatsChange; no barLayout reconcile needed since a
   // voicing doesn't change bar occupancy. Undoable via the stack.
   const handleChordVoicingChange = async (
     placementId: string,
-    voicing: number[],
+    voicing: VoicingEntry[],
   ) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
     const next = updateChordPlacement(placements, realPlacementId, { voicing });
