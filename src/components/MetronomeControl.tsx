@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   GROOVE_LABEL,
+  PREF_BPM,
+  PREF_GROOVE,
+  PREF_TIME_SIG,
+  PREF_VOLUME,
   TIME_SIG_BEATS,
   metronome,
   type GrooveId,
@@ -8,11 +12,6 @@ import {
 } from '../lib/metronome';
 import { useMetronomeState } from '../lib/useMetronome';
 import { getPref, setPref } from '../lib/userPrefs';
-
-const PREF_BPM = 'metronomeBpm';
-const PREF_GROOVE = 'metronomeGroove';
-const PREF_TIME_SIG = 'metronomeTimeSig';
-const PREF_VOLUME = 'metronomeVolume';
 
 const GROOVE_IDS: GrooveId[] = [
   'click', 'drum-basic', 'gospel', 'rnb-neosoul', 'jazz-swing', 'hip-hop', 'shuffle',

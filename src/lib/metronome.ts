@@ -9,6 +9,15 @@
 // module import cheap.
 
 import { ensureRunning } from './audio';
+import { getPref } from './userPrefs';
+
+// userPrefs keys for the metronome's persisted settings. Exported so
+// MetronomeControl (the writer) and the eager hydration below share one
+// source of truth — divergent keys would silently break persistence.
+export const PREF_BPM = 'metronomeBpm';
+export const PREF_GROOVE = 'metronomeGroove';
+export const PREF_TIME_SIG = 'metronomeTimeSig';
+export const PREF_VOLUME = 'metronomeVolume';
 
 export type GrooveId =
   | 'click'
@@ -417,3 +426,29 @@ class Metronome {
 // Global singleton. Everyone who needs the metronome imports from
 // here; there's only ever one instance running per tab.
 export const metronome = new Metronome();
+
+// Eagerly restore the user's last-used settings so the FIRST use of the
+// metronome in a session (compact banner toggle, drill auto-start, or
+// the audio panel) reflects the saved style — not the 'click' default.
+// MetronomeControl also hydrates on mount and writes changes back; this
+// runs once at module load so the singleton is correct even if that
+// panel is never opened. Fire-and-forget — on any failure the
+// DEFAULT_STATE stands.
+void (async () => {
+  try {
+    const [bpm, groove, timeSig, volume] = await Promise.all([
+      getPref<number>(PREF_BPM, DEFAULT_STATE.bpm),
+      getPref<GrooveId>(PREF_GROOVE, DEFAULT_STATE.groove),
+      getPref<TimeSig>(PREF_TIME_SIG, DEFAULT_STATE.timeSig),
+      getPref<number>(PREF_VOLUME, DEFAULT_STATE.volume),
+    ]);
+    metronome.update({
+      bpm: Math.max(40, Math.min(220, bpm)),
+      groove: groove in GROOVE_LABEL ? groove : DEFAULT_STATE.groove,
+      timeSig: timeSig in TIME_SIG_BEATS ? timeSig : DEFAULT_STATE.timeSig,
+      volume: Math.max(0, Math.min(1, volume)),
+    });
+  } catch {
+    // Persistence unavailable — keep DEFAULT_STATE.
+  }
+})();
