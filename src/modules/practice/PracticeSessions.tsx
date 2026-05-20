@@ -438,14 +438,20 @@ export default function PracticeSessions() {
     opts: { hardBlock: boolean },
   ) => {
     if (card.blocks.length === 0) return;
-    // Single source of truth for route + arm payload, derived only
-    // from `card.blocks` — which is the user's (possibly reordered)
-    // block list as ProposalCard hands it back via the Start
-    // button's onClick spreading `{ ...data, blocks: orderedBlocks }`.
-    // The resolver iterates the list in order, so any reorder the
-    // user applied flows through to both the navigate target and
-    // the armed session's currentBlockIndex=0 landing.
-    const { startRoute, armBlocks } = resolveProposalStart(card.blocks);
+    // Single source of truth for the arm payload, derived only from
+    // `card.blocks` — the user's (possibly reordered) block list as
+    // ProposalCard hands it back via the Start button's onClick
+    // spreading `{ ...data, blocks: orderedBlocks }`. The resolver
+    // iterates the list in order, so any reorder the user applied
+    // flows through to the armed session's currentBlockIndex=0
+    // landing.
+    //
+    // Prep-flow redesign: we navigate to the active-session screen
+    // (the prep screen for block 1) rather than straight to the first
+    // block's module. The session `start` fires on arrival there
+    // (useStartArmedSessionOnArrival), so the block timer begins at
+    // prep and module navigation is deferred to GO (step 3).
+    const { armBlocks } = resolveProposalStart(card.blocks);
 
     // Persist the intent kind the user committed to. Surfaces as a
     // "Last time: …" hint on the next questionnaire open — purely
@@ -465,7 +471,7 @@ export default function PracticeSessions() {
       context: lastInputs?.context ?? 'keys',
       blocks: armBlocks,
     });
-    navigate(startRoute);
+    navigate('/practice-sessions/active');
   };
 
   // -------------------------------------------------------------

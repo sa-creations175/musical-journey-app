@@ -79,17 +79,13 @@ export function GlobalSessionBanner() {
   const blockAccent = blockMeta?.accentHex ?? accent;
   const blockModuleLabel = blockMeta?.label ?? activeBlock?.moduleRef ?? '';
 
-  // Block countdown — clamps to 0 when the user runs over the
-  // planned-plus-extension duration. Extension is reducer state, so
-  // tapping an extend pill in the global expiry modal updates this
-  // immediately. Soft-block pills + hard-block grace are surfaced by
-  // BlockExpiryModal (mounted globally in Layout), not here.
-  const blockTotalMs = activeBlock
-    ? (activeBlock.plannedSeconds + activeBlock.extensionSeconds) * 1000
-    : 0;
-  const blockRemainingMs = activeBlock
-    ? Math.max(0, blockTotalMs - times.blockActiveMs)
-    : 0;
+  // Block countdown = the DRILL timer (prep-flow). Reads the full
+  // adjusted drill duration during prep (frozen preview), counts down
+  // while drilling, and clamps to 0 in rating / overtime — so prep
+  // and rating time don't visibly eat the clock. Extension + the
+  // prep-screen +/- adjustment both flow in via getTimes. The richer
+  // drill-timer banner treatment (warning chime, etc.) is step 5.
+  const blockRemainingMs = activeBlock ? times.drillRemainingMs : 0;
 
   const isPaused = state.status === 'paused';
   const driftActive = shouldShowDrift(times);

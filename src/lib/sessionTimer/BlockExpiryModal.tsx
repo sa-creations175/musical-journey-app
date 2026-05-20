@@ -55,22 +55,28 @@ export function BlockExpiryModal() {
     extendCurrentBlock,
     advanceBlock,
     requestBlockEnd,
+    completeDrill,
   } = useSessionTimer();
   const times = useSessionTimes();
 
   const currentBlock =
     state.currentBlockIndex !== null ? state.blocks[state.currentBlockIndex] : null;
 
-  const totalMs = currentBlock
-    ? (currentBlock.plannedSeconds + currentBlock.extensionSeconds) * 1000
+  // Prep-flow: the DRILL timer is the countdown — not whole-block
+  // active time. Prep/rating time never trips this, and a slow prep
+  // can't fire the modal mid-setup.
+  const drillTotalMs = currentBlock
+    ? (currentBlock.adjustedDrillSeconds + currentBlock.extensionSeconds) * 1000
     : 0;
-  const remainingMs = currentBlock ? Math.max(0, totalMs - times.blockActiveMs) : 0;
   const isOvertime =
-    !!currentBlock && times.blockActiveMs >= totalMs && totalMs > 0;
+    !!currentBlock &&
+    times.blockPhase === 'drill' &&
+    drillTotalMs > 0 &&
+    times.drillRemainingMs <= 0;
 
-  // Open exactly when a running session has crossed the planned (+ ext)
-  // duration. Paused sessions don't fire — the user hit pause for a
-  // reason and we shouldn't ambush them with a modal.
+  // Open exactly when a running session's drill timer has crossed 0.
+  // Paused sessions don't fire — the user hit pause for a reason and
+  // we shouldn't ambush them with a modal.
   const open = !!currentBlock && state.status === 'running' && isOvertime;
 
   // -----------------------------------------------------------------
@@ -167,17 +173,20 @@ export function BlockExpiryModal() {
   function handleAdvance() {
     advancedRef.current = true;
     if (isLastBlock) {
-      // No hand-off — last block auto-ends the session in advanceBlock.
+      // No hand-off — last block auto-ends the session in advanceBlock,
+      // whose finalize folds the (over)drill time into drillMs.
       advanceBlock({ markStatus: 'completed' });
       return;
     }
+    // Finalize the drill into the rating phase before the hand-off so
+    // drillMs captures the actual (possibly overtime) drill, matching
+    // the manual "end this activity" path. complete-drill runs while
+    // still running; request-block-end then pauses + flags the
+    // rating hand-off for the active-session screen.
+    completeDrill();
     requestBlockEnd();
     navigate(PRACTICE_SESSIONS_ACTIVE_ROUTE);
   }
-
-  // Suppress remaining seconds going stale during grace UI: the timer
-  // ticks via useSessionTimes, so this just shows what's actually on.
-  void remainingMs;
 
   return createPortal(
     <div

@@ -50,11 +50,24 @@ import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import type { PerformanceRating } from '../../lib/sessionTimer/types';
 import EndOfSessionSummary from './EndOfSessionSummary';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import MetronomeControl from '../../components/MetronomeControl';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
 
-type Phase = 'running' | 'rating';
+// Prep-screen time-adjustment pills. Deltas in seconds; the reducer
+// clamps the result to [30s, plannedSeconds * 2].
+const DRILL_ADJUST_OPTIONS: ReadonlyArray<{ label: string; deltaSec: number }> = [
+  { label: '+1 min', deltaSec: 60 },
+  { label: '+2 min', deltaSec: 120 },
+  { label: '+5 min', deltaSec: 300 },
+  { label: '−30s', deltaSec: -30 },
+];
+
+// prep   — configure BPM/style + drill duration, then tap Ready.
+// running— active drill; the drill timer counts down.
+// rating — Flying / Cruising / Crawling + next-block preview.
+type Phase = 'prep' | 'running' | 'rating';
 
 interface RatingOption {
   value: PerformanceRating;
@@ -100,18 +113,28 @@ export default function ActiveSessionScreen() {
     resumeSession,
     reset,
     consumeBlockEndRequest,
+    beginPrep,
+    startDrill,
+    completeDrill,
+    adjustDrillTime,
   } = useSessionTimer();
   const times = useSessionTimes();
 
-  const [phase, setPhase] = useState<Phase>('running');
+  const [phase, setPhase] = useState<Phase>('prep');
   const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
 
-  // Reset per-block UI state on block change.
+  // Each block opens on its prep screen. On block change (start or
+  // advance) reset to prep and move the reducer's block phase to
+  // 'prep' so the drill timer stays idle until the user taps Ready.
+  // The blockEndRequested effect below overrides to 'rating' when the
+  // global expiry modal hands off mid-block.
   useEffect(() => {
-    setPhase('running');
+    if (state.currentBlockIndex === null) return;
+    setPhase('prep');
     setPendingRating(null);
-  }, [state.currentBlockIndex]);
+    beginPrep();
+  }, [state.currentBlockIndex, beginPrep]);
 
   // Cross-screen handoff from the global BlockExpiryModal: when the
   // user taps "Next block" there, the modal dispatches
@@ -142,13 +165,19 @@ export default function ActiveSessionScreen() {
     }
   }, []);
 
-  // Bounce off the screen when there's no session.
+  // Bounce off the screen when there's no session — UNLESS one is
+  // armed (pendingStart). The prep-flow lands here first; the Layout
+  // start hook fires startSession on this route, flipping idle →
+  // running within a frame, so we wait rather than bounce.
   useEffect(() => {
-    if (state.status === 'idle') {
+    if (state.status === 'idle' && !state.pendingStart) {
       navigate(PRACTICE_SESSIONS_HOME_ROUTE, { replace: true });
     }
-  }, [state.status, navigate]);
+  }, [state.status, state.pendingStart, navigate]);
 
+  // idle + armed: render nothing for the one frame until the start
+  // hook promotes the session to running. idle + not armed: the
+  // effect above is routing us home; render nothing meanwhile.
   if (state.status === 'idle') return null;
 
   const currentBlock =
@@ -166,10 +195,13 @@ export default function ActiveSessionScreen() {
   // the module's default route.
   const route = currentBlock.quickLaunchRoute ?? moduleMeta?.route ?? null;
 
-  const elapsedSec = Math.floor(times.blockActiveMs / 1000);
-  const totalSec = currentBlock.plannedSeconds + currentBlock.extensionSeconds;
-  const remainingSec = Math.max(0, totalSec - elapsedSec);
-  const isOvertime = elapsedSec >= totalSec;
+  // The drill timer is the countdown source of truth — prep + rating
+  // time don't touch it. `drillRemainingMs` reads the full adjusted
+  // duration during prep (preview) and counts down once drilling.
+  const drillRemainingMs = times.drillRemainingMs;
+  const adjustedDrillSec =
+    currentBlock.adjustedDrillSeconds + currentBlock.extensionSeconds;
+  const isOvertime = times.blockPhase === 'drill' && drillRemainingMs <= 0;
   const isEnded = state.status === 'ended';
 
   const handleQuickLaunch = () => {
@@ -178,10 +210,20 @@ export default function ActiveSessionScreen() {
     navigate(route);
   };
 
-  // 5c — End now transitions to the rating phase rather than
-  // advancing immediately. Pause keeps activeMs honest while the
-  // user takes their time choosing a rating.
+  // Prep → drill. Tapping Ready starts the drill timer (start-drill
+  // folds prep time into prepMs and anchors the drill segment). The
+  // 4-3-2-1 countdown (step 4) will later sit between Ready and this.
+  const handleReady = () => {
+    startDrill();
+    setPhase('running');
+  };
+
+  // End now transitions to the rating phase rather than advancing
+  // immediately. complete-drill finalizes drillMs + moves the block
+  // to its rating phase; the pause keeps the rating window from
+  // counting as drill time while the user chooses.
   const handleEndActivity = () => {
+    completeDrill();
     pauseSession({ reason: 'manual' });
     setPhase('rating');
   };
@@ -197,55 +239,22 @@ export default function ActiveSessionScreen() {
   // to a downstream song / cell and shouldn't be skipped on their
   // own — skipping the parent block is the right escape hatch.
   const handleSkipBlock = () => {
-    const isLast =
-      state.currentBlockIndex !== null &&
-      state.currentBlockIndex >= state.blocks.length - 1;
-    const nextBlock =
-      !isLast && state.currentBlockIndex !== null
-        ? state.blocks[state.currentBlockIndex + 1]
-        : null;
-    const nextMeta = nextBlock ? moduleMetaById(nextBlock.moduleRef) : null;
-
     advanceBlock({ markStatus: 'skipped' });
-
-    // Mirror handleRatingNext: hand the user to the next block's
-    // module. On the last block, advanceBlock auto-ends — stay put
-    // so the 'ended'-status branch renders EndOfSessionSummary.
-    const nextRoute = nextBlock?.quickLaunchRoute ?? nextMeta?.route ?? null;
-    if (nextBlock && nextRoute) {
-      setActiveModuleRef(nextBlock.moduleRef);
-      navigate(nextRoute);
-    }
+    // Stay on the active-session screen — the per-block effect opens
+    // the next block's prep screen. On the last block, advanceBlock
+    // auto-ends so the 'ended'-status branch renders the summary.
   };
 
   const handleRatingNext = () => {
-    const isLast =
-      state.currentBlockIndex !== null &&
-      state.currentBlockIndex >= state.blocks.length - 1;
-    const nextBlock =
-      !isLast && state.currentBlockIndex !== null
-        ? state.blocks[state.currentBlockIndex + 1]
-        : null;
-    const nextMeta = nextBlock ? moduleMetaById(nextBlock.moduleRef) : null;
-
     resumeSession();
     advanceBlock({
       rating: pendingRating ?? undefined,
       markStatus: 'completed',
     });
-
-    // Auto-navigate into the next block's module, mirroring the
-    // session-start flow (PracticeSessions.handleProposalAccept).
-    // The active session screen is the between-blocks surface; the
-    // module is where the user actually practices.
-    const nextRoute = nextBlock?.quickLaunchRoute ?? nextMeta?.route ?? null;
-    if (nextBlock && nextRoute) {
-      setActiveModuleRef(nextBlock.moduleRef);
-      navigate(nextRoute);
-    }
-    // For the last block, advanceBlock auto-ends the session. Stay
-    // on this screen so the 'ended'-status branch renders the
-    // EndOfSessionSummary.
+    // Stay here — the per-block effect opens the next block's prep
+    // screen (module navigation now happens on GO, step 3). For the
+    // last block, advanceBlock auto-ends the session and the
+    // 'ended'-status branch renders the EndOfSessionSummary.
   };
 
   const handleEndSessionEarly = () => {
@@ -269,6 +278,120 @@ export default function ActiveSessionScreen() {
 
   if (isEnded) {
     return <EndOfSessionSummary />;
+  }
+
+  // -------------------------------------------------------------
+  // Prep phase — the only configuration surface. Block timer is
+  // already running (started on arrival / advance); the drill timer
+  // stays idle until Ready. All metronome config lives here via the
+  // shared MetronomeControl (last-used settings persist).
+  // -------------------------------------------------------------
+  if (phase === 'prep') {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+        <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
+          Block {(state.currentBlockIndex ?? 0) + 1} of {state.blocks.length}
+        </div>
+
+        <section
+          className="rounded-lg border p-5 sm:p-6 space-y-5"
+          style={{
+            backgroundColor: `${accent}14`,
+            borderColor: accent,
+            borderLeftWidth: 3,
+          }}
+        >
+          <header className="space-y-1">
+            <div
+              className="text-[11px] uppercase tracking-wider font-medium"
+              style={{ color: accent }}
+            >
+              Up next · {moduleLabel}
+            </div>
+            <h2 className="text-lg font-medium text-neutral-800 dark:text-neutral-100">
+              {currentBlock.label ?? currentBlock.moduleRef}
+            </h2>
+          </header>
+
+          {/* Drill duration + inline adjustment. */}
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+                drill time
+              </span>
+              <span
+                className="font-mono tabular-nums text-2xl"
+                style={{ color: accent }}
+              >
+                {formatActiveTime(adjustedDrillSec * 1000)}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {DRILL_ADJUST_OPTIONS.map(opt => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => adjustDrillTime(opt.deltaSec)}
+                  className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent text-xs font-medium"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Metronome — BPM / groove / on-off. Settings persist. */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+              metronome
+            </span>
+            <MetronomeControl />
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={handleReady}
+          className="w-full px-3 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
+        >
+          Ready — start drill
+        </button>
+
+        <div className="flex items-center justify-center gap-4">
+          {!currentBlock.isWarmup && (
+            <>
+              <button
+                type="button"
+                onClick={handleSkipBlock}
+                className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+                title="advance past this block without logging it as completed"
+              >
+                skip this block
+              </button>
+              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setDiscardOpen(true)}
+            className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
+          >
+            discard session
+          </button>
+        </div>
+
+        <ConfirmDialog
+          open={discardOpen}
+          title="Discard this session?"
+          message="Your progress won't be saved."
+          confirmLabel="Yes, discard"
+          cancelLabel="Keep practicing"
+          variant="danger"
+          onConfirm={handleDiscardConfirm}
+          onCancel={() => setDiscardOpen(false)}
+        />
+      </div>
+    );
   }
 
   // -------------------------------------------------------------
@@ -439,10 +562,10 @@ export default function ActiveSessionScreen() {
             className="font-mono tabular-nums text-6xl"
             style={{ color: isOvertime ? accent : undefined }}
           >
-            {formatActiveTime(remainingSec * 1000)}
+            {formatActiveTime(drillRemainingMs)}
           </div>
           <div className="text-[10px] uppercase tracking-wider text-neutral-500 mt-1">
-            {isOvertime ? 'time’s up' : 'remaining'}
+            {isOvertime ? 'time’s up' : 'drill time'}
           </div>
         </div>
 
