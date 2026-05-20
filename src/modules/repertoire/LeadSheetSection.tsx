@@ -56,6 +56,7 @@ import {
   materializeChordPlacements,
   moveChordPlacement,
   parseTimeSignature,
+  removeChordPlacement,
   reorderBar,
   resolveLegacyPlacementId,
   swapChordPlacements,
@@ -326,6 +327,18 @@ export default function LeadSheetSection({
     const cascaded = cascadeChordPlacements(updated, arrId, beatsPerBar);
     const patch: Partial<SongSection> = { chordPlacements: cascaded };
     const reconciled = reconcileBarLayout(sectionRef.current.barLayout, cascaded);
+    if (reconciled) patch.barLayout = reconciled;
+    await commit(patch);
+  };
+
+  // Delete a chord from the bar grid (popover 'Delete chord' button).
+  // Removes the placement; reconcileBarLayout flips the containing bar
+  // to 'empty' if it now holds no chords. Undoable via the undo stack.
+  const handleChordDelete = async (placementId: string) => {
+    const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
+    const next = removeChordPlacement(placements, realPlacementId);
+    const patch: Partial<SongSection> = { chordPlacements: next };
+    const reconciled = reconcileBarLayout(sectionRef.current.barLayout, next);
     if (reconciled) patch.barLayout = reconciled;
     await commit(patch);
   };
@@ -916,6 +929,7 @@ export default function LeadSheetSection({
               activeArrangementId={activeArrangementId}
               onChordBeatsChange={handleChordBeatsChange}
               onChordTagChange={handleChordTagChange}
+              onChordDelete={handleChordDelete}
               chordsAreSortable
               lyricLines={lyricLines}
               onLineDelete={handleDeleteLyricLine}

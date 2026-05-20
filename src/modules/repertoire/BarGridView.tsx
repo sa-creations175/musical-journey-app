@@ -72,6 +72,10 @@ interface Props {
     placementId: string,
     tag: string | null,
   ) => Promise<void> | void;
+  /** Tap 'Delete chord' in the chord-edit popover. Removes the
+   *  placement from section.chordPlacements (caller reconciles
+   *  barLayout). The popover closes once this resolves. */
+  onChordDelete?: (placementId: string) => Promise<void> | void;
   /** Whether chord cells render as sortable (drag-to-reorder). Drag
    *  end is handled by the parent DndContext; this flag just tells
    *  us to wrap each cell in `useSortable`. */
@@ -145,6 +149,7 @@ export default function BarGridView({
   activeArrangementId,
   onChordBeatsChange,
   onChordTagChange,
+  onChordDelete,
   chordsAreSortable = false,
   lyricLines = [],
   onLineDelete,
@@ -337,6 +342,13 @@ export default function BarGridView({
       }
     : undefined;
 
+  const handleDelete = onChordDelete
+    ? async (cell: BarCell) => {
+        await onChordDelete(cell.placementId);
+        setEditing(null);
+      }
+    : undefined;
+
   const body = (
     <>
       {pendingLines.length > 0 && (
@@ -361,6 +373,7 @@ export default function BarGridView({
                   onCellClick={handleCellClick}
                   onBeatsChange={handleBeatsChange}
                   onTagChange={handleTagChange}
+                  onDelete={handleDelete}
                   draggable={chordsAreSortable}
                   onDeleteBar={onDeleteBar}
                   barDragEnabled={Boolean(onBarReorder)}
@@ -730,6 +743,7 @@ function BarBox({
   onCellClick,
   onBeatsChange,
   onTagChange,
+  onDelete,
   draggable,
   onDeleteBar,
   barDragEnabled,
@@ -746,6 +760,7 @@ function BarBox({
   onCellClick?: (cell: BarCell, barIndex: number) => void;
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
+  onDelete?: (cell: BarCell) => void | Promise<void>;
   draggable: boolean;
   onDeleteBar?: (barIndex: number) => void;
   barDragEnabled: boolean;
@@ -916,6 +931,7 @@ function BarBox({
           notationMode={notationMode}
           onBeatsChange={onBeatsChange}
           onTagChange={onTagChange}
+          onDelete={onDelete}
         />
       )}
 
@@ -1603,6 +1619,7 @@ function ChordEditorPopover({
   notationMode,
   onBeatsChange,
   onTagChange,
+  onDelete,
 }: {
   cell: BarCell;
   beatsPerBar: number;
@@ -1610,6 +1627,7 @@ function ChordEditorPopover({
   notationMode: ReturnType<typeof useNotationMode>[0];
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
+  onDelete?: (cell: BarCell) => void | Promise<void>;
 }) {
   // Source-of-truth beat count is `cell.beats` (= placement.beats).
   // `cell.chord.beats` is a stale legacy field carried over from
@@ -1762,6 +1780,22 @@ function ChordEditorPopover({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {onDelete && (
+        <div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800">
+          <button
+            type="button"
+            onClick={e => {
+              e.stopPropagation();
+              void onDelete(cell);
+            }}
+            className="w-full inline-flex items-center justify-center gap-1 px-2 py-1 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-needswork hover:text-needswork"
+            aria-label="delete chord"
+          >
+            <span aria-hidden>🗑</span> Delete chord
+          </button>
         </div>
       )}
     </div>
