@@ -30,6 +30,9 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
   const { setInSessionDrillActive } = useSessionTimer();
   const cells = useMemo(() => resolveScaleRunnerItems(items), [items]);
   const [idx, setIdx] = useState(0);
+  // Bumped on Redo to force the modal to remount for the SAME cell
+  // (resetting its setup/countdown), without advancing the index.
+  const [redoCount, setRedoCount] = useState(0);
   const current = cells[idx];
 
   // While the runner is mounted it owns drill completion; tell the
@@ -58,11 +61,13 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
 
   return (
     <ScalesDrillModal
-      // Remount per cell so the modal's internal phase + countdown
-      // reset and re-seed from this item's seconds.
-      key={current.itemRef}
+      // Remount per cell (and per Redo of the same cell) so the modal's
+      // internal phase + countdown reset and re-seed from this item's
+      // seconds.
+      key={`${current.itemRef}:${redoCount}`}
       cell={current.cell}
       initialTargetSeconds={current.seconds}
+      onRedo={() => setRedoCount(c => c + 1)}
       onLogged={() => {
         justLoggedRef.current = true;
         setIdx(i => i + 1);

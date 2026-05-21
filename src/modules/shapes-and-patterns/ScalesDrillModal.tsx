@@ -57,6 +57,11 @@ interface Props {
    *  breakdown). Defaults to the cell's canonical duration when
    *  omitted (standalone matrix-tap use). */
   initialTargetSeconds?: number;
+  /** In-session runner only: replaces the rating screen's single
+   *  "cancel" with explicit Skip (cancel path) + Redo. Redo restarts
+   *  the same item from the top; the runner remounts the modal for
+   *  the same cell. Omitted for standalone use. */
+  onRedo?: () => void;
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
@@ -128,13 +133,18 @@ export default function ScalesDrillModal({
   onClose,
   onLogged,
   initialTargetSeconds,
+  onRedo,
 }: Props) {
   const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
   // Runner-supplied per-item time wins over the cell's canonical
-  // default, clamped to the target picker's 30s floor so a tiny share
-  // can't produce a sub-second drill.
-  const seed = Math.max(30, initialTargetSeconds ?? suggested);
+  // default. The in-session runner (initialTargetSeconds set) floors
+  // each item at 60s; standalone matrix-tap keeps the cell's canonical
+  // duration with a 30s floor.
+  const seed = Math.max(
+    initialTargetSeconds !== undefined ? 60 : 30,
+    initialTargetSeconds ?? suggested,
+  );
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -226,6 +236,15 @@ export default function ScalesDrillModal({
     onClose();
   };
 
+  // Runner "Redo": restart this same item from the top. Tear down the
+  // local timer + metronome, then signal the runner to remount the
+  // modal for the same cell.
+  const handleRedo = () => {
+    stopTick();
+    metronome.stop('drill');
+    onRedo?.();
+  };
+
   const handleSave = async () => {
     if (saving || feel === null || belowMin) return;
     setSaving(true);
@@ -279,12 +298,31 @@ export default function ScalesDrillModal({
       }
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={handleCancel}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-          >
-            cancel — don't log
-          </button>
+          {onRedo ? (
+            <>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title="Skip this scale and move to the next"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleRedo}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title="Restart this same scale from the top"
+              >
+                Redo
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleCancel}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+            >
+              cancel — don't log
+            </button>
+          )}
           <button
             onClick={() => void handleSave()}
             disabled={feel === null || saving || belowMin}
