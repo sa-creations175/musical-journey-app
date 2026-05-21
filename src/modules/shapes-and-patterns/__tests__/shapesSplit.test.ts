@@ -425,11 +425,11 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   });
 
   it('caps at SCALES_SEGMENT_MAX_KEYS (2) keys via spacing-state-driven walk', () => {
-    // Cold-start with no scale rows and a long 30-min block — the
-    // circle-of-4ths walk from C fills up to 2 distinct keys (the
-    // SESSION_DESIGN cap) before stopping.
+    // Cold-start with no scale rows and a long 60-min block — each key
+    // now drills all 4 fixed-order types (~270s), so a 60-min block's
+    // scales budget fits exactly the 2-key cap before stopping.
     const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 30 * 60),
+      block(['chord-shape:maj:C:root'], 60 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -534,13 +534,14 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('multi-key labels join keys with ", " in the SCALES header (max 2 keys)', () => {
     // Two least-recently-engaged scale keys with due cells — the
     // picker leads with the oldest (B) and walks circle-of-4ths
-    // from there (B → E). SESSION_DESIGN caps at 2 keys.
+    // from there (B → E). SESSION_DESIGN caps at 2 keys. A 60-min
+    // block's scales budget fits both keys' 4-type ladders.
     const rows = [
       row('scale:major:B',  { lastEngagedAt: NOW - 30_000, nextDueAt: NOW - 100 }),
       row('scale:major:E',  { lastEngagedAt: NOW - 20_000, nextDueAt: NOW - 100 }),
     ];
     const segs = shapeShapesBlock(
-      block([], 30 * 60),
+      block([], 60 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
