@@ -51,6 +51,7 @@ import type { PerformanceRating } from '../../lib/sessionTimer/types';
 import EndOfSessionSummary from './EndOfSessionSummary';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
+import { buildPrepItemBreakdown } from './prepItemBreakdown';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -204,18 +205,25 @@ export default function ActiveSessionScreen() {
   const isOvertime = times.blockPhase === 'drill' && drillRemainingMs <= 0;
   const isEnded = state.status === 'ended';
 
+  // Open the block's module to practice. This is the interim stand-in
+  // for GO auto-navigation (Phase 3): the drill timer starts as the
+  // user reaches the drill surface, NOT back on the launch screen, so
+  // the time between Ready and arriving doesn't burn drill time. The
+  // prep-phase guard keeps a re-tap from restarting an in-flight drill.
   const handleQuickLaunch = () => {
     if (!route) return;
+    if (times.blockPhase === 'prep') startDrill();
     setActiveModuleRef(currentBlock.moduleRef);
     navigate(route);
   };
 
-  // Prep → drill. Tapping Ready starts the drill timer (start-drill
-  // folds prep time into prepMs and anchors the drill segment). The
-  // 4-3-2-1 countdown (step 4) will later sit between Ready and this.
+  // Prep → launch. Deliberately does NOT start the drill timer — that
+  // waits until the user reaches the drill (handleQuickLaunch), which
+  // Phase 3's GO auto-nav will own. Routeless blocks have nowhere to
+  // navigate, so they start the drill here.
   const handleReady = () => {
-    startDrill();
     setPhase('running');
+    if (!route) startDrill();
   };
 
   // End now transitions to the rating phase rather than advancing
@@ -287,6 +295,12 @@ export default function ActiveSessionScreen() {
   // shared MetronomeControl (last-used settings persist).
   // -------------------------------------------------------------
   if (phase === 'prep') {
+    // Per-item breakdown of the (adjusted) drill budget. null when
+    // there's nothing useful to itemize (no items / a long queue).
+    const itemBreakdown = buildPrepItemBreakdown(
+      currentBlock.itemRefs,
+      adjustedDrillSec,
+    );
     return (
       <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
         <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
@@ -339,6 +353,27 @@ export default function ActiveSessionScreen() {
               ))}
             </div>
           </div>
+
+          {/* Per-item breakdown — what's coming + each item's share of
+              the drill budget. Updates live as the +/- pills change the
+              total. */}
+          {itemBreakdown && (
+            <ul className="space-y-1 border-t border-neutral-200/70 dark:border-neutral-800 pt-3">
+              {itemBreakdown.map(row => (
+                <li
+                  key={row.itemRef}
+                  className="flex items-baseline justify-between gap-3 text-sm"
+                >
+                  <span className="text-neutral-700 dark:text-neutral-200 truncate">
+                    {row.label}
+                  </span>
+                  <span className="font-mono tabular-nums text-xs text-neutral-500 shrink-0">
+                    {formatActiveTime(row.seconds * 1000)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           {/* Metronome — BPM / groove / on-off. Settings persist. */}
           <div className="flex items-center justify-between gap-2">
