@@ -53,6 +53,8 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
 import { buildPrepItemBreakdown } from './prepItemBreakdown';
 import { canExtendBlock } from './blockExtendEligibility';
+import InSessionDrillRunner from './InSessionDrillRunner';
+import { isScaleRunnerBlock } from './inSessionScaleRunner';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -130,6 +132,10 @@ export default function ActiveSessionScreen() {
   const [launched, setLaunched] = useState(false);
   const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // True while the in-session drill runner (Level 3) is walking the
+  // block's cells over this screen, instead of having navigated to the
+  // module.
+  const [runnerActive, setRunnerActive] = useState(false);
 
   // Note: `launched` + `pendingRating` are reset directly in the
   // advance handlers (handleRatingNext / handleSkipBlock) rather than
@@ -208,25 +214,48 @@ export default function ActiveSessionScreen() {
           ? 'running'
           : 'prep';
 
-  // Open the block's module to practice. This is the interim stand-in
-  // for GO auto-navigation (Phase 3): the drill timer starts as the
-  // user reaches the drill surface, NOT back on the launch screen, so
-  // the time between Ready and arriving doesn't burn drill time. The
-  // prep-phase guard keeps a re-tap from restarting an in-flight drill.
-  const handleQuickLaunch = () => {
-    if (!route) return;
+  // Per-item breakdown of the (adjusted) drill budget — the prep card's
+  // source of truth, reused by GO auto-nav as the drill playlist (which
+  // cell, how long). null when there's nothing to itemize.
+  const itemBreakdown = buildPrepItemBreakdown(
+    currentBlock.itemRefs,
+    adjustedDrillSec,
+  );
+  // Level 3: scale blocks open an in-session runner on GO (the only
+  // safe in-session modal today); everything else routes to the module.
+  const isScaleBlock = isScaleRunnerBlock(itemBreakdown);
+
+  // GO (Level 3 auto-nav): start the drill timer and drop the user
+  // straight onto the drill. Scale blocks open the in-session runner
+  // over this screen (driven by the per-item breakdown); everything
+  // else routes to the module home. The prep-phase guard keeps a
+  // re-tap from restarting an in-flight drill timer.
+  const goToDrill = () => {
     if (times.blockPhase === 'prep') startDrill();
-    setActiveModuleRef(currentBlock.moduleRef);
-    navigate(route);
+    if (isScaleBlock && itemBreakdown) {
+      setRunnerActive(true);
+      return;
+    }
+    if (route) {
+      setActiveModuleRef(currentBlock.moduleRef);
+      navigate(route);
+    }
+    // Routeless, non-runner block: the drill timer is running; the
+    // user drills against the on-screen running view.
   };
 
-  // Prep → launch. Deliberately does NOT start the drill timer — that
-  // waits until the user reaches the drill (handleQuickLaunch), which
-  // Phase 3's GO auto-nav will own. Routeless blocks have nowhere to
-  // navigate, so they start the drill here.
+  // The running view's "open" button (shown when the user is on this
+  // screen mid-drill, e.g. after navigating back) re-issues GO.
+  const handleQuickLaunch = () => {
+    goToDrill();
+  };
+
+  // Ready = GO for now (the 4-3-2-1 countdown of step 4 will later sit
+  // between them). `launched` keeps the running view up for the
+  // routeless / navigated-back cases.
   const handleReady = () => {
     setLaunched(true);
-    if (!route) startDrill();
+    goToDrill();
   };
 
   // End now → rating. complete-drill finalizes drillMs + moves the
@@ -238,16 +267,27 @@ export default function ActiveSessionScreen() {
   };
 
   // Rating-screen extend: resume, re-enter the drill with a fresh
-  // `mins`-minute segment, and head back to the drill surface. When
-  // that segment ends, the drill-end watcher returns us to rating.
+  // `mins`-minute segment, and head back to the drill surface — the
+  // in-session runner for scale blocks, the module otherwise.
   const handleExtend = (mins: number) => {
     resumeSession();
     extendDrill(mins * 60);
     setLaunched(true);
+    if (isScaleBlock && itemBreakdown) {
+      setRunnerActive(true);
+      return;
+    }
     if (route) {
       setActiveModuleRef(currentBlock.moduleRef);
       navigate(route);
     }
+  };
+
+  // The in-session runner finished its cells (or the user dismissed
+  // the drill) → close it and move the block to its rating phase.
+  const handleRunnerComplete = () => {
+    setRunnerActive(false);
+    completeDrill();
   };
 
   // Skip — advance past this block without marking it completed.
@@ -264,6 +304,7 @@ export default function ActiveSessionScreen() {
     advanceBlock({ markStatus: 'skipped' });
     setLaunched(false);
     setPendingRating(null);
+    setRunnerActive(false);
     // Stay on the active-session screen — the next block opens on its
     // prep screen (reducer starts it in `prep`). On the last block,
     // advanceBlock auto-ends so the 'ended' branch renders the summary.
@@ -277,6 +318,7 @@ export default function ActiveSessionScreen() {
     });
     setLaunched(false);
     setPendingRating(null);
+    setRunnerActive(false);
     // Stay here — the next block opens on its prep screen (module
     // navigation happens on GO, step 3). For the last block,
     // advanceBlock auto-ends the session and the 'ended' branch
@@ -313,12 +355,6 @@ export default function ActiveSessionScreen() {
   // shared MetronomeControl (last-used settings persist).
   // -------------------------------------------------------------
   if (uiPhase === 'prep') {
-    // Per-item breakdown of the (adjusted) drill budget. null when
-    // there's nothing useful to itemize (no items / a long queue).
-    const itemBreakdown = buildPrepItemBreakdown(
-      currentBlock.itemRefs,
-      adjustedDrillSec,
-    );
     return (
       <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
         <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
@@ -608,13 +644,21 @@ export default function ActiveSessionScreen() {
   }
 
   // -------------------------------------------------------------
-  // Running phase
+  // Running phase — the launch/running view, with the in-session drill
+  // runner layered over it for scale blocks (Level 3 auto-nav).
   // -------------------------------------------------------------
   return (
-    <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
-      <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
-        Block {(state.currentBlockIndex ?? 0) + 1} of {state.blocks.length}
-      </div>
+    <>
+      {runnerActive && itemBreakdown && (
+        <InSessionDrillRunner
+          items={itemBreakdown}
+          onComplete={handleRunnerComplete}
+        />
+      )}
+      <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+        <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
+          Block {(state.currentBlockIndex ?? 0) + 1} of {state.blocks.length}
+        </div>
 
       <section
         className="rounded-lg border p-5 sm:p-6 space-y-5"
@@ -702,6 +746,7 @@ export default function ActiveSessionScreen() {
         onConfirm={handleDiscardConfirm}
         onCancel={() => setDiscardOpen(false)}
       />
-    </div>
+      </div>
+    </>
   );
 }

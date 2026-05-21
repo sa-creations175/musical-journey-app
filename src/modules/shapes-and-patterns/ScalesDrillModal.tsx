@@ -52,6 +52,11 @@ interface Props {
   cell: ScaleCell;
   onClose: () => void;
   onLogged?: () => void;
+  /** Seeds the countdown when the modal is opened by an in-session
+   *  runner (the prep-flow drives this from the per-item time
+   *  breakdown). Defaults to the cell's canonical duration when
+   *  omitted (standalone matrix-tap use). */
+  initialTargetSeconds?: number;
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
@@ -118,11 +123,20 @@ function labelForKind(kind: ScaleCell['kind']): string {
   }
 }
 
-export default function ScalesDrillModal({ cell, onClose, onLogged }: Props) {
+export default function ScalesDrillModal({
+  cell,
+  onClose,
+  onLogged,
+  initialTargetSeconds,
+}: Props) {
   const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
-  const [targetSeconds, setTargetSeconds] = useState(suggested);
-  const [remainingSeconds, setRemainingSeconds] = useState(suggested);
+  // Runner-supplied per-item time wins over the cell's canonical
+  // default, clamped to the target picker's 30s floor so a tiny share
+  // can't produce a sub-second drill.
+  const seed = Math.max(30, initialTargetSeconds ?? suggested);
+  const [targetSeconds, setTargetSeconds] = useState(seed);
+  const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [phase, setPhase] = useState<Phase>('setup');
   const [feel, setFeel] = useState<FeelRating | null>(null);
