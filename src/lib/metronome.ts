@@ -380,7 +380,30 @@ class Metronome {
   private scheduler = () => {
     if (!this.ctx) return;
     const lookaheadSec = 0.12;
+    // Guard against scheduling in the past. A beat whose time is
+    // already behind ctx.currentTime renders SILENT — its whole gain
+    // envelope (setValueAtTime(0,t) → ramp up → ramp to 0.0001) is in
+    // the past by the time the audio thread reaches the node, so it
+    // plays back at the envelope's final (near-zero) value. The clock
+    // can fall behind from tab throttling, a slow AudioContext.resume()
+    // on start, or an audio clock that hadn't advanced yet when start()
+    // read currentTime. Re-anchor to just ahead of now so the next
+    // beat is audible.
+    if (this.nextNoteTime < this.ctx.currentTime) {
+      metroDebug('scheduler: nextNoteTime BEHIND — re-anchoring', {
+        nextNoteTime: Number(this.nextNoteTime.toFixed(3)),
+        currentTime: Number(this.ctx.currentTime.toFixed(3)),
+        behindBySec: Number((this.ctx.currentTime - this.nextNoteTime).toFixed(3)),
+      });
+      this.nextNoteTime = this.ctx.currentTime + 0.05;
+    }
     while (this.nextNoteTime < this.ctx.currentTime + lookaheadSec) {
+      metroDebug('scheduleSlot', {
+        currentTime: Number(this.ctx.currentTime.toFixed(3)),
+        scheduledAt: Number(this.nextNoteTime.toFixed(3)),
+        aheadBySec: Number((this.nextNoteTime - this.ctx.currentTime).toFixed(3)),
+        slot: this.currentSlot,
+      });
       this.scheduleSlot(this.nextNoteTime, this.currentSlot);
       this.advanceSlot();
     }
