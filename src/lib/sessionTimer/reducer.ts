@@ -34,6 +34,7 @@ export const INITIAL_SESSION_STATE: SessionState = {
   hardBlock: false,
   context: 'keys',
   startInPrep: false,
+  inSessionDrillActive: false,
   blockEndRequested: false,
   blocks: [],
   currentBlockIndex: null,
@@ -175,6 +176,10 @@ export function sessionTimerReducer(
         Math.max(MIN_DRILL_SECONDS, action.seconds),
       );
 
+    case 'set-in-session-drill-active':
+      if (state.inSessionDrillActive === action.active) return state;
+      return { ...state, inSessionDrillActive: action.active };
+
     case 'adjust-drill-time': {
       if (state.currentBlockIndex === null) return state;
       if (state.status !== 'running' && state.status !== 'paused') return state;
@@ -273,6 +278,7 @@ function startSession(
     hardBlock: input.hardBlock ?? false,
     context: input.context ?? 'keys',
     startInPrep,
+    inSessionDrillActive: false,
     blockEndRequested: false,
     blocks,
     currentBlockIndex: 0,

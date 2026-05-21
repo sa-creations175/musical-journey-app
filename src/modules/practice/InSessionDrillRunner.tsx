@@ -13,6 +13,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
+import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import {
   resolveScaleRunnerItems,
   type BreakdownItem,
@@ -26,9 +27,19 @@ interface Props {
 }
 
 export default function InSessionDrillRunner({ items, onComplete }: Props) {
+  const { setInSessionDrillActive } = useSessionTimer();
   const cells = useMemo(() => resolveScaleRunnerItems(items), [items]);
   const [idx, setIdx] = useState(0);
   const current = cells[idx];
+
+  // While the runner is mounted it owns drill completion; tell the
+  // global drill-end watcher to stand down so the block timer can't
+  // yank us to rating mid-walk. Cleared on unmount (complete / cancel /
+  // block change).
+  useEffect(() => {
+    setInSessionDrillActive(true);
+    return () => setInSessionDrillActive(false);
+  }, [setInSessionDrillActive]);
 
   // ScalesDrillModal fires onLogged THEN onClose when a rep is logged,
   // but only onClose on cancel. Without this flag the trailing onClose

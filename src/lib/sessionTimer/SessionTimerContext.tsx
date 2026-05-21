@@ -108,6 +108,9 @@ export interface SessionTimerContextValue {
   /** Rating-screen extend: re-enter drill with a fresh `seconds`-long
    *  segment on the same block. */
   extendDrill: (seconds: number) => void;
+  /** Mark the in-session drill runner (Level 3) active/inactive so the
+   *  global drill-end watcher stands down while it's driving. */
+  setInSessionDrillActive: (active: boolean) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -239,6 +242,10 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'extend-drill', seconds, now: Date.now() });
   }, []);
 
+  const setInSessionDrillActive = useCallback((active: boolean) => {
+    dispatch({ type: 'set-in-session-drill-active', active });
+  }, []);
+
   const value = useMemo<SessionTimerContextValue>(
     () => ({
       state,
@@ -260,6 +267,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       completeDrill,
       adjustDrillTime,
       extendDrill,
+      setInSessionDrillActive,
     }),
     [
       state,
@@ -281,6 +289,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       completeDrill,
       adjustDrillTime,
       extendDrill,
+      setInSessionDrillActive,
     ],
   );
 

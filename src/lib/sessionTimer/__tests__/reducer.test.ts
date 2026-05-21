@@ -750,4 +750,13 @@ describe('sessionTimerReducer — startInPrep + extend-drill', () => {
     s = sessionTimerReducer(s, { type: 'extend-drill', seconds: 5, now: T0 + 1 * MINUTE });
     expect(s.blocks[0].drillSegmentSeconds).toBe(30);
   });
+
+  it('set-in-session-drill-active toggles the runner flag (starts false)', () => {
+    let s = startInPrep();
+    expect(s.inSessionDrillActive).toBe(false);
+    s = sessionTimerReducer(s, { type: 'set-in-session-drill-active', active: true });
+    expect(s.inSessionDrillActive).toBe(true);
+    s = sessionTimerReducer(s, { type: 'set-in-session-drill-active', active: false });
+    expect(s.inSessionDrillActive).toBe(false);
+  });
 });

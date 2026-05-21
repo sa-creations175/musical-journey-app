@@ -85,6 +85,10 @@ export function draftToSessionState(draft: ActiveSessionDraft, now: number): Ses
     pausedAt: null,
     pauseReason: null,
     blockEndRequested: false,
+    // A resumed session reopens on the prep screen; the in-session
+    // runner isn't mounted, so clear its flag (else the drill-end
+    // watcher would stay suppressed).
+    inSessionDrillActive: false,
     blocks,
   };
 }

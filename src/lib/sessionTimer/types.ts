@@ -262,6 +262,14 @@ export interface SessionState {
    */
   startInPrep: boolean;
   /**
+   * True while the in-session drill runner (Level 3) is walking a
+   * block's cells. The block's drill timer keeps accruing drillMs, but
+   * the global drill-end watcher (BlockExpiryModal) stands down so it
+   * can't yank the user to rating mid-runner — the runner owns
+   * completion. Transient UI state; reset to false on restore.
+   */
+  inSessionDrillActive: boolean;
+  /**
    * Cross-screen handoff for "Next block" tapped in the global block
    * expiry modal. The active session screen reactively transitions to
    * the rating phase when this is true and clears it via
@@ -378,4 +386,7 @@ export type SessionTimerAction =
   | { type: 'adjust-drill-time'; deltaSeconds: number }
   /** Rating-screen extend: re-enter drill with a fresh `seconds`-long
    *  segment (resumes the same block). Sets drillSegmentSeconds. */
-  | { type: 'extend-drill'; seconds: number; now: number };
+  | { type: 'extend-drill'; seconds: number; now: number }
+  /** Toggle the in-session drill runner flag (Level 3) so the global
+   *  drill-end watcher stands down while the runner is driving. */
+  | { type: 'set-in-session-drill-active'; active: boolean };

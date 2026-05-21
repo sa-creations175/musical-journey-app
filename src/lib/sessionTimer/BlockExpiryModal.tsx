@@ -91,7 +91,13 @@ export function BlockExpiryModal() {
   // e.g. after an extend).
   const routedToRatingRef = useRef(false);
   const prepFlowDrillEnded =
-    isPrepFlow && !!currentBlock && state.status === 'running' && isOvertime;
+    isPrepFlow &&
+    !!currentBlock &&
+    state.status === 'running' &&
+    isOvertime &&
+    // The in-session runner (Level 3) owns completion for its block —
+    // don't let the block timer cut it short mid-walk.
+    !state.inSessionDrillActive;
   useEffect(() => {
     if (!prepFlowDrillEnded) {
       routedToRatingRef.current = false;
