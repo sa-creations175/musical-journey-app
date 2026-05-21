@@ -795,7 +795,12 @@ function buildScalesSegment(
   return {
     kind: 'scales',
     itemRefs: steps.map(s => s.itemRef),
-    plannedSeconds: budget,
+    // The actual sum of the per-item (≥60s) drill times, not the raw
+    // budget share. This is what the runner spends, so the prep card,
+    // the banner timer, and the session estimate all reflect the real
+    // warm-up length (which can exceed the budget when the 60s floor
+    // bites). See the prepItemBreakdown floored weights below.
+    plannedSeconds: steps.reduce((sum, s) => sum + s.seconds, 0),
     label: formatScalesLabel(steps),
     why: formatScalesWhy(steps),
   };
@@ -1187,7 +1192,12 @@ function buildScalesSegmentWithBudget(
   return {
     kind: 'scales',
     itemRefs: steps.map(s => s.itemRef),
-    plannedSeconds: budget,
+    // The actual sum of the per-item (≥60s) drill times, not the raw
+    // budget share. This is what the runner spends, so the prep card,
+    // the banner timer, and the session estimate all reflect the real
+    // warm-up length (which can exceed the budget when the 60s floor
+    // bites). See the prepItemBreakdown floored weights below.
+    plannedSeconds: steps.reduce((sum, s) => sum + s.seconds, 0),
     label: formatScalesLabel(steps),
     why: formatScalesWhy(steps),
   };

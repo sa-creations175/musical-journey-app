@@ -40,7 +40,10 @@ export const MAX_BREAKDOWN_ITEMS = 12;
  *  size of its slice. Unknown formats weight uniformly (1). */
 function itemWeight(itemRef: string): number {
   const scale = parseScaleItemRef(itemRef);
-  if (scale) return SCALE_KIND_SECONDS[scale.kind];
+  // Floored at 60 to match generation (shapesSplit) — so when the block
+  // total is the sum of these floored weights, the split reproduces the
+  // exact per-item drill times the runner uses.
+  if (scale) return Math.max(60, SCALE_KIND_SECONDS[scale.kind]);
   if (itemRef.startsWith('chord-shape:')) {
     return itemRef.endsWith(':fluid')
       ? CHORD_SHAPE_FLUID_CELL_SECONDS

@@ -23,24 +23,24 @@ describe('buildPrepItemBreakdown', () => {
     expect(rows!.map(r => r.label)).toEqual(['x:1', 'x:2', 'x:3']);
   });
 
-  it('splits by canonical drill ratio, then floors each scale item at 60s', () => {
-    // weights 30:90 (canonical) → 60/180 of a 240s budget. Both ≥60,
-    // so the 60s floor is a no-op here.
+  it('splits by floored-canonical weights (major floored 60, nat-min 90)', () => {
+    // weights 60:90 → 2:3 of a 240s budget → 96 / 144. Both ≥60, so the
+    // per-item floor is a no-op here.
     const rows = buildPrepItemBreakdown(
       ['scale:major:C', 'scale:natural-minor:C'],
       240,
     );
     expect(rows).not.toBeNull();
-    expect(rows!.map(r => r.seconds)).toEqual([60, 180]);
+    expect(rows!.map(r => r.seconds)).toEqual([96, 144]);
   });
 
   it('floors a small share up to 60 (matches the runner), shares grow with the total', () => {
-    // 120s → raw shares 30/90; major floors 30 → 60. 480s → 120/360,
-    // both above the floor.
+    // weights 60:90. 120s → raw 48/72; major floors 48 → 60. 480s →
+    // 192/288, both above the floor.
     const small = buildPrepItemBreakdown(['scale:major:C', 'scale:natural-minor:C'], 120);
-    expect(small!.map(r => r.seconds)).toEqual([60, 90]);
+    expect(small!.map(r => r.seconds)).toEqual([60, 72]);
     const big = buildPrepItemBreakdown(['scale:major:C', 'scale:natural-minor:C'], 480);
-    expect(big!.map(r => r.seconds)).toEqual([120, 360]);
+    expect(big!.map(r => r.seconds)).toEqual([192, 288]);
   });
 
   it('weights the fluid chord-shape cell heavier than a plain cell', () => {

@@ -33,8 +33,20 @@ import {
   KEYS,
   VOICE_LEADING_PATTERNS,
 } from '../catalog';
+import { parseScaleItemRef } from '../scaleSkills';
+import { SCALE_KIND_SECONDS } from '../../../lib/sessionAlgorithm/timePerAttempt';
 
 const NOW = 1_700_000_000_000;
+
+// A scales segment's plannedSeconds is the sum of its per-item drill
+// times, each floored at 60s (the runner's per-item minimum) — not the
+// raw budget share. This mirrors the generation contract.
+function sumFlooredScaleSeconds(itemRefs: readonly string[]): number {
+  return itemRefs.reduce((sum, ref) => {
+    const desc = parseScaleItemRef(ref);
+    return sum + (desc ? Math.max(60, SCALE_KIND_SECONDS[desc.kind]) : 0);
+  }, 0);
+}
 
 function row(
   itemRef: string,
@@ -325,7 +337,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     );
     const scales = segs.find(s => s.kind === 'scales');
     expect(scales).toBeDefined();
-    expect(scales!.plannedSeconds).toBe(Math.floor(15 * 60 * 0.15));
+    expect(scales!.plannedSeconds).toBe(sumFlooredScaleSeconds(scales!.itemRefs));
   });
 
   it('Scales budget stays at the 15 % three-way share on a 30-min block (no SHORT/LONG distinction in three-way)', () => {
@@ -334,7 +346,7 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales');
-    expect(scales!.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
+    expect(scales!.plannedSeconds).toBe(sumFlooredScaleSeconds(scales!.itemRefs));
   });
 
   it('places Scales FIRST in the segment list and includes the chord-shape walk + VL', () => {
@@ -348,8 +360,17 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     // test the C major shape is tier 1 so it does.
     expect(segs.map(s => s.kind)).toContain('shapes-walk');
     expect(segs.map(s => s.kind)).toContain('voice-leading');
-    const total = segs.reduce((acc, s) => acc + s.plannedSeconds, 0);
-    expect(total).toBe(15 * 60);
+    // walk + VL still fill the non-scales budget (block − 15% scales
+    // budget); the scales segment reports the sum of its floored item
+    // times, which may differ from its 15% budget, so the segments no
+    // longer sum exactly to the block.
+    const scalesBudget = Math.floor(15 * 60 * 0.15);
+    const nonScales = segs
+      .filter(s => s.kind !== 'scales')
+      .reduce((acc, s) => acc + s.plannedSeconds, 0);
+    expect(nonScales).toBe(15 * 60 - scalesBudget);
+    const scales = segs.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(sumFlooredScaleSeconds(scales.itemRefs));
   });
 
   it('does NOT bias key selection by song keys (warm-up is spacing-state-only)', () => {
@@ -595,12 +616,14 @@ describe('shapeShapesBlock — VL three-way split', () => {
       ctx([], { unlockedTier: 1 }),
     );
     expect(segs.map(s => s.kind)).toEqual(['scales', 'shapes-walk', 'voice-leading']);
-    const total = segs.reduce((acc, s) => acc + s.plannedSeconds, 0);
-    expect(total).toBe(30 * 60);
     const [scales, walk, vl] = segs;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
+    // Scales reports the sum of its floored item times; walk + VL keep
+    // their budget shares (45% + remainder of the 15% scales budget).
+    expect(scales.plannedSeconds).toBe(sumFlooredScaleSeconds(scales.itemRefs));
     expect(walk.plannedSeconds).toBe(Math.floor(30 * 60 * 0.45));
-    expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - walk.plannedSeconds);
+    expect(vl.plannedSeconds).toBe(
+      30 * 60 - Math.floor(30 * 60 * 0.15) - Math.floor(30 * 60 * 0.45),
+    );
   });
 
   it('fires the three-way split even when the block has NO vl: items (catalog-driven VL)', () => {
@@ -1002,8 +1025,12 @@ describe('shapeShapesBlock — VL per-key gating', () => {
     expect(segs.map(s => s.kind)).toEqual(['scales', 'voice-leading']);
     const scales = segs.find(s => s.kind === 'scales')!;
     const vl = segs.find(s => s.kind === 'voice-leading')!;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
-    expect(vl.plannedSeconds).toBe(30 * 60 - scales.plannedSeconds - Math.floor(30 * 60 * 0.45));
+    expect(scales.plannedSeconds).toBe(sumFlooredScaleSeconds(scales.itemRefs));
+    // VL keeps its budget remainder (uses the 15% scales budget, not
+    // the reported floored sum — unused budget doesn't redistribute).
+    expect(vl.plannedSeconds).toBe(
+      30 * 60 - Math.floor(30 * 60 * 0.15) - Math.floor(30 * 60 * 0.45),
+    );
   });
 
   it('three-way path bypasses the Scales goal-proportional budget rules', () => {
@@ -1017,7 +1044,15 @@ describe('shapeShapesBlock — VL per-key gating', () => {
       }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    expect(scales.plannedSeconds).toBe(Math.floor(30 * 60 * 0.15));
+    // Flat 15% budget regardless of the goal → the scales segment is
+    // identical to a no-goal run (the goal due-seconds don't bias it).
+    const segsNoGoal = shapeShapesBlock(
+      block(['chord-shape:maj:C:root'], 30 * 60),
+      ctx([], { unlockedTier: 1 }),
+    );
+    const scalesNoGoal = segsNoGoal.find(s => s.kind === 'scales')!;
+    expect(scales.plannedSeconds).toBe(scalesNoGoal.plannedSeconds);
+    expect(scales.plannedSeconds).toBe(sumFlooredScaleSeconds(scales.itemRefs));
   });
 });
 

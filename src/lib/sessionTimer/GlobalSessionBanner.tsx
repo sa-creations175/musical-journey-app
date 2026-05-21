@@ -8,8 +8,9 @@
  *   [accent dot] [block label] [Module] 2:14 [paused?]
  *   ··· Session 6:32 [⏸] [end session]
  *
- * The session timer counts up (active practice time), the block
- * timer counts down from the current block's plannedSeconds. The
+ * The session timer counts up (active practice time); the block timer
+ * is the DRILL timer (times.drillRemainingMs) — it counts down the
+ * current drill segment and reads 0 outside the drill phase. The
  * "[Module]" prefix on the block timer wears the block's accent
  * color so the user sees at a glance which block they're on. Both
  * timers freeze while paused.
