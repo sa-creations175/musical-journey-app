@@ -69,13 +69,15 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
       }}
       onClose={() => {
         // A close right after a log = the modal closing itself on save;
-        // we're advancing, so swallow it. A bare close = the user
-        // cancelled → finish the block (to rating).
+        // we're already advancing, so swallow it. A bare close = the
+        // user cancelled this item ("don't log") → SKIP it and move to
+        // the next cell (not end the whole runner). Advancing past the
+        // last cell ends the runner via the effect above.
         if (justLoggedRef.current) {
           justLoggedRef.current = false;
           return;
         }
-        onComplete();
+        setIdx(i => i + 1);
       }}
     />
   );

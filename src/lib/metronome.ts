@@ -157,6 +157,13 @@ function playRide(ctx: AudioContext, t: number, volume: number) {
 }
 
 function playClick(ctx: AudioContext, t: number, volume: number, accent = false) {
+  metroDebug('playClick', {
+    t: Number(t.toFixed(3)),
+    now: Number(ctx.currentTime.toFixed(3)),
+    volume,
+    accent,
+    ctxState: ctx.state,
+  });
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'square';
@@ -416,6 +423,15 @@ class Metronome {
     const beatsPerBar = TIME_SIG_BEATS[timeSig];
     const swing = groove === 'jazz-swing' || groove === 'shuffle';
     const hits = grooveHits(groove, slot % (beatsPerBar * 4), beatsPerBar, swing);
+    metroDebug('scheduleSlot:hits', {
+      slot,
+      groove,
+      count: hits.length,
+      voices: hits.map(h => h.voice),
+      volume,
+      ctxState: this.ctx.state,
+      hasDestination: !!this.ctx.destination,
+    });
     for (const h of hits) {
       const g = volume * (h.gain ?? 1);
       switch (h.voice) {

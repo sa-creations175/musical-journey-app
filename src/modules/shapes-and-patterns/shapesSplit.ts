@@ -649,7 +649,13 @@ function pickScaleTypesForKey(
     if (a.due !== b.due) return a.due - b.due;
     return a.idx - b.idx;
   });
-  return ranked.slice(0, SCALES_TYPES_PER_KEY).map(r => r.kind);
+  const topDue = ranked.slice(0, SCALES_TYPES_PER_KEY).map(r => r.kind);
+  // The major scale is a maintenance fast-pass that always leads the
+  // key — even when it's not among the most-due drills. Float it to the
+  // front when already selected, or prepend it (one extra kind) when
+  // the due drills crowded it out.
+  const rest = topDue.filter(k => k !== 'major');
+  return ['major', ...rest];
 }
 
 function buildScaleLadder(

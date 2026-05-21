@@ -454,11 +454,12 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     // major-pent surface per the 2-types-per-key cap.
   });
 
-  it('picker selects nat-min + min-pent for a key when the major pair has been recently practised', () => {
-    // The major-tonality pair (major + major-pent) has been
-    // practised; major + major-pent rows exist with nextDueAt in
-    // the future. natural-minor + minor-pent have no rows → more
-    // due → picker pivots to the minor pair.
+  it('always leads with the major maintenance pass, plus the most-due drills', () => {
+    // The major-tonality pair (major + major-pent) has been practised
+    // (future nextDueAt); natural-minor + minor-pent have no rows →
+    // most due. The picker surfaces the due minor pair AND always
+    // includes major as the leading maintenance fast-pass, even though
+    // it isn't among the most-due drills.
     const rows = [
       row('scale:major:C',                 { nextDueAt: NOW + 10_000 }),
       row('scale:major-pentatonic:1:C',    { nextDueAt: NOW + 10_000 }),
@@ -469,13 +470,12 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
-    // C is the lead-key (most due, since major+major-pent due-score
-    // wins among existing rows). For C the picker surfaces nat-min
-    // + min-pent (the most-due pair for that key).
     const cRefs = scales.itemRefs.filter(r => r.endsWith(':C'));
     expect(cRefs).toContain('scale:natural-minor:C');
     expect(cRefs).toContain('scale:minor-pentatonic:1:C');
-    expect(cRefs).not.toContain('scale:major:C');
+    // Major is always present and leads the key.
+    expect(cRefs).toContain('scale:major:C');
+    expect(cRefs[0]).toBe('scale:major:C');
   });
 
   it('prefers the most-due pent starting point when rows exist', () => {

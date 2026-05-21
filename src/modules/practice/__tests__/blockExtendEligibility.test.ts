@@ -15,6 +15,16 @@ describe('canExtendBlock', () => {
     ).toBe(false);
   });
 
+  it('allows scale-drill blocks even when flagged as warm-ups', () => {
+    expect(
+      canExtendBlock({
+        moduleRef: 'shapes-and-patterns',
+        isWarmup: true,
+        itemRefs: ['scale:major:C', 'scale:natural-minor:C'],
+      }),
+    ).toBe(true);
+  });
+
   it('blocks mental visualization (shares the shapes moduleRef)', () => {
     expect(
       canExtendBlock({
