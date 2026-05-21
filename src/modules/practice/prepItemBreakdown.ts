@@ -61,9 +61,15 @@ export function buildPrepItemBreakdown(
   // ≥1 — but keeps the division safe).
   const totalWeight = weights.reduce((sum, w) => sum + w, 0) || itemRefs.length;
 
-  return itemRefs.map((itemRef, i) => ({
-    itemRef,
-    label: labelForShapesItemRef(itemRef) ?? itemRef,
-    seconds: Math.round((totalDrillSeconds * weights[i]) / totalWeight),
-  }));
+  return itemRefs.map((itemRef, i) => {
+    const share = Math.round((totalDrillSeconds * weights[i]) / totalWeight);
+    // Scales carry a 60s minimum per item — the in-session runner and
+    // the prep card use the same floored value so they always agree.
+    const isScale = parseScaleItemRef(itemRef) !== null;
+    return {
+      itemRef,
+      label: labelForShapesItemRef(itemRef) ?? itemRef,
+      seconds: isScale ? Math.max(60, share) : share,
+    };
+  });
 }

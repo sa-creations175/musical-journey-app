@@ -454,12 +454,12 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     // major-pent surface per the 2-types-per-key cap.
   });
 
-  it('always leads with the major maintenance pass, plus the most-due drills', () => {
+  it('always leads with the major maintenance pass, plus the most-due drill', () => {
     // The major-tonality pair (major + major-pent) has been practised
     // (future nextDueAt); natural-minor + minor-pent have no rows →
-    // most due. The picker surfaces the due minor pair AND always
-    // includes major as the leading maintenance fast-pass, even though
-    // it isn't among the most-due drills.
+    // most due. With the 60s-per-item floor, the scales budget fits
+    // major (the always-on maintenance fast-pass, leading) + the single
+    // most-due drill (natural-minor); minor-pent is crowded out.
     const rows = [
       row('scale:major:C',                 { nextDueAt: NOW + 10_000 }),
       row('scale:major-pentatonic:1:C',    { nextDueAt: NOW + 10_000 }),
@@ -472,7 +472,6 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     const scales = segs.find(s => s.kind === 'scales')!;
     const cRefs = scales.itemRefs.filter(r => r.endsWith(':C'));
     expect(cRefs).toContain('scale:natural-minor:C');
-    expect(cRefs).toContain('scale:minor-pentatonic:1:C');
     // Major is always present and leads the key.
     expect(cRefs).toContain('scale:major:C');
     expect(cRefs[0]).toBe('scale:major:C');

@@ -62,10 +62,22 @@ const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
 // Prep-screen time-adjustment pills. Deltas in seconds; the reducer
 // clamps the result to [30s, plannedSeconds * 2].
 const DRILL_ADJUST_OPTIONS: ReadonlyArray<{ label: string; deltaSec: number }> = [
+  { label: '+30s', deltaSec: 30 },
   { label: '+1 min', deltaSec: 60 },
   { label: '+2 min', deltaSec: 120 },
   { label: '+5 min', deltaSec: 300 },
   { label: '−30s', deltaSec: -30 },
+];
+
+// Rating-screen extend pills — absolute re-drill lengths ("drill again
+// for exactly this long"). No −30s here (that only adjusts the planned
+// total on the prep screen). ScalesDrillModal keeps its own matching
+// copy for the per-item rating extend.
+const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
+  { label: '+30s', seconds: 30 },
+  { label: '+1 min', seconds: 60 },
+  { label: '+2 min', seconds: 120 },
+  { label: '+5 min', seconds: 300 },
 ];
 
 // prep   — configure BPM/style + drill duration, then tap Ready.
@@ -221,6 +233,12 @@ export default function ActiveSessionScreen() {
     currentBlock.itemRefs,
     adjustedDrillSec,
   );
+  // The prep card's headline drill time = the sum of the per-item rows
+  // (each ≥60s) when there's a breakdown, so the total matches what the
+  // runner will actually spend; otherwise the block's adjusted total.
+  const prepTotalSec = itemBreakdown
+    ? itemBreakdown.reduce((sum, row) => sum + row.seconds, 0)
+    : adjustedDrillSec;
   // Level 3: scale blocks open an in-session runner on GO (the only
   // safe in-session modal today); everything else routes to the module.
   const isScaleBlock = isScaleRunnerBlock(itemBreakdown);
@@ -267,11 +285,11 @@ export default function ActiveSessionScreen() {
   };
 
   // Rating-screen extend: resume, re-enter the drill with a fresh
-  // `mins`-minute segment, and head back to the drill surface — the
+  // `seconds`-long segment, and head back to the drill surface — the
   // in-session runner for scale blocks, the module otherwise.
-  const handleExtend = (mins: number) => {
+  const handleExtend = (seconds: number) => {
     resumeSession();
-    extendDrill(mins * 60);
+    extendDrill(seconds);
     setLaunched(true);
     if (isScaleBlock && itemBreakdown) {
       setRunnerActive(true);
@@ -391,7 +409,7 @@ export default function ActiveSessionScreen() {
                 className="font-mono tabular-nums text-2xl"
                 style={{ color: accent }}
               >
-                {formatActiveTime(adjustedDrillSec * 1000)}
+                {formatActiveTime(prepTotalSec * 1000)}
               </span>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -587,16 +605,16 @@ export default function ActiveSessionScreen() {
             <div className="text-[10px] uppercase tracking-wider text-neutral-500 text-center">
               want more time on this?
             </div>
-            <div className="flex items-center gap-2">
-              {[1, 2, 5].map(mins => (
+            <div className="flex items-center gap-2 flex-wrap">
+              {EXTEND_DRILL_OPTIONS.map(opt => (
                 <button
-                  key={mins}
+                  key={opt.label}
                   type="button"
-                  onClick={() => handleExtend(mins)}
+                  onClick={() => handleExtend(opt.seconds)}
                   className="flex-1 px-3 py-2 rounded-md border text-sm font-medium hover:opacity-90"
                   style={{ color: accent, borderColor: accent }}
                 >
-                  +{mins} min
+                  {opt.label}
                 </button>
               ))}
             </div>

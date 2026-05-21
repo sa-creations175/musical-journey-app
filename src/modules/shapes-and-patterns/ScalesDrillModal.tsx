@@ -68,6 +68,15 @@ type Phase = 'setup' | 'running' | 'paused' | 'assess';
 
 type FeelRating = 'flying' | 'cruising' | 'crawling';
 
+// Per-item extend pills (runner rating) — absolute re-drill lengths.
+// Mirrors EXTEND_DRILL_OPTIONS in ActiveSessionScreen; kept in sync.
+const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
+  { label: '+30s', seconds: 30 },
+  { label: '+1 min', seconds: 60 },
+  { label: '+2 min', seconds: 120 },
+  { label: '+5 min', seconds: 300 },
+];
+
 const FEEL_OPTIONS: ReadonlyArray<{
   value: FeelRating;
   label: string;
@@ -245,6 +254,21 @@ export default function ScalesDrillModal({
     onRedo?.();
   };
 
+  // Per-item "extend" (runner rating screen): drill THIS scale again for
+  // exactly `seconds` more — restart the countdown in place at the new
+  // target, no runner remount needed.
+  const handleExtendItem = (seconds: number) => {
+    stopTick();
+    metronome.stop('drill');
+    setFeel(null);
+    setTargetSeconds(seconds);
+    setElapsedSeconds(0);
+    setRemainingSeconds(seconds);
+    setPhase('running');
+    void metronome.start('drill');
+    startTick();
+  };
+
   const handleSave = async () => {
     if (saving || feel === null || belowMin) return;
     setSaving(true);
@@ -303,9 +327,9 @@ export default function ScalesDrillModal({
               <button
                 onClick={handleCancel}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-                title="Skip this scale and move to the next"
+                title="Move on to the next scale"
               >
-                Skip
+                Next scale
               </button>
               <button
                 onClick={handleRedo}
@@ -341,7 +365,7 @@ export default function ScalesDrillModal({
             onClick={handleCancel}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            cancel
+            {onRedo ? 'Next scale' : 'cancel'}
           </button>
         </div>
       )}
@@ -506,6 +530,28 @@ export default function ScalesDrillModal({
               })}
             </div>
           </div>
+
+          {/* Per-item extend (runner only): drill this same scale again
+              for exactly the chosen length before moving on. */}
+          {onRedo && (
+            <div className="space-y-1.5">
+              <div className="text-[11px] uppercase tracking-wide text-neutral-500">
+                More time on this scale?
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {EXTEND_DRILL_OPTIONS.map(opt => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => handleExtendItem(opt.seconds)}
+                    className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent text-xs font-medium"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {showRelativeMajor && relativeMajor && (
             <div className="rounded-md border border-fluent/30 bg-fluent/5 p-3 text-xs space-y-1">

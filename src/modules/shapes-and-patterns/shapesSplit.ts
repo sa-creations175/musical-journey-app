@@ -683,13 +683,17 @@ function buildScaleLadder(
       } else {
         itemRef = itemRefForScale({ kind, keyName });
       }
+      // 60s minimum per scale item — the prep card, the in-session
+      // runner, and this budget all use the same floored value so they
+      // agree. Fewer items fit the budget, but each gets a real drill.
+      const stepSeconds = Math.max(60, SCALE_KIND_SECONDS[kind]);
       out.push({
         itemRef,
-        seconds: SCALE_KIND_SECONDS[kind],
+        seconds: stepSeconds,
         keyName,
         kind,
       });
-      budget -= SCALE_KIND_SECONDS[kind];
+      budget -= stepSeconds;
     }
   }
   return out;
