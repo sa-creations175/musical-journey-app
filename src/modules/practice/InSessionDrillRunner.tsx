@@ -11,7 +11,7 @@
  * shapes follow once DrillSessionModal is decoupled from owning the
  * session timer; until then those blocks route to the module home.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
 import {
   resolveScaleRunnerItems,
@@ -30,6 +30,12 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
   const [idx, setIdx] = useState(0);
   const current = cells[idx];
 
+  // ScalesDrillModal fires onLogged THEN onClose when a rep is logged,
+  // but only onClose on cancel. Without this flag the trailing onClose
+  // would end the whole runner after the first cell instead of letting
+  // it advance. Set on log, consumed by the very next onClose.
+  const justLoggedRef = useRef(false);
+
   // Walked past the last cell (or nothing resolved) → hand back to the
   // caller for rating. Done in an effect, not render, to avoid a
   // setState-during-render on the parent.
@@ -46,8 +52,20 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
       key={current.itemRef}
       cell={current.cell}
       initialTargetSeconds={current.seconds}
-      onLogged={() => setIdx(i => i + 1)}
-      onClose={onComplete}
+      onLogged={() => {
+        justLoggedRef.current = true;
+        setIdx(i => i + 1);
+      }}
+      onClose={() => {
+        // A close right after a log = the modal closing itself on save;
+        // we're advancing, so swallow it. A bare close = the user
+        // cancelled → finish the block (to rating).
+        if (justLoggedRef.current) {
+          justLoggedRef.current = false;
+          return;
+        }
+        onComplete();
+      }}
     />
   );
 }
