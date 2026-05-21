@@ -142,11 +142,21 @@ export interface SessionBlock {
   phasePausedMs: number;
   /**
    * Drill-timer duration in seconds after the user's prep-screen
-   * +/- adjustment. The drill timer counts down from this (+ any
-   * soft-block `extensionSeconds`). Defaults to `plannedSeconds` so
-   * an un-adjusted block behaves exactly as before.
+   * +/- adjustment. The first drill segment counts down from this;
+   * the prep card previews it. Defaults to `plannedSeconds` so an
+   * un-adjusted block behaves exactly as before.
    */
   adjustedDrillSeconds: number;
+  /**
+   * The CURRENT drill segment's countdown target in seconds. The
+   * drill timer counts down from this. start-drill sets it to
+   * `adjustedDrillSeconds`; a rating-screen extend (extend-drill)
+   * sets it to the chosen extension so the resumed drill gets a fresh
+   * N-minute segment — independent of how long the prior segment ran.
+   * Defaults to `plannedSeconds` (matches the legacy whole-block
+   * countdown).
+   */
+  drillSegmentSeconds: number;
   /** Optional per-block rating, captured at advance/end time (Step 5c). */
   rating?: PerformanceRating;
 }
@@ -180,6 +190,14 @@ export interface PendingStartConfig {
    * abandon-and-restart.
    */
   context?: import('../db').PracticeSessionContext;
+  /**
+   * Prep-flow: when true, each block opens in the `prep` phase (the
+   * drill timer stays idle until the user taps Ready / reaches the
+   * drill). Set by the practice-sessions proposal flow. Other origins
+   * (shapes-drill, song-detail) omit it and start blocks straight in
+   * `drill`, preserving their legacy whole-block timing.
+   */
+  startInPrep?: boolean;
   blocks: Array<{
     moduleRef: string;
     itemRefs?: string[];
@@ -237,6 +255,13 @@ export interface SessionState {
    */
   context: import('../db').PracticeSessionContext;
   /**
+   * Prep-flow: each block opens in the `prep` phase (vs straight to
+   * `drill`). Set from the start input (true for the practice-sessions
+   * origin). Read by advance-block to open each subsequent block in
+   * prep too. Survives pause/resume + restore.
+   */
+  startInPrep: boolean;
+  /**
    * Cross-screen handoff for "Next block" tapped in the global block
    * expiry modal. The active session screen reactively transitions to
    * the rating phase when this is true and clears it via
@@ -291,6 +316,9 @@ export interface StartSessionInput {
   hardBlock?: boolean;
   /** Practice context. Defaults to 'keys'. */
   context?: import('../db').PracticeSessionContext;
+  /** Prep-flow: open each block in the `prep` phase. Defaults to
+   *  false (blocks start in `drill`, legacy behavior). */
+  startInPrep?: boolean;
   /** Initial block plan. Must be non-empty. */
   blocks: Array<{
     moduleRef: string;
@@ -347,4 +375,7 @@ export type SessionTimerAction =
   | { type: 'complete-drill'; now: number }
   /** Adjust the current block's drill duration by `deltaSeconds`
    *  (prep-screen +/-). Clamped to [30s, plannedSeconds * 2]. */
-  | { type: 'adjust-drill-time'; deltaSeconds: number };
+  | { type: 'adjust-drill-time'; deltaSeconds: number }
+  /** Rating-screen extend: re-enter drill with a fresh `seconds`-long
+   *  segment (resumes the same block). Sets drillSegmentSeconds. */
+  | { type: 'extend-drill'; seconds: number; now: number };

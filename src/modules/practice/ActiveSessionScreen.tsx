@@ -52,6 +52,7 @@ import EndOfSessionSummary from './EndOfSessionSummary';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
 import { buildPrepItemBreakdown } from './prepItemBreakdown';
+import { canExtendBlock } from './blockExtendEligibility';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -113,40 +114,29 @@ export default function ActiveSessionScreen() {
     pauseSession,
     resumeSession,
     reset,
-    consumeBlockEndRequest,
-    beginPrep,
     startDrill,
     completeDrill,
     adjustDrillTime,
+    extendDrill,
   } = useSessionTimer();
   const times = useSessionTimes();
 
-  const [phase, setPhase] = useState<Phase>('prep');
+  // `launched` covers the Ready → reach-the-drill window: the reducer
+  // block phase is still `prep` (drill timer idle) but the UI should
+  // show the launch/running view. Everything else derives from the
+  // reducer phase, so a remount (drill ends on the module page → we
+  // return here for rating) restores the right screen with no effects
+  // fighting over local state.
+  const [launched, setLaunched] = useState(false);
   const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
 
-  // Each block opens on its prep screen. On block change (start or
-  // advance) reset to prep and move the reducer's block phase to
-  // 'prep' so the drill timer stays idle until the user taps Ready.
-  // The blockEndRequested effect below overrides to 'rating' when the
-  // global expiry modal hands off mid-block.
-  useEffect(() => {
-    if (state.currentBlockIndex === null) return;
-    setPhase('prep');
-    setPendingRating(null);
-    beginPrep();
-  }, [state.currentBlockIndex, beginPrep]);
-
-  // Cross-screen handoff from the global BlockExpiryModal: when the
-  // user taps "Next block" there, the modal dispatches
-  // request-block-end (which atomically pauses with reason 'manual'
-  // in the reducer) + navigates here. Pick the flag up reactively,
-  // flip phase to rating, consume the flag.
-  useEffect(() => {
-    if (!state.blockEndRequested) return;
-    setPhase('rating');
-    consumeBlockEndRequest();
-  }, [state.blockEndRequested, consumeBlockEndRequest]);
+  // Note: `launched` + `pendingRating` are reset directly in the
+  // advance handlers (handleRatingNext / handleSkipBlock) rather than
+  // via a block-change effect — a same-block remount (drill ends on
+  // the module page → we return here for rating) re-inits these from
+  // useState defaults, and only advancing into a NEW block needs the
+  // explicit reset.
 
   // Model (b) — set activeModuleRef = 'practice-sessions' once on
   // mount. The dep array is intentionally empty: re-firing on every
@@ -197,13 +187,26 @@ export default function ActiveSessionScreen() {
   const route = currentBlock.quickLaunchRoute ?? moduleMeta?.route ?? null;
 
   // The drill timer is the countdown source of truth — prep + rating
-  // time don't touch it. `drillRemainingMs` reads the full adjusted
+  // time don't touch it. `drillRemainingMs` reads the adjusted
   // duration during prep (preview) and counts down once drilling.
   const drillRemainingMs = times.drillRemainingMs;
-  const adjustedDrillSec =
-    currentBlock.adjustedDrillSeconds + currentBlock.extensionSeconds;
+  const adjustedDrillSec = currentBlock.adjustedDrillSeconds;
   const isOvertime = times.blockPhase === 'drill' && drillRemainingMs <= 0;
   const isEnded = state.status === 'ended';
+
+  // UI phase is derived from the reducer block phase (single source of
+  // truth), with `launched` covering the Ready→reach-the-drill window
+  // where the reducer is still in `prep`.
+  //   reducer 'rating' → rating · reducer 'drill' → running ·
+  //   reducer 'prep'  → prep, or running once the user tapped Ready.
+  const uiPhase: Phase =
+    times.blockPhase === 'rating'
+      ? 'rating'
+      : times.blockPhase === 'drill'
+        ? 'running'
+        : launched
+          ? 'running'
+          : 'prep';
 
   // Open the block's module to practice. This is the interim stand-in
   // for GO auto-navigation (Phase 3): the drill timer starts as the
@@ -222,18 +225,29 @@ export default function ActiveSessionScreen() {
   // Phase 3's GO auto-nav will own. Routeless blocks have nowhere to
   // navigate, so they start the drill here.
   const handleReady = () => {
-    setPhase('running');
+    setLaunched(true);
     if (!route) startDrill();
   };
 
-  // End now transitions to the rating phase rather than advancing
-  // immediately. complete-drill finalizes drillMs + moves the block
-  // to its rating phase; the pause keeps the rating window from
-  // counting as drill time while the user chooses.
+  // End now → rating. complete-drill finalizes drillMs + moves the
+  // block to its rating phase (uiPhase derives 'rating'); the pause
+  // keeps the rating window from counting as drill time.
   const handleEndActivity = () => {
     completeDrill();
     pauseSession({ reason: 'manual' });
-    setPhase('rating');
+  };
+
+  // Rating-screen extend: resume, re-enter the drill with a fresh
+  // `mins`-minute segment, and head back to the drill surface. When
+  // that segment ends, the drill-end watcher returns us to rating.
+  const handleExtend = (mins: number) => {
+    resumeSession();
+    extendDrill(mins * 60);
+    setLaunched(true);
+    if (route) {
+      setActiveModuleRef(currentBlock.moduleRef);
+      navigate(route);
+    }
   };
 
   // Skip — advance past this block without marking it completed.
@@ -248,9 +262,11 @@ export default function ActiveSessionScreen() {
   // own — skipping the parent block is the right escape hatch.
   const handleSkipBlock = () => {
     advanceBlock({ markStatus: 'skipped' });
-    // Stay on the active-session screen — the per-block effect opens
-    // the next block's prep screen. On the last block, advanceBlock
-    // auto-ends so the 'ended'-status branch renders the summary.
+    setLaunched(false);
+    setPendingRating(null);
+    // Stay on the active-session screen — the next block opens on its
+    // prep screen (reducer starts it in `prep`). On the last block,
+    // advanceBlock auto-ends so the 'ended' branch renders the summary.
   };
 
   const handleRatingNext = () => {
@@ -259,10 +275,12 @@ export default function ActiveSessionScreen() {
       rating: pendingRating ?? undefined,
       markStatus: 'completed',
     });
-    // Stay here — the per-block effect opens the next block's prep
-    // screen (module navigation now happens on GO, step 3). For the
-    // last block, advanceBlock auto-ends the session and the
-    // 'ended'-status branch renders the EndOfSessionSummary.
+    setLaunched(false);
+    setPendingRating(null);
+    // Stay here — the next block opens on its prep screen (module
+    // navigation happens on GO, step 3). For the last block,
+    // advanceBlock auto-ends the session and the 'ended' branch
+    // renders the EndOfSessionSummary.
   };
 
   const handleEndSessionEarly = () => {
@@ -294,7 +312,7 @@ export default function ActiveSessionScreen() {
   // stays idle until Ready. All metronome config lives here via the
   // shared MetronomeControl (last-used settings persist).
   // -------------------------------------------------------------
-  if (phase === 'prep') {
+  if (uiPhase === 'prep') {
     // Per-item breakdown of the (adjusted) drill budget. null when
     // there's nothing useful to itemize (no items / a long queue).
     const itemBreakdown = buildPrepItemBreakdown(
@@ -432,7 +450,7 @@ export default function ActiveSessionScreen() {
   // -------------------------------------------------------------
   // Between-blocks phase (5c rating + 5d preview).
   // -------------------------------------------------------------
-  if (phase === 'rating') {
+  if (uiPhase === 'rating') {
     const isLastBlock =
       state.currentBlockIndex === state.blocks.length - 1;
     const nextBlock = !isLastBlock
@@ -441,6 +459,7 @@ export default function ActiveSessionScreen() {
     const nextMeta = nextBlock ? moduleMetaById(nextBlock.moduleRef) : null;
     const nextAccent = nextMeta?.accentHex ?? '#4a9088';
     const nextLabel = nextMeta?.label ?? nextBlock?.moduleRef ?? '';
+    const eligibleToExtend = canExtendBlock(currentBlock);
 
     return (
       <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
@@ -523,12 +542,37 @@ export default function ActiveSessionScreen() {
           </section>
         )}
 
+        {/* Extend — resume the drill for more time on eligible blocks
+            (flashcards / S&P drills / repertoire; not warm-ups or
+            mental viz). Returns to this screen when the extra time
+            ends. Subsequent blocks aren't compressed. */}
+        {eligibleToExtend && (
+          <div className="space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-neutral-500 text-center">
+              want more time on this?
+            </div>
+            <div className="flex items-center gap-2">
+              {[1, 2, 5].map(mins => (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => handleExtend(mins)}
+                  className="flex-1 px-3 py-2 rounded-md border text-sm font-medium hover:opacity-90"
+                  style={{ color: accent, borderColor: accent }}
+                >
+                  +{mins} min
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={handleRatingNext}
           className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
         >
-          {nextBlock ? 'start next' : 'finish session'}
+          {nextBlock ? 'Next block →' : 'finish session'}
         </button>
 
         <div className="flex items-center justify-center gap-4">

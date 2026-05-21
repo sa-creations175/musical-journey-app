@@ -33,6 +33,7 @@ export const INITIAL_SESSION_STATE: SessionState = {
   pauseReason: null,
   hardBlock: false,
   context: 'keys',
+  startInPrep: false,
   blockEndRequested: false,
   blocks: [],
   currentBlockIndex: null,
@@ -153,11 +154,26 @@ export function sessionTimerReducer(
     case 'begin-prep':
       return transitionPhase(state, 'prep', action.now);
 
-    case 'start-drill':
-      return transitionPhase(state, 'drill', action.now);
+    case 'start-drill': {
+      // Enter drill with the current adjusted duration as the segment.
+      if (state.currentBlockIndex === null || state.status !== 'running') {
+        return state;
+      }
+      const cur = state.blocks[state.currentBlockIndex];
+      return enterDrill(state, action.now, cur.adjustedDrillSeconds);
+    }
 
     case 'complete-drill':
       return transitionPhase(state, 'rating', action.now);
+
+    case 'extend-drill':
+      // Re-enter drill with a fresh segment of `seconds` (rating-screen
+      // extend). Clamp to the drill floor.
+      return enterDrill(
+        state,
+        action.now,
+        Math.max(MIN_DRILL_SECONDS, action.seconds),
+      );
 
     case 'adjust-drill-time': {
       if (state.currentBlockIndex === null) return state;
@@ -207,6 +223,11 @@ function startSession(
 
   const now = input.now ?? 0;
   const sessionId = input.sessionId ?? '';
+  const startInPrep = input.startInPrep ?? false;
+  // Prep-flow sessions open each block in `prep` (drill timer idle
+  // until Ready); other origins start straight in `drill` so their
+  // whole-block time logs as drill, unchanged.
+  const initialPhase = startInPrep ? 'prep' : 'drill';
 
   const blocks: SessionBlock[] = input.blocks.map((b, i) => ({
     id: blockIds[i],
@@ -223,17 +244,17 @@ function startSession(
     endedAt: null,
     activeMs: 0,
     pausedMs: 0,
-    // Prep-flow: blocks start directly in `drill` until a later step
-    // walks them through a prep screen. The first block's phase clock
-    // starts with the block; pending blocks start their phase clock
-    // when they become current (advance-block).
-    phase: 'drill',
+    // The first block's phase clock starts with the block; pending
+    // blocks start their phase clock when they become current
+    // (advance-block).
+    phase: initialPhase,
     phaseStartedAt: i === 0 ? now : null,
     prepMs: 0,
     drillMs: 0,
     ratingMs: 0,
     phasePausedMs: 0,
     adjustedDrillSeconds: b.plannedSeconds,
+    drillSegmentSeconds: b.plannedSeconds,
   }));
 
   return {
@@ -251,6 +272,7 @@ function startSession(
     pauseReason: null,
     hardBlock: input.hardBlock ?? false,
     context: input.context ?? 'keys',
+    startInPrep,
     blockEndRequested: false,
     blocks,
     currentBlockIndex: 0,
@@ -300,15 +322,18 @@ function advanceBlock(
   }
 
   const nextIdx = idx + 1;
+  const nextBlockBase = workingState.blocks[nextIdx];
   const nextBlock: SessionBlock = {
-    ...workingState.blocks[nextIdx],
-    id: action.nextBlockId ?? workingState.blocks[nextIdx].id,
+    ...nextBlockBase,
+    id: action.nextBlockId ?? nextBlockBase.id,
     status: 'running',
     startedAt: action.now,
-    // Start the next block's phase clock (legacy default: drill).
-    phase: 'drill',
+    // Open the next block in prep (prep-flow) or drill (legacy), and
+    // (re)anchor its drill segment to its adjusted duration.
+    phase: workingState.startInPrep ? 'prep' : 'drill',
     phaseStartedAt: action.now,
     phasePausedMs: 0,
+    drillSegmentSeconds: nextBlockBase.adjustedDrillSeconds,
   };
 
   const blocks = workingState.blocks.map((b, i) => {
@@ -454,6 +479,33 @@ function transitionPhase(
   };
 }
 
+/**
+ * Enter the drill phase with `segmentSeconds` as the current segment's
+ * countdown target. Used by start-drill (target = adjusted duration)
+ * and extend-drill (target = the chosen extension). Folds the leaving
+ * phase's time into its accumulator first. No-op unless there's a
+ * current block and the session is running.
+ */
+function enterDrill(
+  state: SessionState,
+  now: number,
+  segmentSeconds: number,
+): SessionState {
+  if (state.currentBlockIndex === null) return state;
+  if (state.status !== 'running') return state;
+  const idx = state.currentBlockIndex;
+  const accrued = accrueCurrentPhase(state.blocks[idx], now);
+  return {
+    ...state,
+    blocks: replaceAt(state.blocks, idx, {
+      ...accrued,
+      phase: 'drill',
+      phaseStartedAt: now,
+      drillSegmentSeconds: segmentSeconds,
+    }),
+  };
+}
+
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
@@ -533,15 +585,18 @@ export function getTimes(state: SessionState, now: number): SessionTimes {
       cur.status === 'running' && cur.phase === 'drill' ? phaseSegActive : 0;
     drillElapsedMs = cur.drillMs + liveDrill;
 
-    // Count-down drill timer for the CURRENT segment. Resets per drill
-    // entry (a future extend re-anchors phaseStartedAt + adjustment).
-    const drillTotalMs =
-      (cur.adjustedDrillSeconds + cur.extensionSeconds) * 1000;
+    // Count-down drill timer for the CURRENT segment, against that
+    // segment's own target (drillSegmentSeconds) — so a rating-screen
+    // extend gets a fresh N-minute countdown regardless of how long
+    // the prior segment ran.
     if (cur.status === 'running' && cur.phase === 'drill') {
-      drillRemainingMs = Math.max(0, drillTotalMs - phaseSegActive);
+      drillRemainingMs = Math.max(
+        0,
+        cur.drillSegmentSeconds * 1000 - phaseSegActive,
+      );
     } else if (cur.status === 'running' && cur.phase === 'prep') {
-      // Drill hasn't started — preview the full duration.
-      drillRemainingMs = drillTotalMs;
+      // Drill hasn't started — preview the adjusted duration.
+      drillRemainingMs = cur.adjustedDrillSeconds * 1000;
     } else {
       drillRemainingMs = 0;
     }

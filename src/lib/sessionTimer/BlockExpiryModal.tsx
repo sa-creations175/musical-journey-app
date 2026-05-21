@@ -56,28 +56,53 @@ export function BlockExpiryModal() {
     advanceBlock,
     requestBlockEnd,
     completeDrill,
+    pauseSession,
   } = useSessionTimer();
   const times = useSessionTimes();
 
   const currentBlock =
     state.currentBlockIndex !== null ? state.blocks[state.currentBlockIndex] : null;
 
-  // Prep-flow: the DRILL timer is the countdown — not whole-block
-  // active time. Prep/rating time never trips this, and a slow prep
-  // can't fire the modal mid-setup.
-  const drillTotalMs = currentBlock
-    ? (currentBlock.adjustedDrillSeconds + currentBlock.extensionSeconds) * 1000
-    : 0;
+  // Prep-flow (practice-sessions origin): this modal is retired. When
+  // the drill timer hits 0 we route straight to the rating screen
+  // (the headless effect below) — no "Block time's up" prompt, no 5s
+  // grace, nothing fires past rating. The modal still serves other
+  // origins (e.g. shapes-drill) unchanged.
+  const isPrepFlow = state.origin === 'practice-sessions';
+
+  // The DRILL timer is the countdown — not whole-block active time.
+  // Prep/rating time never trips this, and a slow prep can't fire it
+  // mid-setup.
+  const drillTotalMs = currentBlock ? currentBlock.drillSegmentSeconds * 1000 : 0;
   const isOvertime =
     !!currentBlock &&
     times.blockPhase === 'drill' &&
     drillTotalMs > 0 &&
     times.drillRemainingMs <= 0;
 
-  // Open exactly when a running session's drill timer has crossed 0.
-  // Paused sessions don't fire — the user hit pause for a reason and
-  // we shouldn't ambush them with a modal.
-  const open = !!currentBlock && state.status === 'running' && isOvertime;
+  // Modal opens only for NON-prep-flow origins, when a running
+  // session's drill timer has crossed 0. Paused sessions don't fire.
+  const open = !isPrepFlow && !!currentBlock && state.status === 'running' && isOvertime;
+
+  // Prep-flow drill-end → rating. complete-drill finalizes drillMs and
+  // moves the block to its rating phase; the manual pause holds the
+  // rating window; navigate surfaces the rating screen. Guarded so it
+  // fires once per drill-end (re-arms when the drill leaves overtime,
+  // e.g. after an extend).
+  const routedToRatingRef = useRef(false);
+  const prepFlowDrillEnded =
+    isPrepFlow && !!currentBlock && state.status === 'running' && isOvertime;
+  useEffect(() => {
+    if (!prepFlowDrillEnded) {
+      routedToRatingRef.current = false;
+      return;
+    }
+    if (routedToRatingRef.current) return;
+    routedToRatingRef.current = true;
+    completeDrill();
+    pauseSession({ reason: 'manual' });
+    navigate(PRACTICE_SESSIONS_ACTIVE_ROUTE);
+  }, [prepFlowDrillEnded, completeDrill, pauseSession, navigate]);
 
   // -----------------------------------------------------------------
   // Hard-block grace. Anchored to a per-open epoch so re-firing on a

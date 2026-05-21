@@ -661,3 +661,93 @@ describe('sessionTimerReducer — block phases + drill timer', () => {
     expect(same).toBe(paused);
   });
 });
+
+describe('sessionTimerReducer — startInPrep + extend-drill', () => {
+  function startInPrep({ blockCount = 1, plannedSeconds = 120 } = {}): SessionState {
+    const blocks = Array.from({ length: blockCount }, (_, i) => ({
+      moduleRef: 'shapes-and-patterns',
+      plannedSeconds,
+      label: `Block ${i + 1}`,
+    }));
+    return sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'start',
+      input: {
+        origin: 'practice-sessions',
+        activeModuleRef: 'practice-sessions',
+        startInPrep: true,
+        blocks,
+        sessionId: 'sess-p',
+        now: T0,
+      },
+      blockIds: blocks.map((_, i) => `b${i + 1}`),
+    });
+  }
+
+  it('opens the first block in prep when startInPrep is set', () => {
+    const s = startInPrep({ plannedSeconds: 120 });
+    expect(s.startInPrep).toBe(true);
+    expect(s.blocks[0].phase).toBe('prep');
+    expect(s.blocks[0].drillSegmentSeconds).toBe(120);
+    // In prep the drill timer previews the full duration, frozen.
+    const t = getTimes(s, T0 + 20 * SECOND);
+    expect(t.blockPhase).toBe('prep');
+    expect(t.drillRemainingMs).toBe(120 * SECOND);
+    expect(t.drillElapsedMs).toBe(0);
+  });
+
+  it('opens each advanced-into block in prep too', () => {
+    let s = startInPrep({ blockCount: 2 });
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 });
+    s = sessionTimerReducer(s, { type: 'advance-block', now: T0 + 1 * MINUTE });
+    expect(s.currentBlockIndex).toBe(1);
+    expect(s.blocks[1].phase).toBe('prep');
+  });
+
+  it('legacy origins still start blocks in drill (startInPrep defaults false)', () => {
+    const s = startState(); // no startInPrep
+    expect(s.startInPrep).toBe(false);
+    expect(s.blocks[0].phase).toBe('drill');
+  });
+
+  it('extend-drill re-enters drill with a fresh segment target', () => {
+    let s = startInPrep({ plannedSeconds: 120 });
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 });
+    s = sessionTimerReducer(s, { type: 'complete-drill', now: T0 + 2 * MINUTE });
+    expect(s.blocks[0].phase).toBe('rating');
+
+    // Extend by 1 min → fresh 60s drill segment.
+    s = sessionTimerReducer(s, {
+      type: 'extend-drill',
+      seconds: 60,
+      now: T0 + 2 * MINUTE,
+    });
+    expect(s.blocks[0].phase).toBe('drill');
+    expect(s.blocks[0].drillSegmentSeconds).toBe(60);
+    const t = getTimes(s, T0 + 2 * MINUTE + 20 * SECOND);
+    expect(t.drillRemainingMs).toBe(40 * SECOND);
+  });
+
+  it('extend-drill gives a fresh segment even after an overtime drill', () => {
+    let s = startInPrep({ plannedSeconds: 60 });
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 });
+    // Drill runs 90s — 30s past the 60s target — then ends.
+    s = sessionTimerReducer(s, { type: 'complete-drill', now: T0 + 90 * SECOND });
+    expect(s.blocks[0].drillMs).toBe(90 * SECOND);
+    // Extend +2 min → a clean 120s, unaffected by the prior overtime.
+    s = sessionTimerReducer(s, {
+      type: 'extend-drill',
+      seconds: 120,
+      now: T0 + 90 * SECOND,
+    });
+    const t = getTimes(s, T0 + 90 * SECOND + 30 * SECOND);
+    expect(t.drillRemainingMs).toBe(90 * SECOND);
+  });
+
+  it('extend-drill clamps to the drill floor', () => {
+    let s = startInPrep();
+    s = sessionTimerReducer(s, { type: 'start-drill', now: T0 });
+    s = sessionTimerReducer(s, { type: 'complete-drill', now: T0 + 1 * MINUTE });
+    s = sessionTimerReducer(s, { type: 'extend-drill', seconds: 5, now: T0 + 1 * MINUTE });
+    expect(s.blocks[0].drillSegmentSeconds).toBe(30);
+  });
+});

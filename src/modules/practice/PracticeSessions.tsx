@@ -469,6 +469,8 @@ export default function PracticeSessions() {
       origin: 'practice-sessions',
       hardBlock: opts.hardBlock,
       context: lastInputs?.context ?? 'keys',
+      // Prep-flow: each block opens on its prep screen.
+      startInPrep: true,
       blocks: armBlocks,
     });
     navigate('/practice-sessions/active');

@@ -39,6 +39,7 @@ export function useStartArmedSessionOnArrival(): void {
       activeModuleRef: ACTIVE_MODULE_REF,
       hardBlock: state.pendingStart.hardBlock,
       context: state.pendingStart.context,
+      startInPrep: state.pendingStart.startInPrep,
       blocks: state.pendingStart.blocks.map(b => ({
         moduleRef: b.moduleRef,
         itemRefs: b.itemRefs,

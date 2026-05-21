@@ -105,6 +105,9 @@ export interface SessionTimerContextValue {
   /** Adjust the current block's drill duration by `deltaSeconds`
    *  (prep-screen +/-). Clamped to [30s, planned * 2]. */
   adjustDrillTime: (deltaSeconds: number) => void;
+  /** Rating-screen extend: re-enter drill with a fresh `seconds`-long
+   *  segment on the same block. */
+  extendDrill: (seconds: number) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -232,6 +235,10 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'adjust-drill-time', deltaSeconds });
   }, []);
 
+  const extendDrill = useCallback((seconds: number) => {
+    dispatch({ type: 'extend-drill', seconds, now: Date.now() });
+  }, []);
+
   const value = useMemo<SessionTimerContextValue>(
     () => ({
       state,
@@ -252,6 +259,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       startDrill,
       completeDrill,
       adjustDrillTime,
+      extendDrill,
     }),
     [
       state,
@@ -272,6 +280,7 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       startDrill,
       completeDrill,
       adjustDrillTime,
+      extendDrill,
     ],
   );
 
