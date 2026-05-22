@@ -378,11 +378,10 @@ export default function ScalesDrillModal({
               </button>
               <button
                 onClick={handleCancel}
-                disabled={!canGoNext}
-                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Move on to the next scale"
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title={canGoNext ? 'Move on to the next scale' : 'Finish — end the drills and rate this block'}
               >
-                Next scale
+                {canGoNext ? 'Next scale' : 'Finish'}
               </button>
               <button
                 onClick={handleRedo}
@@ -426,10 +425,9 @@ export default function ScalesDrillModal({
           )}
           <button
             onClick={handleCancel}
-            disabled={!!onRedo && !canGoNext}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            {onRedo ? 'Next scale' : 'cancel'}
+            {onRedo ? (canGoNext ? 'Next scale' : 'Finish') : 'cancel'}
           </button>
         </div>
       )}
