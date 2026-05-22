@@ -1823,7 +1823,15 @@ function toProposalBlocks(
   shapesContext: ShapesSplitContext | null = null,
 ): ProposalBlock[] {
   const meta = moduleMetaById(block.moduleRef);
-  const moduleLabel = meta?.label ?? block.moduleRef;
+  // ET scales-modes reads just "scales & modes" by default, which is
+  // easy to confuse with the S&P scales warm-up ("Scales · C, F …").
+  // Qualify it in the proposal so the ear-training (listening) block is
+  // unmistakable vs the keyboard warm-up. (Proposal-only — the nav /
+  // module registry label stays "scales & modes".)
+  const moduleLabel =
+    block.moduleRef === 'scales-modes'
+      ? 'scales & modes (ear training)'
+      : meta?.label ?? block.moduleRef;
   const moduleAccentHex = meta?.accentHex ?? '#4a9088';
 
   // S&P key-by-key reshape — when the caller has pre-loaded the
