@@ -38,6 +38,7 @@ export const INITIAL_SESSION_STATE: SessionState = {
   blockEndRequested: false,
   blocks: [],
   currentBlockIndex: null,
+  deferredBlocks: [],
 };
 
 export function sessionTimerReducer(
@@ -180,6 +181,18 @@ export function sessionTimerReducer(
       if (state.inSessionDrillActive === action.active) return state;
       return { ...state, inSessionDrillActive: action.active };
 
+    case 'defer-block':
+      return deferBlock(state, action);
+
+    case 'resume-deferred-block':
+      return resumeDeferredBlock(state, action);
+
+    case 'skip-deferred-block':
+      return skipDeferredBlock(state, action);
+
+    case 'end-deferred-review':
+      return endDeferredReview(state, action);
+
     case 'adjust-drill-time': {
       if (state.currentBlockIndex === null) return state;
       if (state.status !== 'running' && state.status !== 'paused') return state;
@@ -282,6 +295,7 @@ function startSession(
     blockEndRequested: false,
     blocks,
     currentBlockIndex: 0,
+    deferredBlocks: [],
   };
 }
 
@@ -316,13 +330,27 @@ function advanceBlock(
 
   const isLast = idx === workingState.blocks.length - 1;
   if (isLast) {
+    const blocksAfter = replaceAt(workingState.blocks, idx, finalized);
+    // Deferred blocks intercept the auto-end: instead of ending, exhaust
+    // the active queue (currentBlockIndex → null) so the deferred-review
+    // prompt shows. The session record isn't written until the user
+    // resolves them and taps Done.
+    if (workingState.deferredBlocks.length > 0) {
+      return {
+        ...workingState,
+        status: 'running',
+        blockEndRequested: false,
+        blocks: blocksAfter,
+        currentBlockIndex: null,
+      };
+    }
     // No more blocks to advance into — auto-end.
     return {
       ...workingState,
       status: 'ended',
       endedAt: action.now,
       blockEndRequested: false,
-      blocks: replaceAt(workingState.blocks, idx, finalized),
+      blocks: blocksAfter,
       currentBlockIndex: idx,
     };
   }
@@ -395,6 +423,170 @@ function endSession(
     status: 'ended',
     endedAt: action.now,
     blocks,
+  };
+}
+
+// --- Defer-a-block helpers -------------------------------------------
+
+/** Snapshot a block as a fresh pending block for the deferred queue —
+ *  all timing zeroed so it starts clean when "Do it now" runs it. */
+function toDeferredPending(block: SessionBlock): SessionBlock {
+  return {
+    ...block,
+    status: 'pending',
+    startedAt: null,
+    endedAt: null,
+    activeMs: 0,
+    pausedMs: 0,
+    phase: 'prep',
+    phaseStartedAt: null,
+    prepMs: 0,
+    drillMs: 0,
+    ratingMs: 0,
+    phasePausedMs: 0,
+    extensionSeconds: 0,
+    adjustedDrillSeconds: block.plannedSeconds,
+    drillSegmentSeconds: block.plannedSeconds,
+    rating: undefined,
+  };
+}
+
+/** Snapshot a deferred block as a finalized 'skipped' block (zero time)
+ *  so the end-of-session record shows it was set aside and skipped —
+ *  matching handleSkipBlock semantics. */
+function toSkippedDeferred(block: SessionBlock, now: number): SessionBlock {
+  return {
+    ...toDeferredPending(block),
+    status: 'skipped',
+    startedAt: now,
+    endedAt: now,
+  };
+}
+
+function deferBlock(
+  state: SessionState,
+  action: Extract<SessionTimerAction, { type: 'defer-block' }>,
+): SessionState {
+  if (state.currentBlockIndex === null) return state;
+  if (state.status !== 'running' && state.status !== 'paused') return state;
+
+  // Resolve any in-progress pause first (mirrors advanceBlock) so the
+  // block we advance INTO doesn't inherit a stale pause segment.
+  let workingState = state;
+  if (state.status === 'paused' && state.pausedAt !== null) {
+    const pauseDuration = Math.max(0, action.now - state.pausedAt);
+    workingState = {
+      ...state,
+      status: 'running',
+      pausedAt: null,
+      pauseReason: null,
+      blocks: bumpCurrentBlockPause(state, pauseDuration),
+    };
+  }
+
+  const idx = workingState.currentBlockIndex!;
+  const deferred = toDeferredPending(workingState.blocks[idx]);
+  const remaining = workingState.blocks.filter((_, i) => i !== idx);
+  const deferredBlocks = [...workingState.deferredBlocks, deferred];
+
+  // The block that slides into `idx` (the former idx+1) becomes the new
+  // current block, opened in prep/drill exactly like advanceBlock does.
+  if (idx < remaining.length) {
+    const nextBase = remaining[idx];
+    const nextBlock: SessionBlock = {
+      ...nextBase,
+      id: action.nextBlockId ?? nextBase.id,
+      status: 'running',
+      startedAt: action.now,
+      phase: workingState.startInPrep ? 'prep' : 'drill',
+      phaseStartedAt: action.now,
+      phasePausedMs: 0,
+      drillSegmentSeconds: nextBase.adjustedDrillSeconds,
+    };
+    return {
+      ...workingState,
+      status: 'running',
+      blockEndRequested: false,
+      blocks: remaining.map((b, i) => (i === idx ? nextBlock : b)),
+      deferredBlocks,
+      currentBlockIndex: idx,
+    };
+  }
+
+  // Deferred the last active block — queue exhausted → deferred-review.
+  return {
+    ...workingState,
+    status: 'running',
+    blockEndRequested: false,
+    blocks: remaining,
+    deferredBlocks,
+    currentBlockIndex: null,
+  };
+}
+
+function resumeDeferredBlock(
+  state: SessionState,
+  action: Extract<SessionTimerAction, { type: 'resume-deferred-block' }>,
+): SessionState {
+  const deferred = state.deferredBlocks.find(b => b.id === action.id);
+  if (!deferred) return state;
+  const deferredBlocks = state.deferredBlocks.filter(b => b.id !== action.id);
+  const block: SessionBlock = {
+    ...deferred,
+    id: action.blockId ?? deferred.id,
+    status: 'running',
+    startedAt: action.now,
+    endedAt: null,
+    phase: state.startInPrep ? 'prep' : 'drill',
+    phaseStartedAt: action.now,
+    phasePausedMs: 0,
+    drillSegmentSeconds: deferred.adjustedDrillSeconds,
+  };
+  const blocks = [...state.blocks, block];
+  return {
+    ...state,
+    status: 'running',
+    pausedAt: null,
+    pauseReason: null,
+    blockEndRequested: false,
+    blocks,
+    deferredBlocks,
+    currentBlockIndex: blocks.length - 1,
+  };
+}
+
+function skipDeferredBlock(
+  state: SessionState,
+  action: Extract<SessionTimerAction, { type: 'skip-deferred-block' }>,
+): SessionState {
+  const deferred = state.deferredBlocks.find(b => b.id === action.id);
+  if (!deferred) return state;
+  const deferredBlocks = state.deferredBlocks.filter(b => b.id !== action.id);
+  const blocks = [...state.blocks, toSkippedDeferred(deferred, action.now)];
+  // Last one skipped → the session ends.
+  if (deferredBlocks.length === 0) {
+    return {
+      ...state,
+      status: 'ended',
+      endedAt: action.now,
+      blocks,
+      deferredBlocks,
+    };
+  }
+  return { ...state, blocks, deferredBlocks };
+}
+
+function endDeferredReview(
+  state: SessionState,
+  action: Extract<SessionTimerAction, { type: 'end-deferred-review' }>,
+): SessionState {
+  const skipped = state.deferredBlocks.map(b => toSkippedDeferred(b, action.now));
+  return {
+    ...state,
+    status: 'ended',
+    endedAt: action.now,
+    blocks: [...state.blocks, ...skipped],
+    deferredBlocks: [],
   };
 }
 

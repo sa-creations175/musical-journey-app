@@ -89,6 +89,8 @@ export function draftToSessionState(draft: ActiveSessionDraft, now: number): Ses
     // runner isn't mounted, so clear its flag (else the drill-end
     // watcher would stay suppressed).
     inSessionDrillActive: false,
+    // Default for drafts written before the defer-a-block feature.
+    deferredBlocks: base.deferredBlocks ?? [],
     blocks,
   };
 }

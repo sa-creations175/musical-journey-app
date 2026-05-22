@@ -760,3 +760,151 @@ describe('sessionTimerReducer — startInPrep + extend-drill', () => {
     expect(s.inSessionDrillActive).toBe(false);
   });
 });
+
+describe('sessionTimerReducer — defer a block', () => {
+  function startPrep(blockCount = 3): SessionState {
+    const blocks = Array.from({ length: blockCount }, (_, i) => ({
+      moduleRef: i === 0 ? 'production' : 'ear-training',
+      plannedSeconds: 600,
+      label: `Block ${i + 1}`,
+    }));
+    return sessionTimerReducer(INITIAL_SESSION_STATE, {
+      type: 'start',
+      input: {
+        origin: 'practice-sessions',
+        activeModuleRef: 'practice-sessions',
+        startInPrep: true,
+        blocks,
+        sessionId: 'sess-d',
+        now: T0,
+      },
+      blockIds: blocks.map((_, i) => `b${i + 1}`),
+    });
+  }
+
+  it('initial state seeds an empty deferredBlocks list', () => {
+    expect(INITIAL_SESSION_STATE.deferredBlocks).toEqual([]);
+    expect(startPrep().deferredBlocks).toEqual([]);
+  });
+
+  it('moves the current block to deferredBlocks and advances to the next', () => {
+    let s = startPrep(3);
+    const deferredLabel = s.blocks[0].label;
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 + 5 * SECOND, nextBlockId: 'next' });
+    // Removed from the active queue, held aside (reset to pending).
+    expect(s.blocks).toHaveLength(2);
+    expect(s.deferredBlocks).toHaveLength(1);
+    expect(s.deferredBlocks[0].label).toBe(deferredLabel);
+    expect(s.deferredBlocks[0].status).toBe('pending');
+    expect(s.deferredBlocks[0].startedAt).toBeNull();
+    // Advanced to the next active block, opened in prep + running.
+    expect(s.currentBlockIndex).toBe(0);
+    expect(s.status).toBe('running');
+    expect(s.blocks[0].status).toBe('running');
+    expect(s.blocks[0].phase).toBe('prep');
+    expect(s.blocks[0].id).toBe('next');
+  });
+
+  it('deferring the last active block exhausts the queue → deferred review', () => {
+    let s = startPrep(1);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 + 5 * SECOND });
+    // currentBlockIndex null + deferredBlocks non-empty + still running
+    // is the derived "deferred review" phase. Session has NOT ended.
+    expect(s.currentBlockIndex).toBeNull();
+    expect(s.status).toBe('running');
+    expect(s.deferredBlocks).toHaveLength(1);
+    expect(s.blocks).toHaveLength(0);
+  });
+
+  it('advancing past the last active block enters review (not ended) when blocks are deferred', () => {
+    // Defer block 1, then complete blocks 2 + 3 → review with block 1.
+    let s = startPrep(3);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 });
+    // Now 2 active blocks remain. Complete both.
+    s = sessionTimerReducer(s, { type: 'advance-block', now: T0 + 1 * MINUTE, markStatus: 'completed' });
+    expect(s.currentBlockIndex).toBe(1);
+    s = sessionTimerReducer(s, { type: 'advance-block', now: T0 + 2 * MINUTE, markStatus: 'completed' });
+    // Last active block done, one deferred → review, not ended.
+    expect(s.status).toBe('running');
+    expect(s.currentBlockIndex).toBeNull();
+    expect(s.deferredBlocks).toHaveLength(1);
+  });
+
+  it('"do it now" re-appends a deferred block as the running current block', () => {
+    let s = startPrep(1);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 });
+    const id = s.deferredBlocks[0].id;
+    s = sessionTimerReducer(s, {
+      type: 'resume-deferred-block',
+      id,
+      now: T0 + 30 * SECOND,
+      blockId: 'resumed',
+    });
+    expect(s.deferredBlocks).toHaveLength(0);
+    expect(s.blocks).toHaveLength(1);
+    expect(s.currentBlockIndex).toBe(0);
+    expect(s.blocks[0].id).toBe('resumed');
+    expect(s.blocks[0].status).toBe('running');
+    expect(s.blocks[0].phase).toBe('prep');
+    expect(s.status).toBe('running');
+  });
+
+  it('completing a resumed deferred block ends the session when none remain', () => {
+    let s = startPrep(1);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 });
+    const id = s.deferredBlocks[0].id;
+    s = sessionTimerReducer(s, { type: 'resume-deferred-block', id, now: T0 + 1 * MINUTE });
+    s = sessionTimerReducer(s, { type: 'advance-block', now: T0 + 2 * MINUTE, markStatus: 'completed' });
+    expect(s.status).toBe('ended');
+    expect(s.deferredBlocks).toHaveLength(0);
+    expect(s.blocks.some(b => b.status === 'completed')).toBe(true);
+  });
+
+  it('"skip" on a deferred block records it skipped and ends when it was the last', () => {
+    let s = startPrep(1);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 });
+    const id = s.deferredBlocks[0].id;
+    s = sessionTimerReducer(s, { type: 'skip-deferred-block', id, now: T0 + 30 * SECOND });
+    expect(s.status).toBe('ended');
+    expect(s.deferredBlocks).toHaveLength(0);
+    // Recorded as a skipped block (same as handleSkipBlock).
+    expect(s.blocks.filter(b => b.status === 'skipped')).toHaveLength(1);
+  });
+
+  it('"skip" on one of several deferred blocks stays in review', () => {
+    let s = startPrep(2);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 }); // defer block 1
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 + 1 }); // defer block 2 → review
+    expect(s.deferredBlocks).toHaveLength(2);
+    const firstId = s.deferredBlocks[0].id;
+    s = sessionTimerReducer(s, { type: 'skip-deferred-block', id: firstId, now: T0 + 2 });
+    expect(s.status).toBe('running'); // one still pending → still in review
+    expect(s.deferredBlocks).toHaveLength(1);
+  });
+
+  it('"end session" from review records all remaining deferred as skipped and ends', () => {
+    let s = startPrep(2);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 });
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 + 1 });
+    s = sessionTimerReducer(s, { type: 'end-deferred-review', now: T0 + 2 });
+    expect(s.status).toBe('ended');
+    expect(s.deferredBlocks).toHaveLength(0);
+    expect(s.blocks.filter(b => b.status === 'skipped')).toHaveLength(2);
+  });
+
+  it('defer is a no-op when there is no current block', () => {
+    let s = startPrep(1);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 }); // → review, index null
+    const before = s;
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 + 1 });
+    expect(s).toBe(before);
+  });
+
+  it('resume/skip with an unknown id is a no-op', () => {
+    let s = startPrep(1);
+    s = sessionTimerReducer(s, { type: 'defer-block', now: T0 });
+    const before = s;
+    expect(sessionTimerReducer(s, { type: 'resume-deferred-block', id: 'nope', now: T0 })).toBe(before);
+    expect(sessionTimerReducer(s, { type: 'skip-deferred-block', id: 'nope', now: T0 })).toBe(before);
+  });
+});

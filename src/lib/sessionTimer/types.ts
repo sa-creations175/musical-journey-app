@@ -279,6 +279,20 @@ export interface SessionState {
   blockEndRequested: boolean;
   blocks: SessionBlock[];
   currentBlockIndex: number | null;
+  /**
+   * Blocks the user deferred from the prep screen. They leave the
+   * active queue (so they never re-enter the normal rotation) and are
+   * held here, offered once at session end via the deferred-review
+   * prompt ("Do it now" / "Skip" per block). No time is charged while
+   * a block sits here.
+   *
+   * The "deferred review" phase is derived, not a status: it's active
+   * when `currentBlockIndex === null` (active queue exhausted) AND
+   * `deferredBlocks.length > 0` while the session is still
+   * running/paused. Resolving a deferred block re-appends it to
+   * `blocks` (completed via "Do it now", or skipped).
+   */
+  deferredBlocks: SessionBlock[];
 }
 
 export interface SessionTimes {
@@ -389,4 +403,19 @@ export type SessionTimerAction =
   | { type: 'extend-drill'; seconds: number; now: number }
   /** Toggle the in-session drill runner flag (Level 3) so the global
    *  drill-end watcher stands down while the runner is driving. */
-  | { type: 'set-in-session-drill-active'; active: boolean };
+  | { type: 'set-in-session-drill-active'; active: boolean }
+  // --- Defer-a-block within a session --------------------------
+  /** Defer the current block: remove it from the active queue, hold it
+   *  in `deferredBlocks`, and advance to the next active block (or, if
+   *  it was the last, exhaust the queue → deferred-review). */
+  | { type: 'defer-block'; now: number; nextBlockId?: string }
+  /** "Do it now" from the deferred-review prompt: re-append the deferred
+   *  block (by id) to the active queue as the running block in prep. */
+  | { type: 'resume-deferred-block'; id: string; now: number; blockId?: string }
+  /** "Skip" a deferred block from the review prompt: drop it from
+   *  `deferredBlocks` and record it as a skipped block. Ends the session
+   *  when it was the last one. */
+  | { type: 'skip-deferred-block'; id: string; now: number }
+  /** "End session" from the review prompt: record all remaining deferred
+   *  blocks as skipped and end the session. */
+  | { type: 'end-deferred-review'; now: number };

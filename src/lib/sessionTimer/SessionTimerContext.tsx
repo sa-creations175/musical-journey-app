@@ -111,6 +111,17 @@ export interface SessionTimerContextValue {
   /** Mark the in-session drill runner (Level 3) active/inactive so the
    *  global drill-end watcher stands down while it's driving. */
   setInSessionDrillActive: (active: boolean) => void;
+  // --- Defer-a-block within a session --------------------------
+  /** Defer the current block: remove it from the active queue, hold it
+   *  for end-of-session review, and advance to the next block. */
+  deferBlock: () => void;
+  /** "Do it now" — re-run a deferred block (by id) as the current block. */
+  resumeDeferredBlock: (id: string) => void;
+  /** "Skip" a deferred block (by id) from the review prompt. */
+  skipDeferredBlock: (id: string) => void;
+  /** "End session" from the review prompt — skip all remaining deferred
+   *  blocks and end. */
+  endDeferredReview: () => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -246,6 +257,27 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'set-in-session-drill-active', active });
   }, []);
 
+  const deferBlock = useCallback(() => {
+    dispatch({ type: 'defer-block', now: Date.now(), nextBlockId: makeId() });
+  }, []);
+
+  const resumeDeferredBlock = useCallback((id: string) => {
+    dispatch({
+      type: 'resume-deferred-block',
+      id,
+      now: Date.now(),
+      blockId: makeId(),
+    });
+  }, []);
+
+  const skipDeferredBlock = useCallback((id: string) => {
+    dispatch({ type: 'skip-deferred-block', id, now: Date.now() });
+  }, []);
+
+  const endDeferredReview = useCallback(() => {
+    dispatch({ type: 'end-deferred-review', now: Date.now() });
+  }, []);
+
   const value = useMemo<SessionTimerContextValue>(
     () => ({
       state,
@@ -268,6 +300,10 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       adjustDrillTime,
       extendDrill,
       setInSessionDrillActive,
+      deferBlock,
+      resumeDeferredBlock,
+      skipDeferredBlock,
+      endDeferredReview,
     }),
     [
       state,
@@ -290,6 +326,10 @@ export function SessionTimerProvider({ children }: { children: ReactNode }) {
       adjustDrillTime,
       extendDrill,
       setInSessionDrillActive,
+      deferBlock,
+      resumeDeferredBlock,
+      skipDeferredBlock,
+      endDeferredReview,
     ],
   );
 

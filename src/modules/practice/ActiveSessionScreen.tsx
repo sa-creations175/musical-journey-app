@@ -52,6 +52,7 @@ import EndOfSessionSummary from './EndOfSessionSummary';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
 import CountdownOverlay from './CountdownOverlay';
+import DeferredReviewPrompt from './DeferredReviewPrompt';
 import { buildPrepItemBreakdown } from './prepItemBreakdown';
 import { lessonById } from '../production/content/lessons';
 import { canExtendBlock } from './blockExtendEligibility';
@@ -152,6 +153,7 @@ export default function ActiveSessionScreen() {
     completeDrill,
     adjustDrillTime,
     extendDrill,
+    deferBlock,
   } = useSessionTimer();
   const times = useSessionTimes();
 
@@ -246,6 +248,15 @@ export default function ActiveSessionScreen() {
   // hook promotes the session to running. idle + not armed: the
   // effect above is routing us home; render nothing meanwhile.
   if (state.status === 'idle') return null;
+
+  // Deferred-review: the active queue is exhausted (no current block) but
+  // the user set blocks aside earlier. Offer them before the summary.
+  // (Derived phase — see SessionState.deferredBlocks.)
+  const inDeferredReview =
+    state.currentBlockIndex === null &&
+    state.deferredBlocks.length > 0 &&
+    (state.status === 'running' || state.status === 'paused');
+  if (inDeferredReview) return <DeferredReviewPrompt />;
 
   const currentBlock =
     state.currentBlockIndex !== null
@@ -453,6 +464,21 @@ export default function ActiveSessionScreen() {
     // Stay on the active-session screen — the next block opens on its
     // prep screen (reducer starts it in `prep`). On the last block,
     // advanceBlock auto-ends so the 'ended' branch renders the summary.
+  };
+
+  // Defer — set this block aside for end-of-session review and advance
+  // to the next active block (or, if it was the last, exhaust the queue
+  // so the deferred-review prompt shows). Like skip, it's hidden for
+  // warm-ups (bound to a downstream song/cell). The metronome may be in
+  // a prep preview; force it off here because the banner's
+  // !sessionActive cleanup won't fire (status stays 'running').
+  const handleDeferBlock = () => {
+    metronome.forceStop();
+    deferBlock();
+    setLaunched(false);
+    setPendingRating(null);
+    setRunnerActive(false);
+    setCountdown(null);
   };
 
   const handleRatingNext = () => {
@@ -665,6 +691,15 @@ export default function ActiveSessionScreen() {
                 title="advance past this block without logging it as completed"
               >
                 skip this block
+              </button>
+              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+              <button
+                type="button"
+                onClick={handleDeferBlock}
+                className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+                title="set this block aside and come back to it at the end of the session"
+              >
+                defer this block
               </button>
               <span className="text-neutral-300 dark:text-neutral-700">·</span>
             </>
