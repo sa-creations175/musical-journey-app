@@ -1,14 +1,17 @@
 /**
  * Prep-flow Phase 4 — count-in overlay.
  *
- * Mounts after the user taps Ready on a keyboard block. Drives the
- * metronome's one-shot `countIn` (count clicks + GO chime), shows the
- * big descending numeral pulsing on each beat, and renders "GO" in the
- * session accent on the final beat. On GO the visual holds for one beat
- * interval, then `onComplete` fires (the caller launches the drill).
+ * Mounts after the user taps Ready on a keyboard block. Holds a brief
+ * "breath" (COUNTDOWN_PRE_PAUSE_MS) — a deliberate get-set beat, not
+ * just a clash resolver — then drives the metronome's one-shot
+ * `countIn` (count clicks + GO chime), showing the big descending
+ * numeral pulsing on each beat and "GO" in the session accent on the
+ * final beat. On GO the visual holds for one beat interval, then
+ * `onComplete` fires (the caller launches the drill, which auto-starts
+ * the running metronome).
  *
- * The whole screen is the bypass target: a tap clears the remaining
- * ticks and fires GO immediately.
+ * The whole screen is the bypass target: a tap skips straight to GO —
+ * during the pre-pause as well as the count itself.
  */
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -16,6 +19,11 @@ import {
   buildCountInSchedule,
   type TimeSig,
 } from '../../lib/metronome';
+import { playGoChime } from '../../lib/chimes';
+
+/** Deliberate breath between the Ready tap and the count-in. Applies
+ *  always, whether or not the metronome was previewing. */
+export const COUNTDOWN_PRE_PAUSE_MS = 2000;
 
 interface Props {
   timeSig: TimeSig;
@@ -30,17 +38,21 @@ interface Props {
 export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: Props) {
   // null until the first tick; { display } during the count; go=true on GO.
   const [tick, setTick] = useState<{ display: number; seq: number } | null>(null);
+  const [counting, setCounting] = useState(false); // false during the pre-pause
   const [isGo, setIsGo] = useState(false);
 
-  // Stable refs so the mount effect runs exactly once.
+  // `cancelRef` holds whatever "skip to GO" action is valid right now:
+  // a pause-phase skip until the count-in starts, then countIn's own
+  // cancel. Other refs keep the once-only mount effect honest.
   const cancelRef = useRef<(() => void) | null>(null);
   const completeRef = useRef(onComplete);
   const seqRef = useRef(0);
+  const wentGoRef = useRef(false);
+  const tornDownRef = useRef(false);
 
   // Keep the latest onComplete reachable from the (once-only) mount
   // effect — the parent re-renders each second as the session timer
-  // ticks, so the GO handler must call the current closure, not the
-  // one captured at mount.
+  // ticks, so the GO handler must call the current closure.
   useEffect(() => {
     completeRef.current = onComplete;
   }, [onComplete]);
@@ -49,30 +61,59 @@ export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: P
     const intervalMs = buildCountInSchedule(timeSig, bpm).intervalMs;
     let holdTimer: number | null = null;
 
-    cancelRef.current = metronome.countIn(timeSig, bpm, {
-      onTick: display => {
-        seqRef.current += 1;
-        setTick({ display, seq: seqRef.current });
-      },
-      onGo: () => {
-        setIsGo(true);
-        // Hold the "GO" frame for one beat, then launch the drill.
-        holdTimer = window.setTimeout(() => completeRef.current(), intervalMs);
-      },
-    });
+    const launchAfterHold = () => {
+      // Hold the GO frame for one beat, then hand off to the drill.
+      holdTimer = window.setTimeout(() => {
+        if (!tornDownRef.current) completeRef.current();
+      }, intervalMs);
+    };
+
+    const pauseTimer = window.setTimeout(() => {
+      if (tornDownRef.current) return;
+      setCounting(true);
+      // countIn plays the count clicks + GO chime and replaces the
+      // bypass action with its own cancel (which fires the GO chime).
+      cancelRef.current = metronome.countIn(timeSig, bpm, {
+        onTick: display => {
+          if (tornDownRef.current) return;
+          seqRef.current += 1;
+          setTick({ display, seq: seqRef.current });
+        },
+        onGo: () => {
+          if (wentGoRef.current || tornDownRef.current) return;
+          wentGoRef.current = true;
+          setIsGo(true);
+          launchAfterHold();
+        },
+      });
+    }, COUNTDOWN_PRE_PAUSE_MS);
+
+    // Bypass while still in the pre-pause (count-in not started yet):
+    // cancel the pause and jump straight to GO, playing the chime here
+    // since countIn never ran.
+    cancelRef.current = () => {
+      window.clearTimeout(pauseTimer);
+      if (wentGoRef.current || tornDownRef.current) return;
+      wentGoRef.current = true;
+      void playGoChime(metronome.state.volume);
+      setCounting(true);
+      setIsGo(true);
+      launchAfterHold();
+    };
 
     return () => {
-      // Unmount mid-count (block change, discard) — kill pending ticks.
-      cancelRef.current?.();
-      cancelRef.current = null;
+      tornDownRef.current = true;
+      window.clearTimeout(pauseTimer);
       if (holdTimer !== null) window.clearTimeout(holdTimer);
+      // No GO on teardown — only the explicit count/bypass paths launch.
+      // Any in-flight count-in click timers no-op via tornDownRef.
     };
     // Count-in config is fixed for this overlay instance; the caller
     // remounts (new key) for a fresh count-in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tap anywhere to skip straight to GO.
+  // Tap anywhere to skip straight to GO (works during the pause too).
   const handleBypass = () => {
     if (isGo) return;
     cancelRef.current?.();
@@ -96,14 +137,18 @@ export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: P
         >
           GO
         </div>
-      ) : (
+      ) : counting && tick ? (
         <div
           // Re-key per tick so the pop animation restarts each beat.
-          key={tick?.seq ?? 'pending'}
+          key={tick.seq}
           className="count-pulse font-mono font-semibold leading-none text-neutral-100"
           style={{ fontSize: 'min(45vw, 20rem)' }}
         >
-          {tick?.display ?? ''}
+          {tick.display}
+        </div>
+      ) : (
+        <div className="text-base uppercase tracking-[0.3em] text-neutral-400 animate-pulse">
+          Get ready…
         </div>
       )}
 

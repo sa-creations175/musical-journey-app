@@ -69,6 +69,12 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
       initialTargetSeconds={current.seconds}
       sessionTargetSeconds={current.seconds}
       onRedo={() => setRedoCount(c => c + 1)}
+      // Prev/next walk the sequence without cycling through the rest.
+      // Disabled at the ends. Stepping back remounts the modal for the
+      // earlier cell (its itemRef changes ⇒ new key).
+      canGoPrevious={idx > 0}
+      canGoNext={idx < cells.length - 1}
+      onPrevious={() => setIdx(i => Math.max(0, i - 1))}
       onLogged={() => {
         justLoggedRef.current = true;
         setIdx(i => i + 1);

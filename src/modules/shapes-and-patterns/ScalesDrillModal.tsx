@@ -67,6 +67,15 @@ interface Props {
    *  reads "~Xs in this session" instead of the cell's standalone
    *  canonical suggestion. Omitted for standalone matrix-tap use. */
   sessionTargetSeconds?: number;
+  /** In-session runner only: jump back to the previous scale in the
+   *  sequence (abandons the current item without logging). */
+  onPrevious?: () => void;
+  /** In-session runner only: false on the first scale — disables the
+   *  "Previous scale" control. */
+  canGoPrevious?: boolean;
+  /** In-session runner only: false on the last scale — disables the
+   *  "Next scale" control. */
+  canGoNext?: boolean;
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
@@ -149,6 +158,9 @@ export default function ScalesDrillModal({
   initialTargetSeconds,
   onRedo,
   sessionTargetSeconds,
+  onPrevious,
+  canGoPrevious,
+  canGoNext,
 }: Props) {
   const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
@@ -160,10 +172,15 @@ export default function ScalesDrillModal({
     initialTargetSeconds !== undefined ? 60 : 30,
     initialTargetSeconds ?? suggested,
   );
+  // Launched by the in-session runner (per-item time supplied) → the
+  // prep screen already set duration + BPM + meter and the count-in
+  // just fired GO, so flow straight into a running drill (no setup
+  // screen). Standalone matrix-tap keeps the setup screen.
+  const fromRunner = initialTargetSeconds !== undefined;
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [phase, setPhase] = useState<Phase>('setup');
+  const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
   const [feel, setFeel] = useState<FeelRating | null>(null);
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);
@@ -210,6 +227,18 @@ export default function ScalesDrillModal({
       intervalRef.current = null;
     }
   };
+
+  // Runner launch → auto-start the metronome + countdown on mount (the
+  // modal opened in `running` phase). remaining/elapsed are already
+  // seeded above. The cleanup effect + every exit handler stop the
+  // 'drill' driver, so this start stays balanced.
+  useEffect(() => {
+    if (fromRunner) {
+      void metronome.start('drill');
+      startTick();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleStart = () => {
     setPhase('running');
@@ -258,6 +287,14 @@ export default function ScalesDrillModal({
     stopTick();
     metronome.stop('drill');
     onRedo?.();
+  };
+
+  // Runner "Previous scale": abandon this scale (no log) and step back
+  // to the prior one. The runner remounts the modal for that cell.
+  const handlePrevious = () => {
+    stopTick();
+    metronome.stop('drill');
+    onPrevious?.();
   };
 
   // Per-item "extend" (runner rating screen): drill THIS scale again for
@@ -332,8 +369,17 @@ export default function ScalesDrillModal({
           {onRedo ? (
             <>
               <button
+                onClick={handlePrevious}
+                disabled={!canGoPrevious}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Go back to the previous scale"
+              >
+                Previous scale
+              </button>
+              <button
                 onClick={handleCancel}
-                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                disabled={!canGoNext}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Move on to the next scale"
               >
                 Next scale
@@ -367,10 +413,21 @@ export default function ScalesDrillModal({
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {onRedo && (
+            <button
+              onClick={handlePrevious}
+              disabled={!canGoPrevious}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Go back to the previous scale"
+            >
+              Previous scale
+            </button>
+          )}
           <button
             onClick={handleCancel}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+            disabled={!!onRedo && !canGoNext}
+            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {onRedo ? 'Next scale' : 'cancel'}
           </button>

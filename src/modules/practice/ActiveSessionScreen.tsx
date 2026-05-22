@@ -63,6 +63,7 @@ import {
   type TimeSig,
 } from '../../lib/metronome';
 import { playGoChime } from '../../lib/chimes';
+import { ensureRunning } from '../../lib/audio';
 import { db } from '../../lib/db';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
@@ -326,8 +327,16 @@ export default function ActiveSessionScreen() {
   // routeless / navigated-back cases.
   const handleReady = () => {
     if (isKeyboardBlock) {
-      // Align the singleton meter with the picker so the metronome (if
-      // the user enables it for the drill) matches the count-in.
+      // Unlock the AudioContext inside this gesture so the (delayed)
+      // count-in clicks + the drill metronome are audible on iOS, even
+      // though they fire seconds later.
+      void ensureRunning().catch(() => {});
+      // Stop any preview click before the count-in — the prep toggle is
+      // a tempo preview, not a gate. The drill auto-starts the metronome
+      // on GO regardless.
+      metronome.forceStop();
+      // Align the singleton meter with the picker so the count-in and
+      // the drill metronome run in the chosen time signature.
       metronome.update({ timeSig: selectedTimeSig });
       setCountdown({ timeSig: selectedTimeSig, bpm: metronome.state.bpm });
       return;
