@@ -19,14 +19,11 @@
  */
 import {
   GROOVE_LABEL,
+  groovesForTimeSig,
   metronome,
   type GrooveId,
 } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
-
-const GROOVE_IDS: GrooveId[] = [
-  'click', 'drum-basic', 'gospel', 'rnb-neosoul', 'jazz-swing', 'hip-hop', 'shuffle',
-];
 
 const BPM_MIN = 40;
 const BPM_MAX = 220;
@@ -119,7 +116,7 @@ export default function DrillMetronomeSetup() {
           onChange={e => metronome.update({ groove: e.target.value as GrooveId })}
           className="flex-1 ml-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1"
         >
-          {GROOVE_IDS.map(g => (
+          {groovesForTimeSig(state.timeSig).map(g => (
             <option key={g} value={g}>{GROOVE_LABEL[g]}</option>
           ))}
         </select>

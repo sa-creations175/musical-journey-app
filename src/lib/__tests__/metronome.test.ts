@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Prep-flow Phase 4 — count-in schedule + countIn() behaviour.
+ * Prep-flow Phase 4 — count-in schedule + countIn() behaviour, plus the
+ * time-signature-aware groove set.
  *
  * buildCountInSchedule is pure (no timers, no audio) so the meter /
  * position / accent logic is asserted directly. countIn() is exercised
@@ -16,6 +17,9 @@ import {
   buildCountInSchedule,
   coerceCountInTimeSig,
   countInVoiceFor,
+  groovesForTimeSig,
+  defaultGrooveForTimeSig,
+  isCompoundMeter,
   metronome,
 } from '../metronome';
 
@@ -38,36 +42,27 @@ describe('buildCountInSchedule — positions + structure', () => {
     expect(s.beats.map(b => b.bar)).toEqual([1, 1, 1, 2, 2, 2]);
   });
 
-  it('5/4 (simple): two bars of five, quarter-note interval', () => {
-    const s = buildCountInSchedule('5/4', 120);
-    expect(s.totalBeats).toBe(10);
-    expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]);
-    expect(s.intervalMs).toBe(500);
-  });
-
-  it('7/8 is treated as simple (7 not divisible by 3): quarter-note interval', () => {
-    const s = buildCountInSchedule('7/8', 120);
-    expect(s.totalBeats).toBe(14);
-    expect(s.intervalMs).toBe(500);
-  });
-
-  it('2/4: two short bars — 1 2 · 1 play', () => {
-    const s = buildCountInSchedule('2/4', 120);
-    expect(s.beats.map(b => b.position)).toEqual([1, 2, 1, 2]);
-    expect(s.beats.map(b => b.bar)).toEqual([1, 1, 2, 2]);
-  });
-
-  it('6/8 (compound): eighth = 60000/(BPM*3) — dotted-quarter felt beat', () => {
+  it('6/8 (compound): two bars of six eighths, eighth = 60000/(BPM*3)', () => {
     const s = buildCountInSchedule('6/8', 120);
     expect(s.totalBeats).toBe(12);
+    expect(s.totalBars).toBe(2);
     expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6]);
-    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 3), 5); // 166.67ms, not 333.33
+    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 3), 5);
   });
 
-  it('6/8 @ 80 BPM is 250ms/eighth, 1500ms/bar (was 2× too slow at ×1.5)', () => {
+  it('6/8 @ 80 BPM is 250ms/eighth, 1500ms/bar', () => {
     const s = buildCountInSchedule('6/8', 80);
     expect(s.intervalMs).toBeCloseTo(250, 5);
     expect(s.intervalMs * s.beatsPerBar).toBeCloseTo(1500, 5);
+  });
+
+  it('12/8 (compound): a SINGLE bar of twelve eighths, play on the last', () => {
+    const s = buildCountInSchedule('12/8', 120);
+    expect(s.totalBars).toBe(1);
+    expect(s.totalBeats).toBe(12);
+    expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 3), 5);
+    expect(s.beats.at(-1)).toMatchObject({ position: 12, bar: 1, isGo: true });
   });
 
   it('offsets advance by exactly one interval per beat', () => {
@@ -83,7 +78,7 @@ describe('buildCountInSchedule — positions + structure', () => {
 
 describe('buildCountInSchedule — "play" on the final beat', () => {
   it('flags exactly one GO beat, always the last one', () => {
-    for (const ts of ['4/4', '3/4', '2/4', '6/8', '5/4', '7/8'] as const) {
+    for (const ts of ['4/4', '3/4', '6/8', '12/8'] as const) {
       const s = buildCountInSchedule(ts, 100);
       const goIdx = s.beats.findIndex(b => b.isGo);
       expect(goIdx).toBe(s.beats.length - 1);
@@ -93,28 +88,28 @@ describe('buildCountInSchedule — "play" on the final beat', () => {
 
   it('the play beat is the downbeat-N position of the final bar', () => {
     // 4/4 single bar → position 4 of bar 1.
-    const s44 = buildCountInSchedule('4/4', 120);
-    expect(s44.beats.at(-1)).toMatchObject({ position: 4, bar: 1, isGo: true });
+    expect(buildCountInSchedule('4/4', 120).beats.at(-1)).toMatchObject({ position: 4, bar: 1, isGo: true });
     // 3/4 two bars → position 3 of bar 2.
-    const s34 = buildCountInSchedule('3/4', 120);
-    expect(s34.beats.at(-1)).toMatchObject({ position: 3, bar: 2, isGo: true });
+    expect(buildCountInSchedule('3/4', 120).beats.at(-1)).toMatchObject({ position: 3, bar: 2, isGo: true });
+    // 12/8 single bar → position 12 of bar 1.
+    expect(buildCountInSchedule('12/8', 120).beats.at(-1)).toMatchObject({ position: 12, bar: 1, isGo: true });
   });
 });
 
 describe('buildCountInSchedule — metric accent tagging', () => {
-  it('tags each beat with the meter accent pattern (repeated per bar)', () => {
+  it('tags each beat with the meter accent pattern (repeated for two-bar meters)', () => {
     const cases: Record<string, ('strong' | 'medium' | 'weak')[]> = {
       '4/4': ['strong', 'weak', 'medium', 'weak'],
       '3/4': ['strong', 'weak', 'weak'],
-      '2/4': ['strong', 'weak'],
       '6/8': ['strong', 'weak', 'weak', 'medium', 'weak', 'weak'],
-      '5/4': ['strong', 'weak', 'weak', 'medium', 'weak'],
-      '7/8': ['strong', 'weak', 'medium', 'weak', 'medium', 'weak', 'weak'],
+      '12/8': ['strong', 'weak', 'weak', 'medium', 'weak', 'weak', 'medium', 'weak', 'weak', 'medium', 'weak', 'weak'],
     };
     for (const [ts, pattern] of Object.entries(cases)) {
-      const s = buildCountInSchedule(ts as Parameters<typeof buildCountInSchedule>[0], 120);
-      const perBar = ts === '4/4' ? pattern : [...pattern, ...pattern];
-      expect(s.beats.map(b => b.accent)).toEqual(perBar);
+      const tsTyped = ts as Parameters<typeof buildCountInSchedule>[0];
+      const s = buildCountInSchedule(tsTyped, 120);
+      const singleBar = ts === '4/4' || ts === '12/8';
+      const expected = singleBar ? pattern : [...pattern, ...pattern];
+      expect(s.beats.map(b => b.accent)).toEqual(expected);
     }
   });
 
@@ -137,10 +132,8 @@ describe('count-in voice (two-sound model)', () => {
     const feel: Record<string, ('kick' | 'click')[]> = {
       '4/4': ['kick', 'click', 'kick', 'click'],
       '3/4': ['kick', 'click', 'click'],
-      '2/4': ['kick', 'click'],
       '6/8': ['kick', 'click', 'click', 'kick', 'click', 'click'],
-      '5/4': ['kick', 'click', 'click', 'kick', 'click'],
-      '7/8': ['kick', 'click', 'kick', 'click', 'kick', 'click', 'click'],
+      '12/8': ['kick', 'click', 'click', 'kick', 'click', 'click', 'kick', 'click', 'click', 'kick', 'click', 'click'],
     };
     for (const [ts, voices] of Object.entries(feel)) {
       const s = buildCountInSchedule(ts as Parameters<typeof buildCountInSchedule>[0], 120);
@@ -150,9 +143,46 @@ describe('count-in voice (two-sound model)', () => {
   });
 });
 
+describe('time signatures + groove sets', () => {
+  it('isCompoundMeter flags 6/8 and 12/8 only', () => {
+    expect(isCompoundMeter('4/4')).toBe(false);
+    expect(isCompoundMeter('3/4')).toBe(false);
+    expect(isCompoundMeter('6/8')).toBe(true);
+    expect(isCompoundMeter('12/8')).toBe(true);
+  });
+
+  it('offers only the meter-appropriate grooves, with no cross-meter leakage', () => {
+    expect(groovesForTimeSig('4/4')).toContain('click');
+    expect(groovesForTimeSig('3/4')).toEqual(['basic-3-4', 'waltz']);
+    expect(groovesForTimeSig('6/8')).toEqual(['basic-6-8', 'jig']);
+    expect(groovesForTimeSig('12/8')).toEqual(['basic-12-8', 'blues-shuffle']);
+    expect(groovesForTimeSig('3/4')).not.toContain('click');
+    expect(groovesForTimeSig('4/4')).not.toContain('waltz');
+    expect(defaultGrooveForTimeSig('6/8')).toBe('basic-6-8');
+  });
+
+  it('changing time signature resets groove to the new meter default, preserving valid ones', () => {
+    metronome.update({ timeSig: '4/4', groove: 'gospel' });
+    expect(metronome.state.groove).toBe('gospel');
+
+    metronome.update({ timeSig: '3/4' });
+    expect(metronome.state.groove).toBe('basic-3-4'); // gospel invalid in 3/4
+
+    metronome.update({ groove: 'waltz' }); // valid same-meter pick
+    metronome.update({ timeSig: '3/4' });
+    expect(metronome.state.groove).toBe('waltz'); // preserved
+
+    metronome.update({ timeSig: '6/8' });
+    expect(metronome.state.groove).toBe('basic-6-8');
+
+    metronome.update({ timeSig: '4/4' }); // restore for other tests
+    expect(metronome.state.groove).toBe('click');
+  });
+});
+
 describe('coerceCountInTimeSig', () => {
-  it('keeps supported picker values', () => {
-    for (const ts of ['4/4', '3/4', '2/4', '6/8', '5/4', '7/8'] as const) {
+  it('keeps supported picker values (now incl. 12/8)', () => {
+    for (const ts of ['4/4', '3/4', '6/8', '12/8'] as const) {
       expect(coerceCountInTimeSig(ts)).toBe(ts);
     }
   });
@@ -162,8 +192,10 @@ describe('coerceCountInTimeSig', () => {
   });
 
   it('falls back to 4/4 for unsupported / malformed / empty', () => {
+    expect(coerceCountInTimeSig('2/4')).toBe('4/4');
+    expect(coerceCountInTimeSig('5/4')).toBe('4/4');
+    expect(coerceCountInTimeSig('7/8')).toBe('4/4');
     expect(coerceCountInTimeSig('9/8')).toBe('4/4');
-    expect(coerceCountInTimeSig('12/8')).toBe('4/4');
     expect(coerceCountInTimeSig('free time')).toBe('4/4');
     expect(coerceCountInTimeSig('')).toBe('4/4');
     expect(coerceCountInTimeSig(undefined)).toBe('4/4');

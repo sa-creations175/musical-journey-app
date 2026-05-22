@@ -21,13 +21,23 @@ export const PREF_TIME_SIG = 'metronomeTimeSig';
 export const PREF_VOLUME = 'metronomeVolume';
 
 export type GrooveId =
+  // 4/4
   | 'click'
   | 'drum-basic'
   | 'gospel'
   | 'rnb-neosoul'
   | 'jazz-swing'
   | 'hip-hop'
-  | 'shuffle';
+  | 'shuffle'
+  // 3/4
+  | 'basic-3-4'
+  | 'waltz'
+  // 6/8
+  | 'basic-6-8'
+  | 'jig'
+  // 12/8
+  | 'basic-12-8'
+  | 'blues-shuffle';
 
 export const GROOVE_LABEL: Record<GrooveId, string> = {
   click:        'Simple click',
@@ -37,31 +47,54 @@ export const GROOVE_LABEL: Record<GrooveId, string> = {
   'jazz-swing': 'Jazz swing',
   'hip-hop':    'Hip-hop beat',
   shuffle:      'Shuffle feel',
+  'basic-3-4':  'Basic 3/4',
+  waltz:        'Waltz',
+  'basic-6-8':  'Basic 6/8',
+  jig:          'Jig',
+  'basic-12-8': 'Basic 12/8',
+  'blues-shuffle': 'Blues shuffle',
 };
 
-export type TimeSig = '4/4' | '3/4' | '2/4' | '6/8' | '5/4' | '7/8' | '12/8';
+export type TimeSig = '4/4' | '3/4' | '6/8' | '12/8';
 
 export const TIME_SIG_BEATS: Record<TimeSig, number> = {
   '4/4': 4,
   '3/4': 3,
-  '2/4': 2,
   '6/8': 6,
-  '5/4': 5,
-  '7/8': 7,
   '12/8': 12,
 };
 
-// Time signatures offered by the prep-screen count-in picker (Phase 4).
-// 12/8 stays in the TimeSig type for the metronome's own settings
-// popover but isn't a count-in option, so a song stored in 12/8 coerces
-// to 4/4 below.
-export const COUNT_IN_TIME_SIGS: readonly TimeSig[] = [
-  '4/4', '3/4', '2/4', '6/8', '5/4', '7/8',
-];
+/** Compound meters (eighth-denominated, beats grouped in 3s): BPM is the
+ *  felt dotted-quarter and the counted/grid unit is the eighth. */
+export function isCompoundMeter(ts: TimeSig): boolean {
+  return ts === '6/8' || ts === '12/8';
+}
+
+/** Grooves available for each meter — the selector shows only these, and
+ *  the first is the meter's default. A 4/4 groove is never offered in
+ *  3/4 etc. */
+export const GROOVES_BY_TIME_SIG: Record<TimeSig, readonly GrooveId[]> = {
+  '4/4': ['click', 'drum-basic', 'gospel', 'rnb-neosoul', 'jazz-swing', 'hip-hop', 'shuffle'],
+  '3/4': ['basic-3-4', 'waltz'],
+  '6/8': ['basic-6-8', 'jig'],
+  '12/8': ['basic-12-8', 'blues-shuffle'],
+};
+
+export function groovesForTimeSig(ts: TimeSig): readonly GrooveId[] {
+  return GROOVES_BY_TIME_SIG[ts];
+}
+
+export function defaultGrooveForTimeSig(ts: TimeSig): GrooveId {
+  return GROOVES_BY_TIME_SIG[ts][0];
+}
+
+// Time signatures offered by the prep-screen count-in picker. Same set as
+// the metronome now supports.
+export const COUNT_IN_TIME_SIGS: readonly TimeSig[] = ['4/4', '3/4', '6/8', '12/8'];
 
 /** Coerce a free-form song / section time-signature string to a
  *  supported count-in TimeSig, falling back to 4/4 for anything not on
- *  the picker (blank, malformed, or e.g. 9/8 / 12/8). */
+ *  the picker (blank, malformed, or e.g. 5/4 / 7/8 / 9/8). */
 export function coerceCountInTimeSig(raw: string | undefined | null): TimeSig {
   const t = (raw ?? '').trim();
   return (COUNT_IN_TIME_SIGS as readonly string[]).includes(t)
@@ -99,10 +132,7 @@ function accentPatternFor(timeSig: TimeSig): AccentLevel[] {
   switch (timeSig) {
     case '4/4': return ['strong', 'weak', 'medium', 'weak'];
     case '3/4': return ['strong', 'weak', 'weak'];
-    case '2/4': return ['strong', 'weak'];
     case '6/8': return ['strong', 'weak', 'weak', 'medium', 'weak', 'weak'];
-    case '5/4': return ['strong', 'weak', 'weak', 'medium', 'weak'];
-    case '7/8': return ['strong', 'weak', 'medium', 'weak', 'medium', 'weak', 'weak'];
     case '12/8': return [
       'strong', 'weak', 'weak', 'medium', 'weak', 'weak',
       'medium', 'weak', 'weak', 'medium', 'weak', 'weak',
@@ -150,18 +180,20 @@ function parseSig(ts: TimeSig): { beatsPerBar: number; beatUnit: number } {
  *   3/4 → 1 2 3 · 1 2 play      6/8 → 1 2 3 4 5 6 · 1 2 3 4 5 play
  *
  * Each beat carries its metric accent (per `accentPatternFor`). Beat
- * unit: quarter-note for simple meters; for compound meters (eighth-
- * denominated, beats divisible by 3 — 6/8, 9/8, 12/8) BPM is the felt
- * dotted-quarter beat, so each counted eighth = 60000 / (BPM * 3) — a
- * dotted quarter is 3 eighths. (Was BPM*1.5, i.e. half speed.)
+ * unit: quarter-note for simple meters; for compound meters (6/8, 12/8)
+ * BPM is the felt dotted-quarter beat, so each counted eighth =
+ * 60000 / (BPM * 3) — a dotted quarter is 3 eighths.
+ *
+ * 4/4 and 12/8 use a SINGLE count-in bar (a 12/8 bar is already 12
+ * eighths — two bars at a slow tempo would run 8+ seconds); 3/4 and 6/8
+ * use two bars (establishing + count-in).
  */
 export function buildCountInSchedule(timeSig: TimeSig, bpm: number): CountInSchedule {
   const safeBpm = Math.max(40, Math.min(220, bpm));
-  const { beatsPerBar: n, beatUnit } = parseSig(timeSig);
-  const compound = beatUnit === 8 && n % 3 === 0;
-  const intervalMs = compound ? 60000 / (safeBpm * 3) : 60000 / safeBpm;
+  const { beatsPerBar: n } = parseSig(timeSig);
+  const intervalMs = isCompoundMeter(timeSig) ? 60000 / (safeBpm * 3) : 60000 / safeBpm;
   const pattern = accentPatternFor(timeSig);
-  const totalBars = timeSig === '4/4' ? 1 : 2;
+  const totalBars = timeSig === '4/4' || timeSig === '12/8' ? 1 : 2;
 
   const beats: CountInBeat[] = [];
   let offset = 0;
@@ -384,6 +416,48 @@ function grooveHits(groove: GrooveId, slot: number, beatsPerBar: number, swing: 
       if (slot === 3 || slot === 7 || slot === 11 || slot === 15) hits.push({ voice: 'hat' });
       return hits;
     }
+
+    // --- 3/4 (simple — beat = quarter, hits land on slot multiples of 4)
+    case 'basic-3-4': {
+      if (slot % 4 !== 0) return [];
+      // beat 1 = kick; beats 2, 3 = hat.
+      return slot === 0 ? [{ voice: 'kick' }] : [{ voice: 'hat' }];
+    }
+    case 'waltz': {
+      if (slot % 4 !== 0) return [];
+      // Classic lilt: softer downbeat kick, light hats on 2 and 3.
+      return slot === 0
+        ? [{ voice: 'kick', gain: 0.7 }]
+        : [{ voice: 'hat', gain: 0.5 }];
+    }
+
+    // --- 6/8 / 12/8 (compound — beat = eighth, hits on slot multiples of
+    // 4; the eighth index is slot/4). The scheduler runs these at the
+    // eighth tempo so the felt dotted-quarter pulse lands right.
+    case 'basic-6-8': {
+      if (slot % 4 !== 0) return [];
+      const e = slot / 4; // 0..5
+      // Kick on eighths 1 and 4 (the two dotted-quarter pulses).
+      return e === 0 || e === 3 ? [{ voice: 'kick' }] : [{ voice: 'hat' }];
+    }
+    case 'jig': {
+      if (slot % 4 !== 0) return [];
+      const e = slot / 4;
+      // Lighter compound feel: kick only on 1, hats on 2–6.
+      return e === 0 ? [{ voice: 'kick' }] : [{ voice: 'hat', gain: 0.7 }];
+    }
+    case 'basic-12-8': {
+      if (slot % 4 !== 0) return [];
+      const e = slot / 4; // 0..11
+      // Kick on the four dotted-quarter pulses (eighths 1, 4, 7, 10).
+      return e % 3 === 0 ? [{ voice: 'kick' }] : [{ voice: 'hat' }];
+    }
+    case 'blues-shuffle': {
+      if (slot % 4 !== 0) return [];
+      const e = slot / 4;
+      // Kick on the two main felt pulses (eighths 1 and 7).
+      return e === 0 || e === 6 ? [{ voice: 'kick' }] : [{ voice: 'hat' }];
+    }
   }
 }
 
@@ -427,7 +501,14 @@ class Metronome {
   }
 
   update(patch: Partial<MetronomeState>) {
-    this.state = { ...this.state, ...patch };
+    let next = { ...this.state, ...patch };
+    // Changing the time signature snaps the groove to that meter's
+    // default unless the current groove is still valid for it — a 4/4
+    // groove must never play under 3/4, etc.
+    if (patch.timeSig !== undefined && !groovesForTimeSig(next.timeSig).includes(next.groove)) {
+      next = { ...next, groove: defaultGrooveForTimeSig(next.timeSig) };
+    }
+    this.state = next;
     this.emit();
   }
 
@@ -623,7 +704,11 @@ class Metronome {
 
   private advanceSlot() {
     const { bpm, groove, timeSig } = this.state;
-    const secondsPerBeat = 60 / bpm;
+    // Simple meters: the engine "beat" is a quarter (60/bpm). Compound
+    // meters (6/8, 12/8): BPM is the felt dotted-quarter, the grid unit
+    // is the eighth = (60/bpm)/3, so a bar of `beatsPerBar` eighths lands
+    // at the right duration (matches the count-in).
+    const secondsPerBeat = isCompoundMeter(timeSig) ? (60 / bpm) / 3 : 60 / bpm;
     const slotsPerBeat = 4;
     const baseSlotDur = secondsPerBeat / slotsPerBeat;
     const beatsPerBar = TIME_SIG_BEATS[timeSig];

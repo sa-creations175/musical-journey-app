@@ -6,6 +6,7 @@ import {
   PREF_TIME_SIG,
   PREF_VOLUME,
   TIME_SIG_BEATS,
+  groovesForTimeSig,
   metronome,
   type GrooveId,
   type TimeSig,
@@ -13,10 +14,7 @@ import {
 import { useMetronomeState } from '../lib/useMetronome';
 import { getPref, setPref } from '../lib/userPrefs';
 
-const GROOVE_IDS: GrooveId[] = [
-  'click', 'drum-basic', 'gospel', 'rnb-neosoul', 'jazz-swing', 'hip-hop', 'shuffle',
-];
-const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '2/4', '6/8', '5/4', '7/8', '12/8'];
+const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '6/8', '12/8'];
 
 /**
  * Compact metronome control designed for the app header. Renders as
@@ -40,9 +38,11 @@ export default function MetronomeControl() {
       const groove = await getPref<GrooveId>(PREF_GROOVE, 'click');
       const timeSig = await getPref<TimeSig>(PREF_TIME_SIG, '4/4');
       const volume = await getPref<number>(PREF_VOLUME, 0.5);
+      // update() reconciles groove↔timeSig (resets to the meter's default
+      // if the persisted groove doesn't belong to the persisted meter).
       metronome.update({
         bpm: clamp(bpm, 40, 220),
-        groove: GROOVE_IDS.includes(groove) ? groove : 'click',
+        groove: groove in GROOVE_LABEL ? groove : 'click',
         timeSig: TIME_SIG_IDS.includes(timeSig) ? timeSig : '4/4',
         volume: clamp(volume, 0, 1),
       });
@@ -164,7 +164,7 @@ export default function MetronomeControl() {
               onChange={e => metronome.update({ groove: e.target.value as GrooveId })}
               className="flex-1 ml-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1"
             >
-              {GROOVE_IDS.map(g => (
+              {groovesForTimeSig(state.timeSig).map(g => (
                 <option key={g} value={g}>{GROOVE_LABEL[g]}</option>
               ))}
             </select>
