@@ -25,6 +25,9 @@ const song = (id = 'song') =>
 const mentalViz = (id = 'mv') =>
   mk({ id, moduleRef: 'shapes-and-patterns', quickLaunchRoute: '/shapes-and-patterns?tab=mental-viz' });
 const et = (ref: string, id = ref) => mk({ id, moduleRef: ref });
+const prodVocab = (id = 'prod-vocab') =>
+  mk({ id, moduleRef: 'production', quickLaunchRoute: '/production?view=vocabulary' });
+const prodLesson = (id = 'prod-lesson') => mk({ id, moduleRef: 'production' });
 
 /** Convenience: groups as arrays of member ids. */
 function ids(blocks: ProposalBlock[]): string[][] {
@@ -94,6 +97,42 @@ describe('groupBlocks — Rule 3: ET family', () => {
 
   it('a single ET block is its own (one-item) unit', () => {
     expect(ids([et('intervals'), mk({ id: 'hf' })])).toEqual([['intervals'], ['hf']]);
+  });
+});
+
+describe('groupBlocks — Rule 4: Production family', () => {
+  it('locks the vocab block and the lesson block together', () => {
+    expect(ids([prodVocab(), prodLesson()])).toEqual([
+      ['prod-vocab', 'prod-lesson'],
+    ]);
+  });
+
+  it('keeps them together regardless of blocks sitting between them', () => {
+    // Real shape: vocab is prepended to the front, lessons sit in the
+    // allocator body, so a mental-viz / ET block can land between them.
+    // The family pulls both into one unit at the first member's position.
+    expect(
+      ids([prodVocab(), mentalViz(), et('intervals'), prodLesson()]),
+    ).toEqual([
+      ['prod-vocab', 'prod-lesson'],
+      ['mv'],
+      ['intervals'],
+    ]);
+  });
+
+  it('preserves relative order (vocab before lessons) within the group', () => {
+    // groupBlocks emits items in original sequence order — even if the
+    // lesson block happens to appear first, the group keeps that order.
+    expect(ids([prodLesson(), prodVocab()])).toEqual([
+      ['prod-lesson', 'prod-vocab'],
+    ]);
+  });
+
+  it('a single Production block is its own (one-item) unit', () => {
+    expect(ids([prodLesson(), mk({ id: 'hf' })])).toEqual([
+      ['prod-lesson'],
+      ['hf'],
+    ]);
   });
 });
 

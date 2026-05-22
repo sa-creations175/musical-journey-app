@@ -21,10 +21,17 @@
  *      chord-progressions, scales-modes) lock together as one unit,
  *      regardless of order or what sits between them.
  *
+ *   4. Production family. The Production vocab block and the Production
+ *      lesson block both ride the 'production' moduleRef; they lock
+ *      together so the flashcard review and lesson work always render
+ *      back-to-back (the vocab block is prepended to the card front
+ *      while lessons sit in the allocator body, so without this they
+ *      drift apart). No anchor/warm-up relationship — just adjacency.
+ *
  *   · Everything else is its own unit.
  */
 import type { ProposalBlock } from './proposalTypes';
-import { ET_MODULE_REFS } from '../goals/progress';
+import { ET_MODULE_REFS, PRODUCTION_MODULE_REF } from '../goals/progress';
 
 const ET_REF_SET: ReadonlySet<string> = new Set(ET_MODULE_REFS);
 
@@ -50,6 +57,13 @@ export function isMentalVizBlock(b: ProposalBlock): boolean {
 /** A repertoire warm-up (chord-quiz or scale-prep). */
 export function isRepWarmup(b: ProposalBlock): boolean {
   return b.moduleRef === 'repertoire' && !!b.isWarmup;
+}
+
+/** A Production block — both the vocab flashcard block and the lesson
+ *  block ride the 'production' moduleRef, so the ref alone identifies
+ *  the family. */
+export function isProductionBlock(b: ProposalBlock): boolean {
+  return b.moduleRef === PRODUCTION_MODULE_REF;
 }
 
 /** The chord-quiz recall warm-up specifically. Both chord-quiz and
@@ -98,6 +112,7 @@ export function groupBlocks(blocks: ReadonlyArray<ProposalBlock>): BlockGroup[] 
     if (isEtBlock(b)) return 'et-family'; // Rule 3 — highest priority
     if (chainKey[idx] !== null) return chainKey[idx] as string; // Rule 1
     if (vizApplies && (isChordQuizBlock(b) || isMentalVizBlock(b))) return 'viz-memo'; // Rule 2
+    if (isProductionBlock(b)) return 'production-family'; // Rule 4
     return `solo:${idx}`;
   };
 

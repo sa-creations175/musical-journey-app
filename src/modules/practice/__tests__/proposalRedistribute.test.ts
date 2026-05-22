@@ -119,6 +119,17 @@ describe('deletionUnit', () => {
     expect(deletionUnit(blocks, 'hf')).toEqual(['hf']);
   });
 
+  it('deletes the whole Production family when either block is deleted (locked unit)', () => {
+    const blocks = [
+      mkBlock({ id: 'prod-vocab', moduleRef: 'production', quickLaunchRoute: '/production?view=vocabulary' }),
+      mkBlock({ id: 'hf' }),
+      mkBlock({ id: 'prod-lesson', moduleRef: 'production' }),
+    ];
+    expect(deletionUnit(blocks, 'prod-vocab')).toEqual(['prod-vocab', 'prod-lesson']);
+    expect(deletionUnit(blocks, 'prod-lesson')).toEqual(['prod-vocab', 'prod-lesson']);
+    expect(deletionUnit(blocks, 'hf')).toEqual(['hf']);
+  });
+
   it('deletes the viz/memo pair as a unit (mental-viz pulls the orphaned chord-quiz)', () => {
     const blocks = [
       mkBlock({ id: 'cq', moduleRef: 'repertoire', isWarmup: true }),
