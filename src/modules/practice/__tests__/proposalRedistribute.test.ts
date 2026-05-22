@@ -107,6 +107,25 @@ describe('deletionUnit', () => {
     ];
     expect(deletionUnit(blocks, 'sp-warmup')).toEqual(['sp-warmup']);
   });
+
+  it('deletes the whole ET family when any ET block is deleted (locked unit)', () => {
+    const blocks = [
+      mkBlock({ id: 'intervals',          moduleRef: 'intervals' }),
+      mkBlock({ id: 'hf' }),
+      mkBlock({ id: 'chord-recognition',  moduleRef: 'chord-recognition' }),
+    ];
+    expect(deletionUnit(blocks, 'intervals')).toEqual(['intervals', 'chord-recognition']);
+    expect(deletionUnit(blocks, 'chord-recognition')).toEqual(['intervals', 'chord-recognition']);
+    expect(deletionUnit(blocks, 'hf')).toEqual(['hf']);
+  });
+
+  it('deletes the viz/memo pair as a unit (mental-viz pulls the orphaned chord-quiz)', () => {
+    const blocks = [
+      mkBlock({ id: 'cq', moduleRef: 'repertoire', isWarmup: true }),
+      mkBlock({ id: 'mv', moduleRef: 'shapes-and-patterns', quickLaunchRoute: '/shapes-and-patterns?tab=mental-viz' }),
+    ];
+    expect(deletionUnit(blocks, 'mv')).toEqual(['cq', 'mv']);
+  });
 });
 
 // ---------------------------------------------------------------------

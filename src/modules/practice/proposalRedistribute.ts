@@ -32,6 +32,7 @@
  */
 
 import type { ProposalBlock } from './proposalTypes';
+import { groupBlocks } from './blockGrouping';
 
 /**
  * Return every block id that should be removed when the user deletes
@@ -53,28 +54,30 @@ export function deletionUnit(
   blocks: ReadonlyArray<ProposalBlock>,
   targetBlockId: string,
 ): string[] {
-  const idx = blocks.findIndex(b => b.id === targetBlockId);
-  if (idx < 0) return [targetBlockId];
+  // Find the drag/delete group the target belongs to (single source of
+  // truth = blockGrouping.groupBlocks).
+  const group = groupBlocks(blocks).find(g =>
+    g.items.some(b => b.id === targetBlockId),
+  );
+  if (!group) return [targetBlockId];
 
-  const target = blocks[idx];
-  // Only Repertoire song-practice anchors pull warm-ups along.
-  // Other non-warm-up blocks (S&P shapes-walk, VL, scales warm-up
-  // segment which is its own self-contained unit per SessionStack's
-  // grouping rules, HF, ET, Production) delete on their own.
-  const dragsWarmups =
-    target.moduleRef === 'repertoire' &&
-    target.isSongPractice === true;
-  if (!dragsWarmups) return [targetBlockId];
-
-  const ids: string[] = [];
-  // Walk backwards through contiguous Repertoire warm-ups.
-  for (let i = idx - 1; i >= 0; i--) {
-    const prev = blocks[i];
-    if (prev.moduleRef !== 'repertoire' || !prev.isWarmup) break;
-    ids.unshift(prev.id);
+  // Rep-warmup → song chain is the one ASYMMETRIC case: deleting the
+  // song anchor pulls its warm-ups, but deleting a warm-up (or anything
+  // else in the chain) only removes that block — the song survives a
+  // warm-up being removed. Every other locked group (ET family, viz/memo
+  // pair) deletes as a whole unit.
+  const isRepChain = group.items.some(
+    b => b.moduleRef === 'repertoire' && b.isSongPractice === true,
+  );
+  if (isRepChain) {
+    const target = group.items.find(b => b.id === targetBlockId);
+    if (target && target.isSongPractice === true) {
+      return group.items.map(b => b.id);
+    }
+    return [targetBlockId];
   }
-  ids.push(targetBlockId);
-  return ids;
+
+  return group.items.map(b => b.id);
 }
 
 /**

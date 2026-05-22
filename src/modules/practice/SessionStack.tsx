@@ -36,6 +36,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import SessionBlock from './SessionBlock';
 import type { ProposalBlock } from './proposalTypes';
+import { groupBlocks, type BlockGroup } from './blockGrouping';
 
 /** Per-block height floor. Each group / inner block can't shrink
  *  below this even when its proportional share would. Trade-off:
@@ -88,68 +89,8 @@ interface Props {
   inlinePrompts?: ReadonlyArray<InlinePrompt>;
 }
 
-/** A drag unit. Single-block groups contain one item; paired
- *  groups contain a warm-up followed by its practice block. */
-export interface BlockGroup {
-  /** Stable id for SortableContext — uses the first item's id. */
-  id: string;
-  items: ProposalBlock[];
-}
-
-/** Group blocks into draggable units. Rules:
- *
- *   · S&P warm-up (scales) → own independent unit. The scales
- *     segment is itself a self-contained warm-up, not paired with
- *     the chord-shape or VL block that happens to follow it.
- *
- *   · Repertoire warm-up (chord-quiz, scale-prep) → chain forward
- *     to the next song-practice anchor. The full chain (one or
- *     more warm-ups + the song block) drags as a single locked
- *     unit so the warm-ups can't be stranded from the song they
- *     prep. Falls back to pairing with the immediately next block
- *     when no song anchor follows.
- *
- *   · All other blocks → own independent unit. */
-export function groupBlocks(blocks: ReadonlyArray<ProposalBlock>): BlockGroup[] {
-  const groups: BlockGroup[] = [];
-  let i = 0;
-  while (i < blocks.length) {
-    const b = blocks[i];
-    const isRepWarmup = b.moduleRef === 'repertoire' && !!b.isWarmup;
-
-    if (isRepWarmup) {
-      // Chain forward until the next isSongPractice anchor.
-      let anchorIdx = -1;
-      for (let j = i + 1; j < blocks.length; j++) {
-        if (blocks[j].isSongPractice) {
-          anchorIdx = j;
-          break;
-        }
-      }
-      if (anchorIdx >= 0) {
-        groups.push({
-          id: b.id,
-          items: blocks.slice(i, anchorIdx + 1) as ProposalBlock[],
-        });
-        i = anchorIdx + 1;
-      } else if (i + 1 < blocks.length) {
-        // No song anchor in the rest of the list — pair with the
-        // immediately next block so the warm-up isn't orphaned.
-        groups.push({ id: b.id, items: [b, blocks[i + 1]] });
-        i += 2;
-      } else {
-        // End of list with no follow-up — emit alone.
-        groups.push({ id: b.id, items: [b] });
-        i += 1;
-      }
-    } else {
-      // S&P warm-up, song practice, or any non-warm-up block: own unit.
-      groups.push({ id: b.id, items: [b] });
-      i += 1;
-    }
-  }
-  return groups;
-}
+// groupBlocks + BlockGroup now live in ./blockGrouping (shared, pure)
+// so the delete flow (proposalRedistribute) uses the exact same rules.
 
 function sumSeconds(items: ReadonlyArray<ProposalBlock>): number {
   return items.reduce((s, b) => s + Math.max(1, b.plannedSeconds), 0);

@@ -17,7 +17,8 @@ import { db, type PracticeSessionContext, type Song, type SpacingState } from '.
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import AffirmationSurface from './AffirmationSurface';
-import SessionStack, { groupBlocks, type InlinePrompt } from './SessionStack';
+import SessionStack, { type InlinePrompt } from './SessionStack';
+import { groupBlocks } from './blockGrouping';
 import TimePicker from './TimePicker';
 import {
   deletionUnit,
