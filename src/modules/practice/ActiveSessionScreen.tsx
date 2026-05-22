@@ -64,7 +64,6 @@ import {
   coerceCountInTimeSig,
   type TimeSig,
 } from '../../lib/metronome';
-import { playGoChime } from '../../lib/chimes';
 import { ensureRunning } from '../../lib/audio';
 import { db } from '../../lib/db';
 
@@ -175,7 +174,7 @@ export default function ActiveSessionScreen() {
   // context on first view, else 4/4.
   const [timeSigByBlock, setTimeSigByBlock] = useState<Record<string, TimeSig>>({});
   // Non-null while the count-in overlay is on screen (keyboard blocks).
-  const [countdown, setCountdown] = useState<{ timeSig: TimeSig; bpm: number } | null>(null);
+  const [countdown, setCountdown] = useState<{ timeSig: TimeSig; bpm: number; allKick: boolean } | null>(null);
 
   // Note: `launched` + `pendingRating` are reset directly in the
   // advance handlers (handleRatingNext / handleSkipBlock) rather than
@@ -365,29 +364,29 @@ export default function ActiveSessionScreen() {
     goToDrill();
   };
 
-  // Ready (Phase 4). Keyboard blocks run the 4-3-2-1-GO count-in, which
-  // launches the drill on GO; cognitive blocks get a single GO chime and
-  // launch immediately. `launched` keeps the running view up for the
-  // routeless / navigated-back cases.
+  // Ready (Phase 4). Every block runs a 4-3-2-1-GO count-in, which
+  // launches the drill on GO. Keyboard blocks count in the picked meter
+  // + BPM with metric accents (kick·click·kick·GO); non-keyboard blocks
+  // get a fixed motivational count-in — 70 BPM, 4/4, all kicks (no
+  // metric accent), 70 BPM internal-only (no on-screen BPM control).
+  // `launched` keeps the running view up for the routeless /
+  // navigated-back cases.
   const handleReady = () => {
+    // Unlock the AudioContext inside this gesture so the (delayed)
+    // count-in is audible on iOS, even though it fires seconds later.
+    void ensureRunning().catch(() => {});
+    // Stop any preview click before the count-in — the prep toggle is a
+    // tempo preview, not a gate. The drill auto-starts the metronome on
+    // GO regardless. (No-op for non-keyboard blocks: no preview.)
+    metronome.forceStop();
     if (isKeyboardBlock) {
-      // Unlock the AudioContext inside this gesture so the (delayed)
-      // count-in clicks + the drill metronome are audible on iOS, even
-      // though they fire seconds later.
-      void ensureRunning().catch(() => {});
-      // Stop any preview click before the count-in — the prep toggle is
-      // a tempo preview, not a gate. The drill auto-starts the metronome
-      // on GO regardless.
-      metronome.forceStop();
       // Align the singleton meter with the picker so the count-in and
       // the drill metronome run in the chosen time signature.
       metronome.update({ timeSig: selectedTimeSig });
-      setCountdown({ timeSig: selectedTimeSig, bpm: metronome.state.bpm });
+      setCountdown({ timeSig: selectedTimeSig, bpm: metronome.state.bpm, allKick: false });
       return;
     }
-    void playGoChime(metronome.state.volume);
-    setLaunched(true);
-    goToDrill();
+    setCountdown({ timeSig: '4/4', bpm: 70, allKick: true });
   };
 
   // Count-in reached GO (or was skipped) — tear down the overlay and
@@ -534,6 +533,7 @@ export default function ActiveSessionScreen() {
             key={currentBlock.id}
             timeSig={countdown.timeSig}
             bpm={countdown.bpm}
+            allKick={countdown.allKick}
             accent={accent}
             onComplete={handleCountdownComplete}
           />

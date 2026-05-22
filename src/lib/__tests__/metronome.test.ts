@@ -254,6 +254,25 @@ describe('metronome.countIn', () => {
     expect(onGo).toHaveBeenCalledTimes(1);
   });
 
+  it('allKick option drives the same onTick/onGo contract (audio voice only)', () => {
+    // allKick forces the kick voice on the audio clock; the visual beat
+    // sequence (accent-driven onTick) is unchanged — non-keyboard blocks
+    // still see 1·2·3·play in 4/4, just all kicks instead of kick·click·kick.
+    const onTick = vi.fn();
+    const onGo = vi.fn();
+    // 70 BPM, 4/4 → interval ≈ 857ms; beats at 0/857/1714, GO at ~2571.
+    metronome.countIn('4/4', 70, { allKick: true, onTick, onGo });
+    vi.advanceTimersByTime(2000);
+    expect(onTick.mock.calls).toEqual([
+      [1, 1, 'strong'],
+      [2, 1, 'weak'],
+      [3, 1, 'medium'],
+    ]);
+    expect(onGo).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    expect(onGo).toHaveBeenCalledTimes(1);
+  });
+
   it('walks both bars of a two-bar meter, play replacing the last onTick', () => {
     const onTick = vi.fn();
     const onGo = vi.fn();

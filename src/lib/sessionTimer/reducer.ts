@@ -507,6 +507,10 @@ function deferBlock(
       ...workingState,
       status: 'running',
       blockEndRequested: false,
+      // Defer can fire mid-drill (from the banner) while a Level-3 scale
+      // runner is active; clear the flag so the next block's drill-end
+      // watcher isn't left suppressed.
+      inSessionDrillActive: false,
       blocks: remaining.map((b, i) => (i === idx ? nextBlock : b)),
       deferredBlocks,
       currentBlockIndex: idx,
@@ -518,6 +522,7 @@ function deferBlock(
     ...workingState,
     status: 'running',
     blockEndRequested: false,
+    inSessionDrillActive: false,
     blocks: remaining,
     deferredBlocks,
     currentBlockIndex: null,

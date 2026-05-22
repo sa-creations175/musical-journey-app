@@ -31,7 +31,8 @@ import InstrumentSelector from '../../components/InstrumentSelector';
 import MetronomeControl from '../../components/MetronomeControl';
 
 export function GlobalSessionBanner() {
-  const { state, pauseSession, resumeSession, endSession } = useSessionTimer();
+  const { state, pauseSession, resumeSession, endSession, deferBlock } =
+    useSessionTimer();
   const times = useSessionTimes();
   const navigate = useNavigate();
   // Local-only state — the banner unmounts on session end (the
@@ -117,6 +118,19 @@ export function GlobalSessionBanner() {
     // click stops the instant the session ends, regardless of effect
     // ordering or a pending async metronome.start resolving.
     metronome.forceStop();
+  };
+
+  // Defer the current block mid-drill (secondary action). Force-stop the
+  // metronome immediately, then defer: the reducer snapshots the block to
+  // deferredBlocks (reset to pending — no dirty drill/phase state) and
+  // advances to the next pending block (or deferred-review). Route to the
+  // active screen so the next block's prep — or the review prompt — shows
+  // (mirrors handleEndClick; the user is usually mid-drill in a module).
+  const handleDeferClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    metronome.forceStop();
+    navigate('/practice-sessions/active');
+    deferBlock();
   };
 
   const handlePauseResumeClick = (e: React.MouseEvent) => {
@@ -249,6 +263,17 @@ export function GlobalSessionBanner() {
         >
           {isPaused ? '▶' : '⏸'}
         </button>
+        {activeBlock && !activeBlock.isWarmup && (
+          <button
+            type="button"
+            onClick={handleDeferClick}
+            aria-label="defer this block"
+            title="set this block aside and come back to it at the end of the session"
+            className="text-xs px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-fluent hover:text-fluent"
+          >
+            defer
+          </button>
+        )}
         <button
           type="button"
           onClick={handleEndClick}

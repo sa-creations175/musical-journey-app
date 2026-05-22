@@ -640,6 +640,10 @@ class Metronome {
     cbs: {
       onTick?: (position: number, bar: number, accent: AccentLevel) => void;
       onGo?: () => void;
+      /** Force every count beat to the thumpy kick voice (ignore the
+       *  metric accent's kick/click split). Used for the non-keyboard
+       *  motivational count-in — kick · kick · kick · GO. */
+      allKick?: boolean;
     },
   ): () => void {
     const schedule = buildCountInSchedule(timeSig, bpm);
@@ -688,7 +692,7 @@ class Metronome {
         try {
           if (beat.isGo) {
             sources.push(...scheduleGoChime(ctx, at, this.state.volume));
-          } else if (countInVoiceFor(beat.accent) === 'kick') {
+          } else if (cbs.allKick || countInVoiceFor(beat.accent) === 'kick') {
             sources.push(playCountKick(ctx, at, this.state.volume));
           } else {
             sources.push(playCountClick(ctx, at, this.state.volume));

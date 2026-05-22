@@ -36,6 +36,9 @@ interface Props {
   bpm: number;
   /** Module accent hex — colours strong beats + the "play" state. */
   accent: string;
+  /** Force all-kick count beats (no metric click) — the non-keyboard
+   *  motivational count-in. Audio only; the visual is unchanged. */
+  allKick?: boolean;
   /** Fired once the count-in (or bypass) reaches "play" and the one-beat
    *  hold elapses. The caller starts the drill here. */
   onComplete: () => void;
@@ -50,7 +53,7 @@ interface CurrentBeat {
   seq: number;
 }
 
-export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: Props) {
+export default function CountdownOverlay({ timeSig, bpm, accent, allKick, onComplete }: Props) {
   const schedule = useMemo(() => buildCountInSchedule(timeSig, bpm), [timeSig, bpm]);
   // null during the pre-pause; tracks the currently-fired beat after.
   const [current, setCurrent] = useState<CurrentBeat | null>(null);
@@ -99,6 +102,7 @@ export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: P
     const pauseTimer = window.setTimeout(() => {
       if (tornDownRef.current) return;
       cancelRef.current = metronome.countIn(timeSig, bpm, {
+        allKick,
         onTick: (position, bar, acc) => {
           if (tornDownRef.current) return;
           seqRef.current += 1;
