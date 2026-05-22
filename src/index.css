@@ -52,6 +52,16 @@ body {
   animation: repertoire-flash 1500ms ease-out;
 }
 
+/* One-shot scale pop for each beat of the prep-flow count-in. The
+   numeral is re-keyed per tick so the animation restarts cleanly. */
+@keyframes count-pulse {
+  0%   { transform: scale(1.35); opacity: 0.55; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+.count-pulse {
+  animation: count-pulse 220ms ease-out;
+}
+
 /* -------------------------------------------------------------
    Harmonic Diary aesthetic — faded botanical journal
    -------------------------------------------------------------

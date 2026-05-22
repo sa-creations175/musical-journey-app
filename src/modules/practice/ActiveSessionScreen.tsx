@@ -51,10 +51,19 @@ import type { PerformanceRating } from '../../lib/sessionTimer/types';
 import EndOfSessionSummary from './EndOfSessionSummary';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
+import CountdownOverlay from './CountdownOverlay';
 import { buildPrepItemBreakdown } from './prepItemBreakdown';
 import { canExtendBlock } from './blockExtendEligibility';
 import InSessionDrillRunner from './InSessionDrillRunner';
 import { isScaleRunnerBlock } from './inSessionScaleRunner';
+import {
+  metronome,
+  COUNT_IN_TIME_SIGS,
+  coerceCountInTimeSig,
+  type TimeSig,
+} from '../../lib/metronome';
+import { playGoChime } from '../../lib/chimes';
+import { db } from '../../lib/db';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
@@ -148,6 +157,12 @@ export default function ActiveSessionScreen() {
   // block's cells over this screen, instead of having navigated to the
   // module.
   const [runnerActive, setRunnerActive] = useState(false);
+  // Per-block count-in time signature (Phase 4), keyed by block id so
+  // each block remembers its pick for the session. Resolved from song
+  // context on first view, else 4/4.
+  const [timeSigByBlock, setTimeSigByBlock] = useState<Record<string, TimeSig>>({});
+  // Non-null while the count-in overlay is on screen (keyboard blocks).
+  const [countdown, setCountdown] = useState<{ timeSig: TimeSig; bpm: number } | null>(null);
 
   // Note: `launched` + `pendingRating` are reset directly in the
   // advance handlers (handleRatingNext / handleSkipBlock) rather than
@@ -183,6 +198,38 @@ export default function ActiveSessionScreen() {
       navigate(PRACTICE_SESSIONS_HOME_ROUTE, { replace: true });
     }
   }, [state.status, state.pendingStart, navigate]);
+
+  // Resolve the count-in time signature for the current keyboard block.
+  // Best-effort: a song-practice block's first itemRef is the song id,
+  // so its stored time signature seeds the picker; anything else (or a
+  // failed lookup) defaults to 4/4. Runs once per block — a user pick
+  // (already in the map) is never overwritten.
+  useEffect(() => {
+    if (state.status === 'idle' || state.status === 'ended') return;
+    const idx = state.currentBlockIndex;
+    if (idx === null) return;
+    const block = state.blocks[idx];
+    if (!block || block.isKeyboardRequired === false) return;
+    if (timeSigByBlock[block.id]) return;
+    let cancelled = false;
+    void (async () => {
+      let def: TimeSig = '4/4';
+      const ref = block.itemRefs?.[0];
+      if (ref) {
+        try {
+          const song = await db.songs.get(ref);
+          if (song?.timeSignature) def = coerceCountInTimeSig(song.timeSignature);
+        } catch {
+          /* not a song / lookup failed → keep 4/4 */
+        }
+      }
+      if (!cancelled) {
+        setTimeSigByBlock(m => (m[block.id] ? m : { ...m, [block.id]: def }));
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status, state.currentBlockIndex]);
 
   // idle + armed: render nothing for the one frame until the start
   // hook promotes the session to running. idle + not armed: the
@@ -243,6 +290,11 @@ export default function ActiveSessionScreen() {
   // safe in-session modal today); everything else routes to the module.
   const isScaleBlock = isScaleRunnerBlock(itemBreakdown);
 
+  // Phase 4 — the count-in (and its time-signature picker) applies to
+  // keyboard blocks only; cognitive modules just get a single GO chime.
+  const isKeyboardBlock = currentBlock.isKeyboardRequired !== false;
+  const selectedTimeSig: TimeSig = timeSigByBlock[currentBlock.id] ?? '4/4';
+
   // GO (Level 3 auto-nav): start the drill timer and drop the user
   // straight onto the drill. Scale blocks open the in-session runner
   // over this screen (driven by the per-item breakdown); everything
@@ -268,10 +320,27 @@ export default function ActiveSessionScreen() {
     goToDrill();
   };
 
-  // Ready = GO for now (the 4-3-2-1 countdown of step 4 will later sit
-  // between them). `launched` keeps the running view up for the
+  // Ready (Phase 4). Keyboard blocks run the 4-3-2-1-GO count-in, which
+  // launches the drill on GO; cognitive blocks get a single GO chime and
+  // launch immediately. `launched` keeps the running view up for the
   // routeless / navigated-back cases.
   const handleReady = () => {
+    if (isKeyboardBlock) {
+      // Align the singleton meter with the picker so the metronome (if
+      // the user enables it for the drill) matches the count-in.
+      metronome.update({ timeSig: selectedTimeSig });
+      setCountdown({ timeSig: selectedTimeSig, bpm: metronome.state.bpm });
+      return;
+    }
+    void playGoChime(metronome.state.volume);
+    setLaunched(true);
+    goToDrill();
+  };
+
+  // Count-in reached GO (or was skipped) — tear down the overlay and
+  // launch the drill exactly as Ready used to.
+  const handleCountdownComplete = () => {
+    setCountdown(null);
     setLaunched(true);
     goToDrill();
   };
@@ -338,6 +407,7 @@ export default function ActiveSessionScreen() {
     setLaunched(false);
     setPendingRating(null);
     setRunnerActive(false);
+    setCountdown(null);
     // Stay on the active-session screen — the next block opens on its
     // prep screen (reducer starts it in `prep`). On the last block,
     // advanceBlock auto-ends so the 'ended' branch renders the summary.
@@ -352,6 +422,7 @@ export default function ActiveSessionScreen() {
     setLaunched(false);
     setPendingRating(null);
     setRunnerActive(false);
+    setCountdown(null);
     // Stay here — the next block opens on its prep screen (module
     // navigation happens on GO, step 3). For the last block,
     // advanceBlock auto-ends the session and the 'ended' branch
@@ -390,6 +461,15 @@ export default function ActiveSessionScreen() {
   if (uiPhase === 'prep') {
     return (
       <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
+        {countdown && (
+          <CountdownOverlay
+            key={currentBlock.id}
+            timeSig={countdown.timeSig}
+            bpm={countdown.bpm}
+            accent={accent}
+            onComplete={handleCountdownComplete}
+          />
+        )}
         <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
           Block {(state.currentBlockIndex ?? 0) + 1} of {state.blocks.length}
         </div>
@@ -460,6 +540,37 @@ export default function ActiveSessionScreen() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* Time signature — keyboard blocks only. Drives the count-in
+              pattern; defaults from song context, else 4/4. Persists per
+              block for the session. */}
+          {isKeyboardBlock && (
+            <div className="space-y-1.5">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+                time signature
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {COUNT_IN_TIME_SIGS.map(ts => (
+                  <button
+                    key={ts}
+                    type="button"
+                    onClick={() => {
+                      setTimeSigByBlock(m => ({ ...m, [currentBlock.id]: ts }));
+                      metronome.update({ timeSig: ts });
+                    }}
+                    aria-pressed={selectedTimeSig === ts}
+                    className={`px-2.5 py-1 rounded-md border text-xs font-mono ${
+                      selectedTimeSig === ts
+                        ? 'bg-fluent text-white border-fluent'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent'
+                    }`}
+                  >
+                    {ts}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Metronome — BPM / groove / on-off. Settings persist. */}

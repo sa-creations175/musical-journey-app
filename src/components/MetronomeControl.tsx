@@ -16,7 +16,7 @@ import { getPref, setPref } from '../lib/userPrefs';
 const GROOVE_IDS: GrooveId[] = [
   'click', 'drum-basic', 'gospel', 'rnb-neosoul', 'jazz-swing', 'hip-hop', 'shuffle',
 ];
-const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '6/8', '12/8'];
+const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '2/4', '6/8', '5/4', '7/8', '12/8'];
 
 /**
  * Compact metronome control designed for the app header. Renders as

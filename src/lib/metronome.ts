@@ -9,6 +9,7 @@
 // module import cheap.
 
 import { ensureRunning } from './audio';
+import { playGoChime } from './chimes';
 import { getPref } from './userPrefs';
 
 // userPrefs keys for the metronome's persisted settings. Exported so
@@ -38,14 +39,108 @@ export const GROOVE_LABEL: Record<GrooveId, string> = {
   shuffle:      'Shuffle feel',
 };
 
-export type TimeSig = '4/4' | '3/4' | '6/8' | '12/8';
+export type TimeSig = '4/4' | '3/4' | '2/4' | '6/8' | '5/4' | '7/8' | '12/8';
 
 export const TIME_SIG_BEATS: Record<TimeSig, number> = {
   '4/4': 4,
   '3/4': 3,
+  '2/4': 2,
   '6/8': 6,
+  '5/4': 5,
+  '7/8': 7,
   '12/8': 12,
 };
+
+// Time signatures offered by the prep-screen count-in picker (Phase 4).
+// 12/8 stays in the TimeSig type for the metronome's own settings
+// popover but isn't a count-in option, so a song stored in 12/8 coerces
+// to 4/4 below.
+export const COUNT_IN_TIME_SIGS: readonly TimeSig[] = [
+  '4/4', '3/4', '2/4', '6/8', '5/4', '7/8',
+];
+
+/** Coerce a free-form song / section time-signature string to a
+ *  supported count-in TimeSig, falling back to 4/4 for anything not on
+ *  the picker (blank, malformed, or e.g. 9/8 / 12/8). */
+export function coerceCountInTimeSig(raw: string | undefined | null): TimeSig {
+  const t = (raw ?? '').trim();
+  return (COUNT_IN_TIME_SIGS as readonly string[]).includes(t)
+    ? (t as TimeSig)
+    : '4/4';
+}
+
+// --- Count-in schedule (prep-flow Phase 4) --------------------------
+//
+// A pure description of the 4-3-2-1-GO lead-in for a given meter + BPM.
+// Kept side-effect-free (no timers, no audio) so it's unit-testable; the
+// metronome's `countIn` method turns it into scheduled clicks + a GO
+// chime + visual callbacks.
+
+export interface CountInBeat {
+  /** Count number spoken on this beat. The GO beat carries the bar's
+   *  downbeat number (1) but the UI renders "GO". */
+  display: number;
+  /** 1-based bar index within the count-in (1 or 2). */
+  bar: number;
+  /** Delay from the start of the count-in, in milliseconds. */
+  offsetMs: number;
+  /** First beat of its bar — gets the accented click. Never set on GO. */
+  accent: boolean;
+  /** The final beat: fires the GO chime and starts the drill. */
+  isGo: boolean;
+}
+
+export interface CountInSchedule {
+  beats: CountInBeat[];
+  /** Inter-beat interval in ms (quarter-note for simple meters,
+   *  eighth-note for compound). */
+  intervalMs: number;
+  totalBeats: number;
+}
+
+function parseSig(ts: TimeSig): { beatsPerBar: number; beatUnit: number } {
+  const [n, d] = ts.split('/').map(s => parseInt(s, 10));
+  return { beatsPerBar: n || 4, beatUnit: d || 4 };
+}
+
+/**
+ * Build the count-in beat list for a time signature + BPM.
+ *
+ * 4/4 is a single count-in bar (4 · 3 · 2 · GO). Every other meter gets
+ * an establishing bar first (full count-down, all clicks) then the
+ * count-in bar (count-down with the downbeat replaced by GO):
+ *   3/4 → 3 2 1 · 3 2 GO        6/8 → 6 5 4 3 2 1 · 6 5 4 3 2 GO
+ *
+ * Beat unit: quarter-note for simple meters; for compound meters
+ * (eighth-denominated, beats divisible by 3 — 6/8, 9/8, 12/8) the
+ * count fires per eighth at 60000 / (BPM * 1.5).
+ */
+export function buildCountInSchedule(timeSig: TimeSig, bpm: number): CountInSchedule {
+  const safeBpm = Math.max(40, Math.min(220, bpm));
+  const { beatsPerBar: n, beatUnit } = parseSig(timeSig);
+  const compound = beatUnit === 8 && n % 3 === 0;
+  const intervalMs = compound ? 60000 / (safeBpm * 1.5) : 60000 / safeBpm;
+
+  const beats: CountInBeat[] = [];
+  let offset = 0;
+  const push = (display: number, bar: number, isGo: boolean) => {
+    beats.push({ display, bar, offsetMs: offset, accent: !isGo && display === n, isGo });
+    offset += intervalMs;
+  };
+
+  const twoBars = timeSig !== '4/4';
+  let bar = 1;
+  if (twoBars) {
+    // Establishing bar: count down N..1, all clicks (downbeat included).
+    for (let d = n; d >= 1; d--) push(d, bar, false);
+    bar = 2;
+  }
+  // Count-in bar: count down N..2 as clicks, then GO on the downbeat.
+  for (let d = n; d >= 2; d--) push(d, bar, false);
+  push(1, bar, true);
+
+  return { beats, intervalMs, totalBeats: beats.length };
+}
 
 export interface MetronomeState {
   playing: boolean;
@@ -330,6 +425,67 @@ class Metronome {
   toggle() {
     if (this.state.playing) this.stop('user');
     else void this.start('user');
+  }
+
+  // --- Count-in (prep-flow Phase 4) --------------------------------
+  //
+  // One-shot 4-3-2-1-GO lead-in. Schedules count clicks + a GO chime
+  // and drives the caller's visual via onTick / onGo. Returns a
+  // cancel() that clears the pending ticks and fires GO immediately —
+  // the tap-to-skip bypass.
+  //
+  // INVARIANT: count-in deliberately does NOT push/pop the driver stack
+  // or touch the continuous scheduler. The count clicks are one-shot
+  // sounds, not a running click. This keeps the drill surface (the drill
+  // modal) the sole owner of the running `'drill'` metronome — so a
+  // count-in can never leak a metronome that outlives its drill, and
+  // start/stop/forceStop/update behave exactly as before.
+  countIn(
+    timeSig: TimeSig,
+    bpm: number,
+    cbs: { onTick?: (display: number, bar: number) => void; onGo?: () => void },
+  ): () => void {
+    const schedule = buildCountInSchedule(timeSig, bpm);
+    const timers: number[] = [];
+
+    // Initiate the AudioContext resume inside the caller's gesture so
+    // the scheduled clicks are audible; the resolved ctx lands a tick
+    // later and the per-beat handlers read it then. Guarded so a missing
+    // AudioContext (tests / unsupported) never throws into the caller —
+    // the count-in degrades to visual-only.
+    let ctx: AudioContext | null = null;
+    try {
+      void ensureRunning().then(c => { ctx = c; }).catch(() => {});
+    } catch {
+      /* no Web Audio — visual-only count-in */
+    }
+
+    let finished = false;
+    const fireGo = () => {
+      if (finished) return;
+      finished = true;
+      void playGoChime(this.state.volume);
+      cbs.onGo?.();
+    };
+
+    for (const beat of schedule.beats) {
+      const id = window.setTimeout(() => {
+        if (beat.isGo) {
+          fireGo();
+          return;
+        }
+        if (ctx && ctx.state === 'running') {
+          playClick(ctx, ctx.currentTime + 0.02, this.state.volume, beat.accent);
+        }
+        cbs.onTick?.(beat.display, beat.bar);
+      }, beat.offsetMs);
+      timers.push(id);
+    }
+
+    return () => {
+      timers.forEach(t => window.clearTimeout(t));
+      fireGo();
+    };
   }
 
   // Hard stop regardless of the driver stack. Used when the owning
