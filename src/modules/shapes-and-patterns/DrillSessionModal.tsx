@@ -157,12 +157,12 @@ export default function DrillSessionModal({
 
   // Mirror external global-timer transitions into local timer state.
   // Banner pause / auto-pause-on-navigation / hard-prompt-end-session
-  // all change state.status without going through the modal's
-  // buttons; this effect keeps the per-drill countdown in sync.
-  // Skipped in-session: the runner (+ setInSessionDrillActive) owns the
-  // lifecycle there, like ScalesDrillModal which has no such coupling.
+  // all change state.status without going through the modal's buttons;
+  // this effect keeps the per-drill countdown in sync. Runs in-session
+  // too so a banner pause freezes BOTH the metronome and this modal's
+  // countdown (the runner's setInSessionDrillActive only stands the
+  // drill-END watcher down; pause/resume still flow through here).
   useEffect(() => {
-    if (fromRunner) return;
     if (phase !== 'running' && phase !== 'paused') return;
 
     if (state.status === 'paused' && phase === 'running') {
@@ -239,35 +239,14 @@ export default function DrillSessionModal({
   };
 
   const pause = () => {
-    if (fromRunner) {
-      // In-session: the global-status sync effect is gated off (the
-      // runner owns the lifecycle), so it can't mirror a global pause
-      // into local cleanup. Stop the local timer + metronome directly,
-      // exactly like ScalesDrillModal — otherwise the click keeps
-      // running after pause (delegating to pauseSession would no-op
-      // locally).
-      if (intervalRef.current !== null) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      metronome.stop('drill');
-      setPhase('paused');
-      return;
-    }
-    // Standalone: drive the global timer; the sync effect handles local
-    // cleanup.
+    // Drive the global timer; the sync effect mirrors it into local
+    // cleanup (in-session too, now the effect is un-gated). Keeping this
+    // global means this button and the banner pause behave identically.
     pauseSession({ reason: 'manual' });
   };
 
   const resume = () => {
-    if (fromRunner) {
-      setPhase('running');
-      void metronome.start('drill');
-      tick();
-      return;
-    }
-    // Standalone: drive the global timer; the sync effect handles local
-    // restart.
+    // Drive the global timer; the sync effect handles the local restart.
     resumeSession();
   };
 
