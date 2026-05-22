@@ -7,10 +7,10 @@
  * and the prep-screen metronome (the modal auto-starts the persisted
  * BPM/style). No matrix tapping, no re-configuring.
  *
- * Between scales (Next / Previous), the same count-in plays before the
- * next drill starts — a 2s pre-pause then the count-in at the session's
- * BPM/meter. The FIRST scale skips it: the prep-screen Ready tap already
- * counted in.
+ * Between scales (Next / Previous), a brief prep screen names the next
+ * scale + its drill time; Ready then plays the count-in (1.5s pre-pause)
+ * at the session's BPM/meter before the drill starts. The FIRST scale
+ * skips both — the block prep screen + its count-in handled it.
  *
  * Scales runner (mounts the self-contained ScalesDrillModal). The
  * chord-shape counterpart is ChordShapeDrillRunner, which mounts
@@ -18,6 +18,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
+import { formatDuration, labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import CountdownOverlay from './CountdownOverlay';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import { metronome } from '../../lib/metronome';
@@ -42,9 +43,13 @@ export default function InSessionDrillRunner({ items, accent, onComplete }: Prop
   // Bumped on Redo to force the modal to remount for the SAME cell
   // (resetting its setup/countdown), without advancing the index.
   const [redoCount, setRedoCount] = useState(0);
-  // True while the between-scales count-in plays (after Next / Previous),
-  // before the next drill modal mounts. The first cell starts false — the
-  // prep-screen Ready tap already counted in.
+  // True while the between-scales PREP screen is up (after Next /
+  // Previous): the user sees the next scale + its drill time and taps
+  // Ready, which kicks off the count-in. First scale starts false — the
+  // block prep screen already handled it.
+  const [betweenPrep, setBetweenPrep] = useState(false);
+  // True while the between-scales count-in plays (after Ready), before
+  // the next drill modal mounts.
   const [counting, setCounting] = useState(false);
   const current = cells[idx];
 
@@ -63,10 +68,10 @@ export default function InSessionDrillRunner({ items, accent, onComplete }: Prop
   // it advance. Set on log, consumed by the very next onClose.
   const justLoggedRef = useRef(false);
 
-  // Move to another scale and play the count-in before it starts.
+  // Move to another scale → show its prep screen (Ready → count-in).
   const goToCell = (compute: (i: number) => number) => {
     setIdx(compute);
-    setCounting(true);
+    setBetweenPrep(true);
   };
 
   // Walked past the last cell (or nothing resolved) → hand back to the
@@ -78,7 +83,41 @@ export default function InSessionDrillRunner({ items, accent, onComplete }: Prop
 
   if (!current) return null;
 
-  // Between-scales count-in: same flow as the initial one (2s pre-pause,
+  // Between-scales prep: name the next scale + its allotted time and wait
+  // for Ready before the count-in. BPM/meter carry over from the block
+  // prep screen, so there are no controls here — just "what's coming".
+  if (betweenPrep) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-neutral-950/90 backdrop-blur-sm select-none p-6 text-center">
+        <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-[0.3em] text-neutral-400">
+            up next
+          </div>
+          <div
+            className="text-2xl sm:text-3xl font-semibold"
+            style={{ color: accent }}
+          >
+            {labelForShapesItemRef(current.itemRef) ?? current.itemRef}
+          </div>
+          <div className="text-sm text-neutral-400">
+            {formatDuration(current.seconds)}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setBetweenPrep(false);
+            setCounting(true);
+          }}
+          className="px-8 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
+        >
+          Ready
+        </button>
+      </div>
+    );
+  }
+
+  // Between-scales count-in: same flow as the initial one (pre-pause,
   // count-in at the session's BPM/meter carried in the singleton, tap to
   // skip). On GO the drill modal mounts and auto-starts the metronome.
   if (counting) {
