@@ -71,22 +71,48 @@ export function coerceCountInTimeSig(raw: string | undefined | null): TimeSig {
 
 // --- Count-in schedule (prep-flow Phase 4) --------------------------
 //
-// A pure description of the 4-3-2-1-GO lead-in for a given meter + BPM.
+// A pure description of the 1-2-3-play lead-in for a given meter + BPM.
 // Kept side-effect-free (no timers, no audio) so it's unit-testable; the
 // metronome's `countIn` method turns it into scheduled clicks + a GO
 // chime + visual callbacks.
 
+/** Metric weight of a beat — drives the click gain/pitch and the
+ *  overlay's numeral + beat-row treatment. */
+export type AccentLevel = 'strong' | 'medium' | 'weak';
+
+// Click gain (× volume) per metric weight. Tunable.
+export const CLICK_GAIN_STRONG = 0.9;
+export const CLICK_GAIN_MEDIUM = 0.6;
+export const CLICK_GAIN_WEAK = 0.4;
+
+/** Per-position metric accent for each meter (index 0 = beat 1). Both
+ *  bars of a two-bar count-in reuse the same pattern. */
+function accentPatternFor(timeSig: TimeSig): AccentLevel[] {
+  switch (timeSig) {
+    case '4/4': return ['strong', 'weak', 'medium', 'weak'];
+    case '3/4': return ['strong', 'weak', 'weak'];
+    case '2/4': return ['strong', 'weak'];
+    case '6/8': return ['strong', 'weak', 'weak', 'medium', 'weak', 'weak'];
+    case '5/4': return ['strong', 'weak', 'weak', 'medium', 'weak'];
+    case '7/8': return ['strong', 'weak', 'medium', 'weak', 'medium', 'weak', 'weak'];
+    case '12/8': return [
+      'strong', 'weak', 'weak', 'medium', 'weak', 'weak',
+      'medium', 'weak', 'weak', 'medium', 'weak', 'weak',
+    ];
+  }
+}
+
 export interface CountInBeat {
-  /** Count number spoken on this beat. The GO beat carries the bar's
-   *  downbeat number (1) but the UI renders "GO". */
-  display: number;
+  /** 1-based beat position within its bar. The final beat renders
+   *  "play" in the UI, but keeps its real position here. */
+  position: number;
   /** 1-based bar index within the count-in (1 or 2). */
   bar: number;
   /** Delay from the start of the count-in, in milliseconds. */
   offsetMs: number;
-  /** First beat of its bar — gets the accented click. Never set on GO. */
-  accent: boolean;
-  /** The final beat: fires the GO chime and starts the drill. */
+  /** Metric weight — strong / medium / weak click + visual treatment. */
+  accent: AccentLevel;
+  /** The final beat: fires the GO chime ("play") and starts the drill. */
   isGo: boolean;
 }
 
@@ -95,6 +121,10 @@ export interface CountInSchedule {
   /** Inter-beat interval in ms (quarter-note for simple meters,
    *  eighth-note for compound). */
   intervalMs: number;
+  /** Beats per bar (length of the accent pattern). */
+  beatsPerBar: number;
+  /** 1 for 4/4, 2 for every other meter. */
+  totalBars: number;
   totalBeats: number;
 }
 
@@ -106,40 +136,36 @@ function parseSig(ts: TimeSig): { beatsPerBar: number; beatUnit: number } {
 /**
  * Build the count-in beat list for a time signature + BPM.
  *
- * 4/4 is a single count-in bar (4 · 3 · 2 · GO). Every other meter gets
- * an establishing bar first (full count-down, all clicks) then the
- * count-in bar (count-down with the downbeat replaced by GO):
- *   3/4 → 3 2 1 · 3 2 GO        6/8 → 6 5 4 3 2 1 · 6 5 4 3 2 GO
+ * 4/4 is a single count-in bar (1 · 2 · 3 · play). Every other meter
+ * gets an establishing bar first (full count 1→N) then the count-in bar
+ * (1→N-1 then play on the downbeat-N position):
+ *   3/4 → 1 2 3 · 1 2 play      6/8 → 1 2 3 4 5 6 · 1 2 3 4 5 play
  *
- * Beat unit: quarter-note for simple meters; for compound meters
- * (eighth-denominated, beats divisible by 3 — 6/8, 9/8, 12/8) the
- * count fires per eighth at 60000 / (BPM * 1.5).
+ * Each beat carries its metric accent (per `accentPatternFor`). Beat
+ * unit: quarter-note for simple meters; for compound meters (eighth-
+ * denominated, beats divisible by 3 — 6/8, 9/8, 12/8) the count fires
+ * per eighth at 60000 / (BPM * 1.5).
  */
 export function buildCountInSchedule(timeSig: TimeSig, bpm: number): CountInSchedule {
   const safeBpm = Math.max(40, Math.min(220, bpm));
   const { beatsPerBar: n, beatUnit } = parseSig(timeSig);
   const compound = beatUnit === 8 && n % 3 === 0;
   const intervalMs = compound ? 60000 / (safeBpm * 1.5) : 60000 / safeBpm;
+  const pattern = accentPatternFor(timeSig);
+  const totalBars = timeSig === '4/4' ? 1 : 2;
 
   const beats: CountInBeat[] = [];
   let offset = 0;
-  const push = (display: number, bar: number, isGo: boolean) => {
-    beats.push({ display, bar, offsetMs: offset, accent: !isGo && display === n, isGo });
-    offset += intervalMs;
-  };
-
-  const twoBars = timeSig !== '4/4';
-  let bar = 1;
-  if (twoBars) {
-    // Establishing bar: count down N..1, all clicks (downbeat included).
-    for (let d = n; d >= 1; d--) push(d, bar, false);
-    bar = 2;
+  for (let bar = 1; bar <= totalBars; bar++) {
+    const isLastBar = bar === totalBars;
+    for (let position = 1; position <= n; position++) {
+      const isGo = isLastBar && position === n;
+      beats.push({ position, bar, offsetMs: offset, accent: pattern[position - 1], isGo });
+      offset += intervalMs;
+    }
   }
-  // Count-in bar: count down N..2 as clicks, then GO on the downbeat.
-  for (let d = n; d >= 2; d--) push(d, bar, false);
-  push(1, bar, true);
 
-  return { beats, intervalMs, totalBeats: beats.length };
+  return { beats, intervalMs, beatsPerBar: n, totalBars, totalBeats: beats.length };
 }
 
 export interface MetronomeState {
@@ -242,13 +268,23 @@ function playRide(ctx: AudioContext, t: number, volume: number) {
   noise.start(t);
 }
 
-function playClick(ctx: AudioContext, t: number, volume: number, accent = false) {
+function playClick(
+  ctx: AudioContext,
+  t: number,
+  volume: number,
+  accent = false,
+  // Explicit gain fraction (× volume). When omitted, falls back to the
+  // groove engine's two-level accent default. The count-in passes its
+  // metric-weight gain here for strong/medium/weak differentiation.
+  gainMul?: number,
+) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'square';
   osc.frequency.value = accent ? 1400 : 900;
+  const g = gainMul !== undefined ? volume * gainMul : volume * (accent ? 0.9 : 0.55);
   gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(volume * (accent ? 0.9 : 0.55), t + 0.001);
+  gain.gain.linearRampToValueAtTime(g, t + 0.001);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
   osc.connect(gain).connect(ctx.destination);
   osc.start(t);
@@ -450,7 +486,10 @@ class Metronome {
   countIn(
     timeSig: TimeSig,
     bpm: number,
-    cbs: { onTick?: (display: number, bar: number) => void; onGo?: () => void },
+    cbs: {
+      onTick?: (position: number, bar: number, accent: AccentLevel) => void;
+      onGo?: () => void;
+    },
   ): () => void {
     const schedule = buildCountInSchedule(timeSig, bpm);
     const timers: number[] = [];
@@ -482,9 +521,14 @@ class Metronome {
           return;
         }
         if (ctx && ctx.state === 'running') {
-          playClick(ctx, ctx.currentTime + 0.02, this.state.volume, beat.accent);
+          // Metric weight → click gain (+ a brighter pitch on strong).
+          const gainMul =
+            beat.accent === 'strong' ? CLICK_GAIN_STRONG
+              : beat.accent === 'medium' ? CLICK_GAIN_MEDIUM
+                : CLICK_GAIN_WEAK;
+          playClick(ctx, ctx.currentTime + 0.02, this.state.volume, beat.accent === 'strong', gainMul);
         }
-        cbs.onTick?.(beat.display, beat.bar);
+        cbs.onTick?.(beat.position, beat.bar, beat.accent);
       }, beat.offsetMs);
       timers.push(id);
     }

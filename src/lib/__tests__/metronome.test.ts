@@ -2,13 +2,13 @@
 /**
  * Prep-flow Phase 4 — count-in schedule + countIn() behaviour.
  *
- * buildCountInSchedule is pure (no timers, no audio) so the meter/tempo
- * logic is asserted directly. countIn() is exercised with fake timers
- * (jsdom for window.setTimeout); there's no AudioContext in this
- * environment, so the audio path is a guarded no-op and only the
- * callback contract is observable — which is exactly the surface the
- * visual overlay depends on. fake-indexeddb satisfies the metronome
- * module's eager pref hydration on import.
+ * buildCountInSchedule is pure (no timers, no audio) so the meter /
+ * position / accent logic is asserted directly. countIn() is exercised
+ * with fake timers (jsdom for window.setTimeout); there's no
+ * AudioContext in this environment, so the audio path is a guarded no-op
+ * and only the callback contract is observable — which is exactly the
+ * surface the visual overlay depends on. fake-indexeddb satisfies the
+ * metronome module's eager pref hydration on import.
  */
 import 'fake-indexeddb/auto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -18,66 +18,49 @@ import {
   metronome,
 } from '../metronome';
 
-describe('buildCountInSchedule', () => {
-  it('4/4 is a single bar: 4 · 3 · 2 · GO', () => {
+describe('buildCountInSchedule — positions + structure', () => {
+  it('4/4 is a single bar counting up: 1 · 2 · 3 · play', () => {
     const s = buildCountInSchedule('4/4', 120);
     expect(s.totalBeats).toBe(4);
-    expect(s.beats.map(b => b.display)).toEqual([4, 3, 2, 1]);
-    expect(s.beats.map(b => b.isGo)).toEqual([false, false, false, true]);
+    expect(s.totalBars).toBe(1);
+    expect(s.beatsPerBar).toBe(4);
+    expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4]);
     expect(s.beats.every(b => b.bar === 1)).toBe(true);
-    // Quarter-note interval at 120 BPM.
-    expect(s.intervalMs).toBe(500);
-    // Only the first beat (the bar's downbeat) is accented.
-    expect(s.beats.map(b => b.accent)).toEqual([true, false, false, false]);
+    expect(s.intervalMs).toBe(500); // quarter-note at 120 BPM
   });
 
-  it('3/4 is two bars: 3 2 1 · 3 2 GO', () => {
+  it('3/4 is two bars: 1 2 3 · 1 2 play', () => {
     const s = buildCountInSchedule('3/4', 120);
     expect(s.totalBeats).toBe(6);
-    expect(s.beats.map(b => b.display)).toEqual([3, 2, 1, 3, 2, 1]);
+    expect(s.totalBars).toBe(2);
+    expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 1, 2, 3]);
     expect(s.beats.map(b => b.bar)).toEqual([1, 1, 1, 2, 2, 2]);
-    expect(s.beats.filter(b => b.isGo)).toHaveLength(1);
-    expect(s.beats[5].isGo).toBe(true);
   });
 
   it('5/4 (simple): two bars of five, quarter-note interval', () => {
     const s = buildCountInSchedule('5/4', 120);
     expect(s.totalBeats).toBe(10);
-    expect(s.beats.map(b => b.display)).toEqual([5, 4, 3, 2, 1, 5, 4, 3, 2, 1]);
+    expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]);
     expect(s.intervalMs).toBe(500);
-    expect(s.beats[9].isGo).toBe(true);
   });
 
   it('7/8 is treated as simple (7 not divisible by 3): quarter-note interval', () => {
     const s = buildCountInSchedule('7/8', 120);
     expect(s.totalBeats).toBe(14);
     expect(s.intervalMs).toBe(500);
-    expect(s.beats[13].isGo).toBe(true);
   });
 
-  it('2/4: two short bars — 2 1 · 2 GO', () => {
+  it('2/4: two short bars — 1 2 · 1 play', () => {
     const s = buildCountInSchedule('2/4', 120);
-    expect(s.beats.map(b => b.display)).toEqual([2, 1, 2, 1]);
+    expect(s.beats.map(b => b.position)).toEqual([1, 2, 1, 2]);
     expect(s.beats.map(b => b.bar)).toEqual([1, 1, 2, 2]);
-    expect(s.beats[3].isGo).toBe(true);
   });
 
-  it('6/8 (compound): counts six eighths per bar at the compound interval', () => {
+  it('6/8 (compound): six eighths per bar at the compound interval', () => {
     const s = buildCountInSchedule('6/8', 120);
     expect(s.totalBeats).toBe(12);
-    expect(s.beats.map(b => b.display)).toEqual([6, 5, 4, 3, 2, 1, 6, 5, 4, 3, 2, 1]);
-    // Compound eighth interval = 60000 / (BPM * 1.5).
+    expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6]);
     expect(s.intervalMs).toBeCloseTo(60000 / (120 * 1.5), 5);
-    expect(s.beats[11].isGo).toBe(true);
-  });
-
-  it('GO always lands on the last beat of the final bar', () => {
-    for (const ts of ['4/4', '3/4', '2/4', '6/8', '5/4', '7/8'] as const) {
-      const s = buildCountInSchedule(ts, 100);
-      const goIdx = s.beats.findIndex(b => b.isGo);
-      expect(goIdx).toBe(s.beats.length - 1);
-      expect(s.beats.filter(b => b.isGo)).toHaveLength(1);
-    }
   });
 
   it('offsets advance by exactly one interval per beat', () => {
@@ -88,6 +71,51 @@ describe('buildCountInSchedule', () => {
   it('clamps absurd BPM into the metronome range', () => {
     expect(buildCountInSchedule('4/4', 5).intervalMs).toBe(60000 / 40);
     expect(buildCountInSchedule('4/4', 9999).intervalMs).toBe(60000 / 220);
+  });
+});
+
+describe('buildCountInSchedule — "play" on the final beat', () => {
+  it('flags exactly one GO beat, always the last one', () => {
+    for (const ts of ['4/4', '3/4', '2/4', '6/8', '5/4', '7/8'] as const) {
+      const s = buildCountInSchedule(ts, 100);
+      const goIdx = s.beats.findIndex(b => b.isGo);
+      expect(goIdx).toBe(s.beats.length - 1);
+      expect(s.beats.filter(b => b.isGo)).toHaveLength(1);
+    }
+  });
+
+  it('the play beat is the downbeat-N position of the final bar', () => {
+    // 4/4 single bar → position 4 of bar 1.
+    const s44 = buildCountInSchedule('4/4', 120);
+    expect(s44.beats.at(-1)).toMatchObject({ position: 4, bar: 1, isGo: true });
+    // 3/4 two bars → position 3 of bar 2.
+    const s34 = buildCountInSchedule('3/4', 120);
+    expect(s34.beats.at(-1)).toMatchObject({ position: 3, bar: 2, isGo: true });
+  });
+});
+
+describe('buildCountInSchedule — metric accent tagging', () => {
+  it('tags each beat with the meter accent pattern (repeated per bar)', () => {
+    const cases: Record<string, ('strong' | 'medium' | 'weak')[]> = {
+      '4/4': ['strong', 'weak', 'medium', 'weak'],
+      '3/4': ['strong', 'weak', 'weak'],
+      '2/4': ['strong', 'weak'],
+      '6/8': ['strong', 'weak', 'weak', 'medium', 'weak', 'weak'],
+      '5/4': ['strong', 'weak', 'weak', 'medium', 'weak'],
+      '7/8': ['strong', 'weak', 'medium', 'weak', 'medium', 'weak', 'weak'],
+    };
+    for (const [ts, pattern] of Object.entries(cases)) {
+      const s = buildCountInSchedule(ts as Parameters<typeof buildCountInSchedule>[0], 120);
+      const perBar = ts === '4/4' ? pattern : [...pattern, ...pattern];
+      expect(s.beats.map(b => b.accent)).toEqual(perBar);
+    }
+  });
+
+  it('beat 1 is always strong; the play beat keeps its position accent', () => {
+    const s = buildCountInSchedule('4/4', 120);
+    expect(s.beats[0].accent).toBe('strong');
+    // 4/4 position 4 is weak per the pattern, even though it is the play beat.
+    expect(s.beats.at(-1)).toMatchObject({ isGo: true, accent: 'weak' });
   });
 });
 
@@ -122,15 +150,18 @@ describe('metronome.countIn', () => {
     vi.useRealTimers();
   });
 
-  it('fires onTick for every count beat then onGo once, in order', () => {
+  it('fires onTick(position, bar, accent) for every count beat then onGo once', () => {
     const onTick = vi.fn();
     const onGo = vi.fn();
     metronome.countIn('4/4', 120, { onTick, onGo });
 
-    // The count starts immediately: 4 at 0ms, 3 at 500, 2 at 1000 are
-    // clicks; GO is the 4th beat at 1500ms.
+    // 1 (0ms), 2 (500), 3 (1000) are clicks; play is beat 4 at 1500ms.
     vi.advanceTimersByTime(1000);
-    expect(onTick.mock.calls).toEqual([[4, 1], [3, 1], [2, 1]]);
+    expect(onTick.mock.calls).toEqual([
+      [1, 1, 'strong'],
+      [2, 1, 'weak'],
+      [3, 1, 'medium'],
+    ]);
     expect(onGo).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(500);
@@ -138,13 +169,14 @@ describe('metronome.countIn', () => {
     expect(onGo).toHaveBeenCalledTimes(1);
   });
 
-  it('fires onTick (display, bar) for both bars of a two-bar meter', () => {
+  it('walks both bars of a two-bar meter, play replacing the last onTick', () => {
     const onTick = vi.fn();
     const onGo = vi.fn();
     metronome.countIn('3/4', 120, { onTick, onGo });
     vi.advanceTimersByTime(6 * 500);
     expect(onTick.mock.calls).toEqual([
-      [3, 1], [2, 1], [1, 1], [3, 2], [2, 2],
+      [1, 1, 'strong'], [2, 1, 'weak'], [3, 1, 'weak'],
+      [1, 2, 'strong'], [2, 2, 'weak'],
     ]);
     expect(onGo).toHaveBeenCalledTimes(1);
   });
@@ -160,7 +192,6 @@ describe('metronome.countIn', () => {
     cancel();
     expect(onGo).toHaveBeenCalledTimes(1);
 
-    // No further ticks or a second GO once cancelled.
     vi.advanceTimersByTime(10_000);
     expect(onTick).toHaveBeenCalledTimes(1);
     expect(onGo).toHaveBeenCalledTimes(1);
@@ -179,8 +210,6 @@ describe('metronome.countIn', () => {
     expect(metronome.state.playing).toBe(false);
     const cancel = metronome.countIn('4/4', 120, { onTick: vi.fn(), onGo: vi.fn() });
     vi.advanceTimersByTime(4 * 500);
-    // GO fired, but the running click was never started — the drill
-    // surface owns that. The driver stack is untouched.
     expect(metronome.state.playing).toBe(false);
     cancel();
     expect(metronome.state.playing).toBe(false);
