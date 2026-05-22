@@ -307,7 +307,7 @@ export default function ActiveSessionScreen() {
   // cell, how long). null when there's nothing to itemize.
   const itemBreakdown = isProductionLessonBlock
     ? null
-    : buildPrepItemBreakdown(currentBlock.itemRefs, adjustedDrillSec);
+    : buildPrepItemBreakdown(currentBlock.itemRefs, adjustedDrillSec, currentBlock.moduleRef);
 
   // Production lessons: resolve readable titles for the "Up next" line +
   // the "N more queued" count. itemRefs are spacing-ordered lesson ids
@@ -365,12 +365,12 @@ export default function ActiveSessionScreen() {
   };
 
   // Ready (Phase 4). Every block runs a 4-3-2-1-GO count-in, which
-  // launches the drill on GO. Keyboard blocks count in the picked meter
-  // + BPM with metric accents (kick·click·kick·GO); non-keyboard blocks
-  // get a fixed motivational count-in — 70 BPM, 4/4, all kicks (no
-  // metric accent), 70 BPM internal-only (no on-screen BPM control).
-  // `launched` keeps the running view up for the routeless /
-  // navigated-back cases.
+  // launches the drill on GO. Every block uses the all-kicks count-in
+  // pattern (kick·kick·kick·GO) — keyboard blocks count it in the picked
+  // meter + BPM, non-keyboard blocks at a fixed 70 BPM 4/4 (internal
+  // only, no on-screen BPM control). Only the BPM/meter differ now; the
+  // audio pattern is all kicks across the board. `launched` keeps the
+  // running view up for the routeless / navigated-back cases.
   const handleReady = () => {
     // Unlock the AudioContext inside this gesture so the (delayed)
     // count-in is audible on iOS, even though it fires seconds later.
@@ -383,7 +383,7 @@ export default function ActiveSessionScreen() {
       // Align the singleton meter with the picker so the count-in and
       // the drill metronome run in the chosen time signature.
       metronome.update({ timeSig: selectedTimeSig });
-      setCountdown({ timeSig: selectedTimeSig, bpm: metronome.state.bpm, allKick: false });
+      setCountdown({ timeSig: selectedTimeSig, bpm: metronome.state.bpm, allKick: true });
       return;
     }
     setCountdown({ timeSig: '4/4', bpm: 70, allKick: true });
