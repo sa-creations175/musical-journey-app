@@ -12,7 +12,9 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import type { ActiveSessionDraft } from '../db';
 import { moduleMetaById } from '../moduleMeta';
+import { readableItemRefLabel } from '../../modules/practice/readableItemLabel';
 import { useSessionTimer } from './SessionTimerContext';
+import type { SessionBlock } from './types';
 import {
   clearActiveSessionDraft,
   draftToSessionState,
@@ -20,6 +22,30 @@ import {
 } from './activeSessionDraft';
 
 const PRACTICE_SESSIONS_ACTIVE_ROUTE = '/practice-sessions/active';
+
+/**
+ * Human-readable "currently on" text for the resume prompt.
+ *
+ * Prefers "<module> · <first item>" when the block's first itemRef
+ * resolves to readable content (e.g. "production · The Logic Pro Main
+ * Window", "chord recognition · Minor"). Falls back to the block's
+ * activityDescription — which is already context-bearing for blocks
+ * whose items can't resolve sync ("repertoire · 2 songs") or have none
+ * ("Flashcard review — terms and concepts") — then the module name,
+ * then a generic word. Never the raw "lessons · 9 lessons" count.
+ */
+function describeResumeBlock(block: SessionBlock | undefined): string {
+  if (!block) return 'session';
+  const moduleLabel = moduleMetaById(block.moduleRef)?.label ?? block.moduleRef;
+  const firstRef = block.itemRefs?.[0];
+  if (firstRef) {
+    const resolved = readableItemRefLabel(block.moduleRef, firstRef);
+    // resolved === firstRef means no labeler beat the raw id (e.g. a
+    // repertoire songId) — fall through to the activityDescription.
+    if (resolved !== firstRef) return `${moduleLabel} · ${resolved}`;
+  }
+  return block.label ?? moduleLabel;
+}
 
 export function ResumeSessionGate() {
   const { state, restoreSession } = useSessionTimer();
@@ -48,11 +74,7 @@ export function ResumeSessionGate() {
   const total = blocks.length;
   const idx = draft.state.currentBlockIndex ?? 0;
   const currentBlock = blocks[idx];
-  const currentLabel =
-    currentBlock?.label ??
-    (currentBlock ? moduleMetaById(currentBlock.moduleRef)?.label : undefined) ??
-    currentBlock?.moduleRef ??
-    'session';
+  const currentLabel = describeResumeBlock(currentBlock);
   const minutesIn = Math.max(1, Math.round(draft.savedSessionActiveMs / 60000));
 
   const handleResume = () => {

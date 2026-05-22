@@ -16,11 +16,8 @@
  * list longer than MAX_BREAKDOWN_ITEMS (a long flashcard queue is
  * noise, not a breakdown — the card shows just the total there).
  */
-import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
-import { labelForChordRecognitionItemRef } from '../ear-training/chord-recognition/itemRefLabel';
-import { labelForIntervalItemRef } from '../ear-training/intervals/itemRefLabel';
-import { labelForHarmonicFluencyItemRef } from '../harmonic-fluency/itemRefLabel';
+import { readableItemRefLabel } from './readableItemLabel';
 import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
@@ -55,23 +52,6 @@ function itemWeight(itemRef: string): number {
   return 1;
 }
 
-/** Resolve a readable label for an itemRef, dispatching by module.
- *  Declarative ET / theory modules encode their items as codes
- *  ("min:0", "P5:asc", "fh-3"), so each gets its own labeler; everything
- *  else uses the S&P labeler, falling back to the raw ref. */
-function labelForItemRef(itemRef: string, moduleRef: string | undefined): string {
-  switch (moduleRef) {
-    case 'chord-recognition':
-      return labelForChordRecognitionItemRef(itemRef);
-    case 'intervals':
-      return labelForIntervalItemRef(itemRef);
-    case 'harmonic-fluency':
-      return labelForHarmonicFluencyItemRef(itemRef);
-    default:
-      return labelForShapesItemRef(itemRef) ?? itemRef;
-  }
-}
-
 export function buildPrepItemBreakdown(
   itemRefs: readonly string[] | undefined,
   totalDrillSeconds: number,
@@ -92,7 +72,7 @@ export function buildPrepItemBreakdown(
     const isScale = parseScaleItemRef(itemRef) !== null;
     return {
       itemRef,
-      label: labelForItemRef(itemRef, moduleRef),
+      label: readableItemRefLabel(moduleRef, itemRef),
       seconds: isScale ? Math.max(60, share) : share,
     };
   });
