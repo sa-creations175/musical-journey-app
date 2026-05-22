@@ -8,15 +8,17 @@
  * seconds, in the modal's in-session mode (its own timer/session logic
  * stands down; the session banner owns the time).
  *
- * Between cells (Next / Previous), the same count-in plays before the
- * next drill starts. The FIRST cell skips it — the prep-screen Ready
- * tap already counted in.
+ * Between cells (Next / Previous), a brief prep screen names the next
+ * cell + its drill time; Ready then plays the count-in before the drill
+ * starts (BPM/meter carry over from the block prep screen). The FIRST
+ * cell skips both — the block prep screen + its count-in handled it.
  *
  * Chord-shape cells are DB rows (skill + drillType), so unlike the
  * scales runner the cell list is resolved asynchronously on mount.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import DrillSessionModal from '../shapes-and-patterns/DrillSessionModal';
+import { formatDuration } from '../shapes-and-patterns/drillModel';
 import CountdownOverlay from './CountdownOverlay';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import { metronome } from '../../lib/metronome';
@@ -44,9 +46,13 @@ export default function ChordShapeDrillRunner({ items, accent, onComplete }: Pro
   // Bumped on Redo to force a remount for the SAME cell (resetting its
   // countdown) without advancing the index.
   const [redoCount, setRedoCount] = useState(0);
-  // True while the between-cells count-in plays (after Next / Previous),
-  // before the next drill modal mounts. First cell starts false — the
-  // prep-screen Ready tap already counted in.
+  // True while the between-cells PREP screen is up (after Next /
+  // Previous): the user sees the next cell + its drill time and taps
+  // Ready, which kicks off the count-in. First cell starts false — the
+  // block prep screen already handled it.
+  const [betweenPrep, setBetweenPrep] = useState(false);
+  // True while the between-cells count-in plays (after Ready), before
+  // the next drill modal mounts.
   const [counting, setCounting] = useState(false);
   // DrillSessionModal fires onLogged THEN onClose when a rep is logged,
   // but only onClose on cancel. Without this flag the trailing onClose
@@ -86,11 +92,45 @@ export default function ChordShapeDrillRunner({ items, accent, onComplete }: Pro
 
   if (!cells || !current) return null;
 
-  // Move to another cell and play the count-in before it starts.
+  // Move to another cell → show its prep screen (Ready → count-in).
   const goToCell = (compute: (i: number) => number) => {
     setIdx(compute);
-    setCounting(true);
+    setBetweenPrep(true);
   };
+
+  // Between-cells prep: name the next cell + its allotted time and wait
+  // for Ready before the count-in. BPM/meter carry over from the block
+  // prep screen, so there are no controls here — just "what's coming".
+  if (betweenPrep) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-neutral-950/90 backdrop-blur-sm select-none p-6 text-center">
+        <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-[0.3em] text-neutral-400">
+            up next
+          </div>
+          <div
+            className="text-2xl sm:text-3xl font-semibold"
+            style={{ color: accent }}
+          >
+            {current.skill.label}
+          </div>
+          <div className="text-sm text-neutral-400">
+            {current.drillType.name} · {formatDuration(current.seconds)}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setBetweenPrep(false);
+            setCounting(true);
+          }}
+          className="px-8 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
+        >
+          Ready
+        </button>
+      </div>
+    );
+  }
 
   // Between-cells count-in: same flow as the initial one (pre-pause +
   // count-in at the session's BPM/meter from the singleton, tap to skip).
