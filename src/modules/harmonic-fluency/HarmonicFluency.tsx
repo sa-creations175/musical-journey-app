@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
@@ -41,6 +41,12 @@ export default function HarmonicFluency() {
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
   const [caughtUp, setCaughtUp] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  // True while the active session was auto-started from a practice
+  // session (Level 3). Forces session defaults (timer off, full pool)
+  // for that run only, without touching the user's saved prefs.
+  const [autoStarted, setAutoStarted] = useState(false);
+  const autoStartRef = useRef(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Live count of flagged cards across the user's per-card state.
   const flaggedCount = useLiveQuery(
@@ -101,6 +107,42 @@ export default function HarmonicFluency() {
     setPref(PREF_CATEGORIES, [...selectedCategories]);
   }, [selectedCategories, prefsLoaded]);
 
+  // Level 3 auto-start: a practice session lands here as
+  // /harmonic-fluency?session=1. Build with session defaults (all
+  // categories, not flagged-only, timer off via `autoStarted`) and skip
+  // the setup screen — saved prefs are left untouched. Consumed once: the
+  // ref guards re-runs within this mount (finishing → returning to setup
+  // won't relaunch) and the param is stripped so a refresh won't either.
+  useEffect(() => {
+    if (!prefsLoaded || autoStartRef.current) return;
+    if (searchParams.get('session') !== '1') return;
+    autoStartRef.current = true;
+    void (async () => {
+      const session = await buildSession({
+        categories: [],
+        target: SESSION_TARGET,
+        flaggedOnly: false,
+      });
+      setSearchParams(
+        prev => {
+          const next = new URLSearchParams(prev);
+          next.delete('session');
+          return next;
+        },
+        { replace: true },
+      );
+      if (session.allCaughtUp) {
+        setCaughtUp(true);
+        setTimeout(() => setCaughtUp(false), 4000);
+        return;
+      }
+      setSessionQueue(session);
+      setSessionActive(true);
+      setAutoStarted(true);
+      setLastSummary(null);
+    })();
+  }, [prefsLoaded, searchParams, setSearchParams]);
+
   const totalCards = FLASHCARDS.length;
 
   const activeCategoryCount = useMemo(() => {
@@ -129,12 +171,14 @@ export default function HarmonicFluency() {
     }
     setSessionQueue(session);
     setSessionActive(true);
+    setAutoStarted(false);
     setLastSummary(null);
   };
 
   const handleExit = (stats: SessionStats) => {
     setSessionActive(false);
     setSessionQueue(null);
+    setAutoStarted(false);
     setLastSummary(stats);
   };
 
@@ -174,7 +218,9 @@ export default function HarmonicFluency() {
         <HarmonicFluencySession
           queue={sessionQueue.cards}
           displayMode={displayMode}
-          timerMode={timerMode}
+          // Auto-started sessions force timer off (session default) without
+          // overwriting the user's saved timer pref.
+          timerMode={autoStarted ? 'off' : timerMode}
           onExit={handleExit}
           onDisplayModeChange={setDisplayMode}
           focusProtected={
@@ -182,6 +228,8 @@ export default function HarmonicFluency() {
             // or a hand-picked category set) AND the resulting queue is
             // small enough that they're cued into what's coming next —
             // so correct answers shouldn't count toward fluency tiers.
+            // Auto-started runs use the full pool, so never focus-protect.
+            !autoStarted &&
             (flaggedOnly || selectedCategories.size > 0) &&
             sessionQueue.cards.length < 4
           }

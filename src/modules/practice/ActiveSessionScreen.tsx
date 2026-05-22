@@ -69,6 +69,15 @@ import { db } from '../../lib/db';
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
 const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
 
+// Level 3 (Phase 6): modules whose drill can auto-start from the session.
+// GO appends `?session=1` to their route; the module reads it, builds with
+// session defaults, and skips its setup screen. (ET deep-links to its
+// sub-module but keeps "press play"; chord-shapes is deferred.)
+const SESSION_AUTOSTART_MODULES: ReadonlySet<string> = new Set([
+  'harmonic-fluency',
+  'production',
+]);
+
 // Prep-screen time-adjustment pills. Deltas in seconds; the reducer
 // clamps the result to [30s, plannedSeconds * 2].
 const DRILL_ADJUST_OPTIONS: ReadonlyArray<{ label: string; deltaSec: number }> = [
@@ -309,7 +318,14 @@ export default function ActiveSessionScreen() {
     }
     if (route) {
       setActiveModuleRef(currentBlock.moduleRef);
-      navigate(route);
+      // Level 3 auto-start: signal supporting modules to launch the drill
+      // directly (skip their setup screen). The module consumes the param.
+      const dest = SESSION_AUTOSTART_MODULES.has(currentBlock.moduleRef)
+        ? route.includes('?')
+          ? `${route}&session=1`
+          : `${route}?session=1`
+        : route;
+      navigate(dest);
     }
     // Routeless, non-runner block: the drill timer is running; the
     // user drills against the on-screen running view.
