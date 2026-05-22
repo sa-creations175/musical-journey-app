@@ -29,7 +29,7 @@ import { playGoChime } from '../../lib/chimes';
 
 /** Deliberate breath between the Ready tap and the count-in. Applies
  *  always, whether or not the metronome was previewing. */
-export const COUNTDOWN_PRE_PAUSE_MS = 2000;
+export const COUNTDOWN_PRE_PAUSE_MS = 1500;
 
 interface Props {
   timeSig: TimeSig;
