@@ -1993,6 +1993,11 @@ export function describeActivity(
 
   switch (block.memoryType) {
     case 'declarative':
+      // Chord recognition drills chord QUALITY types (Major, Minor,
+      // Dim…), not flashcards — name them accordingly.
+      if (block.moduleRef === 'chord-recognition') {
+        return plural(count, 'chord type', 'chord types');
+      }
       return `flashcards · ${plural(count, 'card', 'cards')}`;
     case 'procedural': {
       // Shapes & Patterns: name the actual drills via the

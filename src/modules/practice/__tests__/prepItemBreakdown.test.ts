@@ -43,6 +43,28 @@ describe('buildPrepItemBreakdown', () => {
     expect(big!.map(r => r.seconds)).toEqual([192, 288]);
   });
 
+  it('labels chord-recognition items with readable chord names (no :inversion suffix)', () => {
+    const rows = buildPrepItemBreakdown(
+      ['min:0', 'dim:0', 'aug:0', 'sus2:0'],
+      240,
+      'chord-recognition',
+    );
+    expect(rows).not.toBeNull();
+    expect(rows!.map(r => r.label)).toEqual([
+      'Minor', 'Diminished', 'Augmented', 'Sus2',
+    ]);
+  });
+
+  it('appends the inversion for non-root chord-recognition items', () => {
+    const rows = buildPrepItemBreakdown(['maj7:1'], 60, 'chord-recognition');
+    expect(rows![0].label).toBe('Major 7 · 1st inversion');
+  });
+
+  it('without the chord-recognition moduleRef, refs fall back to raw (unchanged)', () => {
+    const rows = buildPrepItemBreakdown(['min:0', 'dim:0'], 120);
+    expect(rows!.map(r => r.label)).toEqual(['min:0', 'dim:0']);
+  });
+
   it('weights the fluid chord-shape cell heavier than a plain cell', () => {
     // plain=90, fluid=120 → weights 90:120 → 3:4 of a 210s budget.
     const rows = buildPrepItemBreakdown(

@@ -18,6 +18,7 @@
  */
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
+import { labelForChordRecognitionItemRef } from '../ear-training/chord-recognition/itemRefLabel';
 import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
@@ -52,9 +53,20 @@ function itemWeight(itemRef: string): number {
   return 1;
 }
 
+/** Resolve a readable label for an itemRef, dispatching by module.
+ *  Chord-recognition refs ("min:0") need their own chord-name labeler;
+ *  everything else uses the S&P labeler, falling back to the raw ref. */
+function labelForItemRef(itemRef: string, moduleRef: string | undefined): string {
+  if (moduleRef === 'chord-recognition') {
+    return labelForChordRecognitionItemRef(itemRef);
+  }
+  return labelForShapesItemRef(itemRef) ?? itemRef;
+}
+
 export function buildPrepItemBreakdown(
   itemRefs: readonly string[] | undefined,
   totalDrillSeconds: number,
+  moduleRef?: string,
 ): PrepItemRow[] | null {
   if (!itemRefs || itemRefs.length === 0) return null;
   if (itemRefs.length > MAX_BREAKDOWN_ITEMS) return null;
@@ -71,7 +83,7 @@ export function buildPrepItemBreakdown(
     const isScale = parseScaleItemRef(itemRef) !== null;
     return {
       itemRef,
-      label: labelForShapesItemRef(itemRef) ?? itemRef,
+      label: labelForItemRef(itemRef, moduleRef),
       seconds: isScale ? Math.max(60, share) : share,
     };
   });

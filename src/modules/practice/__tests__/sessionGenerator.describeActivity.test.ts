@@ -33,6 +33,23 @@ describe('describeActivity — tier 1 templates', () => {
       .toBe('flashcards · 3 cards');
   });
 
+  it('chord-recognition (declarative) → "N chord type(s)" — these are chord qualities, not cards', () => {
+    expect(
+      describeActivity(
+        block({ moduleRef: 'chord-recognition', memoryType: 'declarative', itemRefs: ['min:0'] }),
+      ),
+    ).toBe('1 chord type');
+    expect(
+      describeActivity(
+        block({
+          moduleRef: 'chord-recognition',
+          memoryType: 'declarative',
+          itemRefs: ['min:0', 'dim:0', 'aug:0', 'sus2:0'],
+        }),
+      ),
+    ).toBe('4 chord types');
+  });
+
   it('procedural blocks → "drills · N item(s)"', () => {
     expect(
       describeActivity(
