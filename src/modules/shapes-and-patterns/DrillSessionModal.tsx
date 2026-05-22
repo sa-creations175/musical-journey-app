@@ -239,12 +239,35 @@ export default function DrillSessionModal({
   };
 
   const pause = () => {
-    // Drive the global timer; sync effect handles local cleanup.
+    if (fromRunner) {
+      // In-session: the global-status sync effect is gated off (the
+      // runner owns the lifecycle), so it can't mirror a global pause
+      // into local cleanup. Stop the local timer + metronome directly,
+      // exactly like ScalesDrillModal — otherwise the click keeps
+      // running after pause (delegating to pauseSession would no-op
+      // locally).
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      metronome.stop('drill');
+      setPhase('paused');
+      return;
+    }
+    // Standalone: drive the global timer; the sync effect handles local
+    // cleanup.
     pauseSession({ reason: 'manual' });
   };
 
   const resume = () => {
-    // Drive the global timer; sync effect handles local restart.
+    if (fromRunner) {
+      setPhase('running');
+      void metronome.start('drill');
+      tick();
+      return;
+    }
+    // Standalone: drive the global timer; the sync effect handles local
+    // restart.
     resumeSession();
   };
 
