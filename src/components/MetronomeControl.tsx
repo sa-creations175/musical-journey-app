@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   GROOVE_LABEL,
   PREF_BPM,
-  PREF_GROOVE,
   PREF_TIME_SIG,
   PREF_VOLUME,
   TIME_SIG_BEATS,
@@ -31,18 +30,16 @@ export default function MetronomeControl() {
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Hydrate persisted settings once on mount.
+  // Hydrate persisted settings once on mount. Groove is owned + restored
+  // by the singleton's per-meter memory (passing timeSig without a groove
+  // lets update() restore the right groove for that meter).
   useEffect(() => {
     (async () => {
       const bpm = await getPref<number>(PREF_BPM, 90);
-      const groove = await getPref<GrooveId>(PREF_GROOVE, 'click');
       const timeSig = await getPref<TimeSig>(PREF_TIME_SIG, '4/4');
       const volume = await getPref<number>(PREF_VOLUME, 0.5);
-      // update() reconciles groove↔timeSig (resets to the meter's default
-      // if the persisted groove doesn't belong to the persisted meter).
       metronome.update({
         bpm: clamp(bpm, 40, 220),
-        groove: groove in GROOVE_LABEL ? groove : 'click',
         timeSig: TIME_SIG_IDS.includes(timeSig) ? timeSig : '4/4',
         volume: clamp(volume, 0, 1),
       });
@@ -50,14 +47,15 @@ export default function MetronomeControl() {
     })();
   }, []);
 
-  // Persist on change.
+  // Persist on change. Groove is NOT written here — the singleton owns
+  // per-meter groove persistence (PREF_GROOVE_BY_METER) so a meter switch
+  // can't clobber another meter's saved groove.
   useEffect(() => {
     if (!prefsLoaded) return;
     void setPref(PREF_BPM, state.bpm);
-    void setPref(PREF_GROOVE, state.groove);
     void setPref(PREF_TIME_SIG, state.timeSig);
     void setPref(PREF_VOLUME, state.volume);
-  }, [prefsLoaded, state.bpm, state.groove, state.timeSig, state.volume]);
+  }, [prefsLoaded, state.bpm, state.timeSig, state.volume]);
 
   // Click outside collapses the popover.
   useEffect(() => {

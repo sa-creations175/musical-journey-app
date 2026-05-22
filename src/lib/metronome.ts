@@ -10,15 +10,19 @@
 
 import { ensureRunning } from './audio';
 import { playGoChime, scheduleGoChime, playCountKick, playCountClick } from './chimes';
-import { getPref } from './userPrefs';
+import { getPref, setPref } from './userPrefs';
 
 // userPrefs keys for the metronome's persisted settings. Exported so
 // MetronomeControl (the writer) and the eager hydration below share one
 // source of truth — divergent keys would silently break persistence.
 export const PREF_BPM = 'metronomeBpm';
-export const PREF_GROOVE = 'metronomeGroove';
+export const PREF_GROOVE = 'metronomeGroove'; // legacy single groove (migrated into the per-meter map)
 export const PREF_TIME_SIG = 'metronomeTimeSig';
 export const PREF_VOLUME = 'metronomeVolume';
+// Per-meter groove memory (JSON map TimeSig→GrooveId), owned + persisted
+// by the singleton so each meter remembers its own last-used groove
+// instead of one shared groove being clobbered on meter changes.
+export const PREF_GROOVE_BY_METER = 'metronomeGrooveByMeter';
 
 export type GrooveId =
   // 4/4
@@ -35,6 +39,7 @@ export type GrooveId =
   // 6/8
   | 'basic-6-8'
   | 'jig'
+  | 'gospel-6-8'
   // 12/8
   | 'basic-12-8'
   | 'blues-shuffle';
@@ -51,6 +56,7 @@ export const GROOVE_LABEL: Record<GrooveId, string> = {
   waltz:        'Waltz',
   'basic-6-8':  'Basic 6/8',
   jig:          'Jig',
+  'gospel-6-8': 'Gospel 6/8',
   'basic-12-8': 'Basic 12/8',
   'blues-shuffle': 'Blues shuffle',
 };
@@ -91,7 +97,7 @@ export function countUnitsPerQuarter(ts: TimeSig): number {
 export const GROOVES_BY_TIME_SIG: Record<TimeSig, readonly GrooveId[]> = {
   '4/4': ['click', 'drum-basic', 'gospel', 'rnb-neosoul', 'jazz-swing', 'hip-hop', 'shuffle'],
   '3/4': ['basic-3-4', 'waltz'],
-  '6/8': ['basic-6-8', 'jig'],
+  '6/8': ['basic-6-8', 'jig', 'gospel-6-8'],
   '12/8': ['basic-12-8', 'blues-shuffle'],
 };
 
@@ -462,6 +468,17 @@ function grooveHits(groove: GrooveId, slot: number, beatsPerBar: number, swing: 
       // Lighter compound feel: kick only on 1, hats on 2–6.
       return e === 0 ? [{ voice: 'kick' }] : [{ voice: 'hat', gain: 0.7 }];
     }
+    case 'gospel-6-8': {
+      if (slot % 4 !== 0) return [];
+      const e = slot / 4; // 0..5
+      // Driving compound gospel: hat on all six eighths, kick on 1,
+      // snare accent on 4, light kick ghost on 6 into the next bar.
+      const hits: Hit[] = [{ voice: 'hat' }];
+      if (e === 0) hits.push({ voice: 'kick' });
+      if (e === 3) hits.push({ voice: 'snare' });
+      if (e === 5) hits.push({ voice: 'kick', gain: 0.5 });
+      return hits;
+    }
     case 'basic-12-8': {
       if (slot % 4 !== 0) return [];
       const e = slot / 4; // 0..11
@@ -499,6 +516,16 @@ class Metronome {
   // click actually stop.
   private driverStack: Array<'user' | 'drill' | 'song'> = [];
 
+  // Last-used valid groove per meter. Restored on meter change so a
+  // 4/4 gospel choice survives drilling a 6/8 block, etc. Seeded by the
+  // eager hydration; written through on every valid groove change.
+  private grooveMemory: Partial<Record<TimeSig, GrooveId>> = {};
+
+  /** Seed the per-meter groove memory (eager hydration only). */
+  setGrooveMemory(memory: Partial<Record<TimeSig, GrooveId>>) {
+    this.grooveMemory = { ...memory };
+  }
+
   get isPlaying(): boolean {
     return this.state.playing;
   }
@@ -518,11 +545,30 @@ class Metronome {
 
   update(patch: Partial<MetronomeState>) {
     let next = { ...this.state, ...patch };
-    // Changing the time signature snaps the groove to that meter's
-    // default unless the current groove is still valid for it — a 4/4
-    // groove must never play under 3/4, etc.
-    if (patch.timeSig !== undefined && !groovesForTimeSig(next.timeSig).includes(next.groove)) {
-      next = { ...next, groove: defaultGrooveForTimeSig(next.timeSig) };
+    // On a time-signature change, restore that meter's remembered groove
+    // (or its default) — unless the same patch explicitly set a groove
+    // that's valid for the new meter. A 4/4 groove never plays under 3/4,
+    // and switching meters never clobbers another meter's saved choice.
+    if (patch.timeSig !== undefined) {
+      const explicitValid =
+        patch.groove !== undefined && groovesForTimeSig(next.timeSig).includes(patch.groove);
+      if (!explicitValid) {
+        const remembered = this.grooveMemory[next.timeSig];
+        next = {
+          ...next,
+          groove: remembered && groovesForTimeSig(next.timeSig).includes(remembered)
+            ? remembered
+            : defaultGrooveForTimeSig(next.timeSig),
+        };
+      }
+    }
+    // Remember the active groove for its meter (persist only on change).
+    if (
+      groovesForTimeSig(next.timeSig).includes(next.groove) &&
+      this.grooveMemory[next.timeSig] !== next.groove
+    ) {
+      this.grooveMemory[next.timeSig] = next.groove;
+      void setPref(PREF_GROOVE_BY_METER, this.grooveMemory);
     }
     this.state = next;
     this.emit();
@@ -781,16 +827,30 @@ export const metronome = new Metronome();
 // DEFAULT_STATE stands.
 void (async () => {
   try {
-    const [bpm, groove, timeSig, volume] = await Promise.all([
+    const [bpm, grooveMap, legacyGroove, timeSig, volume] = await Promise.all([
       getPref<number>(PREF_BPM, DEFAULT_STATE.bpm),
+      getPref<Partial<Record<TimeSig, GrooveId>>>(PREF_GROOVE_BY_METER, {}),
       getPref<GrooveId>(PREF_GROOVE, DEFAULT_STATE.groove),
       getPref<TimeSig>(PREF_TIME_SIG, DEFAULT_STATE.timeSig),
       getPref<number>(PREF_VOLUME, DEFAULT_STATE.volume),
     ]);
+    const validTimeSig = timeSig in TIME_SIG_BEATS ? timeSig : DEFAULT_STATE.timeSig;
+    // Sanitize the persisted map: keep only grooves valid for their meter.
+    const memory: Partial<Record<TimeSig, GrooveId>> = {};
+    for (const ts of Object.keys(TIME_SIG_BEATS) as TimeSig[]) {
+      const g = grooveMap?.[ts];
+      if (g && groovesForTimeSig(ts).includes(g)) memory[ts] = g;
+    }
+    // Migrate the legacy single groove pref into 4/4 memory (so an
+    // existing 4/4 preference survives the per-meter refactor).
+    if (!memory['4/4'] && legacyGroove in GROOVE_LABEL && groovesForTimeSig('4/4').includes(legacyGroove)) {
+      memory['4/4'] = legacyGroove;
+    }
+    metronome.setGrooveMemory(memory);
+    // Pass timeSig WITHOUT a groove so update() restores it from memory.
     metronome.update({
       bpm: Math.max(40, Math.min(220, bpm)),
-      groove: groove in GROOVE_LABEL ? groove : DEFAULT_STATE.groove,
-      timeSig: timeSig in TIME_SIG_BEATS ? timeSig : DEFAULT_STATE.timeSig,
+      timeSig: validTimeSig,
       volume: Math.max(0, Math.min(1, volume)),
     });
   } catch {

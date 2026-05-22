@@ -162,28 +162,42 @@ describe('time signatures + groove sets', () => {
   it('offers only the meter-appropriate grooves, with no cross-meter leakage', () => {
     expect(groovesForTimeSig('4/4')).toContain('click');
     expect(groovesForTimeSig('3/4')).toEqual(['basic-3-4', 'waltz']);
-    expect(groovesForTimeSig('6/8')).toEqual(['basic-6-8', 'jig']);
+    expect(groovesForTimeSig('6/8')).toEqual(['basic-6-8', 'jig', 'gospel-6-8']);
     expect(groovesForTimeSig('12/8')).toEqual(['basic-12-8', 'blues-shuffle']);
     expect(groovesForTimeSig('3/4')).not.toContain('click');
     expect(groovesForTimeSig('4/4')).not.toContain('waltz');
     expect(defaultGrooveForTimeSig('6/8')).toBe('basic-6-8');
   });
 
-  it('changing time signature resets groove to the new meter default, preserving valid ones', () => {
+  it('remembers each meter\'s groove and restores it on return (no clobber)', () => {
+    metronome.setGrooveMemory({}); // clean slate
     metronome.update({ timeSig: '4/4', groove: 'gospel' });
     expect(metronome.state.groove).toBe('gospel');
 
+    // Switch to 3/4 — gospel invalid, so the meter default appears.
     metronome.update({ timeSig: '3/4' });
-    expect(metronome.state.groove).toBe('basic-3-4'); // gospel invalid in 3/4
+    expect(metronome.state.groove).toBe('basic-3-4');
+    metronome.update({ groove: 'waltz' }); // remembered for 3/4
 
-    metronome.update({ groove: 'waltz' }); // valid same-meter pick
-    metronome.update({ timeSig: '3/4' });
-    expect(metronome.state.groove).toBe('waltz'); // preserved
-
+    // Drill a 6/8 block — its default; this must NOT clobber 4/4's gospel.
     metronome.update({ timeSig: '6/8' });
     expect(metronome.state.groove).toBe('basic-6-8');
 
-    metronome.update({ timeSig: '4/4' }); // restore for other tests
+    // Back to 4/4 — gospel returns (the regression: this used to be 'click').
+    metronome.update({ timeSig: '4/4' });
+    expect(metronome.state.groove).toBe('gospel');
+    // Back to 3/4 — waltz returns.
+    metronome.update({ timeSig: '3/4' });
+    expect(metronome.state.groove).toBe('waltz');
+
+    metronome.update({ timeSig: '4/4' }); // leave a clean-ish state
+  });
+
+  it('a meter with no remembered groove falls back to its default', () => {
+    metronome.setGrooveMemory({}); // forget everything
+    metronome.update({ timeSig: '6/8' });
+    expect(metronome.state.groove).toBe('basic-6-8');
+    metronome.update({ timeSig: '4/4' });
     expect(metronome.state.groove).toBe('click');
   });
 });
