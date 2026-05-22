@@ -1993,10 +1993,19 @@ export function describeActivity(
 
   switch (block.memoryType) {
     case 'declarative':
-      // Chord recognition drills chord QUALITY types (Major, Minor,
-      // Dim…), not flashcards — name them accordingly.
+      // Name declarative blocks by their actual content rather than the
+      // generic "flashcards · N cards":
+      //   chord recognition → chord QUALITY types (Major, Minor, Dim…)
+      //   intervals         → intervals
+      //   harmonic fluency  → theory concepts (spans 13 categories)
       if (block.moduleRef === 'chord-recognition') {
         return plural(count, 'chord type', 'chord types');
+      }
+      if (block.moduleRef === 'intervals') {
+        return plural(count, 'interval', 'intervals');
+      }
+      if (block.moduleRef === 'harmonic-fluency') {
+        return plural(count, 'concept', 'concepts');
       }
       return `flashcards · ${plural(count, 'card', 'cards')}`;
     case 'procedural': {

@@ -26,10 +26,12 @@ function block(partial: Partial<AllocatedBlock>): AllocatedBlock {
 }
 
 describe('describeActivity — tier 1 templates', () => {
-  it('declarative blocks → "flashcards · N card(s)"', () => {
-    expect(describeActivity(block({ memoryType: 'declarative', itemRefs: ['c1'] })))
+  it('declarative blocks → "flashcards · N card(s)" (generic, e.g. glossary)', () => {
+    // chord-recognition / intervals / harmonic-fluency are now named by
+    // their content; other declarative modules keep the generic template.
+    expect(describeActivity(block({ moduleRef: 'glossary', memoryType: 'declarative', itemRefs: ['c1'] })))
       .toBe('flashcards · 1 card');
-    expect(describeActivity(block({ memoryType: 'declarative', itemRefs: ['c1', 'c2', 'c3'] })))
+    expect(describeActivity(block({ moduleRef: 'glossary', memoryType: 'declarative', itemRefs: ['c1', 'c2', 'c3'] })))
       .toBe('flashcards · 3 cards');
   });
 
@@ -48,6 +50,40 @@ describe('describeActivity — tier 1 templates', () => {
         }),
       ),
     ).toBe('4 chord types');
+  });
+
+  it('intervals (declarative) → "N interval(s)" — not cards', () => {
+    expect(
+      describeActivity(
+        block({ moduleRef: 'intervals', memoryType: 'declarative', itemRefs: ['P5:asc'] }),
+      ),
+    ).toBe('1 interval');
+    expect(
+      describeActivity(
+        block({
+          moduleRef: 'intervals',
+          memoryType: 'declarative',
+          itemRefs: ['P5:asc', 'm3:desc'],
+        }),
+      ),
+    ).toBe('2 intervals');
+  });
+
+  it('harmonic-fluency (declarative) → "N concept(s)" — theory concepts, not cards', () => {
+    expect(
+      describeActivity(
+        block({ moduleRef: 'harmonic-fluency', memoryType: 'declarative', itemRefs: ['fh-1'] }),
+      ),
+    ).toBe('1 concept');
+    expect(
+      describeActivity(
+        block({
+          moduleRef: 'harmonic-fluency',
+          memoryType: 'declarative',
+          itemRefs: ['fh-1', 'fh-2'],
+        }),
+      ),
+    ).toBe('2 concepts');
   });
 
   it('procedural blocks → "drills · N item(s)"', () => {

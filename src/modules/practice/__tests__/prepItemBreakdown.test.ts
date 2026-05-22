@@ -3,6 +3,7 @@ import {
   buildPrepItemBreakdown,
   MAX_BREAKDOWN_ITEMS,
 } from '../prepItemBreakdown';
+import { cardById } from '../../harmonic-fluency/catalog';
 
 describe('buildPrepItemBreakdown', () => {
   it('returns null for no items', () => {
@@ -63,6 +64,26 @@ describe('buildPrepItemBreakdown', () => {
   it('without the chord-recognition moduleRef, refs fall back to raw (unchanged)', () => {
     const rows = buildPrepItemBreakdown(['min:0', 'dim:0'], 120);
     expect(rows!.map(r => r.label)).toEqual(['min:0', 'dim:0']);
+  });
+
+  it('labels interval items with name + direction', () => {
+    const rows = buildPrepItemBreakdown(
+      ['P5:asc', 'm3:desc', 'P8:asc'],
+      90,
+      'intervals',
+    );
+    expect(rows!.map(r => r.label)).toEqual([
+      'Perfect 5th (ascending)',
+      'Minor 3rd (descending)',
+      'Octave (ascending)',
+    ]);
+  });
+
+  it('labels harmonic-fluency items with the card question (not the raw id)', () => {
+    const id = 'fh-1';
+    const rows = buildPrepItemBreakdown([id], 60, 'harmonic-fluency');
+    expect(rows![0].label).toBe(cardById(id)!.question);
+    expect(rows![0].label).not.toBe(id);
   });
 
   it('weights the fluid chord-shape cell heavier than a plain cell', () => {

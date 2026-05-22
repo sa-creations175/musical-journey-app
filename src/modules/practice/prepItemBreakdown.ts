@@ -19,6 +19,8 @@
 import { labelForShapesItemRef } from '../shapes-and-patterns/drillModel';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
 import { labelForChordRecognitionItemRef } from '../ear-training/chord-recognition/itemRefLabel';
+import { labelForIntervalItemRef } from '../ear-training/intervals/itemRefLabel';
+import { labelForHarmonicFluencyItemRef } from '../harmonic-fluency/itemRefLabel';
 import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
@@ -54,13 +56,20 @@ function itemWeight(itemRef: string): number {
 }
 
 /** Resolve a readable label for an itemRef, dispatching by module.
- *  Chord-recognition refs ("min:0") need their own chord-name labeler;
- *  everything else uses the S&P labeler, falling back to the raw ref. */
+ *  Declarative ET / theory modules encode their items as codes
+ *  ("min:0", "P5:asc", "fh-3"), so each gets its own labeler; everything
+ *  else uses the S&P labeler, falling back to the raw ref. */
 function labelForItemRef(itemRef: string, moduleRef: string | undefined): string {
-  if (moduleRef === 'chord-recognition') {
-    return labelForChordRecognitionItemRef(itemRef);
+  switch (moduleRef) {
+    case 'chord-recognition':
+      return labelForChordRecognitionItemRef(itemRef);
+    case 'intervals':
+      return labelForIntervalItemRef(itemRef);
+    case 'harmonic-fluency':
+      return labelForHarmonicFluencyItemRef(itemRef);
+    default:
+      return labelForShapesItemRef(itemRef) ?? itemRef;
   }
-  return labelForShapesItemRef(itemRef) ?? itemRef;
 }
 
 export function buildPrepItemBreakdown(
