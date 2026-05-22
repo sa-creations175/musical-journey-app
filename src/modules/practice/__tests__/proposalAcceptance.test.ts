@@ -165,6 +165,20 @@ describe('resolveProposalStart', () => {
     expect(out.armBlocks.map(b => b.isWarmup)).toEqual([true, false]);
   });
 
+  it('threads isKeyboardRequired from ProposalBlock onto each armBlock', () => {
+    // The prep screen gates the time-signature picker + metronome on
+    // SessionBlock.isKeyboardRequired (keyboard blocks only). Dropping
+    // it here defaulted every armed block to keyboard
+    // (undefined !== false), surfacing those controls on Production /
+    // HF / ET prep screens. Pin that the flag travels through.
+    const blocks = [
+      mkBlock({ id: 'sp', moduleRef: 'shapes-and-patterns', isKeyboardRequired: true }),
+      mkBlock({ id: 'prod', moduleRef: 'production', isKeyboardRequired: false }),
+    ];
+    const out = resolveProposalStart(blocks);
+    expect(out.armBlocks.map(b => b.isKeyboardRequired)).toEqual([true, false]);
+  });
+
   it('block.quickLaunchRoute wins over the moduleMeta route', () => {
     // Production Vocab is the canonical example: moduleRef =
     // production (which has its own moduleMeta route), but the

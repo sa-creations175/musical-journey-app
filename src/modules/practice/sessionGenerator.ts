@@ -1958,6 +1958,15 @@ function toProposalBlocks(
       itemRefs: block.itemRefs,
       isWarmup: false,
       isKeyboardRequired: block.isKeyboardRequired,
+      // Level 3: Production lesson blocks deep-link straight to the
+      // first lesson (LessonView via ?lesson=) so GO lands on lesson
+      // content, not the module overview. itemRefs are spacing-ordered
+      // lesson ids (top = most-due / in-progress). The Production vocab
+      // block is built separately (buildProductionVocabBlock) and keeps
+      // its own ?view=vocabulary route, so this only affects lessons.
+      ...(block.moduleRef === PRODUCTION_MODULE_REF && block.itemRefs.length > 0
+        ? { quickLaunchRoute: `/production?lesson=${encodeURIComponent(block.itemRefs[0])}` }
+        : {}),
     },
   ];
 }

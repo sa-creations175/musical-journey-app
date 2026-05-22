@@ -34,6 +34,12 @@ export interface ProposalStartArmedBlock {
   label: string;
   plannedSeconds: number;
   quickLaunchRoute: string | undefined;
+  /** Forwarded onto the timer's SessionBlock.isKeyboardRequired so the
+   *  prep screen can gate keyboard-only controls (time-signature
+   *  picker + metronome) to keyboard blocks. Dropping it here made
+   *  every armed block read as keyboard (undefined !== false), which
+   *  surfaced those controls on Production / HF / ET prep screens. */
+  isKeyboardRequired: boolean | undefined;
   /** Forwarded onto the timer's SessionBlock.isWarmup so the active-
    *  session UI can suppress per-block skip on warm-up blocks (those
    *  are bound to a downstream song / cell — skipping them
@@ -72,6 +78,7 @@ export function resolveProposalStart(
     label: b.activityDescription,
     plannedSeconds: b.plannedSeconds,
     quickLaunchRoute: b.quickLaunchRoute,
+    isKeyboardRequired: b.isKeyboardRequired,
     isWarmup: b.isWarmup,
   }));
   return { firstBlock, startRoute, armBlocks };

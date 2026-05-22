@@ -598,13 +598,17 @@ export default function ActiveSessionScreen() {
             </div>
           )}
 
-          {/* Metronome — BPM / groove / on-off. Settings persist. */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-neutral-500">
-              metronome
-            </span>
-            <MetronomeControl />
-          </div>
+          {/* Metronome — BPM / groove / on-off. Keyboard blocks only
+              (scales, chord shapes, repertoire/songs); cognitive blocks
+              like Production / HF / ET don't drill against a metronome. */}
+          {isKeyboardBlock && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+                metronome
+              </span>
+              <MetronomeControl />
+            </div>
+          )}
         </section>
 
         <button
