@@ -106,12 +106,23 @@ export function GlobalSessionBanner() {
     // active' → ActiveSessionScreen mounts and renders the summary.
     navigate('/practice-sessions/active');
     endSession();
+    // Belt-and-suspenders with the !sessionActive effect: guarantee the
+    // click stops the instant the session ends, regardless of effect
+    // ordering or a pending async metronome.start resolving.
+    metronome.forceStop();
   };
 
   const handlePauseResumeClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (state.status === 'running') {
       pauseSession({ reason: 'manual' });
+      // Manual pause silences the global click immediately (the
+      // !sessionActive effect doesn't fire — status stays 'paused').
+      // Resume intentionally does NOT auto-restart it: a break is truly
+      // silent, and the user re-engages from the drill or the banner
+      // toggle. (Auto-navigation pause is a separate path and keeps the
+      // click running, by design.)
+      metronome.forceStop();
     } else if (state.status === 'paused') {
       resumeSession();
     }

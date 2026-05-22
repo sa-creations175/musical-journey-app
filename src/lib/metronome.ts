@@ -399,7 +399,14 @@ class Metronome {
   async start(driver: 'user' | 'drill' | 'song' = 'user') {
     this.driverStack.push(driver);
     if (this.state.playing) return;
-    this.ctx = await ensureRunning();
+    const ctx = await ensureRunning();
+    // forceStop (or a matching stop) may have emptied the stack while we
+    // awaited the AudioContext resume — e.g. the user paused or ended
+    // the session the instant a drill auto-started its click. Don't
+    // resurrect a click whose owner already tore down: bail before
+    // flipping `playing` or arming the scheduler.
+    if (this.driverStack.length === 0) return;
+    this.ctx = ctx;
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.currentSlot = 0;
     this.state = { ...this.state, playing: true };
