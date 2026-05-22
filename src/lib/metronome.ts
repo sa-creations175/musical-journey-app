@@ -151,14 +151,15 @@ function parseSig(ts: TimeSig): { beatsPerBar: number; beatUnit: number } {
  *
  * Each beat carries its metric accent (per `accentPatternFor`). Beat
  * unit: quarter-note for simple meters; for compound meters (eighth-
- * denominated, beats divisible by 3 — 6/8, 9/8, 12/8) the count fires
- * per eighth at 60000 / (BPM * 1.5).
+ * denominated, beats divisible by 3 — 6/8, 9/8, 12/8) BPM is the felt
+ * dotted-quarter beat, so each counted eighth = 60000 / (BPM * 3) — a
+ * dotted quarter is 3 eighths. (Was BPM*1.5, i.e. half speed.)
  */
 export function buildCountInSchedule(timeSig: TimeSig, bpm: number): CountInSchedule {
   const safeBpm = Math.max(40, Math.min(220, bpm));
   const { beatsPerBar: n, beatUnit } = parseSig(timeSig);
   const compound = beatUnit === 8 && n % 3 === 0;
-  const intervalMs = compound ? 60000 / (safeBpm * 1.5) : 60000 / safeBpm;
+  const intervalMs = compound ? 60000 / (safeBpm * 3) : 60000 / safeBpm;
   const pattern = accentPatternFor(timeSig);
   const totalBars = timeSig === '4/4' ? 1 : 2;
 

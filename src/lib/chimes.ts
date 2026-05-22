@@ -10,10 +10,12 @@
 import { ensureRunning } from './audio';
 
 /**
- * Count-in "kick" — the strong/medium beats of the lead-in. A short
- * pitch-swept sine burst (~150 Hz → ~50 Hz over ~80 ms) with a fast
- * exponential decay (~150 ms) for a low, thumpy bass-drum feel. The
- * downward pitch sweep is what reads as a kick.
+ * Count-in "kick" — the strong/medium beats of the lead-in. A short,
+ * clean low thump: a fixed ~80 Hz sine (no pitch sweep, so there's no
+ * perceived movement between beats) with a quick ~50 ms decay to
+ * silence. A 2 ms gain ramp up from 0 avoids an onset click, and the
+ * fast tail means the kick lands and gets out of the way before the
+ * next beat.
  *
  * Caller supplies an already-running context + an absolute start time
  * (the count-in schedules each beat on the audio clock). `volume` is the
@@ -23,14 +25,14 @@ export function playCountKick(ctx: AudioContext, t: number, volume: number): Osc
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(150, t);
-  osc.frequency.exponentialRampToValueAtTime(50, t + 0.08);
-  // Full at onset → exponential decay to silence (~150 ms).
-  gain.gain.setValueAtTime(Math.max(0.0001, volume), t);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+  osc.frequency.setValueAtTime(80, t);
+  // Clean onset (ramp from 0) → fast exponential decay to silence (~50 ms).
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(Math.max(0.0001, volume), t + 0.002);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
   osc.connect(gain).connect(ctx.destination);
   osc.start(t);
-  osc.stop(t + 0.18);
+  osc.stop(t + 0.06);
   // Returned so a caller (the count-in) can stop it early on bypass.
   return osc;
 }

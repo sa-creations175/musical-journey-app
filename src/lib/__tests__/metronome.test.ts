@@ -57,11 +57,17 @@ describe('buildCountInSchedule — positions + structure', () => {
     expect(s.beats.map(b => b.bar)).toEqual([1, 1, 2, 2]);
   });
 
-  it('6/8 (compound): six eighths per bar at the compound interval', () => {
+  it('6/8 (compound): eighth = 60000/(BPM*3) — dotted-quarter felt beat', () => {
     const s = buildCountInSchedule('6/8', 120);
     expect(s.totalBeats).toBe(12);
     expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6]);
-    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 1.5), 5);
+    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 3), 5); // 166.67ms, not 333.33
+  });
+
+  it('6/8 @ 80 BPM is 250ms/eighth, 1500ms/bar (was 2× too slow at ×1.5)', () => {
+    const s = buildCountInSchedule('6/8', 80);
+    expect(s.intervalMs).toBeCloseTo(250, 5);
+    expect(s.intervalMs * s.beatsPerBar).toBeCloseTo(1500, 5);
   });
 
   it('offsets advance by exactly one interval per beat', () => {
