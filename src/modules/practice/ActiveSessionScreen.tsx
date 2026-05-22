@@ -820,6 +820,7 @@ export default function ActiveSessionScreen() {
       {runnerActive && itemBreakdown && (
         <InSessionDrillRunner
           items={itemBreakdown}
+          accent={accent}
           onComplete={handleRunnerComplete}
         />
       )}
