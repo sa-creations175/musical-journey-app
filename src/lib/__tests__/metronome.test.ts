@@ -17,6 +17,7 @@ import {
   buildCountInSchedule,
   coerceCountInTimeSig,
   countInVoiceFor,
+  countUnitsPerQuarter,
   groovesForTimeSig,
   defaultGrooveForTimeSig,
   isCompoundMeter,
@@ -42,18 +43,18 @@ describe('buildCountInSchedule — positions + structure', () => {
     expect(s.beats.map(b => b.bar)).toEqual([1, 1, 1, 2, 2, 2]);
   });
 
-  it('6/8 (compound): two bars of six eighths, eighth = 60000/(BPM*3)', () => {
+  it('6/8 (compound): two bars of six eighths, eighth = 60000/(BPM*2)', () => {
     const s = buildCountInSchedule('6/8', 120);
     expect(s.totalBeats).toBe(12);
     expect(s.totalBars).toBe(2);
     expect(s.beats.map(b => b.position)).toEqual([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6]);
-    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 3), 5);
+    expect(s.intervalMs).toBeCloseTo(60000 / (120 * 2), 5);
   });
 
-  it('6/8 @ 80 BPM is 250ms/eighth, 1500ms/bar', () => {
-    const s = buildCountInSchedule('6/8', 80);
-    expect(s.intervalMs).toBeCloseTo(250, 5);
-    expect(s.intervalMs * s.beatsPerBar).toBeCloseTo(1500, 5);
+  it('6/8 @ 60 BPM (quarter-note convention) is 500ms/eighth, 3000ms/bar', () => {
+    const s = buildCountInSchedule('6/8', 60);
+    expect(s.intervalMs).toBeCloseTo(500, 5);
+    expect(s.intervalMs * s.beatsPerBar).toBeCloseTo(3000, 5);
   });
 
   it('12/8 (compound): a SINGLE bar of twelve eighths, play on the last', () => {
@@ -149,6 +150,13 @@ describe('time signatures + groove sets', () => {
     expect(isCompoundMeter('3/4')).toBe(false);
     expect(isCompoundMeter('6/8')).toBe(true);
     expect(isCompoundMeter('12/8')).toBe(true);
+  });
+
+  it('countUnitsPerQuarter: BPM=quarter; simple ÷1, 6/8 ÷2, 12/8 ÷3', () => {
+    expect(countUnitsPerQuarter('4/4')).toBe(1);
+    expect(countUnitsPerQuarter('3/4')).toBe(1);
+    expect(countUnitsPerQuarter('6/8')).toBe(2);
+    expect(countUnitsPerQuarter('12/8')).toBe(3);
   });
 
   it('offers only the meter-appropriate grooves, with no cross-meter leakage', () => {

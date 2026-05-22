@@ -64,10 +64,25 @@ export const TIME_SIG_BEATS: Record<TimeSig, number> = {
   '12/8': 12,
 };
 
-/** Compound meters (eighth-denominated, beats grouped in 3s): BPM is the
- *  felt dotted-quarter and the counted/grid unit is the eighth. */
+/** Compound meters (eighth-denominated, beats grouped in 3s): the
+ *  counted/grid unit is the eighth, not the quarter. */
 export function isCompoundMeter(ts: TimeSig): boolean {
   return ts === '6/8' || ts === '12/8';
+}
+
+/**
+ * How many counted units (the grid step) fall in one quarter note — the
+ * factor BPM is divided by. BPM is always the quarter note (standard
+ * online-metronome / DAW convention), so:
+ *   · simple meters count quarters → 1
+ *   · 6/8 counts eighths at quarter-BPM → 2 (eighth = 60000/(BPM*2))
+ *   · 12/8 keeps the dotted-quarter felt-beat convention for now → 3
+ *     (eighth = 60000/(BPM*3))
+ */
+export function countUnitsPerQuarter(ts: TimeSig): number {
+  if (ts === '6/8') return 2;
+  if (ts === '12/8') return 3;
+  return 1;
 }
 
 /** Grooves available for each meter — the selector shows only these, and
@@ -179,10 +194,11 @@ function parseSig(ts: TimeSig): { beatsPerBar: number; beatUnit: number } {
  * (1→N-1 then play on the downbeat-N position):
  *   3/4 → 1 2 3 · 1 2 play      6/8 → 1 2 3 4 5 6 · 1 2 3 4 5 play
  *
- * Each beat carries its metric accent (per `accentPatternFor`). Beat
- * unit: quarter-note for simple meters; for compound meters (6/8, 12/8)
- * BPM is the felt dotted-quarter beat, so each counted eighth =
- * 60000 / (BPM * 3) — a dotted quarter is 3 eighths.
+ * Each beat carries its metric accent (per `accentPatternFor`). BPM is
+ * the quarter note (standard metronome / DAW convention). Counted unit:
+ * quarter for simple meters (interval = 60000/BPM); eighth for compound,
+ * via `countUnitsPerQuarter` — 6/8 = 60000/(BPM*2), 12/8 = 60000/(BPM*3)
+ * (12/8 still on the dotted-quarter convention for now).
  *
  * 4/4 and 12/8 use a SINGLE count-in bar (a 12/8 bar is already 12
  * eighths — two bars at a slow tempo would run 8+ seconds); 3/4 and 6/8
@@ -191,7 +207,7 @@ function parseSig(ts: TimeSig): { beatsPerBar: number; beatUnit: number } {
 export function buildCountInSchedule(timeSig: TimeSig, bpm: number): CountInSchedule {
   const safeBpm = Math.max(40, Math.min(220, bpm));
   const { beatsPerBar: n } = parseSig(timeSig);
-  const intervalMs = isCompoundMeter(timeSig) ? 60000 / (safeBpm * 3) : 60000 / safeBpm;
+  const intervalMs = 60000 / (safeBpm * countUnitsPerQuarter(timeSig));
   const pattern = accentPatternFor(timeSig);
   const totalBars = timeSig === '4/4' || timeSig === '12/8' ? 1 : 2;
 
@@ -704,11 +720,12 @@ class Metronome {
 
   private advanceSlot() {
     const { bpm, groove, timeSig } = this.state;
-    // Simple meters: the engine "beat" is a quarter (60/bpm). Compound
-    // meters (6/8, 12/8): BPM is the felt dotted-quarter, the grid unit
-    // is the eighth = (60/bpm)/3, so a bar of `beatsPerBar` eighths lands
-    // at the right duration (matches the count-in).
-    const secondsPerBeat = isCompoundMeter(timeSig) ? (60 / bpm) / 3 : 60 / bpm;
+    // BPM = quarter note. The engine "beat" (grid step) is a quarter for
+    // simple meters and an eighth for compound, so divide by the per-
+    // meter unit count: 6/8 → /2, 12/8 → /3, simple → /1. A bar of
+    // `beatsPerBar` grid steps then lands at the right duration (matches
+    // the count-in).
+    const secondsPerBeat = (60 / bpm) / countUnitsPerQuarter(timeSig);
     const slotsPerBeat = 4;
     const baseSlotDur = secondsPerBeat / slotsPerBeat;
     const beatsPerBar = TIME_SIG_BEATS[timeSig];
