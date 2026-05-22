@@ -68,6 +68,12 @@ export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: P
   }, [onComplete]);
 
   useEffect(() => {
+    // StrictMode double-invokes mount effects (setup → cleanup → setup),
+    // and the cleanup flips tornDownRef. Reset it at the top of every
+    // setup so the live run isn't left "torn down" — otherwise the
+    // post-pause countIn start AND the bypass both dead-gate on it,
+    // freezing the overlay at "GET READY…".
+    tornDownRef.current = false;
     const intervalMs = schedule.intervalMs;
     const goBeat = schedule.beats[schedule.beats.length - 1];
     let holdTimer: number | null = null;
@@ -123,10 +129,13 @@ export default function CountdownOverlay({ timeSig, bpm, accent, onComplete }: P
       window.clearTimeout(pauseTimer);
       if (holdTimer !== null) window.clearTimeout(holdTimer);
     };
-    // Count-in config is fixed for this overlay instance; the caller
-    // remounts (new key) for a fresh count-in.
+    // Run once per overlay instance — config (timeSig/bpm) is fixed for
+    // the instance and the caller remounts (new key) for a fresh
+    // count-in. Depending on the `schedule` useMemo object risked
+    // spurious re-runs (useMemo isn't a guaranteed-stable ref), which
+    // would restart the pre-pause on every re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule]);
+  }, []);
 
   const isGo = current?.isGo ?? false;
   const handleBypass = () => {
