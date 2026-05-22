@@ -11,15 +11,6 @@
 import { ensureRunning } from './audio';
 import { getPref } from './userPrefs';
 
-// TEMP diagnostic instrumentation — silent-metronome investigation.
-// Remove once the live trace is captured. Logs toggle/start/stop/
-// forceStop calls + the AudioContext state + the driver stack so we
-// can see whether toggle fires, whether the ctx is suspended, and
-// whether a stale driver stack is blocking playback.
-function metroDebug(...args: unknown[]): void {
-  console.log('[metro]', ...args);
-}
-
 // userPrefs keys for the metronome's persisted settings. Exported so
 // MetronomeControl (the writer) and the eager hydration below share one
 // source of truth — divergent keys would silently break persistence.
@@ -157,13 +148,6 @@ function playRide(ctx: AudioContext, t: number, volume: number) {
 }
 
 function playClick(ctx: AudioContext, t: number, volume: number, accent = false) {
-  metroDebug('playClick', {
-    t: Number(t.toFixed(3)),
-    now: Number(ctx.currentTime.toFixed(3)),
-    volume,
-    accent,
-    ctxState: ctx.state,
-  });
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'square';
@@ -318,20 +302,9 @@ class Metronome {
   }
 
   async start(driver: 'user' | 'drill' | 'song' = 'user') {
-    metroDebug('start()', {
-      driver,
-      alreadyPlaying: this.state.playing,
-      driverStack: [...this.driverStack],
-      ctxStateBefore: this.ctx?.state ?? 'none',
-      volume: this.state.volume,
-    });
     this.driverStack.push(driver);
-    if (this.state.playing) {
-      metroDebug('start(): already playing — early return (scheduler NOT restarted)');
-      return;
-    }
+    if (this.state.playing) return;
     this.ctx = await ensureRunning();
-    metroDebug('start(): ctx after ensureRunning', { ctxState: this.ctx.state });
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.currentSlot = 0;
     this.state = { ...this.state, playing: true };
@@ -340,7 +313,6 @@ class Metronome {
   }
 
   stop(driver: 'user' | 'drill' | 'song' = 'user') {
-    metroDebug('stop()', { driver, driverStackBefore: [...this.driverStack] });
     // Pop the matching driver; only actually stop when the stack
     // empties. This lets the drill-timer auto-start nest safely
     // inside a user-started metronome without being killed.
@@ -356,10 +328,6 @@ class Metronome {
   }
 
   toggle() {
-    metroDebug('toggle()', {
-      playing: this.state.playing,
-      driverStack: [...this.driverStack],
-    });
     if (this.state.playing) this.stop('user');
     else void this.start('user');
   }
@@ -369,10 +337,6 @@ class Metronome {
   // never outlive its session, no matter who started it or how many
   // drivers are stacked.
   forceStop() {
-    metroDebug('forceStop()', {
-      driverStack: [...this.driverStack],
-      playing: this.state.playing,
-    });
     this.driverStack = [];
     if (this.timer !== null) {
       window.clearTimeout(this.timer);
@@ -397,20 +361,9 @@ class Metronome {
     // read currentTime. Re-anchor to just ahead of now so the next
     // beat is audible.
     if (this.nextNoteTime < this.ctx.currentTime) {
-      metroDebug('scheduler: nextNoteTime BEHIND — re-anchoring', {
-        nextNoteTime: Number(this.nextNoteTime.toFixed(3)),
-        currentTime: Number(this.ctx.currentTime.toFixed(3)),
-        behindBySec: Number((this.ctx.currentTime - this.nextNoteTime).toFixed(3)),
-      });
       this.nextNoteTime = this.ctx.currentTime + 0.05;
     }
     while (this.nextNoteTime < this.ctx.currentTime + lookaheadSec) {
-      metroDebug('scheduleSlot', {
-        currentTime: Number(this.ctx.currentTime.toFixed(3)),
-        scheduledAt: Number(this.nextNoteTime.toFixed(3)),
-        aheadBySec: Number((this.nextNoteTime - this.ctx.currentTime).toFixed(3)),
-        slot: this.currentSlot,
-      });
       this.scheduleSlot(this.nextNoteTime, this.currentSlot);
       this.advanceSlot();
     }
@@ -423,15 +376,6 @@ class Metronome {
     const beatsPerBar = TIME_SIG_BEATS[timeSig];
     const swing = groove === 'jazz-swing' || groove === 'shuffle';
     const hits = grooveHits(groove, slot % (beatsPerBar * 4), beatsPerBar, swing);
-    metroDebug('scheduleSlot:hits', {
-      slot,
-      groove,
-      count: hits.length,
-      voices: hits.map(h => h.voice),
-      volume,
-      ctxState: this.ctx.state,
-      hasDestination: !!this.ctx.destination,
-    });
     for (const h of hits) {
       const g = volume * (h.gain ?? 1);
       switch (h.voice) {

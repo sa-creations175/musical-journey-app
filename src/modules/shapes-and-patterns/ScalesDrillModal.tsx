@@ -62,6 +62,11 @@ interface Props {
    *  the same item from the top; the runner remounts the modal for
    *  the same cell. Omitted for standalone use. */
   onRedo?: () => void;
+  /** In-session runner only: the time the session allocated to this
+   *  item (the prep-card breakdown value). When set, the subtitle
+   *  reads "~Xs in this session" instead of the cell's standalone
+   *  canonical suggestion. Omitted for standalone matrix-tap use. */
+  sessionTargetSeconds?: number;
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
@@ -143,6 +148,7 @@ export default function ScalesDrillModal({
   onLogged,
   initialTargetSeconds,
   onRedo,
+  sessionTargetSeconds,
 }: Props) {
   const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
@@ -316,9 +322,10 @@ export default function ScalesDrillModal({
       onClose={phase === 'running' ? () => {} : handleCancel}
       title={title}
       description={
-        cell.tier === 'maintenance'
-          ? `Maintenance scale · ~${suggested}s suggested`
-          : `Drill scale · ~${suggested}s suggested`
+        `${cell.tier === 'maintenance' ? 'Maintenance scale' : 'Drill scale'} · ` +
+        (sessionTargetSeconds !== undefined
+          ? `~${sessionTargetSeconds}s in this session`
+          : `~${suggested}s suggested`)
       }
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">

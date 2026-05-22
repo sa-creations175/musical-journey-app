@@ -67,6 +67,7 @@ export default function InSessionDrillRunner({ items, onComplete }: Props) {
       key={`${current.itemRef}:${redoCount}`}
       cell={current.cell}
       initialTargetSeconds={current.seconds}
+      sessionTargetSeconds={current.seconds}
       onRedo={() => setRedoCount(c => c + 1)}
       onLogged={() => {
         justLoggedRef.current = true;
