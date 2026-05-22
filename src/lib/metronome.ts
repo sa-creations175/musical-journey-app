@@ -584,6 +584,15 @@ class Metronome {
     // resurrect a click whose owner already tore down: bail before
     // flipping `playing` or arming the scheduler.
     if (this.driverStack.length === 0) return;
+    // Another start() that began before this one's await may have already
+    // armed the scheduler during the await — e.g. StrictMode double-
+    // invokes a drill modal's auto-start mount effect, firing two
+    // concurrent start('drill') calls. Arming a SECOND scheduler loop
+    // here would leak a click that forceStop can't kill (it only tracks
+    // one `this.timer` handle), so the metronome keeps running through
+    // pause/end. The driver was already pushed above, so it still stacks
+    // correctly; we just must not start a duplicate loop.
+    if (this.state.playing) return;
     this.ctx = ctx;
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.currentSlot = 0;
