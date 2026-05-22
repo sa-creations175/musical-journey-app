@@ -84,9 +84,16 @@ export function GlobalSessionBanner() {
   // adjusted drill duration during prep (frozen preview), counts down
   // while drilling, and clamps to 0 in rating / overtime — so prep
   // and rating time don't visibly eat the clock. Extension + the
-  // prep-screen +/- adjustment both flow in via getTimes. The richer
-  // drill-timer banner treatment (warning chime, etc.) is step 5.
+  // prep-screen +/- adjustment both flow in via getTimes.
   const blockRemainingMs = activeBlock ? times.drillRemainingMs : 0;
+
+  // Phase 5 — prominent drill countdown for non-scale blocks (scales run
+  // their own per-cell timer inside ScalesDrillModal, so we leave their
+  // banner treatment alone). Turns the warning colour at ≤3s remaining.
+  const isScaleRunner = state.inSessionDrillActive;
+  const inDrill = times.blockPhase === 'drill';
+  const prominentDrill = inDrill && !isScaleRunner;
+  const drillWarning = prominentDrill && blockRemainingMs > 0 && blockRemainingMs <= 3000;
 
   const isPaused = state.status === 'paused';
   const driftActive = shouldShowDrift(times);
@@ -164,10 +171,19 @@ export function GlobalSessionBanner() {
               {blockLabel}
             </span>
             {activeBlock && (
-              <span className="font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200 shrink-0">
+              <span
+                className={`font-mono tabular-nums shrink-0 ${
+                  prominentDrill
+                    ? drillWarning
+                      ? 'text-base font-bold text-needswork'
+                      : 'text-base font-semibold text-neutral-800 dark:text-neutral-100'
+                    : 'text-sm text-neutral-700 dark:text-neutral-200'
+                }`}
+                aria-label={drillWarning ? 'drill time — wrapping up' : 'drill time'}
+              >
                 <span
                   className="text-[10px] uppercase tracking-wider mr-1"
-                  style={{ color: blockAccent }}
+                  style={{ color: drillWarning ? undefined : blockAccent }}
                 >
                   {blockModuleLabel}
                 </span>
@@ -184,10 +200,10 @@ export function GlobalSessionBanner() {
             )}
           </span>
           <span
-            className="ml-auto font-mono tabular-nums text-sm text-neutral-700 dark:text-neutral-200 shrink-0"
+            className="ml-auto font-mono tabular-nums text-xs text-neutral-500 dark:text-neutral-400 shrink-0"
             aria-label="session time"
           >
-            <span className="text-[10px] uppercase tracking-wider text-neutral-500 mr-1">
+            <span className="text-[10px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mr-1">
               Session
             </span>
             {formatActiveTime(times.activeMs)}

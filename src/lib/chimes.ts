@@ -108,3 +108,66 @@ export async function playGoChime(volume = 0.5): Promise<void> {
     // decorative, so a silent no-op is the right fallback.
   }
 }
+
+/**
+ * Warning chime — fires at ~3s remaining in a drill. Two quick soft
+ * sine ticks (~600 Hz, very short decay): a gentle "wrapping up" nudge,
+ * not an alarm. Brief enough not to disrupt ET listening.
+ */
+export async function playWarningChime(volume = 0.5): Promise<void> {
+  try {
+    const ctx = await ensureRunning();
+    const t0 = ctx.currentTime + 0.02;
+    for (const offset of [0, 0.12]) {
+      const t = t0 + offset;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(Math.max(0.0001, volume * 0.3), t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.08);
+    }
+  } catch {
+    // No AudioContext — silent no-op.
+  }
+}
+
+/**
+ * Drill-end chime — fires when the drill timer hits 0. Three descending
+ * piano-like tones (~880 → ~660 → ~440 Hz, ~200 ms decay each). Signals
+ * completion — deliberately distinct from the rising/sustained GO chime.
+ */
+export async function playEndChime(volume = 0.5): Promise<void> {
+  try {
+    const ctx = await ensureRunning();
+    const t0 = ctx.currentTime + 0.02;
+    const freqs = [880, 660, 440];
+    const step = 0.16;
+    freqs.forEach((freq, i) => {
+      const t = t0 + i * step;
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0, t);
+      master.gain.linearRampToValueAtTime(Math.max(0.0001, volume * 0.5), t + 0.005);
+      master.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      master.connect(ctx.destination);
+      // A couple of harmonics for a softer, piano-ish body.
+      const amps = [1, 0.4, 0.15];
+      amps.forEach((amp, h) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq * (h + 1), t);
+        const g = ctx.createGain();
+        g.gain.value = amp;
+        osc.connect(g).connect(master);
+        osc.start(t);
+        osc.stop(t + 0.22);
+      });
+    });
+  } catch {
+    // No AudioContext — silent no-op.
+  }
+}
