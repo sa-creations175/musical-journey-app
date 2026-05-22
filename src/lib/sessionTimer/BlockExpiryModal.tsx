@@ -42,6 +42,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { moduleMetaById } from '../moduleMeta';
+import { metronome } from '../metronome';
+import { playWarningChime, playEndChime } from '../chimes';
 import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
 
 const PRACTICE_SESSIONS_ACTIVE_ROUTE = '/practice-sessions/active';
@@ -86,10 +88,12 @@ export function BlockExpiryModal() {
 
   // Prep-flow drill-end → rating. complete-drill finalizes drillMs and
   // moves the block to its rating phase; the manual pause holds the
-  // rating window; navigate surfaces the rating screen. Guarded so it
-  // fires once per drill-end (re-arms when the drill leaves overtime,
-  // e.g. after an extend).
-  const routedToRatingRef = useRef(false);
+  // rating window. The end chime signals 0, then the global
+  // BlockRatingOverlay layers the rating prompt on top of the module —
+  // NO forced navigation away from the drill (the user can still see it
+  // underneath). Guarded so it fires once per drill-end (re-arms when the
+  // drill leaves overtime, e.g. after an extend).
+  const endedRef = useRef(false);
   const prepFlowDrillEnded =
     isPrepFlow &&
     !!currentBlock &&
@@ -100,15 +104,37 @@ export function BlockExpiryModal() {
     !state.inSessionDrillActive;
   useEffect(() => {
     if (!prepFlowDrillEnded) {
-      routedToRatingRef.current = false;
+      endedRef.current = false;
       return;
     }
-    if (routedToRatingRef.current) return;
-    routedToRatingRef.current = true;
+    if (endedRef.current) return;
+    endedRef.current = true;
+    void playEndChime(metronome.state.volume);
     completeDrill();
     pauseSession({ reason: 'manual' });
-    navigate(PRACTICE_SESSIONS_ACTIVE_ROUTE);
-  }, [prepFlowDrillEnded, completeDrill, pauseSession, navigate]);
+  }, [prepFlowDrillEnded, completeDrill, pauseSession]);
+
+  // Warning chime at ~3s remaining (non-scale prep-flow drills only —
+  // scales run their own per-cell timer + cue). Fires once per drill
+  // segment; re-arms when the timer leaves the window (e.g. an extend).
+  const warnedRef = useRef(false);
+  const inWarningWindow =
+    isPrepFlow &&
+    !!currentBlock &&
+    state.status === 'running' &&
+    times.blockPhase === 'drill' &&
+    !state.inSessionDrillActive &&
+    times.drillRemainingMs > 0 &&
+    times.drillRemainingMs <= 3000;
+  useEffect(() => {
+    if (!inWarningWindow) {
+      warnedRef.current = false;
+      return;
+    }
+    if (warnedRef.current) return;
+    warnedRef.current = true;
+    void playWarningChime(metronome.state.volume);
+  }, [inWarningWindow]);
 
   // -----------------------------------------------------------------
   // Hard-block grace. Anchored to a per-open epoch so re-firing on a

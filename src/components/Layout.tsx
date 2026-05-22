@@ -15,6 +15,7 @@ import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmed
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
 import { HardPausePromptModal } from '../lib/sessionTimer/HardPausePromptModal';
 import { BlockExpiryModal } from '../lib/sessionTimer/BlockExpiryModal';
+import { BlockRatingOverlay } from '../lib/sessionTimer/BlockRatingOverlay';
 import { ResumeSessionGate } from '../lib/sessionTimer/ResumeSessionGate';
 
 const SIDEBAR_PREF = 'sidebarCollapsed';
@@ -159,6 +160,7 @@ export default function Layout() {
     <CreativeTimeModal open={creativeOpen} onClose={() => setCreativeOpen(false)} />
     <HardPausePromptModal />
     <BlockExpiryModal />
+    <BlockRatingOverlay />
     <ResumeSessionGate />
     <MobileBottomNav />
     <PwaUpdateBanner />
