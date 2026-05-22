@@ -9,7 +9,7 @@
 // module import cheap.
 
 import { ensureRunning } from './audio';
-import { playGoChime, playCountKick, playCountClick } from './chimes';
+import { playGoChime, scheduleGoChime, playCountKick, playCountClick } from './chimes';
 import { getPref } from './userPrefs';
 
 // userPrefs keys for the metronome's persisted settings. Exported so
@@ -87,6 +87,11 @@ export type CountInVoice = 'kick' | 'click';
 export function countInVoiceFor(accent: AccentLevel): CountInVoice {
   return accent === 'weak' ? 'click' : 'kick';
 }
+
+/** Audio-clock headroom before the first count-in beat, so beat 1 isn't
+ *  scheduled in the past. Small enough that the visual (driven from raw
+ *  setTimeout offsets) and the audio stay perceptually together. */
+export const COUNT_IN_AUDIO_LEAD_SEC = 0.06;
 
 /** Per-position metric accent for each meter (index 0 = beat 1). Both
  *  bars of a two-bar count-in reuse the same pattern. */
@@ -486,50 +491,74 @@ class Metronome {
   ): () => void {
     const schedule = buildCountInSchedule(timeSig, bpm);
     const timers: number[] = [];
+    // Oscillators we've scheduled on the audio clock — kept so bypass /
+    // teardown can silence any that haven't sounded yet.
+    const sources: OscillatorNode[] = [];
+    let cancelled = false;
+    let wentGo = false;
 
-    // Initiate the AudioContext resume inside the caller's gesture so
-    // the scheduled clicks are audible; the resolved ctx lands a tick
-    // later and the per-beat handlers read it then. Guarded so a missing
-    // AudioContext (tests / unsupported) never throws into the caller —
-    // the count-in degrades to visual-only.
-    let ctx: AudioContext | null = null;
-    try {
-      void ensureRunning().then(c => { ctx = c; }).catch(() => {});
-    } catch {
-      /* no Web Audio — visual-only count-in */
-    }
-
-    let finished = false;
-    const fireGo = () => {
-      if (finished) return;
-      finished = true;
-      void playGoChime(this.state.volume);
-      cbs.onGo?.();
-    };
-
+    // VISUALS — driven by setTimeout at the raw beat offsets. Timer
+    // jitter only nudges the numeral, never the sound, so this is purely
+    // cosmetic (and keeps the callback timing deterministic for tests).
     for (const beat of schedule.beats) {
       const id = window.setTimeout(() => {
         if (beat.isGo) {
-          fireGo();
-          return;
-        }
-        if (ctx && ctx.state === 'running') {
-          // Metric weight → voice: kick on strong/medium, click on weak.
-          const t = ctx.currentTime + 0.02;
-          if (countInVoiceFor(beat.accent) === 'kick') {
-            playCountKick(ctx, t, this.state.volume);
-          } else {
-            playCountClick(ctx, t, this.state.volume);
+          if (!wentGo) {
+            wentGo = true;
+            cbs.onGo?.();
           }
+          return;
         }
         cbs.onTick?.(beat.position, beat.bar, beat.accent);
       }, beat.offsetMs);
       timers.push(id);
     }
 
+    // AUDIO — scheduled ALL AT ONCE on the Web Audio clock from a single
+    // anchor, so every beat lands exactly `intervalMs` apart regardless
+    // of main-thread / setTimeout jitter. This is the fix for uneven and
+    // out-of-order count-ins: previously each click was played at
+    // `currentTime + 0.02` whenever its setTimeout happened to fire.
+    // Async because the AudioContext resume may need to await; guarded so
+    // a missing context (tests / unsupported) degrades to visual-only.
+    void (async () => {
+      let ctx: AudioContext;
+      try {
+        ctx = await ensureRunning();
+      } catch {
+        return; // no Web Audio — visuals already cover it
+      }
+      if (cancelled) return; // bypassed during the resume await
+      const t0 = ctx.currentTime + COUNT_IN_AUDIO_LEAD_SEC;
+      for (const beat of schedule.beats) {
+        const at = t0 + beat.offsetMs / 1000;
+        try {
+          if (beat.isGo) {
+            sources.push(...scheduleGoChime(ctx, at, this.state.volume));
+          } else if (countInVoiceFor(beat.accent) === 'kick') {
+            sources.push(playCountKick(ctx, at, this.state.volume));
+          } else {
+            sources.push(playCountClick(ctx, at, this.state.volume));
+          }
+        } catch {
+          /* a bad node shouldn't abort the rest of the count-in */
+        }
+      }
+    })();
+
+    // Bypass / teardown: clear the visual timers, silence any pending
+    // scheduled audio, and (on bypass) jump straight to GO.
     return () => {
+      cancelled = true;
       timers.forEach(t => window.clearTimeout(t));
-      fireGo();
+      for (const s of sources) {
+        try { s.stop(); } catch { /* already finished */ }
+      }
+      if (!wentGo) {
+        wentGo = true;
+        void playGoChime(this.state.volume);
+        cbs.onGo?.();
+      }
     };
   }
 

@@ -19,7 +19,7 @@ import { ensureRunning } from './audio';
  * (the count-in schedules each beat on the audio clock). `volume` is the
  * metronome volume so the count-in tracks the user's level.
  */
-export function playCountKick(ctx: AudioContext, t: number, volume: number): void {
+export function playCountKick(ctx: AudioContext, t: number, volume: number): OscillatorNode {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'sine';
@@ -31,6 +31,8 @@ export function playCountKick(ctx: AudioContext, t: number, volume: number): voi
   osc.connect(gain).connect(ctx.destination);
   osc.start(t);
   osc.stop(t + 0.18);
+  // Returned so a caller (the count-in) can stop it early on bypass.
+  return osc;
 }
 
 /**
@@ -38,7 +40,7 @@ export function playCountKick(ctx: AudioContext, t: number, volume: number): voi
  * (~1000 Hz) with a quick ~40 ms decay. Neutral, sits under the kick.
  * Scaled by the metronome volume.
  */
-export function playCountClick(ctx: AudioContext, t: number, volume: number): void {
+export function playCountClick(ctx: AudioContext, t: number, volume: number): OscillatorNode {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'square';
@@ -49,6 +51,7 @@ export function playCountClick(ctx: AudioContext, t: number, volume: number): vo
   osc.connect(gain).connect(ctx.destination);
   osc.start(t);
   osc.stop(t + 0.05);
+  return osc;
 }
 
 /**
@@ -63,28 +66,41 @@ export function playCountClick(ctx: AudioContext, t: number, volume: number): vo
  * it awaits `ensureRunning()` internally and swallows the no-Web-Audio
  * case (tests / unsupported browsers) so callers never have to guard.
  */
+export function scheduleGoChime(
+  ctx: AudioContext,
+  t: number,
+  volume = 0.5,
+): OscillatorNode[] {
+  const partials: Array<{ freq: number; gain: number; decay: number }> = [
+    { freq: 880, gain: 0.6, decay: 0.4 },
+    { freq: 1320, gain: 0.25, decay: 0.32 },
+  ];
+
+  const oscs: OscillatorNode[] = [];
+  for (const p of partials) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(p.freq, t);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(Math.max(0.0001, volume * p.gain), t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + p.decay);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + p.decay + 0.05);
+    oscs.push(osc);
+  }
+  return oscs;
+}
+
+/** Self-contained GO chime — resolves the AudioContext and plays
+ *  immediately. Used for one-off cues (non-keyboard Ready, count-in
+ *  bypass). The count-in itself schedules the chime on the audio clock
+ *  via `scheduleGoChime`. */
 export async function playGoChime(volume = 0.5): Promise<void> {
   try {
     const ctx = await ensureRunning();
-    const t = ctx.currentTime + 0.02;
-
-    const partials: Array<{ freq: number; gain: number; decay: number }> = [
-      { freq: 880, gain: 0.6, decay: 0.4 },
-      { freq: 1320, gain: 0.25, decay: 0.32 },
-    ];
-
-    for (const p of partials) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(p.freq, t);
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(Math.max(0.0001, volume * p.gain), t + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + p.decay);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t);
-      osc.stop(t + p.decay + 0.05);
-    }
+    scheduleGoChime(ctx, ctx.currentTime + 0.02, volume);
   } catch {
     // No AudioContext (tests / unsupported) — the chime is purely
     // decorative, so a silent no-op is the right fallback.
