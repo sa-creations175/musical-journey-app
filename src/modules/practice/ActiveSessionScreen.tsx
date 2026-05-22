@@ -53,6 +53,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
 import CountdownOverlay from './CountdownOverlay';
 import { buildPrepItemBreakdown } from './prepItemBreakdown';
+import { lessonById } from '../production/content/lessons';
 import { canExtendBlock } from './blockExtendEligibility';
 import InSessionDrillRunner from './InSessionDrillRunner';
 import { isScaleRunnerBlock } from './inSessionScaleRunner';
@@ -283,13 +284,29 @@ export default function ActiveSessionScreen() {
           ? 'running'
           : 'prep';
 
+  // Production lessons are a queue, not a timed playlist — splitting the
+  // budget across N lessons (e.g. 16 min ÷ 9 ≈ 1:50 each) is meaningless.
+  // They get an "Up next" headline instead of the per-item breakdown
+  // (the vocab block has empty itemRefs, so it never matches here).
+  const lessonRefs = currentBlock.itemRefs ?? [];
+  const isProductionLessonBlock =
+    currentBlock.moduleRef === 'production' && lessonRefs.length > 0;
+
   // Per-item breakdown of the (adjusted) drill budget — the prep card's
   // source of truth, reused by GO auto-nav as the drill playlist (which
   // cell, how long). null when there's nothing to itemize.
-  const itemBreakdown = buildPrepItemBreakdown(
-    currentBlock.itemRefs,
-    adjustedDrillSec,
-  );
+  const itemBreakdown = isProductionLessonBlock
+    ? null
+    : buildPrepItemBreakdown(currentBlock.itemRefs, adjustedDrillSec);
+
+  // Production lessons: resolve readable titles for the "Up next" line +
+  // the "N more queued" count. itemRefs are spacing-ordered lesson ids
+  // (top = most-due); fall back to the raw id if a lesson can't resolve.
+  const upNextLessonTitle = isProductionLessonBlock
+    ? lessonById(lessonRefs[0])?.title ?? lessonRefs[0]
+    : null;
+  const moreLessonsQueued = isProductionLessonBlock ? lessonRefs.length - 1 : 0;
+
   // The prep card's headline drill time = the sum of the per-item rows
   // (each ≥60s) when there's a breakdown, so the total matches what the
   // runner will actually spend; otherwise the block's adjusted total.
@@ -545,6 +562,25 @@ export default function ActiveSessionScreen() {
               ))}
             </div>
           </div>
+
+          {/* Production lessons — "Up next" headline (the first/most-due
+              lesson) plus a queued-count line. No per-item time split:
+              lessons are a queue, not a timed playlist. */}
+          {isProductionLessonBlock && upNextLessonTitle && (
+            <div className="border-t border-neutral-200/70 dark:border-neutral-800 pt-3 space-y-1">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+                up next
+              </span>
+              <p className="text-sm text-neutral-700 dark:text-neutral-200">
+                {upNextLessonTitle}
+              </p>
+              {moreLessonsQueued > 0 && (
+                <p className="text-xs text-neutral-500">
+                  {moreLessonsQueued} more lesson{moreLessonsQueued === 1 ? '' : 's'} queued
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Per-item breakdown — what's coming + each item's share of
               the drill budget. Updates live as the +/- pills change the
