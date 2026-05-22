@@ -29,6 +29,7 @@ import { metronome } from '../metronome';
 import { useMetronomeState } from '../useMetronome';
 import InstrumentSelector from '../../components/InstrumentSelector';
 import MetronomeControl from '../../components/MetronomeControl';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 export function GlobalSessionBanner() {
   const { state, pauseSession, resumeSession, endSession, deferBlock } =
@@ -39,6 +40,9 @@ export function GlobalSessionBanner() {
   // status === 'running' || 'paused' guard at the top), so the
   // panel naturally resets to closed for the next session.
   const [audioPanelOpen, setAudioPanelOpen] = useState(false);
+  // Confirm step before a banner defer takes effect. Opening it changes
+  // nothing — the drill keeps running until the user confirms.
+  const [deferConfirmOpen, setDeferConfirmOpen] = useState(false);
 
   // The global metronome must never outlive its session. The user can
   // only start it from this banner (and drills nest under it), so stop
@@ -120,14 +124,22 @@ export function GlobalSessionBanner() {
     metronome.forceStop();
   };
 
-  // Defer the current block mid-drill (secondary action). Force-stop the
-  // metronome immediately, then defer: the reducer snapshots the block to
-  // deferredBlocks (reset to pending — no dirty drill/phase state) and
-  // advances to the next pending block (or deferred-review). Route to the
-  // active screen so the next block's prep — or the review prompt — shows
-  // (mirrors handleEndClick; the user is usually mid-drill in a module).
+  // Defer the current block mid-drill (secondary action). Tapping just
+  // opens a confirm step — nothing changes yet, so Cancel leaves the
+  // drill exactly as it was.
   const handleDeferClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setDeferConfirmOpen(true);
+  };
+
+  // Confirmed: force-stop the metronome, then defer. The reducer
+  // snapshots the block to deferredBlocks (reset to pending — no dirty
+  // drill/phase state) and advances to the next pending block (or
+  // deferred-review). Route to the active screen so the next block's prep
+  // — or the review prompt — shows (mirrors handleEndClick; the user is
+  // usually mid-drill in a module).
+  const handleDeferConfirm = () => {
+    setDeferConfirmOpen(false);
     metronome.forceStop();
     navigate('/practice-sessions/active');
     deferBlock();
@@ -300,6 +312,16 @@ export function GlobalSessionBanner() {
           {formatDriftText(times)}
         </div>
       )}
+      <ConfirmDialog
+        open={deferConfirmOpen}
+        title={`Defer ${blockLabel}?`}
+        message="You can pick it up at the end of the session."
+        confirmLabel="Defer"
+        cancelLabel="Cancel"
+        variant="default"
+        onConfirm={handleDeferConfirm}
+        onCancel={() => setDeferConfirmOpen(false)}
+      />
     </div>
   );
 }
