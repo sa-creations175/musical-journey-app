@@ -9,7 +9,7 @@
 // module import cheap.
 
 import { ensureRunning } from './audio';
-import { playGoChime } from './chimes';
+import { playGoChime, playCountKick, playCountClick } from './chimes';
 import { getPref } from './userPrefs';
 
 // userPrefs keys for the metronome's persisted settings. Exported so
@@ -76,14 +76,17 @@ export function coerceCountInTimeSig(raw: string | undefined | null): TimeSig {
 // metronome's `countIn` method turns it into scheduled clicks + a GO
 // chime + visual callbacks.
 
-/** Metric weight of a beat — drives the click gain/pitch and the
- *  overlay's numeral + beat-row treatment. */
+/** Metric weight of a beat — drives the count-in voice (kick vs click)
+ *  and the overlay's numeral + beat-row treatment. */
 export type AccentLevel = 'strong' | 'medium' | 'weak';
 
-// Click gain (× volume) per metric weight. Tunable.
-export const CLICK_GAIN_STRONG = 0.9;
-export const CLICK_GAIN_MEDIUM = 0.6;
-export const CLICK_GAIN_WEAK = 0.4;
+/** Count-in voice per metric weight: strong + medium beats are the
+ *  thumpy kick, weak beats the light click. (The final "play" beat is
+ *  the GO chime instead — handled separately.) */
+export type CountInVoice = 'kick' | 'click';
+export function countInVoiceFor(accent: AccentLevel): CountInVoice {
+  return accent === 'weak' ? 'click' : 'kick';
+}
 
 /** Per-position metric accent for each meter (index 0 = beat 1). Both
  *  bars of a two-bar count-in reuse the same pattern. */
@@ -268,23 +271,13 @@ function playRide(ctx: AudioContext, t: number, volume: number) {
   noise.start(t);
 }
 
-function playClick(
-  ctx: AudioContext,
-  t: number,
-  volume: number,
-  accent = false,
-  // Explicit gain fraction (× volume). When omitted, falls back to the
-  // groove engine's two-level accent default. The count-in passes its
-  // metric-weight gain here for strong/medium/weak differentiation.
-  gainMul?: number,
-) {
+function playClick(ctx: AudioContext, t: number, volume: number, accent = false) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.type = 'square';
   osc.frequency.value = accent ? 1400 : 900;
-  const g = gainMul !== undefined ? volume * gainMul : volume * (accent ? 0.9 : 0.55);
   gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(g, t + 0.001);
+  gain.gain.linearRampToValueAtTime(volume * (accent ? 0.9 : 0.55), t + 0.001);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
   osc.connect(gain).connect(ctx.destination);
   osc.start(t);
@@ -521,12 +514,13 @@ class Metronome {
           return;
         }
         if (ctx && ctx.state === 'running') {
-          // Metric weight → click gain (+ a brighter pitch on strong).
-          const gainMul =
-            beat.accent === 'strong' ? CLICK_GAIN_STRONG
-              : beat.accent === 'medium' ? CLICK_GAIN_MEDIUM
-                : CLICK_GAIN_WEAK;
-          playClick(ctx, ctx.currentTime + 0.02, this.state.volume, beat.accent === 'strong', gainMul);
+          // Metric weight → voice: kick on strong/medium, click on weak.
+          const t = ctx.currentTime + 0.02;
+          if (countInVoiceFor(beat.accent) === 'kick') {
+            playCountKick(ctx, t, this.state.volume);
+          } else {
+            playCountClick(ctx, t, this.state.volume);
+          }
         }
         cbs.onTick?.(beat.position, beat.bar, beat.accent);
       }, beat.offsetMs);

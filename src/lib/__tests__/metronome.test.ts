@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildCountInSchedule,
   coerceCountInTimeSig,
+  countInVoiceFor,
   metronome,
 } from '../metronome';
 
@@ -116,6 +117,30 @@ describe('buildCountInSchedule — metric accent tagging', () => {
     expect(s.beats[0].accent).toBe('strong');
     // 4/4 position 4 is weak per the pattern, even though it is the play beat.
     expect(s.beats.at(-1)).toMatchObject({ isGo: true, accent: 'weak' });
+  });
+});
+
+describe('count-in voice (two-sound model)', () => {
+  it('maps strong + medium to kick, weak to click', () => {
+    expect(countInVoiceFor('strong')).toBe('kick');
+    expect(countInVoiceFor('medium')).toBe('kick');
+    expect(countInVoiceFor('weak')).toBe('click');
+  });
+
+  it('produces the right kick/click feel per meter (one bar)', () => {
+    const feel: Record<string, ('kick' | 'click')[]> = {
+      '4/4': ['kick', 'click', 'kick', 'click'],
+      '3/4': ['kick', 'click', 'click'],
+      '2/4': ['kick', 'click'],
+      '6/8': ['kick', 'click', 'click', 'kick', 'click', 'click'],
+      '5/4': ['kick', 'click', 'click', 'kick', 'click'],
+      '7/8': ['kick', 'click', 'kick', 'click', 'kick', 'click', 'click'],
+    };
+    for (const [ts, voices] of Object.entries(feel)) {
+      const s = buildCountInSchedule(ts as Parameters<typeof buildCountInSchedule>[0], 120);
+      const bar1 = s.beats.filter(b => b.bar === 1).map(b => countInVoiceFor(b.accent));
+      expect(bar1).toEqual(voices);
+    }
   });
 });
 

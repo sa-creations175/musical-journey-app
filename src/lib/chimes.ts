@@ -10,6 +10,48 @@
 import { ensureRunning } from './audio';
 
 /**
+ * Count-in "kick" — the strong/medium beats of the lead-in. A short
+ * pitch-swept sine burst (~150 Hz → ~50 Hz over ~80 ms) with a fast
+ * exponential decay (~150 ms) for a low, thumpy bass-drum feel. The
+ * downward pitch sweep is what reads as a kick.
+ *
+ * Caller supplies an already-running context + an absolute start time
+ * (the count-in schedules each beat on the audio clock). `volume` is the
+ * metronome volume so the count-in tracks the user's level.
+ */
+export function playCountKick(ctx: AudioContext, t: number, volume: number): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(50, t + 0.08);
+  // Full at onset → exponential decay to silence (~150 ms).
+  gain.gain.setValueAtTime(Math.max(0.0001, volume), t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.18);
+}
+
+/**
+ * Count-in "click" — the weak beats. A short, light high-frequency click
+ * (~1000 Hz) with a quick ~40 ms decay. Neutral, sits under the kick.
+ * Scaled by the metronome volume.
+ */
+export function playCountClick(ctx: AudioContext, t: number, volume: number): void {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.value = 1000;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(volume * 0.5, t + 0.001);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.05);
+}
+
+/**
  * GO chime — a distinct, resonant tone that marks the downbeat where a
  * drill begins. Deliberately a different timbre and a longer decay than
  * the metronome's square-wave click (a triangle fundamental at ~880 Hz
