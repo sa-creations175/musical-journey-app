@@ -4,9 +4,8 @@
  *
  * The breakdown is the source of truth: which cell to open (each
  * scale itemRef → its ScaleCell) and how long to drill it (the item's
- * allotted seconds). Non-scale itemRefs are dropped — only the scales
- * path has a safe in-session modal today (chord-shapes follow once
- * DrillSessionModal is decoupled from owning the session timer).
+ * allotted seconds). Non-scale itemRefs are dropped here; chord-shape
+ * blocks have their own resolver (inSessionChordShapeRunner).
  */
 import {
   scaleCellForItemRef,

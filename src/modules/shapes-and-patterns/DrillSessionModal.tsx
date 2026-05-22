@@ -20,9 +20,37 @@ interface Props {
   drillType: DrillType;
   onClose: () => void;
   onLogged: (session: DrillSession) => void;
+  /** Seeds the countdown when opened by the in-session chord-shape
+   *  runner (prep-flow drives this from the per-item time breakdown).
+   *  Its presence flips the modal into in-session mode: auto-run (skip
+   *  setup), no own session ownership, runner sequence controls.
+   *  Omitted for standalone matrix-tap use. */
+  initialTargetSeconds?: number;
+  /** In-session only: the time the session allocated to this item
+   *  (the prep-card breakdown value). Drives the subtitle. */
+  sessionTargetSeconds?: number;
+  /** In-session only: restart this same cell from the top (the runner
+   *  remounts the modal for the same cell). */
+  onRedo?: () => void;
+  /** In-session only: step back to the previous cell (abandons this
+   *  one without logging). */
+  onPrevious?: () => void;
+  /** In-session only: false on the first cell — disables Previous. */
+  canGoPrevious?: boolean;
+  /** In-session only: false on the last cell — Next reads "Finish". */
+  canGoNext?: boolean;
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
+
+// Per-item extend pills (in-session rating) — absolute re-drill lengths.
+// Mirrors EXTEND_DRILL_OPTIONS in ScalesDrillModal / ActiveSessionScreen.
+const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
+  { label: '+30s', seconds: 30 },
+  { label: '+1 min', seconds: 60 },
+  { label: '+2 min', seconds: 120 },
+  { label: '+5 min', seconds: 300 },
+];
 
 /**
  * Drill runner: setup → running → (paused → running)* → assess.
@@ -61,14 +89,36 @@ type Phase = 'setup' | 'running' | 'paused' | 'assess';
  *     the per-drill record. The session keeps running for the next
  *     drill.
  */
-export default function DrillSessionModal({ skill, drillType, onClose, onLogged }: Props) {
+export default function DrillSessionModal({
+  skill,
+  drillType,
+  onClose,
+  onLogged,
+  initialTargetSeconds,
+  sessionTargetSeconds,
+  onRedo,
+  onPrevious,
+  canGoPrevious,
+  canGoNext,
+}: Props) {
   const { toast } = useToast();
   const metroState = useMetronomeState();
   const { state, startSession, pauseSession, resumeSession } = useSessionTimer();
 
-  const [targetSeconds, setTargetSeconds] = useState(drillType.suggestedSeconds);
-  const [phase, setPhase] = useState<Phase>('setup');
-  const [remainingSeconds, setRemainingSeconds] = useState(drillType.suggestedSeconds);
+  // In-session runner launch: the prep screen already set duration + BPM
+  // + meter and the count-in just fired GO, so flow straight into a
+  // running drill (skip setup). The session timer (not this modal) owns
+  // the session; this modal never calls startSession in-session, and the
+  // runner walks cells via the Previous/Next/Redo controls. Standalone
+  // matrix-tap (no initialTargetSeconds) keeps the original flow exactly.
+  const fromRunner = initialTargetSeconds !== undefined;
+  const seed = fromRunner
+    ? Math.max(60, initialTargetSeconds!)
+    : drillType.suggestedSeconds;
+
+  const [targetSeconds, setTargetSeconds] = useState(seed);
+  const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
+  const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [feel, setFeel] = useState<DrillSession['feelRating']>(3);
   const [notes, setNotes] = useState('');
@@ -92,11 +142,27 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // In-session runner launch → auto-start the metronome + countdown on
+  // mount (the modal opened in `running` phase; remaining/elapsed are
+  // already seeded). The cleanup effect + every exit handler stop the
+  // 'drill' driver, so this start stays balanced. Mirrors
+  // ScalesDrillModal.
+  useEffect(() => {
+    if (fromRunner) {
+      void metronome.start('drill');
+      tick();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Mirror external global-timer transitions into local timer state.
   // Banner pause / auto-pause-on-navigation / hard-prompt-end-session
   // all change state.status without going through the modal's
   // buttons; this effect keeps the per-drill countdown in sync.
+  // Skipped in-session: the runner (+ setInSessionDrillActive) owns the
+  // lifecycle there, like ScalesDrillModal which has no such coupling.
   useEffect(() => {
+    if (fromRunner) return;
     if (phase !== 'running' && phase !== 'paused') return;
 
     if (state.status === 'paused' && phase === 'running') {
@@ -133,7 +199,7 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
     // timer with a single persistent "Shapes practice" block.
     // Subsequent drills join the existing session; block.activeMs
     // continues to accumulate.
-    if (state.status === 'idle' || state.status === 'ended') {
+    if (!fromRunner && (state.status === 'idle' || state.status === 'ended')) {
       startSession({
         origin: 'shapes-drill',
         activeModuleRef: 'shapes-and-patterns',
@@ -192,6 +258,44 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
     setPhase('assess');
   };
 
+  // In-session "Redo": restart this same cell from the top. Tear down
+  // the local timer + metronome, then signal the runner to remount.
+  const handleRedo = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    metronome.stop('drill');
+    onRedo?.();
+  };
+
+  // In-session "Previous": abandon this cell (no log) and step back to
+  // the prior one. The runner remounts the modal for that cell.
+  const handlePrevious = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    metronome.stop('drill');
+    onPrevious?.();
+  };
+
+  // In-session per-item extend: drill THIS cell again for exactly
+  // `seconds` more — restart the countdown in place, no remount.
+  const handleExtendItem = (seconds: number) => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    metronome.stop('drill');
+    setTargetSeconds(seconds);
+    setElapsedSeconds(0);
+    setRemainingSeconds(seconds);
+    setPhase('running');
+    void metronome.start('drill');
+    tick();
+  };
+
   const resetToSetup = () => {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
@@ -229,8 +333,11 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
       variant: 'success',
     });
     onLogged(session);
-    // Modal unmounts via parent (setActiveDrill(null)). Global session
+    // In-session: close so the runner advances to the next cell (its
+    // onClose-after-log is swallowed via justLoggedRef). Standalone:
+    // modal unmounts via parent (setActiveDrill(null)); global session
     // remains running for the next drill — banner is the canonical end.
+    if (fromRunner) onClose();
   };
 
   const cancelWithoutLogging = () => {
@@ -254,15 +361,46 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
       open
       onClose={phase === 'running' ? () => {} : cancelWithoutLogging}
       title={drillType.name}
-      description={skill.label}
+      description={
+        fromRunner && sessionTargetSeconds !== undefined
+          ? `${skill.label} · ~${sessionTargetSeconds}s in this session`
+          : skill.label
+      }
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={cancelWithoutLogging}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-          >
-            cancel — don't log
-          </button>
+          {fromRunner ? (
+            <>
+              <button
+                onClick={handlePrevious}
+                disabled={!canGoPrevious}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Go back to the previous cell"
+              >
+                Previous
+              </button>
+              <button
+                onClick={cancelWithoutLogging}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title={canGoNext ? 'Move on to the next cell' : 'Finish — end the drills and rate this block'}
+              >
+                {canGoNext ? 'Next' : 'Finish'}
+              </button>
+              <button
+                onClick={handleRedo}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title="Restart this same cell from the top"
+              >
+                Redo
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={cancelWithoutLogging}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+            >
+              cancel — don't log
+            </button>
+          )}
           <button
             onClick={save}
             disabled={belowMin}
@@ -276,12 +414,22 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {fromRunner && (
+            <button
+              onClick={handlePrevious}
+              disabled={!canGoPrevious}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Go back to the previous cell"
+            >
+              Previous
+            </button>
+          )}
           <button
             onClick={cancelWithoutLogging}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            cancel
+            {fromRunner ? (canGoNext ? 'Next' : 'Finish') : 'cancel'}
           </button>
         </div>
       )}
@@ -437,6 +585,26 @@ export default function DrillSessionModal({ skill, drillType, onClose, onLogged 
               ))}
             </div>
           </div>
+
+          {/* In-session per-item extend: drill this same cell again for
+              exactly the chosen length before moving on. */}
+          {fromRunner && (
+            <div className="space-y-1.5">
+              <div className="text-xs uppercase tracking-wide text-neutral-500">more time on this cell?</div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {EXTEND_DRILL_OPTIONS.map(opt => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => handleExtendItem(opt.seconds)}
+                    className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent text-xs font-medium"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <label className="flex flex-col gap-1">
             <span className="text-xs uppercase tracking-wide text-neutral-500">notes (optional)</span>

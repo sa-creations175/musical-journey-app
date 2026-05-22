@@ -12,9 +12,9 @@
  * BPM/meter. The FIRST scale skips it: the prep-screen Ready tap already
  * counted in.
  *
- * Scales-only for now (ScalesDrillModal is self-contained). Chord-
- * shapes follow once DrillSessionModal is decoupled from owning the
- * session timer; until then those blocks route to the module home.
+ * Scales runner (mounts the self-contained ScalesDrillModal). The
+ * chord-shape counterpart is ChordShapeDrillRunner, which mounts
+ * DrillSessionModal in its in-session mode.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';

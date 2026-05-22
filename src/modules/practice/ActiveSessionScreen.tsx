@@ -57,7 +57,9 @@ import { buildPrepItemBreakdown } from './prepItemBreakdown';
 import { lessonById } from '../production/content/lessons';
 import { canExtendBlock } from './blockExtendEligibility';
 import InSessionDrillRunner from './InSessionDrillRunner';
+import ChordShapeDrillRunner from './ChordShapeDrillRunner';
 import { isScaleRunnerBlock } from './inSessionScaleRunner';
+import { isChordShapeRunnerBlock } from './inSessionChordShapeRunner';
 import {
   metronome,
   COUNT_IN_TIME_SIGS,
@@ -323,9 +325,13 @@ export default function ActiveSessionScreen() {
   const prepTotalSec = itemBreakdown
     ? itemBreakdown.reduce((sum, row) => sum + row.seconds, 0)
     : adjustedDrillSec;
-  // Level 3: scale blocks open an in-session runner on GO (the only
-  // safe in-session modal today); everything else routes to the module.
+  // Level 3: scale + chord-shape blocks open an in-session runner on GO
+  // (walking the per-item breakdown); everything else routes to the
+  // module. The two runners are distinct (different per-cell modals);
+  // `isRunnerBlock` covers the shared GO / extend / go-back wiring.
   const isScaleBlock = isScaleRunnerBlock(itemBreakdown);
+  const isChordShapeBlock = isChordShapeRunnerBlock(itemBreakdown);
+  const isRunnerBlock = isScaleBlock || isChordShapeBlock;
 
   // Phase 4 — the count-in (and its time-signature picker) applies to
   // keyboard blocks only; cognitive modules just get a single GO chime.
@@ -339,7 +345,7 @@ export default function ActiveSessionScreen() {
   // re-tap from restarting an in-flight drill timer.
   const goToDrill = () => {
     if (times.blockPhase === 'prep') startDrill();
-    if (isScaleBlock && itemBreakdown) {
+    if (isRunnerBlock && itemBreakdown) {
       setRunnerActive(true);
       return;
     }
@@ -412,7 +418,7 @@ export default function ActiveSessionScreen() {
     resumeSession();
     extendDrill(seconds);
     setLaunched(true);
-    if (isScaleBlock && itemBreakdown) {
+    if (isRunnerBlock && itemBreakdown) {
       setRunnerActive(true);
       return;
     }
@@ -852,7 +858,7 @@ export default function ActiveSessionScreen() {
             the top so the user can revisit any scale; distinct from the
             extend pills above, which add time to the current block.
             Secondary text-style so it sits below "Next block". */}
-        {isScaleBlock && itemBreakdown && (
+        {isRunnerBlock && itemBreakdown && (
           <button
             type="button"
             onClick={handleGoBackToDrills}
@@ -908,8 +914,15 @@ export default function ActiveSessionScreen() {
   // -------------------------------------------------------------
   return (
     <>
-      {runnerActive && itemBreakdown && (
+      {runnerActive && itemBreakdown && isScaleBlock && (
         <InSessionDrillRunner
+          items={itemBreakdown}
+          accent={accent}
+          onComplete={handleRunnerComplete}
+        />
+      )}
+      {runnerActive && itemBreakdown && isChordShapeBlock && (
+        <ChordShapeDrillRunner
           items={itemBreakdown}
           accent={accent}
           onComplete={handleRunnerComplete}
