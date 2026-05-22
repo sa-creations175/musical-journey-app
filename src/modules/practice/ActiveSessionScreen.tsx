@@ -308,6 +308,21 @@ export default function ActiveSessionScreen() {
     completeDrill();
   };
 
+  // "Go back to drills" (scale-block rating screen) — re-open the
+  // in-session runner from the top of the item list so the user can
+  // revisit any scale in the block. Distinct from extend: extend adds a
+  // fixed amount to the current block, this restarts the FULL runner and
+  // lets the user pick which scale to redo. Re-enter the drill phase
+  // (uiPhase → 'running' so the runner branch renders) with the block's
+  // planned total, then mount a fresh runner (it starts at the first
+  // item). `completeDrill` on finish returns here for rating.
+  const handleGoBackToDrills = () => {
+    resumeSession();
+    extendDrill(prepTotalSec);
+    setLaunched(true);
+    setRunnerActive(true);
+  };
+
   // Skip — advance past this block without marking it completed.
   // The reducer's advanceBlock with markStatus='skipped' finalises
   // the block as 'skipped'; recordBlockEngagements (end-of-session
@@ -619,6 +634,21 @@ export default function ActiveSessionScreen() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Go back to drills — scale blocks only (the in-session runner
+            is the thing being re-opened). Restarts the full runner from
+            the top so the user can revisit any scale; distinct from the
+            extend pills above, which add time to the current block.
+            Secondary text-style so it sits below "Next block". */}
+        {isScaleBlock && itemBreakdown && (
+          <button
+            type="button"
+            onClick={handleGoBackToDrills}
+            className="w-full text-sm text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+          >
+            ← Go back to drills
+          </button>
         )}
 
         <button
