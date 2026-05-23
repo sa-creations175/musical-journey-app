@@ -1808,9 +1808,21 @@ function ChordEditorPopover({
   const preferFlats = sectionKey ? keyPrefersFlats(sectionKey) : true;
   const [editingVoicing, setEditingVoicing] = useState(false);
   const [draftVoicing, setDraftVoicing] = useState<VoicingEntry[]>([]);
+  // "Save to library" naming flow: when set, an inline name field is shown
+  // and confirming persists these offsets as a named user pattern.
+  const [namingPattern, setNamingPattern] = useState<{
+    offsets: VoicingEntry[];
+    thenStopEditing: boolean;
+  } | null>(null);
+  const [nameDraft, setNameDraft] = useState('');
+  const closeNaming = () => {
+    setNamingPattern(null);
+    setNameDraft('');
+  };
 
   const beginEditVoicing = (e: React.MouseEvent) => {
     e.stopPropagation();
+    closeNaming();
     setDraftVoicing(normalizeVoicing(savedVoicing));
     setEditingVoicing(true);
   };
@@ -1829,10 +1841,12 @@ function ChordEditorPopover({
     // Hand-edit → no pattern id (clears provenance). sanitizeVoicing
     // de-dupes + sorts; not a register rewrite (offsets are canonical).
     void onVoicingChange(cell, sanitizeVoicing(draftVoicing));
+    closeNaming();
     setEditingVoicing(false);
   };
   const cancelVoicing = (e: React.MouseEvent) => {
     e.stopPropagation();
+    closeNaming();
     setEditingVoicing(false);
   };
 
@@ -1905,26 +1919,87 @@ function ChordEditorPopover({
       pinnedIds.includes(id) ? pinnedIds.filter(x => x !== id) : [...pinnedIds, id],
     );
   };
-  // Persist a voicing as a reusable user pattern (global for the quality, O2),
-  // then apply it. Used from edit mode (the draft) and the Custom slide.
-  const persistAsPattern = (offsets: VoicingEntry[], thenStopEditing: boolean) => {
+  // Persist a voicing as a reusable, named user pattern (global for the
+  // quality, O2), then apply it. Used from edit mode (the draft) and the
+  // Custom slide. label maps to VoicingPattern.label.
+  const persistAsPattern = (
+    offsets: VoicingEntry[],
+    thenStopEditing: boolean,
+    label?: string,
+  ) => {
     if (!onVoicingChange) return;
     const clean = sanitizeVoicing(offsets);
     if (clean.length === 0) return;
     void (async () => {
-      const p = await createUserVoicingPattern(qualityId, clean);
+      const p = await createUserVoicingPattern(qualityId, clean, label);
       await onVoicingChange(cell, clean, p.id);
       if (thenStopEditing) setEditingVoicing(false);
     })();
   };
+  // "Save to library" opens the inline name field; confirming persists.
+  const beginNaming = (offsets: VoicingEntry[], thenStopEditing: boolean) => {
+    if (sanitizeVoicing(offsets).length === 0) return;
+    setNameDraft('');
+    setNamingPattern({ offsets, thenStopEditing });
+  };
+  const confirmNaming = () => {
+    if (!namingPattern) return;
+    persistAsPattern(
+      namingPattern.offsets,
+      namingPattern.thenStopEditing,
+      nameDraft.trim() || undefined,
+    );
+    closeNaming();
+  };
   const saveAsPattern = (e: React.MouseEvent) => {
     e.stopPropagation();
-    persistAsPattern(draftVoicing, true);
+    beginNaming(draftVoicing, true);
   };
   const saveCustomAsPattern = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (current) persistAsPattern(normalizeVoicing(current.offsets), false);
+    if (current) beginNaming(normalizeVoicing(current.offsets), false);
   };
+  const namingField = (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <input
+        autoFocus
+        type="text"
+        value={nameDraft}
+        onChange={e => setNameDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            confirmNaming();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeNaming();
+          }
+        }}
+        placeholder="Voicing name…"
+        className="flex-1 min-w-0 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5 text-[11px]"
+      />
+      <button
+        type="button"
+        onClick={e => {
+          e.stopPropagation();
+          confirmNaming();
+        }}
+        className="text-fluent hover:underline text-[11px]"
+      >
+        Save
+      </button>
+      <button
+        type="button"
+        onClick={e => {
+          e.stopPropagation();
+          closeNaming();
+        }}
+        className="text-neutral-500 hover:text-needswork text-[11px]"
+      >
+        cancel
+      </button>
+    </div>
+  );
 
   const stepBy = (delta: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2081,7 +2156,7 @@ function ChordEditorPopover({
                     disabled={draftVoicing.length === 0}
                     className="text-fluent hover:underline disabled:opacity-30"
                   >
-                    Save as pattern
+                    Save to library
                   </button>
                   <button type="button" onClick={cancelVoicing} className="text-neutral-500 hover:text-needswork">
                     cancel
@@ -2100,7 +2175,7 @@ function ChordEditorPopover({
               set the song key to add a voicing
             </p>
           ) : editingVoicing ? (
-            <div onClick={e => e.stopPropagation()}>
+            <div onClick={e => e.stopPropagation()} className="space-y-1">
               <PianoKeyboard
                 rootPc={rootPc}
                 preferFlats={preferFlats}
@@ -2110,6 +2185,7 @@ function ChordEditorPopover({
                 octaves={4}
                 absoluteOffsets
               />
+              {namingPattern && namingField}
             </div>
           ) : (
             <div onClick={e => e.stopPropagation()} className="space-y-1">
@@ -2152,7 +2228,7 @@ function ChordEditorPopover({
                   <div className="flex items-center justify-between text-[11px]">
                     {isCustomSlide ? (
                       <button type="button" onClick={saveCustomAsPattern} className="text-fluent hover:underline">
-                        Save as pattern
+                        Save to library
                       </button>
                     ) : (
                       <button
@@ -2172,6 +2248,7 @@ function ChordEditorPopover({
                       </button>
                     )}
                   </div>
+                  {namingPattern && namingField}
                 </>
               )}
             </div>

@@ -78,4 +78,17 @@ describe('loadVoicingCandidates + createUserVoicingPattern', () => {
     const stored = await db.voicingPatterns.get(p.id);
     expect(stored).toEqual(p);
   });
+
+  it('uses a default label, or a custom name when provided ("Save to library")', async () => {
+    const def = await createUserVoicingPattern('maj7', [{ offset: 0, hand: 'R' }]);
+    expect(def.label).toBe('Saved voicing');
+
+    const named = await createUserVoicingPattern(
+      'maj7',
+      [{ offset: 0, hand: 'R' }],
+      'Drop 2',
+    );
+    expect(named.label).toBe('Drop 2');
+    expect((await db.voicingPatterns.get(named.id))?.label).toBe('Drop 2');
+  });
 });

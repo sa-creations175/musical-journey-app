@@ -3,7 +3,7 @@
 Musical Journey App · Repertoire / lead sheet · authored 2026-05-23
 
 > Status: **Steps 1–3 COMPLETE & committed — awaiting go for Step 4 (sync polish).**
-> O1 resolved: no data rewrite (§5). O2 resolved: "save as pattern" is global
+> O1 resolved: no data rewrite (§5). O2 resolved: "Save to library" is global
 > per quality. Step 3 added a position counter ("N of M" over the full
 > candidate set) and a synthetic "Custom" slide for hand-edited voicings. Authored by Claude Code from the locked decisions
 > Silas supplied plus a read-only audit of the current voicing storage, chord
@@ -336,7 +336,8 @@ finalize in Step 1; the seeder is the source of truth, asserted by tests.
 
 - **O1 — RESOLVED (2026-05-23):** no data rewrite; flip to `absoluteOffsets` +
   an idempotent sanitize pass at Step 2 (§5).
-- **O2:** Should "save as pattern" be global (any chart) or scoped — current
-  design: global user patterns, surfaced for the matching `qualityId`
-  everywhere. Confirm.
+- **O2 — RESOLVED (2026-05-23):** "Save to library" (renamed from "save as
+  pattern") creates a global user pattern, surfaced for the matching
+  `qualityId` everywhere. Saving prompts for a short name via an inline field
+  (→ `VoicingPattern.label`; defaults to "Saved voicing" if left blank).
 ```
