@@ -16,6 +16,7 @@ function mkCard(): ProposalCardData {
     totalSeconds: 600,
     blocks: [
       {
+        id: 'b1',
         moduleRef: 'production',
         moduleLabel: 'production',
         moduleAccentHex: '#3a4875',
@@ -30,11 +31,14 @@ function mkCard(): ProposalCardData {
 }
 
 const snapshot: ProposalDraftSnapshot = {
+  view: 'proposal',
   proposals: [mkCard()],
   lastInputs: null,
   behindPaceNotices: [],
   activePath: null,
   abundanceReason: null,
+  initialDayProfile: null,
+  initialTimeMinutes: null,
 };
 
 describe('proposalDraft persistence', () => {
@@ -53,6 +57,21 @@ describe('proposalDraft persistence', () => {
     expect(restored!.proposals).toHaveLength(1);
     expect(restored!.proposals[0].blocks[0].itemRefs).toEqual(['wf-01']);
     expect(restored!.proposals[0].title).toBe('Balanced');
+  });
+
+  it('round-trips the captured view + questionnaire seeds', async () => {
+    await writeProposalDraft({
+      ...snapshot,
+      view: 'questionnaire',
+      proposals: [],
+      initialDayProfile: 'deep',
+      initialTimeMinutes: 45,
+    });
+    const restored = await readProposalDraft();
+    expect(restored!.view).toBe('questionnaire');
+    expect(restored!.proposals).toHaveLength(0);
+    expect(restored!.initialDayProfile).toBe('deep');
+    expect(restored!.initialTimeMinutes).toBe(45);
   });
 
   it('clear removes the draft (single-row, latest write wins)', async () => {

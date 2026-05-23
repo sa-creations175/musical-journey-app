@@ -51,6 +51,7 @@ import {
   clearProposalDraft,
   readProposalDraft,
   writeProposalDraft,
+  type ProposalDraftView,
 } from './proposalDraft';
 import { readActiveSessionDraft } from '../../lib/sessionTimer/activeSessionDraft';
 import BehindPaceBanner from './BehindPaceBanner';
@@ -183,12 +184,13 @@ export default function PracticeSessions() {
   // 'home' render, before the restore effect below has read it.
   const hydratedRef = useRef(false);
 
-  // First mount: if a proposal draft exists and there's no session to
-  // resume, restore the proposal screen (so a refresh on the proposal
-  // doesn't drop to home). A resumable / live session owns recovery —
-  // ResumeSessionGate handles that — so it takes precedence here. Runs
-  // once; the async read naturally resolves after the location.key reset
-  // effect's synchronous view='home', so it wins.
+  // First mount: if a draft exists and there's no session to resume,
+  // restore whichever session-creation screen the user was on
+  // (questionnaire / abundance / proposal) — so a refresh doesn't drop
+  // to home. A resumable / live session owns recovery — ResumeSessionGate
+  // handles that — so it takes precedence here. Runs once; the async read
+  // naturally resolves after the location.key reset effect's synchronous
+  // view='home', so it wins.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -196,13 +198,15 @@ export default function PracticeSessions() {
         if (timerState.status !== 'idle') return;
         if (await readActiveSessionDraft()) return;
         const draft = await readProposalDraft();
-        if (cancelled || !draft || draft.proposals.length === 0) return;
+        if (cancelled || !draft) return;
         setProposals(draft.proposals);
         setLastInputs(draft.lastInputs);
         setBehindPaceNotices(draft.behindPaceNotices);
         setActivePath(draft.activePath);
         setAbundanceReason(draft.abundanceReason);
-        setView('proposal');
+        setInitialDayProfile(draft.initialDayProfile);
+        setInitialTimeMinutes(draft.initialTimeMinutes);
+        setView(draft.view);
       } finally {
         if (!cancelled) hydratedRef.current = true;
       }
@@ -214,24 +218,42 @@ export default function PracticeSessions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist the proposal while it's on screen; clear it once the user
-  // leaves (home / questionnaire / abundance) or accepts (handled
-  // separately, since accept navigates away without a view change). The
-  // location.key reset → view='home' clears it here on nav-away too.
+  // Persist the active session-creation screen (questionnaire /
+  // abundance / proposal); clear it once the user leaves to home /
+  // goals-need or accepts (accept clears separately — it navigates away
+  // without a view change). The location.key reset → view='home' clears
+  // it here on nav-away too. Gated on hydratedRef so the initial 'home'
+  // render can't wipe the draft before the restore reads it.
   useEffect(() => {
     if (!hydratedRef.current) return;
-    if (view === 'proposal' && proposals.length > 0) {
+    const persistable =
+      view === 'questionnaire' ||
+      view === 'abundance' ||
+      (view === 'proposal' && proposals.length > 0);
+    if (persistable) {
       void writeProposalDraft({
+        view: view as ProposalDraftView,
         proposals,
         lastInputs,
         behindPaceNotices: [...behindPaceNotices],
         activePath,
         abundanceReason,
+        initialDayProfile,
+        initialTimeMinutes,
       });
     } else {
       void clearProposalDraft();
     }
-  }, [view, proposals, lastInputs, behindPaceNotices, activePath, abundanceReason]);
+  }, [
+    view,
+    proposals,
+    lastInputs,
+    behindPaceNotices,
+    activePath,
+    abundanceReason,
+    initialDayProfile,
+    initialTimeMinutes,
+  ]);
 
   // Cold-start banner flag, earlier-sessions count, and feasibility
   // entries refreshed on every mount of the home view (e.g. after
