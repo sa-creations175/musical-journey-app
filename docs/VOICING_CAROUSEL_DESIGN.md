@@ -2,8 +2,8 @@
 
 Musical Journey App · Repertoire / lead sheet · authored 2026-05-23
 
-> Status: **APPROVED — Step 1 in progress.** O1 (migration) resolved:
-> no data rewrite (§5). Authored by Claude Code from the locked decisions
+> Status: **Step 1 (data layer) COMPLETE & committed — awaiting go for Step 2.**
+> O1 (migration) resolved: no data rewrite (§5). Authored by Claude Code from the locked decisions
 > Silas supplied plus a read-only audit of the current voicing storage, chord
 > editor, `PianoKeyboard`, `voicingColors`, and the mental-viz library. Build
 > runs in the 4-step sequence in §8; `npm run build` before every commit.
