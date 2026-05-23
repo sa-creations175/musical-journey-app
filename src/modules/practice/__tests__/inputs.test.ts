@@ -98,7 +98,7 @@ describe('seedDraft', () => {
     expect(result.context).toBe('keys');
     expect(result.dayPlan).toEqual({ kind: 'just_this_session' });
     expect(result.timeMinutes).toBeNull();
-    expect(result.intent).toBeNull();
+    expect(result.intent).toEqual({ kind: 'balanced' });
   });
 
   it('initialDayProfile overrides saved Day plan with first_of_multiple + profile', () => {
@@ -112,14 +112,14 @@ describe('seedDraft', () => {
     expect(result.context).toBe('phone');
   });
 
-  it('Time / Intent / Energy stay blank regardless of inputs', () => {
+  it('Time / Energy stay blank regardless of inputs; Intent defaults to balanced', () => {
     const result = seedDraft({
       prefilledContext: 'laptop',
       prefilledDayPlan: { kind: 'first_of_multiple', profile: 'standard' },
       initialDayProfile: 'deep',
     });
     expect(result.timeMinutes).toBeNull();
-    expect(result.intent).toBeNull();
+    expect(result.intent).toEqual({ kind: 'balanced' });
     expect(result.energy).toEqual(EMPTY_ENERGY);
   });
 });

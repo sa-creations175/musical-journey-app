@@ -97,8 +97,9 @@ export default function InputQuestionnaire({
 
   // Reset draft on every open. Order: EMPTY_DRAFT → userPrefs
   // pre-fill (Context + Day plan from last session) → initialDayProfile
-  // override (Step 3h Deep tap-through). Time / Intent / Energy are
-  // never pre-filled — per-session conscious choices.
+  // override (Step 3h Deep tap-through). Time / Energy are never
+  // pre-filled (per-session conscious choices); Intent defaults to
+  // 'balanced' so the builder opens with a sensible selection.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;

@@ -84,7 +84,9 @@ export const EMPTY_DRAFT: InputQuestionnaireDraft = {
   timeMinutes: null,
   context: null,
   dayPlan: null,
-  intent: null,
+  // Intent defaults to 'balanced' — the sensible default so the builder
+  // opens with an option pre-selected (the user can still change it).
+  intent: { kind: 'balanced' },
   energy: EMPTY_ENERGY,
 };
 
@@ -137,7 +139,8 @@ export function finalizeDraft(
 /**
  * Build the initial draft state for a fresh sheet open. Layers in
  * order:
- *   1. EMPTY_DRAFT — Time / Intent / Energy stay blank, by design.
+ *   1. EMPTY_DRAFT — Time / Energy stay blank by design; Intent
+ *      defaults to 'balanced' (a sensible pre-selected default).
  *   2. userPrefs pre-fill — Context + Day plan (if present, post-
  *      sanitize for hasEarlierSessionsToday).
  *   3. initialDayProfile — Step 3h Deep-day tap-through. Wins over
