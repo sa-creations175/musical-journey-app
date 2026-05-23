@@ -58,8 +58,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 84 + nn 24 + ks 40 + pent 7 = 155', () => {
-    expect(c.byGroup.foundational).toBe(155);
+  it('foundational = sdm 84 + nn 24 + ks 40 + pent 7 + tt 12 + enh 30 = 197', () => {
+    expect(c.byGroup.foundational).toBe(197);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 15 = 55', () => {
@@ -74,8 +74,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(54);
   });
 
-  it('total = 327 across all 13 categories', () => {
-    expect(c.total).toBe(327);
+  it('total = 369 across all 15 categories', () => {
+    expect(c.total).toBe(369);
   });
 
   it('total equals sum of group totals', () => {
@@ -87,11 +87,12 @@ describe('harmonicFluencyCounts', () => {
     expect(groupSum).toBe(c.total);
   });
 
-  it('byCategory covers all 13 canonical categories', () => {
+  it('byCategory covers all 15 canonical categories', () => {
     expect(Object.keys(c.byCategory).sort()).toEqual([
       'chord-construction',
       'diatonic-qualities',
       'ear-theory',
+      'enharmonic-equivalents',
       'functional-harmony',
       'intervals',
       'key-signatures',
@@ -102,6 +103,7 @@ describe('harmonicFluencyCounts', () => {
       'reverse-key-pivots',
       'scale-degree-math',
       'slash-chords',
+      'tritone-pairs',
     ]);
   });
 

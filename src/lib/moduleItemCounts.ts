@@ -95,7 +95,7 @@ export function earTrainingCounts(): EarTrainingCounts {
  *  depend on. If a category is added, both lists update; if a category
  *  moves groups, both lists update. */
 const HF_GROUP_CATEGORIES: Record<HarmonicFluencyGroupId, ReadonlyArray<FlashcardCategory>> = {
-  foundational:        ['scale-degree-math', 'named-notes', 'key-signatures', 'pentatonic-scales'],
+  foundational:        ['scale-degree-math', 'named-notes', 'key-signatures', 'pentatonic-scales', 'tritone-pairs', 'enharmonic-equivalents'],
   chordKnowledge:      ['diatonic-qualities', 'chord-construction', 'slash-chords'],
   functionalApplied:   ['functional-harmony', 'reverse-key-pivots', 'progressions'],
   earRecognition:      ['modes', 'intervals', 'ear-theory'],
@@ -113,7 +113,7 @@ export interface HarmonicFluencyCounts {
   /** Raw per-category counts. Useful for any surface that drills
    *  below the group level (e.g. accuracy-specific picker). */
   byCategory: Record<FlashcardCategory, number>;
-  /** Sum across all 12 categories = sum across all 4 groups. */
+  /** Sum across all categories = sum across all 4 groups. */
   total: number;
 }
 

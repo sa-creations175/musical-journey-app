@@ -17,7 +17,9 @@ export type FlashcardCategory =
   | 'chord-construction'
   | 'progressions'
   | 'slash-chords'
-  | 'ear-theory';
+  | 'ear-theory'
+  | 'tritone-pairs'
+  | 'enharmonic-equivalents';
 
 export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'scale-degree-math': 'Scale Degree Math',
@@ -33,10 +35,13 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'progressions': 'Progression Vocabulary',
   'slash-chords': 'Slash Chords & Inversions',
   'ear-theory': 'Ear-Theory Crossover',
+  'tritone-pairs': 'Tritone Pairs',
+  'enharmonic-equivalents': 'Enharmonic Equivalents',
 };
 
 export const CATEGORY_ORDER: FlashcardCategory[] = [
-  'scale-degree-math', 'named-notes', 'diatonic-qualities', 'functional-harmony',
+  'scale-degree-math', 'named-notes', 'tritone-pairs', 'enharmonic-equivalents',
+  'diatonic-qualities', 'functional-harmony',
   'key-signatures', 'reverse-key-pivots', 'modes', 'pentatonic-scales', 'intervals',
   'chord-construction', 'progressions', 'slash-chords', 'ear-theory',
 ];
@@ -1337,6 +1342,139 @@ const EAR_THEORY_CARDS: Flashcard[] = [
 
 // --- Combine all -----------------------------------------------------
 
+// --- Tritone pairs + enharmonic equivalents (Foundational / Math) ---
+
+/** Chromatic semitone for any common note spelling, including the
+ *  double-edge enharmonics (Cb, B#, E#, Fb). */
+const NOTE_SEMITONE: Record<string, number> = {
+  C: 0, 'B#': 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, Fb: 4,
+  'E#': 5, F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10,
+  B: 11, Cb: 11,
+};
+
+/** Near-miss note decoys around `correct`'s pitch (±1, ±2 semitones), in
+ *  sharp spelling, excluding the correct note. Never the correct pitch,
+ *  so no decoy is a hidden enharmonic of the answer. */
+function noteDecoys(correct: string, count = 3): string[] {
+  const sem = NOTE_SEMITONE[correct] ?? 0;
+  const pool = [sem - 1, sem + 1, sem - 2, sem + 2].map(s => noteAt(s, false));
+  return makeDecoys(pool, correct, count);
+}
+
+function generateTritonePairCards(): Flashcard[] {
+  // Six tritone pairs; each note is drilled as a question subject (both
+  // directions). The tritone bisects the octave, so it's its own
+  // inverse — the partner's tritone is the original note.
+  const pairs: Array<{ a: string; aAlt?: string; b: string; bAlt?: string }> = [
+    { a: 'C', b: 'F#', bAlt: 'Gb' },
+    { a: 'C#', aAlt: 'Db', b: 'G' },
+    { a: 'D', b: 'G#', bAlt: 'Ab' },
+    { a: 'D#', aAlt: 'Eb', b: 'A' },
+    { a: 'E', b: 'A#', bAlt: 'Bb' },
+    { a: 'F', b: 'B', bAlt: 'Cb' },
+  ];
+  const cards: Flashcard[] = [];
+  let i = 1;
+  const mk = (note: string, partner: string, partnerAlt?: string) => {
+    const altText = partnerAlt ? ` (= ${partnerAlt})` : '';
+    cards.push({
+      id: `tt-${i++}`,
+      category: 'tritone-pairs',
+      categoryName: CATEGORY_LABELS['tritone-pairs'],
+      question: `Tritone of ${note}?`,
+      correctAnswer: partner,
+      decoys: noteDecoys(partner),
+      explanation: `${note} → ${partner}${altText}: Augmented 4th / Diminished 5th — 6 semitones, exactly half an octave. Because it splits the octave in two, the tritone is its own inverse: the tritone of ${partner} is ${note} right back. It's the engine of the dominant 7th (the 3rd–♭7 tritone) and every V→I resolution in gospel, jazz, and R&B.`,
+      skillTag: `tritone-${note}`,
+    });
+  };
+  for (const p of pairs) {
+    mk(p.a, p.b, p.bAlt);
+    mk(p.b, p.a, p.aAlt);
+  }
+  return cards;
+}
+
+function generateEnharmonicEquivalentCards(): Flashcard[] {
+  const cards: Flashcard[] = [];
+  let i = 1;
+
+  // Note-name equivalents — same pitch, two spellings. [a, b, context]
+  const notePairs: Array<[string, string, string]> = [
+    ['Ab', 'G#', 'Ab in flat keys (Eb/Ab/Db major); G# in sharp keys (A/E/B major).'],
+    ['Bb', 'A#', 'Bb in flat keys; A# only in sharp keys (B / F# major).'],
+    ['Db', 'C#', 'Db in flat keys (Ab/Db/Gb); C# in sharp keys (D/A/E major).'],
+    ['Eb', 'D#', 'Eb in flat keys; D# in sharp keys (E / B major).'],
+    ['Gb', 'F#', 'Gb in flat keys (Db/Gb); F# in sharp keys (G/D/A major).'],
+    ['B#', 'C', 'B# is C re-spelled — the leading tone of C# major / raised degrees.'],
+    ['Cb', 'B', 'Cb is B re-spelled — the 4th of Gb major and other flat-key contexts.'],
+    ['E#', 'F', 'E# is F re-spelled — the 3rd of C# major / raised degrees.'],
+    ['Fb', 'E', 'Fb is E re-spelled — appears in heavily-flat keys and lowered degrees.'],
+  ];
+  for (const [x, y, ctx] of notePairs) {
+    cards.push({
+      id: `enh-n-${i++}`,
+      category: 'enharmonic-equivalents',
+      categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
+      question: `Enharmonic equivalent of ${x}?`,
+      correctAnswer: y,
+      decoys: noteDecoys(y),
+      explanation: `${x} = ${y} — same key on the piano, different spelling. ${ctx}`,
+      skillTag: `enharmonic-note-${x}`,
+    });
+    cards.push({
+      id: `enh-n-${i++}`,
+      category: 'enharmonic-equivalents',
+      categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
+      question: `Enharmonic equivalent of ${y}?`,
+      correctAnswer: x,
+      decoys: noteDecoys(x),
+      explanation: `${y} = ${x} — same key on the piano, different spelling. ${ctx}`,
+      skillTag: `enharmonic-note-${y}`,
+    });
+  }
+
+  // Interval-name equivalents — same distance, two spellings; context
+  // decides which reads correctly in a given chord/scale.
+  const intervalPool = [
+    'b6', '#5', 'b5', '#4', 'b3', '#2', 'b10', '#9', '6', 'b7', '7', '5', '4', '3', '2',
+  ];
+  const intervalDecoys = (correct: string) =>
+    makeDecoys(shuffleArray(intervalPool.filter(n => n !== correct)), correct);
+  const intervalPairs: Array<[string, string, string]> = [
+    ['#5', 'b6', 'Spell #5 in augmented / altered-dominant chords; b6 in minor or borrowed-from-minor contexts.'],
+    ['#4', 'b5', '#4 (Lydian, ♯11) when raising the 4th; b5 (altered dominant, half-diminished) when lowering the 5th.'],
+    ['#2', 'b3', '#2 as a raised/blue 2nd passing tone; b3 as the minor third of the chord or scale.'],
+    ['#9', 'b10', '#9 — the "Hendrix" altered-dominant tension; b10 names the same pitch as a lowered 10th.'],
+    ['##5', '6', '##5 (double-sharp 5) only in extreme raised-degree spellings; 6 is the everyday major-sixth name.'],
+    ['bb7', '6', 'bb7 (double-flat 7) appears in fully-diminished 7th spelling; 6 is the plain major-sixth name.'],
+  ];
+  for (const [x, y, ctx] of intervalPairs) {
+    cards.push({
+      id: `enh-i-${i++}`,
+      category: 'enharmonic-equivalents',
+      categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
+      question: `Enharmonic equivalent of ${x}?`,
+      correctAnswer: y,
+      decoys: intervalDecoys(y),
+      explanation: `${x} = ${y} — same interval distance, different spelling. ${ctx}`,
+      skillTag: `enharmonic-interval-${x}`,
+    });
+    cards.push({
+      id: `enh-i-${i++}`,
+      category: 'enharmonic-equivalents',
+      categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
+      question: `Enharmonic equivalent of ${y}?`,
+      correctAnswer: x,
+      decoys: intervalDecoys(x),
+      explanation: `${y} = ${x} — same interval distance, different spelling. ${ctx}`,
+      skillTag: `enharmonic-interval-${y}`,
+    });
+  }
+
+  return cards;
+}
+
 export const FLASHCARDS: Flashcard[] = [
   ...generateScaleDegreeMathCards(),
   ...generateNamedNoteCards(),
@@ -1351,6 +1489,8 @@ export const FLASHCARDS: Flashcard[] = [
   ...PROGRESSION_CARDS,
   ...SLASH_CHORD_CARDS,
   ...EAR_THEORY_CARDS,
+  ...generateTritonePairCards(),
+  ...generateEnharmonicEquivalentCards(),
 ];
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {

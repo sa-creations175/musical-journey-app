@@ -2090,7 +2090,7 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
     id: 'foundational',
     title: 'Foundational / Math',
     accentHex: DASHBOARD_META.accentHex,                                // slate-blue
-    categories: ['scale-degree-math', 'named-notes', 'key-signatures'],
+    categories: ['scale-degree-math', 'named-notes', 'key-signatures', 'tritone-pairs', 'enharmonic-equivalents'],
   },
   {
     id: 'chord-knowledge',
