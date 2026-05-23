@@ -341,6 +341,16 @@ export default function ChordProgressionQuizDrill({
                     )}
                   </div>
                 ))}
+                {/* Invisible mirror of the left label so the chord columns
+                    stay centered rather than pushed right by it. */}
+                {concreteKey && (
+                  <div
+                    aria-hidden
+                    className="invisible flex flex-col justify-end leading-tight whitespace-nowrap pl-0.5 text-[11px]"
+                  >
+                    in the key of {concreteKey}:
+                  </div>
+                )}
               </div>
 
               <ProgressionBarGrid song={current.song} section={current.section} />
