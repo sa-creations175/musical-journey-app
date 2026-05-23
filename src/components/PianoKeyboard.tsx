@@ -79,6 +79,29 @@ const BW = 14; // black-key width
 const BH = 62; // black-key height
 const WHITE_PER_OCTAVE = WHITE_TO_PC.length; // 7
 
+/** Total viewBox width of the rendered keyboard for `octaves` octaves. A
+ *  caller drawing an aligned overlay (e.g. an interval-direction arrow)
+ *  should use this as its own SVG viewBox width at width="100%" so the two
+ *  share one horizontal scale. */
+export function keyboardViewBoxWidth(octaves = 3): number {
+  return WHITE_PER_OCTAVE * octaves * WW;
+}
+
+/** x-center (in viewBox units) of the key an ABSOLUTE-mode offset lands on,
+ *  using the same geometry the keyboard renders with. Pair with
+ *  `keyboardViewBoxWidth` + `voicingKeyPosition` to align overlays to keys. */
+export function keyCenterX(offset: number, rootPc: number, octaves = 3): number {
+  const { pc, octave } = voicingKeyPosition(offset, rootPc);
+  const o = Math.min(Math.max(octave, 0), octaves - 1);
+  const whiteIdx = WHITE_TO_PC.indexOf(pc);
+  if (whiteIdx >= 0) {
+    return (o * WHITE_PER_OCTAVE + whiteIdx) * WW + WW / 2;
+  }
+  const anchor = BLACK_ANCHORS.find(b => b.pc === pc);
+  const afterWhite = anchor ? anchor.afterWhite : 0;
+  return (o * WHITE_PER_OCTAVE + afterWhite + 1) * WW; // black-key center
+}
+
 interface Props {
   /** Pitch class (0–11) of the chord root, for interval colors, labels,
    *  and the root marker. */

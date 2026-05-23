@@ -17,7 +17,10 @@ import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
-import PianoKeyboard from '../../../components/PianoKeyboard';
+import PianoKeyboard, {
+  keyCenterX,
+  keyboardViewBoxWidth,
+} from '../../../components/PianoKeyboard';
 
 const MODULE_ID = 'intervals';
 const PREF_FOCUS_SELECTION = 'intervalsFocusSelection';
@@ -380,7 +383,10 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
             </div>
             {/* The two notes you heard, on a keyboard: root + the interval
                 above it (same keys for both directions — see playInterval).
-                The arrow conveys the playback direction. */}
+                A horizontal arrow spans between the two highlighted keys —
+                right for ascending, left for descending — its length
+                proportional to the interval (derived from the keyboard's own
+                key geometry so it stays aligned). */}
             <div className="space-y-1">
               <PianoKeyboard
                 rootPc={((current.rootMidi % 12) + 12) % 12}
@@ -389,9 +395,46 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
                 octaves={3}
                 preferFlats={false}
               />
-              <div className="text-xs text-neutral-400 text-center">
-                {current.direction === 'asc' ? '↑' : '↓'} {directionLabel}
-              </div>
+              {current.interval.semitones > 0 &&
+                (() => {
+                  const OCT = 3;
+                  const rootPc = ((current.rootMidi % 12) + 12) % 12;
+                  const semis = current.interval.semitones;
+                  const xRoot = keyCenterX(0, rootPc, OCT);
+                  const xInterval = keyCenterX(semis, rootPc, OCT);
+                  const asc = current.direction === 'asc';
+                  // Interval note is higher → always right of the root.
+                  const xTail = asc ? xRoot : xInterval;
+                  const xHead = asc ? xInterval : xRoot;
+                  const y = 8;
+                  const h = 6; // arrowhead size (viewBox units)
+                  const dir = Math.sign(xHead - xTail) || 1;
+                  return (
+                    <svg
+                      viewBox={`0 0 ${keyboardViewBoxWidth(OCT)} 16`}
+                      width="100%"
+                      preserveAspectRatio="xMidYMid meet"
+                      aria-hidden
+                      className="text-neutral-400 block"
+                    >
+                      <line
+                        x1={xTail}
+                        y1={y}
+                        x2={xHead}
+                        y2={y}
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                      />
+                      <path
+                        d={`M ${xHead} ${y} L ${xHead - dir * h} ${y - h * 0.8} M ${xHead} ${y} L ${xHead - dir * h} ${y + h * 0.8}`}
+                        stroke="currentColor"
+                        strokeWidth={2.5}
+                        fill="none"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  );
+                })()}
             </div>
             <div className={anchorIsCustom ? 'italic' : ''}>
               <span className="text-neutral-500 text-xs uppercase tracking-wide mr-2">anchor</span>
