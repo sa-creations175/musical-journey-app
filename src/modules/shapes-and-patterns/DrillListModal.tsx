@@ -5,7 +5,6 @@ import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
 import DrillSessionModal from './DrillSessionModal';
-import MentalVizFlashcardModal from './MentalVizFlashcardModal';
 import {
   formatDuration,
   humanAgo,
@@ -280,24 +279,12 @@ export default function DrillListModal({ skill, onClose }: Props) {
       </div>
 
       {activeDrill && (
-        skill.kind === 'mental-viz' ? (
-          // Mental-viz drills run as flashcards (prompt → reveal →
-          // self-assessment), not timed practice blocks. Same
-          // session-logging backend, different runner UI.
-          <MentalVizFlashcardModal
-            skill={skill}
-            drillType={activeDrill}
-            onClose={() => setActiveDrill(null)}
-            onLogged={() => setActiveDrill(null)}
-          />
-        ) : (
-          <DrillSessionModal
-            skill={skill}
-            drillType={activeDrill}
-            onClose={() => setActiveDrill(null)}
-            onLogged={() => setActiveDrill(null)}
-          />
-        )
+        <DrillSessionModal
+          skill={skill}
+          drillType={activeDrill}
+          onClose={() => setActiveDrill(null)}
+          onLogged={() => setActiveDrill(null)}
+        />
       )}
 
       <ConfirmDialog
