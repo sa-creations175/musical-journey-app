@@ -898,6 +898,23 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         )}
       </div>
 
+      {/* Inversion picker — surfaces during step 2 (quality correct,
+          awaiting inversion identification) and stays visible (disabled
+          with verdict styling) once the user answers. Rendered ABOVE the
+          answer grid so the step-2 prompt is seen immediately, without
+          scrolling past the (now-locked) quality options. */}
+      {current && (phase === 'quality-correct-awaiting-inversion' || (phase === 'fully-revealed' && stepTwoFiresFor(current.chord) && selectedInversion !== null)) && (
+        <InversionPicker
+          enabled={inversionPositions.filter(p =>
+            inversionsForIntervalCount(current.chord.intervals.length).includes(p),
+          )}
+          correctInversion={current.inversion}
+          selectedInversion={selectedInversion}
+          locked={phase === 'fully-revealed'}
+          onPick={submitInversion}
+        />
+      )}
+
       {/* Answer grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
         {answerGrid.map(c => (
@@ -913,21 +930,6 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
           </button>
         ))}
       </div>
-
-      {/* Inversion picker — surfaces during step 2 (quality correct,
-          awaiting inversion identification) and stays visible (disabled
-          with verdict styling) once the user answers. */}
-      {current && (phase === 'quality-correct-awaiting-inversion' || (phase === 'fully-revealed' && stepTwoFiresFor(current.chord) && selectedInversion !== null)) && (
-        <InversionPicker
-          enabled={inversionPositions.filter(p =>
-            inversionsForIntervalCount(current.chord.intervals.length).includes(p),
-          )}
-          correctInversion={current.inversion}
-          selectedInversion={selectedInversion}
-          locked={phase === 'fully-revealed'}
-          onPick={submitInversion}
-        />
-      )}
 
       <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-end text-xs">
         <button
