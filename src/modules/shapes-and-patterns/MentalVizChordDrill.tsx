@@ -62,6 +62,10 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
       } else {
         setPhase('done');
       }
+    } catch (err) {
+      // Don't let a failed engagement silently strand the card — surface
+      // it so a signal/memory-type mismatch can't fail unnoticed again.
+      console.error('[mental-viz] failed to record rating', err);
     } finally {
       setSaving(false);
     }

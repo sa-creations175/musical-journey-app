@@ -353,7 +353,13 @@ export default function ActiveSessionScreen() {
       setActiveModuleRef(currentBlock.moduleRef);
       // Level 3 auto-start: signal supporting modules to launch the drill
       // directly (skip their setup screen). The module consumes the param.
-      const dest = SESSION_AUTOSTART_MODULES.has(currentBlock.moduleRef)
+      // Mental-viz rides the shapes-and-patterns moduleRef (so it's not in
+      // SESSION_AUTOSTART_MODULES), but its drill auto-launches too — key
+      // off its route so scales/chord-shapes/VL aren't affected.
+      const autostart =
+        SESSION_AUTOSTART_MODULES.has(currentBlock.moduleRef) ||
+        route.includes('mental-viz');
+      const dest = autostart
         ? route.includes('?')
           ? `${route}&session=1`
           : `${route}?session=1`

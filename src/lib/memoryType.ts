@@ -50,17 +50,18 @@ export const MODULE_MEMORY_TYPES: Readonly<Record<string, MemoryType>> = Object.
   'chord-progressions':  'declarative',
   'scales-modes':        'declarative',
   'glossary':            'declarative',
-  // Mental-visualisation chord library — recall of chord shapes /
-  // voicings away from the keyboard, SM-2 + accuracy tracked. Distinct
-  // moduleRef from 'shapes-and-patterns' so its rows never count toward
-  // keyboard S&P coverage or blocks.
-  'mental-viz':          'declarative',
 
   // Procedural — physical skill / muscle memory.
   // Single row covering all four Shapes & Patterns sub-areas
   // (Scale Drills, Chord Shape Drills, Voice-Leading,
   // Mental Visualization).
   'shapes-and-patterns': 'procedural',
+  // Mental-visualisation chord library — rating-based recall of chord
+  // shapes/voicings (Flying/Cruising/Crawling), so it's procedural (the
+  // rating signal requires it). Distinct moduleRef from
+  // 'shapes-and-patterns' so its SM-2 rows never count toward keyboard
+  // S&P coverage or blocks.
+  'mental-viz':          'procedural',
 
   // Integration — multi-skill synthesis under real-world conditions.
   'repertoire':          'integration',

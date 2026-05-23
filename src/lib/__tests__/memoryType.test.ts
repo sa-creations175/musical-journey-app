@@ -53,6 +53,9 @@ describe('getMemoryType — procedural modules', () => {
   it('shapes-and-patterns → procedural (single row covers all 4 sub-areas)', () => {
     expect(getMemoryType('shapes-and-patterns')).toBe('procedural');
   });
+  it('mental-viz → procedural (rating-based chord-library drill)', () => {
+    expect(getMemoryType('mental-viz')).toBe('procedural');
+  });
 });
 
 describe('getMemoryType — integration modules', () => {
