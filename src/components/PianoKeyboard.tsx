@@ -5,11 +5,16 @@
 // the coloring stays identical. Octave count is set by the `octaves`
 // prop (default 3).
 //
-// Voicings are octave-aware semitone offsets from the chord root:
-// offset = pcOffsetFromRoot + 12 * displayOctave, so 0–11 = the first
-// rendered octave, 12–23 = the second, 24–35 = the third, 36–47 = the
-// fourth. Each key in each octave is independently toggleable (E in the
-// first rendered octave is offset 4, in the second 16, in the third 28).
+// Voicings are octave-aware semitone offsets from the chord root. Two
+// interpretations, picked by the `absoluteOffsets` prop:
+//   · legacy (default, editable bar grid): offset = pcOffsetFromRoot
+//     (mod 12) + 12 * displayOctave, octaves anchored to C. A tone whose
+//     pitch class is below the root wraps into the same C-octave, so for
+//     non-C roots it can render LEFT of the root.
+//   · absolute (mental-viz reveal): offset = true semitones above the
+//     root, placed at semitone rootPc + offset (see voicingKeyPosition).
+//     Ascending offsets always render left-to-right for any root.
+// In both, 0–11 = the first rendered octave, 12–23 the second, etc.
 //
 // Each highlighted key is colored by its interval from the CHORD ROOT
 // (root deep green, 3rds green-ish, 7ths amber, tensions red, etc.), so
@@ -27,6 +32,7 @@ import {
   NOTE_NAMES_SHARP,
   intervalColor,
   normalizeVoicing,
+  voicingKeyPosition,
 } from '../lib/voicingColors';
 
 // Left-hand tones render at this fraction of the per-note color.
@@ -89,6 +95,15 @@ interface Props {
   /** Number of octaves to render (default 3). The mental-viz reveal uses
    *  4 so its up-shifted middle-register voicings fit. */
   octaves?: number;
+  /** Interpret voicing offsets as ABSOLUTE semitones above the root
+   *  (root at semitone `rootPc`) instead of the legacy mod-12 interval
+   *  mapping. Absolute placement renders any root ascending left-to-right
+   *  (a 5th always sits to the right of the root); the legacy mapping
+   *  wraps tones whose pitch class is below the root. The mental-viz
+   *  reveal sets this (read-only, generated voicings); the editable
+   *  bar-grid keyboard leaves it off so existing stored voicings — whose
+   *  offsets follow the mod-12 convention — keep round-tripping. */
+  absoluteOffsets?: boolean;
 }
 
 export default function PianoKeyboard({
@@ -99,18 +114,27 @@ export default function PianoKeyboard({
   onToggle,
   faint = false,
   octaves = 3,
+  absoluteOffsets = false,
 }: Props) {
   const names = preferFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
   const [selectedHand, setSelectedHand] = useState<VoicingHand>('R');
   const whiteCount = WHITE_PER_OCTAVE * octaves;
   const totalW = whiteCount * WW;
 
-  // Map each occupied offset to the hand that should color it. Later
-  // entries win, so a stacked offset shows the most-recently-assigned
-  // hand (the toggle rule means this normally has at most one per key).
+  // Map each occupied key to the hand that should color it. Later entries
+  // win, so a stacked position shows the most-recently-assigned hand (the
+  // toggle rule means this normally has at most one per key). In absolute
+  // mode the key is the rendered (pc, octave) the offset resolves to; in
+  // legacy mode it's the raw mod-12 offset matched by `fullOffset`.
   const handByOffset = new Map<number, VoicingHand>();
+  const handByKey = new Map<string, VoicingHand>();
   for (const entry of normalizeVoicing(voicing)) {
-    handByOffset.set(entry.offset, entry.hand);
+    if (absoluteOffsets) {
+      const { pc, octave } = voicingKeyPosition(entry.offset, rootPc);
+      handByKey.set(`${pc}:${octave}`, entry.hand);
+    } else {
+      handByOffset.set(entry.offset, entry.hand);
+    }
   }
 
   // Pitch-class offset from root (0–11), used for the interval label.
@@ -119,7 +143,9 @@ export default function PianoKeyboard({
   const fullOffset = (pc: number, octaveIndex: number) =>
     offsetOf(pc) + 12 * octaveIndex;
   const handAt = (pc: number, octaveIndex: number) =>
-    handByOffset.get(fullOffset(pc, octaveIndex));
+    absoluteOffsets
+      ? handByKey.get(`${pc}:${octaveIndex}`)
+      : handByOffset.get(fullOffset(pc, octaveIndex));
   // Fill color = the key's interval from the chord root.
   const colorForPc = (pc: number) => intervalColor(offsetOf(pc));
   const opacityForHand = (hand: VoicingHand) =>

@@ -23,14 +23,18 @@ describe('chordShapeOffsets (triads / sevenths)', () => {
     expect(chordShapeOffsets('maj7', 3)).toEqual([23, 24, 28, 31]);
   });
 
-  it('offsets stay strictly ascending and inside octaves 2–4 (12–47)', () => {
+  it('offsets stay strictly ascending, based in octave 2, and fit the board for every root', () => {
     for (const q of ['min', 'dim', 'aug', 'sus2', 'sus4', 'min7', 'dom7', 'm7b5', 'dim7', 'mmaj7']) {
       for (let inv = 0; inv < 4; inv++) {
         const offs = chordShapeOffsets(q, inv);
         expect(offs[0]).toBeGreaterThanOrEqual(12);
-        expect(offs[offs.length - 1]).toBeLessThanOrEqual(47);
         for (let i = 1; i < offs.length; i++) {
           expect(offs[i]).toBeGreaterThan(offs[i - 1]);
+        }
+        // Absolute placement (rootPc + offset) must fit the 4-octave
+        // board for the highest root.
+        for (let rootPc = 0; rootPc < 12; rootPc++) {
+          expect(rootPc + offs[offs.length - 1]).toBeLessThanOrEqual(47);
         }
       }
     }
@@ -42,7 +46,7 @@ describe('extendedDomOffsets', () => {
     expect(EXTENDED_DOM_VOICINGS).toHaveLength(8);
   });
 
-  it('LH bass in octave 2, RH stacked ascending in octave 3+', () => {
+  it('LH bass in octave 2, RH stacked ascending strictly above it', () => {
     const a = EXTENDED_DOM_VOICINGS.find(v => v.id === 'dom9-13-a')!;
     const offs = extendedDomOffsets(a);
     // 1 LH + 4 RH = 5 tones.
@@ -50,20 +54,26 @@ describe('extendedDomOffsets', () => {
     const lh = offs.filter(o => o.hand === 'L');
     const rh = offs.filter(o => o.hand === 'R');
     expect(lh).toEqual([{ offset: 12, hand: 'L' }]); // root bass in octave 2
-    // RH all in octave 3+ and strictly ascending.
-    expect(rh.every(o => o.offset >= 24)).toBe(true);
+    // RH stacks strictly above the LH top (offset 12) and ascending —
+    // kept within one octave of the bass so the absolute-placed stack
+    // fits the 4-octave board for every root.
+    expect(rh.every(o => o.offset > 12)).toBe(true);
     for (let i = 1; i < rh.length; i++) {
       expect(rh[i].offset).toBeGreaterThan(rh[i - 1].offset);
     }
   });
 
-  it('all voicings produce a strictly ascending stack within the 4 rendered octaves (0–47)', () => {
+  it('every voicing, placed absolutely for any root, stays a strictly ascending stack inside the 4-octave board (0–47)', () => {
     for (const v of EXTENDED_DOM_VOICINGS) {
       const offs = extendedDomOffsets(v).map(o => o.offset);
       for (let i = 1; i < offs.length; i++) {
         expect(offs[i]).toBeGreaterThan(offs[i - 1]);
       }
-      expect(offs[offs.length - 1]).toBeLessThanOrEqual(47);
+      // Absolute placement is rootPc + offset; the highest root (B = 11)
+      // sets the worst case. It must still land within the rendered board.
+      for (let rootPc = 0; rootPc < 12; rootPc++) {
+        expect(rootPc + offs[offs.length - 1]).toBeLessThanOrEqual(47);
+      }
     }
   });
 });

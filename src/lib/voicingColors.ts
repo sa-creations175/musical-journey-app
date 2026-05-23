@@ -36,6 +36,30 @@ export function intervalColor(semitones: number): string {
   return INTERVAL_COLOR[s];
 }
 
+/** Absolute keyboard position for a voicing offset, treating the offset
+ *  as true semitones above the chord root (NOT a mod-12 interval). The
+ *  root sits at absolute semitone `rootPc`; a tone `offset` semitones
+ *  above it lands at semitone `rootPc + offset`, whose pitch class and
+ *  rendered octave are returned. Because the absolute semitone increases
+ *  monotonically with `offset`, an ascending offset list always renders
+ *  left-to-right regardless of root — fixing the octave-wrap that put the
+ *  5th of F (pitch class C, below F) to the LEFT of the root.
+ *
+ *  Contrast the legacy mod-12 mapping `(pc - rootPc + 12) % 12 + 12*oct`
+ *  used by the editable bar-grid keyboard, which anchors octaves to C and
+ *  wraps any tone whose pitch class is below the root. */
+export function voicingKeyPosition(
+  offset: number,
+  rootPc: number,
+): { pc: number; octave: number; semitone: number } {
+  const semitone = rootPc + offset;
+  return {
+    pc: ((semitone % 12) + 12) % 12,
+    octave: Math.floor(semitone / 12),
+    semitone,
+  };
+}
+
 /** Normalize a stored voicing (which may hold legacy plain-number
  *  offsets) to `VoicingEntry[]`. Legacy numbers are read as right-hand
  *  tones. */

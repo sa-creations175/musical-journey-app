@@ -22,13 +22,15 @@ export function preferFlatsFor(rootKey: string): boolean {
   return keyPrefersFlats(rootKey);
 }
 
-// Voicings sit in the keyboard's middle register, not anchored at the
-// far-left first octave: the shape/LH bass starts in the 2nd rendered
-// octave and the extended-dominant RH stacks from the 3rd. Offsets are
-// pcOffsetFromRoot + 12·displayOctave, so these are the base offsets of
-// each region. (The mental-viz reveal renders 4 octaves to fit them.)
-const SHAPE_OCTAVE = 12; // triads / sevenths + extended-dom LH: octave 2
-const RH_OCTAVE = 24; // extended-dominant right hand: octave 3+
+// Voicings are true semitones above the root, based one octave up so the
+// reveal (which places them absolutely at semitone rootPc + offset across
+// 4 rendered octaves) sits in the middle register rather than the far
+// left. The shape / LH bass and the extended-dominant RH both base in the
+// 2nd rendered octave; the RH still stacks strictly above the LH top.
+// Keeping the RH within one octave of the LH (rather than two) bounds the
+// top tone so even the highest root (B) stays inside the 4-octave board:
+// max offset 33 → B-root absolute 11 + 33 = 44 ≤ 47.
+const SHAPE_OCTAVE = 12; // triads / sevenths + extended-dom LH + RH base
 
 /** Octave-aware offsets-from-root for a triad/seventh inversion — the
  *  interval stack rotated so `inversion` lands the intended bass, with
@@ -85,13 +87,13 @@ export const EXTENDED_DOM_VOICINGS: ExtendedDomVoicing[] = [
 ];
 
 /** Place an extended-dominant voicing's tones onto octave-aware offsets:
- *  LH bass in the 2nd rendered octave, RH stacked ascending from the 3rd.
+ *  LH bass in the 2nd rendered octave, RH stacked ascending just above it.
  *  Each tone is the smallest offset matching its pitch class strictly
  *  above the previous, so the diagram reads bottom-to-top exactly as the
  *  voicing stacks. */
 export function extendedDomOffsets(v: ExtendedDomVoicing): VoicingEntry[] {
   const out: VoicingEntry[] = [];
-  // LH starts in octave 2 (>= SHAPE_OCTAVE).
+  // LH starts in the 2nd rendered octave (>= SHAPE_OCTAVE).
   let prev = SHAPE_OCTAVE - 1;
   for (const name of v.lh) {
     let off = INTERVAL_PC[name] ?? 0;
@@ -99,8 +101,9 @@ export function extendedDomOffsets(v: ExtendedDomVoicing): VoicingEntry[] {
     out.push({ offset: off, hand: 'L' });
     prev = off;
   }
-  // RH begins in octave 3 (>= RH_OCTAVE) and above the LH top.
-  let rhPrev = Math.max(prev, RH_OCTAVE - 1);
+  // RH begins in the 2nd rendered octave too (>= SHAPE_OCTAVE) and
+  // strictly above the LH top, keeping the stack inside the 4-octave board.
+  let rhPrev = Math.max(prev, SHAPE_OCTAVE - 1);
   for (const name of v.rh) {
     let off = INTERVAL_PC[name] ?? 0;
     while (off <= rhPrev) off += 12;
