@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
@@ -47,6 +47,12 @@ import type {
   InputQuestionnaireResult,
 } from './inputs';
 import type { ProposalCardData } from './proposalTypes';
+import {
+  clearProposalDraft,
+  readProposalDraft,
+  writeProposalDraft,
+} from './proposalDraft';
+import { readActiveSessionDraft } from '../../lib/sessionTimer/activeSessionDraft';
 import BehindPaceBanner from './BehindPaceBanner';
 import type { BehindPaceNotice } from '../../lib/sessionAlgorithm/weeklyPace';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
@@ -171,6 +177,61 @@ export default function PracticeSessions() {
     setInitialTimeMinutes(null);
     setSessionInProgressOpen(false);
   }, [location.key, location.pathname]);
+
+  // --- Proposal-screen refresh recovery -------------------------------
+  // Gates the persist effect so it can't clear the draft on the initial
+  // 'home' render, before the restore effect below has read it.
+  const hydratedRef = useRef(false);
+
+  // First mount: if a proposal draft exists and there's no session to
+  // resume, restore the proposal screen (so a refresh on the proposal
+  // doesn't drop to home). A resumable / live session owns recovery —
+  // ResumeSessionGate handles that — so it takes precedence here. Runs
+  // once; the async read naturally resolves after the location.key reset
+  // effect's synchronous view='home', so it wins.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (timerState.status !== 'idle') return;
+        if (await readActiveSessionDraft()) return;
+        const draft = await readProposalDraft();
+        if (cancelled || !draft || draft.proposals.length === 0) return;
+        setProposals(draft.proposals);
+        setLastInputs(draft.lastInputs);
+        setBehindPaceNotices(draft.behindPaceNotices);
+        setActivePath(draft.activePath);
+        setAbundanceReason(draft.abundanceReason);
+        setView('proposal');
+      } finally {
+        if (!cancelled) hydratedRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Mount-only restore; intentionally not re-running on state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the proposal while it's on screen; clear it once the user
+  // leaves (home / questionnaire / abundance) or accepts (handled
+  // separately, since accept navigates away without a view change). The
+  // location.key reset → view='home' clears it here on nav-away too.
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (view === 'proposal' && proposals.length > 0) {
+      void writeProposalDraft({
+        proposals,
+        lastInputs,
+        behindPaceNotices: [...behindPaceNotices],
+        activePath,
+        abundanceReason,
+      });
+    } else {
+      void clearProposalDraft();
+    }
+  }, [view, proposals, lastInputs, behindPaceNotices, activePath, abundanceReason]);
 
   // Cold-start banner flag, earlier-sessions count, and feasibility
   // entries refreshed on every mount of the home view (e.g. after
@@ -473,6 +534,10 @@ export default function PracticeSessions() {
       startInPrep: true,
       blocks: armBlocks,
     });
+    // Accepted → the proposal is consumed (the active-session draft now
+    // owns recovery). Clear here because accept navigates away without a
+    // view change, so the persist effect won't clear it.
+    void clearProposalDraft();
     navigate('/practice-sessions/active');
   };
 

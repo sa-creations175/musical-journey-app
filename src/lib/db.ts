@@ -1787,6 +1787,24 @@ export interface ActiveSessionDraft {
   updatedAt: number;
 }
 
+/**
+ * Persisted proposal-screen draft for refresh recovery. Single-row
+ * table (key 'current'), parallel to ActiveSessionDraft but for the
+ * PRE-acceptance proposal state — so a refresh on the proposal screen
+ * restores the proposal instead of dropping to the sessions home. The
+ * snapshot is typed via an inline import to keep db.ts free of a
+ * runtime dependency on the practice module (same trick as
+ * ActiveSessionDraft.state). Cleared on accept / discard.
+ */
+export interface ProposalDraft {
+  /** Always 'current' — a single-row table. */
+  key: string;
+  /** The proposal-screen state needed to re-render + accept it. */
+  snapshot: import('../modules/practice/proposalDraft').ProposalDraftSnapshot;
+  /** Date.now() at write time. */
+  savedAt: number;
+}
+
 export class AppDB extends Dexie {
   intervals!: Table<IntervalData, string>;
   chordQualities!: Table<ChordData, string>;
@@ -1840,6 +1858,8 @@ export class AppDB extends Dexie {
   etItemCuration!: Table<EtItemCuration, string>;
   // In-progress session draft for refresh/crash recovery — v24
   activeSessionDraft!: Table<ActiveSessionDraft, string>;
+  // Pre-acceptance proposal draft for refresh recovery — v26
+  proposalDraft!: Table<ProposalDraft, string>;
 
   constructor() {
     super('musical-journey');
@@ -2826,6 +2846,13 @@ export class AppDB extends Dexie {
       songKeyEngagements: 'id, songKeyId, songId, engagedAt, practiceSessionId, [songKeyId+engagedAt]',
       etItemCuration: 'itemRef, updatedAt',
       activeSessionDraft: 'key',
+    });
+
+    // v26 — proposal-screen draft for refresh recovery. Delta on top of
+    // v25 (Dexie inherits all prior tables); only the new table is
+    // declared.
+    this.version(26).stores({
+      proposalDraft: 'key',
     });
   }
 }
