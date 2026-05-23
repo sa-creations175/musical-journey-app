@@ -31,6 +31,28 @@ import InstrumentSelector from '../../components/InstrumentSelector';
 import MetronomeControl from '../../components/MetronomeControl';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
+/**
+ * Installed-PWA (home-screen standalone) detection. In standalone the
+ * app draws under the status bar / notch (black-translucent status-bar
+ * style, index.html), so the banner needs a safe-area floor. env(safe-
+ * area-inset-top) is the right value, but in some standalone contexts it
+ * resolves to 0 (notably a PWA installed before viewport-fit=cover
+ * shipped, then served from the service-worker precache) — which clips
+ * the banner under the 44–59px notch. A 3rem floor guarantees clearance
+ * there even when env() reports 0.
+ *
+ * We DON'T floor in a browser tab (the chrome already covers the notch,
+ * inset 0) or on desktop (no notch) — that would add a 3rem gap for no
+ * reason. matchMedia covers Android + iOS 16.4+; navigator.standalone is
+ * the legacy iOS signal (works on all iOS versions). Evaluated once —
+ * standalone-ness is fixed for a page load.
+ */
+const IS_STANDALONE_PWA =
+  typeof window !== 'undefined' &&
+  ((typeof window.matchMedia === 'function' &&
+    window.matchMedia('(display-mode: standalone)').matches) ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true);
+
 export function GlobalSessionBanner() {
   const { state, pauseSession, resumeSession, endSession, deferBlock } =
     useSessionTimer();
@@ -173,14 +195,14 @@ export function GlobalSessionBanner() {
         borderTopColor: accent,
         borderTopWidth: 2,
         borderTopStyle: 'solid',
-        // Clear the iOS / Android status-bar + notch on mobile.
-        // viewport-fit=cover (index.html) makes env() report the real
-        // inset on notched devices; max() floors it at 0.5rem so the
-        // banner never sits flush against the top when env() resolves to
-        // 0 (browsers / contexts that don't surface the inset) — the
-        // inner `, 0px` keeps the whole value valid where env() is
-        // unsupported.
-        paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)',
+        // Clear the iOS / Android status-bar + notch. In a standalone
+        // PWA the app draws under the status bar, so floor the inset at
+        // 3rem (clears iPhone notches even when env() resolves to 0).
+        // In a browser tab / on desktop, env() (0 there) is correct —
+        // no floor, so we don't add a 3rem gap where there's no notch.
+        paddingTop: IS_STANDALONE_PWA
+          ? 'max(env(safe-area-inset-top), 3rem)'
+          : 'env(safe-area-inset-top, 0px)',
       }}
     >
       <div className="flex items-center gap-3 px-4 py-2">
