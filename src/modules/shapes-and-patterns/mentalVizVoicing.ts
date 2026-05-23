@@ -49,6 +49,10 @@ const INTERVAL_PC: Record<string, number> = {
 
 export interface ExtendedDomVoicing {
   id: string;
+  /** itemRef family tag, e.g. "dom9_13" → "mv:dom9_13:A:G". */
+  family: string;
+  /** itemRef position tag, e.g. "A", "from3". */
+  position: string;
   /** Card prompt suffix, e.g. "dom9(13) — A Position". */
   label: string;
   /** Optional alternate chord name shown alongside (e.g. dom7#9b13). */
@@ -61,14 +65,14 @@ export interface ExtendedDomVoicing {
 
 // Section 3 — 8 extended-dominant voicings × 12 keys = 96 items.
 export const EXTENDED_DOM_VOICINGS: ExtendedDomVoicing[] = [
-  { id: 'dom9-13-a',  label: 'dom9(13) — A Position', lh: ['1'], rh: ['3', '13', 'b7', '9'] },
-  { id: 'dom9-13-b',  label: 'dom9(13) — B Position', lh: ['1'], rh: ['b7', '9', '3', '13'] },
-  { id: 'dom7s9s5-a', label: 'dom7#9#5 — A Position', altName: 'dom7#9b13', lh: ['1'], rh: ['3', '#5', 'b7', '#9'] },
-  { id: 'dom7s9s5-b', label: 'dom7#9#5 — B Position', altName: 'dom7#9b13', lh: ['1'], rh: ['b7', '#9', '3', '#5'] },
-  { id: 'dom7b9-3',   label: 'dom7b9 — from 3rd',     lh: ['1'], rh: ['3', '5', 'b7', 'b9'] },
-  { id: 'dom7b9-5',   label: 'dom7b9 — from 5th',     lh: ['1'], rh: ['5', 'b7', 'b9', '3'] },
-  { id: 'dom7b9-b7',  label: 'dom7b9 — from b7',      lh: ['1'], rh: ['b7', 'b9', '3', '5'] },
-  { id: 'dom7b9-b9',  label: 'dom7b9 — from b9',      lh: ['1'], rh: ['b9', '3', '5', 'b7'] },
+  { id: 'dom9-13-a',  family: 'dom9_13',  position: 'A',     label: 'dom9(13) — A Position', lh: ['1'], rh: ['3', '13', 'b7', '9'] },
+  { id: 'dom9-13-b',  family: 'dom9_13',  position: 'B',     label: 'dom9(13) — B Position', lh: ['1'], rh: ['b7', '9', '3', '13'] },
+  { id: 'dom7s9s5-a', family: 'dom7#9#5', position: 'A',     label: 'dom7#9#5 — A Position', altName: 'dom7#9b13', lh: ['1'], rh: ['3', '#5', 'b7', '#9'] },
+  { id: 'dom7s9s5-b', family: 'dom7#9#5', position: 'B',     label: 'dom7#9#5 — B Position', altName: 'dom7#9b13', lh: ['1'], rh: ['b7', '#9', '3', '#5'] },
+  { id: 'dom7b9-3',   family: 'dom7b9',   position: 'from3', label: 'dom7b9 — from 3rd',     lh: ['1'], rh: ['3', '5', 'b7', 'b9'] },
+  { id: 'dom7b9-5',   family: 'dom7b9',   position: 'from5', label: 'dom7b9 — from 5th',     lh: ['1'], rh: ['5', 'b7', 'b9', '3'] },
+  { id: 'dom7b9-b7',  family: 'dom7b9',   position: 'fromb7', label: 'dom7b9 — from b7',     lh: ['1'], rh: ['b7', 'b9', '3', '5'] },
+  { id: 'dom7b9-b9',  family: 'dom7b9',   position: 'fromb9', label: 'dom7b9 — from b9',     lh: ['1'], rh: ['b9', '3', '5', 'b7'] },
 ];
 
 /** Place an extended-dominant voicing's tones onto octave-aware offsets:
