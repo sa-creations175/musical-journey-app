@@ -373,9 +373,16 @@ export default function LeadSheetSection({
   const handleChordVoicingChange = async (
     placementId: string,
     voicing: VoicingEntry[],
+    voicingPatternId?: string,
   ) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
-    const next = updateChordPlacement(placements, realPlacementId, { voicing });
+    // Always write voicingPatternId (undefined for a hand-edit) so the whole
+    // chordPlacements array — replaced wholesale by commit — carries the
+    // current provenance, clearing any stale pattern id.
+    const next = updateChordPlacement(placements, realPlacementId, {
+      voicing,
+      voicingPatternId,
+    });
     await commit({ chordPlacements: next });
   };
 

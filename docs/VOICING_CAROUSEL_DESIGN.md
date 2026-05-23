@@ -2,7 +2,7 @@
 
 Musical Journey App · Repertoire / lead sheet · authored 2026-05-23
 
-> Status: **Step 1 (data layer) COMPLETE & committed — awaiting go for Step 2.**
+> Status: **Steps 1–2 COMPLETE & committed — awaiting go for Step 3 (carousel UI).**
 > O1 (migration) resolved: no data rewrite (§5). Authored by Claude Code from the locked decisions
 > Silas supplied plus a read-only audit of the current voicing storage, chord
 > editor, `PianoKeyboard`, `voicingColors`, and the mental-viz library. Build
@@ -181,13 +181,20 @@ correctly as an ascending stack.
 offsets as already-canonical and **flip the editor keyboard to `absoluteOffsets`
 with no data rewrite.** The only visible change is that any below-root tone now
 renders ascending (an improvement, and rare in editor-authored voicings since
-the user taps ascending). Step 2 then ships:
-- a one-time **idempotent normalization pass** that validates/sanitizes offsets
-  (dedupe, drop negatives if any ever existed, clamp to the rendered octave
-  range) and stamps nothing it doesn't need to — *not* a register-changing
-  rewrite;
-- a round-trip test proving the pitch-class set is preserved for every existing
-  voicing shape.
+the user taps ascending). Step 2 ships (as built):
+- a pure **idempotent sanitize** (`sanitizeVoicing`, `lib/voicingColors.ts`):
+  normalize legacy numbers, drop exact (offset+hand) duplicates, sort
+  ascending — *not* a register-changing rewrite. Applied at **write-time**
+  (the editor's Save), NOT as a bulk DB migration: existing offsets are
+  already canonical, so a bulk pass would only churn sync for zero change.
+- **below-root tones are allowed.** In absolute *editable* mode a tap below
+  the root emits a signed (negative) offset that `voicingKeyPosition` renders
+  correctly to the left of the root — a legitimate voicing choice (a tone
+  under the chord root), so negatives are kept, not dropped. The toggle emits
+  the true semitones-from-root so taps round-trip and removal works.
+- a **round-trip test** proving the pitch-class set is preserved for every
+  existing voicing shape (legacy-render pc == absolute-render pc for any ≥0
+  offset, all 12 roots).
 
 **Rejected alternative (exact-register preservation):** would require *widening
 the canonical model to allow below-root tones* (signed offsets) rather than

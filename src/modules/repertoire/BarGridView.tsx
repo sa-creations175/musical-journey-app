@@ -17,7 +17,7 @@ import type {
 } from '../../lib/db';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
 import { pitchClassOf } from './chordParser';
-import { chordRootNote, normalizeVoicing } from './voicingHelpers';
+import { chordRootNote, normalizeVoicing, sanitizeVoicing } from './voicingHelpers';
 import PianoKeyboard from '../../components/PianoKeyboard';
 import { useNotationMode } from '../../lib/notationPref';
 import {
@@ -86,11 +86,14 @@ interface Props {
    *  placement from section.chordPlacements (caller reconciles
    *  barLayout). The popover closes once this resolves. */
   onChordDelete?: (placementId: string) => Promise<void> | void;
-  /** Save a piano voicing (octave-aware offset/hand entries) from the
-   *  chord-edit popover. */
+  /** Save a piano voicing (offset/hand entries) from the chord-edit popover.
+   *  `voicingPatternId` records which carousel pattern the voicing came from
+   *  (omitted/undefined = a hand-edited custom voicing, which clears any
+   *  prior provenance). */
   onChordVoicingChange?: (
     placementId: string,
     voicing: VoicingEntry[],
+    voicingPatternId?: string,
   ) => Promise<void> | void;
   /** Whether chord cells render as sortable (drag-to-reorder). Drag
    *  end is handled by the parent DndContext; this flag just tells
@@ -381,8 +384,8 @@ export default function BarGridView({
     : undefined;
 
   const handleVoicing = onChordVoicingChange
-    ? async (cell: BarCell, voicing: VoicingEntry[]) => {
-        await onChordVoicingChange(cell.placementId, voicing);
+    ? async (cell: BarCell, voicing: VoicingEntry[], voicingPatternId?: string) => {
+        await onChordVoicingChange(cell.placementId, voicing, voicingPatternId);
       }
     : undefined;
 
@@ -829,7 +832,7 @@ function BarBox({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   onDelete?: (cell: BarCell) => void | Promise<void>;
-  onVoicingChange?: (cell: BarCell, voicing: VoicingEntry[]) => void | Promise<void>;
+  onVoicingChange?: (cell: BarCell, voicing: VoicingEntry[], voicingPatternId?: string) => void | Promise<void>;
   onCopyChord?: (chord: ChordFunction) => void;
   copiedChord?: ChordFunction | null;
   foundationMode: boolean;
@@ -1747,7 +1750,7 @@ function ChordEditorPopover({
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
   onTagChange?: (cell: BarCell, tag: string | null) => void | Promise<void>;
   onDelete?: (cell: BarCell) => void | Promise<void>;
-  onVoicingChange?: (cell: BarCell, voicing: VoicingEntry[]) => void | Promise<void>;
+  onVoicingChange?: (cell: BarCell, voicing: VoicingEntry[], voicingPatternId?: string) => void | Promise<void>;
   onCopyChord?: (chord: ChordFunction) => void;
 }) {
   // Source-of-truth beat count is `cell.beats` (= placement.beats).
@@ -1797,10 +1800,9 @@ function ChordEditorPopover({
   const saveVoicing = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onVoicingChange) return;
-    void onVoicingChange(
-      cell,
-      [...draftVoicing].sort((a, b) => a.offset - b.offset),
-    );
+    // Hand-edit → no pattern id (clears provenance). sanitizeVoicing
+    // de-dupes + sorts; not a register rewrite (offsets are canonical).
+    void onVoicingChange(cell, sanitizeVoicing(draftVoicing));
     setEditingVoicing(false);
   };
   const cancelVoicing = (e: React.MouseEvent) => {
@@ -1989,6 +1991,7 @@ function ChordEditorPopover({
                 editable={editingVoicing}
                 onToggle={editingVoicing ? toggleVoicingOffset : undefined}
                 faint={!editingVoicing && !hasVoicing}
+                absoluteOffsets
               />
             </div>
           ) : (

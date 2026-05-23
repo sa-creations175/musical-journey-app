@@ -71,3 +71,30 @@ export function normalizeVoicing(
     typeof v === 'number' ? { offset: v, hand: 'R' } : v,
   );
 }
+
+/**
+ * Canonical-form sanitize for a voicing: normalize legacy plain-number
+ * entries, drop exact (offset+hand) duplicates, and sort ascending by
+ * offset. Idempotent. Applied when a voicing is SAVED so stored data stays
+ * clean going forward.
+ *
+ * Deliberately NOT a register rewrite (see VOICING_CAROUSEL_DESIGN.md §5,
+ * O1): existing offsets are already canonical absolute semitones-from-root,
+ * so this only de-dupes and orders — running it over already-clean data is a
+ * no-op, which is why we apply it at write-time rather than as a bulk
+ * migration that would only churn sync for zero change.
+ */
+export function sanitizeVoicing(
+  voicing: ReadonlyArray<number | VoicingEntry> | undefined,
+): VoicingEntry[] {
+  const seen = new Set<string>();
+  const out: VoicingEntry[] = [];
+  for (const e of normalizeVoicing(voicing)) {
+    const key = `${e.offset}:${e.hand}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  out.sort((a, b) => a.offset - b.offset);
+  return out;
+}

@@ -5,15 +5,19 @@
 // the coloring stays identical. Octave count is set by the `octaves`
 // prop (default 3).
 //
-// Voicings are octave-aware semitone offsets from the chord root. Two
-// interpretations, picked by the `absoluteOffsets` prop:
-//   · legacy (default, editable bar grid): offset = pcOffsetFromRoot
-//     (mod 12) + 12 * displayOctave, octaves anchored to C. A tone whose
-//     pitch class is below the root wraps into the same C-octave, so for
-//     non-C roots it can render LEFT of the root.
-//   · absolute (mental-viz reveal): offset = true semitones above the
-//     root, placed at semitone rootPc + offset (see voicingKeyPosition).
-//     Ascending offsets always render left-to-right for any root.
+// Voicings are semitone offsets from the chord root. Two interpretations,
+// picked by the `absoluteOffsets` prop:
+//   · absolute (default for the mental-viz reveal AND the bar-grid voicing
+//     editor): offset = true semitones from the root, placed at semitone
+//     rootPc + offset (see voicingKeyPosition). Ascending offsets render
+//     left-to-right for any root; when editable, taps emit signed offsets
+//     (a tone below the root is negative and renders left of it). This is
+//     the canonical voicing convention (docs/VOICING_CAROUSEL_DESIGN.md).
+//   · legacy (absoluteOffsets off): offset = pcOffsetFromRoot (mod 12) +
+//     12 * displayOctave, octaves anchored to C. A tone whose pitch class
+//     is below the root wraps into the same C-octave, so for non-C roots it
+//     can render LEFT of the root. Retained for any caller that still
+//     passes mod-12 offsets without the flag.
 // In both, 0–11 = the first rendered octave, 12–23 the second, etc.
 //
 // Each highlighted key is colored by its interval from the CHORD ROOT
@@ -86,9 +90,11 @@ interface Props {
   preferFlats?: boolean;
   /** When true, keys are tappable, the L/R pill shows, and labels show. */
   editable?: boolean;
-  /** Fired with the toggled octave-aware offset (0–35) and the hand
-   *  currently selected on the L/R pill. The parent decides add vs.
-   *  remove (tapping a highlighted key removes it). */
+  /** Fired with the toggled offset and the hand currently selected on the
+   *  L/R pill. In absolute mode the offset is the true (signed) semitones
+   *  from the root; in legacy mode it's the octave-aware mod-12 offset
+   *  (0–35). The parent decides add vs. remove (tapping a highlighted key
+   *  removes it). */
   onToggle?: (offset: number, hand: VoicingHand) => void;
   /** Dim the whole keyboard (empty-state prompt). */
   faint?: boolean;
@@ -99,10 +105,14 @@ interface Props {
    *  (root at semitone `rootPc`) instead of the legacy mod-12 interval
    *  mapping. Absolute placement renders any root ascending left-to-right
    *  (a 5th always sits to the right of the root); the legacy mapping
-   *  wraps tones whose pitch class is below the root. The mental-viz
-   *  reveal sets this (read-only, generated voicings); the editable
-   *  bar-grid keyboard leaves it off so existing stored voicings — whose
-   *  offsets follow the mod-12 convention — keep round-tripping. */
+   *  wraps tones whose pitch class is below the root. Both the mental-viz
+   *  reveal (read-only) and the bar-grid voicing editor (editable) set
+   *  this — absolute is the canonical voicing convention
+   *  (docs/VOICING_CAROUSEL_DESIGN.md). Existing bar-grid voicings stored
+   *  under the old mod-12 convention are NOT rewritten: their offsets are
+   *  already ≥ 0 and encode interval + octave-band, so absolute rendering
+   *  reproduces the same pitch classes (below-root tones just render
+   *  ascending). When editable, taps emit signed semitones-from-root. */
   absoluteOffsets?: boolean;
 }
 
@@ -152,7 +162,15 @@ export default function PianoKeyboard({
     hand === 'L' ? LEFT_HAND_OPACITY : 1;
   const toggle = (pc: number, octaveIndex: number) => {
     if (!editable || !onToggle) return;
-    onToggle(fullOffset(pc, octaveIndex), selectedHand);
+    // In absolute mode the stored offset is the TRUE semitones from the root
+    // for this exact key (signed — a key below the root is negative). That
+    // round-trips through voicingKeyPosition, so tapping the key again yields
+    // the same offset and the parent removes it. Legacy mode keeps the
+    // mod-12-wrapped offset.
+    const offset = absoluteOffsets
+      ? octaveIndex * 12 + pc - rootPc
+      : fullOffset(pc, octaveIndex);
+    onToggle(offset, selectedHand);
   };
 
   // White keys (rendered first so black keys overlay them).

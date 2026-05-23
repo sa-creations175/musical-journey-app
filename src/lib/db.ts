@@ -418,6 +418,16 @@ export interface ChordPlacement {
    *  all 0–11.) Optional JSONB field on the placement — no Dexie
    *  version bump. */
   voicing?: Array<number | VoicingEntry>;
+  /** The VoicingPattern this placement's `voicing` was applied from via the
+   *  voicing carousel — provenance + carousel highlight only. `voicing`
+   *  stays the rendered source of truth; this is cleared when the user
+   *  hand-edits the voicing (it becomes a detached custom voicing).
+   *  Optional JSONB field on the placement — no Dexie version bump. */
+  voicingPatternId?: string;
+  /** VoicingPattern ids the user pinned FOR THIS placement (per-placement
+   *  favorites, surfaced first in the carousel — NOT per song or per quality
+   *  globally). Optional JSONB field — no Dexie version bump. */
+  pinnedVoicingIds?: string[];
 }
 
 /**

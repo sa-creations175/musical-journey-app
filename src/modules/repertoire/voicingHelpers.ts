@@ -20,7 +20,7 @@ import { pitchClassOf } from './chordParser';
 // shared lib/voicingColors so the relocated PianoKeyboard (now a shared
 // component) can import them without depending on this repertoire
 // module. Re-exported here so existing repertoire callers are unchanged.
-export { intervalColor, normalizeVoicing } from '../../lib/voicingColors';
+export { intervalColor, normalizeVoicing, sanitizeVoicing } from '../../lib/voicingColors';
 
 /** Resolve the concrete root note name for a chord from the song key
  *  and the chord's scale degree (e.g. "4maj7" in B → degree "4" →
