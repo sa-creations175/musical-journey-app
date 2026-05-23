@@ -126,6 +126,9 @@ export default function InSessionDrillRunner({ items, accent, onComplete }: Prop
         key={`countin-${idx}`}
         timeSig={metronome.state.timeSig}
         bpm={metronome.state.bpm}
+        // All count-ins use the all-kicks pattern uniformly (kick·kick·
+        // kick·GO) — matches the block prep screen (98d492c).
+        allKick
         accent={accent}
         onComplete={() => setCounting(false)}
       />
