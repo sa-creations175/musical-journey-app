@@ -22,10 +22,19 @@ export function preferFlatsFor(rootKey: string): boolean {
   return keyPrefersFlats(rootKey);
 }
 
+// Voicings sit in the keyboard's middle register, not anchored at the
+// far-left first octave: the shape/LH bass starts in the 2nd rendered
+// octave and the extended-dominant RH stacks from the 3rd. Offsets are
+// pcOffsetFromRoot + 12·displayOctave, so these are the base offsets of
+// each region. (The mental-viz reveal renders 4 octaves to fit them.)
+const SHAPE_OCTAVE = 12; // triads / sevenths + extended-dom LH: octave 2
+const RH_OCTAVE = 24; // extended-dominant right hand: octave 3+
+
 /** Octave-aware offsets-from-root for a triad/seventh inversion — the
  *  interval stack rotated so `inversion` lands the intended bass, with
  *  the rotated-out notes bumped up an octave. Single shape (all right
- *  hand), returned as plain-number offsets. */
+ *  hand), returned as plain-number offsets, based in the 2nd rendered
+ *  octave (`SHAPE_OCTAVE`). */
 export function chordShapeOffsets(qualityId: string, inversion: number): number[] {
   const intervals = QUALITY_INTERVALS[qualityId] ?? [0, 4, 7];
   const len = intervals.length;
@@ -34,7 +43,7 @@ export function chordShapeOffsets(qualityId: string, inversion: number): number[
   for (let i = 0; i < len; i++) {
     const src = (i + inv) % len;
     const bump = i + inv >= len ? 12 : 0;
-    offsets.push(intervals[src] + bump);
+    offsets.push(intervals[src] + bump + SHAPE_OCTAVE);
   }
   return offsets;
 }
@@ -76,21 +85,22 @@ export const EXTENDED_DOM_VOICINGS: ExtendedDomVoicing[] = [
 ];
 
 /** Place an extended-dominant voicing's tones onto octave-aware offsets:
- *  LH in the first rendered octave, RH stacked ascending in octave 2+.
+ *  LH bass in the 2nd rendered octave, RH stacked ascending from the 3rd.
  *  Each tone is the smallest offset matching its pitch class strictly
  *  above the previous, so the diagram reads bottom-to-top exactly as the
  *  voicing stacks. */
 export function extendedDomOffsets(v: ExtendedDomVoicing): VoicingEntry[] {
   const out: VoicingEntry[] = [];
-  let prev = -1;
+  // LH starts in octave 2 (>= SHAPE_OCTAVE).
+  let prev = SHAPE_OCTAVE - 1;
   for (const name of v.lh) {
     let off = INTERVAL_PC[name] ?? 0;
     while (off <= prev) off += 12;
     out.push({ offset: off, hand: 'L' });
     prev = off;
   }
-  // RH begins in octave 2 (>= 12) and above the LH top.
-  let rhPrev = Math.max(prev, 11);
+  // RH begins in octave 3 (>= RH_OCTAVE) and above the LH top.
+  let rhPrev = Math.max(prev, RH_OCTAVE - 1);
   for (const name of v.rh) {
     let off = INTERVAL_PC[name] ?? 0;
     while (off <= rhPrev) off += 12;

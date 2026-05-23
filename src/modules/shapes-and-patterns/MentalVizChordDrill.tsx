@@ -124,6 +124,7 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
                 rootPc={current.rootPc}
                 voicing={current.voicing}
                 preferFlats={current.preferFlats}
+                octaves={4}
               />
               <div className="space-y-2">
                 <div className="text-[11px] uppercase tracking-wide text-neutral-500 text-center">

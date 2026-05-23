@@ -1,13 +1,15 @@
-// Three-octave piano keyboard with chord-tone interval coloring. Shared
-// by the lead-sheet bar-grid voicing editor (repertoire/BarGridView) and
-// the mental-viz chord library reveal — both import it from here so the
-// coloring stays identical.
+// Multi-octave piano keyboard with chord-tone interval coloring. Shared
+// by the lead-sheet bar-grid voicing editor (repertoire/BarGridView,
+// 3 octaves) and the mental-viz chord library reveal (4 octaves, so the
+// up-shifted middle-register voicings fit) — both import it from here so
+// the coloring stays identical. Octave count is set by the `octaves`
+// prop (default 3).
 //
 // Voicings are octave-aware semitone offsets from the chord root:
 // offset = pcOffsetFromRoot + 12 * displayOctave, so 0–11 = the first
-// rendered octave, 12–23 = the second, 24–35 = the third. Each key in
-// each octave is independently toggleable (E in octave 1 is offset 4,
-// E in octave 2 is offset 16, E in octave 3 is offset 28).
+// rendered octave, 12–23 = the second, 24–35 = the third, 36–47 = the
+// fourth. Each key in each octave is independently toggleable (E in the
+// first rendered octave is offset 4, in the second 16, in the third 28).
 //
 // Each highlighted key is colored by its interval from the CHORD ROOT
 // (root deep green, 3rds green-ish, 7ths amber, tensions red, etc.), so
@@ -65,9 +67,7 @@ const WW = 24; // white-key width
 const WH = 104; // white-key height
 const BW = 14; // black-key width
 const BH = 62; // black-key height
-const OCTAVES = 3;
-const WHITE_COUNT = WHITE_TO_PC.length * OCTAVES; // 21
-const TOTAL_W = WHITE_COUNT * WW;
+const WHITE_PER_OCTAVE = WHITE_TO_PC.length; // 7
 
 interface Props {
   /** Pitch class (0–11) of the chord root, for interval colors, labels,
@@ -86,6 +86,9 @@ interface Props {
   onToggle?: (offset: number, hand: VoicingHand) => void;
   /** Dim the whole keyboard (empty-state prompt). */
   faint?: boolean;
+  /** Number of octaves to render (default 3). The mental-viz reveal uses
+   *  4 so its up-shifted middle-register voicings fit. */
+  octaves?: number;
 }
 
 export default function PianoKeyboard({
@@ -95,9 +98,12 @@ export default function PianoKeyboard({
   editable = false,
   onToggle,
   faint = false,
+  octaves = 3,
 }: Props) {
   const names = preferFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
   const [selectedHand, setSelectedHand] = useState<VoicingHand>('R');
+  const whiteCount = WHITE_PER_OCTAVE * octaves;
+  const totalW = whiteCount * WW;
 
   // Map each occupied offset to the hand that should color it. Later
   // entries win, so a stacked offset shows the most-recently-assigned
@@ -125,7 +131,7 @@ export default function PianoKeyboard({
 
   // White keys (rendered first so black keys overlay them).
   const whiteKeys = [];
-  for (let gi = 0; gi < WHITE_COUNT; gi++) {
+  for (let gi = 0; gi < whiteCount; gi++) {
     const octaveIndex = Math.floor(gi / 7);
     const pc = WHITE_TO_PC[gi % 7];
     const x = gi * WW;
@@ -165,7 +171,7 @@ export default function PianoKeyboard({
 
   // Black keys.
   const blackKeys = [];
-  for (let o = 0; o < OCTAVES; o++) {
+  for (let o = 0; o < octaves; o++) {
     for (const { afterWhite, pc } of BLACK_ANCHORS) {
       const globalAnchor = o * 7 + afterWhite;
       const x = (globalAnchor + 1) * WW - BW / 2;
@@ -206,7 +212,7 @@ export default function PianoKeyboard({
 
   const svg = (
     <svg
-      viewBox={`0 0 ${TOTAL_W} ${WH}`}
+      viewBox={`0 0 ${totalW} ${WH}`}
       width="100%"
       role="img"
       aria-label="piano voicing"
