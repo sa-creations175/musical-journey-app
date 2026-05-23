@@ -1911,6 +1911,16 @@ function toProposalBlocks(
               quickLaunchRoute: `/repertoire?tab=detail&songId=${encodeURIComponent(s.songId)}&action=whole-song-test`,
             }
           : {}),
+        // Chord-quiz warm-ups deep-link into the Chord Progression Quiz
+        // drill, scoped to this song: session=1 auto-opens the drill and
+        // songId filters its queue to this song's sections (SM-2 still
+        // records per section). Level 3 nav — GO lands on the drill, not
+        // the quiz module home.
+        ...(s.kind === 'chord-quiz' && s.songId
+          ? {
+              quickLaunchRoute: `/ear-training/chord-progression-quiz?session=1&songId=${encodeURIComponent(s.songId)}`,
+            }
+          : {}),
         // Scale-prep blocks open ScalesDrillModal in place on the
         // session screen — no navigation away from the proposal. The
         // block's itemRefs drive which cells the modal walks through.

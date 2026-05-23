@@ -12,17 +12,20 @@ import ChordProgressionQuizDrill from './ChordProgressionQuizDrill';
 
 export default function ChordProgressionQuiz() {
   const [searchParams, setSearchParams] = useSearchParams();
-  // Level-3 auto-launch: GO on the quiz session block routes here with
-  // ?session=1 — open the drill straight away. Lazy-init (not an effect)
-  // so `open` is independent of the param afterward; the stale param is
-  // cleared on close.
+  // Level-3 auto-launch: GO on a session block routes here with
+  // ?session=1 (and ?songId=X from a chord-quiz warm-up, scoping the
+  // drill to that song). Lazy-init (not an effect) so `open` / `songId`
+  // are captured once and independent of the params afterward; the stale
+  // params are cleared on close.
   const [open, setOpen] = useState(() => searchParams.get('session') === '1');
+  const [songId] = useState(() => searchParams.get('songId') ?? undefined);
 
   const closeDrill = () => {
     setOpen(false);
-    if (searchParams.get('session') === '1') {
+    if (searchParams.get('session') === '1' || searchParams.get('songId')) {
       const next = new URLSearchParams(searchParams);
       next.delete('session');
+      next.delete('songId');
       setSearchParams(next, { replace: true });
     }
   };
@@ -67,7 +70,7 @@ export default function ChordProgressionQuiz() {
         </div>
       </section>
 
-      {open && <ChordProgressionQuizDrill onClose={closeDrill} />}
+      {open && <ChordProgressionQuizDrill onClose={closeDrill} songId={songId} />}
     </div>
   );
 }

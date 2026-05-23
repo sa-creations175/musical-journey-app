@@ -3,6 +3,7 @@ import type { ChordFunction, ChordPlacement, Song, SongSection } from '../../../
 import {
   distractorPoolFor,
   enumerateQuizItems,
+  filterItemsBySong,
   orderQuizQueue,
   type ProgressionQuizItem,
 } from '../progressionQuizQueue';
@@ -89,6 +90,33 @@ describe('orderQuizQueue', () => {
       { itemRef: bRef, nextDueAt: 100 },
     ]);
     expect(ordered.map(i => i.itemRef)).toEqual([bRef, aRef]);
+  });
+});
+
+describe('filterItemsBySong (song-filtered drill mode)', () => {
+  const items = enumerateQuizItems(
+    [song('a'), song('b', { learningOrder: 2 })],
+    [
+      section('a-v', 'a', I_IV_V),
+      section('a-c', 'a', ii_V_I, { id: 'a-c', name: 'Chorus', order: 1 }),
+      section('b-v', 'b', ii_V_I),
+    ],
+  );
+
+  it('keeps only the target song’s sections, order preserved', () => {
+    const walked = filterItemsBySong(items, 'a');
+    expect(walked.map(i => i.section.id)).toEqual(['a-v', 'a-c']);
+  });
+
+  it('the full list still feeds cross-song distractors for the filtered queue', () => {
+    const walked = filterItemsBySong(items, 'a');
+    // A song-A card still draws distractors from song B (the full list).
+    const pool = distractorPoolFor(walked[0], items);
+    expect(pool).toEqual(['ii - V7 - I']);
+  });
+
+  it('returns empty when the song has no charted sections', () => {
+    expect(filterItemsBySong(items, 'missing')).toEqual([]);
   });
 });
 

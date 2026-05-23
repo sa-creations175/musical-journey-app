@@ -20,6 +20,7 @@ import {
 } from './progressionQuiz';
 import {
   distractorPoolFor,
+  filterItemsBySong,
   loadProgressionQuizQueue,
   type ProgressionQuizItem,
 } from './progressionQuizQueue';
@@ -59,8 +60,17 @@ function buildQuestion(
   return { type: 'recall' };
 }
 
-export default function ChordProgressionQuizDrill({ onClose }: { onClose: () => void }) {
-  const [queue, setQueue] = useState<ProgressionQuizItem[] | null>(null);
+export default function ChordProgressionQuizDrill({
+  onClose,
+  songId,
+}: {
+  onClose: () => void;
+  /** When set (chord-quiz warm-up Level-3 nav), the walked queue is
+   *  scoped to this song's sections. Multiple-choice distractors still
+   *  draw from the full library (other songs). */
+  songId?: string;
+}) {
+  const [allItems, setAllItems] = useState<ProgressionQuizItem[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>('loading');
   const [reps, setReps] = useState(0);
@@ -73,20 +83,29 @@ export default function ChordProgressionQuizDrill({ onClose }: { onClose: () => 
     void (async () => {
       const q = await loadProgressionQuizQueue();
       if (cancelled) return;
-      setQueue(q);
-      setPhase(q.length > 0 ? 'prompt' : 'done');
+      setAllItems(q);
+      const walked = songId ? filterItemsBySong(q, songId) : q;
+      setPhase(walked.length > 0 ? 'prompt' : 'done');
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [songId]);
+
+  // The walked queue: one song in song-filtered mode, else everything.
+  const queue = useMemo<ProgressionQuizItem[] | null>(
+    () => (allItems ? (songId ? filterItemsBySong(allItems, songId) : allItems) : null),
+    [allItems, songId],
+  );
 
   const current = queue ? queue[idx] : undefined;
 
-  // One question per card, stable until the card changes.
+  // One question per card, stable until the card changes. Distractors
+  // draw from the FULL library so song-filtered mode still has options
+  // from other songs.
   const question = useMemo<Question | null>(
-    () => (current && queue ? buildQuestion(current, queue, Math.random) : null),
-    [current, queue],
+    () => (current && allItems ? buildQuestion(current, allItems, Math.random) : null),
+    [current, allItems],
   );
 
   const advance = () => {

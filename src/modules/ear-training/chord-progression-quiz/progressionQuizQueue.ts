@@ -101,6 +101,17 @@ export function orderQuizQueue(
     .map(e => e.item);
 }
 
+/** Filter an ordered item list to a single song, preserving order. Used
+ *  by the song-filtered drill mode (chord-quiz warm-up → ?songId=X): the
+ *  walked queue is scoped to one song, while the full list still feeds
+ *  the multiple-choice distractor pool (which draws from other songs). */
+export function filterItemsBySong(
+  items: ReadonlyArray<ProgressionQuizItem>,
+  songId: string,
+): ProgressionQuizItem[] {
+  return items.filter(i => i.song.id === songId);
+}
+
 /** Roman-line distractor pool for a target item: progressions from OTHER
  *  songs (never the same song, so a distractor can't be a passing-chord
  *  variation of the same chart), excluding lines identical to the
