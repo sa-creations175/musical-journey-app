@@ -174,9 +174,13 @@ export function GlobalSessionBanner() {
         borderTopWidth: 2,
         borderTopStyle: 'solid',
         // Clear the iOS / Android status-bar + notch on mobile.
-        // viewport-fit=cover is set in index.html so env() resolves
-        // to the real inset.
-        paddingTop: 'env(safe-area-inset-top)',
+        // viewport-fit=cover (index.html) makes env() report the real
+        // inset on notched devices; max() floors it at 0.5rem so the
+        // banner never sits flush against the top when env() resolves to
+        // 0 (browsers / contexts that don't surface the inset) — the
+        // inner `, 0px` keeps the whole value valid where env() is
+        // unsupported.
+        paddingTop: 'max(env(safe-area-inset-top, 0px), 0.5rem)',
       }}
     >
       <div className="flex items-center gap-3 px-4 py-2">
