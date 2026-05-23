@@ -331,7 +331,7 @@ export default function ChordProgressionQuizDrill({
                 )}
                 {current.chords.slice(0, MAX_SUMMARY_CHORDS).map((ch, i) => (
                   <div key={i} className="flex flex-col items-center leading-tight whitespace-nowrap">
-                    <span className="text-base font-bold" style={{ color: degreeColor(ch) }}>
+                    <span className="text-lg font-bold" style={{ color: degreeColor(ch) }}>
                       {renderNumbers(ch)}
                     </span>
                     {concreteKey && (
