@@ -312,30 +312,33 @@ export default function ChordProgressionQuizDrill({
                 </div>
               )}
 
-              {/* Full-loop summary, key-agnostic: Nashville numbers
-                  (colored by scale degree) on top, Roman beneath. Every
-                  charted chord is listed — same derivation as the bar
-                  grid below, so the line never trails the grid. */}
-              <div className="space-y-1.5 text-center">
-                <div className="flex flex-wrap justify-center gap-x-2.5 gap-y-1 text-lg font-semibold">
-                  {current.chords.map((ch, i) => (
-                    <span key={i} style={{ color: degreeColor(ch) }}>
-                      {renderNumbers(ch)}
-                    </span>
-                  ))}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  {current.chords.map(ch => renderRoman(ch)).join(' · ')}
-                </div>
-                {/* Concrete chords in a (rotating) key — passively builds
-                    multi-key familiarity on Type 1; the answer key on
-                    transposition types. */}
+              {/* Full-loop summary as per-chord columns: Nashville number
+                  (colored by scale degree) directly above its Roman
+                  numeral directly above its concrete chord, so the eye
+                  reads all three forms of one chord together. Every
+                  charted chord is listed (same derivation as the bar grid
+                  below), wrapping when the loop is long. The "key of X"
+                  label is a single header to the left of the columns,
+                  bottom-aligned with the concrete (rotating-key) row. */}
+              <div className="flex flex-wrap justify-center items-stretch gap-x-3 gap-y-2">
                 {concreteKey && (
-                  <div className="text-sm text-neutral-700 dark:text-neutral-200 pt-0.5">
-                    <span className="text-neutral-400">In the key of {concreteKey}: </span>
-                    {current.chords.map(ch => renderConcrete(ch, concreteKey)).join(' · ')}
+                  <div className="flex flex-col justify-end leading-tight whitespace-nowrap pr-0.5 text-[11px] text-neutral-400">
+                    key of {concreteKey}:
                   </div>
                 )}
+                {current.chords.map((ch, i) => (
+                  <div key={i} className="flex flex-col items-center leading-tight whitespace-nowrap">
+                    <span className="text-base font-bold" style={{ color: degreeColor(ch) }}>
+                      {renderNumbers(ch)}
+                    </span>
+                    <span className="text-xs text-neutral-400">{renderRoman(ch)}</span>
+                    {concreteKey && (
+                      <span className="text-[11px] text-neutral-500">
+                        {renderConcrete(ch, concreteKey)}
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
 
               <ProgressionBarGrid song={current.song} section={current.section} />
