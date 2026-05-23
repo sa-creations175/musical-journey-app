@@ -22,6 +22,7 @@ import {
 import {
   SEMI_BY_DEGREE,
   isEmpty,
+  parseChordFunction,
   renderConcrete,
   renderNumbers,
   renderRoman,
@@ -357,6 +358,47 @@ export function pickDisplayKey(songKey: string | undefined, rng: Rng = Math.rand
   const own = (songKey ?? '').trim();
   const pool = own ? Array.from(new Set([...PRACTICE_KEYS, own])) : [...PRACTICE_KEYS];
   return pool[Math.floor(rng() * pool.length)] ?? own ?? 'C';
+}
+
+// --- Typed-answer checking (Types 5a / 5b) ---------------------------
+
+/**
+ * Normalize a chord-quality string so common shorthands compare equal:
+ *   m7 = min7 = -7,  dom7 = 7,  maj7 = M7 = Δ7 = ma7,
+ *   ø = m7b5,  ° = dim,  + = aug.
+ * The major-seventh markers are folded BEFORE lowercasing so "M7" (major)
+ * stays distinct from "m7" (minor).
+ */
+export function normalizeChordQuality(quality: string): string {
+  let s = quality.replace(/\s+/g, '');
+  // Major-seventh markers → "maj" (case-sensitive: bare "M" only when
+  // followed by an extension digit, so it can't swallow minor "m").
+  s = s.replace(/^(?:maj|Maj|MAJ|Ma|ma|M(?=[0-9])|Δ|△)/, 'maj');
+  s = s.toLowerCase();
+  s = s.replace(/^dom/, ''); // dom7 → 7
+  if (!s.startsWith('maj')) s = s.replace(/^(?:min|-)/, 'm'); // min7 → m7, -7 → m7
+  s = s.replace(/^ø/, 'm7b5').replace(/^°/, 'dim').replace(/^\+/, 'aug');
+  return s;
+}
+
+/**
+ * True when a user-typed concrete chord matches `correct` in `key`.
+ * Compares by SCALE DEGREE (so enharmonic roots — Db = C#, Bb = A# — and
+ * any spelling match) plus normalized quality (m7 = min7, dom7 = 7, …)
+ * and bass. Empty / unparseable input never matches.
+ */
+export function chordAnswerMatches(
+  typed: string,
+  correct: ChordFunction,
+  key: string,
+): boolean {
+  const t = parseChordFunction(typed, key);
+  if (!t || t.unparsed) return false;
+  if (t.function !== correct.function) return false;
+  if (normalizeChordQuality(t.quality) !== normalizeChordQuality(correct.quality)) {
+    return false;
+  }
+  return (t.bass ?? '') === (correct.bass ?? '');
 }
 
 // --- Scale-degree color (bar-grid coloring) --------------------------

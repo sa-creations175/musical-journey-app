@@ -20,6 +20,7 @@ import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
   buildBarCountOptions,
   buildProgressionChoices,
+  chordAnswerMatches,
   degreeColor,
   pickDisplayKey,
   pickTransposeKey,
@@ -108,6 +109,10 @@ export default function ChordProgressionQuizDrill({
   const [answeredIndex, setAnsweredIndex] = useState<number | null>(null);
   const [selectedRating, setSelectedRating] = useState<QuizRating | null>(null);
   const [saving, setSaving] = useState(false);
+  // Typed-input state for the transposition types (5a / 5b): one entry
+  // per box, plus per-box correctness once checked.
+  const [typedAnswers, setTypedAnswers] = useState<string[]>([]);
+  const [boxResults, setBoxResults] = useState<boolean[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -139,10 +144,27 @@ export default function ChordProgressionQuizDrill({
     [current, allItems],
   );
 
+  const isObjective = question?.type === 'mc' || question?.type === 'barcount';
+  const transposeKey =
+    question?.type === 'transpose-scaffold' || question?.type === 'transpose-full'
+      ? question.targetKey
+      : undefined;
+  // Which key to render concrete chord letters in on the reveal:
+  //   · recall (Type 1) — a rotating display key (incl. the song's own),
+  //     so each recall builds familiarity in a different key.
+  //   · transpose (5a/5b) — the prompted target key.
+  //   · mc / bar-count — none (those stay key-agnostic).
+  const concreteKey =
+    question?.type === 'recall' ? question.displayKey : transposeKey;
+  const answeredCorrectly =
+    !!question && isObjective && answeredIndex === (question as { correctIndex: number }).correctIndex;
+
   const advance = () => {
     const next = idx + 1;
     setAnsweredIndex(null);
     setSelectedRating(null);
+    setTypedAnswers([]);
+    setBoxResults(null);
     if (queue && next < queue.length) {
       setIdx(next);
       setPhase('prompt');
@@ -151,8 +173,7 @@ export default function ChordProgressionQuizDrill({
     }
   };
 
-  // Reveal for the self-rated types (recall / transpose) — no answer to
-  // score, so the rating starts blank.
+  // Reveal for pure recall (Type 1) — no answer to score, rating blank.
   const reveal = () => setPhase('reveal');
 
   // Answer an objective question: score it, pre-fill the rating, reveal.
@@ -161,6 +182,27 @@ export default function ChordProgressionQuizDrill({
     setSelectedRating(ratingFromCorrectness(correct));
     setPhase('reveal');
   };
+
+  // Submit typed transposition answers: grade each box (enharmonic +
+  // shorthand tolerant), then reveal. The rating stays blank — the user
+  // still self-reports (right-but-unsure / wrong-but-understood).
+  const submitTyped = () => {
+    if (!current || !transposeKey) return;
+    const n = Math.min(current.chords.length, MAX_SUMMARY_CHORDS);
+    setBoxResults(
+      current.chords
+        .slice(0, n)
+        .map((ch, i) => chordAnswerMatches(typedAnswers[i] ?? '', ch, transposeKey)),
+    );
+    setPhase('reveal');
+  };
+
+  const setBox = (i: number, value: string) =>
+    setTypedAnswers(prev => {
+      const next = prev.slice();
+      next[i] = value;
+      return next;
+    });
 
   const submitRating = async () => {
     if (!current || selectedRating == null || saving) return;
@@ -180,21 +222,6 @@ export default function ChordProgressionQuizDrill({
       setSaving(false);
     }
   };
-
-  const isObjective = question?.type === 'mc' || question?.type === 'barcount';
-  const transposeKey =
-    question?.type === 'transpose-scaffold' || question?.type === 'transpose-full'
-      ? question.targetKey
-      : undefined;
-  // Which key to render concrete chord letters in on the reveal:
-  //   · recall (Type 1) — a rotating display key (incl. the song's own),
-  //     so each recall builds familiarity in a different key.
-  //   · transpose (5a/5b) — the prompted target key.
-  //   · mc / bar-count — none (those stay key-agnostic).
-  const concreteKey =
-    question?.type === 'recall' ? question.displayKey : transposeKey;
-  const answeredCorrectly =
-    !!question && isObjective && answeredIndex === (question as { correctIndex: number }).correctIndex;
 
   return (
     <Modal
@@ -240,7 +267,7 @@ export default function ChordProgressionQuizDrill({
           </div>
 
           {/* ---- PROMPT phase ---- */}
-          {phase === 'prompt' && (question.type === 'recall' || question.type === 'transpose-full') && (
+          {phase === 'prompt' && question.type === 'recall' && (
             <button
               type="button"
               onClick={reveal}
@@ -250,20 +277,42 @@ export default function ChordProgressionQuizDrill({
             </button>
           )}
 
-          {phase === 'prompt' && question.type === 'transpose-scaffold' && (
+          {/* Transposition (5a / 5b): one input box per chord (capped at 6).
+              5a shows the Nashville number above each box as scaffolding;
+              5b shows nothing. Type the concrete chord in the target key. */}
+          {phase === 'prompt' && transposeKey && (
             <div className="space-y-3">
-              {/* Numbers shown as scaffolding — recall the concrete chords. */}
-              <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
-                {current.chords.map((ch, i) => (
-                  <span key={i}>{renderNumbers(ch)}</span>
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-3">
+                {current.chords.slice(0, MAX_SUMMARY_CHORDS).map((ch, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1">
+                    {question.type === 'transpose-scaffold' && (
+                      <span className="text-sm font-bold" style={{ color: degreeColor(ch) }}>
+                        {renderNumbers(ch)}
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      value={typedAnswers[i] ?? ''}
+                      onChange={e => setBox(i, e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') submitTyped();
+                      }}
+                      placeholder="?"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      aria-label={`chord ${i + 1}`}
+                      className="w-16 px-1.5 py-1.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-center text-sm focus:border-fluent focus:outline-none"
+                    />
+                  </div>
                 ))}
               </div>
               <button
                 type="button"
-                onClick={reveal}
+                onClick={submitTyped}
                 className="w-full px-3 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
               >
-                Reveal
+                Check
               </button>
             </div>
           )}
@@ -313,6 +362,29 @@ export default function ChordProgressionQuizDrill({
                       {' '}— {current.barCount} bars
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Typed-answer grading (5a / 5b): each box marked ✓/✗. The
+                  full correct answer follows in the summary below. */}
+              {transposeKey && boxResults && (
+                <div className="space-y-1">
+                  <div className="text-[11px] uppercase tracking-wide text-neutral-500 text-center">
+                    your answer
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
+                    {boxResults.map((ok, i) => (
+                      <span
+                        key={i}
+                        className={`inline-flex items-center gap-1 text-sm font-medium ${
+                          ok ? 'text-fluent' : 'text-needswork'
+                        }`}
+                      >
+                        {typedAnswers[i]?.trim() || '—'}
+                        <span aria-hidden>{ok ? '✓' : '✗'}</span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 

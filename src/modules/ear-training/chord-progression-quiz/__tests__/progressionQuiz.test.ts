@@ -10,9 +10,11 @@ import {
   PRACTICE_KEYS,
   buildBarCountOptions,
   buildProgressionChoices,
+  chordAnswerMatches,
   collapseProgression,
   concreteLine,
   degreeColor,
+  normalizeChordQuality,
   hasChartData,
   mostCompleteArrangementId,
   parseQuizItemRef,
@@ -160,6 +162,48 @@ describe('degreeColor', () => {
     const fourth = degreeColor(cf('4'));
     expect(root).toMatch(/^#/);
     expect(root).not.toBe(fourth);
+  });
+});
+
+describe('normalizeChordQuality (shorthand equivalence)', () => {
+  it('folds minor / dominant / major-7 shorthands', () => {
+    expect(normalizeChordQuality('min7')).toBe(normalizeChordQuality('m7'));
+    expect(normalizeChordQuality('dom7')).toBe(normalizeChordQuality('7'));
+    expect(normalizeChordQuality('maj7')).toBe(normalizeChordQuality('M7'));
+    expect(normalizeChordQuality('min7b5')).toBe(normalizeChordQuality('m7b5'));
+  });
+
+  it('keeps major-7 distinct from minor-7 (M7 ≠ m7)', () => {
+    expect(normalizeChordQuality('M7')).not.toBe(normalizeChordQuality('m7'));
+  });
+});
+
+describe('chordAnswerMatches (Type 5a/5b checking)', () => {
+  it('accepts the exact concrete chord in the target key', () => {
+    // I in G = G; the V7 in G = D7.
+    expect(chordAnswerMatches('G', cf('1'), 'G')).toBe(true);
+    expect(chordAnswerMatches('D7', cf('5', '7'), 'G')).toBe(true);
+  });
+
+  it('accepts enharmonic roots (Eb = D#)', () => {
+    // b3 of C is D#/Eb; either spelling is correct.
+    expect(chordAnswerMatches('Ebm7', cf('b3', 'm7'), 'C')).toBe(true);
+    expect(chordAnswerMatches('D#m7', cf('b3', 'm7'), 'C')).toBe(true);
+  });
+
+  it('accepts quality shorthand (m7 = min7, dom7 = 7)', () => {
+    expect(chordAnswerMatches('Am7', cf('6', 'min7'), 'C')).toBe(true);
+    expect(chordAnswerMatches('Gdom7', cf('5', '7'), 'C')).toBe(true);
+  });
+
+  it('rejects the wrong root or wrong quality', () => {
+    expect(chordAnswerMatches('F', cf('1'), 'G')).toBe(false); // wrong root
+    expect(chordAnswerMatches('Gm7', cf('1', 'maj7'), 'G')).toBe(false); // wrong quality
+  });
+
+  it('rejects empty / unparseable input', () => {
+    expect(chordAnswerMatches('', cf('1'), 'G')).toBe(false);
+    expect(chordAnswerMatches('???', cf('1'), 'G')).toBe(false);
   });
 });
 
