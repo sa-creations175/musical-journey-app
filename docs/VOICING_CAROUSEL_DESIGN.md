@@ -2,10 +2,13 @@
 
 Musical Journey App · Repertoire / lead sheet · authored 2026-05-23
 
-> Status: **Steps 1–3 COMPLETE & committed — awaiting go for Step 4 (sync polish).**
-> O1 resolved: no data rewrite (§5). O2 resolved: "Save to library" is global
-> per quality. Step 3 added a position counter ("N of M" over the full
-> candidate set) and a synthetic "Custom" slide for hand-edited voicings. Authored by Claude Code from the locked decisions
+> Status: **Steps 1–4 COMPLETE & committed — feature shipped.** O1 resolved:
+> no data rewrite (§5). O2 resolved: "Save to library" is global per quality.
+> Step 3 added a position counter ("N of M" over the full candidate set) and a
+> synthetic "Custom" slide for hand-edited voicings. Step 4 added an
+> end-to-end user-pattern sync test, a "≈ closest match" note for unknown
+> qualities, and a read-view voicing cue (dot on voiced chord cells); the
+> pinned→user→system ordering already landed in Step 3. Authored by Claude Code from the locked decisions
 > Silas supplied plus a read-only audit of the current voicing storage, chord
 > editor, `PianoKeyboard`, `voicingColors`, and the mental-viz library. Build
 > runs in the 4-step sequence in §8; `npm run build` before every commit.
@@ -314,11 +317,14 @@ finalize in Step 1; the seeder is the source of truth, asserted by tests.
 - Reuses `PianoKeyboard` (absolute, read-only per slide; editable on the
   "custom" slide).
 
-**Step 4 — User-pattern sync + ordering polish + edges.**
-- Carousel order: pinned → user → system (by `sortOrder`).
-- Confirm user patterns sync via `voicing_patterns`; empty/unknown-quality
-  states; lead-sheet read view reflects the selected voicing.
-- Final tests + build.
+**Step 4 — User-pattern sync + ordering polish + edges. ✅ DONE**
+- Carousel order pinned → user → system: landed in Step 3 (`orderVoicingCandidates`).
+- Confirmed user patterns sync via `voicing_patterns` through the real write
+  hooks (system rows skipped) — `voicingPatternsSyncHooks.test.ts`.
+- Unknown quality → "≈ closest match: <label>" note in the carousel.
+- Lead-sheet read view: a small dot on chord cells that have a voicing set.
+- Empty/loading states already handled (faint keyboard; "set the song key").
+- Final tests + build green.
 
 ---
 

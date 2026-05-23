@@ -22,6 +22,7 @@ import { pitchClassOf } from './chordParser';
 import { chordRootNote, normalizeVoicing, sanitizeVoicing } from './voicingHelpers';
 import PianoKeyboard from '../../components/PianoKeyboard';
 import { qualityIdFromSuffix } from '../shapes-and-patterns/voicingQualityMap';
+import { CHORD_QUALITY_BY_ID } from '../shapes-and-patterns/catalog';
 import {
   loadVoicingCandidates,
   orderVoicingCandidates,
@@ -1680,6 +1681,7 @@ function ChordCellBox({
   extraClassName?: string;
 }) {
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
+  const hasVoicing = Boolean(cell.voicing && cell.voicing.length > 0);
   const palette = colorForFunction(cell.chord);
   const roundedLeft = !cell.tiedFromPrev;
   const roundedRight = !cell.tiedToNext;
@@ -1717,12 +1719,19 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
+      className={`relative flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none min-w-[72px] shrink-0 ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${extraClassName ?? ''}`}
       style={baseStyle}
       title={cell.chord.raw ?? text}
     >
+      {hasVoicing && !ghosted && (
+        <span
+          aria-label="voicing set"
+          title="Voicing set"
+          className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-fluent"
+        />
+      )}
       <div className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}>
         {text ? <ChordGlyph text={text} /> : <span className="opacity-40">—</span>}
       </div>
@@ -1852,7 +1861,13 @@ function ChordEditorPopover({
 
   // --- Voicing carousel: candidate patterns for this chord's quality ---
   // Live so the set updates when the user saves a pattern or pins/unpins.
-  const qualityId = qualityIdFromSuffix(cell.chord.quality).id;
+  const qualityMatch = qualityIdFromSuffix(cell.chord.quality);
+  const qualityId = qualityMatch.id;
+  // When the chord's quality isn't a known one, we voice the nearest base —
+  // name it so the user knows the candidates are a best-effort match.
+  const approxLabel = qualityMatch.exact
+    ? null
+    : CHORD_QUALITY_BY_ID.get(qualityId)?.label ?? qualityId;
   const pinnedIds = cell.pinnedVoicingIds ?? [];
   const pinnedKey = pinnedIds.join('|');
   const candidates = useLiveQuery(
@@ -2189,6 +2204,11 @@ function ChordEditorPopover({
             </div>
           ) : (
             <div onClick={e => e.stopPropagation()} className="space-y-1">
+              {approxLabel && (
+                <p className="text-[10px] text-neutral-400 italic text-center">
+                  ≈ closest match: {approxLabel}
+                </p>
+              )}
               <PianoKeyboard
                 rootPc={rootPc}
                 preferFlats={preferFlats}
