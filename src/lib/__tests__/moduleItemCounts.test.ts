@@ -58,8 +58,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 84 + nn 24 + ks 40 + pent 7 + tt 12 + enh 30 = 197', () => {
-    expect(c.byGroup.foundational).toBe(197);
+  it('foundational = sdm 84 + nn 24 + ks 40 + pent 7 + tt 12 + enh 35 = 202', () => {
+    expect(c.byGroup.foundational).toBe(202);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 15 = 55', () => {
@@ -74,8 +74,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(54);
   });
 
-  it('total = 369 across all 15 categories', () => {
-    expect(c.total).toBe(369);
+  it('total = 374 across all 15 categories', () => {
+    expect(c.total).toBe(374);
   });
 
   it('total equals sum of group totals', () => {

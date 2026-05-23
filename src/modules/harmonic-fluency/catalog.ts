@@ -1434,42 +1434,39 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
     });
   }
 
-  // Interval-name equivalents — same distance, two spellings; context
-  // decides which reads correctly in a given chord/scale.
+  // Interval-name equivalents — same pitch distance, different spellings;
+  // context decides which reads correctly. Several are THREE-way: the
+  // same pitch has a chord-tone, an altered, and an extension spelling.
+  // One card per spelling ("equivalent of X?" → the other member(s)).
   const intervalPool = [
-    'b6', '#5', 'b5', '#4', 'b3', '#2', 'b10', '#9', '6', 'b7', '7', '5', '4', '3', '2',
+    '2', 'b2', '#2', '3', 'b3', '4', '#4', 'b5', '5', '#5', 'b6', '6',
+    'b7', '7', '9', 'b9', '#9', '11', '#11', '13', 'b13',
   ];
-  const intervalDecoys = (correct: string) =>
-    makeDecoys(shuffleArray(intervalPool.filter(n => n !== correct)), correct);
-  const intervalPairs: Array<[string, string, string]> = [
-    ['#5', 'b6', 'Spell #5 in augmented / altered-dominant chords; b6 in minor or borrowed-from-minor contexts.'],
-    ['#4', 'b5', '#4 (Lydian, ♯11) when raising the 4th; b5 (altered dominant, half-diminished) when lowering the 5th.'],
-    ['#2', 'b3', '#2 as a raised/blue 2nd passing tone; b3 as the minor third of the chord or scale.'],
-    ['#9', 'b10', '#9 — the "Hendrix" altered-dominant tension; b10 names the same pitch as a lowered 10th.'],
-    ['##5', '6', '##5 (double-sharp 5) only in extreme raised-degree spellings; 6 is the everyday major-sixth name.'],
-    ['bb7', '6', 'bb7 (double-flat 7) appears in fully-diminished 7th spelling; 6 is the plain major-sixth name.'],
+  const intervalDecoys = (correct: string, members: readonly string[]) =>
+    makeDecoys(shuffleArray(intervalPool.filter(n => !members.includes(n))), correct);
+  const intervalGroups: Array<{ members: string[]; context: string }> = [
+    { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
+    { members: ['b2', 'b9'], context: 'b2 for a Phrygian / sus flavour; b9 as the altered-dominant tension. Same pitch, different role.' },
+    { members: ['#2', 'b3', '#9'], context: 'All the minor-third pitch: b3 as the chord’s third, #2 as a raised-2nd passing tone, #9 as the "Hendrix" altered-dominant tension. Context decides the spelling.' },
+    { members: ['4', '11'], context: 'Same pitch an octave apart — "4" in sus/add voicings, "11" in extended chords.' },
+    { members: ['#4', 'b5', '#11'], context: 'The tritone: #4 (Lydian, raising the 4th), b5 (altered dominant / half-diminished, lowering the 5th), #11 (the extended-chord name). Context decides the spelling.' },
+    { members: ['6', '13'], context: 'Same pitch an octave apart — "6" in sixth chords, "13" in extended dominants.' },
+    { members: ['b6', '#5', 'b13'], context: 'The augmented-fifth sound: #5 (augmented / altered dominant), b6 (minor / borrowed), b13 (the extended-dominant name). Context decides the spelling.' },
   ];
-  for (const [x, y, ctx] of intervalPairs) {
-    cards.push({
-      id: `enh-i-${i++}`,
-      category: 'enharmonic-equivalents',
-      categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
-      question: `Enharmonic equivalent of ${x}?`,
-      correctAnswer: y,
-      decoys: intervalDecoys(y),
-      explanation: `${x} = ${y} — same interval distance, different spelling. ${ctx}`,
-      skillTag: `enharmonic-interval-${x}`,
-    });
-    cards.push({
-      id: `enh-i-${i++}`,
-      category: 'enharmonic-equivalents',
-      categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
-      question: `Enharmonic equivalent of ${y}?`,
-      correctAnswer: x,
-      decoys: intervalDecoys(x),
-      explanation: `${y} = ${x} — same interval distance, different spelling. ${ctx}`,
-      skillTag: `enharmonic-interval-${y}`,
-    });
+  for (const { members, context } of intervalGroups) {
+    for (const m of members) {
+      const answer = members.filter(x => x !== m).join(' / ');
+      cards.push({
+        id: `enh-i-${i++}`,
+        category: 'enharmonic-equivalents',
+        categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
+        question: `Enharmonic equivalent of ${m}?`,
+        correctAnswer: answer,
+        decoys: intervalDecoys(answer, members),
+        explanation: `${members.join(' = ')} — same pitch distance, different spelling. ${context}`,
+        skillTag: `enharmonic-interval-${m}`,
+      });
+    }
   }
 
   return cards;
