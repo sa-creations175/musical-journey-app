@@ -67,6 +67,7 @@ import {
   type TimeSig,
 } from '../../lib/metronome';
 import { ensureRunning } from '../../lib/audio';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 
 const PRACTICE_SESSIONS_REF = 'practice-sessions';
@@ -246,6 +247,21 @@ export default function ActiveSessionScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status, state.currentBlockIndex]);
 
+  // Chord-quiz warm-up's song title for the prep card. Derived from the
+  // reducer state (not the post-guard `currentBlock`) and queried here,
+  // above the early returns, so the hook runs unconditionally every
+  // render. Resolves the lone itemRef (a raw songId) to a readable name.
+  const chordQuizBlock =
+    state.currentBlockIndex !== null ? state.blocks[state.currentBlockIndex] : null;
+  const chordQuizSongId =
+    chordQuizBlock?.quickLaunchRoute?.startsWith('/ear-training/chord-progression-quiz')
+      ? (chordQuizBlock.itemRefs?.[0] ?? null)
+      : null;
+  const chordQuizSong = useLiveQuery(
+    () => (chordQuizSongId ? db.songs.get(chordQuizSongId) : undefined),
+    [chordQuizSongId],
+  );
+
   // idle + armed: render nothing for the one frame until the start
   // hook promotes the session to running. idle + not armed: the
   // effect above is routing us home; render nothing meanwhile.
@@ -305,12 +321,22 @@ export default function ActiveSessionScreen() {
   const isProductionLessonBlock =
     currentBlock.moduleRef === 'production' && lessonRefs.length > 0;
 
+  // Chord-quiz warm-ups quiz a song's progressions across all its
+  // sections — the drill walks all of them, so there's no meaningful
+  // per-item time split, and the lone itemRef is a raw songId (which
+  // buildPrepItemBreakdown can't label). Skip the breakdown and show the
+  // song name (resolved by the chordQuizSong query above, falling back to
+  // the raw id while it loads / if unresolved).
+  const isChordQuizBlock = chordQuizSongId !== null;
+  const chordQuizSongTitle = chordQuizSong?.title ?? chordQuizSongId;
+
   // Per-item breakdown of the (adjusted) drill budget — the prep card's
   // source of truth, reused by GO auto-nav as the drill playlist (which
   // cell, how long). null when there's nothing to itemize.
-  const itemBreakdown = isProductionLessonBlock
-    ? null
-    : buildPrepItemBreakdown(currentBlock.itemRefs, adjustedDrillSec, currentBlock.moduleRef);
+  const itemBreakdown =
+    isProductionLessonBlock || isChordQuizBlock
+      ? null
+      : buildPrepItemBreakdown(currentBlock.itemRefs, adjustedDrillSec, currentBlock.moduleRef);
 
   // Production lessons: resolve readable titles for the "Up next" line +
   // the "N more queued" count. itemRefs are spacing-ordered lesson ids
@@ -618,6 +644,19 @@ export default function ActiveSessionScreen() {
                   {moreLessonsQueued} more lesson{moreLessonsQueued === 1 ? '' : 's'} queued
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Chord-quiz warm-up — the song whose progressions get quizzed
+              (all charted sections). No per-section split. */}
+          {isChordQuizBlock && chordQuizSongTitle && (
+            <div className="border-t border-neutral-200/70 dark:border-neutral-800 pt-3 space-y-1">
+              <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+                song
+              </span>
+              <p className="text-sm text-neutral-700 dark:text-neutral-200">
+                {chordQuizSongTitle}
+              </p>
             </div>
           )}
 

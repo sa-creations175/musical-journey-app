@@ -1947,11 +1947,12 @@ function toProposalBlocks(
               inlineActionTarget: 'goals' as const,
             }
           : {}),
-        // Other Repertoire splits inherit the parent block's
-        // keyboard requirement (always true for the Repertoire
-        // module — scale-prep, chord-quiz, and matrix practice are
-        // all keyboard activities).
-        isKeyboardRequired: block.isKeyboardRequired,
+        // Chord-quiz warm-ups are away-from-keyboard (the progression
+        // recall quiz), so they get the non-keyboard count-in and no
+        // time-signature / metronome prep controls. Every other
+        // Repertoire split inherits the parent's keyboard requirement
+        // (scale-prep, matrix practice, song practice are all played).
+        isKeyboardRequired: s.kind === 'chord-quiz' ? false : block.isKeyboardRequired,
       }));
     }
   }
