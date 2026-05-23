@@ -79,6 +79,7 @@ const PRACTICE_SESSIONS_HOME_ROUTE = '/practice-sessions';
 const SESSION_AUTOSTART_MODULES: ReadonlySet<string> = new Set([
   'harmonic-fluency',
   'production',
+  'chord-progression-quiz',
 ]);
 
 // Prep-screen time-adjustment pills. Deltas in seconds; the reducer

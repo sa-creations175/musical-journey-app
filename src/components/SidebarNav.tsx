@@ -127,6 +127,7 @@ const NAV_GROUPS: NavGroup[] = [
               { label: 'full progression',  to: '/ear-training/chord-progressions?tab=full-progression' },
             ],
           },
+          { id: 'chord-progression-quiz', label: 'progression quiz', to: '/ear-training/chord-progression-quiz' },
           { id: 'scales-modes',      label: 'scales & modes',    to: '/ear-training/scales-modes' },
         ],
       },

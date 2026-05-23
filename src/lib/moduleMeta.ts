@@ -16,6 +16,7 @@ export type ModuleId =
   | 'intervals'
   | 'chord-recognition'
   | 'chord-progressions'
+  | 'chord-progression-quiz'
   | 'scales-modes'
   | 'shapes-and-patterns'
   | 'repertoire'
@@ -212,6 +213,20 @@ export const EAR_TRAINING_SUBMODULES: ModuleMeta[] = [
     id: 'chord-progressions',
     label: 'chord progressions',
     route: '/ear-training/chord-progressions',
+    icon: '♪',
+    iconName: 'ear',
+    accentToken: 'teal',
+    accentHex: '#5a8752',
+    status: 'live',
+  },
+  {
+    // Repertoire progression-RECALL drill (distinct from the aural
+    // 'chord-progressions' quiz above); route + identity for session
+    // block navigation. moduleRef matches sessionDesign's reserved
+    // CHORD_PROGRESSION_QUIZ_MODULE_REF.
+    id: 'chord-progression-quiz',
+    label: 'progression quiz',
+    route: '/ear-training/chord-progression-quiz',
     icon: '♪',
     iconName: 'ear',
     accentToken: 'teal',

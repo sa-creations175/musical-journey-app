@@ -70,10 +70,11 @@ describe('contextFactorForModule — per-context weight tables', () => {
     expect(contextFactorForModule('unknown-future-module', 'laptop')).toBe(1.0);
   });
 
-  it('chord-progression-quiz placeholder is 0 (excluded) on phone + laptop until built', () => {
-    // Pending feature — see TODO in contextWeighting.ts.
-    expect(contextFactorForModule('chord-progression-quiz', 'laptop')).toBe(0);
-    expect(contextFactorForModule('chord-progression-quiz', 'phone')).toBe(0);
+  it('chord-progression-quiz is active (neutral weight) on phone + laptop', () => {
+    // Feature shipped — weight flipped 0 → neutral (CHORD_PROGRESSION_QUIZ
+    // _PHONE_LAPTOP_FACTOR in sessionDesign.ts).
+    expect(contextFactorForModule('chord-progression-quiz', 'laptop')).toBe(1.0);
+    expect(contextFactorForModule('chord-progression-quiz', 'phone')).toBe(1.0);
   });
 
   it("'full' context: keyboard modules neutral, cognitive modules carry laptop weights", () => {

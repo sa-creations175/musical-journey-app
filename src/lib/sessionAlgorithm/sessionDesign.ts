@@ -195,11 +195,12 @@ export const KEYS_DEFAULT_ALLOWED_MODULES: ReadonlySet<string> = new Set([
   REPERTOIRE_MODULE_REF,
 ]);
 
-/** Placeholder reserved for the chord-progression-quiz module that
- *  isn't yet built. Weight 0 (excluded) on phone + laptop until the
- *  feature ships. */
+/** The chord-progression-quiz module (repertoire progression recall).
+ *  Now built and active on phone + laptop — neutral weight so it
+ *  participates without dominating; tune up once real sessions show how
+ *  much progression review the user wants. */
 const CHORD_PROGRESSION_QUIZ_MODULE_REF = 'chord-progression-quiz';
-export const CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR = 0;
+export const CHORD_PROGRESSION_QUIZ_PHONE_LAPTOP_FACTOR = 1.0;
 
 export const KEYS_FACTORS: Readonly<Record<string, number>> = {
   [SHAPES_MODULE_REF]:                      CONTEXT_FACTOR_NEUTRAL,
