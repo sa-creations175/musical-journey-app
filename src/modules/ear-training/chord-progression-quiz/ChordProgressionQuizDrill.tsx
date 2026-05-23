@@ -12,6 +12,11 @@ import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../../components/Modal';
 import { recordEngagement } from '../../../lib/spacingState';
 import {
+  renderConcrete,
+  renderNumbers,
+  renderRoman,
+} from '../../repertoire/chordFunction';
+import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
   buildBarCountOptions,
   buildProgressionChoices,
@@ -253,11 +258,22 @@ export default function ChordProgressionQuizDrill({
                 </div>
               )}
 
-              <div className="space-y-1.5 text-center">
-                <div className="text-base font-semibold text-neutral-800 dark:text-neutral-100">
-                  {current.romanLine}
-                </div>
-                <div className="text-sm text-neutral-500">{current.concreteLine}</div>
+              {/* Full progression, chord-by-chord (no collapsing held
+                  chords — show the whole loop). Nashville number is the
+                  primary label; Roman numeral + concrete chord sit
+                  beneath in smaller text. */}
+              <div className="flex flex-wrap justify-center gap-x-4 gap-y-3">
+                {current.chords.map((ch, i) => (
+                  <div key={i} className="text-center leading-tight">
+                    <div className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
+                      {renderNumbers(ch)}
+                    </div>
+                    <div className="text-xs text-neutral-400">{renderRoman(ch)}</div>
+                    <div className="text-[11px] text-neutral-500">
+                      {renderConcrete(ch, current.song.key)}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <ProgressionBarGrid song={current.song} section={current.section} />

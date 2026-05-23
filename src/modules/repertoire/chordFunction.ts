@@ -246,8 +246,16 @@ export function renderRoman(cf: ChordFunction): string {
   // literal "m". Handle the common cases pragmatically.
   let quality = cf.quality;
   const qLower = quality.toLowerCase();
-  if (qLower.startsWith('m') && !qLower.startsWith('maj')) {
-    // Drop the leading "m" since the lowercase numeral implies minor.
+  // Drop the redundant leading "m" since the lowercase numeral already
+  // implies minor — but ONLY the short form ("m", "m7", "m9"). The long
+  // form ("min7") must be kept whole: slicing one char would leave
+  // "in7", rendering e.g. vimin7 as the garbled "viin7". "maj…" is never
+  // a minor marker.
+  if (
+    qLower.startsWith('m') &&
+    !qLower.startsWith('maj') &&
+    !qLower.startsWith('min')
+  ) {
     quality = quality.slice(1);
   }
   let out = roman + quality;
