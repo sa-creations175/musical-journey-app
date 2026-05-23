@@ -367,9 +367,8 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
       <div className="min-h-[1.5rem]">
         {answered && current ? (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-center space-y-1">
               <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
-              <span className="text-neutral-400">·</span>
               <span className="text-sm">
                 <span className="font-medium">{current.interval.name}</span>
                 <span className="text-neutral-400 ml-1.5 font-mono text-xs">{current.interval.id}</span>

@@ -352,7 +352,7 @@ export default function ChordProgressionQuizDrill({
           {phase === 'reveal' && (
             <div className="space-y-4">
               {isObjective && (
-                <div className="flex items-center justify-center gap-2 text-sm">
+                <div className="text-center text-sm space-y-1">
                   <AnswerVerdict state={answeredCorrectly ? 'correct' : 'incorrect'} />
                   {question.type === 'barcount' && (
                     <span className="text-neutral-500">— {current.barCount} bars</span>

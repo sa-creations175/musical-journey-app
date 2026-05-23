@@ -576,7 +576,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       {/* Feedback */}
       {hasAnswered && (
         <div className="space-y-2">
-          <div className="text-sm">
+          <div className="text-sm text-center space-y-1">
             {chosen === card.correctAnswer ? (
               <AnswerVerdict state="correct" />
             ) : chosen === null ? (
@@ -585,7 +585,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               <AnswerVerdict state="incorrect" />
             )}
             {chosen !== card.correctAnswer && (
-              <span className="ml-3 text-xs text-neutral-500">
+              <span className="text-xs text-neutral-500">
                 correct answer: <span className="font-mono text-fluent">{card.correctAnswer}</span>
               </span>
             )}

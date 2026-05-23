@@ -379,9 +379,8 @@ function VampReveal({ mode, wasCorrect }: { mode: Mode; wasCorrect: boolean }) {
   const topSongs = mode.songExamples.slice(0, 3);
   return (
     <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 text-sm">
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="text-center space-y-1">
         <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
-        <span className="text-neutral-400">·</span>
         <span className="font-medium">{mode.name}</span>
         <span className="text-xs text-neutral-500">{mode.signatureAlteration}</span>
       </div>

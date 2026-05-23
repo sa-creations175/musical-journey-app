@@ -359,9 +359,8 @@ export default function KeyDetectionTab({ attempts }: Props) {
 
       {runState === 'reveal' && round && (
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-center space-y-1">
             <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
-            <span className="text-neutral-400">·</span>
             <span>
               the tonal centre is{' '}
               <span className="font-medium text-fluent">
