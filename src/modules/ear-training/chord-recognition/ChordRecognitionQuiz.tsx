@@ -25,6 +25,7 @@ import ItemSelectionPanel, {
 } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import PianoKeyboard from '../../../components/PianoKeyboard';
 import {
   INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_LABEL,
@@ -847,6 +848,20 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
                 <span className="text-neutral-400 ml-1.5 font-mono text-xs">{displayedFormula}</span>
               </span>
             </div>
+            {/* The exact chord that was played — root + quality + inversion,
+                colored by interval. Terminal phases only, so it never spoils
+                the inversion question on quality-correct-awaiting-inversion. */}
+            {cardIsTerminal && (
+              <div className="pt-1">
+                <PianoKeyboard
+                  rootPc={((current.rootMidi % 12) + 12) % 12}
+                  voicing={rotateForInversion(current.chord.intervals, current.inversion)}
+                  absoluteOffsets
+                  octaves={4}
+                  preferFlats={false}
+                />
+              </div>
+            )}
             <div className={descIsCustom ? 'italic' : ''}>
               <span className="text-neutral-500 text-xs uppercase tracking-wide mr-2">sound</span>
               {activeDesc}
