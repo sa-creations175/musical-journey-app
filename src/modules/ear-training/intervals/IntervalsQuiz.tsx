@@ -17,6 +17,7 @@ import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import PianoKeyboard from '../../../components/PianoKeyboard';
 
 const MODULE_ID = 'intervals';
 const PREF_FOCUS_SELECTION = 'intervalsFocusSelection';
@@ -376,6 +377,21 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
                 <span className="text-neutral-400 ml-1.5 font-mono text-xs">{current.interval.id}</span>
                 <span className="text-neutral-500 ml-2">({directionLabel})</span>
               </span>
+            </div>
+            {/* The two notes you heard, on a keyboard: root + the interval
+                above it (same keys for both directions — see playInterval).
+                The arrow conveys the playback direction. */}
+            <div className="space-y-1">
+              <PianoKeyboard
+                rootPc={((current.rootMidi % 12) + 12) % 12}
+                voicing={[0, current.interval.semitones]}
+                absoluteOffsets
+                octaves={3}
+                preferFlats={false}
+              />
+              <div className="text-xs text-neutral-400 text-center">
+                {current.direction === 'asc' ? '↑' : '↓'} {directionLabel}
+              </div>
             </div>
             <div className={anchorIsCustom ? 'italic' : ''}>
               <span className="text-neutral-500 text-xs uppercase tracking-wide mr-2">anchor</span>
