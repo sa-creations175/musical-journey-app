@@ -18,7 +18,7 @@ import type {
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
 import { pitchClassOf } from './chordParser';
 import { chordRootNote, normalizeVoicing } from './voicingHelpers';
-import PianoKeyboard from './PianoKeyboard';
+import PianoKeyboard from '../../components/PianoKeyboard';
 import { useNotationMode } from '../../lib/notationPref';
 import {
   type Bar,

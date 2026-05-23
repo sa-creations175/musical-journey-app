@@ -1,6 +1,7 @@
-// Three-octave piano keyboard for the bar-grid chord-edit popover's
-// voicing display (Lead Sheet Redesign, May 2026 —
-// docs/LEAD_SHEET_REDESIGN.md).
+// Three-octave piano keyboard with chord-tone interval coloring. Shared
+// by the lead-sheet bar-grid voicing editor (repertoire/BarGridView) and
+// the mental-viz chord library reveal — both import it from here so the
+// coloring stays identical.
 //
 // Voicings are octave-aware semitone offsets from the chord root:
 // offset = pcOffsetFromRoot + 12 * displayOctave, so 0–11 = the first
@@ -18,9 +19,13 @@
 // root (R, 3, 5, 7…).
 
 import { useState } from 'react';
-import type { VoicingEntry, VoicingHand } from '../../lib/db';
-import { intervalColor, normalizeVoicing } from './voicingHelpers';
-import { NOTE_NAMES_FLAT, NOTE_NAMES_SHARP } from './chordFunction';
+import type { VoicingEntry, VoicingHand } from '../lib/db';
+import {
+  NOTE_NAMES_FLAT,
+  NOTE_NAMES_SHARP,
+  intervalColor,
+  normalizeVoicing,
+} from '../lib/voicingColors';
 
 // Left-hand tones render at this fraction of the per-note color.
 const LEFT_HAND_OPACITY = 0.65;

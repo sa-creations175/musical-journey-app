@@ -7,7 +7,6 @@
 // scale degree and convert between note names and offsets so a voicing
 // entered in one key transposes automatically when the key changes.
 
-import type { VoicingEntry } from '../../lib/db';
 import {
   NOTE_NAMES_FLAT,
   NOTE_NAMES_SHARP,
@@ -17,44 +16,11 @@ import {
 } from './chordFunction';
 import { pitchClassOf } from './chordParser';
 
-// Chord-relative interval → highlight color for the piano voicing
-// editor. A key is colored by its semitone distance from the chord
-// root, so enharmonic/octave equivalents share a color (b2≡b9, #4≡b5,
-// #5≡b6, #9≡m3, 4≡11, 6≡13).
-const INTERVAL_COLOR: Record<number, string> = {
-  0: '#0F6E56',  // root — deep green
-  1: '#E24B4A',  // b2 / b9 — red (dissonant tension)
-  2: '#D4537E',  // maj 2nd / 9th — pink
-  3: '#5DCAA5',  // min 3rd / #9 — teal green
-  4: '#97C459',  // maj 3rd — light green
-  5: '#534AB7',  // perfect 4th / 11th — purple
-  6: '#E24B4A',  // #4 / b5 / tritone — red (max tension)
-  7: '#888780',  // perfect 5th — gray (structural)
-  8: '#185FA5',  // #5 / b6 — deep blue
-  9: '#378ADD',  // maj 6th / 13th — bright blue
-  10: '#BA7517', // min 7th / dom 7th — deep amber
-  11: '#FAC775', // maj 7th — light amber
-};
-
-/** Highlight color for a chord tone by its interval (in semitones) from
- *  the chord root. Input is normalized into 0–11, so any octave or
- *  enharmonic spelling maps to the same color. */
-export function intervalColor(semitones: number): string {
-  const s = ((semitones % 12) + 12) % 12;
-  return INTERVAL_COLOR[s];
-}
-
-/** Normalize a stored voicing (which may hold legacy plain-number
- *  offsets) to `VoicingEntry[]`. Legacy numbers are read as right-hand
- *  tones. */
-export function normalizeVoicing(
-  voicing: ReadonlyArray<number | VoicingEntry> | undefined,
-): VoicingEntry[] {
-  if (!voicing) return [];
-  return voicing.map(v =>
-    typeof v === 'number' ? { offset: v, hand: 'R' } : v,
-  );
-}
+// The interval-coloring system + voicing normalization moved to the
+// shared lib/voicingColors so the relocated PianoKeyboard (now a shared
+// component) can import them without depending on this repertoire
+// module. Re-exported here so existing repertoire callers are unchanged.
+export { intervalColor, normalizeVoicing } from '../../lib/voicingColors';
 
 /** Resolve the concrete root note name for a chord from the song key
  *  and the chord's scale degree (e.g. "4maj7" in B → degree "4" →
