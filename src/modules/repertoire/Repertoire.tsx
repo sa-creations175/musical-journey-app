@@ -7,6 +7,7 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import { migrateSongsToMatrixIfNeeded } from './matrixMigration';
 import { seedRepertoireIfNeeded } from './seedSongs';
+import { seedVoicingPatternsIfNeeded } from '../shapes-and-patterns/seedVoicingPatterns';
 import ActiveRepertoireView from './ActiveRepertoireView';
 import SongDetailView from './SongDetailView';
 import WantToLearnView from './WantToLearnView';
@@ -41,6 +42,12 @@ export default function Repertoire() {
   useEffect(() => {
     seedRepertoireIfNeeded().catch(err => {
       console.error('[repertoire] seed failed', err);
+    });
+    // Seed the system voicing-pattern catalog the lead-sheet voicing
+    // carousel draws from (idempotent; system rows never sync). See
+    // docs/VOICING_CAROUSEL_DESIGN.md.
+    seedVoicingPatternsIfNeeded().catch(err => {
+      console.error('[repertoire] voicing-pattern seed failed', err);
     });
   }, []);
 

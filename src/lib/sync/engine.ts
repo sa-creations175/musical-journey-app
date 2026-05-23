@@ -190,6 +190,18 @@ export async function enqueue(
   rowId: string,
   rowData: unknown,
 ): Promise<void> {
+  // Code-seeded "system" rows never sync — they're rebuilt from code on
+  // every device (e.g. voicingPatterns; see VOICING_CAROUSEL_DESIGN.md).
+  // Skipping at this single boundary covers BOTH the live write-hooks and
+  // the initial backfill (both funnel through here). No-op for every other
+  // table — none else carries an `isSystem` flag.
+  if (
+    operation === 'upsert' &&
+    rowData != null &&
+    (rowData as { isSystem?: unknown }).isSystem === true
+  ) {
+    return;
+  }
   const item: SyncQueueItem = {
     tableName,
     operation,

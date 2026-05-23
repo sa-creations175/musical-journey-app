@@ -210,6 +210,14 @@ export const SYNC_TABLES: SyncTableConfig[] = [
       { dexie: 'engagedAt', pg: 'engaged_at' },
       { dexie: 'practiceSessionId', pg: 'practice_session_id' },
     ] },
+  // -----------------------------------------------------------------
+  // Voicing carousel (docs/VOICING_CAROUSEL_DESIGN.md). Only user-saved
+  // patterns (isSystem: false) reach the cloud — code-seeded system rows
+  // are skipped at the `enqueue` boundary (see engine.ts), so this PG
+  // table only ever holds user rows. See migration 005_voicing_patterns.sql.
+  // -----------------------------------------------------------------
+  { dexie: 'voicingPatterns', pg: 'voicing_patterns', idField: 'id',
+    topLevel: [{ dexie: 'qualityId', pg: 'quality_id' }] },
 ];
 
 /** Dexie table name → config lookup. */

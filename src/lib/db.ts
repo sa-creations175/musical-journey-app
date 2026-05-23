@@ -420,6 +420,43 @@ export interface ChordPlacement {
   voicing?: Array<number | VoicingEntry>;
 }
 
+/**
+ * A reusable piano-voicing shape for one chord quality — the unit the
+ * lead-sheet voicing carousel offers as candidate voicings (see
+ * docs/VOICING_CAROUSEL_DESIGN.md). Offsets use the CANONICAL convention:
+ * absolute semitones above the chord root with hand assignment, identical
+ * in shape to the mental-viz library items (rendered via PianoKeyboard's
+ * `absoluteOffsets` mode). Key-agnostic — applied at a placement's
+ * resolved root at render time.
+ *
+ * `isSystem: true` rows are seeded from code (see
+ * shapes-and-patterns/seedVoicingPatterns.ts) and NEVER synced to Supabase
+ * (the sync `enqueue` boundary skips them). `isSystem: false` rows are
+ * user-saved and sync to the `voicing_patterns` table.
+ */
+export interface VoicingPattern {
+  /** System: deterministic `vp:sys:<qualityId>:<tag>` (stable across
+   *  devices). User: crypto.randomUUID(). */
+  id: string;
+  /** Catalog quality id — a key of QUALITY_INTERVALS ('maj','min7',
+   *  'dom9',…), NOT the user-typed suffix. Map a stored
+   *  ChordFunction.quality suffix to this via qualityIdFromSuffix. */
+  qualityId: string;
+  /** Carousel label, e.g. 'Root position', '1st inversion', 'dom9(13) — A'. */
+  label: string;
+  /** Voicing tones as absolute semitones above the root, with hand. */
+  offsets: VoicingEntry[];
+  /** true = code-seeded; never enqueued to the cloud. */
+  isSystem: boolean;
+  /** Carousel order within a quality (system rows by this; user rows after). */
+  sortOrder: number;
+  /** Provenance: 'triad-inv' | 'seventh-inv' | 'extended-dom' |
+   *  'extension' | 'special' | 'user'. */
+  source: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 /** One lyric line placed on the bar grid (Lead Sheet Redesign step 6,
  *  May 2026 — docs/LEAD_SHEET_REDESIGN.md). A line owns a range of
  *  beats (start to end inclusive in document order) and a list of
@@ -1860,6 +1897,8 @@ export class AppDB extends Dexie {
   activeSessionDraft!: Table<ActiveSessionDraft, string>;
   // Pre-acceptance proposal draft for refresh recovery — v26
   proposalDraft!: Table<ProposalDraft, string>;
+  // Reusable voicing shapes for the lead-sheet voicing carousel — v27
+  voicingPatterns!: Table<VoicingPattern, string>;
 
   constructor() {
     super('musical-journey');
@@ -2853,6 +2892,17 @@ export class AppDB extends Dexie {
     // declared.
     this.version(26).stores({
       proposalDraft: 'key',
+    });
+
+    // v27 — reusable voicing patterns for the lead-sheet voicing carousel.
+    // Delta on top of v26; only the new table is declared. System rows are
+    // code-seeded (never synced); user rows sync to voicing_patterns.
+    // `isSystem` is NOT indexed: IndexedDB keys can't be booleans (Dexie
+    // skips such index entries — cf. songMatrixSections.isArchived, which is
+    // likewise filtered in JS, never queried by index). The carousel queries
+    // by [qualityId+sortOrder]; isSystem is filtered in memory.
+    this.version(27).stores({
+      voicingPatterns: 'id, qualityId, [qualityId+sortOrder]',
     });
   }
 }
