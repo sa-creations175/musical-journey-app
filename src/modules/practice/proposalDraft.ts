@@ -16,16 +16,21 @@ import type { BehindPaceNotice } from '../../lib/sessionAlgorithm/weeklyPace';
 
 export const PROPOSAL_DRAFT_KEY = 'current';
 
-/** Restorable session-creation screens (home / goals-need are not
- *  persisted — they're the entry points, not in-flight work). */
-export type ProposalDraftView = 'questionnaire' | 'abundance' | 'proposal';
+/** Restorable session-creation screens (home is the entry point, not
+ *  in-flight work, so it isn't persisted). */
+export type ProposalDraftView =
+  | 'goals-need'
+  | 'questionnaire'
+  | 'abundance'
+  | 'proposal';
 
 /**
  * The slice of PracticeSessions state needed to restore the user to
- * whichever session-creation screen they were on (questionnaire,
- * abundance path-choice, or proposal). Transient UI bits (dismissed
- * pace modules, feasibility entries) are intentionally NOT persisted —
- * they reset/reload cheaply on restore.
+ * whichever session-creation screen they were on (goals-need,
+ * questionnaire, abundance path-choice, or proposal). Transient UI bits
+ * (dismissed pace modules, feasibility entries, hasEarlierSessionsToday)
+ * are intentionally NOT persisted — they reset/reload cheaply on
+ * restore.
  */
 export interface ProposalDraftSnapshot {
   /** Which screen to restore to. */

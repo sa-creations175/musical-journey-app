@@ -218,15 +218,16 @@ export default function PracticeSessions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persist the active session-creation screen (questionnaire /
-  // abundance / proposal); clear it once the user leaves to home /
-  // goals-need or accepts (accept clears separately — it navigates away
+  // Persist the active session-creation screen (goals-need /
+  // questionnaire / abundance / proposal); clear it once the user leaves
+  // to home or accepts (accept clears separately — it navigates away
   // without a view change). The location.key reset → view='home' clears
   // it here on nav-away too. Gated on hydratedRef so the initial 'home'
   // render can't wipe the draft before the restore reads it.
   useEffect(() => {
     if (!hydratedRef.current) return;
     const persistable =
+      view === 'goals-need' ||
       view === 'questionnaire' ||
       view === 'abundance' ||
       (view === 'proposal' && proposals.length > 0);

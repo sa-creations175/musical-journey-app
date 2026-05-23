@@ -59,6 +59,13 @@ describe('proposalDraft persistence', () => {
     expect(restored!.proposals[0].title).toBe('Balanced');
   });
 
+  it('round-trips the goals-need view (no proposals)', async () => {
+    await writeProposalDraft({ ...snapshot, view: 'goals-need', proposals: [] });
+    const restored = await readProposalDraft();
+    expect(restored!.view).toBe('goals-need');
+    expect(restored!.proposals).toHaveLength(0);
+  });
+
   it('round-trips the captured view + questionnaire seeds', async () => {
     await writeProposalDraft({
       ...snapshot,
