@@ -13,8 +13,9 @@ import type { MemoryType } from '../db';
  */
 
 describe('MODULE_MEMORY_TYPES', () => {
-  it('contains exactly the 13 canonical module refs', () => {
+  it('contains exactly the 14 canonical module refs', () => {
     expect(Object.keys(MODULE_MEMORY_TYPES).sort()).toEqual([
+      'chord-progression-quiz',
       'chord-progressions',
       'chord-recognition',
       'glossary',
@@ -55,6 +56,9 @@ describe('getMemoryType — procedural modules', () => {
   });
   it('mental-viz → procedural (rating-based chord-library drill)', () => {
     expect(getMemoryType('mental-viz')).toBe('procedural');
+  });
+  it('chord-progression-quiz → procedural (rating-based progression recall)', () => {
+    expect(getMemoryType('chord-progression-quiz')).toBe('procedural');
   });
 });
 

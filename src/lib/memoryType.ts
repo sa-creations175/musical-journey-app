@@ -62,6 +62,13 @@ export const MODULE_MEMORY_TYPES: Readonly<Record<string, MemoryType>> = Object.
   // 'shapes-and-patterns' so its SM-2 rows never count toward keyboard
   // S&P coverage or blocks.
   'mental-viz':          'procedural',
+  // Chord-progression recall quiz — recall a repertoire section's
+  // progression (Pure Recall is self-rated Flying/Cruising/Crawling;
+  // the multiple-choice / bar-count types pre-fill that rating from
+  // correctness), so it's procedural (the rating signal requires it).
+  // Distinct from the ear-training 'chord-progressions' AURAL quiz —
+  // separate SM-2 rows, per section per song.
+  'chord-progression-quiz': 'procedural',
 
   // Integration — multi-skill synthesis under real-world conditions.
   'repertoire':          'integration',
