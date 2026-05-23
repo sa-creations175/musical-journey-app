@@ -447,6 +447,6 @@ describe('dimensionRowsFor — Harmonic Fluency', () => {
   it('Breadth = all uses "cards" not "items"', () => {
     const rows = dimensionRowsFor(draftFor('harmonic-fluency', { harmonicFluency: baseHf }));
     expect(rows[0].value).toContain('cards');
-    expect(rows[0].value).toContain('374');
+    expect(rows[0].value).toContain('375');
   });
 });

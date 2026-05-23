@@ -62,8 +62,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.foundational).toBe(202);
   });
 
-  it('chordKnowledge = dq 20 + cc 20 + sc 15 = 55', () => {
-    expect(c.byGroup.chordKnowledge).toBe(55);
+  it('chordKnowledge = dq 20 + cc 20 + sc 16 = 56', () => {
+    expect(c.byGroup.chordKnowledge).toBe(56);
   });
 
   it('functionalApplied = fh 19 + rkp 24 + pr 20 = 63', () => {
@@ -74,8 +74,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(54);
   });
 
-  it('total = 374 across all 15 categories', () => {
-    expect(c.total).toBe(374);
+  it('total = 375 across all 15 categories', () => {
+    expect(c.total).toBe(375);
   });
 
   it('total equals sum of group totals', () => {
