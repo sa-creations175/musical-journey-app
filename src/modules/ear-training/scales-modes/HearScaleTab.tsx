@@ -15,6 +15,7 @@ import { recordEngagement } from '../../../lib/spacingState';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 import { MODES, modeById, pickDecoys, type Mode } from './catalog';
 import { playModeScale, scaleDurationSeconds, type ModePlaybackHandle } from './modeAudio';
 import {
@@ -333,9 +334,7 @@ function ScaleReveal({ mode, wasCorrect }: { mode: Mode; wasCorrect: boolean }) 
   return (
     <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 text-sm">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={`text-xs font-medium uppercase tracking-wide ${wasCorrect ? 'text-fluent' : 'text-needswork'}`}>
-          {wasCorrect ? '✓ correct' : '✗ not quite'}
-        </span>
+        <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
         <span className="text-neutral-400">·</span>
         <span className="font-medium">{mode.name}</span>
         <span className="text-xs text-neutral-500">{mode.signatureAlteration}</span>

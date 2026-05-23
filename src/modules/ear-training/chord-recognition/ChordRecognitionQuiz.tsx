@@ -26,6 +26,7 @@ import ItemSelectionPanel, {
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import PianoKeyboard from '../../../components/PianoKeyboard';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 import {
   INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_LABEL,
@@ -839,9 +840,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         {qualityLocked && current ? (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-medium uppercase tracking-wide ${qualityCorrect ? 'text-fluent' : 'text-needswork'}`}>
-                {qualityCorrect ? 'correct' : 'not quite'}
-              </span>
+              <AnswerVerdict state={qualityCorrect ? 'correct' : 'incorrect'} />
               <span className="text-neutral-400">·</span>
               <span>
                 <span className="font-medium">{chordIdentityText}</span>
@@ -878,17 +877,15 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
               </p>
             )}
             {inversionAnswered && current && (
-              <div className="text-xs">
-                {inversionCorrect ? (
-                  <span className="text-fluent font-medium">
-                    ✓ inversion: {INVERSION_LABEL[current.inversion]}
-                  </span>
-                ) : (
-                  <span className="text-needswork">
-                    × not quite — that was {INVERSION_LABEL[current.inversion].toLowerCase()}
-                  </span>
-                )}
-              </div>
+              <AnswerVerdict
+                state={inversionCorrect ? 'correct' : 'incorrect'}
+                size="sm"
+                label={
+                  inversionCorrect
+                    ? `inversion: ${INVERSION_LABEL[current.inversion]}`
+                    : `that was ${INVERSION_LABEL[current.inversion].toLowerCase()}`
+                }
+              />
             )}
           </div>
         ) : hasPlayed ? (

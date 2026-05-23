@@ -19,6 +19,7 @@ import {
 } from '../../../lib/goalConfig';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 import ItemSelectionPanel, {
   type FilterConfig,
   type FilterOption,
@@ -1035,9 +1036,11 @@ function RevealCard({
           </span>
         )}
         {patternAnswered !== null && (
-          <span className={patternCorrect ? 'text-fluent' : 'text-needswork'}>
-            pattern: {patternCorrect ? '✓ correct' : '✗ wrong'}
-          </span>
+          <AnswerVerdict
+            state={patternCorrect ? 'correct' : 'incorrect'}
+            size="sm"
+            label="pattern"
+          />
         )}
       </div>
 

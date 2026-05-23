@@ -22,6 +22,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
+import AnswerVerdict from '../../components/AnswerVerdict';
 
 export type TimerMode = 'off' | '5' | '10' | '15';
 
@@ -577,11 +578,11 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
         <div className="space-y-2">
           <div className="text-sm">
             {chosen === card.correctAnswer ? (
-              <span className="text-fluent font-medium">✓ correct</span>
+              <AnswerVerdict state="correct" />
             ) : chosen === null ? (
-              <span className="text-needswork font-medium">× timed out</span>
+              <AnswerVerdict state="incorrect" label="Timed out" />
             ) : (
-              <span className="text-needswork font-medium">× not quite</span>
+              <AnswerVerdict state="incorrect" />
             )}
             {chosen !== card.correctAnswer && (
               <span className="ml-3 text-xs text-neutral-500">

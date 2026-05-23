@@ -7,6 +7,7 @@ import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref } from '../../../lib/userPrefs';
 import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import SpeedControl from '../../../components/SpeedControl';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 import { PROGRESSIONS, type Progression } from './catalog';
 import {
   KEYS,
@@ -359,9 +360,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
       {runState === 'reveal' && round && (
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-medium uppercase tracking-wide ${wasCorrect ? 'text-fluent' : 'text-needswork'}`}>
-              {wasCorrect ? '✓ correct' : '✗ not quite'}
-            </span>
+            <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
             <span className="text-neutral-400">·</span>
             <span>
               the tonal centre is{' '}

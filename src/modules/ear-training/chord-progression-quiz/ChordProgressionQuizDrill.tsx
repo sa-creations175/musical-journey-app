@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../../components/Modal';
 import { recordEngagement } from '../../../lib/spacingState';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 import { renderConcrete, renderNumbers } from '../../repertoire/chordFunction';
 import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
@@ -351,16 +352,10 @@ export default function ChordProgressionQuizDrill({
           {phase === 'reveal' && (
             <div className="space-y-4">
               {isObjective && (
-                <div
-                  className={`text-center text-sm font-medium ${
-                    answeredCorrectly ? 'text-fluent' : 'text-needswork'
-                  }`}
-                >
-                  {answeredCorrectly ? 'Correct' : 'Not quite'}
+                <div className="flex items-center justify-center gap-2 text-sm">
+                  <AnswerVerdict state={answeredCorrectly ? 'correct' : 'incorrect'} />
                   {question.type === 'barcount' && (
-                    <span className="text-neutral-500 font-normal">
-                      {' '}— {current.barCount} bars
-                    </span>
+                    <span className="text-neutral-500">— {current.barCount} bars</span>
                   )}
                 </div>
               )}
@@ -374,14 +369,13 @@ export default function ChordProgressionQuizDrill({
                   </div>
                   <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5">
                     {boxResults.map((ok, i) => (
-                      <span
-                        key={i}
-                        className={`inline-flex items-center gap-1 text-sm font-medium ${
-                          ok ? 'text-fluent' : 'text-needswork'
-                        }`}
-                      >
-                        {typedAnswers[i]?.trim() || '—'}
-                        <span aria-hidden>{ok ? '✓' : '✗'}</span>
+                      <span key={i} className="inline-flex items-center gap-1.5 text-sm">
+                        <span className="font-mono">{typedAnswers[i]?.trim() || '—'}</span>
+                        <AnswerVerdict
+                          state={ok ? 'correct' : 'incorrect'}
+                          size="sm"
+                          label=""
+                        />
                       </span>
                     ))}
                   </div>

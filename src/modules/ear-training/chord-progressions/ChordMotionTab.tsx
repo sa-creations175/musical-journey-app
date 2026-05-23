@@ -9,6 +9,7 @@ import SpeedControl from '../../../components/SpeedControl';
 import KeyboardVisual, { type HighlightedNote } from '../../../components/KeyboardVisual';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 import AssociationsEditor from './AssociationsEditor';
 import IntervalDescriptionEditor from './IntervalDescriptionEditor';
 import {
@@ -690,11 +691,6 @@ export default function ChordMotionTab({ attempts }: Props) {
     return out;
   }, [round, runState, verdict, useFlats, clickedStart, clickedDest]);
 
-  const feedbackColor = verdict?.fullCredit
-    ? 'text-fluent'
-    : verdict && (verdict.firstCorrect || verdict.destCorrect)
-      ? 'text-developing'
-      : 'text-needswork';
 
   return (
     <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
@@ -1023,13 +1019,15 @@ export default function ChordMotionTab({ attempts }: Props) {
                   practice rep — not tracked
                 </div>
               )}
-              <div className={`text-xs font-medium uppercase tracking-wide ${feedbackColor}`}>
-                {verdict.fullCredit
-                  ? '✓ correct'
-                  : verdict.firstCorrect || verdict.destCorrect
-                    ? '~ half credit'
-                    : '✗ not quite'}
-              </div>
+              <AnswerVerdict
+                state={
+                  verdict.fullCredit
+                    ? 'correct'
+                    : verdict.firstCorrect || verdict.destCorrect
+                      ? 'partial'
+                      : 'incorrect'
+                }
+              />
               <div className="space-y-1">
                 <div className="text-base">
                   You went{' '}
@@ -1050,18 +1048,22 @@ export default function ChordMotionTab({ attempts }: Props) {
                 </p>
               </div>
               {round.scaffold === 'minimal' && verdict && (
-                <div className="text-xs text-neutral-500 space-y-0.5">
-                  <div>
-                    starting note:{' '}
-                    <span className={verdict.firstCorrect ? 'text-fluent' : 'text-needswork'}>
-                      {verdict.firstCorrect ? '✓' : '✗'}
-                    </span>
+                <div className="text-xs text-neutral-500 space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    starting note:
+                    <AnswerVerdict
+                      state={verdict.firstCorrect ? 'correct' : 'incorrect'}
+                      size="sm"
+                      label=""
+                    />
                   </div>
-                  <div>
-                    destination:{' '}
-                    <span className={verdict.destCorrect ? 'text-fluent' : 'text-needswork'}>
-                      {verdict.destCorrect ? '✓' : '✗'}
-                    </span>
+                  <div className="flex items-center gap-1.5">
+                    destination:
+                    <AnswerVerdict
+                      state={verdict.destCorrect ? 'correct' : 'incorrect'}
+                      size="sm"
+                      label=""
+                    />
                   </div>
                 </div>
               )}

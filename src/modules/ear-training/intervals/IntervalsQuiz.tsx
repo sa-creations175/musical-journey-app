@@ -21,6 +21,7 @@ import PianoKeyboard, {
   keyCenterX,
   keyboardViewBoxWidth,
 } from '../../../components/PianoKeyboard';
+import AnswerVerdict from '../../../components/AnswerVerdict';
 
 const MODULE_ID = 'intervals';
 const PREF_FOCUS_SELECTION = 'intervalsFocusSelection';
@@ -367,13 +368,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
         {answered && current ? (
           <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span
-                className={`text-xs font-medium uppercase tracking-wide ${
-                  wasCorrect ? 'text-fluent' : 'text-needswork'
-                }`}
-              >
-                {wasCorrect ? 'correct' : 'not quite'}
-              </span>
+              <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
               <span className="text-neutral-400">·</span>
               <span className="text-sm">
                 <span className="font-medium">{current.interval.name}</span>
