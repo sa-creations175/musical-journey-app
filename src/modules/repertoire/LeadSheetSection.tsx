@@ -386,6 +386,17 @@ export default function LeadSheetSection({
     await commit({ chordPlacements: next });
   };
 
+  const handleChordVoicingPinsChange = async (
+    placementId: string,
+    pinnedVoicingIds: string[],
+  ) => {
+    const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
+    const next = updateChordPlacement(placements, realPlacementId, {
+      pinnedVoicingIds,
+    });
+    await commit({ chordPlacements: next });
+  };
+
   // Chord drag onto another chord = swap positions (Option C). The
   // two placements exchange (barIndex, beatPos); chord metadata
   // travels with each placement so nothing else changes. A swap
@@ -1003,6 +1014,7 @@ export default function LeadSheetSection({
               onChordTagChange={handleChordTagChange}
               onChordDelete={handleChordDelete}
               onChordVoicingChange={handleChordVoicingChange}
+              onChordVoicingPinsChange={handleChordVoicingPinsChange}
               onCopyChord={handleCopyChord}
               copiedChord={copiedChord}
               chordsAreSortable

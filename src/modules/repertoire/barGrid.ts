@@ -200,6 +200,12 @@ export interface BarCell {
    *  `ChordPlacement.voicing` — octave-aware offset/hand entries, with
    *  legacy plain numbers tolerated. Undefined for legacy cells. */
   voicing?: Array<number | VoicingEntry>;
+  /** Mirrors `ChordPlacement.voicingPatternId` — which carousel pattern the
+   *  current voicing came from (provenance/highlight). */
+  voicingPatternId?: string;
+  /** Mirrors `ChordPlacement.pinnedVoicingIds` — patterns pinned to this
+   *  placement, surfaced first in the voicing carousel. */
+  pinnedVoicingIds?: string[];
 }
 
 export interface Bar {
@@ -465,6 +471,8 @@ function deriveBarGridAnchored(
       beatPos: p.beatPos,
       placementId: p.id,
       voicing: p.voicing,
+      voicingPatternId: p.voicingPatternId,
+      pinnedVoicingIds: p.pinnedVoicingIds,
     }));
     bars.push({ index: i, cells, isEmpty: cells.length === 0 });
   }

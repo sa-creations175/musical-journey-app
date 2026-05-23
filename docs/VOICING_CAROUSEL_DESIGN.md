@@ -2,8 +2,10 @@
 
 Musical Journey App · Repertoire / lead sheet · authored 2026-05-23
 
-> Status: **Steps 1–2 COMPLETE & committed — awaiting go for Step 3 (carousel UI).**
-> O1 (migration) resolved: no data rewrite (§5). Authored by Claude Code from the locked decisions
+> Status: **Steps 1–3 COMPLETE & committed — awaiting go for Step 4 (sync polish).**
+> O1 resolved: no data rewrite (§5). O2 resolved: "save as pattern" is global
+> per quality. Step 3 added a position counter ("N of M" over the full
+> candidate set) and a synthetic "Custom" slide for hand-edited voicings. Authored by Claude Code from the locked decisions
 > Silas supplied plus a read-only audit of the current voicing storage, chord
 > editor, `PianoKeyboard`, `voicingColors`, and the mental-viz library. Build
 > runs in the 4-step sequence in §8; `npm run build` before every commit.
