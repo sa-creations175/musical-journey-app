@@ -1,14 +1,16 @@
 // SM-2 drill queue for the Chord Progression Quiz. The item set is
-// dynamic — one entry per quizzable repertoire section (a section with
-// chords actually charted) — so the queue is enumerated from the user's
-// songs at load time, then ordered like the other SR drills: unseen
-// first, then most-overdue, then soonest-future.
+// dynamic — one entry per (quizzable repertoire section × question type)
+// — so the queue is enumerated from the user's songs at load time, then
+// ordered like the other SR drills: unseen first, then most-overdue,
+// then soonest-future. Each (section, type) is an independent SM-2 row,
+// so a section's easy types can surface before its hard ones.
 
 import type { ChordFunction, Song, SongSection } from '../../../lib/db';
 import { db } from '../../../lib/db';
 import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
-  concreteLine,
+  QUIZ_TYPES,
+  type QuizType,
   hasChartData,
   progressionSignature,
   quizItemRef,
@@ -17,19 +19,24 @@ import {
   sectionChords,
 } from './progressionQuiz';
 
+/** A multiple-choice item needs at least this many distinct distractor
+ *  progressions from OTHER songs to be worth posing. */
+const MC_MIN_DISTRACTORS = 3;
+
 export interface ProgressionQuizItem {
-  /** SM-2 itemRef (cpq:<songId>:<sectionId>). */
+  /** SM-2 itemRef (cpq:<songId>:<sectionId>:<type>). */
   itemRef: string;
+  /** Which question type this item poses. */
+  type: QuizType;
   song: Song;
   section: SongSection;
-  /** "[Song] — [Section]" prompt label. */
+  /** "[Song] — [Section]" prompt label (the drill appends "in the key of
+   *  X" for transposition types). */
   prompt: string;
   /** Ordered chords as charted (for the bar-grid reveal). */
   chords: ChordFunction[];
   /** "I - vi - ii - V7" — the answer line + multiple-choice comparison key. */
   romanLine: string;
-  /** "Cm - Ab - Dm7b5 - G7" for the song's key. */
-  concreteLine: string;
   /** Key-independent progression signature (for distractor de-duping). */
   signature: string;
   /** Bar count from the derived grid (Type 4 answer). */
@@ -41,15 +48,26 @@ export interface QuizSpacingRow {
   nextDueAt: number | null;
 }
 
-/** Build a quiz item per quizzable section (chart data present), joining
- *  each section to its song. Sections whose song is missing or that have
- *  no charted chords are skipped. Pure. */
+/** Base per-section data, before fanning out to typed items. */
+interface SectionBase {
+  song: Song;
+  section: SongSection;
+  prompt: string;
+  chords: ChordFunction[];
+  romanLine: string;
+  signature: string;
+  barCount: number;
+}
+
+/** Build quiz items: one per (quizzable section × applicable type).
+ *  Sections whose song is missing or that have no charted chords are
+ *  skipped. The multiple-choice type is only emitted for sections that
+ *  have enough distinct distractor progressions in OTHER songs. Pure. */
 export function enumerateQuizItems(
   songs: ReadonlyArray<Song>,
   sections: ReadonlyArray<SongSection>,
 ): ProgressionQuizItem[] {
   const songById = new Map(songs.map(s => [s.id, s]));
-  const items: ProgressionQuizItem[] = [];
   // Stable order: by song learning-order then section order, so the
   // enumeration tie-break in the queue is deterministic.
   const ordered = sections.slice().sort((a, b) => {
@@ -60,24 +78,55 @@ export function enumerateQuizItems(
     if (la !== lb) return la - lb;
     return a.order - b.order;
   });
+
+  const bases: SectionBase[] = [];
   for (const section of ordered) {
     const song = songById.get(section.songId);
     if (!song) continue;
     if (!hasChartData(song, section)) continue;
     const chords = sectionChords(song, section);
-    items.push({
-      itemRef: quizItemRef(song.id, section.id),
+    bases.push({
       song,
       section,
       prompt: `${song.title} — ${section.name}`,
       chords,
       romanLine: romanLine(chords),
-      concreteLine: concreteLine(chords, song.key),
       signature: progressionSignature(chords),
       barCount: sectionBarCount(song, section),
     });
   }
+
+  const items: ProgressionQuizItem[] = [];
+  for (const base of bases) {
+    const types = applicableTypes(base, bases);
+    for (const type of types) {
+      items.push({
+        itemRef: quizItemRef(base.song.id, base.section.id, type),
+        type,
+        song: base.song,
+        section: base.section,
+        prompt: base.prompt,
+        chords: base.chords,
+        romanLine: base.romanLine,
+        signature: base.signature,
+        barCount: base.barCount,
+      });
+    }
+  }
   return items;
+}
+
+/** Which question types apply to a section. All types apply except `mc`,
+ *  which needs enough distinct distractor progressions from other songs. */
+function applicableTypes(target: SectionBase, all: ReadonlyArray<SectionBase>): QuizType[] {
+  const distinctOtherLines = new Set<string>();
+  for (const b of all) {
+    if (b.song.id === target.song.id) continue;
+    if (b.romanLine === target.romanLine) continue;
+    distinctOtherLines.add(b.romanLine);
+  }
+  const mcViable = distinctOtherLines.size >= MC_MIN_DISTRACTORS;
+  return QUIZ_TYPES.filter(t => t !== 'mc' || mcViable);
 }
 
 /**

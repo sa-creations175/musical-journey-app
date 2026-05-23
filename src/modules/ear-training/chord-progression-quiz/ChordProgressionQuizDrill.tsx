@@ -1,25 +1,26 @@
 // Chord Progression Quiz drill (SM-2 queue). Walks the due-ordered queue
-// of repertoire sections and, per card, poses one of three question
-// types (design spec):
-//   · Pure Recall  — recall the progression, reveal, self-rate.
-//   · Multiple Choice — pick the progression (distractors from other
-//     songs); the rating is pre-filled from correctness, overridable.
-//   · Bar Count — how many bars is the section; same pre-filled rating.
-// Every rating records a procedural SM-2 engagement under the
+// of (section × question type) items and poses each one's type:
+//   · Recall (1)        — name the progression, reveal, self-rate.
+//   · Multiple Choice (2) — pick the progression (distractors from other
+//     songs); rating pre-filled from correctness, overridable.
+//   · Bar Count (4)     — how many bars; same pre-filled rating.
+//   · Transpose scaffold (5a) — numbers shown, recall the concrete chords
+//     in a target key.
+//   · Transpose full (5b)     — nothing shown, recall numbers + chords in
+//     a target key.
+// Each (section, type) is its own SM-2 row (itemRef carries the type).
+// Every rating records a procedural engagement under the
 // 'chord-progression-quiz' moduleRef. The session banner owns the time.
 
 import { useEffect, useMemo, useState } from 'react';
 import Modal from '../../../components/Modal';
 import { recordEngagement } from '../../../lib/spacingState';
-import {
-  renderConcrete,
-  renderNumbers,
-  renderRoman,
-} from '../../repertoire/chordFunction';
+import { renderConcrete, renderNumbers, renderRoman } from '../../repertoire/chordFunction';
 import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
   buildBarCountOptions,
   buildProgressionChoices,
+  pickTransposeKey,
   ratingFromCorrectness,
   type QuizRating,
 } from './progressionQuiz';
@@ -36,7 +37,9 @@ type Phase = 'loading' | 'prompt' | 'reveal' | 'done';
 type Question =
   | { type: 'recall' }
   | { type: 'mc'; options: string[]; correctIndex: number }
-  | { type: 'barcount'; options: number[]; correctIndex: number };
+  | { type: 'barcount'; options: number[]; correctIndex: number }
+  | { type: 'transpose-scaffold'; targetKey: string }
+  | { type: 'transpose-full'; targetKey: string };
 
 const RATINGS: ReadonlyArray<{ value: QuizRating; label: string; hint: string; cls: string }> = [
   { value: 'flying', label: 'Flying', hint: 'knew it cold',
@@ -47,22 +50,39 @@ const RATINGS: ReadonlyArray<{ value: QuizRating; label: string; hint: string; c
     cls: 'border-needswork/40 text-needswork hover:bg-needswork/10' },
 ];
 
-/** Choose a question type for an item and generate its data. Recall and
- *  Bar-Count are always available; Multiple-Choice needs ≥3 distractor
- *  progressions from other songs. */
+const TYPE_LABEL: Record<Question['type'], string> = {
+  recall: 'recall the progression',
+  mc: 'what is the progression?',
+  barcount: 'how many bars?',
+  'transpose-scaffold': 'recall the chords in this key',
+  'transpose-full': 'recall the numbers + chords',
+};
+
+/** Build the question data for an item's type. Objective types (mc /
+ *  barcount) carry their options; transpose types carry a target key
+ *  (a common practice key other than the song's own, rotating per card).
+ *  mc falls back to recall if a section somehow lacks distractors. */
 function buildQuestion(
   item: ProgressionQuizItem,
   allItems: ReadonlyArray<ProgressionQuizItem>,
   rng: () => number,
 ): Question {
-  const pool = distractorPoolFor(item, allItems);
-  const choices = pool.length >= 3 ? buildProgressionChoices(item.romanLine, pool, rng) : null;
-  const types: Question['type'][] = ['recall', 'barcount'];
-  if (choices) types.push('mc');
-  const chosen = types[Math.floor(rng() * types.length)];
-  if (chosen === 'mc' && choices) return { type: 'mc', ...choices };
-  if (chosen === 'barcount') return { type: 'barcount', ...buildBarCountOptions(item.barCount, rng) };
-  return { type: 'recall' };
+  switch (item.type) {
+    case 'mc': {
+      const pool = distractorPoolFor(item, allItems);
+      if (pool.length >= 3) return { type: 'mc', ...buildProgressionChoices(item.romanLine, pool, rng) };
+      return { type: 'recall' };
+    }
+    case 'barcount':
+      return { type: 'barcount', ...buildBarCountOptions(item.barCount, rng) };
+    case 'transpose-scaffold':
+      return { type: 'transpose-scaffold', targetKey: pickTransposeKey(item.song.key, rng) };
+    case 'transpose-full':
+      return { type: 'transpose-full', targetKey: pickTransposeKey(item.song.key, rng) };
+    case 'recall':
+    default:
+      return { type: 'recall' };
+  }
 }
 
 export default function ChordProgressionQuizDrill({
@@ -125,8 +145,9 @@ export default function ChordProgressionQuizDrill({
     }
   };
 
-  // Reveal for the recall type (no answer to score — rating starts blank).
-  const revealRecall = () => setPhase('reveal');
+  // Reveal for the self-rated types (recall / transpose) — no answer to
+  // score, so the rating starts blank.
+  const reveal = () => setPhase('reveal');
 
   // Answer an objective question: score it, pre-fill the rating, reveal.
   const answer = (optionIndex: number, correct: boolean) => {
@@ -154,8 +175,13 @@ export default function ChordProgressionQuizDrill({
     }
   };
 
+  const isObjective = question?.type === 'mc' || question?.type === 'barcount';
+  const transposeKey =
+    question?.type === 'transpose-scaffold' || question?.type === 'transpose-full'
+      ? question.targetKey
+      : undefined;
   const answeredCorrectly =
-    question && question.type !== 'recall' && answeredIndex === question.correctIndex;
+    !!question && isObjective && answeredIndex === (question as { correctIndex: number }).correctIndex;
 
   return (
     <Modal
@@ -188,26 +214,45 @@ export default function ChordProgressionQuizDrill({
         <div className="space-y-4">
           <div className="text-center">
             <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-              {question.type === 'barcount'
-                ? 'how many bars?'
-                : question.type === 'mc'
-                  ? 'what is the progression?'
-                  : 'recall the progression'}
+              {TYPE_LABEL[question.type]}
             </div>
             <div className="text-xl font-semibold text-neutral-800 dark:text-neutral-100 mt-1">
               {current.prompt}
             </div>
+            {transposeKey && (
+              <div className="text-sm text-fluent font-medium mt-0.5">
+                in the key of {transposeKey}
+              </div>
+            )}
           </div>
 
           {/* ---- PROMPT phase ---- */}
-          {phase === 'prompt' && question.type === 'recall' && (
+          {phase === 'prompt' && (question.type === 'recall' || question.type === 'transpose-full') && (
             <button
               type="button"
-              onClick={revealRecall}
+              onClick={reveal}
               className="w-full px-3 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
             >
               Reveal
             </button>
+          )}
+
+          {phase === 'prompt' && question.type === 'transpose-scaffold' && (
+            <div className="space-y-3">
+              {/* Numbers shown as scaffolding — recall the concrete chords. */}
+              <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                {current.chords.map((ch, i) => (
+                  <span key={i}>{renderNumbers(ch)}</span>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={reveal}
+                className="w-full px-3 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
+              >
+                Reveal
+              </button>
+            </div>
           )}
 
           {phase === 'prompt' && question.type === 'mc' && (
@@ -243,7 +288,7 @@ export default function ChordProgressionQuizDrill({
           {/* ---- REVEAL phase ---- */}
           {phase === 'reveal' && (
             <div className="space-y-4">
-              {question.type !== 'recall' && (
+              {isObjective && (
                 <div
                   className={`text-center text-sm font-medium ${
                     answeredCorrectly ? 'text-fluent' : 'text-needswork'
@@ -258,20 +303,28 @@ export default function ChordProgressionQuizDrill({
                 </div>
               )}
 
-              {/* Full progression, chord-by-chord (no collapsing held
-                  chords — show the whole loop). Nashville number is the
-                  primary label; Roman numeral + concrete chord sit
-                  beneath in smaller text. */}
+              {/* Full progression, chord-by-chord (the whole loop). For
+                  transposition types the target-key letters are primary;
+                  otherwise it's key-agnostic (Nashville number primary,
+                  Roman beneath — no concrete letters). */}
               <div className="flex flex-wrap justify-center gap-x-4 gap-y-3">
                 {current.chords.map((ch, i) => (
                   <div key={i} className="text-center leading-tight">
-                    <div className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
+                    {transposeKey && (
+                      <div className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
+                        {renderConcrete(ch, transposeKey)}
+                      </div>
+                    )}
+                    <div
+                      className={
+                        transposeKey
+                          ? 'text-xs text-neutral-500'
+                          : 'text-lg font-semibold text-neutral-800 dark:text-neutral-100'
+                      }
+                    >
                       {renderNumbers(ch)}
                     </div>
                     <div className="text-xs text-neutral-400">{renderRoman(ch)}</div>
-                    <div className="text-[11px] text-neutral-500">
-                      {renderConcrete(ch, current.song.key)}
-                    </div>
                   </div>
                 ))}
               </div>

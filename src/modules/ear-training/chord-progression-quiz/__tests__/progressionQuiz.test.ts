@@ -7,12 +7,16 @@ import type {
 } from '../../../../lib/db';
 import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
+  PRACTICE_KEYS,
   buildBarCountOptions,
   buildProgressionChoices,
   collapseProgression,
   concreteLine,
+  degreeColor,
   hasChartData,
+  mostCompleteArrangementId,
   parseQuizItemRef,
+  pickTransposeKey,
   progressionSignature,
   quizItemRef,
   ratingFromCorrectness,
@@ -67,20 +71,80 @@ const IViiiV: ChordFunction[] = [cf('1'), cf('6', 'm'), cf('2', 'm'), cf('5', '7
 // --- item identity ---------------------------------------------------
 
 describe('quiz item identity', () => {
-  it('builds and parses cpq:<songId>:<sectionId>', () => {
-    const ref = quizItemRef('song-1', 'sec-1');
-    expect(ref).toBe('cpq:song-1:sec-1');
-    expect(parseQuizItemRef(ref)).toEqual({ songId: 'song-1', sectionId: 'sec-1' });
+  it('builds and parses cpq:<songId>:<sectionId>:<type> (per-type rows)', () => {
+    const ref = quizItemRef('song-1', 'sec-1', 'transpose-full');
+    expect(ref).toBe('cpq:song-1:sec-1:transpose-full');
+    expect(parseQuizItemRef(ref)).toEqual({
+      songId: 'song-1',
+      sectionId: 'sec-1',
+      type: 'transpose-full',
+    });
+  });
+
+  it('each type yields a distinct ref for the same section (no collision)', () => {
+    const refs = ['recall', 'mc', 'barcount', 'transpose-scaffold', 'transpose-full'].map(t =>
+      quizItemRef('s', 'sec', t as never),
+    );
+    expect(new Set(refs).size).toBe(5);
   });
 
   it('rejects non-matching refs', () => {
     expect(parseQuizItemRef('mv:triad:maj:root:C')).toBeNull();
     expect(parseQuizItemRef('cpq:song-1')).toBeNull();
-    expect(parseQuizItemRef('cpq::sec')).toBeNull();
+    expect(parseQuizItemRef('cpq::sec:recall')).toBeNull();
+    expect(parseQuizItemRef('cpq:song-1:sec-1')).toBeNull(); // legacy 3-part
+    expect(parseQuizItemRef('cpq:song-1:sec-1:bogus')).toBeNull(); // unknown type
   });
 
   it('module ref is the reserved placeholder ref', () => {
     expect(CHORD_PROGRESSION_QUIZ_MODULE_REF).toBe('chord-progression-quiz');
+  });
+});
+
+describe('most-complete arrangement selection', () => {
+  it('picks the arrangement with the most charted chords', () => {
+    const section: SongSection = {
+      id: 'sec', songId: 'song-1', name: 'V', order: 0, lyrics: '',
+      arrangements: [{ id: 'basic', name: 'Basic' }, { id: 'jazz', name: 'Jazz' }],
+      chordPlacements: [
+        { id: 'a', arrangementId: 'basic', barIndex: 0, beatPos: 0, beats: 4, chord: cf('1') },
+        { id: 'b', arrangementId: 'jazz', barIndex: 0, beatPos: 0, beats: 4, chord: cf('1') },
+        { id: 'c', arrangementId: 'jazz', barIndex: 1, beatPos: 0, beats: 4, chord: cf('4') },
+        { id: 'd', arrangementId: 'jazz', barIndex: 2, beatPos: 0, beats: 4, chord: cf('5', '7') },
+      ],
+    };
+    expect(mostCompleteArrangementId(section)).toBe('jazz');
+  });
+
+  it('breaks ties to the earliest-created arrangement', () => {
+    const section: SongSection = {
+      id: 'sec', songId: 'song-1', name: 'V', order: 0, lyrics: '',
+      arrangements: [{ id: 'basic', name: 'Basic' }, { id: 'alt', name: 'Alt' }],
+      chordPlacements: [
+        { id: 'a', arrangementId: 'basic', barIndex: 0, beatPos: 0, beats: 4, chord: cf('1') },
+        { id: 'b', arrangementId: 'alt', barIndex: 0, beatPos: 0, beats: 4, chord: cf('4') },
+      ],
+    };
+    expect(mostCompleteArrangementId(section)).toBe('basic'); // earlier in arrangements
+  });
+});
+
+describe('pickTransposeKey', () => {
+  it('never returns the song’s own key, and stays in the practice set', () => {
+    for (let i = 0; i < 20; i++) {
+      const k = pickTransposeKey('C', () => i / 20);
+      expect(k).not.toBe('C');
+      expect(PRACTICE_KEYS).toContain(k);
+    }
+  });
+});
+
+describe('degreeColor', () => {
+  it('colors by scale degree (root vs others differ)', () => {
+    const root = degreeColor(cf('1'));
+    const fourth = degreeColor(cf('4'));
+    expect(root).toMatch(/^#/);
+    expect(root).not.toBe(fourth);
   });
 });
 

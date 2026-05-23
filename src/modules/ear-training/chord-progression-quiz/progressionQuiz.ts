@@ -20,56 +20,130 @@ import {
   parseTimeSignature,
 } from '../../repertoire/barGrid';
 import {
+  SEMI_BY_DEGREE,
   isEmpty,
   renderConcrete,
   renderNumbers,
   renderRoman,
 } from '../../repertoire/chordFunction';
+import { intervalColor } from '../../../lib/voicingColors';
 
 /** Spacing-state moduleRef for every progression-quiz item. Must match
  *  the placeholder ref reserved in sessionAlgorithm/sessionDesign.ts
  *  (`CHORD_PROGRESSION_QUIZ_MODULE_REF`). */
 export const CHORD_PROGRESSION_QUIZ_MODULE_REF = 'chord-progression-quiz';
 
+// --- Question types --------------------------------------------------
+
+/**
+ * The quiz question types. Each (section, type) pair is an INDEPENDENT
+ * SM-2 row (itemRef carries the type), so a section's easy types can
+ * surface for review before its hard ones.
+ *   recall             — Type 1: name the progression (numbers/Roman).
+ *   mc                 — Type 2: multiple choice from other songs.
+ *   barcount           — Type 4: how many bars.
+ *   transpose-scaffold — Type 5a: recall concrete chords in a target key,
+ *                        numbers shown as scaffolding.
+ *   transpose-full     — Type 5b: recall numbers AND concrete chords in a
+ *                        target key, no hints.
+ */
+export type QuizType =
+  | 'recall'
+  | 'mc'
+  | 'barcount'
+  | 'transpose-scaffold'
+  | 'transpose-full';
+
+/** All types, easy → hard (also the enumeration order). */
+export const QUIZ_TYPES: readonly QuizType[] = [
+  'recall',
+  'mc',
+  'barcount',
+  'transpose-scaffold',
+  'transpose-full',
+];
+
 // --- Item identity ---------------------------------------------------
 
-/** Stable SM-2 itemRef for a (song, section) pair. */
-export function quizItemRef(songId: string, sectionId: string): string {
-  return `cpq:${songId}:${sectionId}`;
+/** Stable SM-2 itemRef for a (song, section, type) triple. The type is
+ *  part of the ref so each question type spaces independently. */
+export function quizItemRef(songId: string, sectionId: string, type: QuizType): string {
+  return `cpq:${songId}:${sectionId}:${type}`;
 }
 
 /** Inverse of `quizItemRef`. Returns null for anything not matching the
- *  `cpq:<songId>:<sectionId>` shape (ids never contain ':'). */
+ *  `cpq:<songId>:<sectionId>:<type>` shape (ids never contain ':'). */
 export function parseQuizItemRef(
   ref: string,
-): { songId: string; sectionId: string } | null {
+): { songId: string; sectionId: string; type: QuizType } | null {
   const parts = ref.split(':');
-  if (parts.length !== 3 || parts[0] !== 'cpq') return null;
+  if (parts.length !== 4 || parts[0] !== 'cpq') return null;
   if (parts[1] === '' || parts[2] === '') return null;
-  return { songId: parts[1], sectionId: parts[2] };
+  if (!QUIZ_TYPES.includes(parts[3] as QuizType)) return null;
+  return { songId: parts[1], sectionId: parts[2], type: parts[3] as QuizType };
 }
 
 // --- Progression extraction ------------------------------------------
 
-/** Active arrangement for a section: explicit selection → first declared
- *  arrangement → the implicit 'basic'. Matches the renderer's default. */
-export function activeArrangementId(section: SongSection): string {
-  return (
-    section.activeArrangementId ||
-    section.arrangements?.[0]?.id ||
-    'basic'
-  );
+/** Whether a chord is meaningful (not a blank slot). Mirrors the bar-grid
+ *  packer's filter so phrase-mode arrangement counts line up. */
+function isMeaningfulChord(c: ChordFunction): boolean {
+  return Boolean(c.unparsed) || c.function !== '' || c.quality !== '' || Boolean(c.bass);
 }
 
-/** Ordered chords charted in a section's active arrangement, left-to-right
- *  across the bar grid (empty bar remainders dropped). This is the raw
- *  sequence as charted — repeats included — suitable for the bar-grid
- *  reveal. Use `collapseProgression` for the compact harmonic line. */
+/**
+ * The arrangement to quiz from: the MOST COMPLETE one — the arrangement
+ * with the most charted chords — so a half-finished alternate never wins
+ * over the full chart. Ties break to the earliest-created arrangement
+ * (earliest in `section.arrangements`). Falls back to the section's
+ * selected/first arrangement, then the implicit 'basic', when nothing is
+ * charted.
+ */
+export function mostCompleteArrangementId(section: SongSection): string {
+  const counts = new Map<string, number>();
+  for (const p of section.chordPlacements ?? []) {
+    if (!isMeaningfulChord(p.chord)) continue;
+    counts.set(p.arrangementId, (counts.get(p.arrangementId) ?? 0) + 1);
+  }
+  // Legacy phrase-anchored sections: count chords per arrangement from
+  // the phrase beat maps.
+  if (counts.size === 0) {
+    for (const phrase of section.phrases ?? []) {
+      for (const [arrId, beatMap] of Object.entries(phrase.chordsByArrangement ?? {})) {
+        const n = Object.values(beatMap).filter(isMeaningfulChord).length;
+        if (n > 0) counts.set(arrId, (counts.get(arrId) ?? 0) + n);
+      }
+    }
+  }
+  const fallback =
+    section.activeArrangementId || section.arrangements?.[0]?.id || 'basic';
+  if (counts.size === 0) return fallback;
+
+  // Earliest-created order = position in section.arrangements.
+  const order = new Map((section.arrangements ?? []).map((a, i) => [a.id, i]));
+  let bestId = fallback;
+  let bestCount = -1;
+  let bestOrder = Number.POSITIVE_INFINITY;
+  for (const [id, count] of counts) {
+    const ord = order.get(id) ?? Number.POSITIVE_INFINITY;
+    if (count > bestCount || (count === bestCount && ord < bestOrder)) {
+      bestId = id;
+      bestCount = count;
+      bestOrder = ord;
+    }
+  }
+  return bestId;
+}
+
+/** Ordered chords charted in a section's most-complete arrangement,
+ *  left-to-right across the bar grid (empty bar remainders dropped). This
+ *  is the raw sequence as charted — repeats included — suitable for the
+ *  bar-grid reveal. Use `collapseProgression` for the compact line. */
 export function sectionChords(song: Song, section: SongSection): ChordFunction[] {
   const { beatsPerBar } = parseTimeSignature(
     effectiveTimeSignature(song, section),
   );
-  const bars = deriveBarGrid(section, activeArrangementId(section), beatsPerBar);
+  const bars = deriveBarGrid(section, mostCompleteArrangementId(section), beatsPerBar);
   const chords: ChordFunction[] = [];
   for (const bar of bars) {
     for (const cell of bar.cells) {
@@ -87,7 +161,7 @@ export function sectionBarCount(song: Song, section: SongSection): number {
   const { beatsPerBar } = parseTimeSignature(
     effectiveTimeSignature(song, section),
   );
-  return deriveBarGrid(section, activeArrangementId(section), beatsPerBar).length;
+  return deriveBarGrid(section, mostCompleteArrangementId(section), beatsPerBar).length;
 }
 
 /** A section is quizzable only when its active arrangement has chords
@@ -255,4 +329,33 @@ export type QuizRating = 'flying' | 'cruising' | 'crawling';
  *  recorded as the SM-2 signal. */
 export function ratingFromCorrectness(correct: boolean): QuizRating {
   return correct ? 'flying' : 'crawling';
+}
+
+// --- Transposition (Types 5a / 5b) -----------------------------------
+
+/** Common practice keys to transpose into. The drill rotates through
+ *  these (minus the song's own key) across sessions so the user gets
+ *  varied transposition reps. */
+export const PRACTICE_KEYS: readonly string[] = ['C', 'F', 'G', 'Bb', 'D', 'Eb', 'A'];
+
+/** Pick a transposition target key — a common practice key other than
+ *  the song's original key. Pseudo-random over PRACTICE_KEYS (via `rng`)
+ *  so successive cards / sessions vary. Falls back to 'C' (or the next
+ *  key) if the song is already in C. */
+export function pickTransposeKey(songKey: string | undefined, rng: Rng = Math.random): string {
+  const own = (songKey ?? '').trim();
+  const choices = PRACTICE_KEYS.filter(k => k !== own);
+  const pool = choices.length > 0 ? choices : PRACTICE_KEYS;
+  return pool[Math.floor(rng() * pool.length)] ?? 'C';
+}
+
+// --- Scale-degree color (bar-grid coloring) --------------------------
+
+/** Color for a chord by its scale degree, reusing the shared interval
+ *  color ramp (root deep-green, 4th purple, 5th gray, etc.) so the bar
+ *  grid reads the progression's shape at a glance. Falls back to the
+ *  perfect-5th gray for unresolved degrees. */
+export function degreeColor(chord: ChordFunction): string {
+  const semi = SEMI_BY_DEGREE[chord.function];
+  return semi === undefined ? '#888780' : intervalColor(semi);
 }

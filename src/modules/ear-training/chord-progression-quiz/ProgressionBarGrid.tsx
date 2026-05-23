@@ -1,7 +1,9 @@
 // Read-only bar-grid view of a section's progression, for the quiz
 // reveal. Renders the same derivation the lead-sheet editor uses
 // (deriveBarGrid) so what the user sees here matches their chart — but
-// without any of the editing / drag machinery.
+// without any editing machinery, and key-agnostic: each chord box shows
+// its Nashville number, colored by scale degree via the shared interval
+// color ramp (root deep-green, 4th purple, 5th gray, …).
 
 import type { Song, SongSection } from '../../../lib/db';
 import {
@@ -9,20 +11,18 @@ import {
   effectiveTimeSignature,
   parseTimeSignature,
 } from '../../repertoire/barGrid';
-import { chordToDisplay, type NotationMode } from '../../repertoire/chordFunction';
-import { activeArrangementId } from './progressionQuiz';
+import { renderNumbers } from '../../repertoire/chordFunction';
+import { degreeColor, mostCompleteArrangementId } from './progressionQuiz';
 
 export default function ProgressionBarGrid({
   song,
   section,
-  notation = 'roman',
 }: {
   song: Song;
   section: SongSection;
-  notation?: NotationMode;
 }) {
   const { beatsPerBar } = parseTimeSignature(effectiveTimeSignature(song, section));
-  const bars = deriveBarGrid(section, activeArrangementId(section), beatsPerBar);
+  const bars = deriveBarGrid(section, mostCompleteArrangementId(section), beatsPerBar);
   if (bars.length === 0) return null;
 
   return (
@@ -38,9 +38,10 @@ export default function ProgressionBarGrid({
             bar.cells.map(cell => (
               <span
                 key={cell.placementId}
-                className="text-sm font-medium text-neutral-800 dark:text-neutral-100"
+                className="text-sm font-semibold"
+                style={{ color: degreeColor(cell.chord) }}
               >
-                {chordToDisplay(cell.chord, notation, song.key)}
+                {renderNumbers(cell.chord)}
               </span>
             ))
           )}
