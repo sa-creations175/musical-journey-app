@@ -349,6 +349,16 @@ export function pickTransposeKey(songKey: string | undefined, rng: Rng = Math.ra
   return pool[Math.floor(rng() * pool.length)] ?? 'C';
 }
 
+/** Pick a display key for the key-agnostic recall reveal — a practice key
+ *  OR the song's own key, so over many reps the user sees the progression
+ *  in every key (including home). Pseudo-random over PRACTICE_KEYS ∪
+ *  {songKey} so it rotates per card / session. */
+export function pickDisplayKey(songKey: string | undefined, rng: Rng = Math.random): string {
+  const own = (songKey ?? '').trim();
+  const pool = own ? Array.from(new Set([...PRACTICE_KEYS, own])) : [...PRACTICE_KEYS];
+  return pool[Math.floor(rng() * pool.length)] ?? own ?? 'C';
+}
+
 // --- Scale-degree color (bar-grid coloring) --------------------------
 
 /** Color for a chord by its scale degree, reusing the shared interval

@@ -20,6 +20,8 @@ import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
   buildBarCountOptions,
   buildProgressionChoices,
+  degreeColor,
+  pickDisplayKey,
   pickTransposeKey,
   ratingFromCorrectness,
   type QuizRating,
@@ -35,7 +37,7 @@ import ProgressionBarGrid from './ProgressionBarGrid';
 type Phase = 'loading' | 'prompt' | 'reveal' | 'done';
 
 type Question =
-  | { type: 'recall' }
+  | { type: 'recall'; displayKey: string }
   | { type: 'mc'; options: string[]; correctIndex: number }
   | { type: 'barcount'; options: number[]; correctIndex: number }
   | { type: 'transpose-scaffold'; targetKey: string }
@@ -71,7 +73,7 @@ function buildQuestion(
     case 'mc': {
       const pool = distractorPoolFor(item, allItems);
       if (pool.length >= 3) return { type: 'mc', ...buildProgressionChoices(item.romanLine, pool, rng) };
-      return { type: 'recall' };
+      return { type: 'recall', displayKey: pickDisplayKey(item.song.key, rng) };
     }
     case 'barcount':
       return { type: 'barcount', ...buildBarCountOptions(item.barCount, rng) };
@@ -81,7 +83,7 @@ function buildQuestion(
       return { type: 'transpose-full', targetKey: pickTransposeKey(item.song.key, rng) };
     case 'recall':
     default:
-      return { type: 'recall' };
+      return { type: 'recall', displayKey: pickDisplayKey(item.song.key, rng) };
   }
 }
 
@@ -180,6 +182,13 @@ export default function ChordProgressionQuizDrill({
     question?.type === 'transpose-scaffold' || question?.type === 'transpose-full'
       ? question.targetKey
       : undefined;
+  // Which key to render concrete chord letters in on the reveal:
+  //   · recall (Type 1) — a rotating display key (incl. the song's own),
+  //     so each recall builds familiarity in a different key.
+  //   · transpose (5a/5b) — the prompted target key.
+  //   · mc / bar-count — none (those stay key-agnostic).
+  const concreteKey =
+    question?.type === 'recall' ? question.displayKey : transposeKey;
   const answeredCorrectly =
     !!question && isObjective && answeredIndex === (question as { correctIndex: number }).correctIndex;
 
@@ -303,30 +312,30 @@ export default function ChordProgressionQuizDrill({
                 </div>
               )}
 
-              {/* Full progression, chord-by-chord (the whole loop). For
-                  transposition types the target-key letters are primary;
-                  otherwise it's key-agnostic (Nashville number primary,
-                  Roman beneath — no concrete letters). */}
-              <div className="flex flex-wrap justify-center gap-x-4 gap-y-3">
-                {current.chords.map((ch, i) => (
-                  <div key={i} className="text-center leading-tight">
-                    {transposeKey && (
-                      <div className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
-                        {renderConcrete(ch, transposeKey)}
-                      </div>
-                    )}
-                    <div
-                      className={
-                        transposeKey
-                          ? 'text-xs text-neutral-500'
-                          : 'text-lg font-semibold text-neutral-800 dark:text-neutral-100'
-                      }
-                    >
+              {/* Full-loop summary, key-agnostic: Nashville numbers
+                  (colored by scale degree) on top, Roman beneath. Every
+                  charted chord is listed — same derivation as the bar
+                  grid below, so the line never trails the grid. */}
+              <div className="space-y-1.5 text-center">
+                <div className="flex flex-wrap justify-center gap-x-2.5 gap-y-1 text-lg font-semibold">
+                  {current.chords.map((ch, i) => (
+                    <span key={i} style={{ color: degreeColor(ch) }}>
                       {renderNumbers(ch)}
-                    </div>
-                    <div className="text-xs text-neutral-400">{renderRoman(ch)}</div>
+                    </span>
+                  ))}
+                </div>
+                <div className="text-xs text-neutral-400">
+                  {current.chords.map(ch => renderRoman(ch)).join(' · ')}
+                </div>
+                {/* Concrete chords in a (rotating) key — passively builds
+                    multi-key familiarity on Type 1; the answer key on
+                    transposition types. */}
+                {concreteKey && (
+                  <div className="text-sm text-neutral-700 dark:text-neutral-200 pt-0.5">
+                    <span className="text-neutral-400">In the key of {concreteKey}: </span>
+                    {current.chords.map(ch => renderConcrete(ch, concreteKey)).join(' · ')}
                   </div>
-                ))}
+                )}
               </div>
 
               <ProgressionBarGrid song={current.song} section={current.section} />

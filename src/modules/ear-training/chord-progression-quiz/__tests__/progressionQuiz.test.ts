@@ -16,6 +16,7 @@ import {
   hasChartData,
   mostCompleteArrangementId,
   parseQuizItemRef,
+  pickDisplayKey,
   pickTransposeKey,
   progressionSignature,
   quizItemRef,
@@ -136,6 +137,20 @@ describe('pickTransposeKey', () => {
       expect(k).not.toBe('C');
       expect(PRACTICE_KEYS).toContain(k);
     }
+  });
+});
+
+describe('pickDisplayKey (Type 1 rotating reveal key)', () => {
+  it('stays within PRACTICE_KEYS plus the song’s own key', () => {
+    const allowed = new Set([...PRACTICE_KEYS, 'B']);
+    for (let i = 0; i < 20; i++) {
+      expect(allowed.has(pickDisplayKey('B', () => i / 20))).toBe(true);
+    }
+  });
+
+  it('CAN return the song’s own key (unlike transpose)', () => {
+    // 'B' isn't in PRACTICE_KEYS, so it's appended last; rng→1 lands on it.
+    expect(pickDisplayKey('B', () => 0.999)).toBe('B');
   });
 });
 
