@@ -1,30 +1,21 @@
-import { useEffect, useState } from 'react';
-import {
-  dismissBannerForWeek,
-  isBannerDismissedForWeek,
-  isSundayLocal,
-  loadWeeklyGoalsForWeek,
-  startOfWeekLocal,
-} from './weeklyPlanData';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { loadWeeklyGoalsForWeek, startOfWeekLocal } from './weeklyPlanData';
 
 /**
- * Phase 4 Step 3 — Sunday banner that surfaces the WeeklyPlan flow.
+ * Surfaces the WeeklyPlan flow whenever the current week has no plan.
  *
- * Visibility rules:
- *   1. Today is Sunday in the user's local timezone.
- *   2. No weekly goals exist for this week's Sunday yet (i.e., the
- *      user hasn't already confirmed a plan).
- *   3. The user hasn't explicitly dismissed it for this week
- *      (localStorage flag keyed by weekStart epoch ms).
+ * Visibility rule (single condition): show while no weekly plan has been
+ * confirmed for the *current* week. It is intentionally NOT day-gated —
+ * if the user misses Sunday it stays available Monday–Saturday until they
+ * plan. The ONLY thing that dismisses it is completing the planning flow,
+ * which writes this week's weekly goals (startDate = this week's Sunday
+ * midnight, matched by loadWeeklyGoalsForWeek).
  *
- * When the user lands on a non-Sunday day, the banner stays
- * hidden — Step 5+ may add a more general "missed your Sunday
- * plan" affordance, but for now Sunday-only matches the design.
+ * useLiveQuery makes that reactive: confirming a plan mutates the goals
+ * table and the banner hides immediately, no remount needed. There is no
+ * manual dismiss — by design it can't be hidden without planning.
  *
- * The "Plan your week" button calls onOpenPlan to open the modal;
- * dismiss writes the localStorage flag and hides the banner this
- * week. Both Goals and Dashboard mount this and pass their own
- * onOpenPlan handler.
+ * Both Goals and Dashboard mount this and pass their own onOpenPlan.
  */
 
 interface Props {
@@ -32,56 +23,33 @@ interface Props {
 }
 
 export default function WeeklyPlanBanner({ onOpenPlan }: Props) {
-  const [visible, setVisible] = useState(false);
+  const weekStart = startOfWeekLocal();
+  const existing = useLiveQuery(
+    () => loadWeeklyGoalsForWeek(weekStart),
+    [weekStart],
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      if (!isSundayLocal()) return;
-      const weekStart = startOfWeekLocal();
-      if (isBannerDismissedForWeek(weekStart)) return;
-      const existing = await loadWeeklyGoalsForWeek(weekStart);
-      if (existing.length > 0) return;
-      if (!cancelled) setVisible(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (!visible) return null;
-
-  function handleDismiss() {
-    dismissBannerForWeek(startOfWeekLocal());
-    setVisible(false);
-  }
+  // undefined = first query not resolved yet (don't flash); a non-empty
+  // result = plan already set for this week → hide.
+  if (existing === undefined || existing.length > 0) return null;
 
   return (
     <div className="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex items-start gap-3">
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
-          It's Sunday — plan your week
+          Plan your week
         </div>
         <div className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-          Review last week's pace, set this week's targets, and lock in your
-          recommended daily pattern.
+          You haven't set this week's plan yet. Review last week's pace, set
+          this week's targets, and lock in your recommended daily pattern.
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={onOpenPlan}
-          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-        >
-          Plan your week
-        </button>
-        <button
-          onClick={handleDismiss}
-          aria-label="dismiss"
-          className="text-emerald-700/70 dark:text-emerald-300/70 hover:text-emerald-900 dark:hover:text-emerald-100 text-xl leading-none"
-        >
-          ×
-        </button>
-      </div>
+      <button
+        onClick={onOpenPlan}
+        className="shrink-0 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+      >
+        Plan your week
+      </button>
     </div>
   );
 }

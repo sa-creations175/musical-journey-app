@@ -49,12 +49,6 @@ export function endOfWeekLocal(weekStart: number): number {
   return d.getTime();
 }
 
-/** True when `now` (epoch ms, local-interpreted) is a Sunday. Used
- *  by the auto-surface banner — Sunday is the planning day. */
-export function isSundayLocal(now: number = Date.now()): boolean {
-  return new Date(now).getDay() === 0;
-}
-
 /** Last week's Sunday 00:00 local, derived from this week's Sunday. */
 export function previousWeekStart(weekStart: number): number {
   return weekStart - 7 * ONE_DAY_MS;
@@ -243,34 +237,4 @@ export function classifyPace(stat: ModuleWeekStat): PaceStatus {
   if (ratio >= 1.1) return 'ahead';
   if (ratio >= 0.8) return 'on-track';
   return 'behind';
-}
-
-// ---------------------------------------------------------------------
-// Banner dismissal — localStorage-backed
-// ---------------------------------------------------------------------
-
-const BANNER_DISMISS_KEY = 'phase4.weeklyPlanBanner.dismissed';
-
-/**
- * Banner is dismissed for `weekStart` when the user has clicked the
- * X. Stored as the weekStart epoch ms so each week resets the flag
- * — Sunday surfaces the banner again automatically.
- */
-export function isBannerDismissedForWeek(weekStart: number): boolean {
-  try {
-    const raw = localStorage.getItem(BANNER_DISMISS_KEY);
-    if (!raw) return false;
-    return Number(raw) === weekStart;
-  } catch {
-    return false;
-  }
-}
-
-export function dismissBannerForWeek(weekStart: number): void {
-  try {
-    localStorage.setItem(BANNER_DISMISS_KEY, String(weekStart));
-  } catch {
-    // localStorage unavailable — banner just keeps showing this
-    // session. Acceptable degraded state.
-  }
 }
