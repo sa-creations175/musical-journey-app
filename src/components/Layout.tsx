@@ -127,7 +127,14 @@ export default function Layout() {
         <SidebarNav collapsed={sidebarCollapsed} />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="relative z-40 border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3">
+        {/* Safe-area top padding so the bar clears the iPhone status bar /
+            notch in standalone PWA (viewport-fit=cover + black-translucent
+            status bar). calc() keeps the base py-3 padding and adds the
+            inset; the 0px fallback keeps it valid where env() is absent. */}
+        <header
+          className="relative z-40 border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3"
+          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+        >
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <SyncIndicator />
             <button
