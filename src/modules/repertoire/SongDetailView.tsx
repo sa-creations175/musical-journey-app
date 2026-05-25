@@ -852,12 +852,36 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                           </>
                         )}
                         {sections.length > 0 && (
-                          <button
-                            onClick={() => { setPlayMode(v => !v); setReorderMode(false); }}
-                            className="text-neutral-500 hover:text-fluent"
+                          <div
+                            role="tablist"
+                            aria-label="lead sheet view"
+                            className="inline-flex items-center gap-1 p-0.5 rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40"
                           >
-                            {playMode ? 'exit' : 'play'}
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => setPlayMode(false)}
+                              aria-pressed={!playMode}
+                              className={`px-3 py-1 text-xs rounded-md transition ${
+                                !playMode
+                                  ? 'bg-fluent text-white'
+                                  : 'text-neutral-500 hover:text-fluent'
+                              }`}
+                            >
+                              edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setPlayMode(true); setReorderMode(false); }}
+                              aria-pressed={playMode}
+                              className={`px-3 py-1 text-xs rounded-md transition ${
+                                playMode
+                                  ? 'bg-fluent text-white'
+                                  : 'text-neutral-500 hover:text-fluent'
+                              }`}
+                            >
+                              play
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
