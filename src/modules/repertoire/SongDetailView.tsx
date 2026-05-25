@@ -41,6 +41,7 @@ import {
   nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
+import { planSectionMove } from './sectionReorder';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import SongHeatmap from './SongHeatmap';
@@ -281,31 +282,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     await db.songs.put({ ...fresh, sectionOrder: next });
   };
 
-  /**
-   * Drag-to-reorder for the lead-sheet sections list. Computes the
-   * new order in memory, then writes every affected row's `.order`
-   * field in a single transaction. The matrix mirror updates
-   * automatically via the songSections write hook (which calls
-   * syncMatrixSectionsForSong) — no extra wiring needed here.
-   */
-  const handleLeadSheetSectionDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = sections.findIndex(s => s.id === active.id);
-    const newIndex = sections.findIndex(s => s.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(sections, oldIndex, newIndex);
-    await db.transaction('rw', db.songSections, async () => {
-      // Write every row whose .order changed. The reconciler picks
-      // up the resulting writes via the Dexie hook installed on
-      // songSections, so the matrix's displayOrder follows.
-      for (let i = 0; i < reordered.length; i++) {
-        if (reordered[i].order !== i) {
-          await db.songSections.update(reordered[i].id, { order: i });
-        }
-      }
-    });
-  };
+  // Lead-sheet sections are reordered via an explicit reorder mode
+  // (up/down arrows), not drag-and-drop — drag caused accidental
+  // reorders when tapping chords on mobile. The outer page-section
+  // card reorder (SortableSection) is unaffected. See
+  // LEAD_SHEET_PLAY_MODE_DESIGN.md.
+  const [reorderMode, setReorderMode] = useState(false);
 
   const [titleDraft, setTitleDraft] = useState('');
   const [artistDraft, setArtistDraft] = useState('');
@@ -550,15 +532,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   };
 
   const moveSection = async (section: SongSection, dir: -1 | 1) => {
-    const idx = sections.findIndex(s => s.id === section.id);
-    if (idx < 0) return;
-    const target = idx + dir;
-    if (target < 0 || target >= sections.length) return;
-    const a = sections[idx];
-    const b = sections[target];
+    const plan = planSectionMove(sections, section.id, dir);
+    if (!plan) return;
     await db.transaction('rw', [db.songSections], async () => {
-      await db.songSections.update(a.id, { order: b.order });
-      await db.songSections.update(b.id, { order: a.order });
+      await db.songSections.update(plan.moved.id, { order: plan.moved.order });
+      await db.songSections.update(plan.neighbour.id, { order: plan.neighbour.order });
     });
     setFlashSectionId(section.id);
     requestAnimationFrame(() => flash(`section-${section.id}`));
@@ -854,40 +832,37 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         >
                           + add section
                         </button>
+                        {(sections.length > 1 || reorderMode) && (
+                          <button
+                            onClick={() => setReorderMode(v => !v)}
+                            className="text-neutral-500 hover:text-fluent"
+                          >
+                            {reorderMode ? 'done' : 'reorder'}
+                          </button>
+                        )}
                       </div>
                     </div>
                     {sections.length === 0 ? (
                       <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
                     ) : (
-                      <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleLeadSheetSectionDragEnd}
-                      >
-                        <SortableContext
-                          items={sections.map(s => s.id)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div className="space-y-3">
-                            {sections.map((s, idx) => (
-                              <SortableLeadSheetItem key={s.id} id={s.id}>
-                                <LeadSheetSection
-                                  song={song}
-                                  section={s}
-                                  canMoveUp={idx > 0}
-                                  canMoveDown={idx < sections.length - 1}
-                                  highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
-                                  onChange={patch => updateSection(s.id, patch)}
-                                  onReplace={replaceSection}
-                                  onMoveUp={() => moveSection(s, -1)}
-                                  onMoveDown={() => moveSection(s, 1)}
-                                  onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
-                                />
-                              </SortableLeadSheetItem>
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
+                      <div className="space-y-3">
+                        {sections.map((s, idx) => (
+                          <LeadSheetSection
+                            key={s.id}
+                            song={song}
+                            section={s}
+                            reorderMode={reorderMode}
+                            canMoveUp={idx > 0}
+                            canMoveDown={idx < sections.length - 1}
+                            highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
+                            onChange={patch => updateSection(s.id, patch)}
+                            onReplace={replaceSection}
+                            onMoveUp={() => moveSection(s, -1)}
+                            onMoveDown={() => moveSection(s, 1)}
+                            onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
+                          />
+                        ))}
+                      </div>
                     )}
                     {/* Full lyrics collapsible — opens via "Show full
                         lyrics" toggle, closed by default. The full
@@ -1206,46 +1181,6 @@ function SortableSection({
         {...attributes}
         {...listeners}
         className="absolute top-2 right-2 z-10 px-2 py-1 rounded-md border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
-      >
-        <span aria-hidden className="font-mono">≡</span>
-      </button>
-      {children}
-    </div>
-  );
-}
-
-// -------------------------------------------------------------------
-// SortableLeadSheetItem — dnd-kit wrapper around a single
-// LeadSheetSection. Same pattern as SortableSection above, but with
-// the drag handle at the section's top-left so it doesn't collide
-// with the section's own move-up/down/hide/delete control row on
-// the top-right. LeadSheetSection already carries that control row;
-// the drag handle is an additional affordance, not a replacement,
-// so users who prefer pointer-stepping keep their existing arrows.
-// -------------------------------------------------------------------
-
-function SortableLeadSheetItem({
-  id,
-  children,
-}: {
-  id: string;
-  children: ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-  return (
-    <div ref={setNodeRef} style={style} className="relative">
-      <button
-        type="button"
-        aria-label="drag to reorder lead-sheet section"
-        {...attributes}
-        {...listeners}
-        className="absolute bottom-2 right-2 z-10 px-1.5 py-1 rounded-md border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
       >
         <span aria-hidden className="font-mono">≡</span>
       </button>

@@ -75,6 +75,9 @@ import {
 interface Props {
   song: Song;
   section: SongSection;
+  /** Reorder mode (toggled from the lead-sheet header): surfaces the
+   *  up/down section-move buttons. Drag-to-reorder has been removed. */
+  reorderMode?: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   highlighted?: boolean;
@@ -92,6 +95,7 @@ interface Props {
 export default function LeadSheetSection({
   song,
   section,
+  reorderMode = false,
   canMoveUp,
   canMoveDown,
   highlighted,
@@ -947,22 +951,26 @@ export default function LeadSheetSection({
           )}
         </div>
         <div className="flex items-center gap-1 text-[11px]">
-          <button
-            onClick={onMoveUp}
-            disabled={!canMoveUp || !onMoveUp}
-            title="move section up"
-            className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            ↑
-          </button>
-          <button
-            onClick={onMoveDown}
-            disabled={!canMoveDown || !onMoveDown}
-            title="move section down"
-            className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            ↓
-          </button>
+          {reorderMode && (
+            <>
+              <button
+                onClick={onMoveUp}
+                disabled={!canMoveUp || !onMoveUp}
+                title="move section up"
+                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-base rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ↑
+              </button>
+              <button
+                onClick={onMoveDown}
+                disabled={!canMoveDown || !onMoveDown}
+                title="move section down"
+                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-base rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ↓
+              </button>
+            </>
+          )}
           <button
             onClick={() => commit({ hidden: !section.hidden })}
             className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent"
