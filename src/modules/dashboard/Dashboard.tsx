@@ -114,7 +114,14 @@ export default function Dashboard() {
           band; the quote + streak line stay on the page field below so
           their functional accent colours keep their contrast. */}
       <section className="space-y-2">
-        <div className="bg-green-deep text-white rounded-2xl px-4 py-5 sm:px-6 sm:py-6">
+        {/* paddingTop clears the iPhone notch in standalone PWA
+            (viewport-fit=cover + black-translucent status bar). max()
+            keeps the base top padding on non-notched devices, mirroring
+            the GlobalSessionBanner safe-area treatment. */}
+        <div
+          className="bg-green-deep text-white rounded-2xl px-4 py-5 sm:px-6 sm:py-6"
+          style={{ paddingTop: 'max(env(safe-area-inset-top), 1.25rem)' }}
+        >
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">
             Hi {editingName ? (
