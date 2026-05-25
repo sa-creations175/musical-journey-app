@@ -121,9 +121,18 @@ export default function Dashboard() {
             (py-5 = 1.25rem) and only ever ADDS the inset — it can never
             collapse the band, and the declaration stays valid even where
             env() is unsupported. Kept on the card (not Layout) by design. */}
+        {/* backgroundColor is set inline (not only via the bg-green-deep
+            class) so the hero background is guaranteed regardless of
+            stylesheet cache/load state — the class rendered on mobile but
+            was intermittently missing on desktop. Inline travels in the JS
+            bundle and wins on specificity. Keep #0f3d2e in sync with the
+            green-deep Tailwind token. */}
         <div
           className="bg-green-deep text-white rounded-2xl px-4 py-5 sm:px-6 sm:py-6"
-          style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}
+          style={{
+            backgroundColor: '#0f3d2e',
+            paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))',
+          }}
         >
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">
