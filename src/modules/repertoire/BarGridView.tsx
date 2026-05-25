@@ -73,8 +73,33 @@ export const DRAG_ID = {
   bar: (barIndex: number) => `bar:${barIndex}`,
 };
 
-// 2 bars per row keeps each bar wide enough for chord glyphs.
-const BARS_PER_ROW = 2;
+/**
+ * Bars per row: 2 on desktop, 1 on mobile (≤768px). Compound meters
+ * (e.g. 6/8's 6 beat slots) are unreadably cramped at 2-per-row on a
+ * phone, so each bar takes the full container width there.
+ *
+ * Responsive via a media query rather than pure CSS because the bar row
+ * and its aligned lyric row are chunked into rows in JS, and both grids
+ * must share the same column count to stay aligned — a CSS-only column
+ * change would orphan the lyric row beneath both bars. Layout-only: no
+ * data or business logic depends on this value.
+ */
+const MOBILE_QUERY = '(max-width: 768px)';
+
+function useBarsPerRow(): number {
+  const read = () =>
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
+      ? 1
+      : 2;
+  const [barsPerRow, setBarsPerRow] = useState(read);
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_QUERY);
+    const onChange = () => setBarsPerRow(read());
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return barsPerRow;
+}
 
 interface Props {
   song: Song;
@@ -271,6 +296,7 @@ export default function BarGridView({
   // structural skeleton. Local to this section view — not persisted.
   const [foundationMode, setFoundationMode] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const barsPerRow = useBarsPerRow();
 
   useEffect(() => {
     if (!editing && !wordEditing && !timeSigPickerOpen && !newChordAt) return;
@@ -337,8 +363,8 @@ export default function BarGridView({
   }
 
   const rows: Bar[][] = [];
-  for (let i = 0; i < bars.length; i += BARS_PER_ROW) {
-    rows.push(bars.slice(i, i + BARS_PER_ROW));
+  for (let i = 0; i < bars.length; i += barsPerRow) {
+    rows.push(bars.slice(i, i + barsPerRow));
   }
 
   const editable = Boolean(onChordBeatsChange || onChordTagChange);
@@ -421,7 +447,7 @@ export default function BarGridView({
             {/* Bar row (chord boxes). */}
             <div
               className="grid gap-2"
-              style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
             >
               {row.map(bar => (
                 <BarBox
@@ -456,8 +482,8 @@ export default function BarGridView({
                   onChordAddCancel={() => setNewChordAt(null)}
                 />
               ))}
-              {row.length < BARS_PER_ROW &&
-                Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
+              {row.length < barsPerRow &&
+                Array.from({ length: barsPerRow - row.length }).map((_, i) => (
                   <div key={`pad-${i}`} aria-hidden />
                 ))}
             </div>
@@ -467,7 +493,7 @@ export default function BarGridView({
                 width drop slots give beat-level alignment. */}
             <div
               className="grid gap-2 mt-1"
-              style={{ gridTemplateColumns: `repeat(${BARS_PER_ROW}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
             >
               {row.map(bar => (
                 <LyricBarSegment
@@ -499,8 +525,8 @@ export default function BarGridView({
                   onWordJoin={onWordJoin}
                 />
               ))}
-              {row.length < BARS_PER_ROW &&
-                Array.from({ length: BARS_PER_ROW - row.length }).map((_, i) => (
+              {row.length < barsPerRow &&
+                Array.from({ length: barsPerRow - row.length }).map((_, i) => (
                   <div key={`pad-lyr-${i}`} aria-hidden />
                 ))}
             </div>
@@ -518,7 +544,7 @@ export default function BarGridView({
   return (
     <div
       ref={containerRef}
-      className="rounded-md border border-black/[0.07] p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
+      className="rounded-md border border-black/[0.07] px-2 py-3 md:p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
       <BarGridHeader
         timeSignature={timeSignature}
