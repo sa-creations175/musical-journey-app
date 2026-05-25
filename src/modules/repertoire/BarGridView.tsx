@@ -996,11 +996,14 @@ function BarBox({
           ×
         </button>
       )}
-      {/* No horizontal scroll on mobile — slots flex to fit the full-width
-          bar (see slot min-w/shrink below), which removes the accidental
-          tap-scroll. Desktop keeps overflow-x-auto as a safety net for
-          dense bars whose fixed-width slots can exceed a half-row column. */}
-      <div className="flex items-stretch gap-0.5 h-full md:overflow-x-auto">
+      {/* No horizontal scroll at any size: slots flex-shrink to fit the
+          bar with NO min-width floor, so every beat slot (e.g. 6/8's six)
+          stays fully visible and scales equally to the bar width on both
+          desktop and mobile. Each slot's `width: beats/beatsPerBar %`
+          basis still yields large slots when the bar is wide; a min-width
+          floor only ever bound on narrow columns — which was exactly what
+          caused the clipping/scroll. */}
+      <div className="flex items-stretch gap-0.5 h-full">
         {items.map((item, idx) => {
           if (item.kind === 'empty') {
             return (
@@ -1629,7 +1632,7 @@ function EmptyBeatSlot({
           : undefined
       }
       title={onClick ? 'Tap to add chord here' : undefined}
-      className={`rounded border border-dashed shrink md:shrink-0 transition-colors ${
+      className={`rounded border border-dashed shrink transition-colors ${
         isOver
           ? 'border-fluent bg-fluent/10'
           : isAdding
@@ -1749,7 +1752,7 @@ function ChordCellBox({
       onClick={interactive ? handleClick : undefined}
       {...(dragAttributes ?? {})}
       {...(dragListeners ?? {})}
-      className={`relative flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none min-w-[44px] shrink md:min-w-[72px] md:shrink-0 ${
+      className={`relative flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none shrink ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${extraClassName ?? ''}`}
       style={baseStyle}
