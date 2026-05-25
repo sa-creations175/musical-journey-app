@@ -43,7 +43,7 @@ export default function ModuleIntro({ headline, description, bullets, accent = '
   const [expanded, setExpanded] = useState(false);
   return (
     <div
-      className={`rounded-card border border-neutral-200 dark:border-neutral-800 border-l-4 ${accentBorder[accent]} bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4`}
+      className={`rounded-2xl border border-black/[0.07] border-l-4 ${accentBorder[accent]} bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4`}
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">

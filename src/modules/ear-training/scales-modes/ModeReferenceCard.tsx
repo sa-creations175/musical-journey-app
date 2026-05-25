@@ -18,7 +18,7 @@ export default function ModeReferenceCard({ mode }: Props) {
   return (
     <div
       id={`mode-card-${mode.id}`}
-      className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 p-3 sm:p-4 space-y-2 scroll-mt-24"
+      className="rounded-lg border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-4 space-y-2 scroll-mt-24"
     >
       <button
         onClick={() => setExpanded(v => !v)}

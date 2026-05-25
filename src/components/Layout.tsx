@@ -151,7 +151,7 @@ export default function Layout() {
         </header>
         <BackupReminderBanner />
         <ReturnToCatalogueBanner />
-        <main className="flex-1 p-6 md:p-10 pb-24 md:pb-10 max-w-5xl w-full">
+        <main className="flex-1 px-4 py-6 md:p-10 pb-24 md:pb-10 max-w-5xl w-full">
           <Outlet />
         </main>
       </div>

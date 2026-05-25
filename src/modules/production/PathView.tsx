@@ -53,7 +53,7 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
         <button onClick={onBack} className="text-xs text-neutral-500 hover:text-production">← back to production</button>
         <h1 className="text-2xl font-medium tracking-tight">{path.title}</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-300 italic">{path.subtitle}</p>
-        <div className="rounded-card border border-dashed border-production/40 bg-production/5 p-6 text-sm text-neutral-600 dark:text-neutral-300">
+        <div className="rounded-2xl border border-dashed border-production/40 bg-production/5 p-6 text-sm text-neutral-600 dark:text-neutral-300">
           <p className="font-medium text-production">Coming in Phase 2.</p>
           <p className="mt-2">
             Lessons for this path are planned for the next build. Paths 1, 2, and 3 are live now; this path will follow with full surface + deep dive content.
@@ -87,7 +87,7 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
       </header>
 
       {/* Lesson list */}
-      <ul className="rounded-card border border-neutral-200 dark:border-neutral-800 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">
+      <ul className="rounded-2xl border border-black/[0.07] overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">
         {lessons.map(l => {
           const s = stateById.get(l.id);
           const mastery = (s?.mastery ?? 'not-started') as ProductionLessonMastery;

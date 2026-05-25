@@ -379,7 +379,7 @@ export default function VocabularySession({ onBack }: Props) {
           }}
         />
       ) : (
-        <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-5">
+        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
             <h2 className="text-base sm:text-lg font-medium tracking-tight">
               start a session

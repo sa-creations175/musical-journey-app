@@ -163,7 +163,7 @@ export default function SongDetailView({
 }: Props) {
   if (!songId || songs.find(s => s.id === songId) === undefined) {
     return (
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">song detail</h2>
         <p className="text-sm text-neutral-500">
           pick a song from your active repertoire to open its detail view.
@@ -652,7 +652,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   if (!song) {
     return (
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 p-5 text-sm text-neutral-500">
+      <section className="rounded-2xl border border-black/[0.07] p-5 text-sm text-neutral-500">
         loading song…
       </section>
     );
@@ -687,7 +687,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       </div>
 
       {/* Metadata */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
         {editingMeta ? (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -831,7 +831,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             {sectionOrder.map(key => (
               <SortableSection key={key} id={key}>
                 {key === 'leadSheet' && (
-                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
                       <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
                       <div className="flex items-center gap-3 flex-wrap text-xs">
@@ -913,14 +913,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 )}
 
                 {key === 'matrix' && (
-                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
                     <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">matrix</h3>
                     <SongMatrixView song={song} onClose={() => {}} embedded />
                   </section>
                 )}
 
                 {key === 'learningStatus' && (
-                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
                     <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">learning status</h3>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -963,7 +963,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 )}
 
                 {key === 'whyAndLinks' && (
-                  <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
                     <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">why this song</h3>
                     {whyEditing ? (
                       <div className="space-y-2">
@@ -1039,7 +1039,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       </DndContext>
 
       {/* Cross-key grid */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
         <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">cross-key mastery</h3>
         {sections.filter(s => !s.hidden).length === 0 ? (
           <p className="text-xs text-neutral-500 italic">add a section to start tracking cross-key practice.</p>
@@ -1060,7 +1060,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       </section>
 
       {/* Practice history + heatmap */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-4">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">practice history</h3>
           <button
@@ -1076,7 +1076,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
       {/* Danger zone — destructive actions, visually separated from
           the rest of the page so nothing is clicked by accident. */}
-      <section className="rounded-card border border-needswork/30 bg-needswork/5 p-3 sm:p-5 space-y-2">
+      <section className="rounded-2xl border border-needswork/30 bg-needswork/5 p-3 sm:p-5 space-y-2">
         <h3 className="text-sm font-medium uppercase tracking-wide text-needswork">
           danger zone
         </h3>
@@ -1205,7 +1205,7 @@ function SortableSection({
         aria-label={`drag to reorder ${SECTION_TITLES[id]} section`}
         {...attributes}
         {...listeners}
-        className="absolute top-2 right-2 z-10 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
+        className="absolute top-2 right-2 z-10 px-2 py-1 rounded-md border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
       >
         <span aria-hidden className="font-mono">≡</span>
       </button>
@@ -1245,7 +1245,7 @@ function SortableLeadSheetItem({
         aria-label="drag to reorder lead-sheet section"
         {...attributes}
         {...listeners}
-        className="absolute bottom-2 right-2 z-10 px-1.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
+        className="absolute bottom-2 right-2 z-10 px-1.5 py-1 rounded-md border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
       >
         <span aria-hidden className="font-mono">≡</span>
       </button>
@@ -1305,7 +1305,7 @@ function SongAssociationsSection({ song }: { song: Song }) {
   };
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-2">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-2">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <div>
           <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">

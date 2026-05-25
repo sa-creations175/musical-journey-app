@@ -1271,7 +1271,7 @@ function ModuleCardButton({
         borderColor: selected ? fullBorder : restBorder,
         backgroundColor: selected ? selectedBg : undefined,
       }}
-      className="text-left flex flex-col items-start rounded-card border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40"
+      className="text-left flex flex-col items-start rounded-2xl border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40"
     >
       <div className="text-sm font-medium tracking-tight" style={{ color: accentHex }}>
         {card.name}
@@ -1592,7 +1592,7 @@ function SongPicker({
         placeholder="Search songs by title…"
         className={inputClass()}
       />
-      <div className="mt-1.5 flex flex-col rounded-md border border-neutral-200 dark:border-neutral-800 max-h-72 overflow-y-auto">
+      <div className="mt-1.5 flex flex-col rounded-md border border-black/[0.07] max-h-72 overflow-y-auto">
         {filteredSongs.length > 0 && (
           <>
             <SongPickerSectionHeader>Active repertoire</SongPickerSectionHeader>

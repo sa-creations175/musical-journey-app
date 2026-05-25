@@ -254,7 +254,7 @@ function SummaryView({
   return (
     <div className="space-y-6">
       {/* Top callouts */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-4">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-4">
         <div className="flex items-baseline justify-between gap-2 flex-wrap">
           <div>
             <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
@@ -289,7 +289,7 @@ function SummaryView({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Attention list */}
-        <section className="rounded-card border border-developing/30 bg-gradient-to-br from-developing/5 to-needswork/5 p-4 sm:p-5">
+        <section className="rounded-2xl border border-developing/30 bg-gradient-to-br from-developing/5 to-needswork/5 p-4 sm:p-5">
           <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 mb-3">
             what needs attention
           </h2>
@@ -324,7 +324,7 @@ function SummaryView({
         </section>
 
         {/* Strong spots */}
-        <section className="rounded-card border border-fluent/30 bg-gradient-to-br from-fluent/5 to-mastered/5 p-4 sm:p-5">
+        <section className="rounded-2xl border border-fluent/30 bg-gradient-to-br from-fluent/5 to-mastered/5 p-4 sm:p-5">
           <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 mb-3">
             your strong spots
           </h2>
@@ -362,7 +362,7 @@ function SummaryView({
       {/* Modules at a glance — visual language matches the sidebar:
           same module icons, same accent colour per module, same
           name formatting. */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-3">
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           modules at a glance
         </h2>

@@ -574,7 +574,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
   };
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord progressions quiz</h2>
       </div>
@@ -1002,7 +1002,7 @@ function RevealCard({
   patternAnswered, patternCorrect, keyLabel, chordSequenceDisplay,
 }: RevealProps) {
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 text-sm">
+    <div className="rounded-lg border border-black/[0.07] p-4 space-y-3 text-sm">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-medium">{progression.name}</span>
         <span className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border border-neutral-200 dark:border-neutral-700 text-neutral-500">

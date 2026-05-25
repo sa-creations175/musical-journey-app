@@ -40,7 +40,7 @@ export default function DeferredReviewPrompt() {
           return (
             <li
               key={block.id}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2"
+              className="rounded-lg border border-black/[0.07] p-3 space-y-2"
               style={{ borderLeftColor: accent, borderLeftWidth: 3 }}
             >
               <div className="space-y-0.5">

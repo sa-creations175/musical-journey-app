@@ -182,7 +182,7 @@ function LibraryRow({
 }) {
   return (
     <li
-      className={`rounded-card border p-3 ${
+      className={`rounded-2xl border p-3 ${
         selected
           ? 'border-production/40 bg-production/5'
           : 'border-neutral-200 dark:border-neutral-800'

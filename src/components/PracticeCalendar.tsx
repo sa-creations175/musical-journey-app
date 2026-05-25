@@ -241,7 +241,7 @@ function DayDetail({ dateKey, todayKey, summary }: DayDetailProps) {
   }
 
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
+    <div className="rounded-lg border border-black/[0.07] p-3">
       <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">{dateLabel}</div>
       {body}
     </div>

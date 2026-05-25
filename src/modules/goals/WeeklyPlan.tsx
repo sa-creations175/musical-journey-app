@@ -1212,7 +1212,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                       ))}
                   </div>
                 )}
-                <div className="overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
+                <div className="overflow-hidden rounded-md border border-black/[0.07]">
                   <table className="w-full text-sm table-fixed">
                     {/* Explicit column widths — the inline mount
                         lives in a container narrower than the modal
@@ -1376,7 +1376,7 @@ function ReviewTable({ review }: { review: LastWeekReview }) {
 
   return (
     <>
-      <div className="overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
+      <div className="overflow-hidden rounded-md border border-black/[0.07]">
         <table className="w-full text-sm">
           <thead className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-xs uppercase tracking-wide">
             <tr>
@@ -1800,7 +1800,7 @@ function DailyPattern() {
     { day: 'Sat',     slot: 'Deep flex',    note: 'flex day — go long if energy is there' },
   ];
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+    <div className="rounded-md border border-black/[0.07] overflow-hidden">
       <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-800/50 text-xs uppercase tracking-wide text-neutral-600 dark:text-neutral-400">
         Daily pattern
       </div>

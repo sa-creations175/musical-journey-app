@@ -142,7 +142,7 @@ function RatingCard({
 
   return (
     <div
-      className="bg-white dark:bg-neutral-900 rounded-card border shadow-xl w-full max-w-md p-5 space-y-4"
+      className="bg-white dark:bg-neutral-900 rounded-2xl border shadow-xl w-full max-w-md p-5 space-y-4"
       style={{ borderColor: accent, borderLeftWidth: 3 }}
     >
       <div className="text-center space-y-1">

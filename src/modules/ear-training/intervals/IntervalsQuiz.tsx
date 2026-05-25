@@ -190,7 +190,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
     const base = 'rounded-lg border text-sm font-medium transition px-2 py-3 text-center';
     if (!answered) {
       if (!hasPlayed) {
-        return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400`;
+        return `${base} border-neutral-200 dark:border-neutral-700 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] text-neutral-400`;
       }
       return `${base} border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-fluent hover:text-fluent`;
     }
@@ -203,7 +203,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
     if (isSelected) {
       return `${base} border-needswork bg-needswork/10 text-needswork`;
     }
-    return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400 opacity-60`;
+    return `${base} border-neutral-200 dark:border-neutral-700 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] text-neutral-400 opacity-60`;
   };
 
   // Focus sessions with fewer than 4 items don't truly test fluency —
@@ -266,7 +266,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
   };
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">interval quiz</h2>
       </div>
@@ -366,7 +366,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
       {/* Feedback area */}
       <div className="min-h-[1.5rem]">
         {answered && current ? (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm space-y-2">
+          <div className="rounded-lg border border-black/[0.07] p-4 text-sm space-y-2">
             <div className="text-center space-y-1">
               <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
               <span className="text-sm">
@@ -531,7 +531,7 @@ function LifetimeStatsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-3"
+        className="w-full max-w-sm rounded-2xl border border-black/[0.07] bg-white dark:bg-neutral-900 p-5 space-y-3"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

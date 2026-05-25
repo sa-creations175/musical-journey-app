@@ -163,7 +163,7 @@ function ReadyContent({
   const total = summary.totalMinutes;
   return (
     <div className="flex flex-col gap-5">
-      <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 px-4 py-3">
+      <section className="rounded-lg border border-black/[0.07] bg-neutral-50/60 dark:bg-neutral-900/40 px-4 py-3">
         <ul className="flex flex-col gap-2" data-testid="daily-need-rows">
           {summary.entries.map(entry => (
             <EntryRow key={entry.moduleId} entry={entry} />
@@ -201,7 +201,7 @@ function ReadyContent({
       </button>
 
       {hasEarlierSessionsToday && (
-        <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3">
+        <section className="rounded-lg border border-black/[0.07] px-4 py-3">
           <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
             Multi-session day
           </div>
@@ -318,7 +318,7 @@ function ConsistencyNudge() {
   return (
     <section
       data-testid="consistency-nudge"
-      className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 px-4 py-2 flex items-baseline gap-2"
+      className="rounded-lg border border-black/[0.07] bg-neutral-50/60 dark:bg-neutral-900/40 px-4 py-2 flex items-baseline gap-2"
     >
       <span className="text-xs uppercase tracking-wide text-neutral-500 shrink-0">
         Practice consistency
@@ -333,7 +333,7 @@ function ConsistencyNudge() {
 function SkeletonRows() {
   return (
     <div className="flex flex-col gap-5 animate-pulse">
-      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-3 space-y-2">
+      <div className="rounded-lg border border-black/[0.07] px-4 py-3 space-y-2">
         <div className="h-3 w-2/3 bg-neutral-200 dark:bg-neutral-800 rounded" />
         <div className="h-3 w-1/2 bg-neutral-200 dark:bg-neutral-800 rounded" />
         <div className="h-3 w-3/4 bg-neutral-200 dark:bg-neutral-800 rounded" />

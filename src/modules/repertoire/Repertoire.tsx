@@ -144,7 +144,7 @@ export default function Repertoire() {
       )}
 
       <nav
-        className="flex items-center gap-1 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur flex-wrap"
+        className="flex items-center gap-1 p-1 rounded-lg border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur flex-wrap"
         aria-label="repertoire view"
       >
         {TABS.map(t => (

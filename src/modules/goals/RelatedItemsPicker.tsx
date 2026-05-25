@@ -139,7 +139,7 @@ export default function RelatedItemsPicker({ selected, onChange }: Props) {
         <p className="text-xs text-neutral-500 italic">No matches.</p>
       )}
       {groupedMatches.length > 0 && (
-        <ul className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-neutral-200 dark:border-neutral-800 p-2">
+        <ul className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-black/[0.07] p-2">
           {groupedMatches.map(group => (
             <li key={group.moduleId}>
               <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1 px-1">

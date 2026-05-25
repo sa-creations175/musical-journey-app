@@ -129,7 +129,7 @@ export default function Screen2DayProfiles({ registerHandle }: Props) {
         </p>
       </div>
 
-      <p className="text-sm text-neutral-700 dark:text-neutral-200 bg-neutral-50 dark:bg-neutral-900/50 rounded-md px-3 py-2 border border-neutral-200 dark:border-neutral-800">
+      <p className="text-sm text-neutral-700 dark:text-neutral-200 bg-neutral-50 dark:bg-neutral-900/50 rounded-md px-3 py-2 border border-black/[0.07]">
         The practice day profiles are set up as an archetype of the various
         types of practice days you may have, any given day, with a standard
         day being your typical, a light day being when life is busy and you
@@ -166,7 +166,7 @@ function ProfileCard({
 }) {
   const visuals = PROFILE_VISUALS[name];
   return (
-    <section className={`rounded-md border border-neutral-200 dark:border-neutral-800 border-l-4 ${visuals.borderClass} p-3`}>
+    <section className={`rounded-md border border-black/[0.07] border-l-4 ${visuals.borderClass} p-3`}>
       <header className="mb-2 flex items-start gap-2.5">
         <span
           aria-hidden

@@ -96,7 +96,7 @@ export default function MatrixGrid({
   const visibleSections = sections.filter(s => !s.isArchived);
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 overflow-x-auto">
+    <div className="rounded-md border border-black/[0.07] overflow-x-auto">
       <div className="min-w-fit">
         {visibleSections.length > 0 && (
           <SectionHeaderRow sections={visibleSections} />

@@ -123,7 +123,7 @@ export default function AbundancePathScreen({
             key={card.id}
             type="button"
             onClick={() => onPick(card.id)}
-            className="w-full text-left rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-4 hover:border-fluent hover:bg-fluent/5 transition-colors"
+            className="w-full text-left rounded-lg border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/50 p-4 hover:border-fluent hover:bg-fluent/5 transition-colors"
           >
             <div className="text-sm font-medium tracking-tight text-neutral-800 dark:text-neutral-100">
               {card.title}

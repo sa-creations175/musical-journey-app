@@ -283,7 +283,7 @@ function CategorySection({
     <section
       className={compact
         ? 'rounded-md border border-neutral-200/60 dark:border-neutral-800/60 overflow-hidden'
-        : 'rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden'}
+        : 'rounded-md border border-black/[0.07] overflow-hidden'}
     >
       <button
         onClick={onToggle}

@@ -64,7 +64,7 @@ export default function ShapesAndPatternsCalendar() {
         </p>
       </div>
 
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-3">
         <div className="flex items-baseline justify-between flex-wrap gap-2 text-sm">
           <span className="text-neutral-500">last {WEEKS} weeks</span>
           <span>
@@ -111,7 +111,7 @@ export default function ShapesAndPatternsCalendar() {
 function RecentSessionsList({ sessions }: { sessions: DrillSession[] }) {
   const sorted = [...sessions].sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-2">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-2">
       <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
         most recent sessions
       </h2>

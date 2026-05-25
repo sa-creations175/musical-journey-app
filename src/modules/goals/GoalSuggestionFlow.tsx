@@ -843,7 +843,7 @@ function HfAccuracySection({
 
 function AnchorPanel({ anchor }: { anchor: Goal }) {
   return (
-    <section className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-2 space-y-0.5">
+    <section className="rounded-md border border-black/[0.07] px-3 py-2 space-y-0.5">
       <div className="text-[10px] uppercase tracking-wide text-neutral-500">
         Auto-connected to
       </div>
@@ -2497,7 +2497,7 @@ function RepertoireMaintainSection({ songs }: { songs: ReadonlyArray<Song> }) {
   // body — the numbered list reads identically to the Repertoire
   // home's study sequence.
   return (
-    <section className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+    <section className="rounded-md border border-black/[0.07] p-3 space-y-2">
       <header>
         <div className="text-[10px] uppercase tracking-wide text-neutral-500">
           Maintaining &amp; advancing

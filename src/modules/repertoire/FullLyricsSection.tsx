@@ -34,7 +34,7 @@ export default function FullLyricsSection({ song, onSave }: Props) {
   };
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
       <button
         onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center justify-between gap-2 text-sm"

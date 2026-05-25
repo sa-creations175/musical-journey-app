@@ -391,7 +391,7 @@ function ModeCard({
   return (
     <button
       onClick={onClick}
-      className="group text-left rounded-card border border-neutral-200 dark:border-neutral-800 p-5 hover:border-fluent hover:bg-fluent/5 transition-colors"
+      className="group text-left rounded-2xl border border-black/[0.07] p-5 hover:border-fluent hover:bg-fluent/5 transition-colors"
     >
       <div className="text-2xl mb-2">{emoji}</div>
       <div className="text-base font-medium mb-1 group-hover:text-fluent transition-colors">
@@ -448,7 +448,7 @@ function PromptPicker({
   const p = prompts[index];
   return (
     <div className="space-y-4">
-      <div className="rounded-card border border-fluent/30 bg-fluent/5 p-5 space-y-3">
+      <div className="rounded-2xl border border-fluent/30 bg-fluent/5 p-5 space-y-3">
         <div className="text-[10px] uppercase tracking-wide text-fluent font-medium">
           prompt {index + 1} of {prompts.length}
         </div>
@@ -521,7 +521,7 @@ function SessionTimer({
   return (
     <div className="space-y-4 text-sm">
       {prompt && (
-        <div className="rounded-card border border-fluent/30 bg-fluent/5 p-4">
+        <div className="rounded-2xl border border-fluent/30 bg-fluent/5 p-4">
           <div className="text-[10px] uppercase tracking-wide text-fluent font-medium mb-1">
             your prompt
           </div>
@@ -529,7 +529,7 @@ function SessionTimer({
         </div>
       )}
       {!prompt && (
-        <div className="rounded-card border border-neutral-200 dark:border-neutral-800 p-4 text-xs text-neutral-500 italic">
+        <div className="rounded-2xl border border-black/[0.07] p-4 text-xs text-neutral-500 italic">
           No prompt — just play.
         </div>
       )}
@@ -578,7 +578,7 @@ function SessionTimer({
         )}
       </div>
 
-      <div className={`rounded-card border p-6 flex flex-col items-center gap-3 ${
+      <div className={`rounded-2xl border p-6 flex flex-col items-center gap-3 ${
         timeUp
           ? 'border-fluent/40 bg-fluent/5'
           : 'border-neutral-200 dark:border-neutral-800'
@@ -688,7 +688,7 @@ function SessionSummary({
   const hitTarget = elapsed >= targetSeconds;
   return (
     <div className="space-y-4 text-sm">
-      <div className="rounded-card border border-neutral-200 dark:border-neutral-800 p-4 text-center">
+      <div className="rounded-2xl border border-black/[0.07] p-4 text-center">
         <div className="text-[11px] uppercase tracking-wide text-neutral-500">
           {modeLabel(mode)} session
         </div>
@@ -705,7 +705,7 @@ function SessionSummary({
       </div>
 
       {prompt && (
-        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 text-xs text-neutral-600 dark:text-neutral-300">
+        <div className="rounded-md border border-black/[0.07] p-3 text-xs text-neutral-600 dark:text-neutral-300">
           <div className="uppercase tracking-wide text-[10px] text-neutral-500 mb-1">prompt</div>
           {prompt.text}
         </div>

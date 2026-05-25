@@ -90,7 +90,7 @@ export default function ReferenceTracksView() {
         </p>
       </header>
 
-      <div className="rounded-card border border-production/30 bg-production/5 p-3 sm:p-4">
+      <div className="rounded-2xl border border-production/30 bg-production/5 p-3 sm:p-4">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <button
             onClick={() => setAdding(true)}
@@ -229,7 +229,7 @@ interface RowProps {
 
 function TrackRow({ track, onEdit, onArchive, onDelete }: RowProps) {
   return (
-    <li className="rounded-card border border-neutral-200 dark:border-neutral-800 p-4 space-y-2">
+    <li className="rounded-2xl border border-black/[0.07] p-4 space-y-2">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <div className="min-w-0">
           <div className="text-sm font-medium">{track.title}</div>
@@ -513,7 +513,7 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
         <Field label="tags">
           <TagChipEditor tags={tags} onChange={setTags} />
         </Field>
-        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/40 p-2.5 space-y-1.5">
+        <div className="rounded-md border border-black/[0.07] bg-neutral-50/60 dark:bg-neutral-900/40 p-2.5 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[10px] uppercase tracking-wide text-neutral-500">links (auto)</span>
             <label className="text-[10px] text-neutral-500 inline-flex items-center gap-1">
@@ -803,7 +803,7 @@ export function BrowsePoolsModal({ onClose, preselectedPoolId, onAfterSave }: Br
               <button
                 key={pool.id}
                 onClick={() => openPool(pool)}
-                className="text-left rounded-card border border-neutral-200 dark:border-neutral-800 p-3 hover:border-production/60 hover:bg-production/5 transition-colors"
+                className="text-left rounded-2xl border border-black/[0.07] p-3 hover:border-production/60 hover:bg-production/5 transition-colors"
               >
                 <div className="text-sm font-medium">{pool.label}</div>
                 <div className="text-[11px] text-neutral-500 mt-0.5 line-clamp-2">{pool.subtitle}</div>
@@ -822,7 +822,7 @@ export function BrowsePoolsModal({ onClose, preselectedPoolId, onAfterSave }: Br
           {preview?.map(p => (
             <div
               key={p.uid}
-              className={`rounded-card border p-3 space-y-1.5 ${
+              className={`rounded-2xl border p-3 space-y-1.5 ${
                 p.selected
                   ? 'border-production/40 bg-production/5'
                   : 'border-neutral-200 dark:border-neutral-800 opacity-60'

@@ -784,7 +784,7 @@ export default function GoalFormModal({
           role="alertdialog"
           aria-modal="true"
         >
-          <div className="bg-white dark:bg-neutral-900 rounded-card p-5 max-w-sm shadow-xl border border-neutral-200 dark:border-neutral-800">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl p-5 max-w-sm shadow-xl border border-black/[0.07]">
             <h4 className="text-sm font-medium mb-2">Switch to a vision scope?</h4>
             <p className="text-xs text-neutral-600 dark:text-neutral-300 mb-4">
               Vision-scope goals (lifetime, 2-3 year) don't carry measurable targets.

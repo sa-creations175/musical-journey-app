@@ -44,7 +44,7 @@ export default function EarTraining() {
       <div className="grid md:grid-cols-2 gap-3">
         {subModules.map(mod => {
           const inner = (
-            <div className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 h-full transition hover:border-fluent">
+            <div className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 h-full transition hover:border-fluent">
               <div className="flex items-center justify-between mb-1">
                 <span className="font-medium">{mod.label}</span>
                 {mod.status === 'coming' && (

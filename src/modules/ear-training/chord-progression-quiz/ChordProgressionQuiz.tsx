@@ -54,7 +54,7 @@ export default function ChordProgressionQuiz() {
         </p>
       </header>
 
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="text-[11px] text-neutral-500">
             <span className="font-mono tabular-nums">{seenCount}</span> section

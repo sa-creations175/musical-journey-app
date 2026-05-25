@@ -476,7 +476,7 @@ export default function ScalesDrillModal({
           )}
 
           {/* Countdown display */}
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 flex items-center justify-center">
+          <div className="rounded-lg border border-black/[0.07] p-4 flex items-center justify-center">
             <div
               className={`font-mono tabular-nums text-5xl sm:text-6xl ${
                 phase === 'running' ? 'text-fluent' : 'text-neutral-700 dark:text-neutral-200'

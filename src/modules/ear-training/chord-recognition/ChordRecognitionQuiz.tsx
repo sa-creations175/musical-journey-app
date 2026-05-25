@@ -512,7 +512,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     const base = 'relative rounded-lg border text-xs font-medium transition px-3 py-3 text-left leading-snug';
     if (!qualityLocked) {
       if (!hasPlayed) {
-        return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400`;
+        return `${base} border-neutral-200 dark:border-neutral-700 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] text-neutral-400`;
       }
       return `${base} border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-fluent hover:text-fluent`;
     }
@@ -520,7 +520,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     const isSelected = c.id === selectedId;
     if (isCorrect) return `${base} border-fluent bg-fluent/10 text-fluent`;
     if (isSelected) return `${base} border-needswork bg-needswork/10 text-needswork`;
-    return `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400 opacity-60`;
+    return `${base} border-neutral-200 dark:border-neutral-700 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] text-neutral-400 opacity-60`;
   };
 
   // Focus sessions with fewer than 4 items don't truly test fluency.
@@ -650,7 +650,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   })();
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord recognition quiz</h2>
       </div>
@@ -838,7 +838,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
       {/* Feedback area */}
       <div className="min-h-[1.5rem]">
         {qualityLocked && current ? (
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 text-sm space-y-2">
+          <div className="rounded-lg border border-black/[0.07] p-4 text-sm space-y-2">
             <div className="text-center space-y-1">
               <AnswerVerdict state={qualityCorrect ? 'correct' : 'incorrect'} />
               <span>
@@ -990,7 +990,7 @@ function LifetimeStatsModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-3"
+        className="w-full max-w-sm rounded-2xl border border-black/[0.07] bg-white dark:bg-neutral-900 p-5 space-y-3"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -1048,7 +1048,7 @@ function InversionPicker({
           } else if (isSelected) {
             cls = `${base} border-needswork bg-needswork/10 text-needswork cursor-default`;
           } else {
-            cls = `${base} border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 text-neutral-400 opacity-60 cursor-default`;
+            cls = `${base} border-neutral-200 dark:border-neutral-700 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] text-neutral-400 opacity-60 cursor-default`;
           }
           return (
             <button
@@ -1096,7 +1096,7 @@ function InversionSettingsDrawer({
   const stepTwoActive = positions.length >= 2;
 
   return (
-    <div className="w-full max-w-md rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur p-4 space-y-3">
+    <div className="w-full max-w-md rounded-2xl border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur p-4 space-y-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-medium tracking-tight">

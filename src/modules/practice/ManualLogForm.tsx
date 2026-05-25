@@ -132,7 +132,7 @@ export default function ManualLogForm() {
   }
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-4 py-3 flex flex-col gap-3">
+    <div className="rounded-md border border-black/[0.07] px-4 py-3 flex flex-col gap-3">
       <header className="flex items-center justify-between">
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
           Log a session

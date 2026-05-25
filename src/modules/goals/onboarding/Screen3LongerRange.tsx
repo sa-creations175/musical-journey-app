@@ -70,7 +70,7 @@ export default function Screen3LongerRange({ allGoals }: Props) {
           return (
             <section
               key={scope}
-              className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3"
+              className="rounded-md border border-black/[0.07] p-3"
             >
               <header className="mb-2">
                 <h3 className="text-sm font-semibold text-neutral-800 dark:text-neutral-100">

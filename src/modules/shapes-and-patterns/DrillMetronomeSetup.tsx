@@ -40,7 +40,7 @@ export default function DrillMetronomeSetup() {
     else void metronome.start('user');
   };
   return (
-    <div className="space-y-2 rounded-md border border-neutral-200 dark:border-neutral-800 p-3">
+    <div className="space-y-2 rounded-md border border-black/[0.07] p-3">
       <div className="flex items-center justify-between">
         <span className="text-neutral-500 uppercase tracking-wide text-xs">metronome</span>
         <button

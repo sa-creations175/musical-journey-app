@@ -185,7 +185,7 @@ export default function ScaleDrills() {
   );
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <header className="space-y-1">
         <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           Scales
@@ -223,7 +223,7 @@ export default function ScaleDrills() {
 
 function ProgressSummary({ counts }: { counts: ProgressCounts }) {
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-2.5 flex items-baseline gap-3 flex-wrap text-xs">
+    <div className="rounded-md border border-black/[0.07] p-2.5 flex items-baseline gap-3 flex-wrap text-xs">
       <span className="text-neutral-500">Progress</span>
       <span className="font-mono">
         <span className="text-mastered font-medium">{counts.acquired}</span>

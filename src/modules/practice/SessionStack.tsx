@@ -163,7 +163,7 @@ export default function SessionStack({ blocks, onReorder, onDelete, onSwap, inli
 
   const stackInner = (
     <div
-      className="w-full min-w-0 overflow-hidden flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+      className="w-full min-w-0 overflow-hidden flex flex-col gap-1.5 p-2 sm:p-2.5 rounded-lg border border-black/[0.07] bg-white dark:bg-neutral-900"
       style={{ minHeight: `${minTotalPx}px` }}
     >
       {groups.map(group => {

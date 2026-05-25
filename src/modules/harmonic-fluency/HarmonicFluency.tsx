@@ -235,7 +235,7 @@ export default function HarmonicFluency() {
           }
         />
       ) : (
-        <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-5">
+        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
             <h2 className="text-base sm:text-lg font-medium tracking-tight">start a session</h2>
             <p className="text-xs text-neutral-500 mt-0.5">
@@ -425,7 +425,7 @@ function FlaggedForReviewPanel() {
   if (flagged.length === 0) return null;
 
   return (
-    <section className="rounded-card border border-developing/40 bg-developing/5 p-4 sm:p-5 space-y-3">
+    <section className="rounded-2xl border border-developing/40 bg-developing/5 p-4 sm:p-5 space-y-3">
       <button
         onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center justify-between gap-3 text-left"
@@ -446,7 +446,7 @@ function FlaggedForReviewPanel() {
           {flagged.map(({ cardId, note, card }) => card && (
             <li
               key={cardId}
-              className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white/60 dark:bg-neutral-900/60 p-3 space-y-1.5"
+              className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 space-y-1.5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-0.5 min-w-0">

@@ -148,7 +148,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
       </header>
 
       {/* Surface content */}
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-3">
         <div className="text-[10px] uppercase tracking-wide text-production font-medium">
           the idea
         </div>
@@ -181,7 +181,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
       <section>
         <button
           onClick={() => setShowDeepDive(v => !v)}
-          className="w-full rounded-card border border-neutral-200 dark:border-neutral-800 px-4 py-3 text-left flex items-center justify-between hover:border-production/60 transition-colors"
+          className="w-full rounded-2xl border border-black/[0.07] px-4 py-3 text-left flex items-center justify-between hover:border-production/60 transition-colors"
         >
           <div>
             <div className="text-sm font-medium">Deep dive</div>
@@ -200,7 +200,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
           </svg>
         </button>
         {showDeepDive && (
-          <div className="mt-2 rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5">
+          <div className="mt-2 rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5">
             <ProseWithGlossary text={lesson.deepDive} onOpenTerm={setGlossaryOpen} />
           </div>
         )}
@@ -211,7 +211,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
 
       {/* Glossary terms in this lesson */}
       {lesson.glossaryTerms.length > 0 && (
-        <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-2">
+        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-2">
           <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium">
             glossary terms introduced
           </div>

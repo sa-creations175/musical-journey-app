@@ -90,7 +90,7 @@ export default function TodayAndAttention() {
   }, [allSkills, allTypes]);
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-4">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
       {/* Today summary */}
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div>

@@ -253,7 +253,7 @@ export function BlockExpiryModal() {
       aria-label="block time's up"
     >
       <div
-        className="bg-white dark:bg-neutral-900 rounded-card border shadow-xl w-full max-w-md flex flex-col overflow-hidden"
+        className="bg-white dark:bg-neutral-900 rounded-2xl border shadow-xl w-full max-w-md flex flex-col overflow-hidden"
         style={{ borderColor: accent, borderLeftWidth: 3 }}
       >
         <header className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">

@@ -128,7 +128,7 @@ export default function GlossaryView() {
               <button
                 key={t.id}
                 onClick={() => setOpenTerm(t.id)}
-                className="text-left rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-production/60 transition-colors"
+                className="text-left rounded-lg border border-black/[0.07] p-3 hover:border-production/60 transition-colors"
               >
                 <div className="flex items-baseline justify-between gap-2 mb-1">
                   <span className="text-sm font-medium">{t.name}</span>

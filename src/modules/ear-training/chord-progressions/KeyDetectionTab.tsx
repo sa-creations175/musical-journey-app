@@ -235,7 +235,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
   const wasCorrect = submitted && round?.options.find(o => o.note === selectedNote)?.isCorrect;
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base sm:text-lg font-medium tracking-tight">key detection</h2>
@@ -358,7 +358,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
       )}
 
       {runState === 'reveal' && round && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-2 text-sm">
+        <div className="rounded-lg border border-black/[0.07] p-4 space-y-2 text-sm">
           <div className="text-center space-y-1">
             <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
             <span>

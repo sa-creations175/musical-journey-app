@@ -200,7 +200,7 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
       </div>
 
       {/* Filter chip rows */}
-      <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+      <div className="rounded-md border border-black/[0.07] p-3 space-y-2">
         <FilterRow label="tier">
           {(['mastered', 'fluent', 'developing', 'needsWork', 'stale', 'untouched'] as Tier[]).map(t => (
             <Chip
@@ -295,7 +295,7 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
           no skills match these filters — try broadening the search.
         </div>
       ) : (
-        <div className="rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        <div className="rounded-md border border-black/[0.07] overflow-hidden">
           <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wide text-neutral-500 font-medium border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/40">
             <div className="col-span-4">name</div>
             <div className="col-span-2">module</div>

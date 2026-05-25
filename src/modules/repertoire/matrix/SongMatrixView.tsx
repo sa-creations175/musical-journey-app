@@ -400,7 +400,7 @@ function Header({
     || (stateName === 'learning' && crossKeyPercent > 0);
 
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 px-4 py-3">
+    <header className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] px-4 py-3">
       <div className="flex-1 min-w-0">
         <h2 className="text-base sm:text-lg font-medium tracking-tight truncate">
           {song.title}

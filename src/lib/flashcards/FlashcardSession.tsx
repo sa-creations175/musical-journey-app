@@ -408,7 +408,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
 
   if (!card) {
     return (
-      <div className="rounded-card border border-neutral-200 dark:border-neutral-800 p-6 text-center text-sm text-neutral-500">
+      <div className="rounded-2xl border border-black/[0.07] p-6 text-center text-sm text-neutral-500">
         no cards to practice.
       </div>
     );
@@ -422,7 +422,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
     : null;
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-5">
       {focusProtected && <FluencyProtectionNotice />}
 
       {/* Header */}
@@ -672,7 +672,7 @@ function SummaryCard<TCard extends BaseFlashcard>({
     byCategory.set(o.card.category, cat);
   }
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-5 space-y-4">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-5 space-y-4">
       <h2 className="text-lg font-medium tracking-tight">session complete</h2>
       <div className="flex items-baseline gap-4 text-sm flex-wrap">
         <span>

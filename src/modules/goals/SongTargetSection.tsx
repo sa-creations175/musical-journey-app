@@ -342,7 +342,7 @@ function KeyTarget({
   })();
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-3 flex flex-col gap-3">
+    <div className="rounded-md border border-black/[0.07] px-3 py-3 flex flex-col gap-3">
       <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
         Get a key to a specific state
       </span>
@@ -424,7 +424,7 @@ function SectionTarget({
     : null;
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-3 py-3 flex flex-col gap-3">
+    <div className="rounded-md border border-black/[0.07] px-3 py-3 flex flex-col gap-3">
       <span className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
         Get one section to a specific state
       </span>

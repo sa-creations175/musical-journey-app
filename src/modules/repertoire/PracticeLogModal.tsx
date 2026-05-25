@@ -228,7 +228,7 @@ export default function PracticeLogModal({ song, sections, onClose, onLogged }: 
     >
       <div className="space-y-4 text-sm">
         {/* Timer */}
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 flex items-center justify-between gap-2 flex-wrap">
+        <div className="rounded-lg border border-black/[0.07] p-3 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-3">
             <span className="font-mono text-2xl tabular-nums">
               {mm}:{ss}

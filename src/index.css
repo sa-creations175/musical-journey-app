@@ -5,8 +5,18 @@
 html, body, #root { height: 100%; }
 
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased;
-  font-family: Inter, system-ui, sans-serif;
+  @apply text-neutral-900 antialiased;
+  background-color: #f5f7f5;
+  font-family: 'DM Sans', Inter, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Display / heading face — Bricolage Grotesque. Element-level selector
+   keeps specificity low so feature-specific overrides (e.g. the
+   Harmonic Diary's .diary-serif) still win. */
+h1, h2, h3, h4 {
+  font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
 }
 
 .dark body {

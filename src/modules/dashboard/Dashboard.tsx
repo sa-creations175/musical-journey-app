@@ -110,8 +110,11 @@ export default function Dashboard() {
           the week. */}
       <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
 
-      {/* Section 1 — warm opening */}
+      {/* Section 1 — warm opening. Header sits in a dark-green hero
+          band; the quote + streak line stay on the page field below so
+          their functional accent colours keep their contrast. */}
       <section className="space-y-2">
+        <div className="bg-green-deep text-white rounded-2xl px-4 py-5 sm:px-6 sm:py-6">
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">
             Hi {editingName ? (
@@ -144,6 +147,7 @@ export default function Dashboard() {
             )} — how can I help you improve your musicianship today?
           </h1>
         </div>
+        </div>
         <p className="text-sm text-neutral-500 italic leading-relaxed max-w-2xl">
           “{quote.text}” <span className="not-italic text-xs text-neutral-400">— {quote.attribution}</span>
         </p>
@@ -168,7 +172,7 @@ export default function Dashboard() {
       {data && (
         <>
           {/* Section 2 — Musician Balance radar */}
-          <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6">
+          <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6">
             <div className="flex items-start justify-between flex-wrap gap-2 mb-3">
               <div>
                 <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
@@ -355,7 +359,7 @@ function TodaysPracticeSection({ data }: { data: DashboardData }) {
     lastPracticedDaysAgo: data.harmonicFluency.lastPracticedDaysAgo,
   }];
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-4">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-4">
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           today's practice
@@ -373,7 +377,7 @@ function TodaysPracticeSection({ data }: { data: DashboardData }) {
             <Link
               key={m.moduleId}
               to={m.route}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-fluent/60 transition-colors"
+              className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
             >
               <div className="flex items-baseline justify-between gap-2 mb-1.5">
                 <span className="text-sm font-medium truncate">{m.label}</span>
@@ -497,7 +501,7 @@ function RecentWinsSection({ data }: { data: DashboardData }) {
 
   if (wins.length === 0) {
     return (
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6">
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           recent wins
         </h2>
@@ -509,7 +513,7 @@ function RecentWinsSection({ data }: { data: DashboardData }) {
   }
 
   return (
-    <section className="rounded-card border border-developing/20 bg-gradient-to-br from-developing/5 to-fluent/5 p-4 sm:p-6 space-y-3">
+    <section className="rounded-2xl border border-developing/20 bg-gradient-to-br from-developing/5 to-fluent/5 p-4 sm:p-6 space-y-3">
       <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
         recent wins
       </h2>
@@ -522,7 +526,7 @@ function RecentWinsSection({ data }: { data: DashboardData }) {
             : ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
           return (
             <Wrapper key={i}>
-              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 p-3 flex items-start gap-3">
+              <div className="rounded-lg border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 p-3 flex items-start gap-3">
                 <span className="text-2xl">{w.icon}</span>
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{w.title}</div>
@@ -612,7 +616,7 @@ function AttentionSection({ data }: { data: DashboardData }) {
 
   if (items.length === 0) {
     return (
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6">
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           what's calling your attention
         </h2>
@@ -624,7 +628,7 @@ function AttentionSection({ data }: { data: DashboardData }) {
   }
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-3">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-3">
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           what's calling your attention
@@ -670,7 +674,7 @@ function CreativeGeniusSection({
   onStartWithPrompt: () => void;
 }) {
   return (
-    <section className="rounded-card border border-fluent/20 bg-gradient-to-br from-fluent/5 via-white/0 to-developing/5 dark:from-fluent/10 dark:via-neutral-900/0 dark:to-developing/10 p-4 sm:p-6 space-y-4">
+    <section className="rounded-2xl border border-fluent/20 bg-gradient-to-br from-fluent/5 via-white/0 to-developing/5 dark:from-fluent/10 dark:via-neutral-900/0 dark:to-developing/10 p-4 sm:p-6 space-y-4">
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-fluent">
           creative genius
@@ -698,7 +702,7 @@ function CreativeGeniusSection({
       )}
 
       {prompt && (
-        <div className="rounded-card border border-fluent/30 bg-white/70 dark:bg-neutral-900/70 p-4 space-y-2">
+        <div className="rounded-2xl border border-fluent/30 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-4 space-y-2">
           <div className="text-[10px] uppercase tracking-wide text-fluent font-medium">a prompt for you</div>
           <p className="text-sm leading-relaxed">{prompt.text}</p>
         </div>
@@ -735,7 +739,7 @@ function CreativeGeniusSection({
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 p-2">
+    <div className="rounded-md border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-2">
       <div className="text-xl font-mono tabular-nums text-fluent">{value}</div>
       <div className="text-[10px] uppercase tracking-wide text-neutral-500">{label}</div>
     </div>
@@ -748,7 +752,7 @@ function StatTile({ value, label }: { value: string; label: string }) {
 
 function PlaceholderSection({ title, description }: { title: string; description: string }) {
   return (
-    <section className="rounded-card border border-dashed border-neutral-200 dark:border-neutral-800 p-4 text-xs text-neutral-500">
+    <section className="rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-800 p-4 text-xs text-neutral-500">
       <div className="uppercase tracking-wide font-medium text-neutral-500">
         {title} <span className="text-neutral-400 normal-case font-normal">· coming soon</span>
       </div>
@@ -779,7 +783,7 @@ function QuickActionsSection({
   }, [data.earTraining]);
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-3">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-3">
       <div>
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           quick actions
@@ -789,7 +793,7 @@ function QuickActionsSection({
         {next && (
           <Link
             to={next.route}
-            className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-fluent/60 transition-colors"
+            className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
           >
             <div className="text-sm font-medium">start a practice session</div>
             <div className="text-xs text-neutral-500 mt-0.5">suggested: {next.label}</div>
@@ -805,7 +809,7 @@ function QuickActionsSection({
         {data.repertoire.performanceReady.length > 0 ? (
           <Link
             to="/repertoire"
-            className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-fluent/60 transition-colors"
+            className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
           >
             <div className="text-sm font-medium">review performance-ready</div>
             <div className="text-xs text-neutral-500 mt-0.5">
@@ -815,7 +819,7 @@ function QuickActionsSection({
         ) : (
           <Link
             to="/repertoire"
-            className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-fluent/60 transition-colors"
+            className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
           >
             <div className="text-sm font-medium">open song repertoire</div>
             <div className="text-xs text-neutral-500 mt-0.5">work a song you know</div>
@@ -902,7 +906,7 @@ function ModulesPreviewSection({ data }: { data: DashboardData }) {
   }, [data]);
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-3">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           modules at a glance

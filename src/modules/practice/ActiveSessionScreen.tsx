@@ -864,7 +864,7 @@ export default function ActiveSessionScreen() {
             </div>
           </section>
         ) : (
-          <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center">
+          <section className="rounded-lg border border-black/[0.07] p-3 text-center">
             <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-0.5">
               Final block
             </div>

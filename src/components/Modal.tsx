@@ -65,7 +65,7 @@ export default function Modal({ open, onClose, title, description, children, foo
         ref={panelRef}
         tabIndex={-1}
         onClick={e => e.stopPropagation()}
-        className="bg-white dark:bg-neutral-900 rounded-card border border-neutral-200 dark:border-neutral-800 shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden focus:outline-none"
+        className="bg-white dark:bg-neutral-900 rounded-2xl border border-black/[0.07] shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden focus:outline-none"
       >
         <header className="shrink-0 px-4 sm:px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between gap-3">
           <div className="min-w-0">

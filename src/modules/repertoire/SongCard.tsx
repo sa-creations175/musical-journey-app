@@ -54,7 +54,7 @@ export default function SongCard({
 
   return (
     <article
-      className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 p-3 flex flex-col gap-2 hover:border-fluent/40 transition"
+      className="rounded-lg border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 p-3 flex flex-col gap-2 hover:border-fluent/40 transition"
     >
       <div className="flex items-start gap-2">
         <span

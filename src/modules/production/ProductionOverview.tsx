@@ -121,7 +121,7 @@ export default function ProductionOverview({
               <button
                 key={p.id}
                 onClick={() => onOpenPath(p.id)}
-                className={`text-left rounded-card border p-4 transition-colors ${
+                className={`text-left rounded-2xl border p-4 transition-colors ${
                   planned
                     ? 'border-neutral-200 dark:border-neutral-800 opacity-60 hover:opacity-80'
                     : 'border-production/30 hover:border-production'
@@ -162,7 +162,7 @@ export default function ProductionOverview({
           <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
             recent lessons
           </h2>
-          <ul className="rounded-card border border-neutral-200 dark:border-neutral-800 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">
+          <ul className="rounded-2xl border border-black/[0.07] overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">
             {recent.map(s => {
               const l = lessonById(s.id);
               if (!l) return null;
@@ -204,7 +204,7 @@ function Stat({
   accent?: string;
   onClick?: () => void;
 }) {
-  const base = 'rounded-card border border-neutral-200 dark:border-neutral-800 p-3 text-left';
+  const base = 'rounded-2xl border border-black/[0.07] p-3 text-left';
   const className = onClick
     ? `${base} hover:border-production/60 transition-colors cursor-pointer`
     : base;

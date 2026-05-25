@@ -1014,7 +1014,7 @@ function LayerSection({
 function WeeklyChallengeSection() {
   const [open, setOpen] = useState(false);
   return (
-    <section className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/40 dark:bg-neutral-900/30">
+    <section className="rounded-lg border border-black/[0.07] bg-white/40 dark:bg-neutral-900/30">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -2437,7 +2437,7 @@ function ViewToggle({
     <div
       role="tablist"
       aria-label="Goals view"
-      className="mb-4 inline-flex items-center gap-1 p-0.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40"
+      className="mb-4 inline-flex items-center gap-1 p-0.5 rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40"
     >
       {segment('timeframe', 'By timeframe')}
       {segment('module', 'By module')}

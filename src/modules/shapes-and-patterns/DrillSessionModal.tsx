@@ -480,7 +480,7 @@ export default function DrillSessionModal({
           )}
 
           {/* Timer display */}
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 flex items-center justify-center">
+          <div className="rounded-lg border border-black/[0.07] p-4 flex items-center justify-center">
             <div
               className={`font-mono tabular-nums text-5xl sm:text-6xl ${
                 phase === 'running' ? 'text-fluent' : 'text-neutral-700 dark:text-neutral-200'
@@ -563,7 +563,7 @@ export default function DrillSessionModal({
       ) : (
         // --- Assessment phase -----------------------------------
         <div className="space-y-4 text-sm">
-          <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 text-center">
+          <div className="rounded-lg border border-black/[0.07] p-3 text-center">
             <div className="text-[11px] uppercase tracking-wide text-neutral-500">practised</div>
             <div className="font-mono tabular-nums text-2xl">{formatDuration(elapsedSeconds)}</div>
           </div>

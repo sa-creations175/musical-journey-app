@@ -71,7 +71,7 @@ export default function LessonReferenceSection({ lessonId }: Props) {
 
   return (
     <>
-      <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-5 space-y-3">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-3">
         <div className="flex items-baseline justify-between gap-2 flex-wrap">
           <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium">
             reference tracks for this lesson
@@ -165,7 +165,7 @@ function LinkedTrackRow({
   onRemove: () => void;
 }) {
   return (
-    <li className="rounded-card border border-neutral-200 dark:border-neutral-800 p-3 space-y-1">
+    <li className="rounded-2xl border border-black/[0.07] p-3 space-y-1">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="text-sm">

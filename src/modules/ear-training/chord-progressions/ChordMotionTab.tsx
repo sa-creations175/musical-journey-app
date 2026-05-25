@@ -693,7 +693,7 @@ export default function ChordMotionTab({ attempts }: Props) {
 
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base sm:text-lg font-medium tracking-tight">chord motion</h2>
@@ -1013,7 +1013,7 @@ export default function ChordMotionTab({ attempts }: Props) {
 
             {/* Feedback text block — everything the user might want to
                 read *after* they've seen the action row above. */}
-            <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 text-sm">
+            <div className="rounded-lg border border-black/[0.07] p-4 space-y-3 text-sm">
               {round.isPracticeRep && (
                 <div className="text-[11px] italic text-neutral-500">
                   practice rep — not tracked

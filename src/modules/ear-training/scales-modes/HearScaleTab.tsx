@@ -332,7 +332,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
 
 function ScaleReveal({ mode, wasCorrect }: { mode: Mode; wasCorrect: boolean }) {
   return (
-    <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-4 space-y-3 text-sm">
+    <div className="rounded-lg border border-black/[0.07] p-4 space-y-3 text-sm">
       <div className="text-center space-y-1">
         <AnswerVerdict state={wasCorrect ? 'correct' : 'incorrect'} />
         <span className="font-medium">{mode.name}</span>

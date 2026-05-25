@@ -123,7 +123,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastRecord; onDismiss: () => 
   return (
     <div
       role="status"
-      className={`pointer-events-auto w-full rounded-lg border border-neutral-200 dark:border-neutral-800 ${accent[toast.variant ?? 'default']} border-l-4 bg-white dark:bg-neutral-900 shadow-md px-3 py-2.5 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-bottom-2 duration-200`}
+      className={`pointer-events-auto w-full rounded-lg border border-black/[0.07] ${accent[toast.variant ?? 'default']} border-l-4 bg-white dark:bg-neutral-900 shadow-md px-3 py-2.5 flex items-center gap-2 text-sm animate-in fade-in slide-in-from-bottom-2 duration-200`}
     >
       <span className="flex-1 text-neutral-700 dark:text-neutral-200 truncate" title={toast.message}>
         {toast.message}

@@ -145,7 +145,7 @@ export default function VoiceLeadingDrills() {
         return (
           <section
             key={effective.id}
-            className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-3 sm:p-5 space-y-3"
+            className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3"
           >
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <div className="min-w-0">
@@ -205,7 +205,7 @@ export default function VoiceLeadingDrills() {
       )}
 
       {adding ? (
-        <section className="rounded-card border border-fluent/40 bg-fluent/5 p-3 sm:p-5 space-y-2">
+        <section className="rounded-2xl border border-fluent/40 bg-fluent/5 p-3 sm:p-5 space-y-2">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-neutral-500 text-xs uppercase tracking-wide">pattern name</span>
             <input

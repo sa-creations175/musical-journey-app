@@ -95,7 +95,7 @@ export function ResumeSessionGate() {
       aria-modal="true"
       aria-label="resume practice session"
     >
-      <div className="bg-white dark:bg-neutral-900 rounded-card border border-fluent shadow-xl w-full max-w-md flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-fluent shadow-xl w-full max-w-md flex flex-col overflow-hidden">
         <header className="px-5 py-4 border-b border-neutral-200 dark:border-neutral-800">
           <div className="text-[11px] uppercase tracking-wider font-medium mb-1 text-fluent">
             Practice session

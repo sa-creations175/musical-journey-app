@@ -249,7 +249,7 @@ function RuleReminder({
     );
   }
   return (
-    <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
+    <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-black/[0.07] px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
       Play through the full song in this key. Log each attempt as clean or
       not-clean. <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span> unlocks Solid.
       Each test session is a fresh demonstration — the streak doesn't carry
@@ -363,7 +363,7 @@ function AttemptLog({
           No attempts logged yet. Add one below to record a run-through.
         </p>
       ) : (
-        <ul className="flex flex-col gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+        <ul className="flex flex-col gap-1 rounded-md border border-black/[0.07] divide-y divide-neutral-200 dark:divide-neutral-800">
           {attempts.map((a, i) => (
             <AttemptRow
               key={a.id}

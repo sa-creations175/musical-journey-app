@@ -219,7 +219,7 @@ function PlanForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: () => 
   };
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 px-4 py-3 flex flex-col gap-3">
+    <div className="rounded-md border border-black/[0.07] px-4 py-3 flex flex-col gap-3">
       <div>
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
           Plan a vacation

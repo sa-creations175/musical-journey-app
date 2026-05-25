@@ -240,7 +240,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   const hasCallouts = needsAttentionCount > 0 || readyToAdvanceCount > 0;
 
   return (
-    <section className="rounded-card border border-neutral-200 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur p-4 sm:p-6 space-y-4">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-4">
       {/* Top-of-page: big count + subtitle + stage line + optional
           callouts. Scales from big hero number down to muted details. */}
       <div className="space-y-1">
@@ -406,7 +406,7 @@ function SortableSongRow(props: SortableSongRowProps) {
         aria-label={`drag to reorder ${props.song.title}`}
         {...attributes}
         {...listeners}
-        className="shrink-0 px-2 flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none"
+        className="shrink-0 px-2 flex items-center justify-center rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900 text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none"
       >
         <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
       </button>

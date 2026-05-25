@@ -30,7 +30,7 @@ export default function AuthGate({ children }: Props) {
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-neutral-50 dark:bg-neutral-950">
-        <div className="w-full max-w-sm rounded-card border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-sm p-6 space-y-4">
+        <div className="w-full max-w-sm rounded-2xl border border-black/[0.07] bg-white dark:bg-neutral-900 shadow-sm p-6 space-y-4">
           <header className="space-y-1">
             <h1 className="text-xl font-medium tracking-tight">Musical Journey</h1>
             <p className="text-xs text-neutral-500">

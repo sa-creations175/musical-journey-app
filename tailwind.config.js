@@ -10,6 +10,13 @@ export default {
         developing: '#EF9F27',
         needswork: '#E24B4A',
         info: '#378ADD',
+        // Structural green scale for the restyle (hero band, accents,
+        // tints). Distinct from the functional status colours above —
+        // these carry no encoded meaning.
+        'green-deep': '#0f3d2e',
+        'green-mid': '#1a6b4a',
+        'green-bright': '#22c37e',
+        'green-tint': '#edf7f2',
         // Production module accent (deep indigo) + variants used for
         // hover, subtle backgrounds, dark-mode shifts. `DEFAULT` lets
         // Tailwind resolve bare `production` as the base.
@@ -34,7 +41,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['DM Sans', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Bricolage Grotesque', 'DM Sans', 'system-ui', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'monospace'],
       },
       borderRadius: {

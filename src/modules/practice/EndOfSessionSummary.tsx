@@ -241,7 +241,7 @@ function UnratedBlocksBatch({
           return (
             <li
               key={block.id}
-              className="rounded-md border border-neutral-200 dark:border-neutral-800 px-2.5 py-2 space-y-1.5"
+              className="rounded-md border border-black/[0.07] px-2.5 py-2 space-y-1.5"
             >
               <div className="flex items-baseline gap-2">
                 <span
@@ -347,7 +347,7 @@ function BlockList({ blocks }: { blocks: ReadonlyArray<SessionBlock> }) {
       <div className="text-[11px] uppercase tracking-wider text-neutral-500">
         What you did
       </div>
-      <ul className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden divide-y divide-neutral-200 dark:divide-neutral-800">
+      <ul className="rounded-lg border border-black/[0.07] overflow-hidden divide-y divide-neutral-200 dark:divide-neutral-800">
         {finished.map(block => (
           <BlockRow key={block.id} block={block} />
         ))}

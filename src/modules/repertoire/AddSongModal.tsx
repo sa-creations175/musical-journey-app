@@ -197,7 +197,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
       )}
     >
       {hasBacklog && (
-        <div className="flex items-center gap-1 p-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 mb-4 text-xs">
+        <div className="flex items-center gap-1 p-1 rounded-lg border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900 mb-4 text-xs">
           <button
             onClick={() => setPath('pick')}
             aria-pressed={path === 'pick'}
@@ -230,7 +230,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
               key={entry.id}
               onClick={() => promoteEntry(entry)}
               disabled={submitting}
-              className="w-full text-left rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 hover:border-fluent hover:bg-fluent/5 transition disabled:opacity-50"
+              className="w-full text-left rounded-lg border border-black/[0.07] p-3 hover:border-fluent hover:bg-fluent/5 transition disabled:opacity-50"
             >
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="min-w-0">

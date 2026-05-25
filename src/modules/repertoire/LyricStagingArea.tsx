@@ -78,7 +78,7 @@ export default function LyricStagingArea({ sectionId, onSubmitLines }: Props) {
   }
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-800 p-2 bg-neutral-50/40 dark:bg-neutral-900/40 space-y-2">
+    <div className="rounded-md border border-black/[0.07] p-2 bg-neutral-50/40 dark:bg-neutral-900/40 space-y-2">
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
         <span>lyric paste</span>
         <div className="flex items-center gap-2">

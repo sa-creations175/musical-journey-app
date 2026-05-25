@@ -355,7 +355,7 @@ function AttemptLog({
           No attempts logged yet. Add one below to track your run-through.
         </p>
       ) : (
-        <ul className="flex flex-col gap-1 rounded-md border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200 dark:divide-neutral-800">
+        <ul className="flex flex-col gap-1 rounded-md border border-black/[0.07] divide-y divide-neutral-200 dark:divide-neutral-800">
           {attempts.map((a, i) => (
             <AttemptRow
               key={a.id}

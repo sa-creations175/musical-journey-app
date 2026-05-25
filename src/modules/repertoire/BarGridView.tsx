@@ -518,7 +518,7 @@ export default function BarGridView({
   return (
     <div
       ref={containerRef}
-      className="rounded-md border border-neutral-200 dark:border-neutral-800 p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
+      className="rounded-md border border-black/[0.07] p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
       <BarGridHeader
         timeSignature={timeSignature}
