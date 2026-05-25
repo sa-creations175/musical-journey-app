@@ -195,6 +195,10 @@ interface Props {
   /** Tap 'Copy chord' in the chord-edit popover; stores the chord's
    *  function/quality/bass/harmonicTag in the parent's clipboard. */
   onCopyChord?: (chord: ChordFunction) => void;
+  /** Play mode — hides the bar-grid header (label/count/time-sig +
+   *  undo/redo) and the + bar button, and renders empty beat slots as
+   *  nothing so only occupied chords show. */
+  playMode?: boolean;
 }
 
 interface EditingState {
@@ -232,6 +236,7 @@ export default function BarGridView({
   onChordAdd,
   copiedChord,
   onCopyChord,
+  playMode = false,
 }: Props) {
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
@@ -332,6 +337,9 @@ export default function BarGridView({
   }, [lyricLines, wordEditing]);
 
   if (bars.length === 0) {
+    // Play mode: an empty section contributes nothing but its name label
+    // (rendered by LeadSheetSection) — no editing chrome.
+    if (playMode) return null;
     return (
       <div className="rounded-md border border-dashed border-neutral-200 dark:border-neutral-800 p-3">
         <BarGridHeader
@@ -480,6 +488,7 @@ export default function BarGridView({
                       : undefined
                   }
                   onChordAddCancel={() => setNewChordAt(null)}
+                  playMode={playMode}
                 />
               ))}
               {row.length < barsPerRow &&
@@ -532,7 +541,7 @@ export default function BarGridView({
             </div>
           </div>
         ))}
-        {onAddBar && (
+        {!playMode && onAddBar && (
           <div className="pt-1">
             <AddBarButton onAddBar={onAddBar} />
           </div>
@@ -546,20 +555,22 @@ export default function BarGridView({
       ref={containerRef}
       className="rounded-md border border-black/[0.07] px-2 py-3 md:p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
     >
-      <BarGridHeader
-        timeSignature={timeSignature}
-        barCount={bars.length}
-        onUndo={onUndo}
-        canUndo={canUndo}
-        onRedo={onRedo}
-        canRedo={canRedo}
-        isOverridden={section.timeSignature !== undefined && section.timeSignature.trim() !== ''}
-        onTimeSignatureChange={onTimeSignatureChange}
-        pickerOpen={timeSigPickerOpen}
-        setPickerOpen={setTimeSigPickerOpen}
-        foundationMode={foundationMode}
-        onToggleFoundation={() => setFoundationMode(v => !v)}
-      />
+      {!playMode && (
+        <BarGridHeader
+          timeSignature={timeSignature}
+          barCount={bars.length}
+          onUndo={onUndo}
+          canUndo={canUndo}
+          onRedo={onRedo}
+          canRedo={canRedo}
+          isOverridden={section.timeSignature !== undefined && section.timeSignature.trim() !== ''}
+          onTimeSignatureChange={onTimeSignatureChange}
+          pickerOpen={timeSigPickerOpen}
+          setPickerOpen={setTimeSigPickerOpen}
+          foundationMode={foundationMode}
+          onToggleFoundation={() => setFoundationMode(v => !v)}
+        />
+      )}
       {chordsAreSortable ? (
         <SortableContext items={chordSortableIds}>{body}</SortableContext>
       ) : (
@@ -871,6 +882,7 @@ function BarBox({
   newChordAt,
   onChordAddSubmit,
   onChordAddCancel,
+  playMode,
 }: {
   bar: Bar;
   beatsPerBar: number;
@@ -897,6 +909,7 @@ function BarBox({
     chord: ChordFunction,
   ) => void;
   onChordAddCancel: () => void;
+  playMode: boolean;
 }) {
   const editingCellInThisBar =
     editing && editing.barIndex === bar.index
@@ -1006,6 +1019,9 @@ function BarBox({
       <div className="flex items-stretch gap-0.5 h-full">
         {items.map((item, idx) => {
           if (item.kind === 'empty') {
+            // Play mode: empty positions render as nothing (no box, no
+            // dashed border) so only occupied chords show.
+            if (playMode) return null;
             return (
               <EmptyBeatSlot
                 key={`e-${item.beatPos}`}

@@ -288,6 +288,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // card reorder (SortableSection) is unaffected. See
   // LEAD_SHEET_PLAY_MODE_DESIGN.md.
   const [reorderMode, setReorderMode] = useState(false);
+  // Play mode — a stripped, read-for-playing view of the lead sheet
+  // (editing chrome hidden). Mutually exclusive with reorder mode and
+  // not persisted (resets on reopen). See LEAD_SHEET_PLAY_MODE_DESIGN.md.
+  const [playMode, setPlayMode] = useState(false);
 
   const [titleDraft, setTitleDraft] = useState('');
   const [artistDraft, setArtistDraft] = useState('');
@@ -813,31 +817,46 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                     <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
                       <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
                       <div className="flex items-center gap-3 flex-wrap text-xs">
-                        <label className="inline-flex items-center gap-1 text-neutral-500">
-                          notation:
-                          <select
-                            value={notationMode}
-                            onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
-                            className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
-                            title="changes how chord functions display across the whole app"
-                          >
-                            {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
-                              <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <button
-                          onClick={addSection}
-                          className="text-neutral-500 hover:text-fluent"
-                        >
-                          + add section
-                        </button>
-                        {(sections.length > 1 || reorderMode) && (
+                        {/* Editing chrome (notation / add / reorder) is
+                            hidden in play mode; only the play/exit toggle
+                            remains. */}
+                        {!playMode && (
+                          <>
+                            <label className="inline-flex items-center gap-1 text-neutral-500">
+                              notation:
+                              <select
+                                value={notationMode}
+                                onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
+                                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
+                                title="changes how chord functions display across the whole app"
+                              >
+                                {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
+                                  <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              onClick={addSection}
+                              className="text-neutral-500 hover:text-fluent"
+                            >
+                              + add section
+                            </button>
+                            {(sections.length > 1 || reorderMode) && (
+                              <button
+                                onClick={() => { setReorderMode(v => !v); setPlayMode(false); }}
+                                className="text-neutral-500 hover:text-fluent"
+                              >
+                                {reorderMode ? 'done' : 'reorder'}
+                              </button>
+                            )}
+                          </>
+                        )}
+                        {sections.length > 0 && (
                           <button
-                            onClick={() => setReorderMode(v => !v)}
+                            onClick={() => { setPlayMode(v => !v); setReorderMode(false); }}
                             className="text-neutral-500 hover:text-fluent"
                           >
-                            {reorderMode ? 'done' : 'reorder'}
+                            {playMode ? 'exit' : 'play'}
                           </button>
                         )}
                       </div>
@@ -845,13 +864,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                     {sections.length === 0 ? (
                       <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
                     ) : (
-                      <div className="space-y-3">
+                      <div className={playMode ? 'space-y-1' : 'space-y-3'}>
                         {sections.map((s, idx) => (
                           <LeadSheetSection
                             key={s.id}
                             song={song}
                             section={s}
                             reorderMode={reorderMode}
+                            playMode={playMode}
                             canMoveUp={idx > 0}
                             canMoveDown={idx < sections.length - 1}
                             highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}

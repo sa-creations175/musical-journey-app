@@ -78,6 +78,10 @@ interface Props {
   /** Reorder mode (toggled from the lead-sheet header): surfaces the
    *  up/down section-move buttons. Drag-to-reorder has been removed. */
   reorderMode?: boolean;
+  /** Play mode — strips editing chrome to a clean playing view; the
+   *  section name shows as a small muted label and only occupied chord
+   *  slots + lyrics render. See LEAD_SHEET_PLAY_MODE_DESIGN.md. */
+  playMode?: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
   highlighted?: boolean;
@@ -96,6 +100,7 @@ export default function LeadSheetSection({
   song,
   section,
   reorderMode = false,
+  playMode = false,
   canMoveUp,
   canMoveDown,
   highlighted,
@@ -885,13 +890,25 @@ export default function LeadSheetSection({
   return (
     <div
       id={`section-${section.id}`}
-      className={`rounded-lg border p-3 space-y-3 ${
-        section.hidden
-          ? 'border-dashed opacity-70'
-          : 'border-neutral-200 dark:border-neutral-800'
+      className={`rounded-lg ${
+        playMode
+          ? 'py-1 space-y-1'
+          : `border p-3 space-y-3 ${
+              section.hidden
+                ? 'border-dashed opacity-70'
+                : 'border-neutral-200 dark:border-neutral-800'
+            }`
       } ${highlighted ? 'repertoire-flash' : ''} ${comparing ? 'bg-info/5' : ''}`}
     >
-      {/* Header: name / stage / reorder / hide / delete */}
+      {/* Header: name / stage / reorder / hide / delete. In play mode
+          this collapses to a small muted section-name label above the
+          grid; all editing controls are hidden. */}
+      {playMode && (
+        <div className="text-[12px] uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
+          {section.name}
+        </div>
+      )}
+      {!playMode && (
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           {editingName ? (
@@ -989,21 +1006,24 @@ export default function LeadSheetSection({
           )}
         </div>
       </div>
+      )}
 
       {section.hidden ? (
         <p className="text-xs text-neutral-500 italic">section hidden — won't show in your practice view.</p>
       ) : (
         <>
-          <ArrangementBar
-            arrangements={arrangements}
-            activeId={activeArrangementId}
-            compareIds={compareIds}
-            onChangeActive={setActiveArrangementId}
-            onChangeCompare={setCompareIds}
-            onArrangementsChange={saveArrangements}
-            phrases={normalisedPhrases}
-            onPhraseChange={updatePhraseInPlace}
-          />
+          {!playMode && (
+            <ArrangementBar
+              arrangements={arrangements}
+              activeId={activeArrangementId}
+              compareIds={compareIds}
+              onChangeActive={setActiveArrangementId}
+              onChangeCompare={setCompareIds}
+              onArrangementsChange={saveArrangements}
+              phrases={normalisedPhrases}
+              onPhraseChange={updatePhraseInPlace}
+            />
+          )}
 
           {/* Lead Sheet Redesign — bar-grid view + lyric placement.
               One DndContext owns chord sortable, pending-line drag,
@@ -1039,17 +1059,20 @@ export default function LeadSheetSection({
               canRedo={canRedo}
               onTimeSignatureChange={handleTimeSignatureChange}
               onChordAdd={handleChordAdd}
+              playMode={playMode}
             />
 
             {/* Step 6 lyric paste: each text line becomes a pending
-                LyricLine in the bar grid's tray. */}
-            <LyricStagingArea
-              sectionId={section.id}
-              onSubmitLines={handleSubmitLyricLines}
-            />
+                LyricLine in the bar grid's tray. Hidden in play mode. */}
+            {!playMode && (
+              <LyricStagingArea
+                sectionId={section.id}
+                onSubmitLines={handleSubmitLyricLines}
+              />
+            )}
           </DndContext>
 
-          {numeralStrip.length > 0 && !comparing && (
+          {!playMode && numeralStrip.length > 0 && !comparing && (
             <div className="flex flex-col gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
               {/* Numeral strip — the full chord sequence as scale
                   degrees, always shown regardless of detected patterns. */}
@@ -1152,8 +1175,8 @@ export default function LeadSheetSection({
             </div>
           )}
 
-          {/* Arrangement notes (per active arrangement) */}
-          {arrangements.find(a => a.id === activeArrangementId)?.notes && (
+          {/* Arrangement notes (per active arrangement) — hidden in play mode */}
+          {!playMode && arrangements.find(a => a.id === activeArrangementId)?.notes && (
             <div className="rounded-md bg-neutral-50 dark:bg-neutral-900/60 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
               <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">
                 arrangement note
@@ -1162,7 +1185,8 @@ export default function LeadSheetSection({
             </div>
           )}
 
-          {/* Section notes */}
+          {/* Section notes — hidden in play mode */}
+          {!playMode && (
           <div className="space-y-1">
             <button
               onClick={() => setShowNotes(v => !v)}
@@ -1181,6 +1205,7 @@ export default function LeadSheetSection({
               />
             )}
           </div>
+          )}
 
         </>
       )}
