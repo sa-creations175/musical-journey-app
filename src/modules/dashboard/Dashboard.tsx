@@ -114,13 +114,16 @@ export default function Dashboard() {
           band; the quote + streak line stay on the page field below so
           their functional accent colours keep their contrast. */}
       <section className="space-y-2">
-        {/* paddingTop clears the iPhone notch in standalone PWA
-            (viewport-fit=cover + black-translucent status bar). max()
-            keeps the base top padding on non-notched devices, mirroring
-            the GlobalSessionBanner safe-area treatment. */}
+        {/* The card sits below the Layout header, but on Dynamic-Island
+            devices that header can be shorter than the top inset, so the
+            card adds the safe-area inset to its own top padding. calc()
+            with an explicit 0px fallback always keeps the base padding
+            (py-5 = 1.25rem) and only ever ADDS the inset — it can never
+            collapse the band, and the declaration stays valid even where
+            env() is unsupported. Kept on the card (not Layout) by design. */}
         <div
           className="bg-green-deep text-white rounded-2xl px-4 py-5 sm:px-6 sm:py-6"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 1.25rem)' }}
+          style={{ paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}
         >
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">
