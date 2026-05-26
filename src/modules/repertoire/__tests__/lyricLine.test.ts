@@ -6,6 +6,7 @@ import {
   applyWordNudge,
   distributedWordPositions,
   joinWords,
+  setWordText,
   splitWord,
   tokenizeLyricLines,
 } from '../lyricLine';
@@ -285,5 +286,50 @@ describe('joinWords', () => {
     expect(joinWords(line, -1)).toBe(line);
     expect(joinWords(line, 1)).toBe(line); // last word has no next
     expect(joinWords(line, 5)).toBe(line);
+  });
+});
+
+describe('setWordText', () => {
+  it('replaces the text at the given wordIndex', () => {
+    const line = mkLine({ words: ['I', 'n', 'you'] });
+    const next = setWordText(line, 1, 'on');
+    expect(next.words).toEqual(['I', 'on', 'you']);
+  });
+
+  it('trims surrounding whitespace before storing', () => {
+    const line = mkLine({ words: ['I', 'love', 'you'] });
+    const next = setWordText(line, 1, '  loved  ');
+    expect(next.words).toEqual(['I', 'loved', 'you']);
+  });
+
+  it('preserves wordOffsets — only the text changes', () => {
+    const offsets = [0, 0.5, -0.25];
+    const line = mkLine({
+      words: ['a', 'b', 'c'],
+      wordOffsets: offsets,
+      endBeat: 4,
+    });
+    const next = setWordText(line, 1, 'B');
+    expect(next.words).toEqual(['a', 'B', 'c']);
+    expect(next.wordOffsets).toEqual(offsets);
+  });
+
+  it('no-ops when the trimmed value equals the current word (returns same ref)', () => {
+    const line = mkLine({ words: ['I', 'love', 'you'] });
+    expect(setWordText(line, 1, 'love')).toBe(line);
+    expect(setWordText(line, 1, '  love  ')).toBe(line);
+  });
+
+  it('no-ops when the trimmed value is empty (refuses to leave an empty syllable)', () => {
+    const line = mkLine({ words: ['I', 'love', 'you'] });
+    expect(setWordText(line, 1, '')).toBe(line);
+    expect(setWordText(line, 1, '   ')).toBe(line);
+  });
+
+  it('no-ops for out-of-range wordIndex', () => {
+    const line = mkLine({ words: ['I', 'love', 'you'] });
+    expect(setWordText(line, -1, 'x')).toBe(line);
+    expect(setWordText(line, 3, 'x')).toBe(line);
+    expect(setWordText(line, 99, 'x')).toBe(line);
   });
 });

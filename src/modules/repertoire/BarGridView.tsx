@@ -166,6 +166,15 @@ interface Props {
    *  wordIndex of the LEFT syllable; joinWords merges it with the
    *  one immediately following. */
   onWordJoin?: (lineId: string, wordIndex: number) => void | Promise<void>;
+  /** Inline syllable text edit. The WordEditPopover's 'edit' mode fires
+   *  this with the new trimmed text; the handler runs setWordText and
+   *  persists. Pairs with onWordSplit / onWordJoin as the third
+   *  syllable-level mutation. */
+  onWordChange?: (
+    lineId: string,
+    wordIndex: number,
+    nextText: string,
+  ) => void | Promise<void>;
   /** Tap the header's ↩ button. Pops the parent's undo stack and
    *  restores the prior section state. */
   onUndo?: () => void | Promise<void>;
@@ -228,6 +237,7 @@ export default function BarGridView({
   onBarReorder,
   onWordSplit,
   onWordJoin,
+  onWordChange,
   onUndo,
   canUndo,
   onRedo,
@@ -286,7 +296,7 @@ export default function BarGridView({
     lineId: string;
     wordIndex: number;
     barIndex: number;
-    mode: 'actions' | 'split';
+    mode: 'actions' | 'split' | 'edit';
   } | null>(null);
   // Time-signature picker state (step 8). Anchored under the header
   // time-signature label.
@@ -532,6 +542,7 @@ export default function BarGridView({
                   onWordEditingChange={setWordEditing}
                   onWordSplit={onWordSplit}
                   onWordJoin={onWordJoin}
+                  onWordChange={onWordChange}
                 />
               ))}
               {row.length < barsPerRow &&
@@ -1120,7 +1131,7 @@ interface WordEditingState {
   lineId: string;
   wordIndex: number;
   barIndex: number;
-  mode: 'actions' | 'split';
+  mode: 'actions' | 'split' | 'edit';
 }
 
 function LyricBarSegment({
@@ -1133,6 +1144,7 @@ function LyricBarSegment({
   onWordEditingChange,
   onWordSplit,
   onWordJoin,
+  onWordChange,
 }: {
   barIndex: number;
   beatsPerBar: number;
@@ -1147,6 +1159,11 @@ function LyricBarSegment({
     splitAt: number,
   ) => void | Promise<void>;
   onWordJoin?: (lineId: string, wordIndex: number) => void | Promise<void>;
+  onWordChange?: (
+    lineId: string,
+    wordIndex: number,
+    nextText: string,
+  ) => void | Promise<void>;
 }) {
   // Compute, per beat slot, which words/markers belong here. A word
   // belongs to (bar, beat) when its global position floors to that
@@ -1205,6 +1222,7 @@ function LyricBarSegment({
       ))}
       {wordEditing && popoverWord && popoverWordText !== null && (
         <WordEditPopover
+          key={`${wordEditing.lineId}:${wordEditing.wordIndex}`}
           state={wordEditing}
           wordText={popoverWordText}
           wordCount={popoverWord.words.length}
@@ -1224,6 +1242,18 @@ function LyricBarSegment({
             onWordJoin
               ? leftIndex => {
                   void onWordJoin(wordEditing.lineId, leftIndex);
+                  onWordEditingChange(null);
+                }
+              : undefined
+          }
+          onChange={
+            onWordChange
+              ? nextText => {
+                  void onWordChange(
+                    wordEditing.lineId,
+                    wordEditing.wordIndex,
+                    nextText,
+                  );
                   onWordEditingChange(null);
                 }
               : undefined
@@ -1358,17 +1388,29 @@ function WordEditPopover({
   onModeChange,
   onSplit,
   onJoin,
+  onChange,
 }: {
   state: WordEditingState;
   wordText: string;
   wordCount: number;
   onClose: () => void;
-  onModeChange: (mode: 'actions' | 'split') => void;
+  onModeChange: (mode: 'actions' | 'split' | 'edit') => void;
   onSplit?: (splitAt: number) => void;
   onJoin?: (leftIndex: number) => void;
+  onChange?: (nextText: string) => void;
 }) {
   const canJoinPrev = state.wordIndex > 0;
   const canJoinNext = state.wordIndex < wordCount - 1;
+
+  // Inline edit (free-text rename) — `draft` mirrors `wordText` and is
+  // reset whenever the popover (re-)enters edit mode or the target word
+  // changes, so the input always starts from the current saved value
+  // (cancelling and re-opening Edit doesn't show a stale draft).
+  const [draft, setDraft] = useState(wordText);
+  useEffect(() => {
+    if (state.mode === 'edit') setDraft(wordText);
+  }, [state.mode, wordText]);
+  const trimmedDraft = draft.trim();
 
   return (
     <div
@@ -1393,6 +1435,15 @@ function WordEditPopover({
 
       {state.mode === 'actions' && (
         <div className="flex flex-wrap gap-1">
+          {onChange && (
+            <button
+              type="button"
+              onClick={() => onModeChange('edit')}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+            >
+              Edit
+            </button>
+          )}
           {onSplit && wordText.length > 1 && (
             <button
               type="button"
@@ -1453,6 +1504,48 @@ function WordEditPopover({
             ← back
           </button>
         </div>
+      )}
+
+      {state.mode === 'edit' && onChange && (
+        <form
+          className="space-y-1"
+          onSubmit={e => {
+            e.preventDefault();
+            if (trimmedDraft === '') return;
+            onChange(trimmedDraft);
+          }}
+        >
+          <input
+            autoFocus
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                onModeChange('actions');
+              }
+            }}
+            aria-label="syllable text"
+            className="w-full px-2 py-1 text-[12px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 font-mono"
+          />
+          <div className="flex items-center gap-1">
+            <button
+              type="submit"
+              disabled={trimmedDraft === ''}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange('actions')}
+              className="text-[10px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );

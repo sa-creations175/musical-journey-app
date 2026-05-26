@@ -70,6 +70,7 @@ import {
   applyWordNudge,
   distributedWordPositions,
   joinWords,
+  setWordText,
   splitWord,
 } from './lyricLine';
 interface Props {
@@ -573,6 +574,18 @@ export default function LeadSheetSection({
     await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
   };
 
+  const handleWordChange = async (
+    lineId: string,
+    wordIndex: number,
+    nextText: string,
+  ) => {
+    const target = lyricLines.find(l => l.id === lineId);
+    if (!target) return;
+    const updated = setWordText(target, wordIndex, nextText);
+    if (updated === target) return;
+    await commitLyricLines(lyricLines.map(l => (l.id === lineId ? updated : l)));
+  };
+
   // --- Bar add / delete / reorder ---------------------------------
   // Bar layout is the source of truth once any bar operation has
   // happened: `section.barLayout: ('chord' | 'empty')[]` lists the
@@ -1053,6 +1066,7 @@ export default function LeadSheetSection({
               onBarReorder={handleBarReorder}
               onWordSplit={handleWordSplit}
               onWordJoin={handleWordJoin}
+              onWordChange={handleWordChange}
               onUndo={handleUndo}
               canUndo={canUndo}
               onRedo={handleRedo}

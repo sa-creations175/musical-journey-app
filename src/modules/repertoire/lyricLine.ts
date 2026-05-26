@@ -280,3 +280,28 @@ export function joinWords(line: LyricLine, wordIndex: number): LyricLine {
   }
   return { ...line, words: newWords, wordOffsets: newOffsets };
 }
+
+/**
+ * Replace the text of `line.words[wordIndex]` with `nextText`. Used by
+ * the inline syllable editor (tap a syllable, type a new value) to fix
+ * typos or change a syllable's content without splitting/joining.
+ *
+ * The text is trimmed before storing. No-op (returns the line
+ * unchanged) when `wordIndex` is out of range, the trimmed value is
+ * empty (we refuse to leave an empty syllable), or the trimmed value
+ * is identical to the current word. `wordOffsets` are preserved as-is
+ * — only the word's text changes, not its position.
+ */
+export function setWordText(
+  line: LyricLine,
+  wordIndex: number,
+  nextText: string,
+): LyricLine {
+  if (wordIndex < 0 || wordIndex >= line.words.length) return line;
+  const trimmed = nextText.trim();
+  if (trimmed === '') return line;
+  if (trimmed === line.words[wordIndex]) return line;
+  const newWords = [...line.words];
+  newWords[wordIndex] = trimmed;
+  return { ...line, words: newWords };
+}
