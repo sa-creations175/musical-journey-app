@@ -2085,9 +2085,17 @@ function ChordEditorPopover({
     applyTag(trimmed);
   };
 
+  // Mobile (<768px): render as a full-width bottom sheet — fixed to the
+  // viewport, height-capped, scrollable — so the 28rem popover no longer
+  // overflows a 390px screen and the keyboard + carousel stay reachable.
+  // It stays a DOM descendant of the bar-grid container (no portal), so the
+  // outside-click close handler keeps working; the lead-sheet card's
+  // backdrop-blur was removed so `fixed` anchors to the viewport.
+  // md+: the original popover anchored below the chord. (Design step 3.)
   return (
     <div
-      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[28rem] max-w-[90vw] rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md"
+      className="fixed inset-x-0 bottom-0 z-30 max-h-[85vh] overflow-y-auto rounded-t-2xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-lg md:absolute md:inset-x-auto md:bottom-auto md:top-full md:left-1/2 md:-translate-x-1/2 md:mt-1 md:z-20 md:w-[28rem] md:max-w-[90vw] md:max-h-[70vh] md:rounded-md md:shadow-md"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       onClick={e => e.stopPropagation()}
     >
       {onBeatsChange && (

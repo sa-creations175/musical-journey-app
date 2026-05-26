@@ -813,7 +813,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             {sectionOrder.map(key => (
               <SortableSection key={key} id={key}>
                 {key === 'leadSheet' && (
-                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
+                  // No backdrop-blur: it's a no-op on this opaque card AND
+                  // would establish a containing block that makes the mobile
+                  // voicing bottom sheet (position: fixed) anchor to the card
+                  // instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
+                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
                       <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
                       <div className="flex items-center gap-3 flex-wrap text-xs">
