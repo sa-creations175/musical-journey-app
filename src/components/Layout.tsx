@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
+import { titleForPath } from '../lib/pageTitle';
 import SettingsPanel from './SettingsPanel';
 import MobileBottomNav from './MobileBottomNav';
 import SidebarNav from './SidebarNav';
@@ -59,6 +60,10 @@ export default function Layout() {
 
   useAutoPauseOnNavigation();
   useStartArmedSessionOnArrival();
+
+  const location = useLocation();
+  const pageTitle = titleForPath(location.pathname);
+
   return (
     <div className="min-h-full flex flex-col">
     <GlobalSessionBanner />
@@ -127,21 +132,36 @@ export default function Layout() {
         <SidebarNav collapsed={sidebarCollapsed} />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Safe-area top padding so the bar clears the iPhone status bar /
-            notch in standalone PWA (viewport-fit=cover + black-translucent
-            status bar). calc() keeps the base py-3 padding and adds the
-            inset; the 0px fallback keeps it valid where env() is absent. */}
+        {/* Pinned app header. Sticky (not fixed) so it occupies space
+            in the flow at its initial position and only "sticks" when
+            the user scrolls past it — content stays visible, never
+            hidden underneath. Background mirrors the dashboard hero
+            band's #0f3d2e so the app reads as a single green-led
+            brand surface from status bar down to page chrome.
+            Safe-area-inset-top reserves the iPhone notch / status bar
+            region in standalone PWA mode (viewport-fit=cover). */}
         <header
-          className="relative z-40 border-b border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur px-6 md:px-10 py-3 flex items-center justify-end gap-3"
-          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))' }}
+          className="sticky top-0 z-40 text-white px-4 sm:px-6 md:px-10 py-3 flex items-start justify-between gap-3"
+          style={{
+            backgroundColor: '#0f3d2e',
+            paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
+          }}
         >
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="min-w-0">
+            <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70 leading-none">
+              HARMONY
+            </div>
+            <div className="text-base sm:text-lg font-medium tracking-tight truncate mt-0.5">
+              {pageTitle}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
             <SyncIndicator />
             <button
               onClick={() => setCreativeOpen(true)}
               aria-label="just play — log creative time"
               title="just play — log creative time"
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-fluent/30 text-fluent hover:bg-fluent/10 hover:border-fluent text-xs font-medium transition-colors"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/30 text-white hover:bg-white/10 hover:border-white/60 text-xs font-medium transition-colors"
             >
               <span aria-hidden className="text-sm leading-none">♪✧</span>
               <span className="hidden sm:inline">just play</span>
@@ -150,7 +170,7 @@ export default function Layout() {
               onClick={() => setSettingsOpen(true)}
               aria-label="settings"
               title="settings"
-              className="w-8 h-8 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent text-base leading-none"
+              className="w-8 h-8 rounded-md border border-white/30 text-white hover:bg-white/10 hover:border-white/60 text-base leading-none"
             >
               ⚙
             </button>
