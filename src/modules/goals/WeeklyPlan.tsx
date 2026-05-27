@@ -29,11 +29,16 @@ import { getAttemptsInRange } from '../../lib/weeklyAttempts';
 import { TIME_PER_ATTEMPT_SECONDS } from '../../lib/sessionAlgorithm/sessionNeed';
 import {
   classifyPace,
+  clearWeeklyAvailableDays,
   endOfWeekLocal,
   loadActiveMonthlyGoals,
   loadLastWeekReview,
+  loadWeeklyAvailableDays,
   loadWeeklyGoalsForWeek,
+  saveWeeklyAvailableDays,
   startOfWeekLocal,
+  WEEKLY_AVAILABLE_DAYS_MAX,
+  WEEKLY_AVAILABLE_DAYS_MIN,
   type LastWeekReview,
   type ModuleWeekStat,
   type PaceStatus,
@@ -202,7 +207,12 @@ const CONSISTENCY_CARRIER_MODULE: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** Resolve the user's days/week consistency target for the given
- *  module by scanning planRows. Two sources, in order:
+ *  module by scanning planRows. Sources, in order:
+ *
+ *    0. Global Practice Consistency override for this week, if set.
+ *       Wins over every per-module source — the override models
+ *       "I can only practice N days this week," so every module's
+ *       per-day breakdown should divide its weekly time by N.
  *
  *    1. Standalone consistency row with the matching parentMetric.
  *       This is the un-merged case — ET subs (Intervals, CR, etc.)
@@ -222,7 +232,11 @@ const CONSISTENCY_CARRIER_MODULE: ReadonlyMap<string, string> = new Map([
 function daysPerWeekForModule(
   moduleId: string,
   rows: ReadonlyArray<PlanRow>,
+  effectiveOverride?: number | null,
 ): number | null {
+  if (effectiveOverride != null && effectiveOverride > 0) {
+    return effectiveOverride;
+  }
   const metric = DAYS_METRIC_BY_MODULE.get(moduleId);
   if (metric) {
     const row = rows.find(r => r.parentMetric === metric);
@@ -520,6 +534,18 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   const [overridePrompts, setOverridePrompts] = useState<
     Map<string, OverrideDivergence>
   >(new Map());
+  /** Active global practice-consistency goal's targetValue (days/week)
+   *  — the default the available-days picker resets to. 0 when no
+   *  consistency goal is configured (the picker still defaults to a
+   *  sensible 1 in that case via the effective-days fallback). */
+  const [consistencyTargetDays, setConsistencyTargetDays] = useState<number>(0);
+  /** Per-week override of consistency days (1–7). Null when the user
+   *  hasn't adjusted this week — pacing falls back to
+   *  `consistencyTargetDays`. Edits persist immediately to
+   *  weeklyOverrides; reverting to consistency clears the row. */
+  const [availableDaysOverride, setAvailableDaysOverride] = useState<number | null>(null);
+  const effectiveAvailableDays =
+    availableDaysOverride ?? (consistencyTargetDays > 0 ? consistencyTargetDays : 0);
   /** Per-module collapse state. Empty set = everything expanded
    *  (the default — see spec: "expanded by default, collapse
    *  chevron on the right"). Only applies to multi-row module
@@ -539,17 +565,35 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 
     void (async () => {
       try {
-        const [reviewData, monthlies, alreadySaved, songs] = await Promise.all([
+        const [reviewData, monthlies, alreadySaved, songs, override, allGoals] = await Promise.all([
           loadLastWeekReview(weekStart),
           loadActiveMonthlyGoals(weekStart),
           loadWeeklyGoalsForWeek(weekStart),
           db.songs.toArray(),
+          loadWeeklyAvailableDays(weekStart),
+          db.goals.where('status').equals('active').toArray(),
         ]);
         if (cancelled) return;
         setReview(reviewData);
         setConfirmedGoals(alreadySaved);
         setSongsById(new Map(songs.map(s => [s.id, { id: s.id, title: s.title }])));
         setMonthliesById(new Map(monthlies.map(m => [m.id, m])));
+        const consistency = allGoals.find(
+          g => g.targetMetric === 'practice_days_per_cadence',
+        )?.targetValue ?? 0;
+        setConsistencyTargetDays(consistency);
+        setAvailableDaysOverride(override);
+
+        // For the Practice Consistency row: the visible target is the
+        // weekly override (if any) and the row's `suggested` resets to
+        // the underlying consistency goal — so the existing PlanRowView
+        // reset link reads "reset to N" with the goal default's N. Any
+        // other row passes through unchanged.
+        const effective = override ?? consistency;
+        const applyConsistencyOverride = (r: PlanRow): PlanRow =>
+          r.moduleId === 'practice-consistency' && consistency > 0
+            ? { ...r, target: effective, suggested: consistency }
+            : r;
 
         // Derive suggestions from monthly goals. If already confirmed,
         // we mirror the saved targets into editable rows instead so
@@ -570,7 +614,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               parentUnit: parent?.targetUnit ?? null,
               consistencyInfo: null,
             };
-          });
+          }).map(applyConsistencyOverride);
           setPlanRows(mergeCoverageAndConsistencyRows(rows));
         } else {
           const derived = await deriveWeeklyGoals(monthlies, weekStart);
@@ -589,7 +633,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               parentUnit: parent?.targetUnit ?? null,
               consistencyInfo: null,
             };
-          });
+          }).map(applyConsistencyOverride);
           setPlanRows(mergeCoverageAndConsistencyRows(rows));
         }
       } catch (e) {
@@ -626,14 +670,15 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     let cancelled = false;
     void (async () => {
       const prompts = new Map<string, OverrideDivergence>();
-      // Global practice-consistency cadence — the shared per-day
-      // divisor for the time translation.
+      // Effective per-day divisor for the time translation: a weekly
+      // override (1–7) wins over the global consistency goal for this
+      // week's "min/day" display, mirroring what Phase B will pace
+      // against. Falls back to 0 → computeOverrideDivergence treats
+      // that as "no cadence" and spreads across 7 days.
       const allActive = await db.goals
         .where('status').equals('active')
         .toArray();
-      const consistencyTargetDays =
-        allActive.find(g => g.targetMetric === 'practice_days_per_cadence')
-          ?.targetValue ?? 0;
+      const consistencyForDivergence = effectiveAvailableDays;
 
       for (const weekly of confirmedGoals) {
         const moduleId = weekly.relatedModules[0];
@@ -665,7 +710,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
           dynamicTarget: recomputed.weeklyTarget,
           plannedTarget: weekly.targetValue ?? 0,
           timePerAttemptSeconds: TIME_PER_ATTEMPT_SECONDS[moduleId],
-          consistencyTargetDays,
+          consistencyTargetDays: consistencyForDivergence,
           monthlyTarget: recomputed.monthlyAttemptTarget,
           coveredSoFar,
           weeksRemainingInMonth,
@@ -677,7 +722,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     return () => {
       cancelled = true;
     };
-  }, [isConfirmed, confirmedGoals, weekStart]);
+  }, [isConfirmed, confirmedGoals, weekStart, effectiveAvailableDays]);
 
   /** Accept an override-divergence prompt — bump the confirmed
    *  weekly Goal record's target to the live-recomputed value so
@@ -700,6 +745,86 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       next.delete(weeklyGoalId);
       return next;
     });
+  }
+
+  /** Mirror a new consistency-row value into planRows so the row
+   *  re-renders and the time-math helpers (daysPerWeekForModule etc.)
+   *  pick up the override without a reload. Targets every row whose
+   *  module is Practice Consistency — there's only one in practice,
+   *  but mapping defensively keeps the helper safe if the derivation
+   *  ever returns more than one. */
+  function setConsistencyRowTargetInPlan(value: number): void {
+    setPlanRows(rows =>
+      rows.map(r =>
+        r.moduleId === 'practice-consistency' ? { ...r, target: value } : r,
+      ),
+    );
+  }
+
+  /** Edit handler for the Practice Consistency row's day count. The
+   *  row IS the "available days this week" control — edits persist
+   *  to weeklyOverrides immediately so the next session-start picks
+   *  up the new value via loadGoalsNeedToday. Setting the value to
+   *  match the consistency goal clears the override row entirely
+   *  (keeps the table sparse: no row = "follow the goal"). */
+  async function handleConsistencyRowEdit(next: number): Promise<void> {
+    const clamped = Math.min(
+      WEEKLY_AVAILABLE_DAYS_MAX,
+      Math.max(WEEKLY_AVAILABLE_DAYS_MIN, Math.round(next)),
+    );
+    if (consistencyTargetDays > 0 && clamped === consistencyTargetDays) {
+      setAvailableDaysOverride(null);
+      await clearWeeklyAvailableDays(weekStart);
+    } else {
+      setAvailableDaysOverride(clamped);
+      await saveWeeklyAvailableDays(weekStart, clamped);
+    }
+    setConsistencyRowTargetInPlan(clamped);
+  }
+
+  /** Reset handler — clears the override and reverts the row's
+   *  displayed value to the consistency goal. The consistency goal
+   *  itself is not touched; only the per-week override row goes
+   *  away. */
+  async function handleConsistencyRowReset(): Promise<void> {
+    setAvailableDaysOverride(null);
+    await clearWeeklyAvailableDays(weekStart);
+    if (consistencyTargetDays > 0) {
+      setConsistencyRowTargetInPlan(consistencyTargetDays);
+    }
+  }
+
+  /** Per-row editability + edit/reset wiring.
+   *
+   *  The Practice Consistency row is special: it IS the available-days-
+   *  this-week control, stays editable even after the weekly plan is
+   *  confirmed, and renders as a native `<select>`. iOS Safari shows
+   *  the wheel picker for selects — no keyboard, no caret, no zoom,
+   *  none of the text-input bugs we hit on single-digit numeric fields.
+   *  Other rows use the buffered text input. */
+  function rowEditProps(row: PlanRow): {
+    editable: boolean;
+    onChangeTarget: (n: number) => void;
+    onResetTarget: () => void;
+    useSelect?: boolean;
+    inputMin?: number;
+    inputMax?: number;
+  } {
+    if (row.moduleId === 'practice-consistency') {
+      return {
+        editable: consistencyTargetDays > 0,
+        onChangeTarget: n => { void handleConsistencyRowEdit(n); },
+        onResetTarget: () => { void handleConsistencyRowReset(); },
+        useSelect: true,
+        inputMin: WEEKLY_AVAILABLE_DAYS_MIN,
+        inputMax: WEEKLY_AVAILABLE_DAYS_MAX,
+      };
+    }
+    return {
+      editable: !isConfirmed && row.kind !== 'synthetic-maintenance',
+      onChangeTarget: n => setRowTarget(row.monthlyGoalId, n),
+      onResetTarget: () => resetRowToSuggested(row.monthlyGoalId),
+    };
   }
 
   /** Dismiss an override-divergence prompt without changing the
@@ -732,7 +857,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     // per-session maintenance minutes × session count. Inserted by
     // augmentedPlanRows when songCount ≥ 2 and a SotM row exists.
     if (row.kind === 'synthetic-maintenance') {
-      const days = daysPerWeekForModule('repertoire', planRows);
+      const days = daysPerWeekForModule('repertoire', planRows, availableDaysOverride);
       return {
         kind: 'time',
         estimate: { kind: 'point', minutes: row.target * REPERTOIRE_MAINTENANCE_MINUTES },
@@ -751,7 +876,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     // pre-redesign per-cell-session estimate and produces wildly
     // under-stated totals for SotM sessions.
     if (row.parentMetric === 'song_whole_at_level') {
-      const days = daysPerWeekForModule('repertoire', planRows);
+      const days = daysPerWeekForModule('repertoire', planRows, availableDaysOverride);
       return {
         kind: 'time',
         estimate: { kind: 'point', minutes: row.target * REPERTOIRE_SPOTLIGHT_MINUTES },
@@ -877,7 +1002,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       // week from getWeeklyTimeEstimate) collapse to midpoint here so
       // the per-day figure stays a single number.
       let consistencySuffix: { acrossText: string; eachText: string } | undefined;
-      const days = daysPerWeekForModule(row.moduleId, planRows);
+      const days = daysPerWeekForModule(row.moduleId, planRows, availableDaysOverride);
       if (days) {
         const totalMinutes =
           estimate.kind === 'point'
@@ -969,8 +1094,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     return sumTimeEstimates(estimates);
     // rowTime reads from planRows / songCount via closure; the
     // augmentedPlanRows dep captures both indirectly.
+    // availableDaysOverride is read explicitly so per-day breakdowns
+    // update when the user adjusts the consistency days override.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [augmentedPlanRows]);
+  }, [augmentedPlanRows, availableDaysOverride]);
 
   /**
    * Group rows by module so the grid can render a per-module header
@@ -1014,9 +1141,11 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     }
     return out;
     // rowTime reads from planRows / songCount via closure — captured
-    // indirectly by augmentedPlanRows.
+    // indirectly by augmentedPlanRows. availableDaysOverride is read
+    // explicitly so per-day breakdowns update when the user adjusts
+    // the consistency days override.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [augmentedPlanRows]);
+  }, [augmentedPlanRows, availableDaysOverride]);
 
   const toggleModuleCollapsed = (moduleId: GoalFlowModuleId) => {
     setCollapsedModules(prev => {
@@ -1098,6 +1227,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       const monthlies = await loadActiveMonthlyGoals(weekStart);
       setMonthliesById(new Map(monthlies.map(m => [m.id, m])));
       const derived = await deriveWeeklyGoals(monthlies, weekStart);
+      // Re-plan keeps the existing weekly override (it's independent of
+      // the confirmed plan); the consistency row in the freshly derived
+      // set still surfaces it.
+      const effective = availableDaysOverride ?? consistencyTargetDays;
       const rows: PlanRow[] = derived.map(g => {
         const mod = (g.relatedModules[0] as GoalFlowModuleId) ?? 'practice-consistency';
         const parent = monthlies.find(m => m.id === g.parentGoalId);
@@ -1113,7 +1246,11 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
           parentUnit: parent?.targetUnit ?? null,
           consistencyInfo: null,
         };
-      });
+      }).map(r =>
+        r.moduleId === 'practice-consistency' && consistencyTargetDays > 0
+          ? { ...r, target: effective, suggested: consistencyTargetDays }
+          : r,
+      );
       setPlanRows(mergeCoverageAndConsistencyRows(rows));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to re-plan');
@@ -1247,9 +1384,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                               <PlanRowView
                                 row={row}
                                 time={rowTime(row)}
-                                editable={!isConfirmed && row.kind !== 'synthetic-maintenance'}
-                                onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
-                                onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
+                                {...rowEditProps(row)}
                               />
                               {isRepertoireRoutineRow(row.parentMetric) && (
                                 <RepertoireGuidanceRow
@@ -1277,9 +1412,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                                 <PlanRowView
                                   row={row}
                                   time={rowTime(row)}
-                                  editable={!isConfirmed && row.kind !== 'synthetic-maintenance'}
-                                  onChangeTarget={n => setRowTarget(row.monthlyGoalId, n)}
-                                  onResetTarget={() => resetRowToSuggested(row.monthlyGoalId)}
+                                  {...rowEditProps(row)}
                                   subLabel={subLabelForPlanRow(row) ?? row.parentDescription}
                                   hideModuleHeading
                                 />
@@ -1381,9 +1514,13 @@ function ReviewTable({ review }: { review: LastWeekReview }) {
           <thead className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-xs uppercase tracking-wide">
             <tr>
               <th className="px-3 py-2 text-left">Module</th>
-              <th className="px-3 py-2 text-left">Time</th>
-              <th className="px-3 py-2 text-left">Attempts</th>
-              <th className="px-3 py-2 text-left">Target</th>
+              {/* Time / Attempts / Target only fit at ≥sm (640px).
+                  Below that, ReviewRowView folds them into a sub-line
+                  under the module name so the row stays inside a
+                  390px viewport without horizontal scroll. */}
+              <th className="hidden sm:table-cell px-3 py-2 text-left">Time</th>
+              <th className="hidden sm:table-cell px-3 py-2 text-left">Attempts</th>
+              <th className="hidden sm:table-cell px-3 py-2 text-left">Target</th>
               <th className="px-3 py-2 text-left">Pace</th>
             </tr>
           </thead>
@@ -1412,9 +1549,16 @@ function ReviewRowView({ stat }: { stat: ModuleWeekStat }) {
   const pace = classifyPace(stat);
   const badge = paceBadge(pace);
   const accentHex = MODULE_ACCENT_HEX[stat.moduleId];
+  // Mobile summary — Time / Attempts / Target folded into one muted
+  // sub-line under the module name when those columns are hidden
+  // (<sm). Format mirrors the desktop cells: time, attempts, then
+  // "/ target unit" when a target was saved.
+  const targetSuffix = stat.targetValue != null
+    ? ` / ${stat.targetValue}${stat.targetUnit ? ` ${stat.targetUnit}` : ''}`
+    : '';
   return (
     <tr>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2 align-top">
         <span className="inline-flex items-center gap-2">
           <span
             className="inline-block w-2 h-2 rounded-full"
@@ -1422,15 +1566,18 @@ function ReviewRowView({ stat }: { stat: ModuleWeekStat }) {
           />
           <span className="font-medium">{MODULE_LABEL[stat.moduleId]}</span>
         </span>
+        <div className="sm:hidden text-xs text-neutral-500 dark:text-neutral-400 tabular-nums mt-0.5">
+          {formatTimeEstimate(stat.time)} · {stat.attempts}{targetSuffix}
+        </div>
       </td>
-      <td className="px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">
+      <td className="hidden sm:table-cell px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">
         {formatTimeEstimate(stat.time)}
       </td>
-      <td className="px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">{stat.attempts}</td>
-      <td className="px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">
+      <td className="hidden sm:table-cell px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">{stat.attempts}</td>
+      <td className="hidden sm:table-cell px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">
         {stat.targetValue != null ? `${stat.targetValue} ${stat.targetUnit ?? ''}`.trim() : '—'}
       </td>
-      <td className="px-3 py-2">
+      <td className="px-3 py-2 align-top">
         <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${badge.bg} ${badge.fg}`}>
           {badge.label}
         </span>
@@ -1452,10 +1599,47 @@ function PlanRowView(props: {
   subLabel?: string;
   /** Hide the module name and accent dot; sub-row mode. */
   hideModuleHeading?: boolean;
+  /** When true, render a native `<select>` instead of the text input.
+   *  Used by the Practice Consistency row: iOS Safari shows the OS
+   *  wheel picker for selects (no keyboard, no caret, no zoom, none
+   *  of the text-input bugs we'd been fighting). `inputMin` /
+   *  `inputMax` produce the option list (inclusive, integer steps). */
+  useSelect?: boolean;
+  /** Lower bound for the select option list, inclusive. Defaults to 1. */
+  inputMin?: number;
+  /** Upper bound for the select option list, inclusive. Required when
+   *  `useSelect` is on. */
+  inputMax?: number;
 }) {
-  const { row, time, editable, onChangeTarget, onResetTarget, subLabel, hideModuleHeading } = props;
+  const {
+    row, time, editable, onChangeTarget, onResetTarget, subLabel,
+    hideModuleHeading, useSelect, inputMin, inputMax,
+  } = props;
   const accentHex = MODULE_ACCENT_HEX[row.moduleId];
   const adjusted = row.target !== row.suggested;
+
+  // Local buffer decouples the input from the model during typing so
+  // the user can clear + retype without intermediate clamping rewriting
+  // the field mid-edit. Applied to every editable row — without it,
+  // tapping a number field puts the cursor at the end and typed digits
+  // append to the existing value (the "0 persisting" iOS bug). Synced
+  // from row.target whenever it changes externally (reset link, override
+  // round-trip, or a sibling row's edit that re-derives this row).
+  const [bufferValue, setBufferValue] = useState<string>(String(row.target));
+  useEffect(() => {
+    setBufferValue(String(row.target));
+  }, [row.target]);
+
+  function commitBufferedValue(): void {
+    const n = Number(bufferValue);
+    if (Number.isFinite(n) && n >= 0) {
+      onChangeTarget(n);
+    } else {
+      // Invalid → revert to current model value.
+      setBufferValue(String(row.target));
+    }
+  }
+
   return (
     <tr>
       <td className={`px-3 py-2 align-top ${hideModuleHeading ? 'pl-9' : ''}`}>
@@ -1484,14 +1668,58 @@ function PlanRowView(props: {
             boundary. */}
         <div className="overflow-hidden">
           <div className="flex items-center gap-2 flex-wrap">
-            {editable ? (
-              <input
-                type="number"
-                min={0}
+            {editable && useSelect ? (
+              <select
                 value={row.target}
-                onChange={e => {
-                  const n = Number(e.target.value);
-                  onChangeTarget(Number.isFinite(n) && n >= 0 ? n : 0);
+                onChange={e => onChangeTarget(Number(e.target.value))}
+                className="px-2 py-1 pr-7 text-sm rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 tabular-nums"
+                aria-label="available days this week"
+              >
+                {Array.from(
+                  { length: (inputMax ?? 7) - (inputMin ?? 1) + 1 },
+                  (_, i) => (inputMin ?? 1) + i,
+                ).map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            ) : editable ? (
+              <input
+                // type="text" + inputMode="numeric" + pattern="[0-9]*"
+                // — iOS Safari refuses to honour setSelectionRange on
+                // type="number" inputs (selection API isn't supported
+                // for them per HTML spec), and `e.target.select()`
+                // silently no-ops on iOS once the keyboard is rising.
+                // Switching to text + a numeric inputMode preserves the
+                // numeric mobile keyboard while letting us programmatically
+                // select the existing value on focus. The handler clamps
+                // non-numeric input on commit.
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={bufferValue}
+                onFocus={e => {
+                  const target = e.currentTarget;
+                  // Defer past iOS Safari's focus-handler — an immediate
+                  // setSelectionRange runs before iOS has positioned its
+                  // own caret and gets overwritten. setTimeout(_, 0) lets
+                  // the browser settle, then the selection sticks and the
+                  // user's first keystroke replaces the value cleanly.
+                  setTimeout(() => {
+                    try {
+                      target.setSelectionRange(0, 9999);
+                    } catch {
+                      // Some browsers throw if the element is no longer
+                      // in the DOM or is detached — harmless to swallow.
+                    }
+                  }, 0);
+                }}
+                onChange={e => setBufferValue(e.target.value)}
+                onBlur={commitBufferedValue}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    commitBufferedValue();
+                    (e.target as HTMLInputElement).blur();
+                  }
                 }}
                 className="w-20 px-2 py-1 text-sm rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900"
               />
