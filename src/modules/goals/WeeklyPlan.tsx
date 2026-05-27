@@ -1428,7 +1428,10 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                           </Fragment>
                         );
                       })}
-                      <TotalRow totalTime={totalTime} />
+                      <TotalRow
+                        totalTime={totalTime}
+                        availableDays={effectiveAvailableDays}
+                      />
                     </tbody>
                   </table>
                 </div>
@@ -2021,19 +2024,55 @@ function ModuleGroupHeader(props: {
  * computed from the same `kind: 'time'` estimates we sum into
  * group totals, so the math composes cleanly.
  */
-function TotalRow({ totalTime }: { totalTime: TimeEstimate }) {
+function TotalRow({
+  totalTime,
+  availableDays,
+}: {
+  totalTime: TimeEstimate;
+  /** Effective days-per-week — the Practice Consistency override
+   *  when set, otherwise the consistency goal's default. 0 when no
+   *  consistency goal exists; the per-day line is skipped in that
+   *  case (no honest divisor available). */
+  availableDays: number;
+}) {
+  // Per-day breakdown: divide the weekly total by the user's
+  // available-days figure (Practice Consistency override or goal
+  // default). Skipped when there's no consistency cadence to divide
+  // against or when the weekly total is zero (nothing to budget).
+  const perDayLabel = describePerDay(totalTime, availableDays);
   return (
     <tr className="bg-neutral-100/70 dark:bg-neutral-800/50">
       <td className="px-3 py-2.5 align-middle font-medium uppercase tracking-wide text-xs text-neutral-700 dark:text-neutral-300">
         Total this week
       </td>
       <td className="px-3 py-2.5 align-middle" />
-      <td className="px-3 py-2.5 align-middle font-semibold text-neutral-800 dark:text-neutral-100 tabular-nums">
-        ~{formatTimeEstimate(totalTime)}/week
+      <td className="px-3 py-2.5 align-middle tabular-nums">
+        <div className="font-semibold text-neutral-800 dark:text-neutral-100">
+          ~{formatTimeEstimate(totalTime)}/week
+        </div>
+        {perDayLabel && (
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {perDayLabel}
+          </div>
+        )}
       </td>
       <td className="px-3 py-2.5 align-middle w-10" />
     </tr>
   );
+}
+
+/** Render the "~Xh Ym per day" line for the TOTAL row, derived from
+ *  the weekly total ÷ effective days. Returns null when nothing
+ *  useful can be shown — no available-days set, or the weekly total
+ *  is already zero — so the caller can skip the line entirely. */
+function describePerDay(t: TimeEstimate, days: number): string | null {
+  if (days <= 0) return null;
+  if (t.kind === 'point') {
+    if (t.minutes <= 0) return null;
+    return `~${formatMinutes(t.minutes / days)} per day`;
+  }
+  if (t.maxMinutes <= 0) return null;
+  return `~${formatMinutes(t.minMinutes / days)}–${formatMinutes(t.maxMinutes / days)} per day`;
 }
 
 function DailyPattern() {
