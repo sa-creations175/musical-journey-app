@@ -1640,9 +1640,19 @@ function PlanRowView(props: {
     }
   }
 
+  // Master-control rows (currently: Practice Consistency, identified
+  // by useSelect) get a thicker, darker top border + a helper caption
+  // below the select so the user reads this row as the upstream lever
+  // that drives every other module's per-day breakdown rather than
+  // just another module target. Border applied per-td because <tr>
+  // borders are inconsistently honoured across browsers when the
+  // tbody already has a `divide-y` cascade.
+  const masterTdBorder = useSelect
+    ? 'border-t-2 border-neutral-300 dark:border-neutral-700'
+    : '';
   return (
     <tr>
-      <td className={`px-3 py-2 align-top ${hideModuleHeading ? 'pl-9' : ''}`}>
+      <td className={`px-3 py-2 align-top ${masterTdBorder} ${hideModuleHeading ? 'pl-9' : ''}`}>
         {hideModuleHeading ? (
           <div className="font-medium text-sm">{subLabel ?? row.parentDescription}</div>
         ) : (
@@ -1660,7 +1670,7 @@ function PlanRowView(props: {
           </>
         )}
       </td>
-      <td className="px-3 py-2 align-top overflow-hidden">
+      <td className={`px-3 py-2 align-top overflow-hidden ${masterTdBorder}`}>
         {/* Inner overflow-hidden div clips any unit-label spill so
             it can't visually leak into the adjacent Time column.
             flex-wrap lets the input drop above the unit on tight
@@ -1728,6 +1738,11 @@ function PlanRowView(props: {
             )}
             <span className="text-xs text-neutral-500 whitespace-nowrap">{row.unit}</span>
           </div>
+          {useSelect && (
+            <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">
+              sets the daily pace for all modules
+            </div>
+          )}
           {adjusted && editable && (
             <button
               onClick={onResetTarget}
@@ -1738,7 +1753,7 @@ function PlanRowView(props: {
           )}
         </div>
       </td>
-      <td className="px-3 py-2 align-top text-neutral-600 dark:text-neutral-400 overflow-hidden">
+      <td className={`px-3 py-2 align-top text-neutral-600 dark:text-neutral-400 overflow-hidden ${masterTdBorder}`}>
         {/* Three-line layout, stacked block elements so no line
             visually overlaps another regardless of column width:
               1. primary time estimate (~Xm/week)
@@ -1790,7 +1805,7 @@ function PlanRowView(props: {
           </>
         )}
       </td>
-      <td className="px-3 py-2 align-top"></td>
+      <td className={`px-3 py-2 align-top ${masterTdBorder}`}></td>
     </tr>
   );
 }

@@ -87,7 +87,19 @@ export default function Modal({ open, onClose, title, description, children, foo
         </div>
 
         {footer && (
-          <footer className="shrink-0 px-4 sm:px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
+          <footer
+            className="shrink-0 px-4 sm:px-5 pt-3 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900"
+            // env(safe-area-inset-bottom) keeps the action row above
+            // the iPhone home-indicator bar AND mobile Safari's
+            // collapsible toolbar (which can overlap the bottom of the
+            // viewport on first paint). +0.5rem extra buffer beyond
+            // the inset so the buttons don't sit flush against the
+            // chrome edge. 0.75rem floor preserves desktop spacing
+            // where no inset is reported.
+            style={{
+              paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px) + 0.5rem)',
+            }}
+          >
             {footer}
           </footer>
         )}
