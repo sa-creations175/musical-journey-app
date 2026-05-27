@@ -4,12 +4,31 @@
 
 html, body, #root { height: 100%; }
 
+/* Mobile-Safari safety net — prevent any nested element (radar SVGs
+   with overflow-visible labels, wide tables, etc.) from pushing the
+   page wider than the viewport and producing a horizontal scrollbar.
+   Sub-regions that legitimately need horizontal scroll opt back in
+   with their own `overflow-x-auto` (e.g. matrix grids, scale drills). */
+html, body { overflow-x: hidden; }
+
 body {
   @apply text-neutral-900 antialiased;
   background-color: #f5f7f5;
   font-family: 'DM Sans', Inter, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
+}
+
+/* iOS Safari auto-zooms on input focus when the computed font-size
+   is below 16px. The desktop UI relies on `text-sm`/`text-xs` (14px/
+   12px) for input density; on a 640px-and-narrower screen we floor
+   the form-element font to 16px so iOS leaves the page scale alone.
+   Without this, focusing any input zooms the entire app and the user
+   has to pinch out to recover. */
+@media (max-width: 640px) {
+  input, textarea, select {
+    font-size: 16px;
+  }
 }
 
 /* Display / heading face — Bricolage Grotesque. Element-level selector
