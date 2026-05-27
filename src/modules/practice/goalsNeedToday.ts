@@ -44,6 +44,10 @@ import {
   computeModuleSessionNeed,
 } from '../../lib/sessionAlgorithm/sessionNeed';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
+import {
+  loadWeeklyAvailableDays,
+  startOfWeekLocal,
+} from '../goals/weeklyPlanData';
 
 // ---------------------------------------------------------------------
 // View model
@@ -182,8 +186,16 @@ export function startOfLocalDay(now: number): number {
  *  cross-module cadence; module-specific *_days_per_cadence goals
  *  are deliberately NOT used here (the cadence that paces the week
  *  is the global one — same contract as the pre-Step-7 prototype
- *  loader). */
+ *  loader).
+ *
+ *  Per-week override: if a WeeklyOverride row exists for the current
+ *  Sunday, return its `availableDays` instead. The override is a
+ *  weekly-only adjustment for short / heavy weeks — it does NOT
+ *  modify the underlying consistency goal. Absent → the global goal
+ *  value flows through unchanged. */
 async function loadConsistencyTargetDays(now: number): Promise<number> {
+  const override = await loadWeeklyAvailableDays(startOfWeekLocal(now));
+  if (override !== null) return override;
   const goals = await db.goals.toArray();
   const consistencyGoal = goals.find(
     g =>

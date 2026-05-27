@@ -1,4 +1,4 @@
-import { db, type Goal } from '../../lib/db';
+import { db, type Goal, type WeeklyOverride } from '../../lib/db';
 import { getAttemptsInRange, getWeeklyTimeEstimate, type TimeEstimate } from '../../lib/weeklyAttempts';
 import type { GoalFlowModuleId } from './goalVocabulary';
 import { ORDERED_GOAL_MODULES } from './goalsByModule';
@@ -146,6 +146,68 @@ export async function loadConfirmedPlanForWeek(
       g.parentGoalId !== null &&
       activeMonthlyIds.has(g.parentGoalId),
   );
+}
+
+// ---------------------------------------------------------------------
+// Weekly override of consistency days
+// ---------------------------------------------------------------------
+
+/** Minimum / maximum value the weekly override may carry. The picker
+ *  clamps to this range on edit; loaders defensively clamp on read so
+ *  a corrupted row can't blow up the formula. */
+export const WEEKLY_AVAILABLE_DAYS_MIN = 1;
+export const WEEKLY_AVAILABLE_DAYS_MAX = 7;
+
+/** Row id used by the WeeklyOverride table. The weekStart epoch ms is
+ *  naturally unique per week, so we stringify it as the primary key
+ *  (one row per Sunday). Keeps `put` a deterministic upsert. */
+export function weeklyOverrideIdFor(weekStart: number): string {
+  return String(weekStart);
+}
+
+/**
+ * Active override (1–7) for the given week, or null when the user
+ * hasn't adjusted this week — caller falls back to the global
+ * practice-consistency goal value. Clamps a stored value to the
+ * supported range so a corrupted row can't break the formula.
+ */
+export async function loadWeeklyAvailableDays(
+  weekStart: number,
+): Promise<number | null> {
+  const row = await db.weeklyOverrides.get(weeklyOverrideIdFor(weekStart));
+  if (!row) return null;
+  return Math.min(
+    WEEKLY_AVAILABLE_DAYS_MAX,
+    Math.max(WEEKLY_AVAILABLE_DAYS_MIN, Math.round(row.availableDays)),
+  );
+}
+
+/**
+ * Upsert the user's override for `weekStart`. Clamps to 1–7 — the
+ * picker already enforces this but the loader defends the formula
+ * against any future caller that forgets.
+ */
+export async function saveWeeklyAvailableDays(
+  weekStart: number,
+  availableDays: number,
+): Promise<void> {
+  const clamped = Math.min(
+    WEEKLY_AVAILABLE_DAYS_MAX,
+    Math.max(WEEKLY_AVAILABLE_DAYS_MIN, Math.round(availableDays)),
+  );
+  const row: WeeklyOverride = {
+    id: weeklyOverrideIdFor(weekStart),
+    weekStart,
+    availableDays: clamped,
+    updatedAt: Date.now(),
+  };
+  await db.weeklyOverrides.put(row);
+}
+
+/** Clear the override for `weekStart` — pacing reverts to the global
+ *  consistency goal value. No-op when no row exists. */
+export async function clearWeeklyAvailableDays(weekStart: number): Promise<void> {
+  await db.weeklyOverrides.delete(weeklyOverrideIdFor(weekStart));
 }
 
 // ---------------------------------------------------------------------

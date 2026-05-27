@@ -218,6 +218,17 @@ export const SYNC_TABLES: SyncTableConfig[] = [
   // -----------------------------------------------------------------
   { dexie: 'voicingPatterns', pg: 'voicing_patterns', idField: 'id',
     topLevel: [{ dexie: 'qualityId', pg: 'quality_id' }] },
+  // -----------------------------------------------------------------
+  // Per-week practice-consistency override (one row per Sunday).
+  // `id` is the weekStart epoch ms stringified, `weekStart` rides as a
+  // top-level column so server-side queries can range over weeks
+  // without unwrapping the data blob. See migration 006_weekly_overrides.sql.
+  // -----------------------------------------------------------------
+  { dexie: 'weeklyOverrides', pg: 'weekly_overrides', idField: 'id',
+    topLevel: [
+      { dexie: 'weekStart', pg: 'week_start' },
+      { dexie: 'availableDays', pg: 'available_days' },
+    ] },
 ];
 
 /** Dexie table name → config lookup. */

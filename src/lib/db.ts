@@ -1474,6 +1474,24 @@ export interface Goal {
 }
 
 /**
+ * Per-week override of the user's global practice-consistency target
+ * (days/week). When set for a given Sunday-anchored week, the Phase B
+ * today's-slice formula uses `availableDays` as `consistency_target_days`
+ * for that week's calculations — without modifying the consistency goal
+ * itself. Absent → the global goal value flows through unchanged.
+ *
+ * Keyed by `id`, which is the weekStart epoch ms as a string (one row
+ * per week). `weekStart` is kept as a separate indexed number for range
+ * queries.
+ */
+export interface WeeklyOverride {
+  id: string;
+  weekStart: number;
+  availableDays: number;
+  updatedAt: number;
+}
+
+/**
  * One of the user's day profiles — Standard, Light, Deep, or a
  * Custom variant. Three profiles seeded during Goals onboarding;
  * any slot is editable post-onboarding.
@@ -1909,6 +1927,8 @@ export class AppDB extends Dexie {
   proposalDraft!: Table<ProposalDraft, string>;
   // Reusable voicing shapes for the lead-sheet voicing carousel — v27
   voicingPatterns!: Table<VoicingPattern, string>;
+  // Per-week override of the practice-consistency days target — v28
+  weeklyOverrides!: Table<WeeklyOverride, string>;
 
   constructor() {
     super('musical-journey');
@@ -2913,6 +2933,14 @@ export class AppDB extends Dexie {
     // by [qualityId+sortOrder]; isSystem is filtered in memory.
     this.version(27).stores({
       voicingPatterns: 'id, qualityId, [qualityId+sortOrder]',
+    });
+
+    // v28 — per-week override of the practice-consistency days target.
+    // One row per Sunday-anchored week, keyed by `id` (the weekStart epoch
+    // ms as a string). `weekStart` is also indexed for range queries (e.g.
+    // future cleanup of old rows). Delta on top of v27.
+    this.version(28).stores({
+      weeklyOverrides: 'id, weekStart',
     });
   }
 }
