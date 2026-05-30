@@ -15,6 +15,7 @@ import CarryoverBanner from './CarryoverBanner';
 import {
   endOfWeekLocal,
   loadConfirmedPlanForWeek,
+  loadWeeklyAvailableDays,
   startOfWeekLocal,
 } from './weeklyPlanData';
 import { getWeeklyTimeEstimate } from '../../lib/weeklyAttempts';
@@ -78,6 +79,7 @@ import {
   isDaysConsistencyGoal,
 } from './byModulePace';
 import { useThisWeekActivity } from './useThisWeekActivity';
+import { goalWeekTime } from './goalWeekTime';
 import { PacePill } from './atoms';
 import {
   defaultAnchorName,
@@ -2533,6 +2535,26 @@ function ByModuleView({
     goalsVersion: filtered.length,
   });
 
+  // Per-week available days drives the per-day time estimate on
+  // every WeeklyGoalRow. Matches the WeeklyPlan formula: a
+  // weeklyOverride for this Sunday wins, otherwise fall back to
+  // the global practice_days_per_cadence goal value. Zero when
+  // neither is set — callers omit the time segment.
+  const availableDays = useLiveQuery(
+    async () => {
+      const override = await loadWeeklyAvailableDays(startOfWeekLocal(Date.now()));
+      if (override !== null) return override;
+      const consistency = await db.goals
+        .where('targetMetric')
+        .equals('practice_days_per_cadence')
+        .filter(g => g.status === 'active')
+        .first();
+      return consistency?.targetValue ?? 0;
+    },
+    [],
+    0,
+  );
+
   return (
     <div className="flex flex-col gap-6">
       {ORDERED_GOAL_MODULES.map(moduleId => (
@@ -2549,6 +2571,7 @@ function ByModuleView({
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
           activity={activity}
+          availableDays={availableDays}
         />
       ))}
     </div>
@@ -2655,6 +2678,7 @@ function ByModuleSection({
   isRowExpanded,
   onToggleRow,
   activity,
+  availableDays,
 }: {
   moduleId: GoalFlowModuleId;
   allGoals: Goal[];
@@ -2665,6 +2689,10 @@ function ByModuleSection({
   onSetYearlyAnchor: (moduleId: GoalFlowModuleId) => void;
   onAddMonthlyGoal: (moduleId: GoalFlowModuleId) => void;
   activity: ReturnType<typeof useThisWeekActivity>;
+  /** Effective available days for this week — weeklyOverride if set,
+   *  otherwise the global practice-consistency goal. Zero when
+   *  neither is set; WeeklyGoalRow then omits the per-day estimate. */
+  availableDays: number;
 } & RowCollapseAccess) {
   const { yearlyAnchor, monthlyGoals: rawMonthlyGoals, weeklyGoals } = bucketModuleGoalsByTimeframe(
     moduleId,
@@ -2814,6 +2842,7 @@ function ByModuleSection({
                     accentHex={accentHex}
                     actualAttempts={activity.attemptsByModule[moduleId] ?? 0}
                     daysWithActivity={activity.daysByModule[moduleId] ?? 0}
+                    availableDays={availableDays}
                     onEdit={() => onEditGoal(g)}
                   />
                 ))}
@@ -2920,6 +2949,7 @@ function WeeklyGoalRow({
   moduleId,
   actualAttempts,
   daysWithActivity,
+  availableDays,
   onEdit,
 }: {
   goal: Goal;
@@ -2927,6 +2957,7 @@ function WeeklyGoalRow({
   accentHex: string;
   actualAttempts: number;
   daysWithActivity: number;
+  availableDays: number;
   onEdit: () => void;
 }) {
   const typeLabel = goalTypeLabel(goal, moduleId);
@@ -2952,9 +2983,16 @@ function WeeklyGoalRow({
     : target != null
       ? `${paceActual}/${target}${targetUnit ? ` ${targetUnit}` : ''}`
       : null;
-  const metaLine = typeLabel && metaStatus
-    ? `${typeLabel} · ${metaStatus}`
-    : (typeLabel ?? metaStatus ?? null);
+  // Per-day time hint = weekly time estimate ÷ availableDays. Omitted
+  // when either side is missing (consistency-days goals have no
+  // attempt-derived time, and zero available-days would divide by
+  // zero). Mirrors the unit/format used in the WeeklyPlan modal.
+  const perDayTime = !isDays && availableDays > 0
+    ? buildPerDayTimeText(goalWeekTime(goal), availableDays)
+    : null;
+  const metaLine = [typeLabel, metaStatus, perDayTime]
+    .filter((s): s is string => !!s)
+    .join(' · ') || null;
 
   return (
     <li className="border-t border-neutral-200/60 dark:border-neutral-800/60 first:border-t-0 pt-1.5 first:pt-0">
@@ -2996,6 +3034,34 @@ function paceLabelForColor(color: 'green' | 'amber' | 'red'): string {
     case 'amber': return 'a little behind';
     case 'red':   return 'behind';
   }
+}
+
+/** Per-day time text for a weekly goal: divide the weekly estimate
+ *  by `availableDays` and format as "~N min/day" / "~N–M min/day" /
+ *  "~Xh Ym/day". Returns null when the estimate is missing, zero,
+ *  or days is non-positive — caller drops the segment. */
+function buildPerDayTimeText(
+  weekTime: ReturnType<typeof goalWeekTime>,
+  availableDays: number,
+): string | null {
+  if (!weekTime || availableDays <= 0) return null;
+  const e = weekTime.estimate;
+  if (e.kind === 'point') {
+    if (e.minutes <= 0) return null;
+    return `~${formatPerDay(e.minutes / availableDays)}/day`;
+  }
+  if (e.maxMinutes <= 0) return null;
+  return `~${formatPerDay(e.minMinutes / availableDays)}–${formatPerDay(e.maxMinutes / availableDays)}/day`;
+}
+
+function formatPerDay(min: number): string {
+  if (!Number.isFinite(min) || min <= 0) return '0 min';
+  const rounded = Math.max(1, Math.round(min));
+  if (rounded < 60) return `${rounded} min`;
+  const h = Math.floor(rounded / 60);
+  const mn = rounded - h * 60;
+  if (mn === 0) return `${h}h`;
+  return `${h}h ${mn}m`;
 }
 
 /**
