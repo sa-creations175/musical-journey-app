@@ -848,13 +848,7 @@ function LayerSection({
     && !!onSetYearlyAnchor
     && !!onAddMonthlyGoal;
   return (
-    <section
-      className="rounded-lg pl-4 pr-3 py-3 mb-3"
-      style={{
-        backgroundColor: LAYER_PALETTE.bg,
-        borderLeft: `3px solid ${LAYER_PALETTE.border}`,
-      }}
-    >
+    <section className="mb-3">
       {/* Header: chevron+title (toggle) on the left, goal count +
           per-layer "Add/Edit Goal" affordance on the right. The
           add button routes via the parent's onAdd, which already
@@ -2581,19 +2575,11 @@ function ByModuleView({
  * non-umbrella goals inside the module render flat below.
  */
 /**
- * Outer palette for the by-timeframe view's scope-layer
- * containers. Strong dark-neutral border signals "timeframe-
- * scoped" rather than module-scoped; light off-white tint
- * provides definition without competing with the colored
- * module-group containers nested inside.
- *
- * Visual hierarchy in by-timeframe:
- *   layer container (dark border + neutral tint)
- *     └─ module group (colored border + tint, per SECTION_PALETTE)
- *         └─ goal cards
+ * Header accent for the by-timeframe scope-layer titles. The
+ * outer card chrome (left border + tint) was removed — content
+ * fills full width — so only the title color remains.
  */
 const LAYER_PALETTE = {
-  bg: '#FAFAF9',
   border: '#2C2C2A',
 };
 
