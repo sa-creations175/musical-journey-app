@@ -39,12 +39,12 @@ import {
   evaluateSongOfMonthPrompts,
 } from '../repertoire/songOfMonthPrompts';
 import { SongOfMonthTbdNudgeBanner } from '../repertoire/SongOfMonthBanners';
-import { describeGoalTarget, describeDimensionTarget } from './describeGoal';
 import {
   progressSlotState,
   progressSlotText,
   progressSlotPercent,
   shouldShowSlots,
+  type ProgressSlotState,
 } from './goalRowSlots';
 import { ActivityChart } from './activity/ActivityChart';
 import {
@@ -64,7 +64,6 @@ import {
 // that 6c reads from the live data layer.
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import {
-  dimensionDisplayLabel,
   dimensionForGoal,
   dimensionSortOrder,
   findAllChildren,
@@ -73,15 +72,13 @@ import {
   isConcatenatedChildSummary,
   isCrossModuleUmbrella,
   umbrellaModuleId,
-  umbrellaSubtitle,
 } from './umbrellaSummary';
 import {
   classifyGoalPace,
   isDaysConsistencyGoal,
 } from './byModulePace';
-import { goalWeekTime } from './goalWeekTime';
 import { useThisWeekActivity } from './useThisWeekActivity';
-import { InfoTip, PacePill } from './atoms';
+import { PacePill } from './atoms';
 import {
   defaultAnchorName,
   isLegacyAnchorName,
@@ -176,10 +173,12 @@ type FormMode =
 
 /** Phase 2 step 6g — passed from the page-level component down
  *  to every row so collapse state is a single source of truth
- *  across both views and persists across reloads. */
+ *  across both views and persists across reloads. Scope is
+ *  optional so the helper can tweak the default per row type
+ *  (yearly umbrellas default collapsed for the redesign). */
 interface RowCollapseAccess {
-  isRowExpanded: (goalId: string, isUmbrella: boolean) => boolean;
-  onToggleRow: (goalId: string, isUmbrella: boolean) => void;
+  isRowExpanded: (goalId: string, isUmbrella: boolean, scope?: GoalScope) => boolean;
+  onToggleRow: (goalId: string, isUmbrella: boolean, scope?: GoalScope) => void;
 }
 
 export default function Goals() {
@@ -363,10 +362,10 @@ export default function Goals() {
   // for any (goalId, isUmbrella) pair. Threaded through
   // LayerSection / ByModuleSection → UmbrellaRow → child GoalRow
   // so every row consults the same source of truth.
-  const isRowExpanded = (goalId: string, isUmbrella: boolean) =>
-    resolveRowExpanded(rowCollapse, goalId, isUmbrella);
-  const onToggleRow = (goalId: string, isUmbrella: boolean) =>
-    setRowCollapse(s => toggleRowExpanded(s, goalId, isUmbrella));
+  const isRowExpanded = (goalId: string, isUmbrella: boolean, scope?: GoalScope) =>
+    resolveRowExpanded(rowCollapse, goalId, isUmbrella, scope);
+  const onToggleRow = (goalId: string, isUmbrella: boolean, scope?: GoalScope) =>
+    setRowCollapse(s => toggleRowExpanded(s, goalId, isUmbrella, scope));
 
   const goalsByScope = useMemo(() => groupByScope(goals ?? []), [goals]);
   const visibleLayers = LAYERS.filter(l => !hiddenLayers.includes(l.scope));
@@ -1505,6 +1504,45 @@ function MonthlyLayerBody({
 }
 
 /**
+ * Status fragment for the meta sub-line beneath a goal title. The
+ * goal-row visual redesign collapses what used to be a multi-line
+ * stack (dimension label, bold-italic title, prose sub-description,
+ * separate progress slot) into one quiet "Type · status" line.
+ *
+ * Resolution order:
+ *   in-progress  → "current/target"
+ *   not-started  → "target {unit}" for consistency goals (so the
+ *                  user sees "6 days/week" rather than "Not started"
+ *                  for a habit they haven't logged this period),
+ *                  otherwise the plain "Not started" label.
+ *   umbrella     → null (umbrella aggregates don't carry one)
+ *   hidden       → null (aspirational rows skip the slot entirely)
+ */
+function goalRowMetaStatus(
+  goal: Goal,
+  slotState: ProgressSlotState,
+): string | null {
+  if (slotState.kind === 'in-progress') {
+    return `${formatGoalNumber(slotState.currentValue)}/${formatGoalNumber(slotState.targetValue)}`;
+  }
+  if (slotState.kind === 'not-started') {
+    if (
+      isConsistencyMetric(goal.targetMetric)
+      && slotState.targetValue > 0
+      && slotState.targetUnit
+    ) {
+      return `${formatGoalNumber(slotState.targetValue)} ${slotState.targetUnit}`;
+    }
+    return 'Not started';
+  }
+  return null;
+}
+
+function formatGoalNumber(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+/**
  * Phase 2 step 6a — GoalRow with reserved progress + feasibility
  * slots and a collapsed / expanded anatomy.
  *
@@ -1528,11 +1566,8 @@ function MonthlyLayerBody({
 function GoalRow({
   goal,
   layerType,
-  proficiencyDefs,
-  songLookup,
   onEdit,
   dimensionLabel,
-  dimensionAccentHex,
   omitActivityChart,
   suppressFeasibilityDetail,
   omitRowActions,
@@ -1576,18 +1611,20 @@ function GoalRow({
 } & RowCollapseAccess) {
   const expanded = isRowExpanded(goal.id, false);
   const setExpanded = () => onToggleRow(goal.id, false);
-  // Dimension children get prose-style target strings ("130 foundational
-  // cards covered this month") instead of the wizard's compact form
-  // ("130 foundational"). Falls back to describeGoalTarget when the
-  // metric isn't one of the three dimensions handled.
-  const dimensionModuleId = dimensionLabel ? moduleForMetric(goal.targetMetric) : null;
-  const target =
-    (dimensionLabel ? describeDimensionTarget(goal, dimensionModuleId) : null)
-    ?? describeGoalTarget(goal, proficiencyDefs, songLookup);
   const slotState = progressSlotState(goal, layerType);
   const showSlots = shouldShowSlots(layerType);
   const progressText = progressSlotText(slotState);
   const progressPct = progressSlotPercent(slotState);
+  // Visual-redesign meta sub-line: "Type · status" e.g.
+  // "Coverage · 4/26" / "Coverage · Not started" / "Consistency ·
+  // 6 days/week". Falls back to type-only or status-only when one
+  // side is missing.
+  const derivedTypeLabel =
+    dimensionLabel ?? goalTypeLabel(goal, moduleForMetric(goal.targetMetric));
+  const metaStatus = goalRowMetaStatus(goal, slotState);
+  const metaLine = derivedTypeLabel && metaStatus
+    ? `${derivedTypeLabel} · ${metaStatus}`
+    : (derivedTypeLabel ?? metaStatus ?? null);
   // Feasibility — passes goal.currentValue as the live numerator
   // for now. Phase 5 keeps that column in sync with spacingState
   // automatically; until then the read may lag a session or two.
@@ -1603,47 +1640,30 @@ function GoalRow({
 
 
   return (
-    <li data-testid="goal-row">
-      <div className="flex items-start gap-1">
+    <li
+      data-testid="goal-row"
+      className="border-t border-neutral-200/60 dark:border-neutral-800/60 first:border-t-0 pt-1.5 first:pt-0"
+    >
+      <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={setExpanded}
           aria-expanded={expanded}
-          className="flex-1 min-w-0 text-left px-2 py-1.5 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
+          className="flex-1 min-w-0 text-left px-2 py-1 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-center gap-3"
         >
           <div className="flex-1 min-w-0">
-            {dimensionLabel && (
-              <div
-                className="text-[10px] uppercase tracking-wide font-medium mb-0.5"
-                style={{ color: dimensionAccentHex ?? GOALS_META.accentHex }}
-              >
-                {dimensionLabel}
-              </div>
-            )}
-            <div
-              className={
-                dimensionLabel
-                  ? 'text-sm font-bold italic text-neutral-700 dark:text-neutral-200'
-                  : 'text-sm text-neutral-700 dark:text-neutral-200'
-              }
-            >
+            <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100">
               {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
             </div>
-            {target && (
-              <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
+            {metaLine && (
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {metaLine}
+              </div>
             )}
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 pt-0.5">
-            {showSlots && (
-              <span
-                data-progress-slot
-                className="text-xs tabular-nums text-neutral-600 dark:text-neutral-300 min-w-[3.5rem] text-right"
-              >
-                {progressText}
-              </span>
-            )}
-            <FeasibilityPill feasibility={feasibility} />
+          <div className="flex items-center shrink-0">
+            {showSlots && <FeasibilityPill feasibility={feasibility} />}
           </div>
         </button>
         {/* DeleteGoalButton renders on every row regardless of
@@ -1652,7 +1672,7 @@ function GoalRow({
             children. The header-level delete should always be
             reachable per spec ("each goal row"); the component
             handles its own yearly-anchor exclusion internally. */}
-        <div className="shrink-0 pt-1.5 -mr-1">
+        <div className="shrink-0 -mr-1">
           <DeleteGoalButton goal={goal} />
         </div>
       </div>
@@ -2040,15 +2060,16 @@ function UmbrellaRow({
   onEditGoal: (g: Goal) => void;
 } & RowCollapseAccess) {
   // Default expanded for umbrellas — subtree (panel + children)
-  // visible on first render. Tapping the umbrella header
-  // collapses the entire subtree. Children remain individually
-  // collapsible inside the subtree.
+  // visible on first render. EXCEPT yearly umbrellas, which open
+  // collapsed for the visual redesign: the heavy activity chart +
+  // dimension children stay tucked behind a "Show activity ↓"
+  // link, keeping the page glanceable.
   //
   // State is lifted to the page-level component (step 6g) so the
   // umbrella's collapse state survives across reloads and view
   // switches.
-  const expanded = isRowExpanded(umbrella.id, true);
-  const setExpanded = () => onToggleRow(umbrella.id, true);
+  const expanded = isRowExpanded(umbrella.id, true, umbrella.scope);
+  const setExpanded = () => onToggleRow(umbrella.id, true, umbrella.scope);
   // Filter out consistency-metric children for non-practice-
   // consistency umbrellas. Consistency dimension is part of the
   // yearly framework but is no longer a trackable child goal —
@@ -2061,7 +2082,6 @@ function UmbrellaRow({
     umbrellaModule === 'practice-consistency'
       ? childGoals
       : childGoals.filter(c => !isConsistencyMetric(c.targetMetric));
-  const subtitle = umbrellaSubtitle(visibleChildGoals);
   const showSlots = shouldShowSlots(layerType);
   const sharedModule = umbrellaModuleId(visibleChildGoals);
   const isCrossModule = isCrossModuleUmbrella(visibleChildGoals);
@@ -2085,18 +2105,23 @@ function UmbrellaRow({
     return rollupChildFeasibilities(childFeasibilities);
   }, [visibleChildGoals]);
 
+  const isYearlyUmbrella = umbrella.scope === 'yearly';
   return (
-    <li data-testid="goal-row" data-umbrella>
-      <div className="flex items-start gap-1">
+    <li
+      data-testid="goal-row"
+      data-umbrella
+      className="border-t border-neutral-200/60 dark:border-neutral-800/60 first:border-t-0 pt-1.5 first:pt-0"
+    >
+      <div className="flex items-center gap-1">
         <button
           type="button"
           onClick={setExpanded}
           aria-expanded={expanded}
-          className="flex-1 min-w-0 text-left px-2 py-1.5 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-start gap-3"
+          className="flex-1 min-w-0 text-left px-2 py-1 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-center gap-3"
         >
           <div className="flex-1 min-w-0">
             <div
-              className="text-sm font-medium"
+              className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100"
               // Module accent applied to the whole title — single-
               // module umbrellas wear their module's color so the
               // user reads the row by-module at a glance. Cross-
@@ -2108,32 +2133,32 @@ function UmbrellaRow({
             >
               {displayTitle}
             </div>
-            {subtitle && (
-              <div className="text-xs text-neutral-500 mt-0.5">{subtitle}</div>
-            )}
           </div>
 
           {showSlots && (
-            <div className="flex items-center gap-2 shrink-0 pt-0.5">
-              {/* Progress slot stays inert on umbrellas (aggregate
-                  progress doesn't compose across child metrics).
-                  Feasibility slot carries the rollup status pill. */}
-              <span
-                data-progress-slot
-                data-umbrella
-                aria-hidden
-                className="inline-flex items-center justify-center text-xs text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700 rounded-full px-2 py-0.5 min-w-[3.5rem] h-5"
-              >
-                —
-              </span>
+            <div className="flex items-center shrink-0">
               <UmbrellaFeasibilityPill rollup={rollup} />
             </div>
           )}
         </button>
-        <div className="shrink-0 pt-1.5 -mr-1">
+        <div className="shrink-0 -mr-1">
           <DeleteGoalButton goal={umbrella} />
         </div>
       </div>
+
+      {/* Show-activity affordance only on the collapsed yearly
+          umbrella. Other scopes have a richer expanded body that
+          opens via the title tap; surfacing a second link there
+          would be noisy. */}
+      {isYearlyUmbrella && !expanded && (
+        <button
+          type="button"
+          onClick={setExpanded}
+          className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-fluent transition-colors"
+        >
+          Show activity ↓
+        </button>
+      )}
 
       {expanded && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
@@ -2196,13 +2221,15 @@ function UmbrellaRow({
 
       {expanded && visibleChildGoals.length > 0 && (
         <ul
-          className="pl-4 mt-1.5 ml-2 flex flex-col gap-1.5 border-l border-neutral-200 dark:border-neutral-800"
+          className="pl-4 mt-1.5 ml-2 flex flex-col border-l border-neutral-200 dark:border-neutral-800"
           data-umbrella-children
         >
           {visibleChildGoals.map(c => {
-            const dim = dimensionForGoal(c);
             const childModule = moduleForMetric(c.targetMetric);
-            const label = dim ? dimensionDisplayLabel(dim, childModule) : null;
+            // Use the user-facing "Coverage" naming via goalTypeLabel
+            // (rather than the framework's "Breadth") so child rows
+            // read identically to non-umbrella goals across views.
+            const label = goalTypeLabel(c, childModule);
             return (
               <GoalRow
                 key={c.id}
@@ -2853,7 +2880,7 @@ function YearlyAnchorRow({
   return (
     <div className="w-full rounded-md bg-white/50 dark:bg-neutral-900/30 px-3 py-2 flex items-center justify-between gap-3">
       <span
-        className="text-sm font-medium truncate"
+        className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 truncate"
         style={{ color: moduleAccent ?? undefined }}
       >
         {title}
@@ -2862,7 +2889,7 @@ function YearlyAnchorRow({
         <button
           type="button"
           onClick={onEdit}
-          className="text-[11px] text-neutral-500 hover:text-fluent transition-colors"
+          className="text-[10px] text-neutral-500 hover:text-fluent transition-colors"
           aria-label="Edit yearly anchor"
         >
           Edit
@@ -2891,7 +2918,6 @@ function YearlyAnchorRow({
 function WeeklyGoalRow({
   goal,
   moduleId,
-  accentHex,
   actualAttempts,
   daysWithActivity,
   onEdit,
@@ -2904,7 +2930,6 @@ function WeeklyGoalRow({
   onEdit: () => void;
 }) {
   const typeLabel = goalTypeLabel(goal, moduleId);
-  const weekTime = goalWeekTime(goal);
 
   // Decide the actual numerator the pace classifier sees:
   //   coverage / mastery goals — items acquired so far (currentValue)
@@ -2917,61 +2942,46 @@ function WeeklyGoalRow({
     : actualAttempts;
   const pace = classifyGoalPace({ goal, actual: paceActual, now: Date.now() });
 
-  // Right-side content: days consistency goals get the muted text
-  // count; everything else gets target + time + pace pill.
   const isDays = isDaysConsistencyGoal(goal);
+  const targetUnit = goal.targetUnit ?? '';
+  const target = goal.targetValue;
+  // Meta status: progress-style fraction so the row reads
+  // identically to monthly/yearly goal rows ("Type · X/Y unit").
+  const metaStatus = isDays
+    ? `${daysWithActivity}/${target ?? '—'} days`
+    : target != null
+      ? `${paceActual}/${target}${targetUnit ? ` ${targetUnit}` : ''}`
+      : null;
+  const metaLine = typeLabel && metaStatus
+    ? `${typeLabel} · ${metaStatus}`
+    : (typeLabel ?? metaStatus ?? null);
 
   return (
-    <li>
+    <li className="border-t border-neutral-200/60 dark:border-neutral-800/60 first:border-t-0 pt-1.5 first:pt-0">
       <button
         type="button"
         onClick={onEdit}
-        className="w-full text-left rounded px-2 py-1.5 -mx-2 hover:bg-white/40 dark:hover:bg-neutral-900/30 transition flex items-start gap-3"
+        className="w-full text-left rounded px-2 py-1 -mx-2 hover:bg-white/40 dark:hover:bg-neutral-900/30 transition flex items-center gap-3"
       >
         <div className="flex-1 min-w-0">
-          {typeLabel && (
-            <div
-              className="text-[10px] uppercase tracking-wide font-medium mb-0.5"
-              style={{ color: accentHex }}
-            >
-              {typeLabel}
-            </div>
-          )}
-          <div className="text-sm text-neutral-700 dark:text-neutral-200 truncate">
+          <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 truncate">
             {goal.description || (
               <span className="italic text-neutral-500">(untitled goal)</span>
             )}
           </div>
+          {metaLine && (
+            <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+              {metaLine}
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 pt-0.5 text-xs text-neutral-600 dark:text-neutral-400">
-          {isDays ? (
-            <span className="tabular-nums">
-              {daysWithActivity} of {goal.targetValue ?? '—'} days
-            </span>
-          ) : (
-            <>
-              {goal.targetValue != null && (
-                <span className="tabular-nums">
-                  {goal.targetValue} {goal.targetUnit ?? ''}
-                </span>
-              )}
-              {weekTime && (
-                <span className="flex items-center gap-1 tabular-nums">
-                  <span>~{formatGoalWeekTime(weekTime)}</span>
-                  <InfoTip text={TIME_ESTIMATE_INFO_TEXT} />
-                </span>
-              )}
-              {pace.kind === 'pill' && (
-                <span className="flex items-center gap-1">
-                  <PacePill
-                    color={pace.color}
-                    label={paceLabelForColor(pace.color)}
-                  />
-                  <InfoTip text={PACE_INFO_TEXT} />
-                </span>
-              )}
-            </>
+        <div className="flex items-center shrink-0">
+          {!isDays && pace.kind === 'pill' && (
+            <PacePill
+              color={pace.color}
+              label={paceLabelForColor(pace.color)}
+            />
           )}
         </div>
       </button>
@@ -2987,33 +2997,6 @@ function paceLabelForColor(color: 'green' | 'amber' | 'red'): string {
     case 'red':   return 'behind';
   }
 }
-
-/** Format a GoalWeekTime for display next to the row's target.
- *  Point estimates render as "1h 50m" / "30 min"; ranges render
- *  as "1h–3h" / "30–90 min". Pure helper. */
-function formatGoalWeekTime(t: ReturnType<typeof goalWeekTime>): string {
-  if (!t) return '';
-  const e = t.estimate;
-  const fmt = (m: number) => {
-    if (m <= 0) return '0';
-    if (m < 1) return '<1m';
-    const h = Math.floor(m / 60);
-    const mn = Math.round(m - h * 60);
-    if (h === 0) return `${mn}m`;
-    if (mn === 0) return `${h}h`;
-    return `${h}h ${mn}m`;
-  };
-  if (e.kind === 'point') return fmt(e.minutes);
-  return `${fmt(e.minMinutes)}–${fmt(e.maxMinutes)}`;
-}
-
-const TIME_ESTIMATE_INFO_TEXT =
-  'Time estimates use per-attempt averages: HF/ET ≈20s, Shapes ≈1.5 min/rep (varies by drill type), '
-  + 'Repertoire ≈60 min/day (~45 spotlight + ~15 maintenance), Production 30–90 min/lesson. These will refine as you log more practice.';
-
-const PACE_INFO_TEXT =
-  "Compares what you've done this week against what you'd need each day to hit your weekly target. "
-  + 'Green = on track, amber = a little behind, red = falling behind.';
 
 /**
  * Dashed prompt that lives in a module section when no yearly

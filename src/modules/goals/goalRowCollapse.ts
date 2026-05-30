@@ -35,6 +35,8 @@
  * is the only key.
  */
 
+import type { GoalScope } from '../../lib/db';
+
 export type RowCollapseValue = 'collapsed' | 'expanded';
 export type RowCollapseState = Record<string, RowCollapseValue>;
 
@@ -42,17 +44,20 @@ export const STORAGE_KEY_ROW_COLLAPSE = 'goals.home.rowCollapse';
 
 /**
  * Resolve whether a row is expanded right now. Reads any stored
- * override; falls back to the row-type default when absent.
+ * override; falls back to the row-type default when absent. Scope
+ * tweaks the default: yearly umbrellas open collapsed so the
+ * "Show activity ↓" affordance leads the visual redesign.
  */
 export function resolveRowExpanded(
   state: RowCollapseState,
   goalId: string,
   isUmbrella: boolean,
+  scope?: GoalScope,
 ): boolean {
   const override = state[goalId];
   if (override === 'collapsed') return false;
   if (override === 'expanded') return true;
-  return defaultExpanded(isUmbrella);
+  return effectiveDefaultExpanded(isUmbrella, scope);
 }
 
 /**
@@ -65,11 +70,12 @@ export function toggleRowExpanded(
   state: RowCollapseState,
   goalId: string,
   isUmbrella: boolean,
+  scope?: GoalScope,
 ): RowCollapseState {
-  const currentlyExpanded = resolveRowExpanded(state, goalId, isUmbrella);
+  const currentlyExpanded = resolveRowExpanded(state, goalId, isUmbrella, scope);
   const nextExpanded = !currentlyExpanded;
   const next: RowCollapseState = { ...state };
-  if (nextExpanded === defaultExpanded(isUmbrella)) {
+  if (nextExpanded === effectiveDefaultExpanded(isUmbrella, scope)) {
     delete next[goalId];
   } else {
     next[goalId] = nextExpanded ? 'expanded' : 'collapsed';
@@ -91,7 +97,11 @@ export function parseRowCollapseState(raw: unknown): RowCollapseState {
   return out;
 }
 
-function defaultExpanded(isUmbrella: boolean): boolean {
+function effectiveDefaultExpanded(
+  isUmbrella: boolean,
+  scope?: GoalScope,
+): boolean {
+  if (isUmbrella && scope === 'yearly') return false;
   return isUmbrella;
 }
 

@@ -88,10 +88,10 @@ export function resolveUmbrellaStatus(
 // ── Components ────────────────────────────────────────────────
 
 const PILL_BASE_CLASSES =
-  'inline-flex items-center justify-center text-xs rounded-full px-2 py-0.5 h-5 whitespace-nowrap font-medium';
+  'inline-flex items-center justify-center text-[10px] rounded-full px-2 py-0.5 h-4 whitespace-nowrap font-medium';
 
 const INERT_CLASSES =
-  'min-w-[3.5rem] text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700';
+  'min-w-[3rem] text-neutral-300 dark:text-neutral-600 border border-dashed border-neutral-300 dark:border-neutral-700';
 
 /**
  * Standalone-goal pill — dispatches on feasibility kind:
