@@ -122,6 +122,7 @@ import {
   isCurrentOrUpcoming,
   ORDERED_GOAL_MODULES,
 } from './goalsByModule';
+import { SECTION_PALETTE } from './moduleSectionPalette';
 import { MODULE_DISPLAY_NAME } from './YearlyAnchorFlow';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
@@ -1464,39 +1465,34 @@ function MonthlyLayerBody({
                   </button>
                 )}
               </div>
-              <div
-                className="pl-3 border-l-2"
-                style={{ borderColor: accentHex }}
-              >
-                {monthlyGoals.length === 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => onAddMonthlyGoal(moduleId)}
-                    className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
-                  >
-                    + Add monthly goal
-                  </button>
-                ) : (
-                  <ul className="flex flex-col gap-1">
-                    {monthlyGoals.map(g => (
-                      <GoalRow
-                        key={g.id}
-                        goal={g}
-                        layerType="measurable"
-                        proficiencyDefs={proficiencyDefs}
-                        songLookup={songLookup}
-                        onEdit={() => onEditGoal(g)}
-                        dimensionLabel={goalTypeLabel(g, moduleId)}
-                        dimensionAccentHex={accentHex}
-                        omitActivityChart
-                        omitRowActions
-                        isRowExpanded={isRowExpanded}
-                        onToggleRow={onToggleRow}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
+              {monthlyGoals.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onAddMonthlyGoal(moduleId)}
+                  className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
+                >
+                  + Add monthly goal
+                </button>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {monthlyGoals.map(g => (
+                    <GoalRow
+                      key={g.id}
+                      goal={g}
+                      layerType="measurable"
+                      proficiencyDefs={proficiencyDefs}
+                      songLookup={songLookup}
+                      onEdit={() => onEditGoal(g)}
+                      dimensionLabel={goalTypeLabel(g, moduleId)}
+                      dimensionAccentHex={accentHex}
+                      omitActivityChart
+                      omitRowActions
+                      isRowExpanded={isRowExpanded}
+                      onToggleRow={onToggleRow}
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         );
@@ -2123,7 +2119,7 @@ function UmbrellaRow({
         >
           <div className="flex-1 min-w-0">
             <div
-              className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100"
+              className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 line-clamp-2"
               // Module accent applied to the whole title — single-
               // module umbrellas wear their module's color so the
               // user reads the row by-module at a glance. Cross-
@@ -2223,7 +2219,7 @@ function UmbrellaRow({
 
       {expanded && visibleChildGoals.length > 0 && (
         <ul
-          className="pl-4 mt-1.5 ml-2 flex flex-col border-l border-neutral-200 dark:border-neutral-800"
+          className="mt-1.5 flex flex-col"
           data-umbrella-children
         >
           {visibleChildGoals.map(c => {
@@ -2585,29 +2581,6 @@ function ByModuleView({
  * non-umbrella goals inside the module render flat below.
  */
 /**
- * Per-module visual container palette for the by-module view.
- * Tint background + 3px solid left border + soft corners group
- * everything inside as belonging to one module.
- *
- * Tints intentionally reuse the feasibility-pill palette where
- * a module's accent matches a status color (ET green, Shapes
- * amber). Borders are darker variants of the same family —
- * deeper than the moduleMeta accents because they're a small
- * 3px stripe and need contrast against the tint.
- */
-const SECTION_PALETTE: Record<
-  GoalFlowModuleId,
-  { bg: string; border: string }
-> = {
-  'ear-training':         { bg: '#EAF3DE', border: '#3B6D11' },
-  'harmonic-fluency':     { bg: '#EEEDFE', border: '#534AB7' },
-  'shapes-and-patterns':  { bg: '#FAEEDA', border: '#854F0B' },
-  'repertoire':           { bg: '#FBEAF0', border: '#8B3A52' },
-  'production':           { bg: '#E6F1FB', border: '#1F3A6E' },
-  'practice-consistency': { bg: '#F1EFE8', border: '#5F5E5A' },
-};
-
-/**
  * Outer palette for the by-timeframe view's scope-layer
  * containers. Strong dark-neutral border signals "timeframe-
  * scoped" rather than module-scoped; light off-white tint
@@ -2789,39 +2762,34 @@ function ByModuleSection({
                 </button>
               )}
             </div>
-            <div
-              className="pl-3 border-l-2"
-              style={{ borderColor: accentHex }}
-            >
-              {monthlyGoals.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => onAddMonthlyGoal(moduleId)}
-                  className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
-                >
-                  + Add monthly goal
-                </button>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {monthlyGoals.map(g => (
-                    <GoalRow
-                      key={g.id}
-                      goal={g}
-                      layerType="measurable"
-                      proficiencyDefs={proficiencyDefs}
-                      songLookup={songLookup}
-                      onEdit={() => onEditGoal(g)}
-                      dimensionLabel={goalTypeLabel(g, moduleId)}
-                      dimensionAccentHex={accentHex}
-                      omitActivityChart
-                      omitRowActions
-                      isRowExpanded={isRowExpanded}
-                      onToggleRow={onToggleRow}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
+            {monthlyGoals.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => onAddMonthlyGoal(moduleId)}
+                className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
+              >
+                + Add monthly goal
+              </button>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {monthlyGoals.map(g => (
+                  <GoalRow
+                    key={g.id}
+                    goal={g}
+                    layerType="measurable"
+                    proficiencyDefs={proficiencyDefs}
+                    songLookup={songLookup}
+                    onEdit={() => onEditGoal(g)}
+                    dimensionLabel={goalTypeLabel(g, moduleId)}
+                    dimensionAccentHex={accentHex}
+                    omitActivityChart
+                    omitRowActions
+                    isRowExpanded={isRowExpanded}
+                    onToggleRow={onToggleRow}
+                  />
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -2829,25 +2797,20 @@ function ByModuleSection({
         {showWeeklySection && (
           <div className="flex flex-col gap-1.5">
             <SubSectionLabel>This week</SubSectionLabel>
-            <div
-              className="pl-3 border-l"
-              style={{ borderColor: `${accentHex}66` }}
-            >
-              <ul className="flex flex-col gap-1.5">
-                {weeklyGoals.map(g => (
-                  <WeeklyGoalRow
-                    key={g.id}
-                    goal={g}
-                    moduleId={moduleId}
-                    accentHex={accentHex}
-                    actualAttempts={activity.attemptsByModule[moduleId] ?? 0}
-                    daysWithActivity={activity.daysByModule[moduleId] ?? 0}
-                    availableDays={availableDays}
-                    onEdit={() => onEditGoal(g)}
-                  />
-                ))}
-              </ul>
-            </div>
+            <ul className="flex flex-col gap-1.5">
+              {weeklyGoals.map(g => (
+                <WeeklyGoalRow
+                  key={g.id}
+                  goal={g}
+                  moduleId={moduleId}
+                  accentHex={accentHex}
+                  actualAttempts={activity.attemptsByModule[moduleId] ?? 0}
+                  daysWithActivity={activity.daysByModule[moduleId] ?? 0}
+                  availableDays={availableDays}
+                  onEdit={() => onEditGoal(g)}
+                />
+              ))}
+            </ul>
           </div>
         )}
       </div>
@@ -2907,9 +2870,9 @@ function YearlyAnchorRow({
   }, [visibleChildGoals]);
 
   return (
-    <div className="w-full rounded-md bg-white/50 dark:bg-neutral-900/30 px-3 py-2 flex items-center justify-between gap-3">
+    <div className="w-full rounded-md bg-white/50 dark:bg-neutral-900/30 px-3 py-2 flex items-start justify-between gap-3">
       <span
-        className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 truncate"
+        className="flex-1 min-w-0 text-[13px] font-normal text-neutral-900 dark:text-neutral-100 line-clamp-2"
         style={{ color: moduleAccent ?? undefined }}
       >
         {title}

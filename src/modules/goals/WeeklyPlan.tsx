@@ -8,6 +8,7 @@ import {
   type TimeEstimate,
 } from '../../lib/weeklyAttempts';
 import { MODULE_ORDER, PRACTICE_SESSIONS_META } from '../../lib/moduleMeta';
+import { SECTION_PALETTE } from './moduleSectionPalette';
 import type { GoalFlowModuleId } from './goalVocabulary';
 import { ORDERED_GOAL_MODULES } from './goalsByModule';
 import { isCoverageMetric } from './coverageMetrics';
@@ -1619,7 +1620,12 @@ function PlanRowView(props: {
     hideModuleHeading, useSelect, inputMin, inputMax,
   } = props;
   const accentHex = MODULE_ACCENT_HEX[row.moduleId];
+  const palette = SECTION_PALETTE[row.moduleId];
   const adjusted = row.target !== row.suggested;
+  // Module-header rows wear the module tint; sub-rows (rendered
+  // under a ModuleGroupHeader) stay plain so the header reads as
+  // the carrier of the module identity.
+  const rowTint = hideModuleHeading ? undefined : palette.bg;
 
   // Local buffer decouples the input from the model during typing so
   // the user can clear + retype without intermediate clamping rewriting
@@ -1654,7 +1660,7 @@ function PlanRowView(props: {
     ? 'border-t-2 border-neutral-300 dark:border-neutral-700'
     : '';
   return (
-    <tr>
+    <tr style={rowTint ? { backgroundColor: rowTint } : undefined}>
       <td className={`px-3 py-2 align-top ${masterTdBorder} ${hideModuleHeading ? 'pl-9' : ''}`}>
         {hideModuleHeading ? (
           <div className="font-medium text-sm">{subLabel ?? row.parentDescription}</div>
@@ -1665,7 +1671,9 @@ function PlanRowView(props: {
                 className="inline-block w-2 h-2 rounded-full"
                 style={{ backgroundColor: accentHex }}
               />
-              <span className="font-medium">{MODULE_LABEL[row.moduleId]}</span>
+              <span className="font-medium" style={{ color: palette.border }}>
+                {MODULE_LABEL[row.moduleId]}
+              </span>
             </span>
             <div className="text-xs text-neutral-500 mt-0.5 max-w-[20rem] truncate">
               {row.parentDescription}
@@ -1972,10 +1980,12 @@ function ModuleGroupHeader(props: {
 }) {
   const { moduleId, combinedTime, collapsed, onToggle } = props;
   const accentHex = MODULE_ACCENT_HEX[moduleId];
+  const palette = SECTION_PALETTE[moduleId];
   return (
     <tr
       onClick={onToggle}
-      className="cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/40 bg-neutral-50/50 dark:bg-neutral-800/30"
+      className="cursor-pointer hover:brightness-95 dark:hover:brightness-110"
+      style={{ backgroundColor: palette.bg }}
     >
       <td className="px-3 py-2 align-middle">
         <span className="inline-flex items-center gap-2">
@@ -1983,7 +1993,9 @@ function ModuleGroupHeader(props: {
             className="inline-block w-2 h-2 rounded-full"
             style={{ backgroundColor: accentHex }}
           />
-          <span className="font-medium">{MODULE_LABEL[moduleId]}</span>
+          <span className="font-medium" style={{ color: palette.border }}>
+            {MODULE_LABEL[moduleId]}
+          </span>
         </span>
       </td>
       <td className="px-3 py-2 align-middle text-xs text-neutral-500">{/* sub-rows carry targets */}</td>
