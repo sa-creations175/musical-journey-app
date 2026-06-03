@@ -1619,7 +1619,7 @@ function MonthlyLayerBody({
  *   umbrella     → null (umbrella aggregates don't carry one)
  *   hidden       → null (aspirational rows skip the slot entirely)
  */
-function goalRowMetaStatus(
+export function goalRowMetaStatus(
   goal: Goal,
   slotState: ProgressSlotState,
 ): string | null {
@@ -1632,11 +1632,22 @@ function goalRowMetaStatus(
       && slotState.targetValue > 0
       && slotState.targetUnit
     ) {
-      return `${formatGoalNumber(slotState.targetValue)} ${slotState.targetUnit}`;
+      return formatConsistencyTarget(slotState.targetValue, slotState.targetUnit);
     }
     return 'Not started';
   }
   return null;
+}
+
+/** Format a consistency goal's frequency target for the meta sub-line.
+ *  Consistency goals carry a count + a cadence unit ('week' / 'month'),
+ *  so the bare "{n} {unit}" join read as the ungrammatical "6 week".
+ *  Render frequency cadences as "6×/week"; any non-cadence unit
+ *  (defensive) keeps the plain "{n} {unit}" join. */
+export function formatConsistencyTarget(value: number, unit: string): string {
+  const n = formatGoalNumber(value);
+  if (unit === 'week' || unit === 'month') return `${n}×/${unit}`;
+  return `${n} ${unit}`;
 }
 
 function formatGoalNumber(n: number): string {
