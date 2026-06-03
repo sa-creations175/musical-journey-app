@@ -2534,10 +2534,13 @@ function ByModuleView({
     async () => {
       const override = await loadWeeklyAvailableDays(startOfWeekLocal(Date.now()));
       if (override !== null) return override;
+      // `targetMetric` is not a Dexie index on the goals store — query
+      // by the indexed `status` and filter the metric in JS (same
+      // pattern as anchorLookup.ts).
       const consistency = await db.goals
-        .where('targetMetric')
-        .equals('practice_days_per_cadence')
-        .filter(g => g.status === 'active')
+        .where('status')
+        .equals('active')
+        .filter(g => g.targetMetric === 'practice_days_per_cadence')
         .first();
       return consistency?.targetValue ?? 0;
     },
