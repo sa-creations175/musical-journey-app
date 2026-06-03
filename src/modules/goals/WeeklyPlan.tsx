@@ -131,6 +131,12 @@ interface PlanRow {
    *  ≥2 active songs. Synthetic rows render non-editable and are
    *  filtered out of the save loop. */
   kind?: 'synthetic-maintenance';
+  /** Source monthly goal's `targetValue` for declarative-coverage
+   *  rows — the item count behind the attempts target (e.g. 202
+   *  cards). Drives the muted "{n} items · ~10 correct attempts each
+   *  to reach acquired" explanation under the unit label. Null for
+   *  every non-(declarative-coverage) row. */
+  coverageItemCount: number | null;
 }
 
 /** Sentinel monthlyGoalId for the synthetic maintenance row — keeps
@@ -421,6 +427,21 @@ const ET_SUBAREA_LABEL: Readonly<Record<string, string>> = {
  * Returns null when there's nothing useful — the caller can fall
  * back to the parent description in that case.
  */
+/**
+ * Item count behind a declarative-coverage row's attempts target, or
+ * null. Declarative coverage (HF / ET) multiplies items × 10 to reach
+ * the attempts figure; the muted explanation line surfaces that. Shapes
+ * coverage is procedural (×3, not ×10) so it's excluded — the line's
+ * "~10 correct attempts each" wording would be wrong for it. Consistency,
+ * accuracy, song, etc. aren't coverage and never qualify.
+ */
+function declarativeCoverageItemCount(parent: Goal | undefined): number | null {
+  if (!parent || !parent.targetMetric) return null;
+  if (!isCoverageMetric(parent.targetMetric)) return null;
+  if (parent.targetMetric.startsWith('shapes_')) return null;
+  return parent.targetValue ?? null;
+}
+
 function subLabelForPlanRow(row: PlanRow): string | null {
   const metric = row.parentMetric;
   const unit = row.parentUnit;
@@ -614,6 +635,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               parentUmbrellaId: parent?.parentGoalId ?? null,
               parentUnit: parent?.targetUnit ?? null,
               consistencyInfo: null,
+              coverageItemCount: declarativeCoverageItemCount(parent),
             };
           }).map(applyConsistencyOverride);
           setPlanRows(mergeCoverageAndConsistencyRows(rows));
@@ -633,6 +655,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               parentUmbrellaId: parent?.parentGoalId ?? null,
               parentUnit: parent?.targetUnit ?? null,
               consistencyInfo: null,
+              coverageItemCount: declarativeCoverageItemCount(parent),
             };
           }).map(applyConsistencyOverride);
           setPlanRows(mergeCoverageAndConsistencyRows(rows));
@@ -1072,6 +1095,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       parentUmbrellaId: null,
       parentUnit: null,
       consistencyInfo: null,
+      coverageItemCount: null,
       kind: 'synthetic-maintenance',
     };
     return [
@@ -1246,6 +1270,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
           parentUmbrellaId: parent?.parentGoalId ?? null,
           parentUnit: parent?.targetUnit ?? null,
           consistencyInfo: null,
+          coverageItemCount: declarativeCoverageItemCount(parent),
         };
       }).map(r =>
         r.moduleId === 'practice-consistency' && consistencyTargetDays > 0
@@ -1749,6 +1774,14 @@ function PlanRowView(props: {
             )}
             <span className="text-xs text-neutral-500 whitespace-nowrap">{row.unit}</span>
           </div>
+          {/* Declarative-coverage explanation: the attempts target is
+              the item count × ~10 correct reps to reach acquired.
+              Informational, muted — only for HF/ET coverage rows. */}
+          {row.coverageItemCount != null && (
+            <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 leading-snug">
+              {row.coverageItemCount} items · ~10 correct attempts each to reach acquired
+            </div>
+          )}
           {useSelect && (
             <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 leading-snug">
               sets the daily pace for all modules

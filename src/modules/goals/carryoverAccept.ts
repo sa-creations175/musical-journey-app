@@ -37,10 +37,16 @@ import {
   type ModuleUncoveredEntry,
 } from './carryover';
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
+import { startOfWeekLocal } from './weeklyPlanData';
 import type {
   CarryoverDecision,
   DecisionsByModule,
 } from './carryoverBannerState';
+
+/** Shared prefix for every carry-over stub's description. The weekly
+ *  derivation start-date migration (cleanup.ts) and any other
+ *  carry-over-aware surface key off this — keep them in lockstep. */
+export const CARRYOVER_DESCRIPTION_PREFIX = 'Carry-over from last month';
 
 /**
  * Apply per-module Accept decisions to the user's current-month
@@ -132,13 +138,21 @@ async function createStubMonthly(
   const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : `g-${Math.random().toString(36).slice(2, 12)}-${now.toString(36)}`;
-  // Anchor startDate at `now` (not bounds.start) so the date-range
-  // overlap math at every downstream consumer treats this goal as
-  // active from the moment the user accepted, not retroactively.
+  // Anchor startDate at the start of the acceptance week (Sunday),
+  // NOT `now`. A carry-over is a month-long continuation of last
+  // month's leftover work, not a goal that "starts mid-week" — so it
+  // must NOT trip weeklyDerivation's mid-week proration branch (which
+  // fires when startDate falls strictly inside the current week and
+  // shrinks the first week's target as the days elapse: e.g. a 202-
+  // item HF carry-over showed 349 instead of the even ~404/week
+  // split). Week-aligning startDate (≤ weekStart) routes it through
+  // the reset-clean "remaining ÷ weeks" formula every week, including
+  // the first. weekStart-1 is before this goal exists, so the
+  // attempts-so-far window stays empty.
   const stub: Goal = {
     id,
     scope: 'monthly',
-    description: `Carry-over from last month — ${entry.uncoveredItemRefs.length} items`,
+    description: `${CARRYOVER_DESCRIPTION_PREFIX} — ${entry.uncoveredItemRefs.length} items`,
     targetMetric: sourceGoal.targetMetric,
     targetValue: entry.uncoveredItemRefs.length,
     targetUnit: sourceGoal.targetUnit,
@@ -146,7 +160,7 @@ async function createStubMonthly(
     contextTag: sourceGoal.contextTag,
     relatedModules: [...sourceGoal.relatedModules],
     relatedItems: [...entry.uncoveredItemRefs],
-    startDate: now,
+    startDate: startOfWeekLocal(now),
     targetDate: bounds.end,
     status: 'active',
     parentGoalId: null,

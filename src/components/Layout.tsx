@@ -10,6 +10,7 @@ import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import PwaUpdateBanner from './PwaUpdateBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 import {
+  cleanupCarryoverGoalStartDatesIfNeeded,
   cleanupOrphanedWeeklyGoalsIfNeeded,
   cleanupRepertoireGoalContextIfNeeded,
 } from '../modules/goals/cleanup';
@@ -52,6 +53,10 @@ export default function Layout() {
     // dangling slices break confirmed-plan detection and re-planning
     // then duplicates the week's goals. Idempotent.
     void cleanupOrphanedWeeklyGoalsIfNeeded();
+    // Re-anchor pre-fix carry-over goals (startDate=now) to their week
+    // start so weeklyDerivation stops prorating their first week.
+    // Idempotent.
+    void cleanupCarryoverGoalStartDatesIfNeeded();
     return () => {
       cancelled = true;
     };

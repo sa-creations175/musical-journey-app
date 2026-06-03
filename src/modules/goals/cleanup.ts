@@ -1,4 +1,6 @@
 import { db } from '../../lib/db';
+import { CARRYOVER_DESCRIPTION_PREFIX } from './carryoverAccept';
+import { startOfWeekLocal } from './weeklyPlanData';
 
 /**
  * Two cleanups in one pass:
@@ -99,4 +101,51 @@ export async function cleanupOrphanedWeeklyGoalsIfNeeded(): Promise<void> {
   );
   if (orphans.length === 0) return;
   await db.goals.bulkDelete(orphans.map(o => o.id));
+}
+
+/**
+ * Re-anchor existing carry-over monthly goals to their week start.
+ *
+ * Carry-over stubs created before the fix carried `startDate: now`
+ * (the acceptance moment), which falls mid-week. weeklyDerivation
+ * then treated them as mid-week-created goals and prorated the first
+ * week's target off `now` — a 202-item HF carry-over derived 349
+ * attempts instead of the even ~404/week split. New stubs now anchor
+ * at `startOfWeekLocal(now)`; this sweep brings already-created stubs
+ * in line so a re-plan derives the correct weekly target.
+ *
+ * Match criteria: active monthly goals whose description starts with
+ * the carry-over prefix AND whose startDate is not already week-
+ * aligned. Re-anchoring moves startDate back at most 6 days — before
+ * the goal's own first week — so it routes through the reset-clean
+ * "remaining ÷ weeks" branch every week. Idempotent: a second run
+ * finds startDate already at the week boundary and no-ops.
+ *
+ * Note: a frozen weekly goal that was already CONFIRMED off the old
+ * startDate keeps its stale target until the user re-plans — this
+ * sweep fixes the derivation source, not previously-saved slices.
+ */
+export async function cleanupCarryoverGoalStartDatesIfNeeded(): Promise<void> {
+  const candidates = await db.goals
+    .where('status')
+    .equals('active')
+    .toArray();
+
+  const toFix = candidates.filter(
+    g =>
+      g.scope === 'monthly' &&
+      !g.isUmbrella &&
+      g.description.startsWith(CARRYOVER_DESCRIPTION_PREFIX) &&
+      startOfWeekLocal(g.startDate) !== g.startDate,
+  );
+
+  if (toFix.length === 0) return;
+
+  await db.transaction('rw', [db.goals], async () => {
+    for (const goal of toFix) {
+      await db.goals.update(goal.id, {
+        startDate: startOfWeekLocal(goal.startDate),
+      });
+    }
+  });
 }

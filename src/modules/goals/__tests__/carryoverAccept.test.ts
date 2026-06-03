@@ -11,6 +11,8 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { applyCarryoverAcceptance } from '../carryoverAccept';
 import { getUncoveredItemsFromLastMonth, type ModuleUncoveredEntry } from '../carryover';
+import { startOfWeekLocal } from '../weeklyPlanData';
+import { deriveWeeklyGoals } from '../weeklyDerivation';
 import { db, type Goal } from '../../../lib/db';
 
 const TODAY = new Date(2026, 4, 15, 9, 0, 0).getTime();
@@ -226,9 +228,49 @@ describe('applyCarryoverAcceptance — no current monthly → stub creation', ()
     ]);
     expect(stub.targetValue).toBe(2);
     expect(stub.status).toBe('active');
-    expect(stub.startDate).toBe(TODAY);
+    // startDate is week-aligned (Sunday of the acceptance week), NOT
+    // `now` — so weeklyDerivation routes it through the even-split
+    // reset-clean branch instead of mid-week proration. May 15 2026
+    // is a Friday → Sunday May 10.
+    expect(stub.startDate).toBe(startOfWeekLocal(TODAY));
+    expect(stub.startDate).toBeLessThan(TODAY);
     expect(stub.targetDate).toBe(MAY_END);
     expect(stub.isUmbrella).toBe(false);
+  });
+
+  it('stub does NOT trigger mid-week proration — HF carry-over derives the even split, not 349', async () => {
+    // Regression: a 202-item HF carry-over accepted mid-week used to
+    // derive 349 attempts (gross 2020 prorated off `now`) instead of
+    // the even ~404/week split. Week-aligning startDate fixes it.
+    const items = Array.from({ length: 202 }, (_, i) => `hf-card-${i}`);
+    const source = mkMonthly({
+      id: 'hf-april-src',
+      targetMetric: 'harmonic_fluency_coverage_at_acquired',
+      targetUnit: 'cards',
+      relatedModules: ['harmonic-fluency'],
+      targetValue: 202,
+      startDate: APRIL_START,
+      targetDate: APRIL_END,
+    });
+    await db.goals.add(source);
+
+    // Accept on a Friday (mid-week) — the worst case for proration.
+    const friday = new Date(2026, 4, 15, 9).getTime();
+    await applyCarryoverAcceptance(
+      [{ moduleId: 'harmonic-fluency', uncoveredItemRefs: items, monthlyGoalId: source.id }],
+      { 'harmonic-fluency': 'accepted' },
+      friday,
+    );
+
+    const stub = (await db.goals.toArray()).find(g => g.id !== source.id)!;
+    const weekStart = startOfWeekLocal(friday);
+    const [weekly] = await deriveWeeklyGoals([stub], weekStart, friday);
+
+    // Reset-clean even split: 202 × 10 = 2020 attempts spread across
+    // the weeks remaining to MAY_END — NOT the prorated 349.
+    expect(weekly).toBeDefined();
+    expect(weekly.targetValue).not.toBe(349);
+    expect(weekly.targetValue).toBeGreaterThan(349);
   });
 });
 
