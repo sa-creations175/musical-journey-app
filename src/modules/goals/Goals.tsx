@@ -12,6 +12,7 @@ import { ScopePill } from './ScopePill';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
 import CarryoverBanner from './CarryoverBanner';
+import MonthEndCleanupBanner from './MonthEndCleanupBanner';
 import {
   endOfWeekLocal,
   loadConfirmedPlanForWeek,
@@ -519,6 +520,11 @@ export default function Goals() {
             decision (Accept/Decline per module via the review
             modal) or explicit X-dismiss. */}
         <CarryoverBanner />
+        {/* Month-start cleanup — previous-month goals that are
+            mathematically unrecoverable. Dismiss all deletes them in
+            one tap; Select enters select mode with them pre-checked.
+            Hides itself once none remain (reactive via useLiveQuery). */}
+        <MonthEndCleanupBanner onSelect={ids => enterSelectMode(ids)} />
       </div>
 
       {/* Small muted label introduces the view toggle. */}
