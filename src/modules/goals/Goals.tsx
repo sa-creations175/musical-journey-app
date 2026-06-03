@@ -457,13 +457,7 @@ export default function Goals() {
   }
 
   return (
-    <div
-      className={`max-w-4xl mx-auto px-4 py-6 ${
-        // Clear the select-mode sticky footer so the last rows stay
-        // reachable while it's up.
-        goalSelect.active ? 'pb-28' : ''
-      }`}
-    >
+    <div className="max-w-4xl mx-auto px-4 py-6">
       {/* Title row: "Goals" + accent-coloured "Set a goal". The
           customize-layers gear stays in the same row so it doesn't
           float without a header to anchor to. */}
@@ -513,19 +507,48 @@ export default function Goals() {
         </button>
       </header>
 
-      <div className="mb-4 flex flex-col gap-2">
-        <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
-        {/* Phase B Step 9b — surfaces uncovered items from last
-            month's monthly target. Persistent: hides only on user
-            decision (Accept/Decline per module via the review
-            modal) or explicit X-dismiss. */}
-        <CarryoverBanner />
-        {/* Month-start cleanup — previous-month goals that are
-            mathematically unrecoverable. Dismiss all deletes them in
-            one tap; Select enters select mode with them pre-checked.
-            Hides itself once none remain (reactive via useLiveQuery). */}
-        <MonthEndCleanupBanner onSelect={ids => enterSelectMode(ids)} />
-      </div>
+      {goalSelect.active ? (
+        /* Select-mode action bar — takes the banner stack's place so
+           the actions sit exactly where the user entered select mode
+           (top of page, no scrolling). Replaces the earlier sticky
+           footer, which was invisible on mobile: MobileBottomNav is
+           also fixed bottom-0 z-40 and renders later in the DOM, so
+           it painted on top of the footer. */
+        <div className="mb-4 rounded-md border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900/40 px-4 py-3 flex items-center gap-2">
+          <span className="flex-1 text-sm text-neutral-700 dark:text-neutral-300 tabular-nums">
+            {goalSelect.selected.size} selected
+          </span>
+          <button
+            type="button"
+            disabled={goalSelect.selected.size === 0}
+            onClick={() => void deleteSelectedGoals()}
+            className="px-3 py-1.5 rounded-md text-sm font-medium bg-needswork text-white hover:opacity-90 disabled:opacity-40"
+          >
+            Delete selected
+          </button>
+          <button
+            type="button"
+            onClick={exitSelectMode}
+            className="px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-800"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <div className="mb-4 flex flex-col gap-2">
+          <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
+          {/* Phase B Step 9b — surfaces uncovered items from last
+              month's monthly target. Persistent: hides only on user
+              decision (Accept/Decline per module via the review
+              modal) or explicit X-dismiss. */}
+          <CarryoverBanner />
+          {/* Month-start cleanup — previous-month goals that are
+              mathematically unrecoverable. Dismiss all deletes them in
+              one tap; Select enters select mode with them pre-checked.
+              Hides itself once none remain (reactive via useLiveQuery). */}
+          <MonthEndCleanupBanner onSelect={ids => enterSelectMode(ids)} />
+        </div>
+      )}
 
       {/* Small muted label introduces the view toggle. */}
       <div className="text-[10px] uppercase tracking-wide font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">
@@ -718,40 +741,6 @@ export default function Goals() {
         />
       )}
       </GoalSelectContext.Provider>
-
-      {/* Select-mode sticky footer — fixed to the viewport bottom,
-          safe-area aware (same padding pattern as the app's modal
-          footers). Delete is disabled at zero selection; Cancel
-          exits without touching anything. */}
-      {goalSelect.active && (
-        <div
-          className="fixed bottom-0 inset-x-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
-          style={{
-            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
-          }}
-        >
-          <div className="max-w-4xl mx-auto px-4 pt-3 flex items-center gap-2">
-            <span className="flex-1 text-sm text-neutral-700 dark:text-neutral-300 tabular-nums">
-              {goalSelect.selected.size} selected
-            </span>
-            <button
-              type="button"
-              disabled={goalSelect.selected.size === 0}
-              onClick={() => void deleteSelectedGoals()}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-needswork text-white hover:opacity-90 disabled:opacity-40"
-            >
-              Delete selected
-            </button>
-            <button
-              type="button"
-              onClick={exitSelectMode}
-              className="px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       <CustomizeLayersModal
         open={customizeOpen}
