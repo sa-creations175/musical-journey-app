@@ -11,6 +11,7 @@ import GoalSuggestionFlow from './GoalSuggestionFlow';
 import { ScopePill } from './ScopePill';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
+import PlanMonthBanner from './PlanMonthBanner';
 import CarryoverBanner from './CarryoverBanner';
 import MonthEndCleanupBanner from './MonthEndCleanupBanner';
 import {
@@ -537,6 +538,11 @@ export default function Goals() {
       ) : (
         <div className="mb-4 flex flex-col gap-2">
           <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
+          {/* Prompt to set monthly goals when the current month has no
+              real (non-carry-over) monthly goal yet. Tapping opens the
+              monthly creation flow (module picker → suggestion flow).
+              Below Plan-your-week, above the cleanup banner. */}
+          <PlanMonthBanner onPlanMonth={() => setModulePickerKind('monthly')} />
           {/* Phase B Step 9b — surfaces uncovered items from last
               month's monthly target. Persistent: hides only on user
               decision (Accept/Decline per module via the review
