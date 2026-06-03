@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type DrillSkill, type DrillType } from '../../lib/db';
+import { bulkAddDrillSessions } from '../../lib/practiceWrites';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
@@ -105,7 +106,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
         onClick: async () => {
           await db.transaction('rw', [db.drillTypes, db.drillSessions], async () => {
             await db.drillTypes.add(drill);
-            if (sessions.length > 0) await db.drillSessions.bulkAdd(sessions);
+            if (sessions.length > 0) await bulkAddDrillSessions(sessions);
           });
         },
       },

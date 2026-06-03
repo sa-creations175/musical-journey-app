@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type AttemptRecord } from '../../../lib/db';
+import { type AttemptRecord } from '../../../lib/db';
+import { bulkAddAttempts } from '../../../lib/practiceWrites';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref, setPref } from '../../../lib/userPrefs';
@@ -618,7 +619,7 @@ export default function ChordMotionTab({ attempts }: Props) {
         ...excludeFlag,
       });
     }
-    await db.attempts.bulkAdd(records);
+    await bulkAddAttempts(records);
     await updateDailySummary(MODULE_ID);
   };
 

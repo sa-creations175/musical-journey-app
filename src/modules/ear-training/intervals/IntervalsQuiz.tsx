@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { playInterval } from '../../../lib/audio';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
+import { addAttempt } from '../../../lib/practiceWrites';
 import {
   pickAdaptive,
   ROLLING_WINDOW_SIZE,
@@ -176,7 +177,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
       timestamp: Date.now(),
       ...(focusProtected ? { excludeFromFluency: true } : {}),
     };
-    await db.attempts.add(record);
+    await addAttempt(record);
     await recordEngagement({
       itemRef: `${current.interval.id}:${current.direction}`,
       moduleRef: MODULE_ID,

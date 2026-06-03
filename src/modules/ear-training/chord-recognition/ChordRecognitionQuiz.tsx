@@ -6,6 +6,7 @@ import {
   type BrokenChordDirection,
 } from '../../../lib/audio';
 import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
+import { addAttempt } from '../../../lib/practiceWrites';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -438,7 +439,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     // the quality verdict.
     const timestamp = Date.now();
     const itemId = attemptItemId(current.chord.id, current.inversion);
-    await db.attempts.add({
+    await addAttempt({
       moduleId: MODULE_ID,
       itemId,
       correct: isCorrect,
@@ -465,7 +466,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     const isCorrect = chosen === current.inversion;
     const timestamp = Date.now();
     const itemId = attemptItemId(current.chord.id, current.inversion);
-    await db.attempts.add({
+    await addAttempt({
       moduleId: MODULE_ID,
       itemId,
       correct: isCorrect,

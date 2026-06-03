@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type AttemptRecord } from '../../../lib/db';
+import { type AttemptRecord } from '../../../lib/db';
+import { addAttempt } from '../../../lib/practiceWrites';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -218,7 +219,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
     setSubmitted(true);
     const timestamp = Date.now();
     const itemRef = vampItemId(active);
-    await db.attempts.add({
+    await addAttempt({
       moduleId: MODULE_ID,
       itemId: itemRef,
       correct,

@@ -10,6 +10,7 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type AttemptRecord } from '../../lib/db';
+import { addAttempt } from '../../lib/practiceWrites';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import ScaleDegreeCompass from './ScaleDegreeCompass';
 import LinearScaleStrip from './LinearScaleStrip';
@@ -101,7 +102,7 @@ export default function HarmonicFluencySession({
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       ...(targetSeconds !== undefined ? { targetSeconds } : {}),
     };
-    await db.attempts.add(record);
+    await addAttempt(record);
     await recordEngagement({
       itemRef: card.id,
       moduleRef: MODULE_ID,

@@ -5,6 +5,7 @@ import { getPref } from '../lib/userPrefs';
 import { useUserName } from '../modules/dashboard/userName';
 import { useAuth } from '../lib/auth/useAuth';
 import { useSyncStatus } from '../lib/sync/useSyncStatus';
+import { useDevMode } from '../lib/devMode';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -74,6 +75,53 @@ function AccountSection() {
       <p className="text-[11px] text-neutral-500 mt-2">
         signing out clears this device's local cache. your cloud data is untouched — sign back in to restore.
       </p>
+    </section>
+  );
+}
+
+/**
+ * Developer section — Dev Mode toggle. When ON, practice-data writes
+ * (attempts, spacingState, drillSessions) are suppressed so test
+ * sessions don't pollute real history. Lives in sessionStorage, so it
+ * resets to OFF on every refresh — the toggle copy says so, and the
+ * header DEV badge makes an active session impossible to miss.
+ */
+function DeveloperSection() {
+  const { devMode, toggleDevMode } = useDevMode();
+  return (
+    <section>
+      <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+        developer
+      </h4>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={devMode}
+        onClick={toggleDevMode}
+        className="w-full flex items-center justify-between gap-3 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-sm text-neutral-700 dark:text-neutral-200">
+            Dev Mode — suppress practice data writes
+          </span>
+          <span className="block text-[11px] text-neutral-500 mt-0.5">
+            skips attempts, spacing, and drill-session writes. resets to off
+            on refresh.
+          </span>
+        </span>
+        <span
+          aria-hidden
+          className={`shrink-0 w-10 h-6 rounded-full p-0.5 transition-colors ${
+            devMode ? 'bg-fluent' : 'bg-neutral-300 dark:bg-neutral-600'
+          }`}
+        >
+          <span
+            className={`block w-5 h-5 rounded-full bg-white transition-transform ${
+              devMode ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </span>
+      </button>
     </section>
   );
 }
@@ -261,6 +309,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
               theme options, and more.
             </p>
           </section>
+
+          <DeveloperSection />
         </div>
       </Modal>
 

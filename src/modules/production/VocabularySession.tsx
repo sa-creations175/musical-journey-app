@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type AttemptRecord } from '../../lib/db';
+import { addAttempt } from '../../lib/practiceWrites';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import {
@@ -285,7 +286,7 @@ export default function VocabularySession({ onBack }: Props) {
       timestamp,
       ...(targetSeconds !== undefined ? { targetSeconds } : {}),
     };
-    await db.attempts.add(record);
+    await addAttempt(record);
     await recordSrAttempt(card.id, correct, timestamp);
     await updateDailySummary(MODULE_ID);
 

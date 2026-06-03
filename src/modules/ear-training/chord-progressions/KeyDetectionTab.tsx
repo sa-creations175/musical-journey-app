@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type AttemptRecord } from '../../../lib/db';
+import { type AttemptRecord } from '../../../lib/db';
+import { addAttempt } from '../../../lib/practiceWrites';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref } from '../../../lib/userPrefs';
@@ -197,7 +198,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
     const correct = option.isCorrect;
     setSubmitted(true);
 
-    await db.attempts.add({
+    await addAttempt({
       moduleId: MODULE_ID,
       itemId: `key-detection:${round.key}`,
       correct,

@@ -15,6 +15,7 @@ import {
   cleanupRepertoireGoalContextIfNeeded,
 } from '../modules/goals/cleanup';
 import { getPref, setPref } from '../lib/userPrefs';
+import { useDevMode } from '../lib/devMode';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
@@ -28,6 +29,9 @@ const SIDEBAR_PREF = 'sidebarCollapsed';
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [creativeOpen, setCreativeOpen] = useState(false);
+  // Dev Mode badge in the header — impossible to miss while practice
+  // writes are being suppressed. Resets to off on refresh.
+  const { devMode } = useDevMode();
   // Sidebar collapse only takes effect at md+ (CSS gates it via
   // md:w-* classes). The state is shared across all sizes so the
   // user's preference survives resize. Initial value defaults to
@@ -168,6 +172,14 @@ export default function Layout() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
+            {devMode && (
+              <span
+                title="Dev Mode is on — practice data writes are suppressed"
+                className="inline-flex items-center h-8 px-2 rounded-md bg-amber-400 text-amber-950 text-[11px] font-bold uppercase tracking-wider leading-none"
+              >
+                DEV
+              </span>
+            )}
             <SyncIndicator />
             <button
               onClick={() => setCreativeOpen(true)}

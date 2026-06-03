@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type AttemptRecord } from '../../../lib/db';
+import { type AttemptRecord } from '../../../lib/db';
+import { addAttempt, bulkAddAttempts } from '../../../lib/practiceWrites';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -419,7 +420,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         });
       }
     });
-    await db.attempts.bulkAdd(records);
+    await bulkAddAttempts(records);
     // One spacingState engagement per chord position. The -inversion
     // sub-records are sub-skill grades, not catalog items, so they
     // don't get spacingState rows (see Phase 2 1c report). Calls are
@@ -455,7 +456,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
       setPatternAnswered(choiceId);
       setPatternCorrect(isCorrect);
       const timestamp = Date.now();
-      await db.attempts.add({
+      await addAttempt({
         moduleId: MODULE_ID,
         itemId: `${active.id}-pattern`,
         correct: isCorrect,

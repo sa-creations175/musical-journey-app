@@ -5,6 +5,7 @@ import {
   type DrillType,
   type InversionState,
 } from '../../lib/db';
+import { addDrillSession } from '../../lib/practiceWrites';
 import {
   CHORD_QUALITY_BY_ID,
   defaultDrillForChordShape,
@@ -593,7 +594,7 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     timestamp: Date.now(),
   };
   await db.transaction('rw', [db.drillSessions, db.drillTypes], async () => {
-    await db.drillSessions.add(session);
+    await addDrillSession(session);
     await db.drillTypes.update(input.drillType.id, {
       repCount: input.drillType.repCount + 1,
       totalSeconds: input.drillType.totalSeconds + session.durationSeconds,
@@ -694,7 +695,7 @@ export async function logVoiceLeadingDrillSession(
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
-  await db.drillSessions.add(session);
+  await addDrillSession(session);
   return session;
 }
 
@@ -713,7 +714,7 @@ export async function logScaleDrillSession(
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
-  await db.drillSessions.add(session);
+  await addDrillSession(session);
   return session;
 }
 

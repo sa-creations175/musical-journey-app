@@ -1,4 +1,5 @@
 import { db, type SpacingState, type AcquisitionStage, type MemoryType } from './db';
+import { putSpacingState } from './practiceWrites';
 import { getMemoryType } from './memoryType';
 
 /**
@@ -338,7 +339,10 @@ export async function recordEngagement(
     nextDueAt: computeNextDueAt(t, intervalDays),
     performanceHistory: history as Array<Record<string, unknown>>,
   };
-  await db.spacingState.put(updated);
+  // Dev-Mode-gated: a practice engagement's spacing update is suppressed
+  // when Dev Mode is on (assertSpacingStage's deliberate curation writes
+  // below are NOT gated — they're not practice-session data).
+  await putSpacingState(updated);
   return updated;
 }
 
