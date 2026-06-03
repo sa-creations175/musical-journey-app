@@ -124,6 +124,12 @@ import {
 } from './goalsByModule';
 import { SECTION_PALETTE } from './moduleSectionPalette';
 import { MODULE_DISPLAY_NAME } from './YearlyAnchorFlow';
+import { deleteGoalsWithCascade } from './monthEndCleanup';
+import {
+  GoalSelectContext,
+  useGoalSelect,
+  type GoalSelectState,
+} from './selectMode';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
@@ -266,6 +272,14 @@ export default function Goals() {
     loadRowCollapse(),
   );
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  /** Select mode — bulk goal deletion. `selected` holds checked goal
+   *  ids. Entered via the header Select button (nothing pre-checked)
+   *  or the month-end cleanup banner (its goals pre-checked). Not
+   *  persisted — leaving the page exits select mode. */
+  const [goalSelect, setGoalSelect] = useState<{
+    active: boolean;
+    selected: ReadonlySet<string>;
+  }>({ active: false, selected: new Set<string>() });
   const [formMode, setFormMode] = useState<FormMode>({ kind: 'closed' });
   /** Phase 4 step 3 — WeeklyPlan modal. Auto-surfaced via the
    *  Sunday banner; also reachable from the explicit "Plan week"
@@ -387,6 +401,44 @@ export default function Goals() {
     });
   };
 
+  // ── Select mode ────────────────────────────────────────────────
+  const enterSelectMode = (preselected: ReadonlyArray<string> = []) =>
+    setGoalSelect({ active: true, selected: new Set(preselected) });
+  const exitSelectMode = () =>
+    setGoalSelect({ active: false, selected: new Set<string>() });
+  /** Context value consumed by GoalRow / UmbrellaRow / WeeklyGoalRow
+   *  via useGoalSelect — see selectMode.ts for why this is a context
+   *  rather than threaded props. Memoized so row consumers only
+   *  re-render when select state actually changes. */
+  const goalSelectContextValue = useMemo<GoalSelectState>(
+    () => ({
+      active: goalSelect.active,
+      selected: goalSelect.selected,
+      toggle: goalId =>
+        setGoalSelect(prev => {
+          if (!prev.active) return prev;
+          const next = new Set(prev.selected);
+          if (next.has(goalId)) next.delete(goalId);
+          else next.add(goalId);
+          return { ...prev, selected: next };
+        }),
+    }),
+    [goalSelect],
+  );
+  /** Delete every checked goal (umbrellas cascade into their
+   *  same-scope children), then exit select mode. No confirmation
+   *  dialog by design — same trust level as DeleteGoalButton's
+   *  two-tap confirm, but the explicit checking IS the confirmation
+   *  step here. */
+  const deleteSelectedGoals = async () => {
+    try {
+      await deleteGoalsWithCascade([...goalSelect.selected]);
+    } catch (err) {
+      console.warn('[goals] bulk delete failed', err);
+    }
+    exitSelectMode();
+  };
+
   // Wait for the goals live query to resolve before deciding what
   // to render — avoids briefly mounting either Goals home or
   // OnboardingFlow against the default-empty result and then
@@ -404,7 +456,13 @@ export default function Goals() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div
+      className={`max-w-4xl mx-auto px-4 py-6 ${
+        // Clear the select-mode sticky footer so the last rows stay
+        // reachable while it's up.
+        goalSelect.active ? 'pb-28' : ''
+      }`}
+    >
       {/* Title row: "Goals" + accent-coloured "Set a goal". The
           customize-layers gear stays in the same row so it doesn't
           float without a header to anchor to. */}
@@ -422,6 +480,18 @@ export default function Goals() {
         <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100 flex-1">
           Goals
         </h1>
+        {/* Select-mode entry. Hidden while active — the sticky
+            footer's Cancel is the exit. */}
+        {!goalSelect.active && (
+          <button
+            type="button"
+            onClick={() => enterSelectMode()}
+            className="text-xs px-2.5 py-1.5 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            aria-label="select goals"
+          >
+            Select
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setCustomizeOpen(true)}
@@ -513,6 +583,9 @@ export default function Goals() {
 
       <SongOfMonthTbdNudgeBanner />
 
+      {/* Select-mode context wraps both views so every goal row —
+          at any nesting depth — can read it without prop threading. */}
+      <GoalSelectContext.Provider value={goalSelectContextValue}>
       {activeView === 'timeframe' ? (
         <div className="flex flex-col">
           {visibleLayers.map(layer => {
@@ -637,6 +710,41 @@ export default function Goals() {
           isRowExpanded={isRowExpanded}
           onToggleRow={onToggleRow}
         />
+      )}
+      </GoalSelectContext.Provider>
+
+      {/* Select-mode sticky footer — fixed to the viewport bottom,
+          safe-area aware (same padding pattern as the app's modal
+          footers). Delete is disabled at zero selection; Cancel
+          exits without touching anything. */}
+      {goalSelect.active && (
+        <div
+          className="fixed bottom-0 inset-x-0 z-40 border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
+          style={{
+            paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))',
+          }}
+        >
+          <div className="max-w-4xl mx-auto px-4 pt-3 flex items-center gap-2">
+            <span className="flex-1 text-sm text-neutral-700 dark:text-neutral-300 tabular-nums">
+              {goalSelect.selected.size} selected
+            </span>
+            <button
+              type="button"
+              disabled={goalSelect.selected.size === 0}
+              onClick={() => void deleteSelectedGoals()}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-needswork text-white hover:opacity-90 disabled:opacity-40"
+            >
+              Delete selected
+            </button>
+            <button
+              type="button"
+              onClick={exitSelectMode}
+              className="px-3 py-1.5 rounded-md text-sm border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       <CustomizeLayersModal
@@ -1603,6 +1711,9 @@ function GoalRow({
 } & RowCollapseAccess) {
   const expanded = isRowExpanded(goal.id, false);
   const setExpanded = () => onToggleRow(goal.id, false);
+  // Select mode — when active, the row tap toggles the checkbox
+  // instead of expanding, and row actions (delete/expand body) hide.
+  const select = useGoalSelect();
   const slotState = progressSlotState(goal, layerType);
   const showSlots = shouldShowSlots(layerType);
   const progressText = progressSlotText(slotState);
@@ -1639,10 +1750,15 @@ function GoalRow({
       <div className="flex items-center gap-1">
         <button
           type="button"
-          onClick={setExpanded}
-          aria-expanded={expanded}
+          onClick={
+            select.active ? () => select.toggle(goal.id) : setExpanded
+          }
+          aria-expanded={select.active ? undefined : expanded}
           className="flex-1 min-w-0 text-left px-2 py-1 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-center gap-3"
         >
+          {select.active && (
+            <SelectCheckbox checked={select.selected.has(goal.id)} />
+          )}
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100">
               {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
@@ -1663,13 +1779,16 @@ function GoalRow({
             panel Edit affordance for ByModuleSection's per-dimension
             children. The header-level delete should always be
             reachable per spec ("each goal row"); the component
-            handles its own yearly-anchor exclusion internally. */}
-        <div className="shrink-0 -mr-1">
-          <DeleteGoalButton goal={goal} />
-        </div>
+            handles its own yearly-anchor exclusion internally.
+            Hidden in select mode — bulk delete replaces it there. */}
+        {!select.active && (
+          <div className="shrink-0 -mr-1">
+            <DeleteGoalButton goal={goal} />
+          </div>
+        )}
       </div>
 
-      {expanded && (
+      {expanded && !select.active && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
           {/* Activity chart slot — populated with mock data in
               step 6b. Step 6c swaps the mock generator for the
@@ -2062,6 +2181,10 @@ function UmbrellaRow({
   // switches.
   const expanded = isRowExpanded(umbrella.id, true, umbrella.scope);
   const setExpanded = () => onToggleRow(umbrella.id, true, umbrella.scope);
+  // Select mode — umbrella row itself is checkable (deleting it
+  // cascades into same-scope children); its child rows below stay
+  // visible so individual children can be checked instead.
+  const select = useGoalSelect();
   // Filter out consistency-metric children for non-practice-
   // consistency umbrellas. Consistency dimension is part of the
   // yearly framework but is no longer a trackable child goal —
@@ -2107,10 +2230,15 @@ function UmbrellaRow({
       <div className="flex items-center gap-1">
         <button
           type="button"
-          onClick={setExpanded}
-          aria-expanded={expanded}
+          onClick={
+            select.active ? () => select.toggle(umbrella.id) : setExpanded
+          }
+          aria-expanded={select.active ? undefined : expanded}
           className="flex-1 min-w-0 text-left px-2 py-1 -ml-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition flex items-center gap-3"
         >
+          {select.active && (
+            <SelectCheckbox checked={select.selected.has(umbrella.id)} />
+          )}
           <div className="flex-1 min-w-0">
             <div
               className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 line-clamp-2"
@@ -2133,9 +2261,11 @@ function UmbrellaRow({
             </div>
           )}
         </button>
-        <div className="shrink-0 -mr-1">
-          <DeleteGoalButton goal={umbrella} />
-        </div>
+        {!select.active && (
+          <div className="shrink-0 -mr-1">
+            <DeleteGoalButton goal={umbrella} />
+          </div>
+        )}
       </div>
 
       {/* Show-activity affordance only on the collapsed yearly
@@ -2912,6 +3042,8 @@ function WeeklyGoalRow({
   availableDays: number;
   onEdit: () => void;
 }) {
+  // Select mode — row tap toggles the checkbox instead of opening edit.
+  const select = useGoalSelect();
   const typeLabel = goalTypeLabel(goal, moduleId);
 
   // Decide the actual numerator the pace classifier sees:
@@ -2950,9 +3082,12 @@ function WeeklyGoalRow({
     <li className="border-t border-neutral-200/60 dark:border-neutral-800/60 first:border-t-0 pt-1.5 first:pt-0">
       <button
         type="button"
-        onClick={onEdit}
+        onClick={select.active ? () => select.toggle(goal.id) : onEdit}
         className="w-full text-left rounded px-2 py-1 -mx-2 hover:bg-white/40 dark:hover:bg-neutral-900/30 transition flex items-center gap-3"
       >
+        {select.active && (
+          <SelectCheckbox checked={select.selected.has(goal.id)} />
+        )}
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 truncate">
             {goal.description || (
@@ -3061,6 +3196,36 @@ function GearIcon() {
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
+  );
+}
+
+/**
+ * Select-mode check indicator. Purely visual — the whole row button
+ * is the tap target (44px-friendly), so this is aria-hidden and
+ * non-interactive. Checked state wears the Goals module accent.
+ */
+function SelectCheckbox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden
+      data-testid="select-checkbox"
+      data-checked={checked}
+      className={`shrink-0 w-[18px] h-[18px] rounded border flex items-center justify-center text-[11px] leading-none transition-colors ${
+        checked
+          ? 'text-white'
+          : 'border-neutral-300 dark:border-neutral-600 text-transparent'
+      }`}
+      style={
+        checked
+          ? {
+              backgroundColor: GOALS_META.accentHex,
+              borderColor: GOALS_META.accentHex,
+            }
+          : undefined
+      }
+    >
+      ✓
+    </span>
   );
 }
 
