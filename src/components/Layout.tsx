@@ -9,7 +9,10 @@ import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import PwaUpdateBanner from './PwaUpdateBanner';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
-import { cleanupRepertoireGoalContextIfNeeded } from '../modules/goals/cleanup';
+import {
+  cleanupOrphanedWeeklyGoalsIfNeeded,
+  cleanupRepertoireGoalContextIfNeeded,
+} from '../modules/goals/cleanup';
 import { getPref, setPref } from '../lib/userPrefs';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
@@ -45,6 +48,10 @@ export default function Layout() {
     // non-keys contexts. Also migrates any legacy 'mixed' contextTag
     // rows to null. Idempotent.
     void cleanupRepertoireGoalContextIfNeeded();
+    // Remove weekly plan slices whose monthly parent was deleted —
+    // dangling slices break confirmed-plan detection and re-planning
+    // then duplicates the week's goals. Idempotent.
+    void cleanupOrphanedWeeklyGoalsIfNeeded();
     return () => {
       cancelled = true;
     };

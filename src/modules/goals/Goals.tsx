@@ -2040,22 +2040,18 @@ function umbrellaDisplayTitle(
 }
 
 /**
- * Hard-delete a goal. For umbrellas, cascades into same-scope
- * children only — yearly anchors share parentGoalId with both yearly
- * children and any monthly stowaways, so a scope-filtered cascade
- * avoids the same cross-scope hazard editLoad's sibling fetch
- * already corrects for.
+ * Hard-delete a goal. Thin wrapper over deleteGoalsWithCascade so the
+ * single-row delete (DeleteGoalButton) and the bulk paths (select
+ * mode, month-end dismiss) share one set of cascade rules:
+ *   · umbrellas → same-scope children (yearly anchors share
+ *     parentGoalId with monthly stowaways, so the cascade stays
+ *     scope-filtered),
+ *   · monthly goals → their weekly plan slices (a slice without its
+ *     parent breaks confirmed-plan detection and re-planning then
+ *     duplicates the week — see deleteGoalsWithCascade).
  */
 async function hardDeleteGoal(goal: Goal): Promise<void> {
-  if (goal.isUmbrella) {
-    const children = await db.goals
-      .where('parentGoalId').equals(goal.id)
-      .filter(c => c.scope === goal.scope)
-      .toArray();
-    await db.goals.bulkDelete([...children.map(c => c.id), goal.id]);
-    return;
-  }
-  await db.goals.delete(goal.id);
+  await deleteGoalsWithCascade([goal.id]);
 }
 
 /**

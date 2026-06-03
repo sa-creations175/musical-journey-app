@@ -60,3 +60,43 @@ export async function cleanupRepertoireGoalContextIfNeeded(): Promise<void> {
     }
   });
 }
+
+/**
+ * Orphaned weekly plan slices — weekly goals whose parentGoalId
+ * points at a goal that no longer exists.
+ *
+ * How they happen: this week's plan is confirmed (weekly goals
+ * created as children of the then-current monthly goals), then the
+ * monthly parents get deleted — month-start "dismiss unrecoverable"
+ * sweep, select-mode bulk delete, or a manual row delete. Before
+ * June 2026 none of those paths cascaded into weekly children, so
+ * the slices survived with dangling pointers.
+ *
+ * Consequences of a dangling slice: it stops counting as the
+ * "confirmed plan" (loadConfirmedPlanForWeek requires an ACTIVE
+ * monthly parent), so the planning UI reappears; re-planning then
+ * bulkAdds a second set of weekly goals, and the Weekly layer shows
+ * every module twice — once in the new plan's summary, once as an
+ * orphan row.
+ *
+ * Both delete paths now cascade monthly → weekly slices
+ * (deleteGoalsWithCascade), so new orphans shouldn't appear. This
+ * sweep removes orphans that already exist. Deliberately scoped to
+ * weekly goals only: that's the documented derived-data relationship;
+ * other scopes' parent links are relationships, not derivations.
+ *
+ * Plain Dexie deletes — the sync layer's 'deleting' hook mirrors
+ * each removal to Supabase. Idempotent: no-ops when no orphans exist.
+ */
+export async function cleanupOrphanedWeeklyGoalsIfNeeded(): Promise<void> {
+  const all = await db.goals.toArray();
+  const existingIds = new Set(all.map(g => g.id));
+  const orphans = all.filter(
+    g =>
+      g.scope === 'weekly' &&
+      g.parentGoalId !== null &&
+      !existingIds.has(g.parentGoalId),
+  );
+  if (orphans.length === 0) return;
+  await db.goals.bulkDelete(orphans.map(o => o.id));
+}

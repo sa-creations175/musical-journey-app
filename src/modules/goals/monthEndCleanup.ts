@@ -149,10 +149,20 @@ export async function loadMonthEndCleanup(
 }
 
 /**
- * Delete a set of goals, cascading any umbrella in the set into its
- * same-scope children — the same scope-filtered cascade rule as
- * Goals.tsx's hardDeleteGoal (cross-scope children like monthly
- * stowaways under a yearly anchor are left alone).
+ * Delete a set of goals, with two cascades:
+ *
+ *   1. Umbrella → same-scope children. The same scope-filtered rule
+ *      as the original hardDeleteGoal (cross-scope children like
+ *      monthly stowaways under a yearly anchor are left alone).
+ *
+ *   2. Monthly → weekly children. Weekly goals parented to a monthly
+ *      goal ARE that monthly's plan slices — that's the system's own
+ *      definition of a "confirmed plan" (loadConfirmedPlanForWeek's
+ *      parent-linkage predicate). A slice without its parent is a
+ *      dangling orphan: it stops counting as the confirmed plan, the
+ *      planning UI reappears, and re-planning creates a second set of
+ *      weekly goals → duplicate weekly rows (June 2026 bug). Slices
+ *      die with their monthly.
  *
  * One bulkDelete at the end so the sync layer sees each row's
  * 'deleting' hook exactly once.
@@ -161,19 +171,37 @@ export async function deleteGoalsWithCascade(
   ids: ReadonlyArray<string>,
 ): Promise<void> {
   if (ids.length === 0) return;
-  const goals = await db.goals.bulkGet([...ids]);
-  const toDelete = new Set<string>();
-  for (const g of goals) {
-    if (!g) continue;
-    toDelete.add(g.id);
+  const requested = (await db.goals.bulkGet([...ids])).filter(
+    (g): g is Goal => !!g,
+  );
+
+  // Pass 1 — explicit ids + umbrella same-scope cascade.
+  const deleting = new Map<string, Goal>();
+  for (const g of requested) {
+    deleting.set(g.id, g);
     if (g.isUmbrella) {
       const children = await db.goals
         .where('parentGoalId')
         .equals(g.id)
         .filter(c => c.scope === g.scope)
         .toArray();
-      for (const c of children) toDelete.add(c.id);
+      for (const c of children) deleting.set(c.id, c);
     }
   }
-  await db.goals.bulkDelete([...toDelete]);
+
+  // Pass 2 — weekly plan slices of every monthly goal being deleted
+  // (including monthly children swept up by an umbrella cascade).
+  const deletedMonthlyIds = [...deleting.values()]
+    .filter(g => g.scope === 'monthly')
+    .map(g => g.id);
+  if (deletedMonthlyIds.length > 0) {
+    const weeklySlices = await db.goals
+      .where('parentGoalId')
+      .anyOf(deletedMonthlyIds)
+      .filter(c => c.scope === 'weekly')
+      .toArray();
+    for (const c of weeklySlices) deleting.set(c.id, c);
+  }
+
+  await db.goals.bulkDelete([...deleting.keys()]);
 }

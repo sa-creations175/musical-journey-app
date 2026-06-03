@@ -221,18 +221,92 @@ describe('deleteGoalsWithCascade', () => {
     expect(remaining.map(g => g.id)).toEqual(['keep']);
   });
 
-  it('cascades umbrella deletion into same-scope children only', async () => {
+  it('cascades umbrella deletion into same-scope children', async () => {
     await db.goals.bulkAdd([
       mkGoal({ id: 'umb', isUmbrella: true, targetMetric: null }),
       mkGoal({ id: 'child-1', parentGoalId: 'umb' }),
       mkGoal({ id: 'child-2', parentGoalId: 'umb' }),
-      // Cross-scope stowaway — must survive (same rule as hardDeleteGoal).
-      mkGoal({ id: 'weekly-stowaway', scope: 'weekly', parentGoalId: 'umb' }),
       mkGoal({ id: 'unrelated' }),
     ]);
     await deleteGoalsWithCascade(['umb']);
     const remaining = (await db.goals.toArray()).map(g => g.id).sort();
-    expect(remaining).toEqual(['unrelated', 'weekly-stowaway']);
+    expect(remaining).toEqual(['unrelated']);
+  });
+
+  it('yearly umbrella cascade does NOT eat monthly stowaways', async () => {
+    // The original cross-scope hazard: yearly anchors share
+    // parentGoalId with both yearly children and monthly stowaways.
+    // Deleting the anchor must only take the yearly children.
+    await db.goals.bulkAdd([
+      mkGoal({
+        id: 'anchor',
+        scope: 'yearly',
+        isUmbrella: true,
+        targetMetric: null,
+        targetDate: new Date(2026, 11, 31).getTime(),
+      }),
+      mkGoal({
+        id: 'yearly-child',
+        scope: 'yearly',
+        parentGoalId: 'anchor',
+        targetDate: new Date(2026, 11, 31).getTime(),
+      }),
+      mkGoal({ id: 'monthly-stowaway', parentGoalId: 'anchor' }),
+    ]);
+    await deleteGoalsWithCascade(['anchor']);
+    const remaining = (await db.goals.toArray()).map(g => g.id).sort();
+    expect(remaining).toEqual(['monthly-stowaway']);
+  });
+
+  it('deleting a monthly goal deletes its weekly plan slices', async () => {
+    // The June 2026 duplicate-weekly bug: weekly slices left behind
+    // after their monthly parent was dismissed broke confirmed-plan
+    // detection, and re-planning duplicated the week.
+    await db.goals.bulkAdd([
+      mkGoal({ id: 'may-monthly' }),
+      mkGoal({
+        id: 'slice-1',
+        scope: 'weekly',
+        parentGoalId: 'may-monthly',
+        targetMetric: null,
+        contributesNumericallyToParent: true,
+      }),
+      mkGoal({
+        id: 'slice-2',
+        scope: 'weekly',
+        parentGoalId: 'may-monthly',
+        targetMetric: null,
+        contributesNumericallyToParent: true,
+      }),
+      // Weekly goal parented to a DIFFERENT monthly — must survive.
+      mkGoal({ id: 'other-monthly' }),
+      mkGoal({
+        id: 'other-slice',
+        scope: 'weekly',
+        parentGoalId: 'other-monthly',
+        targetMetric: null,
+      }),
+      // Standalone weekly goal (no parent) — must survive.
+      mkGoal({ id: 'standalone-weekly', scope: 'weekly', parentGoalId: null }),
+    ]);
+    await deleteGoalsWithCascade(['may-monthly']);
+    const remaining = (await db.goals.toArray()).map(g => g.id).sort();
+    expect(remaining).toEqual(['other-monthly', 'other-slice', 'standalone-weekly']);
+  });
+
+  it('monthly umbrella cascade also takes its children\'s weekly slices', async () => {
+    await db.goals.bulkAdd([
+      mkGoal({ id: 'umb', isUmbrella: true, targetMetric: null }),
+      mkGoal({ id: 'monthly-child', parentGoalId: 'umb' }),
+      mkGoal({
+        id: 'weekly-slice',
+        scope: 'weekly',
+        parentGoalId: 'monthly-child',
+        targetMetric: null,
+      }),
+    ]);
+    await deleteGoalsWithCascade(['umb']);
+    expect(await db.goals.count()).toBe(0);
   });
 
   it('tolerates ids that no longer exist', async () => {
