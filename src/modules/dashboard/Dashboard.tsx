@@ -134,7 +134,7 @@ export default function Dashboard() {
           style={{ backgroundColor: '#0f3d2e' }}
         >
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-medium tracking-tight italic">
             Hi {editingName ? (
               <span className="inline-flex items-center gap-1">
                 <input
