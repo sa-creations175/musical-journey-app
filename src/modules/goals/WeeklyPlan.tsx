@@ -1467,8 +1467,6 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
                     Range reflects production lesson variability.
                   </div>
                 )}
-
-                <DailyPattern />
               </>
             )}
           </section>
@@ -2119,28 +2117,4 @@ function describePerDay(t: TimeEstimate, days: number): string | null {
   }
   if (t.maxMinutes <= 0) return null;
   return `~${formatMinutes(t.minMinutes / days)}–${formatMinutes(t.maxMinutes / days)} per day`;
-}
-
-function DailyPattern() {
-  const days: ReadonlyArray<{ day: string; slot: string; note: string }> = [
-    { day: 'Sun',     slot: 'Deep',         note: 'longest block of the week — set the tone' },
-    { day: 'Mon-Fri', slot: 'Standard',     note: 'shorter focused sessions — protect consistency' },
-    { day: 'Sat',     slot: 'Deep flex',    note: 'flex day — go long if energy is there' },
-  ];
-  return (
-    <div className="rounded-md border border-black/[0.07] overflow-hidden">
-      <div className="px-3 py-2 bg-neutral-50 dark:bg-neutral-800/50 text-xs uppercase tracking-wide text-neutral-600 dark:text-neutral-400">
-        Daily pattern
-      </div>
-      <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-        {days.map(d => (
-          <li key={d.day} className="px-3 py-2 flex items-baseline gap-3 text-sm">
-            <span className="w-20 font-medium tabular-nums">{d.day}</span>
-            <span className="text-neutral-700 dark:text-neutral-300">{d.slot}</span>
-            <span className="text-xs text-neutral-500">— {d.note}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
