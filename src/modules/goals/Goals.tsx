@@ -537,12 +537,13 @@ export default function Goals() {
         </div>
       ) : (
         <div className="mb-4 flex flex-col gap-2">
-          <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
           {/* Prompt to set monthly goals when the current month has no
               real (non-carry-over) monthly goal yet. Tapping opens the
               monthly creation flow (module picker → suggestion flow).
-              Below Plan-your-week, above the cleanup banner. */}
+              Month is the foundation the week derives from, so this
+              sits ABOVE Plan-your-week — set the month first. */}
           <PlanMonthBanner onPlanMonth={() => setModulePickerKind('monthly')} />
+          <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
           {/* Phase B Step 9b — surfaces uncovered items from last
               month's monthly target. Persistent: hides only on user
               decision (Accept/Decline per module via the review
