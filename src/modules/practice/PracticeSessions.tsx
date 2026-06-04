@@ -649,7 +649,7 @@ export default function PracticeSessions() {
         onClick={() => handleStartSession()}
         className="w-full mb-5 px-4 py-3 rounded-md bg-fluent text-white text-base font-medium hover:opacity-90"
       >
-        Start drill
+        Start session
       </button>
 
       {/*
