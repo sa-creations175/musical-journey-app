@@ -29,20 +29,15 @@ import {
 import { getAttemptsInRange } from '../../lib/weeklyAttempts';
 import { TIME_PER_ATTEMPT_SECONDS } from '../../lib/sessionAlgorithm/sessionNeed';
 import {
-  classifyPace,
   clearWeeklyAvailableDays,
   endOfWeekLocal,
   loadActiveMonthlyGoals,
-  loadLastWeekReview,
   loadWeeklyAvailableDays,
   loadWeeklyGoalsForWeek,
   saveWeeklyAvailableDays,
   startOfWeekLocal,
   WEEKLY_AVAILABLE_DAYS_MAX,
   WEEKLY_AVAILABLE_DAYS_MIN,
-  type LastWeekReview,
-  type ModuleWeekStat,
-  type PaceStatus,
 } from './weeklyPlanData';
 
 /**
@@ -506,18 +501,6 @@ function sumTimeEstimates(estimates: TimeEstimate[]): TimeEstimate {
   return { kind: 'point', minutes: totalPoint };
 }
 
-/** Pace pill colors mirror the goals module's status palette —
- *  green for on-track / ahead, amber for behind, neutral for no
- *  target. Honest signal, no inflation. */
-function paceBadge(p: PaceStatus): { label: string; bg: string; fg: string } {
-  switch (p) {
-    case 'ahead':     return { label: 'ahead',     bg: 'bg-emerald-100 dark:bg-emerald-900/30', fg: 'text-emerald-800 dark:text-emerald-300' };
-    case 'on-track':  return { label: 'on track',  bg: 'bg-emerald-50 dark:bg-emerald-900/20',  fg: 'text-emerald-700 dark:text-emerald-300' };
-    case 'behind':    return { label: 'behind',    bg: 'bg-amber-100 dark:bg-amber-900/30',    fg: 'text-amber-800 dark:text-amber-300' };
-    case 'no-target': return { label: 'no target', bg: 'bg-neutral-100 dark:bg-neutral-800',   fg: 'text-neutral-600 dark:text-neutral-400' };
-  }
-}
-
 // ---------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------
@@ -530,7 +513,6 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
   const weekEnd = useMemo(() => endOfWeekLocal(weekStart), [weekStart]);
 
   const [loading, setLoading] = useState(true);
-  const [review, setReview] = useState<LastWeekReview | null>(null);
   const [planRows, setPlanRows] = useState<PlanRow[]>([]);
   const [confirmedGoals, setConfirmedGoals] = useState<Goal[]>([]);
   /** Monthly goal snapshot, indexed by id for spotlight-song lookup
@@ -587,8 +569,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 
     void (async () => {
       try {
-        const [reviewData, monthlies, alreadySaved, songs, override, allGoals] = await Promise.all([
-          loadLastWeekReview(weekStart),
+        const [monthlies, alreadySaved, songs, override, allGoals] = await Promise.all([
           loadActiveMonthlyGoals(weekStart),
           loadWeeklyGoalsForWeek(weekStart),
           db.songs.toArray(),
@@ -596,7 +577,6 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
           db.goals.where('status').equals('active').toArray(),
         ]);
         if (cancelled) return;
-        setReview(reviewData);
         setConfirmedGoals(alreadySaved);
         setSongsById(new Map(songs.map(s => [s.id, { id: s.id, title: s.title }])));
         setMonthliesById(new Map(monthlies.map(m => [m.id, m])));
@@ -1470,28 +1450,6 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               </>
             )}
           </section>
-
-          {/* ============ Part 2 — Last week review ============ */}
-          <section className="space-y-3">
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">Last week</h4>
-              {review && (
-                <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                  {formatDateRange(review.weekStart, review.weekEnd)}
-                </span>
-              )}
-              <span className="text-xs text-neutral-500">how did the past week go?</span>
-            </div>
-
-            {review?.isEmpty ? (
-              <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-5 text-sm text-neutral-500">
-                No data yet. Last week is a fresh slate — start logging attempts
-                this week and you'll see your pace next Sunday.
-              </div>
-            ) : (
-              <ReviewTable review={review!} />
-            )}
-          </section>
         </div>
       )}
     </>
@@ -1511,7 +1469,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
       open={open}
       onClose={onClose}
       title="Weekly plan"
-      description="Sun → Sat — review last week, plan this week"
+      description="Sun → Sat — plan this week"
       footer={actionRow}
     >
       {body}
@@ -1522,96 +1480,6 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
 // ---------------------------------------------------------------------
 // Subcomponents
 // ---------------------------------------------------------------------
-
-function ReviewTable({ review }: { review: LastWeekReview }) {
-  const totalMinutes = review.byModule.reduce((sum, m) => {
-    if (m.time.kind === 'point') return sum + m.time.minutes;
-    return sum + (m.time.minMinutes + m.time.maxMinutes) / 2;
-  }, 0);
-  const onTrackCount = review.byModule.filter(m => {
-    const p = classifyPace(m);
-    return p === 'on-track' || p === 'ahead';
-  }).length;
-  const withTargetCount = review.byModule.filter(m => m.targetValue != null).length;
-
-  return (
-    <>
-      <div className="overflow-hidden rounded-md border border-black/[0.07]">
-        <table className="w-full text-sm">
-          <thead className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-xs uppercase tracking-wide">
-            <tr>
-              <th className="px-3 py-2 text-left">Module</th>
-              {/* Time / Attempts / Target only fit at ≥sm (640px).
-                  Below that, ReviewRowView folds them into a sub-line
-                  under the module name so the row stays inside a
-                  390px viewport without horizontal scroll. */}
-              <th className="hidden sm:table-cell px-3 py-2 text-left">Time</th>
-              <th className="hidden sm:table-cell px-3 py-2 text-left">Attempts</th>
-              <th className="hidden sm:table-cell px-3 py-2 text-left">Target</th>
-              <th className="px-3 py-2 text-left">Pace</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {review.byModule.map(stat => (
-              <ReviewRowView key={stat.moduleId} stat={stat} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="text-xs text-neutral-500 px-1">
-        Total practice last week: <span className="font-medium text-neutral-700 dark:text-neutral-300">{formatMinutes(totalMinutes)}</span>
-        {withTargetCount > 0 && (
-          <>
-            {' · '}
-            <span className="font-medium text-neutral-700 dark:text-neutral-300">{onTrackCount}/{withTargetCount}</span>
-            {' '}modules with targets were on track or ahead
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
-function ReviewRowView({ stat }: { stat: ModuleWeekStat }) {
-  const pace = classifyPace(stat);
-  const badge = paceBadge(pace);
-  const accentHex = MODULE_ACCENT_HEX[stat.moduleId];
-  // Mobile summary — Time / Attempts / Target folded into one muted
-  // sub-line under the module name when those columns are hidden
-  // (<sm). Format mirrors the desktop cells: time, attempts, then
-  // "/ target unit" when a target was saved.
-  const targetSuffix = stat.targetValue != null
-    ? ` / ${stat.targetValue}${stat.targetUnit ? ` ${stat.targetUnit}` : ''}`
-    : '';
-  return (
-    <tr>
-      <td className="px-3 py-2 align-top">
-        <span className="inline-flex items-center gap-2">
-          <span
-            className="inline-block w-2 h-2 rounded-full"
-            style={{ backgroundColor: accentHex }}
-          />
-          <span className="font-medium">{MODULE_LABEL[stat.moduleId]}</span>
-        </span>
-        <div className="sm:hidden text-xs text-neutral-500 dark:text-neutral-400 tabular-nums mt-0.5">
-          {formatTimeEstimate(stat.time)} · {stat.attempts}{targetSuffix}
-        </div>
-      </td>
-      <td className="hidden sm:table-cell px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">
-        {formatTimeEstimate(stat.time)}
-      </td>
-      <td className="hidden sm:table-cell px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">{stat.attempts}</td>
-      <td className="hidden sm:table-cell px-3 py-2 text-neutral-600 dark:text-neutral-400 tabular-nums">
-        {stat.targetValue != null ? `${stat.targetValue} ${stat.targetUnit ?? ''}`.trim() : '—'}
-      </td>
-      <td className="px-3 py-2 align-top">
-        <span className={`inline-block px-2 py-0.5 rounded-full text-xs ${badge.bg} ${badge.fg}`}>
-          {badge.label}
-        </span>
-      </td>
-    </tr>
-  );
-}
 
 function PlanRowView(props: {
   row: PlanRow;
