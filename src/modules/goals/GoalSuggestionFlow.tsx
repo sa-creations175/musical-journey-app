@@ -146,6 +146,21 @@ const MODULE_LABEL: Record<SuggestionFlowModule, string> = {
   'practice-consistency':'Practice consistency',
 };
 
+/**
+ * Title-line label for a scope. Monthly goals show the actual target
+ * MONTH NAME ("June", "July") rather than the generic word "monthly",
+ * so a goal created for next month in late June reads "New July … goal".
+ * `basisMs` is the timestamp the flow is targeting — the goal's target
+ * date when known (BodyShell), else the period basis (periodNow) or
+ * now. Other scopes keep their lowercase label ("weekly", "quarterly").
+ */
+function scopeTitleLabel(scope: ShortScope, basisMs: number): string {
+  if (scope === 'monthly') {
+    return new Date(basisMs).toLocaleDateString('en-US', { month: 'long' });
+  }
+  return SCOPE_LABEL[scope].toLowerCase();
+}
+
 function contextForSuggestionModule(id: SuggestionFlowModule): PracticeSessionContext | null {
   switch (id) {
     case 'harmonic-fluency':     return null;     // any context
@@ -226,7 +241,7 @@ export default function GoalSuggestionFlow({
 
   const isEditing = !!existingGoal;
   const titlePrefix = isEditing ? 'Edit' : 'New';
-  const title = `${titlePrefix} ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[effectiveModuleId]} goal`;
+  const title = `${titlePrefix} ${scopeTitleLabel(scope, existingGoal?.targetDate ?? periodNow ?? Date.now())} ${MODULE_LABEL[effectiveModuleId]} goal`;
 
   // Edit-mode loading + unavailable states render in the modal shell.
   if (existingGoal && editPrefillState.kind === 'loading') {
@@ -486,7 +501,7 @@ function BodyShell({
     }
   };
 
-  const title = `${isEditing ? 'Edit' : 'New'} ${SCOPE_LABEL[scope].toLowerCase()} ${MODULE_LABEL[moduleId]} goal`;
+  const title = `${isEditing ? 'Edit' : 'New'} ${scopeTitleLabel(scope, targetDate)} ${MODULE_LABEL[moduleId]} goal`;
   const idleSaveLabel = isEditing ? 'Save changes' : 'Save goal';
 
   return (
@@ -2465,7 +2480,7 @@ function RepertoireMonthlyBody({
   // modal still opens promptly. Without this the picker would
   // render against undefined collections.
   if (!allSongs || !wantToLearn) {
-    const loadTitle = `${editPrefill ? 'Edit' : 'New'} ${SCOPE_LABEL[scope].toLowerCase()} Song Repertoire goal`;
+    const loadTitle = `${editPrefill ? 'Edit' : 'New'} ${scopeTitleLabel(scope, targetDate)} Song Repertoire goal`;
     return (
       <Modal open onClose={onClose} title={loadTitle} titleBadge={<ScopePill scope={scope} />}>
         <div className="text-sm text-neutral-500 italic">Loading songs…</div>
