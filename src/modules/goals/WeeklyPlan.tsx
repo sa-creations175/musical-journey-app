@@ -1647,10 +1647,11 @@ function PlanRowView(props: {
   const accentHex = MODULE_ACCENT_HEX[row.moduleId];
   const palette = SECTION_PALETTE[row.moduleId];
   const adjusted = row.target !== row.suggested;
-  // Module-header rows wear the module tint; sub-rows (rendered
-  // under a ModuleGroupHeader) stay plain so the header reads as
-  // the carrier of the module identity.
-  const rowTint = hideModuleHeading ? undefined : palette.bg;
+  // Every row wears its module tint, including sub-rows under a
+  // ModuleGroupHeader — so a grouped module (e.g. Repertoire's
+  // SotM + maintenance rows) reads as one continuous tinted band,
+  // matching the single-row modules (HF purple, ET green).
+  const rowTint = palette.bg;
 
   // Local buffer decouples the input from the model during typing so
   // the user can clear + retype without intermediate clamping rewriting
