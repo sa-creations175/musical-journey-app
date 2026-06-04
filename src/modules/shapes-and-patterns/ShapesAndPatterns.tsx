@@ -68,16 +68,10 @@ export default function ShapesAndPatterns() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-medium tracking-tight">shapes &amp; patterns</h1>
-          <p className="text-neutral-500 text-sm">
-            the physical and mental command layer — where the hands catch up with what the rest of the app teaches.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Link
           to="/shapes-and-patterns/calendar"
-          className="text-xs text-neutral-500 hover:text-fluent mt-2"
+          className="text-xs text-neutral-500 hover:text-fluent"
         >
           view calendar →
         </Link>

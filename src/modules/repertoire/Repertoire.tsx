@@ -119,13 +119,6 @@ export default function Repertoire() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-medium tracking-tight">song repertoire</h1>
-        <p className="text-neutral-500 text-sm">
-          songs you're learning, maintaining, and stretching across 12 keys.
-        </p>
-      </div>
-
       {/* Module-level explainer only on the Active tab — when the
           user has drilled into a single song or is browsing the
           want-to-learn list, the broad context isn't useful. */}

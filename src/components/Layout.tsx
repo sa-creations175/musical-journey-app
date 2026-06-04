@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { titleForPath } from '../lib/pageTitle';
+import { taglineForPath, titleForPath } from '../lib/pageTitle';
 import SettingsPanel from './SettingsPanel';
 import MobileBottomNav from './MobileBottomNav';
 import SidebarNav from './SidebarNav';
@@ -79,6 +79,7 @@ export default function Layout() {
 
   const location = useLocation();
   const pageTitle = titleForPath(location.pathname);
+  const pageTagline = taglineForPath(location.pathname);
 
   return (
     <div className="min-h-full flex flex-col">
@@ -170,6 +171,11 @@ export default function Layout() {
             <div className="text-base sm:text-lg font-medium tracking-tight truncate mt-0.5">
               {pageTitle}
             </div>
+            {pageTagline && (
+              <div className="text-[11px] text-white/60 leading-snug mt-0.5 line-clamp-2">
+                {pageTagline}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end shrink-0">
             {devMode && (

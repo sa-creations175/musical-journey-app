@@ -27,19 +27,13 @@ export default function ChordRecognition() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <Link to="/ear-training" className="text-xs text-neutral-500 hover:text-fluent">
-            ← ear training
-          </Link>
-          <h1 className="text-2xl font-medium tracking-tight mt-2">chord recognition</h1>
-          <p className="text-neutral-500 text-sm">
-            identify chord qualities by sound alone.
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <Link to="/ear-training" className="text-xs text-neutral-500 hover:text-fluent">
+          ← ear training
+        </Link>
         <Link
           to="/ear-training/chord-recognition/calendar"
-          className="text-xs text-neutral-500 hover:text-fluent mt-2"
+          className="text-xs text-neutral-500 hover:text-fluent"
         >
           view calendar →
         </Link>

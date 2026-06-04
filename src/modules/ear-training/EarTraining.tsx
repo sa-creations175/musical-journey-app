@@ -37,10 +37,6 @@ const subModules: SubModule[] = [
 export default function EarTraining() {
   return (
     <div>
-      <h1 className="text-2xl font-medium tracking-tight mb-2">ear training</h1>
-      <p className="text-neutral-500 text-sm mb-6">
-        pick a sub-module.
-      </p>
       <div className="grid md:grid-cols-2 gap-3">
         {subModules.map(mod => {
           const inner = (

@@ -112,21 +112,16 @@ export default function SkillsCatalogue() {
 
   return (
     <div className="space-y-6 pb-16">
-      {/* Header */}
-      <header className="space-y-1">
-        {view.kind === 'grid' && (
-          <button
-            onClick={() => setView({ kind: 'summary' })}
-            className="text-xs text-neutral-500 hover:text-fluent"
-          >
-            ← back to summary
-          </button>
-        )}
-        <h1 className="text-2xl font-medium tracking-tight">skills catalogue</h1>
-        <p className="text-neutral-500 text-sm">
-          every tracked skill across the app, organised. a mission-control view of your practice landscape.
-        </p>
-      </header>
+      {/* Title + tagline now live in the sticky HARMONY header; only
+          the in-page back-to-summary control remains. */}
+      {view.kind === 'grid' && (
+        <button
+          onClick={() => setView({ kind: 'summary' })}
+          className="text-xs text-neutral-500 hover:text-fluent"
+        >
+          ← back to summary
+        </button>
+      )}
 
       {!records && (
         <div className="py-12 text-center text-sm text-neutral-500">

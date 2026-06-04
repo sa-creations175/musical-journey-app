@@ -43,3 +43,29 @@ const PAGE_TITLES: Record<string, string> = {
 export function titleForPath(pathname: string): string {
   return PAGE_TITLES[pathname] ?? 'Musical Journey';
 }
+
+/**
+ * Pathname → short page tagline, shown as a muted sub-line under the
+ * title in the pinned header. These migrated up from the per-page
+ * secondary headers that were removed — the sticky bar now carries
+ * both the page name and its one-line description so page content can
+ * start immediately. Pages without an entry render no sub-line.
+ */
+const PAGE_TAGLINES: Record<string, string> = {
+  '/harmonic-fluency':                    'flashcard practice for scale degrees, keys, and chord construction',
+  '/ear-training':                        'pick a sub-module',
+  '/ear-training/intervals':              'hear it, name it, log it',
+  '/ear-training/chord-recognition':      'identify chord qualities by sound alone',
+  '/ear-training/chord-progressions':     'hear the bass, the chord quality, and the full progression shape',
+  '/ear-training/chord-progression-quiz': "away-from-keyboard recall of the progressions you've charted",
+  '/ear-training/scales-modes':           'hear the color, sit inside the atmosphere, spot it in real music',
+  '/repertoire':                          "songs you're learning, maintaining, and stretching across 12 keys",
+  '/shapes-and-patterns':                 'where the hands catch up with what the rest of the app teaches',
+  '/production':                          'the craft of making music you feel',
+  '/session-log':                         'reflection-driven practice journal',
+  '/skills-catalogue':                    'every tracked skill across the app, organised',
+};
+
+export function taglineForPath(pathname: string): string | null {
+  return PAGE_TAGLINES[pathname] ?? null;
+}

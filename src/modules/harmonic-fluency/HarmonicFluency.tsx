@@ -184,17 +184,10 @@ export default function HarmonicFluency() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <Link to="/" className="text-xs text-neutral-500 hover:text-fluent">← home</Link>
-          <h1 className="text-2xl font-medium tracking-tight mt-2">harmonic fluency</h1>
-          <p className="text-neutral-500 text-sm">
-            flashcard practice for scale degrees, keys, functional harmony, and chord construction.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Link
           to="/harmonic-fluency/calendar"
-          className="text-xs text-neutral-500 hover:text-fluent mt-2"
+          className="text-xs text-neutral-500 hover:text-fluent"
         >
           view calendar →
         </Link>

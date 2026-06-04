@@ -74,13 +74,6 @@ export default function ProductionOverview({
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-medium tracking-tight">Production</h1>
-        <p className="text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed max-w-2xl">
-          Production is the craft of making music you feel — beats that hit, arrangements that breathe, vocals that connect, and sonic experiences that pull people in. This module teaches the workflow, the language, and the instincts to turn musical ideas into finished tracks you're proud of.
-        </p>
-      </header>
-
       {/* Stats strip */}
       <section className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <Stat label="lessons" value={`${totals.completed}/${totals.total}`} accent="text-production" />

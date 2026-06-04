@@ -42,17 +42,6 @@ export default function ChordProgressionQuiz() {
 
   return (
     <div className="max-w-2xl mx-auto p-3 sm:p-6 space-y-4">
-      <header>
-        <h2 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
-          chord progression quiz
-        </h2>
-        <p className="text-sm text-neutral-500 mt-0.5">
-          away-from-keyboard recall of the progressions you’ve charted. Name a
-          section’s progression, reveal the numbers, chord letters, and bar
-          grid, then rate yourself. Spaced repetition surfaces the songs and
-          sections that need work.
-        </p>
-      </header>
 
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
         <div className="flex items-center justify-between gap-3 flex-wrap">

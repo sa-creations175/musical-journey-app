@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
-import { PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
+import { moduleMetaById } from '../../lib/moduleMeta';
 import { resolveProposalStart } from './proposalAcceptance';
 import { recordEndOfMonth } from '../../lib/prompts';
 import {
@@ -644,22 +644,6 @@ export default function PracticeSessions() {
   // -------------------------------------------------------------
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <header className="mb-6 flex items-center gap-3">
-        <span
-          aria-hidden
-          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-base font-medium"
-          style={{
-            backgroundColor: `${PRACTICE_SESSIONS_META.accentHex}1a`,
-            color: PRACTICE_SESSIONS_META.accentHex,
-          }}
-        >
-          {PRACTICE_SESSIONS_META.icon}
-        </span>
-        <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100 flex-1">
-          Practice Sessions
-        </h1>
-      </header>
-
       <button
         type="button"
         onClick={() => handleStartSession()}
