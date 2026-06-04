@@ -2,6 +2,9 @@ import { db, type Goal, type WeeklyOverride } from '../../lib/db';
 import { getAttemptsInRange, getWeeklyTimeEstimate, type TimeEstimate } from '../../lib/weeklyAttempts';
 import type { GoalFlowModuleId } from './goalVocabulary';
 import { ORDERED_GOAL_MODULES } from './goalsByModule';
+import { nextMonthBoundary, type MonthBoundary } from './carryover';
+import { goalOverlapsMonth, monthHasRealMonthlyGoals } from './monthMembership';
+import { derivationMonthBounds, resolveDerivationMonth } from './derivationMonth';
 
 /**
  * Phase 4 Step 3 — data loaders for the WeeklyPlan screen.
@@ -72,8 +75,13 @@ export function previousWeekStart(weekStart: number): number {
  */
 export async function loadActiveMonthlyGoals(
   weekStart: number,
+  now: number = Date.now(),
 ): Promise<Goal[]> {
   const weekEnd = endOfWeekLocal(weekStart);
+  // Owning-month gate: in the month-boundary week, derive from current
+  // OR next month's goals per resolveDerivationMonth. Outside that
+  // window only one month's goals overlap the week, so this is a no-op.
+  const monthBounds = await loadDerivationMonthBounds(now);
   const all = await db.goals.toArray();
   return all.filter(
     g =>
@@ -81,8 +89,34 @@ export async function loadActiveMonthlyGoals(
       g.status === 'active' &&
       !g.isUmbrella &&
       g.startDate <= weekEnd &&
-      g.targetDate >= weekStart,
+      g.targetDate >= weekStart &&
+      goalOverlapsMonth(g, monthBounds),
   );
+}
+
+/**
+ * Resolve which calendar month's monthly goals should feed this week's
+ * plan derivation, as a month boundary. Combines the per-week
+ * useNextMonthGoals override, whether next-month goals actually exist
+ * (shared monthHasRealMonthlyGoals predicate), and the majority-of-week
+ * rule. See resolveDerivationMonth for the decision logic.
+ *
+ * Used by BOTH derivation paths — the WeeklyPlan modal
+ * (loadActiveMonthlyGoals) and computeModuleWeeklyNeeds
+ * (loadModuleWeeklyNeeds) — so plan and live practice agree.
+ */
+export async function loadDerivationMonthBounds(
+  now: number = Date.now(),
+): Promise<MonthBoundary> {
+  const weekStart = startOfWeekLocal(now);
+  const override = await loadUseNextMonthGoals(weekStart);
+  const active = await db.goals.where('status').equals('active').toArray();
+  const nextMonthGoalsExist = monthHasRealMonthlyGoals(
+    active,
+    nextMonthBoundary(now),
+  );
+  const resolved = resolveDerivationMonth(now, weekStart, override, nextMonthGoalsExist);
+  return derivationMonthBounds(now, resolved);
 }
 
 /**

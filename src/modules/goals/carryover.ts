@@ -88,6 +88,15 @@ export function lastMonthBoundary(today: number): MonthBoundary {
   return monthBoundary(lastMonthAnchor.getTime());
 }
 
+/** Boundary of the calendar month immediately after `today`'s month.
+ *  Anchored mid-month (the 15th at noon) so DST / day-overflow can't
+ *  skip or repeat a month, mirroring lastMonthBoundary. */
+export function nextMonthBoundary(today: number): MonthBoundary {
+  const d = new Date(today);
+  const nextMonthAnchor = new Date(d.getFullYear(), d.getMonth() + 1, 15, 12, 0, 0, 0);
+  return monthBoundary(nextMonthAnchor.getTime());
+}
+
 // =====================================================================
 // Scope predicate per goal — uses existing per-metric infrastructure
 // =====================================================================

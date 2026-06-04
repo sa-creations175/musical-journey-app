@@ -1,27 +1,23 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal } from '../../lib/db';
 import { monthBoundary } from './carryover';
-import { CARRYOVER_DESCRIPTION_PREFIX } from './carryoverAccept';
+import { monthHasRealMonthlyGoals } from './monthMembership';
 
 /**
  * Pure visibility predicate — true when the current calendar month
  * has a real (non-carry-over) monthly goal whose window overlaps it.
  * A carry-over stub doesn't count as planning the month. Exported for
  * tests; the banner shows when this returns false.
+ *
+ * Delegates to the shared {@link monthHasRealMonthlyGoals} predicate so
+ * the "Plan your month" prompt and the weekly-derivation month gate
+ * share one definition of "month M has goals".
  */
 export function hasPlannedCurrentMonth(
   activeGoals: ReadonlyArray<Goal>,
   now: number,
 ): boolean {
-  const bounds = monthBoundary(now);
-  return activeGoals.some(
-    g =>
-      g.scope === 'monthly' &&
-      g.status === 'active' &&
-      !g.description.startsWith(CARRYOVER_DESCRIPTION_PREFIX) &&
-      g.startDate <= bounds.end &&
-      g.targetDate >= bounds.start,
-  );
+  return monthHasRealMonthlyGoals(activeGoals, monthBoundary(now));
 }
 
 /**

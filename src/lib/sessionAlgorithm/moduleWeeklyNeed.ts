@@ -36,8 +36,9 @@ import {
   getWeeklyAttempts,
   getWeeklyRatedProductionAttempts,
 } from '../weeklyAttempts';
-import { startOfWeekLocal, endOfWeekLocal } from '../../modules/goals/weeklyPlanData';
+import { startOfWeekLocal, endOfWeekLocal, loadDerivationMonthBounds } from '../../modules/goals/weeklyPlanData';
 import { recomputeWeeklyTargetForMonthlyGoal } from '../../modules/goals/weeklyDerivation';
+import { goalOverlapsMonth } from '../../modules/goals/monthMembership';
 import { moduleForMetric } from '../../modules/goals/goalVocabulary';
 import {
   PRODUCTION_TIME_RANGE_MINUTES,
@@ -421,10 +422,19 @@ export async function loadModuleWeeklyNeeds(
   // That's the "frozen weekly Goal records become display-only" rule
   // (design doc Legacy Systems #4) — past records are reference-only
   // in WeeklyPlan; the session planner never sees them.
+  // Owning-month gate for the derivation SOURCE: in the month-boundary
+  // week, derive weekly targets from current OR next month's goals per
+  // resolveDerivationMonth (shared with the WeeklyPlan modal). Outside
+  // the boundary week only the current month's goals overlap, so this
+  // is a no-op. This gates only which monthly goals SOURCE the weekly
+  // target — monthly progress tracking (Step 9a remaining below, and
+  // attempt→month attribution) is left unchanged.
+  const derivationMonth = await loadDerivationMonthBounds(today);
   for (const monthly of allGoals) {
     if (monthly.scope !== 'monthly') continue;
     if (monthly.status !== 'active') continue;
     if (monthly.isUmbrella) continue;
+    if (!goalOverlapsMonth(monthly, derivationMonth)) continue;
     if (!monthly.targetMetric) continue;
     const moduleId = moduleForMetric(monthly.targetMetric);
     if (!moduleId || !KEYSTONE_MODULES.has(moduleId)) continue;
