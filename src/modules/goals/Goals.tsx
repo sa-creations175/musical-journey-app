@@ -459,54 +459,9 @@ export default function Goals() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      {/* Title row: "Goals" + accent-coloured "Set a goal". The
-          customize-layers gear stays in the same row so it doesn't
-          float without a header to anchor to. */}
-      <header className="mb-4 flex items-center gap-3">
-        <span
-          aria-hidden
-          className="inline-flex items-center justify-center w-8 h-8 rounded-md text-base font-medium"
-          style={{
-            backgroundColor: `${GOALS_META.accentHex}1a`,
-            color: GOALS_META.accentHex,
-          }}
-        >
-          {GOALS_META.icon}
-        </span>
-        <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100 flex-1">
-          Goals
-        </h1>
-        {/* Select-mode entry. Hidden while active — the sticky
-            footer's Cancel is the exit. */}
-        {!goalSelect.active && (
-          <button
-            type="button"
-            onClick={() => enterSelectMode()}
-            className="text-xs px-2.5 py-1.5 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            aria-label="select goals"
-          >
-            Select
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setCustomizeOpen(true)}
-          className="text-xs px-2.5 py-1.5 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 inline-flex items-center gap-1.5"
-          aria-label="customize layers"
-          title="customize layers"
-        >
-          <GearIcon />
-          <span className="hidden sm:inline">Customize</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setScopePickerOpen(true)}
-          className="px-3 py-1.5 rounded-md text-sm font-medium text-white"
-          style={{ backgroundColor: GOALS_META.accentHex }}
-        >
-          Set a goal
-        </button>
-      </header>
+      {/* No secondary page header — the sticky HARMONY bar already
+          shows "Goals" as the page title. View-level controls
+          (Select / Customize) live on the view-toggle row below. */}
 
       {goalSelect.active ? (
         /* Select-mode action bar — takes the banner stack's place so
@@ -561,7 +516,35 @@ export default function Goals() {
       <div className="text-sm uppercase tracking-wide font-semibold text-neutral-600 dark:text-neutral-300 mb-1.5">
         View goals
       </div>
-      <ViewToggle value={activeView} onChange={setActiveView} />
+      {/* View toggle on the left; view-level controls (Select /
+          Customize) aligned to the right of the same row. */}
+      <div className="mb-4 flex items-center gap-2">
+        <ViewToggle value={activeView} onChange={setActiveView} />
+        <div className="ml-auto flex items-center gap-2">
+          {/* Select-mode entry. Hidden while active — the action bar
+              above carries Cancel as the exit. */}
+          {!goalSelect.active && (
+            <button
+              type="button"
+              onClick={() => enterSelectMode()}
+              className="text-xs px-2.5 py-1.5 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              aria-label="select goals"
+            >
+              Select
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCustomizeOpen(true)}
+            className="text-xs px-2.5 py-1.5 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 inline-flex items-center gap-1.5"
+            aria-label="customize layers"
+            title="customize layers"
+          >
+            <GearIcon />
+            <span className="hidden sm:inline">Customize</span>
+          </button>
+        </div>
+      </div>
 
       {/* Dev-only goal-wipe affordance for Phase 2 step 2 verification.
           Restored from the Phase 1.6 step 15 pattern; tree-shaken out
@@ -2593,7 +2576,7 @@ function ViewToggle({
     <div
       role="tablist"
       aria-label="Goals view"
-      className="mb-4 inline-flex items-center gap-1 p-0.5 rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40"
+      className="inline-flex items-center gap-1 p-0.5 rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40"
     >
       {segment('timeframe', 'By timeframe')}
       {segment('module', 'By module')}
