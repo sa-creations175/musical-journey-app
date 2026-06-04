@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { db } from '../../lib/db';
 import CreativeTimeModal from '../creative/CreativeTimeModal';
 import { gatherPrompts, aggregateCreativeStats, type CreativePrompt, type CreativeMode, type CreativeStats } from '../creative/engine';
@@ -17,6 +17,7 @@ import { pickQuote, type MusicianQuote } from './quotes';
 import { useUserName } from './userName';
 import WeeklyPlan from '../goals/WeeklyPlan';
 import WeeklyPlanBanner from '../goals/WeeklyPlanBanner';
+import PlanMonthBanner from '../goals/PlanMonthBanner';
 
 /**
  * The Dashboard is the app's home surface. It pulls cross-module
@@ -45,6 +46,8 @@ export default function Dashboard() {
     ]);
     return { a, d, c, s, p };
   }, []);
+
+  const navigate = useNavigate();
 
   const [data, setData] = useState<DashboardData | null>(null);
   useEffect(() => {
@@ -105,9 +108,13 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-16">
-      {/* Phase 4 step 3 — Sunday weekly-plan banner. Self-hides on
-          non-Sundays / when already confirmed / when dismissed for
-          the week. */}
+      {/* Planning banners — same visibility rules as Goals home.
+          "Plan your month" sits above "Plan your week" (month is the
+          foundation the week derives from). Both self-hide once the
+          corresponding plan exists. The month banner routes to Goals
+          (the monthly creation flow lives there); the week banner
+          opens the WeeklyPlan modal mounted below. */}
+      <PlanMonthBanner onPlanMonth={() => navigate('/goals?plan=month')} />
       <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
 
       {/* Section 1 — warm opening. Header sits in a dark-green hero

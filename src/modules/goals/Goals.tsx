@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal, type GoalScope, type ProficiencyDefinition, type Song } from '../../lib/db';
 import { GOALS_META, moduleMetaById } from '../../lib/moduleMeta';
@@ -30,6 +31,10 @@ import './devCleanup';
 // WeeklyPlan "last week" totals reflect real practice or stale
 // dev-build clicks. See devInspectActivity.ts.
 import './devInspectActivity';
+// Side-effect import: registers `__wipeLastWeekActivity` and
+// `__wipeMayGoals` browser-console helpers. Temporary dev tools —
+// see devWipe.ts. DO NOT COMMIT (devWipe.ts is untracked locally).
+import './devWipe';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import { isSuggestionFlowEditCandidate } from './editLoad';
@@ -316,6 +321,26 @@ export default function Goals() {
   const [modulePickerKind, setModulePickerKind] = useState<
     'monthly' | 'yearly' | null
   >(null);
+
+  // Deep-link entry point for the Plan-your-month / Plan-your-week
+  // banners on Dashboard and Practice Sessions. They navigate here as
+  // /goals?plan=month or /goals?plan=week; we open the matching flow
+  // and strip the param so a refresh won't re-open it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const plan = searchParams.get('plan');
+    if (plan !== 'month' && plan !== 'week') return;
+    if (plan === 'month') setModulePickerKind('monthly');
+    else setWeeklyPlanOpen(true);
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('plan');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
   // Onboarding visibility is gated by two latched flags rather than
   // a reactive expression on goals.length. We had a bug where adding
   // a goal mid-flow flipped goals.length === 0 to false, which

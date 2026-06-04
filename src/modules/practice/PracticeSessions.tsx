@@ -55,6 +55,8 @@ import {
 } from './proposalDraft';
 import { readActiveSessionDraft } from '../../lib/sessionTimer/activeSessionDraft';
 import BehindPaceBanner from './BehindPaceBanner';
+import PlanMonthBanner from '../goals/PlanMonthBanner';
+import WeeklyPlanBanner from '../goals/WeeklyPlanBanner';
 import type { BehindPaceNotice } from '../../lib/sessionAlgorithm/weeklyPace';
 import type { GoalFlowModuleId } from '../goals/goalVocabulary';
 
@@ -644,6 +646,16 @@ export default function PracticeSessions() {
   // -------------------------------------------------------------
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
+      {/* Planning banners — same visibility rules as Goals home, shown
+          above "Start session". "Plan your month" sits above "Plan your
+          week" (month is the foundation the week derives from). Both
+          route to Goals, where the creation flows live, and self-hide
+          once the corresponding plan exists. */}
+      <div className="flex flex-col gap-2 mb-5">
+        <PlanMonthBanner onPlanMonth={() => navigate('/goals?plan=month')} />
+        <WeeklyPlanBanner onOpenPlan={() => navigate('/goals?plan=week')} />
+      </div>
+
       <button
         type="button"
         onClick={() => handleStartSession()}

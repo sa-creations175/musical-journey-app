@@ -193,41 +193,33 @@ export default function HarmonicFluency() {
         </Link>
       </div>
 
-      <DailyGoalBar moduleId={MODULE_ID} />
-
       {sessionActive && sessionQueue ? (
-        <HarmonicFluencySession
-          queue={sessionQueue.cards}
-          displayMode={displayMode}
-          // Auto-started sessions force timer off (session default) without
-          // overwriting the user's saved timer pref.
-          timerMode={autoStarted ? 'off' : timerMode}
-          onExit={handleExit}
-          onDisplayModeChange={setDisplayMode}
-          focusProtected={
-            // User has explicitly narrowed the pool (flagged-only drill
-            // or a hand-picked category set) AND the resulting queue is
-            // small enough that they're cued into what's coming next —
-            // so correct answers shouldn't count toward fluency tiers.
-            // Auto-started runs use the full pool, so never focus-protect.
-            !autoStarted &&
-            (flaggedOnly || selectedCategories.size > 0) &&
-            sessionQueue.cards.length < 4
-          }
-        />
+        <>
+          <DailyGoalBar moduleId={MODULE_ID} />
+          <HarmonicFluencySession
+            queue={sessionQueue.cards}
+            displayMode={displayMode}
+            // Auto-started sessions force timer off (session default) without
+            // overwriting the user's saved timer pref.
+            timerMode={autoStarted ? 'off' : timerMode}
+            onExit={handleExit}
+            onDisplayModeChange={setDisplayMode}
+            focusProtected={
+              // User has explicitly narrowed the pool (flagged-only drill
+              // or a hand-picked category set) AND the resulting queue is
+              // small enough that they're cued into what's coming next —
+              // so correct answers shouldn't count toward fluency tiers.
+              // Auto-started runs use the full pool, so never focus-protect.
+              !autoStarted &&
+              (flaggedOnly || selectedCategories.size > 0) &&
+              sessionQueue.cards.length < 4
+            }
+          />
+        </>
       ) : (
         <>
-          {/* Primary CTA — kept directly under Today's progress so it's
-              reachable without scrolling past the module blurb and
-              settings. Uses the same spaced-repetition queue handleStart
-              builds from the current settings below. */}
-          <button
-            onClick={handleStart}
-            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
-          >
-            Start drill
-          </button>
-
+          {/* Order (context before action): learn-more card (collapsed) →
+              Today's progress → Start drill → session settings. */}
           <ModuleIntro
             accent="blue"
             headline="The mental map that makes music make sense."
@@ -239,6 +231,15 @@ export default function HarmonicFluency() {
               'Fast flashcard practice with **spaced repetition**',
             ]}
           />
+
+          <DailyGoalBar moduleId={MODULE_ID} />
+
+          <button
+            onClick={handleStart}
+            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
+          >
+            Start drill
+          </button>
 
         <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
