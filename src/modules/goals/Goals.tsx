@@ -965,10 +965,15 @@ function LayerSection({
     && !!onEditYearlyAnchor
     && !!onSetYearlyAnchor
     && !!onAddMonthlyGoal;
-  // Current week's date range, surfaced under the THIS WEEK header so
-  // the plan table can drop its own redundant inner label.
-  const weekRange =
-    layer.scope === 'weekly' ? formatWeekRange(startOfWeekLocal(Date.now())) : null;
+  // Muted period sub-line under the section title: the current week's
+  // date range for THIS WEEK (lets the plan table drop its redundant
+  // inner label), the current month + year for THIS MONTH.
+  const headerSubLine =
+    layer.scope === 'weekly'
+      ? formatWeekRange(startOfWeekLocal(Date.now()))
+      : layer.scope === 'monthly'
+        ? new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+        : null;
   return (
     <section className="mb-3">
       {/* Header: chevron+title (toggle) on the left, goal count +
@@ -992,9 +997,9 @@ function LayerSection({
             >
               {layer.title}
             </h2>
-            {weekRange && (
+            {headerSubLine && (
               <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {weekRange}
+                {headerSubLine}
               </div>
             )}
           </div>
