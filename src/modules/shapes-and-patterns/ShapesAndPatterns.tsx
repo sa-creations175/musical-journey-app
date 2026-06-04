@@ -77,18 +77,6 @@ export default function ShapesAndPatterns() {
         </Link>
       </div>
 
-      <ModuleIntro
-        accent="green"
-        headline="Drill reps compound. Show up across 12 keys."
-        description="Chord shapes, scales, voice-leading patterns, and mental visualisation — every rep lands on a cell and the heat grid shows your landscape at a glance."
-        bullets={[
-          '**Heat grid** shows time invested × freshness across 12 keys',
-          'Every drill is **editable** and **renameable**; add your own anytime',
-          'Global **metronome** (top-right) auto-starts with every drill timer',
-          'No daily goal — just honest accumulation',
-        ]}
-      />
-
       <TodayAndAttention />
 
       <nav
@@ -121,6 +109,19 @@ export default function ShapesAndPatterns() {
       {tab === 'scales' && <ScaleDrills />}
       {tab === 'voice-leading' && <VoiceLeadingDrills />}
       {tab === 'mental-viz' && <MentalVizDrills />}
+
+      {/* Learn-more card — secondary, below the drills. */}
+      <ModuleIntro
+        accent="green"
+        headline="Drill reps compound. Show up across 12 keys."
+        description="Chord shapes, scales, voice-leading patterns, and mental visualisation — every rep lands on a cell and the heat grid shows your landscape at a glance."
+        bullets={[
+          '**Heat grid** shows time invested × freshness across 12 keys',
+          'Every drill is **editable** and **renameable**; add your own anytime',
+          'Global **metronome** (top-right) auto-starts with every drill timer',
+          'No daily goal — just honest accumulation',
+        ]}
+      />
     </div>
   );
 }

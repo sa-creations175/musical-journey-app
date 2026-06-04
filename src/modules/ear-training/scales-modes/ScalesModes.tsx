@@ -97,18 +97,6 @@ export default function ScalesModes() {
         </Link>
       </div>
 
-      <ModuleIntro
-        accent="blue"
-        headline="Modes are emotional worlds, not just scales."
-        description="Train your ear to recognize the feel of each mode — the color, character, and atmosphere — so you can spot them in real music and use them intentionally in your own playing."
-        bullets={[
-          'Hear and identify each mode by its **scale sound**',
-          'Sit inside modal environments and recognize their **atmosphere**',
-          'Build personal associations between modes and music you love',
-          'Connect modal concepts across **ear training** and **theory**',
-        ]}
-      />
-
       <DailyGoalBar moduleId={MODULE_ID} />
 
       {/* Scope selector + focus button + dynamic status line. Universal
@@ -219,6 +207,19 @@ export default function ScalesModes() {
           attempts={attempts}
         />
       )}
+
+      {/* Learn-more card — secondary, below the practice surface. */}
+      <ModuleIntro
+        accent="blue"
+        headline="Modes are emotional worlds, not just scales."
+        description="Train your ear to recognize the feel of each mode — the color, character, and atmosphere — so you can spot them in real music and use them intentionally in your own playing."
+        bullets={[
+          'Hear and identify each mode by its **scale sound**',
+          'Sit inside modal environments and recognize their **atmosphere**',
+          'Build personal associations between modes and music you love',
+          'Connect modal concepts across **ear training** and **theory**',
+        ]}
+      />
     </div>
   );
 }

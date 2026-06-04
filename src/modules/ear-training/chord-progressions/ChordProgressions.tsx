@@ -81,18 +81,6 @@ export default function ChordProgressions() {
         </Link>
       </div>
 
-      <ModuleIntro
-        accent="amber"
-        headline="The bass and the progression tell you where you are in a song."
-        description="This module trains your ear to hear both bass movement and harmonic patterns — the skills that unlock playing by ear."
-        bullets={[
-          'Hear the **bass root**, the **chord quality**, and the **full progression shape**',
-          'Start with **foundational patterns**, grow into **genre-specific** vocabulary',
-          'Recognize **named progressions** (like `1-5-6-4`) across thousands of real songs',
-          '**Chromatic and borrowed chords** are where gospel, jazz, and soul get their signature color',
-        ]}
-      />
-
       <DailyGoalBar moduleId={MODULE_ID} />
 
       {/* Tab navigation — all three surfaces share the module daily goal
@@ -127,6 +115,19 @@ export default function ChordProgressions() {
       {tab === 'full-progression' && <ChordProgressionsQuiz attempts={attempts} />}
 
       <ProgressionFluencyTracker attempts={attempts} />
+
+      {/* Learn-more card — secondary, below the practice surface. */}
+      <ModuleIntro
+        accent="amber"
+        headline="The bass and the progression tell you where you are in a song."
+        description="This module trains your ear to hear both bass movement and harmonic patterns — the skills that unlock playing by ear."
+        bullets={[
+          'Hear the **bass root**, the **chord quality**, and the **full progression shape**',
+          'Start with **foundational patterns**, grow into **genre-specific** vocabulary',
+          'Recognize **named progressions** (like `1-5-6-4`) across thousands of real songs',
+          '**Chromatic and borrowed chords** are where gospel, jazz, and soul get their signature color',
+        ]}
+      />
     </div>
   );
 }

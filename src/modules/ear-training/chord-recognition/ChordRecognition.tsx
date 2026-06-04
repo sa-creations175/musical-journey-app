@@ -39,6 +39,18 @@ export default function ChordRecognition() {
         </Link>
       </div>
 
+      <DailyGoalBar moduleId={MODULE_ID} />
+
+      {!chords || chords.length === 0 ? (
+        <div className="text-sm text-neutral-500">loading chords…</div>
+      ) : (
+        <>
+          <ChordRecognitionQuiz chords={chords} attempts={attempts} />
+          <ChordFluencyTracker chords={chords} attempts={attempts} />
+        </>
+      )}
+
+      {/* Learn-more card — secondary, below the practice surface. */}
       <ModuleIntro
         accent="blue"
         headline="Every chord has an emotional fingerprint."
@@ -50,17 +62,6 @@ export default function ChordRecognition() {
           'Family view is where real sophistication develops — essential for the **neo-soul, gospel, and jazz** vocabulary',
         ]}
       />
-
-      <DailyGoalBar moduleId={MODULE_ID} />
-
-      {!chords || chords.length === 0 ? (
-        <div className="text-sm text-neutral-500">loading chords…</div>
-      ) : (
-        <>
-          <ChordRecognitionQuiz chords={chords} attempts={attempts} />
-          <ChordFluencyTracker chords={chords} attempts={attempts} />
-        </>
-      )}
     </div>
   );
 }

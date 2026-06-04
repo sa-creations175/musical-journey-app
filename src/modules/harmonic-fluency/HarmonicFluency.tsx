@@ -193,18 +193,6 @@ export default function HarmonicFluency() {
         </Link>
       </div>
 
-      <ModuleIntro
-        accent="blue"
-        headline="The mental map that makes music make sense."
-        description="Build instant fluency in scale degrees, key relationships, and chord construction. When your theory is automatic, your ear is free to listen."
-        bullets={[
-          'Scale degree math in all 12 keys',
-          'Functional harmony and cadence recognition',
-          'Chord construction and quality relationships',
-          'Fast flashcard practice with **spaced repetition**',
-        ]}
-      />
-
       <DailyGoalBar moduleId={MODULE_ID} />
 
       {sessionActive && sessionQueue ? (
@@ -228,9 +216,33 @@ export default function HarmonicFluency() {
           }
         />
       ) : (
+        <>
+          {/* Primary CTA — kept directly under Today's progress so it's
+              reachable without scrolling past the module blurb and
+              settings. Uses the same spaced-repetition queue handleStart
+              builds from the current settings below. */}
+          <button
+            onClick={handleStart}
+            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
+          >
+            Start a session
+          </button>
+
+          <ModuleIntro
+            accent="blue"
+            headline="The mental map that makes music make sense."
+            description="Build instant fluency in scale degrees, key relationships, and chord construction. When your theory is automatic, your ear is free to listen."
+            bullets={[
+              'Scale degree math in all 12 keys',
+              'Functional harmony and cadence recognition',
+              'Chord construction and quality relationships',
+              'Fast flashcard practice with **spaced repetition**',
+            ]}
+          />
+
         <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
-            <h2 className="text-base sm:text-lg font-medium tracking-tight">start a session</h2>
+            <h2 className="text-base sm:text-lg font-medium tracking-tight">session settings</h2>
             <p className="text-xs text-neutral-500 mt-0.5">
               {SESSION_TARGET} cards per session · spaced repetition picks what's due
             </p>
@@ -365,6 +377,7 @@ export default function HarmonicFluency() {
             )}
           </div>
         </section>
+        </>
       )}
 
       {!sessionActive && <FlaggedForReviewPanel />}

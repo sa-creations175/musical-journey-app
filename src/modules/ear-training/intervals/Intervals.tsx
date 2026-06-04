@@ -35,6 +35,18 @@ export default function Intervals() {
         </Link>
       </div>
 
+      <DailyGoalBar moduleId={MODULE_ID} />
+
+      {!intervals || intervals.length === 0 ? (
+        <div className="text-sm text-neutral-500">loading intervals…</div>
+      ) : (
+        <>
+          <IntervalsQuiz intervals={intervals} attempts={attempts} />
+          <FluencyTracker intervals={intervals} attempts={attempts} />
+        </>
+      )}
+
+      {/* Learn-more card — secondary, below the practice surface. */}
       <ModuleIntro
         accent="green"
         headline="Intervals are the building blocks of melody."
@@ -46,17 +58,6 @@ export default function Intervals() {
           'Replace default anchor songs with references that click for you — **personal anchors stick faster**',
         ]}
       />
-
-      <DailyGoalBar moduleId={MODULE_ID} />
-
-      {!intervals || intervals.length === 0 ? (
-        <div className="text-sm text-neutral-500">loading intervals…</div>
-      ) : (
-        <>
-          <IntervalsQuiz intervals={intervals} attempts={attempts} />
-          <FluencyTracker intervals={intervals} attempts={attempts} />
-        </>
-      )}
     </div>
   );
 }
