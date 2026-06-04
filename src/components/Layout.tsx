@@ -8,6 +8,7 @@ import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
 import PwaUpdateBanner from './PwaUpdateBanner';
+import RouteErrorBoundary from './RouteErrorBoundary';
 import CreativeTimeModal from '../modules/creative/CreativeTimeModal';
 import {
   cleanupCarryoverGoalStartDatesIfNeeded,
@@ -209,7 +210,13 @@ export default function Layout() {
         <BackupReminderBanner />
         <ReturnToCatalogueBanner />
         <main className="flex-1 px-4 py-6 md:p-10 pb-24 md:pb-10 max-w-5xl w-full">
-          <Outlet />
+          {/* Boundary wraps ONLY the routed page. A page crash is
+              contained here so the surrounding chrome — and especially
+              PwaUpdateBanner below — stays mounted and can still deliver
+              the fix. Keyed on pathname so navigation recovers. */}
+          <RouteErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </RouteErrorBoundary>
         </main>
       </div>
     </div>
