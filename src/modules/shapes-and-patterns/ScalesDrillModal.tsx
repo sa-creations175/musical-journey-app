@@ -493,7 +493,7 @@ export default function ScalesDrillModal({
                 onClick={handleStart}
                 className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
               >
-                start drill
+                Start drill
               </button>
             )}
             {phase === 'running' && (

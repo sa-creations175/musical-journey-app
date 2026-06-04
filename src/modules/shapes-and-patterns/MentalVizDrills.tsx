@@ -48,20 +48,19 @@ export default function MentalVizDrills() {
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="text-[11px] text-neutral-500">
-          <span className="font-mono tabular-nums">{seenCount}</span>
-          <span className="text-neutral-400"> / </span>
-          <span className="font-mono tabular-nums">{total}</span> voicings started
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-        >
-          start drill
-        </button>
+      <div className="text-[11px] text-neutral-500">
+        <span className="font-mono tabular-nums">{seenCount}</span>
+        <span className="text-neutral-400"> / </span>
+        <span className="font-mono tabular-nums">{total}</span> voicings started
       </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
+      >
+        Start drill
+      </button>
 
       {open && <MentalVizChordDrill onClose={closeDrill} />}
     </section>

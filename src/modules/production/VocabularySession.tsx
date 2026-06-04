@@ -383,7 +383,7 @@ export default function VocabularySession({ onBack }: Props) {
         <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
             <h2 className="text-base sm:text-lg font-medium tracking-tight">
-              start a session
+              session settings
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
               {SESSION_TARGET} cards per session · spaced repetition picks
@@ -488,7 +488,7 @@ export default function VocabularySession({ onBack }: Props) {
               onClick={handleStart}
               className="px-5 py-2.5 rounded-lg bg-production text-white text-sm font-medium hover:opacity-90"
             >
-              start session
+              Start drill
             </button>
             {caughtUp && (
               <p className="mt-3 text-xs text-neutral-500 italic">

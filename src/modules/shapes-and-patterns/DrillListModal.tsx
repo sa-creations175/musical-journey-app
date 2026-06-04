@@ -208,7 +208,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
                     onClick={() => setActiveDrill(d)}
                     className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
                   >
-                    start drill
+                    Start drill
                   </button>
                   {drillTypes.length > 1 && (
                     <button

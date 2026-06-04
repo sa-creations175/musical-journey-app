@@ -225,7 +225,7 @@ export default function HarmonicFluency() {
             onClick={handleStart}
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
-            Start a session
+            Start drill
           </button>
 
           <ModuleIntro
@@ -363,7 +363,7 @@ export default function HarmonicFluency() {
               onClick={handleStart}
               className="px-5 py-2.5 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
             >
-              start session
+              Start drill
             </button>
             {caughtUp && (
               <p className="mt-3 text-xs text-neutral-500 italic">
