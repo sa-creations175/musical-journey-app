@@ -30,6 +30,7 @@ import {
   resolveDerivationMonth,
   weekDaysInMonth,
 } from '../derivationMonth';
+import { daysLeftInMonth } from '../NextMonthGoalBanner';
 
 // Sun Jun 28 2026, 00:00 local — verified a Sunday.
 const WEEK_START = new Date(2026, 5, 28, 0, 0, 0, 0).getTime();
@@ -151,5 +152,18 @@ describe('derivationMonthBounds', () => {
   it('maps current → this month, next → next month', () => {
     expect(derivationMonthBounds(TODAY_JUNE, 'current')).toEqual(JUNE);
     expect(derivationMonthBounds(TODAY_JUNE, 'next')).toEqual(JULY);
+  });
+});
+
+describe('daysLeftInMonth (next-month banner trigger)', () => {
+  it('counts today through the last day of the month', () => {
+    expect(daysLeftInMonth(new Date(2026, 5, 30, 12).getTime())).toBe(1);
+    expect(daysLeftInMonth(new Date(2026, 5, 24, 12).getTime())).toBe(7);
+    expect(daysLeftInMonth(new Date(2026, 5, 23, 12).getTime())).toBe(8);
+  });
+
+  it('the last-7-days window is Jun 24 onward (<= 7)', () => {
+    expect(daysLeftInMonth(new Date(2026, 5, 24, 12).getTime()) <= 7).toBe(true);
+    expect(daysLeftInMonth(new Date(2026, 5, 23, 12).getTime()) <= 7).toBe(false);
   });
 });

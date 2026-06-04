@@ -115,6 +115,10 @@ interface Props {
    *  the body. Null/undefined = create mode. */
   existingGoal?: Goal | null;
   onSaved?: () => void;
+  /** Period basis for create-mode date defaults. Pass the first ms of
+   *  next month to scope a new monthly goal to next month (used by the
+   *  next-month goal-creation banner). Ignored in edit mode. */
+  periodNow?: number;
 }
 
 const HF_COUNTS = harmonicFluencyCounts();
@@ -165,6 +169,7 @@ export default function GoalSuggestionFlow({
   moduleId,
   existingGoal,
   onSaved,
+  periodNow,
 }: Props) {
   // Edit mode: load the prefill (umbrella + children → merged target
   // shape) before resolving the anchor, so the anchor query uses the
@@ -285,6 +290,9 @@ export default function GoalSuggestionFlow({
       onClose,
       onSaved,
       editPrefill,
+      // Only scope to next month in create mode — editing an existing
+      // goal must keep its own dates.
+      periodNow: editPrefill ? undefined : periodNow,
     };
     if (effectiveModuleId === 'harmonic-fluency') {
       return <HarmonicFluencyMonthlyBody {...sharedProps} moduleId="harmonic-fluency" />;
@@ -410,6 +418,10 @@ interface BodyShellProps {
    *  edit plumbing). */
   existingUmbrella?: Goal | null;
   existingChildren?: ReadonlyArray<Goal>;
+  /** Period basis for the persisted start date (create mode). Forwarded
+   *  into persistSuggestionGoal so a next-month goal anchors its
+   *  startDate in next month. Undefined → Date.now(). */
+  periodNow?: number;
 }
 
 function BodyShell({
@@ -427,6 +439,7 @@ function BodyShell({
   isEditing,
   existingUmbrella,
   existingChildren,
+  periodNow,
 }: BodyShellProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -456,6 +469,7 @@ function BodyShell({
           anchorGoalId: anchor.id,
           existingUmbrella,
           existingChildren,
+          periodNow,
         });
       }
       onSaved?.();
@@ -575,6 +589,11 @@ interface ModuleBodyProps<TModuleId extends SuggestionFlowModule> {
    *  seed its initial target state in place of suggest*() defaults.
    *  Bodies that haven't been wired for edit yet ignore this. */
   editPrefill?: EditPrefill | null;
+  /** Period basis for date defaults (create mode only). When set (e.g.
+   *  the first ms of next month, for next-month planning), the body's
+   *  default target date and the persisted start date are computed
+   *  against it instead of Date.now(). Undefined → current period. */
+  periodNow?: number;
 }
 
 function HarmonicFluencyMonthlyBody({
@@ -584,6 +603,7 @@ function HarmonicFluencyMonthlyBody({
   onClose,
   onSaved,
   editPrefill,
+  periodNow,
 }: ModuleBodyProps<'harmonic-fluency'>) {
   const initialSuggestion = useMemo(() => suggestHfMonthly(), []);
   const editTarget =
@@ -592,7 +612,7 @@ function HarmonicFluencyMonthlyBody({
     () => editTarget ?? initialSuggestion.target,
   );
   const [targetDate, setTargetDate] = useState<number>(
-    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope, periodNow),
   );
 
   const records = useMemo(
@@ -622,6 +642,7 @@ function HarmonicFluencyMonthlyBody({
       isEditing={!!editPrefill}
       existingUmbrella={editPrefill?.umbrella ?? null}
       existingChildren={editPrefill?.existingChildren}
+      periodNow={periodNow}
     >
       <HfFocusSection
         target={target}
@@ -943,6 +964,9 @@ interface PersistArgs {
    *  one-element list for a standalone child). Unmatched existing
    *  children are deleted on save. */
   existingChildren?: ReadonlyArray<Goal>;
+  /** Period basis for the freshly-created rows' startDate (create
+   *  mode). Undefined → Date.now() (current period). */
+  periodNow?: number;
 }
 
 type SliceKind =
@@ -1033,6 +1057,7 @@ export async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
     anchorGoalId,
     existingUmbrella,
     existingChildren,
+    periodNow,
   } = args;
   if (records.length === 0) return;
 
@@ -1048,7 +1073,7 @@ export async function persistSuggestionGoal(args: PersistArgs): Promise<void> {
     contextTag: context,
     relatedModules,
     relatedItems: [] as string[],
-    startDate: defaultStartDate(scope, now),
+    startDate: defaultStartDate(scope, periodNow ?? now),
     targetDate,
     status: 'active' as const,
     contributesNumericallyToParent: false,
@@ -1172,6 +1197,7 @@ function EarTrainingMonthlyBody({
   onClose,
   onSaved,
   editPrefill,
+  periodNow,
 }: ModuleBodyProps<'ear-training'>) {
   const initialSuggestion = useMemo(() => suggestEtMonthly(), []);
   const editTarget =
@@ -1180,7 +1206,7 @@ function EarTrainingMonthlyBody({
     () => editTarget ?? initialSuggestion.target,
   );
   const [targetDate, setTargetDate] = useState<number>(
-    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope, periodNow),
   );
   const records = useMemo(() => encodeShim('ear-training', target), [target]);
   const coverageMinutes = useMemo(
@@ -1206,6 +1232,7 @@ function EarTrainingMonthlyBody({
       isEditing={!!editPrefill}
       existingUmbrella={editPrefill?.umbrella ?? null}
       existingChildren={editPrefill?.existingChildren}
+      periodNow={periodNow}
     >
       <EtFocusSection
         target={target}
@@ -1560,6 +1587,7 @@ function ShapesPatternsMonthlyBody({
   onClose,
   onSaved,
   editPrefill,
+  periodNow,
 }: ModuleBodyProps<'shapes-and-patterns'>) {
   const initialSuggestion = useMemo(() => suggestShapesMonthly(), []);
   const editTarget =
@@ -1568,7 +1596,10 @@ function ShapesPatternsMonthlyBody({
     () => editTarget ?? initialSuggestion.target,
   );
   const [targetDate, setTargetDate] = useState<number>(
-    () => editPrefill?.targetDate ?? initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope),
+    () => editPrefill?.targetDate
+      ?? (periodNow != null
+        ? defaultTargetDate(scope, periodNow)
+        : (initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope))),
   );
   const records = useMemo(() => encodeShim('shapes-and-patterns', target), [target]);
   const coverageMinutes = useMemo(
@@ -1594,6 +1625,7 @@ function ShapesPatternsMonthlyBody({
       isEditing={!!editPrefill}
       existingUmbrella={editPrefill?.umbrella ?? null}
       existingChildren={editPrefill?.existingChildren}
+      periodNow={periodNow}
     >
       <ShapesFocusSection
         target={target}
@@ -2036,6 +2068,7 @@ function ProductionMonthlyBody({
   onClose,
   onSaved,
   editPrefill,
+  periodNow,
 }: ModuleBodyProps<'production'>) {
   const initialSuggestion = useMemo(() => suggestProductionMonthly(), []);
   const editTarget =
@@ -2044,7 +2077,7 @@ function ProductionMonthlyBody({
     () => editTarget ?? initialSuggestion.target,
   );
   const [targetDate, setTargetDate] = useState<number>(
-    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope, periodNow),
   );
   const records = useMemo(() => encodeShim('production', target), [target]);
 
@@ -2062,6 +2095,7 @@ function ProductionMonthlyBody({
       isEditing={!!editPrefill}
       existingUmbrella={editPrefill?.umbrella ?? null}
       existingChildren={editPrefill?.existingChildren}
+      periodNow={periodNow}
     >
       <ProductionCompletionFocus target={target} onChange={setTarget} />
       <ProductionConsistencyFocus target={target} onChange={setTarget} />
@@ -2164,6 +2198,7 @@ function PracticeConsistencyMonthlyBody({
   onClose,
   onSaved,
   editPrefill,
+  periodNow,
 }: ModuleBodyProps<'practice-consistency'>) {
   const initialSuggestion = useMemo(() => suggestPracticeConsistencyMonthly(), []);
   const editTarget =
@@ -2172,7 +2207,7 @@ function PracticeConsistencyMonthlyBody({
     () => editTarget ?? initialSuggestion.target,
   );
   const [targetDate, setTargetDate] = useState<number>(
-    () => editPrefill?.targetDate ?? defaultTargetDate(scope),
+    () => editPrefill?.targetDate ?? defaultTargetDate(scope, periodNow),
   );
 
   // Practice Consistency uses a custom 3-field target shape that the
@@ -2206,6 +2241,7 @@ function PracticeConsistencyMonthlyBody({
       isEditing={!!editPrefill}
       existingUmbrella={editPrefill?.umbrella ?? null}
       existingChildren={editPrefill?.existingChildren}
+      periodNow={periodNow}
     >
       <PracticeConsistencyFocus target={target} onChange={setTarget} />
     </BodyShell>
@@ -2336,6 +2372,7 @@ function RepertoireMonthlyBody({
   onClose,
   onSaved,
   editPrefill,
+  periodNow,
 }: ModuleBodyProps<'repertoire'>) {
   const initialSuggestion = useMemo(() => suggestRepertoireMonthly(), []);
 
@@ -2389,7 +2426,7 @@ function RepertoireMonthlyBody({
     consistencyCadence: initialSuggestion.target.consistencyCadence,
   });
   const [targetDate, setTargetDate] = useState<number>(
-    () => editRepertoire?.targetDate ?? defaultTargetDate(scope),
+    () => editRepertoire?.targetDate ?? defaultTargetDate(scope, periodNow),
   );
 
   // Save gate: at least one queue slot (specific OR TBD — TBD now
@@ -2420,6 +2457,7 @@ function RepertoireMonthlyBody({
       wantToLearn: wantToLearn ?? [],
       existingUmbrella: editRepertoire?.umbrella ?? null,
       existingChildren: editRepertoire?.existingChildren,
+      periodNow,
     });
   };
 
@@ -2802,6 +2840,9 @@ interface PersistRepertoireArgs {
    *  unmatched children, and reuses the umbrella id. */
   existingUmbrella?: Goal | null;
   existingChildren?: ReadonlyArray<Goal>;
+  /** Period basis for freshly-created rows' startDate (create mode).
+   *  Undefined → Date.now() (current period). */
+  periodNow?: number;
 }
 
 /**
@@ -2841,6 +2882,7 @@ export async function persistRepertoireMonthlyGoal(
     wantToLearn,
     existingUmbrella,
     existingChildren,
+    periodNow,
   } = args;
   const hasQueueSlots = queue.length > 0;
   const hasDaysTarget =
@@ -2912,7 +2954,7 @@ export async function persistRepertoireMonthlyGoal(
     scope,
     contextTag: null,
     relatedModules: ['repertoire'],
-    startDate: defaultStartDate(scope, now),
+    startDate: defaultStartDate(scope, periodNow ?? now),
     targetDate,
     status: 'active' as const,
     contributesNumericallyToParent: false,

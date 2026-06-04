@@ -12,14 +12,18 @@ import GoalSuggestionFlow from './GoalSuggestionFlow';
 import WeeklyPlan from './WeeklyPlan';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
 import PlanMonthBanner from './PlanMonthBanner';
+import NextMonthGoalBanner from './NextMonthGoalBanner';
 import CarryoverBanner from './CarryoverBanner';
 import MonthEndCleanupBanner from './MonthEndCleanupBanner';
 import {
   endOfWeekLocal,
   loadConfirmedPlanForWeek,
   loadWeeklyAvailableDays,
+  saveUseNextMonthGoals,
   startOfWeekLocal,
 } from './weeklyPlanData';
+import { monthBoundary, nextMonthBoundary } from './carryover';
+import { weekDaysInMonth } from './derivationMonth';
 import { getWeeklyTimeEstimate } from '../../lib/weeklyAttempts';
 import { buildRepertoireSessionBreakdownLines } from './repertoireBreakdown';
 // Side-effect import: registers `__deleteShortHorizonGoals` on
@@ -31,10 +35,6 @@ import './devCleanup';
 // WeeklyPlan "last week" totals reflect real practice or stale
 // dev-build clicks. See devInspectActivity.ts.
 import './devInspectActivity';
-// Side-effect import: registers `__wipeLastWeekActivity` and
-// `__wipeMayGoals` browser-console helpers. Temporary dev tools —
-// see devWipe.ts. DO NOT COMMIT (devWipe.ts is untracked locally).
-import './devWipe';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import { isSuggestionFlowEditCandidate } from './editLoad';
@@ -309,17 +309,23 @@ export default function Goals() {
    *      new-style umbrella, or Repertoire song queue children).
    *      Scope/module derived from the goal inside the flow. */
   const [suggestionFlow, setSuggestionFlow] = useState<
-    | { mode: 'create'; scope: 'monthly'; moduleId: GoalFlowModuleId }
+    | { mode: 'create'; scope: 'monthly'; moduleId: GoalFlowModuleId; periodNow?: number }
     | { mode: 'edit'; goal: Goal }
     | null
   >(null);
+  /** Set true while a create flow opened from the next-month banner is
+   *  in flight, so onSaved can offer the "Align this week" follow-up. */
+  const [nextMonthCreateInFlight, setNextMonthCreateInFlight] = useState(false);
+  /** Open state for the "Align this week's plan to [Month]?" follow-up
+   *  prompt shown after next-month goals are created. */
+  const [alignWeekPrompt, setAlignWeekPrompt] = useState<{ monthName: string } | null>(null);
   /** Module picker for monthly / yearly goal creation, reached from a
    *  section's "Add/Edit Goal" affordance. The `modulePickerKind`
    *  discriminator records which path produced the module pick, so a
    *  single ModulePickerModal can serve both flows without duplicating
    *  UI. */
   const [modulePickerKind, setModulePickerKind] = useState<
-    'monthly' | 'yearly' | null
+    'monthly' | 'monthly-next' | 'yearly' | null
   >(null);
 
   // Deep-link entry point for the Plan-your-month / Plan-your-week
@@ -518,6 +524,15 @@ export default function Goals() {
               Month is the foundation the week derives from, so this
               sits ABOVE Plan-your-week — set the month first. */}
           <PlanMonthBanner onPlanMonth={() => setModulePickerKind('monthly')} />
+          {/* Last 7 days of the month: prompt to set NEXT month's goals
+              so the boundary week can derive from them. Opens the same
+              monthly flow scoped to next month. */}
+          <NextMonthGoalBanner
+            onSetGoals={() => {
+              setNextMonthCreateInFlight(true);
+              setModulePickerKind('monthly-next');
+            }}
+          />
           <WeeklyPlanBanner onOpenPlan={() => setWeeklyPlanOpen(true)} />
           {/* Phase B Step 9b — surfaces uncovered items from last
               month's monthly target. Persistent: hides only on user
@@ -766,11 +781,17 @@ export default function Goals() {
         onPick={moduleId => {
           const kind = modulePickerKind;
           setModulePickerKind(null);
-          if (kind === 'monthly') {
+          if (kind === 'monthly' || kind === 'monthly-next') {
             setSuggestionFlow({
               mode: 'create',
               scope: 'monthly',
               moduleId,
+              // Scope the new goal's window to next month when launched
+              // from the next-month banner.
+              periodNow:
+                kind === 'monthly-next'
+                  ? nextMonthBoundary(Date.now()).start
+                  : undefined,
             });
           } else if (kind === 'yearly') {
             setAnchorMode({ moduleId: moduleId as AnchorModuleId });
@@ -779,12 +800,16 @@ export default function Goals() {
         title={
           modulePickerKind === 'yearly'
             ? 'Set a yearly anchor'
-            : 'Add a monthly goal'
+            : modulePickerKind === 'monthly-next'
+              ? `Add a ${new Date(nextMonthBoundary(Date.now()).start).toLocaleDateString('en-US', { month: 'long' })} goal`
+              : 'Add a monthly goal'
         }
         description={
           modulePickerKind === 'yearly'
             ? 'Which module is this year anchored to?'
-            : 'Which module is this month\'s focus?'
+            : modulePickerKind === 'monthly-next'
+              ? `Which module is next month's focus?`
+              : 'Which module is this month\'s focus?'
         }
       />
 
@@ -872,7 +897,10 @@ export default function Goals() {
               : 'suggestion-closed'
         }
         open={suggestionFlow !== null}
-        onClose={() => setSuggestionFlow(null)}
+        onClose={() => {
+          setSuggestionFlow(null);
+          setNextMonthCreateInFlight(false);
+        }}
         scope={
           suggestionFlow?.mode === 'create'
             ? suggestionFlow.scope
@@ -883,8 +911,73 @@ export default function Goals() {
             ? suggestionFlow.moduleId
             : 'harmonic-fluency'
         }
+        periodNow={
+          suggestionFlow?.mode === 'create' ? suggestionFlow.periodNow : undefined
+        }
         existingGoal={suggestionFlow?.mode === 'edit' ? suggestionFlow.goal : null}
+        onSaved={() => {
+          // After next-month goals are created, offer to align THIS
+          // week's plan to next month — but only when the week is still
+          // mostly in the current month (4+ days). If the week is
+          // already mostly next month, resolveDerivationMonth switches
+          // automatically, so no prompt is needed.
+          if (!nextMonthCreateInFlight) return;
+          setNextMonthCreateInFlight(false);
+          const now = Date.now();
+          const weekStart = startOfWeekLocal(now);
+          if (weekDaysInMonth(weekStart, monthBoundary(now)) >= 4) {
+            setAlignWeekPrompt({
+              monthName: new Date(
+                nextMonthBoundary(now).start,
+              ).toLocaleDateString('en-US', { month: 'long' }),
+            });
+          }
+        }}
       />
+
+      {/* Follow-up after next-month goals are created: align this week's
+          plan to next month? Only shown when the week is still mostly in
+          the current month. The answer is stored as useNextMonthGoals on
+          the current week's override row, which resolveDerivationMonth
+          reads. */}
+      {alignWeekPrompt && (
+        <Modal
+          open
+          onClose={() => setAlignWeekPrompt(null)}
+          title={`Align this week's plan to ${alignWeekPrompt.monthName}?`}
+        >
+          <div className="space-y-4 text-sm text-neutral-700 dark:text-neutral-200">
+            <p>
+              This week is still mostly in the current month. Want this
+              week's plan to derive from your {alignWeekPrompt.monthName}{' '}
+              goals instead? You can keep practicing toward the current
+              month if you'd rather finish it out.
+            </p>
+            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-200 dark:border-neutral-800">
+              <button
+                type="button"
+                onClick={() => {
+                  void saveUseNextMonthGoals(startOfWeekLocal(Date.now()), false);
+                  setAlignWeekPrompt(null);
+                }}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+              >
+                Keep this week as-is
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void saveUseNextMonthGoals(startOfWeekLocal(Date.now()), true);
+                  setAlignWeekPrompt(null);
+                }}
+                className="px-4 py-1.5 rounded-md text-sm font-medium text-white bg-fluent hover:opacity-90"
+              >
+                Use {alignWeekPrompt.monthName} goals
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Phase 4 step 3 — WeeklyPlan modal. Mounted here so its
           state lives at the page level (Goals.tsx is also where the
