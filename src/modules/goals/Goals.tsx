@@ -1016,7 +1016,11 @@ function LayerSection({
 
       {!collapsed && !hasMonthlyAnchorWiring && (
         <div className="mt-3 space-y-3">
-          {layer.scope === 'weekly' && <WeeklyChallengeSection />}
+          {/* Plan table renders directly under the expanded "This
+              week" header — no intermediate "This week's challenge"
+              card. The body's live query stays gated behind this
+              LayerSection's expansion, so it still only mounts on tap. */}
+          {layer.scope === 'weekly' && <WeeklyChallengeBody />}
           {goals.length === 0 ? (
             <div className="flex items-center gap-3 py-2">
               <span className="text-sm text-neutral-500 italic">{layer.emptyMessage}</span>
@@ -1103,8 +1107,7 @@ function LayerSection({
 }
 
 /**
- * "This week's challenge" subsection rendered at the top of the
- * by-timeframe Weekly LayerSection's body. Two modes:
+ * The by-timeframe Weekly LayerSection's body content. Two modes:
  *
  *   · unconfirmed — no weekly goal rows linked to a monthly
  *     parent exist for this week. Shows the inline <WeeklyPlan />
@@ -1114,45 +1117,10 @@ function LayerSection({
  *     compact summary of the saved targets + a "Re-plan" button
  *     that wipes the confirmed goals and restores the planning UI.
  *
- * Default collapsed so neither path mounts on every Goals page
- * visit — the planning body and the confirmed-goals query both
- * sit behind a user tap. */
-function WeeklyChallengeSection() {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="rounded-lg border border-black/[0.07] bg-white/40 dark:bg-neutral-900/30">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        aria-expanded={open}
-        className="w-full flex items-start gap-2 text-left px-3 py-2.5 hover:bg-neutral-50 dark:hover:bg-neutral-900/40 rounded-t-lg transition-colors"
-      >
-        <span aria-hidden className="text-neutral-400 mt-0.5 text-xs">
-          {open ? '▾' : '▸'}
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="block text-sm font-medium text-neutral-800 dark:text-neutral-100">
-            This week's challenge
-          </span>
-          <span className="block text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Based on your monthly goals and current pace
-          </span>
-        </span>
-      </button>
-      {open && (
-        <div className="px-3 pb-3 pt-1">
-          <WeeklyChallengeBody />
-        </div>
-      )}
-    </section>
-  );
-}
-
-/**
- * Inner switch that picks confirmed-summary vs planning-UI based
- * on whether weekly goals exist for the current local week. Lives
- * as its own component so the live query only fires when the
- * parent subsection is expanded (parent gates the mount).
+ * Rendered directly under the expanded "This week" LayerSection
+ * (no intermediate wrapper card) — the section's own collapse
+ * gates the mount, so the confirmed-goals live query still only
+ * fires once the user expands This week.
  */
 function WeeklyChallengeBody() {
   const weekStart = useMemo(() => startOfWeekLocal(Date.now()), []);
