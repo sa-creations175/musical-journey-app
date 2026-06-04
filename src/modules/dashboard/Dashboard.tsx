@@ -134,7 +134,7 @@ export default function Dashboard() {
           style={{ backgroundColor: '#0f3d2e' }}
         >
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl sm:text-3xl font-medium tracking-tight italic">
+          <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">
             Hi {editingName ? (
               <span className="inline-flex items-center gap-1">
                 <input
@@ -150,14 +150,14 @@ export default function Dashboard() {
                     setEditingName(false);
                   }}
                   placeholder="your name"
-                  className="bg-transparent border-b border-fluent/50 focus:outline-none text-2xl sm:text-3xl font-medium tracking-tight px-1"
+                  className="bg-transparent border-b border-fluent/50 focus:outline-none text-2xl sm:text-3xl font-medium tracking-tight italic px-1"
                   style={{ width: `${Math.max(4, nameDraft.length + 1)}ch` }}
                 />
               </span>
             ) : (
               <button
                 onClick={beginEditName}
-                className="underline-offset-4 decoration-fluent/30 hover:decoration-fluent hover:underline"
+                className="italic underline-offset-4 decoration-fluent/30 hover:decoration-fluent hover:underline"
                 title="rename — also settable in settings"
               >
                 {displayName}
