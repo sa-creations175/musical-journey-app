@@ -175,7 +175,10 @@ export async function loadWeeklyAvailableDays(
   weekStart: number,
 ): Promise<number | null> {
   const row = await db.weeklyOverrides.get(weeklyOverrideIdFor(weekStart));
-  if (!row) return null;
+  // No row, or a row that exists only to carry useNextMonthGoals
+  // (availableDays null) → no days override; caller falls back to the
+  // global consistency goal value.
+  if (!row || row.availableDays == null) return null;
   return Math.min(
     WEEKLY_AVAILABLE_DAYS_MAX,
     Math.max(WEEKLY_AVAILABLE_DAYS_MIN, Math.round(row.availableDays)),
@@ -195,19 +198,73 @@ export async function saveWeeklyAvailableDays(
     WEEKLY_AVAILABLE_DAYS_MAX,
     Math.max(WEEKLY_AVAILABLE_DAYS_MIN, Math.round(availableDays)),
   );
+  const id = weeklyOverrideIdFor(weekStart);
+  const existing = await db.weeklyOverrides.get(id);
   const row: WeeklyOverride = {
-    id: weeklyOverrideIdFor(weekStart),
+    id,
     weekStart,
     availableDays: clamped,
+    // Preserve a sibling next-month flag living on the same row.
+    useNextMonthGoals: existing?.useNextMonthGoals,
     updatedAt: Date.now(),
   };
   await db.weeklyOverrides.put(row);
 }
 
-/** Clear the override for `weekStart` — pacing reverts to the global
- *  consistency goal value. No-op when no row exists. */
+/** Clear the days override for `weekStart` — pacing reverts to the
+ *  global consistency goal value. Preserves the row (with
+ *  availableDays null) when it still carries useNextMonthGoals, so the
+ *  next-month alignment isn't lost; otherwise deletes the row to keep
+ *  the table sparse. No-op when no row exists. */
 export async function clearWeeklyAvailableDays(weekStart: number): Promise<void> {
-  await db.weeklyOverrides.delete(weeklyOverrideIdFor(weekStart));
+  const id = weeklyOverrideIdFor(weekStart);
+  const existing = await db.weeklyOverrides.get(id);
+  if (!existing) return;
+  if (existing.useNextMonthGoals === true) {
+    await db.weeklyOverrides.put({
+      ...existing,
+      availableDays: null,
+      updatedAt: Date.now(),
+    });
+  } else {
+    await db.weeklyOverrides.delete(id);
+  }
+}
+
+/**
+ * Whether the current week's plan should derive from next month's
+ * goals. Read of the per-week `useNextMonthGoals` flag. Undefined when
+ * no row exists or the flag is unset → current-month derivation.
+ */
+export async function loadUseNextMonthGoals(
+  weekStart: number,
+): Promise<boolean | undefined> {
+  const row = await db.weeklyOverrides.get(weeklyOverrideIdFor(weekStart));
+  return row?.useNextMonthGoals;
+}
+
+/**
+ * Set (or clear) the `useNextMonthGoals` flag for `weekStart`. Upserts
+ * the row, preserving any existing availableDays override; when the row
+ * doesn't exist yet it's created with availableDays null (no days
+ * override). Writing `false` keeps the row but reverts to current-month
+ * derivation — callers that want the table sparse can pass through
+ * clearWeeklyAvailableDays semantics instead.
+ */
+export async function saveUseNextMonthGoals(
+  weekStart: number,
+  value: boolean,
+): Promise<void> {
+  const id = weeklyOverrideIdFor(weekStart);
+  const existing = await db.weeklyOverrides.get(id);
+  const row: WeeklyOverride = {
+    id,
+    weekStart,
+    availableDays: existing?.availableDays ?? null,
+    useNextMonthGoals: value,
+    updatedAt: Date.now(),
+  };
+  await db.weeklyOverrides.put(row);
 }
 
 // ---------------------------------------------------------------------

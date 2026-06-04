@@ -1483,12 +1483,26 @@ export interface Goal {
  * Keyed by `id`, which is the weekStart epoch ms as a string (one row
  * per week). `weekStart` is kept as a separate indexed number for range
  * queries.
+ *
+ * `availableDays` is nullable because a row can also exist purely to
+ * carry `useNextMonthGoals` (v29): when the user aligns the current
+ * week's plan to next month's goals without also overriding their
+ * consistency days, the row has `availableDays: null` (no days
+ * override) and `useNextMonthGoals: true`. A null `availableDays`
+ * reads back as "no override → follow the global consistency goal".
+ *
+ * `useNextMonthGoals` (v29): true when the current week's plan should
+ * derive from NEXT month's goals rather than the current month's. Set
+ * by the "Align this week's plan to [Month]?" follow-up prompt after
+ * next-month goals are created. Undefined/false → current-month
+ * derivation (the default). Read by resolveDerivationMonth.
  */
 export interface WeeklyOverride {
   id: string;
   weekStart: number;
-  availableDays: number;
+  availableDays: number | null;
   updatedAt: number;
+  useNextMonthGoals?: boolean;
 }
 
 /**
@@ -2940,6 +2954,18 @@ export class AppDB extends Dexie {
     // ms as a string). `weekStart` is also indexed for range queries (e.g.
     // future cleanup of old rows). Delta on top of v27.
     this.version(28).stores({
+      weeklyOverrides: 'id, weekStart',
+    });
+
+    // v29 — add `useNextMonthGoals` to weeklyOverrides and relax
+    // `availableDays` to nullable. No index change (the new field isn't
+    // queried by index, and IndexedDB can't index booleans anyway), so
+    // the store string is identical to v28 — the bump exists so the
+    // schema version reflects the new shape and any future per-row
+    // upgrade can hang off it. Existing rows need no migration: their
+    // `useNextMonthGoals` simply reads as undefined (= current-month
+    // derivation, the prior behaviour).
+    this.version(29).stores({
       weeklyOverrides: 'id, weekStart',
     });
   }

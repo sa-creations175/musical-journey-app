@@ -228,6 +228,11 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     topLevel: [
       { dexie: 'weekStart', pg: 'week_start' },
       { dexie: 'availableDays', pg: 'available_days' },
+      // v29 — next-month derivation flag. Top-level so the value is
+      // queryable server-side; also rides in the `data` blob like every
+      // field. Requires migration 007 (column + available_days nullable)
+      // to be applied before this row shape is pushed.
+      { dexie: 'useNextMonthGoals', pg: 'use_next_month_goals' },
     ] },
 ];
 
