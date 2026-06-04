@@ -459,11 +459,6 @@ function subLabelForPlanRow(row: PlanRow): string | null {
 // Formatting helpers
 // ---------------------------------------------------------------------
 
-function formatDateRange(start: number, end: number): string {
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${new Date(start).toLocaleDateString(undefined, opts)} → ${new Date(end).toLocaleDateString(undefined, opts)}`;
-}
-
 /** Render minutes as "1h 23m" / "23m" / "<1m". */
 function formatMinutes(min: number): string {
   if (min <= 0) return '0';
@@ -1319,19 +1314,11 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               timeframe Weekly section — the user lands on the
               section to act, not to relive last week. */}
           <section className="space-y-3">
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <h4 className="text-sm font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-400">This week</h4>
-              <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                {formatDateRange(weekStart, weekEnd)}
-              </span>
-              <span className="text-xs text-neutral-500">what's the plan?</span>
-              {isConfirmed && (
-                <span className="ml-auto text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                  Confirmed ✓
-                </span>
-              )}
-            </div>
-
+            {/* No inner "THIS WEEK · date · what's the plan?" label —
+                the THIS WEEK section header (with the week's date
+                range) already carries that context, so the plan table
+                starts directly here. Confirmation is conveyed by the
+                Re-plan action / confirmed summary, not a badge. */}
             {planRows.length === 0 ? (
               <div className="rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 px-4 py-5 text-sm text-neutral-500">
                 No active monthly goals to derive a weekly plan from. Set up a

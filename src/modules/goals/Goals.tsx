@@ -557,8 +557,8 @@ export default function Goals() {
         </div>
       )}
 
-      {/* Small muted label introduces the view toggle. */}
-      <div className="text-[10px] uppercase tracking-wide font-medium text-neutral-500 dark:text-neutral-400 mb-1.5">
+      {/* Section heading introducing the view toggle. */}
+      <div className="text-sm uppercase tracking-wide font-semibold text-neutral-600 dark:text-neutral-300 mb-1.5">
         View goals
       </div>
       <ViewToggle value={activeView} onChange={setActiveView} />
@@ -918,6 +918,14 @@ export default function Goals() {
 
 // -------------------------------------------------------------------
 
+/** "May 31 → Jun 6" for the week beginning at `weekStart` (Sunday). */
+function formatWeekRange(weekStart: number): string {
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  const start = new Date(weekStart).toLocaleDateString(undefined, opts);
+  const end = new Date(endOfWeekLocal(weekStart)).toLocaleDateString(undefined, opts);
+  return `${start} → ${end}`;
+}
+
 function LayerSection({
   layer,
   goals,
@@ -957,6 +965,10 @@ function LayerSection({
     && !!onEditYearlyAnchor
     && !!onSetYearlyAnchor
     && !!onAddMonthlyGoal;
+  // Current week's date range, surfaced under the THIS WEEK header so
+  // the plan table can drop its own redundant inner label.
+  const weekRange =
+    layer.scope === 'weekly' ? formatWeekRange(startOfWeekLocal(Date.now())) : null;
   return (
     <section className="mb-3">
       {/* Header: chevron+title (toggle) on the left, goal count +
@@ -973,12 +985,19 @@ function LayerSection({
           className="flex-1 flex items-center gap-2 text-left rounded transition"
         >
           <Chevron open={!collapsed} />
-          <h2
-            className="text-sm font-medium flex-1"
-            style={{ color: LAYER_PALETTE.border }}
-          >
-            {layer.title}
-          </h2>
+          <div className="flex-1 min-w-0">
+            <h2
+              className="text-sm font-medium uppercase tracking-wide"
+              style={{ color: LAYER_PALETTE.border }}
+            >
+              {layer.title}
+            </h2>
+            {weekRange && (
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {weekRange}
+              </div>
+            )}
+          </div>
           <span className="text-xs text-neutral-500">
             {goals.length === 0 ? '—' : `${goals.length} goal${goals.length === 1 ? '' : 's'}`}
           </span>
@@ -1022,16 +1041,22 @@ function LayerSection({
               LayerSection's expansion, so it still only mounts on tap. */}
           {layer.scope === 'weekly' && <WeeklyChallengeBody />}
           {goals.length === 0 ? (
-            <div className="flex items-center gap-3 py-2">
-              <span className="text-sm text-neutral-500 italic">{layer.emptyMessage}</span>
-              <button
-                type="button"
-                onClick={onAdd}
-                className="text-sm text-neutral-700 dark:text-neutral-200 hover:underline"
-              >
-                {layer.addLabel}
-              </button>
-            </div>
+            // The weekly section's empty prompt is suppressed — the
+            // "Plan your week" banner + the WeeklyChallengeBody above
+            // already own that entry point, so an empty This week
+            // section just shows the planning UI, nothing redundant.
+            layer.scope === 'weekly' ? null : (
+              <div className="flex items-center gap-3 py-2">
+                <span className="text-sm text-neutral-500 italic">{layer.emptyMessage}</span>
+                <button
+                  type="button"
+                  onClick={onAdd}
+                  className="text-sm text-neutral-700 dark:text-neutral-200 hover:underline"
+                >
+                  {layer.addLabel}
+                </button>
+              </div>
+            )
           ) : (
             <div className="flex flex-col gap-3">
               {groupByModule(topLevelGoals(goals), goals).map(group => {
