@@ -704,6 +704,75 @@ export default function ChordMotionTab({ attempts }: Props) {
         </div>
       </div>
 
+      {/* Primary CTA — kept directly under the title (HF pattern: title
+          → CTA → settings) so "play motion" is reachable without
+          scrolling past every setting. Becomes replay / cadence helpers
+          once a round is running. */}
+      {focusProtected && <FluencyProtectionNotice />}
+
+      {/* Key label (Full mode only) — reads the round's snapshot
+          scaffold so the label can't flicker away if the user toggles
+          the pill mid-question. */}
+      {round && round.scaffold === 'full' && runState !== 'idle' && (
+        <p className="text-center text-sm">
+          in <span className="font-medium">{round.key} major</span>:
+        </p>
+      )}
+
+      {/* Play / replay / cadence-or-tonic helpers */}
+      <div className="flex flex-wrap items-start justify-center gap-3">
+        {runState === 'idle' && (
+          <button
+            onClick={nextRound}
+            disabled={activePool.length === 0}
+            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
+          >
+            play motion
+          </button>
+        )}
+        {(runState === 'answering' || runState === 'reveal') && (
+          <>
+            <button
+              onClick={replayMotion}
+              className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
+            >
+              replay motion
+            </button>
+            {round && round.scaffold !== 'minimal' ? (
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={playCadenceAlone}
+                  className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
+                >
+                  play cadence
+                </button>
+                <span className="text-[0.85rem] italic text-neutral-500">
+                  re-establishes the key
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={playTonic}
+                  className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
+                >
+                  play tonic
+                </button>
+                <span className="text-[0.85rem] italic text-neutral-500">
+                  your reference note
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {runState === 'cadence' && (
+        <p className="text-xs text-neutral-500 text-center italic">
+          {round?.scaffold === 'full' ? 'establishing ' + round?.key + ' major…' : 'listen for the tonal centre…'}
+        </p>
+      )}
+
       {/* Controls — two groups: "what you'll hear" (audio-shaping
           scopes) vs "how it's presented" (interaction-shaping).
           Hidden while focus mode is active so the focus summary
@@ -843,71 +912,6 @@ export default function ChordMotionTab({ attempts }: Props) {
       <div className="flex justify-center">
         <SpeedControl moduleId={MODULE_ID} />
       </div>
-
-      {focusProtected && <FluencyProtectionNotice />}
-
-      {/* Key label (Full mode only) — reads the round's snapshot
-          scaffold so the label can't flicker away if the user toggles
-          the pill mid-question. */}
-      {round && round.scaffold === 'full' && runState !== 'idle' && (
-        <p className="text-center text-sm">
-          in <span className="font-medium">{round.key} major</span>:
-        </p>
-      )}
-
-      {/* Play / replay / cadence-or-tonic helpers */}
-      <div className="flex flex-wrap items-start justify-center gap-3">
-        {runState === 'idle' && (
-          <button
-            onClick={nextRound}
-            disabled={activePool.length === 0}
-            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
-          >
-            play motion
-          </button>
-        )}
-        {(runState === 'answering' || runState === 'reveal') && (
-          <>
-            <button
-              onClick={replayMotion}
-              className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
-            >
-              replay motion
-            </button>
-            {round && round.scaffold !== 'minimal' ? (
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={playCadenceAlone}
-                  className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
-                >
-                  play cadence
-                </button>
-                <span className="text-[0.85rem] italic text-neutral-500">
-                  re-establishes the key
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={playTonic}
-                  className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
-                >
-                  play tonic
-                </button>
-                <span className="text-[0.85rem] italic text-neutral-500">
-                  your reference note
-                </span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {runState === 'cadence' && (
-        <p className="text-xs text-neutral-500 text-center italic">
-          {round?.scaffold === 'full' ? 'establishing ' + round?.key + ' major…' : 'listen for the tonal centre…'}
-        </p>
-      )}
 
       {/* Keyboard input surface */}
       {round && (runState === 'answering' || runState === 'reveal' || runState === 'motion') && (

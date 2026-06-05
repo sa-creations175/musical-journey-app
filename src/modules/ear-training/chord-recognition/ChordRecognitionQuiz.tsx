@@ -809,7 +809,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="w-full flex flex-wrap items-center justify-center gap-3">
           {!hasPlayed ? (
             <button
               onClick={startNew}
