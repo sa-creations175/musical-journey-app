@@ -35,6 +35,10 @@ import './devCleanup';
 // WeeklyPlan "last week" totals reflect real practice or stale
 // dev-build clicks. See devInspectActivity.ts.
 import './devInspectActivity';
+// Side-effect import: registers `__wipeLastWeekActivity` and
+// `__wipeMayGoals` browser-console helpers. Temporary dev tools —
+// see devWipe.ts. DO NOT COMMIT (devWipe.ts is untracked locally).
+import './devWipe';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import { isSuggestionFlowEditCandidate } from './editLoad';
@@ -1367,6 +1371,15 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
           const meta = moduleMetaById(moduleId);
           const moduleLabel = meta?.label ?? MODULE_DISPLAY_NAME[moduleId];
           const accentHex = meta?.accentHex ?? GOALS_META.accentHex;
+          // Same colored card treatment as the by-module THIS MONTH
+          // sections (SECTION_PALETTE bg + 3px accent left stripe), so
+          // the weekly plan reads as the same per-module cards.
+          const palette = SECTION_PALETTE[moduleId];
+          const cardClass = 'rounded-lg pl-3 pr-2 py-2';
+          const cardStyle = {
+            backgroundColor: palette.bg,
+            borderLeft: `3px solid ${palette.border}`,
+          };
 
           // Repertoire is special: instead of the per-goal listing
           // (which surfaces vague rows like "Repertoire — 6 days
@@ -1378,7 +1391,7 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
           if (moduleId === 'repertoire') {
             const lines = buildRepertoireSessionBreakdownLines(songCount >= 2);
             return (
-              <div key={moduleId}>
+              <div key={moduleId} className={cardClass} style={cardStyle}>
                 <div className="flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
                   <span
                     aria-hidden
@@ -1419,7 +1432,7 @@ function ConfirmedWeeklyPlanSummary({ goals }: { goals: Goal[] }) {
           }
 
           return (
-            <div key={moduleId}>
+            <div key={moduleId} className={cardClass} style={cardStyle}>
               <div className="flex items-center gap-2 text-sm font-medium text-neutral-800 dark:text-neutral-100">
                 <span
                   aria-hidden
