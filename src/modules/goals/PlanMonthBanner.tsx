@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Goal } from '../../lib/db';
 import { monthBoundary } from './carryover';
-import { ORDERED_GOAL_MODULES } from './goalsByModule';
+import { goalModuleId } from './goalsByModule';
+import type { GoalFlowModuleId } from './goalVocabulary';
 import {
   goalOverlapsMonth,
   isRealMonthlyGoal,
@@ -57,26 +59,51 @@ export function planMonthBannerState(
 ): PlanMonthBannerState {
   const bounds = monthBoundary(now);
 
-  // Modules that have an active yearly anchor → the ones required to
-  // have a monthly goal before the month counts as planned.
-  const anchoredModules = ORDERED_GOAL_MODULES.filter(m =>
-    activeGoals.some(
-      g => g.scope === 'yearly' && g.status === 'active' && g.relatedModules.includes(m),
-    ),
-  );
+  // Module identity goes through goalModuleId — the canonical
+  // metric/umbrella-based mapping the by-module view uses — NOT
+  // relatedModules. (Some goals, e.g. practice-consistency, carry empty
+  // relatedModules, which made the old relatedModules check report a
+  // permanently-uncovered module that never cleared.)
 
-  const moduleHasMonthlyGoal = (moduleId: string): boolean =>
-    activeGoals.some(
-      g =>
-        isRealMonthlyGoal(g) &&
-        goalOverlapsMonth(g, bounds) &&
-        g.relatedModules.includes(moduleId),
-    );
+  // Modules that have an active yearly anchor → required to have a
+  // monthly goal before the month counts as planned. Both the umbrella
+  // anchor and any yearly child rows resolve to the same module.
+  const anchoredModules = new Set<GoalFlowModuleId>();
+  for (const g of activeGoals) {
+    if (g.scope !== 'yearly' || g.status !== 'active') continue;
+    const m = goalModuleId(g, activeGoals);
+    if (m) anchoredModules.add(m);
+  }
 
-  const remaining = anchoredModules.filter(m => !moduleHasMonthlyGoal(m));
+  // Modules covered by a real (non-carry-over) monthly goal overlapping
+  // the current month.
+  const coveredModules = new Set<GoalFlowModuleId>();
+  for (const g of activeGoals) {
+    if (!isRealMonthlyGoal(g) || !goalOverlapsMonth(g, bounds)) continue;
+    const m = goalModuleId(g, activeGoals);
+    if (m) coveredModules.add(m);
+  }
+
+  const remaining = [...anchoredModules].filter(m => !coveredModules.has(m));
   if (remaining.length === 0) return { kind: 'complete' };
   if (!monthHasRealMonthlyGoals(activeGoals, bounds)) return { kind: 'not-started' };
   return { kind: 'in-progress', modulesRemaining: remaining.length };
+}
+
+// ---------------------------------------------------------------------
+// Snooze — local, 24h. Hides the banner for a day without permanently
+// dismissing it; it auto-clears once every anchored module is planned.
+// Stored in localStorage so it's shared across all three banner mounts
+// (Goals, Dashboard, Practice Sessions) and survives a refresh.
+// ---------------------------------------------------------------------
+
+const SNOOZE_KEY = 'planMonthBannerSnoozedUntil';
+const SNOOZE_MS = 24 * 60 * 60 * 1000;
+
+function readSnoozedUntil(): number {
+  if (typeof localStorage === 'undefined') return 0;
+  const n = Number(localStorage.getItem(SNOOZE_KEY));
+  return Number.isFinite(n) ? n : 0;
 }
 
 /**
@@ -101,6 +128,8 @@ interface Props {
 }
 
 export default function PlanMonthBanner({ onPlanMonth }: Props) {
+  const [snoozedUntil, setSnoozedUntil] = useState<number>(() => readSnoozedUntil());
+
   const state = useLiveQuery(async () => {
     const active = await db.goals.where('status').equals('active').toArray();
     return planMonthBannerState(active, Date.now());
@@ -109,10 +138,20 @@ export default function PlanMonthBanner({ onPlanMonth }: Props) {
   // undefined = first query not resolved yet (don't flash); complete =
   // every anchored module is planned → hide.
   if (state === undefined || state.kind === 'complete') return null;
+  // Snoozed for the next 24h → hide until it lapses.
+  if (Date.now() < snoozedUntil) return null;
 
   const monthName = new Date().toLocaleDateString('en-US', { month: 'long' });
   const inProgress = state.kind === 'in-progress';
   const n = inProgress ? state.modulesRemaining : 0;
+
+  const snooze = () => {
+    const until = Date.now() + SNOOZE_MS;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SNOOZE_KEY, String(until));
+    }
+    setSnoozedUntil(until);
+  };
 
   return (
     <div className="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex items-start gap-3">
@@ -128,12 +167,21 @@ export default function PlanMonthBanner({ onPlanMonth }: Props) {
             : "Set your monthly targets so each week's plan has something to derive from."}
         </div>
       </div>
-      <button
-        onClick={onPlanMonth}
-        className="shrink-0 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-      >
-        {inProgress ? 'Continue planning →' : 'Plan your month →'}
-      </button>
+      <div className="shrink-0 flex flex-col items-stretch gap-1.5">
+        <button
+          onClick={onPlanMonth}
+          className="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 whitespace-nowrap"
+        >
+          {inProgress ? 'Continue planning →' : 'Plan your month →'}
+        </button>
+        <button
+          onClick={snooze}
+          title="Hide until tomorrow"
+          className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs rounded-md text-emerald-800/80 dark:text-emerald-300/80 hover:underline"
+        >
+          <span aria-hidden>🕒</span> remind me tomorrow
+        </button>
+      </div>
     </div>
   );
 }

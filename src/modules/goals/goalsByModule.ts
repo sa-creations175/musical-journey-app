@@ -155,7 +155,18 @@ export function groupByModule(
   return result;
 }
 
-function goalModuleId(
+/**
+ * Canonical module assignment for a single goal — the SAME mapping the
+ * by-module view uses. Umbrella → derived from its children's metrics;
+ * standalone → moduleForMetric(targetMetric). Returns null for
+ * cross-module umbrellas and goals with no derivable module.
+ *
+ * NOTE: this is metric/umbrella-based, NOT relatedModules-based. Some
+ * goals carry empty relatedModules (e.g. practice-consistency), so any
+ * "which module is this goal" check must go through here to stay
+ * consistent with the rest of the app.
+ */
+export function goalModuleId(
   goal: Goal,
   allGoals: ReadonlyArray<Goal>,
 ): GoalFlowModuleId | null {

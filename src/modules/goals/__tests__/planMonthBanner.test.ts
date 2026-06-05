@@ -88,18 +88,26 @@ describe('hasPlannedCurrentMonth', () => {
 });
 
 describe('planMonthBannerState', () => {
+  // Module identity resolves via goalModuleId → moduleForMetric, so the
+  // metric prefix (not relatedModules) decides the module.
+  const METRIC: Record<string, string> = {
+    'harmonic-fluency': 'harmonic_fluency_coverage_at_acquired',
+    'ear-training': 'ear_training_coverage_at_acquired',
+    'practice-consistency': 'practice_days_per_cadence',
+  };
   const yearly = (moduleId: string, overrides: Partial<Goal> = {}): Goal =>
     mkGoal({
       id: `yearly-${moduleId}`,
       scope: 'yearly',
+      targetMetric: METRIC[moduleId],
       relatedModules: [moduleId],
-      targetMetric: null,
       ...overrides,
     });
   const monthly = (moduleId: string, overrides: Partial<Goal> = {}): Goal =>
     mkGoal({
       id: `monthly-${moduleId}`,
       scope: 'monthly',
+      targetMetric: METRIC[moduleId],
       relatedModules: [moduleId],
       startDate: JUNE_START,
       targetDate: JUNE_END,
@@ -162,5 +170,29 @@ describe('planMonthBannerState', () => {
     // not-started.
     expect(planMonthBannerState([yearly('harmonic-fluency'), lastMonth], NOW))
       .toEqual({ kind: 'not-started' });
+  });
+
+  it('REGRESSION: a practice-consistency monthly with empty relatedModules covers its anchor', () => {
+    // The consistency monthly goal carries relatedModules: [] — the old
+    // relatedModules-based check never matched it, so the banner was
+    // stuck at "1 module still needs goals". Module identity now comes
+    // from the metric (practice_days_per_cadence → practice-consistency),
+    // so the anchor reads as covered → complete.
+    const anchor = yearly('practice-consistency');
+    const consistencyMonthly = monthly('practice-consistency', { relatedModules: [] });
+    expect(planMonthBannerState([anchor, consistencyMonthly], NOW))
+      .toEqual({ kind: 'complete' });
+  });
+
+  it('counts a yearly umbrella anchor + monthly umbrella via their children', () => {
+    // Umbrella anchor (targetMetric null) with a yearly child carrying
+    // the metric; covered by a monthly umbrella + child the same way.
+    const yearlyUmbrella = mkGoal({ id: 'y-umb', scope: 'yearly', isUmbrella: true, targetMetric: null, relatedModules: [] });
+    const yearlyChild = mkGoal({ id: 'y-child', scope: 'yearly', parentGoalId: 'y-umb', targetMetric: 'ear_training_coverage_at_acquired', relatedModules: [] });
+    const monthlyUmbrella = mkGoal({ id: 'm-umb', scope: 'monthly', isUmbrella: true, targetMetric: null, relatedModules: [], startDate: JUNE_START, targetDate: JUNE_END });
+    const monthlyChild = mkGoal({ id: 'm-child', scope: 'monthly', parentGoalId: 'm-umb', targetMetric: 'ear_training_coverage_at_acquired', relatedModules: [], startDate: JUNE_START, targetDate: JUNE_END });
+    expect(
+      planMonthBannerState([yearlyUmbrella, yearlyChild, monthlyUmbrella, monthlyChild], NOW),
+    ).toEqual({ kind: 'complete' });
   });
 });
