@@ -5,7 +5,7 @@
  * the current month). Carry-over stubs don't count as planning.
  */
 import { describe, expect, it } from 'vitest';
-import { hasPlannedCurrentMonth } from '../PlanMonthBanner';
+import { hasPlannedCurrentMonth, planMonthBannerState } from '../PlanMonthBanner';
 import { CARRYOVER_DESCRIPTION_PREFIX } from '../carryoverAccept';
 import type { Goal } from '../../../lib/db';
 
@@ -84,5 +84,83 @@ describe('hasPlannedCurrentMonth', () => {
   it('counts a monthly umbrella as planning the month', () => {
     const umbrella = mkGoal({ isUmbrella: true, targetMetric: null });
     expect(hasPlannedCurrentMonth([umbrella], NOW)).toBe(true);
+  });
+});
+
+describe('planMonthBannerState', () => {
+  const yearly = (moduleId: string, overrides: Partial<Goal> = {}): Goal =>
+    mkGoal({
+      id: `yearly-${moduleId}`,
+      scope: 'yearly',
+      relatedModules: [moduleId],
+      targetMetric: null,
+      ...overrides,
+    });
+  const monthly = (moduleId: string, overrides: Partial<Goal> = {}): Goal =>
+    mkGoal({
+      id: `monthly-${moduleId}`,
+      scope: 'monthly',
+      relatedModules: [moduleId],
+      startDate: JUNE_START,
+      targetDate: JUNE_END,
+      ...overrides,
+    });
+
+  it('no goals at all → complete (no anchored modules require planning)', () => {
+    expect(planMonthBannerState([], NOW)).toEqual({ kind: 'complete' });
+  });
+
+  it('anchored module with no monthly goal → not-started', () => {
+    expect(planMonthBannerState([yearly('harmonic-fluency')], NOW))
+      .toEqual({ kind: 'not-started' });
+  });
+
+  it('the single anchored module is covered by a June monthly → complete', () => {
+    expect(
+      planMonthBannerState([yearly('harmonic-fluency'), monthly('harmonic-fluency')], NOW),
+    ).toEqual({ kind: 'complete' });
+  });
+
+  it('two anchors, one covered → in-progress with 1 remaining', () => {
+    const goals = [
+      yearly('harmonic-fluency'),
+      yearly('ear-training'),
+      monthly('harmonic-fluency'),
+    ];
+    expect(planMonthBannerState(goals, NOW))
+      .toEqual({ kind: 'in-progress', modulesRemaining: 1 });
+  });
+
+  it('two anchors, none covered → not-started (no monthly goals exist yet)', () => {
+    expect(planMonthBannerState([yearly('harmonic-fluency'), yearly('ear-training')], NOW))
+      .toEqual({ kind: 'not-started' });
+  });
+
+  it('a module without a yearly anchor does not block dismissal', () => {
+    // HF anchored + covered. ET has neither anchor nor monthly → not
+    // required, so the month reads as complete.
+    expect(
+      planMonthBannerState([yearly('harmonic-fluency'), monthly('harmonic-fluency')], NOW),
+    ).toEqual({ kind: 'complete' });
+  });
+
+  it('a carry-over stub does NOT cover an anchored module', () => {
+    const carry = monthly('harmonic-fluency', {
+      description: `${CARRYOVER_DESCRIPTION_PREFIX} — 202 items`,
+    });
+    expect(planMonthBannerState([yearly('harmonic-fluency'), carry], NOW))
+      .toEqual({ kind: 'not-started' });
+  });
+
+  it('last month\'s monthly does not cover the current month', () => {
+    const lastMonth = monthly('harmonic-fluency', {
+      startDate: new Date(2026, 4, 1).getTime(),
+      targetDate: MAY_END,
+    });
+    // covered=none, but a (non-overlapping) monthly exists elsewhere?
+    // No — it doesn't overlap June, and there's no June monthly, so
+    // not-started.
+    expect(planMonthBannerState([yearly('harmonic-fluency'), lastMonth], NOW))
+      .toEqual({ kind: 'not-started' });
   });
 });
