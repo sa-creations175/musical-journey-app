@@ -342,7 +342,7 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
         {!hasPlayed ? (
           <button
             onClick={startNew}
-            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
             play interval
           </button>

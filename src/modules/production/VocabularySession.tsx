@@ -486,7 +486,7 @@ export default function VocabularySession({ onBack }: Props) {
           <div>
             <button
               onClick={handleStart}
-              className="px-5 py-2.5 rounded-lg bg-production text-white text-sm font-medium hover:opacity-90"
+              className="w-full py-3.5 rounded-xl bg-production text-white text-base font-semibold shadow-sm hover:opacity-90"
             >
               Start drill
             </button>

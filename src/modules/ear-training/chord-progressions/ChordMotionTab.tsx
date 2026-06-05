@@ -861,7 +861,7 @@ export default function ChordMotionTab({ attempts }: Props) {
           <button
             onClick={nextRound}
             disabled={activePool.length === 0}
-            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
           >
             play motion
           </button>

@@ -44,7 +44,7 @@ export default function ChordProgressionQuiz() {
     <div className="max-w-2xl mx-auto p-3 sm:p-6 space-y-4">
 
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="space-y-3">
           <div className="text-[11px] text-neutral-500">
             <span className="font-mono tabular-nums">{seenCount}</span> section
             {seenCount === 1 ? '' : 's'} reviewed
@@ -52,7 +52,7 @@ export default function ChordProgressionQuiz() {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
             Start drill
           </button>
