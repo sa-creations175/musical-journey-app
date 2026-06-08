@@ -5,7 +5,8 @@
  * rows exist yet for those modules.
  *
  * Scenarios:
- *   · context !== 'full' → no-op (keys / laptop / phone unaffected)
+ *   · keys → no-op (HF / ET / Production out of scope on keys)
+ *   · laptop / phone / full → inject (modules pass the context filter)
  *   · no relevant goal → no injection
  *   · HF goal + no HF block → HF cold-start injected
  *   · HF goal + HF block already present → no-op for HF
@@ -59,11 +60,19 @@ function blk(moduleRef: string, id = `block-${moduleRef}`): AlgorithmBlock {
 }
 
 describe('maybeInjectNonKeyboardColdStartBlocks — context gating', () => {
-  it('no-op on keys / laptop / phone — feature is full-session only', () => {
+  it('no-op on keys — HF / ET / Production are out of scope there', () => {
     const goals = [mkGoal({ targetMetric: 'harmonic_fluency_coverage_at_acquired' })];
-    for (const ctx of ['keys', 'laptop', 'phone'] as const) {
+    const out = maybeInjectNonKeyboardColdStartBlocks([], goals, 'keys');
+    expect(out).toEqual([]);
+  });
+
+  it('injects on laptop / phone / full — these modules pass the context filter', () => {
+    const goals = [mkGoal({ targetMetric: 'harmonic_fluency_coverage_at_acquired' })];
+    for (const ctx of ['laptop', 'phone', 'full'] as const) {
       const out = maybeInjectNonKeyboardColdStartBlocks([], goals, ctx as PracticeSessionContext);
-      expect(out).toEqual([]);
+      const hf = out.find(b => b.moduleRef === 'harmonic-fluency');
+      expect(hf, `expected HF cold-start on ${ctx}`).toBeDefined();
+      expect(hf!.id).toBe('block-harmonic-fluency-cold-start');
     }
   });
 

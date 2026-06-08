@@ -1780,8 +1780,17 @@ const ET_COLD_START_GATED_MODULES: ReadonlySet<string> = new Set([
  * own UI handles "what to practice first" with domain knowledge
  * that doesn't belong in the algorithm layer.
  *
- * Gated on context === 'full' inside the helper — no-op for keys /
- * laptop / phone arcs (which have their own filtering logic).
+ * Fires on any context where the target module passes the context
+ * hard filter (`isModuleAllowedForContext`), checked per module:
+ *   · full   → HF / ET / Production all pass.
+ *   · laptop / phone → HF / ET / Production pass (only S&P is
+ *     excluded there, and S&P isn't in this list — it has its own
+ *     keyboard cold-start path).
+ *   · keys   → none of these modules pass (keys is Shapes +
+ *     Repertoire only), so this is a no-op on keys.
+ * The earlier `context === 'full'` hard gate left a known hole on
+ * laptop / phone, where these modules are allowed and foregrounded
+ * but a first-time-in-module goal still produced nothing.
  *
  * ET submodules also honor the tier-eligibility gate: a goal for
  * 'chord-progressions' or 'scales-modes' that isn't yet unlocked
@@ -1801,8 +1810,6 @@ export function maybeInjectNonKeyboardColdStartBlocks(
    *  via `loadEtEligibleByModule`. */
   etEligibleByModule?: ReadonlyMap<string, ReadonlySet<string>>,
 ): AlgorithmBlock[] {
-  if (context !== 'full') return blocks;
-
   // Build the set of moduleRefs any active goal touches via its
   // candidate spec. Umbrella / unsupported / song_proficiency /
   // production_count specs all yield no moduleRefs here — they're
@@ -1820,6 +1827,11 @@ export function maybeInjectNonKeyboardColdStartBlocks(
   for (const moduleRef of NON_KEYBOARD_COLD_START_MODULES) {
     if (existingModules.has(moduleRef)) continue;
     if (!goalTouchedModules.has(moduleRef)) continue;
+    // Context hard filter — only seed a cold-start for a module the
+    // current context actually allows (e.g. nothing on keys, where
+    // these modules are out of scope; everything on full; HF/ET/
+    // Production on laptop / phone).
+    if (!isModuleAllowedForContext(moduleRef, context)) continue;
     // ET tier gate — skip submodules whose eligible set is empty
     // (locked tiers or stages with no introduced items). Modules
     // absent from the map are ungated.
