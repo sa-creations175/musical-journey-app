@@ -135,9 +135,17 @@ import {
   shapeShapesBlock,
   type ShapesSplitContext,
 } from '../shapes-and-patterns/shapesSplit';
-import { getSPUnlockedTier } from '../shapes-and-patterns/spTiers';
+import {
+  getSPUnlockedTier,
+  getTierForShape,
+  isTrackedShape,
+  type SPTier,
+} from '../shapes-and-patterns/spTiers';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
-import { itemRefMatcherForCoverageGroup } from '../goals/shapesCoverageGroups';
+import {
+  itemRefMatcherForCoverageGroup,
+  enumerateChordShapeItemRefs,
+} from '../goals/shapesCoverageGroups';
 import { COVERAGE_SPECIFIC_METRIC } from '../goals/coverageMetrics';
 // loadActiveSpotlight / isSongComfortableInOriginalKey are no longer
 // imported here — the SotM-anchor injection into the general Scales
@@ -316,11 +324,19 @@ export async function buildSessionProposals(
     repertoireSplit,
     inputs.context,
   );
-  const withColdStart = maybeInjectNonKeyboardColdStartBlocks(
+  const withNonKbColdStart = maybeInjectNonKeyboardColdStartBlocks(
     withRepColdStart,
     goals,
     inputs.context,
     etEligibleByModule,
+  );
+  // S&P cold-start — seeds a chord-shape block (+ scales warm-up) when
+  // a coverage goal's target items have no spacingState rows yet.
+  const withColdStart = await maybeInjectShapesColdStartBlock(
+    withNonKbColdStart,
+    goals,
+    spacingRows,
+    inputs.context,
   );
   if (withColdStart.length === 0) return [];
   const itemLabels = resolveShapesDrillLabels(withColdStart);
@@ -492,11 +508,20 @@ export async function buildSessionPlan(
   // aggregator produces zero candidates for them. This seeds a
   // discoverable entry point per module so first full sessions don't
   // surface keyboard-only proposals.
-  const moduleBlocks = maybeInjectNonKeyboardColdStartBlocks(
+  const withNonKbColdStart = maybeInjectNonKeyboardColdStartBlocks(
     repBlocks,
     goals,
     inputs.context,
     etEligibleByModule,
+  );
+  // S&P cold-start — injected BEFORE abundance detection so an S&P-only
+  // coverage goal with no spacing rows yet contributes to the candidate
+  // pool instead of falsely tripping the queue-cleared path.
+  const moduleBlocks = await maybeInjectShapesColdStartBlock(
+    withNonKbColdStart,
+    goals,
+    spacingRows,
+    inputs.context,
   );
 
   const candidatePoolSize = moduleBlocks.reduce(
@@ -1137,11 +1162,17 @@ export async function buildSessionProposalsForPath(
     repertoireSplit,
     inputs.context,
   );
-  const filteredWithColdStart = maybeInjectNonKeyboardColdStartBlocks(
+  const filteredWithNonKbColdStart = maybeInjectNonKeyboardColdStartBlocks(
     filteredWithRepColdStart,
     goals,
     inputs.context,
     etEligibleByModule,
+  );
+  const filteredWithColdStart = await maybeInjectShapesColdStartBlock(
+    filteredWithNonKbColdStart,
+    goals,
+    spacingRows,
+    inputs.context,
   );
   if (filteredWithColdStart.length > 0) {
     const filteredItemLabels = resolveShapesDrillLabels(filteredWithColdStart);
@@ -1178,11 +1209,17 @@ export async function buildSessionProposalsForPath(
     repertoireSplit,
     inputs.context,
   );
-  const fallbackWithColdStart = maybeInjectNonKeyboardColdStartBlocks(
+  const fallbackWithNonKbColdStart = maybeInjectNonKeyboardColdStartBlocks(
     fallbackWithRepColdStart,
     goals,
     inputs.context,
     etEligibleByModule,
+  );
+  const fallbackWithColdStart = await maybeInjectShapesColdStartBlock(
+    fallbackWithNonKbColdStart,
+    goals,
+    spacingRows,
+    inputs.context,
   );
   if (fallbackWithColdStart.length === 0) return [];
   const fallbackItemLabels = resolveShapesDrillLabels(fallbackWithColdStart);
@@ -1802,6 +1839,106 @@ export function maybeInjectNonKeyboardColdStartBlocks(
   }
   if (additions.length === 0) return blocks;
   return [...blocks, ...additions];
+}
+
+/**
+ * S&P cold-start — the keyboard-module counterpart to
+ * `maybeInjectRepertoireColdStartBlock`.
+ *
+ * `aggregateGoalCandidatesByModule` builds an S&P block only from
+ * existing spacingState rows: `resolveCandidates` is a pure row
+ * filter, so chord-shape items with no row are never enumerated. A
+ * coverage goal like "cover all 48 major-triad inversions" therefore
+ * produces a weekly need but NO session block until the user has
+ * manually drilled the items at least once — the first-time-in-module
+ * deadlock that left only Mental Visualization showing for S&P.
+ *
+ * Unlike HF/ET/Production, S&P can't ride
+ * `maybeInjectNonKeyboardColdStartBlocks`: it's keyboard-required and
+ * excluded from that list, and — more fundamentally — its downstream
+ * split (`shapeShapesBlock` → `buildShapesWalk`) walks the block's
+ * itemRefs to build the chord-shape drill list, so an empty-itemRefs
+ * synthetic block would render nothing. This injector instead
+ * enumerates the goal's target chord-shape itemRefs from the catalog
+ * (`enumerateChordShapeItemRefs`, scoped by the coverage spec's
+ * itemRefFilter), drops any that already have a spacingState row
+ * (covered / in-progress — those reach the aggregator normally) or
+ * sit above the user's unlocked S&P tier, and seeds one SHAPES block.
+ * `buildShapesWalk` builds the walk from those refs; the Scales
+ * warm-up rides along on the same block (shared moduleRef).
+ *
+ * Conditions for injection (mirror the Repertoire injector):
+ *   · context permits S&P (keys / full — not laptop / phone)
+ *   · no S&P block was generated from spacing rows
+ *   · at least one active S&P coverage goal with an un-started,
+ *     in-tier target item.
+ *
+ * NOTE: when SOME target items already have rows, the aggregator
+ * builds an S&P block from those and this injector no-ops — the
+ * never-started items wait until the in-progress set is covered.
+ * Same zero-rows-only contract as the Repertoire / non-keyboard
+ * injectors.
+ */
+export async function maybeInjectShapesColdStartBlock(
+  blocks: AlgorithmBlock[],
+  goals: ReadonlyArray<Goal>,
+  spacingRows: ReadonlyArray<SpacingState>,
+  context: PracticeSessionContext,
+  /** Unlocked S&P tier. Omit in production (fetched via
+   *  getSPUnlockedTier); tests pass a literal to stay DB-free. */
+  unlockedTier?: SPTier,
+): Promise<AlgorithmBlock[]> {
+  if (blocks.some(b => b.moduleRef === SHAPES_MODULE_REF)) return blocks;
+  if (!isModuleAllowedForContext(SHAPES_MODULE_REF, context)) return blocks;
+
+  // Items the user has already touched (any S&P spacing row). In the
+  // no-S&P-block branch these are covered / otherwise non-eligible, so
+  // skip them — cold-start only surfaces genuinely un-started work.
+  const startedRefs = new Set<string>();
+  for (const r of spacingRows) {
+    if (r.moduleRef === SHAPES_MODULE_REF) startedRefs.add(r.itemRef);
+  }
+
+  const universe = enumerateChordShapeItemRefs();
+  const tier = unlockedTier ?? await getSPUnlockedTier();
+
+  const picked: string[] = [];
+  const seen = new Set<string>();
+  for (const goal of goals) {
+    if (goal.status !== 'active') continue;
+    const spec = candidateSpecForGoal(goal);
+    if (spec.kind !== 'coverage') continue;
+    if (!spec.moduleRefs.includes(SHAPES_MODULE_REF)) continue;
+    const filter = spec.itemRefFilter;
+    for (const ref of universe) {
+      if (seen.has(ref)) continue;
+      if (filter && !filter(ref)) continue;
+      if (startedRefs.has(ref)) continue;
+      // parts[1] is the chord-quality id (chord-shape:${quality}:…).
+      const quality = ref.split(':')[1];
+      if (!isTrackedShape(quality)) continue;
+      if (getTierForShape(quality) > tier) continue;
+      seen.add(ref);
+      picked.push(ref);
+      if (picked.length >= MAX_ITEMS_PER_BLOCK) break;
+    }
+    if (picked.length >= MAX_ITEMS_PER_BLOCK) break;
+  }
+
+  if (picked.length === 0) return blocks;
+
+  return [
+    ...blocks,
+    {
+      id: 'block-shapes-cold-start',
+      moduleRef: SHAPES_MODULE_REF,
+      memoryType: safeMemoryType(SHAPES_MODULE_REF),
+      itemRefs: picked,
+      weight: COLD_START_REPERTOIRE_WEIGHT,
+      hasAcquiringItems: false,
+      isKeyboardRequired: isKeyboardRequiredModule(SHAPES_MODULE_REF),
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------

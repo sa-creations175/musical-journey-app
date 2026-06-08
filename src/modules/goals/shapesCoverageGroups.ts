@@ -719,6 +719,43 @@ export function itemRefMatcherForCoverageGroup(
   };
 }
 
+/**
+ * Enumerate the full chord-shape itemRef universe — every
+ * quality × key × acquisition-path inversion state — excluding the
+ * sevenths' `supplementary` state (a practice tool, not an
+ * acquisition item). Key-major iteration order so callers that cap
+ * the result (e.g. the session generator's cold-start injector) get
+ * a spread across qualities within the first few keys rather than
+ * one quality's twelve keys.
+ *
+ * The ref format mirrors `itemRefForSkill` exactly, so the enumerated
+ * refs line up 1:1 with the spacingState rows the drill surfaces
+ * create. Pure catalog enumeration — no DB. Filter the result through
+ * `itemRefMatcherForCoverageGroup` (or a coverage spec's
+ * `itemRefFilter`) to scope it to a specific coverage group.
+ *
+ * Used by the S&P cold-start path to surface a coverage goal's target
+ * items before any of them have a spacingState row (first-time-in-
+ * module), which `resolveCandidates` — a pure row filter — can't do.
+ */
+export function enumerateChordShapeItemRefs(): readonly string[] {
+  const out: string[] = [];
+  for (const keyName of KEYS) {
+    for (const q of CHORD_QUALITIES) {
+      const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
+      for (const state of states) {
+        if (state === 'supplementary') continue;
+        out.push(
+          state === null
+            ? `chord-shape:${q.id}:${keyName}`
+            : `chord-shape:${q.id}:${keyName}:${state}`,
+        );
+      }
+    }
+  }
+  return out;
+}
+
 function chordShapeKindForGroupId(groupId: string): QualityKind | null {
   switch (groupId) {
     case 'chord_shape_triads':       return 'triad';
