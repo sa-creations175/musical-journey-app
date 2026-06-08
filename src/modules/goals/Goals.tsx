@@ -35,10 +35,6 @@ import './devCleanup';
 // WeeklyPlan "last week" totals reflect real practice or stale
 // dev-build clicks. See devInspectActivity.ts.
 import './devInspectActivity';
-// Side-effect import: registers `__wipeLastWeekActivity` and
-// `__wipeMayGoals` browser-console helpers. Temporary dev tools —
-// see devWipe.ts. DO NOT COMMIT (devWipe.ts is untracked locally).
-import './devWipe';
 import YearlyAnchorFlow, { type AnchorModuleId } from './YearlyAnchorFlow';
 import { isNewVocabMetric } from './goalVocabulary';
 import { isSuggestionFlowEditCandidate } from './editLoad';
