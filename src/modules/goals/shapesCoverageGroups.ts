@@ -17,6 +17,17 @@ import {
   type MinorPentStartingPoint,
 } from '../shapes-and-patterns/scaleSkills';
 import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
+import { CIRCLE_OF_FOURTHS, canonicaliseKey } from '../repertoire/circleOfFourths';
+
+// KEYS (catalog spellings — e.g. 'F#') ordered by circle-of-fourths
+// position (C → F → Bb → … → G). Spellings are preserved so the
+// enumerated itemRefs still line up with real spacingState rows; only
+// the order changes. Matches the voice-leading section's key cycle.
+const KEYS_CIRCLE_OF_FOURTHS: ReadonlyArray<string> = [...KEYS].sort(
+  (a, b) =>
+    CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(a) ?? a)
+    - CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(b) ?? b),
+);
 
 /**
  * Count of acquisition-path inversion-state rows per cell, by
@@ -723,10 +734,11 @@ export function itemRefMatcherForCoverageGroup(
  * Enumerate the full chord-shape itemRef universe — every
  * quality × key × acquisition-path inversion state — excluding the
  * sevenths' `supplementary` state (a practice tool, not an
- * acquisition item). Key-major iteration order so callers that cap
- * the result (e.g. the session generator's cold-start injector) get
- * a spread across qualities within the first few keys rather than
- * one quality's twelve keys.
+ * acquisition item). Keys cycle in circle-of-fourths order
+ * (C → F → Bb → … → G, matching the voice-leading section) and
+ * iteration is key-major, so callers that cap the result (e.g. the
+ * session generator's cold-start injector) get a spread across
+ * qualities within the first few circle-of-fourths keys.
  *
  * The ref format mirrors `itemRefForSkill` exactly, so the enumerated
  * refs line up 1:1 with the spacingState rows the drill surfaces
@@ -740,7 +752,7 @@ export function itemRefMatcherForCoverageGroup(
  */
 export function enumerateChordShapeItemRefs(): readonly string[] {
   const out: string[] = [];
-  for (const keyName of KEYS) {
+  for (const keyName of KEYS_CIRCLE_OF_FOURTHS) {
     for (const q of CHORD_QUALITIES) {
       const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
       for (const state of states) {

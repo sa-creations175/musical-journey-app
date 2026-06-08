@@ -80,6 +80,22 @@ const MAJ_TRIAD_GOAL = mkGoal({
   targetUnit: 'chord_shape_triads_maj',
 });
 
+describe('enumerateChordShapeItemRefs — key ordering', () => {
+  it('cycles keys in circle-of-fourths order (catalog spellings)', () => {
+    // Distinct keys in first-seen order — enumeration is key-major.
+    const seen: string[] = [];
+    for (const ref of enumerateChordShapeItemRefs()) {
+      const key = ref.split(':')[2];
+      if (!seen.includes(key)) seen.push(key);
+    }
+    // Circle of fourths, but with the catalog's F# spelling (not Gb) so
+    // refs still match real spacingState rows.
+    expect(seen).toEqual([
+      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G',
+    ]);
+  });
+});
+
 describe('maybeInjectShapesColdStartBlock — context gating', () => {
   it('no-op on laptop / phone (S&P excluded by the context filter)', async () => {
     for (const ctx of ['laptop', 'phone'] as const) {
