@@ -336,6 +336,20 @@ export const NON_KEYBOARD_MODULE_ORDER: ReadonlyMap<string, number> = new Map([
   [PRODUCTION_MODULE_REF, 5],
 ]);
 
+// Block order WITHIN the keyboard-required set. Keyboard blocks already
+// sort ahead of non-keyboard ones at the outer 'full' layer; this map
+// decides their relative order so technique precedes application:
+// Shapes & Patterns (warm-up + technique) before Repertoire
+// (application of that technique to songs), regardless of raw block
+// weight (Repertoire is usually the heaviest block and would otherwise
+// lead). Keys are spacingState moduleRefs; lower index surfaces first.
+// Warm-up sub-blocks carry their parent module's moduleRef, so they
+// stay anchored to it — equal index falls through to phase / weight.
+export const KEYBOARD_MODULE_ORDER: ReadonlyMap<string, number> = new Map([
+  [SHAPES_MODULE_REF,      0],  // warm-up + technique
+  [REPERTOIRE_MODULE_REF,  1],  // application — after technique
+]);
+
 // ─── Mental visualization ─────────────────────────────────────────────────
 //
 // Mental viz is a fixed-time prepended block in laptop / phone /

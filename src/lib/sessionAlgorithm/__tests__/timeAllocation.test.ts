@@ -297,8 +297,9 @@ describe('sequenceBlocks', () => {
     const cogLow  = { id: 'cg-lo', memoryType: 'declarative' as MemoryType, moduleRef: 'harmonic-fluency',  itemRefs: [], weight: 0.3, hasAcquiringItems: false, isKeyboardRequired: false, plannedSeconds: 600, phase: 'review' as const };
 
     const fullSeq = sequenceBlocks([cogHigh, kbLow, cogLow, kbHigh], 'full');
-    // Keyboard bucket first (sorted by weight inside): kb-hi, kb-lo.
-    // Then non-keyboard bucket (sorted by weight inside): cg-hi, cg-lo.
+    // Keyboard bucket first (S&P before Repertoire via KEYBOARD_MODULE_ORDER):
+    // kb-hi (shapes), kb-lo (repertoire). Then non-keyboard bucket by
+    // weight: cg-hi, cg-lo.
     expect(fullSeq.map(b => b.id)).toEqual(['kb-hi', 'kb-lo', 'cg-hi', 'cg-lo']);
 
     // Other contexts: pure weight order — cognitive 2.0 wins.
@@ -319,6 +320,35 @@ describe('sequenceBlocks', () => {
     const cogAcq  = { id: 'cg-acq', memoryType: 'declarative' as MemoryType, moduleRef: 'intervals',          itemRefs: [], weight: 1, hasAcquiringItems: true,  isKeyboardRequired: false, plannedSeconds: 600, phase: 'acquisition' as const };
     const seq = sequenceBlocks([cogAcq, kbReview], 'full');
     expect(seq.map(b => b.id)).toEqual(['kb-rev', 'cg-acq']);
+  });
+
+  it('keyboard tier: S&P sorts before Repertoire even when Repertoire is heavier', () => {
+    // The bug case — Repertoire is the heaviest block, so the old
+    // phase/weight sort put it ahead of S&P within the keyboard tier.
+    // KEYBOARD_MODULE_ORDER now forces technique (S&P) before
+    // application (Repertoire) regardless of weight, on both keys and
+    // full sessions.
+    const sp  = { id: 'sp',  memoryType: 'procedural' as MemoryType,   moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 1.0, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const };
+    const rep = { id: 'rep', memoryType: 'integration' as MemoryType,  moduleRef: 'repertoire',          itemRefs: [], weight: 9.0, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const };
+    expect(sequenceBlocks([rep, sp], 'full').map(b => b.id)).toEqual(['sp', 'rep']);
+    expect(sequenceBlocks([rep, sp], 'keys').map(b => b.id)).toEqual(['sp', 'rep']);
+  });
+
+  it('keyboard tier: same-module blocks stay grouped (warm-up anchored to parent)', () => {
+    // A Repertoire warm-up block (lighter) and the Repertoire body both
+    // carry moduleRef='repertoire', so they share a KEYBOARD_MODULE_ORDER
+    // index and stay grouped together AFTER S&P — the warm-up doesn't get
+    // detached to the front. Within the module, phase/weight decides.
+    const sp       = { id: 'sp',       memoryType: 'procedural' as MemoryType,  moduleRef: 'shapes-and-patterns', itemRefs: [], weight: 5.0, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const };
+    const repWarm  = { id: 'rep-warm', memoryType: 'integration' as MemoryType, moduleRef: 'repertoire',          itemRefs: [], weight: 0.2, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 180, phase: 'review' as const };
+    const repBody  = { id: 'rep-body', memoryType: 'integration' as MemoryType, moduleRef: 'repertoire',          itemRefs: [], weight: 8.0, hasAcquiringItems: false, isKeyboardRequired: true, plannedSeconds: 600, phase: 'review' as const };
+    const seq = sequenceBlocks([repWarm, repBody, sp], 'full').map(b => b.id);
+    // S&P leads; both Repertoire blocks follow, contiguous (grouped).
+    expect(seq[0]).toBe('sp');
+    expect(seq.slice(1).sort()).toEqual(['rep-body', 'rep-warm']);
+    // Within Repertoire, the existing phase/weight order is preserved
+    // (heavier body before lighter warm-up — module order didn't disturb it).
+    expect(seq).toEqual(['sp', 'rep-body', 'rep-warm']);
   });
 
   it('non-keyboard contexts enforce NON_KEYBOARD_MODULE_ORDER: mental viz → ET → HF → Production', () => {

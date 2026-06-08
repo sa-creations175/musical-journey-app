@@ -27,6 +27,7 @@
 import type { MemoryType } from '../db';
 import type { WeeklyPace } from './moduleWeeklyNeed';
 import {
+  KEYBOARD_MODULE_ORDER,
   MEMORY_TYPE_DURATIONS,
   MODULE_DURATION_OVERRIDES,
   NON_KEYBOARD_MODULE_ORDER,
@@ -468,6 +469,21 @@ export function sequenceBlocks(
     // each keyboard / non-keyboard bucket.
     if (keyboardFirst && a.b.isKeyboardRequired !== b.b.isKeyboardRequired) {
       return a.b.isKeyboardRequired ? -1 : 1;
+    }
+    // Keyboard sequencing: within the keyboard-required set, enforce
+    // KEYBOARD_MODULE_ORDER so technique precedes application —
+    // Shapes & Patterns (warm-up + technique) before Repertoire
+    // (application), regardless of raw weight (Repertoire is usually
+    // the heaviest block and would otherwise win the phase/weight
+    // sort). Keyed on moduleRef, so warm-up sub-blocks stay anchored
+    // to their parent module; same-module blocks fall through to the
+    // phase/weight ordering below. Applies in every context that can
+    // surface keyboard blocks (keys + full); no-op elsewhere since
+    // those contexts have no keyboard blocks.
+    if (a.b.isKeyboardRequired && b.b.isKeyboardRequired) {
+      const aOrder = KEYBOARD_MODULE_ORDER.get(a.b.moduleRef) ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = KEYBOARD_MODULE_ORDER.get(b.b.moduleRef) ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
     }
     // Non-keyboard sequencing: enforce NON_KEYBOARD_MODULE_ORDER
     // as the primary sort key for non-keyboard blocks. In
