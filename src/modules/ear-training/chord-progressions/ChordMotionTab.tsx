@@ -704,10 +704,11 @@ export default function ChordMotionTab({ attempts }: Props) {
         </div>
       </div>
 
-      {/* Primary CTA — kept directly under the title (HF pattern: title
-          → CTA → settings) so "play motion" is reachable without
-          scrolling past every setting. Becomes replay / cadence helpers
-          once a round is running. */}
+      {/* Primary CTA — kept directly under the title (order: title →
+          CTA → keyboard + feedback → settings) so "play motion" and the
+          answer surface are reachable without scrolling past every
+          setting. Becomes replay / cadence helpers once a round is
+          running. */}
       {focusProtected && <FluencyProtectionNotice />}
 
       {/* Key label (Full mode only) — reads the round's snapshot
@@ -772,146 +773,6 @@ export default function ChordMotionTab({ attempts }: Props) {
           {round?.scaffold === 'full' ? 'establishing ' + round?.key + ' major…' : 'listen for the tonal centre…'}
         </p>
       )}
-
-      {/* Controls — two groups: "what you'll hear" (audio-shaping
-          scopes) vs "how it's presented" (interaction-shaping).
-          Hidden while focus mode is active so the focus summary
-          stands on its own; scope-editing happens in the focus panel. */}
-      {!focusActive && (
-        <>
-          <section className="space-y-2">
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium text-center">
-              what you'll hear
-            </div>
-            <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
-              <label htmlFor="motion-distance" className="text-neutral-500 justify-self-end">
-                distance:
-              </label>
-              <select
-                id="motion-distance"
-                value={String(distance)}
-                onChange={e => {
-                  const v = e.target.value;
-                  setDistance(v === 'all' ? 'all' : Number(v) as DistanceFilter);
-                }}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-              >
-                <option value="all">all distances</option>
-                {([2, 3, 4, 5, 6, 7] as const).map(d => (
-                  <option key={d} value={d}>{INTERVAL_NAME[d]}s only</option>
-                ))}
-              </select>
-
-              <label htmlFor="motion-direction" className="text-neutral-500 justify-self-end">
-                direction:
-              </label>
-              <select
-                id="motion-direction"
-                value={direction}
-                onChange={e => setDirection(e.target.value as DirectionFilter)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-              >
-                <option value="both">both directions</option>
-                <option value="asc">ascending only</option>
-                <option value="desc">descending only</option>
-              </select>
-
-              <label htmlFor="motion-notes" className="text-neutral-500 justify-self-end">
-                notes:
-              </label>
-              <select
-                id="motion-notes"
-                value={noteContext}
-                onChange={e => setNoteContext(e.target.value as NoteContext)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-                title={noteContext === 'diatonic'
-                  ? 'only motions between scale degrees 1–7 of the major scale'
-                  : 'allow any of the 12 chromatic positions (b2, b3, #4, b6, b7 included)'}
-              >
-                <option value="diatonic">diatonic only</option>
-                <option value="chromatic">all motions (incl. chromatic)</option>
-              </select>
-
-              <label htmlFor="motion-listening" className="text-neutral-500 justify-self-end">
-                listening:
-              </label>
-              <select
-                id="motion-listening"
-                value={listening}
-                onChange={e => setListening(e.target.value as ListeningMode)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-                title="which layers to sound: just the bass roots, full chord voicings, or both layered"
-              >
-                <option value="bass">bass only</option>
-                <option value="chords">chords only</option>
-                <option value="bass-chords">bass + chords</option>
-              </select>
-            </div>
-          </section>
-
-          <hr className="border-neutral-200 dark:border-neutral-800" />
-
-          <section className="space-y-2">
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium text-center">
-              how it's presented
-            </div>
-            <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
-              <label htmlFor="motion-scaffold" className="text-neutral-500 justify-self-end">
-                scaffolding:
-              </label>
-              <select
-                id="motion-scaffold"
-                value={scaffold}
-                onChange={e => setScaffold(e.target.value as Scaffolding)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-                title={scaffoldTitle(scaffold)}
-              >
-                {(['full', 'partial', 'minimal'] as const).map(opt => (
-                  <option key={opt} value={opt}>{SCAFFOLD_LABEL[opt]}</option>
-                ))}
-              </select>
-            </div>
-            <p className="text-[11px] text-neutral-500 text-center">{scaffoldTitle(scaffold)}</p>
-          </section>
-
-          <hr className="border-neutral-200 dark:border-neutral-800" />
-        </>
-      )}
-
-      {/* Focus mode entry + current-scope summary. Lives below both
-          groups because focus is a cross-cutting tool that operates
-          across the entire scope. Also the only control still visible
-          while focus mode is active. */}
-      <div className="flex flex-col items-center gap-2">
-        <button
-          onClick={() => setShowFocusPanel(true)}
-          className="text-xs text-neutral-500 hover:text-fluent"
-        >
-          ⊞ focus on specific motions
-        </button>
-        <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2 flex-wrap justify-center">
-          <span className="text-neutral-500">current scope:</span>
-          <span>
-            {focusActive
-              ? `focused practice — ${focusKeys.length} motion${focusKeys.length === 1 ? '' : 's'} selected`
-              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : INTERVAL_NAME[distance] + 's'} · ${listening === 'bass' ? 'bass only' : listening === 'chords' ? 'chords only' : 'bass + chords'} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
-          </span>
-          {focusActive && (
-            <button
-              onClick={() => setFocusActive(false)}
-              className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
-            >
-              exit focus
-            </button>
-          )}
-        </p>
-      </div>
-
-      {/* Playback speed — kept outside the focus-gated block so users
-          can still adjust tempo while drilling a focused set. */}
-      <div className="flex justify-center">
-        <SpeedControl moduleId={MODULE_ID} />
-      </div>
 
       {/* Keyboard input surface */}
       {round && (runState === 'answering' || runState === 'reveal' || runState === 'motion') && (
@@ -1100,6 +961,148 @@ export default function ChordMotionTab({ attempts }: Props) {
           </>
         );
       })()}
+
+      {/* Settings — pushed below the keyboard + feedback so the answer
+          surface sits directly under the CTA. Two groups: "what you'll
+          hear" (audio-shaping scopes) vs "how it's presented"
+          (interaction-shaping). Hidden while focus mode is active so the
+          focus summary stands on its own; scope-editing happens in the
+          focus panel. */}
+      {!focusActive && (
+        <>
+          <section className="space-y-2">
+            <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium text-center">
+              what you'll hear
+            </div>
+            <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
+              <label htmlFor="motion-distance" className="text-neutral-500 justify-self-end">
+                distance:
+              </label>
+              <select
+                id="motion-distance"
+                value={String(distance)}
+                onChange={e => {
+                  const v = e.target.value;
+                  setDistance(v === 'all' ? 'all' : Number(v) as DistanceFilter);
+                }}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+              >
+                <option value="all">all distances</option>
+                {([2, 3, 4, 5, 6, 7] as const).map(d => (
+                  <option key={d} value={d}>{INTERVAL_NAME[d]}s only</option>
+                ))}
+              </select>
+
+              <label htmlFor="motion-direction" className="text-neutral-500 justify-self-end">
+                direction:
+              </label>
+              <select
+                id="motion-direction"
+                value={direction}
+                onChange={e => setDirection(e.target.value as DirectionFilter)}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+              >
+                <option value="both">both directions</option>
+                <option value="asc">ascending only</option>
+                <option value="desc">descending only</option>
+              </select>
+
+              <label htmlFor="motion-notes" className="text-neutral-500 justify-self-end">
+                notes:
+              </label>
+              <select
+                id="motion-notes"
+                value={noteContext}
+                onChange={e => setNoteContext(e.target.value as NoteContext)}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                title={noteContext === 'diatonic'
+                  ? 'only motions between scale degrees 1–7 of the major scale'
+                  : 'allow any of the 12 chromatic positions (b2, b3, #4, b6, b7 included)'}
+              >
+                <option value="diatonic">diatonic only</option>
+                <option value="chromatic">all motions (incl. chromatic)</option>
+              </select>
+
+              <label htmlFor="motion-listening" className="text-neutral-500 justify-self-end">
+                listening:
+              </label>
+              <select
+                id="motion-listening"
+                value={listening}
+                onChange={e => setListening(e.target.value as ListeningMode)}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                title="which layers to sound: just the bass roots, full chord voicings, or both layered"
+              >
+                <option value="bass">bass only</option>
+                <option value="chords">chords only</option>
+                <option value="bass-chords">bass + chords</option>
+              </select>
+            </div>
+          </section>
+
+          <hr className="border-neutral-200 dark:border-neutral-800" />
+
+          <section className="space-y-2">
+            <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium text-center">
+              how it's presented
+            </div>
+            <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
+              <label htmlFor="motion-scaffold" className="text-neutral-500 justify-self-end">
+                scaffolding:
+              </label>
+              <select
+                id="motion-scaffold"
+                value={scaffold}
+                onChange={e => setScaffold(e.target.value as Scaffolding)}
+                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                title={scaffoldTitle(scaffold)}
+              >
+                {(['full', 'partial', 'minimal'] as const).map(opt => (
+                  <option key={opt} value={opt}>{SCAFFOLD_LABEL[opt]}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[11px] text-neutral-500 text-center">{scaffoldTitle(scaffold)}</p>
+          </section>
+
+          <hr className="border-neutral-200 dark:border-neutral-800" />
+        </>
+      )}
+
+      {/* Focus mode entry + current-scope summary. Lives below both
+          groups because focus is a cross-cutting tool that operates
+          across the entire scope. Also the only control still visible
+          while focus mode is active. */}
+      <div className="flex flex-col items-center gap-2">
+        <button
+          onClick={() => setShowFocusPanel(true)}
+          className="text-xs text-neutral-500 hover:text-fluent"
+        >
+          ⊞ focus on specific motions
+        </button>
+        <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2 flex-wrap justify-center">
+          <span className="text-neutral-500">current scope:</span>
+          <span>
+            {focusActive
+              ? `focused practice — ${focusKeys.length} motion${focusKeys.length === 1 ? '' : 's'} selected`
+              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : INTERVAL_NAME[distance] + 's'} · ${listening === 'bass' ? 'bass only' : listening === 'chords' ? 'chords only' : 'bass + chords'} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
+          </span>
+          {focusActive && (
+            <button
+              onClick={() => setFocusActive(false)}
+              className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
+            >
+              exit focus
+            </button>
+          )}
+        </p>
+      </div>
+
+      {/* Playback speed — kept outside the focus-gated block so users
+          can still adjust tempo while drilling a focused set. */}
+      <div className="flex justify-center">
+        <SpeedControl moduleId={MODULE_ID} />
+      </div>
 
       {showFocusPanel && (
         <ItemSelectionPanel
