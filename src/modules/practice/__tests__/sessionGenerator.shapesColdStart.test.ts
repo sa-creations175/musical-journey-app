@@ -22,7 +22,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { maybeInjectShapesColdStartBlock } from '../sessionGenerator';
-import { itemRefMatcherForCoverageGroup } from '../../goals/shapesCoverageGroups';
+import {
+  itemRefMatcherForCoverageGroup,
+  enumerateChordShapeItemRefs,
+} from '../../goals/shapesCoverageGroups';
 import { getTierForShape } from '../../shapes-and-patterns/spTiers';
 import type { AlgorithmBlock } from '../../../lib/sessionAlgorithm/timeAllocation';
 import type { Goal, PracticeSessionContext, SpacingState } from '../../../lib/db';
@@ -122,13 +125,76 @@ describe('maybeInjectShapesColdStartBlock — injection', () => {
     expect(block!.itemRefs.every(matcher)).toBe(true);
   });
 
-  it('no-op when an S&P block was already built from spacing rows', async () => {
-    const existing = [blk(SHAPES, 'block-sp-real')];
+  it('supplements an existing in-progress block with never-started items (mix, not replace)', async () => {
+    // Aggregator built a real S&P block from one in-progress cell.
+    const real: AlgorithmBlock = {
+      id: 'block-sp-real',
+      moduleRef: SHAPES,
+      memoryType: 'procedural',
+      itemRefs: ['chord-shape:maj:C:root'],
+      weight: 7,
+      hasAcquiringItems: true,
+      isKeyboardRequired: true,
+    };
+    const rows = [mkRow('chord-shape:maj:C:root')];
     const out = await maybeInjectShapesColdStartBlock(
-      existing, [MAJ_TRIAD_GOAL], [], 'full', 4,
+      [real], [MAJ_TRIAD_GOAL], rows, 'full', 4,
+    );
+    // Same block, supplemented in place — no second block added.
+    expect(out).toHaveLength(1);
+    const block = out[0];
+    expect(block.id).toBe('block-sp-real');
+    // Identity fields preserved; only itemRefs grew.
+    expect(block.weight).toBe(7);
+    expect(block.hasAcquiringItems).toBe(true);
+    // In-progress item retained (exactly once, at the front), new
+    // items appended, capped at 20.
+    expect(block.itemRefs[0]).toBe('chord-shape:maj:C:root');
+    expect(block.itemRefs.length).toBe(20);
+    expect(block.itemRefs.filter(r => r === 'chord-shape:maj:C:root')).toHaveLength(1);
+    // Appended items are all un-started + scoped to the goal's group.
+    const matcher = itemRefMatcherForCoverageGroup('chord_shape_triads_maj')!;
+    expect(block.itemRefs.every(matcher)).toBe(true);
+  });
+
+  it('no-op when the existing block is already full', async () => {
+    const fullRefs = Array.from({ length: 20 }, (_, i) => `chord-shape:maj:C:root-${i}`);
+    const real: AlgorithmBlock = {
+      id: 'block-sp-real',
+      moduleRef: SHAPES,
+      memoryType: 'procedural',
+      itemRefs: fullRefs,
+      weight: 7,
+      hasAcquiringItems: true,
+      isKeyboardRequired: true,
+    };
+    const out = await maybeInjectShapesColdStartBlock(
+      [real], [MAJ_TRIAD_GOAL], [], 'full', 4,
     );
     expect(out).toHaveLength(1);
-    expect(out[0].id).toBe('block-sp-real');
+    expect(out[0].itemRefs).toEqual(fullRefs);
+  });
+
+  it('no-op when the existing block exists but the goal has no never-started items left', async () => {
+    // Every major-triad target cell already has a spacing row → nothing
+    // un-started remains to supplement with.
+    const matcher = itemRefMatcherForCoverageGroup('chord_shape_triads_maj')!;
+    const allStarted = enumerateChordShapeItemRefs().filter(matcher);
+    const rows = allStarted.map(mkRow);
+    const real: AlgorithmBlock = {
+      id: 'block-sp-real',
+      moduleRef: SHAPES,
+      memoryType: 'procedural',
+      itemRefs: allStarted.slice(0, 3),
+      weight: 7,
+      hasAcquiringItems: true,
+      isKeyboardRequired: true,
+    };
+    const out = await maybeInjectShapesColdStartBlock(
+      [real], [MAJ_TRIAD_GOAL], rows, 'full', 4,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].itemRefs).toEqual(allStarted.slice(0, 3));
   });
 
   it('excludes target items that already have a spacing row (un-started only)', async () => {

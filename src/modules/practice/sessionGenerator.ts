@@ -1879,17 +1879,32 @@ export function maybeInjectNonKeyboardColdStartBlocks(
  * `buildShapesWalk` builds the walk from those refs; the Scales
  * warm-up rides along on the same block (shared moduleRef).
  *
- * Conditions for injection (mirror the Repertoire injector):
- *   · context permits S&P (keys / full — not laptop / phone)
- *   · no S&P block was generated from spacing rows
- *   · at least one active S&P coverage goal with an un-started,
- *     in-tier target item.
+ * Two modes, both gated on context permitting S&P (keys / full) and
+ * at least one active S&P coverage goal with an un-started, in-tier
+ * target item:
  *
- * NOTE: when SOME target items already have rows, the aggregator
- * builds an S&P block from those and this injector no-ops — the
- * never-started items wait until the in-progress set is covered.
- * Same zero-rows-only contract as the Repertoire / non-keyboard
- * injectors.
+ *   · COLD START — no S&P block was generated from spacing rows.
+ *     Seed a new SHAPES block from the enumerated un-started items
+ *     (capped at MAX_ITEMS_PER_BLOCK).
+ *
+ *   · SUPPLEMENT — the aggregator already built a SHAPES block from
+ *     in-progress rows, but the goal still has never-started target
+ *     items. Top the existing block up to MAX_ITEMS_PER_BLOCK with
+ *     those items so the walk is a mix of in-progress + new work,
+ *     not in-progress only. The block keeps its id / weight / flags;
+ *     only itemRefs grow.
+ *
+ * Never-started items carry no spacingState row, so they don't enter
+ * the aggregator's per-item weight sort and don't boost the block's
+ * weight — they inherit the block's existing allocation priority and
+ * surface in the chord-shape walk via buildShapesWalk (which treats a
+ * null nextDueAt as due). pickStartingKey ranks never-engaged keys
+ * ahead of engaged ones, so new keys tend to lead the walk; mixed
+ * keys keep their in-progress engagement recency, so existing work
+ * isn't starved.
+ *
+ * When the existing block is already full (≥ MAX_ITEMS_PER_BLOCK) or
+ * no never-started target items remain, this is a no-op.
  */
 export async function maybeInjectShapesColdStartBlock(
   blocks: AlgorithmBlock[],
@@ -1900,21 +1915,27 @@ export async function maybeInjectShapesColdStartBlock(
    *  getSPUnlockedTier); tests pass a literal to stay DB-free. */
   unlockedTier?: SPTier,
 ): Promise<AlgorithmBlock[]> {
-  if (blocks.some(b => b.moduleRef === SHAPES_MODULE_REF)) return blocks;
   if (!isModuleAllowedForContext(SHAPES_MODULE_REF, context)) return blocks;
 
-  // Items the user has already touched (any S&P spacing row). In the
-  // no-S&P-block branch these are covered / otherwise non-eligible, so
-  // skip them — cold-start only surfaces genuinely un-started work.
+  const existingShapes = blocks.find(b => b.moduleRef === SHAPES_MODULE_REF);
+  const existingCount = existingShapes?.itemRefs.length ?? 0;
+  // Existing block already full — no room to supplement, nothing to do.
+  if (existingShapes && existingCount >= MAX_ITEMS_PER_BLOCK) return blocks;
+
+  // Items the user has already touched (any S&P spacing row): covered,
+  // in-progress, or already sitting in the existing block. Cold-start
+  // only surfaces genuinely un-started work, so skip all of them.
   const startedRefs = new Set<string>();
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) startedRefs.add(r.itemRef);
   }
+  const inBlock = new Set<string>(existingShapes?.itemRefs ?? []);
 
   const universe = enumerateChordShapeItemRefs();
   const tier = unlockedTier ?? await getSPUnlockedTier();
 
-  const picked: string[] = [];
+  // Never-started, in-tier items matching an active S&P coverage goal.
+  const candidates: string[] = [];
   const seen = new Set<string>();
   for (const goal of goals) {
     if (goal.status !== 'active') continue;
@@ -1925,27 +1946,38 @@ export async function maybeInjectShapesColdStartBlock(
     for (const ref of universe) {
       if (seen.has(ref)) continue;
       if (filter && !filter(ref)) continue;
-      if (startedRefs.has(ref)) continue;
+      if (startedRefs.has(ref) || inBlock.has(ref)) continue;
       // parts[1] is the chord-quality id (chord-shape:${quality}:…).
       const quality = ref.split(':')[1];
       if (!isTrackedShape(quality)) continue;
       if (getTierForShape(quality) > tier) continue;
       seen.add(ref);
-      picked.push(ref);
-      if (picked.length >= MAX_ITEMS_PER_BLOCK) break;
+      candidates.push(ref);
     }
-    if (picked.length >= MAX_ITEMS_PER_BLOCK) break;
   }
 
-  if (picked.length === 0) return blocks;
+  if (candidates.length === 0) return blocks;
 
+  // SUPPLEMENT — top the existing in-progress block up to the cap.
+  if (existingShapes) {
+    const room = MAX_ITEMS_PER_BLOCK - existingCount;
+    const additions = candidates.slice(0, room);
+    if (additions.length === 0) return blocks;
+    const merged: AlgorithmBlock = {
+      ...existingShapes,
+      itemRefs: [...existingShapes.itemRefs, ...additions],
+    };
+    return blocks.map(b => (b === existingShapes ? merged : b));
+  }
+
+  // COLD START — seed a fresh block from the un-started items.
   return [
     ...blocks,
     {
       id: 'block-shapes-cold-start',
       moduleRef: SHAPES_MODULE_REF,
       memoryType: safeMemoryType(SHAPES_MODULE_REF),
-      itemRefs: picked,
+      itemRefs: candidates.slice(0, MAX_ITEMS_PER_BLOCK),
       weight: COLD_START_REPERTOIRE_WEIGHT,
       hasAcquiringItems: false,
       isKeyboardRequired: isKeyboardRequiredModule(SHAPES_MODULE_REF),
