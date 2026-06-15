@@ -150,6 +150,14 @@ export interface Song {
    *  Preserved for backward compatibility with the initial Song schema. */
   audioLinks: string[];
   addedDate: number;
+  /** Unix epoch ms of the last local write to this row. Stamped on
+   *  every write path (Date.now()) and used by the sync engine for
+   *  last-write-wins: pullOneTable skips overwriting a local row whose
+   *  `updatedAt` is newer than the incoming cloud `updated_at`. Added
+   *  in Dexie v30 (backfilled to Date.now() on existing rows). Rides in
+   *  the `data` JSONB blob across sync (also mirrored to the Postgres
+   *  `updated_at` column via the songs sync mapping). */
+  updatedAt: number;
   notes?: string;
   /** @deprecated — carried forward from the original schema. Not used
    *  by the Repertoire module but kept so existing backups round-trip. */
@@ -2967,6 +2975,21 @@ export class AppDB extends Dexie {
     // derivation, the prior behaviour).
     this.version(29).stores({
       weeklyOverrides: 'id, weekStart',
+    });
+
+    // v30 — add `updatedAt` (epoch ms) to Song for sync last-write-wins.
+    // The field is NOT indexed (no equality/range queries on it), so the
+    // songs store string is byte-identical to v22+ — the bump exists to
+    // hang the backfill upgrade off. Stamp every existing row to "now"
+    // so all rows start with a defined timestamp; from here on every
+    // song write path sets `updatedAt: Date.now()` and the pull engine
+    // compares it against the cloud `updated_at` before overwriting.
+    this.version(30).stores({
+      songs: 'id, title, artist, addedDate, stage, learningOrder',
+    }).upgrade(async tx => {
+      await tx.table('songs').toCollection().modify(song => {
+        song.updatedAt = Date.now();
+      });
     });
   }
 }

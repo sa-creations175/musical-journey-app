@@ -89,6 +89,7 @@ export default function WantToLearnView({ onPromoted }: Props) {
       youtubeLink: entry.link?.includes('youtube') ? entry.link : undefined,
       spotifyLink: entry.link?.includes('spotify') ? entry.link : undefined,
       addedDate: now,
+      updatedAt: now,
       learningOrder,
     };
     const sections: SongSection[] = ['Verse', 'Chorus', 'Bridge'].map((name, idx) => ({

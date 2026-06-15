@@ -41,6 +41,7 @@ function maint(songId = 'maint-song', title = 'Maint'): Song {
     stage: 'learning',
     audioLinks: [],
     addedDate: 0,
+    updatedAt: 0,
     learningOrder: 2,
   };
 }

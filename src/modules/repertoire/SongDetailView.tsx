@@ -279,7 +279,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     // also stays in lockstep with the rest of the song row.
     const fresh = await db.songs.get(song.id);
     if (!fresh) return;
-    await db.songs.put({ ...fresh, sectionOrder: next });
+    await db.songs.put({ ...fresh, sectionOrder: next, updatedAt: Date.now() });
   };
 
   // Lead-sheet sections are reordered via an explicit reorder mode
@@ -373,17 +373,28 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         label: v.label?.trim() ? v.label.trim() : undefined,
       }))
       .filter(v => v.url !== '');
+    // Keep the numeric `tempo` in lockstep with the human `tempoLabel`.
+    // The label is free text ("80 BPM", "70–85"); `tempo` is the single
+    // BPM the matrix / playback read. Extract the first integer in the
+    // draft (low end of a range) — matches CellInteractionModal's
+    // numeric tempo write so both surfaces stay consistent. No number in
+    // the draft → clear `tempo`.
+    const tempoMatch = tempoDraft.match(/\d+/);
+    const parsedTempo = tempoMatch ? parseInt(tempoMatch[0], 10) : NaN;
+    const newTempo = Number.isFinite(parsedTempo) && parsedTempo > 0 ? parsedTempo : undefined;
     const patch: Partial<Song> = {
       title: titleDraft.trim() || song.title,
       artist: artistDraft.trim() || song.artist,
       genre: genreDraft.trim() || undefined,
       key: newKey,
       keyNeedsVerification: keyDraft.trim() === song.key ? song.keyNeedsVerification : false,
+      tempo: newTempo,
       tempoLabel: tempoDraft.trim() || undefined,
       timeSignature: newTimeSignature,
       spotifyLink: spotifyDraft.trim() || undefined,
       referenceVideos: cleanedVideos.length > 0 ? cleanedVideos : undefined,
       youtubeLink: undefined,
+      updatedAt: Date.now(),
     };
     // Single transaction over both tables so the matrix's
     // isOriginalKey row stays in lockstep with Song.key. Without the
@@ -425,7 +436,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const saveWhy = async () => {
     if (!song) return;
     const next = whyDraft.trim();
-    await db.songs.update(song.id, { description: next || undefined });
+    await db.songs.update(song.id, { description: next || undefined, updatedAt: Date.now() });
     setWhyEditing(false);
     toast({ message: next ? 'Note saved.' : 'Note cleared.', variant: 'success' });
   };
@@ -433,7 +444,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const saveFullLyrics = async (fullLyrics: string) => {
     if (!song) return;
     const trimmed = fullLyrics.trim();
-    await db.songs.update(song.id, { fullLyrics: trimmed || undefined });
+    await db.songs.update(song.id, { fullLyrics: trimmed || undefined, updatedAt: Date.now() });
     toast({ message: 'Full lyrics saved.', variant: 'success' });
   };
 
@@ -457,14 +468,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const setStage = async (stage: RepertoireStage) => {
     if (!song) return;
     const prev = song.stage ?? DEFAULT_STAGE;
-    await db.songs.update(song.id, { stage });
+    await db.songs.update(song.id, { stage, updatedAt: Date.now() });
     toast({
       message: `Advanced to ${STAGE_LABEL[stage]}.`,
       variant: 'success',
       action: {
         label: 'Undo',
         onClick: async () => {
-          await db.songs.update(song.id, { stage: prev });
+          await db.songs.update(song.id, { stage: prev, updatedAt: Date.now() });
         },
       },
     });

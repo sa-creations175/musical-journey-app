@@ -49,6 +49,14 @@ export const SYNC_TABLES: SyncTableConfig[] = [
     topLevel: [
       { dexie: 'addedDate', pg: 'added_date' },
       { dexie: 'learningOrder', pg: 'learning_order' },
+      // NB: Song.updatedAt is intentionally NOT a topLevel column. It
+      // rides in the `data` JSONB blob (every Dexie field does — see
+      // toPgRow in engine.ts), so it already syncs to Supabase. The
+      // pull-side last-write-wins compares the blob's `updatedAt`
+      // (epoch ms) on both sides — like-for-like, same clock origin.
+      // Mapping it to a TIMESTAMPTZ top-level column would push a bare
+      // epoch-ms integer into a timestamptz column and fail the upsert.
+      // Mirrors the skillAnnotations convention (updatedAt, topLevel: []).
     ] },
   { dexie: 'songSections', pg: 'song_sections', idField: 'id',
     topLevel: [{ dexie: 'songId', pg: 'song_id' }] },

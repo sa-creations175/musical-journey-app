@@ -229,7 +229,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     // view with the new order.
     await db.transaction('rw', db.songs, async () => {
       for (let i = 0; i < newOrder.length; i++) {
-        await db.songs.update(newOrder[i].song.id, { learningOrder: i + 1 });
+        await db.songs.update(newOrder[i].song.id, { learningOrder: i + 1, updatedAt: Date.now() });
       }
     });
   };

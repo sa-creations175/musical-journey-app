@@ -623,7 +623,7 @@ function TempoEditRow({ song }: { song: Song }) {
         console.warn('[matrix] tempo update — song not found', song.id);
         return;
       }
-      await db.songs.put({ ...fresh, tempo: Math.floor(parsed) });
+      await db.songs.put({ ...fresh, tempo: Math.floor(parsed), updatedAt: Date.now() });
       setEditing(false);
       setDraft('');
     } catch (err) {

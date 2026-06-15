@@ -104,6 +104,7 @@ function song(id: string, title: string): Song {
     stage: 'learning',
     audioLinks: [],
     addedDate: NOW,
+    updatedAt: NOW,
     learningOrder: 1,
   };
 }

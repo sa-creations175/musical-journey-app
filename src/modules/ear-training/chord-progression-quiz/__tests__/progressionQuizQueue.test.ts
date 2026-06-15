@@ -22,6 +22,7 @@ function song(id: string, over: Partial<Song> = {}): Song {
     learningOrder: 1,
     audioLinks: [],
     addedDate: 0,
+    updatedAt: 0,
     ...over,
   };
 }

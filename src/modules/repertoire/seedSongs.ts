@@ -510,6 +510,7 @@ async function seedFreshIfEmpty(): Promise<void> {
         learningOrder: i + 1,
         audioLinks: [],
         addedDate: now,
+        updatedAt: now,
       });
       seed.sections.forEach((s, idx) => {
         sectionRows.push({
@@ -543,7 +544,7 @@ async function backfillFullLyricsOnSeeds(): Promise<void> {
       s.title === seed.title && s.artist === seed.artist);
     for (const song of matches) {
       if (song.fullLyrics !== undefined && song.fullLyrics !== '') continue;
-      await db.songs.update(song.id, { fullLyrics: seed.fullLyrics });
+      await db.songs.update(song.id, { fullLyrics: seed.fullLyrics, updatedAt: Date.now() });
     }
   }
 }
@@ -562,7 +563,7 @@ async function refreshSeedAddedDates(): Promise<void> {
     const matches = allSongs.filter(s =>
       s.title === seed.title && s.artist === seed.artist);
     for (const song of matches) {
-      await db.songs.update(song.id, { addedDate: now });
+      await db.songs.update(song.id, { addedDate: now, updatedAt: now });
     }
   }
 }

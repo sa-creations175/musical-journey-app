@@ -15,6 +15,7 @@ function mkSong(): Song {
     title: 'Test Song',
     artist: 'Test Artist',
     addedDate: NOW,
+    updatedAt: NOW,
     audioLinks: [],
     learningOrder: 1,
   } as Song;

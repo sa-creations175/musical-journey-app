@@ -18,6 +18,7 @@ function mkSong(overrides: Partial<Song> = {}): Song {
     learningOrder: 1,
     audioLinks: [],
     addedDate: NOW,
+    updatedAt: NOW,
     ...overrides,
   };
 }

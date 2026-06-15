@@ -123,7 +123,7 @@ function SongComfortablePathChoice({
       // saveOverride in matrix saveMeta).
       const current = await db.songs.get(songId);
       if (current) {
-        const next: Song = { ...current, progressionPath: path };
+        const next: Song = { ...current, progressionPath: path, updatedAt: Date.now() };
         if (path === 'expand-keys') {
           next.expandKeysOrder = generateCircleOfFourthsSequence(
             current.key ?? '',

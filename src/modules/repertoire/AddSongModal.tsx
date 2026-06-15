@@ -84,6 +84,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
       youtubeLink: opts.youtubeLink,
       audioLinks: opts.audioLinks ?? [],
       addedDate: now,
+      updatedAt: now,
       learningOrder,
     };
     const sections: SongSection[] = DEFAULT_SECTIONS.map((name, idx) => ({
