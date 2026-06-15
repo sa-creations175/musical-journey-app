@@ -119,22 +119,27 @@ async function pullOneTable(
     }
   }
 
-  // Overwrite guard: never bulkPut a cloud row on top of a local row
-  // that still has an un-pushed write sitting in the sync queue. In that
-  // window the cloud copy we just fetched is stale relative to the
-  // pending local edit (the classic "save during a session, then a
-  // focus-triggered pull reverts it" race). The local version wins until
-  // its queued write reaches the cloud; a later pull then reflects the
-  // now-matching cloud state. Applies to ALL tables — any pending write,
-  // upsert or delete (a pending delete must not be resurrected either).
+  // Decide which cloud rows actually overwrite local state. Two guards
+  // (see computeRowsToBulkPut):
+  //   1. Pending-write guard — skip rows with an un-pushed local write in
+  //      the sync queue (the focus-pull-reverts-a-fresh-edit race).
+  //   2. Last-write-wins — skip rows whose local copy has a strictly
+  //      newer `updatedAt` than the cloud copy (e.g. Song; epoch ms on
+  //      both sides via the data blob). Tables without `updatedAt` fall
+  //      through to the legacy unconditional overwrite.
   const pendingItems = await db.syncQueue.where('tableName').equals(cfg.dexie).toArray();
   const pendingIds = new Set<string>(pendingItems.map(it => it.rowId));
-  const rowsToPut = pendingIds.size === 0
-    ? cloudRows
-    : cloudRows.filter(row => {
-        const id = row[cfg.idField];
-        return !(typeof id === 'string' && pendingIds.has(id));
-      });
+
+  const lookupIds = cloudRows
+    .map(row => row[cfg.idField])
+    .filter((id): id is string => typeof id === 'string' && id !== '');
+  const localRows = await table.bulkGet(lookupIds);
+  const localById = new Map<string, Record<string, unknown>>();
+  localRows.forEach((r, i) => {
+    if (r) localById.set(lookupIds[i], r as Record<string, unknown>);
+  });
+
+  const rowsToPut = computeRowsToBulkPut(cloudRows, pendingIds, localById, cfg.idField);
 
   if (rowsToPut.length > 0) {
     await table.bulkPut(rowsToPut);
@@ -145,8 +150,55 @@ async function pullOneTable(
 type DexieMiniTable = {
   bulkPut: (rows: unknown[]) => Promise<unknown>;
   bulkDelete: (ids: string[]) => Promise<unknown>;
+  bulkGet: (ids: string[]) => Promise<Array<unknown>>;
   toArray: () => Promise<unknown[]>;
 };
+
+/**
+ * Pure decision for which cloud rows a pull should bulkPut over local
+ * state. Exported so the guards can be unit-tested without Supabase or
+ * Dexie (mirrors computeOrphanIdsForReplacePull).
+ *
+ * A cloud row is written UNLESS one of these holds:
+ *   · it has an un-pushed local write pending in the sync queue
+ *     (`pendingIds`) — the queued local edit is newer than this fetched
+ *     copy by definition, so the cloud copy is stale; or
+ *   · a local row exists whose `updatedAt` is STRICTLY newer than the
+ *     cloud row's `updatedAt` (last-write-wins). Both sides must carry a
+ *     numeric `updatedAt`; if either is missing we can't compare and
+ *     fall through to the overwrite (preserves the legacy behavior for
+ *     tables that have no `updatedAt` field, and for pre-migration rows).
+ *
+ * Ties (equal timestamps) overwrite — cloud is treated as canonical and
+ * the payloads should be identical anyway.
+ */
+export function computeRowsToBulkPut(
+  cloudRows: ReadonlyArray<Record<string, unknown>>,
+  pendingIds: ReadonlySet<string>,
+  localById: ReadonlyMap<string, Record<string, unknown>>,
+  idField: string,
+): Record<string, unknown>[] {
+  const out: Record<string, unknown>[] = [];
+  for (const row of cloudRows) {
+    const id = row[idField];
+    if (typeof id !== 'string' || id === '') continue;
+    if (pendingIds.has(id)) continue;
+    const local = localById.get(id);
+    if (local) {
+      const localTs = local.updatedAt;
+      const cloudTs = row.updatedAt;
+      if (
+        typeof localTs === 'number'
+        && typeof cloudTs === 'number'
+        && localTs > cloudTs
+      ) {
+        continue;
+      }
+    }
+    out.push(row);
+  }
+  return out;
+}
 
 /**
  * Local rows whose `updatedAt` falls within this window of the pull's
