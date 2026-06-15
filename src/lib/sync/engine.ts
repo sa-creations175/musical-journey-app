@@ -188,7 +188,9 @@ export function computeRowsToBulkPut(
   for (const row of cloudRows) {
     const id = row[idField];
     if (typeof id !== 'string' || id === '') continue;
-    if (pendingIds.has(id)) continue;
+    if (pendingIds.has(id)) {
+      continue;
+    }
     const local = localById.get(id);
     if (local) {
       const localTs = local.updatedAt;

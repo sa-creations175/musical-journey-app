@@ -82,7 +82,9 @@ export function installSyncHooks(): void {
       // Snapshot now — Dexie may mutate `obj` between the hook and
       // our deferred work (e.g. if downstream code fills fields).
       const snapshot = { ...obj };
-      setTimeout(() => queueUpsert(cfg, snapshot), 0);
+      setTimeout(() => {
+        queueUpsert(cfg, snapshot);
+      }, 0);
     });
 
     table.hook('updating', (...args: unknown[]) => {
@@ -92,7 +94,9 @@ export function installSyncHooks(): void {
       const obj = (args[2] as UnknownRow) ?? {};
       // Post-update row = old obj merged with new mods.
       const merged = { ...obj, ...mods };
-      setTimeout(() => queueUpsert(cfg, merged), 0);
+      setTimeout(() => {
+        queueUpsert(cfg, merged);
+      }, 0);
     });
 
     table.hook('deleting', (...args: unknown[]) => {
