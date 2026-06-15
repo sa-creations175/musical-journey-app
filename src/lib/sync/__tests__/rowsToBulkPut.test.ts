@@ -57,16 +57,23 @@ describe('computeRowsToBulkPut', () => {
     expect(out.map(r => r.id)).toEqual(['a']);
   });
 
-  it('falls back to overwrite when local has no updatedAt', () => {
+  it('overwrites when local has no updatedAt but cloud does (cloud wins)', () => {
     const cloud = [{ id: 'a', updatedAt: 100 }];
-    const local = localMap([{ id: 'a' }]); // legacy / pre-migration row
+    const local = localMap([{ id: 'a' }]); // legacy / pre-migration local row
     const out = computeRowsToBulkPut(cloud, new Set(), local, 'id');
     expect(out.map(r => r.id)).toEqual(['a']);
   });
 
-  it('falls back to overwrite when cloud has no updatedAt', () => {
-    const cloud = [{ id: 'a' }]; // pre-migration cloud row
+  it('local wins when local has updatedAt and cloud does NOT (pre-fix cloud row)', () => {
+    const cloud = [{ id: 'a' }]; // pre-fix cloud row, no updatedAt in data blob
     const local = localMap([{ id: 'a', updatedAt: 999 }]);
+    const out = computeRowsToBulkPut(cloud, new Set(), local, 'id');
+    expect(out).toEqual([]);
+  });
+
+  it('overwrites when neither side has updatedAt (legacy table behavior)', () => {
+    const cloud = [{ id: 'a' }];
+    const local = localMap([{ id: 'a' }]);
     const out = computeRowsToBulkPut(cloud, new Set(), local, 'id');
     expect(out.map(r => r.id)).toEqual(['a']);
   });

@@ -164,14 +164,19 @@ type DexieMiniTable = {
  *   · it has an un-pushed local write pending in the sync queue
  *     (`pendingIds`) — the queued local edit is newer than this fetched
  *     copy by definition, so the cloud copy is stale; or
- *   · a local row exists whose `updatedAt` is STRICTLY newer than the
- *     cloud row's `updatedAt` (last-write-wins). Both sides must carry a
- *     numeric `updatedAt`; if either is missing we can't compare and
- *     fall through to the overwrite (preserves the legacy behavior for
- *     tables that have no `updatedAt` field, and for pre-migration rows).
+ *   · the local row should win on last-write-wins.
  *
- * Ties (equal timestamps) overwrite — cloud is treated as canonical and
- * the payloads should be identical anyway.
+ * LWW decision (when a local row exists), by `updatedAt` presence:
+ *   · local has ts, cloud has ts  → newer wins (skip if local strictly
+ *                                    newer; overwrite on tie / cloud newer)
+ *   · local has ts, cloud has NO  → local wins, skip overwrite. A pre-fix
+ *                                    cloud row has no `updatedAt` in its
+ *                                    data blob; without this, the very
+ *                                    first mid-session edit of an existing
+ *                                    song would be reverted by a pull.
+ *   · local has NO ts, cloud has  → cloud wins, overwrite
+ *   · neither has ts              → overwrite (legacy behavior for tables
+ *                                    with no `updatedAt` field at all)
  */
 export function computeRowsToBulkPut(
   cloudRows: ReadonlyArray<Record<string, unknown>>,
@@ -188,10 +193,12 @@ export function computeRowsToBulkPut(
     if (local) {
       const localTs = local.updatedAt;
       const cloudTs = row.updatedAt;
+      // Local wins (skip overwrite) when it carries a timestamp AND
+      // either the cloud copy has none, or the local one is strictly
+      // newer. If local has no timestamp, cloud always wins.
       if (
         typeof localTs === 'number'
-        && typeof cloudTs === 'number'
-        && localTs > cloudTs
+        && (typeof cloudTs !== 'number' || localTs > cloudTs)
       ) {
         continue;
       }
