@@ -3,6 +3,7 @@ import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
+  KEYS_CIRCLE_OF_FOURTHS,
   parseVoiceLeadingItemRef,
   voiceLeadingCellsPerKey,
   voiceLeadingTotalCellCount,
@@ -17,17 +18,6 @@ import {
   type MinorPentStartingPoint,
 } from '../shapes-and-patterns/scaleSkills';
 import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
-import { CIRCLE_OF_FOURTHS, canonicaliseKey } from '../repertoire/circleOfFourths';
-
-// KEYS (catalog spellings — e.g. 'F#') ordered by circle-of-fourths
-// position (C → F → Bb → … → G). Spellings are preserved so the
-// enumerated itemRefs still line up with real spacingState rows; only
-// the order changes. Matches the voice-leading section's key cycle.
-const KEYS_CIRCLE_OF_FOURTHS: ReadonlyArray<string> = [...KEYS].sort(
-  (a, b) =>
-    CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(a) ?? a)
-    - CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(b) ?? b),
-);
 
 /**
  * Count of acquisition-path inversion-state rows per cell, by

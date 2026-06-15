@@ -39,6 +39,7 @@ import { useMetronomeState } from '../../lib/useMetronome';
 import { recordEngagement } from '../../lib/spacingState';
 import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
+  feelToRating,
   formatDuration,
   logScaleDrillSession,
   MIN_REP_SECONDS,
@@ -46,7 +47,9 @@ import {
 } from './drillModel';
 import { relativeMajorOf } from './spTiers';
 import type { ScaleCell } from './scaleSkills';
+import type { DrillSession } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
+import DrillAssessment from './DrillAssessment';
 
 interface Props {
   cell: ScaleCell;
@@ -79,50 +82,6 @@ interface Props {
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
-
-type FeelRating = 'flying' | 'cruising' | 'crawling';
-
-// Per-item extend pills (runner rating) — absolute re-drill lengths.
-// Mirrors EXTEND_DRILL_OPTIONS in ActiveSessionScreen; kept in sync.
-const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
-  { label: '+30s', seconds: 30 },
-  { label: '+1 min', seconds: 60 },
-  { label: '+2 min', seconds: 120 },
-  { label: '+5 min', seconds: 300 },
-];
-
-const FEEL_OPTIONS: ReadonlyArray<{
-  value: FeelRating;
-  label: string;
-  hint: string;
-  activeClass: string;
-  inactiveClass: string;
-}> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    hint: 'effortless, in flow',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    inactiveClass:
-      'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    hint: 'steady, clean execution',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass:
-      'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
-    hint: 'struggle, breakdowns',
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass:
-      'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-];
 
 /** Mirror of DrillSessionModal's setup-phase preset chips. The
  *  slider covers the 30–600 s range; chips provide quick jumps to
@@ -181,7 +140,8 @@ export default function ScalesDrillModal({
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
-  const [feel, setFeel] = useState<FeelRating | null>(null);
+  const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
+  const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
@@ -323,13 +283,14 @@ export default function ScalesDrillModal({
       await logScaleDrillSession({
         itemRef: cell.itemRef,
         durationSeconds: elapsedSeconds,
-        rating: feel,
+        feelRating: feel,
         targetSeconds,
+        notes,
       });
       await recordEngagement({
         itemRef: cell.itemRef,
         moduleRef: 'shapes-and-patterns',
-        signal: { kind: 'rating', rating: feel },
+        signal: { kind: 'rating', rating: feelToRating(feel) },
       });
       onLogged?.();
       onClose();
@@ -558,63 +519,16 @@ export default function ScalesDrillModal({
         </div>
       ) : (
         // --- Assessment phase -----------------------------------
-        <div className="space-y-4">
-          <div className="text-center">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-              Drilled for
-            </div>
-            <div className="text-2xl font-mono tabular-nums">
-              {formatDuration(elapsedSeconds)}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-              How did it feel?
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {FEEL_OPTIONS.map(opt => {
-                const active = feel === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setFeel(opt.value)}
-                    aria-pressed={active}
-                    className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
-                      active ? opt.activeClass : opt.inactiveClass
-                    }`}
-                  >
-                    <span className="font-medium">{opt.label}</span>
-                    <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Per-item extend (runner only): drill this same scale again
-              for exactly the chosen length before moving on. */}
-          {onRedo && (
-            <div className="space-y-1.5">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-                More time on this scale?
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {EXTEND_DRILL_OPTIONS.map(opt => (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    onClick={() => handleExtendItem(opt.seconds)}
-                    className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent text-xs font-medium"
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
+        <DrillAssessment
+          elapsedSeconds={elapsedSeconds}
+          feel={feel}
+          onFeelChange={setFeel}
+          moreTimeLabel="More time on this scale?"
+          onExtend={handleExtendItem}
+          notes={notes}
+          onNotesChange={setNotes}
+          belowMin={belowMin}
+        >
           {showRelativeMajor && relativeMajor && (
             <div className="rounded-md border border-fluent/30 bg-fluent/5 p-3 text-xs space-y-1">
               <div className="text-[10px] uppercase tracking-wide text-fluent">
@@ -630,13 +544,7 @@ export default function ScalesDrillModal({
               </div>
             </div>
           )}
-
-          {belowMin && (
-            <p className="text-xs text-developing italic">
-              practice for at least {MIN_REP_SECONDS} seconds to log as a rep.
-            </p>
-          )}
-        </div>
+        </DrillAssessment>
       )}
     </Modal>
   );

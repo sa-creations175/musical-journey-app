@@ -14,7 +14,7 @@ import {
 } from './drillModel';
 import DrillListModal from './DrillListModal';
 import InversionBreakdownPanel from './InversionBreakdownPanel';
-import { KEYS } from './catalog';
+import { KEYS_CIRCLE_OF_FOURTHS } from './catalog';
 
 interface RowMeta {
   /** Stable id for React keys. */
@@ -46,7 +46,7 @@ interface Props {
  *   · opens DrillListModal on click (materialising the skill +
  *     default drill types if it didn't exist yet).
  */
-export default function HeatGrid({ rows, keyList = KEYS, rowAccent }: Props) {
+export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAccent }: Props) {
   const [openSkill, setOpenSkill] = useState<DrillSkill | null>(null);
   // Phase 4 inversion redesign — chord-shape cells route to the
   // breakdown panel (one row per inversion state). Other kinds

@@ -6,9 +6,8 @@ import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
+import DrillAssessment from './DrillAssessment';
 import {
-  FEEL_EMOJI,
-  FEEL_LABEL,
   formatDuration,
   logSession,
   MIN_REP_SECONDS,
@@ -42,15 +41,6 @@ interface Props {
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
-
-// Per-item extend pills (in-session rating) — absolute re-drill lengths.
-// Mirrors EXTEND_DRILL_OPTIONS in ScalesDrillModal / ActiveSessionScreen.
-const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
-  { label: '+30s', seconds: 30 },
-  { label: '+1 min', seconds: 60 },
-  { label: '+2 min', seconds: 120 },
-  { label: '+5 min', seconds: 300 },
-];
 
 /**
  * Drill runner: setup → running → (paused → running)* → assess.
@@ -120,7 +110,7 @@ export default function DrillSessionModal({
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [feel, setFeel] = useState<DrillSession['feelRating']>(3);
+  const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
   const [notes, setNotes] = useState('');
 
   const intervalRef = useRef<number | null>(null);
@@ -311,6 +301,7 @@ export default function DrillSessionModal({
   };
 
   const save = async () => {
+    if (feel === null) return;
     if (elapsedSeconds < MIN_REP_SECONDS) {
       toast({
         message: `Practice for at least ${MIN_REP_SECONDS} seconds to log as a rep.`,
@@ -405,14 +396,14 @@ export default function DrillSessionModal({
           )}
           <button
             onClick={save}
-            disabled={belowMin}
+            disabled={feel === null || belowMin}
             className={`px-4 py-1.5 rounded-md text-sm font-medium text-white ${
-              belowMin
+              feel === null || belowMin
                 ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
                 : 'bg-fluent hover:opacity-90'
             }`}
           >
-            complete drill
+            Save rating
           </button>
         </div>
       ) : (
@@ -562,69 +553,16 @@ export default function DrillSessionModal({
         </div>
       ) : (
         // --- Assessment phase -----------------------------------
-        <div className="space-y-4 text-sm">
-          <div className="rounded-lg border border-black/[0.07] p-3 text-center">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">practised</div>
-            <div className="font-mono tabular-nums text-2xl">{formatDuration(elapsedSeconds)}</div>
-          </div>
-
-          <div>
-            <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">how did it go?</div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {([1, 2, 3, 4] as const).map(v => (
-                <button
-                  key={v}
-                  onClick={() => setFeel(v)}
-                  className={`px-2.5 py-1 rounded-md border text-xs inline-flex items-center gap-1.5 ${
-                    feel === v
-                      ? 'bg-fluent text-white border-fluent'
-                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-                  }`}
-                >
-                  <span aria-hidden>{FEEL_EMOJI[v]}</span>
-                  <span>{FEEL_LABEL[v]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* In-session per-item extend: drill this same cell again for
-              exactly the chosen length before moving on. */}
-          {fromRunner && (
-            <div className="space-y-1.5">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">more time on this cell?</div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {EXTEND_DRILL_OPTIONS.map(opt => (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    onClick={() => handleExtendItem(opt.seconds)}
-                    className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent text-xs font-medium"
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <label className="flex flex-col gap-1">
-            <span className="text-xs uppercase tracking-wide text-neutral-500">notes (optional)</span>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="what worked, what didn't, voicings to revisit"
-              className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
-            />
-          </label>
-
-          {belowMin && (
-            <p className="text-xs text-developing italic">
-              practice for at least {MIN_REP_SECONDS} seconds to log as a rep.
-            </p>
-          )}
-        </div>
+        <DrillAssessment
+          elapsedSeconds={elapsedSeconds}
+          feel={feel}
+          onFeelChange={setFeel}
+          moreTimeLabel="More time on this shape?"
+          onExtend={handleExtendItem}
+          notes={notes}
+          onNotesChange={setNotes}
+          belowMin={belowMin}
+        />
       )}
     </Modal>
   );

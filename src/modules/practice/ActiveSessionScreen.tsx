@@ -27,8 +27,8 @@
  *
  * Rating phase (5c):
  *   - User taps "end this activity" → screen pauses the timer +
- *     transitions to a rating phase showing three vertically-stacked
- *     buttons (Flying / Cruising / Crawling). Always optional —
+ *     transitions to a rating phase showing four vertically-stacked
+ *     buttons (Struggled / Working on it / Clean / In flow). Always optional —
  *     Next can fire with no rating selected (missed ratings batch at
  *     session end in Step 6e).
  *   - User can also reach the rating phase via the global expiry
@@ -47,7 +47,7 @@ import {
   useSessionTimes,
 } from '../../lib/sessionTimer/SessionTimerContext';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
-import type { PerformanceRating } from '../../lib/sessionTimer/types';
+import { BLOCK_RATING_FEEL_OPTIONS, ratingForFeel } from '../../lib/sessionTimer/blockRatingOptions';
 import EndOfSessionSummary from './EndOfSessionSummary';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
@@ -58,8 +58,10 @@ import { lessonById } from '../production/content/lessons';
 import { canExtendBlock } from './blockExtendEligibility';
 import InSessionDrillRunner from './InSessionDrillRunner';
 import ChordShapeDrillRunner from './ChordShapeDrillRunner';
+import VoiceLeadingDrillRunner from './VoiceLeadingDrillRunner';
 import { isScaleRunnerBlock } from './inSessionScaleRunner';
 import { isChordShapeRunnerBlock } from './inSessionChordShapeRunner';
+import { isVoiceLeadingRunnerBlock } from './inSessionVoiceLeadingRunner';
 import {
   metronome,
   COUNT_IN_TIME_SIGS,
@@ -106,41 +108,8 @@ const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = 
 
 // prep   — configure BPM/style + drill duration, then tap Ready.
 // running— active drill; the drill timer counts down.
-// rating — Flying / Cruising / Crawling + next-block preview.
+// rating — Struggled / Working on it / Clean / In flow + next-block preview.
 type Phase = 'prep' | 'running' | 'rating';
-
-interface RatingOption {
-  value: PerformanceRating;
-  label: string;
-  /** Tailwind classes for the button's accent. Per design: warm /
-   *  neutral / cool, not red. */
-  activeClass: string;
-  inactiveClass: string;
-}
-
-const RATING_OPTIONS: ReadonlyArray<RatingOption> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    inactiveClass:
-      'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    activeClass: 'bg-neutral-500 text-white border-neutral-500',
-    inactiveClass:
-      'border-neutral-400 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-500/10',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
-    activeClass: 'bg-teal-600 text-white border-teal-600',
-    inactiveClass:
-      'border-teal-600/40 text-teal-700 dark:text-teal-400 hover:bg-teal-600/10',
-  },
-];
 
 export default function ActiveSessionScreen() {
   const navigate = useNavigate();
@@ -167,7 +136,7 @@ export default function ActiveSessionScreen() {
   // return here for rating) restores the right screen with no effects
   // fighting over local state.
   const [launched, setLaunched] = useState(false);
-  const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
+  const [pendingFeel, setPendingFeel] = useState<1 | 2 | 3 | 4 | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   // True while the in-session drill runner (Level 3) is walking the
   // block's cells over this screen, instead of having navigated to the
@@ -180,7 +149,7 @@ export default function ActiveSessionScreen() {
   // Non-null while the count-in overlay is on screen (keyboard blocks).
   const [countdown, setCountdown] = useState<{ timeSig: TimeSig; bpm: number; allKick: boolean } | null>(null);
 
-  // Note: `launched` + `pendingRating` are reset directly in the
+  // Note: `launched` + `pendingFeel` are reset directly in the
   // advance handlers (handleRatingNext / handleSkipBlock) rather than
   // via a block-change effect — a same-block remount (drill ends on
   // the module page → we return here for rating) re-inits these from
@@ -358,7 +327,8 @@ export default function ActiveSessionScreen() {
   // `isRunnerBlock` covers the shared GO / extend / go-back wiring.
   const isScaleBlock = isScaleRunnerBlock(itemBreakdown);
   const isChordShapeBlock = isChordShapeRunnerBlock(itemBreakdown);
-  const isRunnerBlock = isScaleBlock || isChordShapeBlock;
+  const isVoiceLeadingBlock = isVoiceLeadingRunnerBlock(itemBreakdown);
+  const isRunnerBlock = isScaleBlock || isChordShapeBlock || isVoiceLeadingBlock;
 
   // Phase 4 — the count-in (and its time-signature picker) applies to
   // keyboard blocks only; cognitive modules just get a single GO chime.
@@ -366,10 +336,11 @@ export default function ActiveSessionScreen() {
   const selectedTimeSig: TimeSig = timeSigByBlock[currentBlock.id] ?? '4/4';
 
   // GO (Level 3 auto-nav): start the drill timer and drop the user
-  // straight onto the drill. Scale blocks open the in-session runner
-  // over this screen (driven by the per-item breakdown); everything
-  // else routes to the module home. The prep-phase guard keeps a
-  // re-tap from restarting an in-flight drill timer.
+  // straight onto the drill. Scale / chord-shape / voice-leading blocks
+  // open the in-session runner over this screen (driven by the per-item
+  // breakdown); everything else routes to the module home. The
+  // prep-phase guard keeps a re-tap from restarting an in-flight drill
+  // timer.
   const goToDrill = () => {
     if (times.blockPhase === 'prep') startDrill();
     if (isRunnerBlock && itemBreakdown) {
@@ -496,7 +467,7 @@ export default function ActiveSessionScreen() {
   const handleSkipBlock = () => {
     advanceBlock({ markStatus: 'skipped' });
     setLaunched(false);
-    setPendingRating(null);
+    setPendingFeel(null);
     setRunnerActive(false);
     setCountdown(null);
     // Stay on the active-session screen — the next block opens on its
@@ -514,7 +485,7 @@ export default function ActiveSessionScreen() {
     metronome.forceStop();
     deferBlock();
     setLaunched(false);
-    setPendingRating(null);
+    setPendingFeel(null);
     setRunnerActive(false);
     setCountdown(null);
   };
@@ -522,11 +493,11 @@ export default function ActiveSessionScreen() {
   const handleRatingNext = () => {
     resumeSession();
     advanceBlock({
-      rating: pendingRating ?? undefined,
+      rating: ratingForFeel(pendingFeel) ?? undefined,
       markStatus: 'completed',
     });
     setLaunched(false);
-    setPendingRating(null);
+    setPendingFeel(null);
     setRunnerActive(false);
     setCountdown(null);
     // Stay here — the next block opens on its prep screen (module
@@ -538,7 +509,7 @@ export default function ActiveSessionScreen() {
   const handleEndSessionEarly = () => {
     resumeSession();
     endSession({
-      rating: pendingRating ?? undefined,
+      rating: ratingForFeel(pendingFeel) ?? undefined,
       markStatus: 'completed',
     });
   };
@@ -823,13 +794,13 @@ export default function ActiveSessionScreen() {
           </div>
 
           <div className="flex flex-col gap-2">
-            {RATING_OPTIONS.map(opt => {
-              const active = pendingRating === opt.value;
+            {BLOCK_RATING_FEEL_OPTIONS.map(opt => {
+              const active = pendingFeel === opt.feel;
               return (
                 <button
-                  key={opt.value}
+                  key={opt.feel}
                   type="button"
-                  onClick={() => setPendingRating(active ? null : opt.value)}
+                  onClick={() => setPendingFeel(active ? null : opt.feel)}
                   aria-pressed={active}
                   className={`w-full px-3 py-3 rounded-md border text-sm font-medium transition-colors ${
                     active ? opt.activeClass : opt.inactiveClass
@@ -969,6 +940,13 @@ export default function ActiveSessionScreen() {
       )}
       {runnerActive && itemBreakdown && isChordShapeBlock && (
         <ChordShapeDrillRunner
+          items={itemBreakdown}
+          accent={accent}
+          onComplete={handleRunnerComplete}
+        />
+      )}
+      {runnerActive && itemBreakdown && isVoiceLeadingBlock && (
+        <VoiceLeadingDrillRunner
           items={itemBreakdown}
           accent={accent}
           onComplete={handleRunnerComplete}

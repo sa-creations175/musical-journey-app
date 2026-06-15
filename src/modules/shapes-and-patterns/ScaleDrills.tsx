@@ -192,7 +192,7 @@ export default function ScaleDrills() {
         </h3>
         <p className="text-xs text-neutral-500">
           96 cells across major, natural minor, and the two pentatonics. Color shows
-          acquisition stage. Tap a cell to drill and rate Flying / Cruising / Crawling.
+          acquisition stage. Tap a cell to drill and rate Struggled / Working on it / Clean / In flow.
         </p>
       </header>
 

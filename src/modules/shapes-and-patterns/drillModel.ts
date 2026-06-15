@@ -513,29 +513,11 @@ export interface LogSessionInput {
  *   3 (clean)          → cruising
  *   4 (in flow)        → flying
  */
-function feelToRating(feel: DrillSession['feelRating']): 'flying' | 'cruising' | 'crawling' {
+export function feelToRating(feel: DrillSession['feelRating']): 'flying' | 'cruising' | 'crawling' {
   if (feel >= 4) return 'flying';
   if (feel >= 3) return 'cruising';
   return 'crawling';
 }
-
-/**
- * Inverse of `feelToRating`, for callers that work in the 3-point
- * flying / cruising / crawling vocabulary directly (the Scales drill
- * modal — Scales has no DrillSkill / DrillType rows behind it, so it
- * never picks a 4-point feel). Lossy by nature: `feelToRating`
- * collapses both "struggled" (1) and "working on it" (2) into
- * "crawling", so the inverse maps crawling → "struggled" (1) — the
- * closest match to the Scales modal's "struggle, breakdowns" copy.
- */
-const RATING_TO_FEEL: Record<
-  'flying' | 'cruising' | 'crawling',
-  DrillSession['feelRating']
-> = {
-  flying: 4,
-  cruising: 3,
-  crawling: 1,
-};
 
 /**
  * Build a spacingState itemRef from a skill descriptor. Returns null
@@ -619,9 +601,10 @@ export interface LogScaleDrillSessionInput {
   itemRef: string;
   /** Actual elapsed drill time in seconds. */
   durationSeconds: number;
-  /** 3-point Scales rating; mapped onto DrillSession.feelRating via
-   *  RATING_TO_FEEL. */
-  rating: 'flying' | 'cruising' | 'crawling';
+  /** 4-point feel rating, stored directly on DrillSession.feelRating
+   *  (same scale chord shapes use). The modal maps this onto the
+   *  3-point spacingState rating signal separately via feelToRating. */
+  feelRating: DrillSession['feelRating'];
   /** Suggested per-cell drill seconds the user was working toward
    *  (SCALE_KIND_SECONDS). Optional — mirrors logSession's
    *  targetSeconds. */
@@ -657,8 +640,10 @@ export interface LogVoiceLeadingDrillSessionInput {
   itemRef: string;
   /** Actual elapsed drill time in seconds. */
   durationSeconds: number;
-  /** 3-point rating; mapped onto DrillSession.feelRating via RATING_TO_FEEL. */
-  rating: 'flying' | 'cruising' | 'crawling';
+  /** 4-point feel rating, stored directly on DrillSession.feelRating
+   *  (same scale chord shapes use). The modal maps this onto the
+   *  3-point spacingState rating signal separately via feelToRating. */
+  feelRating: DrillSession['feelRating'];
   /** Suggested per-cell drill seconds (`voiceLeadingCellSeconds`) the
    *  user was working toward. Optional — mirrors logSession's
    *  targetSeconds. */
@@ -691,7 +676,7 @@ export async function logVoiceLeadingDrillSession(
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
-    feelRating: RATING_TO_FEEL[input.rating],
+    feelRating: input.feelRating,
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -710,7 +695,7 @@ export async function logScaleDrillSession(
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
-    feelRating: RATING_TO_FEEL[input.rating],
+    feelRating: input.feelRating,
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -827,3 +812,60 @@ export const FEEL_LABEL: Record<DrillSession['feelRating'], string> = {
 export const FEEL_EMOJI: Record<DrillSession['feelRating'], string> = {
   1: '😓', 2: '🧗', 3: '🙂', 4: '🎶',
 };
+
+/**
+ * Shared rating-card config for the three S&P drill modals (scales,
+ * chord shapes, voice leading). Full-width tall cards, ordered worst →
+ * best to match the block wrap-up screen. Colours ride the canonical
+ * proficiency ramp (needswork → developing → fluent → mastered) so the
+ * rating UI reads consistently with the rest of the app.
+ */
+export const FEEL_CARD_OPTIONS: ReadonlyArray<{
+  value: DrillSession['feelRating'];
+  label: string;
+  hint: string;
+  activeClass: string;
+  inactiveClass: string;
+}> = [
+  {
+    value: 1,
+    label: 'Struggled',
+    hint: 'breakdowns, not flowing',
+    activeClass: 'bg-needswork text-white border-needswork',
+    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
+  },
+  {
+    value: 2,
+    label: 'Working on it',
+    hint: 'getting there, still effortful',
+    activeClass: 'bg-developing text-white border-developing',
+    inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
+  },
+  {
+    value: 3,
+    label: 'Clean',
+    hint: 'steady, clean execution',
+    activeClass: 'bg-fluent text-white border-fluent',
+    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
+  },
+  {
+    value: 4,
+    label: 'In flow',
+    hint: 'effortless, automatic',
+    activeClass: 'bg-mastered text-white border-mastered',
+    inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
+  },
+];
+
+/**
+ * Per-item "more time" re-drill lengths shown on the assess screen of
+ * every S&P drill modal. Absolute durations — tapping one restarts the
+ * countdown in place at that length. Mirrors EXTEND_DRILL_OPTIONS in
+ * ActiveSessionScreen (block-level extend); kept in sync.
+ */
+export const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
+  { label: '+30s', seconds: 30 },
+  { label: '+1 min', seconds: 60 },
+  { label: '+2 min', seconds: 120 },
+  { label: '+5 min', seconds: 300 },
+];

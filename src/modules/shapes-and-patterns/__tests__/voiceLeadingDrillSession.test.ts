@@ -38,7 +38,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
     const session = await logVoiceLeadingDrillSession({
       itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 92,
-      rating: 'cruising',
+      feelRating: 3,
       targetSeconds: 90,
     });
     const after = Date.now();
@@ -52,21 +52,23 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
     expect(row.drillTypeId).toBe('vl:major-251:guide-tones:A:C');
     expect(row.durationSeconds).toBe(92);
     expect(row.targetSeconds).toBe(90);
-    expect(row.feelRating).toBe(3); // cruising → 3
+    expect(row.feelRating).toBe(3);
     expect(row.timestamp).toBeGreaterThanOrEqual(before);
     expect(row.timestamp).toBeLessThanOrEqual(after);
   });
 
-  it('maps the 3-point rating onto feelRating (flying → 4, cruising → 3, crawling → 1)', async () => {
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:C', durationSeconds: 180, rating: 'flying' });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:dom7b9:pos2:G',         durationSeconds: 90,  rating: 'cruising' });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:dim7:pos3:F',           durationSeconds: 90,  rating: 'crawling' });
+  it('stores the 4-point feelRating directly (1–4, including "working on it" = 2)', async () => {
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:C', durationSeconds: 180, feelRating: 4 });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:dom7b9:pos2:G',         durationSeconds: 90,  feelRating: 3 });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:D', durationSeconds: 90, feelRating: 2 });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:dim7:pos3:F',           durationSeconds: 90,  feelRating: 1 });
 
     const byItem = new Map(
       (await db.drillSessions.toArray()).map(r => [r.skillId, r.feelRating]),
     );
     expect(byItem.get('vl:diatonic-cycle:pos1:C')).toBe(4);
     expect(byItem.get('vl:dom7b9:pos2:G')).toBe(3);
+    expect(byItem.get('vl:major-251:guide-tones:A:D')).toBe(2);
     expect(byItem.get('vl:dim7:pos3:F')).toBe(1);
   });
 
@@ -74,7 +76,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
     await logVoiceLeadingDrillSession({
       itemRef: 'vl:major-251:aba-structure:B:F',
       durationSeconds: 121.6,
-      rating: 'cruising',
+      feelRating: 3,
       targetSeconds: 119.4,
       notes: '  capstone type is tougher in F  ',
     });
@@ -88,7 +90,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
     await logVoiceLeadingDrillSession({
       itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 90,
-      rating: 'flying',
+      feelRating: 4,
       notes: '   ',
     });
     const row = (await db.drillSessions.toArray())[0];
@@ -100,7 +102,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
     await logVoiceLeadingDrillSession({
       itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 90,
-      rating: 'cruising',
+      feelRating: 3,
     });
     expect(await db.drillTypes.count()).toBe(0);
     expect(await db.spacingState.count()).toBe(0);
@@ -116,8 +118,8 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
 
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, rating: 'cruising' });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:F', durationSeconds: 180, rating: 'flying' });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, feelRating: 3 });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:F', durationSeconds: 180, feelRating: 4 });
 
     // Out-of-window row — must not count.
     await db.drillSessions.add({
@@ -149,7 +151,7 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
       feelRating: 3,
       timestamp: now,
     });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, rating: 'flying' });
+    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, feelRating: 4 });
 
     const count = await getWeeklyAttempts(
       'shapes-and-patterns',

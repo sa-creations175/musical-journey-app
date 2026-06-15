@@ -17,11 +17,29 @@
 // DrillType rows lazily per interaction.
 
 import type { InversionState } from '../../lib/db';
+import { CIRCLE_OF_FOURTHS, canonicaliseKey } from '../repertoire/circleOfFourths';
 
 export const KEYS = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
 ] as const;
 export type KeyName = typeof KEYS[number];
+
+/**
+ * The catalog's 12 keys reordered by circle-of-fourths position
+ * (C → F → Bb → … → G). Used as the column order for every S&P matrix
+ * (chord shapes, scales, voice leading) so the grids read consistently.
+ *
+ * Spellings are the catalog's own — e.g. the tritone stays 'F#' (its
+ * canonical CIRCLE_OF_FOURTHS slot is 'Gb') — so grid lookups against
+ * data keyed by KeyName still resolve. This is purely a display order;
+ * KEYS itself stays in chromatic order because other code (shapesSplit)
+ * depends on that ordering.
+ */
+export const KEYS_CIRCLE_OF_FOURTHS: ReadonlyArray<KeyName> = [...KEYS].sort(
+  (a, b) =>
+    CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(a) ?? a)
+    - CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(b) ?? b),
+);
 
 /** True when this key name prefers flat spellings in display (kept
  *  consistent with the rest of the app). */

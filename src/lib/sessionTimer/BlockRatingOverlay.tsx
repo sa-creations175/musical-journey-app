@@ -22,38 +22,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { moduleMetaById } from '../moduleMeta';
 import { useSessionTimer, useSessionTimes } from './SessionTimerContext';
 import { canExtendBlock } from '../../modules/practice/blockExtendEligibility';
+import { BLOCK_RATING_FEEL_OPTIONS, ratingForFeel } from './blockRatingOptions';
 import type { PerformanceRating, SessionBlock } from './types';
 
 const ACTIVE_ROUTE = '/practice-sessions/active';
-
-interface RatingOption {
-  value: PerformanceRating;
-  label: string;
-  activeClass: string;
-  inactiveClass: string;
-}
-
-// Mirrors ActiveSessionScreen's rating palette (warm / neutral / cool).
-const RATING_OPTIONS: ReadonlyArray<RatingOption> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    inactiveClass: 'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    activeClass: 'bg-neutral-500 text-white border-neutral-500',
-    inactiveClass: 'border-neutral-400 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-500/10',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
-    activeClass: 'bg-teal-600 text-white border-teal-600',
-    inactiveClass: 'border-teal-600/40 text-teal-700 dark:text-teal-400 hover:bg-teal-600/10',
-  },
-];
 
 const EXTEND_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
   { label: '+1 min', seconds: 60 },
@@ -134,7 +106,7 @@ function RatingCard({
   onNext: (rating: PerformanceRating | null) => void;
   onExtend: (seconds: number) => void;
 }) {
-  const [pendingRating, setPendingRating] = useState<PerformanceRating | null>(null);
+  const [pendingFeel, setPendingFeel] = useState<1 | 2 | 3 | 4 | null>(null);
   const meta = moduleMetaById(block.moduleRef);
   const accent = meta?.accentHex ?? '#4a9088';
   const moduleLabel = meta?.label ?? block.moduleRef;
@@ -165,13 +137,13 @@ function RatingCard({
       </div>
 
       <div className="flex flex-col gap-2">
-        {RATING_OPTIONS.map(opt => {
-          const active = pendingRating === opt.value;
+        {BLOCK_RATING_FEEL_OPTIONS.map(opt => {
+          const active = pendingFeel === opt.feel;
           return (
             <button
-              key={opt.value}
+              key={opt.feel}
               type="button"
-              onClick={() => setPendingRating(active ? null : opt.value)}
+              onClick={() => setPendingFeel(active ? null : opt.feel)}
               aria-pressed={active}
               className={`w-full px-3 py-3 rounded-md border text-sm font-medium transition-colors ${
                 active ? opt.activeClass : opt.inactiveClass
@@ -206,7 +178,7 @@ function RatingCard({
 
       <button
         type="button"
-        onClick={() => onNext(pendingRating)}
+        onClick={() => onNext(ratingForFeel(pendingFeel))}
         className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
       >
         {isLastBlock ? 'finish session' : 'next block →'}

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import HeatGrid from './HeatGrid';
 import {
   CHORD_QUALITIES,
-  KEYS,
+  KEYS_CIRCLE_OF_FOURTHS,
   type QualityKind,
 } from './catalog';
 
@@ -67,7 +67,7 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
 
       <HeatGrid
         rows={rows}
-        keyList={KEYS}
+        keyList={KEYS_CIRCLE_OF_FOURTHS}
       />
     </section>
   );

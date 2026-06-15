@@ -21,7 +21,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SpacingState, type AcquisitionStage } from '../../lib/db';
 import {
-  KEYS,
+  KEYS_CIRCLE_OF_FOURTHS,
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingGridRows,
 } from './catalog';
@@ -106,11 +106,11 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS.length}, minmax(34px, 44px))`,
+            gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(34px, 44px))`,
           }}
         >
           <div />
-          {KEYS.map(k => (
+          {KEYS_CIRCLE_OF_FOURTHS.map(k => (
             <div
               key={k}
               className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
@@ -126,7 +126,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             key={row.rowId}
             className="grid items-center"
             style={{
-              gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS.length}, minmax(34px, 44px))`,
+              gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(34px, 44px))`,
             }}
           >
             <div
@@ -135,7 +135,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             >
               {row.label}
             </div>
-            {KEYS.map(k => {
+            {KEYS_CIRCLE_OF_FOURTHS.map(k => {
               const itemRef = row.itemRefForKey(k);
               const bucket = bucketFor(stageByItemRef.get(itemRef));
               const title = `${row.label} in ${k} — ${STAGE_LEGEND_LABEL[bucket]}`;

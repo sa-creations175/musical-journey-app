@@ -29,6 +29,7 @@ import type {
   PerformanceRating,
   SessionBlock,
 } from '../../lib/sessionTimer/types';
+import { BLOCK_RATING_FEEL_OPTIONS } from '../../lib/sessionTimer/blockRatingOptions';
 import { runEndOfSessionPipeline } from './endOfSessionPersistence';
 
 const SESSION_RATING_OPTIONS: ReadonlyArray<{
@@ -129,7 +130,6 @@ export default function EndOfSessionSummary() {
 
       <UnratedBlocksBatch
         blocks={state.blocks}
-        ratings={batchRatings}
         onRate={(blockId, rating) =>
           setBatchRatings(prev =>
             rating === null
@@ -185,37 +185,19 @@ export default function EndOfSessionSummary() {
 // Unrated-blocks batch (6e)
 // ---------------------------------------------------------------------
 
-const BATCH_RATING_OPTIONS: ReadonlyArray<{
-  value: PerformanceRating;
-  label: string;
-  activeClass: string;
-}> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    activeClass: 'bg-neutral-500 text-white border-neutral-500',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
-    activeClass: 'bg-teal-600 text-white border-teal-600',
-  },
-];
-
 function UnratedBlocksBatch({
   blocks,
-  ratings,
   onRate,
 }: {
   blocks: ReadonlyArray<SessionBlock>;
-  ratings: Record<string, PerformanceRating>;
   onRate: (blockId: string, rating: PerformanceRating | null) => void;
 }) {
+  // The 4-card feel scale collapses to a 3-value PerformanceRating, so
+  // two cards share a stored value. Track the picked card per block
+  // locally for the active-highlight; `onRate` still stores the
+  // collapsed PerformanceRating into the parent's batchRatings.
+  const [feelByBlock, setFeelByBlock] = useState<Record<string, 1 | 2 | 3 | 4>>({});
+
   // Eligible: completed (not skipped) and inline rating absent.
   // Skipped blocks stay out — the user explicitly didn't engage.
   const unrated = blocks.filter(
@@ -237,7 +219,7 @@ function UnratedBlocksBatch({
           const meta = moduleMetaById(block.moduleRef);
           const accent = meta?.accentHex ?? '#4a9088';
           const moduleLabel = meta?.label ?? block.moduleRef;
-          const selected = ratings[block.id] ?? null;
+          const selectedFeel = feelByBlock[block.id] ?? null;
           return (
             <li
               key={block.id}
@@ -254,16 +236,23 @@ function UnratedBlocksBatch({
                   {block.label ?? block.moduleRef}
                 </span>
               </div>
-              <div className="flex gap-1">
-                {BATCH_RATING_OPTIONS.map(opt => {
-                  const active = selected === opt.value;
+              <div className="flex flex-col gap-1">
+                {BLOCK_RATING_FEEL_OPTIONS.map(opt => {
+                  const active = selectedFeel === opt.feel;
                   return (
                     <button
-                      key={opt.value}
+                      key={opt.feel}
                       type="button"
-                      onClick={() => onRate(block.id, active ? null : opt.value)}
+                      onClick={() => {
+                        setFeelByBlock(prev =>
+                          active
+                            ? omitKey(prev, block.id)
+                            : { ...prev, [block.id]: opt.feel },
+                        );
+                        onRate(block.id, active ? null : opt.rating);
+                      }}
                       aria-pressed={active}
-                      className={`flex-1 px-2 py-1 rounded-md border text-[11px] font-medium ${
+                      className={`w-full px-2 py-1.5 rounded-md border text-[11px] font-medium text-left ${
                         active
                           ? opt.activeClass
                           : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'

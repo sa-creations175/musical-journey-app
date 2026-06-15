@@ -42,6 +42,7 @@ import { useMetronomeState } from '../../lib/useMetronome';
 import { recordEngagement } from '../../lib/spacingState';
 import { voiceLeadingCellSeconds } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
+  feelToRating,
   formatDuration,
   logVoiceLeadingDrillSession,
   MIN_REP_SECONDS,
@@ -52,7 +53,9 @@ import {
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingSubCellLabel,
 } from './catalog';
+import type { DrillSession } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
+import DrillAssessment from './DrillAssessment';
 
 interface Props {
   /** Canonical VL sub-cell itemRef. The grid tap supplies this
@@ -60,43 +63,28 @@ interface Props {
   itemRef: string;
   onClose: () => void;
   onLogged?: () => void;
+  /** Seeds the countdown when the modal is opened by the in-session VL
+   *  runner (the prep-flow drives this from the per-item time
+   *  breakdown). Its presence flips the modal into in-session mode:
+   *  auto-run (skip setup), runner sequence controls. Defaults to the
+   *  cell's canonical duration when omitted (standalone matrix-tap). */
+  initialTargetSeconds?: number;
+  /** In-session runner only: the time the session allocated to this
+   *  item. Drives the subtitle. */
+  sessionTargetSeconds?: number;
+  /** In-session runner only: restart this same sub-cell from the top
+   *  (the runner remounts the modal for the same itemRef). */
+  onRedo?: () => void;
+  /** In-session runner only: step back to the previous sub-cell
+   *  (abandons this one without logging). */
+  onPrevious?: () => void;
+  /** In-session runner only: false on the first item — disables Previous. */
+  canGoPrevious?: boolean;
+  /** In-session runner only: false on the last item — Next reads "Finish". */
+  canGoNext?: boolean;
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
-type FeelRating = 'flying' | 'cruising' | 'crawling';
-
-const FEEL_OPTIONS: ReadonlyArray<{
-  value: FeelRating;
-  label: string;
-  hint: string;
-  activeClass: string;
-  inactiveClass: string;
-}> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    hint: 'effortless, in flow',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    inactiveClass:
-      'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    hint: 'steady, clean execution',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass:
-      'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
-    hint: 'struggle, breakdowns',
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass:
-      'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-];
 
 /** Mirror of DrillSessionModal's setup-phase preset chips. */
 const PRESETS = [60, 120, 180, 300, 420, 600] as const;
@@ -105,6 +93,12 @@ export default function VoiceLeadingDrillModal({
   itemRef,
   onClose,
   onLogged,
+  initialTargetSeconds,
+  sessionTargetSeconds,
+  onRedo,
+  onPrevious,
+  canGoPrevious,
+  canGoNext,
 }: Props) {
   const metroState = useMetronomeState();
   const desc = useMemo(() => parseVoiceLeadingItemRef(itemRef), [itemRef]);
@@ -113,11 +107,23 @@ export default function VoiceLeadingDrillModal({
   const suggested = desc ? voiceLeadingCellSeconds(desc) : 90;
   const keyName = desc?.keyName ?? '';
 
-  const [targetSeconds, setTargetSeconds] = useState(suggested);
-  const [remainingSeconds, setRemainingSeconds] = useState(suggested);
+  // Launched by the in-session runner (per-item time supplied) → the
+  // prep screen already set duration + BPM + meter and the count-in
+  // just fired GO, so flow straight into a running drill (no setup
+  // screen). Standalone matrix-tap keeps the setup screen. Mirrors
+  // ScalesDrillModal.
+  const fromRunner = initialTargetSeconds !== undefined;
+  const seed = Math.max(
+    initialTargetSeconds !== undefined ? 60 : 30,
+    initialTargetSeconds ?? suggested,
+  );
+
+  const [targetSeconds, setTargetSeconds] = useState(seed);
+  const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [phase, setPhase] = useState<Phase>('setup');
-  const [feel, setFeel] = useState<FeelRating | null>(null);
+  const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
+  const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
+  const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);
 
@@ -164,6 +170,18 @@ export default function VoiceLeadingDrillModal({
     }
   };
 
+  // Runner launch → auto-start the metronome + countdown on mount (the
+  // modal opened in `running` phase; remaining/elapsed are already
+  // seeded). The cleanup effect + every exit handler stop the 'drill'
+  // driver, so this start stays balanced. Mirrors ScalesDrillModal.
+  useEffect(() => {
+    if (fromRunner) {
+      void metronome.start('drill');
+      startTick();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleStart = () => {
     setPhase('running');
     setElapsedSeconds(0);
@@ -204,6 +222,37 @@ export default function VoiceLeadingDrillModal({
     onClose();
   };
 
+  // Runner "Redo": restart this same sub-cell from the top. Tear down
+  // the local timer + metronome, then signal the runner to remount.
+  const handleRedo = () => {
+    stopTick();
+    metronome.stop('drill');
+    onRedo?.();
+  };
+
+  // Runner "Previous": abandon this sub-cell (no log) and step back to
+  // the prior one. The runner remounts the modal for that item.
+  const handlePrevious = () => {
+    stopTick();
+    metronome.stop('drill');
+    onPrevious?.();
+  };
+
+  // Per-item "extend": drill THIS sub-cell again for exactly `seconds`
+  // more — restart the countdown in place at the new target. Mirrors
+  // ScalesDrillModal / DrillSessionModal.
+  const handleExtendItem = (seconds: number) => {
+    stopTick();
+    metronome.stop('drill');
+    setFeel(null);
+    setTargetSeconds(seconds);
+    setElapsedSeconds(0);
+    setRemainingSeconds(seconds);
+    setPhase('running');
+    void metronome.start('drill');
+    startTick();
+  };
+
   const handleSave = async () => {
     if (saving || feel === null || !desc || belowMin) return;
     setSaving(true);
@@ -215,13 +264,14 @@ export default function VoiceLeadingDrillModal({
       await logVoiceLeadingDrillSession({
         itemRef,
         durationSeconds: elapsedSeconds,
-        rating: feel,
+        feelRating: feel,
         targetSeconds,
+        notes,
       });
       await recordEngagement({
         itemRef,
         moduleRef: 'shapes-and-patterns',
-        signal: { kind: 'rating', rating: feel },
+        signal: { kind: 'rating', rating: feelToRating(feel) },
       });
       onLogged?.();
       onClose();
@@ -237,9 +287,12 @@ export default function VoiceLeadingDrillModal({
   const title = pattern && keyName
     ? `${pattern.label} in ${keyName}`
     : 'Voice-leading drill';
-  const description = subCellLabel
-    ? `${subCellLabel} · ~${suggested}s suggested`
+  const suggestionLabel = sessionTargetSeconds !== undefined
+    ? `~${sessionTargetSeconds}s in this session`
     : `~${suggested}s suggested`;
+  const description = subCellLabel
+    ? `${subCellLabel} · ${suggestionLabel}`
+    : suggestionLabel;
   // Display: countdown in setup/running/paused, elapsed in assess.
   const displaySeconds = phase === 'assess' ? elapsedSeconds : remainingSeconds;
 
@@ -252,12 +305,39 @@ export default function VoiceLeadingDrillModal({
       description={description}
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">
-          <button
-            onClick={handleCancel}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-          >
-            cancel — don't log
-          </button>
+          {onRedo ? (
+            <>
+              <button
+                onClick={handlePrevious}
+                disabled={!canGoPrevious}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Go back to the previous pattern"
+              >
+                Previous
+              </button>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title={canGoNext ? 'Move on to the next pattern' : 'Finish — end the drills and rate this block'}
+              >
+                {canGoNext ? 'Next' : 'Finish'}
+              </button>
+              <button
+                onClick={handleRedo}
+                className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+                title="Restart this same pattern from the top"
+              >
+                Redo
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={handleCancel}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+            >
+              cancel — don't log
+            </button>
+          )}
           <button
             onClick={() => void handleSave()}
             disabled={feel === null || saving || !desc || belowMin}
@@ -271,12 +351,22 @@ export default function VoiceLeadingDrillModal({
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          {onRedo && (
+            <button
+              onClick={handlePrevious}
+              disabled={!canGoPrevious}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Go back to the previous pattern"
+            >
+              Previous
+            </button>
+          )}
           <button
             onClick={handleCancel}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            cancel
+            {onRedo ? (canGoNext ? 'Next' : 'Finish') : 'cancel'}
           </button>
         </div>
       )}
@@ -422,47 +512,16 @@ export default function VoiceLeadingDrillModal({
         </div>
       ) : (
         // --- Assessment phase -----------------------------------
-        <div className="space-y-4">
-          <div className="text-center">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-              Drilled for
-            </div>
-            <div className="text-2xl font-mono tabular-nums">
-              {formatDuration(elapsedSeconds)}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">
-              How did it feel?
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {FEEL_OPTIONS.map(opt => {
-                const active = feel === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setFeel(opt.value)}
-                    aria-pressed={active}
-                    className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
-                      active ? opt.activeClass : opt.inactiveClass
-                    }`}
-                  >
-                    <span className="font-medium">{opt.label}</span>
-                    <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {belowMin && (
-            <p className="text-xs text-developing italic">
-              practice for at least {MIN_REP_SECONDS} seconds to log as a rep.
-            </p>
-          )}
-        </div>
+        <DrillAssessment
+          elapsedSeconds={elapsedSeconds}
+          feel={feel}
+          onFeelChange={setFeel}
+          moreTimeLabel="More time on this pattern?"
+          onExtend={handleExtendItem}
+          notes={notes}
+          onNotesChange={setNotes}
+          belowMin={belowMin}
+        />
       )}
     </Modal>
   );

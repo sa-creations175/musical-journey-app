@@ -10,7 +10,7 @@
  *
  * These tests pin:
  *   1. the DrillSession row shape — itemRef stands in for skillId +
- *      drillTypeId, the 3-point rating maps onto feelRating, and the
+ *      drillTypeId, the 4-point feelRating is stored directly, and the
  *      optional fields (targetSeconds, notes) behave like logSession.
  *   2. that it stays out of db.drillTypes / db.spacingState — those
  *      are logSession's / the modal's job, not this helper's.
@@ -35,7 +35,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
     const session = await logScaleDrillSession({
       itemRef: 'scale:major:C',
       durationSeconds: 47,
-      rating: 'cruising',
+      feelRating: 3,
       targetSeconds: 30,
     });
     const after = Date.now();
@@ -50,21 +50,23 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
     expect(row.drillTypeId).toBe('scale:major:C');
     expect(row.durationSeconds).toBe(47);
     expect(row.targetSeconds).toBe(30);
-    expect(row.feelRating).toBe(3); // cruising → 3
+    expect(row.feelRating).toBe(3);
     expect(row.timestamp).toBeGreaterThanOrEqual(before);
     expect(row.timestamp).toBeLessThanOrEqual(after);
   });
 
-  it('maps the 3-point rating onto feelRating (flying → 4, cruising → 3, crawling → 1)', async () => {
-    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, rating: 'flying' });
-    await logScaleDrillSession({ itemRef: 'scale:major:D', durationSeconds: 30, rating: 'cruising' });
-    await logScaleDrillSession({ itemRef: 'scale:natural-minor:E', durationSeconds: 90, rating: 'crawling' });
+  it('stores the 4-point feelRating directly (1–4, including "working on it" = 2)', async () => {
+    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 4 });
+    await logScaleDrillSession({ itemRef: 'scale:major:D', durationSeconds: 30, feelRating: 3 });
+    await logScaleDrillSession({ itemRef: 'scale:major:G', durationSeconds: 30, feelRating: 2 });
+    await logScaleDrillSession({ itemRef: 'scale:natural-minor:E', durationSeconds: 90, feelRating: 1 });
 
     const byItem = new Map(
       (await db.drillSessions.toArray()).map(r => [r.skillId, r.feelRating]),
     );
     expect(byItem.get('scale:major:C')).toBe(4);
     expect(byItem.get('scale:major:D')).toBe(3);
+    expect(byItem.get('scale:major:G')).toBe(2);
     expect(byItem.get('scale:natural-minor:E')).toBe(1);
   });
 
@@ -72,7 +74,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
     await logScaleDrillSession({
       itemRef: 'scale:major-pentatonic:5:Eb',
       durationSeconds: 30,
-      rating: 'flying',
+      feelRating: 4,
     });
     const row = (await db.drillSessions.toArray())[0];
     expect(row.skillId).toBe('scale:major-pentatonic:5:Eb');
@@ -83,7 +85,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
     await logScaleDrillSession({
       itemRef: 'scale:major:C',
       durationSeconds: 46.7,
-      rating: 'cruising',
+      feelRating: 3,
       targetSeconds: 30.4,
       notes: '  felt smoother today  ',
     });
@@ -97,7 +99,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
     await logScaleDrillSession({
       itemRef: 'scale:major:C',
       durationSeconds: 30,
-      rating: 'flying',
+      feelRating: 4,
       notes: '   ',
     });
     const row = (await db.drillSessions.toArray())[0];
@@ -109,7 +111,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
     await logScaleDrillSession({
       itemRef: 'scale:major:C',
       durationSeconds: 30,
-      rating: 'cruising',
+      feelRating: 3,
     });
     expect(await db.drillTypes.count()).toBe(0);
     expect(await db.spacingState.count()).toBe(0);
@@ -122,8 +124,8 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
     const DAY = 24 * 60 * 60 * 1000;
 
     // Two scale drills logged "now".
-    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, rating: 'cruising' });
-    await logScaleDrillSession({ itemRef: 'scale:natural-minor:A', durationSeconds: 90, rating: 'crawling' });
+    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 3 });
+    await logScaleDrillSession({ itemRef: 'scale:natural-minor:A', durationSeconds: 90, feelRating: 1 });
 
     // A drill row well outside the window — must not be counted.
     await db.drillSessions.add({
@@ -157,7 +159,7 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
       feelRating: 4,
       timestamp: now,
     });
-    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, rating: 'flying' });
+    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 4 });
 
     const count = await getWeeklyAttempts(
       'shapes-and-patterns',
