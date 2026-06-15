@@ -33,6 +33,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
   it('writes a DrillSession row with the scale itemRef as skillId + drillTypeId', async () => {
     const before = Date.now();
     const session = await logScaleDrillSession({
+      hand: 'both',
       itemRef: 'scale:major:C',
       durationSeconds: 47,
       feelRating: 3,
@@ -56,10 +57,10 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
   });
 
   it('stores the 4-point feelRating directly (1–4, including "working on it" = 2)', async () => {
-    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 4 });
-    await logScaleDrillSession({ itemRef: 'scale:major:D', durationSeconds: 30, feelRating: 3 });
-    await logScaleDrillSession({ itemRef: 'scale:major:G', durationSeconds: 30, feelRating: 2 });
-    await logScaleDrillSession({ itemRef: 'scale:natural-minor:E', durationSeconds: 90, feelRating: 1 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 4 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:major:D', durationSeconds: 30, feelRating: 3 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:major:G', durationSeconds: 30, feelRating: 2 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:natural-minor:E', durationSeconds: 90, feelRating: 1 });
 
     const byItem = new Map(
       (await db.drillSessions.toArray()).map(r => [r.skillId, r.feelRating]),
@@ -72,6 +73,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
 
   it('preserves a pentatonic starting point in the itemRef-derived ids', async () => {
     await logScaleDrillSession({
+      hand: 'both',
       itemRef: 'scale:major-pentatonic:5:Eb',
       durationSeconds: 30,
       feelRating: 4,
@@ -83,6 +85,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
 
   it('rounds durationSeconds + targetSeconds and trims notes', async () => {
     await logScaleDrillSession({
+      hand: 'both',
       itemRef: 'scale:major:C',
       durationSeconds: 46.7,
       feelRating: 3,
@@ -97,6 +100,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
 
   it('omits targetSeconds when not supplied and notes when blank', async () => {
     await logScaleDrillSession({
+      hand: 'both',
       itemRef: 'scale:major:C',
       durationSeconds: 30,
       feelRating: 4,
@@ -109,6 +113,7 @@ describe('logScaleDrillSession — DrillSession row shape', () => {
 
   it('does not touch db.drillTypes or db.spacingState', async () => {
     await logScaleDrillSession({
+      hand: 'both',
       itemRef: 'scale:major:C',
       durationSeconds: 30,
       feelRating: 3,
@@ -124,11 +129,12 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
     const DAY = 24 * 60 * 60 * 1000;
 
     // Two scale drills logged "now".
-    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 3 });
-    await logScaleDrillSession({ itemRef: 'scale:natural-minor:A', durationSeconds: 90, feelRating: 1 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 3 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:natural-minor:A', durationSeconds: 90, feelRating: 1 });
 
     // A drill row well outside the window — must not be counted.
     await db.drillSessions.add({
+      hand: 'both',
       id: 'old-1',
       drillTypeId: 'scale:major:F',
       skillId: 'scale:major:F',
@@ -152,6 +158,7 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
     // A chord-shape-style row (real skill uid) and a scale row — both
     // live in db.drillSessions and both count as S&P attempts.
     await db.drillSessions.add({
+      hand: 'both',
       id: 'cs-1',
       drillTypeId: 'dtype-abc',
       skillId: 'skill-abc',
@@ -159,7 +166,7 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
       feelRating: 4,
       timestamp: now,
     });
-    await logScaleDrillSession({ itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 4 });
+    await logScaleDrillSession({ hand: 'both', itemRef: 'scale:major:C', durationSeconds: 30, feelRating: 4 });
 
     const count = await getWeeklyAttempts(
       'shapes-and-patterns',

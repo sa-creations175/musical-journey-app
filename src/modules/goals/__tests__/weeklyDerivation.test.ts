@@ -550,6 +550,7 @@ describe('deriveWeeklyGoals — record shape', () => {
       itemRef: 'lesson-overshoot',
       moduleRef: 'production',
       memoryType: 'integration',
+      hand: 'both',
       acquisitionStage: 'mastered',
       currentIntervalDays: 0,
       lastEngagedAt: priorWeekTime,

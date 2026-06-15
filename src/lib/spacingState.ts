@@ -1,4 +1,4 @@
-import { db, type SpacingState, type AcquisitionStage, type MemoryType } from './db';
+import { db, type SpacingState, type AcquisitionStage, type MemoryType, type DrillHand } from './db';
 import { putSpacingState } from './practiceWrites';
 import { getMemoryType } from './memoryType';
 
@@ -69,6 +69,10 @@ export interface RecordEngagementInput {
   itemRef: string;
   moduleRef: string;
   signal: EngagementSignal;
+  /** Which hand this engagement belongs to. Only scales & chord shapes
+   *  vary it (left / right / both as separate skills); every other
+   *  module omits it and rides the 'both' default. */
+  hand?: DrillHand;
   /** Defaults to `Date.now()`. Exposed for deterministic tests and for
    *  the Phase 1h backfill pass which replays historical timestamps. */
   timestamp?: number;
@@ -266,10 +270,11 @@ function entryFromSignal(signal: EngagementSignal, t: number): PerformanceEntry 
 export async function getSpacingState(
   itemRef: string,
   moduleRef: string,
+  hand: DrillHand = 'both',
 ): Promise<SpacingState | undefined> {
   return db.spacingState
-    .where('[moduleRef+itemRef]')
-    .equals([moduleRef, itemRef])
+    .where('[moduleRef+itemRef+hand]')
+    .equals([moduleRef, itemRef, hand])
     .first();
 }
 
@@ -289,12 +294,13 @@ export async function recordEngagement(
   input: RecordEngagementInput,
 ): Promise<SpacingState> {
   const { itemRef, moduleRef, signal } = input;
+  const hand: DrillHand = input.hand ?? 'both';
   const t = input.timestamp ?? Date.now();
   const memoryType = getMemoryType(moduleRef);
   assertSignalMatchesMemoryType(signal, memoryType, moduleRef);
 
   const entry = entryFromSignal(signal, t);
-  const existing = await getSpacingState(itemRef, moduleRef);
+  const existing = await getSpacingState(itemRef, moduleRef, hand);
 
   if (!existing) {
     const initialHistory: PerformanceEntry[] = [entry];
@@ -307,6 +313,7 @@ export async function recordEngagement(
       id: crypto.randomUUID(),
       itemRef,
       moduleRef,
+      hand,
       memoryType,
       // First engagement: new → acquiring. A single signal can never
       // also clear the acquired threshold (min 5 attempts / min 3
@@ -377,9 +384,10 @@ export async function assertSpacingStage(
   itemRef: string,
   moduleRef: string,
   stage: AcquisitionStage | null,
+  hand: DrillHand = 'both',
 ): Promise<void> {
   const memoryType = getMemoryType(moduleRef);
-  const existing = await getSpacingState(itemRef, moduleRef);
+  const existing = await getSpacingState(itemRef, moduleRef, hand);
 
   if (stage === null) {
     if (existing) await db.spacingState.delete(existing.id);
@@ -392,6 +400,7 @@ export async function assertSpacingStage(
       id: crypto.randomUUID(),
       itemRef,
       moduleRef,
+      hand,
       memoryType,
       acquisitionStage: stage,
       currentIntervalDays: 0,

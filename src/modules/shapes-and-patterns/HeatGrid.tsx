@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type DrillSkill, type DrillType } from '../../lib/db';
+import { db, type DrillSkill, type DrillType, type SpacingState, type AcquisitionStage } from '../../lib/db';
 import {
   aggregateCell,
   findOrCreateSkill,
@@ -9,11 +9,13 @@ import {
   heatTierFor,
   humanAgo,
   formatDuration,
+  parseShapesItemRef,
   type CellAggregate,
   type SkillDescriptor,
 } from './drillModel';
 import DrillListModal from './DrillListModal';
 import InversionBreakdownPanel from './InversionBreakdownPanel';
+import ThreeBandCell, { type BandStage } from './ThreeBandCell';
 import { KEYS_CIRCLE_OF_FOURTHS } from './catalog';
 
 interface RowMeta {
@@ -70,6 +72,50 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
     return m;
   }, [allTypes]);
 
+  // Per-(quality × key × hand) acquisition stages — chord-shape cells
+  // render three bands (LH / RH / Both), each coloured by that hand's
+  // acquisition state aggregated across the cell's inversion rows. Keyed
+  // `${quality} ${keyName} ${hand}`.
+  const allSpacing = useLiveQuery<SpacingState[]>(
+    () => db.spacingState.where('moduleRef').equals('shapes-and-patterns').toArray(),
+    [],
+  ) ?? [];
+  const chordStagesByCellHand = useMemo(() => {
+    const m = new Map<string, AcquisitionStage[]>();
+    for (const r of allSpacing) {
+      const d = parseShapesItemRef(r.itemRef);
+      if (!d || d.kind !== 'chord-shape') continue;
+      const key = `${d.quality} ${d.keyName} ${r.hand}`;
+      const arr = m.get(key) ?? [];
+      arr.push(r.acquisitionStage);
+      m.set(key, arr);
+    }
+    return m;
+  }, [allSpacing]);
+  // A cell-hand band reads `acquired` only when every drilled inversion
+  // for that hand is acquired+, `acquiring` if any is started, and null
+  // (not started) when the hand has no rows.
+  const chordBandStage = (quality: string, keyName: string, hand: string): BandStage => {
+    const stages = chordStagesByCellHand.get(`${quality} ${keyName} ${hand}`);
+    if (!stages || stages.length === 0) return null;
+    const allAcquired = stages.every(
+      s => s === 'acquired' || s === 'consolidated' || s === 'mastered',
+    );
+    return allAcquired ? 'acquired' : 'acquiring';
+  };
+
+  const openCell = async (desc: SkillDescriptor) => {
+    if (desc.kind === 'chord-shape') {
+      // Materialise the cell's inversion-state rows up-front, then route
+      // to the breakdown panel.
+      await findOrCreateSkill(desc);
+      setOpenChordShapeCell({ keyName: desc.keyName, quality: desc.quality });
+    } else {
+      const skill = await findOrCreateSkill(desc);
+      setOpenSkill(skill);
+    }
+  };
+
   return (
     <div className="overflow-x-auto">
       <div className="min-w-max">
@@ -101,26 +147,27 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
             </div>
             {keyList.map(k => {
               const desc = row.descriptorFor(k);
+              // Chord-shape cells show three per-hand acquisition bands
+              // (LH / RH / Both); other kinds keep the heat cell.
+              if (desc.kind === 'chord-shape') {
+                return (
+                  <ThreeBandCell
+                    key={k}
+                    left={chordBandStage(desc.quality, desc.keyName, 'left')}
+                    right={chordBandStage(desc.quality, desc.keyName, 'right')}
+                    both={chordBandStage(desc.quality, desc.keyName, 'both')}
+                    title={`${desc.quality} ${desc.keyName} — LH / RH / Both`}
+                    onClick={() => { void openCell(desc); }}
+                  />
+                );
+              }
               return (
                 <Cell
                   key={k}
                   descriptor={desc}
                   skill={findSkillFor(allSkills, desc)}
                   types={findTypesFor(allSkills, typesBySkill, desc)}
-                  onOpen={async () => {
-                    if (desc.kind === 'chord-shape') {
-                      // Materialise the cell's inversion-state rows
-                      // up-front (the panel re-runs the same op
-                      // idempotently — this primes the typesBySkill
-                      // live query for fewer flicker frames). Then
-                      // route to the breakdown panel.
-                      await findOrCreateSkill(desc);
-                      setOpenChordShapeCell({ keyName: desc.keyName, quality: desc.quality });
-                    } else {
-                      const skill = await findOrCreateSkill(desc);
-                      setOpenSkill(skill);
-                    }
-                  }}
+                  onOpen={() => { void openCell(desc); }}
                 />
               );
             })}

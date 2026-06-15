@@ -36,6 +36,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
   it('writes a DrillSession row with the VL sub-cell itemRef as skillId + drillTypeId', async () => {
     const before = Date.now();
     const session = await logVoiceLeadingDrillSession({
+      hand: 'both',
       itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 92,
       feelRating: 3,
@@ -58,10 +59,10 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
   });
 
   it('stores the 4-point feelRating directly (1–4, including "working on it" = 2)', async () => {
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:C', durationSeconds: 180, feelRating: 4 });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:dom7b9:pos2:G',         durationSeconds: 90,  feelRating: 3 });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:D', durationSeconds: 90, feelRating: 2 });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:dim7:pos3:F',           durationSeconds: 90,  feelRating: 1 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:diatonic-cycle:pos1:C', durationSeconds: 180, feelRating: 4 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:dom7b9:pos2:G',         durationSeconds: 90,  feelRating: 3 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:major-251:guide-tones:A:D', durationSeconds: 90, feelRating: 2 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:dim7:pos3:F',           durationSeconds: 90,  feelRating: 1 });
 
     const byItem = new Map(
       (await db.drillSessions.toArray()).map(r => [r.skillId, r.feelRating]),
@@ -74,6 +75,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
 
   it('rounds durationSeconds + targetSeconds and trims notes', async () => {
     await logVoiceLeadingDrillSession({
+      hand: 'both',
       itemRef: 'vl:major-251:aba-structure:B:F',
       durationSeconds: 121.6,
       feelRating: 3,
@@ -88,6 +90,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
 
   it('omits targetSeconds when not supplied and notes when blank', async () => {
     await logVoiceLeadingDrillSession({
+      hand: 'both',
       itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 90,
       feelRating: 4,
@@ -100,6 +103,7 @@ describe('logVoiceLeadingDrillSession — row shape', () => {
 
   it('does not touch db.drillTypes or db.spacingState (caller drives those separately)', async () => {
     await logVoiceLeadingDrillSession({
+      hand: 'both',
       itemRef: 'vl:major-251:guide-tones:A:C',
       durationSeconds: 90,
       feelRating: 3,
@@ -118,11 +122,12 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
 
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, feelRating: 3 });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:diatonic-cycle:pos1:F', durationSeconds: 180, feelRating: 4 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, feelRating: 3 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:diatonic-cycle:pos1:F', durationSeconds: 180, feelRating: 4 });
 
     // Out-of-window row — must not count.
     await db.drillSessions.add({
+      hand: 'both',
       id: 'old-1',
       drillTypeId: 'vl:major-251:guide-tones:A:Bb',
       skillId: 'vl:major-251:guide-tones:A:Bb',
@@ -144,6 +149,7 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
     const DAY = 24 * 60 * 60 * 1000;
 
     await db.drillSessions.add({
+      hand: 'both',
       id: 'cs-1',
       drillTypeId: 'dtype-abc',
       skillId: 'skill-abc',
@@ -151,7 +157,7 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
       feelRating: 3,
       timestamp: now,
     });
-    await logVoiceLeadingDrillSession({ itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, feelRating: 4 });
+    await logVoiceLeadingDrillSession({ hand: 'both', itemRef: 'vl:major-251:guide-tones:A:C', durationSeconds: 90, feelRating: 4 });
 
     const count = await getWeeklyAttempts(
       'shapes-and-patterns',

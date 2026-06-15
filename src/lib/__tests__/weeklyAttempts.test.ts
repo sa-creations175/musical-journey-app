@@ -337,11 +337,11 @@ describe('getWeeklyAttempts — Shapes', () => {
 
   it('counts drillSessions within the window', async () => {
     const rows: DrillSession[] = [
-      { id: 's1', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: WEEK_START },
-      { id: 's2', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: MID_WEEK },
-      { id: 's3', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: WEEK_END },
-      { id: 's4', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: BEFORE },
-      { id: 's5', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: AFTER },
+      { hand: 'both', id: 's1', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: WEEK_START },
+      { hand: 'both', id: 's2', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: MID_WEEK },
+      { hand: 'both', id: 's3', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: WEEK_END },
+      { hand: 'both', id: 's4', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: BEFORE },
+      { hand: 'both', id: 's5', drillTypeId: 'dt1', skillId: 'sk1', durationSeconds: 60, feelRating: 3, timestamp: AFTER },
     ];
     await db.drillSessions.bulkAdd(rows);
     expect(await getWeeklyAttempts('shapes-and-patterns', WEEK_START, WEEK_END)).toBe(3);
@@ -371,6 +371,7 @@ describe('getWeeklyAttempts — Production', () => {
 
   function spacing(partial: Partial<SpacingState> & { performanceHistory: SpacingState['performanceHistory'] }): SpacingState {
     return {
+      hand: 'both',
       id: `row-${Math.random().toString(36).slice(2, 8)}`,
       itemRef: 'lesson-x',
       moduleRef: 'production',

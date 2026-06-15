@@ -1,5 +1,6 @@
 import {
   db,
+  type DrillHand,
   type DrillSession,
   type DrillSkill,
   type DrillType,
@@ -491,6 +492,10 @@ export function labelFor(desc: SkillDescriptor): string {
 export interface LogSessionInput {
   skill: DrillSkill;
   drillType: DrillType;
+  /** Which hand this drill was for. Chord shapes pass the active hand
+   *  (left / right / both); the rating + spacing engagement are logged
+   *  against it. */
+  hand: DrillHand;
   durationSeconds: number;
   /** Countdown duration the user picked before starting the drill,
    *  in seconds. Persists separately from durationSeconds so a
@@ -567,6 +572,7 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     id: uid('dses'),
     drillTypeId: input.drillType.id,
     skillId: input.skill.id,
+    hand: input.hand,
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -588,6 +594,7 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     await recordEngagement({
       itemRef,
       moduleRef: 'shapes-and-patterns',
+      hand: input.hand,
       signal: { kind: 'rating', rating: feelToRating(input.feelRating) },
       timestamp: session.timestamp,
     });
@@ -599,6 +606,10 @@ export interface LogScaleDrillSessionInput {
   /** Canonical scale itemRef from scaleSkills.ts — e.g.
    *  "scale:major:C" or "scale:major-pentatonic:5:Eb". */
   itemRef: string;
+  /** Which hand this drill was for (left / right / both — separate
+   *  skills). The modal records the rating + spacing engagement against
+   *  it. */
+  hand: DrillHand;
   /** Actual elapsed drill time in seconds. */
   durationSeconds: number;
   /** 4-point feel rating, stored directly on DrillSession.feelRating
@@ -638,6 +649,10 @@ export interface LogVoiceLeadingDrillSessionInput {
    *  the new 5-part vl: form, e.g. `vl:aba-251:level1:A:C`. The
    *  modal resolves this from `pickMostDueVoiceLeadingSubCell`. */
   itemRef: string;
+  /** Always 'both' — voice leading is two-handed by nature and is
+   *  excluded from the hand dimension. Kept for DrillSession shape
+   *  parity. */
+  hand: DrillHand;
   /** Actual elapsed drill time in seconds. */
   durationSeconds: number;
   /** 4-point feel rating, stored directly on DrillSession.feelRating
@@ -672,6 +687,7 @@ export async function logVoiceLeadingDrillSession(
     id: uid('dses'),
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
+    hand: input.hand,
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -691,6 +707,7 @@ export async function logScaleDrillSession(
     id: uid('dses'),
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
+    hand: input.hand,
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }

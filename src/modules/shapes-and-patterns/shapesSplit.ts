@@ -35,6 +35,7 @@ import type { AllocatedBlock } from '../../lib/sessionAlgorithm/timeAllocation';
 import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
+  HANDS_PER_SHAPE_ITEM,
   SCALE_KIND_SECONDS,
   voiceLeadingCellSeconds,
 } from '../../lib/sessionAlgorithm/timePerAttempt';
@@ -405,7 +406,9 @@ function buildShapesWalk(
   for (const c of ordered) {
     if (budget <= 0 && kept.length > 0) break;
     kept.push(c);
-    budget -= cellSeconds(c.inversionState);
+    // Each chord-shape cell is drilled left / right / both — three hand
+    // passes, so it consumes 3× the per-hand cell time from the budget.
+    budget -= HANDS_PER_SHAPE_ITEM * cellSeconds(c.inversionState);
   }
   const uniqueKeyCount = new Set(kept.map(c => c.keyName)).size;
   return {
@@ -631,10 +634,12 @@ function buildScaleLadder(
       } else {
         itemRef = itemRefForScale({ kind, keyName });
       }
-      // 60s minimum per scale item — the prep card, the in-session
-      // runner, and this budget all use the same floored value so they
-      // agree. Fewer items fit the budget, but each gets a real drill.
-      const stepSeconds = Math.max(60, SCALE_KIND_SECONDS[kind]);
+      // 60s minimum per hand — the prep card, the in-session runner, and
+      // this budget all use the same floored value so they agree. Each
+      // scale item is drilled left / right / both, so the item's session
+      // time is 3× the per-hand floor. Fewer items fit the budget, but
+      // each gets all three hands.
+      const stepSeconds = HANDS_PER_SHAPE_ITEM * Math.max(60, SCALE_KIND_SECONDS[kind]);
       out.push({
         itemRef,
         seconds: stepSeconds,

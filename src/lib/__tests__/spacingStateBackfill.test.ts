@@ -275,10 +275,10 @@ describe('backfillSpacingStateIfNeeded — Shapes & Patterns', () => {
       { id: 's4', kind: 'mental-viz',    variant: 'shape-viz',                label: '', createdAt: now },
     ]);
     await db.drillSessions.bulkAdd([
-      { id: 'd1', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 3, timestamp: now + 1 },
-      { id: 'd2', drillTypeId: 't2', skillId: 's2', durationSeconds: 60, feelRating: 3, timestamp: now + 2 },
-      { id: 'd3', drillTypeId: 't3', skillId: 's3', durationSeconds: 60, feelRating: 3, timestamp: now + 3 },
-      { id: 'd4', drillTypeId: 't4', skillId: 's4', durationSeconds: 60, feelRating: 4, timestamp: now + 4 },
+      { hand: 'both', id: 'd1', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 3, timestamp: now + 1 },
+      { hand: 'both', id: 'd2', drillTypeId: 't2', skillId: 's2', durationSeconds: 60, feelRating: 3, timestamp: now + 2 },
+      { hand: 'both', id: 'd3', drillTypeId: 't3', skillId: 's3', durationSeconds: 60, feelRating: 3, timestamp: now + 3 },
+      { hand: 'both', id: 'd4', drillTypeId: 't4', skillId: 's4', durationSeconds: 60, feelRating: 4, timestamp: now + 4 },
     ]);
     await backfillSpacingStateIfNeeded();
     const cs = await getSpacingState('chord-shape:maj7:C', 'shapes-and-patterns');
@@ -299,9 +299,9 @@ describe('backfillSpacingStateIfNeeded — Shapes & Patterns', () => {
       label: '', createdAt: now,
     });
     await db.drillSessions.bulkAdd([
-      { id: 'd1', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 3, timestamp: now + 1 },
-      { id: 'd2', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 4, timestamp: now + 2 },
-      { id: 'd3', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 3, timestamp: now + 3 },
+      { hand: 'both', id: 'd1', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 3, timestamp: now + 1 },
+      { hand: 'both', id: 'd2', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 4, timestamp: now + 2 },
+      { hand: 'both', id: 'd3', drillTypeId: 't1', skillId: 's1', durationSeconds: 60, feelRating: 3, timestamp: now + 3 },
     ]);
     await backfillSpacingStateIfNeeded();
     const row = await getSpacingState('chord-shape:maj7:C', 'shapes-and-patterns');

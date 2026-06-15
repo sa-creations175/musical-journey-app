@@ -25,6 +25,7 @@ function spacingRow(partial: Partial<SpacingState>): SpacingState {
   return {
     id: 'row-x',
     itemRef: 'item-x',
+    hand: 'both',
     moduleRef: 'harmonic-fluency',
     memoryType: 'declarative',
     acquisitionStage: 'new',

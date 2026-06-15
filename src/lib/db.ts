@@ -690,10 +690,21 @@ export interface DrillType {
   userCreated?: boolean;
 }
 
+/**
+ * Which hand a scale / chord-shape drill (and its rating / spacing
+ * state) belongs to. Left, right, and both hands are SEPARATE skills,
+ * each with independent spacing state and rating history. Voice leading
+ * is excluded — it is two-handed by nature and always rides 'both'.
+ */
+export type DrillHand = 'left' | 'right' | 'both';
+
 export interface DrillSession {
   id: string;
   drillTypeId: string;
   skillId: string;
+  /** Which hand this rating belongs to. 'both' for voice leading and
+   *  for all rows migrated from before the hand dimension existed. */
+  hand: DrillHand;
   /** How long this session actually ran (not the target). Minimum
    *  enforced at 30 s by the UI before a session can save. */
   durationSeconds: number;
@@ -1565,6 +1576,13 @@ export interface SpacingState {
   id: string;
   itemRef: string;
   moduleRef: string;
+  /** Which hand this spacing row tracks. Left / right / both are
+   *  separate skills with independent spacing state. 'both' for every
+   *  non-handed module (intervals, repertoire, production, …), for
+   *  voice leading, and for all rows migrated from before the hand
+   *  dimension. Part of the per-item uniqueness via the
+   *  [moduleRef+itemRef+hand] index. */
+  hand: DrillHand;
   memoryType: MemoryType;
   acquisitionStage: AcquisitionStage;
   currentIntervalDays: number;
@@ -2990,6 +3008,69 @@ export class AppDB extends Dexie {
       await tx.table('songs').toCollection().modify(song => {
         song.updatedAt = Date.now();
       });
+    });
+
+    // v31 — Left / Right / Both hands dimension for scales & chord
+    // shapes. LH/RH/Both are separate skills, each with its own spacing
+    // state + rating history, so spacingState gains a `hand` field and a
+    // [moduleRef+itemRef+hand] composite index (the new per-item
+    // uniqueness). drillSessions gains a (non-indexed) `hand` field.
+    //
+    // Clean start: wipe every scale_drills + chord_shape_drills row so
+    // re-drilling rebuilds hand-aware data from scratch. Voice leading
+    // (vl:) and every other module are left untouched. For chord shapes
+    // the "shape key" lives across spacingState + drillSkills/drillTypes,
+    // so all three are wiped for those cells; scales are catalog-backed
+    // (itemRef only). Surviving rows (vl, repertoire, ET, production, …)
+    // are backfilled to hand:'both' so the new composite index resolves
+    // them and the NOT-NULL invariant holds.
+    this.version(31).stores({
+      spacingState:
+        'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef], [moduleRef+itemRef+hand]',
+    }).upgrade(async tx => {
+      const spacing = tx.table('spacingState');
+      const sessions = tx.table('drillSessions');
+      const skills = tx.table('drillSkills');
+      const types = tx.table('drillTypes');
+
+      // Identify chord-shape skill/type rows (the chord-shape "shape
+      // keys"). Their drillSessions reference them by skillId / drillTypeId.
+      const allSkills = await skills.toArray();
+      const chordSkillIds = new Set(
+        allSkills.filter(s => s.kind === 'chord-shape').map(s => s.id),
+      );
+      const chordTypeIds = (await types.toArray())
+        .filter(t => chordSkillIds.has(t.skillId))
+        .map(t => t.id);
+
+      // 1. spacingState — drop scale + chord-shape S&P rows, backfill the rest.
+      const spacingToDelete = (await spacing.toArray())
+        .filter(r =>
+          r.moduleRef === 'shapes-and-patterns' &&
+          (r.itemRef.startsWith('scale:') || r.itemRef.startsWith('chord-shape:')),
+        )
+        .map(r => r.id);
+      if (spacingToDelete.length) await spacing.bulkDelete(spacingToDelete);
+      await spacing.toCollection().modify(r => {
+        if (r.hand === undefined) r.hand = 'both';
+      });
+
+      // 2. drillSessions — drop scale (skillId 'scale:*') + chord-shape
+      //    (skillId in chordSkillIds) rows, backfill the rest (vl,
+      //    mental-viz) to 'both'. VL/mental-viz stay; vl: rows untouched.
+      const sessionsToDelete = (await sessions.toArray())
+        .filter(s => s.skillId.startsWith('scale:') || chordSkillIds.has(s.skillId))
+        .map(s => s.id);
+      if (sessionsToDelete.length) await sessions.bulkDelete(sessionsToDelete);
+      await sessions.toCollection().modify(r => {
+        if (r.hand === undefined) r.hand = 'both';
+      });
+
+      // 3. Chord-shape skill + type scaffolding — wipe for the clean
+      //    start (they re-materialise lazily on first drill). Scales / VL
+      //    have no such rows.
+      if (chordTypeIds.length) await types.bulkDelete(chordTypeIds);
+      if (chordSkillIds.size) await skills.bulkDelete([...chordSkillIds]);
     });
   }
 }

@@ -121,8 +121,8 @@ describe('getDailyActivity — harmonic-fluency', () => {
 describe('getDailyActivity — shapes-and-patterns', () => {
   it('aggregates drillSessions duration into minutes per local day', async () => {
     await db.drillSessions.bulkPut([
-      { id: '1', drillTypeId: 'maj-shape', skillId: 's', durationSeconds: 600, feelRating: 3, timestamp: new Date(2026, 3, 29, 9, 0).getTime() },
-      { id: '2', drillTypeId: 'min-shape', skillId: 's', durationSeconds: 540, feelRating: 4, timestamp: new Date(2026, 3, 29, 18, 0).getTime() },
+      { hand: 'both', id: '1', drillTypeId: 'maj-shape', skillId: 's', durationSeconds: 600, feelRating: 3, timestamp: new Date(2026, 3, 29, 9, 0).getTime() },
+      { hand: 'both', id: '2', drillTypeId: 'min-shape', skillId: 's', durationSeconds: 540, feelRating: 4, timestamp: new Date(2026, 3, 29, 18, 0).getTime() },
     ]);
 
     const out = await getDailyActivity('shapes-and-patterns', APRIL_29_RANGE);
@@ -131,8 +131,8 @@ describe('getDailyActivity — shapes-and-patterns', () => {
 
   it('rounds minutes per day', async () => {
     await db.drillSessions.bulkPut([
-      { id: '1', drillTypeId: 'd', skillId: 's', durationSeconds: 90,  feelRating: 3, timestamp: new Date(2026, 3, 10, 9).getTime() }, // 1.5 min
-      { id: '2', drillTypeId: 'd', skillId: 's', durationSeconds: 105, feelRating: 3, timestamp: new Date(2026, 3, 10, 12).getTime() }, // 1.75
+      { hand: 'both', id: '1', drillTypeId: 'd', skillId: 's', durationSeconds: 90,  feelRating: 3, timestamp: new Date(2026, 3, 10, 9).getTime() }, // 1.5 min
+      { hand: 'both', id: '2', drillTypeId: 'd', skillId: 's', durationSeconds: 105, feelRating: 3, timestamp: new Date(2026, 3, 10, 12).getTime() }, // 1.75
     ]);
 
     const out = await getDailyActivity('shapes-and-patterns', APRIL_29_RANGE);
@@ -142,8 +142,8 @@ describe('getDailyActivity — shapes-and-patterns', () => {
 
   it('excludes sessions outside the range', async () => {
     await db.drillSessions.bulkPut([
-      { id: '1', drillTypeId: 'd', skillId: 's', durationSeconds: 600, feelRating: 3, timestamp: new Date(2026, 2, 31, 12).getTime() }, // March 31
-      { id: '2', drillTypeId: 'd', skillId: 's', durationSeconds: 600, feelRating: 3, timestamp: new Date(2026, 3, 15, 12).getTime() }, // April 15
+      { hand: 'both', id: '1', drillTypeId: 'd', skillId: 's', durationSeconds: 600, feelRating: 3, timestamp: new Date(2026, 2, 31, 12).getTime() }, // March 31
+      { hand: 'both', id: '2', drillTypeId: 'd', skillId: 's', durationSeconds: 600, feelRating: 3, timestamp: new Date(2026, 3, 15, 12).getTime() }, // April 15
     ]);
 
     const out = await getDailyActivity('shapes-and-patterns', APRIL_29_RANGE);

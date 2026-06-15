@@ -37,7 +37,7 @@ import Modal from '../../components/Modal';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { recordEngagement } from '../../lib/spacingState';
-import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
+import { HANDS_PER_SHAPE_ITEM, SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   feelToRating,
   formatDuration,
@@ -83,6 +83,16 @@ interface Props {
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
 
+// Every scale item is drilled left → right → both, each its own timer +
+// rating + spacing state. The modal walks these in order, advancing on
+// each "Save rating"; only after Both does it hand back to the runner.
+const HANDS = ['left', 'right', 'both'] as const;
+const HAND_LABEL: Record<(typeof HANDS)[number], string> = {
+  left: 'Left hand',
+  right: 'Right hand',
+  both: 'Both hands',
+};
+
 /** Mirror of DrillSessionModal's setup-phase preset chips. The
  *  slider covers the 30–600 s range; chips provide quick jumps to
  *  common drill lengths. */
@@ -116,30 +126,31 @@ export default function ScalesDrillModal({
   onLogged,
   initialTargetSeconds,
   onRedo,
-  sessionTargetSeconds,
   onPrevious,
   canGoPrevious,
   canGoNext,
 }: Props) {
   const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
-  // Runner-supplied per-item time wins over the cell's canonical
-  // default. The in-session runner (initialTargetSeconds set) floors
-  // each item at 60s; standalone matrix-tap keeps the cell's canonical
-  // duration with a 30s floor.
-  const seed = Math.max(
-    initialTargetSeconds !== undefined ? 60 : 30,
-    initialTargetSeconds ?? suggested,
-  );
   // Launched by the in-session runner (per-item time supplied) → the
   // prep screen already set duration + BPM + meter and the count-in
   // just fired GO, so flow straight into a running drill (no setup
   // screen). Standalone matrix-tap keeps the setup screen.
   const fromRunner = initialTargetSeconds !== undefined;
+  // PER-HAND countdown seconds. The runner supplies the whole-item
+  // budget (all three hands), so divide by the hand count; standalone
+  // matrix-tap uses the cell's canonical per-hand duration. Floored at
+  // 30s so a hand always gets a real drill.
+  const seed = fromRunner
+    ? Math.max(30, Math.round(initialTargetSeconds! / HANDS_PER_SHAPE_ITEM))
+    : Math.max(30, suggested);
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
+  // Which hand of the left → right → both walk we're on for this item.
+  const [handIndex, setHandIndex] = useState(0);
+  const currentHand = HANDS[handIndex];
   const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -272,16 +283,31 @@ export default function ScalesDrillModal({
     startTick();
   };
 
+  // Advance to the next hand within this item: a lightweight in-modal
+  // refresh (no dark overlay) — reset the rating + countdown and drop
+  // straight back into a running drill for the next hand.
+  const advanceToHand = (nextIndex: number) => {
+    setHandIndex(nextIndex);
+    setFeel(null);
+    setNotes('');
+    setElapsedSeconds(0);
+    setRemainingSeconds(targetSeconds);
+    setPhase('running');
+    void metronome.start('drill');
+    startTick();
+  };
+
   const handleSave = async () => {
     if (saving || feel === null || belowMin) return;
     setSaving(true);
     try {
-      // DrillSession row first — the attempt-counting record. Mirrors
-      // DrillSessionModal: records BOTH the user-set countdown
-      // (`targetSeconds`) and the actual elapsed (`durationSeconds`).
-      // recordEngagement (the proficiency signal) follows.
+      // Log THIS hand's rating against its own spacing state. Records
+      // BOTH the user-set countdown (`targetSeconds`) and the actual
+      // elapsed (`durationSeconds`); recordEngagement (the proficiency
+      // signal) follows — each hand advances independently.
       await logScaleDrillSession({
         itemRef: cell.itemRef,
+        hand: currentHand,
         durationSeconds: elapsedSeconds,
         feelRating: feel,
         targetSeconds,
@@ -290,10 +316,17 @@ export default function ScalesDrillModal({
       await recordEngagement({
         itemRef: cell.itemRef,
         moduleRef: 'shapes-and-patterns',
+        hand: currentHand,
         signal: { kind: 'rating', rating: feelToRating(feel) },
       });
-      onLogged?.();
-      onClose();
+      if (handIndex < HANDS.length - 1) {
+        // More hands to drill — refresh in place for the next hand.
+        advanceToHand(handIndex + 1);
+      } else {
+        // Both hands done → hand back to the runner (UP NEXT / block end).
+        onLogged?.();
+        onClose();
+      }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn('[scales-drill] save failed', err);
@@ -320,10 +353,10 @@ export default function ScalesDrillModal({
       onClose={phase === 'running' ? () => {} : handleCancel}
       title={title}
       description={
-        `${cell.tier === 'maintenance' ? 'Maintenance scale' : 'Drill scale'} · ` +
-        (sessionTargetSeconds !== undefined
-          ? `~${sessionTargetSeconds}s in this session`
-          : `~${suggested}s suggested`)
+        `${HAND_LABEL[currentHand]} · ` +
+        (fromRunner
+          ? `~${targetSeconds}s in this session`
+          : `~${targetSeconds}s suggested`)
       }
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">

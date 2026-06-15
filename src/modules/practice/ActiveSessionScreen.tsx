@@ -49,6 +49,7 @@ import {
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
 import { BLOCK_RATING_FEEL_OPTIONS, ratingForFeel } from '../../lib/sessionTimer/blockRatingOptions';
 import EndOfSessionSummary from './EndOfSessionSummary';
+import MatrixSnapshot from './MatrixSnapshot';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import MetronomeControl from '../../components/MetronomeControl';
 import CountdownOverlay from './CountdownOverlay';
@@ -137,6 +138,9 @@ export default function ActiveSessionScreen() {
   // fighting over local state.
   const [launched, setLaunched] = useState(false);
   const [pendingFeel, setPendingFeel] = useState<1 | 2 | 3 | 4 | null>(null);
+  // Post-block matrix snapshot: for S&P blocks, "Next block" first shows
+  // a read-only "where this stands" matrix, then Continue advances.
+  const [showSnapshot, setShowSnapshot] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   // True while the in-session drill runner (Level 3) is walking the
   // block's cells over this screen, instead of having navigated to the
@@ -468,6 +472,7 @@ export default function ActiveSessionScreen() {
     advanceBlock({ markStatus: 'skipped' });
     setLaunched(false);
     setPendingFeel(null);
+    setShowSnapshot(false);
     setRunnerActive(false);
     setCountdown(null);
     // Stay on the active-session screen — the next block opens on its
@@ -486,6 +491,7 @@ export default function ActiveSessionScreen() {
     deferBlock();
     setLaunched(false);
     setPendingFeel(null);
+    setShowSnapshot(false);
     setRunnerActive(false);
     setCountdown(null);
   };
@@ -498,6 +504,7 @@ export default function ActiveSessionScreen() {
     });
     setLaunched(false);
     setPendingFeel(null);
+    setShowSnapshot(false);
     setRunnerActive(false);
     setCountdown(null);
     // Stay here — the next block opens on its prep screen (module
@@ -764,6 +771,24 @@ export default function ActiveSessionScreen() {
     const nextLabel = nextMeta?.label ?? nextBlock?.moduleRef ?? '';
     const eligibleToExtend = canExtendBlock(currentBlock);
 
+    // Post-block snapshot (S&P blocks only): the rated block's "where
+    // this stands" matrix, shown between the rating and the next-block
+    // preview. Continue → advance (handleRatingNext finishes on the
+    // last block). Non-S&P blocks skip straight to the advance.
+    if (showSnapshot && isRunnerBlock) {
+      const drilledItemRefs = itemBreakdown
+        ? itemBreakdown.map(i => i.itemRef)
+        : (currentBlock.itemRefs ?? []);
+      return (
+        <div className="max-w-xl mx-auto px-4 py-6">
+          <MatrixSnapshot
+            itemRefs={drilledItemRefs}
+            onContinue={() => { setShowSnapshot(false); handleRatingNext(); }}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="max-w-xl mx-auto px-4 py-6 space-y-4">
         <div className="text-center text-[11px] uppercase tracking-wider text-neutral-500">
@@ -887,7 +912,7 @@ export default function ActiveSessionScreen() {
 
         <button
           type="button"
-          onClick={handleRatingNext}
+          onClick={isRunnerBlock ? () => setShowSnapshot(true) : handleRatingNext}
           className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
         >
           {nextBlock ? 'Next block →' : 'finish session'}

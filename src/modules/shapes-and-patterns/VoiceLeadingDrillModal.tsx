@@ -263,6 +263,7 @@ export default function VoiceLeadingDrillModal({
       // signal) follows.
       await logVoiceLeadingDrillSession({
         itemRef,
+        hand: 'both',
         durationSeconds: elapsedSeconds,
         feelRating: feel,
         targetSeconds,
@@ -271,6 +272,7 @@ export default function VoiceLeadingDrillModal({
       await recordEngagement({
         itemRef,
         moduleRef: 'shapes-and-patterns',
+        hand: 'both',
         signal: { kind: 'rating', rating: feelToRating(feel) },
       });
       onLogged?.();

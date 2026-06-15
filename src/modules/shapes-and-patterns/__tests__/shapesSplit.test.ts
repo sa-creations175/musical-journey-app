@@ -34,17 +34,18 @@ import {
   VOICE_LEADING_PATTERNS,
 } from '../catalog';
 import { parseScaleItemRef } from '../scaleSkills';
-import { SCALE_KIND_SECONDS } from '../../../lib/sessionAlgorithm/timePerAttempt';
+import { HANDS_PER_SHAPE_ITEM, SCALE_KIND_SECONDS } from '../../../lib/sessionAlgorithm/timePerAttempt';
 
 const NOW = 1_700_000_000_000;
 
 // A scales segment's plannedSeconds is the sum of its per-item drill
-// times, each floored at 60s (the runner's per-item minimum) — not the
-// raw budget share. This mirrors the generation contract.
+// times, each floored at 60s per hand (the runner's per-item minimum)
+// and ×3 because every scale item is drilled left / right / both — not
+// the raw budget share. This mirrors the generation contract.
 function sumFlooredScaleSeconds(itemRefs: readonly string[]): number {
   return itemRefs.reduce((sum, ref) => {
     const desc = parseScaleItemRef(ref);
-    return sum + (desc ? Math.max(60, SCALE_KIND_SECONDS[desc.kind]) : 0);
+    return sum + (desc ? HANDS_PER_SHAPE_ITEM * Math.max(60, SCALE_KIND_SECONDS[desc.kind]) : 0);
   }, 0);
 }
 
@@ -57,6 +58,7 @@ function row(
     itemRef,
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
+    hand: 'both',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 0,
     lastEngagedAt: null,
@@ -194,11 +196,15 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       'chord-shape:maj7:C:root',
       'chord-shape:maj:C:root',
     ];
-    // 8 cells × ~90 s + 1 fluid at 120 s = 750 s — give a 14:59
-    // block (just below the scale threshold) so the whole walk
-    // fits without the scale segment kicking in.
+    // Each (shape × key) cell is now drilled left/right/both (3× the
+    // per-cell time), so the 8 cells (≈2250 s) no longer all fit in a
+    // sub-15-min block — and going ≥15 min would prepend scales/VL
+    // segments, making segs[0] the scales segment instead of the walk.
+    // The walk sorts THEN truncates, so the kept cells are the correct
+    // sorted PREFIX of the full ordering. Assert that prefix to pin the
+    // tier→quality→inversion sort without weakening intent.
     const segs = shapeShapesBlock(block(itemRefs, 14 * 60 + 59), ctx([], { unlockedTier: 2 }));
-    expect(segs[0].itemRefs).toEqual([
+    const expectedOrder = [
       'chord-shape:maj:C:root',
       'chord-shape:maj:C:inv1',
       'chord-shape:maj:C:inv2',
@@ -207,7 +213,9 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       'chord-shape:maj7:C:root',
       'chord-shape:maj7:C:inv1',
       'chord-shape:dom7:C:root',
-    ]);
+    ];
+    expect(segs[0].itemRefs).toEqual(expectedOrder.slice(0, segs[0].itemRefs.length));
+    expect(segs[0].itemRefs.length).toBeGreaterThanOrEqual(3);
   });
 
   it('prefers due-cell keys when picking the starting key', () => {
@@ -266,7 +274,11 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       'chord-shape:maj:Ab:root',
       'chord-shape:maj:Db:root',
     ];
-    const segs = shapeShapesBlock(block(itemRefs, 300), ctx([], { unlockedTier: 1 }));
+    // Each cell now costs 3× (≈270 s, drilled left/right/both). Use a
+    // 14:59 block (just below the 15-min three-way threshold so it stays
+    // a pure chord walk): at 270 s/cell that fits 3 cells (810 s; a 4th
+    // at 1080 s overflows), keeping the ≥3/≤4 bounds and C/F prefix valid.
+    const segs = shapeShapesBlock(block(itemRefs, 14 * 60 + 59), ctx([], { unlockedTier: 1 }));
     expect(segs[0].itemRefs.length).toBeLessThanOrEqual(4);
     expect(segs[0].itemRefs.length).toBeGreaterThanOrEqual(3);
     expect(segs[0].itemRefs[0]).toBe('chord-shape:maj:C:root');
@@ -425,11 +437,15 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   });
 
   it('caps at SCALES_SEGMENT_MAX_KEYS (2) keys via spacing-state-driven walk', () => {
-    // Cold-start with no scale rows and a long 60-min block — each key
-    // now drills all 4 fixed-order types (~270s), so a 60-min block's
-    // scales budget fits exactly the 2-key cap before stopping.
+    // Cold-start with no scale rows. Each key drills the full 4-type
+    // ladder (major + major-pent + nat-min + min-pent) and every scale
+    // item is now drilled left/right/both (3× the per-cell time), so one
+    // key's ladder costs ~810 s. To surface the 2-key cap the 15% scales
+    // slice must exceed 810 s (so the second key starts) — a 200-min
+    // block's slice (~1800 s) fits both keys' full ladders. The 2-key cap
+    // is structural, so a bigger block does NOT add a third key.
     const segs = shapeShapesBlock(
-      block(['chord-shape:maj:C:root'], 60 * 60),
+      block(['chord-shape:maj:C:root'], 200 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -448,8 +464,11 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
     // tiebreak surfaces major + major-pent first. Natural-minor +
     // minor-pent are NOT included unless they're more-due than the
     // major pair.
+    // Scale items now cost 3× (drilled left/right/both), so use a 90-min
+    // block: the 15% scales slice fits the full structurally-capped ladder
+    // (the 2-types-per-key cap is structural, not budget-driven).
     const segs = shapeShapesBlock(
-      block([], 15 * 60),
+      block([], 90 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -465,8 +484,10 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   });
 
   it('uses the default pent starting point (1) when no spacingState row exists', () => {
+    // 3× per-item cost (left/right/both) → 90-min block so the 15% scales
+    // slice fits the structurally-capped ladder.
     const segs = shapeShapesBlock(
-      block([], 15 * 60),
+      block([], 90 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -486,8 +507,10 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
       row('scale:major-pentatonic:1:C',    { nextDueAt: NOW + 10_000 }),
       // nat-min and min-pent have no rows → NEGATIVE_INFINITY dueness.
     ];
+    // 3× per-item cost (left/right/both) → 90-min block so the 15% scales
+    // slice fits the structurally-capped ladder.
     const segs = shapeShapesBlock(
-      block([], 15 * 60),
+      block([], 90 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -505,8 +528,10 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
       row('scale:major-pentatonic:1:C', { lastEngagedAt: NOW - 1_000 }),
       row('scale:major-pentatonic:5:C', { lastEngagedAt: NOW - 10_000 }),
     ];
+    // 3× per-item cost (left/right/both) → 90-min block so the 15% scales
+    // slice fits the structurally-capped ladder.
     const segs = shapeShapesBlock(
-      block([], 15 * 60),
+      block([], 90 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -515,8 +540,10 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   });
 
   it('builds a "SCALES — KEYS (families)" label', () => {
+    // 3× per-item cost (left/right/both) → 90-min block so the 15% scales
+    // slice fits the structurally-capped ladder (major + major-pent pair).
     const segs = shapeShapesBlock(
-      block([], 15 * 60),
+      block([], 90 * 60),
       ctx([], { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;
@@ -534,14 +561,16 @@ describe('shapeShapesBlock — Scales warm-up segment', () => {
   it('multi-key labels join keys with ", " in the SCALES header (max 2 keys)', () => {
     // Two least-recently-engaged scale keys with due cells — the
     // picker leads with the oldest (B) and walks circle-of-4ths
-    // from there (B → E). SESSION_DESIGN caps at 2 keys. A 60-min
-    // block's scales budget fits both keys' 4-type ladders.
+    // from there (B → E). SESSION_DESIGN caps at 2 keys. Each key drills
+    // the full 4-type ladder and every scale item now costs 3×
+    // (left/right/both) ≈ 810 s/key, so a 200-min block's 15% scales
+    // slice (~1800 s) fits both keys' ladders.
     const rows = [
       row('scale:major:B',  { lastEngagedAt: NOW - 30_000, nextDueAt: NOW - 100 }),
       row('scale:major:E',  { lastEngagedAt: NOW - 20_000, nextDueAt: NOW - 100 }),
     ];
     const segs = shapeShapesBlock(
-      block([], 60 * 60),
+      block([], 200 * 60),
       ctx(rows, { unlockedTier: 1 }),
     );
     const scales = segs.find(s => s.kind === 'scales')!;

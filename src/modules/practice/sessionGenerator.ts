@@ -67,7 +67,7 @@ import {
   type AlgorithmBlock,
   type AllocatedBlock,
 } from '../../lib/sessionAlgorithm/timeAllocation';
-import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
+import { HANDS_PER_SHAPE_ITEM, SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   COLD_START_REPERTOIRE_WEIGHT,
   CONTEXT_RANK,
@@ -1038,7 +1038,8 @@ export async function loadShapesSplitContext(
       if (row.nextDueAt !== null && row.nextDueAt > now) continue;
       // Union match — any active Scales goal pulls the cell in.
       if (!scaleMatchers.some(m => m(row.itemRef))) continue;
-      total += SCALE_KIND_SECONDS[desc.kind];
+      // Each scale cell is drilled left / right / both — 3 hand passes.
+      total += HANDS_PER_SHAPE_ITEM * SCALE_KIND_SECONDS[desc.kind];
     }
     scalesGoalDueSeconds = total;
   }

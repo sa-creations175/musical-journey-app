@@ -34,6 +34,7 @@ function mkBlock(p: Partial<ProposalBlock> & { id: string }): ProposalBlock {
 function mkRow(p: Partial<SpacingState> & { itemRef: string; moduleRef: string }): SpacingState {
   return {
     id: 'row-' + p.itemRef,
+    hand: 'both',
     memoryType: 'procedural',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 1,

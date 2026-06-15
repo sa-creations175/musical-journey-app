@@ -54,6 +54,7 @@ function session(partial: Partial<DrillSession>): DrillSession {
     durationSeconds: 90,
     feelRating: 3,
     timestamp: NOW,
+    hand: 'both',
     ...partial,
   };
 }

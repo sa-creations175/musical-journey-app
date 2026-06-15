@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toaster';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
+import { HANDS_PER_SHAPE_ITEM } from '../../lib/sessionAlgorithm/timePerAttempt';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
 import {
@@ -41,6 +42,17 @@ interface Props {
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
+
+// Every chord-shape cell is drilled left → right → both, each its own
+// timer + rating + spacing state. The modal walks these in order,
+// advancing on each "Save rating"; only after Both does it log onLogged
+// (which advances the runner / closes the standalone modal).
+const HANDS = ['left', 'right', 'both'] as const;
+const HAND_LABEL: Record<(typeof HANDS)[number], string> = {
+  left: 'Left hand',
+  right: 'Right hand',
+  both: 'Both hands',
+};
 
 /**
  * Drill runner: setup → running → (paused → running)* → assess.
@@ -85,7 +97,6 @@ export default function DrillSessionModal({
   onClose,
   onLogged,
   initialTargetSeconds,
-  sessionTargetSeconds,
   onRedo,
   onPrevious,
   canGoPrevious,
@@ -102,14 +113,20 @@ export default function DrillSessionModal({
   // runner walks cells via the Previous/Next/Redo controls. Standalone
   // matrix-tap (no initialTargetSeconds) keeps the original flow exactly.
   const fromRunner = initialTargetSeconds !== undefined;
+  // PER-HAND countdown seconds. The runner supplies the whole-item
+  // budget (all three hands), so divide by the hand count; standalone
+  // uses the drill type's canonical per-hand suggestion.
   const seed = fromRunner
-    ? Math.max(60, initialTargetSeconds!)
+    ? Math.max(30, Math.round(initialTargetSeconds! / HANDS_PER_SHAPE_ITEM))
     : drillType.suggestedSeconds;
 
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // Which hand of the left → right → both walk we're on for this cell.
+  const [handIndex, setHandIndex] = useState(0);
+  const currentHand = HANDS[handIndex];
   const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
   const [notes, setNotes] = useState('');
 
@@ -300,6 +317,21 @@ export default function DrillSessionModal({
     // Local-only reset; global session persists.
   };
 
+  // Advance to the next hand within this cell: a lightweight in-modal
+  // refresh (no dark overlay) — reset the rating + countdown and drop
+  // straight back into a running drill for the next hand. The global
+  // session is already running, so this doesn't touch it.
+  const advanceToHand = (nextIndex: number) => {
+    setHandIndex(nextIndex);
+    setFeel(null);
+    setNotes('');
+    setElapsedSeconds(0);
+    setRemainingSeconds(targetSeconds);
+    setPhase('running');
+    void metronome.start('drill');
+    tick();
+  };
+
   const save = async () => {
     if (feel === null) return;
     if (elapsedSeconds < MIN_REP_SECONDS) {
@@ -309,9 +341,12 @@ export default function DrillSessionModal({
       });
       return;
     }
+    // Log THIS hand's rating against its own spacing state. Each hand
+    // advances independently.
     const session = await logSession({
       skill,
       drillType,
+      hand: currentHand,
       durationSeconds: elapsedSeconds,
       // Capture the user-selected countdown so future rolling-
       // average planning has the target alongside the actual.
@@ -322,9 +357,17 @@ export default function DrillSessionModal({
       notes,
     });
     toast({
-      message: `Logged ${formatDuration(elapsedSeconds)} on "${drillType.name}".`,
+      message: `Logged ${formatDuration(elapsedSeconds)} on "${drillType.name}" (${HAND_LABEL[currentHand]}).`,
       variant: 'success',
     });
+    if (handIndex < HANDS.length - 1) {
+      // More hands to drill — refresh in place for the next hand. Do
+      // NOT call onLogged yet (that advances the runner / unmounts the
+      // standalone modal).
+      advanceToHand(handIndex + 1);
+      return;
+    }
+    // Both hands done → hand back to the caller.
     onLogged(session);
     // In-session: close so the runner advances to the next cell (its
     // onClose-after-log is swallowed via justLoggedRef). Standalone:
@@ -355,9 +398,9 @@ export default function DrillSessionModal({
       onClose={phase === 'running' ? () => {} : cancelWithoutLogging}
       title={drillType.name}
       description={
-        fromRunner && sessionTargetSeconds !== undefined
-          ? `${skill.label} · ~${sessionTargetSeconds}s in this session`
-          : skill.label
+        fromRunner
+          ? `${skill.label} · ${HAND_LABEL[currentHand]} · ~${targetSeconds}s in this session`
+          : `${skill.label} · ${HAND_LABEL[currentHand]}`
       }
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">

@@ -25,6 +25,7 @@ function mkSpacingState(id: string): SpacingState {
     itemRef: 'item-1',
     moduleRef: 'harmonic-fluency',
     memoryType: 'declarative',
+    hand: 'both',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 0,
     lastEngagedAt: 1,

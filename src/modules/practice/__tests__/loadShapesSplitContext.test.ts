@@ -61,6 +61,7 @@ function row(itemRef: string, overrides: Partial<SpacingState> = {}): SpacingSta
   return {
     id: itemRef,
     itemRef,
+    hand: 'both',
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
     acquisitionStage: 'acquiring',
@@ -151,7 +152,8 @@ describe('loadShapesSplitContext — goal-aware Scales budget', () => {
       row('scale:natural-minor:C', { nextDueAt: NOW - 1 }), // not in goal → 0
     ];
     const ctx = await loadShapesSplitContext(rows, NOW);
-    expect(ctx.scalesGoalDueSeconds).toBe(60);
+    // Each due scale cell is drilled left / right / both → 3 × 30 s.
+    expect(ctx.scalesGoalDueSeconds).toBe(3 * 60);
   });
 
   it('weighs natural-minor cells at 90 s and other kinds at 30 s', async () => {
@@ -168,7 +170,7 @@ describe('loadShapesSplitContext — goal-aware Scales budget', () => {
       row('scale:minor-pentatonic:b3:C', { nextDueAt: NOW - 1 }), // 30 s
     ];
     const ctx = await loadShapesSplitContext(rows, NOW);
-    expect(ctx.scalesGoalDueSeconds).toBe(30 + 90 + 30 + 30);
+    expect(ctx.scalesGoalDueSeconds).toBe(3 * (30 + 90 + 30 + 30));
   });
 
   it('returns 0 (not null) when goal exists but no due cells match', async () => {
@@ -200,7 +202,7 @@ describe('loadShapesSplitContext — goal-aware Scales budget', () => {
       row('scale:major-pentatonic:6:C', { nextDueAt: NOW - 1 }),  // wrong sp
     ];
     const ctx = await loadShapesSplitContext(rows, NOW);
-    expect(ctx.scalesGoalDueSeconds).toBe(60);
+    expect(ctx.scalesGoalDueSeconds).toBe(3 * 60);
   });
 });
 

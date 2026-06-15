@@ -144,12 +144,39 @@ export const TIME_PER_ATTEMPT_SECONDS: Readonly<
 };
 
 // ---------------------------------------------------------------------
+// Hand dimension — scales & chord shapes drill left / right / both
+// ---------------------------------------------------------------------
+
+/**
+ * Scales and chord shapes are drilled as THREE separate hand passes
+ * per (shape × key) item — left, then right, then both — each with its
+ * own timer, rating, and spacing state. So an item's session time is
+ * `HANDS_PER_SHAPE_ITEM × per-hand cell seconds`. Voice leading is
+ * two-handed by nature and is excluded — it always runs as a single
+ * pass (handCount 1).
+ *
+ * The per-cell seed constants below (CHORD_SHAPE_*, SCALE_KIND_SECONDS)
+ * are the PER-HAND durations; multiply by the hand count when computing
+ * an item's full session budget. */
+export const HANDS_PER_SHAPE_ITEM = 3;
+
+/** Hand passes a given S&P itemRef costs: 3 for scales & chord shapes
+ *  (left / right / both), 1 for voice leading and anything else.
+ *  Prefix-based so it stays dependency-free. */
+export function shapesItemHandCount(itemRef: string): number {
+  return itemRef.startsWith('scale:') || itemRef.startsWith('chord-shape:')
+    ? HANDS_PER_SHAPE_ITEM
+    : 1;
+}
+
+// ---------------------------------------------------------------------
 // S&P chord-shape drill seeds — seconds per cell
 // (was: modules/shapes-and-patterns/shapesSplit.ts)
 // ---------------------------------------------------------------------
 
 /** Per-cell drill time when an inversion state is null or one of
- *  root / inv1 / inv2 / inv3. */
+ *  root / inv1 / inv2 / inv3. PER HAND — multiply by the item's hand
+ *  count (3 for chord shapes) for the full session budget. */
 export const CHORD_SHAPE_CELL_SECONDS = 90;
 
 /** Per-cell drill time for the fluid inversion state — slightly
