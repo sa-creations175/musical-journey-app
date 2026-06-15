@@ -141,6 +141,15 @@ import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
 import { drain } from '../../lib/sync/engine';
 
+// DEV-only: dynamically register the browser-console wipe helpers
+// (`__wipeLastWeekActivity`, `__wipeAllActivity`, `__wipeMayGoals`,
+// `__freshStartPreview`, `__freshStart`) on window. Conditional dynamic
+// import so the module is tree-shaken out of production builds. See
+// devWipe.ts. Swallow load errors — these are throwaway dev helpers.
+if (import.meta.env.DEV) {
+  import('./devWipe').catch(() => {});
+}
+
 /**
  * Goals — page-level component.
  *
