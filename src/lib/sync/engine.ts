@@ -119,8 +119,25 @@ async function pullOneTable(
     }
   }
 
-  if (cloudRows.length > 0) {
-    await table.bulkPut(cloudRows);
+  // Overwrite guard: never bulkPut a cloud row on top of a local row
+  // that still has an un-pushed write sitting in the sync queue. In that
+  // window the cloud copy we just fetched is stale relative to the
+  // pending local edit (the classic "save during a session, then a
+  // focus-triggered pull reverts it" race). The local version wins until
+  // its queued write reaches the cloud; a later pull then reflects the
+  // now-matching cloud state. Applies to ALL tables — any pending write,
+  // upsert or delete (a pending delete must not be resurrected either).
+  const pendingItems = await db.syncQueue.where('tableName').equals(cfg.dexie).toArray();
+  const pendingIds = new Set<string>(pendingItems.map(it => it.rowId));
+  const rowsToPut = pendingIds.size === 0
+    ? cloudRows
+    : cloudRows.filter(row => {
+        const id = row[cfg.idField];
+        return !(typeof id === 'string' && pendingIds.has(id));
+      });
+
+  if (rowsToPut.length > 0) {
+    await table.bulkPut(rowsToPut);
   }
 }
 
