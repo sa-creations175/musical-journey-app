@@ -7,6 +7,7 @@ import {
 } from './tables';
 import { beginPull, endPull } from './pullLock';
 import { getCurrentUserId } from './currentUser';
+import { getLastLocalWriteAt } from './hooks';
 
 /**
  * Translate a Dexie row into the Postgres row shape the sync layer
@@ -427,13 +428,45 @@ export async function drain(): Promise<void> {
  *
  * Returns the number of rows pulled is intentionally NOT returned —
  * the caller should read live queries for the UI.
+ *
+ * Write-recency gate: if a genuine local write happened very recently,
+ * wait out the remainder of WRITE_RECENCY_GATE_MS before draining. This
+ * survives the background-immediately race — the write hook's deferred
+ * `setTimeout(0)` enqueue is throttled/paused while the tab is hidden,
+ * so on return `syncQueue` can be momentarily empty even though an edit
+ * is pending. By the time refreshFromCloud runs the tab is visible again
+ * (timers unthrottled), so the short wait lets that enqueue land before
+ * drain/pull look at the queue. The marker (set synchronously in the
+ * write hooks) is throttle-proof; the gate self-shortens to exactly the
+ * time remaining and is a no-op when no write is recent.
+ *
+ * In-flight guard: refreshFromCloud had none (pullAll's beginPull lock
+ * is reference-counted and does NOT serialize whole refresh cycles), so
+ * overlapping visibility/focus/online events could stack waits + pulls.
+ * Serialize so only one runs at a time.
  */
+export const WRITE_RECENCY_GATE_MS = 1500;
+
+let refreshInFlight = false;
+
 export async function refreshFromCloud(): Promise<void> {
   if (!getCurrentUserId()) return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-  await drain();
-  const pending = await db.syncQueue.count();
-  await pullAll(pending === 0 ? 'replace' : 'additive');
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  try {
+    const msSinceWrite = Date.now() - getLastLocalWriteAt();
+    if (msSinceWrite < WRITE_RECENCY_GATE_MS) {
+      await new Promise(resolve =>
+        setTimeout(resolve, WRITE_RECENCY_GATE_MS - msSinceWrite),
+      );
+    }
+    await drain();
+    const pending = await db.syncQueue.count();
+    await pullAll(pending === 0 ? 'replace' : 'additive');
+  } finally {
+    refreshInFlight = false;
+  }
 }
 
 /**
