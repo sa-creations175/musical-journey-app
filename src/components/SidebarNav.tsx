@@ -208,12 +208,22 @@ export default function SidebarNav({ collapsed = false }: SidebarNavProps) {
   // Hydrate expansion state from prefs. Seed group defaults to open
   // on first visit — leaves module-level defaults collapsed (modules
   // toggled by the user preserve their stored state).
+  //
+  // OVERVIEW is forced open on every load (its stored collapse, if any,
+  // is overridden): it's the primary section (Goals / Dashboard /
+  // Practice Sessions) and should always be immediately visible without
+  // an extra tap. A stale collapsed pref from a prior session would
+  // otherwise hide it on first paint.
   useEffect(() => {
     (async () => {
       const stored = await getPref<Record<string, boolean>>(PREF_EXPANDED, {});
       const base: Record<string, boolean> = {};
       for (const gid of ALL_GROUP_IDS) base[groupKey(gid)] = true;
-      setExpanded({ ...base, ...(stored && typeof stored === 'object' ? stored : {}) });
+      setExpanded({
+        ...base,
+        ...(stored && typeof stored === 'object' ? stored : {}),
+        [groupKey('overview')]: true,
+      });
       setHydrated(true);
     })();
   }, []);

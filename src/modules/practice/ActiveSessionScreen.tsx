@@ -39,7 +39,7 @@
  *     the chosen rating. The advance auto-ends the session if this
  *     was the last block.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import {
@@ -235,6 +235,17 @@ export default function ActiveSessionScreen() {
     [chordQuizSongId],
   );
 
+  // Repertoire blocks itemize songs whose itemRefs are raw songIds —
+  // readableItemRefLabel has no repertoire case (and can't do an async DB
+  // lookup), so the prep breakdown would otherwise show the raw id. Load
+  // the (small) songs table once and map id → title to resolve the rows.
+  const allSongs = useLiveQuery(() => db.songs.toArray(), []);
+  const songTitleById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of allSongs ?? []) m.set(s.id, s.title);
+    return m;
+  }, [allSongs]);
+
   // idle + armed: render nothing for the one frame until the start
   // hook promotes the session to running. idle + not armed: the
   // effect above is routing us home; render nothing meanwhile.
@@ -306,10 +317,20 @@ export default function ActiveSessionScreen() {
   // Per-item breakdown of the (adjusted) drill budget — the prep card's
   // source of truth, reused by GO auto-nav as the drill playlist (which
   // cell, how long). null when there's nothing to itemize.
-  const itemBreakdown =
+  const itemBreakdownRaw =
     isProductionLessonBlock || isChordQuizBlock
       ? null
       : buildPrepItemBreakdown(currentBlock.itemRefs, adjustedDrillSec, currentBlock.moduleRef);
+  // Repertoire rows carry a raw songId as both itemRef and (unresolved)
+  // label — swap in the song title from the lookup map. Other modules
+  // already resolve their labels in buildPrepItemBreakdown.
+  const itemBreakdown =
+    itemBreakdownRaw && currentBlock.moduleRef === 'repertoire'
+      ? itemBreakdownRaw.map(row => ({
+          ...row,
+          label: songTitleById.get(row.itemRef) ?? row.label,
+        }))
+      : itemBreakdownRaw;
 
   // Production lessons: resolve readable titles for the "Up next" line +
   // the "N more queued" count. itemRefs are spacing-ordered lesson ids

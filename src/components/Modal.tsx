@@ -25,6 +25,16 @@ interface Props {
 export default function Modal({ open, onClose, title, description, children, footer, ariaLabel, titleBadge }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Keep the latest onClose in a ref so the mount effect below can call
+  // it from the Escape handler WITHOUT listing onClose as a dependency.
+  // Callers routinely pass a fresh closure each render (e.g. a phase-
+  // dependent handler); if the effect depended on onClose it would
+  // re-run on every parent re-render — re-focusing the panel and yanking
+  // the caret out of any focused field mid-typing (notes textarea cursor
+  // jump). Scroll-lock + initial focus must only happen on open.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
 
@@ -42,14 +52,14 @@ export default function Modal({ open, onClose, title, description, children, foo
       else root.focus();
     }
 
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCloseRef.current(); };
     window.addEventListener('keydown', onKey);
 
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

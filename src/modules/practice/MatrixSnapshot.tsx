@@ -200,7 +200,7 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
       <div className="mt-3 overflow-x-auto">
         <div
           className="grid items-center"
-          style={{ gridTemplateColumns: `minmax(120px, 160px) repeat(12, minmax(28px, 40px))` }}
+          style={{ gridTemplateColumns: `minmax(120px, 160px) repeat(12, minmax(40px, 56px))` }}
         >
           {/* Header row */}
           <div aria-hidden />
@@ -230,7 +230,10 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
               {keys.map((k) => {
                 const itemRef = row.cellRefByKey.get(k);
                 const on = sessionKeys.has(k);
-                const wrap = on ? 'ring-1 ring-fluent/40 rounded-sm' : '';
+                // Drilled-this-session keys: a stronger ring + light fill
+                // so the practiced column reads at a glance (a thin outline
+                // alone was too subtle).
+                const wrap = on ? 'ring-2 ring-fluent rounded-sm bg-fluent/10' : '';
                 if (!itemRef) {
                   return <div key={`${row.rowKey}-${k}`} className={wrap} />;
                 }
@@ -328,11 +331,14 @@ function keyNameForItemRef(itemRef: string, activity: Activity | null): string |
 // Row derivation per activity.
 // ===================================================================
 
+// Full readable names matching the scales matrix (scaleSkills.ts
+// labelFor) — sans the key, which is the column here. Pents append
+// "— from {startingPoint}" (e.g. "Major pentatonic — from 1").
 const SCALE_KIND_LABEL: Record<string, string> = {
   'major':            'Major',
   'natural-minor':    'Natural minor',
-  'major-pentatonic': 'Major pent',
-  'minor-pentatonic': 'Minor pent',
+  'major-pentatonic': 'Major pentatonic',
+  'minor-pentatonic': 'Minor pentatonic',
 };
 
 /**
@@ -355,7 +361,7 @@ function buildScaleRows(itemRefs: readonly string[]): SnapshotRow[] {
     seen.add(rowKey);
 
     const base = SCALE_KIND_LABEL[desc.kind] ?? desc.kind;
-    const label = sp ? `${base} (${sp})` : base;
+    const label = sp ? `${base} — from ${sp}` : base;
 
     const cellRefByKey = new Map<string, string>();
     for (const k of CIRCLE_OF_FOURTHS) {

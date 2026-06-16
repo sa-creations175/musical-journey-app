@@ -245,21 +245,24 @@ export function defaultDrillForChordShape(
       { name: 'Two-handed all inversions fluid',     suggestedSeconds: 180 },
     ];
   }
+  // Per-inversion drills seed at 60 s: each is now drilled as its own
+  // hand × style skill (LH/RH/Both × solid/arpeggiated), so a single
+  // standalone pass is ~1 min. Fluid stays longer (synthesis exercise).
   if (kind === 'triad') {
     switch (inversionState) {
-      case 'root':  return [{ name: 'Root position (up & down)', suggestedSeconds: 90 }];
-      case 'inv1':  return [{ name: '1st inversion (up & down)', suggestedSeconds: 90 }];
-      case 'inv2':  return [{ name: '2nd inversion (up & down)', suggestedSeconds: 90 }];
+      case 'root':  return [{ name: 'Root position (up & down)', suggestedSeconds: 60 }];
+      case 'inv1':  return [{ name: '1st inversion (up & down)', suggestedSeconds: 60 }];
+      case 'inv2':  return [{ name: '2nd inversion (up & down)', suggestedSeconds: 60 }];
       case 'fluid': return [{ name: 'All inversions fluid',      suggestedSeconds: 120 }];
       default:      return [];
     }
   }
   if (kind === 'seventh') {
     switch (inversionState) {
-      case 'root':  return [{ name: 'One-handed root position',        suggestedSeconds: 90 }];
-      case 'inv1':  return [{ name: 'One-handed 1st inversion',        suggestedSeconds: 90 }];
-      case 'inv2':  return [{ name: 'One-handed 2nd inversion',        suggestedSeconds: 90 }];
-      case 'inv3':  return [{ name: 'One-handed 3rd inversion',        suggestedSeconds: 90 }];
+      case 'root':  return [{ name: 'One-handed root position',        suggestedSeconds: 60 }];
+      case 'inv1':  return [{ name: 'One-handed 1st inversion',        suggestedSeconds: 60 }];
+      case 'inv2':  return [{ name: 'One-handed 2nd inversion',        suggestedSeconds: 60 }];
+      case 'inv3':  return [{ name: 'One-handed 3rd inversion',        suggestedSeconds: 60 }];
       case 'fluid': return [{ name: 'One-handed all inversions fluid', suggestedSeconds: 120 }];
       default:      return [];
     }
