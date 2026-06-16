@@ -62,16 +62,35 @@ export default function Repertoire() {
     });
   }, []);
 
+  // Declared above the prefs-load effect so that effect can defer to an
+  // incoming deep-link songId (see below).
+  const [searchParams] = useSearchParams();
+
   useEffect(() => {
     (async () => {
       const t = await getPref<TabId>(PREF_ACTIVE_TAB, 'active');
       if (isTabId(t)) {
         setTab(t);
       }
-      const s = await getPref<string | null>(PREF_SELECTED_SONG, null);
-      if (typeof s === 'string' && s.length > 0) setSelectedSongId(s);
+      // Only restore the persisted last-selected song when there's NO
+      // incoming deep-link songId. This async read resolves a tick
+      // after the synchronous deep-link effect below sets selectedSongId;
+      // without this guard it would land later and clobber the deep-link
+      // target — opening the last-opened song instead of the one a
+      // session block / deep link asked for (e.g. a "Run through Mirror"
+      // block opening "Can We Talk"). The deep-link effect owns the song
+      // in that case.
+      const incomingSongId = searchParams.get('songId');
+      if (!incomingSongId) {
+        const s = await getPref<string | null>(PREF_SELECTED_SONG, null);
+        if (typeof s === 'string' && s.length > 0) setSelectedSongId(s);
+      }
       setPrefsLoaded(true);
     })();
+    // Mount-only: reads the initial songId param to decide whether to
+    // restore the persisted song. Subsequent param changes are handled
+    // by the deep-link effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sidebar sub-items land here as /repertoire?tab=want-to-learn.
@@ -82,7 +101,6 @@ export default function Repertoire() {
   // session blocks so the active-session quick-launch lands on the
   // exact song. Reads the param once per URL change and applies it
   // alongside the existing tab/songId state machine.
-  const [searchParams] = useSearchParams();
   useEffect(() => {
     const incomingSongId = searchParams.get('songId');
     if (incomingSongId && incomingSongId.length > 0) {
