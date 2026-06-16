@@ -190,17 +190,17 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
   return (
     <div className="p-4">
       <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-        Where this stands
+        Progress snapshot
       </h2>
       <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
         {ACTIVITY_SUBTITLE[activity]}
         <span className="ml-1">· highlighted keys were drilled this session</span>
       </p>
 
-      <div className="mt-3 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto pb-4">
         <div
           className="grid items-center"
-          style={{ gridTemplateColumns: `minmax(120px, 160px) repeat(12, minmax(40px, 56px))` }}
+          style={{ gridTemplateColumns: `minmax(150px, 190px) repeat(12, minmax(40px, 56px))` }}
         >
           {/* Header row */}
           <div aria-hidden />
@@ -224,7 +224,7 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
           {/* Skill rows */}
           {rows.map((row) => (
             <RowFragment key={row.rowKey}>
-              <div className="text-xs truncate pr-2 text-neutral-700 dark:text-neutral-300">
+              <div className="text-xs pr-2 text-neutral-700 dark:text-neutral-300">
                 {row.label}
               </div>
               {keys.map((k) => {
