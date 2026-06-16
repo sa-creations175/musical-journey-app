@@ -45,11 +45,18 @@ interface Props {
 
 type Activity = 'scales' | 'chord-shapes' | 'voice-leading';
 
-/** Per-hand stages a three-band cell needs. */
+/** Per-hand stages a three-band cell needs (scales — single fill). */
 interface BandTriple {
   left: BandStage;
   right: BandStage;
   both: BandStage;
+}
+
+/** Per-(hand × style) stages a six-slot chord-shape cell needs. */
+interface BandSextet extends BandTriple {
+  leftArp: BandStage;
+  rightArp: BandStage;
+  bothArp: BandStage;
 }
 
 /** One skill row across all 12 keys. `cells` maps keyName → cell. */
@@ -143,8 +150,9 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
     both: stageByRefHand.get(`${itemRef} both`) ?? null,
   });
 
-  /** Chord-shape band: aggregate across the cell's inversion rows. */
-  const chordBandFor = (baseRef: string): BandTriple => {
+  /** Chord-shape band: aggregate across the cell's inversion rows, per
+   *  (hand × style) slot for the 6-slot split display. */
+  const chordBandFor = (baseRef: string): BandSextet => {
     const matched: SpacingState[] = [];
     const exact = rowsByItemRef.get(baseRef);
     if (exact) matched.push(...exact);
@@ -153,9 +161,12 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
       if (ref.startsWith(prefix)) matched.push(...arr);
     }
     return {
-      left: aggregateHand(matched, 'left'),
-      right: aggregateHand(matched, 'right'),
-      both: aggregateHand(matched, 'both'),
+      left: aggregateHand(matched, 'left', 'solid'),
+      leftArp: aggregateHand(matched, 'left', 'arpeggiated'),
+      right: aggregateHand(matched, 'right', 'solid'),
+      rightArp: aggregateHand(matched, 'right', 'arpeggiated'),
+      both: aggregateHand(matched, 'both', 'solid'),
+      bothArp: aggregateHand(matched, 'both', 'arpeggiated'),
     };
   };
 
@@ -238,8 +249,24 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
                     </div>
                   );
                 }
-                const band =
-                  activity === 'chord-shapes' ? chordBandFor(itemRef) : bandFor(itemRef);
+                if (activity === 'chord-shapes') {
+                  const band = chordBandFor(itemRef);
+                  return (
+                    <div key={`${row.rowKey}-${k}`} className={wrap}>
+                      <ThreeBandCell
+                        split
+                        left={band.left}
+                        leftArp={band.leftArp}
+                        right={band.right}
+                        rightArp={band.rightArp}
+                        both={band.both}
+                        bothArp={band.bothArp}
+                        title={itemRef}
+                      />
+                    </div>
+                  );
+                }
+                const band = bandFor(itemRef);
                 return (
                   <div key={`${row.rowKey}-${k}`} className={wrap}>
                     <ThreeBandCell
@@ -428,17 +455,21 @@ function buildVoiceLeadingRows(itemRefs: readonly string[]): SnapshotRow[] {
 }
 
 /**
- * Aggregate a set of inversion-row spacing rows for one hand into a
- * single band stage. Mirrors the spec exactly:
- *   · null    when no row exists for that hand;
- *   · 'acquired' when every row for that hand is acquired+ (acquired /
+ * Aggregate a set of inversion-row spacing rows for one (hand × style)
+ * slot into a single band stage. Mirrors the spec exactly:
+ *   · null    when no row exists for that slot;
+ *   · 'acquired' when every row for that slot is acquired+ (acquired /
  *     consolidated / mastered);
  *   · 'acquiring' otherwise.
  */
-function aggregateHand(rows: SpacingState[], hand: SpacingState['hand']): BandStage {
-  const forHand = rows.filter(r => r.hand === hand);
-  if (forHand.length === 0) return null;
-  const allAcquired = forHand.every(
+function aggregateHand(
+  rows: SpacingState[],
+  hand: SpacingState['hand'],
+  style: SpacingState['style'],
+): BandStage {
+  const forSlot = rows.filter(r => r.hand === hand && r.style === style);
+  if (forSlot.length === 0) return null;
+  const allAcquired = forSlot.every(
     r => r.acquisitionStage === 'acquired'
       || r.acquisitionStage === 'consolidated'
       || r.acquisitionStage === 'mastered',

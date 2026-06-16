@@ -59,6 +59,7 @@ function row(
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
     hand: 'both',
+    style: 'solid',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 0,
     lastEngagedAt: null,
@@ -178,10 +179,12 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       ),
       ctx(rows, { unlockedTier: 1 }),
     );
+    // Each cell now costs 6× the per-cell time (3 hands × 2 styles), so a
+    // sub-15-min 600 s block fits 2 cells — still enough to pin the
+    // circle-of-fourths order (C → F) from the C start.
     expect(segs[0].itemRefs).toEqual([
       'chord-shape:maj:C:root',
       'chord-shape:maj:F:root',
-      'chord-shape:maj:Bb:root',
     ]);
   });
 
@@ -196,13 +199,13 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       'chord-shape:maj7:C:root',
       'chord-shape:maj:C:root',
     ];
-    // Each (shape × key) cell is now drilled left/right/both (3× the
-    // per-cell time), so the 8 cells (≈2250 s) no longer all fit in a
-    // sub-15-min block — and going ≥15 min would prepend scales/VL
-    // segments, making segs[0] the scales segment instead of the walk.
-    // The walk sorts THEN truncates, so the kept cells are the correct
-    // sorted PREFIX of the full ordering. Assert that prefix to pin the
-    // tier→quality→inversion sort without weakening intent.
+    // Each (shape × key) cell is now drilled left/right/both × solid/
+    // arpeggiated (6× the per-cell time), so the 8 cells no longer all
+    // fit in a sub-15-min block — and going ≥15 min would prepend
+    // scales/VL segments, making segs[0] the scales segment instead of
+    // the walk. The walk sorts THEN truncates, so the kept cells are the
+    // correct sorted PREFIX of the full ordering. Assert that prefix to
+    // pin the tier→quality→inversion sort without weakening intent.
     const segs = shapeShapesBlock(block(itemRefs, 14 * 60 + 59), ctx([], { unlockedTier: 2 }));
     const expectedOrder = [
       'chord-shape:maj:C:root',
@@ -215,7 +218,7 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       'chord-shape:dom7:C:root',
     ];
     expect(segs[0].itemRefs).toEqual(expectedOrder.slice(0, segs[0].itemRefs.length));
-    expect(segs[0].itemRefs.length).toBeGreaterThanOrEqual(3);
+    expect(segs[0].itemRefs.length).toBeGreaterThanOrEqual(2);
   });
 
   it('prefers due-cell keys when picking the starting key', () => {
@@ -274,13 +277,14 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       'chord-shape:maj:Ab:root',
       'chord-shape:maj:Db:root',
     ];
-    // Each cell now costs 3× (≈270 s, drilled left/right/both). Use a
-    // 14:59 block (just below the 15-min three-way threshold so it stays
-    // a pure chord walk): at 270 s/cell that fits 3 cells (810 s; a 4th
-    // at 1080 s overflows), keeping the ≥3/≤4 bounds and C/F prefix valid.
+    // Each cell now costs 6× (≈540 s, drilled left/right/both × solid/
+    // arpeggiated). Use a 14:59 block (just below the 15-min three-way
+    // threshold so it stays a pure chord walk): at 540 s/cell that fits 2
+    // cells (the loop keeps a cell while budget > 0, so 540 then 1080
+    // overflows), keeping the C/F prefix valid.
     const segs = shapeShapesBlock(block(itemRefs, 14 * 60 + 59), ctx([], { unlockedTier: 1 }));
-    expect(segs[0].itemRefs.length).toBeLessThanOrEqual(4);
-    expect(segs[0].itemRefs.length).toBeGreaterThanOrEqual(3);
+    expect(segs[0].itemRefs.length).toBeLessThanOrEqual(3);
+    expect(segs[0].itemRefs.length).toBeGreaterThanOrEqual(2);
     expect(segs[0].itemRefs[0]).toBe('chord-shape:maj:C:root');
     expect(segs[0].itemRefs[1]).toBe('chord-shape:maj:F:root');
   });
@@ -310,8 +314,10 @@ describe('shapeShapesBlock — chord-shape walk segment', () => {
       ),
       ctx(rows, { unlockedTier: 1 }),
     );
+    // At 6× per-cell (3 hands × 2 styles) the 600 s block fits 2 cells,
+    // both in key C (major + minor) — F no longer reaches the budget.
     expect(segs[0].label).toBe(
-      'CHORD SHAPES — drill major, minor · C, F (root position, inversions + fluid)',
+      'CHORD SHAPES — drill major, minor · C (root position, inversions + fluid)',
     );
   });
 

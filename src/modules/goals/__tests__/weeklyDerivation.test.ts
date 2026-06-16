@@ -551,6 +551,7 @@ describe('deriveWeeklyGoals — record shape', () => {
       moduleRef: 'production',
       memoryType: 'integration',
       hand: 'both',
+      style: 'solid',
       acquisitionStage: 'mastered',
       currentIntervalDays: 0,
       lastEngagedAt: priorWeekTime,

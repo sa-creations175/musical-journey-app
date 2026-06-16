@@ -698,6 +698,18 @@ export interface DrillType {
  */
 export type DrillHand = 'left' | 'right' | 'both';
 
+/**
+ * Playing style for a chord-shape drill (and its rating / spacing
+ * state). Solid (block) and arpeggiated are SEPARATE skills for chord
+ * shapes — each (shape × key × hand) is drilled both ways, each with
+ * its own spacing state and rating history. Only chord shapes carry
+ * the dimension: scales are a single-note melodic line (arpeggiated
+ * adds nothing), and voice leading is always 'solid'. Every
+ * non-chord-shape row rides 'solid' (the backfill default in the v32
+ * migration).
+ */
+export type DrillStyle = 'solid' | 'arpeggiated';
+
 export interface DrillSession {
   id: string;
   drillTypeId: string;
@@ -705,6 +717,10 @@ export interface DrillSession {
   /** Which hand this rating belongs to. 'both' for voice leading and
    *  for all rows migrated from before the hand dimension existed. */
   hand: DrillHand;
+  /** Playing style this rating belongs to. 'arpeggiated' only for
+   *  chord shapes; 'solid' for scales, voice leading, and every row
+   *  migrated from before the style dimension existed (v32 backfill). */
+  style: DrillStyle;
   /** How long this session actually ran (not the target). Minimum
    *  enforced at 30 s by the UI before a session can save. */
   durationSeconds: number;
@@ -1583,6 +1599,13 @@ export interface SpacingState {
    *  dimension. Part of the per-item uniqueness via the
    *  [moduleRef+itemRef+hand] index. */
   hand: DrillHand;
+  /** Playing style this spacing row tracks. Solid and arpeggiated are
+   *  separate skills for chord shapes, each with independent spacing
+   *  state. 'solid' for every non-chord-shape module (scales, voice
+   *  leading, intervals, repertoire, …) and for all rows migrated from
+   *  before the style dimension. Part of the per-item uniqueness via
+   *  the [moduleRef+itemRef+hand+style] index. */
+  style: DrillStyle;
   memoryType: MemoryType;
   acquisitionStage: AcquisitionStage;
   currentIntervalDays: number;
@@ -3069,6 +3092,69 @@ export class AppDB extends Dexie {
       // 3. Chord-shape skill + type scaffolding — wipe for the clean
       //    start (they re-materialise lazily on first drill). Scales / VL
       //    have no such rows.
+      if (chordTypeIds.length) await types.bulkDelete(chordTypeIds);
+      if (chordSkillIds.size) await skills.bulkDelete([...chordSkillIds]);
+    });
+
+    // v32 — Arpeggiated playing style for chord shapes. Each chord-shape
+    // (shape × key × hand) is now drilled BOTH solid and arpeggiated —
+    // separate skills, each with its own spacing state + rating history.
+    // spacingState gains a `style` field and a [moduleRef+itemRef+hand+style]
+    // composite index (the new per-item uniqueness); drillSessions gains a
+    // (non-indexed) `style` field. Scales and voice leading have no style
+    // dimension — they always ride 'solid'.
+    //
+    // Clean start for chord shapes (mirrors v31's hand-dimension wipe): the
+    // 3-skill (LH/RH/Both solid) data can't be split into the new 6-skill
+    // model after the fact, so every chord-shape row in spacingState +
+    // drillSessions is dropped and re-drilled from scratch. The cell
+    // scaffolding (drillSkills / drillTypes for kind 'chord-shape') is wiped
+    // alongside so its aggregates reset; it re-materialises lazily on first
+    // drill. Scales (scale:) and voice leading (vl:) rows are untouched
+    // beyond the `style: 'solid'` backfill, which also covers every other
+    // module so the NOT-NULL invariant holds and the new composite index
+    // resolves existing rows.
+    this.version(32).stores({
+      spacingState:
+        'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef], [moduleRef+itemRef+hand], [moduleRef+itemRef+hand+style]',
+    }).upgrade(async tx => {
+      const spacing = tx.table('spacingState');
+      const sessions = tx.table('drillSessions');
+      const skills = tx.table('drillSkills');
+      const types = tx.table('drillTypes');
+
+      // Chord-shape skill/type rows — used to identify their drillSessions
+      // (which reference them by skillId) before the wipe.
+      const allSkills = await skills.toArray();
+      const chordSkillIds = new Set(
+        allSkills.filter(s => s.kind === 'chord-shape').map(s => s.id),
+      );
+      const chordTypeIds = (await types.toArray())
+        .filter(t => chordSkillIds.has(t.skillId))
+        .map(t => t.id);
+
+      // 1. spacingState — drop chord-shape rows (itemRef prefix), backfill
+      //    style: 'solid' on everything else (scales, VL, all other modules).
+      const spacingToDelete = (await spacing.toArray())
+        .filter(r => r.itemRef.startsWith('chord-shape:'))
+        .map(r => r.id);
+      if (spacingToDelete.length) await spacing.bulkDelete(spacingToDelete);
+      await spacing.toCollection().modify(r => {
+        if (r.style === undefined) r.style = 'solid';
+      });
+
+      // 2. drillSessions — drop chord-shape rows (skillId in chordSkillIds),
+      //    backfill style: 'solid' on everything else (scales, VL, mental-viz).
+      const sessionsToDelete = (await sessions.toArray())
+        .filter(s => chordSkillIds.has(s.skillId))
+        .map(s => s.id);
+      if (sessionsToDelete.length) await sessions.bulkDelete(sessionsToDelete);
+      await sessions.toCollection().modify(r => {
+        if (r.style === undefined) r.style = 'solid';
+      });
+
+      // 3. Chord-shape skill + type scaffolding — wipe for the clean start
+      //    (re-materialises lazily on first drill). Scales / VL have none.
       if (chordTypeIds.length) await types.bulkDelete(chordTypeIds);
       if (chordSkillIds.size) await skills.bulkDelete([...chordSkillIds]);
     });

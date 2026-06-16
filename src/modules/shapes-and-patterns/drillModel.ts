@@ -3,6 +3,7 @@ import {
   type DrillHand,
   type DrillSession,
   type DrillSkill,
+  type DrillStyle,
   type DrillType,
   type InversionState,
 } from '../../lib/db';
@@ -496,6 +497,10 @@ export interface LogSessionInput {
    *  (left / right / both); the rating + spacing engagement are logged
    *  against it. */
   hand: DrillHand;
+  /** Which playing style this drill was for. Chord shapes pass the
+   *  active style (solid / arpeggiated) — each is a separate skill with
+   *  its own rating + spacing engagement. */
+  style: DrillStyle;
   durationSeconds: number;
   /** Countdown duration the user picked before starting the drill,
    *  in seconds. Persists separately from durationSeconds so a
@@ -573,6 +578,7 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     drillTypeId: input.drillType.id,
     skillId: input.skill.id,
     hand: input.hand,
+    style: input.style,
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -595,6 +601,7 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
       itemRef,
       moduleRef: 'shapes-and-patterns',
       hand: input.hand,
+      style: input.style,
       signal: { kind: 'rating', rating: feelToRating(input.feelRating) },
       timestamp: session.timestamp,
     });
@@ -688,6 +695,8 @@ export async function logVoiceLeadingDrillSession(
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
     hand: input.hand,
+    // Voice leading is always solid (no arpeggiated dimension).
+    style: 'solid',
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -708,6 +717,8 @@ export async function logScaleDrillSession(
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
     hand: input.hand,
+    // Scales are a single-note melodic line — no arpeggiated dimension.
+    style: 'solid',
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }

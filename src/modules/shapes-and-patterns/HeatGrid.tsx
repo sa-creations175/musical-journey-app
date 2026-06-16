@@ -72,31 +72,36 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
     return m;
   }, [allTypes]);
 
-  // Per-(quality × key × hand) acquisition stages — chord-shape cells
-  // render three bands (LH / RH / Both), each coloured by that hand's
-  // acquisition state aggregated across the cell's inversion rows. Keyed
-  // `${quality} ${keyName} ${hand}`.
+  // Per-(quality × key × hand × style) acquisition stages — chord-shape
+  // cells render three bands (LH / RH / Both), each split solid / arpeggiated,
+  // every slot coloured by that skill's acquisition state aggregated across
+  // the cell's inversion rows. Keyed `${quality} ${keyName} ${hand} ${style}`.
   const allSpacing = useLiveQuery<SpacingState[]>(
     () => db.spacingState.where('moduleRef').equals('shapes-and-patterns').toArray(),
     [],
   ) ?? [];
-  const chordStagesByCellHand = useMemo(() => {
+  const chordStagesByCellSlot = useMemo(() => {
     const m = new Map<string, AcquisitionStage[]>();
     for (const r of allSpacing) {
       const d = parseShapesItemRef(r.itemRef);
       if (!d || d.kind !== 'chord-shape') continue;
-      const key = `${d.quality} ${d.keyName} ${r.hand}`;
+      const key = `${d.quality} ${d.keyName} ${r.hand} ${r.style}`;
       const arr = m.get(key) ?? [];
       arr.push(r.acquisitionStage);
       m.set(key, arr);
     }
     return m;
   }, [allSpacing]);
-  // A cell-hand band reads `acquired` only when every drilled inversion
-  // for that hand is acquired+, `acquiring` if any is started, and null
-  // (not started) when the hand has no rows.
-  const chordBandStage = (quality: string, keyName: string, hand: string): BandStage => {
-    const stages = chordStagesByCellHand.get(`${quality} ${keyName} ${hand}`);
+  // A cell slot (hand × style) band reads `acquired` only when every
+  // drilled inversion for that slot is acquired+, `acquiring` if any is
+  // started, and null (not started) when the slot has no rows.
+  const chordBandStage = (
+    quality: string,
+    keyName: string,
+    hand: string,
+    style: string,
+  ): BandStage => {
+    const stages = chordStagesByCellSlot.get(`${quality} ${keyName} ${hand} ${style}`);
     if (!stages || stages.length === 0) return null;
     const allAcquired = stages.every(
       s => s === 'acquired' || s === 'consolidated' || s === 'mastered',
@@ -153,10 +158,14 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
                 return (
                   <ThreeBandCell
                     key={k}
-                    left={chordBandStage(desc.quality, desc.keyName, 'left')}
-                    right={chordBandStage(desc.quality, desc.keyName, 'right')}
-                    both={chordBandStage(desc.quality, desc.keyName, 'both')}
-                    title={`${desc.quality} ${desc.keyName} — LH / RH / Both`}
+                    split
+                    left={chordBandStage(desc.quality, desc.keyName, 'left', 'solid')}
+                    leftArp={chordBandStage(desc.quality, desc.keyName, 'left', 'arpeggiated')}
+                    right={chordBandStage(desc.quality, desc.keyName, 'right', 'solid')}
+                    rightArp={chordBandStage(desc.quality, desc.keyName, 'right', 'arpeggiated')}
+                    both={chordBandStage(desc.quality, desc.keyName, 'both', 'solid')}
+                    bothArp={chordBandStage(desc.quality, desc.keyName, 'both', 'arpeggiated')}
+                    title={`${desc.quality} ${desc.keyName} — LH / RH / Both · solid (top) / arp (bottom)`}
                     onClick={() => { void openCell(desc); }}
                   />
                 );

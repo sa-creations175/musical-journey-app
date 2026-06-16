@@ -76,7 +76,7 @@ import {
   CHORD_SHAPE_CELL_SECONDS,
   CHORD_SHAPE_FLUID_CELL_SECONDS,
   SCALE_KIND_SECONDS,
-  shapesItemHandCount,
+  shapesItemSkillPassCount,
   TIME_PER_ATTEMPT_SECONDS,
   voiceLeadingCellSeconds,
 } from './timePerAttempt';
@@ -172,11 +172,12 @@ function countDueRows(
  * cardinality is chord-shapes and 90 s is the modal value.
  */
 function secondsForShapesItem(itemRef: string): number {
-  // Scales & chord shapes are drilled left / right / both — three hand
-  // passes — so clearing one due item costs 3× the per-hand cell time.
-  // Voice leading stays single-pass. The per-hand seed lives in
-  // baseSecondsForShapesItem.
-  return baseSecondsForShapesItem(itemRef) * shapesItemHandCount(itemRef);
+  // Chord shapes are drilled left / right / both × solid / arpeggiated
+  // — six skill passes — so clearing one due item costs 6× the
+  // per-hand-per-style cell time. Scales (no style dimension) cost 3×
+  // (left / right / both); voice leading stays single-pass. The
+  // per-pass seed lives in baseSecondsForShapesItem.
+  return baseSecondsForShapesItem(itemRef) * shapesItemSkillPassCount(itemRef);
 }
 
 function baseSecondsForShapesItem(itemRef: string): number {

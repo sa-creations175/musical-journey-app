@@ -50,6 +50,7 @@ function makeSpacingRow(
     moduleRef,
     memoryType: 'declarative',  // memoryType is not consulted by progress.ts
     hand: 'both',
+    style: 'solid',
     acquisitionStage: stage,
     currentIntervalDays: 0,
     lastEngagedAt: 0,

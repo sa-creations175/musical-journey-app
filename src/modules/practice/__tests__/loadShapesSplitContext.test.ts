@@ -62,6 +62,7 @@ function row(itemRef: string, overrides: Partial<SpacingState> = {}): SpacingSta
     id: itemRef,
     itemRef,
     hand: 'both',
+    style: 'solid',
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
     acquisitionStage: 'acquiring',

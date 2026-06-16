@@ -37,6 +37,7 @@ import {
   CHORD_SHAPE_FLUID_CELL_SECONDS,
   HANDS_PER_SHAPE_ITEM,
   SCALE_KIND_SECONDS,
+  STYLES_PER_CHORD_SHAPE_ITEM,
   voiceLeadingCellSeconds,
 } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
@@ -406,9 +407,10 @@ function buildShapesWalk(
   for (const c of ordered) {
     if (budget <= 0 && kept.length > 0) break;
     kept.push(c);
-    // Each chord-shape cell is drilled left / right / both — three hand
-    // passes, so it consumes 3× the per-hand cell time from the budget.
-    budget -= HANDS_PER_SHAPE_ITEM * cellSeconds(c.inversionState);
+    // Each chord-shape cell is drilled left / right / both × solid /
+    // arpeggiated — six skill passes, so it consumes 6× the
+    // per-hand-per-style cell time from the budget.
+    budget -= HANDS_PER_SHAPE_ITEM * STYLES_PER_CHORD_SHAPE_ITEM * cellSeconds(c.inversionState);
   }
   const uniqueKeyCount = new Set(kept.map(c => c.keyName)).size;
   return {

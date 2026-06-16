@@ -173,6 +173,7 @@ function fixtureRow(itemRef: string, stage: SpacingState['acquisitionStage']): S
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
     hand: 'both',
+    style: 'solid',
     acquisitionStage: stage,
     currentIntervalDays: 0,
     lastEngagedAt: null,

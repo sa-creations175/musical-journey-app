@@ -160,6 +160,18 @@ export const TIME_PER_ATTEMPT_SECONDS: Readonly<
  * an item's full session budget. */
 export const HANDS_PER_SHAPE_ITEM = 3;
 
+/**
+ * Chord shapes are drilled in TWO playing styles per hand — solid
+ * (block) then arpeggiated — each its own timer, rating, and spacing
+ * state. So a chord-shape item is 3 hands × 2 styles = 6 skill passes.
+ * Scales have no style dimension (a scale is a single-note melodic
+ * line) and stay at 3 passes; voice leading stays single-pass.
+ *
+ * The per-cell seed constants (CHORD_SHAPE_*) are PER-HAND-PER-STYLE
+ * durations — multiply by the item's skill-pass count
+ * (`shapesItemSkillPassCount`) for the full session budget. */
+export const STYLES_PER_CHORD_SHAPE_ITEM = 2;
+
 /** Hand passes a given S&P itemRef costs: 3 for scales & chord shapes
  *  (left / right / both), 1 for voice leading and anything else.
  *  Prefix-based so it stays dependency-free. */
@@ -167,6 +179,20 @@ export function shapesItemHandCount(itemRef: string): number {
   return itemRef.startsWith('scale:') || itemRef.startsWith('chord-shape:')
     ? HANDS_PER_SHAPE_ITEM
     : 1;
+}
+
+/** Total skill passes a given S&P itemRef costs in a session budget:
+ *  chord shapes = 3 hands × 2 styles = 6; scales = 3 hands × 1 style
+ *  = 3; voice leading and anything else = 1. Prefix-based so it stays
+ *  dependency-free. This is the multiplier for an item's full
+ *  drill-time budget (vs. `shapesItemHandCount`, which is only the
+ *  hand dimension). */
+export function shapesItemSkillPassCount(itemRef: string): number {
+  if (itemRef.startsWith('chord-shape:')) {
+    return HANDS_PER_SHAPE_ITEM * STYLES_PER_CHORD_SHAPE_ITEM;
+  }
+  if (itemRef.startsWith('scale:')) return HANDS_PER_SHAPE_ITEM;
+  return 1;
 }
 
 // ---------------------------------------------------------------------

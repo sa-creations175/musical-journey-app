@@ -135,6 +135,7 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
     // A drill row well outside the window — must not be counted.
     await db.drillSessions.add({
       hand: 'both',
+      style: 'solid',
       id: 'old-1',
       drillTypeId: 'scale:major:F',
       skillId: 'scale:major:F',
@@ -159,6 +160,7 @@ describe('logScaleDrillSession — counted by getWeeklyAttempts', () => {
     // live in db.drillSessions and both count as S&P attempts.
     await db.drillSessions.add({
       hand: 'both',
+      style: 'solid',
       id: 'cs-1',
       drillTypeId: 'dtype-abc',
       skillId: 'skill-abc',

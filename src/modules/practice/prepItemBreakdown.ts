@@ -23,6 +23,7 @@ import {
   CHORD_SHAPE_FLUID_CELL_SECONDS,
   HANDS_PER_SHAPE_ITEM,
   SCALE_KIND_SECONDS,
+  STYLES_PER_CHORD_SHAPE_ITEM,
 } from '../../lib/sessionAlgorithm/timePerAttempt';
 
 export interface PrepItemRow {
@@ -43,13 +44,14 @@ function itemWeight(itemRef: string): number {
   const scale = parseScaleItemRef(itemRef);
   // Floored at 60 to match generation (shapesSplit) — so when the block
   // total is the sum of these floored weights, the split reproduces the
-  // exact per-item drill times the runner uses. Scales & chord shapes
-  // are drilled left / right / both, so the per-item weight is 3× the
-  // per-hand cell time (matches shapesSplit's tripled budget). Voice
-  // leading and other refs stay single-pass.
+  // exact per-item drill times the runner uses. Scales are drilled left
+  // / right / both, so the per-item weight is 3× the per-hand cell time.
+  // Chord shapes add the solid / arpeggiated style dimension, so their
+  // weight is 6× (3 hands × 2 styles) — matches shapesSplit's budget.
+  // Voice leading and other refs stay single-pass.
   if (scale) return HANDS_PER_SHAPE_ITEM * Math.max(60, SCALE_KIND_SECONDS[scale.kind]);
   if (itemRef.startsWith('chord-shape:')) {
-    return HANDS_PER_SHAPE_ITEM * (itemRef.endsWith(':fluid')
+    return HANDS_PER_SHAPE_ITEM * STYLES_PER_CHORD_SHAPE_ITEM * (itemRef.endsWith(':fluid')
       ? CHORD_SHAPE_FLUID_CELL_SECONDS
       : CHORD_SHAPE_CELL_SECONDS);
   }

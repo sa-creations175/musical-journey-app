@@ -40,6 +40,7 @@ function row(itemRef: string, moduleRef = 'chord-recognition'): SpacingState {
     moduleRef,
     memoryType: 'declarative',
     hand: 'both',
+    style: 'solid',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 0,
     lastEngagedAt: null,
