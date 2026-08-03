@@ -38,6 +38,7 @@ import {
   parseTimeSignature,
 } from './barGrid';
 import { distributedWordPositions } from './lyricLine';
+import { chordPalette, useIsDarkMode } from './chordColors';
 import ChordGlyph from './chordGlyph';
 
 // Bar-grid renderer (Lead Sheet Redesign, May 2026 —
@@ -1824,7 +1825,8 @@ function ChordCellBox({
 }) {
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
   const hasVoicing = Boolean(cell.voicing && cell.voicing.length > 0);
-  const palette = colorForFunction(cell.chord);
+  const isDark = useIsDarkMode();
+  const palette = chordPalette(cell.chord, isDark);
   const roundedLeft = !cell.tiedFromPrev;
   const roundedRight = !cell.tiedToNext;
   const radiusClass = [
@@ -1839,20 +1841,26 @@ function ChordCellBox({
   // bars and beat positions never shift — only the fill/text fade.
   const ghosted =
     foundationMode && tagValue !== undefined && GHOST_TAGS.has(tagValue);
+  // Ghosted cells keep their Tailwind treatment; coloured cells drive
+  // border/fill/text through inline styles off the hex palette.
   const surfaceClass = ghosted
     ? 'border-neutral-300 dark:border-neutral-700 bg-transparent opacity-40'
-    : `${palette.border} ${palette.bg}`;
-  const textClass = ghosted ? 'text-neutral-400' : palette.text;
+    : '';
+  const surfaceStyle: CSSProperties = ghosted
+    ? {}
+    : { borderColor: palette.border, backgroundColor: palette.bg };
+  const textClass = ghosted ? 'text-neutral-400' : '';
+  const textStyle: CSSProperties = ghosted ? {} : { color: palette.text };
   // Slash chords: the cell fill follows the BASS degree (see
-  // `colorForFunction`), so the numerator would render muted-grey on a
+  // `chordPalette`), so the numerator would render muted-grey on a
   // colored surface and read as an afterthought. Hand ChordGlyph the
   // ROOT's family color instead, so both halves are legible at a glance
   // — "1maj/5" = amber fill, "1maj" in 1-family green, "/5" in amber.
   // Ghosted (Foundation view) cells keep the faded treatment on both
   // halves; root-position chords ignore this entirely.
-  const rootTextClass = ghosted
+  const rootColor = ghosted
     ? undefined
-    : colorForFunction({ ...cell.chord, bass: undefined }).text;
+    : chordPalette({ ...cell.chord, bass: undefined }, isDark).text;
 
   const interactive = Boolean(onClick);
   const handleClick = (e: React.MouseEvent) => {
@@ -1874,7 +1882,7 @@ function ChordCellBox({
       className={`relative flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none shrink ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
       } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${extraClassName ?? ''}`}
-      style={baseStyle}
+      style={{ ...baseStyle, ...surfaceStyle }}
       title={cell.chord.raw ?? text}
     >
       {hasVoicing && !ghosted && (
@@ -1884,14 +1892,20 @@ function ChordCellBox({
           className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-fluent"
         />
       )}
-      <div className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}>
+      <div
+        className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}
+        style={textStyle}
+      >
         {text ? (
-          <ChordGlyph text={text} numeratorClassName={rootTextClass} />
+          <ChordGlyph text={text} numeratorColor={rootColor} />
         ) : (
           <span className="opacity-40">—</span>
         )}
       </div>
-      <div className={`flex items-center justify-center gap-0.5 text-[8px] ${palette.dot}`}>
+      <div
+        className="flex items-center justify-center gap-0.5 text-[8px]"
+        style={{ color: palette.dot }}
+      >
         {Array.from({ length: cell.beats }).map((_, i) => (
           <span key={i} aria-hidden>·</span>
         ))}
@@ -2474,72 +2488,3 @@ function ChordEditorPopover({
   );
 }
 
-const DEGREE_PALETTES: Record<string, {
-  bg: string;
-  text: string;
-  border: string;
-  dot: string;
-}> = {
-  '1': {
-    bg: 'bg-green-50 dark:bg-green-950/40',
-    text: 'text-green-700 dark:text-green-200',
-    border: 'border-green-500 dark:border-green-500',
-    dot: 'text-green-500',
-  },
-  '2': {
-    bg: 'bg-pink-50 dark:bg-pink-950/40',
-    text: 'text-pink-700 dark:text-pink-200',
-    border: 'border-pink-400 dark:border-pink-400',
-    dot: 'text-pink-400',
-  },
-  '3': {
-    bg: 'bg-teal-50 dark:bg-teal-950/40',
-    text: 'text-teal-700 dark:text-teal-200',
-    border: 'border-teal-500 dark:border-teal-500',
-    dot: 'text-teal-500',
-  },
-  '4': {
-    bg: 'bg-purple-50 dark:bg-purple-950/40',
-    text: 'text-purple-700 dark:text-purple-200',
-    border: 'border-purple-600 dark:border-purple-500',
-    dot: 'text-purple-600',
-  },
-  '5': {
-    bg: 'bg-amber-50 dark:bg-amber-950/40',
-    text: 'text-amber-700 dark:text-amber-200',
-    border: 'border-amber-500 dark:border-amber-500',
-    dot: 'text-amber-500',
-  },
-  '6': {
-    bg: 'bg-blue-50 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-200',
-    border: 'border-blue-500 dark:border-blue-500',
-    dot: 'text-blue-500',
-  },
-  '7': {
-    bg: 'bg-red-50 dark:bg-red-950/40',
-    text: 'text-red-700 dark:text-red-200',
-    border: 'border-red-500 dark:border-red-500',
-    dot: 'text-red-500',
-  },
-};
-
-const NEUTRAL_PALETTE = {
-  bg: 'bg-neutral-100 dark:bg-neutral-800/60',
-  text: 'text-neutral-700 dark:text-neutral-200',
-  border: 'border-neutral-300 dark:border-neutral-700',
-  dot: 'text-neutral-400',
-};
-
-function colorForFunction(chord: ChordFunction): {
-  bg: string;
-  text: string;
-  border: string;
-  dot: string;
-} {
-  if (chord.unparsed) return NEUTRAL_PALETTE;
-  const source = chord.bass && chord.bass !== '' ? chord.bass : chord.function;
-  if (source === '') return NEUTRAL_PALETTE;
-  const digit = source.replace(/^[b#]/, '');
-  return DEGREE_PALETTES[digit] ?? NEUTRAL_PALETTE;
-}
