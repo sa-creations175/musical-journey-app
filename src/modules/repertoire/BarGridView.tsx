@@ -1843,6 +1843,16 @@ function ChordCellBox({
     ? 'border-neutral-300 dark:border-neutral-700 bg-transparent opacity-40'
     : `${palette.border} ${palette.bg}`;
   const textClass = ghosted ? 'text-neutral-400' : palette.text;
+  // Slash chords: the cell fill follows the BASS degree (see
+  // `colorForFunction`), so the numerator would render muted-grey on a
+  // colored surface and read as an afterthought. Hand ChordGlyph the
+  // ROOT's family color instead, so both halves are legible at a glance
+  // — "1maj/5" = amber fill, "1maj" in 1-family green, "/5" in amber.
+  // Ghosted (Foundation view) cells keep the faded treatment on both
+  // halves; root-position chords ignore this entirely.
+  const rootTextClass = ghosted
+    ? undefined
+    : colorForFunction({ ...cell.chord, bass: undefined }).text;
 
   const interactive = Boolean(onClick);
   const handleClick = (e: React.MouseEvent) => {
@@ -1875,7 +1885,11 @@ function ChordCellBox({
         />
       )}
       <div className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}>
-        {text ? <ChordGlyph text={text} /> : <span className="opacity-40">—</span>}
+        {text ? (
+          <ChordGlyph text={text} numeratorClassName={rootTextClass} />
+        ) : (
+          <span className="opacity-40">—</span>
+        )}
       </div>
       <div className={`flex items-center justify-center gap-0.5 text-[8px] ${palette.dot}`}>
         {Array.from({ length: cell.beats }).map((_, i) => (

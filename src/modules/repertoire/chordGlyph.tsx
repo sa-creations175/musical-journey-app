@@ -53,7 +53,24 @@ export function splitRootSuffix(text: string): { root: string; suffix: string } 
 interface Props {
   /** The rendered chord text (e.g. "5", "6m", "5/7", "1maj7/3"). */
   text: string;
+  /** Text-color class for the NUMERATOR of a slash chord. When omitted
+   *  the numerator (and the slash) render in the default muted neutral.
+   *
+   *  Callers that know the chord's root degree pass its family color
+   *  here so both halves of a slash chord are legible: the cell fill
+   *  follows the BASS degree (see `colorForFunction`), which would
+   *  otherwise leave the numerator as grey-on-color. Passing a value
+   *  also un-mutes the slash separator so it reads in the bass family's
+   *  color rather than neutral.
+   *
+   *  Ignored for root-position chords — they have no numerator. */
+  numeratorClassName?: string;
 }
+
+/** Default numerator + separator treatment: muted, so the bass note
+ *  reads as the dominant anchor. Used whenever no explicit numerator
+ *  color is supplied. */
+const MUTED = 'text-neutral-400 dark:text-neutral-500';
 
 /**
  * Render a chord glyph with slash-chord + root/suffix visual
@@ -85,7 +102,7 @@ interface Props {
  * the root — they render as a single bold glyph with no
  * sub-hierarchy. Acceptable since the spec focused on numbers.
  */
-export default function ChordGlyph({ text }: Props): ReactNode {
+export default function ChordGlyph({ text, numeratorClassName }: Props): ReactNode {
   if (text === '') return null;
   const { numerator, bass } = splitSlashChord(text);
   if (bass === null) {
@@ -95,14 +112,18 @@ export default function ChordGlyph({ text }: Props): ReactNode {
       </span>
     );
   }
+  // An explicit numerator color also un-mutes the separator, so "/5"
+  // takes the surrounding (bass-family) text color instead of neutral.
+  const numeratorColor = numeratorClassName ?? MUTED;
+  const separatorColor = numeratorClassName ? '' : MUTED;
   return (
     <span className="inline-flex items-baseline">
       {numerator !== '' && (
-        <span className="text-[85%] text-neutral-400 dark:text-neutral-500 inline-flex items-baseline">
+        <span className={`text-[85%] ${numeratorColor} inline-flex items-baseline`}>
           <ChordPart text={numerator} />
         </span>
       )}
-      <span className="text-[85%] text-neutral-400 dark:text-neutral-500">/</span>
+      <span className={`text-[85%] ${separatorColor}`}>/</span>
       {bass !== '' && <ChordPart text={bass} bassPosition />}
     </span>
   );
