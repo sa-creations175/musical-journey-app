@@ -53,18 +53,23 @@ export function splitRootSuffix(text: string): { root: string; suffix: string } 
 interface Props {
   /** The rendered chord text (e.g. "5", "6m", "5/7", "1maj7/3"). */
   text: string;
-  /** CSS color for the NUMERATOR of a slash chord. When omitted the
-   *  numerator (and the slash) render in the default muted neutral.
+  /** Fill + text color for the ROOT PILL on a slash chord. When omitted
+   *  the numerator (and the slash) render in the default muted neutral.
    *
-   *  Callers that know the chord's root degree pass its family color
-   *  here so both halves of a slash chord are legible: the cell fill
-   *  follows the BASS degree (see `chordPalette`), which would otherwise
-   *  leave the numerator as grey-on-color. Passing a value also un-mutes
-   *  the slash separator so it reads in the bass family's color rather
-   *  than neutral.
+   *  Why a pill rather than just a text color: the cell fill follows the
+   *  BASS degree (see `chordPalette`), so coloring only the numerator's
+   *  text puts two dark 700-level colors side by side on one pale fill.
+   *  For hue-neighbour families that is unreadable — amber-700 root text
+   *  on a red cell ("5maj/7") does not separate from the red-700 bass
+   *  text. Boxing the root in its own family's fill swaps a
+   *  dark-text-vs-dark-text comparison for a fill-vs-fill one, and the
+   *  pill's bounded shape carries most of the signal on its own.
+   *
+   *  Passing a value also un-mutes the slash separator so "/7" reads in
+   *  the bass family's color on the cell fill.
    *
    *  Ignored for root-position chords — they have no numerator. */
-  numeratorColor?: string;
+  numeratorPill?: { bg: string; text: string };
 }
 
 /** Default numerator + separator treatment: muted, so the bass note
@@ -102,25 +107,38 @@ const MUTED = 'text-neutral-400 dark:text-neutral-500';
  * the root — they render as a single bold glyph with no
  * sub-hierarchy. Acceptable since the spec focused on numbers.
  */
-export default function ChordGlyph({ text, numeratorColor }: Props): ReactNode {
+export default function ChordGlyph({ text, numeratorPill }: Props): ReactNode {
   if (text === '') return null;
   const { numerator, bass } = splitSlashChord(text);
   if (bass === null) {
+    // Root-position chords have no numerator — the pill never applies.
     return (
       <span className="inline-flex items-baseline">
         <ChordPart text={text} bassPosition />
       </span>
     );
   }
-  // An explicit numerator color also un-mutes the separator, so "/5"
-  // takes the surrounding (bass-family) text color instead of neutral.
-  const mutedClass = numeratorColor ? '' : MUTED;
+  // A pill also un-mutes the separator, so "/7" takes the surrounding
+  // (bass-family) text color instead of neutral.
+  const mutedClass = numeratorPill ? '' : MUTED;
   return (
     <span className="inline-flex items-baseline">
       {numerator !== '' && (
         <span
-          className={`text-[85%] ${mutedClass} inline-flex items-baseline`}
-          style={numeratorColor ? { color: numeratorColor } : undefined}
+          // Horizontal padding only (4px total) and a 2px radius: the bar
+          // grid gets tight at 4 chords/bar on a phone, and vertical
+          // padding would change the line box and shift the cell's
+          // flex-col layout. Overflow is clipped by the label wrapper's
+          // existing `truncate`, so a too-narrow cell degrades exactly
+          // the way it does today.
+          className={`text-[85%] inline-flex items-baseline ${
+            numeratorPill ? 'rounded-sm px-0.5' : mutedClass
+          }`}
+          style={
+            numeratorPill
+              ? { backgroundColor: numeratorPill.bg, color: numeratorPill.text }
+              : undefined
+          }
         >
           <ChordPart text={numerator} />
         </span>

@@ -1852,15 +1852,25 @@ function ChordCellBox({
   const textClass = ghosted ? 'text-neutral-400' : '';
   const textStyle: CSSProperties = ghosted ? {} : { color: palette.text };
   // Slash chords: the cell fill follows the BASS degree (see
-  // `chordPalette`), so the numerator would render muted-grey on a
-  // colored surface and read as an afterthought. Hand ChordGlyph the
-  // ROOT's family color instead, so both halves are legible at a glance
-  // — "1maj/5" = amber fill, "1maj" in 1-family green, "/5" in amber.
-  // Ghosted (Foundation view) cells keep the faded treatment on both
-  // halves; root-position chords ignore this entirely.
-  const rootColor = ghosted
-    ? undefined
-    : chordPalette({ ...cell.chord, bass: undefined }, isDark).text;
+  // `chordPalette`), so the numerator needs its own treatment or it
+  // reads as an afterthought. Coloring just its text wasn't enough —
+  // for hue-neighbour families ("5maj/7": amber root on a red cell) two
+  // dark 700-level colors on one pale fill don't separate. So the root
+  // gets a compact pill in its OWN family's fill + text, turning the
+  // comparison into fill-vs-fill. The bass half stays on the cell fill.
+  //
+  // Whichever mode is active, the pill takes that mode's fill so it
+  // matches what that family's cells actually look like. NB: if a dark
+  // theme ever ships, re-check this — both fills go translucent-dark
+  // there and the pill would need its own light treatment to stay
+  // legible. Ghosted (Foundation view) cells stay faded; root-position
+  // chords ignore this entirely.
+  const rootPalette = ghosted
+    ? null
+    : chordPalette({ ...cell.chord, bass: undefined }, isDark);
+  const numeratorPill = rootPalette
+    ? { bg: rootPalette.bg, text: rootPalette.text }
+    : undefined;
 
   const interactive = Boolean(onClick);
   const handleClick = (e: React.MouseEvent) => {
@@ -1897,7 +1907,7 @@ function ChordCellBox({
         style={textStyle}
       >
         {text ? (
-          <ChordGlyph text={text} numeratorColor={rootColor} />
+          <ChordGlyph text={text} numeratorPill={numeratorPill} />
         ) : (
           <span className="opacity-40">—</span>
         )}
