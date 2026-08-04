@@ -285,9 +285,43 @@ export function chordPalette(
   return isDark ? pair.dark : pair.light;
 }
 
+/** Degrees the number-notation parser can't hold in one field. */
+const EXTENSION_DEGREES = new Set(['9', '11', '13']);
+
+/**
+ * Recover the full degree token for a chord's ROOT.
+ *
+ * `parseNumberNotation` consumes exactly one 1-7 digit
+ * (`/^([b#]*[1-7])(.*)$/`), so a multi-digit degree arrives split across
+ * two fields: "b13" is stored as `{ function: 'b1', quality: '3' }`.
+ * The display concatenates them back, so it *looks* right while the
+ * colour resolves against 'b1' — the b13-renders-dark-red bug.
+ *
+ * Re-join them when, and only when, the quality is exactly the digits
+ * that complete a 9/11/13 degree. Deliberately narrow: "113" (degree 1
+ * with a 13th) stays split because 113 isn't a degree, and "57" (degree
+ * 5, dominant 7) stays split because 57 isn't either — so no existing
+ * chord changes colour as a side effect.
+ *
+ * This is a colour-path repair, not a parser fix. Bare "9"/"b9" roots
+ * are rejected by the parser outright and arrive `unparsed`, and a slash
+ * bass like "1/b13" loses its trailing digit entirely in
+ * `parseNumberFunction` — neither is recoverable from the stored record.
+ * See the plan doc's backlog item on multi-digit degree parsing.
+ */
+function rootDegreeToken(chord: ChordFunction): string {
+  const fn = chord.function;
+  if (fn === '' || !/^[0-9]+$/.test(chord.quality)) return fn;
+  const match = fn.match(/^([b#]*)([1-7])$/);
+  if (!match) return fn;
+  const joined = match[2] + chord.quality;
+  return EXTENSION_DEGREES.has(joined) ? match[1] + joined : fn;
+}
+
 function palettePairFor(chord: ChordFunction): PalettePair {
   if (chord.unparsed) return NEUTRAL_PALETTE;
-  const source = chord.bass && chord.bass !== '' ? chord.bass : chord.function;
+  const source =
+    chord.bass && chord.bass !== '' ? chord.bass : rootDegreeToken(chord);
   if (source === '') return NEUTRAL_PALETTE;
   const resolved = resolveDegree(source);
   if (!resolved) return NEUTRAL_PALETTE;

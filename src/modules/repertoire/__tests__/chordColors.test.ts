@@ -167,6 +167,40 @@ describe('chordPalette — flattened degrees', () => {
     );
   });
 
+  // The number-notation parser consumes a single 1-7 digit, so "b13"
+  // is stored as { function: 'b1', quality: '3' } — it displays as
+  // "b13" but resolved as b1 (dark red) until this was fixed.
+  it('re-joins a multi-digit degree split across function + quality', () => {
+    expect(chordPalette(chord({ function: 'b1', quality: '3' }), false)).toEqual(
+      chordPalette(chord({ function: 'b6' }), false), // b13 = b6
+    );
+    expect(chordPalette(chord({ function: '1', quality: '3' }), false)).toEqual(
+      chordPalette(chord({ function: '6' }), false), // 13 = 6
+    );
+    expect(chordPalette(chord({ function: '1', quality: '1' }), false)).toEqual(
+      chordPalette(chord({ function: '4' }), false), // 11 = 4
+    );
+    expect(chordPalette(chord({ function: '#1', quality: '3' }), false)).toEqual(
+      chordPalette(chord({ function: 'b7' }), false), // #13 = #6 = b7
+    );
+  });
+
+  it('leaves genuine degree+extension chords alone', () => {
+    // Regression guards for the re-join: none of these are degrees, so
+    // each must keep colouring by its 1-7 root.
+    const cases: Array<[string, string, string]> = [
+      ['1', '13', '1'], // "113" — degree 1 with a 13th
+      ['5', '7', '5'], // "57" — degree 5 dominant 7
+      ['1', '9', '1'], // "19" — degree 1 with a 9th
+      ['2', '11', '2'], // "211" — degree 2 with an 11th
+    ];
+    for (const [fn, quality, expected] of cases) {
+      expect(chordPalette(chord({ function: fn, quality }), false)).toEqual(
+        chordPalette(chord({ function: expected }), false),
+      );
+    }
+  });
+
   it('darkens the dark-mode palette too, preserving its alpha', () => {
     const flat = chordPalette(chord({ function: 'b6' }), true);
     expect(flat.bg).toMatch(/^rgba\(\d+, \d+, \d+, 0\.4\)$/);

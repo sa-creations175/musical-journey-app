@@ -549,6 +549,40 @@ leading 1–7 digit (`chordGlyph.tsx:47-51`) — those must keep the current gre
   unification would touch the lead sheet, PianoKeyboard, mental-viz, and the progression quiz.
 - Intra-cell drag reordering (permanently deferred in favour of A4's tap-to-number).
 - Normalizing `Song.key` to a canonical name at write time (see Part 3, items 2-3).
+- **Multi-digit degree parsing in `parseChordFunction` — see §B4 below.**
+
+## B4 — Multi-digit degrees are parsed as single digits (found during T2.3)
+
+`parseNumberNotation` (`chordFunction.ts:100`) matches `/^([b#]*[1-7])(.*)$/`, consuming exactly one
+digit. So a chord entered as **`b13` is stored as `{ function: 'b1', quality: '3' }`**. The display
+concatenates the two fields back into "b13", so it *looks* correct — which is why this survived until the
+colour rule made it visible (b13 rendered dark red: the b1 → 7-family colour).
+
+**Fixed in the colour path (T2.3b)** by re-joining the two fields when the quality is exactly the digits
+completing a 9/11/13 degree. Narrow on purpose: `113` (degree 1 with a 13th) and `57` (degree 5 dominant 7)
+stay split, so no existing chord changes colour as a side effect.
+
+**Everything else still reads `function: 'b1'`.** Confirmed downstream consequences, none fixed here:
+
+| Consumer | Effect on a `b13` chord |
+|---|---|
+| `chordRootNote` → `SEMI_BY_DEGREE` (`chordFunction.ts:26`) | **No `b1` key** → returns `''` → the voicing editor can't resolve a root, so no keyboard/voicing for this chord |
+| Concrete-notation display (`chordFunction.ts:272`) | `SEMI_BY_DEGREE` miss → falls back to rendering numbers, so letter-name mode shows "b13" instead of the note |
+| `toRomanToken` → numerals strip | Renders from degree `b1`, not `b6` — wrong numeral |
+| `detectPatterns` (`LeadSheetSection.tsx:885`) | Sees degree `b1`; progression detection misreads the chord |
+| `autoHarmonicTag` | Falls to the `startsWith('b')` → `borrowed` branch — plausible by coincidence, not by reasoning |
+
+**Two cases the colour-path repair cannot reach**, because the information is destroyed at parse time:
+- Bare `9` / `b9` / `#9` roots — the regex rejects them outright, so the chord is `unparsed` (neutral fill +
+  warning icon), not mis-coloured.
+- Slash basses like `1/b13` — `parseNumberFunction` (`:88`) returns `b1` and **discards the trailing `3`**;
+  nothing in the stored record can recover it.
+
+**Proposed fix (own step, own verification):** widen both parsers to `^([b#]*)(9|11|13)(?![0-9])(.*)$`
+before falling through to the single-digit branch. The negative lookahead is what keeps it safe — `113`
+fails to match as `11`+`3` and falls through unchanged, as does `57`. Then extend `SEMI_BY_DEGREE` with the
+extension degrees so roots, numerals, and voicings resolve too. Not bundled into the colour track because it
+touches chord entry, display, voicing, and pattern detection, and each wants its own browser check.
 
 ---
 
