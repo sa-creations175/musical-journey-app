@@ -65,11 +65,16 @@ interface Props {
    *  dark-text-vs-dark-text comparison for a fill-vs-fill one, and the
    *  pill's bounded shape carries most of the signal on its own.
    *
+   *  `border` draws a 1px ring inside the pill. The fills alone weren't
+   *  always enough — both are 50-level pastels, so amber-50 on red-50
+   *  ("5maj/7") still didn't register. The ring makes the boundary
+   *  unambiguous regardless of how close the two fills are.
+   *
    *  Passing a value also un-mutes the slash separator so "/7" reads in
    *  the bass family's color on the cell fill.
    *
    *  Ignored for root-position chords — they have no numerator. */
-  numeratorPill?: { bg: string; text: string };
+  numeratorPill?: { bg: string; text: string; border: string };
 }
 
 /** Default numerator + separator treatment: muted, so the bass note
@@ -136,7 +141,16 @@ export default function ChordGlyph({ text, numeratorPill }: Props): ReactNode {
           }`}
           style={
             numeratorPill
-              ? { backgroundColor: numeratorPill.bg, color: numeratorPill.text }
+              ? {
+                  backgroundColor: numeratorPill.bg,
+                  color: numeratorPill.text,
+                  // An inset box-shadow rather than a real border: an
+                  // inline-flex box's border DOES grow the line box, which
+                  // would shift the cell's flex-col layout. This paints a
+                  // 1px ring inside the pill, follows the border radius,
+                  // and costs zero layout.
+                  boxShadow: `inset 0 0 0 1px ${numeratorPill.border}`,
+                }
               : undefined
           }
         >

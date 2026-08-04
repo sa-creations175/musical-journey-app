@@ -1869,7 +1869,11 @@ function ChordCellBox({
     ? null
     : chordPalette({ ...cell.chord, bass: undefined }, isDark);
   const numeratorPill = rootPalette
-    ? { bg: rootPalette.bg, text: rootPalette.text }
+    ? {
+        bg: rootPalette.bg,
+        text: rootPalette.text,
+        border: rootPalette.border,
+      }
     : undefined;
 
   const interactive = Boolean(onClick);
