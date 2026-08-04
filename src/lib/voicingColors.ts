@@ -13,6 +13,15 @@ import type { VoicingEntry } from './db';
 export const NOTE_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 export const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
+// ⚠ ENHARMONIC COLOR PRINCIPLE — this rule also lives in
+// `src/modules/repertoire/chordColors.ts` (the lead sheet's chord-cell
+// degree palettes). The two systems are independent on purpose (this one
+// answers "what interval is this tone", that one "what degree is this
+// chord") but they encode the same idea: color follows the SOUNDING
+// NOTE, not the spelling — so #4 and b5 share a color in both. Change
+// them together. Unifying them into one source of truth is on the
+// backlog — see docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md
+// §Future work.
 const INTERVAL_COLOR: Record<number, string> = {
   0: '#0F6E56',  // root — deep green
   1: '#E24B4A',  // b2 / b9 — red (dissonant tension)
