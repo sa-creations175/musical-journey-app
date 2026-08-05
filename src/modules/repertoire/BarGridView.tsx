@@ -12,11 +12,18 @@ import type {
   ChordFunction,
   LyricLine,
   Song,
+  SongLyricLine,
   SongSection,
   VoicingEntry,
   VoicingHand,
   VoicingPattern,
 } from '../../lib/db';
+import {
+  type CellOccupant,
+  cellKey,
+  findSyllable,
+  lineStatus,
+} from './lyricSyllables';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
 import { pitchClassOf } from './chordParser';
 import { chordRootNote, normalizeVoicing, sanitizeVoicing } from './voicingHelpers';
@@ -71,6 +78,10 @@ export const DRAG_ID = {
   lineStart: (lineId: string) => `lineStart:${lineId}`,
   lineEnd: (lineId: string) => `lineEnd:${lineId}`,
   word: (lineId: string, wordIdx: number) => `word:${lineId}:${wordIdx}`,
+  /** Song-owned syllable (rev 3). Replaces `word:` once a song has
+   *  migrated to `Song.lyricLines`; both exist while sections can still
+   *  be on the legacy path. */
+  syllable: (syllableId: string) => `syl:${syllableId}`,
   bar: (barIndex: number) => `bar:${barIndex}`,
 };
 
@@ -143,6 +154,21 @@ interface Props {
    *  in the tray above the grid; placed lines render in their bars'
    *  lyric rows. */
   lyricLines?: LyricLine[];
+  /** Song-owned anchor→cell index (rev 3). When present the lyric row
+   *  renders from this instead of from `lyricLines`, and every legacy
+   *  lyric prop above is ignored. Built once per song above the
+   *  sections, because a line's syllables may be anchored into any of
+   *  them. */
+  cellIndex?: Map<string, CellOccupant[]>;
+  /** Song lines with nothing placed yet — the pre-drawer tray. */
+  unplacedLines?: SongLyricLine[];
+  /** Full song store — the edit popover needs a syllable's text and
+   *  whether it has a next sibling to join with. */
+  songLyricLines?: SongLyricLine[];
+  onSyllableSplit?: (syllableId: string, splitAt: number) => void | Promise<void>;
+  onSyllableJoin?: (syllableId: string) => void | Promise<void>;
+  onSyllableChange?: (syllableId: string, nextText: string) => void | Promise<void>;
+  onSyllableUnplace?: (syllableId: string) => void | Promise<void>;
   /** Tap-× on a line removes it from the section entirely. */
   onLineDelete?: (lineId: string) => void;
   /** Tap-`+ bar` appends an empty bar to the grid for lyric-only
@@ -232,6 +258,13 @@ export default function BarGridView({
   onChordVoicingPinsChange,
   chordsAreSortable = false,
   lyricLines = [],
+  cellIndex,
+  unplacedLines,
+  songLyricLines,
+  onSyllableSplit,
+  onSyllableJoin,
+  onSyllableChange,
+  onSyllableUnplace,
   onLineDelete,
   onAddBar,
   onDeleteBar,
@@ -311,11 +344,18 @@ export default function BarGridView({
   // tagged chords (secondary dominants etc.) ghost out to reveal the
   // structural skeleton. Local to this section view — not persisted.
   const [foundationMode, setFoundationMode] = useState(false);
+  // Syllable-edit popover (rev 3). Anchored under the bar holding the
+  // tapped syllable, mirroring the legacy word popover.
+  const [syllableEditing, setSyllableEditing] = useState<{
+    syllableId: string;
+    barIndex: number;
+    mode: 'actions' | 'split' | 'edit';
+  } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const barsPerRow = useBarsPerRow();
 
   useEffect(() => {
-    if (!editing && !wordEditing && !timeSigPickerOpen && !newChordAt) return;
+    if (!editing && !wordEditing && !timeSigPickerOpen && !newChordAt && !syllableEditing) return;
     const onDown = (e: MouseEvent) => {
       const node = containerRef.current;
       if (!node) return;
@@ -324,10 +364,19 @@ export default function BarGridView({
       setWordEditing(null);
       setTimeSigPickerOpen(false);
       setNewChordAt(null);
+      setSyllableEditing(null);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
-  }, [editing, wordEditing, timeSigPickerOpen, newChordAt]);
+  }, [editing, wordEditing, timeSigPickerOpen, newChordAt, syllableEditing]);
+
+  // Drop the popover if its syllable disappears (split/join/undo).
+  useEffect(() => {
+    if (!syllableEditing || !songLyricLines) return;
+    if (!findSyllable(songLyricLines, syllableEditing.syllableId)) {
+      setSyllableEditing(null);
+    }
+  }, [songLyricLines, syllableEditing]);
 
   useEffect(() => {
     if (!editing) return;
@@ -457,7 +506,13 @@ export default function BarGridView({
 
   const body = (
     <>
-      {pendingLines.length > 0 && (
+      {/* Tray of not-yet-placed lines. Sourced from the song store once
+          migrated, from the section's legacy lines before that. The
+          lyric drawer replaces this entirely in step 7. */}
+      {cellIndex && unplacedLines && unplacedLines.length > 0 && (
+        <SongPendingTray lines={unplacedLines} onLineDelete={onLineDelete} />
+      )}
+      {!cellIndex && pendingLines.length > 0 && (
         <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
       )}
       <div className="mt-2 space-y-3">
@@ -515,7 +570,32 @@ export default function BarGridView({
               className="grid gap-2 mt-1"
               style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
             >
-              {row.map(bar => (
+              {row.map(bar => cellIndex ? (
+                <SyllableBarSegment
+                  key={bar.index}
+                  sectionId={section.id}
+                  barIndex={bar.index}
+                  beatsPerBar={beatsPerBar}
+                  cellIndex={cellIndex}
+                  songLyricLines={songLyricLines}
+                  editing={syllableEditing}
+                  onEditingChange={setSyllableEditing}
+                  onSyllableClick={
+                    onSyllableSplit || onSyllableJoin || onSyllableChange
+                      ? syllableId =>
+                          setSyllableEditing(prev =>
+                            prev && prev.syllableId === syllableId
+                              ? null
+                              : { syllableId, barIndex: bar.index, mode: 'actions' },
+                          )
+                      : undefined
+                  }
+                  onSplit={onSyllableSplit}
+                  onJoin={onSyllableJoin}
+                  onChange={onSyllableChange}
+                  onUnplace={onSyllableUnplace}
+                />
+              ) : (
                 <LyricBarSegment
                   key={bar.index}
                   barIndex={bar.index}
@@ -808,6 +888,82 @@ function TimeSignaturePicker({
 // Lines the user has just pasted but not yet placed. Each renders as
 // a draggable strip showing all words. Dropping on a beat slot
 // initialises the line's range to that beat + a default of 1 bar.
+
+/** Song-owned variant (rev 3). Lists lines with nothing placed yet.
+ *  Interim only — the lyric drawer subsumes this in step 7, at which
+ *  point "pending" stops being a bucket and is just "unplaced". */
+function SongPendingTray({
+  lines,
+  onLineDelete,
+}: {
+  lines: SongLyricLine[];
+  onLineDelete?: (lineId: string) => void;
+}) {
+  return (
+    <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
+      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
+        unplaced lyrics — drag onto a beat to place
+      </div>
+      <div className="flex flex-col gap-1">
+        {lines.map(line => (
+          <SongPendingStrip key={line.id} line={line} onDelete={onLineDelete} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SongPendingStrip({
+  line,
+  onDelete,
+}: {
+  line: SongLyricLine;
+  onDelete?: (lineId: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: DRAG_ID.pending(line.id) });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  const status = lineStatus(line);
+  const isHeader = line.kind === 'header';
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...(isHeader ? {} : attributes)}
+        {...(isHeader ? {} : listeners)}
+        className={`flex-1 inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] select-none touch-none ${
+          isHeader
+            ? 'border-transparent bg-neutral-100 dark:bg-neutral-800 text-neutral-500 uppercase tracking-wide'
+            : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 cursor-grab active:cursor-grabbing'
+        }`}
+      >
+        {!isHeader && (
+          <span className="text-neutral-400 mr-1" aria-hidden>≡</span>
+        )}
+        <span className="truncate">{line.text}</span>
+        {status.status === 'partial' && (
+          <span className="ml-auto text-[10px] text-neutral-400 shrink-0">
+            {status.placed}/{status.total}
+          </span>
+        )}
+      </div>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(line.id)}
+          aria-label="delete lyric line"
+          className="text-neutral-400 hover:text-needswork text-xs leading-none px-1"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
 
 function PendingTray({
   lines,
@@ -1262,6 +1418,377 @@ function LyricBarSegment({
         />
       )}
     </div>
+  );
+}
+
+// --- anchor-based lyric row (rev 3) ----------------------------------
+// Used once a song has migrated to `Song.lyricLines`. Renders straight
+// from the song-level anchor→cell index built above the sections, so a
+// syllable anchored into THIS section shows here regardless of which
+// line owns it. The legacy `LyricBarSegment` below stays as the
+// pre-migration path.
+
+interface SyllableEditingState {
+  syllableId: string;
+  barIndex: number;
+  mode: 'actions' | 'split' | 'edit';
+}
+
+function SyllableBarSegment({
+  sectionId,
+  barIndex,
+  beatsPerBar,
+  cellIndex,
+  songLyricLines,
+  editing,
+  onEditingChange,
+  onSyllableClick,
+  onSplit,
+  onJoin,
+  onChange,
+  onUnplace,
+}: {
+  sectionId: string;
+  barIndex: number;
+  beatsPerBar: number;
+  cellIndex: Map<string, CellOccupant[]>;
+  songLyricLines?: SongLyricLine[];
+  editing: SyllableEditingState | null;
+  onEditingChange: (next: SyllableEditingState | null) => void;
+  onSyllableClick?: (syllableId: string) => void;
+  onSplit?: (syllableId: string, splitAt: number) => void | Promise<void>;
+  onJoin?: (syllableId: string) => void | Promise<void>;
+  onChange?: (syllableId: string, nextText: string) => void | Promise<void>;
+  onUnplace?: (syllableId: string) => void | Promise<void>;
+}) {
+  const found =
+    editing && editing.barIndex === barIndex && songLyricLines
+      ? findSyllable(songLyricLines, editing.syllableId)
+      : null;
+  return (
+    <div className="relative flex gap-0.5 px-1">
+      {Array.from({ length: beatsPerBar }).map((_, beatPos) => (
+        <SyllableDropSlot
+          key={beatPos}
+          barIndex={barIndex}
+          beatPos={beatPos}
+          occupants={
+            cellIndex.get(cellKey({ sectionId, barIndex, beatPos })) ?? []
+          }
+          onSyllableClick={onSyllableClick}
+        />
+      ))}
+      {editing && found && (
+        <SyllableEditPopover
+          key={editing.syllableId}
+          state={editing}
+          text={found.syllable.text}
+          canJoinNext={found.index < (found.line.syllables?.length ?? 0) - 1}
+          isPlaced={found.syllable.anchor !== undefined}
+          onClose={() => onEditingChange(null)}
+          onModeChange={mode => onEditingChange({ ...editing, mode })}
+          onSplit={
+            onSplit
+              ? splitAt => {
+                  void onSplit(editing.syllableId, splitAt);
+                  onEditingChange(null);
+                }
+              : undefined
+          }
+          onJoin={
+            onJoin
+              ? () => {
+                  void onJoin(editing.syllableId);
+                  onEditingChange(null);
+                }
+              : undefined
+          }
+          onChange={
+            onChange
+              ? nextText => {
+                  void onChange(editing.syllableId, nextText);
+                  onEditingChange(null);
+                }
+              : undefined
+          }
+          onUnplace={
+            onUnplace
+              ? () => {
+                  void onUnplace(editing.syllableId);
+                  onEditingChange(null);
+                }
+              : undefined
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+/** Syllable actions: rename, split, join-next, and un-place. Un-place
+ *  is how a placed syllable returns to the ghost pool — and once every
+ *  syllable of a line is un-placed, the line reappears in the tray
+ *  where it can be deleted. That's the whole delete path until the
+ *  drawer lands in step 7. */
+function SyllableEditPopover({
+  state,
+  text,
+  canJoinNext,
+  isPlaced,
+  onClose,
+  onModeChange,
+  onSplit,
+  onJoin,
+  onChange,
+  onUnplace,
+}: {
+  state: SyllableEditingState;
+  text: string;
+  canJoinNext: boolean;
+  isPlaced: boolean;
+  onClose: () => void;
+  onModeChange: (mode: 'actions' | 'split' | 'edit') => void;
+  onSplit?: (splitAt: number) => void;
+  onJoin?: () => void;
+  onChange?: (nextText: string) => void;
+  onUnplace?: () => void;
+}) {
+  const [draft, setDraft] = useState(text);
+  useEffect(() => {
+    if (state.mode === 'edit') setDraft(text);
+  }, [state.mode, text]);
+  const trimmedDraft = draft.trim();
+
+  return (
+    <div
+      className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-30 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md p-2 text-[11px]"
+      onClick={e => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-neutral-500">syllable:</span>
+        <span className="font-mono text-neutral-700 dark:text-neutral-200">{text}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="close syllable editor"
+          className="ml-auto text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          ×
+        </button>
+      </div>
+
+      {state.mode === 'actions' && (
+        <div className="flex flex-wrap gap-1">
+          {onChange && (
+            <button
+              type="button"
+              onClick={() => onModeChange('edit')}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+            >
+              Edit
+            </button>
+          )}
+          {onSplit && text.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onModeChange('split')}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+            >
+              Split
+            </button>
+          )}
+          {onJoin && (
+            <button
+              type="button"
+              onClick={onJoin}
+              disabled={!canJoinNext}
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Join next
+            </button>
+          )}
+          {onUnplace && isPlaced && (
+            <button
+              type="button"
+              onClick={onUnplace}
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-needswork hover:text-needswork"
+              title="return this syllable to the unplaced pool"
+            >
+              Un-place
+            </button>
+          )}
+        </div>
+      )}
+
+      {state.mode === 'split' && onSplit && (
+        <div className="space-y-1">
+          <div className="text-neutral-500">tap between two letters:</div>
+          <div className="inline-flex items-center bg-neutral-50 dark:bg-neutral-800/60 rounded px-1 py-0.5">
+            {text.split('').map((ch, i) => (
+              <span key={`c-${i}`} className="contents">
+                <span className="font-mono text-neutral-700 dark:text-neutral-200 px-0.5">
+                  {ch}
+                </span>
+                {i < text.length - 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onSplit(i + 1)}
+                    aria-label={`split after character ${i + 1}`}
+                    className="inline-block min-w-[12px] min-h-[32px] mx-0.5 rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
+                  />
+                )}
+              </span>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => onModeChange('actions')}
+            className="text-[10px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
+          >
+            ← back
+          </button>
+        </div>
+      )}
+
+      {state.mode === 'edit' && onChange && (
+        <form
+          className="space-y-1"
+          onSubmit={e => {
+            e.preventDefault();
+            if (trimmedDraft === '') return;
+            onChange(trimmedDraft);
+          }}
+        >
+          <input
+            autoFocus
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                onModeChange('actions');
+              }
+            }}
+            aria-label="syllable text"
+            className="w-full px-2 py-1 text-[12px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 font-mono"
+          />
+          <div className="flex items-center gap-1">
+            <button
+              type="submit"
+              disabled={trimmedDraft === ''}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange('actions')}
+              className="text-[10px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function SyllableDropSlot({
+  barIndex,
+  beatPos,
+  occupants,
+  onSyllableClick,
+}: {
+  barIndex: number;
+  beatPos: number;
+  occupants: CellOccupant[];
+  onSyllableClick?: (syllableId: string) => void;
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: DRAG_ID.beat(barIndex, beatPos),
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border ${
+        isOver
+          ? 'border-fluent bg-fluent/10'
+          : 'border-dashed border-neutral-200 dark:border-neutral-800'
+      }`}
+    >
+      {occupants.map(occupant => (
+        <SyllableChip
+          key={occupant.syllable.id}
+          syllableId={occupant.syllable.id}
+          text={occupant.syllable.text}
+          placed={occupant.placed}
+          onClick={onSyllableClick}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One syllable in the grid.
+ *
+ * PLACED chips keep the pre-migration look exactly — migration imports
+ * every existing position as placed, so this is what makes "did
+ * anything move?" a clean read after the store swap.
+ *
+ * GHOST chips (unplaced, provisionally spread between two placed
+ * neighbours) are faded and italic: visibly provisional, still legible,
+ * and never mistaken for something the user positioned.
+ */
+function SyllableChip({
+  syllableId,
+  text,
+  placed,
+  onClick,
+}: {
+  syllableId: string;
+  text: string;
+  placed: boolean;
+  onClick?: (syllableId: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: DRAG_ID.syllable(syllableId) });
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+  return (
+    <span
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={
+        onClick
+          ? e => {
+              // 5px activation distance means a bare click lands here
+              // without starting a drag. Stop propagation so the grid's
+              // container mousedown doesn't close the popover.
+              e.stopPropagation();
+              onClick(syllableId);
+            }
+          : undefined
+      }
+      className={`select-none touch-none text-[10px] leading-tight italic px-1 rounded truncate max-w-[7rem] ${
+        placed
+          ? 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800'
+          : 'text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-900/40 opacity-70'
+      } ${
+        onClick
+          ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700'
+          : 'cursor-grab active:cursor-grabbing'
+      }`}
+      title={placed ? text : `${text} — not placed yet`}
+    >
+      {text}
+    </span>
   );
 }
 

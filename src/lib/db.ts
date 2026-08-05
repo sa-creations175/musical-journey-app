@@ -147,6 +147,12 @@ export interface Song {
    *  as top-level columns), so no Dexie version bump. Same convention
    *  as `sectionOrder` above. */
   lyricLines?: SongLyricLine[];
+  /** Which version of the section→song fold produced (or last
+   *  validated) `lyricLines`. Lets a corrected migration re-run over
+   *  records an earlier, buggy fold wrote, instead of being locked out
+   *  by the "already migrated" guard. See `LYRIC_FOLD_VERSION`.
+   *  Unindexed; rides in the `data` JSONB blob. */
+  lyricFoldVersion?: number;
   /** Spotify / YouTube / Apple Music links. Free-form strings. */
   spotifyLink?: string;
   /** @deprecated — superseded by `referenceVideos`. Still read for

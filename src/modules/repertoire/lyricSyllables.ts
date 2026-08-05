@@ -5,7 +5,11 @@ import type {
   SongLyricLine,
 } from '../../lib/db';
 import { distributedWordPositions } from './lyricLine';
-import type { ParsedLyricRow } from './lyricSheetParse';
+import {
+  isHeaderLine,
+  parseLyricSheet,
+  type ParsedLyricRow,
+} from './lyricSheetParse';
 
 // Song-owned lyric model (Lyric Placement Redesign rev 3, Aug 2026 —
 // docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md).
@@ -102,6 +106,20 @@ function mapSyllable(
     return { ...line, syllables };
   });
   return touched ? next : [...lines];
+}
+
+/** Locate a syllable and its position within its line — what the edit
+ *  popover needs to decide whether "join next" is available. */
+export function findSyllable(
+  lines: ReadonlyArray<SongLyricLine>,
+  syllableId: string,
+): { line: SongLyricLine; syllable: LyricSyllable; index: number } | null {
+  for (const line of lines) {
+    const syllables = line.syllables ?? [];
+    const index = syllables.findIndex(s => s.id === syllableId);
+    if (index >= 0) return { line, syllable: syllables[index], index };
+  }
+  return null;
 }
 
 /** Every placed syllable sitting in one cell, across all lines. */
@@ -658,6 +676,48 @@ export interface SectionLyricSource {
 }
 
 /**
+ * Bump when `foldSectionLyrics` changes in a way that makes already-
+ * migrated stores wrong, so the migration re-runs over them instead of
+ * being locked out by the "already has lyricLines" guard.
+ *
+ *   1 — original. BROKEN: treated the legacy pending sentinel as a
+ *       placement, so every un-placed line landed stacked on bar 0
+ *       beat 0, and header text imported as a placeable lyric line.
+ *   2 — sentinel lines fold to unplaced; headers are recognised.
+ *
+ * ⚠ A re-fold DISCARDS the song-level store and rebuilds it from
+ * `section.lyricLines`. That is lossless only while the legacy records
+ * remain the source of truth — which they are, because the fold never
+ * writes to them. Once the drawer (step 7) lets the user author lyrics
+ * that have no legacy counterpart, a destructive re-fold stops being
+ * safe and this mechanism needs a merge instead. `commitSongLyrics`
+ * stamps the current version on every user edit precisely so a future
+ * bump can tell "migrated but untouched" from "the user has worked on
+ * this".
+ */
+export const LYRIC_FOLD_VERSION = 2;
+
+/**
+ * The legacy model had no un-placed state in the DATA — a not-yet-
+ * placed line was flagged by a sentinel range of (0,0)→(0,0), and the
+ * check lived only in the renderer, which partitioned those lines out
+ * before drawing.
+ *
+ * Reading the records directly without this check is what broke fold
+ * v1: `distributedWordPositions` sees start == end, computes a total
+ * span of zero, and returns position 0 for every word — so a whole
+ * tray's worth of un-placed lines migrated stacked onto bar 0 beat 0.
+ */
+export function isLegacyPendingLine(line: LyricLine): boolean {
+  return (
+    line.startBar === 0 &&
+    line.startBeat === 0 &&
+    line.endBar === 0 &&
+    line.endBeat === 0
+  );
+}
+
+/**
  * Fold every section's legacy `lyricLines` into one song-level list.
  *
  * Existing positions import as PLACED, not as ghosts — they are the
@@ -686,6 +746,36 @@ export function foldSectionLyrics(
     // in array order, words in index order.
     const orderByCell = new Map<string, number>();
     for (const legacy of section.lyricLines ?? []) {
+      const text = legacy.words.join(' ');
+      const unplaced = isLegacyPendingLine(legacy);
+
+      // Header recognition applies ONLY to un-placed lines. A "[Refrain]"
+      // the user actually positioned on the grid stays a lyric line —
+      // converting it would silently discard that placement, and
+      // destroying a placement is worse than leaving a stray label
+      // placeable. One long-press reclassifies it either way.
+      if (unplaced && isHeaderLine(text)) {
+        const parsed = parseLyricSheet(text)[0];
+        out.push({
+          id: makeId(),
+          kind: 'header',
+          text: parsed?.text ?? text,
+        });
+        continue;
+      }
+
+      // Un-placed lines fold to syllables with NO anchors, landing in
+      // the ghost pool exactly as the tray showed them.
+      if (unplaced) {
+        out.push({
+          id: makeId(),
+          kind: 'lyric',
+          text,
+          syllables: legacy.words.map(word => ({ id: makeId(), text: word })),
+        });
+        continue;
+      }
+
       const positions = distributedWordPositions(legacy, beatsPerBar);
       const syllables: LyricSyllable[] = legacy.words.map((word, i) => {
         const syllable: LyricSyllable = { id: makeId(), text: word };
@@ -706,12 +796,7 @@ export function foldSectionLyrics(
         };
         return syllable;
       });
-      out.push({
-        id: makeId(),
-        kind: 'lyric',
-        text: legacy.words.join(' '),
-        syllables,
-      });
+      out.push({ id: makeId(), kind: 'lyric', text, syllables });
     }
   }
   return out;

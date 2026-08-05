@@ -17,9 +17,21 @@ import type {
   LyricLine,
   Phrase,
   Song,
+  SongLyricLine,
   SongSection,
   VoicingEntry,
 } from '../../lib/db';
+import {
+  type CellOccupant,
+  joinSyllables,
+  linesFromParsedRows,
+  lineStatus,
+  placeSyllable,
+  setSyllableText,
+  splitSyllable,
+  unplaceSyllable,
+} from './lyricSyllables';
+import { parseLyricSheet } from './lyricSheetParse';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -95,6 +107,13 @@ interface Props {
   onMoveUp?: () => Promise<void>;
   onMoveDown?: () => Promise<void>;
   onDelete?: () => Promise<void>;
+  /** Song-owned lyric store (rev 3). Present once the song has
+   *  migrated; the three travel together and the section falls back to
+   *  its legacy `section.lyricLines` when they're absent. */
+  songLyricLines?: SongLyricLine[];
+  /** Anchor→cell index, built once above the sections. */
+  cellIndex?: Map<string, CellOccupant[]>;
+  onSongLyricsChange?: (next: SongLyricLine[]) => Promise<void>;
 }
 
 export default function LeadSheetSection({
@@ -110,7 +129,14 @@ export default function LeadSheetSection({
   onMoveUp,
   onMoveDown,
   onDelete,
+  songLyricLines,
+  cellIndex,
+  onSongLyricsChange,
 }: Props) {
+  // Migrated when the song-level store is present. Every lyric read and
+  // write below routes on this; the legacy section-owned path stays
+  // intact underneath for songs that haven't folded yet.
+  const songLyricsActive = Boolean(cellIndex && onSongLyricsChange);
   const stage = section.stage ?? song.stage ?? DEFAULT_STAGE;
   const { toast } = useToast();
 
@@ -453,6 +479,18 @@ export default function LeadSheetSection({
   // state (start == end == (0,0)). The user drags the strip onto a
   // beat slot to place it.
   const handleSubmitLyricLines = async (textLines: string[][]) => {
+    // Migrated songs append to the song-level store instead. The paste
+    // box is re-joined into text so it runs through the same header
+    // parser the drawer will use in step 7 — one parsing path, not two.
+    if (songLyricsActive && songLyricLines && onSongLyricsChange) {
+      const rows = parseLyricSheet(textLines.map(w => w.join(' ')).join('\n'));
+      if (rows.length === 0) return;
+      await onSongLyricsChange([
+        ...songLyricLines,
+        ...linesFromParsedRows(rows),
+      ]);
+      return;
+    }
     const fresh: LyricLine[] = textLines.map(words => ({
       id: crypto.randomUUID(),
       words,
@@ -464,7 +502,52 @@ export default function LeadSheetSection({
     await commitLyricLines([...lyricLines, ...fresh]);
   };
 
+  // Syllable edit actions (rev 3). Each is a one-line application of a
+  // pure helper — the helpers own the invariants, these just persist.
+  const withSongLyrics = (
+    fn: (lines: SongLyricLine[]) => SongLyricLine[],
+  ): (() => Promise<void>) | undefined => {
+    if (!songLyricsActive || !songLyricLines || !onSongLyricsChange) {
+      return undefined;
+    }
+    return async () => {
+      const next = fn(songLyricLines);
+      if (next === songLyricLines) return;
+      await onSongLyricsChange(next);
+    };
+  };
+
+  const handleSyllableSplit = songLyricsActive
+    ? async (syllableId: string, splitAt: number) => {
+        await withSongLyrics(lines => splitSyllable(lines, syllableId, splitAt))?.();
+      }
+    : undefined;
+
+  const handleSyllableJoin = songLyricsActive
+    ? async (syllableId: string) => {
+        await withSongLyrics(lines => joinSyllables(lines, syllableId))?.();
+      }
+    : undefined;
+
+  const handleSyllableChange = songLyricsActive
+    ? async (syllableId: string, nextText: string) => {
+        await withSongLyrics(lines =>
+          setSyllableText(lines, syllableId, nextText),
+        )?.();
+      }
+    : undefined;
+
+  const handleSyllableUnplace = songLyricsActive
+    ? async (syllableId: string) => {
+        await withSongLyrics(lines => unplaceSyllable(lines, syllableId))?.();
+      }
+    : undefined;
+
   const handleDeleteLyricLine = async (lineId: string) => {
+    if (songLyricsActive && songLyricLines && onSongLyricsChange) {
+      await onSongLyricsChange(songLyricLines.filter(l => l.id !== lineId));
+      return;
+    }
     await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
   };
 
@@ -702,7 +785,8 @@ export default function LeadSheetSection({
       activeId.startsWith('pending:') ||
       activeId.startsWith('lineStart:') ||
       activeId.startsWith('lineEnd:') ||
-      activeId.startsWith('word:')
+      activeId.startsWith('word:') ||
+      activeId.startsWith('syl:')
     ) {
       allowed = args.droppableContainers.filter(d =>
         String(d.id).startsWith('beat:'),
@@ -763,6 +847,49 @@ export default function LeadSheetSection({
     const dropBar = parseInt(barStr, 10);
     const dropBeat = parseInt(beatStr, 10);
     if (!Number.isFinite(dropBar) || !Number.isFinite(dropBeat)) return;
+
+    // --- song-owned syllables (rev 3) ---------------------------------
+    // A drop writes exactly one syllable's anchor. `placeSyllable`
+    // appends to the target cell, so nothing already there is displaced
+    // — the no-ripple rule holds by construction, not by convention.
+    if (activeId.startsWith('syl:')) {
+      if (!songLyricsActive || !songLyricLines || !onSongLyricsChange) return;
+      const syllableId = activeId.slice('syl:'.length);
+      const next = placeSyllable(songLyricLines, syllableId, {
+        sectionId: section.id,
+        barIndex: dropBar,
+        beatPos: dropBeat,
+      });
+      await onSongLyricsChange(next);
+      return;
+    }
+
+    // Placing a whole unplaced line: anchor its FIRST syllable at the
+    // drop cell and its LAST at the end of that bar, reproducing the
+    // legacy "default range = one bar" feel. The syllables between
+    // them become ghosts spread across the gap. Interim behaviour —
+    // step 6a replaces this with the drawer's tap-start/tap-end flow.
+    if (activeId.startsWith('pending:') && songLyricsActive) {
+      if (!songLyricLines || !onSongLyricsChange) return;
+      const lineId = activeId.slice('pending:'.length);
+      const target = songLyricLines.find(l => l.id === lineId);
+      const syllables = target?.syllables ?? [];
+      if (syllables.length === 0) return;
+      let next = placeSyllable(songLyricLines, syllables[0].id, {
+        sectionId: section.id,
+        barIndex: dropBar,
+        beatPos: dropBeat,
+      });
+      if (syllables.length > 1) {
+        next = placeSyllable(next, syllables[syllables.length - 1].id, {
+          sectionId: section.id,
+          barIndex: dropBar,
+          beatPos: Math.max(0, beatsPerBar - 1),
+        });
+      }
+      await onSongLyricsChange(next);
+      return;
+    }
 
     if (activeId.startsWith('pending:')) {
       const lineId = activeId.slice('pending:'.length);
@@ -1060,6 +1187,19 @@ export default function LeadSheetSection({
               copiedChord={copiedChord}
               chordsAreSortable
               lyricLines={lyricLines}
+              cellIndex={cellIndex}
+              songLyricLines={songLyricLines}
+              onSyllableSplit={handleSyllableSplit}
+              onSyllableJoin={handleSyllableJoin}
+              onSyllableChange={handleSyllableChange}
+              onSyllableUnplace={handleSyllableUnplace}
+              unplacedLines={
+                songLyricsActive
+                  ? (songLyricLines ?? []).filter(
+                      l => lineStatus(l).status === 'unplaced',
+                    )
+                  : undefined
+              }
               onLineDelete={handleDeleteLyricLine}
               onAddBar={handleAddBar}
               onDeleteBar={handleDeleteBar}

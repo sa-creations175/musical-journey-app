@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LyricLine, SongLyricLine } from '../../../lib/db';
+import { distributedWordPositions } from '../lyricLine';
 import {
   anchorToGlobal,
   buildBeatAxis,
@@ -540,16 +541,63 @@ describe('foldSectionLyrics', () => {
     expect(syllables.every(s => s.anchor?.sectionId === SEC)).toBe(true);
   });
 
-  it('assigns stacking order per cell in legacy render order', () => {
-    // A collapsed range puts every word on one beat — exactly the bar-13
-    // case from the audit. They must import as a stable stack.
-    const collapsed = legacy({ endBar: 0, endBeat: 0 });
+  it('folds a legacy PENDING line to unplaced syllables, not a stack at 0:0', () => {
+    // Regression for fold v1. A (0,0)→(0,0) range is the legacy
+    // sentinel for "in the tray, not placed" — the check lived only in
+    // the renderer, so reading the record directly made
+    // distributedWordPositions return 0 for every word and stacked
+    // whole un-placed lines onto bar 0 beat 0.
+    const pending = legacy({ startBar: 0, startBeat: 0, endBar: 0, endBeat: 0 });
+    const out = foldSectionLyrics(
+      [{ sectionId: SEC, beatsPerBar: 4, lyricLines: [pending] }],
+      seqIds(),
+    );
+    const syllables = out[0].syllables!;
+    expect(syllables).toHaveLength(4);
+    expect(syllables.every(s => s.anchor === undefined)).toBe(true);
+    expect(lineStatus(out[0]).status).toBe('unplaced');
+  });
+
+  it('imports an unplaced header line as a header row', () => {
+    const out = foldSectionLyrics(
+      [{
+        sectionId: SEC,
+        beatsPerBar: 4,
+        lyricLines: [legacy({
+          words: ['[Refrain]'],
+          startBar: 0, startBeat: 0, endBar: 0, endBeat: 0,
+        })],
+      }],
+      seqIds(),
+    );
+    expect(out[0]).toMatchObject({ kind: 'header', text: 'Refrain' });
+    expect(out[0].syllables).toBeUndefined();
+  });
+
+  it('keeps a PLACED header-looking line as a placeable lyric line', () => {
+    // Reclassifying it would silently discard a real placement.
+    const out = foldSectionLyrics(
+      [{
+        sectionId: SEC,
+        beatsPerBar: 4,
+        lyricLines: [legacy({ words: ['[Refrain]'], endBar: 0, endBeat: 3 })],
+      }],
+      seqIds(),
+    );
+    expect(out[0].kind).toBe('lyric');
+    expect(out[0].syllables![0].anchor).toBeDefined();
+  });
+
+  it('stacks multiple words landing in one cell in legacy render order', () => {
+    // A genuinely collapsed range that is NOT the pending sentinel.
+    const collapsed = legacy({ startBar: 2, startBeat: 1, endBar: 2, endBeat: 1 });
     const out = foldSectionLyrics(
       [{ sectionId: SEC, beatsPerBar: 4, lyricLines: [collapsed] }],
       seqIds(),
     );
     const syllables = out[0].syllables!;
-    expect(syllables.map(s => s.anchor?.beatPos)).toEqual([0, 0, 0, 0]);
+    expect(syllables.map(s => s.anchor?.barIndex)).toEqual([2, 2, 2, 2]);
+    expect(syllables.map(s => s.anchor?.beatPos)).toEqual([1, 1, 1, 1]);
     expect(syllables.map(s => s.anchor?.order)).toEqual([0, 1, 2, 3]);
   });
 
@@ -595,5 +643,120 @@ describe('foldSectionLyrics', () => {
     const a = foldSectionLyrics(input, seqIds());
     const b = foldSectionLyrics(input, seqIds());
     expect(a).toEqual(b);
+  });
+});
+
+// --- real-data verification -------------------------------------------
+//
+// The harness that should have caught fold v1 instead of a screenshot
+// diff. Fixture is the ACTUAL "O Come All Ye Faithful / Verse 1" record
+// dumped from the user's IndexedDB (2026-08-05): five placed lines with
+// hand-nudged wordOffsets, plus four tray lines carrying the legacy
+// pending sentinel — one of which is a section header.
+//
+// Two independent assertions:
+//   1. Against hand-computed expected cells, so a change to the fold's
+//      own math can't quietly redefine "correct".
+//   2. Against a reference reimplementation of the legacy renderer's
+//      positioning (BarGridView's floor/round/clamp), so the fold and
+//      the renderer can't drift apart.
+
+describe('foldSectionLyrics — real O Come All Ye Faithful data', () => {
+  const REAL_LINES: LyricLine[] = [
+    {
+      id: 'r0',
+      words: ['O', 'come,', 'all', 'ye', 'faith', 'ful'],
+      startBar: 0, startBeat: 3, endBar: 2, endBeat: 3,
+      wordOffsets: [
+        0, -0.5999999999999996, -1.2000000000000002,
+        -0.7999999999999998, -1.4000000000000004, -1,
+      ],
+    },
+    {
+      id: 'r1',
+      words: ['joy', 'ful', 'and', 'tri', 'um', 'phant'],
+      startBar: 3, startBeat: 0, endBar: 4, endBeat: 2,
+      wordOffsets: [0, 0, 0, 0, -0.8000000000000007, 0],
+    },
+    {
+      id: 'r3',
+      words: ['Come', 'and', 'be', 'hold', 'Him'],
+      startBar: 9, startBeat: 0, endBar: 10, endBeat: 2,
+      wordOffsets: [0, 0, 0, -0.5, 0],
+    },
+    {
+      id: 'r4',
+      words: ['born', 'the', 'King', 'of', 'an', 'gels'],
+      startBar: 11, startBeat: 0, endBar: 12, endBeat: 2,
+      wordOffsets: [
+        0, -0.5, -0.3999999999999986, -0.6000000000000014,
+        -0.7999999999999972, 0,
+      ],
+    },
+    // The tray. All four carry the pending sentinel.
+    { id: 'r5', words: ['[Refrain]'], startBar: 0, startBeat: 0, endBar: 0, endBeat: 0 },
+    { id: 'r6', words: ['O', 'come,', 'let', 'us', 'adore', 'Him'], startBar: 0, startBeat: 0, endBar: 0, endBeat: 0 },
+    { id: 'r7', words: ['O', 'come,', 'let', 'us', 'adore', 'Him'], startBar: 0, startBeat: 0, endBar: 0, endBeat: 0 },
+    { id: 'r8', words: ['Christ', 'the', 'Lord'], startBar: 0, startBeat: 0, endBar: 0, endBeat: 0 },
+  ];
+
+  const folded = foldSectionLyrics(
+    [{ sectionId: SEC, beatsPerBar: 4, lyricLines: REAL_LINES }],
+    seqIds(),
+  );
+
+  const cellsOf = (line: SongLyricLine) =>
+    (line.syllables ?? []).map(s =>
+      s.anchor ? `${s.anchor.barIndex}:${s.anchor.beatPos}` : '—',
+    );
+
+  it('places the four positioned lines at their pre-migration cells', () => {
+    expect(cellsOf(folded[0])).toEqual(['0:3', '1:0', '1:1', '1:3', '2:0', '2:2']);
+    expect(cellsOf(folded[1])).toEqual(['3:0', '3:1', '3:2', '3:3', '4:0', '4:2']);
+    expect(cellsOf(folded[2])).toEqual(['9:0', '9:2', '9:3', '10:0', '10:2']);
+    expect(cellsOf(folded[3])).toEqual(['11:0', '11:1', '11:2', '11:3', '12:0', '12:2']);
+  });
+
+  it('leaves every tray line unplaced', () => {
+    for (const line of folded.slice(4)) {
+      expect(lineStatus(line).placed).toBe(0);
+    }
+  });
+
+  it('imports [Refrain] as a header and the rest as unplaced lyric lines', () => {
+    expect(folded[4]).toMatchObject({ kind: 'header', text: 'Refrain' });
+    expect(folded[5].kind).toBe('lyric');
+    expect(folded[6].kind).toBe('lyric');
+    expect(folded[7].kind).toBe('lyric');
+    expect(folded).toHaveLength(8);
+  });
+
+  it('never anchors anything at 0:0 (the fold v1 signature)', () => {
+    const at00 = folded.flatMap(l =>
+      (l.syllables ?? []).filter(
+        s => s.anchor?.barIndex === 0 && s.anchor.beatPos === 0,
+      ),
+    );
+    expect(at00).toEqual([]);
+  });
+
+  it('agrees with a reference implementation of the legacy renderer math', () => {
+    const beatsPerBar = 4;
+    for (const legacyLine of REAL_LINES) {
+      if (
+        legacyLine.startBar === 0 && legacyLine.startBeat === 0 &&
+        legacyLine.endBar === 0 && legacyLine.endBeat === 0
+      ) {
+        continue; // tray lines render nowhere
+      }
+      // Mirrors BarGridView's LyricBarSegment exactly.
+      const expected = distributedWordPositions(legacyLine, beatsPerBar).map(pos => {
+        const bar = Math.floor(pos / beatsPerBar);
+        const beat = Math.round(pos - bar * beatsPerBar);
+        return `${bar}:${Math.min(Math.max(0, beat), beatsPerBar - 1)}`;
+      });
+      const line = folded.find(l => l.text === legacyLine.words.join(' '))!;
+      expect(cellsOf(line)).toEqual(expected);
+    }
   });
 });

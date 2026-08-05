@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -25,6 +25,7 @@ import {
   type Song,
   type SongCrossKeyProgress,
   type SongPracticeLog,
+  type SongLyricLine,
   type SongSection,
   type RepertoireStage,
 } from '../../lib/db';
@@ -41,6 +42,14 @@ import {
   nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
+import { deriveBarGrid, effectiveTimeSignature, parseTimeSignature } from './barGrid';
+import { normalizeArrangements } from './beatsModel';
+import {
+  LYRIC_FOLD_VERSION,
+  buildBeatAxis,
+  buildCellIndex,
+  foldSectionLyrics,
+} from './lyricSyllables';
 import { planSectionMove } from './sectionReorder';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
@@ -505,6 +514,112 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     await db.songSections.update(sectionId, patch);
   };
 
+  // --- Song-owned lyric store (rev 3) ------------------------------
+  // Lyric lines belong to the SONG, not to a section, because a line's
+  // syllables may be anchored into different sections and line
+  // membership carries no positional meaning. So the store, the beat
+  // axis, and the anchor→cell index all live here, above the sections,
+  // and each LeadSheetSection renders whatever anchors point at it.
+  // See docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §2.0 / §2.0b.
+
+  // One ascending beat line across every section, in song order. Needed
+  // because the ghost spread reasons across section boundaries.
+  const beatAxis = useMemo(
+    () =>
+      buildBeatAxis(
+        sections.map(s => {
+          const { beatsPerBar } = parseTimeSignature(
+            effectiveTimeSignature(song, s),
+          );
+          const arrangements = normalizeArrangements(s);
+          const activeId =
+            s.activeArrangementId &&
+            arrangements.some(a => a.id === s.activeArrangementId)
+              ? s.activeArrangementId
+              : arrangements[0].id;
+          return {
+            sectionId: s.id,
+            beatsPerBar,
+            barCount: deriveBarGrid(s, activeId, beatsPerBar).length,
+          };
+        }),
+      ),
+    [sections, song],
+  );
+
+  const songLyricLines = song?.lyricLines;
+
+  const cellIndex = useMemo(
+    () => (songLyricLines ? buildCellIndex(songLyricLines, beatAxis) : undefined),
+    [songLyricLines, beatAxis],
+  );
+
+  const commitSongLyrics = useCallback(
+    async (next: SongLyricLine[]) => {
+      // Read-then-put per the saveMeta precedent — Table.update can
+      // silently no-op when its lookup-and-merge fails.
+      const fresh = await db.songs.get(songId);
+      if (!fresh) return;
+      // Stamp the fold version on every user edit, so a future
+      // destructive re-fold can distinguish "migrated but untouched"
+      // from "the user has worked on this".
+      await db.songs.put({
+        ...fresh,
+        lyricLines: next,
+        lyricFoldVersion: LYRIC_FOLD_VERSION,
+        updatedAt: Date.now(),
+      });
+    },
+    [songId],
+  );
+
+  // Lazy fold: the first time a song is opened after the redesign,
+  // collapse its per-section lyrics into the song-level store.
+  // Positions import as PLACED at the cells the legacy renderer already
+  // puts them in, so the first render after migration matches the last
+  // one before it. Runs once per song — `song.lyricLines !== undefined`
+  // is the guard, mirroring how `section.chordPlacements` gates the
+  // chord migration.
+  //
+  // Songs with no lyrics initialise to `[]` rather than being skipped.
+  // Leaving them un-migrated would strand them on the legacy write path
+  // indefinitely — a first paste would land in `section.lyricLines` and
+  // only fold on a later reload. One small write per song, once, buys a
+  // uniform model with no half-states.
+  //
+  // `sections.length === 0` covers BOTH "still loading" and "genuinely
+  // sectionless"; waiting in either case is right, since initialising
+  // to `[]` before the sections arrive would discard their legacy lines.
+  //
+  // Re-runs when the store predates the current LYRIC_FOLD_VERSION —
+  // that's how the v1 fold's damage gets repaired, and it's lossless
+  // because the fold only ever READS `section.lyricLines`.
+  const foldInFlight = useRef(false);
+  useEffect(() => {
+    if (!song) return;
+    const needsFold =
+      song.lyricLines === undefined ||
+      (song.lyricFoldVersion ?? 0) < LYRIC_FOLD_VERSION;
+    if (!needsFold) return;
+    if (sections.length === 0 || foldInFlight.current) return;
+    foldInFlight.current = true;
+    void (async () => {
+      try {
+        const folded = foldSectionLyrics(
+          sections.map(s => ({
+            sectionId: s.id,
+            beatsPerBar: parseTimeSignature(effectiveTimeSignature(song, s))
+              .beatsPerBar,
+            lyricLines: s.lyricLines,
+          })),
+        );
+        await commitSongLyrics(folded);
+      } finally {
+        foldInFlight.current = false;
+      }
+    })();
+  }, [song, sections, commitSongLyrics]);
+
   // Full-record replace used by the lead-sheet undo path. Necessary
   // because `Table.update(key, patch)` strips `undefined` values from
   // `patch` (treats them as "no change") rather than honoring them as
@@ -919,6 +1034,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             onMoveUp={() => moveSection(s, -1)}
                             onMoveDown={() => moveSection(s, 1)}
                             onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
+                            songLyricLines={songLyricLines}
+                            cellIndex={cellIndex}
+                            onSongLyricsChange={commitSongLyrics}
                           />
                         ))}
                       </div>
