@@ -629,6 +629,68 @@ describe('buildCellIndex', () => {
     expect(cell.map(o => o.syllable.id)).toEqual(['b', 'a']);
   });
 
+  it('stacks ghosts sharing a cell in TEXT order', () => {
+    // Regression: the comparator tie-broke on syllable id, which is a
+    // randomUUID — so two ghosts in one cell stacked arbitrarily. With
+    // a 2-beat span and four middle syllables, pairs share cells.
+    const l = line('l1', [
+      { id: 'p0', text: 'O', at: [0, 0, 0] },
+      { id: 'g1', text: 'come,' },
+      { id: 'g2', text: 'let' },
+      { id: 'g3', text: 'us' },
+      { id: 'g4', text: 'adore' },
+      { id: 'p1', text: 'Him', at: [0, 3, 0] },
+    ]);
+    const index = buildCellIndex([l], axis4);
+    for (const occupants of index.values()) {
+      const texts = occupants.filter(o => !o.placed).map(o => o.syllable.text);
+      const order = ['come,', 'let', 'us', 'adore'];
+      const positions = texts.map(t => order.indexOf(t));
+      expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    }
+  });
+
+  it('orders a mixed placed+ghost cell by text order within each group', () => {
+    // Pins one beat apart with four syllables between them: the spread
+    // rounds g1/g2 onto the first pin's beat and g3/g4 onto the second,
+    // so each cell holds a placed syllable plus two ghosts.
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'A', at: [0, 0, 0] },
+        { id: 'g1', text: 'g1' },
+        { id: 'g2', text: 'g2' },
+        { id: 'g3', text: 'g3' },
+        { id: 'g4', text: 'g4' },
+        { id: 'z', text: 'Z', at: [0, 1, 0] },
+      ]),
+    ];
+    const index = buildCellIndex(lines, axis4);
+    const first = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 0 }))!;
+    const second = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }))!;
+    expect(first.map(o => o.syllable.text)).toEqual(['A', 'g1', 'g2']);
+    expect(second.map(o => o.syllable.text)).toEqual(['Z', 'g3', 'g4']);
+    // Placed sorts above ghosts in both.
+    expect(first[0].placed).toBe(true);
+    expect(second[0].placed).toBe(true);
+  });
+
+  it('is stable across runs — no dependence on generated ids', () => {
+    const build = () =>
+      buildCellIndex(
+        [
+          line('l1', [
+            { id: `x-${Math.random()}`, text: 'A', at: [0, 0, 0] },
+            { id: `y-${Math.random()}`, text: 'mid' },
+            { id: `z-${Math.random()}`, text: 'B', at: [0, 2, 0] },
+          ]),
+        ],
+        axis4,
+      );
+    const a = [...build().values()].map(l => l.map(o => o.syllable.text));
+    const b = [...build().values()].map(l => l.map(o => o.syllable.text));
+    expect(a).toEqual(b);
+  });
+
   it('omits headers entirely', () => {
     const index = buildCellIndex([{ id: 'h', kind: 'header', text: 'Verse 1' }], axis4);
     expect(index.size).toBe(0);

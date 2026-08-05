@@ -619,6 +619,11 @@ export interface CellOccupant {
   syllable: LyricSyllable;
   /** False = ghost (provisional, unplaced). */
   placed: boolean;
+  /** Position of the owning line in the song's line list. */
+  lineIndex: number;
+  /** Position of the syllable within its line — the text order that
+   *  decides how a cell's stack reads top-to-bottom. */
+  textIndex: number;
 }
 
 function cellKey(cell: {
@@ -651,38 +656,58 @@ export function buildCellIndex(
     else index.set(key, [occupant]);
   };
 
-  const byId = new Map<string, LyricSyllable>();
-  for (const line of lines) {
-    if (line.kind !== 'lyric') continue;
-    for (const s of line.syllables ?? []) {
-      byId.set(s.id, s);
+  const located = new Map<
+    string,
+    { syllable: LyricSyllable; lineIndex: number; textIndex: number }
+  >();
+  lines.forEach((line, lineIndex) => {
+    if (line.kind !== 'lyric') return;
+    (line.syllables ?? []).forEach((s, textIndex) => {
+      located.set(s.id, { syllable: s, lineIndex, textIndex });
       if (s.anchor) {
-        push(cellKey(s.anchor), { lineId: line.id, syllable: s, placed: true });
+        push(cellKey(s.anchor), {
+          lineId: line.id,
+          syllable: s,
+          placed: true,
+          lineIndex,
+          textIndex,
+        });
       }
-    }
-  }
+    });
+  });
 
   for (const line of lines) {
     for (const p of provisionalPlacements(line, axis)) {
-      const syllable = byId.get(p.syllableId);
-      if (!syllable) continue;
-      push(cellKey(p.cell), { lineId: p.lineId, syllable, placed: false });
+      const found = located.get(p.syllableId);
+      if (!found) continue;
+      push(cellKey(p.cell), {
+        lineId: p.lineId,
+        syllable: found.syllable,
+        placed: false,
+        lineIndex: found.lineIndex,
+        textIndex: found.textIndex,
+      });
     }
   }
 
   for (const list of index.values()) {
     list.sort((a, b) => {
+      // Placed above ghosts, then TEXT ORDER within each group.
+      //
+      // This used to tie-break on syllable id, which is a randomUUID —
+      // so two ghosts sharing a cell stacked in arbitrary order, and a
+      // cell reading "let / come," instead of "come, / let" was pure
+      // chance. (lineIndex, textIndex) is both meaningful and stable
+      // across devices, since it derives from stored order rather than
+      // from generated ids.
       if (a.placed !== b.placed) return a.placed ? -1 : 1;
       if (a.placed && b.placed) {
         const ao = a.syllable.anchor?.order ?? 0;
         const bo = b.syllable.anchor?.order ?? 0;
         if (ao !== bo) return ao - bo;
       }
-      return a.syllable.id < b.syllable.id
-        ? -1
-        : a.syllable.id > b.syllable.id
-          ? 1
-          : 0;
+      if (a.lineIndex !== b.lineIndex) return a.lineIndex - b.lineIndex;
+      return a.textIndex - b.textIndex;
     });
   }
   return index;

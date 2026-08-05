@@ -955,9 +955,28 @@ function SongPendingStrip({
         {!isHeader && (
           <span className="text-neutral-400 mr-1" aria-hidden>≡</span>
         )}
-        <span className="truncate">{line.text}</span>
+        {/* Word-by-word status: placed words solid, unplaced ones in the
+            same faded treatment the grid ghosts use, so one glance shows
+            what's left to place rather than an abstract count. */}
+        <span className="truncate min-w-0">
+          {isHeader || !line.syllables
+            ? line.text
+            : line.syllables.map((s, i) => (
+                <span
+                  key={s.id}
+                  className={
+                    s.anchor
+                      ? undefined
+                      : 'text-neutral-400 dark:text-neutral-500 italic'
+                  }
+                >
+                  {i > 0 ? ' ' : ''}
+                  {s.text}
+                </span>
+              ))}
+        </span>
         {status.status === 'partial' && (
-          <span className="ml-auto text-[10px] text-neutral-400 shrink-0">
+          <span className="ml-auto pl-2 text-[10px] text-neutral-400 shrink-0">
             {status.placed}/{status.total} placed
           </span>
         )}
