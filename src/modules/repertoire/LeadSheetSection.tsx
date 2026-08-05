@@ -26,7 +26,10 @@ import type {
   VoicingEntry,
 } from '../../lib/db';
 import {
+  type BeatAxis,
   type CellOccupant,
+  cellKey,
+  checkPlacementOrder,
   findSyllable,
   joinSyllables,
   linesFromParsedRows,
@@ -118,6 +121,9 @@ interface Props {
   songLyricLines?: SongLyricLine[];
   /** Anchor→cell index, built once above the sections. */
   cellIndex?: Map<string, CellOccupant[]>;
+  /** Global beat axis across every section — needed to compare
+   *  anchors that may sit in different sections. */
+  beatAxis?: BeatAxis;
   onSongLyricsChange?: (next: SongLyricLine[]) => Promise<void>;
 }
 
@@ -136,6 +142,7 @@ export default function LeadSheetSection({
   onDelete,
   songLyricLines,
   cellIndex,
+  beatAxis,
   onSongLyricsChange,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
@@ -780,6 +787,45 @@ export default function LeadSheetSection({
     text: string;
   } | null>(null);
 
+  // A cell that just refused a drop. Cleared on a timer so the shake
+  // plays once; re-keyed per rejection so repeated refusals re-fire.
+  const [rejectedCell, setRejectedCell] = useState<string | null>(null);
+  const rejectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (rejectTimer.current) clearTimeout(rejectTimer.current);
+    },
+    [],
+  );
+  const refusePlacement = (cell: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+  }) => {
+    if (rejectTimer.current) clearTimeout(rejectTimer.current);
+    setRejectedCell(null);
+    // One frame at null so the animation restarts on a repeat refusal.
+    requestAnimationFrame(() => setRejectedCell(cellKey(cell)));
+    rejectTimer.current = setTimeout(() => setRejectedCell(null), 400);
+  };
+
+  /** Attempt a placement, refusing anything that would put the line's
+   *  syllables out of text order. Returns true when it landed. */
+  const tryPlaceSyllable = async (
+    syllableId: string,
+    cell: { sectionId: string; barIndex: number; beatPos: number },
+  ): Promise<boolean> => {
+    if (!songLyricLines || !onSongLyricsChange || !beatAxis) return false;
+    if (checkPlacementOrder(songLyricLines, syllableId, cell, beatAxis)) {
+      refusePlacement(cell);
+      return false;
+    }
+    await onSongLyricsChange(
+      placeSyllable(songLyricLines, syllableId, cell, beatAxis),
+    );
+    return true;
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const id = String(event.active.id);
     if (!isLyricDragId(id)) {
@@ -918,14 +964,12 @@ export default function LeadSheetSection({
     // appends to the target cell, so nothing already there is displaced
     // — the no-ripple rule holds by construction, not by convention.
     if (activeId.startsWith('syl:')) {
-      if (!songLyricsActive || !songLyricLines || !onSongLyricsChange) return;
-      const syllableId = activeId.slice('syl:'.length);
-      const next = placeSyllable(songLyricLines, syllableId, {
+      if (!songLyricsActive) return;
+      await tryPlaceSyllable(activeId.slice('syl:'.length), {
         sectionId: section.id,
         barIndex: dropBar,
         beatPos: dropBeat,
       });
-      await onSongLyricsChange(next);
       return;
     }
 
@@ -949,13 +993,11 @@ export default function LeadSheetSection({
       const target = songLyricLines.find(l => l.id === lineId);
       const first = target?.syllables?.[0];
       if (!first) return;
-      await onSongLyricsChange(
-        placeSyllable(songLyricLines, first.id, {
-          sectionId: section.id,
-          barIndex: dropBar,
-          beatPos: dropBeat,
-        }),
-      );
+      await tryPlaceSyllable(first.id, {
+        sectionId: section.id,
+        barIndex: dropBar,
+        beatPos: dropBeat,
+      });
       return;
     }
 
@@ -1268,6 +1310,7 @@ export default function LeadSheetSection({
               lyricLines={lyricLines}
               cellIndex={cellIndex}
               lyricDragActive={activeLyricDrag !== null}
+              rejectedCell={rejectedCell}
               songLyricLines={songLyricLines}
               onSyllableSplit={handleSyllableSplit}
               onSyllableJoin={handleSyllableJoin}

@@ -1036,6 +1036,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
                             songLyricLines={songLyricLines}
                             cellIndex={cellIndex}
+                            beatAxis={beatAxis}
                             onSongLyricsChange={commitSongLyrics}
                           />
                         ))}

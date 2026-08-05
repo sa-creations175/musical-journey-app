@@ -6,6 +6,7 @@ import {
   buildBeatAxis,
   buildCellIndex,
   canJoinNext,
+  checkPlacementOrder,
   cellKey,
   foldSectionLyrics,
   globalToCell,
@@ -67,6 +68,7 @@ function anchorOf(lines: SongLyricLine[], id: string) {
 }
 
 const axis4 = buildBeatAxis([{ sectionId: SEC, beatsPerBar: 4, barCount: 4 }]);
+const axis16 = buildBeatAxis([{ sectionId: SEC, beatsPerBar: 4, barCount: 16 }]);
 
 // --- construction -----------------------------------------------------
 
@@ -173,6 +175,134 @@ describe('placeSyllable', () => {
     const lines = [line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }])];
     const next = placeSyllable(lines, 'nope', { sectionId: SEC, barIndex: 1, beatPos: 1 });
     expect(next).toEqual(lines);
+  });
+});
+
+describe('checkPlacementOrder — monotonic anchors within a line', () => {
+  // Real failure this guards: a first-unit-only tray drop put a line's
+  // HEAD at bar 15 while its TAIL sat at bar 14, and the ghost spread
+  // then interpolated across a negative span, scattering the middle
+  // syllables backwards across the grid.
+  const inverted = () =>
+    line('l1', [
+      { id: 'head', text: 'O', at: [14, 0, 0] },
+      { id: 'mid1', text: 'come,' },
+      { id: 'mid2', text: 'let' },
+      { id: 'tail', text: 'Him', at: [14, 3, 0] },
+    ]);
+
+  it('rejects moving a syllable past a later placed sibling', () => {
+    expect(
+      checkPlacementOrder([inverted()], 'head',
+        { sectionId: SEC, barIndex: 15, beatPos: 0 }, axis16),
+    ).toBe('after-next');
+  });
+
+  it('rejects moving a syllable before an earlier placed sibling', () => {
+    expect(
+      checkPlacementOrder([inverted()], 'tail',
+        { sectionId: SEC, barIndex: 13, beatPos: 0 }, axis16),
+    ).toBe('before-previous');
+  });
+
+  it('allows a legal move between its neighbours', () => {
+    expect(
+      checkPlacementOrder([inverted()], 'head',
+        { sectionId: SEC, barIndex: 14, beatPos: 2 }, axis16),
+    ).toBeNull();
+  });
+
+  it('allows landing exactly on a neighbour — stacking is legal', () => {
+    expect(
+      checkPlacementOrder([inverted()], 'head',
+        { sectionId: SEC, barIndex: 14, beatPos: 3 }, axis16),
+    ).toBeNull();
+    expect(
+      checkPlacementOrder([inverted()], 'tail',
+        { sectionId: SEC, barIndex: 14, beatPos: 0 }, axis16),
+    ).toBeNull();
+  });
+
+  it('only the NEAREST placed neighbour binds', () => {
+    const l = line('l1', [
+      { id: 'a', text: 'a', at: [0, 0, 0] },
+      { id: 'b', text: 'b', at: [5, 0, 0] },
+      { id: 'c', text: 'c' },
+    ]);
+    // 'c' may go anywhere at or after 'b'; 'a' is not the constraint.
+    expect(
+      checkPlacementOrder([l], 'c', { sectionId: SEC, barIndex: 9, beatPos: 0 }, axis16),
+    ).toBeNull();
+    expect(
+      checkPlacementOrder([l], 'c', { sectionId: SEC, barIndex: 2, beatPos: 0 }, axis16),
+    ).toBe('before-previous');
+  });
+
+  it('ignores unplaced siblings when finding the binding neighbours', () => {
+    const l = line('l1', [
+      { id: 'a', text: 'a', at: [2, 0, 0] },
+      { id: 'ghost', text: 'g' },
+      { id: 'c', text: 'c' },
+    ]);
+    expect(
+      checkPlacementOrder([l], 'c', { sectionId: SEC, barIndex: 1, beatPos: 0 }, axis16),
+    ).toBe('before-previous');
+  });
+
+  it('constrains lines independently of each other', () => {
+    const lines = [
+      line('l1', [{ id: 'a', text: 'a', at: [10, 0, 0] }]),
+      line('l2', [{ id: 'b', text: 'b' }]),
+    ];
+    expect(
+      checkPlacementOrder(lines, 'b', { sectionId: SEC, barIndex: 0, beatPos: 0 }, axis16),
+    ).toBeNull();
+  });
+
+  it('rejects a target that is off the axis', () => {
+    expect(
+      checkPlacementOrder([inverted()], 'head',
+        { sectionId: 'nope', barIndex: 0, beatPos: 0 }, axis16),
+    ).toBe('off-axis');
+  });
+
+  it('placeSyllable refuses the write when given an axis', () => {
+    const lines = [inverted()];
+    const next = placeSyllable(
+      lines, 'head', { sectionId: SEC, barIndex: 15, beatPos: 0 }, axis16,
+    );
+    expect(anchorOf(next, 'head')).toEqual(anchorOf(lines, 'head'));
+  });
+});
+
+describe('provisionalPlacements — never runs backwards', () => {
+  it('emits nothing across an inverted pair', () => {
+    // Unreachable once checkPlacementOrder guards every write, but
+    // asserted independently: a negative span must degrade to "no
+    // ghosts", never to ghosts scattered in reverse.
+    const l = line('l1', [
+      { id: 'head', text: 'O', at: [3, 0, 0] },
+      { id: 'mid', text: 'come' },
+      { id: 'tail', text: 'Him', at: [1, 0, 0] },
+    ]);
+    expect(provisionalPlacements(l, axis16)).toEqual([]);
+  });
+
+  it('every ghost lands within its bracketing pins, in order', () => {
+    const l = line('l1', [
+      { id: 'p0', text: 'A', at: [0, 0, 0] },
+      { id: 'g1', text: 'B' },
+      { id: 'g2', text: 'C' },
+      { id: 'p1', text: 'D', at: [2, 0, 0] },
+    ]);
+    const globals = provisionalPlacements(l, axis16).map(
+      g => anchorToGlobal(axis16, g.cell)!,
+    );
+    expect(globals).toEqual([...globals].sort((a, b) => a - b));
+    for (const g of globals) {
+      expect(g).toBeGreaterThanOrEqual(0);
+      expect(g).toBeLessThanOrEqual(8);
+    }
   });
 });
 

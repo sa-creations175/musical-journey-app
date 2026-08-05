@@ -148,6 +148,61 @@ function syllablesInCell(
 
 // --- placement --------------------------------------------------------
 
+/** Why a placement was refused. */
+export type OrderViolation =
+  | 'before-previous'
+  | 'after-next'
+  | 'off-axis';
+
+/**
+ * MONOTONIC ANCHORS. A line's placed syllables must run in text order
+ * along the global beat axis — syllable *i* can never sit strictly
+ * before an earlier placed syllable or strictly after a later one.
+ *
+ * Returns the violation, or null when the placement is legal.
+ *
+ * Equality is legal: two syllables of a line may share a cell, and a
+ * placement landing exactly on a neighbour's beat is fine. Only
+ * CROSSING is forbidden.
+ *
+ * Without this, first-unit-only tray drops could invert a line — drop
+ * the head at bar 15 while the tail sits at bar 14 — and the ghost
+ * spread would then interpolate across a negative span, scattering the
+ * middle syllables backwards. Rejecting the placement is the fix;
+ * `provisionalPlacements` additionally refuses to walk backwards, so
+ * the two defences are independent.
+ */
+export function checkPlacementOrder(
+  lines: ReadonlyArray<SongLyricLine>,
+  syllableId: string,
+  target: { sectionId: string; barIndex: number; beatPos: number },
+  axis: BeatAxis,
+): OrderViolation | null {
+  const found = findSyllable(lines, syllableId);
+  if (!found) return null;
+  const targetGlobal = anchorToGlobal(axis, target);
+  if (targetGlobal === null) return 'off-axis';
+
+  const syllables = found.line.syllables ?? [];
+  for (let i = found.index - 1; i >= 0; i--) {
+    const anchor = syllables[i].anchor;
+    if (!anchor) continue;
+    const global = anchorToGlobal(axis, anchor);
+    if (global === null) continue;
+    if (targetGlobal < global) return 'before-previous';
+    break; // nearest placed predecessor is the only binding one
+  }
+  for (let i = found.index + 1; i < syllables.length; i++) {
+    const anchor = syllables[i].anchor;
+    if (!anchor) continue;
+    const global = anchorToGlobal(axis, anchor);
+    if (global === null) continue;
+    if (targetGlobal > global) return 'after-next';
+    break;
+  }
+  return null;
+}
+
 /**
  * Place (or re-place) one syllable at a cell.
  *
@@ -163,7 +218,14 @@ export function placeSyllable(
   lines: ReadonlyArray<SongLyricLine>,
   syllableId: string,
   target: { sectionId: string; barIndex: number; beatPos: number },
+  /** When supplied, the monotonic-order rule is enforced here too, so
+   *  no caller can write an inverted line even by skipping the UI's
+   *  pre-check. Omitted only where there is no axis to check against. */
+  axis?: BeatAxis,
 ): SongLyricLine[] {
+  if (axis && checkPlacementOrder(lines, syllableId, target, axis) !== null) {
+    return [...lines];
+  }
   const occupants = syllablesInCell(
     lines,
     target.sectionId,
@@ -529,6 +591,13 @@ export function provisionalPlacements(
     const gapLength = right.index - left.index - 1;
     if (gapLength <= 0) continue;
     const span = right.global - left.global;
+    // The spread must never run backwards. `checkPlacementOrder` makes
+    // an inverted line unreachable, but this is the second, independent
+    // defence: a negative span would scatter the middle syllables in
+    // reverse across the grid, which is exactly the garbage an inverted
+    // pair produced before the guard existed. Emit nothing instead —
+    // no ghosts is a legible state; ghosts running backwards is not.
+    if (span < 0) continue;
     for (let k = 1; k <= gapLength; k++) {
       const global = Math.round(left.global + (span * k) / (gapLength + 1));
       const cell = globalToCell(axis, global);

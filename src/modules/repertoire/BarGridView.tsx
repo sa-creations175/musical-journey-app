@@ -166,6 +166,9 @@ interface Props {
   /** A lyric drag is in flight — beat cells switch to their
    *  drop-target treatment. */
   lyricDragActive?: boolean;
+  /** cellKey of a cell that just refused a drop (out-of-order
+   *  placement). Cleared by the parent after the animation. */
+  rejectedCell?: string | null;
   /** Full song store — the edit popover needs a syllable's text and
    *  whether it has a next sibling to join with. */
   songLyricLines?: SongLyricLine[];
@@ -265,6 +268,7 @@ export default function BarGridView({
   cellIndex,
   unplacedLines,
   lyricDragActive = false,
+  rejectedCell = null,
   songLyricLines,
   onSyllableSplit,
   onSyllableJoin,
@@ -585,6 +589,7 @@ export default function BarGridView({
                   beatsPerBar={beatsPerBar}
                   cellIndex={cellIndex}
                   lyricDragActive={lyricDragActive}
+                  rejectedCell={rejectedCell}
                   songLyricLines={songLyricLines}
                   editing={syllableEditing}
                   onEditingChange={setSyllableEditing}
@@ -953,7 +958,7 @@ function SongPendingStrip({
         <span className="truncate">{line.text}</span>
         {status.status === 'partial' && (
           <span className="ml-auto text-[10px] text-neutral-400 shrink-0">
-            {status.placed}/{status.total}
+            {status.placed}/{status.total} placed
           </span>
         )}
       </div>
@@ -1446,6 +1451,7 @@ function SyllableBarSegment({
   beatsPerBar,
   cellIndex,
   lyricDragActive,
+  rejectedCell,
   songLyricLines,
   editing,
   onEditingChange,
@@ -1460,6 +1466,7 @@ function SyllableBarSegment({
   beatsPerBar: number;
   cellIndex: Map<string, CellOccupant[]>;
   lyricDragActive: boolean;
+  rejectedCell: string | null;
   songLyricLines?: SongLyricLine[];
   editing: SyllableEditingState | null;
   onEditingChange: (next: SyllableEditingState | null) => void;
@@ -1475,18 +1482,20 @@ function SyllableBarSegment({
       : null;
   return (
     <div className="relative flex gap-0.5 px-1">
-      {Array.from({ length: beatsPerBar }).map((_, beatPos) => (
-        <SyllableDropSlot
-          key={beatPos}
-          barIndex={barIndex}
-          beatPos={beatPos}
-          occupants={
-            cellIndex.get(cellKey({ sectionId, barIndex, beatPos })) ?? []
-          }
-          dragActive={lyricDragActive}
-          onSyllableClick={onSyllableClick}
-        />
-      ))}
+      {Array.from({ length: beatsPerBar }).map((_, beatPos) => {
+        const key = cellKey({ sectionId, barIndex, beatPos });
+        return (
+          <SyllableDropSlot
+            key={beatPos}
+            barIndex={barIndex}
+            beatPos={beatPos}
+            occupants={cellIndex.get(key) ?? []}
+            dragActive={lyricDragActive}
+            rejected={rejectedCell === key}
+            onSyllableClick={onSyllableClick}
+          />
+        );
+      })}
       {editing && found && (
         <SyllableEditPopover
           key={editing.syllableId}
@@ -1713,12 +1722,14 @@ function SyllableDropSlot({
   beatPos,
   occupants,
   dragActive,
+  rejected,
   onSyllableClick,
 }: {
   barIndex: number;
   beatPos: number;
   occupants: CellOccupant[];
   dragActive: boolean;
+  rejected: boolean;
   onSyllableClick?: (syllableId: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -1728,7 +1739,9 @@ function SyllableDropSlot({
   // tint on an already-bordered 28px cell — technically present, not
   // actually visible. Dimming the non-targets is what makes the target
   // pop without needing a loud fill.
-  const surface = isOver
+  const surface = rejected
+    ? 'border-solid border-needswork bg-needswork/20 ring-2 ring-needswork'
+    : isOver
     ? 'border-solid border-fluent bg-fluent/25 ring-2 ring-fluent'
     : dragActive
       ? 'border-dashed border-neutral-200 dark:border-neutral-800 opacity-50'
@@ -1736,7 +1749,7 @@ function SyllableDropSlot({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface}`}
+      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
     >
       {occupants.map(occupant => (
         <SyllableChip

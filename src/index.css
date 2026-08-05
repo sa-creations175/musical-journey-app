@@ -81,6 +81,21 @@ h1, h2, h3, h4 {
   animation: repertoire-flash 1500ms ease-out;
 }
 
+/* Refused lyric placement — a drop that would put a line's syllables
+   out of text order along the beat axis. The shake plus a red ring
+   makes the rejection unmistakable, because the alternative failure
+   mode (nothing happens) reads as a missed drop the user then retries. */
+@keyframes lyric-reject {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-3px); }
+  40%      { transform: translateX(3px); }
+  60%      { transform: translateX(-2px); }
+  80%      { transform: translateX(2px); }
+}
+.lyric-reject {
+  animation: lyric-reject 320ms ease-in-out;
+}
+
 /* One-shot scale pop for each beat of the prep-flow count-in. The
    numeral is re-keyed per tick so the animation restarts cleanly. */
 @keyframes count-pulse {
