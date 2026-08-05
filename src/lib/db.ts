@@ -129,6 +129,24 @@ export interface Song {
    *  songs whose lyrics could be verified without fabrication; for
    *  the rest carries a short "add lyrics here" prompt. */
   fullLyrics?: string;
+  /** The song's lyric lines — ONE store per song (Lyric Placement
+   *  Redesign rev 3, Aug 2026 — see
+   *  docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §2.0b).
+   *
+   *  This is simultaneously the full-lyrics reference, the paste
+   *  target, and the pool of unplaced syllables — those were always the
+   *  same list viewed three ways. Supersedes the per-section
+   *  `SongSection.lyricLines`, which stays declared as the migration
+   *  source only.
+   *
+   *  Each syllable owns its position via an explicit anchor that names
+   *  its section, so a line's syllables may sit in different sections;
+   *  line membership is text grouping and carries no positional
+   *  meaning. Unindexed — rides in the `data` JSONB blob across sync
+   *  (the `songs` sync mapping declares only addedDate / learningOrder
+   *  as top-level columns), so no Dexie version bump. Same convention
+   *  as `sectionOrder` above. */
+  lyricLines?: SongLyricLine[];
   /** Spotify / YouTube / Apple Music links. Free-form strings. */
   spotifyLink?: string;
   /** @deprecated — superseded by `referenceVideos`. Still read for
@@ -486,6 +504,67 @@ export interface VoicingPattern {
  *  "pending" state shown above the bar grid as a draggable strip
  *  waiting to be placed. Dropping it on a beat slot widens the range
  *  to a sensible default (1 bar). */
+/**
+ * Where a syllable sits. Presence of an anchor IS the "placed" state —
+ * there is no separate pinned flag (rev 3 §A2). A placed syllable is
+ * immune to every app-driven movement: marker drags, re-spreads, paste,
+ * split/join rebasing. Only the user re-places or un-places it.
+ *
+ * `sectionId` is part of the anchor because bar indices are
+ * section-local; it also lets a line's syllables live in different
+ * sections (rev 3 §A3 — cross-section placement is allowed).
+ */
+export interface LyricSyllableAnchor {
+  sectionId: string;
+  /** 0-indexed bar within that section. */
+  barIndex: number;
+  /** 0-indexed beat within that bar. */
+  beatPos: number;
+  /** Stack order within the (sectionId, barIndex, beatPos) cell.
+   *  0-based and compacted after every write, so the user's order
+   *  survives all other operations (rev 3 §E). */
+  order: number;
+}
+
+/** One syllable of a lyric line. `anchor` absent = UNPLACED: it renders
+ *  as a ghost, provisionally spread between the line's placed
+ *  neighbours, and never persists a position. */
+export interface LyricSyllable {
+  id: string;
+  text: string;
+  anchor?: LyricSyllableAnchor;
+}
+
+/**
+ * One row of the song's lyric drawer (rev 3). Two kinds:
+ *
+ *   'lyric'  — placeable text, split into `syllables`.
+ *   'header' — a section marker parsed out of the paste ("Verse 1",
+ *              "[Refrain]"). Drawer-only visual grouping: never placed,
+ *              never armable, no syllables, never drawn in the bar
+ *              grid. Deliberately NOT linked to lead-sheet sections —
+ *              no name matching, no auto-placement.
+ *
+ * Distinct from the legacy `LyricLine` rather than an extension of it:
+ * that type's `words` / start / end fields are required and still read
+ * by the pre-migration render path, so widening them in place would
+ * break every existing caller. The fold migration converts one to the
+ * other; nothing writes `LyricLine` any more.
+ */
+export interface SongLyricLine {
+  id: string;
+  kind: 'lyric' | 'header';
+  /** Header label, or the line's source text. Kept alongside
+   *  `syllables` so a line can be re-split without losing the original
+   *  wording. */
+  text: string;
+  /** Absent on headers. */
+  syllables?: LyricSyllable[];
+}
+
+/** @deprecated Section-owned lyric lines — superseded by
+ *  `Song.lyricLines` (rev 3 §2.0b). Retained as the migration source
+ *  and as the pre-migration render path; no new writes. */
 export interface LyricLine {
   id: string;
   words: string[];

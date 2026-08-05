@@ -112,10 +112,43 @@ lyric row is a later DOM sibling with `position: relative`, so it hit-tests abov
 overlays are conditional popovers that render *below* their anchor); padding/margin mismatch (`WordChip`'s
 node is the visible chip; `px-1` is inside the rect).
 
-**Verification before building — step 0.** The diagnosis explains "the drop won't latch onto the cell I want
-until I go lower." If the true symptom is that the drag *never starts* when pressing a chip dead-center, the
-cause is different. 10-min check: add `onDragStart={e => console.log(e.active.id, e.active.rect.current.initial)}`
-and press a chip dead-center. Fires → confirmed, proceed. Doesn't fire → stop and re-diagnose.
+### Step 0 verification — RESULTS (2026-08-03). Diagnosis confirmed, magnitude corrected.
+
+**Confirmed from `node_modules/@dnd-kit/core` source, not inference:**
+- `closestCenter` (core.esm.js:325-353) destructures `{ collisionRect, droppableRects, droppableContainers }`
+  and computes `centerOfRectangle(collisionRect)`. **It never receives pointer coordinates.**
+- `pointerWithin` takes `pointerCoordinates` and `return []` when they're absent — so the
+  `pointerWithin → closestCenter` fallback chain is **mandatory**, not stylistic: a KeyboardSensor drag has
+  no pointer and would otherwise resolve nothing.
+
+**Confirmed in the browser (instrumented `onDragStart` / `onDragMove`, since reverted):**
+- `onDragStart` **fires** on a dead-centre press. The competing "an overlay eats pointer events and the drag
+  never begins" hypothesis is **dead**.
+- Word-chip drags show a consistent **one-cell lag**: the cursor enters cell N while dnd-kit still reports
+  N-1, then it catches up as the drag continues into N. Present on essentially every boundary crossing, in
+  the direction of travel.
+- The `pending:` line strip — a full-container-width draggable — diverges **enormously**: dnd-kit reported
+  `beat:3:1` / `beat:5:2` while the cursor was over `beat:12:2` / `beat:10:3`. Bars apart, every sample a
+  mismatch. This is the mechanism at full scale.
+
+**CORRECTION to the original §3 write-up.** I claimed the user must aim "well below" the syllable because a
+chip's centre sits `cellHeight/2 − 10px` above its cell's centre. **Measured, that offset is only 2-5px** —
+`pointerMinusChipCenter` came back `{3,3}`, `{2,4}`, `{-1,2}`, `{5,-3}`, `{1,2}` across five drags. The
+grab-offset argument was overstated. What actually bites for word chips is boundary hysteresis: the target
+switches only once the chip's *rect centre* passes the midpoint between two cell centres, so you must push
+past the visual boundary before the target updates — and because Bug 1 gives no reliable feedback about where
+the target currently is, that reads as "it won't latch."
+
+The fix is unchanged and now rests on measurement rather than on my geometric argument. The pending-strip
+result also means step 3's `DragOverlay` matters more than "polish": the strip's own rect is what makes its
+collisions meaningless.
+
+**Instrumentation caveat, recorded so it isn't repeated.** The first probe attempt was invalid: it used
+`document.elementFromPoint`, which returns the *dragged chip* (it translates along under the cursor), so
+`closest()` climbed to the chip's origin cell and reported a frozen mismatch regardless of pointer position.
+The corrected probe walks `document.elementsFromPoint` and skips anything inside the dragged node. Marker and
+pending-strip drags in the final run still show that artifact — only `WordChip` was tagged — so their
+`underCursor` readings are unreliable; their dnd-kit-side readings are not.
 
 ## 4. BUG 1 — no drop feedback
 
@@ -293,20 +326,25 @@ export interface LyricSyllable {
   anchor?: LyricSyllableAnchor;
 }
 
-export interface LyricLine {
+// NOTE (built in step 1): this is a SEPARATE type, not a widened
+// LyricLine. The legacy type's words / start / end fields are REQUIRED
+// and still read by the pre-migration render path (BarGridView,
+// lyricLine.ts, barGrid.reorderBar), so making them optional in place
+// would break every existing caller and their tests. The fold migration
+// converts one to the other; nothing writes LyricLine any more.
+export interface SongLyricLine {
   id: string;
   /** 'header' rows are drawer-only visual grouping — never placed,
    *  never armable, no syllables. (rev 3) */
   kind: 'lyric' | 'header';
-  /** Header label, or the line's source text. */
+  /** Header label, or the line's source text. Kept alongside
+   *  `syllables` so a line can be re-split without losing its wording. */
   text: string;
   syllables?: LyricSyllable[];        // absent on headers
-
-  // --- legacy, section-owned records only; never written again ---
-  words?: string[];
-  startBar?/startBeat?/endBar?/endBeat?: number;
-  wordOffsets?: number[];
 }
+
+/** @deprecated unchanged, section-owned; migration source only. */
+export interface LyricLine { /* words, startBar, …, wordOffsets */ }
 
 // NEW home (rev 3) — one store per song:
 interface Song {
