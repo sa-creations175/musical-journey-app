@@ -713,6 +713,110 @@ export function buildCellIndex(
   return index;
 }
 
+// --- line markers (rev 3 §A1) -----------------------------------------
+
+export interface LineMarkerPlacement {
+  lineId: string;
+  edge: 'start' | 'end';
+  /** The syllable this marker places when dragged — the line's first
+   *  unit for 'start', its last for 'end'. */
+  syllableId: string;
+  /** Where the marker draws. */
+  cell: { sectionId: string; barIndex: number; beatPos: number };
+  /** True when the governed unit is already placed, i.e. the marker
+   *  sits on the very syllable it controls. */
+  onItsUnit: boolean;
+}
+
+/**
+ * Where a line's start/end markers draw, and which unit each one
+ * places (§A1).
+ *
+ * A marker is a handle for the line's FIRST or LAST unit — never for
+ * the line's range, which no longer exists as a stored concept. Drag ▶
+ * and only `syllables[0]` moves; drag ◀ and only the last syllable
+ * moves. Nothing re-spreads, nothing else is touched.
+ *
+ * The markers draw at the line's current placement extent: ▶ in the
+ * cell of the first PLACED syllable, ◀ in the cell of the last. When
+ * the governed unit is itself unplaced — the usual state right after a
+ * tray drop, where only the head has landed — the marker still draws at
+ * that extent, and dragging it is how the unit gets placed. That is the
+ * whole point of ◀: it is the affordance for setting where a line ends.
+ *
+ * A line with nothing placed has no markers; it lives in the tray.
+ */
+export function lineMarkers(
+  lines: ReadonlyArray<SongLyricLine>,
+): LineMarkerPlacement[] {
+  const out: LineMarkerPlacement[] = [];
+  for (const line of lines) {
+    if (line.kind !== 'lyric') continue;
+    const syllables = line.syllables ?? [];
+    if (syllables.length === 0) continue;
+    const firstPlaced = syllables.find(s => s.anchor);
+    if (!firstPlaced?.anchor) continue;
+    let lastPlaced = firstPlaced;
+    for (const s of syllables) if (s.anchor) lastPlaced = s;
+
+    const head = syllables[0];
+    const tail = syllables[syllables.length - 1];
+    out.push({
+      lineId: line.id,
+      edge: 'start',
+      syllableId: head.id,
+      cell: {
+        sectionId: firstPlaced.anchor.sectionId,
+        barIndex: firstPlaced.anchor.barIndex,
+        beatPos: firstPlaced.anchor.beatPos,
+      },
+      onItsUnit: head.id === firstPlaced.id,
+    });
+    if (tail.id !== head.id && lastPlaced.anchor) {
+      out.push({
+        lineId: line.id,
+        edge: 'end',
+        syllableId: tail.id,
+        cell: {
+          sectionId: lastPlaced.anchor.sectionId,
+          barIndex: lastPlaced.anchor.barIndex,
+          beatPos: lastPlaced.anchor.beatPos,
+        },
+        onItsUnit: tail.id === lastPlaced.id,
+      });
+    }
+  }
+  return out;
+}
+
+/** Group markers by cell, for the renderer. */
+export function buildMarkerIndex(
+  lines: ReadonlyArray<SongLyricLine>,
+): Map<string, LineMarkerPlacement[]> {
+  const index = new Map<string, LineMarkerPlacement[]>();
+  for (const marker of lineMarkers(lines)) {
+    const key = cellKey(marker.cell);
+    const list = index.get(key);
+    if (list) list.push(marker);
+    else index.set(key, [marker]);
+  }
+  return index;
+}
+
+/** The syllable a marker drag should place. */
+export function markerTargetSyllable(
+  lines: ReadonlyArray<SongLyricLine>,
+  lineId: string,
+  edge: 'start' | 'end',
+): string | null {
+  const line = lines.find(l => l.id === lineId);
+  const syllables = line?.syllables ?? [];
+  if (syllables.length === 0) return null;
+  return edge === 'start'
+    ? syllables[0].id
+    : syllables[syllables.length - 1].id;
+}
+
 // --- bar operations ---------------------------------------------------
 
 /** Remap anchors through a bar permutation, for whole-bar reorder.

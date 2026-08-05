@@ -20,6 +20,7 @@ import type {
 } from '../../lib/db';
 import {
   type CellOccupant,
+  type LineMarkerPlacement,
   canJoinNext,
   cellKey,
   findSyllable,
@@ -169,6 +170,8 @@ interface Props {
   /** cellKey of a cell that just refused a drop (out-of-order
    *  placement). Cleared by the parent after the animation. */
   rejectedCell?: string | null;
+  /** Line start/end markers grouped by cell (rev 3 §A1). */
+  markerIndex?: Map<string, LineMarkerPlacement[]>;
   /** Full song store — the edit popover needs a syllable's text and
    *  whether it has a next sibling to join with. */
   songLyricLines?: SongLyricLine[];
@@ -269,6 +272,7 @@ export default function BarGridView({
   unplacedLines,
   lyricDragActive = false,
   rejectedCell = null,
+  markerIndex,
   songLyricLines,
   onSyllableSplit,
   onSyllableJoin,
@@ -590,6 +594,7 @@ export default function BarGridView({
                   cellIndex={cellIndex}
                   lyricDragActive={lyricDragActive}
                   rejectedCell={rejectedCell}
+                  markerIndex={markerIndex}
                   songLyricLines={songLyricLines}
                   editing={syllableEditing}
                   onEditingChange={setSyllableEditing}
@@ -1471,6 +1476,7 @@ function SyllableBarSegment({
   cellIndex,
   lyricDragActive,
   rejectedCell,
+  markerIndex,
   songLyricLines,
   editing,
   onEditingChange,
@@ -1486,6 +1492,7 @@ function SyllableBarSegment({
   cellIndex: Map<string, CellOccupant[]>;
   lyricDragActive: boolean;
   rejectedCell: string | null;
+  markerIndex?: Map<string, LineMarkerPlacement[]>;
   songLyricLines?: SongLyricLine[];
   editing: SyllableEditingState | null;
   onEditingChange: (next: SyllableEditingState | null) => void;
@@ -1509,6 +1516,7 @@ function SyllableBarSegment({
             barIndex={barIndex}
             beatPos={beatPos}
             occupants={cellIndex.get(key) ?? []}
+            markers={markerIndex?.get(key) ?? []}
             dragActive={lyricDragActive}
             rejected={rejectedCell === key}
             onSyllableClick={onSyllableClick}
@@ -1740,6 +1748,7 @@ function SyllableDropSlot({
   barIndex,
   beatPos,
   occupants,
+  markers,
   dragActive,
   rejected,
   onSyllableClick,
@@ -1747,6 +1756,7 @@ function SyllableDropSlot({
   barIndex: number;
   beatPos: number;
   occupants: CellOccupant[];
+  markers: LineMarkerPlacement[];
   dragActive: boolean;
   rejected: boolean;
   onSyllableClick?: (syllableId: string) => void;
@@ -1770,6 +1780,9 @@ function SyllableDropSlot({
       ref={setNodeRef}
       className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
     >
+      {markers.filter(m => m.edge === 'start').map(m => (
+        <SongLineMarker key={`s-${m.lineId}`} marker={m} />
+      ))}
       {occupants.map(occupant => (
         <SyllableChip
           key={occupant.syllable.id}
@@ -1779,12 +1792,59 @@ function SyllableDropSlot({
           onClick={onSyllableClick}
         />
       ))}
+      {markers.filter(m => m.edge === 'end').map(m => (
+        <SongLineMarker key={`e-${m.lineId}`} marker={m} />
+      ))}
       {/* Insertion caret: a drop APPENDS to the stack, so the bar sits
           under everything already in the cell. */}
       {isOver && (
         <span className="w-full h-0.5 rounded-full bg-fluent shrink-0" aria-hidden />
       )}
     </div>
+  );
+}
+
+/**
+ * A line's start/end handle (§A1).
+ *
+ * Dragging it places exactly one unit — the line's first for ▸, its
+ * last for ◂ — and touches nothing else. It is NOT a range handle: the
+ * old markers moved a line's start/end anchors and re-spread every word
+ * between them, which is what made a single marker drag discard a whole
+ * line's hand-placed positions.
+ *
+ * The handle is dimmed when the unit it governs is still unplaced,
+ * which is its most useful state: right after a tray drop only the head
+ * has landed, and dragging ◂ is how you say where the line ends.
+ */
+function SongLineMarker({ marker }: { marker: LineMarkerPlacement }) {
+  const dragId =
+    marker.edge === 'start'
+      ? DRAG_ID.lineStart(marker.lineId)
+      : DRAG_ID.lineEnd(marker.lineId);
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: dragId,
+  });
+  const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
+  return (
+    <span
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      title={
+        marker.edge === 'start'
+          ? 'drag to place this line’s first word'
+          : 'drag to place this line’s last word'
+      }
+      className={`cursor-grab active:cursor-grabbing select-none touch-none text-[10px] leading-none px-0.5 rounded border ${
+        marker.onItsUnit
+          ? 'text-fluent border-fluent/40 bg-fluent/5'
+          : 'text-fluent/60 border-dashed border-fluent/30 bg-transparent'
+      }`}
+    >
+      {marker.edge === 'start' ? '▸' : '◂'}
+    </span>
   );
 }
 

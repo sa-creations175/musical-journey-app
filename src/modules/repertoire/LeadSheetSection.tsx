@@ -28,10 +28,12 @@ import type {
 import {
   type BeatAxis,
   type CellOccupant,
+  type LineMarkerPlacement,
   cellKey,
   checkPlacementOrder,
   findSyllable,
   joinSyllables,
+  markerTargetSyllable,
   linesFromParsedRows,
   lineStatus,
   placeSyllable,
@@ -124,6 +126,8 @@ interface Props {
   /** Global beat axis across every section — needed to compare
    *  anchors that may sit in different sections. */
   beatAxis?: BeatAxis;
+  /** Line start/end markers grouped by cell. */
+  markerIndex?: Map<string, LineMarkerPlacement[]>;
   onSongLyricsChange?: (next: SongLyricLine[]) => Promise<void>;
 }
 
@@ -143,6 +147,7 @@ export default function LeadSheetSection({
   songLyricLines,
   cellIndex,
   beatAxis,
+  markerIndex,
   onSongLyricsChange,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
@@ -852,6 +857,19 @@ export default function LeadSheetSection({
       );
       return;
     }
+    if (
+      songLyricLines &&
+      (id.startsWith('lineStart:') || id.startsWith('lineEnd:'))
+    ) {
+      const edge = id.startsWith('lineStart:') ? 'start' : 'end';
+      const lineId = id.slice((edge === 'start' ? 'lineStart:' : 'lineEnd:').length);
+      const syllableId = markerTargetSyllable(songLyricLines, lineId, edge);
+      const found = syllableId ? findSyllable(songLyricLines, syllableId) : null;
+      setActiveLyricDrag(
+        found ? { kind: 'syllable', text: found.syllable.text } : null,
+      );
+      return;
+    }
     setActiveLyricDrag({ kind: 'syllable', text: '' });
   };
 
@@ -1019,6 +1037,29 @@ export default function LeadSheetSection({
           : l,
       );
       await commitLyricLines(next);
+      return;
+    }
+
+    // §A1: a marker places exactly ONE unit — the line's first for ▸,
+    // its last for ◂ — and moves nothing else. The legacy markers below
+    // moved a line's range anchors and cleared wordOffsets, re-spreading
+    // every word between them; that is the behaviour this replaces.
+    if (
+      songLyricsActive &&
+      (activeId.startsWith('lineStart:') || activeId.startsWith('lineEnd:'))
+    ) {
+      if (!songLyricLines) return;
+      const edge = activeId.startsWith('lineStart:') ? 'start' : 'end';
+      const lineId = activeId.slice(
+        (edge === 'start' ? 'lineStart:' : 'lineEnd:').length,
+      );
+      const syllableId = markerTargetSyllable(songLyricLines, lineId, edge);
+      if (!syllableId) return;
+      await tryPlaceSyllable(syllableId, {
+        sectionId: section.id,
+        barIndex: dropBar,
+        beatPos: dropBeat,
+      });
       return;
     }
 
@@ -1311,6 +1352,7 @@ export default function LeadSheetSection({
               cellIndex={cellIndex}
               lyricDragActive={activeLyricDrag !== null}
               rejectedCell={rejectedCell}
+              markerIndex={markerIndex}
               songLyricLines={songLyricLines}
               onSyllableSplit={handleSyllableSplit}
               onSyllableJoin={handleSyllableJoin}

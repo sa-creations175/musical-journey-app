@@ -48,6 +48,7 @@ import {
   LYRIC_FOLD_VERSION,
   buildBeatAxis,
   buildCellIndex,
+  buildMarkerIndex,
   foldSectionLyrics,
 } from './lyricSyllables';
 import { planSectionMove } from './sectionReorder';
@@ -554,6 +555,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     [songLyricLines, beatAxis],
   );
 
+  const markerIndex = useMemo(
+    () => (songLyricLines ? buildMarkerIndex(songLyricLines) : undefined),
+    [songLyricLines],
+  );
+
   const commitSongLyrics = useCallback(
     async (next: SongLyricLine[]) => {
       // Read-then-put per the saveMeta precedent — Table.update can
@@ -1037,6 +1043,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             songLyricLines={songLyricLines}
                             cellIndex={cellIndex}
                             beatAxis={beatAxis}
+                            markerIndex={markerIndex}
                             onSongLyricsChange={commitSongLyrics}
                           />
                         ))}

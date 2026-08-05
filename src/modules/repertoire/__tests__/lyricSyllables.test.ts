@@ -5,14 +5,17 @@ import {
   anchorToGlobal,
   buildBeatAxis,
   buildCellIndex,
+  buildMarkerIndex,
   canJoinNext,
   checkPlacementOrder,
   cellKey,
   foldSectionLyrics,
   globalToCell,
   joinSyllables,
+  lineMarkers,
   lineStatus,
   linesFromParsedRows,
+  markerTargetSyllable,
   normalizeCellOrders,
   placeSyllable,
   placedSyllablesInBar,
@@ -694,6 +697,109 @@ describe('buildCellIndex', () => {
   it('omits headers entirely', () => {
     const index = buildCellIndex([{ id: 'h', kind: 'header', text: 'Verse 1' }], axis4);
     expect(index.size).toBe(0);
+  });
+});
+
+// --- line markers (A1) ------------------------------------------------
+
+describe('lineMarkers', () => {
+  it('draws both markers at the line’s placement extent', () => {
+    const l = line('l1', [
+      { id: 'a', text: 'A', at: [1, 0, 0] },
+      { id: 'b', text: 'B' },
+      { id: 'c', text: 'C', at: [3, 2, 0] },
+    ]);
+    const markers = lineMarkers([l]);
+    expect(markers).toHaveLength(2);
+    const start = markers.find(m => m.edge === 'start')!;
+    const end = markers.find(m => m.edge === 'end')!;
+    expect(start.cell).toEqual({ sectionId: SEC, barIndex: 1, beatPos: 0 });
+    expect(start.syllableId).toBe('a');
+    expect(end.cell).toEqual({ sectionId: SEC, barIndex: 3, beatPos: 2 });
+    expect(end.syllableId).toBe('c');
+  });
+
+  it('marks a marker whose unit is not itself placed', () => {
+    // The state right after a tray drop: only the head has landed, so ◂
+    // draws at the head's cell and is the affordance for placing the tail.
+    const l = line('l1', [
+      { id: 'head', text: 'O', at: [2, 0, 0] },
+      { id: 'mid', text: 'come' },
+      { id: 'tail', text: 'Him' },
+    ]);
+    const markers = lineMarkers([l]);
+    const end = markers.find(m => m.edge === 'end')!;
+    expect(end.syllableId).toBe('tail');
+    expect(end.onItsUnit).toBe(false);
+    expect(end.cell).toEqual({ sectionId: SEC, barIndex: 2, beatPos: 0 });
+    expect(markers.find(m => m.edge === 'start')!.onItsUnit).toBe(true);
+  });
+
+  it('emits nothing for a line with no placed syllables, or for headers', () => {
+    expect(lineMarkers([line('l1', [{ id: 'a', text: 'A' }])])).toEqual([]);
+    expect(lineMarkers([{ id: 'h', kind: 'header', text: 'Verse 1' }])).toEqual([]);
+  });
+
+  it('emits only a start marker for a single-syllable line', () => {
+    const markers = lineMarkers([line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }])]);
+    expect(markers.map(m => m.edge)).toEqual(['start']);
+  });
+
+  it('groups markers by cell', () => {
+    const l = line('l1', [
+      { id: 'a', text: 'A', at: [0, 0, 0] },
+      { id: 'b', text: 'B', at: [0, 0, 1] },
+    ]);
+    const index = buildMarkerIndex([l]);
+    const cell = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 0 }))!;
+    expect(cell.map(m => m.edge).sort()).toEqual(['end', 'start']);
+  });
+});
+
+describe('markerTargetSyllable', () => {
+  it('resolves to the line’s first and last units', () => {
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'A', at: [0, 0, 0] },
+        { id: 'b', text: 'B' },
+        { id: 'c', text: 'C' },
+      ]),
+    ];
+    expect(markerTargetSyllable(lines, 'l1', 'start')).toBe('a');
+    expect(markerTargetSyllable(lines, 'l1', 'end')).toBe('c');
+    expect(markerTargetSyllable(lines, 'nope', 'start')).toBeNull();
+  });
+});
+
+describe('marker placement moves exactly one unit', () => {
+  it('placing via ◂ leaves every other syllable untouched', () => {
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'A', at: [1, 0, 0] },
+        { id: 'b', text: 'B', at: [1, 2, 0] },
+        { id: 'c', text: 'C' },
+      ]),
+    ];
+    const tail = markerTargetSyllable(lines, 'l1', 'end')!;
+    const next = placeSyllable(
+      lines, tail, { sectionId: SEC, barIndex: 3, beatPos: 0 }, axis16,
+    );
+    expect(anchorOf(next, 'c')).toMatchObject({ barIndex: 3, beatPos: 0 });
+    expect(anchorOf(next, 'a')).toEqual(anchorOf(lines, 'a'));
+    expect(anchorOf(next, 'b')).toEqual(anchorOf(lines, 'b'));
+  });
+
+  it('a marker drag is still bound by the monotonic rule', () => {
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'A', at: [5, 0, 0] },
+        { id: 'b', text: 'B', at: [6, 0, 0] },
+      ]),
+    ];
+    // ◂ governs 'b'; dragging it before 'a' must be refused.
+    expect(
+      checkPlacementOrder(lines, 'b', { sectionId: SEC, barIndex: 2, beatPos: 0 }, axis16),
+    ).toBe('before-previous');
   });
 });
 
