@@ -856,6 +856,12 @@ export default function LeadSheetSection({
 
   // Default range on placement: 1 bar — drop sets the start to the
   // drop target and the end to the last beat of that same bar.
+  //
+  // LEGACY PATH ONLY. The song-owned model dropped this guess (see the
+  // `pending:` branch in handleDragEnd) but the legacy model can't:
+  // a LyricLine has no way to express "placed at the start, end not
+  // chosen yet" — start == end == (0,0) is its sentinel for "still in
+  // the tray" — so a legacy placement has to invent some end.
   const defaultEndForPlacement = (
     startBar: number,
     _startBeat: number,
@@ -923,30 +929,33 @@ export default function LeadSheetSection({
       return;
     }
 
-    // Placing a whole unplaced line: anchor its FIRST syllable at the
-    // drop cell and its LAST at the end of that bar, reproducing the
-    // legacy "default range = one bar" feel. The syllables between
-    // them become ghosts spread across the gap. Interim behaviour —
-    // step 6a replaces this with the drawer's tap-start/tap-end flow.
+    // Dropping a line from the tray places its FIRST unit and nothing
+    // else. The remaining units stay unplaced, so the line stays in the
+    // tray carrying an n/total badge until the user places more.
+    //
+    // It used to also anchor the last unit at the end of the drop bar,
+    // inheriting the legacy "default range = one bar" behaviour. That
+    // is the app guessing phrase length, and it guesses wrong for
+    // anything longer than a bar — silently inventing a placement the
+    // user then has to notice and undo. Where the line ends is the
+    // user's call: via the end marker (step 5) or tap-to-place (6a).
+    //
+    // Ghosts stay absent until a second unit is placed, because the
+    // provisional spread needs two endpoints to interpolate between —
+    // it never extrapolates. A single-unit line is simply fully placed.
     if (activeId.startsWith('pending:') && songLyricsActive) {
       if (!songLyricLines || !onSongLyricsChange) return;
       const lineId = activeId.slice('pending:'.length);
       const target = songLyricLines.find(l => l.id === lineId);
-      const syllables = target?.syllables ?? [];
-      if (syllables.length === 0) return;
-      let next = placeSyllable(songLyricLines, syllables[0].id, {
-        sectionId: section.id,
-        barIndex: dropBar,
-        beatPos: dropBeat,
-      });
-      if (syllables.length > 1) {
-        next = placeSyllable(next, syllables[syllables.length - 1].id, {
+      const first = target?.syllables?.[0];
+      if (!first) return;
+      await onSongLyricsChange(
+        placeSyllable(songLyricLines, first.id, {
           sectionId: section.id,
           barIndex: dropBar,
-          beatPos: Math.max(0, beatsPerBar - 1),
-        });
-      }
-      await onSongLyricsChange(next);
+          beatPos: dropBeat,
+        }),
+      );
       return;
     }
 
