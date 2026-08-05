@@ -3,9 +3,13 @@ import {
   closestCenter,
   type CollisionDetection,
   DndContext,
+  DragOverlay,
   type DragEndEvent,
+  type DragStartEvent,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -23,6 +27,7 @@ import type {
 } from '../../lib/db';
 import {
   type CellOccupant,
+  findSyllable,
   joinSyllables,
   linesFromParsedRows,
   lineStatus,
@@ -758,6 +763,52 @@ export default function LeadSheetSection({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  // Every draggable that targets a `beat:` drop zone.
+  const isLyricDragId = (id: string): boolean =>
+    id.startsWith('staged:') ||
+    id.startsWith('placed:') ||
+    id.startsWith('pending:') ||
+    id.startsWith('lineStart:') ||
+    id.startsWith('lineEnd:') ||
+    id.startsWith('word:') ||
+    id.startsWith('syl:');
+
+  // What's being dragged, for the DragOverlay preview and for telling
+  // the beat cells to show their drop-target treatment.
+  const [activeLyricDrag, setActiveLyricDrag] = useState<{
+    kind: 'syllable' | 'line';
+    text: string;
+  } | null>(null);
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const id = String(event.active.id);
+    if (!isLyricDragId(id)) {
+      setActiveLyricDrag(null);
+      return;
+    }
+    if (id.startsWith('syl:') && songLyricLines) {
+      const found = findSyllable(songLyricLines, id.slice('syl:'.length));
+      setActiveLyricDrag(
+        found ? { kind: 'syllable', text: found.syllable.text } : null,
+      );
+      return;
+    }
+    if (id.startsWith('pending:')) {
+      const lineId = id.slice('pending:'.length);
+      const songLine = songLyricLines?.find(l => l.id === lineId);
+      if (songLine) {
+        setActiveLyricDrag({ kind: 'line', text: songLine.text });
+        return;
+      }
+      const legacyLine = lyricLines.find(l => l.id === lineId);
+      setActiveLyricDrag(
+        legacyLine ? { kind: 'line', text: legacyLine.words.join(' ') } : null,
+      );
+      return;
+    }
+    setActiveLyricDrag({ kind: 'syllable', text: '' });
+  };
+
   // Collision detection routed by active.id prefix. Necessary because
   // the bar `useDroppable` wraps the same DOM region as the chord
   // sortable cells inside it — without filtering, the larger bar
@@ -779,18 +830,26 @@ export default function LeadSheetSection({
       allowed = args.droppableContainers.filter(d =>
         String(d.id).startsWith('bar:'),
       );
-    } else if (
-      activeId.startsWith('staged:') ||
-      activeId.startsWith('placed:') ||
-      activeId.startsWith('pending:') ||
-      activeId.startsWith('lineStart:') ||
-      activeId.startsWith('lineEnd:') ||
-      activeId.startsWith('word:') ||
-      activeId.startsWith('syl:')
-    ) {
+    } else if (isLyricDragId(activeId)) {
       allowed = args.droppableContainers.filter(d =>
         String(d.id).startsWith('beat:'),
       );
+      // POINTER-BASED, deliberately. `closestCenter` compares the
+      // DRAGGED ELEMENT'S rect centre against each cell's centre and
+      // never looks at the cursor (verified in @dnd-kit/core's source:
+      // it destructures `collisionRect`, not `pointerCoordinates`).
+      // With lyric chips that reads as a one-cell lag at every boundary
+      // — you have to push past a cell before it registers — and with
+      // the full-width pending strip, whose rect centre sits at the
+      // middle of the whole grid, the target lands bars away from the
+      // cursor. Both were measured in the browser before this change.
+      const byPointer = pointerWithin({ ...args, droppableContainers: allowed });
+      if (byPointer.length > 0) return byPointer;
+      // `pointerWithin` returns [] when the pointer is in a gutter
+      // between cells, and unconditionally for keyboard drags (it needs
+      // pointerCoordinates, which a KeyboardSensor never supplies) — so
+      // the nearest-centre fallback is required, not decorative.
+      return closestCenter({ ...args, droppableContainers: allowed });
     }
     return closestCenter({ ...args, droppableContainers: allowed });
   };
@@ -1172,7 +1231,18 @@ export default function LeadSheetSection({
           <DndContext
             sensors={sensors}
             collisionDetection={collisionDetection}
-            onDragEnd={handleDragEnd}
+            // Beat-cell heights change DURING a lyric drag — pulling a
+            // chip out of a stacked cell shrinks it and reflows the
+            // whole row. The default `WhileDragging` strategy measures
+            // droppables once at drag start, so those rects go stale in
+            // exactly the drags that matter. `Always` re-measures.
+            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+            onDragStart={handleDragStart}
+            onDragEnd={async event => {
+              setActiveLyricDrag(null);
+              await handleDragEnd(event);
+            }}
+            onDragCancel={() => setActiveLyricDrag(null)}
           >
             <BarGridView
               song={song}
@@ -1188,6 +1258,7 @@ export default function LeadSheetSection({
               chordsAreSortable
               lyricLines={lyricLines}
               cellIndex={cellIndex}
+              lyricDragActive={activeLyricDrag !== null}
               songLyricLines={songLyricLines}
               onSyllableSplit={handleSyllableSplit}
               onSyllableJoin={handleSyllableJoin}
@@ -1229,6 +1300,26 @@ export default function LeadSheetSection({
                 onSubmitLines={handleSubmitLyricLines}
               />
             )}
+
+            {/* The dragged item follows the pointer exactly instead of
+                the source node translating in place. Two reasons: the
+                pending strip is full-container-width, so translating it
+                across the page is both ugly and misleading about what
+                it will hit; and pulling a chip out of a stacked cell
+                reflows the row it came from mid-drag. */}
+            <DragOverlay dropAnimation={null}>
+              {activeLyricDrag ? (
+                <span
+                  className={
+                    activeLyricDrag.kind === 'syllable'
+                      ? 'inline-block text-[10px] leading-tight italic px-1 rounded bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 ring-2 ring-fluent shadow-md'
+                      : 'inline-block max-w-[14rem] truncate text-[11px] px-2 py-1 rounded border border-fluent bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 shadow-md'
+                  }
+                >
+                  {activeLyricDrag.text}
+                </span>
+              ) : null}
+            </DragOverlay>
           </DndContext>
 
           {!playMode && numeralStrip.length > 0 && !comparing && (

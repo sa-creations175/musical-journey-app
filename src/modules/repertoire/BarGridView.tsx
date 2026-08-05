@@ -163,6 +163,9 @@ interface Props {
   cellIndex?: Map<string, CellOccupant[]>;
   /** Song lines with nothing placed yet — the pre-drawer tray. */
   unplacedLines?: SongLyricLine[];
+  /** A lyric drag is in flight — beat cells switch to their
+   *  drop-target treatment. */
+  lyricDragActive?: boolean;
   /** Full song store — the edit popover needs a syllable's text and
    *  whether it has a next sibling to join with. */
   songLyricLines?: SongLyricLine[];
@@ -261,6 +264,7 @@ export default function BarGridView({
   lyricLines = [],
   cellIndex,
   unplacedLines,
+  lyricDragActive = false,
   songLyricLines,
   onSyllableSplit,
   onSyllableJoin,
@@ -580,6 +584,7 @@ export default function BarGridView({
                   barIndex={bar.index}
                   beatsPerBar={beatsPerBar}
                   cellIndex={cellIndex}
+                  lyricDragActive={lyricDragActive}
                   songLyricLines={songLyricLines}
                   editing={syllableEditing}
                   onEditingChange={setSyllableEditing}
@@ -923,12 +928,10 @@ function SongPendingStrip({
   line: SongLyricLine;
   onDelete?: (lineId: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: DRAG_ID.pending(line.id) });
-  const style: CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.4 : 1,
-  };
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: DRAG_ID.pending(line.id),
+  });
+  const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
   const status = lineStatus(line);
   const isHeader = line.kind === 'header';
   return (
@@ -1442,6 +1445,7 @@ function SyllableBarSegment({
   barIndex,
   beatsPerBar,
   cellIndex,
+  lyricDragActive,
   songLyricLines,
   editing,
   onEditingChange,
@@ -1455,6 +1459,7 @@ function SyllableBarSegment({
   barIndex: number;
   beatsPerBar: number;
   cellIndex: Map<string, CellOccupant[]>;
+  lyricDragActive: boolean;
   songLyricLines?: SongLyricLine[];
   editing: SyllableEditingState | null;
   onEditingChange: (next: SyllableEditingState | null) => void;
@@ -1478,6 +1483,7 @@ function SyllableBarSegment({
           occupants={
             cellIndex.get(cellKey({ sectionId, barIndex, beatPos })) ?? []
           }
+          dragActive={lyricDragActive}
           onSyllableClick={onSyllableClick}
         />
       ))}
@@ -1611,7 +1617,7 @@ function SyllableEditPopover({
               disabled={!canJoinNext}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Join next
+              Rejoin
             </button>
           )}
           {onUnplace && isPlaced && (
@@ -1706,24 +1712,31 @@ function SyllableDropSlot({
   barIndex,
   beatPos,
   occupants,
+  dragActive,
   onSyllableClick,
 }: {
   barIndex: number;
   beatPos: number;
   occupants: CellOccupant[];
+  dragActive: boolean;
   onSyllableClick?: (syllableId: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: DRAG_ID.beat(barIndex, beatPos),
   });
+  // The old treatment was a 1px border-colour change plus a 10%-alpha
+  // tint on an already-bordered 28px cell — technically present, not
+  // actually visible. Dimming the non-targets is what makes the target
+  // pop without needing a loud fill.
+  const surface = isOver
+    ? 'border-solid border-fluent bg-fluent/25 ring-2 ring-fluent'
+    : dragActive
+      ? 'border-dashed border-neutral-200 dark:border-neutral-800 opacity-50'
+      : 'border-dashed border-neutral-200 dark:border-neutral-800';
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border ${
-        isOver
-          ? 'border-fluent bg-fluent/10'
-          : 'border-dashed border-neutral-200 dark:border-neutral-800'
-      }`}
+      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface}`}
     >
       {occupants.map(occupant => (
         <SyllableChip
@@ -1734,6 +1747,11 @@ function SyllableDropSlot({
           onClick={onSyllableClick}
         />
       ))}
+      {/* Insertion caret: a drop APPENDS to the stack, so the bar sits
+          under everything already in the cell. */}
+      {isOver && (
+        <span className="w-full h-0.5 rounded-full bg-fluent shrink-0" aria-hidden />
+      )}
     </div>
   );
 }
@@ -1760,12 +1778,12 @@ function SyllableChip({
   placed: boolean;
   onClick?: (syllableId: string) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: DRAG_ID.syllable(syllableId) });
-  const style: CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.4 : 1,
-  };
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: DRAG_ID.syllable(syllableId),
+  });
+  // No transform: a DragOverlay carries the moving copy, so the source
+  // stays in place and its cell doesn't reflow mid-drag.
+  const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
   return (
     <span
       ref={setNodeRef}
@@ -2005,6 +2023,10 @@ function WordEditPopover({
               disabled={!canJoinNext}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
             >
+              {/* Stays "Join next" here: the LEGACY popover has no
+                  word-boundary guard, so this really can merge across
+                  words. Only the guarded song-owned popover earns
+                  "Rejoin". */}
               Join next
             </button>
           )}
