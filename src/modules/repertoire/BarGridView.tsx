@@ -12,13 +12,11 @@ import type {
   ChordFunction,
   LyricLine,
   Song,
-  SongLyricLine,
   SongSection,
   VoicingEntry,
   VoicingHand,
   VoicingPattern,
 } from '../../lib/db';
-import { type CellOccupant, cellKey, lineStatus } from './lyricSyllables';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
 import { pitchClassOf } from './chordParser';
 import { chordRootNote, normalizeVoicing, sanitizeVoicing } from './voicingHelpers';
@@ -73,10 +71,6 @@ export const DRAG_ID = {
   lineStart: (lineId: string) => `lineStart:${lineId}`,
   lineEnd: (lineId: string) => `lineEnd:${lineId}`,
   word: (lineId: string, wordIdx: number) => `word:${lineId}:${wordIdx}`,
-  /** Song-owned syllable (rev 3). Replaces `word:` once a song has
-   *  migrated to `Song.lyricLines`; both exist while sections can still
-   *  be on the legacy path. */
-  syllable: (syllableId: string) => `syl:${syllableId}`,
   bar: (barIndex: number) => `bar:${barIndex}`,
 };
 
@@ -149,15 +143,6 @@ interface Props {
    *  in the tray above the grid; placed lines render in their bars'
    *  lyric rows. */
   lyricLines?: LyricLine[];
-  /** Song-owned anchor→cell index (rev 3). When present the lyric row
-   *  renders from this instead of from `lyricLines`, and every legacy
-   *  lyric prop above is ignored. Built once per song above the
-   *  sections, because a line's syllables may be anchored into any of
-   *  them. */
-  cellIndex?: Map<string, CellOccupant[]>;
-  /** Song lines with nothing placed yet — the pre-drawer tray. */
-  unplacedLines?: SongLyricLine[];
-  onSyllableClick?: (syllableId: string) => void;
   /** Tap-× on a line removes it from the section entirely. */
   onLineDelete?: (lineId: string) => void;
   /** Tap-`+ bar` appends an empty bar to the grid for lyric-only
@@ -247,9 +232,6 @@ export default function BarGridView({
   onChordVoicingPinsChange,
   chordsAreSortable = false,
   lyricLines = [],
-  cellIndex,
-  unplacedLines,
-  onSyllableClick,
   onLineDelete,
   onAddBar,
   onDeleteBar,
@@ -475,13 +457,7 @@ export default function BarGridView({
 
   const body = (
     <>
-      {/* Tray of not-yet-placed lines. Sourced from the song store once
-          migrated, from the section's legacy lines before that. The
-          lyric drawer replaces this entirely in step 7. */}
-      {cellIndex && unplacedLines && unplacedLines.length > 0 && (
-        <SongPendingTray lines={unplacedLines} onLineDelete={onLineDelete} />
-      )}
-      {!cellIndex && pendingLines.length > 0 && (
+      {pendingLines.length > 0 && (
         <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
       )}
       <div className="mt-2 space-y-3">
@@ -539,16 +515,7 @@ export default function BarGridView({
               className="grid gap-2 mt-1"
               style={{ gridTemplateColumns: `repeat(${barsPerRow}, minmax(0, 1fr))` }}
             >
-              {row.map(bar => cellIndex ? (
-                <SyllableBarSegment
-                  key={bar.index}
-                  sectionId={section.id}
-                  barIndex={bar.index}
-                  beatsPerBar={beatsPerBar}
-                  cellIndex={cellIndex}
-                  onSyllableClick={onSyllableClick}
-                />
-              ) : (
+              {row.map(bar => (
                 <LyricBarSegment
                   key={bar.index}
                   barIndex={bar.index}
@@ -841,82 +808,6 @@ function TimeSignaturePicker({
 // Lines the user has just pasted but not yet placed. Each renders as
 // a draggable strip showing all words. Dropping on a beat slot
 // initialises the line's range to that beat + a default of 1 bar.
-
-/** Song-owned variant (rev 3). Lists lines with nothing placed yet.
- *  Interim only — the lyric drawer subsumes this in step 7, at which
- *  point "pending" stops being a bucket and is just "unplaced". */
-function SongPendingTray({
-  lines,
-  onLineDelete,
-}: {
-  lines: SongLyricLine[];
-  onLineDelete?: (lineId: string) => void;
-}) {
-  return (
-    <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
-      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
-        unplaced lyrics — drag onto a beat to place
-      </div>
-      <div className="flex flex-col gap-1">
-        {lines.map(line => (
-          <SongPendingStrip key={line.id} line={line} onDelete={onLineDelete} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SongPendingStrip({
-  line,
-  onDelete,
-}: {
-  line: SongLyricLine;
-  onDelete?: (lineId: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: DRAG_ID.pending(line.id) });
-  const style: CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.4 : 1,
-  };
-  const status = lineStatus(line);
-  const isHeader = line.kind === 'header';
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...(isHeader ? {} : attributes)}
-        {...(isHeader ? {} : listeners)}
-        className={`flex-1 inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] select-none touch-none ${
-          isHeader
-            ? 'border-transparent bg-neutral-100 dark:bg-neutral-800 text-neutral-500 uppercase tracking-wide'
-            : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 cursor-grab active:cursor-grabbing'
-        }`}
-      >
-        {!isHeader && (
-          <span className="text-neutral-400 mr-1" aria-hidden>≡</span>
-        )}
-        <span className="truncate">{line.text}</span>
-        {status.status === 'partial' && (
-          <span className="ml-auto text-[10px] text-neutral-400 shrink-0">
-            {status.placed}/{status.total}
-          </span>
-        )}
-      </div>
-      {onDelete && (
-        <button
-          type="button"
-          onClick={() => onDelete(line.id)}
-          aria-label="delete lyric line"
-          className="text-neutral-400 hover:text-needswork text-xs leading-none px-1"
-        >
-          ×
-        </button>
-      )}
-    </div>
-  );
-}
 
 function PendingTray({
   lines,
@@ -1371,140 +1262,6 @@ function LyricBarSegment({
         />
       )}
     </div>
-  );
-}
-
-// --- anchor-based lyric row (rev 3) ----------------------------------
-// Used once a song has migrated to `Song.lyricLines`. Renders straight
-// from the song-level anchor→cell index built above the sections, so a
-// syllable anchored into THIS section shows here regardless of which
-// line owns it. The legacy `LyricBarSegment` below stays as the
-// pre-migration path.
-
-function SyllableBarSegment({
-  sectionId,
-  barIndex,
-  beatsPerBar,
-  cellIndex,
-  onSyllableClick,
-}: {
-  sectionId: string;
-  barIndex: number;
-  beatsPerBar: number;
-  cellIndex: Map<string, CellOccupant[]>;
-  onSyllableClick?: (syllableId: string) => void;
-}) {
-  return (
-    <div className="relative flex gap-0.5 px-1">
-      {Array.from({ length: beatsPerBar }).map((_, beatPos) => (
-        <SyllableDropSlot
-          key={beatPos}
-          barIndex={barIndex}
-          beatPos={beatPos}
-          occupants={
-            cellIndex.get(cellKey({ sectionId, barIndex, beatPos })) ?? []
-          }
-          onSyllableClick={onSyllableClick}
-        />
-      ))}
-    </div>
-  );
-}
-
-function SyllableDropSlot({
-  barIndex,
-  beatPos,
-  occupants,
-  onSyllableClick,
-}: {
-  barIndex: number;
-  beatPos: number;
-  occupants: CellOccupant[];
-  onSyllableClick?: (syllableId: string) => void;
-}) {
-  const { isOver, setNodeRef } = useDroppable({
-    id: DRAG_ID.beat(barIndex, beatPos),
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border ${
-        isOver
-          ? 'border-fluent bg-fluent/10'
-          : 'border-dashed border-neutral-200 dark:border-neutral-800'
-      }`}
-    >
-      {occupants.map(occupant => (
-        <SyllableChip
-          key={occupant.syllable.id}
-          syllableId={occupant.syllable.id}
-          text={occupant.syllable.text}
-          placed={occupant.placed}
-          onClick={onSyllableClick}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * One syllable in the grid.
- *
- * PLACED chips keep the pre-migration look exactly — migration imports
- * every existing position as placed, so this is what makes "did
- * anything move?" a clean read after the store swap.
- *
- * GHOST chips (unplaced, provisionally spread between two placed
- * neighbours) are faded and italic: visibly provisional, still legible,
- * and never mistaken for something the user positioned.
- */
-function SyllableChip({
-  syllableId,
-  text,
-  placed,
-  onClick,
-}: {
-  syllableId: string;
-  text: string;
-  placed: boolean;
-  onClick?: (syllableId: string) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
-    useDraggable({ id: DRAG_ID.syllable(syllableId) });
-  const style: CSSProperties = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.4 : 1,
-  };
-  return (
-    <span
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={
-        onClick
-          ? e => {
-              // 5px activation distance means a bare click lands here
-              // without starting a drag. Stop propagation so the grid's
-              // container mousedown doesn't close the popover.
-              e.stopPropagation();
-              onClick(syllableId);
-            }
-          : undefined
-      }
-      className={`select-none touch-none text-[10px] leading-tight italic px-1 rounded truncate max-w-[7rem] ${
-        placed
-          ? 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800'
-          : 'text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-900/40 opacity-70'
-      } ${
-        onClick
-          ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700'
-          : 'cursor-grab active:cursor-grabbing'
-      }`}
-      title={placed ? text : `${text} — not placed yet`}
-    >
-      {text}
-    </span>
   );
 }
 
