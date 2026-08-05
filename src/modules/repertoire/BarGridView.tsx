@@ -20,6 +20,7 @@ import type {
 } from '../../lib/db';
 import {
   type CellOccupant,
+  canJoinNext,
   cellKey,
   findSyllable,
   lineStatus,
@@ -509,9 +510,11 @@ export default function BarGridView({
       {/* Tray of not-yet-placed lines. Sourced from the song store once
           migrated, from the section's legacy lines before that. The
           lyric drawer replaces this entirely in step 7. */}
-      {cellIndex && unplacedLines && unplacedLines.length > 0 && (
-        <SongPendingTray lines={unplacedLines} onLineDelete={onLineDelete} />
-      )}
+      {cellIndex &&
+        unplacedLines &&
+        unplacedLines.some(l => l.kind !== 'header') && (
+          <SongPendingTray lines={unplacedLines} onLineDelete={onLineDelete} />
+        )}
       {!cellIndex && pendingLines.length > 0 && (
         <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
       )}
@@ -1483,7 +1486,11 @@ function SyllableBarSegment({
           key={editing.syllableId}
           state={editing}
           text={found.syllable.text}
-          canJoinNext={found.index < (found.line.syllables?.length ?? 0) - 1}
+          canJoinNext={
+            songLyricLines
+              ? canJoinNext(songLyricLines, editing.syllableId)
+              : false
+          }
           isPlaced={found.syllable.anchor !== undefined}
           onClose={() => onEditingChange(null)}
           onModeChange={mode => onEditingChange({ ...editing, mode })}

@@ -539,6 +539,17 @@ export interface LyricSyllable {
   id: string;
   text: string;
   anchor?: LyricSyllableAnchor;
+  /** True when this syllable continues the word begun by the syllable
+   *  before it — i.e. it was produced by splitting that word. Set only
+   *  by `splitSyllable`, and it is the sole thing that authorises a
+   *  join: without it "ful" + "and" could merge into "fuland".
+   *
+   *  Absent on syllables tokenized from pasted text (each is its own
+   *  word) and on migrated legacy syllables, where the split lineage
+   *  was never recorded and cannot be recovered — two adjacent entries
+   *  from a legacy split look identical to two ordinary words. Erring
+   *  toward "not joinable" is the safe direction. */
+  continuesWord?: boolean;
 }
 
 /**

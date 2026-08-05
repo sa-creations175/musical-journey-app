@@ -1195,8 +1195,13 @@ export default function LeadSheetSection({
               onSyllableUnplace={handleSyllableUnplace}
               unplacedLines={
                 songLyricsActive
-                  ? (songLyricLines ?? []).filter(
-                      l => lineStatus(l).status === 'unplaced',
+                  ? // Everything not fully placed, INCLUDING header rows —
+                    // they carry the grouping that makes the list
+                    // readable. `lineStatus` reports headers as 'header',
+                    // never 'unplaced', so filtering on 'unplaced' alone
+                    // silently dropped them.
+                    (songLyricLines ?? []).filter(
+                      l => lineStatus(l).status !== 'placed',
                     )
                   : undefined
               }

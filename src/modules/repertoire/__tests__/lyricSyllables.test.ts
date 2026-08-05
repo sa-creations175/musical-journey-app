@@ -5,6 +5,7 @@ import {
   anchorToGlobal,
   buildBeatAxis,
   buildCellIndex,
+  canJoinNext,
   cellKey,
   foldSectionLyrics,
   globalToCell,
@@ -294,24 +295,74 @@ describe('splitSyllable', () => {
   });
 });
 
-describe('joinSyllables', () => {
-  it('merges with the next syllable, keeping the head anchor', () => {
-    const lines = [
+describe('joinSyllables — word-boundary guard', () => {
+  /** A line whose two syllables came from splitting one word. */
+  function splitPair(): SongLyricLine[] {
+    const base = [
       line('l1', [
-        { id: 'a', text: 'some', at: [1, 2, 0] },
-        { id: 'b', text: "thin'", at: [1, 3, 0] },
+        { id: 'a', text: "somethin'", at: [1, 2, 0] },
+        { id: 'z', text: 'else' },
       ]),
     ];
+    return splitSyllable(base, 'a', 4, seqIds('new'));
+  }
+
+  it('merges a split pair back, keeping the head anchor', () => {
+    const lines = splitPair();
+    const tailId = lines[0].syllables![1].id;
+    expect(lines[0].syllables![1].continuesWord).toBe(true);
     const next = joinSyllables(lines, 'a');
     const syllables = next[0].syllables!;
-    expect(syllables).toHaveLength(1);
-    expect(syllables[0].text).toBe("somethin'");
+    expect(syllables.map(s => s.text)).toEqual(["somethin'", 'else']);
     expect(syllables[0].anchor?.beatPos).toBe(2);
+    expect(syllables.some(s => s.id === tailId)).toBe(false);
   });
 
-  it('is a no-op on the last syllable of a line', () => {
+  it('REFUSES to join across a word boundary', () => {
+    // The case that would corrupt the lyric: "ful" + "and" → "fuland".
+    const lines = [
+      line('l1', [
+        { id: 'ful', text: 'ful', at: [2, 2, 0] },
+        { id: 'and', text: 'and', at: [3, 0, 0] },
+      ]),
+    ];
+    expect(canJoinNext(lines, 'ful')).toBe(false);
+    expect(joinSyllables(lines, 'ful')).toEqual(lines);
+  });
+
+  it('allows joining down a chain of repeated splits', () => {
+    // "somethin'" → "some" + "thin'" → "some" + "th" + "in'".
+    let lines = splitPair();
+    const tailId = lines[0].syllables![1].id;
+    lines = splitSyllable(lines, tailId, 2, seqIds('deep'));
+    expect(lines[0].syllables!.map(s => s.text)).toEqual(['some', 'th', "in'", 'else']);
+    expect(canJoinNext(lines, 'a')).toBe(true);
+    expect(canJoinNext(lines, lines[0].syllables![1].id)).toBe(true);
+    // ...but the last piece still can't swallow the next WORD.
+    expect(canJoinNext(lines, lines[0].syllables![2].id)).toBe(false);
+  });
+
+  it('refuses on the last syllable of a line and on unknown ids', () => {
     const lines = [line('l1', [{ id: 'a', text: 'x' }])];
+    expect(canJoinNext(lines, 'a')).toBe(false);
+    expect(canJoinNext(lines, 'nope')).toBe(false);
     expect(joinSyllables(lines, 'a')).toEqual(lines);
+  });
+
+  it('refuses for migrated legacy syllables, which carry no lineage', () => {
+    const out = foldSectionLyrics(
+      [{
+        sectionId: SEC,
+        beatsPerBar: 4,
+        lyricLines: [{
+          id: 'legacy',
+          words: ['faith', 'ful'],
+          startBar: 0, startBeat: 0, endBar: 1, endBeat: 0,
+        }],
+      }],
+      seqIds(),
+    );
+    expect(canJoinNext(out, out[0].syllables![0].id)).toBe(false);
   });
 });
 

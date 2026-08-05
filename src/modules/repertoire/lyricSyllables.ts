@@ -321,7 +321,13 @@ export function splitSyllable(
     const target = line.syllables[idx];
     if (splitAt < 1 || splitAt >= target.text.length) return line;
     const head: LyricSyllable = { ...target, text: target.text.slice(0, splitAt) };
-    const tail: LyricSyllable = { id: makeId(), text: target.text.slice(splitAt) };
+    // `continuesWord` records the split lineage, and is the only thing
+    // that later authorises re-joining these two — see `canJoinNext`.
+    const tail: LyricSyllable = {
+      id: makeId(),
+      text: target.text.slice(splitAt),
+      continuesWord: true,
+    };
     touched = true;
     return {
       ...line,
@@ -337,17 +343,45 @@ export function splitSyllable(
 }
 
 /**
+ * Whether a syllable may be merged with the next one — true only when
+ * that next syllable came from splitting THIS word, so a join is
+ * strictly the undo of a split.
+ *
+ * Joining across a word boundary would silently corrupt the lyric
+ * ("ful" + "and" → "fuland"), and there is no undo at the word level to
+ * recover from it, so the guard lives in the model rather than only in
+ * the button's disabled state.
+ *
+ * Returns false for legacy-migrated syllables: the old `splitWord`
+ * recorded no lineage, and two entries from a legacy split are
+ * indistinguishable from two ordinary words. Not offering the join is
+ * the safe direction — `Edit` can still fix the text.
+ */
+export function canJoinNext(
+  lines: ReadonlyArray<SongLyricLine>,
+  syllableId: string,
+): boolean {
+  const found = findSyllable(lines, syllableId);
+  if (!found) return false;
+  const syllables = found.line.syllables ?? [];
+  const next = syllables[found.index + 1];
+  return next !== undefined && next.continuesWord === true;
+}
+
+/**
  * Merge a syllable with the one after it in the same line. The merged
  * syllable keeps the FIRST one's anchor (and id), so a placed head
  * doesn't move; the tail's anchor, if it had one, is discarded along
  * with the tail.
  *
- * No-op when the syllable is last in its line or isn't found.
+ * No-op when the syllable is last in its line, isn't found, or the next
+ * syllable is a different word — see `canJoinNext`.
  */
 export function joinSyllables(
   lines: ReadonlyArray<SongLyricLine>,
   syllableId: string,
 ): SongLyricLine[] {
+  if (!canJoinNext(lines, syllableId)) return [...lines];
   let touched = false;
   const next = lines.map(line => {
     if (!line.syllables) return line;
