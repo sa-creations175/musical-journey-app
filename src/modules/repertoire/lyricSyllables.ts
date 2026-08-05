@@ -255,6 +255,36 @@ export function placeSyllable(
   return normalizeCellOrders(placed);
 }
 
+/**
+ * Clear every anchor on one line, returning it to the tray fully
+ * unplaced with its text intact.
+ *
+ * The non-destructive counterpart to deleting a line: "I want to start
+ * this line's placement over" is a different intent from "I don't want
+ * these words", and until now only the destructive one had a button.
+ */
+export function unplaceLine(
+  lines: ReadonlyArray<SongLyricLine>,
+  lineId: string,
+): SongLyricLine[] {
+  let touched = false;
+  const next = lines.map(line => {
+    if (line.id !== lineId || !line.syllables) return line;
+    if (!line.syllables.some(s => s.anchor)) return line;
+    touched = true;
+    return {
+      ...line,
+      syllables: line.syllables.map(s => {
+        if (!s.anchor) return s;
+        const { anchor: _dropped, ...rest } = s;
+        return rest;
+      }),
+    };
+  });
+  if (!touched) return [...lines];
+  return normalizeCellOrders(next);
+}
+
 /** Clear a syllable's anchor, returning it to the drawer's ghost pool. */
 export function unplaceSyllable(
   lines: ReadonlyArray<SongLyricLine>,

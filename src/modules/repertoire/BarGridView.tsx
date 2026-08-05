@@ -179,6 +179,9 @@ interface Props {
   onSyllableJoin?: (syllableId: string) => void | Promise<void>;
   onSyllableChange?: (syllableId: string, nextText: string) => void | Promise<void>;
   onSyllableUnplace?: (syllableId: string) => void | Promise<void>;
+  /** Return a whole line to the tray, keeping its text. Reached from
+   *  the tray row and from the syllable popover's line-scope action. */
+  onLineUnplace?: (lineId: string) => void | Promise<void>;
   /** Tap-× on a line removes it from the section entirely. */
   onLineDelete?: (lineId: string) => void;
   /** Tap-`+ bar` appends an empty bar to the grid for lyric-only
@@ -278,6 +281,7 @@ export default function BarGridView({
   onSyllableJoin,
   onSyllableChange,
   onSyllableUnplace,
+  onLineUnplace,
   onLineDelete,
   onAddBar,
   onDeleteBar,
@@ -525,7 +529,11 @@ export default function BarGridView({
       {cellIndex &&
         unplacedLines &&
         unplacedLines.some(l => l.kind !== 'header') && (
-          <SongPendingTray lines={unplacedLines} onLineDelete={onLineDelete} />
+          <SongPendingTray
+            lines={unplacedLines}
+            onLineDelete={onLineDelete}
+            onLineUnplace={onLineUnplace}
+          />
         )}
       {!cellIndex && pendingLines.length > 0 && (
         <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
@@ -612,6 +620,7 @@ export default function BarGridView({
                   onJoin={onSyllableJoin}
                   onChange={onSyllableChange}
                   onUnplace={onSyllableUnplace}
+                  onUnplaceLine={onLineUnplace}
                 />
               ) : (
                 <LyricBarSegment
@@ -913,9 +922,11 @@ function TimeSignaturePicker({
 function SongPendingTray({
   lines,
   onLineDelete,
+  onLineUnplace,
 }: {
   lines: SongLyricLine[];
   onLineDelete?: (lineId: string) => void;
+  onLineUnplace?: (lineId: string) => void | Promise<void>;
 }) {
   return (
     <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
@@ -924,7 +935,12 @@ function SongPendingTray({
       </div>
       <div className="flex flex-col gap-1">
         {lines.map(line => (
-          <SongPendingStrip key={line.id} line={line} onDelete={onLineDelete} />
+          <SongPendingStrip
+            key={line.id}
+            line={line}
+            onDelete={onLineDelete}
+            onUnplace={onLineUnplace}
+          />
         ))}
       </div>
     </div>
@@ -934,9 +950,11 @@ function SongPendingTray({
 function SongPendingStrip({
   line,
   onDelete,
+  onUnplace,
 }: {
   line: SongLyricLine;
   onDelete?: (lineId: string) => void;
+  onUnplace?: (lineId: string) => void | Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: DRAG_ID.pending(line.id),
@@ -986,12 +1004,28 @@ function SongPendingStrip({
           </span>
         )}
       </div>
+      {onUnplace && status.placed > 0 && (
+        <button
+          type="button"
+          onClick={() => void onUnplace(line.id)}
+          aria-label="un-place all words in this line"
+          title="un-place all — return this line to the tray"
+          className="text-neutral-400 hover:text-fluent text-xs leading-none px-1 shrink-0"
+        >
+          ⤺
+        </button>
+      )}
       {onDelete && (
         <button
           type="button"
           onClick={() => onDelete(line.id)}
           aria-label="delete lyric line"
-          className="text-neutral-400 hover:text-needswork text-xs leading-none px-1"
+          title={
+            status.placed > 0
+              ? 'delete this line — it has placed words, so it will confirm first'
+              : 'delete this line'
+          }
+          className="text-neutral-400 hover:text-needswork text-xs leading-none px-1 shrink-0"
         >
           ×
         </button>
@@ -1485,6 +1519,7 @@ function SyllableBarSegment({
   onJoin,
   onChange,
   onUnplace,
+  onUnplaceLine,
 }: {
   sectionId: string;
   barIndex: number;
@@ -1501,6 +1536,7 @@ function SyllableBarSegment({
   onJoin?: (syllableId: string) => void | Promise<void>;
   onChange?: (syllableId: string, nextText: string) => void | Promise<void>;
   onUnplace?: (syllableId: string) => void | Promise<void>;
+  onUnplaceLine?: (lineId: string) => void | Promise<void>;
 }) {
   const found =
     editing && editing.barIndex === barIndex && songLyricLines
@@ -1568,6 +1604,14 @@ function SyllableBarSegment({
                 }
               : undefined
           }
+          onUnplaceLine={
+            onUnplaceLine && found.line.syllables?.some(s => s.anchor)
+              ? () => {
+                  void onUnplaceLine(found.line.id);
+                  onEditingChange(null);
+                }
+              : undefined
+          }
         />
       )}
     </div>
@@ -1590,6 +1634,7 @@ function SyllableEditPopover({
   onJoin,
   onChange,
   onUnplace,
+  onUnplaceLine,
 }: {
   state: SyllableEditingState;
   text: string;
@@ -1601,6 +1646,7 @@ function SyllableEditPopover({
   onJoin?: () => void;
   onChange?: (nextText: string) => void;
   onUnplace?: () => void;
+  onUnplaceLine?: () => void;
 }) {
   const [draft, setDraft] = useState(text);
   useEffect(() => {
@@ -1660,10 +1706,20 @@ function SyllableEditPopover({
             <button
               type="button"
               onClick={onUnplace}
-              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-needswork hover:text-needswork"
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
               title="return this syllable to the unplaced pool"
             >
               Un-place
+            </button>
+          )}
+          {onUnplaceLine && (
+            <button
+              type="button"
+              onClick={onUnplaceLine}
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
+              title="return this whole line to the tray, keeping its text"
+            >
+              Un-place line
             </button>
           )}
         </div>

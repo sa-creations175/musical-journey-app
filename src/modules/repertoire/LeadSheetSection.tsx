@@ -39,6 +39,7 @@ import {
   placeSyllable,
   setSyllableText,
   splitSyllable,
+  unplaceLine,
   unplaceSyllable,
 } from './lyricSyllables';
 import { parseLyricSheet } from './lyricSheetParse';
@@ -560,9 +561,56 @@ export default function LeadSheetSection({
       }
     : undefined;
 
+  /** Return a whole line to the tray, keeping its text. The
+   *  non-destructive alternative to deleting it. */
+  const handleUnplaceLine = songLyricsActive
+    ? async (lineId: string) => {
+        if (!songLyricLines || !onSongLyricsChange) return;
+        const before = songLyricLines;
+        const next = unplaceLine(before, lineId);
+        if (next === before) return;
+        await onSongLyricsChange(next);
+        toast({
+          message: 'Line un-placed — back in the tray.',
+          variant: 'success',
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              await onSongLyricsChange(before);
+            },
+          },
+        });
+      }
+    : undefined;
+
   const handleDeleteLyricLine = async (lineId: string) => {
     if (songLyricsActive && songLyricLines && onSongLyricsChange) {
-      await onSongLyricsChange(songLyricLines.filter(l => l.id !== lineId));
+      const target = songLyricLines.find(l => l.id === lineId);
+      const placed = target ? lineStatus(target).placed : 0;
+      // Deleting a line that carries placed work is destructive and,
+      // until lyric writes join the undo stack, irreversible through
+      // the toolbar. Confirm before it, and hand back an Undo after —
+      // the × sits next to the tray row a user reaches for when they
+      // meant "un-place", which is exactly how this went wrong.
+      if (placed > 0) {
+        const ok = window.confirm(
+          `This line has ${placed} placed syllable${placed === 1 ? '' : 's'} — ` +
+            `delete anyway? "Un-place all" returns it to the tray instead.`,
+        );
+        if (!ok) return;
+      }
+      const before = songLyricLines;
+      await onSongLyricsChange(before.filter(l => l.id !== lineId));
+      toast({
+        message: 'Lyric line deleted.',
+        variant: 'success',
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            await onSongLyricsChange(before);
+          },
+        },
+      });
       return;
     }
     await commitLyricLines(lyricLines.filter(l => l.id !== lineId));
@@ -1371,6 +1419,7 @@ export default function LeadSheetSection({
                   : undefined
               }
               onLineDelete={handleDeleteLyricLine}
+              onLineUnplace={handleUnplaceLine}
               onAddBar={handleAddBar}
               onDeleteBar={handleDeleteBar}
               onBarReorder={handleBarReorder}

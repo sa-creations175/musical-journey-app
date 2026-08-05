@@ -26,6 +26,7 @@ import {
   shiftAnchorsAfterBarDelete,
   splitSyllable,
   syllablesFromText,
+  unplaceLine,
   unplaceSyllable,
 } from '../lyricSyllables';
 
@@ -319,6 +320,46 @@ describe('unplaceSyllable', () => {
     ];
     const next = unplaceSyllable(lines, 'a');
     expect(anchorOf(next, 'a')).toBeUndefined();
+    expect(anchorOf(next, 'b')?.order).toBe(0);
+  });
+});
+
+describe('unplaceLine', () => {
+  it('clears every anchor on the line, keeping text and syllables', () => {
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'O', at: [1, 0, 0] },
+        { id: 'b', text: 'come' },
+        { id: 'c', text: 'Him', at: [2, 0, 0] },
+      ]),
+    ];
+    const next = unplaceLine(lines, 'l1');
+    expect(lineStatus(next[0]).status).toBe('unplaced');
+    expect(next[0].syllables!.map(s => s.text)).toEqual(['O', 'come', 'Him']);
+    expect(next[0].text).toBe(lines[0].text);
+  });
+
+  it('leaves other lines untouched', () => {
+    const lines = [
+      line('l1', [{ id: 'a', text: 'A', at: [1, 0, 0] }]),
+      line('l2', [{ id: 'b', text: 'B', at: [2, 0, 0] }]),
+    ];
+    const next = unplaceLine(lines, 'l1');
+    expect(anchorOf(next, 'b')).toEqual(anchorOf(lines, 'b'));
+  });
+
+  it('is a no-op for an already-unplaced line or an unknown id', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'A' }])];
+    expect(unplaceLine(lines, 'l1')).toEqual(lines);
+    expect(unplaceLine(lines, 'nope')).toEqual(lines);
+  });
+
+  it('compacts the cells it vacated', () => {
+    const lines = [
+      line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }]),
+      line('l2', [{ id: 'b', text: 'B', at: [0, 0, 1] }]),
+    ];
+    const next = unplaceLine(lines, 'l1');
     expect(anchorOf(next, 'b')?.order).toBe(0);
   });
 });
