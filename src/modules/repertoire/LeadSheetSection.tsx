@@ -96,6 +96,53 @@ import {
   setWordText,
   splitWord,
 } from './lyricLine';
+/**
+ * How far outside a cell the pointer may sit and still count as aiming
+ * at it. Covers the 2px inter-cell gaps and the 8px row gutters with
+ * room to spare, while refusing a cursor that is nowhere near the grid.
+ */
+const POINTER_SNAP_PX = 48;
+
+/** Straight-line distance from a point to a rect; 0 when inside. */
+function pointerDistanceToRect(
+  point: { x: number; y: number },
+  rect: { top: number; left: number; width: number; height: number },
+): number {
+  const dx = Math.max(rect.left - point.x, 0, point.x - (rect.left + rect.width));
+  const dy = Math.max(rect.top - point.y, 0, point.y - (rect.top + rect.height));
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * The droppable nearest THE POINTER, or nothing when the pointer is
+ * further than `POINTER_SNAP_PX` from all of them.
+ *
+ * Deliberately unlike `closestCenter`, which measures from the dragged
+ * element's rect and always returns a winner.
+ */
+function nearestCellToPointer(
+  args: Parameters<CollisionDetection>[0],
+  allowed: Parameters<CollisionDetection>[0]['droppableContainers'],
+): ReturnType<CollisionDetection> {
+  const point = args.pointerCoordinates;
+  if (!point) return [];
+  let best: (typeof allowed)[number] | null = null;
+  let bestDistance = Infinity;
+  for (const container of allowed) {
+    const rect = args.droppableRects.get(container.id);
+    if (!rect) continue;
+    const distance = pointerDistanceToRect(point, rect);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = container;
+    }
+  }
+  if (!best || bestDistance > POINTER_SNAP_PX) return [];
+  return [
+    { id: best.id, data: { droppableContainer: best, value: bestDistance } },
+  ];
+}
+
 interface Props {
   song: Song;
   section: SongSection;
@@ -957,11 +1004,32 @@ export default function LeadSheetSection({
       // cursor. Both were measured in the browser before this change.
       const byPointer = pointerWithin({ ...args, droppableContainers: allowed });
       if (byPointer.length > 0) return byPointer;
-      // `pointerWithin` returns [] when the pointer is in a gutter
-      // between cells, and unconditionally for keyboard drags (it needs
-      // pointerCoordinates, which a KeyboardSensor never supplies) — so
-      // the nearest-centre fallback is required, not decorative.
-      return closestCenter({ ...args, droppableContainers: allowed });
+
+      // A KeyboardSensor drag supplies no pointer at all, so
+      // nearest-centre is the only thing available.
+      if (!args.pointerCoordinates) {
+        return closestCenter({ ...args, droppableContainers: allowed });
+      }
+
+      // Pointer exists but sits outside every cell — a gutter, or off
+      // the grid entirely.
+      //
+      // Falling back to `closestCenter` here was the residual
+      // aim-is-way-off bug: closestCenter measures from the DRAGGED
+      // ELEMENT'S rect, so for the container-width tray strip it
+      // returned a cell an inch or more from the cursor, and it
+      // returned one unconditionally — however far away the pointer
+      // was. Instrumented capture confirmed it: pointerWithin MISSed
+      // with the measured rect provably equal to the live DOM rect, so
+      // the rects were fine and the fallback was simply answering a
+      // different question.
+      //
+      // Measure from the POINTER instead, and decline to answer when
+      // nothing is near it. No target means the drop is a no-op and no
+      // ring lights up — which reads correctly as "not over a cell",
+      // and is far better than silently landing a syllable somewhere
+      // the user never pointed.
+      return nearestCellToPointer(args, allowed);
     }
     return closestCenter({ ...args, droppableContainers: allowed });
   };
