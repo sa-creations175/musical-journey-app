@@ -10,7 +10,6 @@ import {
   MeasuringStrategy,
   type Modifier,
   PointerSensor,
-  pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -143,41 +142,81 @@ const POINTER_SNAP_PX = 48;
 /** Straight-line distance from a point to a rect; 0 when inside. */
 function pointerDistanceToRect(
   point: { x: number; y: number },
-  rect: { top: number; left: number; width: number; height: number },
+  rect: DOMRect,
 ): number {
-  const dx = Math.max(rect.left - point.x, 0, point.x - (rect.left + rect.width));
-  const dy = Math.max(rect.top - point.y, 0, point.y - (rect.top + rect.height));
+  const dx = Math.max(rect.left - point.x, 0, point.x - rect.right);
+  const dy = Math.max(rect.top - point.y, 0, point.y - rect.bottom);
   return Math.hypot(dx, dy);
 }
 
+type LyricCollisions = ReturnType<CollisionDetection>;
+type DroppableContainers = Parameters<CollisionDetection>[0]['droppableContainers'];
+
+function collisionFor(
+  container: DroppableContainers[number],
+  value: number,
+): LyricCollisions {
+  return [{ id: container.id, data: { droppableContainer: container, value } }];
+}
+
 /**
- * The droppable nearest THE POINTER, or nothing when the pointer is
- * further than `POINTER_SNAP_PX` from all of them.
+ * The beat cell literally under the cursor, by DOM hit-test.
  *
- * Deliberately unlike `closestCenter`, which measures from the dragged
- * element's rect and always returns a winner.
+ * Deliberately not dnd-kit's rect bookkeeping. Every measured-rect
+ * approach we tried audited clean at the collision layer and still
+ * drifted on screen once a drag ran long enough to scroll — the
+ * highlight lagging the cursor by roughly the scrolled distance. Rather
+ * than keep chasing which term in `activationCoordinates + translate`
+ * versus scroll-corrected rects goes stale, this asks the browser the
+ * question the user is actually asking: what is under my cursor?
+ *
+ * Immune by construction to scroll drift, stale measurement, ancestor
+ * transforms, and auto-scroll, because it reads the live layout at the
+ * live pointer every time.
+ *
+ * A cell belonging to ANOTHER section's grid resolves to no target
+ * rather than falling through: each section owns its own DndContext, so
+ * cross-section dragging isn't supported, and snapping back to this
+ * section's nearest cell would be a misplacement.
+ */
+function cellUnderPointer(
+  point: { x: number; y: number },
+  allowed: DroppableContainers,
+): LyricCollisions {
+  const stack = document.elementsFromPoint(point.x, point.y);
+  for (const element of stack) {
+    const cell = element instanceof Element ? element.closest('[data-beat-cell]') : null;
+    if (!cell) continue;
+    const id = cell.getAttribute('data-beat-cell');
+    const container = allowed.find(c => String(c.id) === id);
+    return container ? collisionFor(container, 0) : [];
+  }
+  return [];
+}
+
+/**
+ * Nearest cell when the cursor sits in a gutter between cells. Reads
+ * live rects off the nodes for the same reason `cellUnderPointer` does.
+ * Only runs when the hit-test found nothing, so the cost of measuring
+ * every candidate stays off the common path.
  */
 function nearestCellToPointer(
-  args: Parameters<CollisionDetection>[0],
-  allowed: Parameters<CollisionDetection>[0]['droppableContainers'],
-): ReturnType<CollisionDetection> {
-  const point = args.pointerCoordinates;
-  if (!point) return [];
-  let best: (typeof allowed)[number] | null = null;
+  point: { x: number; y: number },
+  allowed: DroppableContainers,
+): LyricCollisions {
+  let best: DroppableContainers[number] | null = null;
   let bestDistance = Infinity;
   for (const container of allowed) {
-    const rect = args.droppableRects.get(container.id);
-    if (!rect) continue;
-    const distance = pointerDistanceToRect(point, rect);
+    const node = container.node.current;
+    if (!node) continue;
+    const distance = pointerDistanceToRect(point, node.getBoundingClientRect());
     if (distance < bestDistance) {
       bestDistance = distance;
       best = container;
     }
   }
   if (!best || bestDistance > POINTER_SNAP_PX) return [];
-  return [
-    { id: best.id, data: { droppableContainer: best, value: bestDistance } },
-  ];
+  return collisionFor(best, bestDistance);
 }
 
 interface Props {
@@ -924,6 +963,23 @@ export default function LeadSheetSection({
     text: string;
   } | null>(null);
 
+  // Live cursor position, captured straight off the native event.
+  // dnd-kit derives its own pointer coordinates as
+  // `activationCoordinates + translate`, which is a bookkeeping chain
+  // that has to stay in sync with scroll; this is the ground truth.
+  const livePointerRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!activeLyricDrag) return;
+    const onMove = (e: PointerEvent) => {
+      livePointerRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener('pointermove', onMove, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('pointermove', onMove, { capture: true });
+      livePointerRef.current = null;
+    };
+  }, [activeLyricDrag]);
+
   // A cell that just refused a drop. Cleared on a timer so the shake
   // plays once; re-keyed per rejection so repeated refusals re-fire.
   const [rejectedCell, setRejectedCell] = useState<string | null>(null);
@@ -1039,36 +1095,27 @@ export default function LeadSheetSection({
       // the full-width pending strip, whose rect centre sits at the
       // middle of the whole grid, the target lands bars away from the
       // cursor. Both were measured in the browser before this change.
-      const byPointer = pointerWithin({ ...args, droppableContainers: allowed });
-
-
-      if (byPointer.length > 0) return byPointer;
 
       // A KeyboardSensor drag supplies no pointer at all, so
       // nearest-centre is the only thing available.
-      if (!args.pointerCoordinates) {
+      const point = livePointerRef.current ?? args.pointerCoordinates;
+      if (!point) {
         return closestCenter({ ...args, droppableContainers: allowed });
       }
 
-      // Pointer exists but sits outside every cell — a gutter, or off
-      // the grid entirely.
-      //
-      // Falling back to `closestCenter` here was the residual
-      // aim-is-way-off bug: closestCenter measures from the DRAGGED
-      // ELEMENT'S rect, so for the container-width tray strip it
-      // returned a cell an inch or more from the cursor, and it
-      // returned one unconditionally — however far away the pointer
-      // was. Instrumented capture confirmed it: pointerWithin MISSed
-      // with the measured rect provably equal to the live DOM rect, so
-      // the rects were fine and the fallback was simply answering a
-      // different question.
-      //
-      // Measure from the POINTER instead, and decline to answer when
-      // nothing is near it. No target means the drop is a no-op and no
-      // ring lights up — which reads correctly as "not over a cell",
-      // and is far better than silently landing a syllable somewhere
-      // the user never pointed.
-      return nearestCellToPointer(args, allowed);
+      // Ask the browser what is under the cursor. `pointerWithin` above
+      // is kept as the fast path, but the DOM hit-test is authoritative
+      // — it is what keeps the ring on the cursor through auto-scroll
+      // and mid-drag scrolling, where measured rects drift.
+      const underPointer = cellUnderPointer(point, allowed);
+      if (underPointer.length > 0) return underPointer;
+
+      // Cursor in a gutter between cells, or off the grid entirely.
+      // Nearest cell within POINTER_SNAP_PX, otherwise no target: the
+      // drop is a no-op and no ring lights, which reads correctly as
+      // "not over a cell" and beats landing a syllable somewhere the
+      // user never pointed.
+      return nearestCellToPointer(point, allowed);
     }
     return closestCenter({ ...args, droppableContainers: allowed });
   };
@@ -1562,8 +1609,8 @@ export default function LeadSheetSection({
                 <span
                   className={
                     activeLyricDrag.kind === 'syllable'
-                      ? 'inline-block text-[10px] leading-tight italic px-1 rounded bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 ring-2 ring-fluent shadow-md'
-                      : 'inline-block max-w-[14rem] truncate text-[11px] px-2 py-1 rounded border border-fluent bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 shadow-md'
+                      ? 'pointer-events-none inline-block text-[10px] leading-tight italic px-1 rounded bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 ring-2 ring-fluent shadow-md'
+                      : 'pointer-events-none inline-block max-w-[14rem] truncate text-[11px] px-2 py-1 rounded border border-fluent bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 shadow-md'
                   }
                 >
                   {activeLyricDrag.text}
