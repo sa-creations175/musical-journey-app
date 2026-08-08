@@ -980,6 +980,30 @@ export default function LeadSheetSection({
     };
   }, [activeLyricDrag]);
 
+  // Recompute the drop target while the page moves under a stationary
+  // cursor.
+  //
+  // dnd-kit computes collisions inline in DndContext's render body, so
+  // they refresh on any re-render — but during scroll (wheel, momentum,
+  // or dnd-kit's own auto-scroll near the viewport edge) no pointermove
+  // fires, nothing re-renders, and the hit-test never re-runs. The ring
+  // then stays pinned to the last computed cell and drifts away with
+  // the page, which also left it stuck on a stale target instead of
+  // clearing when the cursor moved off the grid.
+  //
+  // Capture phase because scroll events don't bubble: this catches the
+  // window AND any nested scroll container. The cursor's client
+  // position is unchanged by scrolling, so the last known pointer is
+  // still the right thing to hit-test with.
+  const [, setDragTick] = useState(0);
+  useEffect(() => {
+    if (!activeLyricDrag) return;
+    const onScroll = () => setDragTick(t => t + 1);
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+    return () =>
+      window.removeEventListener('scroll', onScroll, { capture: true });
+  }, [activeLyricDrag]);
+
   // A cell that just refused a drop. Cleared on a timer so the shake
   // plays once; re-keyed per rejection so repeated refusals re-fire.
   const [rejectedCell, setRejectedCell] = useState<string | null>(null);
