@@ -1834,7 +1834,7 @@ function SyllableDropSlot({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
+      className={`relative flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
     >
       {markers.filter(m => m.edge === 'start').map(m => (
         <SongLineMarker key={`s-${m.lineId}`} marker={m} />
@@ -1852,9 +1852,19 @@ function SyllableDropSlot({
         <SongLineMarker key={`e-${m.lineId}`} marker={m} />
       ))}
       {/* Insertion caret: a drop APPENDS to the stack, so the bar sits
-          under everything already in the cell. */}
+          under everything already in the cell.
+          Absolutely positioned ON PURPOSE. As a flow child it added its
+          own height plus a gap to the hovered cell — and because cells
+          stretch to the tallest in their row, the whole row grew the
+          instant a target lit up. With MeasuringStrategy.Always that
+          re-measures immediately, so hovering could shift the very
+          geometry the hover was computed from. Taking it out of flow
+          means highlighting can never move anything. */}
       {isOver && (
-        <span className="w-full h-0.5 rounded-full bg-fluent shrink-0" aria-hidden />
+        <span
+          className="pointer-events-none absolute inset-x-0.5 bottom-0.5 h-0.5 rounded-full bg-fluent"
+          aria-hidden
+        />
       )}
     </div>
   );

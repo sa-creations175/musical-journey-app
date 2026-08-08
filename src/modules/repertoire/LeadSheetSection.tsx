@@ -8,12 +8,14 @@ import {
   type DragStartEvent,
   KeyboardSensor,
   MeasuringStrategy,
+  type Modifier,
   PointerSensor,
   pointerWithin,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { getEventCoordinates } from '@dnd-kit/utilities';
 import type {
   Arrangement,
   ChordFunction,
@@ -96,6 +98,41 @@ import {
   setWordText,
   splitWord,
 } from './lyricLine';
+/**
+ * Ride the pointer.
+ *
+ * dnd-kit positions a DragOverlay at the ACTIVATOR ELEMENT'S rect plus
+ * the drag delta — not under the cursor. Grab a chip near its edge, or
+ * the container-width tray strip anywhere at all, and the pill floats
+ * that same offset away from the pointer for the whole drag, while the
+ * ring follows the (correct) collision math. Three things moving
+ * independently is the "inch off" feel that survived every fix to the
+ * targeting layer, because targeting was never the problem.
+ *
+ * Applied to the DragOverlay only, never to DndContext: the context's
+ * modifiers feed `modifiedTranslate` → `collisionRect`, and collision
+ * is pointer-based and correct now. This moves pixels, not decisions.
+ *
+ * Same math as @dnd-kit/modifiers' snapCenterToCursor, inlined rather
+ * than pulling in a package for one function.
+ */
+const snapCenterToCursor: Modifier = ({
+  activatorEvent,
+  draggingNodeRect,
+  transform,
+}) => {
+  if (!draggingNodeRect || !activatorEvent) return transform;
+  const activator = getEventCoordinates(activatorEvent);
+  if (!activator) return transform;
+  const offsetX = activator.x - draggingNodeRect.left;
+  const offsetY = activator.y - draggingNodeRect.top;
+  return {
+    ...transform,
+    x: transform.x + offsetX - draggingNodeRect.width / 2,
+    y: transform.y + offsetY - draggingNodeRect.height / 2,
+  };
+};
+
 /**
  * How far outside a cell the pointer may sit and still count as aiming
  * at it. Covers the 2px inter-cell gaps and the 8px row gutters with
@@ -1003,6 +1040,8 @@ export default function LeadSheetSection({
       // middle of the whole grid, the target lands bars away from the
       // cursor. Both were measured in the browser before this change.
       const byPointer = pointerWithin({ ...args, droppableContainers: allowed });
+
+
       if (byPointer.length > 0) return byPointer;
 
       // A KeyboardSensor drag supplies no pointer at all, so
@@ -1518,7 +1557,7 @@ export default function LeadSheetSection({
                 across the page is both ugly and misleading about what
                 it will hit; and pulling a chip out of a stacked cell
                 reflows the row it came from mid-drag. */}
-            <DragOverlay dropAnimation={null}>
+            <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
               {activeLyricDrag ? (
                 <span
                   className={
