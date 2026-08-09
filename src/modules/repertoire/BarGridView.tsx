@@ -1859,10 +1859,19 @@ function SyllableDropSlot({
   // While a syllable is armed EVERY cell offers itself. Legality is not
   // computed here — checkPlacementOrder decides on tap, and pre-filtering
   // would duplicate that rule in a second place.
+  //
+  // GREY, not fluent. Green is the 1maj chord family, so a green hint
+  // field made the cells look like they carried harmonic meaning —
+  // worst directly under a green 1maj chord. Hint is transient
+  // interaction state and must not speak the chord palette's language;
+  // grey is the only hue with no musical meaning. Kept as a translucent
+  // tint rather than a solid `bg-neutral-N` so it cannot be confused
+  // with the disabled (`neutral-300`) or stale-tier (`neutral-400`)
+  // greys, and so a chip sitting in the cell keeps its own edge.
   const surface = rejected
     ? 'border-solid border-needswork bg-needswork/20 ring-2 ring-needswork'
     : armingActive && !dragActive
-      ? 'border-solid border-fluent/50 bg-fluent/10 cursor-pointer hover:bg-fluent/25 hover:border-fluent'
+      ? 'border-solid border-neutral-400 dark:border-neutral-500 bg-neutral-500/10 dark:bg-neutral-400/10 cursor-pointer hover:bg-neutral-500/20 hover:border-neutral-500 dark:hover:border-neutral-400'
     : isOver
     ? 'border-solid border-fluent bg-fluent/25 ring-2 ring-fluent'
     : dragActive
@@ -2001,6 +2010,24 @@ function SyllableChip({
   // stays in place and its cell doesn't reflow mid-drag.
   const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
 
+  // ONE branch, not additive classes. `text-neutral-400` and
+  // `text-neutral-900` have identical specificity, so which wins depends
+  // on Tailwind's output order rather than on the order they appear in
+  // this string — appending an armed override on top of the ghost styles
+  // would be relying on that. Picking a single appearance avoids the
+  // question entirely, and matters here because a GHOST can be armed.
+  //
+  // Inverted fill for armed: dark chip / light text in light mode, and
+  // the reverse in dark. Reuses the "active" idiom CarryoverBanner
+  // already uses (`bg-neutral-600 text-white`) and stays clear of the
+  // greys that carry meaning — neutral-300 is disabled, neutral-400 is
+  // the stale tier, neutral-200 is this chip's own hover.
+  const appearance = armed
+    ? 'bg-neutral-600 text-white dark:bg-neutral-300 dark:text-neutral-900 ring-2 ring-neutral-700 dark:ring-neutral-100 opacity-100'
+    : placed
+      ? 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800'
+      : 'text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-900/40 opacity-70';
+
   // Long-press is a SHORTCUT to the same menu the "…" control opens —
   // one implementation, two entry points.
   //
@@ -2057,16 +2084,12 @@ function SyllableChip({
             }
           : undefined
       }
-      className={`relative select-none touch-none text-[10px] leading-tight italic px-1 rounded truncate max-w-[7rem] ${
-        placed
-          ? 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800'
-          : 'text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-900/40 opacity-70'
-      } ${
-        armed ? 'ring-2 ring-fluent bg-fluent/15 opacity-100' : ''
-      } ${
-        onTap
+      className={`relative select-none touch-none text-[10px] leading-tight italic px-1 rounded truncate max-w-[7rem] ${appearance} ${
+        onTap && !armed
           ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700'
-          : 'cursor-grab active:cursor-grabbing'
+          : onTap
+            ? 'cursor-pointer'
+            : 'cursor-grab active:cursor-grabbing'
       }`}
       title={placed ? text : `${text} — not placed yet`}
     >
@@ -2083,7 +2106,10 @@ function SyllableChip({
             onOpenMenu(syllableId);
           }}
           aria-label={`open actions for "${text}"`}
-          className="ml-0.5 px-0.5 rounded text-fluent hover:bg-fluent/20 leading-none"
+          // Inherits the chip's text colour, so it is white on the dark
+          // armed fill and near-black on the inverted dark-mode fill.
+          // The hover wash flips with it for the same reason.
+          className="ml-0.5 px-0.5 rounded leading-none hover:bg-white/25 dark:hover:bg-black/15"
         >
           …
         </button>
