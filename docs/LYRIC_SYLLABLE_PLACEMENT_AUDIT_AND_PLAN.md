@@ -1,6 +1,6 @@
 # Lead Sheet — Lyric/Syllable Layer: Audit + Redesign Plan
 
-Status: **Track 2 CLOSED. Track 1 steps 0-5, 6a and 6b shipped; 7, 8, 9, 10 outstanding.
+Status: **Track 2 CLOSED. Track 1 steps 0-5, 6a and 6b shipped; 7, 8, 10 outstanding. Step 9 DROPPED.
 The drag-ring displacement bug is PARKED — see the section at the end.**
 Scope: the per-bar beat grid's lyric row, the lyric drawer, chord-cell coloring, plus a read-only song-key recon.
 
@@ -9,6 +9,12 @@ Revision history:
 - **rev 2 (2026-08-03)** — **Place = pin** (A2) replaces the separate pinned flag; **marker = places one
   unit** (A1) replaces rigid whole-line translate; **tap-to-place** (A3) replaces send-to-beat; cross-section
   placement allowed (§2.0).
+- **rev 5 (2026-08-09)** — **SYLLABLES NEVER CROSS; THEY ONLY STACK IN ORDER.** One ordering concept
+  replaces the same-line-allowed / cross-line-refused split rev 4 shipped. Any cell may hold any number of
+  syllables from any number of lines, always rendering in song order; placement into an occupied cell
+  auto-orders and is never refused; a placement is refused only when it would cross a syllable in a
+  **different** cell. **Supersedes rev 4's strict cross-line comparison** and §C/E's "render sorts by
+  `order`". `anchor.order` is deleted. **Step 9 (A4 tap-to-number) is dropped.** See §2.0.
 - **rev 4 (2026-08-09)** — **LINE ORDER IS POSITIONAL.** Lyric lines run strictly sequential: line N's
   syllables must land after line N-1's and before line N+1's. This **supersedes rev 3's "line identity
   becomes pure text grouping with no positional meaning"** (§2.0) and rev 1's "cross-line stacking is
@@ -282,17 +288,57 @@ are handled by **editing the lines themselves**, not by unconstrained placement.
 - **Within a section and across sections.** `beatAxis` is already one ascending line across every section in
   song order, and `checkPlacementOrder` already resolves anchors to global positions, so the cross-line rule
   extends that guard rather than adding a parallel one.
-- **Stricter than the within-line rule, on purpose.** Landing *exactly on* a neighbouring line's syllable is
-  refused, where landing exactly on a same-line sibling is legal. **Consequence: a cell may stack syllables
-  from ONE line only.** This is what supersedes §6's "cross-line and cross-section stacking is explicitly
-  wanted" — cross-*section* stacking is still wanted and unaffected; cross-*line* stacking in a single cell
-  is now illegal.
+- ~~**Stricter than the within-line rule, on purpose.** Landing *exactly on* a neighbouring line's syllable
+  is refused… a cell may stack syllables from ONE line only.~~ — **SUPERSEDED by rev 5, below.** It was
+  refused for one browser-verification round and then reversed: musically the last word of one phrase and
+  the first word of the next routinely land on the same beat.
 - **`checkPlacementOrder` stays the single authority.** No legality logic is duplicated, and hinted cells are
   never pre-filtered — every cell offers itself and refusal happens on tap. Because `placeSyllable`
   re-checks the guard when handed an axis, **drag inherits the cross-line rule with no separate code path.**
 - **Escape hatch is un-placing or moving the blocking syllable.** There is no override or force-place
   affordance. Note that songs placed before rev 4 may already contain cross-line inversions — the guard
   prevents new ones, it does not retroactively repair data.
+
+### SYLLABLES NEVER CROSS; THEY ONLY STACK IN ORDER (rev 5 — the unified rule)
+
+Rev 4 shipped two ordering rules that differed only in strictness: same-line syllables could share a cell,
+cross-line ones could not. Browser verification killed both halves of that split in one session. **One rule
+replaces it:**
+
+> **Syllables never cross each other. They only ever stack in order.**
+
+- **Any cell may hold any number of syllables**, from any number of lines. Line boundaries do not matter for
+  stacking: a line's last syllable and the next line's first may share a cell.
+- **A cell's stack always renders in song order** — `(lineIndex, textIndex)`, the same text order the guard
+  reasons about. Placed and ghost syllables interleave freely; neither kind sorts above the other.
+- **Placement into an occupied cell AUTO-ORDERS.** The syllable takes its correct position in the stack. It
+  is never refused on within-cell grounds, and the user does not choose where in the stack it lands — the
+  line does.
+- **A placement is refused ONLY when it would cross a syllable in a DIFFERENT cell.**
+
+**Why the two rules collapse into one.** Equality on the global beat axis *is* "the same cell" — a global
+beat uniquely identifies one cell. So "refuse only across cells" is implemented entirely by making both
+cross-line comparisons strict, exactly matching the within-line ones. `checkPlacementOrder` stays the single
+authority; no within-cell rule was added, because within-cell order is not a legality question at all.
+
+**Two bugs this fixed, both of which were pinned as intended behaviour in tests:**
+
+1. **`anchor.order` recorded WHEN, not WHERE.** It was an insertion counter (`max in cell + 1`), and the
+   render comparator ranked it above song order. Placing "O" into the cell already holding "come," rendered
+   it *below* the word it precedes. This is the bug that prompted rev 5.
+2. **Placed sorted above ghosts.** `provisionalPlacements` skips only *negative* spans, so two pins in one
+   cell emit their in-between ghosts into that same cell — and a line's **last** syllable then rendered
+   above its own ghosts (`['A','Z','g1','g2']` instead of `['A','g1','g2','Z']`). Found while auditing rev
+   5 and fixed by the same comparator deletion. Recorded here so it is clear this was fixed deliberately,
+   not incidentally.
+
+**`anchor.order` is deleted** (rev 5). A stored ordering that nothing reads is a trap: it looks
+authoritative, and the next person to touch stacking wires it back in. With it go `setCellOrder` and
+`normalizeCellOrders`, both of which existed only to maintain it. Ordering leaves the write path entirely
+and lives in the read model, which is also why **drag needs no separate handling** — drag and tap both
+write an anchor and nothing else, so neither can produce a stack the other wouldn't.
+
+**Step 9 (A4 tap-to-number) is dropped**, not deferred. See §A4.
 
 Rejected (Option 2): keep syllables section-local and *move the data* to the target section on a cross-section
 place. Cheaper, but it contradicts "only syllable anchors matter", creates cross-record writes, and makes
@@ -527,23 +573,38 @@ collisions are real and are handled explicitly rather than by luck:
     threshold would fire BOTH. The long-press callback no-ops while dragging, rather than tightening the
     hook's tolerance to 4px — which would fight the 3-5px finger drift the hook's own comment measures.
 
-## A4 — In-cell reorder by tap-to-number
+## A4 — In-cell reorder by tap-to-number — ❌ DROPPED (rev 5)
 
-Drag-based intra-cell reordering is **permanently deferred**. Instead: tap a multi-syllable cell → its chips
-show order badges (1, 2, 3…) → tap syllables in the order you want → done. Writes `anchor.order`, compacted.
-Lowest priority, sequenced last.
+> ~~Tap a multi-syllable cell → its chips show order badges (1, 2, 3…) → tap syllables in the order you want
+> → done. Writes `anchor.order`, compacted.~~
+
+**Dropped from the sequence entirely, not deferred.** A4 let the user choose a cell's stack order. Rev 5's
+rule says the *line* decides: a cell reads in song order, always. The two are direct contradictions, and
+with `anchor.order` deleted there is no field for A4 to write and nothing left for the feature to do.
+
+Recorded so it isn't resurrected: if in-cell order ever appears wrong, the fix is in the **text** — split,
+join, or reorder the line — never a per-cell override. Re-adding a manual stack order would reintroduce
+exactly the WHEN-not-WHERE drift rev 5 removed.
+
+Drag-based intra-cell reordering remains permanently deferred, as it was.
 
 ## C / E — No-ripple + stable order (unchanged intent, new mechanism)
 
 New pure module `lyricSyllables.ts`:
 
-- `placeSyllable(syllables, syllableId, anchor)` — writes that one syllable's anchor. `order = max(order in
-  target cell) + 1` → appends, displaces nothing. No other syllable object is touched.
-- `unplaceSyllable`, `setOrderWithinCell`, `normalizeCellOrders` (compact to `0..n-1`), `remapAnchorBars`.
+- `placeSyllable(syllables, syllableId, anchor)` — writes that one syllable's anchor, and nothing else.
+  **No-ripple is now literally true** (rev 5): it used to also call `normalizeCellOrders`, which rewrote
+  *other* syllables' `order` in the cell being vacated, so "no other syllable object is touched" was very
+  nearly but not quite the case. With `anchor.order` deleted, exactly one syllable object changes.
+- `unplaceSyllable`, `remapAnchorBars`. ~~`setOrderWithinCell` / `setCellOrder`, `normalizeCellOrders`~~ —
+  **deleted in rev 5** along with the field they maintained.
 - `splitSyllable(line, id, splitAt)` — **piece 1 inherits the anchor; pieces 2+ get no anchor** (A1). This
   removes the split-rebasing ripple entirely rather than compensating for it.
 - `joinSyllables` — merged unit keeps the *first* piece's anchor.
-- Render sorts by `order`, tie-broken by `id`, replacing the current push-order accident.
+- ~~Render sorts by `order`, tie-broken by `id`.~~ **Both halves superseded.** The `id` tie-break went first
+  (a `randomUUID` stacked ghosts arbitrarily); `order` went in rev 5. **Render sorts by song order —
+  `(lineIndex, textIndex)` — and by nothing else.** That is the whole of "stable order": it derives from
+  the text, so it is identical on every device without anything being stored or synced to keep it so.
 
 Paste already satisfies no-ripple (§5) and stays append-only; the plan adds a regression test asserting it.
 
@@ -687,7 +748,8 @@ leading 1–7 digit (`chordGlyph.tsx:47-51`) — those must keep the current gre
   "what degree is this chord") and `voicingColors.INTERVAL_COLOR` (semitone-indexed, "what interval is this
   tone") independently encode the same enharmonic principle. Cross-referenced in comments as of T2.3;
   unification would touch the lead sheet, PianoKeyboard, mental-viz, and the progression quiz.
-- Intra-cell drag reordering (permanently deferred in favour of A4's tap-to-number).
+- Intra-cell drag reordering — permanently deferred, and as of rev 5 there is nothing to defer *to*: A4 was
+  dropped and a cell's stack order is derived from song order, not set by the user.
 - Normalizing `Song.key` to a canonical name at write time (see Part 3, items 2-3).
 - **Toast health investigation, then toast-with-Undo on the shared placement path.** Success toasts have
   never been reliably observed firing — possibly broken, mispositioned, or hidden behind the nav bar. Until
@@ -822,7 +884,7 @@ Zero coupling to the lyric refactor, and both need your eyes in-browser, which i
 | **6b** | **A3** cross-section placement. ✅ SHIPPED. Armed state lifted to `SongDetailView` above the per-section `DndContext`s; **cross-line monotonic guard** folded in, making lyric lines strictly sequential (§2.0 rev 4). The anchor index was already song-level from step 2, so only arming needed lifting. | syllables span sections |
 | **7** | **B1 lyric drawer — needs its own sign-off on §B1 first.** 7a: drawer shell + staging paste with live parse preview + header dividers + header toggle. 7b: delete the per-section paste box and the pending tray. 7c: placed/partial/unplaced row status. | one drawer, one store |
 | **8** | Paste + bar-op safety: regression tests that commit-paste, reorder, add/delete-bar never move a placed syllable; bar-delete guard for placed syllables | |
-| **9** | **A4** tap-to-number in-cell reorder | |
+| ~~**9**~~ | ~~**A4** tap-to-number in-cell reorder~~ — **DROPPED (rev 5).** Stack order is decided by song order, so there is nothing for the user to set. See §A4. | — |
 | **10** | **Cross-section drag — free-reign drag anywhere.** Unify dragging across sections, either by hoisting to a single song-level drag context or by a handoff bridge between per-section contexts. **Sequenced after 6b and 7 by decision**, not by dependency: tap-to-place covers cross-section placement first, so drag unification builds on a stable placement model rather than inventing one. | drag a syllable into any section |
 
 ### Cross-section drag (step 10) — interim behaviour

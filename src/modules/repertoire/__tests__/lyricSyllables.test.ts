@@ -339,15 +339,16 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
     expect(place(sandwiched(), 'b', 9)).toBe('after-next-line');
   });
 
-  it('rejects landing exactly ON a neighbouring line — cross-line stacking is illegal', () => {
-    // Deliberately stricter than the within-line rule. A cell may stack
-    // syllables from one line only; overlap is expressed by editing the
-    // lines, not by interleaving two lines' placements.
-    expect(place(sandwiched(), 'b', 4)).toBe('before-previous-line');
-    expect(place(sandwiched(), 'b', 8)).toBe('after-next-line');
+  it('ALLOWS landing exactly on a neighbouring line — same cell auto-orders', () => {
+    // Superseded 6b, which refused this. Musically the last word of one
+    // phrase and the first word of the next routinely share a beat.
+    // Same-cell placement is never an ordering question: the stack
+    // reads in song order, decided at render by buildCellIndex.
+    expect(place(sandwiched(), 'b', 4)).toBeNull();
+    expect(place(sandwiched(), 'b', 8)).toBeNull();
   });
 
-  it('allows landing strictly between the neighbouring lines', () => {
+  it('allows landing anywhere between the neighbouring lines, boundaries included', () => {
     expect(place(sandwiched(), 'b', 6)).toBeNull();
     expect(place(sandwiched(), 'b', 4, 1)).toBeNull();
     expect(place(sandwiched(), 'b', 7, 3)).toBeNull();
@@ -420,7 +421,8 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
       line('l2', [{ id: 'b', text: 'b', at: [4, 0, 0] }]),
     ];
     expect(place(lines, 'a', 6)).toBe('after-next-line');
-    expect(place(lines, 'a', 4)).toBe('after-next-line');
+    // Landing ON l2's syllable is the same cell, so it stacks.
+    expect(place(lines, 'a', 4)).toBeNull();
     expect(place(lines, 'a', 2)).toBeNull();
   });
 
@@ -836,7 +838,9 @@ describe('provisionalPlacements', () => {
 // --- read model -------------------------------------------------------
 
 describe('buildCellIndex', () => {
-  it('groups by cell, placed first by order then ghosts', () => {
+  it('interleaves placed and ghost occupants in song order', () => {
+    // Used to sort placed above ghosts, giving ['x', 'g1'] — l2's
+    // syllable above a ghost belonging to the line BEFORE it.
     const lines = [
       line('l1', [
         { id: 'p0', text: 'A', at: [0, 0, 0] },
@@ -847,18 +851,57 @@ describe('buildCellIndex', () => {
     ];
     const index = buildCellIndex(lines, axis4);
     const cell = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }))!;
-    expect(cell.map(o => o.syllable.id)).toEqual(['x', 'g1']);
-    expect(cell.map(o => o.placed)).toEqual([true, false]);
+    expect(cell.map(o => o.syllable.id)).toEqual(['g1', 'x']);
+    expect(cell.map(o => o.placed)).toEqual([false, true]);
   });
 
-  it('stacks syllables from different lines in one cell, ordered', () => {
+  it('stacks syllables from different lines in song order, not placement order', () => {
+    // THE BUG, pinned. This used to assert ['b', 'a']: 'a' belongs to
+    // the earlier line but carried a higher `anchor.order` because it
+    // was placed second, and the old comparator ranked that counter
+    // above song order. Placement history no longer reaches the stack.
     const lines = [
       line('l1', [{ id: 'a', text: 'A', at: [0, 0, 1] }]),
       line('l2', [{ id: 'b', text: 'B', at: [0, 0, 0] }]),
     ];
     const index = buildCellIndex(lines, axis4);
     const cell = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 0 }))!;
-    expect(cell.map(o => o.syllable.id)).toEqual(['b', 'a']);
+    expect(cell.map(o => o.syllable.id)).toEqual(['a', 'b']);
+  });
+
+  it('a syllable placed into an occupied cell takes its song-order position', () => {
+    // The 6b browser bug, end to end. "come," was placed first, then
+    // "O" dropped into the same cell; the insertion counter put "O"
+    // below the word it precedes. Placement is now anchor-only, so the
+    // stack reads from the text.
+    const l = line('l1', [
+      { id: 'o', text: 'O' },
+      { id: 'come', text: 'come,' },
+      { id: 'let', text: 'let' },
+    ]);
+    const cell = { sectionId: SEC, barIndex: 0, beatPos: 1 };
+    let lines = placeSyllable([l], 'come', cell, axis4);
+    lines = placeSyllable(lines, 'o', cell, axis4);
+    const stack = buildCellIndex(lines, axis4).get(cellKey(cell))!;
+    expect(stack.map(o => o.syllable.text)).toEqual(['O', 'come,']);
+  });
+
+  it('interleaves ghosts with their own pins when the span is zero-length', () => {
+    // provisionalPlacements only skips NEGATIVE spans, so two pins in
+    // one cell emit their in-between ghosts into that same cell. Under
+    // the old placed-above-ghosts tier the line's last syllable rendered
+    // above ghosts that precede it: ['A', 'Z', 'g1', 'g2'].
+    const l = line('l1', [
+      { id: 'a', text: 'A', at: [0, 1, 0] },
+      { id: 'g1', text: 'g1' },
+      { id: 'g2', text: 'g2' },
+      { id: 'z', text: 'Z', at: [0, 1, 0] },
+    ]);
+    const stack = buildCellIndex([l], axis4).get(
+      cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }),
+    )!;
+    expect(stack.map(o => o.syllable.text)).toEqual(['A', 'g1', 'g2', 'Z']);
+    expect(stack.map(o => o.placed)).toEqual([true, false, false, true]);
   });
 
   it('stacks ghosts sharing a cell in TEXT order', () => {
@@ -882,10 +925,15 @@ describe('buildCellIndex', () => {
     }
   });
 
-  it('orders a mixed placed+ghost cell by text order within each group', () => {
+  it('orders a mixed placed+ghost cell by song order across both kinds', () => {
     // Pins one beat apart with four syllables between them: the spread
     // rounds g1/g2 onto the first pin's beat and g3/g4 onto the second,
     // so each cell holds a placed syllable plus two ghosts.
+    //
+    // The second cell used to assert ['Z', 'g3', 'g4'] — the line's
+    // LAST syllable rendering above two ghosts that precede it in the
+    // lyrics, because placed sorted above ghosts. Song order puts Z
+    // where it reads.
     const lines = [
       line('l1', [
         { id: 'a', text: 'A', at: [0, 0, 0] },
@@ -900,10 +948,11 @@ describe('buildCellIndex', () => {
     const first = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 0 }))!;
     const second = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }))!;
     expect(first.map(o => o.syllable.text)).toEqual(['A', 'g1', 'g2']);
-    expect(second.map(o => o.syllable.text)).toEqual(['Z', 'g3', 'g4']);
-    // Placed sorts above ghosts in both.
-    expect(first[0].placed).toBe(true);
-    expect(second[0].placed).toBe(true);
+    expect(second.map(o => o.syllable.text)).toEqual(['g3', 'g4', 'Z']);
+    // Ghost/placed is still reported per occupant — it just no longer
+    // drives the sort.
+    expect(first.map(o => o.placed)).toEqual([true, false, false]);
+    expect(second.map(o => o.placed)).toEqual([false, false, true]);
   });
 
   it('is stable across runs — no dependence on generated ids', () => {

@@ -194,39 +194,50 @@ function placedGlobalRange(
 }
 
 /**
- * MONOTONIC ANCHORS, within a line AND across lines.
+ * MONOTONIC ANCHORS. **Syllables never cross each other; they only ever
+ * stack in order.**
  *
  * Returns the violation, or null when the placement is legal. This
  * function is the SINGLE authority on placement legality — drag, tap,
  * marker drags and tray drops all route through it, and nothing
  * pre-filters cells on its behalf.
  *
- * **Within a line** (step 5): placed syllables run in text order along
- * the global beat axis — syllable *i* can never sit strictly before an
- * earlier placed syllable or strictly after a later one. Equality is
- * legal here: two syllables of one line may share a cell, and landing
- * exactly on a neighbour's beat is fine. Only CROSSING is forbidden.
+ * One rule covers within-a-line and across-lines alike: a placement is
+ * refused **only when it would put a syllable out of order relative to
+ * a syllable in a DIFFERENT cell.** Same-cell placement is never an
+ * ordering question, because a cell has no internal geometry to be out
+ * of order in — where a syllable sits in a stack is decided at render
+ * by song order (`buildCellIndex`), never by the user and never by
+ * when it was placed.
  *
- * Without it, first-unit-only tray drops could invert a line — head at
- * bar 15 while the tail sits at bar 14 — and the ghost spread would
- * interpolate across a negative span, scattering the middle syllables
- * backwards. `provisionalPlacements` additionally refuses to walk
- * backwards, so the two defences are independent.
+ * Equality on the global axis IS "the same cell" — a global beat
+ * uniquely identifies one cell — so the comparisons below are strict
+ * in both directions. That is the whole implementation of "auto-order
+ * on stack, refuse only across cells".
+ *
+ * **Within a line** (step 5): placed syllables run in text order along
+ * the global axis. Without this, first-unit-only tray drops could
+ * invert a line — head at bar 15 while the tail sits at bar 14 — and
+ * the ghost spread would interpolate across a negative span,
+ * scattering the middle syllables backwards. `provisionalPlacements`
+ * additionally refuses to walk backwards, so the two defences are
+ * independent.
  *
  * **Across lines** (step 6b): lyric lines run strictly sequential.
- * Line N's syllables must land after every syllable of line N-1 and
- * before every syllable of line N+1, where line order is the order of
- * the song's `lyricLines` — which the fold migration built in section
- * order. This supersedes the earlier decision that line identity was
- * "pure text grouping with no positional meaning"; see
+ * Line N's syllables land after line N-1's and before line N+1's,
+ * where line order is the order of the song's `lyricLines` — which the
+ * fold migration built in section order. This superseded the earlier
+ * decision that line identity was "pure text grouping with no
+ * positional meaning"; see
  * docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §2.0.
  *
- * Cross-line comparison is STRICT where the within-line one is not:
- * landing *on* a neighbouring line's syllable is refused, not just
- * crossing it. Consequence, and intended — a cell may stack syllables
- * from ONE line only. Overlap (call-and-response, a held word running
- * under the next phrase) is expressed by editing the lines, not by
- * interleaving two lines' placements.
+ * 6b shipped this cross-line check as STRICTLY stricter than the
+ * within-line one — refusing a landing *on* a neighbouring line's
+ * syllable, so a cell could stack one line's syllables only. That is
+ * **superseded**: musically the last word of one phrase and the first
+ * word of the next routinely land on the same beat, and the two cases
+ * are now identical. A cell may hold any number of syllables from any
+ * number of lines; they read in song order.
  *
  * The nearest line with anything placed is the only binding one in
  * each direction, mirroring the within-line rule; lines with nothing
@@ -267,13 +278,16 @@ export function checkPlacementOrder(
   for (let li = found.lineIndex - 1; li >= 0; li--) {
     const range = placedGlobalRange(lines[li], axis);
     if (!range) continue;
-    if (targetGlobal <= range.max) return 'before-previous-line';
+    // Strict, like the within-line comparison above: landing ON the
+    // previous line's last syllable is the same cell, which auto-orders
+    // rather than refusing.
+    if (targetGlobal < range.max) return 'before-previous-line';
     break; // nearest preceding line with anything placed binds
   }
   for (let li = found.lineIndex + 1; li < lines.length; li++) {
     const range = placedGlobalRange(lines[li], axis);
     if (!range) continue;
-    if (targetGlobal >= range.min) return 'after-next-line';
+    if (targetGlobal > range.min) return 'after-next-line';
     break;
   }
   return null;
@@ -747,9 +761,15 @@ export { cellKey };
  * song, above the sections, because a line's syllables may point at any
  * of them (§2.0).
  *
- * Within a cell: placed syllables first, ascending by `order`; ghosts
- * after, in line-then-syllable order. Ties on `order` break by syllable
- * id so two devices render the same stack.
+ * **Within a cell, occupants read in SONG ORDER — `(lineIndex,
+ * textIndex)` — and nothing else.** Placed and ghost interleave freely,
+ * and line boundaries do not matter: a line's last syllable and the
+ * next line's first may share a cell and read in that order.
+ *
+ * This is the only place a stack's order is decided. Placement writes
+ * an anchor and nothing more, so drag and tap cannot produce different
+ * stacks, and there is no stored ordering to drift out of sync with the
+ * text.
  */
 export function buildCellIndex(
   lines: ReadonlyArray<SongLyricLine>,
@@ -798,20 +818,22 @@ export function buildCellIndex(
 
   for (const list of index.values()) {
     list.sort((a, b) => {
-      // Placed above ghosts, then TEXT ORDER within each group.
+      // SONG ORDER, and only song order.
       //
-      // This used to tie-break on syllable id, which is a randomUUID —
-      // so two ghosts sharing a cell stacked in arbitrary order, and a
-      // cell reading "let / come," instead of "come, / let" was pure
-      // chance. (lineIndex, textIndex) is both meaningful and stable
-      // across devices, since it derives from stored order rather than
-      // from generated ids.
-      if (a.placed !== b.placed) return a.placed ? -1 : 1;
-      if (a.placed && b.placed) {
-        const ao = a.syllable.anchor?.order ?? 0;
-        const bo = b.syllable.anchor?.order ?? 0;
-        if (ao !== bo) return ao - bo;
-      }
+      // Two earlier tiers were removed here, both of which could put a
+      // stack out of the order the lyrics read in:
+      //
+      // 1. Ascending `anchor.order`, which was an insertion counter
+      //    (`max in cell + 1`). It recorded WHEN a syllable was placed,
+      //    not WHERE it belongs — so dropping "O" into the cell already
+      //    holding "come," rendered it BELOW "come,".
+      // 2. Placed above ghosts. `provisionalPlacements` emits ghosts
+      //    into their pins' own cell when a span is zero-length, so a
+      //    line's LAST syllable could render above its own ghosts.
+      //
+      // (lineIndex, textIndex) is meaningful and stable across devices,
+      // since it derives from the text rather than from generated ids
+      // or from local edit history.
       if (a.lineIndex !== b.lineIndex) return a.lineIndex - b.lineIndex;
       return a.textIndex - b.textIndex;
     });
