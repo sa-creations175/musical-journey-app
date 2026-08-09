@@ -52,7 +52,7 @@ import {
   findSyllable,
   foldSectionLyrics,
 } from './lyricSyllables';
-import { armingReducer } from './syllableArming';
+import { armedSyllableId as selectArmedSyllableId, armingReducer } from './syllableArming';
 import {
   loadLyricTrayCollapsed,
   loadPatternsCollapsed,
@@ -595,7 +595,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // because a beat-cell tap always fires on the section that owns the
   // cell. See docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §A3.
   const [arming, dispatchArming] = useReducer(armingReducer, null);
-  const armedSyllableId = arming?.armedSyllableId ?? null;
+  const armedSyllableId = selectArmedSyllableId(arming);
 
   // Drop arming if the armed syllable stops existing (split, join,
   // un-place, undo).
@@ -606,7 +606,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     }
   }, [songLyricLines, armedSyllableId]);
 
-  // A tap that lands outside every arming surface disarms. Surfaces
+  // A tap that lands outside every arming surface dismisses. Surfaces
   // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
   // cells, and the edit popover. One listener now covers the whole
   // song, where before each section installed its own over the same
@@ -618,7 +618,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
         return;
       }
-      dispatchArming({ type: 'tap-outside' });
+      dispatchArming({ type: 'dismiss' });
     };
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
