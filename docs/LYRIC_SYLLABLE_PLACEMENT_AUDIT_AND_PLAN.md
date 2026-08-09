@@ -747,3 +747,128 @@ the new store until the drawer replaces it. `LyricStagingArea` is deleted in **7
 | Cross-section drag is in scope, sequenced after 6b + 7 (step 10) | ✅ decided 2026-08-08 |
 | **§B1 drawer interaction spec** | ⏳ **still needed, before step 7** |
 | **Track 1 revised sequence above** | ⏳ **presented for sign-off before step 0** |
+
+---
+
+# PARKED: drag-ring displacement
+
+**Status: PARKED as of 2026-08-08. Do not reopen without an explicit request.**
+
+Six commits shipped against this and it is not closed. Everything below is written so
+the investigation can resume cold, without re-deriving what has already been excluded.
+Tap-to-place (6a) is deliberately independent of it: it places syllables without any
+drag targeting at all, so the track is not blocked by this.
+
+## 1. Symptom
+
+During a lyric drag, after cycles of scrolling the app's **inner** scroll container, the
+drop-target ring strands **bars away** from the cursor.
+
+Precise characteristics, all observed live:
+
+- **`window.scrollY` stays 0 throughout.** The app scrolls an inner container, not the
+  window — proved by a capture where `scrollY: 0` while the section's `getBoundingClientRect().top`
+  moved through −399 → −401. Any diagnosis or fix keyed on `window.scrollY`, or on
+  window scroll events, is reasoning about the wrong thing.
+- **Direction-variable.** One frame stranded the ring several bars *above* the cursor;
+  another, after further cycles, several bars *below*.
+- **Accumulates** over repeated down/up scroll cycles rather than tracking net scroll
+  offset. Amount grows with scroll *travel*.
+- **Cursor and dragged pill are correct** and stay locked together — `snapCenterToCursor`
+  works. Only the ring separates.
+- Dragging **down** was repeatedly reported as accurate; dragging **up** reproduced the
+  displacement. That asymmetry was never explained.
+
+## 2. What shipped, and what each fix ruled out
+
+| Commit | Change | Outcome |
+|---|---|---|
+| `fdeb43c` | **Pointer-nearest fallback.** `closestCenter` measures from the *dragged element's* rect; for the container-width tray strip that centre sits mid-grid, and it always returns a winner however far away. Replaced with nearest-to-pointer within 48px, else no target. | **Fixed tray drags.** Ruled out: stale measurement (measured rect was provably identical to the live DOM rect), `DragOverlay` involvement, and `MeasuringStrategy.Always` failing to apply. |
+| `368231c` | **`snapCenterToCursor` on the DragOverlay** (inlined, not the package). dnd-kit positions the overlay at the *activator element's* rect + delta, not under the pointer, so the pill floated by however far off-centre the grab was. Also made the insertion caret absolutely positioned — as a flow child it grew the hovered cell, and since cells stretch to the tallest in a row, highlighting resized the row it was measuring. | **Fixed pill alignment permanently.** Cursor + pill have been correct ever since. Corrected an earlier wrong claim that `fdeb43c` covered syllable drags: it couldn't have, because *offset rather than absent* means `pointerWithin` was hitting. |
+| `a79a58b` | **Live DOM hit-test.** Replaced rect bookkeeping with `elementsFromPoint` at a pointer read straight off native `pointermove`. Removed `pointerWithin` entirely rather than keeping it as a fast path. | **Did not fix it.** Later proved (`7c25f15`) to have never once succeeded. Ruled out on the way: dnd-kit's `Rect` self-corrects for scroll via getters on all four edges, and `pointerCoordinates = activationCoordinates + translate`. |
+| `88b807d` | **Node-identity matching.** Beat ids are `beat:<bar>:<beat>` and every section numbers bars from zero, so `beat:13:0` exists in every section; matching by id string aliased a cell in one section onto the same-named cell in another. | **Fixed a real aliasing bug** that produced viewport-scale displacement — but the symptom persisted afterwards in a **single-section** song, so aliasing was not the whole cause. Ruled out: the ring has no coordinate frame at all — `isOver` is `over?.id === id`, a pure identity check, and the highlight is a CSS class on the real cell element. |
+| `58af298` | **Recompute on scroll.** Collisions are computed inline in `DndContext`'s render body, so they refresh on any re-render — but with the pointer stationary during scroll nothing re-renders and the target freezes. Added a capture-phase scroll listener bumping a tick. | **Did not fix it.** Correctly identified that a frozen `over` also explains the ring failing to clear off-grid — one cause, both symptoms. |
+| `7c25f15` | **Single collision path + rect-watch recompute.** Deleted the dead hit-test (instrumentation showed `hitCell` was *never* non-null across ~1600 collision calls — the cursor sits reliably *near* a cell, not inside one). Replaced the scroll listener with a rAF loop watching the section's own bounding rect, since listeners have to guess which element scrolls. | **Did not fix it.** Explicitly did not claim to — the failing case had never been captured. |
+| `0259d44` | **Band extension.** Each lyric cell's target band extends 76px upward over its own chord row, so bands tile vertically and the inter-row dead zone disappears. Motivated by a capture showing a cursor mid-travel with its four nearest cells all 41–43px away, near-tied across two rows. | **Did not fix it.** Closed a real geometry hole (near-tie flipping during vertical travel) but not the stranding. |
+
+## 3. The key observation
+
+**In every capture, the system agreed with itself end to end.** The collision result,
+dnd-kit's `over`, and the DOM element carrying the ring class were all the same cell;
+`withNodes` equalled `candidates` (60/60, no unmount skips); nearest-wins selected
+correctly; and the ranked distances were sane. Nothing ever disagreed with anything.
+
+That is the central puzzle: a self-consistent pipeline whose rendered output is
+nonetheless wrong in live use.
+
+## 4. Why the captures were inconclusive
+
+**The logging was throttled to fire only when the result changed, or just after a rect
+move.** A *frozen* target changes nothing and moves nothing — so the broken interval
+produced **no log lines at all**, and every sample necessarily landed on a healthy
+moment. Movement was implied by the logging condition rather than observed.
+
+Three separate captures were requested and all three returned essentially the same
+zero-scroll, working sample. The conclusion drawn from them — "the system agrees with
+itself" — is true but was never tested against the failing interval.
+
+Second-order lesson: several fixes were shipped on hypotheses formed between captures.
+At least two commit messages assert behaviour that the code did not actually have
+(`a79a58b` calling the hit-test authoritative when it never fired; `a79a58b` claiming
+cross-section cells resolved to no target when id aliasing silently mapped them).
+
+## 5. Next diagnostic when resumed
+
+Two changes to method, both mattering more than the probe itself:
+
+**(a) Continuous, unthrottled logging, read by Claude Code directly** — not captured and
+pasted by hand. Every previous round lost fidelity at the paste boundary and cost a
+full turn per sample. Drive the app with the `/run` skill or equivalent so the log is
+read straight from the browser console, and so the failing interval is *in* the log
+rather than around it.
+
+**(b) A paint-time check of the actual `isOver` DOM node**, so the `over` → rendered-ring
+mapping is measured rather than assumed.
+
+### The probe that was armed (rebuildable from this description)
+
+Uncommitted at park time in `LeadSheetSection.tsx` and `BarGridView.tsx`; reverted
+without ever being run:
+
+- `BarGridView.SyllableDropSlot` — re-add `data-beat-cell={DRAG_ID.beat(barIndex, beatPos)}`
+  purely so the probe can query cells. (Product code must not match on this value; it is
+  not unique across sections. See `88b807d`.)
+- `LeadSheetSection` — two refs, `dbgColl` and `dbgOver`.
+- In `collisionDetection`, after computing the result: `dbgColl.current = result[0]?.id ?? null`.
+- On `DndContext`, an `onDragOver` handler whose only job is
+  `dbgOver.current = e.over?.id ?? null`.
+- Inside the existing rAF rect-watch loop, log **one line per frame, unconditionally**,
+  for the whole drag:
+
+  ```
+  [f412 6.8s] MOVED top=-401 ptr=835,860 coll=beat:12:3 over=beat:12:3 ring=beat:12:3(top=808)
+  ```
+
+  where `ring` is found by scanning `document.querySelectorAll('[data-beat-cell]')` for
+  the element whose `className` contains `ring-2`, reporting its beat id and rect top.
+  Colour the line red when `coll`, `over` and `ring` are not all equal. `MOVED` marks
+  frames where the rect-watch tick fired.
+
+### Reading it
+
+| Pattern | Meaning |
+|---|---|
+| `coll` and `over` correct, `ring` **different** | the `over` → element mapping is broken |
+| all three **equal but wrong**, no `MOVED` for many frames | recompute frozen; the rect-watch is not detecting inner-container movement |
+| all three equal and correct while the ring visibly isn't | the ring is painted somewhere not being queried |
+
+A long run of identical lines *without* `MOVED` is the frozen interval, and is the single
+most likely thing to find — it is the one state every previous probe was structurally
+incapable of recording.
+
+### Unexplained and worth attacking first
+
+The **down-accurate / up-displaced asymmetry**. Nothing in the collision path is
+direction-dependent: the geometry is symmetric, `withNodes` was full in both directions,
+and nearest-wins has no bias. Whatever explains that asymmetry probably explains the
+whole bug.
