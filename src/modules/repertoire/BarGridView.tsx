@@ -176,7 +176,13 @@ interface Props {
   /** Tap-to-place (step 6a): the syllable a beat-cell tap will place. */
   armedSyllableId?: string | null;
   onSyllableTap?: (syllableId: string) => void;
-  onBeatCellTap?: (barIndex: number, beatPos: number) => void | Promise<void>;
+  onBeatCellTap?: (
+    barIndex: number,
+    beatPos: number,
+    /** Viewport rect of the tapped cell, for positioning a refusal
+     *  message over it. */
+    cellRect?: DOMRect,
+  ) => void | Promise<void>;
   /** Full song store — the edit popover needs a syllable's text and
    *  whether it has a next sibling to join with. */
   songLyricLines?: SongLyricLine[];
@@ -1547,7 +1553,13 @@ function SyllableBarSegment({
   onEditingChange: (next: SyllableEditingState | null) => void;
   armedSyllableId: string | null;
   onSyllableTap?: (syllableId: string) => void;
-  onBeatCellTap?: (barIndex: number, beatPos: number) => void | Promise<void>;
+  onBeatCellTap?: (
+    barIndex: number,
+    beatPos: number,
+    /** Viewport rect of the tapped cell, for positioning a refusal
+     *  message over it. */
+    cellRect?: DOMRect,
+  ) => void | Promise<void>;
   onOpenSyllableMenu?: (syllableId: string) => void;
   onSplit?: (syllableId: string, splitAt: number) => void | Promise<void>;
   onJoin?: (syllableId: string) => void | Promise<void>;
@@ -1852,7 +1864,13 @@ function SyllableDropSlot({
   armedSyllableId: string | null;
   armingActive: boolean;
   onSyllableTap?: (syllableId: string) => void;
-  onBeatCellTap?: (barIndex: number, beatPos: number) => void | Promise<void>;
+  onBeatCellTap?: (
+    barIndex: number,
+    beatPos: number,
+    /** Viewport rect of the tapped cell, for positioning a refusal
+     *  message over it. */
+    cellRect?: DOMRect,
+  ) => void | Promise<void>;
   onOpenSyllableMenu?: (syllableId: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -1900,7 +1918,16 @@ function SyllableDropSlot({
         armingActive && onBeatCellTap
           ? e => {
               e.stopPropagation();
-              void onBeatCellTap(barIndex, beatPos);
+              // Measure the tapped node itself and hand the rect up, so
+              // a refusal message can be placed over THIS cell. Measured
+              // from `currentTarget` — node identity — rather than
+              // looked up by a beat id, which is not unique across
+              // sections and would resolve the wrong cell entirely.
+              void onBeatCellTap(
+                barIndex,
+                beatPos,
+                e.currentTarget.getBoundingClientRect(),
+              );
             }
           : undefined
       }

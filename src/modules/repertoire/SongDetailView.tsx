@@ -99,6 +99,21 @@ const SECTION_TITLES: Record<SectionKey, string> = {
  *  round-trip. Empty string means "no signature set". */
 const TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
 
+// Refusal-message geometry. The width is fixed rather than intrinsic so
+// the horizontal centring and the edge clamp are plain arithmetic on a
+// known box — no render-measure-reposition pass, and no frame where the
+// message is visibly in the wrong place. The height is the rendered
+// one-line height (11px text, tight leading, py-1) and only decides
+// above-vs-below, so a pixel or two out is harmless.
+const REFUSAL_W = 232;
+const REFUSAL_H = 30;
+const REFUSAL_GAP = 6;
+const REFUSAL_EDGE_PAD = 8;
+/** Long enough to read a short sentence, short enough that the message
+ *  is gone before a scroll could strand it away from its cell. */
+const REFUSAL_MS = 2200;
+const REFUSAL_TEXT = "Can't place here — syllables must stay in order.";
+
 /** Generate a stable id for a reference-video entry. Prefer
  *  `crypto.randomUUID()` (browser standard, present in all modern
  *  Safari / Chromium); falls back to a date+random combo in any
@@ -610,6 +625,63 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dispatchArming({ type: 'placed' });
   }, []);
 
+  // --- refusal message (floats over the refused cell) ---------------
+  // The message sits here rather than in LeadSheetSection because it is
+  // ONE floating overlay for the page: per-section copies would put two
+  // messages on screen when refusals land in different sections inside
+  // the dismiss window, which arming spanning sections makes easy to
+  // hit. The shake stays per-section — that one is a class on a cell.
+  //
+  // It replaces a bottom-of-screen toast. The toast component is fine;
+  // it was simply nowhere near where the user is looking, which is the
+  // cell they just tapped and which is currently shaking.
+  //
+  // Positioned `fixed` from the tapped cell's viewport rect rather than
+  // absolutely inside the cell: grid ancestors can clip, and viewport
+  // coordinates are what make the edge flip straightforward. There are
+  // no ancestor transforms on this tree, so `fixed` resolves against
+  // the viewport as intended.
+  const [refusalNotice, setRefusalNotice] = useState<{
+    key: number;
+    left: number;
+    top: number;
+  } | null>(null);
+  const refusalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (refusalTimer.current) clearTimeout(refusalTimer.current);
+    },
+    [],
+  );
+
+  const handleRefusalNotice = useCallback((cellRect: DOMRect) => {
+    // Fixed box width so centring and the edge clamp are plain
+    // arithmetic on a known box — no render-measure-reposition pass,
+    // and no frame where the message is visibly in the wrong place.
+    const left = Math.min(
+      Math.max(
+        REFUSAL_EDGE_PAD,
+        cellRect.left + cellRect.width / 2 - REFUSAL_W / 2,
+      ),
+      Math.max(REFUSAL_EDGE_PAD, window.innerWidth - REFUSAL_W - REFUSAL_EDGE_PAD),
+    );
+    // Above by default; flip below when there isn't room, and clamp so
+    // it can't run off the bottom either.
+    const fitsAbove = cellRect.top - REFUSAL_H - REFUSAL_GAP >= REFUSAL_EDGE_PAD;
+    const top = fitsAbove
+      ? cellRect.top - REFUSAL_H - REFUSAL_GAP
+      : Math.min(
+          cellRect.bottom + REFUSAL_GAP,
+          Math.max(
+            REFUSAL_EDGE_PAD,
+            window.innerHeight - REFUSAL_H - REFUSAL_EDGE_PAD,
+          ),
+        );
+    if (refusalTimer.current) clearTimeout(refusalTimer.current);
+    setRefusalNotice({ key: Date.now(), left, top });
+    refusalTimer.current = setTimeout(() => setRefusalNotice(null), REFUSAL_MS);
+  }, []);
+
   const commitSongLyrics = useCallback(
     async (next: SongLyricLine[]) => {
       // Read-then-put per the saveMeta precedent — Table.update can
@@ -1098,6 +1170,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             armedSyllableId={armedSyllableId}
                             onArmSyllable={handleArmSyllable}
                             onSyllablePlaced={handleSyllablePlaced}
+                            onRefusalNotice={handleRefusalNotice}
                           />
                         ))}
                       </div>
@@ -1384,6 +1457,27 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           if (s) await deleteSection(s);
         }}
       />
+
+      {/* Re-keyed per refusal so a repeat on another cell restarts the
+          message rather than leaving the previous one mid-flight.
+          pointer-events-none matters: arming SURVIVES a refusal so the
+          next cell can be tried immediately, and a message lying over
+          the grid must never swallow that tap. */}
+      {refusalNotice && (
+        <div
+          key={refusalNotice.key}
+          role="status"
+          aria-live="polite"
+          style={{
+            left: refusalNotice.left,
+            top: refusalNotice.top,
+            width: REFUSAL_W,
+          }}
+          className="fixed z-[190] pointer-events-none text-center text-[11px] leading-tight px-2 py-1 rounded-md shadow-lg bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900"
+        >
+          {REFUSAL_TEXT}
+        </div>
+      )}
     </div>
   );
 }

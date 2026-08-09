@@ -160,6 +160,7 @@ const POINTER_SNAP_PX = 48;
  */
 const LYRIC_BAND_ABOVE_PX = 76;
 
+
 /** Distance from a point to a cell's target band; 0 when inside it. */
 function pointerDistanceToRect(
   point: { x: number; y: number },
@@ -251,6 +252,10 @@ interface Props {
    *  deliberately do NOT call this — arming survives so the next cell
    *  can be tried immediately. */
   onSyllablePlaced?: () => void;
+  /** A tap placement was refused on ordering grounds. Carries the
+   *  viewport rect of the tapped cell so the message can float over it.
+   *  Song-level, because the message is one overlay for the page. */
+  onRefusalNotice?: (cellRect: DOMRect) => void;
 }
 
 export default function LeadSheetSection({
@@ -274,6 +279,7 @@ export default function LeadSheetSection({
   armedSyllableId = null,
   onArmSyllable,
   onSyllablePlaced,
+  onRefusalNotice,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
   // write below routes on this; the legacy section-owned path stays
@@ -1042,7 +1048,7 @@ export default function LeadSheetSection({
    *  tap — every cell is offered, and checkPlacementOrder is the only
    *  thing that decides. */
   const handleBeatCellTap = songLyricsActive
-    ? async (barIndex: number, beatPos: number) => {
+    ? async (barIndex: number, beatPos: number, cellRect?: DOMRect) => {
         if (!armedSyllableId) return;
         const result = await tryPlaceSyllable(armedSyllableId, {
           sectionId: section.id,
@@ -1064,11 +1070,8 @@ export default function LeadSheetSection({
         // The shake still fires from refusePlacement; explaining it as
         // an ordering error would be wrong. `unavailable` never
         // reaches a cell at all.
-        if (result !== 'off-axis' && result !== 'unavailable') {
-          toast({
-            message: "Can't place here — syllables must stay in order.",
-            variant: 'warning',
-          });
+        if (result !== 'off-axis' && result !== 'unavailable' && cellRect) {
+          onRefusalNotice?.(cellRect);
         }
       }
     : undefined;
@@ -1094,6 +1097,16 @@ export default function LeadSheetSection({
     requestAnimationFrame(() => setRejectedCell(cellKey(cell)));
     rejectTimer.current = setTimeout(() => setRejectedCell(null), 400);
   };
+
+  // The refusal MESSAGE lives at song level (SongDetailView), unlike
+  // the shake above. The shake is a class on one cell and is correctly
+  // per-section; the message is a single floating overlay, and two
+  // sections each owning one would put two copies on screen when
+  // refusals land in different sections inside the dismiss window —
+  // easy to hit now that arming survives a refusal and spans sections.
+  //
+  // Drag refusals deliberately stay shake-only, exactly as before: a
+  // drag has no tapped node to measure, and it never showed a message.
 
   /** Attempt a placement, refusing anything that would put the line's
    *  syllables out of text order.
@@ -1724,6 +1737,7 @@ export default function LeadSheetSection({
               ) : null}
             </DragOverlay>
           </DndContext>
+
 
           {!playMode && numeralStrip.length > 0 && !comparing && (
             <div className="flex flex-col gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
