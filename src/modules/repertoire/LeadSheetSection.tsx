@@ -1797,6 +1797,7 @@ export default function LeadSheetSection({
               lyricTrayCollapsed={lyricTrayCollapsed}
               onToggleLyricTray={onToggleLyricTray}
               armedSyllableId={armedSyllableId}
+              awaitingLineEndId={awaitingLineEndId}
               onSyllableTap={songLyricsActive ? handleSyllableTap : undefined}
               onBeatCellTap={handleBeatCellTap}
               songLyricLines={songLyricLines}

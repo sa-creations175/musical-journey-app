@@ -1585,6 +1585,39 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         }}
       />
 
+      {/* BEAT TWO's prompt. A slim fixed bar rather than an inline hint
+          for two reasons: it stays visible while the grid is scrolled
+          to find the end cell, and it gives cancel a large target
+          instead of asking the user to hit empty space precisely on a
+          page that is mostly tappable cells.
+          This is §B1's already-specified pattern ("arming collapses the
+          drawer to a slim hint bar, ~40px, fixed bottom, tap here to
+          cancel") reused rather than a second vocabulary invented for
+          the same job. */}
+      {awaitingLineEndId && (
+        <div
+          role="status"
+          aria-live="polite"
+          /* Marked as an arming surface so the document pointerdown
+             listener doesn't dismiss on the way to the cancel BUTTON —
+             pointerdown fires before click, so without this the
+             listener would swallow the gesture and the button would
+             never run. Same outcome either way, but the button would
+             have been decorative. */
+          data-lyric-arm-keep=""
+          className="fixed inset-x-0 bottom-0 z-[180] flex items-center justify-center gap-3 px-4 py-2 text-[11px] bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-[0_-2px_12px_rgba(0,0,0,0.18)]"
+        >
+          <span>tap the beat where this line ends</span>
+          <button
+            type="button"
+            onClick={dismissArming}
+            className="shrink-0 rounded-full border border-white/40 dark:border-neutral-900/40 px-2 py-0.5 hover:bg-white/10 dark:hover:bg-neutral-900/10"
+          >
+            cancel
+          </button>
+        </div>
+      )}
+
       {/* Re-keyed per refusal so a repeat on another cell restarts the
           message rather than leaving the previous one mid-flight.
           pointer-events-none matters: arming SURVIVES a refusal so the

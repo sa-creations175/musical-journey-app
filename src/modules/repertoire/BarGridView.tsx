@@ -180,6 +180,10 @@ interface Props {
   markerIndex?: Map<string, LineMarkerPlacement[]>;
   /** Tap-to-place (step 6a): the syllable a beat-cell tap will place. */
   armedSyllableId?: string | null;
+  /** The line waiting for its END cell. Drives the beat-cell hint
+   *  alongside `armedSyllableId`, and marks the ◂ the app is asking
+   *  for. */
+  awaitingLineEndId?: string | null;
   onSyllableTap?: (syllableId: string) => void;
   onBeatCellTap?: (
     barIndex: number,
@@ -295,6 +299,7 @@ export default function BarGridView({
   rejectedCell = null,
   markerIndex,
   armedSyllableId = null,
+  awaitingLineEndId = null,
   onSyllableTap,
   onBeatCellTap,
   songLyricLines,
@@ -630,6 +635,7 @@ export default function BarGridView({
                   editing={syllableEditing}
                   onEditingChange={setSyllableEditing}
                   armedSyllableId={armedSyllableId}
+                  awaitingLineEndId={awaitingLineEndId}
                   onSyllableTap={onSyllableTap}
                   onBeatCellTap={onBeatCellTap}
                   onOpenSyllableMenu={
@@ -1570,6 +1576,7 @@ function SyllableBarSegment({
   editing,
   onEditingChange,
   armedSyllableId,
+  awaitingLineEndId,
   onSyllableTap,
   onBeatCellTap,
   onOpenSyllableMenu,
@@ -1590,6 +1597,7 @@ function SyllableBarSegment({
   editing: SyllableEditingState | null;
   onEditingChange: (next: SyllableEditingState | null) => void;
   armedSyllableId: string | null;
+  awaitingLineEndId: string | null;
   onSyllableTap?: (syllableId: string) => void;
   onBeatCellTap?: (
     barIndex: number,
@@ -1623,7 +1631,11 @@ function SyllableBarSegment({
             dragActive={lyricDragActive}
             rejected={rejectedCell === key}
             armedSyllableId={armedSyllableId}
-            armingActive={armedSyllableId !== null}
+            awaitingLineEndId={awaitingLineEndId}
+            // Either pending intent offers every cell. Legality is
+            // still never pre-computed — checkPlacementOrder decides on
+            // tap, for the line's end exactly as for a syllable.
+            armingActive={armedSyllableId !== null || awaitingLineEndId !== null}
             onSyllableTap={onSyllableTap}
             onBeatCellTap={onBeatCellTap}
             onOpenSyllableMenu={onOpenSyllableMenu}
@@ -1893,6 +1905,7 @@ function SyllableDropSlot({
   dragActive,
   rejected,
   armedSyllableId,
+  awaitingLineEndId,
   armingActive,
   onSyllableTap,
   onBeatCellTap,
@@ -1905,6 +1918,7 @@ function SyllableDropSlot({
   dragActive: boolean;
   rejected: boolean;
   armedSyllableId: string | null;
+  awaitingLineEndId: string | null;
   armingActive: boolean;
   onSyllableTap?: (syllableId: string) => void;
   onBeatCellTap?: (
@@ -1982,7 +1996,7 @@ function SyllableDropSlot({
       className={`relative flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
     >
       {markers.filter(m => m.edge === 'start').map(m => (
-        <SongLineMarker key={`s-${m.lineId}`} marker={m} />
+        <SongLineMarker key={`s-${m.lineId}`} marker={m} awaited={false} />
       ))}
       {occupants.map(occupant => (
         <SyllableChip
@@ -1996,7 +2010,11 @@ function SyllableDropSlot({
         />
       ))}
       {markers.filter(m => m.edge === 'end').map(m => (
-        <SongLineMarker key={`e-${m.lineId}`} marker={m} />
+        <SongLineMarker
+          key={`e-${m.lineId}`}
+          marker={m}
+          awaited={m.lineId === awaitingLineEndId}
+        />
       ))}
       {/* Insertion caret: a drop APPENDS to the stack, so the bar sits
           under everything already in the cell.
@@ -2030,7 +2048,14 @@ function SyllableDropSlot({
  * which is its most useful state: right after a tray drop only the head
  * has landed, and dragging ◂ is how you say where the line ends.
  */
-function SongLineMarker({ marker }: { marker: LineMarkerPlacement }) {
+function SongLineMarker({
+  marker,
+  awaited,
+}: {
+  marker: LineMarkerPlacement;
+  /** This is the end the app is currently asking for (beat two). */
+  awaited: boolean;
+}) {
   const dragId =
     marker.edge === 'start'
       ? DRAG_ID.lineStart(marker.lineId)
@@ -2039,6 +2064,16 @@ function SongLineMarker({ marker }: { marker: LineMarkerPlacement }) {
     id: dragId,
   });
   const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
+  // The awaited end takes the armed chip's inverted fill, so the
+  // waiting bar's question and the control it is asking about read as
+  // the same thing. Without it the bar asks for an end while the marker
+  // sits dimmed and dashed — which is precisely the disconnect that
+  // made this control undiscoverable in the first place.
+  const appearance = awaited
+    ? 'bg-neutral-600 text-white dark:bg-neutral-300 dark:text-neutral-900 ring-2 ring-neutral-700 dark:ring-neutral-100 border-transparent'
+    : marker.onItsUnit
+      ? 'text-fluent border-fluent/40 bg-fluent/5'
+      : 'text-fluent/60 border-dashed border-fluent/30 bg-transparent';
   return (
     <span
       ref={setNodeRef}
@@ -2050,11 +2085,7 @@ function SongLineMarker({ marker }: { marker: LineMarkerPlacement }) {
           ? 'drag to place this line’s first word'
           : 'drag to place this line’s last word'
       }
-      className={`cursor-grab active:cursor-grabbing select-none touch-none text-[10px] leading-none px-0.5 rounded border ${
-        marker.onItsUnit
-          ? 'text-fluent border-fluent/40 bg-fluent/5'
-          : 'text-fluent/60 border-dashed border-fluent/30 bg-transparent'
-      }`}
+      className={`cursor-grab active:cursor-grabbing select-none touch-none text-[10px] leading-none px-0.5 rounded border ${appearance}`}
     >
       {marker.edge === 'start' ? '▸' : '◂'}
     </span>
