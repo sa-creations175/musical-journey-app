@@ -45,6 +45,7 @@ import {
   unplaceSyllable,
 } from './lyricSyllables';
 import { parseLyricSheet } from './lyricSheetParse';
+import { DEFAULT_PATTERNS_COLLAPSED } from './leadSheetPrefs';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -63,12 +64,13 @@ import {
 } from '../ear-training/etCuration';
 import { useAddedFromRepertoireSet } from '../ear-training/useEtCurations';
 import { useToast } from '../../components/Toaster';
+import { useNotationMode } from '../../lib/notationPref';
 import {
   normalizeArrangements,
   normalizePhrase,
   uid,
 } from './beatsModel';
-import { toRomanToken } from './chordFunction';
+import { chordToDisplay } from './chordFunction';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
@@ -256,6 +258,11 @@ interface Props {
    *  viewport rect of the tapped cell so the message can float over it.
    *  Song-level, because the message is one overlay for the page. */
   onRefusalNotice?: (cellRect: DOMRect) => void;
+  /** Progression-patterns block collapsed? A GLOBAL pref owned by
+   *  SongDetailView — every section's block follows the one value, so
+   *  expressing the preference costs one tap and not one per section. */
+  patternsCollapsed?: boolean;
+  onTogglePatterns?: () => void;
 }
 
 export default function LeadSheetSection({
@@ -280,6 +287,8 @@ export default function LeadSheetSection({
   onArmSyllable,
   onSyllablePlaced,
   onRefusalNotice,
+  patternsCollapsed = DEFAULT_PATTERNS_COLLAPSED,
+  onTogglePatterns,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
   // write below routes on this; the legacy section-owned path stays
@@ -287,6 +296,9 @@ export default function LeadSheetSection({
   const songLyricsActive = Boolean(cellIndex && onSongLyricsChange);
   const stage = section.stage ?? song.stage ?? DEFAULT_STAGE;
   const { toast } = useToast();
+  // Same source the grid cells read, so the sequence strip and the
+  // cells can never disagree about notation.
+  const [notationMode] = useNotationMode();
 
   const [showNotes, setShowNotes] = useState(Boolean(section.notes));
   const [notesDraft, setNotesDraft] = useState(section.notes ?? '');
@@ -1462,11 +1474,22 @@ export default function LeadSheetSection({
     return seq;
   }, [allBars]);
 
-  // Numeral strip: the whole sequence as scale-degree tokens (case
-  // encodes major/minor). Unparsed chords render as nothing.
+  // The sequence, rendered through `chordToDisplay` — the SAME call
+  // every chord cell in the grid body makes, with the same notation
+  // mode and the same key. One vocabulary across the screen.
+  //
+  // It used to call `toRomanToken`, which is a detector-interop helper:
+  // plain-ASCII Roman with quality encoded in case, unconditional and
+  // blind to the notation pref. So the strip read "ii · V · I" directly
+  // above a grid reading "2min7 · 5maj · 1maj" — one screen, one set of
+  // chords, two notations.
+  //
+  // Nothing about detection changes: `patternMatches` below builds
+  // `DetectChord`s straight from `chord.function` / `chord.quality` and
+  // never sees rendered text. This is display only.
   const numeralStrip = useMemo(
-    () => detectionSequence.map(s => toRomanToken(s.chord)),
-    [detectionSequence],
+    () => detectionSequence.map(s => chordToDisplay(s.chord, notationMode, song.key)),
+    [detectionSequence, notationMode, song.key],
   );
 
   // Pattern matches via flexible root-motion detection. The effective
@@ -1741,10 +1764,41 @@ export default function LeadSheetSection({
 
           {!playMode && numeralStrip.length > 0 && !comparing && (
             <div className="flex flex-col gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
-              {/* Numeral strip — the full chord sequence as scale
-                  degrees, always shown regardless of detected patterns. */}
+              {/* "Progression Patterns", not "Numerals" — the old label
+                  described the notation the strip happened to use,
+                  which stopped being true when the strip moved to the
+                  grid's own vocabulary, and never described what the
+                  block is FOR.
+                  The whole block collapses as one unit: the strip and
+                  the patterns list are a single bordered thing, and the
+                  patterns list is the taller half, so collapsing only
+                  the strip would save little of the space this is
+                  meant to reclaim. */}
+              <button
+                type="button"
+                onClick={onTogglePatterns}
+                disabled={!onTogglePatterns}
+                aria-expanded={!patternsCollapsed}
+                className="self-start text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1 disabled:hover:text-neutral-500"
+              >
+                <span aria-hidden>{patternsCollapsed ? '▸' : '▾'}</span>
+                Progression Patterns
+              </button>
+
+              {!patternsCollapsed && (
+                <>
+              {/* The chord sequence, rendered through the SAME call the
+                  grid cells use, so one vocabulary runs across the whole
+                  screen. It used to render Roman numerals via
+                  `toRomanToken` while the grid body showed 1maj / 5maj /
+                  6min7 — the same information in two notations, a
+                  handspan apart.
+                  Renders through the notation MODE rather than hard-
+                  coding numbers: pinning it to numbers would recreate
+                  the same split in reverse for anyone reading in Roman
+                  or concrete. */}
               <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="uppercase tracking-wide">numerals:</span>
+                <span className="uppercase tracking-wide">sequence:</span>
                 <span className="font-mono text-neutral-700 dark:text-neutral-200">
                   {numeralStrip.map((n, i) => (
                     <span key={i}>
@@ -1838,6 +1892,8 @@ export default function LeadSheetSection({
                     </button>
                   </div>
                 </div>
+              )}
+                </>
               )}
             </div>
           )}

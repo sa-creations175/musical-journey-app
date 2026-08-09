@@ -53,6 +53,10 @@ import {
   foldSectionLyrics,
 } from './lyricSyllables';
 import { armingReducer } from './syllableArming';
+import {
+  loadPatternsCollapsed,
+  savePatternsCollapsed,
+} from './leadSheetPrefs';
 import { planSectionMove } from './sectionReorder';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
@@ -625,6 +629,27 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dispatchArming({ type: 'placed' });
   }, []);
 
+  // --- progression-patterns collapse (global pref) ------------------
+  // Owned here rather than in LeadSheetSection because the pref is
+  // GLOBAL: the block renders once per section, and a five-section song
+  // meaning five toggles is exactly what this is meant to avoid. One
+  // piece of state, every section follows it — same shape as the armed
+  // syllable and the refusal notice.
+  //
+  // Read once via lazy initial state; localStorage is synchronous, so
+  // there is no hydration flash and no need for a hydrated flag.
+  const [patternsCollapsed, setPatternsCollapsed] = useState(
+    loadPatternsCollapsed,
+  );
+
+  const handleTogglePatterns = useCallback(() => {
+    setPatternsCollapsed(prev => {
+      const next = !prev;
+      savePatternsCollapsed(next);
+      return next;
+    });
+  }, []);
+
   // --- refusal message (floats over the refused cell) ---------------
   // The message sits here rather than in LeadSheetSection because it is
   // ONE floating overlay for the page: per-section copies would put two
@@ -1171,6 +1196,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             onArmSyllable={handleArmSyllable}
                             onSyllablePlaced={handleSyllablePlaced}
                             onRefusalNotice={handleRefusalNotice}
+                            patternsCollapsed={patternsCollapsed}
+                            onTogglePatterns={handleTogglePatterns}
                           />
                         ))}
                       </div>
