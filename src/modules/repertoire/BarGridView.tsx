@@ -1739,19 +1739,24 @@ function SyllableEditPopover({
             </button>
           )}
           {/* The two un-place actions differ by SCOPE, and the labels
-              have to carry that on their own — "Un-place" next to
-              "Un-place line" read as one action and a variant of it,
+              have to carry that on their own — a bare "Un-place" next
+              to "Un-place line" read as one action and a variant of it,
               which is how the whole-line reset went unnoticed even
-              though it was sitting right there. Both now name their
-              scope explicitly. */}
+              though it was sitting right there.
+              "Un-place this" rather than "Un-place syllable" because
+              the menu acts on whatever CHUNK the tap hit, and the chunk
+              isn't reliably a syllable: an unsplit "adore" is one chunk
+              holding two syllables, while a split "a" / "dore" is two
+              chunks. "Word" is wrong in the other direction. Naming the
+              unit at all is the mistake; "this" sidesteps it. */}
           {onUnplace && isPlaced && (
             <button
               type="button"
               onClick={onUnplace}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
-              title="return just this syllable to the unplaced pool"
+              title="return just this one to the unplaced pool"
             >
-              Un-place syllable
+              Un-place this
             </button>
           )}
           {onUnplaceLine && (
