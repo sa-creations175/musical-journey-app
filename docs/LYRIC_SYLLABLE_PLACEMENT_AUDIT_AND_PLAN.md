@@ -715,6 +715,18 @@ Zero coupling to the lyric refactor, and both need your eyes in-browser, which i
 | **7** | **B1 lyric drawer — needs its own sign-off on §B1 first.** 7a: drawer shell + staging paste with live parse preview + header dividers + header toggle. 7b: delete the per-section paste box and the pending tray. 7c: placed/partial/unplaced row status. | one drawer, one store |
 | **8** | Paste + bar-op safety: regression tests that commit-paste, reorder, add/delete-bar never move a placed syllable; bar-delete guard for placed syllables | |
 | **9** | **A4** tap-to-number in-cell reorder | |
+| **10** | **Cross-section drag — free-reign drag anywhere.** Unify dragging across sections, either by hoisting to a single song-level drag context or by a handoff bridge between per-section contexts. **Sequenced after 6b and 7 by decision**, not by dependency: tap-to-place covers cross-section placement first, so drag unification builds on a stable placement model rather than inventing one. | drag a syllable into any section |
+
+### Cross-section drag (step 10) — interim behaviour
+
+Until step 10 ships, **dragging over another section's grid yields no target** — no ring, and releasing does nothing. That is deliberate: each `LeadSheetSection` owns its own `DndContext`, so a drag started in one cannot be received by another, and the honest response to "the cursor is over a cell this context doesn't own" is to decline.
+
+Getting there took two attempts worth recording, because both failure modes are easy to reintroduce:
+
+1. `closestCenter` as the fallback would **snap back** to the nearest cell in the *origin* section — a confident misplacement, since it always returns a winner however far away the pointer is.
+2. Resolving the hit-tested cell by its **droppable id string** silently **aliased** it: beat ids are `beat:<bar>:<beat>` and every section numbers its bars from zero, so `beat:13:0` exists in all of them. A cursor over another section's cell lit the same-named cell in the origin section, a viewport away, with the gap growing as scroll moved the cursor across more sections.
+
+The fix for (2) — matching droppables by **node identity**, never by id — is what makes "another section = no target" actually true. Step 10 should keep that property: whatever unifies the contexts must resolve a cell to *the* droppable whose node was hit, not to one that merely shares its name. If a single song-level context is chosen, beat ids stop being unique across the page and the identity match becomes load-bearing rather than defensive.
 
 ### Note on the step 2 → step 7 gap
 
@@ -732,5 +744,6 @@ the new store until the drawer replaces it. `LyricStagingArea` is deleted in **7
 | §B2 scope — chord cells only | ✅ confirmed (rev 3) |
 | §B2 hex + inline style | ✅ approved as its own T2.2 commit (rev 3) |
 | Track order — Track 2 then Track 1 | ✅ approved (rev 3) |
+| Cross-section drag is in scope, sequenced after 6b + 7 (step 10) | ✅ decided 2026-08-08 |
 | **§B1 drawer interaction spec** | ⏳ **still needed, before step 7** |
 | **Track 1 revised sequence above** | ⏳ **presented for sign-off before step 0** |
