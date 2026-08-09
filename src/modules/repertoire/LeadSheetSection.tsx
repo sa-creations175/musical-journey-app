@@ -73,7 +73,7 @@ import {
   normalizePhrase,
   uid,
 } from './beatsModel';
-import { chordToDisplay } from './chordFunction';
+import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
@@ -829,7 +829,14 @@ export default function LeadSheetSection({
     if (!pending) return;
     const id = pending.etCatalogId;
     const trimmed = addLabelDraft.trim();
-    const patternLabel = pending.numerals.join(' → ');
+    // Display-only, like the two renders above: this reaches a toast
+    // message and nothing else. The ET catalog's identity is
+    // `etCatalogId`, and the only string persisted is the user's own
+    // typed label, so notating this cannot leak a notation-specific
+    // string into stored data.
+    const patternLabel = pending.numerals
+      .map(n => patternNumeralToDisplay(n, notationMode, song.key))
+      .join(' → ');
     await setAddedFromRepertoire(id, true);
     if (trimmed !== '') {
       await setEtCustomLabel(id, trimmed);
@@ -1839,7 +1846,9 @@ export default function LeadSheetSection({
                         className="flex items-center gap-2 flex-wrap"
                       >
                         <span className="font-mono text-neutral-700 dark:text-neutral-200">
-                          {m.numerals.join(' → ')}
+                          {m.numerals
+                            .map(n => patternNumeralToDisplay(n, notationMode, song.key))
+                            .join(' → ')}
                         </span>
                         <span className="text-neutral-400">{barLabel}</span>
                         {m.deviations.length > 0 && (
@@ -1877,7 +1886,9 @@ export default function LeadSheetSection({
               {addingPattern && (
                 <div className="rounded border border-fluent/40 bg-fluent/5 p-2 space-y-2 max-w-sm">
                   <div className="font-mono text-neutral-700 dark:text-neutral-200">
-                    {addingPattern.numerals.join(' → ')}
+                    {addingPattern.numerals
+                      .map(n => patternNumeralToDisplay(n, notationMode, song.key))
+                      .join(' → ')}
                   </div>
                   <input
                     type="text"

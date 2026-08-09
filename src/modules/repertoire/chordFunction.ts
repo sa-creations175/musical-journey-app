@@ -314,17 +314,71 @@ export function chordToDisplay(
   return renderChordFunction(chord, mode, sectionKey);
 }
 
-// --- Interop with the existing progression detector -----------------
+// --- Detection-pattern numerals -------------------------------------
 
 /**
- * Convert a ChordFunction to a plain-ASCII Roman numeral token suitable
- * for `detectProgressions`. Strips the extras the detector ignores
- * (extensions, bass) but keeps quality information embedded in case
- * (uppercase vs lowercase Roman).
+ * Render one DETECTION-PATTERN numeral in the reader's notation.
+ *
+ * Pattern numerals (`DETECTION_PATTERNS[].numerals`) are catalog
+ * templates — `['ii', 'V', 'I']` — not chords from a song. They encode
+ * exactly two things: a scale degree, and whether that degree is
+ * expected minor (lowercase) or major (uppercase). Nothing else: no
+ * extensions, no bass, no key.
+ *
+ * They were rendered verbatim, so a lead sheet in number notation
+ * showed "ii → V → I" directly beneath a sequence reading
+ * "2min · 5maj · 1maj" — the same split this block just fixed one level
+ * up, on the same screen.
+ *
+ * **Roman is the identity case**, and deliberately so: the catalog is
+ * already stored in Roman, and Roman is the one notation where the
+ * token's CASE carries the quality that every other notation has to
+ * spell out as a suffix. Round-tripping it through a synthesised
+ * `ChordFunction` would render "Imaj" and "iimin" — the case rule and
+ * the explicit suffix both firing at once.
+ *
+ * For the other notations a minimal `ChordFunction` is synthesised and
+ * handed to the ordinary renderer, so number and concrete output come
+ * from the same code every chord cell uses. "min"/"maj" rather than
+ * ""/"m" because the block sits under a grid written that way.
+ *
+ * An unrecognised token is returned unchanged rather than dropped — a
+ * pattern's identity is more useful mangled than missing.
  */
-export function toRomanToken(cf: ChordFunction): string {
-  if (cf.unparsed) return '';
-  return functionToRoman(cf.function, cf.quality);
+export function patternNumeralToDisplay(
+  numeral: string,
+  mode: NotationMode,
+  sectionKey?: string,
+): string {
+  if (mode === 'roman') return numeral;
+  const parsed = parsePatternNumeral(numeral);
+  if (!parsed) return numeral;
+  return renderChordFunction(
+    {
+      function: parsed.accidentals + parsed.degree,
+      quality: parsed.isMinor ? 'min' : 'maj',
+    },
+    mode,
+    sectionKey,
+  );
+}
+
+/**
+ * Split a pattern numeral into degree + expected quality.
+ *
+ * Accidentals are handled even though the catalog carries none today —
+ * a future `bVII` entry should not silently fall back to raw text.
+ */
+function parsePatternNumeral(
+  numeral: string,
+): { accidentals: string; degree: string; isMinor: boolean } | null {
+  const m = numeral.match(/^([b#]*)([IVX]+|[ivx]+)$/);
+  if (!m) return null;
+  const [, accidentals, roman] = m;
+  const isMinor = roman === roman.toLowerCase();
+  const index = (isMinor ? ROMAN_LOWER : ROMAN_UPPER).indexOf(roman);
+  if (index < 0) return null;
+  return { accidentals, degree: String(index + 1), isMinor };
 }
 
 // --- Utility --------------------------------------------------------

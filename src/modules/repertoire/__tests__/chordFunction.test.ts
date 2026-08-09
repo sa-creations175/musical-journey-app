@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseChordFunction,
+  patternNumeralToDisplay,
   renderNumbers,
   renderRoman,
 } from '../chordFunction';
@@ -34,5 +35,56 @@ describe('scale-degree of G#m7 in B major is the 6th (not 7th)', () => {
   it('parses G#m7 in B to function "6"', () => {
     const cf = parseChordFunction('G#m7', 'B');
     expect(cf?.function).toBe('6');
+  });
+});
+
+describe('patternNumeralToDisplay — catalog templates in the reader\'s notation', () => {
+  it('leaves Roman untouched — the catalog is already Roman', () => {
+    // Identity on purpose. Round-tripping through a synthesised
+    // ChordFunction would fire the case rule AND an explicit suffix,
+    // giving "Imaj" / "iimin".
+    for (const n of ['ii', 'V', 'I', 'vi', 'IV', 'VII']) {
+      expect(patternNumeralToDisplay(n, 'roman')).toBe(n);
+    }
+  });
+
+  it('renders numbers with case spelled out as a quality suffix', () => {
+    expect(patternNumeralToDisplay('ii', 'numbers')).toBe('2min');
+    expect(patternNumeralToDisplay('V', 'numbers')).toBe('5maj');
+    expect(patternNumeralToDisplay('I', 'numbers')).toBe('1maj');
+    expect(patternNumeralToDisplay('vi', 'numbers')).toBe('6min');
+    expect(patternNumeralToDisplay('VII', 'numbers')).toBe('7maj');
+  });
+
+  it('treats stacked as numbers, matching renderChordFunction', () => {
+    expect(patternNumeralToDisplay('ii', 'stacked')).toBe('2min');
+  });
+
+  it('renders concrete against the section key', () => {
+    expect(patternNumeralToDisplay('ii', 'concrete', 'C')).toBe('Dmin');
+    expect(patternNumeralToDisplay('V', 'concrete', 'C')).toBe('Gmaj');
+    expect(patternNumeralToDisplay('I', 'concrete', 'Ab')).toBe('Abmaj');
+  });
+
+  it('covers every numeral the detection catalog actually ships', () => {
+    // The full set in DETECTION_PATTERNS as of rev 5.
+    const shipped = ['I', 'II', 'III', 'IV', 'V', 'VII', 'ii', 'vi'];
+    for (const n of shipped) {
+      expect(patternNumeralToDisplay(n, 'numbers')).toMatch(/^[1-7](min|maj)$/);
+    }
+  });
+
+  it('handles accidentals the catalog does not carry yet', () => {
+    // No bVII entry exists today; it must not fall back to raw text if
+    // one is added.
+    expect(patternNumeralToDisplay('bVII', 'numbers')).toBe('b7maj');
+    expect(patternNumeralToDisplay('bIII', 'numbers')).toBe('b3maj');
+  });
+
+  it('returns an unrecognised token unchanged rather than dropping it', () => {
+    // A pattern identity is more useful mangled than missing.
+    expect(patternNumeralToDisplay('', 'numbers')).toBe('');
+    expect(patternNumeralToDisplay('N.C.', 'numbers')).toBe('N.C.');
+    expect(patternNumeralToDisplay('VIII', 'numbers')).toBe('VIII');
   });
 });
