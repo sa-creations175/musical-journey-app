@@ -751,13 +751,32 @@ leading 1–7 digit (`chordGlyph.tsx:47-51`) — those must keep the current gre
 - Intra-cell drag reordering — permanently deferred, and as of rev 5 there is nothing to defer *to*: A4 was
   dropped and a cell's stack order is derived from song order, not set by the user.
 - Normalizing `Song.key` to a canonical name at write time (see Part 3, items 2-3).
-- **Toast health investigation, then toast-with-Undo on the shared placement path.** Success toasts have
-  never been reliably observed firing — possibly broken, mispositioned, or hidden behind the nav bar. Until
-  that is settled, no feature hangs its Undo on them: 6a places silently. Once healthy, put the
-  toast + Undo in `tryPlaceSyllable` so drag AND tap both gain an Undo drag currently lacks.
+- **~~Toast health investigation~~ — RESOLVED 2026-08-09. The toast component was never broken.** It was
+  badly placed for *grid-adjacent* feedback: a bottom-of-screen toast is nowhere near the cell the user is
+  looking at, so refusals read as no feedback at all. Toasts fire correctly and are the right vehicle for
+  page-level messages (e.g. "Line un-placed — back in the tray."). The refusal message now floats over the
+  refused cell instead; see `SongDetailView`'s refusal-notice block. **Still open:** toast-with-Undo on the
+  shared placement path, so drag AND tap gain an Undo drag currently lacks. Placement stays silent on
+  success until then. The lesson worth keeping: *proximity, not reliability,* is what a feedback message
+  anchored to a grid cell needs.
 - **Component-testing stack** (`@testing-library/react` + a jsdom test environment). Deliberately not added
   inside step 6a. Until then, DOM-bound behaviour is browser-verified.
 - **Multi-digit degree parsing in `parseChordFunction` — see §B4 below.**
+- **Does the Progression Patterns block earn its space? — DESIGN CONVERSATION FIRST, not a build.**
+  Recorded 2026-08-09, when the block was made collapsible and defaulted to **collapsed**. That default is
+  itself the honest signal: a section defaulted to hidden is a section under suspicion. The question to
+  settle before building anything else here is whether the sequence strip and the within-song pattern list
+  are worth their vertical space at all, or whether the block should shrink, move, or go. Answer that
+  before adding to it.
+- **Cross-song pattern detection — the actual point of the block.** Also recorded 2026-08-09. Today
+  `detectPatterns` runs per section and answers "what patterns are in THIS song". The intended purpose is
+  the opposite direction: **build a vocabulary of the progressions I actually use, across the whole
+  repertoire** — which patterns recur, in which songs, how often, and which ones are already in ET
+  practice. That reframes the block from a per-song readout into a view onto a song-spanning index, and it
+  is a design conversation before it is a build: it needs decisions about where the vocabulary lives (a
+  derived index? a stored table?), what counts as "the same" progression across keys and qualities, and
+  what the per-section block should show once the cross-song view exists — if anything. Note the two items
+  interact: the answer to "does it earn its space" may be "not in this form, but yes in that one."
 
 ## B4 — Multi-digit degrees are parsed as single digits (found during T2.3)
 
