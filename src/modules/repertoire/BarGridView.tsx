@@ -1873,7 +1873,15 @@ function SyllableDropSlot({
     : armingActive && !dragActive
       ? 'border-solid border-neutral-400 dark:border-neutral-500 bg-neutral-500/10 dark:bg-neutral-400/10 cursor-pointer hover:bg-neutral-500/20 hover:border-neutral-500 dark:hover:border-neutral-400'
     : isOver
-    ? 'border-solid border-fluent bg-fluent/25 ring-2 ring-fluent'
+    // Grey, matching the tap hint. Drag and tap answer the same question
+    // — "this is where it will land" — so they should look the same, and
+    // fluent green is the 1maj chord family, which is why the tap hint
+    // moved off it. Stronger than the hint's tint (/25 vs /10) because
+    // this is a committed target rather than a field of candidates, and
+    // rendered as ring + border rather than the armed chip's solid fill.
+    // neutral-600/300 avoids the loaded greys: 300/700 is disabled,
+    // 400/500 is the stale tier, 200 is this chip's hover.
+    ? 'border-solid border-neutral-600 dark:border-neutral-300 bg-neutral-500/25 dark:bg-neutral-400/25 ring-2 ring-neutral-600 dark:ring-neutral-300'
     : dragActive
       ? 'border-dashed border-neutral-200 dark:border-neutral-800 opacity-50'
       : 'border-dashed border-neutral-200 dark:border-neutral-800';
@@ -1925,7 +1933,7 @@ function SyllableDropSlot({
           means highlighting can never move anything. */}
       {isOver && (
         <span
-          className="pointer-events-none absolute inset-x-0.5 bottom-0.5 h-0.5 rounded-full bg-fluent"
+          className="pointer-events-none absolute inset-x-0.5 bottom-0.5 h-0.5 rounded-full bg-neutral-600 dark:bg-neutral-300"
           aria-hidden
         />
       )}
