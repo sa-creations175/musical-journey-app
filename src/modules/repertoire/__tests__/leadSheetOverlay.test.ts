@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MIN_SUPPORTED_VIEWPORT_W,
+  OVERLAY_EDGE_PAD,
+  OVERLAY_GAP,
+  OVERLAY_H,
+  OVERLAY_MAX_W,
   anchoredOverlayPosition,
   type AnchorRect,
   type OverlayGeometry,
@@ -138,6 +143,59 @@ describe('anchoredOverlayPosition — never leaves the viewport', () => {
       });
       expect(p.top).toBeGreaterThanOrEqual(PAD);
       expect(p.top + BOX.height).toBeLessThanOrEqual(viewport.height - PAD);
+    }
+  });
+});
+
+describe('overlay box sizing — wrap, never clip', () => {
+  // Wrapping itself is CSS and needs a DOM. What IS testable here is
+  // the invariant that makes wrapping SUFFICIENT: a box that can never
+  // need to be wider than the narrowest supported screen. Without it,
+  // a long message on a small phone would have nowhere to wrap TO and
+  // would clip regardless of the CSS.
+  it('fits the narrowest supported viewport with padding on both sides', () => {
+    expect(OVERLAY_MAX_W + OVERLAY_EDGE_PAD * 2).toBeLessThanOrEqual(
+      MIN_SUPPORTED_VIEWPORT_W,
+    );
+  });
+
+  it('budgets two wrapped lines, not one', () => {
+    // 11px text at leading-tight is ~14px per line; py-1 adds 8.
+    // A one-line budget is what made the refusal message sit lower
+    // than the geometry believed and clip into its own anchor cell.
+    const LINE = 14;
+    const VERTICAL_PADDING = 8;
+    expect(OVERLAY_H).toBeGreaterThanOrEqual(LINE * 2 + VERTICAL_PADDING);
+  });
+
+  it('stays modest enough to leave the anchor cell aimable', () => {
+    // A very wide box covers the cells being aimed at; a very tall one
+    // covers whole rows. Guards against either creeping upward.
+    expect(OVERLAY_MAX_W).toBeLessThanOrEqual(280);
+    expect(OVERLAY_H).toBeLessThanOrEqual(56);
+  });
+
+  it('places the real box inside a 320px viewport at every anchor', () => {
+    const viewport = { width: MIN_SUPPORTED_VIEWPORT_W, height: 568 };
+    const box = { width: OVERLAY_MAX_W, height: OVERLAY_H };
+    for (let top = -200; top <= 800; top += 11) {
+      for (const left of [0, 40, 160, 300]) {
+        const p = anchoredOverlayPosition({
+          cell: { left, top, right: left + 40, bottom: top + 28, width: 40 },
+          viewport,
+          box,
+          gap: OVERLAY_GAP,
+          edgePad: OVERLAY_EDGE_PAD,
+        });
+        expect(p.left).toBeGreaterThanOrEqual(OVERLAY_EDGE_PAD);
+        expect(p.left + box.width).toBeLessThanOrEqual(
+          viewport.width - OVERLAY_EDGE_PAD,
+        );
+        expect(p.top).toBeGreaterThanOrEqual(OVERLAY_EDGE_PAD);
+        expect(p.top + box.height).toBeLessThanOrEqual(
+          viewport.height - OVERLAY_EDGE_PAD,
+        );
+      }
     }
   });
 });

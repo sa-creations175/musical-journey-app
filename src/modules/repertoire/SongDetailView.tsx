@@ -61,6 +61,10 @@ import {
   pendingLineEnd,
 } from './syllableArming';
 import {
+  OVERLAY_EDGE_PAD,
+  OVERLAY_GAP,
+  OVERLAY_H,
+  OVERLAY_MAX_W,
   anchoredOverlayPosition,
   toAnchorRect,
   type OverlayPosition,
@@ -118,26 +122,14 @@ const SECTION_TITLES: Record<SectionKey, string> = {
  *  round-trip. Empty string means "no signature set". */
 const TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
 
-// Refusal-message geometry. The width is fixed rather than intrinsic so
-// the horizontal centring and the edge clamp are plain arithmetic on a
-// known box — no render-measure-reposition pass, and no frame where the
-// message is visibly in the wrong place. The height is the rendered
-// one-line height (11px text, tight leading, py-1) and only decides
-// above-vs-below, so a pixel or two out is harmless.
-const REFUSAL_W = 232;
-const REFUSAL_H = 30;
-const REFUSAL_GAP = 6;
-const REFUSAL_EDGE_PAD = 8;
+// Overlay box size and spacing live in leadSheetOverlay.ts — one set of
+// numbers for both the refusal message and the line-end prompt.
+
 /** Long enough to read a short sentence, short enough that the message
  *  is gone before a scroll could strand it away from its cell. */
 const REFUSAL_MS = 2200;
 const REFUSAL_TEXT = "Can't place here — syllables must stay in order.";
 
-// The beat-two prompt. Wider than the refusal message because it
-// carries a cancel control as well as its sentence, and it is the only
-// route out of the gesture — it can never be allowed to truncate away.
-const PROMPT_W = 268;
-const PROMPT_H = 26;
 
 /** Generate a stable id for a reference-video entry. Prefer
  *  `crypto.randomUUID()` (browser standard, present in all modern
@@ -677,9 +669,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     const { left, top } = anchoredOverlayPosition({
       cell: toAnchorRect(cellRect),
       viewport: { width: window.innerWidth, height: window.innerHeight },
-      box: { width: REFUSAL_W, height: REFUSAL_H },
-      gap: REFUSAL_GAP,
-      edgePad: REFUSAL_EDGE_PAD,
+      box: { width: OVERLAY_MAX_W, height: OVERLAY_H },
+      gap: OVERLAY_GAP,
+      edgePad: OVERLAY_EDGE_PAD,
     });
     if (refusalTimer.current) clearTimeout(refusalTimer.current);
     setRefusalNotice({ key: Date.now(), left, top });
@@ -871,9 +863,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       const next = anchoredOverlayPosition({
         cell: rect ? toAnchorRect(rect) : null,
         viewport: { width: window.innerWidth, height: window.innerHeight },
-        box: { width: PROMPT_W, height: PROMPT_H },
-        gap: REFUSAL_GAP,
-        edgePad: REFUSAL_EDGE_PAD,
+        box: { width: OVERLAY_MAX_W, height: OVERLAY_H },
+        gap: OVERLAY_GAP,
+        edgePad: OVERLAY_EDGE_PAD,
       });
       if (
         !last ||
@@ -1678,7 +1670,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           style={{
             left: promptPos.left,
             top: promptPos.top,
-            width: PROMPT_W,
+            maxWidth: OVERLAY_MAX_W,
           }}
           /* The BODY passes taps through; only the cancel control takes
              them. A floating prompt sits over the grid, and the end
@@ -1687,9 +1679,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
              cannot know in advance, the prompt simply never blocks one.
              `data-lyric-arm-keep` still applies to the button through
              this container, so the dismiss listener leaves it alone. */
-          className="fixed z-[180] pointer-events-none flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-lg"
+          className="fixed z-[180] pointer-events-none flex items-start justify-between gap-2 px-2 py-1 rounded-md text-[11px] leading-tight bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-lg"
         >
-          <span className="truncate">tap the beat where this line ends</span>
+          {/* No truncation, ever: this sentence is the whole
+              instruction, and half of it is not an instruction. It
+              wraps within the max width instead. */}
+          <span>tap the beat where this line ends</span>
           <button
             type="button"
             onClick={dismissArming}
@@ -1713,7 +1708,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           style={{
             left: refusalNotice.left,
             top: refusalNotice.top,
-            width: REFUSAL_W,
+            maxWidth: OVERLAY_MAX_W,
           }}
           className="fixed z-[190] pointer-events-none text-center text-[11px] leading-tight px-2 py-1 rounded-md shadow-lg bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900"
         >

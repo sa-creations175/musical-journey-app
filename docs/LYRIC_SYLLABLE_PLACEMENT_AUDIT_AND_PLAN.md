@@ -573,6 +573,44 @@ collisions are real and are handled explicitly rather than by luck:
     threshold would fire BOTH. The long-press callback no-ops while dragging, rather than tightening the
     hook's tolerance to 4px — which would fight the 3-5px finger drift the hook's own comment measures.
 
+## PRINCIPLE — feedback about a cell anchors to that cell
+
+**Recorded 2026-08-09, after making the same mistake twice.**
+
+> **Feedback about a specific cell anchors to that cell. The bottom of the screen is reserved for things
+> that are genuinely about the whole screen — the lyric drawer, for instance.**
+
+The user is looking at the cell they just acted on. A message at the bottom of the viewport is nowhere near
+their eyes, and the symptom is not "hard to see" — it is **"there is no feedback at all"**, which is a much
+more expensive failure because it sends you looking for a bug that isn't there.
+
+**The evidence, both instances:**
+
+| # | What | Symptom | Fix |
+|---|---|---|---|
+| 1 | **Refusal message as a bottom toast.** A placement refusal rendered through the app's toast stack, fixed at the bottom of the viewport, while the refused cell shook up in the grid. | Read as *no feedback*. It cost a **wrong diagnosis that survived several sessions** — the plan doc carried a "toast health investigation" backlog item asserting the toast component was broken or hidden. It was neither. It was correctly rendering, in the wrong place. | Floats over the refused cell. |
+| 2 | **Line-end prompt as a bottom bar.** Beat two of line placement asked "tap the beat where this line ends" from a slim fixed bar at the bottom — modelled on §B1's drawer pattern. | Same symptom: barely noticed, while the user watched the cell the line's head had just landed in. | Anchors to the head's cell. |
+
+**Instance 2 is the instructive one**, because the bottom bar was not careless — it was a deliberate reuse of
+a pattern this very document specifies (§B1's slim hint bar). **That reuse was wrong, and the reason is the
+rule above:** §B1's bar is about the *drawer*, which lives at the bottom, so a bottom bar is where the
+drawer's own state belongs. The line-end prompt is about *one cell*. Copying the form without checking what
+it was anchored to reproduced the exact failure the refusal fix had just closed.
+
+**Consequences for anything built later:**
+
+- A per-cell message uses `leadSheetOverlay.ts` — `anchoredOverlayPosition` and its shared box constants —
+  rather than a new positioning rule. Two copies of "above by default, flip below, clamp" drift.
+- If such a message can **outlive a scroll**, it must stick to the nearest edge when its anchor leaves the
+  viewport rather than disappearing with it. Anything carrying the only cancel control especially: a
+  vanished prompt strands the gesture.
+- **Never truncate a message; wrap it.** Half an instruction is not an instruction. Box width is a maximum,
+  height is a two-line budget, and the max is small enough to fit the narrowest supported viewport with
+  padding — asserted in `leadSheetOverlay.test.ts`, since wrapping only saves a box that had somewhere to
+  wrap to.
+- The bottom of the screen stays available for genuinely screen-level state — the step-7 drawer being the
+  case it is reserved for.
+
 ## A4 — In-cell reorder by tap-to-number — ❌ DROPPED (rev 5)
 
 > ~~Tap a multi-syllable cell → its chips show order badges (1, 2, 3…) → tap syllables in the order you want

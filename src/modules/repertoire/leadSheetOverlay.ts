@@ -24,6 +24,45 @@
  * anchor was found or how often it is re-measured.
  */
 
+/**
+ * BOX SIZE — shared by both overlays, because both got it wrong in
+ * different directions from the same cause: a declared size that did
+ * not match what the content actually rendered as.
+ *
+ *   · the line-end prompt declared a fixed 268px width and truncated,
+ *     so it read "tap the beat wher… [cancel]"
+ *   · the refusal message declared 232px wide by 30px tall, but its
+ *     sentence wraps to two lines at that width — so it rendered
+ *     taller than the geometry believed and sat lower than intended,
+ *     clipping into the cell it was pointing at
+ *
+ * The rule now: **never truncate, always wrap.** Width is a MAXIMUM,
+ * not a fixed size, so a box shrinks to its content and a long message
+ * wraps instead of clipping. Height is a two-line BUDGET.
+ *
+ * Both dimensions are deliberately modest. A very wide box covers the
+ * cells the user is about to aim at; a very tall one covers whole
+ * rows. Two lines and a moderate width keeps the anchor cell and its
+ * immediate neighbours visible enough to hit — and the pass-through
+ * behaviour on the prompt body covers what is still overlapped.
+ *
+ * Geometry uses the MAX width for centring and clamping rather than
+ * the rendered width. That keeps positioning arithmetic — no
+ * measure-then-reposition pass, no frame in the wrong place — and
+ * errs conservatively, since clamping a box as if it were wider than
+ * it is can only keep it further inside the viewport. Both current
+ * messages run to the cap anyway.
+ */
+export const OVERLAY_MAX_W = 240;
+/** Two wrapped lines at 11px with `leading-tight`, plus `py-1`. */
+export const OVERLAY_H = 40;
+export const OVERLAY_GAP = 6;
+export const OVERLAY_EDGE_PAD = 8;
+/** Narrowest viewport the layout supports; `OVERLAY_MAX_W` must leave
+ *  padding on both sides of it, or wrapping could not save a box from
+ *  running off the screen. Asserted in the tests. */
+export const MIN_SUPPORTED_VIEWPORT_W = 320;
+
 export type OverlayPlacement =
   /** Floating just above the anchor cell — the default. */
   | 'above'
