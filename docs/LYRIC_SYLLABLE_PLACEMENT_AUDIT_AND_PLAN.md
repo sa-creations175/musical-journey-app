@@ -9,6 +9,10 @@ Revision history:
 - **rev 2 (2026-08-03)** — **Place = pin** (A2) replaces the separate pinned flag; **marker = places one
   unit** (A1) replaces rigid whole-line translate; **tap-to-place** (A3) replaces send-to-beat; cross-section
   placement allowed (§2.0).
+- **rev 4 (2026-08-09)** — **LINE ORDER IS POSITIONAL.** Lyric lines run strictly sequential: line N's
+  syllables must land after line N-1's and before line N+1's. This **supersedes rev 3's "line identity
+  becomes pure text grouping with no positional meaning"** (§2.0) and rev 1's "cross-line stacking is
+  explicitly wanted" (§6). See §2.0 for the full rule and the reason.
 - **rev 3 (2026-08-03)** — decisions in. Option 1 confirmed. **ONE LYRIC STORE**: lyric lines move from
   section-owned to **song-owned**, the drawer holds exactly one thing, and "pending" ceases to exist as a
   separate bucket (pending = unplaced). This supersedes rev 2's three-part drawer and re-sequences steps 1
@@ -209,6 +213,12 @@ console check: `(await db.songSections.get('<sectionId>')).lyricLines` — if on
 **Minimal mitigation, consistent with A2/A3: none needed beyond the redesign.** Stacking stays allowed and is
 correct — cross-line and cross-section stacking is explicitly wanted (A3). The redesign fixes it structurally:
 
+> **SUPERSEDED IN PART (rev 4).** Cross-**section** stacking is still wanted and unaffected. Cross-**line**
+> stacking in a single cell is now **illegal** — the strictly-sequential line rule (§2.0) refuses a
+> placement that lands exactly on a neighbouring line's syllable, so a cell may stack syllables from one
+> line only. Mechanism 2 below therefore becomes unreachable for *new* placements; it survives only in data
+> written before rev 4.
+
 - Mechanism 1 **cannot occur** under A2. There is no derived even-spread across a line range; unplaced
   syllables spread between *placed endpoints*, and a run with no distinct endpoints doesn't render in the grid
   at all (it stays in the drawer). A zero-width range is not representable.
@@ -243,7 +253,46 @@ Your own wording resolves (3) cleanly: **"Drag remains for local moves."** So:
 
 **Option 1 — CONFIRMED (rev 3).** Anchor carries `{ sectionId, barIndex, beatPos, order }`; the armed state
 and the anchor→cell read model lift above `LeadSheetSection`; each section renders whatever anchors point at
-it. **Line identity becomes pure text grouping with no positional meaning.**
+it.
+
+### LINE ORDER IS POSITIONAL (rev 4 — SUPERSEDES the clause below)
+
+> ~~**Line identity becomes pure text grouping with no positional meaning.**~~ — rev 3, **superseded**.
+
+**The rule, as built in step 6b.** Lyric lines run **strictly sequential**. A syllable may not land at or
+after the next line's earliest placed syllable, and may not land at or before the previous line's latest
+placed syllable. Line order is the order of `Song.lyricLines`, which the fold migration built in **section
+order**. So line membership now carries real positional meaning, and §2.0's Option 1 keeps everything else
+it decided — anchors carrying `sectionId`, the lifted read model, sections rendering whatever points at
+them — but not that one clause.
+
+**Why it changed.** Browser-verifying 6a surfaced the concrete failure: a syllable from one lyric line could
+slide freely in front of a syllable from an earlier line, because nothing constrained across lines. That is
+wrong for this repertoire — lyrics run strictly sequential, and unconstrained placement quietly produced
+charts that read out of order. Overlap cases (call-and-response, a held word running under the next phrase)
+are handled by **editing the lines themselves**, not by unconstrained placement.
+
+**Properties, all deliberate:**
+
+- **Both directions, always.** Forwards and backwards constraints apply to every placement.
+- **No ordering-of-operations rule.** A later line placed before an earlier one is constrained identically;
+  the guard reads positions, never history.
+- **Lines with nothing placed are transparent**, header rows included — the nearest line in each direction
+  that *has* something placed is the binding one. No special case for empty lines.
+- **Within a section and across sections.** `beatAxis` is already one ascending line across every section in
+  song order, and `checkPlacementOrder` already resolves anchors to global positions, so the cross-line rule
+  extends that guard rather than adding a parallel one.
+- **Stricter than the within-line rule, on purpose.** Landing *exactly on* a neighbouring line's syllable is
+  refused, where landing exactly on a same-line sibling is legal. **Consequence: a cell may stack syllables
+  from ONE line only.** This is what supersedes §6's "cross-line and cross-section stacking is explicitly
+  wanted" — cross-*section* stacking is still wanted and unaffected; cross-*line* stacking in a single cell
+  is now illegal.
+- **`checkPlacementOrder` stays the single authority.** No legality logic is duplicated, and hinted cells are
+  never pre-filtered — every cell offers itself and refusal happens on tap. Because `placeSyllable`
+  re-checks the guard when handed an axis, **drag inherits the cross-line rule with no separate code path.**
+- **Escape hatch is un-placing or moving the blocking syllable.** There is no override or force-place
+  affordance. Note that songs placed before rev 4 may already contain cross-line inversions — the guard
+  prevents new ones, it does not retroactively repair data.
 
 Rejected (Option 2): keep syllables section-local and *move the data* to the target section on a cross-section
 place. Cheaper, but it contradicts "only syllable anchors matter", creates cross-record writes, and makes

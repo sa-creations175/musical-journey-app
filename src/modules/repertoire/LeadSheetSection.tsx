@@ -1059,11 +1059,18 @@ export default function LeadSheetSection({
           dispatchArming({ type: 'placed' });
           return;
         }
+        // Every ordering violation reads the same to the user, whether
+        // the blocker is a sibling in this line or a syllable in the
+        // line before or after it (step 6b). Listed as exclusions
+        // rather than as a whitelist so a future violation code gets
+        // the message by default instead of silently losing it.
+        //
         // `off-axis` means the target section isn't on the beat axis —
         // a data problem, not the user putting syllables out of order.
         // The shake still fires from refusePlacement; explaining it as
-        // an ordering error would be wrong.
-        if (result === 'before-previous' || result === 'after-next') {
+        // an ordering error would be wrong. `unavailable` never
+        // reaches a cell at all.
+        if (result !== 'off-axis' && result !== 'unavailable') {
           toast({
             message: "Can't place here — syllables must stay in order.",
             variant: 'warning',

@@ -253,14 +253,19 @@ describe('checkPlacementOrder — monotonic anchors within a line', () => {
     ).toBe('before-previous');
   });
 
-  it('constrains lines independently of each other', () => {
+  it('reports a within-line violation ahead of a cross-line one', () => {
+    // Both rules fire here. The within-line check runs first, so the
+    // nearer, more specific reason is the one reported.
     const lines = [
-      line('l1', [{ id: 'a', text: 'a', at: [10, 0, 0] }]),
-      line('l2', [{ id: 'b', text: 'b' }]),
+      line('l0', [{ id: 'z', text: 'z', at: [6, 0, 0] }]),
+      line('l1', [
+        { id: 'a', text: 'a', at: [4, 0, 0] },
+        { id: 'b', text: 'b' },
+      ]),
     ];
     expect(
-      checkPlacementOrder(lines, 'b', { sectionId: SEC, barIndex: 0, beatPos: 0 }, axis16),
-    ).toBeNull();
+      checkPlacementOrder(lines, 'b', { sectionId: SEC, barIndex: 2, beatPos: 0 }, axis16),
+    ).toBe('before-previous');
   });
 
   it('rejects a target that is off the axis', () => {
@@ -276,6 +281,189 @@ describe('checkPlacementOrder — monotonic anchors within a line', () => {
       lines, 'head', { sectionId: SEC, barIndex: 15, beatPos: 0 }, axis16,
     );
     expect(anchorOf(next, 'head')).toEqual(anchorOf(lines, 'head'));
+  });
+});
+
+// --- cross-line ordering (step 6b) ------------------------------------
+
+const SEC_B = 'sec-b';
+// SEC occupies globals 0-15, SEC_B 16-31.
+const axis2sec = buildBeatAxis([
+  { sectionId: SEC, beatsPerBar: 4, barCount: 4 },
+  { sectionId: SEC_B, beatsPerBar: 4, barCount: 4 },
+]);
+
+/** Like `line`, but anchors land in an explicitly named section. */
+function lineIn(
+  sectionId: string,
+  id: string,
+  syllables: Array<{ id: string; text: string; at?: [number, number] }>,
+): SongLyricLine {
+  return {
+    id,
+    kind: 'lyric',
+    text: syllables.map(s => s.text).join(' '),
+    syllables: syllables.map(s => ({
+      id: s.id,
+      text: s.text,
+      ...(s.at
+        ? {
+            anchor: {
+              sectionId,
+              barIndex: s.at[0],
+              beatPos: s.at[1],
+              order: 0,
+            },
+          }
+        : {}),
+    })),
+  };
+}
+
+describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
+  // l1 sits at bar 4 (global 16), l3 at bar 8 (global 32); l2 is the
+  // line being placed and has nothing down yet.
+  const sandwiched = () => [
+    line('l1', [{ id: 'a', text: 'a', at: [4, 0, 0] }]),
+    line('l2', [{ id: 'b', text: 'b' }]),
+    line('l3', [{ id: 'c', text: 'c', at: [8, 0, 0] }]),
+  ];
+  const place = (lines: SongLyricLine[], id: string, bar: number, beat = 0) =>
+    checkPlacementOrder(lines, id, { sectionId: SEC, barIndex: bar, beatPos: beat }, axis16);
+
+  it('rejects landing before the previous line’s latest syllable', () => {
+    expect(place(sandwiched(), 'b', 2)).toBe('before-previous-line');
+  });
+
+  it('rejects landing after the next line’s earliest syllable', () => {
+    expect(place(sandwiched(), 'b', 9)).toBe('after-next-line');
+  });
+
+  it('rejects landing exactly ON a neighbouring line — cross-line stacking is illegal', () => {
+    // Deliberately stricter than the within-line rule. A cell may stack
+    // syllables from one line only; overlap is expressed by editing the
+    // lines, not by interleaving two lines' placements.
+    expect(place(sandwiched(), 'b', 4)).toBe('before-previous-line');
+    expect(place(sandwiched(), 'b', 8)).toBe('after-next-line');
+  });
+
+  it('allows landing strictly between the neighbouring lines', () => {
+    expect(place(sandwiched(), 'b', 6)).toBeNull();
+    expect(place(sandwiched(), 'b', 4, 1)).toBeNull();
+    expect(place(sandwiched(), 'b', 7, 3)).toBeNull();
+  });
+
+  it('still allows stacking within one line', () => {
+    // The asymmetry is intended: equality is legal inside a line and
+    // illegal across lines. Asserted together so neither drifts.
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'a', at: [4, 0, 0] },
+        { id: 'b', text: 'b' },
+      ]),
+    ];
+    expect(place(lines, 'b', 4)).toBeNull();
+  });
+
+  it('binds on the previous line’s LATEST syllable, not its first', () => {
+    const lines = [
+      line('l1', [
+        { id: 'x', text: 'x', at: [1, 0, 0] },
+        { id: 'y', text: 'y', at: [6, 0, 0] },
+      ]),
+      line('l2', [{ id: 'b', text: 'b' }]),
+    ];
+    expect(place(lines, 'b', 5)).toBe('before-previous-line');
+    expect(place(lines, 'b', 7)).toBeNull();
+  });
+
+  it('binds on the next line’s EARLIEST syllable, not its last', () => {
+    const lines = [
+      line('l1', [{ id: 'b', text: 'b' }]),
+      line('l2', [
+        { id: 'x', text: 'x', at: [6, 0, 0] },
+        { id: 'y', text: 'y', at: [9, 0, 0] },
+      ]),
+    ];
+    expect(place(lines, 'b', 7)).toBe('after-next-line');
+    expect(place(lines, 'b', 5)).toBeNull();
+  });
+
+  it('treats lines with nothing placed as transparent', () => {
+    // No ordering-of-operations rule and no special case for empty
+    // lines: the nearest line that has something placed binds.
+    const lines = [
+      line('l1', [{ id: 'a', text: 'a', at: [4, 0, 0] }]),
+      line('l2', [{ id: 'g1', text: 'g1' }]),
+      line('l3', [{ id: 'g2', text: 'g2' }]),
+      line('l4', [{ id: 'b', text: 'b' }]),
+    ];
+    expect(place(lines, 'b', 2)).toBe('before-previous-line');
+    expect(place(lines, 'b', 6)).toBeNull();
+  });
+
+  it('treats header rows as transparent', () => {
+    const lines: SongLyricLine[] = [
+      line('l1', [{ id: 'a', text: 'a', at: [4, 0, 0] }]),
+      { id: 'h', kind: 'header', text: 'Chorus' },
+      line('l2', [{ id: 'b', text: 'b' }]),
+    ];
+    expect(place(lines, 'b', 2)).toBe('before-previous-line');
+    expect(place(lines, 'b', 6)).toBeNull();
+  });
+
+  it('constrains an earlier line placed AFTER a later one', () => {
+    // Order of operations is irrelevant — the guard reads positions,
+    // never history. l2 went down first; l1 is still bound by it.
+    const lines = [
+      line('l1', [{ id: 'a', text: 'a' }]),
+      line('l2', [{ id: 'b', text: 'b', at: [4, 0, 0] }]),
+    ];
+    expect(place(lines, 'a', 6)).toBe('after-next-line');
+    expect(place(lines, 'a', 4)).toBe('after-next-line');
+    expect(place(lines, 'a', 2)).toBeNull();
+  });
+
+  it('constrains across sections — previous line in an earlier section', () => {
+    // l1 sits in SEC_B bar 1 (global 20); l2 tries SEC bar 2 (global 8).
+    const lines = [
+      lineIn(SEC_B, 'l1', [{ id: 'a', text: 'a', at: [1, 0] }]),
+      lineIn(SEC, 'l2', [{ id: 'b', text: 'b' }]),
+    ];
+    expect(
+      checkPlacementOrder(lines, 'b', { sectionId: SEC, barIndex: 2, beatPos: 0 }, axis2sec),
+    ).toBe('before-previous-line');
+  });
+
+  it('constrains across sections — next line in a later section', () => {
+    // l2 sits in SEC bar 1 (global 4); l1 tries SEC_B bar 0 (global 16).
+    const lines = [
+      lineIn(SEC, 'l1', [{ id: 'a', text: 'a' }]),
+      lineIn(SEC, 'l2', [{ id: 'b', text: 'b', at: [1, 0] }]),
+    ];
+    expect(
+      checkPlacementOrder(lines, 'a', { sectionId: SEC_B, barIndex: 0, beatPos: 0 }, axis2sec),
+    ).toBe('after-next-line');
+  });
+
+  it('allows a cross-section placement that keeps line order', () => {
+    const lines = [
+      lineIn(SEC, 'l1', [{ id: 'a', text: 'a', at: [1, 0] }]),
+      lineIn(SEC, 'l2', [{ id: 'b', text: 'b' }]),
+    ];
+    expect(
+      checkPlacementOrder(lines, 'b', { sectionId: SEC_B, barIndex: 0, beatPos: 0 }, axis2sec),
+    ).toBeNull();
+  });
+
+  it('placeSyllable refuses a cross-line violating write when given an axis', () => {
+    // The guard is the single authority: drag routes through
+    // placeSyllable, so it inherits the cross-line rule for free.
+    const lines = sandwiched();
+    const next = placeSyllable(
+      lines, 'b', { sectionId: SEC, barIndex: 2, beatPos: 0 }, axis16,
+    );
+    expect(anchorOf(next, 'b')).toBeUndefined();
   });
 });
 

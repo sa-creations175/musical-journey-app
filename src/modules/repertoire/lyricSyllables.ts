@@ -113,11 +113,21 @@ function mapSyllable(
 export function findSyllable(
   lines: ReadonlyArray<SongLyricLine>,
   syllableId: string,
-): { line: SongLyricLine; syllable: LyricSyllable; index: number } | null {
-  for (const line of lines) {
+): {
+  line: SongLyricLine;
+  syllable: LyricSyllable;
+  index: number;
+  /** The line's position in `lines` — song order, which now carries
+   *  positional meaning (see `checkPlacementOrder`). */
+  lineIndex: number;
+} | null {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
     const syllables = line.syllables ?? [];
     const index = syllables.findIndex(s => s.id === syllableId);
-    if (index >= 0) return { line, syllable: syllables[index], index };
+    if (index >= 0) {
+      return { line, syllable: syllables[index], index, lineIndex };
+    }
   }
   return null;
 }
@@ -152,25 +162,78 @@ function syllablesInCell(
 export type OrderViolation =
   | 'before-previous'
   | 'after-next'
+  | 'before-previous-line'
+  | 'after-next-line'
   | 'off-axis';
 
 /**
- * MONOTONIC ANCHORS. A line's placed syllables must run in text order
- * along the global beat axis — syllable *i* can never sit strictly
- * before an earlier placed syllable or strictly after a later one.
+ * The span one line occupies on the global axis, or null when it has
+ * nothing placed. Header rows always return null — they carry no
+ * syllables — so they are transparent to the cross-line rule.
  *
- * Returns the violation, or null when the placement is legal.
+ * Deliberately min/max over every placed syllable rather than
+ * first/last in text order: a line that is itself internally inverted
+ * (possible in data written before the guard existed) still reports an
+ * honest span, so it constrains its neighbours by where it actually
+ * sits rather than by where its endpoints claim to be.
+ */
+function placedGlobalRange(
+  line: SongLyricLine,
+  axis: BeatAxis,
+): { min: number; max: number } | null {
+  let min: number | null = null;
+  let max: number | null = null;
+  for (const s of line.syllables ?? []) {
+    if (!s.anchor) continue;
+    const global = anchorToGlobal(axis, s.anchor);
+    if (global === null) continue;
+    min = min === null ? global : Math.min(min, global);
+    max = max === null ? global : Math.max(max, global);
+  }
+  return min === null || max === null ? null : { min, max };
+}
+
+/**
+ * MONOTONIC ANCHORS, within a line AND across lines.
  *
- * Equality is legal: two syllables of a line may share a cell, and a
- * placement landing exactly on a neighbour's beat is fine. Only
- * CROSSING is forbidden.
+ * Returns the violation, or null when the placement is legal. This
+ * function is the SINGLE authority on placement legality — drag, tap,
+ * marker drags and tray drops all route through it, and nothing
+ * pre-filters cells on its behalf.
  *
- * Without this, first-unit-only tray drops could invert a line — drop
- * the head at bar 15 while the tail sits at bar 14 — and the ghost
- * spread would then interpolate across a negative span, scattering the
- * middle syllables backwards. Rejecting the placement is the fix;
- * `provisionalPlacements` additionally refuses to walk backwards, so
- * the two defences are independent.
+ * **Within a line** (step 5): placed syllables run in text order along
+ * the global beat axis — syllable *i* can never sit strictly before an
+ * earlier placed syllable or strictly after a later one. Equality is
+ * legal here: two syllables of one line may share a cell, and landing
+ * exactly on a neighbour's beat is fine. Only CROSSING is forbidden.
+ *
+ * Without it, first-unit-only tray drops could invert a line — head at
+ * bar 15 while the tail sits at bar 14 — and the ghost spread would
+ * interpolate across a negative span, scattering the middle syllables
+ * backwards. `provisionalPlacements` additionally refuses to walk
+ * backwards, so the two defences are independent.
+ *
+ * **Across lines** (step 6b): lyric lines run strictly sequential.
+ * Line N's syllables must land after every syllable of line N-1 and
+ * before every syllable of line N+1, where line order is the order of
+ * the song's `lyricLines` — which the fold migration built in section
+ * order. This supersedes the earlier decision that line identity was
+ * "pure text grouping with no positional meaning"; see
+ * docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §2.0.
+ *
+ * Cross-line comparison is STRICT where the within-line one is not:
+ * landing *on* a neighbouring line's syllable is refused, not just
+ * crossing it. Consequence, and intended — a cell may stack syllables
+ * from ONE line only. Overlap (call-and-response, a held word running
+ * under the next phrase) is expressed by editing the lines, not by
+ * interleaving two lines' placements.
+ *
+ * The nearest line with anything placed is the only binding one in
+ * each direction, mirroring the within-line rule; lines with nothing
+ * placed are transparent, so there is no ordering-of-operations rule
+ * and no special case for empty lines. A later line placed before an
+ * earlier one is constrained identically — the guard reads positions,
+ * never history.
  */
 export function checkPlacementOrder(
   lines: ReadonlyArray<SongLyricLine>,
@@ -198,6 +261,19 @@ export function checkPlacementOrder(
     const global = anchorToGlobal(axis, anchor);
     if (global === null) continue;
     if (targetGlobal > global) return 'after-next';
+    break;
+  }
+
+  for (let li = found.lineIndex - 1; li >= 0; li--) {
+    const range = placedGlobalRange(lines[li], axis);
+    if (!range) continue;
+    if (targetGlobal <= range.max) return 'before-previous-line';
+    break; // nearest preceding line with anything placed binds
+  }
+  for (let li = found.lineIndex + 1; li < lines.length; li++) {
+    const range = placedGlobalRange(lines[li], axis);
+    if (!range) continue;
+    if (targetGlobal >= range.min) return 'after-next-line';
     break;
   }
   return null;
