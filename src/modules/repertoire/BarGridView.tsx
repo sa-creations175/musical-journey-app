@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useLongPress } from '../../lib/useLongPress';
 import {
   type DraggableSyntheticListeners,
   useDraggable,
@@ -172,6 +173,10 @@ interface Props {
   rejectedCell?: string | null;
   /** Line start/end markers grouped by cell (rev 3 §A1). */
   markerIndex?: Map<string, LineMarkerPlacement[]>;
+  /** Tap-to-place (step 6a): the syllable a beat-cell tap will place. */
+  armedSyllableId?: string | null;
+  onSyllableTap?: (syllableId: string) => void;
+  onBeatCellTap?: (barIndex: number, beatPos: number) => void | Promise<void>;
   /** Full song store — the edit popover needs a syllable's text and
    *  whether it has a next sibling to join with. */
   songLyricLines?: SongLyricLine[];
@@ -276,6 +281,9 @@ export default function BarGridView({
   lyricDragActive = false,
   rejectedCell = null,
   markerIndex,
+  armedSyllableId = null,
+  onSyllableTap,
+  onBeatCellTap,
   songLyricLines,
   onSyllableSplit,
   onSyllableJoin,
@@ -606,7 +614,10 @@ export default function BarGridView({
                   songLyricLines={songLyricLines}
                   editing={syllableEditing}
                   onEditingChange={setSyllableEditing}
-                  onSyllableClick={
+                  armedSyllableId={armedSyllableId}
+                  onSyllableTap={onSyllableTap}
+                  onBeatCellTap={onBeatCellTap}
+                  onOpenSyllableMenu={
                     onSyllableSplit || onSyllableJoin || onSyllableChange
                       ? syllableId =>
                           setSyllableEditing(prev =>
@@ -1514,7 +1525,10 @@ function SyllableBarSegment({
   songLyricLines,
   editing,
   onEditingChange,
-  onSyllableClick,
+  armedSyllableId,
+  onSyllableTap,
+  onBeatCellTap,
+  onOpenSyllableMenu,
   onSplit,
   onJoin,
   onChange,
@@ -1531,7 +1545,10 @@ function SyllableBarSegment({
   songLyricLines?: SongLyricLine[];
   editing: SyllableEditingState | null;
   onEditingChange: (next: SyllableEditingState | null) => void;
-  onSyllableClick?: (syllableId: string) => void;
+  armedSyllableId: string | null;
+  onSyllableTap?: (syllableId: string) => void;
+  onBeatCellTap?: (barIndex: number, beatPos: number) => void | Promise<void>;
+  onOpenSyllableMenu?: (syllableId: string) => void;
   onSplit?: (syllableId: string, splitAt: number) => void | Promise<void>;
   onJoin?: (syllableId: string) => void | Promise<void>;
   onChange?: (syllableId: string, nextText: string) => void | Promise<void>;
@@ -1555,7 +1572,11 @@ function SyllableBarSegment({
             markers={markerIndex?.get(key) ?? []}
             dragActive={lyricDragActive}
             rejected={rejectedCell === key}
-            onSyllableClick={onSyllableClick}
+            armedSyllableId={armedSyllableId}
+            armingActive={armedSyllableId !== null}
+            onSyllableTap={onSyllableTap}
+            onBeatCellTap={onBeatCellTap}
+            onOpenSyllableMenu={onOpenSyllableMenu}
           />
         );
       })}
@@ -1656,6 +1677,9 @@ function SyllableEditPopover({
 
   return (
     <div
+      // Clicks inside the menu must not disarm — it belongs to the
+      // armed syllable.
+      data-lyric-arm-keep=""
       className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-30 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-md p-2 text-[11px]"
       onClick={e => e.stopPropagation()}
     >
@@ -1807,7 +1831,11 @@ function SyllableDropSlot({
   markers,
   dragActive,
   rejected,
-  onSyllableClick,
+  armedSyllableId,
+  armingActive,
+  onSyllableTap,
+  onBeatCellTap,
+  onOpenSyllableMenu,
 }: {
   barIndex: number;
   beatPos: number;
@@ -1815,7 +1843,11 @@ function SyllableDropSlot({
   markers: LineMarkerPlacement[];
   dragActive: boolean;
   rejected: boolean;
-  onSyllableClick?: (syllableId: string) => void;
+  armedSyllableId: string | null;
+  armingActive: boolean;
+  onSyllableTap?: (syllableId: string) => void;
+  onBeatCellTap?: (barIndex: number, beatPos: number) => void | Promise<void>;
+  onOpenSyllableMenu?: (syllableId: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: DRAG_ID.beat(barIndex, beatPos),
@@ -1824,8 +1856,13 @@ function SyllableDropSlot({
   // tint on an already-bordered 28px cell — technically present, not
   // actually visible. Dimming the non-targets is what makes the target
   // pop without needing a loud fill.
+  // While a syllable is armed EVERY cell offers itself. Legality is not
+  // computed here — checkPlacementOrder decides on tap, and pre-filtering
+  // would duplicate that rule in a second place.
   const surface = rejected
     ? 'border-solid border-needswork bg-needswork/20 ring-2 ring-needswork'
+    : armingActive && !dragActive
+      ? 'border-solid border-fluent/50 bg-fluent/10 cursor-pointer hover:bg-fluent/25 hover:border-fluent'
     : isOver
     ? 'border-solid border-fluent bg-fluent/25 ring-2 ring-fluent'
     : dragActive
@@ -1834,6 +1871,21 @@ function SyllableDropSlot({
   return (
     <div
       ref={setNodeRef}
+      data-lyric-arm-keep=""
+      role={armingActive && onBeatCellTap ? 'button' : undefined}
+      onClick={
+        armingActive && onBeatCellTap
+          ? e => {
+              e.stopPropagation();
+              void onBeatCellTap(barIndex, beatPos);
+            }
+          : undefined
+      }
+      aria-label={
+        armingActive
+          ? `place syllable at bar ${barIndex + 1} beat ${beatPos + 1}`
+          : undefined
+      }
       className={`relative flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
     >
       {markers.filter(m => m.edge === 'start').map(m => (
@@ -1845,7 +1897,9 @@ function SyllableDropSlot({
           syllableId={occupant.syllable.id}
           text={occupant.syllable.text}
           placed={occupant.placed}
-          onClick={onSyllableClick}
+          armed={armedSyllableId === occupant.syllable.id}
+          onTap={onSyllableTap}
+          onOpenMenu={onOpenSyllableMenu}
         />
       ))}
       {markers.filter(m => m.edge === 'end').map(m => (
@@ -1929,12 +1983,16 @@ function SyllableChip({
   syllableId,
   text,
   placed,
-  onClick,
+  armed,
+  onTap,
+  onOpenMenu,
 }: {
   syllableId: string;
   text: string;
   placed: boolean;
-  onClick?: (syllableId: string) => void;
+  armed: boolean;
+  onTap?: (syllableId: string) => void;
+  onOpenMenu?: (syllableId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: DRAG_ID.syllable(syllableId),
@@ -1942,35 +2000,94 @@ function SyllableChip({
   // No transform: a DragOverlay carries the moving copy, so the source
   // stays in place and its cell doesn't reflow mid-drag.
   const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
+
+  // Long-press is a SHORTCUT to the same menu the "…" control opens —
+  // one implementation, two entry points.
+  //
+  // Guarded on `isDragging` rather than by tightening the hook's move
+  // tolerance: dnd-kit activates a drag at 5px, the hook cancels a
+  // long-press at 15px, so a 5-15px movement held past the threshold
+  // would otherwise fire BOTH. Dropping the tolerance to 4px would fix
+  // that arithmetically but fights real finger drift, which the hook's
+  // own comment measures at 3-5px.
+  const draggingRef = useRef(isDragging);
+  draggingRef.current = isDragging;
+  const longPress = useLongPress(
+    () => {
+      if (draggingRef.current) return;
+      onOpenMenu?.(syllableId);
+    },
+    { enabled: Boolean(onOpenMenu) },
+  );
+
+  // Compose rather than spread. `{...listeners}` followed by
+  // `{...longPress}` would silently OVERWRITE dnd-kit's onPointerDown
+  // with the hook's, killing drag activation entirely — both attach to
+  // the same event. Calling dnd-kit first preserves the 5px activation
+  // path; the hook's own handler only starts a timer, so ordering is
+  // otherwise immaterial.
+  const dragPointerDown = (listeners as Record<string, unknown> | undefined)
+    ?.onPointerDown as ((e: React.PointerEvent<HTMLElement>) => void) | undefined;
+  const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    dragPointerDown?.(e);
+    longPress.onPointerDown(e);
+  };
+
   return (
     <span
       ref={setNodeRef}
       style={style}
+      data-lyric-arm-keep=""
       {...attributes}
       {...listeners}
+      onPointerDown={onPointerDown}
+      onPointerMove={longPress.onPointerMove}
+      onPointerUp={longPress.onPointerUp}
+      onPointerCancel={longPress.onPointerCancel}
+      onPointerLeave={longPress.onPointerLeave}
       onClick={
-        onClick
+        onTap
           ? e => {
-              // 5px activation distance means a bare click lands here
-              // without starting a drag. Stop propagation so the grid's
-              // container mousedown doesn't close the popover.
+              // The PointerSensor's 5px activation distance means a bare
+              // tap lands here without starting a drag. After a
+              // long-press the hook swallows this click at the document
+              // level, so holding opens the menu WITHOUT also arming.
               e.stopPropagation();
-              onClick(syllableId);
+              onTap(syllableId);
             }
           : undefined
       }
-      className={`select-none touch-none text-[10px] leading-tight italic px-1 rounded truncate max-w-[7rem] ${
+      className={`relative select-none touch-none text-[10px] leading-tight italic px-1 rounded truncate max-w-[7rem] ${
         placed
           ? 'text-neutral-700 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800'
           : 'text-neutral-400 dark:text-neutral-500 bg-neutral-50 dark:bg-neutral-900/40 opacity-70'
       } ${
-        onClick
+        armed ? 'ring-2 ring-fluent bg-fluent/15 opacity-100' : ''
+      } ${
+        onTap
           ? 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-700'
           : 'cursor-grab active:cursor-grabbing'
       }`}
       title={placed ? text : `${text} — not placed yet`}
     >
       {text}
+      {/* The "…" appears ONLY on the armed syllable, so an unarmed grid
+          stays clean. stopPropagation on pointerdown keeps a press here
+          from starting a drag of the chip underneath. */}
+      {armed && onOpenMenu && (
+        <button
+          type="button"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation();
+            onOpenMenu(syllableId);
+          }}
+          aria-label={`open actions for "${text}"`}
+          className="ml-0.5 px-0.5 rounded text-fluent hover:bg-fluent/20 leading-none"
+        >
+          …
+        </button>
+      )}
     </span>
   );
 }

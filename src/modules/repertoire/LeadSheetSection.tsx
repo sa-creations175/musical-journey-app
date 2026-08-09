@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   closestCenter,
   type CollisionDetection,
@@ -29,6 +29,7 @@ import type {
 import {
   type BeatAxis,
   type CellOccupant,
+  type OrderViolation,
   type LineMarkerPlacement,
   cellKey,
   checkPlacementOrder,
@@ -44,6 +45,7 @@ import {
   unplaceSyllable,
 } from './lyricSyllables';
 import { parseLyricSheet } from './lyricSheetParse';
+import { armingReducer } from './syllableArming';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -1002,6 +1004,74 @@ export default function LeadSheetSection({
     return () => cancelAnimationFrame(raf);
   }, [activeLyricDrag, section.id]);
 
+  // --- tap-to-place arming (step 6a) -------------------------------
+  // Lives HERE, not in BarGridView, because every piece it needs —
+  // tryPlaceSyllable, refusePlacement, beatAxis, the lyric store — is
+  // already local. Step 6b lifts it to SongDetailView so a tap can
+  // cross sections; that is one hop along the path cellIndex /
+  // markerIndex / beatAxis already travel, and should be a move plus a
+  // prop rename rather than a rewrite.
+  const [arming, dispatchArming] = useReducer(armingReducer, null);
+  const armedSyllableId = arming?.armedSyllableId ?? null;
+
+  // Drop arming if the armed syllable stops existing (split, join,
+  // un-place, undo).
+  useEffect(() => {
+    if (!armedSyllableId) return;
+    if (!songLyricLines || !findSyllable(songLyricLines, armedSyllableId)) {
+      dispatchArming({ type: 'syllable-removed', syllableId: armedSyllableId });
+    }
+  }, [songLyricLines, armedSyllableId]);
+
+  // A tap that lands outside every arming surface disarms. Surfaces
+  // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
+  // cells, and the edit popover.
+  useEffect(() => {
+    if (!armedSyllableId) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
+        return;
+      }
+      dispatchArming({ type: 'tap-outside' });
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [armedSyllableId]);
+
+  const handleSyllableTap = (syllableId: string) => {
+    dispatchArming({ type: 'tap-syllable', syllableId });
+  };
+
+  /** Tapping a beat cell places the armed syllable there, through the
+   *  same guarded path drag uses. No legality is computed before the
+   *  tap — every cell is offered, and checkPlacementOrder is the only
+   *  thing that decides. */
+  const handleBeatCellTap = songLyricsActive
+    ? async (barIndex: number, beatPos: number) => {
+        if (!armedSyllableId) return;
+        const result = await tryPlaceSyllable(armedSyllableId, {
+          sectionId: section.id,
+          barIndex,
+          beatPos,
+        });
+        if (result === null) {
+          dispatchArming({ type: 'placed' });
+          return;
+        }
+        // `off-axis` means the target section isn't on the beat axis —
+        // a data problem, not the user putting syllables out of order.
+        // The shake still fires from refusePlacement; explaining it as
+        // an ordering error would be wrong.
+        if (result === 'before-previous' || result === 'after-next') {
+          toast({
+            message: "Can't place here — syllables must stay in order.",
+            variant: 'warning',
+          });
+        }
+      }
+    : undefined;
+
   // A cell that just refused a drop. Cleared on a timer so the shake
   // plays once; re-keyed per rejection so repeated refusals re-fire.
   const [rejectedCell, setRejectedCell] = useState<string | null>(null);
@@ -1025,20 +1095,27 @@ export default function LeadSheetSection({
   };
 
   /** Attempt a placement, refusing anything that would put the line's
-   *  syllables out of text order. Returns true when it landed. */
+   *  syllables out of text order.
+   *
+   *  Returns `null` when it landed, otherwise the violation — tap
+   *  placement needs the reason so it can distinguish a user ordering
+   *  error from `off-axis`, which is a data problem and should not be
+   *  reported as one. Drag ignores the return value, so its behaviour
+   *  is unchanged. */
   const tryPlaceSyllable = async (
     syllableId: string,
     cell: { sectionId: string; barIndex: number; beatPos: number },
-  ): Promise<boolean> => {
-    if (!songLyricLines || !onSongLyricsChange || !beatAxis) return false;
-    if (checkPlacementOrder(songLyricLines, syllableId, cell, beatAxis)) {
+  ): Promise<OrderViolation | 'unavailable' | null> => {
+    if (!songLyricLines || !onSongLyricsChange || !beatAxis) return 'unavailable';
+    const violation = checkPlacementOrder(songLyricLines, syllableId, cell, beatAxis);
+    if (violation) {
       refusePlacement(cell);
-      return false;
+      return violation;
     }
     await onSongLyricsChange(
       placeSyllable(songLyricLines, syllableId, cell, beatAxis),
     );
-    return true;
+    return null;
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -1580,6 +1657,9 @@ export default function LeadSheetSection({
               lyricDragActive={activeLyricDrag !== null}
               rejectedCell={rejectedCell}
               markerIndex={markerIndex}
+              armedSyllableId={armedSyllableId}
+              onSyllableTap={songLyricsActive ? handleSyllableTap : undefined}
+              onBeatCellTap={handleBeatCellTap}
               songLyricLines={songLyricLines}
               onSyllableSplit={handleSyllableSplit}
               onSyllableJoin={handleSyllableJoin}
