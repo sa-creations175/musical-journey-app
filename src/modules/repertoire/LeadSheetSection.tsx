@@ -133,19 +133,40 @@ const snapCenterToCursor: Modifier = ({
 };
 
 /**
- * How far outside a cell the pointer may sit and still count as aiming
- * at it. Covers the 2px inter-cell gaps and the 8px row gutters with
- * room to spare, while refusing a cursor that is nowhere near the grid.
+ * How far outside a cell's BAND (see below) the pointer may sit and
+ * still count as aiming at it. Covers the 2px inter-cell gaps and the
+ * row gutters, while refusing a cursor nowhere near the grid.
  */
 const POINTER_SNAP_PX = 48;
 
-/** Straight-line distance from a point to a rect; 0 when inside. */
+/**
+ * How far ABOVE a lyric cell still belongs to it.
+ *
+ * Each grid row is [chord row][4px][lyric row], then a 12px gap to the
+ * next row — so a lyric cell is ~30px tall inside a ~130px row, and the
+ * ~76px above it is the chord row for the SAME bar plus the row gap.
+ * Measured against the bare cell, the space between rows was a dead
+ * zone: instrumented capture caught a cursor mid-travel with its four
+ * nearest cells all 41-43px away, near-tied across two rows, so the
+ * ring sat well off the cursor and flipped between rows on ties.
+ *
+ * Extending each cell's target band upward over its own chord row makes
+ * the bands tile vertically: every point in the grid belongs to exactly
+ * one bar-and-beat, and "which column am I in" becomes the only
+ * question. Nothing else can be meant by hovering a bar's chord cell
+ * during a LYRIC drag, and chord drags are unaffected — they filter to
+ * `emptybeat:` droppables and never see these.
+ */
+const LYRIC_BAND_ABOVE_PX = 76;
+
+/** Distance from a point to a cell's target band; 0 when inside it. */
 function pointerDistanceToRect(
   point: { x: number; y: number },
   rect: DOMRect,
 ): number {
+  const bandTop = rect.top - LYRIC_BAND_ABOVE_PX;
   const dx = Math.max(rect.left - point.x, 0, point.x - rect.right);
-  const dy = Math.max(rect.top - point.y, 0, point.y - rect.bottom);
+  const dy = Math.max(bandTop - point.y, 0, point.y - rect.bottom);
   return Math.hypot(dx, dy);
 }
 
