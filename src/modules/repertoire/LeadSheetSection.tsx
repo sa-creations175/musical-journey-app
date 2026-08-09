@@ -74,6 +74,7 @@ import {
   uid,
 } from './beatsModel';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
+import { chordPalette, useIsDarkMode } from './chordColors';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
@@ -308,6 +309,7 @@ export default function LeadSheetSection({
   // Same source the grid cells read, so the sequence strip and the
   // cells can never disagree about notation.
   const [notationMode] = useNotationMode();
+  const isDark = useIsDarkMode();
 
   const [showNotes, setShowNotes] = useState(Boolean(section.notes));
   const [notesDraft, setNotesDraft] = useState(section.notes ?? '');
@@ -1503,9 +1505,21 @@ export default function LeadSheetSection({
   // Nothing about detection changes: `patternMatches` below builds
   // `DetectChord`s straight from `chord.function` / `chord.quality` and
   // never sees rendered text. This is display only.
-  const numeralStrip = useMemo(
-    () => detectionSequence.map(s => chordToDisplay(s.chord, notationMode, song.key)),
-    [detectionSequence, notationMode, song.key],
+  //
+  // Coloured by the SAME `chordPalette` call the grid cells make, so a
+  // 1maj token here is the same green as a 1maj cell. Uses the
+  // palette's `text` — the colour the grid paints a chord LABEL with —
+  // since a strip has no fill to carry the family. One call covers
+  // every case the grid handles: unparsed falls to the neutral palette,
+  // slash chords resolve to the bass family, and flat degrees pick up
+  // their darkened twin, all inside `chordPalette`.
+  const sequenceStrip = useMemo(
+    () =>
+      detectionSequence.map(s => ({
+        text: chordToDisplay(s.chord, notationMode, song.key),
+        color: chordPalette(s.chord, isDark).text,
+      })),
+    [detectionSequence, notationMode, song.key, isDark],
   );
 
   // Pattern matches via flexible root-motion detection. The effective
@@ -1780,7 +1794,7 @@ export default function LeadSheetSection({
           </DndContext>
 
 
-          {!playMode && numeralStrip.length > 0 && !comparing && (
+          {!playMode && sequenceStrip.length > 0 && !comparing && (
             <div className="flex flex-col gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
               {/* "Progression Patterns", not "Numerals" — the old label
                   described the notation the strip happened to use,
@@ -1817,11 +1831,11 @@ export default function LeadSheetSection({
                   or concrete. */}
               <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="uppercase tracking-wide">sequence:</span>
-                <span className="font-mono text-neutral-700 dark:text-neutral-200">
-                  {numeralStrip.map((n, i) => (
+                <span className="font-mono">
+                  {sequenceStrip.map((item, i) => (
                     <span key={i}>
                       {i > 0 && <span className="text-neutral-400"> · </span>}
-                      {n || '—'}
+                      <span style={{ color: item.color }}>{item.text || '—'}</span>
                     </span>
                   ))}
                 </span>
