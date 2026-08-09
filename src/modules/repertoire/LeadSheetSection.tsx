@@ -187,8 +187,22 @@ function cellUnderPointer(
   for (const element of stack) {
     const cell = element instanceof Element ? element.closest('[data-beat-cell]') : null;
     if (!cell) continue;
-    const id = cell.getAttribute('data-beat-cell');
-    const container = allowed.find(c => String(c.id) === id);
+    // Match by NODE IDENTITY, never by droppable id.
+    //
+    // `beat:13:0` exists in EVERY section — each numbers its bars from
+    // zero — so an id-string match silently aliased a cell the cursor
+    // was over in one section onto the same-named cell in this one,
+    // drawing the ring a viewport away. The gap grew with scroll travel
+    // because scrolling moved the cursor across different sections'
+    // grids, each aliasing back here.
+    //
+    // Node identity is exact: `setNodeRef` and `data-beat-cell` sit on
+    // the same element, so a hit only resolves when the element we hit
+    // IS this context's registered droppable. A cell from another
+    // section finds no container and yields no target — cross-section
+    // dragging isn't supported, and each section owns its own
+    // DndContext.
+    const container = allowed.find(c => c.node.current === cell);
     return container ? collisionFor(container, 0) : [];
   }
   return [];
