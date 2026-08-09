@@ -50,6 +50,7 @@ import {
   buildBeatAxis,
   buildCellIndex,
   buildMarkerIndex,
+  cellKey,
   findSyllable,
   foldSectionLyrics,
   restoreLineSyllables,
@@ -59,6 +60,11 @@ import {
   armingReducer,
   pendingLineEnd,
 } from './syllableArming';
+import {
+  anchoredOverlayPosition,
+  toAnchorRect,
+  type OverlayPosition,
+} from './leadSheetOverlay';
 import {
   loadLyricTrayCollapsed,
   loadPatternsCollapsed,
@@ -126,6 +132,12 @@ const REFUSAL_EDGE_PAD = 8;
  *  is gone before a scroll could strand it away from its cell. */
 const REFUSAL_MS = 2200;
 const REFUSAL_TEXT = "Can't place here — syllables must stay in order.";
+
+// The beat-two prompt. Wider than the refusal message because it
+// carries a cancel control as well as its sentence, and it is the only
+// route out of the gesture — it can never be allowed to truncate away.
+const PROMPT_W = 268;
+const PROMPT_H = 26;
 
 /** Generate a stable id for a reference-video entry. Prefer
  *  `crypto.randomUUID()` (browser standard, present in all modern
@@ -656,28 +668,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   );
 
   const handleRefusalNotice = useCallback((cellRect: DOMRect) => {
-    // Fixed box width so centring and the edge clamp are plain
-    // arithmetic on a known box — no render-measure-reposition pass,
-    // and no frame where the message is visibly in the wrong place.
-    const left = Math.min(
-      Math.max(
-        REFUSAL_EDGE_PAD,
-        cellRect.left + cellRect.width / 2 - REFUSAL_W / 2,
-      ),
-      Math.max(REFUSAL_EDGE_PAD, window.innerWidth - REFUSAL_W - REFUSAL_EDGE_PAD),
-    );
-    // Above by default; flip below when there isn't room, and clamp so
-    // it can't run off the bottom either.
-    const fitsAbove = cellRect.top - REFUSAL_H - REFUSAL_GAP >= REFUSAL_EDGE_PAD;
-    const top = fitsAbove
-      ? cellRect.top - REFUSAL_H - REFUSAL_GAP
-      : Math.min(
-          cellRect.bottom + REFUSAL_GAP,
-          Math.max(
-            REFUSAL_EDGE_PAD,
-            window.innerHeight - REFUSAL_H - REFUSAL_EDGE_PAD,
-          ),
-        );
+    // Same geometry the line-end prompt uses — above by default, flip
+    // below when there is no room, clamp so it can't run off any edge.
+    // Shared rather than duplicated so the two can't drift into
+    // subtly different flip and clamp behaviour. The edge-sticking
+    // modes never fire here: a refusal is triggered by a tap, so its
+    // cell is on screen by construction.
+    const { left, top } = anchoredOverlayPosition({
+      cell: toAnchorRect(cellRect),
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      box: { width: REFUSAL_W, height: REFUSAL_H },
+      gap: REFUSAL_GAP,
+      edgePad: REFUSAL_EDGE_PAD,
+    });
     if (refusalTimer.current) clearTimeout(refusalTimer.current);
     setRefusalNotice({ key: Date.now(), left, top });
     refusalTimer.current = setTimeout(() => setRefusalNotice(null), REFUSAL_MS);
@@ -822,6 +825,70 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     },
     [],
   );
+
+  // --- where the beat-two prompt sits -------------------------------
+  // Anchored to the cell the line's head just landed in, not parked at
+  // the bottom of the viewport. Same reason the refusal message moved:
+  // the user is looking at the cell, not at the screen edge.
+  //
+  // Derived from the STORE rather than remembered from the drop —
+  // beat one places `syllables[0]`, so its anchor IS the drop cell, and
+  // deriving it means the prompt follows if that anchor ever moves.
+  const promptAnchorCellKey = useMemo(() => {
+    if (!awaitingLineEndId || !songLyricLines) return null;
+    const head = songLyricLines.find(l => l.id === awaitingLineEndId)
+      ?.syllables?.[0]?.anchor;
+    return head ? cellKey(head) : null;
+  }, [awaitingLineEndId, songLyricLines]);
+
+  const [promptAnchorNode, setPromptAnchorNode] = useState<HTMLElement | null>(
+    null,
+  );
+  const [promptPos, setPromptPos] = useState<OverlayPosition | null>(null);
+
+  // Unlike the refusal message — which is measured once because it is
+  // gone in ~2s — this prompt outlives scrolling, so its position is
+  // re-derived continuously while it is up. A rAF loop rather than
+  // scroll listeners: the app scrolls an INNER container, so a window
+  // scroll listener would be watching the wrong thing, and a loop also
+  // catches layout shifts that fire no scroll event at all. It only
+  // sets state when the computed position actually changes, so a
+  // stationary prompt costs one rect read per frame and no re-renders.
+  //
+  // Note for anyone tracing the parked drag-ring bug: this measures a
+  // cell to POSITION AN OVERLAY. It feeds nothing into collision
+  // detection, `over`, or the drop ring, and runs between taps rather
+  // than during a drag.
+  useEffect(() => {
+    if (!awaitingLineEndId) {
+      setPromptPos(null);
+      return;
+    }
+    let raf = 0;
+    let last: OverlayPosition | null = null;
+    const tick = () => {
+      const rect = promptAnchorNode?.getBoundingClientRect();
+      const next = anchoredOverlayPosition({
+        cell: rect ? toAnchorRect(rect) : null,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        box: { width: PROMPT_W, height: PROMPT_H },
+        gap: REFUSAL_GAP,
+        edgePad: REFUSAL_EDGE_PAD,
+      });
+      if (
+        !last ||
+        last.left !== next.left ||
+        last.top !== next.top ||
+        last.placement !== next.placement
+      ) {
+        last = next;
+        setPromptPos(next);
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [awaitingLineEndId, promptAnchorNode]);
 
 
   // Lazy fold: the first time a song is opened after the redesign,
@@ -1295,6 +1362,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             onSyllablePlaced={handleSyllablePlaced}
                             awaitingLineEndId={awaitingLineEndId}
                             onAwaitLineEnd={handleAwaitLineEnd}
+                            promptAnchorCellKey={promptAnchorCellKey}
+                            onPromptAnchorNode={setPromptAnchorNode}
                             onRefusalNotice={handleRefusalNotice}
                             patternsCollapsed={patternsCollapsed}
                             onTogglePatterns={handleTogglePatterns}
@@ -1594,7 +1663,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           drawer to a slim hint bar, ~40px, fixed bottom, tap here to
           cancel") reused rather than a second vocabulary invented for
           the same job. */}
-      {awaitingLineEndId && (
+      {awaitingLineEndId && promptPos && (
         <div
           role="status"
           aria-live="polite"
@@ -1603,15 +1672,28 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
              pointerdown fires before click, so without this the
              listener would swallow the gesture and the button would
              never run. Same outcome either way, but the button would
-             have been decorative. */
+             have been decorative. Still required now that the element
+             floats rather than sitting at the screen edge. */
           data-lyric-arm-keep=""
-          className="fixed inset-x-0 bottom-0 z-[180] flex items-center justify-center gap-3 px-4 py-2 text-[11px] bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-[0_-2px_12px_rgba(0,0,0,0.18)]"
+          style={{
+            left: promptPos.left,
+            top: promptPos.top,
+            width: PROMPT_W,
+          }}
+          /* The BODY passes taps through; only the cancel control takes
+             them. A floating prompt sits over the grid, and the end
+             cell can easily be the one underneath it — the row above
+             the head cell, say. Rather than flip away from a target we
+             cannot know in advance, the prompt simply never blocks one.
+             `data-lyric-arm-keep` still applies to the button through
+             this container, so the dismiss listener leaves it alone. */
+          className="fixed z-[180] pointer-events-none flex items-center justify-between gap-2 px-2 py-1 rounded-md text-[11px] bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-lg"
         >
-          <span>tap the beat where this line ends</span>
+          <span className="truncate">tap the beat where this line ends</span>
           <button
             type="button"
             onClick={dismissArming}
-            className="shrink-0 rounded-full border border-white/40 dark:border-neutral-900/40 px-2 py-0.5 hover:bg-white/10 dark:hover:bg-neutral-900/10"
+            className="pointer-events-auto shrink-0 rounded-full border border-white/40 dark:border-neutral-900/40 px-1.5 hover:bg-white/10 dark:hover:bg-neutral-900/10"
           >
             cancel
           </button>

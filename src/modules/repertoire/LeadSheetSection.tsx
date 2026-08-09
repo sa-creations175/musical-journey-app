@@ -280,6 +280,10 @@ interface Props {
    *  the write, so cancelling can undo the gesture rather than the
    *  line. */
   onAwaitLineEnd?: (lineId: string, snapshot: LyricSyllable[]) => void;
+  /** Cell the line-end prompt anchors to, and the channel the matching
+   *  cell uses to report its node. Pass-through only. */
+  promptAnchorCellKey?: string | null;
+  onPromptAnchorNode?: (node: HTMLElement | null) => void;
 }
 
 export default function LeadSheetSection({
@@ -310,6 +314,8 @@ export default function LeadSheetSection({
   onToggleLyricTray,
   awaitingLineEndId = null,
   onAwaitLineEnd,
+  promptAnchorCellKey = null,
+  onPromptAnchorNode,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
   // write below routes on this; the legacy section-owned path stays
@@ -1798,6 +1804,8 @@ export default function LeadSheetSection({
               onToggleLyricTray={onToggleLyricTray}
               armedSyllableId={armedSyllableId}
               awaitingLineEndId={awaitingLineEndId}
+              promptAnchorCellKey={promptAnchorCellKey}
+              onPromptAnchorNode={onPromptAnchorNode}
               onSyllableTap={songLyricsActive ? handleSyllableTap : undefined}
               onBeatCellTap={handleBeatCellTap}
               songLyricLines={songLyricLines}

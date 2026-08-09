@@ -184,6 +184,11 @@ interface Props {
    *  alongside `armedSyllableId`, and marks the ◂ the app is asking
    *  for. */
   awaitingLineEndId?: string | null;
+  /** Cell key the line-end prompt is anchored to, and a callback the
+   *  matching cell uses to hand its NODE up. Node identity, never a
+   *  beat-id lookup: beat ids repeat across sections. */
+  promptAnchorCellKey?: string | null;
+  onPromptAnchorNode?: (node: HTMLElement | null) => void;
   onSyllableTap?: (syllableId: string) => void;
   onBeatCellTap?: (
     barIndex: number,
@@ -300,6 +305,8 @@ export default function BarGridView({
   markerIndex,
   armedSyllableId = null,
   awaitingLineEndId = null,
+  promptAnchorCellKey = null,
+  onPromptAnchorNode,
   onSyllableTap,
   onBeatCellTap,
   songLyricLines,
@@ -636,6 +643,8 @@ export default function BarGridView({
                   onEditingChange={setSyllableEditing}
                   armedSyllableId={armedSyllableId}
                   awaitingLineEndId={awaitingLineEndId}
+                  promptAnchorCellKey={promptAnchorCellKey}
+                  onPromptAnchorNode={onPromptAnchorNode}
                   onSyllableTap={onSyllableTap}
                   onBeatCellTap={onBeatCellTap}
                   onOpenSyllableMenu={
@@ -1577,6 +1586,8 @@ function SyllableBarSegment({
   onEditingChange,
   armedSyllableId,
   awaitingLineEndId,
+  promptAnchorCellKey,
+  onPromptAnchorNode,
   onSyllableTap,
   onBeatCellTap,
   onOpenSyllableMenu,
@@ -1598,6 +1609,8 @@ function SyllableBarSegment({
   onEditingChange: (next: SyllableEditingState | null) => void;
   armedSyllableId: string | null;
   awaitingLineEndId: string | null;
+  promptAnchorCellKey: string | null;
+  onPromptAnchorNode?: (node: HTMLElement | null) => void;
   onSyllableTap?: (syllableId: string) => void;
   onBeatCellTap?: (
     barIndex: number,
@@ -1632,6 +1645,8 @@ function SyllableBarSegment({
             rejected={rejectedCell === key}
             armedSyllableId={armedSyllableId}
             awaitingLineEndId={awaitingLineEndId}
+            isPromptAnchor={promptAnchorCellKey === key}
+            onPromptAnchorNode={onPromptAnchorNode}
             // Either pending intent offers every cell. Legality is
             // still never pre-computed — checkPlacementOrder decides on
             // tap, for the line's end exactly as for a syllable.
@@ -1906,6 +1921,8 @@ function SyllableDropSlot({
   rejected,
   armedSyllableId,
   awaitingLineEndId,
+  isPromptAnchor,
+  onPromptAnchorNode,
   armingActive,
   onSyllableTap,
   onBeatCellTap,
@@ -1919,6 +1936,8 @@ function SyllableDropSlot({
   rejected: boolean;
   armedSyllableId: string | null;
   awaitingLineEndId: string | null;
+  isPromptAnchor: boolean;
+  onPromptAnchorNode?: (node: HTMLElement | null) => void;
   armingActive: boolean;
   onSyllableTap?: (syllableId: string) => void;
   onBeatCellTap?: (
@@ -1966,9 +1985,28 @@ function SyllableDropSlot({
     : dragActive
       ? 'border-dashed border-neutral-200 dark:border-neutral-800 opacity-50'
       : 'border-dashed border-neutral-200 dark:border-neutral-800';
+
+  // Hand this cell's NODE up while it is the line-end prompt's anchor,
+  // so the prompt can track it across scroll. Reported by the cell that
+  // IS the anchor rather than looked up from above, because beat ids
+  // (`beat:<bar>:<beat>`) repeat in every section — resolving one by id
+  // would find a same-named cell a viewport away. Same node-identity
+  // rule the drop targeting had to learn (88b807d).
+  const anchorReport = useRef(onPromptAnchorNode);
+  anchorReport.current = onPromptAnchorNode;
+  const cellNode = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!isPromptAnchor) return;
+    anchorReport.current?.(cellNode.current);
+    return () => anchorReport.current?.(null);
+  }, [isPromptAnchor]);
+
   return (
     <div
-      ref={setNodeRef}
+      ref={node => {
+        setNodeRef(node);
+        cellNode.current = node;
+      }}
       data-lyric-arm-keep=""
       role={armingActive && onBeatCellTap ? 'button' : undefined}
       onClick={
