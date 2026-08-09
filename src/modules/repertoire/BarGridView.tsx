@@ -1013,18 +1013,29 @@ function SongPendingStrip({
         style={style}
         {...(isHeader ? {} : attributes)}
         {...(isHeader ? {} : listeners)}
+        /* Row fill is lifted off the page (neutral-50 light,
+           neutral-800 dark) rather than sitting at white/neutral-900,
+           where it was nearly invisible against the tray's own
+           translucent panel — in dark mode the row and the panel were
+           literally the same colour. */
         className={`flex-1 inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] select-none touch-none ${
           isHeader
-            ? 'border-transparent bg-neutral-100 dark:bg-neutral-800 text-neutral-500 uppercase tracking-wide'
-            : 'border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200 cursor-grab active:cursor-grabbing'
+            ? 'border-transparent bg-neutral-200/70 dark:bg-neutral-700/60 text-neutral-600 dark:text-neutral-300 uppercase tracking-wide'
+            : 'border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 cursor-grab active:cursor-grabbing'
         }`}
       >
         {!isHeader && (
-          <span className="text-neutral-400 mr-1" aria-hidden>≡</span>
+          <span className="text-neutral-500 dark:text-neutral-400 mr-1" aria-hidden>≡</span>
         )}
-        {/* Word-by-word status: placed words solid, unplaced ones in the
-            same faded treatment the grid ghosts use, so one glance shows
-            what's left to place rather than an abstract count. */}
+        {/* Word-by-word status: placed solid, unplaced lighter, so one
+            glance shows what's left rather than an abstract count.
+            BOTH tiers moved toward the text colour, not just the faint
+            one — unplaced words were at neutral-400/500, which reads as
+            "disabled" on a white row and was genuinely hard to read.
+            The gap between the two tiers is what carries the meaning,
+            so it is preserved at higher contrast rather than widened.
+            Contrast only, no hue: this sits directly above a grid of
+            chord-family colours, and green in particular is 1maj. */}
         <span className="truncate min-w-0">
           {isHeader || !line.syllables
             ? line.text
@@ -1034,7 +1045,7 @@ function SongPendingStrip({
                   className={
                     s.anchor
                       ? undefined
-                      : 'text-neutral-400 dark:text-neutral-500 italic'
+                      : 'text-neutral-600 dark:text-neutral-300 italic'
                   }
                 >
                   {i > 0 ? ' ' : ''}
@@ -1043,7 +1054,7 @@ function SongPendingStrip({
               ))}
         </span>
         {status.status === 'partial' && (
-          <span className="ml-auto pl-2 text-[10px] text-neutral-400 shrink-0">
+          <span className="ml-auto pl-2 text-[10px] text-neutral-500 dark:text-neutral-400 shrink-0">
             {status.placed}/{status.total} placed
           </span>
         )}
