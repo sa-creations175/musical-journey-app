@@ -768,6 +768,22 @@ leading 1–7 digit (`chordGlyph.tsx:47-51`) — those must keep the current gre
   settle before building anything else here is whether the sequence strip and the within-song pattern list
   are worth their vertical space at all, or whether the block should shrink, move, or go. Answer that
   before adding to it.
+- **The sequence strip as an EDITABLE VIEW — design pass needed before any build.** Recorded 2026-08-09.
+  Two manual edits wanted, both about reading the strip in musical chunks rather than as one continuous run:
+  **insert phrase breaks** at chosen points, and **hide tokens** that carry no information (a repeated
+  `1maj` at the head of a section, say). **Manual, not automatic** — the whole value is choosing where the
+  breaks fall; an algorithm guessing phrase boundaries is a different and much worse feature.
+
+  **The constraint that makes this tractable, and it is load-bearing: hiding affects the STRIP ONLY. The
+  chord stays in the grid.** The grid remains the source of truth; the strip becomes a view over it that
+  can be annotated. Nothing here may become a way to delete or move a chord — a hidden token is a display
+  decision, never a data one.
+
+  Open questions for the design pass: where the annotations live (a per-section field? per arrangement?
+  song level?); whether they survive bar reorder, bar delete and chord edits, and how they re-anchor if so;
+  whether a hidden token leaves any trace so the strip can't silently lie about what the grid contains;
+  and how this interacts with the two items below — if the block's purpose shifts cross-song, per-song
+  strip annotations may belong somewhere else entirely.
 - **Cross-song pattern detection — the actual point of the block.** Also recorded 2026-08-09. Today
   `detectPatterns` runs per section and answers "what patterns are in THIS song". The intended purpose is
   the opposite direction: **build a vocabulary of the progressions I actually use, across the whole
