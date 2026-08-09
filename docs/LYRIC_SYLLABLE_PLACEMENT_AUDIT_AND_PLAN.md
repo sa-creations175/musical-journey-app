@@ -924,6 +924,23 @@ In between, the existing per-section `LyricStagingArea` keeps working — repoin
 rather than section-level ones. So there is no window where pasting lyrics is impossible; the old UI drives
 the new store until the drawer replaces it. `LyricStagingArea` is deleted in **7b**, not earlier.
 
+### Per-section trays: collapsed, not deleted (2026-08-09)
+
+The per-section unplaced-lyrics trays are now **collapsible, defaulting to collapsed** (global pref,
+`leadSheetPrefs.ts`, separate key from the patterns block). They are **hidden rather than removed, and that
+is a deliberate hold**:
+
+- Step 7's song-level drawer is expected to replace them, and they will *probably* go entirely then.
+- But **drag has known problems** — see the parked drag-ring section — and the tray is the fallback path for
+  getting a line onto the grid. Deleting the fallback before the replacement is proven in real use is the
+  wrong order.
+- So: collapsed by default, one tap away, decision deferred until the drawer has been in use a while.
+  **7b should not delete the trays on schedule** — revisit it as its own call, with the drawer already
+  working, rather than treating removal as a foregone conclusion.
+
+The collapsed header keeps an unplaced-line count, so the tray stays honest about pending work without
+being opened.
+
 ## Sign-off status
 
 | Item | Status |

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DEFAULT_LYRIC_TRAY_COLLAPSED,
   DEFAULT_PATTERNS_COLLAPSED,
+  STORAGE_KEY_LYRIC_TRAY_COLLAPSED,
   STORAGE_KEY_PATTERNS_COLLAPSED,
+  loadLyricTrayCollapsed,
   loadPatternsCollapsed,
   parsePatternsCollapsed,
+  saveLyricTrayCollapsed,
   savePatternsCollapsed,
 } from '../leadSheetPrefs';
 
@@ -108,5 +112,43 @@ describe('loadPatternsCollapsed / savePatternsCollapsed', () => {
     vi.stubGlobal('localStorage', undefined);
     expect(loadPatternsCollapsed()).toBe(DEFAULT_PATTERNS_COLLAPSED);
     expect(() => savePatternsCollapsed(false)).not.toThrow();
+  });
+});
+
+describe('the two collapse prefs are independent', () => {
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = installStorage();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('both default to collapsed', () => {
+    expect(DEFAULT_LYRIC_TRAY_COLLAPSED).toBe(true);
+    expect(loadLyricTrayCollapsed()).toBe(true);
+    expect(loadPatternsCollapsed()).toBe(true);
+  });
+
+  it('uses separate storage keys', () => {
+    expect(STORAGE_KEY_LYRIC_TRAY_COLLAPSED).not.toBe(
+      STORAGE_KEY_PATTERNS_COLLAPSED,
+    );
+  });
+
+  it('expanding one leaves the other alone — they are not chained', () => {
+    saveLyricTrayCollapsed(false);
+    expect(loadLyricTrayCollapsed()).toBe(false);
+    expect(loadPatternsCollapsed()).toBe(true);
+
+    savePatternsCollapsed(false);
+    saveLyricTrayCollapsed(true);
+    expect(loadPatternsCollapsed()).toBe(false);
+    expect(loadLyricTrayCollapsed()).toBe(true);
+    // Only the deviating pref occupies storage.
+    expect(store.has(STORAGE_KEY_LYRIC_TRAY_COLLAPSED)).toBe(false);
+    expect(store.has(STORAGE_KEY_PATTERNS_COLLAPSED)).toBe(true);
   });
 });

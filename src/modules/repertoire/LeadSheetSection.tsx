@@ -45,7 +45,10 @@ import {
   unplaceSyllable,
 } from './lyricSyllables';
 import { parseLyricSheet } from './lyricSheetParse';
-import { DEFAULT_PATTERNS_COLLAPSED } from './leadSheetPrefs';
+import {
+  DEFAULT_LYRIC_TRAY_COLLAPSED,
+  DEFAULT_PATTERNS_COLLAPSED,
+} from './leadSheetPrefs';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -263,6 +266,10 @@ interface Props {
    *  expressing the preference costs one tap and not one per section. */
   patternsCollapsed?: boolean;
   onTogglePatterns?: () => void;
+  /** Unplaced-lyrics tray collapsed? A separate global pref from
+   *  `patternsCollapsed` — deliberately not chained to it. */
+  lyricTrayCollapsed?: boolean;
+  onToggleLyricTray?: () => void;
 }
 
 export default function LeadSheetSection({
@@ -289,6 +296,8 @@ export default function LeadSheetSection({
   onRefusalNotice,
   patternsCollapsed = DEFAULT_PATTERNS_COLLAPSED,
   onTogglePatterns,
+  lyricTrayCollapsed = DEFAULT_LYRIC_TRAY_COLLAPSED,
+  onToggleLyricTray,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
   // write below routes on this; the legacy section-owned path stays
@@ -1694,6 +1703,8 @@ export default function LeadSheetSection({
               lyricDragActive={activeLyricDrag !== null}
               rejectedCell={rejectedCell}
               markerIndex={markerIndex}
+              lyricTrayCollapsed={lyricTrayCollapsed}
+              onToggleLyricTray={onToggleLyricTray}
               armedSyllableId={armedSyllableId}
               onSyllableTap={songLyricsActive ? handleSyllableTap : undefined}
               onBeatCellTap={handleBeatCellTap}

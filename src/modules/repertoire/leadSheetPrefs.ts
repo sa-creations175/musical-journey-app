@@ -1,12 +1,18 @@
 /**
  * Lead-sheet per-device UI prefs.
  *
- * Currently one pref: whether the progression-patterns block under each
- * bar grid is collapsed.
+ * Two prefs, each an independent collapse state:
+ *   - the progression-patterns block under each bar grid
+ *   - the per-section unplaced-lyrics tray
  *
- * **Scope is GLOBAL, not per section or per song.** The block renders
- * once per section, so a five-section song shows five of them; keying
- * the pref per section would mean five toggles to express one
+ * **They are deliberately NOT chained.** Wanting the patterns open says
+ * nothing about wanting every section's lyric tray open; one toggle
+ * driving both would make each one's default a side effect of the
+ * other. Separate keys, separate toggles.
+ *
+ * **Scope is GLOBAL for both, not per section or per song.** Each block
+ * renders once per section, so a five-section song shows five of them;
+ * keying a pref per section would mean five toggles to express one
  * preference, and would grow an unbounded map across every song's
  * section ids. One value covers every block everywhere.
  *
@@ -31,49 +37,70 @@
  */
 
 export const STORAGE_KEY_PATTERNS_COLLAPSED = 'leadSheet.patternsCollapsed';
+export const STORAGE_KEY_LYRIC_TRAY_COLLAPSED = 'leadSheet.lyricTrayCollapsed';
 
-/** Collapsed unless something valid says otherwise. */
+/** Both collapsed unless something valid says otherwise. */
 export const DEFAULT_PATTERNS_COLLAPSED = true;
+export const DEFAULT_LYRIC_TRAY_COLLAPSED = true;
 
 /**
  * Coerce an arbitrary stored value to a collapsed boolean.
  *
  * Only the two exact strings are honoured. `null` (nothing stored),
  * anything malformed, and anything of the wrong type all resolve to the
- * default, which is what makes a corrupt value harmless rather than
- * something to handle at the call site.
+ * given default, which is what makes a corrupt value harmless rather
+ * than something to handle at the call site.
  */
-export function parsePatternsCollapsed(raw: unknown): boolean {
+export function parseCollapsed(raw: unknown, fallback: boolean): boolean {
   if (raw === 'collapsed') return true;
   if (raw === 'expanded') return false;
-  return DEFAULT_PATTERNS_COLLAPSED;
+  return fallback;
 }
 
-export function loadPatternsCollapsed(): boolean {
+function load(key: string, fallback: boolean): boolean {
   try {
     const raw =
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(STORAGE_KEY_PATTERNS_COLLAPSED)
-        : null;
-    return parsePatternsCollapsed(raw);
+      typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+    return parseCollapsed(raw, fallback);
   } catch {
-    return DEFAULT_PATTERNS_COLLAPSED;
+    return fallback;
   }
 }
 
 /** Persist only the deviation; storing the default removes the key. */
-export function savePatternsCollapsed(collapsed: boolean): void {
+function save(key: string, collapsed: boolean, fallback: boolean): void {
   try {
     if (typeof localStorage === 'undefined') return;
-    if (collapsed === DEFAULT_PATTERNS_COLLAPSED) {
-      localStorage.removeItem(STORAGE_KEY_PATTERNS_COLLAPSED);
+    if (collapsed === fallback) {
+      localStorage.removeItem(key);
       return;
     }
-    localStorage.setItem(
-      STORAGE_KEY_PATTERNS_COLLAPSED,
-      collapsed ? 'collapsed' : 'expanded',
-    );
+    localStorage.setItem(key, collapsed ? 'collapsed' : 'expanded');
   } catch {
     /* ignore — a pref that can't be written just doesn't persist */
   }
+}
+
+export function parsePatternsCollapsed(raw: unknown): boolean {
+  return parseCollapsed(raw, DEFAULT_PATTERNS_COLLAPSED);
+}
+
+export function loadPatternsCollapsed(): boolean {
+  return load(STORAGE_KEY_PATTERNS_COLLAPSED, DEFAULT_PATTERNS_COLLAPSED);
+}
+
+export function savePatternsCollapsed(collapsed: boolean): void {
+  save(STORAGE_KEY_PATTERNS_COLLAPSED, collapsed, DEFAULT_PATTERNS_COLLAPSED);
+}
+
+export function parseLyricTrayCollapsed(raw: unknown): boolean {
+  return parseCollapsed(raw, DEFAULT_LYRIC_TRAY_COLLAPSED);
+}
+
+export function loadLyricTrayCollapsed(): boolean {
+  return load(STORAGE_KEY_LYRIC_TRAY_COLLAPSED, DEFAULT_LYRIC_TRAY_COLLAPSED);
+}
+
+export function saveLyricTrayCollapsed(collapsed: boolean): void {
+  save(STORAGE_KEY_LYRIC_TRAY_COLLAPSED, collapsed, DEFAULT_LYRIC_TRAY_COLLAPSED);
 }

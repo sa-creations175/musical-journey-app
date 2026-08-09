@@ -165,6 +165,10 @@ interface Props {
   cellIndex?: Map<string, CellOccupant[]>;
   /** Song lines with nothing placed yet — the pre-drawer tray. */
   unplacedLines?: SongLyricLine[];
+  /** Unplaced-lyrics tray collapsed? Global pref, owned by
+   *  SongDetailView; separate from the patterns block's. */
+  lyricTrayCollapsed?: boolean;
+  onToggleLyricTray?: () => void;
   /** A lyric drag is in flight — beat cells switch to their
    *  drop-target treatment. */
   lyricDragActive?: boolean;
@@ -284,6 +288,8 @@ export default function BarGridView({
   lyricLines = [],
   cellIndex,
   unplacedLines,
+  lyricTrayCollapsed = true,
+  onToggleLyricTray,
   lyricDragActive = false,
   rejectedCell = null,
   markerIndex,
@@ -547,6 +553,8 @@ export default function BarGridView({
             lines={unplacedLines}
             onLineDelete={onLineDelete}
             onLineUnplace={onLineUnplace}
+            collapsed={lyricTrayCollapsed}
+            onToggle={onToggleLyricTray}
           />
         )}
       {!cellIndex && pendingLines.length > 0 && (
@@ -940,26 +948,53 @@ function SongPendingTray({
   lines,
   onLineDelete,
   onLineUnplace,
+  collapsed,
+  onToggle,
 }: {
   lines: SongLyricLine[];
   onLineDelete?: (lineId: string) => void;
   onLineUnplace?: (lineId: string) => void | Promise<void>;
+  collapsed: boolean;
+  onToggle?: () => void;
 }) {
+  const placeable = lines.filter(l => l.kind !== 'header').length;
   return (
     <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
-      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
-        unplaced lyrics — drag onto a beat to place
-      </div>
-      <div className="flex flex-col gap-1">
-        {lines.map(line => (
-          <SongPendingStrip
-            key={line.id}
-            line={line}
-            onDelete={onLineDelete}
-            onUnplace={onLineUnplace}
-          />
-        ))}
-      </div>
+      {/* Collapsed by default, and HIDDEN rather than removed on
+          purpose. Step 7 replaces these per-section trays with a
+          song-level lyric drawer; they will probably go entirely then.
+          But drag has known problems, so the fallback stays until the
+          drawer has been in real use — see the plan doc's note on the
+          step 2 → step 7 gap. The count keeps the tray honest while
+          shut: you can see there is unplaced work without opening it. */}
+      <button
+        type="button"
+        onClick={onToggle}
+        disabled={!onToggle}
+        aria-expanded={!collapsed}
+        className="text-[10px] uppercase tracking-wide text-neutral-500 hover:text-fluent inline-flex items-center gap-1 disabled:hover:text-neutral-500"
+      >
+        <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
+        unplaced lyrics
+        <span className="text-neutral-400 normal-case">({placeable})</span>
+        {!collapsed && (
+          <span className="text-neutral-400 normal-case">
+            — drag onto a beat to place
+          </span>
+        )}
+      </button>
+      {!collapsed && (
+        <div className="flex flex-col gap-1 mt-1">
+          {lines.map(line => (
+            <SongPendingStrip
+              key={line.id}
+              line={line}
+              onDelete={onLineDelete}
+              onUnplace={onLineUnplace}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

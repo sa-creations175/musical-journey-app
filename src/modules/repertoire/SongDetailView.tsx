@@ -54,7 +54,9 @@ import {
 } from './lyricSyllables';
 import { armingReducer } from './syllableArming';
 import {
+  loadLyricTrayCollapsed,
   loadPatternsCollapsed,
+  saveLyricTrayCollapsed,
   savePatternsCollapsed,
 } from './leadSheetPrefs';
 import { planSectionMove } from './sectionReorder';
@@ -650,6 +652,22 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     });
   }, []);
 
+  // The unplaced-lyrics tray, same shape but a SEPARATE pref. Chaining
+  // it to the patterns block would make each one's state a side effect
+  // of the other, and wanting patterns open says nothing about wanting
+  // every section's lyrics open.
+  const [lyricTrayCollapsed, setLyricTrayCollapsed] = useState(
+    loadLyricTrayCollapsed,
+  );
+
+  const handleToggleLyricTray = useCallback(() => {
+    setLyricTrayCollapsed(prev => {
+      const next = !prev;
+      saveLyricTrayCollapsed(next);
+      return next;
+    });
+  }, []);
+
   // --- refusal message (floats over the refused cell) ---------------
   // The message sits here rather than in LeadSheetSection because it is
   // ONE floating overlay for the page: per-section copies would put two
@@ -1198,6 +1216,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             onRefusalNotice={handleRefusalNotice}
                             patternsCollapsed={patternsCollapsed}
                             onTogglePatterns={handleTogglePatterns}
+                            lyricTrayCollapsed={lyricTrayCollapsed}
+                            onToggleLyricTray={handleToggleLyricTray}
                           />
                         ))}
                       </div>
