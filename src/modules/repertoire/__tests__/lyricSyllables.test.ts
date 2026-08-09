@@ -16,12 +16,10 @@ import {
   lineStatus,
   linesFromParsedRows,
   markerTargetSyllable,
-  normalizeCellOrders,
   placeSyllable,
   placedSyllablesInBar,
   provisionalPlacements,
   remapAnchorBars,
-  setCellOrder,
   setSyllableText,
   shiftAnchorsAfterBarDelete,
   splitSyllable,
@@ -40,7 +38,7 @@ const SEC = 'sec-a';
 
 function line(
   id: string,
-  syllables: Array<{ id: string; text: string; at?: [number, number, number] }>,
+  syllables: Array<{ id: string; text: string; at?: [number, number] }>,
 ): SongLyricLine {
   return {
     id,
@@ -55,7 +53,6 @@ function line(
               sectionId: SEC,
               barIndex: s.at[0],
               beatPos: s.at[1],
-              order: s.at[2],
             },
           }
         : {}),
@@ -112,10 +109,10 @@ describe('lineStatus', () => {
     expect(lineStatus({ id: 'h', kind: 'header', text: 'Verse 1' }).status).toBe('header');
     expect(lineStatus(line('l', [{ id: 'a', text: 'x' }])).status).toBe('unplaced');
     expect(
-      lineStatus(line('l', [{ id: 'a', text: 'x', at: [0, 0, 0] }, { id: 'b', text: 'y' }])),
+      lineStatus(line('l', [{ id: 'a', text: 'x', at: [0, 0] }, { id: 'b', text: 'y' }])),
     ).toEqual({ status: 'partial', placed: 1, total: 2 });
     expect(
-      lineStatus(line('l', [{ id: 'a', text: 'x', at: [0, 0, 0] }])).status,
+      lineStatus(line('l', [{ id: 'a', text: 'x', at: [0, 0] }])).status,
     ).toBe('placed');
   });
 });
@@ -123,16 +120,16 @@ describe('lineStatus', () => {
 // --- placement (the no-ripple rule) -----------------------------------
 
 describe('placeSyllable', () => {
-  it('appends to the target cell without displacing what is there', () => {
+  it('joins an occupied cell without displacing what is there', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [0, 0, 1] },
+        { id: 'a', text: 'A', at: [0, 0] },
+        { id: 'b', text: 'B', at: [0, 0] },
       ]),
       line('l2', [{ id: 'c', text: 'C' }]),
     ];
     const next = placeSyllable(lines, 'c', { sectionId: SEC, barIndex: 0, beatPos: 0 });
-    expect(anchorOf(next, 'c')?.order).toBe(2);
+    expect(anchorOf(next, 'c')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 0 });
     // Neighbours untouched — the whole point of §C.
     expect(anchorOf(next, 'a')).toEqual(anchorOf(lines, 'a'));
     expect(anchorOf(next, 'b')).toEqual(anchorOf(lines, 'b'));
@@ -141,30 +138,36 @@ describe('placeSyllable', () => {
   it('moves only the dragged syllable when re-placing across cells', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [0, 1, 0] },
-        { id: 'c', text: 'C', at: [0, 2, 0] },
+        { id: 'a', text: 'A', at: [0, 0] },
+        { id: 'b', text: 'B', at: [0, 1] },
+        { id: 'c', text: 'C', at: [0, 2] },
       ]),
     ];
     const next = placeSyllable(lines, 'b', { sectionId: SEC, barIndex: 3, beatPos: 3 });
     expect(anchorOf(next, 'b')).toEqual({
-      sectionId: SEC, barIndex: 3, beatPos: 3, order: 0,
+      sectionId: SEC, barIndex: 3, beatPos: 3,
     });
     expect(anchorOf(next, 'a')).toEqual(anchorOf(lines, 'a'));
     expect(anchorOf(next, 'c')).toEqual(anchorOf(lines, 'c'));
   });
 
-  it('compacts the cell a syllable left, preserving relative order', () => {
+  it('leaves the vacated cell completely untouched', () => {
+    // No-ripple is now literal. This used to also compact the vacated
+    // cell's `order` values, so leaving a cell rewrote its remaining
+    // occupants' anchors; with the field gone, exactly one syllable
+    // object changes.
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [0, 0, 1] },
-        { id: 'c', text: 'C', at: [0, 0, 2] },
+        { id: 'a', text: 'A', at: [0, 0] },
+        { id: 'b', text: 'B', at: [0, 0] },
+        { id: 'c', text: 'C', at: [0, 0] },
       ]),
     ];
     const next = placeSyllable(lines, 'a', { sectionId: SEC, barIndex: 1, beatPos: 0 });
-    expect(anchorOf(next, 'b')?.order).toBe(0);
-    expect(anchorOf(next, 'c')?.order).toBe(1);
+    const before = lines[0].syllables!;
+    const after = next[0].syllables!;
+    expect(after[1]).toBe(before[1]);
+    expect(after[2]).toBe(before[2]);
   });
 
   it('places into a cell in another section', () => {
@@ -176,7 +179,7 @@ describe('placeSyllable', () => {
   });
 
   it('is a no-op for an unknown syllable id', () => {
-    const lines = [line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }])];
+    const lines = [line('l1', [{ id: 'a', text: 'A', at: [0, 0] }])];
     const next = placeSyllable(lines, 'nope', { sectionId: SEC, barIndex: 1, beatPos: 1 });
     expect(next).toEqual(lines);
   });
@@ -189,10 +192,10 @@ describe('checkPlacementOrder — monotonic anchors within a line', () => {
   // syllables backwards across the grid.
   const inverted = () =>
     line('l1', [
-      { id: 'head', text: 'O', at: [14, 0, 0] },
+      { id: 'head', text: 'O', at: [14, 0] },
       { id: 'mid1', text: 'come,' },
       { id: 'mid2', text: 'let' },
-      { id: 'tail', text: 'Him', at: [14, 3, 0] },
+      { id: 'tail', text: 'Him', at: [14, 3] },
     ]);
 
   it('rejects moving a syllable past a later placed sibling', () => {
@@ -229,8 +232,8 @@ describe('checkPlacementOrder — monotonic anchors within a line', () => {
 
   it('only the NEAREST placed neighbour binds', () => {
     const l = line('l1', [
-      { id: 'a', text: 'a', at: [0, 0, 0] },
-      { id: 'b', text: 'b', at: [5, 0, 0] },
+      { id: 'a', text: 'a', at: [0, 0] },
+      { id: 'b', text: 'b', at: [5, 0] },
       { id: 'c', text: 'c' },
     ]);
     // 'c' may go anywhere at or after 'b'; 'a' is not the constraint.
@@ -244,7 +247,7 @@ describe('checkPlacementOrder — monotonic anchors within a line', () => {
 
   it('ignores unplaced siblings when finding the binding neighbours', () => {
     const l = line('l1', [
-      { id: 'a', text: 'a', at: [2, 0, 0] },
+      { id: 'a', text: 'a', at: [2, 0] },
       { id: 'ghost', text: 'g' },
       { id: 'c', text: 'c' },
     ]);
@@ -257,9 +260,9 @@ describe('checkPlacementOrder — monotonic anchors within a line', () => {
     // Both rules fire here. The within-line check runs first, so the
     // nearer, more specific reason is the one reported.
     const lines = [
-      line('l0', [{ id: 'z', text: 'z', at: [6, 0, 0] }]),
+      line('l0', [{ id: 'z', text: 'z', at: [6, 0] }]),
       line('l1', [
-        { id: 'a', text: 'a', at: [4, 0, 0] },
+        { id: 'a', text: 'a', at: [4, 0] },
         { id: 'b', text: 'b' },
       ]),
     ];
@@ -308,12 +311,7 @@ function lineIn(
       text: s.text,
       ...(s.at
         ? {
-            anchor: {
-              sectionId,
-              barIndex: s.at[0],
-              beatPos: s.at[1],
-              order: 0,
-            },
+            anchor: { sectionId, barIndex: s.at[0], beatPos: s.at[1] },
           }
         : {}),
     })),
@@ -324,9 +322,9 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
   // l1 sits at bar 4 (global 16), l3 at bar 8 (global 32); l2 is the
   // line being placed and has nothing down yet.
   const sandwiched = () => [
-    line('l1', [{ id: 'a', text: 'a', at: [4, 0, 0] }]),
+    line('l1', [{ id: 'a', text: 'a', at: [4, 0] }]),
     line('l2', [{ id: 'b', text: 'b' }]),
-    line('l3', [{ id: 'c', text: 'c', at: [8, 0, 0] }]),
+    line('l3', [{ id: 'c', text: 'c', at: [8, 0] }]),
   ];
   const place = (lines: SongLyricLine[], id: string, bar: number, beat = 0) =>
     checkPlacementOrder(lines, id, { sectionId: SEC, barIndex: bar, beatPos: beat }, axis16);
@@ -359,7 +357,7 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
     // illegal across lines. Asserted together so neither drifts.
     const lines = [
       line('l1', [
-        { id: 'a', text: 'a', at: [4, 0, 0] },
+        { id: 'a', text: 'a', at: [4, 0] },
         { id: 'b', text: 'b' },
       ]),
     ];
@@ -369,8 +367,8 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
   it('binds on the previous line’s LATEST syllable, not its first', () => {
     const lines = [
       line('l1', [
-        { id: 'x', text: 'x', at: [1, 0, 0] },
-        { id: 'y', text: 'y', at: [6, 0, 0] },
+        { id: 'x', text: 'x', at: [1, 0] },
+        { id: 'y', text: 'y', at: [6, 0] },
       ]),
       line('l2', [{ id: 'b', text: 'b' }]),
     ];
@@ -382,8 +380,8 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
     const lines = [
       line('l1', [{ id: 'b', text: 'b' }]),
       line('l2', [
-        { id: 'x', text: 'x', at: [6, 0, 0] },
-        { id: 'y', text: 'y', at: [9, 0, 0] },
+        { id: 'x', text: 'x', at: [6, 0] },
+        { id: 'y', text: 'y', at: [9, 0] },
       ]),
     ];
     expect(place(lines, 'b', 7)).toBe('after-next-line');
@@ -394,7 +392,7 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
     // No ordering-of-operations rule and no special case for empty
     // lines: the nearest line that has something placed binds.
     const lines = [
-      line('l1', [{ id: 'a', text: 'a', at: [4, 0, 0] }]),
+      line('l1', [{ id: 'a', text: 'a', at: [4, 0] }]),
       line('l2', [{ id: 'g1', text: 'g1' }]),
       line('l3', [{ id: 'g2', text: 'g2' }]),
       line('l4', [{ id: 'b', text: 'b' }]),
@@ -405,7 +403,7 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
 
   it('treats header rows as transparent', () => {
     const lines: SongLyricLine[] = [
-      line('l1', [{ id: 'a', text: 'a', at: [4, 0, 0] }]),
+      line('l1', [{ id: 'a', text: 'a', at: [4, 0] }]),
       { id: 'h', kind: 'header', text: 'Chorus' },
       line('l2', [{ id: 'b', text: 'b' }]),
     ];
@@ -418,7 +416,7 @@ describe('checkPlacementOrder — lyric lines run strictly sequential', () => {
     // never history. l2 went down first; l1 is still bound by it.
     const lines = [
       line('l1', [{ id: 'a', text: 'a' }]),
-      line('l2', [{ id: 'b', text: 'b', at: [4, 0, 0] }]),
+      line('l2', [{ id: 'b', text: 'b', at: [4, 0] }]),
     ];
     expect(place(lines, 'a', 6)).toBe('after-next-line');
     // Landing ON l2's syllable is the same cell, so it stacks.
@@ -475,19 +473,19 @@ describe('provisionalPlacements — never runs backwards', () => {
     // asserted independently: a negative span must degrade to "no
     // ghosts", never to ghosts scattered in reverse.
     const l = line('l1', [
-      { id: 'head', text: 'O', at: [3, 0, 0] },
+      { id: 'head', text: 'O', at: [3, 0] },
       { id: 'mid', text: 'come' },
-      { id: 'tail', text: 'Him', at: [1, 0, 0] },
+      { id: 'tail', text: 'Him', at: [1, 0] },
     ]);
     expect(provisionalPlacements(l, axis16)).toEqual([]);
   });
 
   it('every ghost lands within its bracketing pins, in order', () => {
     const l = line('l1', [
-      { id: 'p0', text: 'A', at: [0, 0, 0] },
+      { id: 'p0', text: 'A', at: [0, 0] },
       { id: 'g1', text: 'B' },
       { id: 'g2', text: 'C' },
-      { id: 'p1', text: 'D', at: [2, 0, 0] },
+      { id: 'p1', text: 'D', at: [2, 0] },
     ]);
     const globals = provisionalPlacements(l, axis16).map(
       g => anchorToGlobal(axis16, g.cell)!,
@@ -501,16 +499,18 @@ describe('provisionalPlacements — never runs backwards', () => {
 });
 
 describe('unplaceSyllable', () => {
-  it('clears the anchor and compacts the vacated cell', () => {
+  it('clears the anchor and leaves the cell it left alone', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [0, 0, 1] },
+        { id: 'a', text: 'A', at: [0, 0] },
+        { id: 'b', text: 'B', at: [0, 0] },
       ]),
     ];
     const next = unplaceSyllable(lines, 'a');
     expect(anchorOf(next, 'a')).toBeUndefined();
-    expect(anchorOf(next, 'b')?.order).toBe(0);
+    // Used to compact the vacated cell's `order` values. Nothing to
+    // compact now, so 'b' keeps its exact anchor object.
+    expect(next[0].syllables![1]).toBe(lines[0].syllables![1]);
   });
 });
 
@@ -518,9 +518,9 @@ describe('unplaceLine', () => {
   it('clears every anchor on the line, keeping text and syllables', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'O', at: [1, 0, 0] },
+        { id: 'a', text: 'O', at: [1, 0] },
         { id: 'b', text: 'come' },
-        { id: 'c', text: 'Him', at: [2, 0, 0] },
+        { id: 'c', text: 'Him', at: [2, 0] },
       ]),
     ];
     const next = unplaceLine(lines, 'l1');
@@ -531,8 +531,8 @@ describe('unplaceLine', () => {
 
   it('leaves other lines untouched', () => {
     const lines = [
-      line('l1', [{ id: 'a', text: 'A', at: [1, 0, 0] }]),
-      line('l2', [{ id: 'b', text: 'B', at: [2, 0, 0] }]),
+      line('l1', [{ id: 'a', text: 'A', at: [1, 0] }]),
+      line('l2', [{ id: 'b', text: 'B', at: [2, 0] }]),
     ];
     const next = unplaceLine(lines, 'l1');
     expect(anchorOf(next, 'b')).toEqual(anchorOf(lines, 'b'));
@@ -544,82 +544,13 @@ describe('unplaceLine', () => {
     expect(unplaceLine(lines, 'nope')).toEqual(lines);
   });
 
-  it('compacts the cells it vacated', () => {
+  it('leaves other lines sharing the vacated cells untouched', () => {
     const lines = [
-      line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }]),
-      line('l2', [{ id: 'b', text: 'B', at: [0, 0, 1] }]),
+      line('l1', [{ id: 'a', text: 'A', at: [0, 0] }]),
+      line('l2', [{ id: 'b', text: 'B', at: [0, 0] }]),
     ];
     const next = unplaceLine(lines, 'l1');
-    expect(anchorOf(next, 'b')?.order).toBe(0);
-  });
-});
-
-describe('normalizeCellOrders', () => {
-  it('compacts gaps while preserving relative order', () => {
-    const lines = [
-      line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 5] },
-        { id: 'b', text: 'B', at: [0, 0, 9] },
-      ]),
-    ];
-    const next = normalizeCellOrders(lines);
-    expect(anchorOf(next, 'a')?.order).toBe(0);
-    expect(anchorOf(next, 'b')?.order).toBe(1);
-  });
-
-  it('breaks duplicate orders deterministically by id', () => {
-    const lines = [
-      line('l1', [{ id: 'zz', text: 'Z', at: [0, 0, 0] }]),
-      line('l2', [{ id: 'aa', text: 'A', at: [0, 0, 0] }]),
-    ];
-    const next = normalizeCellOrders(lines);
-    expect(anchorOf(next, 'aa')?.order).toBe(0);
-    expect(anchorOf(next, 'zz')?.order).toBe(1);
-  });
-
-  it('leaves cells in different sections independent', () => {
-    const lines = [
-      line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }]),
-      {
-        id: 'l2',
-        kind: 'lyric' as const,
-        text: 'B',
-        syllables: [
-          { id: 'b', text: 'B', anchor: { sectionId: 'sec-b', barIndex: 0, beatPos: 0, order: 0 } },
-        ],
-      },
-    ];
-    const next = normalizeCellOrders(lines);
-    expect(anchorOf(next, 'a')?.order).toBe(0);
-    expect(anchorOf(next, 'b')?.order).toBe(0);
-  });
-});
-
-describe('setCellOrder', () => {
-  it('applies the requested sequence', () => {
-    const lines = [
-      line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [0, 0, 1] },
-        { id: 'c', text: 'C', at: [0, 0, 2] },
-      ]),
-    ];
-    const next = setCellOrder(lines, { sectionId: SEC, barIndex: 0, beatPos: 0 }, ['c', 'a', 'b']);
-    expect(anchorOf(next, 'c')?.order).toBe(0);
-    expect(anchorOf(next, 'a')?.order).toBe(1);
-    expect(anchorOf(next, 'b')?.order).toBe(2);
-  });
-
-  it('puts unlisted occupants after the listed ones', () => {
-    const lines = [
-      line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [0, 0, 1] },
-      ]),
-    ];
-    const next = setCellOrder(lines, { sectionId: SEC, barIndex: 0, beatPos: 0 }, ['b']);
-    expect(anchorOf(next, 'b')?.order).toBe(0);
-    expect(anchorOf(next, 'a')?.order).toBe(1);
+    expect(next[1]).toBe(lines[1]);
   });
 });
 
@@ -627,12 +558,12 @@ describe('setCellOrder', () => {
 
 describe('splitSyllable', () => {
   it('keeps the anchor on the first piece and leaves the tail unplaced', () => {
-    const lines = [line('l1', [{ id: 'a', text: "somethin'", at: [1, 2, 0] }])];
+    const lines = [line('l1', [{ id: 'a', text: "somethin'", at: [1, 2] }])];
     const next = splitSyllable(lines, 'a', 4, seqIds('new'));
     const syllables = next[0].syllables!;
     expect(syllables.map(s => s.text)).toEqual(['some', "thin'"]);
     expect(syllables[0].anchor).toEqual({
-      sectionId: SEC, barIndex: 1, beatPos: 2, order: 0,
+      sectionId: SEC, barIndex: 1, beatPos: 2,
     });
     expect(syllables[1].anchor).toBeUndefined();
   });
@@ -641,9 +572,9 @@ describe('splitSyllable', () => {
     // The old model re-based every position when the count changed.
     const lines = [
       line('l1', [
-        { id: 'a', text: 'aaaa', at: [0, 0, 0] },
-        { id: 'b', text: 'bbbb', at: [1, 0, 0] },
-        { id: 'c', text: 'cccc', at: [2, 0, 0] },
+        { id: 'a', text: 'aaaa', at: [0, 0] },
+        { id: 'b', text: 'bbbb', at: [1, 0] },
+        { id: 'c', text: 'cccc', at: [2, 0] },
       ]),
     ];
     const next = splitSyllable(lines, 'a', 2, seqIds('new'));
@@ -664,7 +595,7 @@ describe('joinSyllables — word-boundary guard', () => {
   function splitPair(): SongLyricLine[] {
     const base = [
       line('l1', [
-        { id: 'a', text: "somethin'", at: [1, 2, 0] },
+        { id: 'a', text: "somethin'", at: [1, 2] },
         { id: 'z', text: 'else' },
       ]),
     ];
@@ -686,8 +617,8 @@ describe('joinSyllables — word-boundary guard', () => {
     // The case that would corrupt the lyric: "ful" + "and" → "fuland".
     const lines = [
       line('l1', [
-        { id: 'ful', text: 'ful', at: [2, 2, 0] },
-        { id: 'and', text: 'and', at: [3, 0, 0] },
+        { id: 'ful', text: 'ful', at: [2, 2] },
+        { id: 'and', text: 'and', at: [3, 0] },
       ]),
     ];
     expect(canJoinNext(lines, 'ful')).toBe(false);
@@ -732,7 +663,7 @@ describe('joinSyllables — word-boundary guard', () => {
 
 describe('setSyllableText', () => {
   it('rewrites text without touching position', () => {
-    const lines = [line('l1', [{ id: 'a', text: 'teh', at: [0, 1, 0] }])];
+    const lines = [line('l1', [{ id: 'a', text: 'teh', at: [0, 1] }])];
     const next = setSyllableText(lines, 'a', '  the  ');
     expect(next[0].syllables![0].text).toBe('the');
     expect(anchorOf(next, 'a')).toEqual(anchorOf(lines, 'a'));
@@ -781,11 +712,11 @@ describe('provisionalPlacements', () => {
   it('spreads an unplaced run evenly between two placed neighbours', () => {
     // Pins at bar0beat0 (global 0) and bar1beat0 (global 4), 3 between.
     const l = line('l1', [
-      { id: 'p0', text: 'A', at: [0, 0, 0] },
+      { id: 'p0', text: 'A', at: [0, 0] },
       { id: 'g1', text: 'B' },
       { id: 'g2', text: 'C' },
       { id: 'g3', text: 'D' },
-      { id: 'p1', text: 'E', at: [1, 0, 0] },
+      { id: 'p1', text: 'E', at: [1, 0] },
     ]);
     const ghosts = provisionalPlacements(l, axis4);
     expect(ghosts.map(g => g.syllableId)).toEqual(['g1', 'g2', 'g3']);
@@ -796,10 +727,10 @@ describe('provisionalPlacements', () => {
   it('renders nothing for a run hanging off either end', () => {
     const leading = line('l1', [
       { id: 'g', text: 'A' },
-      { id: 'p', text: 'B', at: [1, 0, 0] },
+      { id: 'p', text: 'B', at: [1, 0] },
     ]);
     const trailing = line('l2', [
-      { id: 'p', text: 'A', at: [0, 0, 0] },
+      { id: 'p', text: 'A', at: [0, 0] },
       { id: 'g', text: 'B' },
     ]);
     expect(provisionalPlacements(leading, axis4)).toEqual([]);
@@ -809,7 +740,7 @@ describe('provisionalPlacements', () => {
   it('renders nothing for a line with fewer than two placed syllables', () => {
     expect(provisionalPlacements(line('l', [{ id: 'a', text: 'A' }]), axis4)).toEqual([]);
     expect(
-      provisionalPlacements(line('l', [{ id: 'a', text: 'A', at: [0, 0, 0] }]), axis4),
+      provisionalPlacements(line('l', [{ id: 'a', text: 'A', at: [0, 0] }]), axis4),
     ).toEqual([]);
   });
 
@@ -819,9 +750,9 @@ describe('provisionalPlacements', () => {
     // whole line into one cell (audit §6). Two pins on the SAME beat
     // leave no beats between them, so nothing spreads there.
     const l = line('l1', [
-      { id: 'p0', text: 'A', at: [0, 2, 0] },
+      { id: 'p0', text: 'A', at: [0, 2] },
       { id: 'g', text: 'B' },
-      { id: 'p1', text: 'C', at: [0, 2, 1] },
+      { id: 'p1', text: 'C', at: [0, 2] },
     ]);
     const ghosts = provisionalPlacements(l, axis4);
     // At most the one ghost, and it can only land on that same beat —
@@ -843,11 +774,11 @@ describe('buildCellIndex', () => {
     // syllable above a ghost belonging to the line BEFORE it.
     const lines = [
       line('l1', [
-        { id: 'p0', text: 'A', at: [0, 0, 0] },
+        { id: 'p0', text: 'A', at: [0, 0] },
         { id: 'g1', text: 'B' },
-        { id: 'p1', text: 'C', at: [0, 2, 0] },
+        { id: 'p1', text: 'C', at: [0, 2] },
       ]),
-      line('l2', [{ id: 'x', text: 'X', at: [0, 1, 0] }]),
+      line('l2', [{ id: 'x', text: 'X', at: [0, 1] }]),
     ];
     const index = buildCellIndex(lines, axis4);
     const cell = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }))!;
@@ -861,8 +792,8 @@ describe('buildCellIndex', () => {
     // was placed second, and the old comparator ranked that counter
     // above song order. Placement history no longer reaches the stack.
     const lines = [
-      line('l1', [{ id: 'a', text: 'A', at: [0, 0, 1] }]),
-      line('l2', [{ id: 'b', text: 'B', at: [0, 0, 0] }]),
+      line('l1', [{ id: 'a', text: 'A', at: [0, 0] }]),
+      line('l2', [{ id: 'b', text: 'B', at: [0, 0] }]),
     ];
     const index = buildCellIndex(lines, axis4);
     const cell = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 0 }))!;
@@ -892,10 +823,10 @@ describe('buildCellIndex', () => {
     // the old placed-above-ghosts tier the line's last syllable rendered
     // above ghosts that precede it: ['A', 'Z', 'g1', 'g2'].
     const l = line('l1', [
-      { id: 'a', text: 'A', at: [0, 1, 0] },
+      { id: 'a', text: 'A', at: [0, 1] },
       { id: 'g1', text: 'g1' },
       { id: 'g2', text: 'g2' },
-      { id: 'z', text: 'Z', at: [0, 1, 0] },
+      { id: 'z', text: 'Z', at: [0, 1] },
     ]);
     const stack = buildCellIndex([l], axis4).get(
       cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }),
@@ -909,12 +840,12 @@ describe('buildCellIndex', () => {
     // randomUUID — so two ghosts in one cell stacked arbitrarily. With
     // a 2-beat span and four middle syllables, pairs share cells.
     const l = line('l1', [
-      { id: 'p0', text: 'O', at: [0, 0, 0] },
+      { id: 'p0', text: 'O', at: [0, 0] },
       { id: 'g1', text: 'come,' },
       { id: 'g2', text: 'let' },
       { id: 'g3', text: 'us' },
       { id: 'g4', text: 'adore' },
-      { id: 'p1', text: 'Him', at: [0, 3, 0] },
+      { id: 'p1', text: 'Him', at: [0, 3] },
     ]);
     const index = buildCellIndex([l], axis4);
     for (const occupants of index.values()) {
@@ -936,12 +867,12 @@ describe('buildCellIndex', () => {
     // where it reads.
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
+        { id: 'a', text: 'A', at: [0, 0] },
         { id: 'g1', text: 'g1' },
         { id: 'g2', text: 'g2' },
         { id: 'g3', text: 'g3' },
         { id: 'g4', text: 'g4' },
-        { id: 'z', text: 'Z', at: [0, 1, 0] },
+        { id: 'z', text: 'Z', at: [0, 1] },
       ]),
     ];
     const index = buildCellIndex(lines, axis4);
@@ -960,9 +891,9 @@ describe('buildCellIndex', () => {
       buildCellIndex(
         [
           line('l1', [
-            { id: `x-${Math.random()}`, text: 'A', at: [0, 0, 0] },
+            { id: `x-${Math.random()}`, text: 'A', at: [0, 0] },
             { id: `y-${Math.random()}`, text: 'mid' },
-            { id: `z-${Math.random()}`, text: 'B', at: [0, 2, 0] },
+            { id: `z-${Math.random()}`, text: 'B', at: [0, 2] },
           ]),
         ],
         axis4,
@@ -983,9 +914,9 @@ describe('buildCellIndex', () => {
 describe('lineMarkers', () => {
   it('draws both markers at the line’s placement extent', () => {
     const l = line('l1', [
-      { id: 'a', text: 'A', at: [1, 0, 0] },
+      { id: 'a', text: 'A', at: [1, 0] },
       { id: 'b', text: 'B' },
-      { id: 'c', text: 'C', at: [3, 2, 0] },
+      { id: 'c', text: 'C', at: [3, 2] },
     ]);
     const markers = lineMarkers([l]);
     expect(markers).toHaveLength(2);
@@ -1001,7 +932,7 @@ describe('lineMarkers', () => {
     // The state right after a tray drop: only the head has landed, so ◂
     // draws at the head's cell and is the affordance for placing the tail.
     const l = line('l1', [
-      { id: 'head', text: 'O', at: [2, 0, 0] },
+      { id: 'head', text: 'O', at: [2, 0] },
       { id: 'mid', text: 'come' },
       { id: 'tail', text: 'Him' },
     ]);
@@ -1019,14 +950,14 @@ describe('lineMarkers', () => {
   });
 
   it('emits only a start marker for a single-syllable line', () => {
-    const markers = lineMarkers([line('l1', [{ id: 'a', text: 'A', at: [0, 0, 0] }])]);
+    const markers = lineMarkers([line('l1', [{ id: 'a', text: 'A', at: [0, 0] }])]);
     expect(markers.map(m => m.edge)).toEqual(['start']);
   });
 
   it('groups markers by cell', () => {
     const l = line('l1', [
-      { id: 'a', text: 'A', at: [0, 0, 0] },
-      { id: 'b', text: 'B', at: [0, 0, 1] },
+      { id: 'a', text: 'A', at: [0, 0] },
+      { id: 'b', text: 'B', at: [0, 0] },
     ]);
     const index = buildMarkerIndex([l]);
     const cell = index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 0 }))!;
@@ -1038,7 +969,7 @@ describe('markerTargetSyllable', () => {
   it('resolves to the line’s first and last units', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
+        { id: 'a', text: 'A', at: [0, 0] },
         { id: 'b', text: 'B' },
         { id: 'c', text: 'C' },
       ]),
@@ -1053,8 +984,8 @@ describe('marker placement moves exactly one unit', () => {
   it('placing via ◂ leaves every other syllable untouched', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [1, 0, 0] },
-        { id: 'b', text: 'B', at: [1, 2, 0] },
+        { id: 'a', text: 'A', at: [1, 0] },
+        { id: 'b', text: 'B', at: [1, 2] },
         { id: 'c', text: 'C' },
       ]),
     ];
@@ -1070,8 +1001,8 @@ describe('marker placement moves exactly one unit', () => {
   it('a marker drag is still bound by the monotonic rule', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [5, 0, 0] },
-        { id: 'b', text: 'B', at: [6, 0, 0] },
+        { id: 'a', text: 'A', at: [5, 0] },
+        { id: 'b', text: 'B', at: [6, 0] },
       ]),
     ];
     // ◂ governs 'b'; dragging it before 'a' must be refused.
@@ -1084,16 +1015,16 @@ describe('marker placement moves exactly one unit', () => {
 // --- bar operations ---------------------------------------------------
 
 describe('remapAnchorBars', () => {
-  it('moves anchors through a bar permutation, keeping beat and order', () => {
+  it('moves anchors through a bar permutation, keeping the beat', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 2, 1] },
-        { id: 'b', text: 'B', at: [1, 0, 0] },
+        { id: 'a', text: 'A', at: [0, 2] },
+        { id: 'b', text: 'B', at: [1, 0] },
       ]),
     ];
     const next = remapAnchorBars(lines, SEC, new Map([[0, 1], [1, 0]]));
     expect(anchorOf(next, 'a')).toEqual({
-      sectionId: SEC, barIndex: 1, beatPos: 2, order: 1,
+      sectionId: SEC, barIndex: 1, beatPos: 2,
     });
     expect(anchorOf(next, 'b')?.barIndex).toBe(0);
   });
@@ -1117,8 +1048,8 @@ describe('bar delete helpers', () => {
   it('reports the placed syllables a delete would destroy', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [1, 0, 0] },
-        { id: 'b', text: 'B', at: [2, 0, 0] },
+        { id: 'a', text: 'A', at: [1, 0] },
+        { id: 'b', text: 'B', at: [2, 0] },
       ]),
     ];
     expect(placedSyllablesInBar(lines, SEC, 1).map(s => s.id)).toEqual(['a']);
@@ -1128,9 +1059,9 @@ describe('bar delete helpers', () => {
   it('un-places anchors in the deleted bar and shifts later ones down', () => {
     const lines = [
       line('l1', [
-        { id: 'a', text: 'A', at: [0, 0, 0] },
-        { id: 'b', text: 'B', at: [1, 0, 0] },
-        { id: 'c', text: 'C', at: [2, 0, 0] },
+        { id: 'a', text: 'A', at: [0, 0] },
+        { id: 'b', text: 'B', at: [1, 0] },
+        { id: 'c', text: 'C', at: [2, 0] },
       ]),
     ];
     const next = shiftAnchorsAfterBarDelete(lines, SEC, 1);
@@ -1215,7 +1146,7 @@ describe('foldSectionLyrics', () => {
     expect(out[0].syllables![0].anchor).toBeDefined();
   });
 
-  it('stacks multiple words landing in one cell in legacy render order', () => {
+  it('stacks multiple words landing in one cell, reading in text order', () => {
     // A genuinely collapsed range that is NOT the pending sentinel.
     const collapsed = legacy({ startBar: 2, startBeat: 1, endBar: 2, endBeat: 1 });
     const out = foldSectionLyrics(
@@ -1225,7 +1156,13 @@ describe('foldSectionLyrics', () => {
     const syllables = out[0].syllables!;
     expect(syllables.map(s => s.anchor?.barIndex)).toEqual([2, 2, 2, 2]);
     expect(syllables.map(s => s.anchor?.beatPos)).toEqual([1, 1, 1, 1]);
-    expect(syllables.map(s => s.anchor?.order)).toEqual([0, 1, 2, 3]);
+    // The fold used to stamp `order` 0..3 here to reproduce legacy
+    // stacking. Song order gives the same reading for free, so the
+    // migration's output is unchanged with the field gone.
+    const stack = buildCellIndex(out, axis4).get(
+      cellKey({ sectionId: SEC, barIndex: 2, beatPos: 1 }),
+    )!;
+    expect(stack.map(o => o.syllable.text)).toEqual(syllables.map(s => s.text));
   });
 
   it('walks sections in order and tags anchors with their own section', () => {

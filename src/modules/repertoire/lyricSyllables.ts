@@ -132,30 +132,6 @@ export function findSyllable(
   return null;
 }
 
-/** Every placed syllable sitting in one cell, across all lines. */
-function syllablesInCell(
-  lines: ReadonlyArray<SongLyricLine>,
-  sectionId: string,
-  barIndex: number,
-  beatPos: number,
-): LyricSyllable[] {
-  const out: LyricSyllable[] = [];
-  for (const line of lines) {
-    for (const s of line.syllables ?? []) {
-      const a = s.anchor;
-      if (
-        a &&
-        a.sectionId === sectionId &&
-        a.barIndex === barIndex &&
-        a.beatPos === beatPos
-      ) {
-        out.push(s);
-      }
-    }
-  }
-  return out;
-}
-
 // --- placement --------------------------------------------------------
 
 /** Why a placement was refused. */
@@ -296,10 +272,11 @@ export function checkPlacementOrder(
 /**
  * Place (or re-place) one syllable at a cell.
  *
- * The dropped syllable APPENDS to the target cell's stack — its order
- * is one past the current maximum — so nothing already there is
- * displaced. This is the no-ripple rule (§C) in its entirety: exactly
- * one syllable object changes, and only its anchor.
+ * **The no-ripple rule (§C) in its entirety: exactly one syllable
+ * object changes, and only its anchor.** Nothing already in the target
+ * cell is touched, and neither is anything in the cell being vacated.
+ * Where the syllable lands in the target's stack is not decided here at
+ * all — `buildCellIndex` reads it from song order at render time.
  *
  * Re-placing a syllable that's already somewhere is just an anchor
  * overwrite, so it needs no special case.
@@ -316,33 +293,19 @@ export function placeSyllable(
   if (axis && checkPlacementOrder(lines, syllableId, target, axis) !== null) {
     return [...lines];
   }
-  const occupants = syllablesInCell(
-    lines,
-    target.sectionId,
-    target.barIndex,
-    target.beatPos,
-  ).filter(s => s.id !== syllableId);
-  const nextOrder = occupants.reduce(
-    (max, s) => Math.max(max, s.anchor?.order ?? -1),
-    -1,
-  ) + 1;
-  const anchor: LyricSyllableAnchor = { ...target, order: nextOrder };
-  const placed = mapSyllable(lines, syllableId, s => {
+  const anchor: LyricSyllableAnchor = { ...target };
+  return mapSyllable(lines, syllableId, s => {
     const a = s.anchor;
     if (
       a &&
       a.sectionId === anchor.sectionId &&
       a.barIndex === anchor.barIndex &&
-      a.beatPos === anchor.beatPos &&
-      a.order === anchor.order
+      a.beatPos === anchor.beatPos
     ) {
       return s;
     }
     return { ...s, anchor };
   });
-  // Compact the cell the syllable LEFT so its former neighbours keep a
-  // gapless 0..n-1 order. Their relative order is untouched.
-  return normalizeCellOrders(placed);
 }
 
 /**
@@ -372,7 +335,7 @@ export function unplaceLine(
     };
   });
   if (!touched) return [...lines];
-  return normalizeCellOrders(next);
+  return next;
 }
 
 /** Clear a syllable's anchor, returning it to the drawer's ghost pool. */
@@ -385,94 +348,7 @@ export function unplaceSyllable(
     const { anchor: _dropped, ...rest } = s;
     return rest;
   });
-  return normalizeCellOrders(next);
-}
-
-/**
- * Compact every cell's orders to 0..n-1, preserving relative order.
- * Ties (two syllables claiming the same order, only reachable from
- * legacy or concurrent-sync data) break on syllable id so the result is
- * deterministic across devices rather than dependent on array order.
- */
-export function normalizeCellOrders(
-  lines: ReadonlyArray<SongLyricLine>,
-): SongLyricLine[] {
-  const byCell = new Map<string, LyricSyllable[]>();
-  for (const line of lines) {
-    for (const s of line.syllables ?? []) {
-      if (!s.anchor) continue;
-      const key = cellKey(s.anchor);
-      const list = byCell.get(key);
-      if (list) list.push(s);
-      else byCell.set(key, [s]);
-    }
-  }
-  const nextOrderById = new Map<string, number>();
-  for (const list of byCell.values()) {
-    const sorted = [...list].sort((a, b) => {
-      const ao = a.anchor?.order ?? 0;
-      const bo = b.anchor?.order ?? 0;
-      if (ao !== bo) return ao - bo;
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-    });
-    sorted.forEach((s, i) => nextOrderById.set(s.id, i));
-  }
-  let touched = false;
-  const next = lines.map(line => {
-    if (!line.syllables) return line;
-    let lineTouched = false;
-    const syllables = line.syllables.map(s => {
-      if (!s.anchor) return s;
-      const want = nextOrderById.get(s.id);
-      if (want === undefined || want === s.anchor.order) return s;
-      lineTouched = true;
-      return { ...s, anchor: { ...s.anchor, order: want } };
-    });
-    if (!lineTouched) return line;
-    touched = true;
-    return { ...line, syllables };
-  });
-  return touched ? next : [...lines];
-}
-
-/** Reorder one cell's stack to the given syllable-id sequence — the
- *  write behind A4's tap-to-number. Ids not in the cell are ignored;
- *  occupants the caller omitted keep their relative order after the
- *  ones listed. */
-export function setCellOrder(
-  lines: ReadonlyArray<SongLyricLine>,
-  cell: { sectionId: string; barIndex: number; beatPos: number },
-  orderedIds: ReadonlyArray<string>,
-): SongLyricLine[] {
-  const occupants = syllablesInCell(
-    lines,
-    cell.sectionId,
-    cell.barIndex,
-    cell.beatPos,
-  );
-  if (occupants.length === 0) return [...lines];
-  const wanted = orderedIds.filter(id => occupants.some(s => s.id === id));
-  const rest = occupants
-    .filter(s => !wanted.includes(s.id))
-    .sort((a, b) => (a.anchor?.order ?? 0) - (b.anchor?.order ?? 0))
-    .map(s => s.id);
-  const finalOrder = [...wanted, ...rest];
-  const rank = new Map(finalOrder.map((id, i) => [id, i]));
-  let touched = false;
-  const next = lines.map(line => {
-    if (!line.syllables) return line;
-    let lineTouched = false;
-    const syllables = line.syllables.map(s => {
-      const want = rank.get(s.id);
-      if (want === undefined || !s.anchor || want === s.anchor.order) return s;
-      lineTouched = true;
-      return { ...s, anchor: { ...s.anchor, order: want } };
-    });
-    if (!lineTouched) return line;
-    touched = true;
-    return { ...line, syllables };
-  });
-  return touched ? next : [...lines];
+  return next;
 }
 
 // --- split / join / edit ----------------------------------------------
@@ -582,7 +458,7 @@ export function joinSyllables(
     };
   });
   if (!touched) return [...lines];
-  return normalizeCellOrders(next);
+  return next;
 }
 
 /** Rewrite one syllable's text. Position is untouched. No-op for an
@@ -1024,7 +900,7 @@ export function shiftAnchorsAfterBarDelete(
     return { ...line, syllables };
   });
   if (!touched) return [...lines];
-  return normalizeCellOrders(next);
+  return next;
 }
 
 // --- migration --------------------------------------------------------
@@ -1102,9 +978,11 @@ export function foldSectionLyrics(
   const out: SongLyricLine[] = [];
   for (const section of sections) {
     const beatsPerBar = Math.max(1, section.beatsPerBar);
-    // Per-cell running counter reproduces today's stacking order: lines
-    // in array order, words in index order.
-    const orderByCell = new Map<string, number>();
+    // A per-cell running counter used to stamp `anchor.order` here, to
+    // reproduce the legacy stacking order (lines in array order, words
+    // in index order). That is now exactly what song order gives for
+    // free at render, so the counter and the field are both gone
+    // (rev 5) and the fold's output is unchanged.
     for (const legacy of section.lyricLines ?? []) {
       const text = legacy.words.join(' ');
       const unplaced = isLegacyPendingLine(legacy);
@@ -1145,15 +1023,7 @@ export function foldSectionLyrics(
         if (barIndex < 0) return syllable;
         const rawBeat = Math.round(pos - barIndex * beatsPerBar);
         const beatPos = Math.min(Math.max(0, rawBeat), beatsPerBar - 1);
-        const key = `${barIndex}:${beatPos}`;
-        const order = orderByCell.get(key) ?? 0;
-        orderByCell.set(key, order + 1);
-        syllable.anchor = {
-          sectionId: section.sectionId,
-          barIndex,
-          beatPos,
-          order,
-        };
+        syllable.anchor = { sectionId: section.sectionId, barIndex, beatPos };
         return syllable;
       });
       out.push({ id: makeId(), kind: 'lyric', text, syllables });

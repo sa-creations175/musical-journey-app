@@ -526,10 +526,23 @@ export interface LyricSyllableAnchor {
   barIndex: number;
   /** 0-indexed beat within that bar. */
   beatPos: number;
-  /** Stack order within the (sectionId, barIndex, beatPos) cell.
-   *  0-based and compacted after every write, so the user's order
-   *  survives all other operations (rev 3 §E). */
-  order: number;
+  // NO `order` FIELD — deliberately (rev 5). A cell's stack reads in
+  // SONG ORDER, derived at render by `buildCellIndex` from
+  // (lineIndex, textIndex). The anchor says WHICH CELL and nothing
+  // more.
+  //
+  // There used to be an `order: number` here, written as
+  // "max in cell + 1" on every placement. It recorded WHEN a syllable
+  // was placed rather than WHERE it belongs, and the render comparator
+  // ranked it above song order — so dropping "O" into the cell already
+  // holding "come," rendered it BELOW the word it precedes. Do not
+  // reintroduce a stored stack order: if a stack ever reads wrong, the
+  // fix is in the TEXT (split, join, or reorder the line), never a
+  // per-cell override. See docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md
+  // §2.0 rev 5 and §A4.
+  //
+  // Records written before rev 5 still carry the field in the stored
+  // blob; it is simply never read. No migration, no version bump.
 }
 
 /** One syllable of a lyric line. `anchor` absent = UNPLACED: it renders
