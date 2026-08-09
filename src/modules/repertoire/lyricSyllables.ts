@@ -338,6 +338,36 @@ export function unplaceLine(
   return next;
 }
 
+/**
+ * Restore one line's syllables to a snapshot taken earlier.
+ *
+ * The undo behind cancelling a two-part line placement. Deliberately
+ * NOT `unplaceLine`: a line being *resumed* may already carry anchors
+ * from an earlier session, and cancelling a gesture that was only meant
+ * to finish the line must not destroy them. `unplaceLine` clears
+ * everything, which is "undo all of it" rather than "undo this
+ * gesture" — a difference the user only discovers by losing work.
+ *
+ * A fresh drop snapshots a line with no anchors, so the two agree
+ * exactly in that case and differ only where it matters.
+ *
+ * Scoped to one line rather than the whole store so a concurrent edit
+ * elsewhere can't be reverted as a side effect.
+ */
+export function restoreLineSyllables(
+  lines: ReadonlyArray<SongLyricLine>,
+  lineId: string,
+  snapshot: ReadonlyArray<LyricSyllable>,
+): SongLyricLine[] {
+  let touched = false;
+  const next = lines.map(line => {
+    if (line.id !== lineId) return line;
+    touched = true;
+    return { ...line, syllables: snapshot.map(s => ({ ...s })) };
+  });
+  return touched ? next : [...lines];
+}
+
 /** Clear a syllable's anchor, returning it to the drawer's ghost pool. */
 export function unplaceSyllable(
   lines: ReadonlyArray<SongLyricLine>,

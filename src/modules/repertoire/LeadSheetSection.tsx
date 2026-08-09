@@ -20,6 +20,7 @@ import type {
   ChordFunction,
   ChordPlacement,
   LyricLine,
+  LyricSyllable,
   Phrase,
   Song,
   SongLyricLine,
@@ -272,6 +273,13 @@ interface Props {
    *  `patternsCollapsed` — deliberately not chained to it. */
   lyricTrayCollapsed?: boolean;
   onToggleLyricTray?: () => void;
+  /** The line waiting for its END cell (beat two). Song-level, since
+   *  the end may be tapped in a different section from the start. */
+  awaitingLineEndId?: string | null;
+  /** Beat one landed. Carries the line's syllables as they were BEFORE
+   *  the write, so cancelling can undo the gesture rather than the
+   *  line. */
+  onAwaitLineEnd?: (lineId: string, snapshot: LyricSyllable[]) => void;
 }
 
 export default function LeadSheetSection({
@@ -300,6 +308,8 @@ export default function LeadSheetSection({
   onTogglePatterns,
   lyricTrayCollapsed = DEFAULT_LYRIC_TRAY_COLLAPSED,
   onToggleLyricTray,
+  awaitingLineEndId = null,
+  onAwaitLineEnd,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
   // write below routes on this; the legacy section-owned path stays
@@ -1080,6 +1090,13 @@ export default function LeadSheetSection({
    *  thing that decides. */
   const handleBeatCellTap = songLyricsActive
     ? async (barIndex: number, beatPos: number, cellRect?: DOMRect) => {
+        // Beat two outranks syllable arming — the reducer guarantees
+        // they are mutually exclusive, so this branch is a dispatch,
+        // not a precedence rule.
+        if (awaitingLineEndId) {
+          await handleLineEndTap(awaitingLineEndId, barIndex, beatPos, cellRect);
+          return;
+        }
         if (!armedSyllableId) return;
         const result = await tryPlaceSyllable(armedSyllableId, {
           sectionId: section.id,
@@ -1106,6 +1123,46 @@ export default function LeadSheetSection({
         }
       }
     : undefined;
+
+  /** Beat two: the tapped cell becomes the line's END.
+   *
+   *  Reuses the marker mechanic untouched — `markerTargetSyllable` is
+   *  the same lookup the end-marker drag performs, and the write goes
+   *  through the same guarded path. Only the way it is REACHED is new,
+   *  so the ◂ marker keeps working as a shortcut for anyone who knows
+   *  it is there.
+   *
+   *  Same cell as the start is legal and stacks the whole line there —
+   *  the guard treats equal global positions as one cell, so no special
+   *  case is needed here. */
+  const handleLineEndTap = async (
+    lineId: string,
+    barIndex: number,
+    beatPos: number,
+    cellRect?: DOMRect,
+  ) => {
+    if (!songLyricLines) return;
+    const endSyllableId = markerTargetSyllable(songLyricLines, lineId, 'end');
+    // A one-unit line has no distinct end; beat one already finished it.
+    if (!endSyllableId) {
+      onSyllablePlaced?.();
+      return;
+    }
+    const result = await tryPlaceSyllable(endSyllableId, {
+      sectionId: section.id,
+      barIndex,
+      beatPos,
+    });
+    if (result === null) {
+      onSyllablePlaced?.();
+      return;
+    }
+    // A refused end keeps the wait alive so the next cell can be tried
+    // straight away — the same contract syllable arming has.
+    if (result !== 'off-axis' && result !== 'unavailable' && cellRect) {
+      onRefusalNotice?.(cellRect);
+    }
+  };
 
   // A cell that just refused a drop. Cleared on a timer so the shake
   // plays once; re-keyed per rejection so repeated refusals re-fire.
@@ -1360,11 +1417,23 @@ export default function LeadSheetSection({
       const target = songLyricLines.find(l => l.id === lineId);
       const first = target?.syllables?.[0];
       if (!first) return;
-      await tryPlaceSyllable(first.id, {
+      // Snapshot BEFORE the write — this is the only moment the line's
+      // prior anchors still exist, and cancelling beat two restores
+      // exactly this. A resumed partial line may carry real work here.
+      const snapshot = (target?.syllables ?? []).map(s => ({ ...s }));
+      const result = await tryPlaceSyllable(first.id, {
         sectionId: section.id,
         barIndex: dropBar,
         beatPos: dropBeat,
       });
+      // BEAT TWO. A tray drop is half a gesture: it places the head and
+      // nothing else, and until now left the user hunting for a dimmed
+      // marker to finish it — with no second path, since re-dragging
+      // just re-places the head. The app now asks for the end itself.
+      // Armed unconditionally on a tray drop, which is also what makes
+      // re-dragging an already-partial line the RECOVERY path rather
+      // than the dead end it is today.
+      if (result === null) onAwaitLineEnd?.(lineId, snapshot);
       return;
     }
 

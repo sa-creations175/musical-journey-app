@@ -20,6 +20,7 @@ import {
   placedSyllablesInBar,
   provisionalPlacements,
   remapAnchorBars,
+  restoreLineSyllables,
   setSyllableText,
   shiftAnchorsAfterBarDelete,
   splitSyllable,
@@ -511,6 +512,75 @@ describe('unplaceSyllable', () => {
     // Used to compact the vacated cell's `order` values. Nothing to
     // compact now, so 'b' keeps its exact anchor object.
     expect(next[0].syllables![1]).toBe(lines[0].syllables![1]);
+  });
+});
+
+describe('restoreLineSyllables — cancelling a line placement', () => {
+  it('restores a resumed line WITHOUT destroying pre-existing anchors', () => {
+    // The case that makes this not just unplaceLine. Four syllables
+    // were placed in an earlier session; a gesture meant only to
+    // finish the line is cancelled. Losing those four would be work
+    // destroyed by an undo.
+    const before = line('l1', [
+      { id: 'a', text: 'A', at: [0, 0] },
+      { id: 'b', text: 'B', at: [0, 1] },
+      { id: 'c', text: 'C', at: [0, 2] },
+      { id: 'd', text: 'D', at: [0, 3] },
+      { id: 'e', text: 'E' },
+    ]);
+    const snapshot = before.syllables!;
+    // Beat one re-places the head somewhere else.
+    const during = placeSyllable([before], 'a', { sectionId: SEC, barIndex: 2, beatPos: 0 });
+    expect(anchorOf(during, 'a')).toMatchObject({ barIndex: 2 });
+
+    const after = restoreLineSyllables(during, 'l1', snapshot);
+    expect(anchorOf(after, 'a')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 0 });
+    expect(anchorOf(after, 'b')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 1 });
+    expect(anchorOf(after, 'c')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 2 });
+    expect(anchorOf(after, 'd')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 3 });
+    expect(anchorOf(after, 'e')).toBeUndefined();
+  });
+
+  it('agrees with unplaceLine for a FRESH drop', () => {
+    // A line with nothing placed snapshots empty anchors, so restoring
+    // and un-placing produce the same result — the two only differ
+    // where a resumed line has work to protect.
+    const fresh = line('l1', [
+      { id: 'a', text: 'A' },
+      { id: 'b', text: 'B' },
+    ]);
+    const snapshot = fresh.syllables!;
+    const during = placeSyllable([fresh], 'a', { sectionId: SEC, barIndex: 1, beatPos: 0 });
+    expect(restoreLineSyllables(during, 'l1', snapshot)).toEqual(
+      unplaceLine(during, 'l1'),
+    );
+  });
+
+  it('leaves other lines untouched', () => {
+    const lines = [
+      line('l1', [{ id: 'a', text: 'A' }]),
+      line('l2', [{ id: 'b', text: 'B', at: [3, 0] }]),
+    ];
+    const snapshot = lines[0].syllables!;
+    const during = placeSyllable(lines, 'a', { sectionId: SEC, barIndex: 1, beatPos: 0 });
+    const after = restoreLineSyllables(during, 'l1', snapshot);
+    expect(after[1]).toBe(lines[1]);
+    expect(anchorOf(after, 'b')).toEqual({ sectionId: SEC, barIndex: 3, beatPos: 0 });
+  });
+
+  it('is a no-op for an unknown line id', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'A' }])];
+    expect(restoreLineSyllables(lines, 'nope', [])).toEqual(lines);
+  });
+
+  it('copies the snapshot rather than aliasing it', () => {
+    // The snapshot is held across a gesture; the store must not end up
+    // sharing objects with it.
+    const l = line('l1', [{ id: 'a', text: 'A', at: [0, 0] }]);
+    const snapshot = l.syllables!;
+    const after = restoreLineSyllables([l], 'l1', snapshot);
+    expect(after[0].syllables![0]).not.toBe(snapshot[0]);
+    expect(after[0].syllables![0]).toEqual(snapshot[0]);
   });
 });
 

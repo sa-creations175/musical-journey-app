@@ -25,6 +25,7 @@ import {
   type Song,
   type SongCrossKeyProgress,
   type SongPracticeLog,
+  type LyricSyllable,
   type SongLyricLine,
   type SongSection,
   type RepertoireStage,
@@ -51,8 +52,13 @@ import {
   buildMarkerIndex,
   findSyllable,
   foldSectionLyrics,
+  restoreLineSyllables,
 } from './lyricSyllables';
-import { armedSyllableId as selectArmedSyllableId, armingReducer } from './syllableArming';
+import {
+  armedSyllableId as selectArmedSyllableId,
+  armingReducer,
+  pendingLineEnd,
+} from './syllableArming';
 import {
   loadLyricTrayCollapsed,
   loadPatternsCollapsed,
@@ -583,55 +589,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     () => (songLyricLines ? buildMarkerIndex(songLyricLines) : undefined),
     [songLyricLines],
   );
-
-  // --- tap-to-place arming (step 6b) --------------------------------
-  // Lifted here from LeadSheetSection so a tap can cross sections: the
-  // armed syllable has to outlive any one section's DndContext, and
-  // each section previously ran its own reducer, so arming in one was
-  // invisible to the next — the second tap simply did nothing.
-  //
-  // Only the syllable-keyed pieces moved. Placement itself, the
-  // ordering guard and the refusal shake all stay in LeadSheetSection,
-  // because a beat-cell tap always fires on the section that owns the
-  // cell. See docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §A3.
-  const [arming, dispatchArming] = useReducer(armingReducer, null);
-  const armedSyllableId = selectArmedSyllableId(arming);
-
-  // Drop arming if the armed syllable stops existing (split, join,
-  // un-place, undo).
-  useEffect(() => {
-    if (!armedSyllableId) return;
-    if (!songLyricLines || !findSyllable(songLyricLines, armedSyllableId)) {
-      dispatchArming({ type: 'syllable-removed', syllableId: armedSyllableId });
-    }
-  }, [songLyricLines, armedSyllableId]);
-
-  // A tap that lands outside every arming surface dismisses. Surfaces
-  // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
-  // cells, and the edit popover. One listener now covers the whole
-  // song, where before each section installed its own over the same
-  // state.
-  useEffect(() => {
-    if (!armedSyllableId) return;
-    const onDown = (e: PointerEvent) => {
-      const target = e.target;
-      if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
-        return;
-      }
-      dispatchArming({ type: 'dismiss' });
-    };
-    document.addEventListener('pointerdown', onDown, true);
-    return () => document.removeEventListener('pointerdown', onDown, true);
-  }, [armedSyllableId]);
-
-  const handleArmSyllable = useCallback((syllableId: string) => {
-    dispatchArming({ type: 'tap-syllable', syllableId });
-  }, []);
-
-  const handleSyllablePlaced = useCallback(() => {
-    dispatchArming({ type: 'placed' });
-  }, []);
-
   // --- progression-patterns collapse (global pref) ------------------
   // Owned here rather than in LeadSheetSection because the pref is
   // GLOBAL: the block renders once per section, and a five-section song
@@ -744,6 +701,128 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     },
     [songId],
   );
+
+
+  // --- tap-to-place arming (step 6b) --------------------------------
+  // Lifted here from LeadSheetSection so a tap can cross sections: the
+  // armed syllable has to outlive any one section's DndContext, and
+  // each section previously ran its own reducer, so arming in one was
+  // invisible to the next — the second tap simply did nothing.
+  //
+  // Only the syllable-keyed pieces moved. Placement itself, the
+  // ordering guard and the refusal shake all stay in LeadSheetSection,
+  // because a beat-cell tap always fires on the section that owns the
+  // cell. See docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §A3.
+  const [arming, dispatchArming] = useReducer(armingReducer, null);
+  const armedSyllableId = selectArmedSyllableId(arming);
+
+  // Drop arming if the armed syllable stops existing (split, join,
+  // un-place, undo).
+  useEffect(() => {
+    if (!armedSyllableId) return;
+    if (!songLyricLines || !findSyllable(songLyricLines, armedSyllableId)) {
+      dispatchArming({ type: 'syllable-removed', syllableId: armedSyllableId });
+    }
+  }, [songLyricLines, armedSyllableId]);
+
+  // --- beat two: waiting for a line's end ---------------------------
+  // Placing a line is ONE gesture with TWO beats. Beat one drops the
+  // first unit; beat two is the app immediately asking where the line
+  // ENDS, instead of leaving the user to discover a dimmed 10px marker
+  // stacked in the cell they just dropped into.
+  //
+  // The half-placed state is what had no recovery path: re-dragging a
+  // line always re-places its FIRST unit, so a line stranded with only
+  // its head down could not be finished by the gesture that stranded
+  // it. Beat two removes that state rather than signposting it.
+  const awaitingLineEndId = pendingLineEnd(arming);
+
+  // Snapshot of the line's syllables as they were BEFORE beat one, so
+  // cancelling undoes the gesture rather than the line. A resumed line
+  // may already carry anchors from an earlier session; `unplaceLine`
+  // would take those too, which is a bug you discover by losing work.
+  const lineGestureSnapshot = useRef<{
+    lineId: string;
+    syllables: LyricSyllable[];
+  } | null>(null);
+
+  const rollbackLineGesture = useCallback(async () => {
+    const snap = lineGestureSnapshot.current;
+    lineGestureSnapshot.current = null;
+    if (!snap || !song?.lyricLines) return;
+    await commitSongLyrics(
+      restoreLineSyllables(song.lyricLines, snap.lineId, snap.syllables),
+    );
+  }, [song?.lyricLines, commitSongLyrics]);
+
+  /** Dismiss whatever is pending, rolling beat one back if there is one.
+   *  Read the state BEFORE dispatching — that is the only moment the
+   *  rollback signal is still available. */
+  const dismissArming = useCallback(() => {
+    if (pendingLineEnd(arming)) void rollbackLineGesture();
+    else lineGestureSnapshot.current = null;
+    dispatchArming({ type: 'dismiss' });
+  }, [arming, rollbackLineGesture]);
+
+  // A tap that lands outside every arming surface dismisses. Surfaces
+  // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
+  // cells, and the edit popover. One listener now covers the whole
+  // song, where before each section installed its own over the same
+  // state.
+  useEffect(() => {
+    if (!arming) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
+        return;
+      }
+      dismissArming();
+    };
+    // Escape is the keyboard route to the same thing — and the only
+    // route that doesn't require finding somewhere safe to tap.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') dismissArming();
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [arming, dismissArming]);
+
+  // Drop the wait if the line itself stops existing (deleted mid-
+  // gesture). The snapshot goes with it — there is nothing to restore
+  // it onto.
+  useEffect(() => {
+    if (!awaitingLineEndId) return;
+    if (!songLyricLines?.some(l => l.id === awaitingLineEndId)) {
+      lineGestureSnapshot.current = null;
+      dispatchArming({ type: 'line-removed', lineId: awaitingLineEndId });
+    }
+  }, [songLyricLines, awaitingLineEndId]);
+
+  const handleArmSyllable = useCallback((syllableId: string) => {
+    dispatchArming({ type: 'tap-syllable', syllableId });
+  }, []);
+
+  const handleSyllablePlaced = useCallback(() => {
+    // Beat two completing is also what retires the snapshot: the
+    // gesture finished, so there is no longer anything to roll back.
+    lineGestureSnapshot.current = null;
+    dispatchArming({ type: 'placed' });
+  }, []);
+
+  /** Beat one landed. `snapshot` is the line as it was before the
+   *  write, captured by the section that owns the drop. */
+  const handleAwaitLineEnd = useCallback(
+    (lineId: string, snapshot: LyricSyllable[]) => {
+      lineGestureSnapshot.current = { lineId, syllables: snapshot };
+      dispatchArming({ type: 'await-line-end', lineId });
+    },
+    [],
+  );
+
 
   // Lazy fold: the first time a song is opened after the redesign,
   // collapse its per-section lyrics into the song-level store.
@@ -1214,6 +1293,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             armedSyllableId={armedSyllableId}
                             onArmSyllable={handleArmSyllable}
                             onSyllablePlaced={handleSyllablePlaced}
+                            awaitingLineEndId={awaitingLineEndId}
+                            onAwaitLineEnd={handleAwaitLineEnd}
                             onRefusalNotice={handleRefusalNotice}
                             patternsCollapsed={patternsCollapsed}
                             onTogglePatterns={handleTogglePatterns}
