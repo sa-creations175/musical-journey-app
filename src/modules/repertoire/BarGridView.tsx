@@ -1726,14 +1726,20 @@ function SyllableEditPopover({
               Rejoin
             </button>
           )}
+          {/* The two un-place actions differ by SCOPE, and the labels
+              have to carry that on their own — "Un-place" next to
+              "Un-place line" read as one action and a variant of it,
+              which is how the whole-line reset went unnoticed even
+              though it was sitting right there. Both now name their
+              scope explicitly. */}
           {onUnplace && isPlaced && (
             <button
               type="button"
               onClick={onUnplace}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
-              title="return this syllable to the unplaced pool"
+              title="return just this syllable to the unplaced pool"
             >
-              Un-place
+              Un-place syllable
             </button>
           )}
           {onUnplaceLine && (
@@ -1741,9 +1747,9 @@ function SyllableEditPopover({
               type="button"
               onClick={onUnplaceLine}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
-              title="return this whole line to the tray, keeping its text"
+              title="return every syllable of this line to the tray, keeping its text"
             >
-              Un-place line
+              Un-place full line
             </button>
           )}
         </div>
