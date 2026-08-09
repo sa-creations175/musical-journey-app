@@ -1,6 +1,7 @@
 # Lead Sheet — Lyric/Syllable Layer: Audit + Redesign Plan
 
-Status: **Track 2 approved and in progress. Track 1 sequence awaiting sign-off.**
+Status: **Track 2 CLOSED. Track 1 steps 0-5 and 6a shipped; 6b, 7, 8, 9, 10 outstanding.
+The drag-ring displacement bug is PARKED — see the section at the end.**
 Scope: the per-bar beat grid's lyric row, the lyric drawer, chord-cell coloring, plus a read-only song-key recon.
 
 Revision history:
@@ -416,14 +417,47 @@ unrepresentable, and it keeps the grid honest about what has actually been place
 
 ## A3 — Tap-to-place (replaces send-to-beat)
 
-- Tap a syllable chip (placed or unplaced) → **armed** (highlight + hint bar).
-- Tap any visible beat cell → placed there. Cross-section targets allowed (§2.0).
-- Placing a **line** from the drawer: tap line → *"tap the beat where this line starts"* → tap cell (places
-  first unit) → *"tap where it ends"* → tap cell (places last unit) → middle units auto-spread as ghosts.
-- Escape / tap-elsewhere cancels arming.
+- Tap a syllable chip → **armed**. Placed and unplaced behave **identically** — deliberately. A tap should
+  mean one thing regardless of a chip's state; making the affordance conditional would force the user to know
+  which state a chip is in before knowing what a tap does.
+- Re-tap the armed syllable to disarm. Tap a different one to transfer. Tap outside to disarm. Only one
+  syllable armed at a time.
+- While armed, **EVERY beat cell shows the hint state.** Legality is deliberately NOT computed up front:
+  `checkPlacementOrder` decides on tap and remains the only thing that knows the rule. Pre-filtering to legal
+  cells would duplicate that rule in a second place — the exact failure mode this track has hit repeatedly.
+- Tap any visible beat cell → placed there. **Cross-section targets are step 6b** (§2.0); 6a is intra-section.
+- **Success is silent** — arming clears, nothing else. Matches drag, which also places silently. A
+  toast-with-Undo on the shared placement path (so drag AND tap both get one) is queued behind the toast
+  investigation; see Future work.
+- **Refusal** keeps arming so the next cell can be tried immediately, shakes the cell, and shows
+  *"Can't place here — syllables must stay in order."* — **except** for the `off-axis` violation, which means
+  the target section isn't on the beat axis. That is a data problem, not a user ordering error, so the shake
+  fires without the message.
+- **The edit popover no longer opens on plain tap.** The armed syllable grows a **"…" control** that opens it,
+  and a **long-press** on any syllable opens the same menu as a shortcut. One implementation, two entry
+  points. The "…" appears only on the armed syllable, so an unarmed grid stays clean.
+- Placing a **line** from the drawer (tap line → tap start → tap end) is **step 7** scope, not 6a.
 - Drag remains, for intra-section local moves.
 
-Armed state lives above the sections (§2.0) so a cross-section tap can complete.
+**Armed state location.** The end state is above the sections (§2.0), so a cross-section tap can complete.
+**As of 6a it lives one level lower, in `LeadSheetSection`** — every piece it needs (`tryPlaceSyllable`,
+`refusePlacement`, `beatAxis`, the store) is already local there. 6b lifts it to `SongDetailView`, one hop
+along the path `cellIndex` / `markerIndex` / `beatAxis` already travel; it is shaped as
+`armedSyllableId: string | null` + a dispatch so the lift is a move plus a prop rename, not a rewrite.
+
+**Implementation notes worth keeping.** The arming state machine is a pure reducer
+(`syllableArming.ts`) so it is unit-testable without a DOM — the repo has no component-testing stack, and
+adding one inside a feature step was explicitly rejected as smuggling an infrastructure decision into
+unrelated work. Two DOM-bound behaviours ("…" opens the menu, long-press opens the menu) are therefore
+browser-verified rather than unit-tested.
+
+`SyllableChip` carries dnd-kit's pointerdown, an onClick, and `useLongPress`'s handlers on one element. Two
+collisions are real and are handled explicitly rather than by luck:
+  · Spreading `{...listeners}` then `{...longPress}` would silently OVERWRITE dnd-kit's `onPointerDown` and
+    kill drag activation — both attach to the same event. They are composed by hand, dnd-kit first.
+  · dnd-kit activates at 5px while the hook cancels a long-press at 15px, so a 5-15px movement held past the
+    threshold would fire BOTH. The long-press callback no-ops while dragging, rather than tightening the
+    hook's tolerance to 4px — which would fight the 3-5px finger drift the hook's own comment measures.
 
 ## A4 — In-cell reorder by tap-to-number
 
@@ -587,6 +621,12 @@ leading 1–7 digit (`chordGlyph.tsx:47-51`) — those must keep the current gre
   unification would touch the lead sheet, PianoKeyboard, mental-viz, and the progression quiz.
 - Intra-cell drag reordering (permanently deferred in favour of A4's tap-to-number).
 - Normalizing `Song.key` to a canonical name at write time (see Part 3, items 2-3).
+- **Toast health investigation, then toast-with-Undo on the shared placement path.** Success toasts have
+  never been reliably observed firing — possibly broken, mispositioned, or hidden behind the nav bar. Until
+  that is settled, no feature hangs its Undo on them: 6a places silently. Once healthy, put the
+  toast + Undo in `tryPlaceSyllable` so drag AND tap both gain an Undo drag currently lacks.
+- **Component-testing stack** (`@testing-library/react` + a jsdom test environment). Deliberately not added
+  inside step 6a. Until then, DOM-bound behaviour is browser-verified.
 - **Multi-digit degree parsing in `parseChordFunction` — see §B4 below.**
 
 ## B4 — Multi-digit degrees are parsed as single digits (found during T2.3)
@@ -710,7 +750,7 @@ Zero coupling to the lyric refactor, and both need your eyes in-browser, which i
 | **3** | **Bug 2 + Bug 1** — `pointerWithin`→`closestCenter` fallback, `MeasuringStrategy.Always`, `DragOverlay`, high-contrast target + insertion caret | drag lands where you point, visibly |
 | **4** | Place-on-drag writes an anchor; no-ripple; stable `order` (C, E) | moving a syllable moves only it |
 | **5** | **A1** marker semantics + split/join anchor inheritance + un-place `×` | markers place one unit; split stops shifting the line |
-| **6a** | **A3** tap-to-place, **intra-section** (chip → cell, and line → start/end) | tap placement works |
+| **6a** | **A3** tap-to-place, **intra-section**. ✅ SHIPPED. Tap arms (placed and unplaced alike), every cell offers itself, `checkPlacementOrder` is the sole legality authority, "…" and long-press open the edit menu. Line → start/end is step 7, not this. | tap placement works |
 | **6b** | **A3** cross-section placement — lift armed state + anchor index above sections (§2.0) | syllables span sections |
 | **7** | **B1 lyric drawer — needs its own sign-off on §B1 first.** 7a: drawer shell + staging paste with live parse preview + header dividers + header toggle. 7b: delete the per-section paste box and the pending tray. 7c: placed/partial/unplaced row status. | one drawer, one store |
 | **8** | Paste + bar-op safety: regression tests that commit-paste, reorder, add/delete-bar never move a placed syllable; bar-delete guard for placed syllables | |
