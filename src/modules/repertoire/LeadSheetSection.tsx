@@ -75,6 +75,7 @@ import {
 } from './beatsModel';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
+import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
@@ -1806,16 +1807,11 @@ export default function LeadSheetSection({
                   patterns list is the taller half, so collapsing only
                   the strip would save little of the space this is
                   meant to reclaim. */}
-              <button
-                type="button"
-                onClick={onTogglePatterns}
-                disabled={!onTogglePatterns}
-                aria-expanded={!patternsCollapsed}
-                className="self-start text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1 disabled:hover:text-neutral-500"
-              >
-                <span aria-hidden>{patternsCollapsed ? '▸' : '▾'}</span>
-                Progression Patterns
-              </button>
+              <SectionToggle
+                label="progression patterns"
+                expanded={!patternsCollapsed}
+                onToggle={onTogglePatterns}
+              />
 
               {!patternsCollapsed && (
                 <>
@@ -1947,12 +1943,11 @@ export default function LeadSheetSection({
           {/* Section notes — hidden in play mode */}
           {!playMode && (
           <div className="space-y-1">
-            <button
-              onClick={() => setShowNotes(v => !v)}
-              className="text-[11px] text-neutral-500 hover:text-fluent"
-            >
-              {showNotes ? '▴ hide notes' : '▸ section notes'}
-            </button>
+            <SectionToggle
+              label="section notes"
+              expanded={showNotes}
+              onToggle={() => setShowNotes(v => !v)}
+            />
             {showNotes && (
               <textarea
                 rows={2}

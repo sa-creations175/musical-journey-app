@@ -1,5 +1,6 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { tokenizeLyricLines } from './lyricLine';
+import SectionToggle from './SectionToggle';
 
 // Lyric input area (Lead Sheet Redesign step 6, May 2026 —
 // docs/LEAD_SHEET_REDESIGN.md). The user pastes a verse here; each
@@ -8,7 +9,7 @@ import { tokenizeLyricLines } from './lyricLine';
 // drags them onto beat positions from there.
 //
 // Collapsible: collapsed by default so it doesn't claim permanent
-// real estate. Collapsed state shows a "+ Add lyrics" link with a
+// real estate. Collapsed state shows the shared SectionToggle with a
 // count badge when the draft holds un-submitted words. Expanding
 // reveals the textarea + add button; a chevron collapses it back.
 //
@@ -62,18 +63,16 @@ export default function LyricStagingArea({ sectionId, onSubmitLines }: Props) {
 
   if (!expanded) {
     return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-fluent"
-      >
-        + Add lyrics
-        {stagedWordCount > 0 && (
-          <span className="text-neutral-400">
-            · {stagedWordCount} word{stagedWordCount === 1 ? '' : 's'} staged
-          </span>
-        )}
-      </button>
+      <SectionToggle
+        label="add lyrics"
+        expanded={false}
+        onToggle={() => setExpanded(true)}
+        hint={
+          stagedWordCount > 0
+            ? `${stagedWordCount} word${stagedWordCount === 1 ? '' : 's'} staged`
+            : undefined
+        }
+      />
     );
   }
 
@@ -90,7 +89,7 @@ export default function LyricStagingArea({ sectionId, onSubmitLines }: Props) {
             title="collapse"
             className="inline-flex items-center gap-1 rounded border border-neutral-300 dark:border-neutral-700 px-1.5 py-0.5 normal-case text-neutral-500 hover:border-fluent hover:text-fluent"
           >
-            <span aria-hidden>▴</span> collapse
+            <span aria-hidden>▾</span> collapse
           </button>
         </div>
       </div>

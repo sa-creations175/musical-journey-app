@@ -50,7 +50,7 @@ export default function FullLyricsSection({ song, onSave }: Props) {
           )}
         </span>
         <span className="text-xs text-neutral-500">
-          {expanded ? '▴ hide' : '▸ show'}
+          {expanded ? '▾ hide' : '▸ show'}
         </span>
       </button>
 

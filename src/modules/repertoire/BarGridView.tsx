@@ -50,6 +50,7 @@ import {
 import { distributedWordPositions } from './lyricLine';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import ChordGlyph from './chordGlyph';
+import SectionToggle from './SectionToggle';
 
 // Bar-grid renderer (Lead Sheet Redesign, May 2026 —
 // docs/LEAD_SHEET_REDESIGN.md).
@@ -967,22 +968,13 @@ function SongPendingTray({
           drawer has been in real use — see the plan doc's note on the
           step 2 → step 7 gap. The count keeps the tray honest while
           shut: you can see there is unplaced work without opening it. */}
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={!onToggle}
-        aria-expanded={!collapsed}
-        className="text-[10px] uppercase tracking-wide text-neutral-500 hover:text-fluent inline-flex items-center gap-1 disabled:hover:text-neutral-500"
-      >
-        <span aria-hidden>{collapsed ? '▸' : '▾'}</span>
-        unplaced lyrics
-        <span className="text-neutral-400 normal-case">({placeable})</span>
-        {!collapsed && (
-          <span className="text-neutral-400 normal-case">
-            — drag onto a beat to place
-          </span>
-        )}
-      </button>
+      <SectionToggle
+        label="unplaced lyrics"
+        expanded={!collapsed}
+        onToggle={onToggle}
+        count={placeable}
+        hint={collapsed ? undefined : 'drag onto a beat to place'}
+      />
       {!collapsed && (
         <div className="flex flex-col gap-1 mt-1">
           {lines.map(line => (

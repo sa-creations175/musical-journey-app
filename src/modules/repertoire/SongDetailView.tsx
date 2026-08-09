@@ -65,6 +65,7 @@ import PracticeHistory from './PracticeHistory';
 import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
 import FullLyricsSection from './FullLyricsSection';
+import SectionToggle from './SectionToggle';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
@@ -282,7 +283,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [whyDraft, setWhyDraft] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
   // Full lyrics collapsible inside the lead sheet section. Closed by
-  // default; the user opens it explicitly via "Show full lyrics".
+  // default; the user opens it explicitly via the "full lyrics" toggle.
   const [showFullLyrics, setShowFullLyrics] = useState(false);
 
   // Section-order drag state. The sortable list reads from
@@ -1227,15 +1228,13 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         lyrics live HERE now rather than as a
                         standalone section. */}
                     <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800">
-                      <button
-                        type="button"
-                        onClick={() => setShowFullLyrics(v => !v)}
-                        className="text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
-                        aria-expanded={showFullLyrics}
-                      >
-                        <span aria-hidden>{showFullLyrics ? '▾' : '▸'}</span>
-                        {showFullLyrics ? 'Hide full lyrics' : 'Show full lyrics'}
-                      </button>
+                      {/* Label is static now — the chevron carries the
+                          state, so "Show…"/"Hide…" said it twice. */}
+                      <SectionToggle
+                        label="full lyrics"
+                        expanded={showFullLyrics}
+                        onToggle={() => setShowFullLyrics(v => !v)}
+                      />
                       {showFullLyrics && (
                         <div className="mt-3">
                           <FullLyricsSection song={song} onSave={saveFullLyrics} />
