@@ -1834,13 +1834,6 @@ function SyllableDropSlot({
   return (
     <div
       ref={setNodeRef}
-      // Marker for collision hit-testing — the drop target is resolved
-      // by hit-testing the live DOM under the cursor rather than from
-      // measured rects. See `cellUnderPointer` in LeadSheetSection.
-      // The VALUE is for debugging only: it is not unique across
-      // sections (every section numbers its bars from zero), so the
-      // hit-test matches on node identity, never on this string.
-      data-beat-cell={DRAG_ID.beat(barIndex, beatPos)}
       className={`relative flex-1 min-h-[28px] flex flex-col items-center justify-start gap-0.5 px-0.5 rounded border transition-opacity ${surface} ${rejected ? 'lyric-reject' : ''}`}
     >
       {markers.filter(m => m.edge === 'start').map(m => (

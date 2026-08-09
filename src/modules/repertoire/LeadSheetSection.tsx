@@ -160,55 +160,6 @@ function collisionFor(
 }
 
 /**
- * The beat cell literally under the cursor, by DOM hit-test.
- *
- * Deliberately not dnd-kit's rect bookkeeping. Every measured-rect
- * approach we tried audited clean at the collision layer and still
- * drifted on screen once a drag ran long enough to scroll — the
- * highlight lagging the cursor by roughly the scrolled distance. Rather
- * than keep chasing which term in `activationCoordinates + translate`
- * versus scroll-corrected rects goes stale, this asks the browser the
- * question the user is actually asking: what is under my cursor?
- *
- * Immune by construction to scroll drift, stale measurement, ancestor
- * transforms, and auto-scroll, because it reads the live layout at the
- * live pointer every time.
- *
- * A cell belonging to ANOTHER section's grid resolves to no target
- * rather than falling through: each section owns its own DndContext, so
- * cross-section dragging isn't supported, and snapping back to this
- * section's nearest cell would be a misplacement.
- */
-function cellUnderPointer(
-  point: { x: number; y: number },
-  allowed: DroppableContainers,
-): LyricCollisions {
-  const stack = document.elementsFromPoint(point.x, point.y);
-  for (const element of stack) {
-    const cell = element instanceof Element ? element.closest('[data-beat-cell]') : null;
-    if (!cell) continue;
-    // Match by NODE IDENTITY, never by droppable id.
-    //
-    // `beat:13:0` exists in EVERY section — each numbers its bars from
-    // zero — so an id-string match silently aliased a cell the cursor
-    // was over in one section onto the same-named cell in this one,
-    // drawing the ring a viewport away. The gap grew with scroll travel
-    // because scrolling moved the cursor across different sections'
-    // grids, each aliasing back here.
-    //
-    // Node identity is exact: `setNodeRef` and `data-beat-cell` sit on
-    // the same element, so a hit only resolves when the element we hit
-    // IS this context's registered droppable. A cell from another
-    // section finds no container and yields no target — cross-section
-    // dragging isn't supported, and each section owns its own
-    // DndContext.
-    const container = allowed.find(c => c.node.current === cell);
-    return container ? collisionFor(container, 0) : [];
-  }
-  return [];
-}
-
-/**
  * Nearest cell when the cursor sits in a gutter between cells. Reads
  * live rects off the nodes for the same reason `cellUnderPointer` does.
  * Only runs when the hit-test found nothing, so the cost of measuring
@@ -994,29 +945,41 @@ export default function LeadSheetSection({
     };
   }, [activeLyricDrag]);
 
-  // Recompute the drop target while the page moves under a stationary
-  // cursor.
+  // Recompute the drop target whenever the grid moves under the cursor.
   //
   // dnd-kit computes collisions inline in DndContext's render body, so
-  // they refresh on any re-render — but during scroll (wheel, momentum,
-  // or dnd-kit's own auto-scroll near the viewport edge) no pointermove
-  // fires, nothing re-renders, and the hit-test never re-runs. The ring
-  // then stays pinned to the last computed cell and drifts away with
-  // the page, which also left it stuck on a stale target instead of
-  // clearing when the cursor moved off the grid.
+  // they refresh on any re-render — but during scroll the pointer is
+  // stationary, nothing re-renders, and the target freezes at whatever
+  // it last resolved to, then rides the page away from the cursor.
   //
-  // Capture phase because scroll events don't bubble: this catches the
-  // window AND any nested scroll container. The cursor's client
-  // position is unchanged by scrolling, so the last known pointer is
-  // still the right thing to hit-test with.
+  // This watches the SECTION'S OWN position each frame rather than
+  // listening for scroll events. Scroll listeners have to guess which
+  // element scrolls; a window listener misses inner containers, a
+  // capture listener still misses layout shifts, and neither sees
+  // dnd-kit's auto-scroll if it moves an ancestor we didn't subscribe
+  // to. Watching the rendered geometry directly catches every cause,
+  // because the thing that actually invalidates a drop target is the
+  // grid moving relative to the viewport — whatever caused it.
+  //
+  // Costs one getBoundingClientRect per frame, and only while a lyric
+  // drag is in flight.
   const [, setDragTick] = useState(0);
   useEffect(() => {
     if (!activeLyricDrag) return;
-    const onScroll = () => setDragTick(t => t + 1);
-    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-    return () =>
-      window.removeEventListener('scroll', onScroll, { capture: true });
-  }, [activeLyricDrag]);
+    let raf = 0;
+    let lastTop: number | null = null;
+    const check = () => {
+      const node = document.getElementById(`section-${section.id}`);
+      const top = node ? Math.round(node.getBoundingClientRect().top) : null;
+      if (top !== lastTop) {
+        lastTop = top;
+        setDragTick(t => t + 1);
+      }
+      raf = requestAnimationFrame(check);
+    };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  }, [activeLyricDrag, section.id]);
 
   // A cell that just refused a drop. Cleared on a timer so the shake
   // plays once; re-keyed per rejection so repeated refusals re-fire.
@@ -1141,18 +1104,21 @@ export default function LeadSheetSection({
         return closestCenter({ ...args, droppableContainers: allowed });
       }
 
-      // Ask the browser what is under the cursor. `pointerWithin` above
-      // is kept as the fast path, but the DOM hit-test is authoritative
-      // — it is what keeps the ring on the cursor through auto-scroll
-      // and mid-drag scrolling, where measured rects drift.
-      const underPointer = cellUnderPointer(point, allowed);
-      if (underPointer.length > 0) return underPointer;
-
-      // Cursor in a gutter between cells, or off the grid entirely.
-      // Nearest cell within POINTER_SNAP_PX, otherwise no target: the
-      // drop is a no-op and no ring lights, which reads correctly as
-      // "not over a cell" and beats landing a syllable somewhere the
-      // user never pointed.
+      // ONE path: the cell nearest the cursor, by live geometry.
+      //
+      // A `document.elementsFromPoint` hit-test used to run in front of
+      // this, described as authoritative. Instrumentation showed it
+      // never once succeeded across ~1600 collision calls in a real
+      // drag — during a lyric drag the cursor is reliably NEAR a beat
+      // cell rather than inside one, so every ring ever seen came from
+      // this fallback. Dead code claiming to be the source of truth is
+      // worse than none, and two paths answering one question is how
+      // this drifted repeatedly.
+      //
+      // A pointer inside a cell scores distance 0, so this subsumes the
+      // hit-test rather than approximating it. Beyond POINTER_SNAP_PX
+      // there is no target: the drop is a no-op and no ring lights,
+      // which reads correctly as "not over a cell".
       return nearestCellToPointer(point, allowed);
     }
     return closestCenter({ ...args, droppableContainers: allowed });
