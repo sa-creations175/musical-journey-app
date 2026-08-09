@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   closestCenter,
   type CollisionDetection,
@@ -45,7 +45,6 @@ import {
   unplaceSyllable,
 } from './lyricSyllables';
 import { parseLyricSheet } from './lyricSheetParse';
-import { armingReducer } from './syllableArming';
 import {
   DEFAULT_STAGE,
   STAGES,
@@ -241,6 +240,17 @@ interface Props {
   /** Line start/end markers grouped by cell. */
   markerIndex?: Map<string, LineMarkerPlacement[]>;
   onSongLyricsChange?: (next: SongLyricLine[]) => Promise<void>;
+  /** Which syllable a beat-cell tap will place — song-level state
+   *  (step 6b), so the syllable may well belong to another section's
+   *  cell, or to no cell at all. */
+  armedSyllableId?: string | null;
+  /** A syllable chip was tapped: arms, disarms, or transfers arming.
+   *  The reducer above decides which. */
+  onArmSyllable?: (syllableId: string) => void;
+  /** A tap placement landed, so arming should clear. Refusals
+   *  deliberately do NOT call this — arming survives so the next cell
+   *  can be tried immediately. */
+  onSyllablePlaced?: () => void;
 }
 
 export default function LeadSheetSection({
@@ -261,6 +271,9 @@ export default function LeadSheetSection({
   beatAxis,
   markerIndex,
   onSongLyricsChange,
+  armedSyllableId = null,
+  onArmSyllable,
+  onSyllablePlaced,
 }: Props) {
   // Migrated when the song-level store is present. Every lyric read and
   // write below routes on this; the legacy section-owned path stays
@@ -1004,44 +1017,25 @@ export default function LeadSheetSection({
     return () => cancelAnimationFrame(raf);
   }, [activeLyricDrag, section.id]);
 
-  // --- tap-to-place arming (step 6a) -------------------------------
-  // Lives HERE, not in BarGridView, because every piece it needs —
-  // tryPlaceSyllable, refusePlacement, beatAxis, the lyric store — is
-  // already local. Step 6b lifts it to SongDetailView so a tap can
-  // cross sections; that is one hop along the path cellIndex /
-  // markerIndex / beatAxis already travel, and should be a move plus a
-  // prop rename rather than a rewrite.
-  const [arming, dispatchArming] = useReducer(armingReducer, null);
-  const armedSyllableId = arming?.armedSyllableId ?? null;
-
-  // Drop arming if the armed syllable stops existing (split, join,
-  // un-place, undo).
-  useEffect(() => {
-    if (!armedSyllableId) return;
-    if (!songLyricLines || !findSyllable(songLyricLines, armedSyllableId)) {
-      dispatchArming({ type: 'syllable-removed', syllableId: armedSyllableId });
-    }
-  }, [songLyricLines, armedSyllableId]);
-
-  // A tap that lands outside every arming surface disarms. Surfaces
-  // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
-  // cells, and the edit popover.
-  useEffect(() => {
-    if (!armedSyllableId) return;
-    const onDown = (e: PointerEvent) => {
-      const target = e.target;
-      if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
-        return;
-      }
-      dispatchArming({ type: 'tap-outside' });
-    };
-    document.addEventListener('pointerdown', onDown, true);
-    return () => document.removeEventListener('pointerdown', onDown, true);
-  }, [armedSyllableId]);
-
-  const handleSyllableTap = (syllableId: string) => {
-    dispatchArming({ type: 'tap-syllable', syllableId });
-  };
+  // --- tap-to-place arming (step 6a; LIFTED in 6b) -----------------
+  // The armed syllable now lives in SongDetailView, ABOVE the
+  // per-section DndContexts, so a tap can arm in this section and place
+  // in another. Three things moved with it: the reducer, the
+  // armed-syllable-vanished cleanup, and the tap-outside listener —
+  // one armed state deserves exactly one of each, where per-section
+  // copies would fire N times over the same state.
+  //
+  // What deliberately did NOT move is everything keyed to a CELL rather
+  // than to the armed syllable: tryPlaceSyllable, refusePlacement and
+  // the rejected-cell shake below. A beat-cell tap always fires on the
+  // section that OWNS the cell — BeatDropSlot calls this section's
+  // onBeatCellTap, which stamps section.id — so refusal feedback is
+  // already delivered to the right grid by construction.
+  // Cross-section-ness lives entirely in WHICH SYLLABLE IS ARMED, never
+  // in which section receives the tap. tryPlaceSyllable additionally
+  // has three drag callers that all stamp section.id, and drag stays
+  // intra-section, so lifting it would strand them.
+  const handleSyllableTap = onArmSyllable;
 
   /** Tapping a beat cell places the armed syllable there, through the
    *  same guarded path drag uses. No legality is computed before the
@@ -1056,7 +1050,7 @@ export default function LeadSheetSection({
           beatPos,
         });
         if (result === null) {
-          dispatchArming({ type: 'placed' });
+          onSyllablePlaced?.();
           return;
         }
         // Every ordering violation reads the same to the user, whether

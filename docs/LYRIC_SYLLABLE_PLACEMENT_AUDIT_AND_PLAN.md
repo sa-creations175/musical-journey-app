@@ -1,6 +1,6 @@
 # Lead Sheet — Lyric/Syllable Layer: Audit + Redesign Plan
 
-Status: **Track 2 CLOSED. Track 1 steps 0-5 and 6a shipped; 6b, 7, 8, 9, 10 outstanding.
+Status: **Track 2 CLOSED. Track 1 steps 0-5, 6a and 6b shipped; 7, 8, 9, 10 outstanding.
 The drag-ring displacement bug is PARKED — see the section at the end.**
 Scope: the per-bar beat grid's lyric row, the lyric drawer, chord-cell coloring, plus a read-only song-key recon.
 
@@ -488,11 +488,30 @@ unrepresentable, and it keeps the grid honest about what has actually been place
 - Placing a **line** from the drawer (tap line → tap start → tap end) is **step 7** scope, not 6a.
 - Drag remains, for intra-section local moves.
 
-**Armed state location.** The end state is above the sections (§2.0), so a cross-section tap can complete.
-**As of 6a it lives one level lower, in `LeadSheetSection`** — every piece it needs (`tryPlaceSyllable`,
-`refusePlacement`, `beatAxis`, the store) is already local there. 6b lifts it to `SongDetailView`, one hop
-along the path `cellIndex` / `markerIndex` / `beatAxis` already travel; it is shaped as
-`armedSyllableId: string | null` + a dispatch so the lift is a move plus a prop rename, not a rewrite.
+**Armed state location — LIFTED as of 6b.** The armed syllable lives in `SongDetailView`, above the
+per-section `DndContext`s, reaching each section as `armedSyllableId` + `onArmSyllable` + `onSyllablePlaced`.
+It got there from `LeadSheetSection`, where 6a parked it because every piece it needed was already local; the
+cost was that each section ran its own reducer, so arming in one section was invisible to the next and the
+second tap silently did nothing.
+
+**Exactly three things moved**, and the split is worth keeping straight:
+
+| Moved to `SongDetailView` | Why |
+|---|---|
+| `useReducer(armingReducer, null)` | The point of the lift. |
+| The armed-syllable-vanished cleanup effect | Reads the store (already song-level) and dispatches; per-section copies fired N times over one state. |
+| The `tap-outside` document listener | One armed state deserves one listener, not one per section. |
+
+**Everything keyed to a CELL rather than to the armed syllable stayed put** — `tryPlaceSyllable`,
+`refusePlacement`, and the `rejectedCell` shake. The reason is structural: a beat-cell tap always fires on
+the section that *owns* the cell (`BeatDropSlot` → that section's `onBeatCellTap` → stamps `section.id`), so
+refusal feedback is already delivered to the right grid by construction.
+**Cross-section-ness lives entirely in which syllable is armed, never in which section receives the tap.**
+`tryPlaceSyllable` also has three drag callers that all stamp `section.id`, and drag stays intra-section
+until step 10, so lifting it would have stranded them.
+
+Arming self-heals on song navigation: a different song replaces the store, the armed id is no longer found,
+and the cleanup effect clears it. No separate reset is needed.
 
 **Implementation notes worth keeping.** The arming state machine is a pure reducer
 (`syllableArming.ts`) so it is unit-testable without a DOM — the repo has no component-testing stack, and
@@ -800,7 +819,7 @@ Zero coupling to the lyric refactor, and both need your eyes in-browser, which i
 | **4** | Place-on-drag writes an anchor; no-ripple; stable `order` (C, E) | moving a syllable moves only it |
 | **5** | **A1** marker semantics + split/join anchor inheritance + un-place `×` | markers place one unit; split stops shifting the line |
 | **6a** | **A3** tap-to-place, **intra-section**. ✅ SHIPPED. Tap arms (placed and unplaced alike), every cell offers itself, `checkPlacementOrder` is the sole legality authority, "…" and long-press open the edit menu. Line → start/end is step 7, not this. | tap placement works |
-| **6b** | **A3** cross-section placement — lift armed state + anchor index above sections (§2.0) | syllables span sections |
+| **6b** | **A3** cross-section placement. ✅ SHIPPED. Armed state lifted to `SongDetailView` above the per-section `DndContext`s; **cross-line monotonic guard** folded in, making lyric lines strictly sequential (§2.0 rev 4). The anchor index was already song-level from step 2, so only arming needed lifting. | syllables span sections |
 | **7** | **B1 lyric drawer — needs its own sign-off on §B1 first.** 7a: drawer shell + staging paste with live parse preview + header dividers + header toggle. 7b: delete the per-section paste box and the pending tray. 7c: placed/partial/unplaced row status. | one drawer, one store |
 | **8** | Paste + bar-op safety: regression tests that commit-paste, reorder, add/delete-bar never move a placed syllable; bar-delete guard for placed syllables | |
 | **9** | **A4** tap-to-number in-cell reorder | |

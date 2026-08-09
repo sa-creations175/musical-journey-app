@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -49,8 +49,10 @@ import {
   buildBeatAxis,
   buildCellIndex,
   buildMarkerIndex,
+  findSyllable,
   foldSectionLyrics,
 } from './lyricSyllables';
+import { armingReducer } from './syllableArming';
 import { planSectionMove } from './sectionReorder';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
@@ -560,6 +562,54 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     [songLyricLines],
   );
 
+  // --- tap-to-place arming (step 6b) --------------------------------
+  // Lifted here from LeadSheetSection so a tap can cross sections: the
+  // armed syllable has to outlive any one section's DndContext, and
+  // each section previously ran its own reducer, so arming in one was
+  // invisible to the next — the second tap simply did nothing.
+  //
+  // Only the syllable-keyed pieces moved. Placement itself, the
+  // ordering guard and the refusal shake all stay in LeadSheetSection,
+  // because a beat-cell tap always fires on the section that owns the
+  // cell. See docs/LYRIC_SYLLABLE_PLACEMENT_AUDIT_AND_PLAN.md §A3.
+  const [arming, dispatchArming] = useReducer(armingReducer, null);
+  const armedSyllableId = arming?.armedSyllableId ?? null;
+
+  // Drop arming if the armed syllable stops existing (split, join,
+  // un-place, undo).
+  useEffect(() => {
+    if (!armedSyllableId) return;
+    if (!songLyricLines || !findSyllable(songLyricLines, armedSyllableId)) {
+      dispatchArming({ type: 'syllable-removed', syllableId: armedSyllableId });
+    }
+  }, [songLyricLines, armedSyllableId]);
+
+  // A tap that lands outside every arming surface disarms. Surfaces
+  // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
+  // cells, and the edit popover. One listener now covers the whole
+  // song, where before each section installed its own over the same
+  // state.
+  useEffect(() => {
+    if (!armedSyllableId) return;
+    const onDown = (e: PointerEvent) => {
+      const target = e.target;
+      if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
+        return;
+      }
+      dispatchArming({ type: 'tap-outside' });
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [armedSyllableId]);
+
+  const handleArmSyllable = useCallback((syllableId: string) => {
+    dispatchArming({ type: 'tap-syllable', syllableId });
+  }, []);
+
+  const handleSyllablePlaced = useCallback(() => {
+    dispatchArming({ type: 'placed' });
+  }, []);
+
   const commitSongLyrics = useCallback(
     async (next: SongLyricLine[]) => {
       // Read-then-put per the saveMeta precedent — Table.update can
@@ -1045,6 +1095,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             beatAxis={beatAxis}
                             markerIndex={markerIndex}
                             onSongLyricsChange={commitSongLyrics}
+                            armedSyllableId={armedSyllableId}
+                            onArmSyllable={handleArmSyllable}
+                            onSyllablePlaced={handleSyllablePlaced}
                           />
                         ))}
                       </div>

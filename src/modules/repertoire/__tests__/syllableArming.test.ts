@@ -125,3 +125,57 @@ describe('armingReducer — sequences', () => {
     expect(before).toEqual(snapshot);
   });
 });
+
+describe('armingReducer — one state above all sections (step 6b)', () => {
+  // The reducer moved from LeadSheetSection (one instance per section,
+  // so arming in one was invisible to the next) to SongDetailView (one
+  // instance for the song). Nothing in the reducer changed; what
+  // changed is that a single state now serves N sections. These pin the
+  // properties that makes safe.
+
+  it('carries no section identity — only a syllable id', () => {
+    // A syllable is armed the same way whether the next tap lands in
+    // its own section or another one. Placement resolves the target
+    // section from the tapped cell, never from the armed state, so
+    // there is nothing here to keep in sync.
+    const state = armingReducer(NONE, { type: 'tap-syllable', syllableId: 'x' });
+    expect(state).toEqual({ armedSyllableId: 'x' });
+    expect(Object.keys(state!)).toEqual(['armedSyllableId']);
+  });
+
+  it('survives store churn that removes OTHER syllables', () => {
+    // Every section's edits flow through the same song-level store, so
+    // the cleanup effect fires far more often now. Arming must only
+    // care about its own syllable.
+    let s: ArmingState = armed('a');
+    for (const id of ['b', 'c', 'd']) {
+      s = armingReducer(s, { type: 'syllable-removed', syllableId: id });
+    }
+    expect(s).toEqual(armed('a'));
+    s = armingReducer(s, { type: 'placed' });
+    expect(s).toBeNull();
+  });
+
+  it('is idempotent for placed and tap-outside', () => {
+    // One document listener now covers the whole song rather than one
+    // per section, and only the section owning the tapped cell
+    // dispatches 'placed'. Repeats must stay harmless either way.
+    expect(armingReducer(armingReducer(armed('a'), { type: 'placed' }), { type: 'placed' }))
+      .toBeNull();
+    expect(
+      armingReducer(armingReducer(armed('a'), { type: 'tap-outside' }), {
+        type: 'tap-outside',
+      }),
+    ).toBeNull();
+  });
+
+  it('transfers between syllables that live in different sections', () => {
+    // Indistinguishable from a same-section transfer, which is the
+    // point — one armed syllable at a time, wherever it sits.
+    let s: ArmingState = armed('sec-a-syl');
+    s = armingReducer(s, { type: 'tap-syllable', syllableId: 'sec-b-syl' });
+    expect(s).toEqual(armed('sec-b-syl'));
+    s = armingReducer(s, { type: 'placed' });
+    expect(s).toBeNull();
+  });
+});
