@@ -25,7 +25,6 @@ import {
   canJoinNext,
   cellKey,
   findSyllable,
-  lineStatus,
 } from './lyricSyllables';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
 import { pitchClassOf } from './chordParser';
@@ -51,6 +50,7 @@ import { distributedWordPositions } from './lyricLine';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import ChordGlyph from './chordGlyph';
 import SectionToggle from './SectionToggle';
+import LyricLineRow from './LyricLineRow';
 
 // Bar-grid renderer (Lead Sheet Redesign, May 2026 —
 // docs/LEAD_SHEET_REDESIGN.md).
@@ -1006,6 +1006,8 @@ function SongPendingTray({
   );
 }
 
+/** Song-owned tray row: the shared LyricLineRow made draggable. Drag
+ *  is the tray's mechanism; the drawer taps the same row to arm. */
 function SongPendingStrip({
   line,
   onDelete,
@@ -1018,89 +1020,22 @@ function SongPendingStrip({
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: DRAG_ID.pending(line.id),
   });
-  const style: CSSProperties = { opacity: isDragging ? 0.3 : 1 };
-  const status = lineStatus(line);
   const isHeader = line.kind === 'header';
   return (
-    <div className="flex items-center gap-2">
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...(isHeader ? {} : attributes)}
-        {...(isHeader ? {} : listeners)}
-        /* Row fill is lifted off the page (neutral-50 light,
-           neutral-800 dark) rather than sitting at white/neutral-900,
-           where it was nearly invisible against the tray's own
-           translucent panel — in dark mode the row and the panel were
-           literally the same colour. */
-        className={`flex-1 inline-flex items-center gap-1 px-2 py-1 rounded border text-[11px] select-none touch-none ${
-          isHeader
-            ? 'border-transparent bg-neutral-200/70 dark:bg-neutral-700/60 text-neutral-600 dark:text-neutral-300 uppercase tracking-wide'
-            : 'border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 cursor-grab active:cursor-grabbing'
-        }`}
-      >
-        {!isHeader && (
-          <span className="text-neutral-500 dark:text-neutral-400 mr-1" aria-hidden>≡</span>
-        )}
-        {/* Word-by-word status: placed solid, unplaced lighter, so one
-            glance shows what's left rather than an abstract count.
-            BOTH tiers moved toward the text colour, not just the faint
-            one — unplaced words were at neutral-400/500, which reads as
-            "disabled" on a white row and was genuinely hard to read.
-            The gap between the two tiers is what carries the meaning,
-            so it is preserved at higher contrast rather than widened.
-            Contrast only, no hue: this sits directly above a grid of
-            chord-family colours, and green in particular is 1maj. */}
-        <span className="truncate min-w-0">
-          {isHeader || !line.syllables
-            ? line.text
-            : line.syllables.map((s, i) => (
-                <span
-                  key={s.id}
-                  className={
-                    s.anchor
-                      ? undefined
-                      : 'text-neutral-600 dark:text-neutral-300 italic'
-                  }
-                >
-                  {i > 0 ? ' ' : ''}
-                  {s.text}
-                </span>
-              ))}
+    <LyricLineRow
+      line={line}
+      bodyRef={setNodeRef}
+      bodyStyle={{ opacity: isDragging ? 0.3 : 1 }}
+      bodyProps={{ ...attributes, ...listeners }}
+      bodyClassName={isHeader ? '' : 'cursor-grab active:cursor-grabbing'}
+      handle={
+        <span className="text-neutral-500 dark:text-neutral-400 mr-1" aria-hidden>
+          ≡
         </span>
-        {status.status === 'partial' && (
-          <span className="ml-auto pl-2 text-[10px] text-neutral-500 dark:text-neutral-400 shrink-0">
-            {status.placed}/{status.total} placed
-          </span>
-        )}
-      </div>
-      {onUnplace && status.placed > 0 && (
-        <button
-          type="button"
-          onClick={() => void onUnplace(line.id)}
-          aria-label="un-place all words in this line"
-          title="un-place all — return this line to the tray"
-          className="text-neutral-400 hover:text-fluent text-xs leading-none px-1 shrink-0"
-        >
-          ⤺
-        </button>
-      )}
-      {onDelete && (
-        <button
-          type="button"
-          onClick={() => onDelete(line.id)}
-          aria-label="delete lyric line"
-          title={
-            status.placed > 0
-              ? 'delete this line — it has placed words, so it will confirm first'
-              : 'delete this line'
-          }
-          className="text-neutral-400 hover:text-needswork text-xs leading-none px-1 shrink-0"
-        >
-          ×
-        </button>
-      )}
-    </div>
+      }
+      onDelete={onDelete}
+      onUnplace={onUnplace}
+    />
   );
 }
 
