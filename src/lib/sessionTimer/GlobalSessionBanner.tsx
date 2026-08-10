@@ -190,6 +190,7 @@ export function GlobalSessionBanner() {
     <div
       role="region"
       aria-label="active practice session"
+      data-app-chrome="top"
       className="sticky top-0 z-[150] w-full border-b border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur"
       style={{
         borderTopColor: accent,

@@ -159,6 +159,11 @@ export default function Layout() {
             Safe-area-inset-top reserves the iPhone notch / status bar
             region in standalone PWA mode (viewport-fit=cover). */}
         <header
+          // Measured by the lead sheet's cell-anchored overlays so they
+          // stick below this rather than over it. Height is genuinely
+          // variable — safe-area inset, responsive padding, and whether
+          // the page has a tagline — so it is measured, not declared.
+          data-app-chrome="top"
           className="sticky top-0 z-40 text-white px-4 sm:px-6 md:px-10 py-3 flex items-start justify-between gap-3"
           style={{
             backgroundColor: '#0f3d2e',

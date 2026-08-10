@@ -88,6 +88,14 @@ export interface OverlayPosition {
   placement: OverlayPlacement;
 }
 
+export interface SafeArea {
+  /** Pixels of app chrome pinned at the top — the sticky header, plus
+   *  the session banner when one is showing. */
+  top: number;
+  /** Pixels of chrome pinned at the bottom — the mobile nav bar. */
+  bottom: number;
+}
+
 export interface OverlayGeometry {
   /** Measured anchor cell, or null when there is nothing to anchor to
    *  — an unmounted section, say. Null pins to the bottom edge rather
@@ -100,6 +108,11 @@ export interface OverlayGeometry {
   box: { width: number; height: number };
   gap: number;
   edgePad: number;
+  /** App chrome to stay clear of. The sticky boundary is the top of
+   *  the CONTENT AREA, not the top of the window — sticking to the raw
+   *  viewport put the overlay on top of the app header, covering the
+   *  logo and page title. Omitted means no chrome. */
+  safeArea?: SafeArea;
 }
 
 export function anchoredOverlayPosition({
@@ -108,6 +121,7 @@ export function anchoredOverlayPosition({
   box,
   gap,
   edgePad,
+  safeArea,
 }: OverlayGeometry): OverlayPosition {
   // `Math.max(edgePad, …)` on the upper bound keeps a viewport narrower
   // or shorter than the box from producing a negative clamp range,
@@ -117,8 +131,15 @@ export function anchoredOverlayPosition({
       Math.max(edgePad, x),
       Math.max(edgePad, viewport.width - box.width - edgePad),
     );
-  const topEdge = edgePad;
-  const bottomEdge = Math.max(edgePad, viewport.height - box.height - edgePad);
+  // Everything below works in CONTENT-AREA coordinates: the usable
+  // band between the app's top and bottom chrome.
+  const safeTop = safeArea?.top ?? 0;
+  const safeBottom = safeArea?.bottom ?? 0;
+  const topEdge = safeTop + edgePad;
+  const bottomLimit = viewport.height - safeBottom;
+  // `Math.max(topEdge, …)` keeps a content area shorter than the box
+  // from producing a bottom edge above the top one.
+  const bottomEdge = Math.max(topEdge, bottomLimit - box.height - edgePad);
 
   if (!cell) {
     return {
@@ -134,8 +155,11 @@ export function anchoredOverlayPosition({
   // sideways as it sticks.
   const left = clampLeft(cell.left + cell.width / 2 - box.width / 2);
 
-  if (cell.bottom <= edgePad) return { left, top: topEdge, placement: 'top-edge' };
-  if (cell.top >= viewport.height - edgePad) {
+  // A cell hidden BEHIND the chrome counts as scrolled away, not
+  // visible — pointing at something the header is covering is no
+  // better than pointing off-screen.
+  if (cell.bottom <= topEdge) return { left, top: topEdge, placement: 'top-edge' };
+  if (cell.top >= bottomLimit - edgePad) {
     return { left, top: bottomEdge, placement: 'bottom-edge' };
   }
 
@@ -149,7 +173,7 @@ export function anchoredOverlayPosition({
   if (below <= bottomEdge) return { left, top: below, placement: 'below' };
 
   const above = cell.top - box.height - gap;
-  if (above >= edgePad) return { left, top: above, placement: 'above' };
+  if (above >= topEdge) return { left, top: above, placement: 'above' };
 
   return { left, top: bottomEdge, placement: 'bottom-edge' };
 }
@@ -163,4 +187,39 @@ export function toAnchorRect(rect: DOMRect): AnchorRect {
     bottom: rect.bottom,
     width: rect.width,
   };
+}
+
+/**
+ * Measure the app chrome the overlays must stay clear of.
+ *
+ * The ONE DOM-reading function in this module — everything above is
+ * pure and unit-tested without a browser. It is measured rather than
+ * declared as a constant because **no reliable constant exists**: the
+ * header's height varies with `env(safe-area-inset-top)` on notched
+ * devices, with responsive padding across breakpoints, and with
+ * whether the current page carries a tagline. The mobile nav varies
+ * with `env(safe-area-inset-bottom)` and is `display: none` above the
+ * md breakpoint. A hardcoded number would be wrong on most of those
+ * axes and would rot silently the next time the header changes.
+ *
+ * Chrome marks itself with `data-app-chrome="top" | "bottom"`, so this
+ * measures whatever is actually there — including the session banner
+ * when one is showing — rather than hunting for known selectors.
+ */
+export function measureSafeArea(): SafeArea {
+  if (typeof document === 'undefined') return { top: 0, bottom: 0 };
+  const vh = window.innerHeight;
+  let top = 0;
+  let bottom = 0;
+  for (const el of document.querySelectorAll('[data-app-chrome]')) {
+    const r = el.getBoundingClientRect();
+    // `display: none` reports an all-zero rect. Counting one as bottom
+    // chrome would inset the ENTIRE viewport, which is exactly what
+    // the mobile nav looks like on desktop.
+    if (r.width === 0 && r.height === 0) continue;
+    const side = el.getAttribute('data-app-chrome');
+    if (side === 'top') top = Math.max(top, Math.min(r.bottom, vh));
+    else if (side === 'bottom') bottom = Math.max(bottom, Math.min(vh - r.top, vh));
+  }
+  return { top: Math.max(0, top), bottom: Math.max(0, bottom) };
 }

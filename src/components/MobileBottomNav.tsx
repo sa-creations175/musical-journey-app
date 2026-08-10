@@ -85,6 +85,10 @@ export default function MobileBottomNav() {
     <>
       <nav
         aria-label="primary"
+        /* Bottom chrome the lead sheet's overlays stay clear of. Only
+           present below md, and its height varies with the iOS home
+           indicator inset, so it is measured rather than assumed. */
+        data-app-chrome="bottom"
         className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-black/[0.07]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >

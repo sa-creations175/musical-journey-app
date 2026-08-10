@@ -66,6 +66,7 @@ import {
   OVERLAY_H,
   OVERLAY_MAX_W,
   anchoredOverlayPosition,
+  measureSafeArea,
   toAnchorRect,
   type OverlayPosition,
 } from './leadSheetOverlay';
@@ -683,6 +684,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         box: { width: OVERLAY_MAX_W, height: OVERLAY_H },
         gap: OVERLAY_GAP,
         edgePad: OVERLAY_EDGE_PAD,
+        safeArea: measureSafeArea(),
       });
       if (refusalTimer.current) clearTimeout(refusalTimer.current);
       setRefusalNotice({ key: Date.now(), left, top, reason });
@@ -879,6 +881,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         box: { width: OVERLAY_MAX_W, height: OVERLAY_H },
         gap: OVERLAY_GAP,
         edgePad: OVERLAY_EDGE_PAD,
+        safeArea: measureSafeArea(),
       });
       if (
         !last ||

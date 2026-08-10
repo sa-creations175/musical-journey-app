@@ -202,3 +202,65 @@ describe('overlay box sizing — wrap, never clip', () => {
     }
   });
 });
+
+describe('anchoredOverlayPosition — app chrome (safe area)', () => {
+  // Sticking to the RAW viewport put the overlay on top of the app
+  // header, covering the logo and page title. The boundary is the
+  // content area, not the window.
+  const CHROME = { top: 64, bottom: 56 };
+
+  it('sticks below the header, not over it', () => {
+    const p = place({ cell: cell(-200), safeArea: CHROME });
+    expect(p.placement).toBe('top-edge');
+    expect(p.top).toBe(CHROME.top + PAD);
+  });
+
+  it('sticks above the bottom nav, not over it', () => {
+    const p = place({ cell: cell(900), safeArea: CHROME });
+    expect(p.placement).toBe('bottom-edge');
+    expect(p.top + BOX.height).toBeLessThanOrEqual(
+      VIEWPORT.height - CHROME.bottom - PAD,
+    );
+  });
+
+  it('treats a cell hidden BEHIND the header as scrolled away', () => {
+    // Pointing at something the header is covering is no better than
+    // pointing off-screen. Without the safe area this cell reads as
+    // visible and the overlay tries to anchor to it.
+    const behind = cell(20, 150, 28);
+    expect(place({ cell: behind }).placement).not.toBe('top-edge');
+    expect(place({ cell: behind, safeArea: CHROME }).placement).toBe('top-edge');
+  });
+
+  it('treats a cell hidden BEHIND the bottom nav as scrolled away', () => {
+    const behind = cell(VIEWPORT.height - 30, 150, 28);
+    expect(place({ cell: behind, safeArea: CHROME }).placement).toBe('bottom-edge');
+  });
+
+  it('never enters either chrome band, at any anchor position', () => {
+    for (let top = -400; top <= 1200; top += 11) {
+      const p = place({ cell: cell(top), safeArea: CHROME });
+      expect(p.top).toBeGreaterThanOrEqual(CHROME.top + PAD);
+      expect(p.top + BOX.height).toBeLessThanOrEqual(
+        VIEWPORT.height - CHROME.bottom - PAD,
+      );
+    }
+  });
+
+  it('behaves exactly as before when there is no chrome', () => {
+    // Desktop has no bottom nav, and a page may have no banner.
+    for (let top = -300; top <= 1000; top += 37) {
+      const withNone = place({ cell: cell(top), safeArea: { top: 0, bottom: 0 } });
+      const omitted = place({ cell: cell(top) });
+      expect(withNone).toEqual(omitted);
+    }
+  });
+
+  it('survives chrome taller than the viewport without inverting', () => {
+    const p = place({
+      cell: cell(300),
+      safeArea: { top: 500, bottom: 500 },
+    });
+    expect(p.top).toBeGreaterThanOrEqual(500 + PAD);
+  });
+});
