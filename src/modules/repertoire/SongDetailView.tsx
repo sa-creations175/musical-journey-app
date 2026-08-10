@@ -828,7 +828,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const handleAwaitLineEnd = useCallback(
     (lineId: string, snapshot: LyricSyllable[]) => {
       lineGestureSnapshot.current = { lineId, syllables: snapshot };
-      dispatchArming({ type: 'await-line-end', lineId });
+      dispatchArming({ type: 'await-line', lineId, edge: 'end' });
     },
     [],
   );
