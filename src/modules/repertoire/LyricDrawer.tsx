@@ -37,6 +37,7 @@ export default function LyricDrawer({
   onArmLine,
   onAddLines,
   onSetLineKind,
+  onDuplicateLine,
   onLineDelete,
   onLineUnplace,
 }: {
@@ -50,6 +51,8 @@ export default function LyricDrawer({
   onAddLines?: (text: string) => void | Promise<void>;
   /** Correct a parser guess: flip a row between header and lyric. */
   onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
+  /** Insert an independent copy of a line below it, for repeats. */
+  onDuplicateLine?: (lineId: string) => void | Promise<void>;
   onLineDelete?: (lineId: string) => void;
   onLineUnplace?: (lineId: string) => void | Promise<void>;
 }) {
@@ -146,6 +149,7 @@ export default function LyricDrawer({
                 line={line}
                 onArm={onArmLine}
                 onSetLineKind={onSetLineKind}
+                onDuplicate={onDuplicateLine}
                 menuOpen={menuLineId === line.id}
                 onMenuOpenChange={openNow =>
                   setMenuLineId(openNow ? line.id : null)
@@ -175,6 +179,7 @@ function DrawerRow({
   line,
   onArm,
   onSetLineKind,
+  onDuplicate,
   menuOpen,
   onMenuOpenChange,
   onDelete,
@@ -183,6 +188,7 @@ function DrawerRow({
   line: SongLyricLine;
   onArm: (lineId: string) => void;
   onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
+  onDuplicate?: (lineId: string) => void | Promise<void>;
   menuOpen: boolean;
   onMenuOpenChange: (open: boolean) => void;
   onDelete?: (lineId: string) => void;
@@ -190,8 +196,9 @@ function DrawerRow({
 }) {
   const isHeader = line.kind === 'header';
   const placedWords = lineStatus(line).placed;
+  const hasMenu = Boolean(onSetLineKind || onDuplicate);
   const longPress = useLongPress(() => onMenuOpenChange(true), {
-    enabled: Boolean(onSetLineKind),
+    enabled: hasMenu,
   });
   // Asked of the model rather than re-derived here, so the reason shown
   // and the rule enforced on write are the same rule.
@@ -222,7 +229,7 @@ function DrawerRow({
         onDelete={onDelete}
         onUnplace={onUnplace}
       />
-      {onSetLineKind && (
+      {hasMenu && (
         <button
           type="button"
           onClick={e => {
@@ -236,7 +243,7 @@ function DrawerRow({
           …
         </button>
       )}
-      {menuOpen && onSetLineKind && (
+      {menuOpen && hasMenu && (
         <div className="mt-1 mb-1 flex flex-wrap items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-[11px] shadow-md">
           {/* Both paths, deliberately: the menu is the DISCOVERABLE one
               and the row's ⤺ is the FAST one — same pairing as "…"
@@ -254,7 +261,20 @@ function DrawerRow({
               un-place full line
             </button>
           )}
-          {isHeader ? (
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={() => {
+                void onDuplicate(line.id);
+                onMenuOpenChange(false);
+              }}
+              title="insert an independent copy below — for a repeated refrain"
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
+            >
+              duplicate
+            </button>
+          )}
+          {!onSetLineKind ? null : isHeader ? (
             <button
               type="button"
               onClick={() => {

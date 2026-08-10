@@ -53,6 +53,7 @@ import {
   cellKey,
   findSyllable,
   linesFromParsedRows,
+  duplicateLine,
   setLineKind,
   unplaceLine,
   foldSectionLyrics,
@@ -860,6 +861,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       const next = unplaceLine(song.lyricLines, lineId);
       if (next === song.lyricLines) return;
       await commitSongLyrics(next);
+    },
+    [song?.lyricLines, commitSongLyrics],
+  );
+
+  const handleDuplicateLine = useCallback(
+    async (lineId: string) => {
+      if (!song?.lyricLines) return;
+      await commitSongLyrics(duplicateLine(song.lyricLines, lineId));
     },
     [song?.lyricLines, commitSongLyrics],
   );
@@ -1727,6 +1736,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           onArmLine={handleArmLine}
           onAddLines={handleAddLines}
           onSetLineKind={handleSetLineKind}
+          onDuplicateLine={handleDuplicateLine}
           onLineUnplace={handleUnplaceLine}
         />
       )}

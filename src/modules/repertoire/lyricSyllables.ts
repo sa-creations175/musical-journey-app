@@ -339,6 +339,53 @@ export function unplaceLine(
 }
 
 /**
+ * Insert a copy of one line directly below it.
+ *
+ * For repeated material — a refrain sung three times is entered once,
+ * so the second and third occurrences have no lines to place. This
+ * makes them without retyping.
+ *
+ * **A COPY, NOT A LINK.** New line id, new syllable ids, no shared
+ * objects: the two are independent from the moment they exist, and
+ * editing or placing one never touches the other. Nothing here
+ * establishes a relationship for a future feature to sync.
+ *
+ * **The copy arrives fully UNPLACED, even from a fully placed line.**
+ * Not a limitation — the point of a duplicate is that it goes
+ * somewhere ELSE. Carrying the anchors over would stack an identical
+ * second copy of every word in the cells the original already
+ * occupies, which is never what "duplicate this refrain" means.
+ *
+ * Inserted directly BELOW the original, which matters more than it
+ * looks: line order carries positional meaning (§2.0), so the copy is
+ * constrained by the guard to be placed after the original. That is
+ * right for a refrain that comes back later, and is why the copy is
+ * not appended to the end of the song.
+ */
+export function duplicateLine(
+  lines: ReadonlyArray<SongLyricLine>,
+  lineId: string,
+  makeId: () => string = () => crypto.randomUUID(),
+): SongLyricLine[] {
+  const index = lines.findIndex(l => l.id === lineId);
+  if (index < 0) return [...lines];
+  const source = lines[index];
+  const copy: SongLyricLine =
+    source.kind === 'header'
+      ? { id: makeId(), kind: 'header', text: source.text }
+      : {
+          id: makeId(),
+          kind: 'lyric',
+          text: source.text,
+          syllables: (source.syllables ?? []).map(sy => ({
+            id: makeId(),
+            text: sy.text,
+          })),
+        };
+  return [...lines.slice(0, index + 1), copy, ...lines.slice(index + 1)];
+}
+
+/**
  * Can this line become a header?
  *
  * Only if none of its words are placed. Converting discards syllables,

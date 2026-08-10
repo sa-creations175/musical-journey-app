@@ -21,6 +21,7 @@ import {
   provisionalPlacements,
   remapAnchorBars,
   canConvertToHeader,
+  duplicateLine,
   restoreLineSyllables,
   setLineKind,
   setSyllableText,
@@ -1460,5 +1461,82 @@ describe('setLineKind — correcting a parser guess', () => {
     const back = setLineKind(asLyric, 'h', 'header', ids());
     expect(back[0].kind).toBe('header');
     expect(back[0].text).toBe('Bridge');
+  });
+});
+
+describe('duplicateLine — repeated material', () => {
+  const ids = () => seqIds('d');
+
+  it('inserts the copy directly BELOW the original', () => {
+    // Line order carries positional meaning, so the copy must land
+    // where the guard will let it be placed after the original.
+    const lines = [
+      line('l1', [{ id: 'a', text: 'a' }]),
+      line('l2', [{ id: 'b', text: 'b' }]),
+    ];
+    const next = duplicateLine(lines, 'l1', ids());
+    expect(next).toHaveLength(3);
+    expect(next[0].id).toBe('l1');
+    expect(next[2].id).toBe('l2');
+    expect(next[1].text).toBe('a');
+  });
+
+  it('is a COPY, not a link — new ids throughout', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'hold' }])];
+    const next = duplicateLine(lines, 'l1', ids());
+    expect(next[1].id).not.toBe('l1');
+    expect(next[1].syllables?.[0].id).not.toBe('a');
+    // No shared objects, so editing one can never reach the other.
+    expect(next[1].syllables?.[0]).not.toBe(next[0].syllables?.[0]);
+  });
+
+  it('arrives fully UNPLACED even from a fully placed line', () => {
+    // The point of a duplicate is that it goes somewhere else.
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'a', at: [0, 0] },
+        { id: 'b', text: 'b', at: [1, 0] },
+      ]),
+    ];
+    const next = duplicateLine(lines, 'l1', ids());
+    expect(next[1].syllables?.every(sy => sy.anchor === undefined)).toBe(true);
+    // The original keeps every anchor.
+    expect(anchorOf(next, 'a')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 0 });
+  });
+
+  it('keeps the words and their order', () => {
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'O' },
+        { id: 'b', text: 'come' },
+        { id: 'c', text: 'let' },
+      ]),
+    ];
+    const next = duplicateLine(lines, 'l1', ids());
+    expect(next[1].syllables?.map(sy => sy.text)).toEqual(['O', 'come', 'let']);
+  });
+
+  it('duplicates a header row too', () => {
+    const lines: SongLyricLine[] = [{ id: 'h', kind: 'header', text: 'Chorus' }];
+    const next = duplicateLine(lines, 'h', ids());
+    expect(next).toHaveLength(2);
+    expect(next[1].kind).toBe('header');
+    expect(next[1].text).toBe('Chorus');
+    expect(next[1].id).not.toBe('h');
+  });
+
+  it('is a no-op for an unknown id', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'a' }])];
+    expect(duplicateLine(lines, 'nope', ids())).toEqual(lines);
+  });
+
+  it('stacks repeats in order when duplicated twice', () => {
+    // A refrain sung three times: duplicate twice, and the copies sit
+    // adjacent in the order they will be placed.
+    const lines = [line('l1', [{ id: 'a', text: 'a' }])];
+    const twice = duplicateLine(duplicateLine(lines, 'l1', ids()), 'l1', seqIds('e'));
+    expect(twice).toHaveLength(3);
+    expect(twice[0].id).toBe('l1');
+    expect(new Set(twice.map(l => l.id)).size).toBe(3);
   });
 });

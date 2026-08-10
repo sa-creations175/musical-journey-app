@@ -363,3 +363,63 @@ describe('LyricDrawer — un-place', () => {
     expect(container!.textContent).not.toContain('un-place full line');
   });
 });
+
+describe('LyricDrawer — duplicate', () => {
+  const withDup = (onDuplicateLine = vi.fn()) => {
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onSetLineKind={vi.fn()}
+        onDuplicateLine={onDuplicateLine}
+      />,
+    );
+    return onDuplicateLine;
+  };
+
+  const openMenu = (i: number) => {
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[i] as HTMLElement).click());
+  };
+
+  it('offers duplicate on every row', () => {
+    withDup();
+    openMenu(4);
+    expect(container!.textContent).toContain('duplicate');
+  });
+
+  it('duplicates the line', () => {
+    const onDuplicateLine = withDup();
+    openMenu(4);
+    const btn = Array.from(container!.querySelectorAll('button')).find(
+      b => b.textContent === 'duplicate',
+    ) as HTMLElement;
+    act(() => btn.click());
+    expect(onDuplicateLine).toHaveBeenCalledWith('l3');
+  });
+
+  it('offers duplicate even on a fully placed line', () => {
+    // The copy arrives unplaced regardless, so there is nothing to
+    // refuse — a placed refrain is exactly what gets duplicated.
+    withDup();
+    openMenu(1);
+    expect(container!.textContent).toContain('duplicate');
+  });
+
+  it('opens a menu for duplicate alone, without the kind toggle', () => {
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onDuplicateLine={vi.fn()}
+      />,
+    );
+    openMenu(4);
+    expect(container!.textContent).toContain('duplicate');
+    expect(container!.textContent).not.toContain('make header');
+  });
+});
