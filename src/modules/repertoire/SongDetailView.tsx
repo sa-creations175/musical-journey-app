@@ -88,6 +88,7 @@ import FullLyricsSection from './FullLyricsSection';
 import SectionToggle from './SectionToggle';
 import CellAnchoredMessage from './CellAnchoredMessage';
 import LyricDrawer from './LyricDrawer';
+import { useDismissOnOutside } from './useDismissOnOutside';
 import { parseLyricSheet } from './lyricSheetParse';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -780,32 +781,13 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dispatchArming({ type: 'dismiss' });
   }, [arming, rollbackLineGesture]);
 
-  // A tap that lands outside every arming surface dismisses. Surfaces
-  // mark themselves with `data-lyric-arm-keep`: syllable chips, beat
-  // cells, and the edit popover. One listener now covers the whole
-  // song, where before each section installed its own over the same
-  // state.
-  useEffect(() => {
-    if (!arming) return;
-    const onDown = (e: PointerEvent) => {
-      const target = e.target;
-      if (target instanceof Element && target.closest('[data-lyric-arm-keep]')) {
-        return;
-      }
-      dismissArming();
-    };
-    // Escape is the keyboard route to the same thing — and the only
-    // route that doesn't require finding somewhere safe to tap.
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') dismissArming();
-    };
-    document.addEventListener('pointerdown', onDown, true);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onDown, true);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [arming, dismissArming]);
+  // A tap outside every arming surface dismisses, and so does Escape.
+  // Surfaces mark themselves with `data-lyric-arm-keep`: syllable
+  // chips, beat cells, the edit popover, and the placement prompt.
+  useDismissOnOutside(Boolean(arming), {
+    keep: '[data-lyric-arm-keep]',
+    onDismiss: dismissArming,
+  });
 
   // Drop the wait if the line itself stops existing (deleted mid-
   // gesture). The snapshot goes with it — there is nothing to restore
@@ -841,6 +823,15 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   // --- the drawer ---------------------------------------------------
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  // Same mechanism as arming, different keep region — an open drawer is
+  // a half-screen panel and tapping the grid behind it should get out
+  // of the way rather than needing the strip tapped again.
+  useDismissOnOutside(drawerOpen, {
+    keep: '[data-lyric-drawer]',
+    onDismiss: closeDrawer,
+  });
 
   /** Tapping a line in the drawer arms BEAT ONE and gets out of the
    *  way. The drawer builds no arming UI of its own — the anchored
