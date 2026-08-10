@@ -6,6 +6,10 @@ import { measureSafeArea } from './leadSheetOverlay';
 import LyricLineRow from './LyricLineRow';
 import LyricPasteBox from './LyricPasteBox';
 
+/** Breathing room between the drawer and whatever it docks above, so
+ *  the inset edges read as floating rather than as a seam. */
+const DRAWER_GAP = 8;
+
 /**
  * The song's lyrics, docked at the bottom of the lead sheet.
  *
@@ -83,11 +87,21 @@ export default function LyricDrawer({
          need no special-casing. */
       data-app-chrome="bottom"
       data-lyric-drawer=""
-      style={{ bottom: dockOffset }}
-      /* Above the grid, below the cell-anchored overlays at 180/190 so
-         the prompt is never behind the drawer. */
-      className="fixed inset-x-0 z-40 border-t border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-[0_-2px_12px_rgba(0,0,0,0.12)]"
+      style={{ bottom: dockOffset + DRAWER_GAP }}
+      /* INSET and rounded, not full-bleed. Edge-to-edge with a top
+         border read as browser chrome — a status bar the app happened
+         to have — rather than as part of the page. Floating it off the
+         edges with a shadow says "control", which is what it is.
+         z-40: above the grid, below the cell-anchored overlays at
+         180/190 so the prompt is never behind the drawer. */
+      className="fixed inset-x-3 z-40 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
     >
+      {/* Label and count GROUPED, not pushed to opposite ends — at
+          arm's length a label on the left and a number on the right
+          read as two unrelated things. Type follows SectionToggle so
+          the strip belongs to the same family as every other
+          collapsible header on the lead sheet: same uppercase idiom,
+          same ▸/▾ scheme, same stone resting colour, fluent on hover. */}
       <button
         type="button"
         onClick={() => onOpenChange(!open)}
@@ -100,10 +114,10 @@ export default function LyricDrawer({
         lyrics
         {/* ONE overall line count here; each row carries its own word
             count. Two numbers doing two different jobs. */}
-        <span className="ml-auto font-normal normal-case tracking-normal text-neutral-500 dark:text-neutral-400">
+        <span className="font-normal normal-case tracking-normal text-neutral-500 dark:text-neutral-400">
           {lyricLines.length === 0
-            ? 'none yet'
-            : `${placedLines} of ${lyricLines.length} lines placed`}
+            ? '· none yet'
+            : `· ${placedLines} of ${lyricLines.length} lines placed`}
         </span>
       </button>
 
