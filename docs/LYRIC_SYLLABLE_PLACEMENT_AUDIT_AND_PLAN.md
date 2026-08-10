@@ -620,6 +620,33 @@ it was anchored to reproduced the exact failure the refusal fix had just closed.
   which is the whole point of having written it. Reusing a pattern is not a reason; check what the pattern
   is anchored TO.
 
+## COLOUR SCOPE — where the chord-palette rule applies, and where it does not
+
+**Recorded 2026-08-10.** `DEGREE_PALETTES` spends seven hues on chord families plus a darkened twin of each,
+so the rule has been "no new hue on the lead sheet" — twice correctly (the tap-to-place hint and armed
+states moved off green; the section headers went to warm stone rather than any hue). It was then applied a
+third time, to the placement hint, and **there it was wrong.**
+
+| Surface | Rule | Why |
+|---|---|---|
+| **Transient placement feedback on the grid** — the tap hint, the drag target, anything answering *"where will this land"* | **INDIGO is licensed** | Three independent reasons: it is **transient**, and nothing that exists for three seconds competes with a permanent taxonomy; it is on the **lyric row**, a different band from the chord cells; and it appears on **every cell at once**, so a colour meaning "any of these" cannot read as a per-cell family colour, which is by definition distinguishing. |
+| **Section headers, and anything in the chord cells' own layer** | **NO hue — stone** | A header is persistent, sits in the same visual band as chord cells, and is per-item. The original argument holds unchanged here. |
+
+**Indigo is not a general accent.** It means "placement target" and nothing else; reaching for it elsewhere
+would make it a second `fluent` and destroy what it currently says. `fluent` remains the interaction colour,
+and is specifically *not* used for placement targets on this surface because `#1D9E75` sits between 1maj
+green and 3 teal.
+
+**What made the case, and the measurement is the part worth keeping.** The grey hint was a 10%-alpha wash —
+**1.05:1 against a resting cell.** That is not a subtle signal; it is below the threshold at which a change
+reads as intentional, which is why it was scanned straight past by the person who specified it. Sizing by
+measurement rather than by eye is the lesson: the replacement is 1.38:1 in light and 1.66:1 in dark **and**
+carries a solid inset ring, because the wash alone was the thing that had failed.
+
+The armed syllable chip stays **neutral** against the indigo field, and now does more work than it used to:
+*"the thing being placed"* and *"places it could go"* are different statements, and different hues are what
+keep them readable as different. Measured against the new field it holds easily — 6.7:1 light, 9.0:1 dark.
+
 ## A4 — In-cell reorder by tap-to-number — ❌ DROPPED (rev 5)
 
 > ~~Tap a multi-syllable cell → its chips show order badges (1, 2, 3…) → tap syllables in the order you want
@@ -726,6 +753,16 @@ and pushes itself up by it, every frame.
 
 `z-40`: above the grid, alongside the nav, **below the overlays at 180/190** so the prompt is never behind
 the drawer.
+
+### Known constraint — duplicated lines cannot be reordered
+
+`duplicate` inserts an independent copy **directly below** the original, and line order carries positional
+meaning (§2.0), so the guard requires the copy to be placed **after** its original. That is right for a
+refrain that returns later in the song.
+
+**There is no line-reorder in the drawer**, so a duplicate is stuck where it is inserted. If a repeat ever
+needs to sit somewhere else in the running order, the only route today is delete and re-paste. Deliberately
+not built until it is actually hit — noted so the cause is obvious when it is.
 
 ### Still open
 

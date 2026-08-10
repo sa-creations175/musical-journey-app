@@ -1903,20 +1903,44 @@ function SyllableDropSlot({
   // tint rather than a solid `bg-neutral-N` so it cannot be confused
   // with the disabled (`neutral-300`) or stale-tier (`neutral-400`)
   // greys, and so a chip sitting in the cell keeps its own edge.
+  // PLACEMENT TARGET — the tap hint and the drag target, identical.
+  //
+  // Both answer the same question, "this is where it will land", so
+  // they look the same. They never co-occur — during a drag the
+  // non-target cells are dimmed rather than hinted — so the old
+  // intensity split between them was separating two greys from each
+  // other, work a dedicated hue no longer needs done.
+  //
+  // INDIGO, and the exhausted-chord-palette rule genuinely does not
+  // apply here. Three reasons, each sufficient: this is TRANSIENT, and
+  // nothing that exists for three seconds competes with a permanent
+  // taxonomy; it is on the LYRIC row, a different band from the chord
+  // cells; and it appears on EVERY cell at once, so a colour meaning
+  // "any of these" cannot be read as a per-cell family colour, which is
+  // by definition distinguishing. Section headers are the opposite case
+  // and stay stone — a header does sit in the chord cells' layer.
+  // Indigo is licensed for transient placement feedback on the grid and
+  // nothing else. See the plan doc's colour-scope note.
+  //
+  // WHY NOT MORE GREY: the previous hint was a 10%-alpha grey wash — a
+  // ~4% luminance shift on a 28px cell, measured at 1.05:1 against a
+  // resting cell. That is below the threshold where a change reads as
+  // intentional at all, which is why it was scanned straight past. The
+  // wash is now sized by measurement (1.38:1 light, 1.66:1 dark) AND
+  // paired with a solid inset ring, because the wash alone was the
+  // thing that failed. Colour makes it findable; the ring makes it a
+  // target.
+  const placementTarget =
+    'border-solid border-indigo-500 dark:border-indigo-400 ' +
+    'bg-indigo-500/25 dark:bg-indigo-400/30 ' +
+    'ring-2 ring-inset ring-indigo-500/50 dark:ring-indigo-400/50';
+
   const surface = rejected
     ? 'border-solid border-needswork bg-needswork/20 ring-2 ring-needswork'
     : armingActive && !dragActive
-      ? 'border-solid border-neutral-400 dark:border-neutral-500 bg-neutral-500/10 dark:bg-neutral-400/10 cursor-pointer hover:bg-neutral-500/20 hover:border-neutral-500 dark:hover:border-neutral-400'
+      ? `${placementTarget} cursor-pointer hover:bg-indigo-500/35 dark:hover:bg-indigo-400/40`
     : isOver
-    // Grey, matching the tap hint. Drag and tap answer the same question
-    // — "this is where it will land" — so they should look the same, and
-    // fluent green is the 1maj chord family, which is why the tap hint
-    // moved off it. Stronger than the hint's tint (/25 vs /10) because
-    // this is a committed target rather than a field of candidates, and
-    // rendered as ring + border rather than the armed chip's solid fill.
-    // neutral-600/300 avoids the loaded greys: 300/700 is disabled,
-    // 400/500 is the stale tier, 200 is this chip's hover.
-    ? 'border-solid border-neutral-600 dark:border-neutral-300 bg-neutral-500/25 dark:bg-neutral-400/25 ring-2 ring-neutral-600 dark:ring-neutral-300'
+    ? placementTarget
     : dragActive
       ? 'border-dashed border-neutral-200 dark:border-neutral-800 opacity-50'
       : 'border-dashed border-neutral-200 dark:border-neutral-800';
@@ -2127,6 +2151,13 @@ function SyllableChip({
   // already uses (`bg-neutral-600 text-white`) and stays clear of the
   // greys that carry meaning — neutral-300 is disabled, neutral-400 is
   // the stale tier, neutral-200 is this chip's own hover.
+  //
+  // DELIBERATELY STILL NEUTRAL now that the hint field is indigo, and
+  // it does more work than it used to. "The thing being placed" and
+  // "places it could go" are different statements, and giving them
+  // different hues is what keeps them readable as different. Measured
+  // against the new field it holds up easily: 6.7:1 in light, 9.0:1 in
+  // dark.
   const appearance = armed
     ? 'bg-neutral-600 text-white dark:bg-neutral-300 dark:text-neutral-900 ring-2 ring-neutral-700 dark:ring-neutral-100 opacity-100'
     : placed
