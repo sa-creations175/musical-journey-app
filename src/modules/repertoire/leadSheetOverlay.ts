@@ -206,12 +206,19 @@ export function toAnchorRect(rect: DOMRect): AnchorRect {
  * measures whatever is actually there — including the session banner
  * when one is showing — rather than hunting for known selectors.
  */
-export function measureSafeArea(): SafeArea {
+export function measureSafeArea(options?: {
+  /** CSS selector for chrome to IGNORE. Exists for one specific
+   *  circularity: the lyric drawer is itself bottom chrome AND needs to
+   *  know how much bottom chrome to sit above. Measuring itself would
+   *  push it up by its own height every frame. */
+  exclude?: string;
+}): SafeArea {
   if (typeof document === 'undefined') return { top: 0, bottom: 0 };
   const vh = window.innerHeight;
   let top = 0;
   let bottom = 0;
   for (const el of document.querySelectorAll('[data-app-chrome]')) {
+    if (options?.exclude && el.matches(options.exclude)) continue;
     const r = el.getBoundingClientRect();
     // `display: none` reports an all-zero rect. Counting one as bottom
     // chrome would inset the ENTIRE viewport, which is exactly what

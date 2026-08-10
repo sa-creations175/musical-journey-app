@@ -278,13 +278,13 @@ interface Props {
    *  `patternsCollapsed` — deliberately not chained to it. */
   lyricTrayCollapsed?: boolean;
   onToggleLyricTray?: () => void;
-  /** The line waiting for its END cell (beat two). Song-level, since
-   *  the end may be tapped in a different section from the start. */
-  awaitingLineEndId?: string | null;
-  /** Beat one landed. Carries the line's syllables as they were BEFORE
-   *  the write, so cancelling can undo the gesture rather than the
-   *  line. */
-  onAwaitLineEnd?: (lineId: string, snapshot: LyricSyllable[]) => void;
+  /** The line placement in progress. Song-level, since the two beats
+   *  may land in different sections. */
+  awaitingLine?: { lineId: string; edge: 'start' | 'end' } | null;
+  /** Beat one landed — the line's head is placed, now ask for its end.
+   *  Carries the line's syllables as they were BEFORE the write, so
+   *  cancelling undoes the gesture rather than the line. */
+  onLineHeadPlaced?: (lineId: string, snapshot: LyricSyllable[]) => void;
   /** Cell the line-end prompt anchors to, and the channel the matching
    *  cell uses to report its node. Pass-through only. */
   promptAnchorCellKey?: string | null;
@@ -317,8 +317,8 @@ export default function LeadSheetSection({
   onTogglePatterns,
   lyricTrayCollapsed = DEFAULT_LYRIC_TRAY_COLLAPSED,
   onToggleLyricTray,
-  awaitingLineEndId = null,
-  onAwaitLineEnd,
+  awaitingLine = null,
+  onLineHeadPlaced,
   promptAnchorCellKey = null,
   onPromptAnchorNode,
 }: Props) {
@@ -1101,11 +1101,11 @@ export default function LeadSheetSection({
    *  thing that decides. */
   const handleBeatCellTap = songLyricsActive
     ? async (barIndex: number, beatPos: number, cellRect?: DOMRect) => {
-        // Beat two outranks syllable arming — the reducer guarantees
-        // they are mutually exclusive, so this branch is a dispatch,
-        // not a precedence rule.
-        if (awaitingLineEndId) {
-          await handleLineEndTap(awaitingLineEndId, barIndex, beatPos, cellRect);
+        // A line placement outranks syllable arming — the reducer
+        // guarantees they are mutually exclusive, so this branch is a
+        // dispatch, not a precedence rule.
+        if (awaitingLine) {
+          await handleLineEdgeTap(awaitingLine, barIndex, beatPos, cellRect);
           return;
         }
         if (!armedSyllableId) return;
@@ -1141,37 +1141,51 @@ export default function LeadSheetSection({
       }
     : undefined;
 
-  /** Beat two: the tapped cell becomes the line's END.
+  /** One beat of a line placement: the tapped cell becomes the line's
+   *  START (beat one, armed from the drawer) or its END (beat two).
    *
-   *  Reuses the marker mechanic untouched — `markerTargetSyllable` is
-   *  the same lookup the end-marker drag performs, and the write goes
-   *  through the same guarded path. Only the way it is REACHED is new,
-   *  so the ◂ marker keeps working as a shortcut for anyone who knows
-   *  it is there.
+   *  Reuses the marker mechanic untouched — `markerTargetSyllable`
+   *  takes the same `edge` the arming state carries and is the same
+   *  lookup the marker drags perform, and the write goes through the
+   *  same guarded path. Only the way it is REACHED is new, so both
+   *  markers keep working as shortcuts for anyone who knows they are
+   *  there.
    *
-   *  Same cell as the start is legal and stacks the whole line there —
-   *  the guard treats equal global positions as one cell, so no special
-   *  case is needed here. */
-  const handleLineEndTap = async (
-    lineId: string,
+   *  Same cell for both edges is legal and stacks the whole line there
+   *  — the guard treats equal global positions as one cell, so no
+   *  special case is needed here. */
+  const handleLineEdgeTap = async (
+    pending: { lineId: string; edge: 'start' | 'end' },
     barIndex: number,
     beatPos: number,
     cellRect?: DOMRect,
   ) => {
     if (!songLyricLines) return;
-    const endSyllableId = markerTargetSyllable(songLyricLines, lineId, 'end');
-    // A one-unit line has no distinct end; beat one already finished it.
-    if (!endSyllableId) {
+    const { lineId, edge } = pending;
+    const targetId = markerTargetSyllable(songLyricLines, lineId, edge);
+    // A one-word line has no distinct end; beat one already finished it.
+    if (!targetId) {
       onSyllablePlaced?.();
       return;
     }
-    const result = await tryPlaceSyllable(endSyllableId, {
+    // Snapshot BEFORE beat one's write — the only moment the line's
+    // prior anchors still exist. Beat two's snapshot was already taken
+    // when beat one landed, so it must not be overwritten here.
+    const snapshot =
+      edge === 'start'
+        ? (songLyricLines.find(l => l.id === lineId)?.syllables ?? []).map(s => ({
+            ...s,
+          }))
+        : null;
+    const result = await tryPlaceSyllable(targetId, {
       sectionId: section.id,
       barIndex,
       beatPos,
     });
     if (result === null) {
-      onSyllablePlaced?.();
+      // Beat one advances to beat two; beat two completes the gesture.
+      if (edge === 'start' && snapshot) onLineHeadPlaced?.(lineId, snapshot);
+      else onSyllablePlaced?.();
       return;
     }
     // A refused end keeps the wait alive so the next cell can be tried
@@ -1454,7 +1468,7 @@ export default function LeadSheetSection({
       // Armed unconditionally on a tray drop, which is also what makes
       // re-dragging an already-partial line the RECOVERY path rather
       // than the dead end it is today.
-      if (result === null) onAwaitLineEnd?.(lineId, snapshot);
+      if (result === null) onLineHeadPlaced?.(lineId, snapshot);
       return;
     }
 
@@ -1818,7 +1832,7 @@ export default function LeadSheetSection({
               lyricTrayCollapsed={lyricTrayCollapsed}
               onToggleLyricTray={onToggleLyricTray}
               armedSyllableId={armedSyllableId}
-              awaitingLineEndId={awaitingLineEndId}
+              awaitingLine={awaitingLine}
               promptAnchorCellKey={promptAnchorCellKey}
               onPromptAnchorNode={onPromptAnchorNode}
               onSyllableTap={songLyricsActive ? handleSyllableTap : undefined}

@@ -58,6 +58,7 @@ import {
 import {
   armedSyllableId as selectArmedSyllableId,
   armingReducer,
+  pendingLine,
   pendingLineEnd,
 } from './syllableArming';
 import {
@@ -84,6 +85,7 @@ import PracticeLogModal from './PracticeLogModal';
 import FullLyricsSection from './FullLyricsSection';
 import SectionToggle from './SectionToggle';
 import CellAnchoredMessage from './CellAnchoredMessage';
+import LyricDrawer from './LyricDrawer';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
@@ -745,6 +747,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // line always re-places its FIRST unit, so a line stranded with only
   // its head down could not be finished by the gesture that stranded
   // it. Beat two removes that state rather than signposting it.
+  const awaitingLine = pendingLine(arming);
   const awaitingLineEndId = pendingLineEnd(arming);
 
   // Snapshot of the line's syllables as they were BEFORE beat one, so
@@ -825,13 +828,26 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   /** Beat one landed. `snapshot` is the line as it was before the
    *  write, captured by the section that owns the drop. */
-  const handleAwaitLineEnd = useCallback(
+  const handleLineHeadPlaced = useCallback(
     (lineId: string, snapshot: LyricSyllable[]) => {
       lineGestureSnapshot.current = { lineId, syllables: snapshot };
       dispatchArming({ type: 'await-line', lineId, edge: 'end' });
     },
     [],
   );
+
+  // --- the drawer ---------------------------------------------------
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  /** Tapping a line in the drawer arms BEAT ONE and gets out of the
+   *  way. The drawer builds no arming UI of its own — the anchored
+   *  prompt already owns that job, and a second one at the bottom of
+   *  the screen is the mistake this session corrected twice. */
+  const handleArmLine = useCallback((lineId: string) => {
+    lineGestureSnapshot.current = null;
+    dispatchArming({ type: 'await-line', lineId, edge: 'start' });
+    setDrawerOpen(false);
+  }, []);
 
   // --- where the beat-two prompt sits -------------------------------
   // Anchored to the cell the line's head just landed in, not parked at
@@ -841,12 +857,18 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // Derived from the STORE rather than remembered from the drop —
   // beat one places `syllables[0]`, so its anchor IS the drop cell, and
   // deriving it means the prompt follows if that anchor ever moves.
+  // Anchored to the cell the line's head sits in. At the START edge
+  // nothing is placed yet, so there is genuinely nothing to point at
+  // and the geometry parks the prompt at the bottom edge — above the
+  // drawer, since the drawer is bottom chrome.
   const promptAnchorCellKey = useMemo(() => {
-    if (!awaitingLineEndId || !songLyricLines) return null;
-    const head = songLyricLines.find(l => l.id === awaitingLineEndId)
+    if (!awaitingLine || awaitingLine.edge !== 'end' || !songLyricLines) {
+      return null;
+    }
+    const head = songLyricLines.find(l => l.id === awaitingLine.lineId)
       ?.syllables?.[0]?.anchor;
     return head ? cellKey(head) : null;
-  }, [awaitingLineEndId, songLyricLines]);
+  }, [awaitingLine, songLyricLines]);
 
   const [promptAnchorNode, setPromptAnchorNode] = useState<HTMLElement | null>(
     null,
@@ -867,7 +889,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // detection, `over`, or the drop ring, and runs between taps rather
   // than during a drag.
   useEffect(() => {
-    if (!awaitingLineEndId) {
+    if (!awaitingLine) {
       setPromptPos(null);
       return;
     }
@@ -896,7 +918,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [awaitingLineEndId, promptAnchorNode]);
+  }, [awaitingLine, promptAnchorNode]);
 
 
   // Lazy fold: the first time a song is opened after the redesign,
@@ -1368,8 +1390,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             armedSyllableId={armedSyllableId}
                             onArmSyllable={handleArmSyllable}
                             onSyllablePlaced={handleSyllablePlaced}
-                            awaitingLineEndId={awaitingLineEndId}
-                            onAwaitLineEnd={handleAwaitLineEnd}
+                            awaitingLine={awaitingLine}
+                            onLineHeadPlaced={handleLineHeadPlaced}
                             promptAnchorCellKey={promptAnchorCellKey}
                             onPromptAnchorNode={setPromptAnchorNode}
                             onRefusalNotice={handleRefusalNotice}
@@ -1662,6 +1684,20 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         }}
       />
 
+      {/* The lyric drawer. Whole-screen chrome about the SONG, which
+          is why it lives at the bottom while the cell-anchored
+          overlays do not — see the plan doc's anchoring principle.
+          Only when the song's lyric store is live; before migration
+          the section-level path still owns lyrics. */}
+      {songLyricLines && (
+        <LyricDrawer
+          lines={songLyricLines}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          onArmLine={handleArmLine}
+        />
+      )}
+
       {/* BEAT TWO's prompt. A slim fixed bar rather than an inline hint
           for two reasons: it stays visible while the grid is scrolled
           to find the end cell, and it gives cancel a large target
@@ -1671,7 +1707,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           drawer to a slim hint bar, ~40px, fixed bottom, tap here to
           cancel") reused rather than a second vocabulary invented for
           the same job. */}
-      {awaitingLineEndId && promptPos && (
+      {awaitingLine && promptPos && (
         <CellAnchoredMessage
           left={promptPos.left}
           top={promptPos.top}
@@ -1691,7 +1727,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         >
           {/* No truncation, ever: this sentence is the whole
               instruction, and half of it is not an instruction. */}
-          <span>tap the beat where this line ends</span>
+          <span>
+            {awaitingLine?.edge === 'start'
+              ? 'tap the beat where this line starts'
+              : 'tap the beat where this line ends'}
+          </span>
           <button
             type="button"
             onClick={dismissArming}

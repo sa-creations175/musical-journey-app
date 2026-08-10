@@ -180,10 +180,10 @@ interface Props {
   markerIndex?: Map<string, LineMarkerPlacement[]>;
   /** Tap-to-place (step 6a): the syllable a beat-cell tap will place. */
   armedSyllableId?: string | null;
-  /** The line waiting for its END cell. Drives the beat-cell hint
-   *  alongside `armedSyllableId`, and marks the ◂ the app is asking
-   *  for. */
-  awaitingLineEndId?: string | null;
+  /** The line placement in progress, if any. Drives the beat-cell hint
+   *  alongside `armedSyllableId`, and marks the ◂ when the END is what
+   *  is being asked for. */
+  awaitingLine?: { lineId: string; edge: 'start' | 'end' } | null;
   /** Cell key the line-end prompt is anchored to, and a callback the
    *  matching cell uses to hand its NODE up. Node identity, never a
    *  beat-id lookup: beat ids repeat across sections. */
@@ -304,7 +304,7 @@ export default function BarGridView({
   rejectedCell = null,
   markerIndex,
   armedSyllableId = null,
-  awaitingLineEndId = null,
+  awaitingLine = null,
   promptAnchorCellKey = null,
   onPromptAnchorNode,
   onSyllableTap,
@@ -642,7 +642,7 @@ export default function BarGridView({
                   editing={syllableEditing}
                   onEditingChange={setSyllableEditing}
                   armedSyllableId={armedSyllableId}
-                  awaitingLineEndId={awaitingLineEndId}
+                  awaitingLine={awaitingLine}
                   promptAnchorCellKey={promptAnchorCellKey}
                   onPromptAnchorNode={onPromptAnchorNode}
                   onSyllableTap={onSyllableTap}
@@ -1520,7 +1520,7 @@ function SyllableBarSegment({
   editing,
   onEditingChange,
   armedSyllableId,
-  awaitingLineEndId,
+  awaitingLine,
   promptAnchorCellKey,
   onPromptAnchorNode,
   onSyllableTap,
@@ -1543,7 +1543,7 @@ function SyllableBarSegment({
   editing: SyllableEditingState | null;
   onEditingChange: (next: SyllableEditingState | null) => void;
   armedSyllableId: string | null;
-  awaitingLineEndId: string | null;
+  awaitingLine: { lineId: string; edge: 'start' | 'end' } | null;
   promptAnchorCellKey: string | null;
   onPromptAnchorNode?: (node: HTMLElement | null) => void;
   onSyllableTap?: (syllableId: string) => void;
@@ -1579,13 +1579,13 @@ function SyllableBarSegment({
             dragActive={lyricDragActive}
             rejected={rejectedCell === key}
             armedSyllableId={armedSyllableId}
-            awaitingLineEndId={awaitingLineEndId}
+            awaitingLine={awaitingLine}
             isPromptAnchor={promptAnchorCellKey === key}
             onPromptAnchorNode={onPromptAnchorNode}
-            // Either pending intent offers every cell. Legality is
-            // still never pre-computed — checkPlacementOrder decides on
-            // tap, for the line's end exactly as for a syllable.
-            armingActive={armedSyllableId !== null || awaitingLineEndId !== null}
+            // Any pending intent offers every cell — a syllable, or
+            // either edge of a line. Legality is still never
+            // pre-computed; checkPlacementOrder decides on tap.
+            armingActive={armedSyllableId !== null || awaitingLine !== null}
             onSyllableTap={onSyllableTap}
             onBeatCellTap={onBeatCellTap}
             onOpenSyllableMenu={onOpenSyllableMenu}
@@ -1855,7 +1855,7 @@ function SyllableDropSlot({
   dragActive,
   rejected,
   armedSyllableId,
-  awaitingLineEndId,
+  awaitingLine,
   isPromptAnchor,
   onPromptAnchorNode,
   armingActive,
@@ -1870,7 +1870,7 @@ function SyllableDropSlot({
   dragActive: boolean;
   rejected: boolean;
   armedSyllableId: string | null;
-  awaitingLineEndId: string | null;
+  awaitingLine: { lineId: string; edge: 'start' | 'end' } | null;
   isPromptAnchor: boolean;
   onPromptAnchorNode?: (node: HTMLElement | null) => void;
   armingActive: boolean;
@@ -1999,7 +1999,11 @@ function SyllableDropSlot({
         <SongLineMarker
           key={`e-${m.lineId}`}
           marker={m}
-          awaited={m.lineId === awaitingLineEndId}
+          // Only the END edge has a marker to highlight: at 'start'
+          // the line has nothing placed, so no markers render at all.
+          awaited={
+            awaitingLine?.edge === 'end' && m.lineId === awaitingLine.lineId
+          }
         />
       ))}
       {/* Insertion caret: a drop APPENDS to the stack, so the bar sits
