@@ -54,6 +54,7 @@ import {
   findSyllable,
   linesFromParsedRows,
   setLineKind,
+  unplaceLine,
   foldSectionLyrics,
   restoreLineSyllables,
 } from './lyricSyllables';
@@ -846,6 +847,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         ...(song?.lyricLines ?? []),
         ...linesFromParsedRows(rows),
       ]);
+    },
+    [song?.lyricLines, commitSongLyrics],
+  );
+
+  /** Return a whole line's words to unplaced, keeping its text. Same
+   *  pure path the per-section tray's arrow uses — one un-place, two
+   *  surfaces. */
+  const handleUnplaceLine = useCallback(
+    async (lineId: string) => {
+      if (!song?.lyricLines) return;
+      const next = unplaceLine(song.lyricLines, lineId);
+      if (next === song.lyricLines) return;
+      await commitSongLyrics(next);
     },
     [song?.lyricLines, commitSongLyrics],
   );
@@ -1713,6 +1727,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           onArmLine={handleArmLine}
           onAddLines={handleAddLines}
           onSetLineKind={handleSetLineKind}
+          onLineUnplace={handleUnplaceLine}
         />
       )}
 

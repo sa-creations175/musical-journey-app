@@ -283,3 +283,83 @@ describe('LyricDrawer — header correction', () => {
     expect(container!.querySelectorAll('[aria-label^="row options"]')).toHaveLength(0);
   });
 });
+
+describe('LyricDrawer — un-place', () => {
+  it('gives every placed row a fast ⤺ arrow', () => {
+    // The per-section tray had one and it was used constantly; the
+    // drawer rows were missing it.
+    const onLineUnplace = vi.fn();
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onLineUnplace={onLineUnplace}
+      />,
+    );
+    const arrows = container!.querySelectorAll(
+      '[aria-label="un-place all words in this line"]',
+    );
+    // l1 (fully placed) and l2 (partial); not the unplaced line or headers.
+    expect(arrows).toHaveLength(2);
+  });
+
+  it('un-places the line from the arrow', () => {
+    const onLineUnplace = vi.fn();
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onLineUnplace={onLineUnplace}
+      />,
+    );
+    const arrow = container!.querySelector(
+      '[aria-label="un-place all words in this line"]',
+    ) as HTMLElement;
+    act(() => arrow.click());
+    expect(onLineUnplace).toHaveBeenCalledWith('l1');
+  });
+
+  it('ALSO offers it in the menu — discoverable path and fast path', () => {
+    const onLineUnplace = vi.fn();
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onSetLineKind={vi.fn()}
+        onLineUnplace={onLineUnplace}
+      />,
+    );
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[1] as HTMLElement).click()); // l1, fully placed
+    const btn = Array.from(container!.querySelectorAll('button')).find(
+      b => b.textContent === 'un-place full line',
+    ) as HTMLElement;
+    act(() => btn.click());
+    expect(onLineUnplace).toHaveBeenCalledWith('l1');
+  });
+
+  it('offers neither path on a line with nothing placed', () => {
+    render(
+      <LyricDrawer
+        lines={[SONG[4]]}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onSetLineKind={vi.fn()}
+        onLineUnplace={vi.fn()}
+      />,
+    );
+    expect(
+      container!.querySelector('[aria-label="un-place all words in this line"]'),
+    ).toBeNull();
+    const dots = container!.querySelector('[aria-label^="row options"]') as HTMLElement;
+    act(() => dots.click());
+    expect(container!.textContent).not.toContain('un-place full line');
+  });
+});

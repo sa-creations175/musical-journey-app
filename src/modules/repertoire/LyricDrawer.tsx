@@ -175,6 +175,7 @@ function DrawerRow({
   onUnplace?: (lineId: string) => void | Promise<void>;
 }) {
   const isHeader = line.kind === 'header';
+  const placedWords = lineStatus(line).placed;
   const longPress = useLongPress(() => onMenuOpenChange(true), {
     enabled: Boolean(onSetLineKind),
   });
@@ -222,7 +223,23 @@ function DrawerRow({
         </button>
       )}
       {menuOpen && onSetLineKind && (
-        <div className="mt-1 mb-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-[11px] shadow-md">
+        <div className="mt-1 mb-1 flex flex-wrap items-center gap-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-[11px] shadow-md">
+          {/* Both paths, deliberately: the menu is the DISCOVERABLE one
+              and the row's ⤺ is the FAST one — same pairing as "…"
+              alongside long-press on a syllable. Both call the same
+              un-place path. */}
+          {onUnplace && placedWords > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                void onUnplace(line.id);
+                onMenuOpenChange(false);
+              }}
+              className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
+            >
+              un-place full line
+            </button>
+          )}
           {isHeader ? (
             <button
               type="button"
