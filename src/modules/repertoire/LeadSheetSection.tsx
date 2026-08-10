@@ -105,6 +105,7 @@ import {
   joinWords,
   setWordText,
   splitWord,
+  tokenizeLyricLines,
 } from './lyricLine';
 /**
  * Ride the pointer.
@@ -671,12 +672,12 @@ export default function LeadSheetSection({
   // Paste submit: one staged text line → one LyricLine in "pending"
   // state (start == end == (0,0)). The user drags the strip onto a
   // beat slot to place it.
-  const handleSubmitLyricLines = async (textLines: string[][]) => {
-    // Migrated songs append to the song-level store instead. The paste
-    // box is re-joined into text so it runs through the same header
-    // parser the drawer will use in step 7 — one parsing path, not two.
+  const handleSubmitLyricLines = async (text: string) => {
+    // Migrated songs append to the song-level store. Raw text in,
+    // parsed once — the drawer's paste box does exactly the same, so
+    // there is one parsing path rather than two.
     if (songLyricsActive && songLyricLines && onSongLyricsChange) {
-      const rows = parseLyricSheet(textLines.map(w => w.join(' ')).join('\n'));
+      const rows = parseLyricSheet(text);
       if (rows.length === 0) return;
       await onSongLyricsChange([
         ...songLyricLines,
@@ -684,7 +685,8 @@ export default function LeadSheetSection({
       ]);
       return;
     }
-    const fresh: LyricLine[] = textLines.map(words => ({
+    // Pre-migration fallback, for a song whose fold hasn't run yet.
+    const fresh: LyricLine[] = tokenizeLyricLines(text).map(words => ({
       id: crypto.randomUUID(),
       words,
       startBar: 0,
@@ -1874,10 +1876,7 @@ export default function LeadSheetSection({
             {/* Step 6 lyric paste: each text line becomes a pending
                 LyricLine in the bar grid's tray. Hidden in play mode. */}
             {!playMode && (
-              <LyricStagingArea
-                sectionId={section.id}
-                onSubmitLines={handleSubmitLyricLines}
-              />
+              <LyricStagingArea onSubmitText={handleSubmitLyricLines} />
             )}
 
             {/* The dragged item follows the pointer exactly instead of

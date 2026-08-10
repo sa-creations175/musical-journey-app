@@ -3,6 +3,7 @@ import type { SongLyricLine } from '../../lib/db';
 import { lineStatus } from './lyricSyllables';
 import { measureSafeArea } from './leadSheetOverlay';
 import LyricLineRow from './LyricLineRow';
+import LyricPasteBox from './LyricPasteBox';
 
 /**
  * The song's lyrics, docked at the bottom of the lead sheet.
@@ -29,6 +30,7 @@ export default function LyricDrawer({
   open,
   onOpenChange,
   onArmLine,
+  onAddLines,
   onLineDelete,
   onLineUnplace,
 }: {
@@ -38,6 +40,8 @@ export default function LyricDrawer({
   /** Tapping a lyric row arms its placement. The caller collapses the
    *  drawer and hands off to the anchored prompt. */
   onArmLine: (lineId: string) => void;
+  /** Raw pasted text. Parsed once, by the caller, at the write. */
+  onAddLines?: (text: string) => void | Promise<void>;
   onLineDelete?: (lineId: string) => void;
   onLineUnplace?: (lineId: string) => void | Promise<void>;
 }) {
@@ -102,6 +106,11 @@ export default function LyricDrawer({
           className="overflow-y-auto px-3 pb-3 flex flex-col gap-1"
           style={{ maxHeight: '50vh' }}
         >
+          {onAddLines && (
+            <div className="pb-1">
+              <LyricPasteBox onCommit={onAddLines} />
+            </div>
+          )}
           {lyricLines.length === 0 ? (
             <p className="text-[11px] text-neutral-500 italic py-2">
               no lyrics yet.

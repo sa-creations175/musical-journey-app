@@ -52,6 +52,7 @@ import {
   buildMarkerIndex,
   cellKey,
   findSyllable,
+  linesFromParsedRows,
   foldSectionLyrics,
   restoreLineSyllables,
 } from './lyricSyllables';
@@ -86,6 +87,7 @@ import FullLyricsSection from './FullLyricsSection';
 import SectionToggle from './SectionToggle';
 import CellAnchoredMessage from './CellAnchoredMessage';
 import LyricDrawer from './LyricDrawer';
+import { parseLyricSheet } from './lyricSheetParse';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
@@ -843,6 +845,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
    *  way. The drawer builds no arming UI of its own — the anchored
    *  prompt already owns that job, and a second one at the bottom of
    *  the screen is the mistake this session corrected twice. */
+  /** Raw pasted text in, parsed once here at the write. */
+  const handleAddLines = useCallback(
+    async (text: string) => {
+      const rows = parseLyricSheet(text);
+      if (rows.length === 0) return;
+      await commitSongLyrics([
+        ...(song?.lyricLines ?? []),
+        ...linesFromParsedRows(rows),
+      ]);
+    },
+    [song?.lyricLines, commitSongLyrics],
+  );
+
   const handleArmLine = useCallback((lineId: string) => {
     lineGestureSnapshot.current = null;
     dispatchArming({ type: 'await-line', lineId, edge: 'start' });
@@ -1695,6 +1710,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onArmLine={handleArmLine}
+          onAddLines={handleAddLines}
         />
       )}
 

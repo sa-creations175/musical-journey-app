@@ -1,118 +1,26 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
-import { tokenizeLyricLines } from './lyricLine';
-import SectionToggle from './SectionToggle';
+import LyricPasteBox from './LyricPasteBox';
 
-// Lyric input area (Lead Sheet Redesign step 6, May 2026 —
-// docs/LEAD_SHEET_REDESIGN.md). The user pastes a verse here; each
-// non-empty text line becomes one `LyricLine`. New lines appear in
-// the bar-grid's pending tray at start == end == (0, 0); the user
-// drags them onto beat positions from there.
+// Per-section paste box (Lead Sheet Redesign step 6, May 2026).
 //
-// Collapsible: collapsed by default so it doesn't claim permanent
-// real estate. Collapsed state shows the shared SectionToggle with a
-// count badge when the draft holds un-submitted words. Expanding
-// reveals the textarea + add button; a chevron collapses it back.
+// Now a thin wrapper over the shared LyricPasteBox, which the
+// song-level drawer also uses — so the live header preview and the
+// raw-text commit are the same in both places rather than two
+// implementations drifting apart.
 //
-// Controlled component: this view holds only the draft text. The
-// parent (LeadSheetSection) gets a `onSubmitLines(words[][])` callback
-// per paste and is responsible for the section.lyricLines write.
+// It used to hand up `string[][]` and let the parent re-join that into
+// text for the header parser: text → words → text → parse. It passes
+// the user's text straight through now.
+//
+// The per-section draft reset went with the rewrite. It existed
+// because a stale staged-word badge could carry across sections, and
+// that only made sense while the store was section-owned; lyrics are
+// song-owned now.
 
-interface Props {
-  sectionId: string;
-  /** Fires once per paste; one entry per non-empty text line, each
-   *  carrying that line's words. Empty paste / whitespace-only paste
-   *  fires nothing. */
-  onSubmitLines: (lines: string[][]) => void;
-}
-
-export default function LyricStagingArea({ sectionId, onSubmitLines }: Props) {
-  const [draftText, setDraftText] = useState('');
-  const [expanded, setExpanded] = useState(false);
-
-  // Rotating a different section in resets the local UI: collapse and
-  // drop any un-submitted draft so a stale staged-word badge doesn't
-  // carry across sections.
-  useEffect(() => {
-    setExpanded(false);
-    setDraftText('');
-  }, [sectionId]);
-
-  const stagedWordCount = tokenizeLyricLines(draftText).reduce(
-    (n, line) => n + line.length,
-    0,
-  );
-
-  const commitDraft = () => {
-    const lines = tokenizeLyricLines(draftText);
-    if (lines.length === 0) {
-      setDraftText('');
-      return;
-    }
-    onSubmitLines(lines);
-    setDraftText('');
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Cmd/Ctrl+Enter submits without needing to click; Enter alone
-    // inserts a newline since the user is typing a multi-line verse.
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      commitDraft();
-    }
-  };
-
-  if (!expanded) {
-    return (
-      <SectionToggle
-        label="add lyrics"
-        expanded={false}
-        onToggle={() => setExpanded(true)}
-        hint={
-          stagedWordCount > 0
-            ? `${stagedWordCount} word${stagedWordCount === 1 ? '' : 's'} staged`
-            : undefined
-        }
-      />
-    );
-  }
-
-  return (
-    <div className="rounded-md border border-black/[0.07] p-2 bg-neutral-50/40 dark:bg-neutral-900/40 space-y-2">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
-        <span>lyric paste</span>
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline">cmd/ctrl + enter to add</span>
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            aria-label="collapse lyric paste"
-            title="collapse"
-            className="inline-flex items-center gap-1 rounded border border-neutral-300 dark:border-neutral-700 px-1.5 py-0.5 normal-case text-neutral-500 hover:border-fluent hover:text-fluent"
-          >
-            <span aria-hidden>▾</span> collapse
-          </button>
-        </div>
-      </div>
-
-      <div className="flex gap-2 items-start">
-        <textarea
-          autoFocus
-          value={draftText}
-          onChange={e => setDraftText(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="paste a verse — one bar grid line per text line"
-          rows={3}
-          className="flex-1 min-w-0 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs resize-y font-mono"
-        />
-        <button
-          type="button"
-          onClick={commitDraft}
-          disabled={draftText.trim() === ''}
-          className="px-2 py-1 text-xs rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          add lines
-        </button>
-      </div>
-    </div>
-  );
+export default function LyricStagingArea({
+  onSubmitText,
+}: {
+  /** Raw pasted text, parsed once by the caller at the write. */
+  onSubmitText: (text: string) => void | Promise<void>;
+}) {
+  return <LyricPasteBox onCommit={onSubmitText} />;
 }
