@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SongLyricLine } from '../../lib/db';
-import { lineStatus } from './lyricSyllables';
+import { canConvertToHeader, lineStatus } from './lyricSyllables';
+import { useLongPress } from '../../lib/useLongPress';
 import { measureSafeArea } from './leadSheetOverlay';
 import LyricLineRow from './LyricLineRow';
 import LyricPasteBox from './LyricPasteBox';
@@ -31,6 +32,7 @@ export default function LyricDrawer({
   onOpenChange,
   onArmLine,
   onAddLines,
+  onSetLineKind,
   onLineDelete,
   onLineUnplace,
 }: {
@@ -42,6 +44,8 @@ export default function LyricDrawer({
   onArmLine: (lineId: string) => void;
   /** Raw pasted text. Parsed once, by the caller, at the write. */
   onAddLines?: (text: string) => void | Promise<void>;
+  /** Correct a parser guess: flip a row between header and lyric. */
+  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
   onLineDelete?: (lineId: string) => void;
   onLineUnplace?: (lineId: string) => void | Promise<void>;
 }) {
@@ -54,6 +58,8 @@ export default function LyricDrawer({
   // bottom chrome so the cell-anchored overlays stay clear of it — so
   // measuring "bottom chrome" without the exclusion would measure the
   // drawer and push it up by its own height, every frame.
+  // Which row's "…" menu is open. One at a time.
+  const [menuLineId, setMenuLineId] = useState<string | null>(null);
   const [dockOffset, setDockOffset] = useState(0);
   useEffect(() => {
     const measure = () =>
@@ -121,20 +127,130 @@ export default function LyricDrawer({
             // finished lines would break the read. The per-section tray
             // filters instead; same row, different caller.
             lines.map(line => (
-              <LyricLineRow
+              <DrawerRow
                 key={line.id}
                 line={line}
-                dimPlaced
-                bodyProps={{
-                  onClick: () => onArmLine(line.id),
-                  role: 'button',
-                  'aria-label': `place "${line.text}"`,
-                }}
-                bodyClassName="cursor-pointer hover:border-fluent"
+                onArm={onArmLine}
+                onSetLineKind={onSetLineKind}
+                menuOpen={menuLineId === line.id}
+                onMenuOpenChange={openNow =>
+                  setMenuLineId(openNow ? line.id : null)
+                }
                 onDelete={onLineDelete}
                 onUnplace={onLineUnplace}
               />
             ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One drawer row plus its correction menu.
+ *
+ * The parser guesses which pasted lines are headers and will sometimes
+ * be wrong in both directions, so the correction has to be reachable —
+ * and reachable the way the syllable popover is: a visible "…"
+ * control, with long-press as a shortcut for anyone who knows it.
+ * Long-press ALONE was rejected there for the same reason it would be
+ * wrong here — an invisible affordance is not an affordance.
+ */
+function DrawerRow({
+  line,
+  onArm,
+  onSetLineKind,
+  menuOpen,
+  onMenuOpenChange,
+  onDelete,
+  onUnplace,
+}: {
+  line: SongLyricLine;
+  onArm: (lineId: string) => void;
+  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
+  menuOpen: boolean;
+  onMenuOpenChange: (open: boolean) => void;
+  onDelete?: (lineId: string) => void;
+  onUnplace?: (lineId: string) => void | Promise<void>;
+}) {
+  const isHeader = line.kind === 'header';
+  const longPress = useLongPress(() => onMenuOpenChange(true), {
+    enabled: Boolean(onSetLineKind),
+  });
+  // Asked of the model rather than re-derived here, so the reason shown
+  // and the rule enforced on write are the same rule.
+  const convertible = canConvertToHeader(line);
+
+  return (
+    <div className="relative">
+      <LyricLineRow
+        line={line}
+        dimPlaced
+        bodyProps={{
+          onClick: () => {
+            if (menuOpen) {
+              onMenuOpenChange(false);
+              return;
+            }
+            onArm(line.id);
+          },
+          role: 'button',
+          'aria-label': `place "${line.text}"`,
+          onPointerDown: longPress.onPointerDown,
+          onPointerMove: longPress.onPointerMove,
+          onPointerUp: longPress.onPointerUp,
+          onPointerCancel: longPress.onPointerCancel,
+          onPointerLeave: longPress.onPointerLeave,
+        }}
+        bodyClassName="cursor-pointer hover:border-fluent"
+        onDelete={onDelete}
+        onUnplace={onUnplace}
+      />
+      {onSetLineKind && (
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            onMenuOpenChange(!menuOpen);
+          }}
+          aria-label={`row options for "${line.text}"`}
+          aria-expanded={menuOpen}
+          className="absolute right-14 top-1/2 -translate-y-1/2 px-1 text-neutral-400 hover:text-fluent text-xs leading-none"
+        >
+          …
+        </button>
+      )}
+      {menuOpen && onSetLineKind && (
+        <div className="mt-1 mb-1 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-[11px] shadow-md">
+          {isHeader ? (
+            <button
+              type="button"
+              onClick={() => {
+                void onSetLineKind(line.id, 'lyric');
+                onMenuOpenChange(false);
+              }}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+            >
+              make lyric line
+            </button>
+          ) : convertible ? (
+            <button
+              type="button"
+              onClick={() => {
+                void onSetLineKind(line.id, 'header');
+                onMenuOpenChange(false);
+              }}
+              className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+            >
+              make header
+            </button>
+          ) : (
+            // Explained rather than offered-and-refused: converting
+            // discards the line's words, and some of them are placed.
+            <span className="text-neutral-500">
+              can&apos;t make this a header — un-place its words first.
+            </span>
           )}
         </div>
       )}

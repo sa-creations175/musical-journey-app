@@ -339,6 +339,60 @@ export function unplaceLine(
 }
 
 /**
+ * Can this line become a header?
+ *
+ * Only if none of its words are placed. Converting discards syllables,
+ * so allowing it on a placed line would silently throw away real work
+ * — the user would lose positions they had already set and have no
+ * obvious way to know why.
+ *
+ * Exported so the UI can explain the refusal instead of offering a
+ * dead action, while `setLineKind` re-checks it. Same
+ * single-authority shape as `placeSyllable` re-checking the guard: one
+ * rule, two readers, no second copy of the rule.
+ */
+export function canConvertToHeader(line: SongLyricLine): boolean {
+  if (line.kind === 'header') return true;
+  return (line.syllables ?? []).every(s => !s.anchor);
+}
+
+/**
+ * Flip a drawer row between header and lyric.
+ *
+ * The parser guesses which pasted lines are section headers, and it
+ * will sometimes be wrong in both directions. This is the correction.
+ *
+ * lyric → header drops the syllables and keeps the text, and is
+ * REFUSED (returns the input unchanged) when any word is placed.
+ * header → lyric re-splits the text into fresh unplaced words, so a
+ * mis-detected header becomes a placeable line.
+ */
+export function setLineKind(
+  lines: ReadonlyArray<SongLyricLine>,
+  lineId: string,
+  kind: 'lyric' | 'header',
+  makeId: () => string = () => crypto.randomUUID(),
+): SongLyricLine[] {
+  let touched = false;
+  const next = lines.map(line => {
+    if (line.id !== lineId || line.kind === kind) return line;
+    if (kind === 'header') {
+      if (!canConvertToHeader(line)) return line;
+      touched = true;
+      const { syllables: _dropped, ...rest } = line;
+      return { ...rest, kind: 'header' as const };
+    }
+    touched = true;
+    return {
+      ...line,
+      kind: 'lyric' as const,
+      syllables: syllablesFromText(line.text, makeId),
+    };
+  });
+  return touched ? next : [...lines];
+}
+
+/**
  * Restore one line's syllables to a snapshot taken earlier.
  *
  * The undo behind cancelling a two-part line placement. Deliberately

@@ -1,6 +1,6 @@
 # Lead Sheet — Lyric/Syllable Layer: Audit + Redesign Plan
 
-Status: **Track 2 CLOSED. Track 1 steps 0-5, 6a and 6b shipped; 7, 8, 10 outstanding. Step 9 DROPPED.
+Status: **Track 2 CLOSED. Track 1 steps 0-5, 6a, 6b and 7 shipped; 8 and 10 outstanding. Step 9 DROPPED.
 The drag-ring displacement bug is PARKED — see the section at the end.**
 Scope: the per-bar beat grid's lyric row, the lyric drawer, chord-cell coloring, plus a read-only song-key recon.
 
@@ -9,6 +9,10 @@ Revision history:
 - **rev 2 (2026-08-03)** — **Place = pin** (A2) replaces the separate pinned flag; **marker = places one
   unit** (A1) replaces rigid whole-line translate; **tap-to-place** (A3) replaces send-to-beat; cross-section
   placement allowed (§2.0).
+- **rev 6 (2026-08-10)** — **STEP 7 BUILT, smaller than specified.** The drawer builds **no arming UI**: a
+  line tap hands off to the anchored prompt, because a placement strip at the bottom of the screen is the
+  mistake the cell-anchoring principle exists to prevent. The **per-section trays stay** (collapsed) until
+  the drawer is proven. See §B1.
 - **rev 5 (2026-08-09)** — **SYLLABLES NEVER CROSS; THEY ONLY STACK IN ORDER.** One ordering concept
   replaces the same-line-allowed / cross-line-refused split rev 4 shipped. Any cell may hold any number of
   syllables from any number of lines, always rendering in song order; placement into an occupied cell
@@ -574,6 +578,7 @@ collisions are real and are handled explicitly rather than by luck:
     hook's tolerance to 4px — which would fight the 3-5px finger drift the hook's own comment measures.
 
 ## PRINCIPLE — feedback about a cell anchors to that cell
+<a id="principle--feedback-about-a-cell-anchors-to-that-cell"></a>
 
 **Recorded 2026-08-09, after making the same mistake twice.**
 
@@ -608,8 +613,12 @@ it was anchored to reproduced the exact failure the refusal fix had just closed.
   height is a two-line budget, and the max is small enough to fit the narrowest supported viewport with
   padding — asserted in `leadSheetOverlay.test.ts`, since wrapping only saves a box that had somewhere to
   wrap to.
-- The bottom of the screen stays available for genuinely screen-level state — the step-7 drawer being the
-  case it is reserved for.
+- The bottom of the screen stays available for genuinely screen-level state — the step-7 lyric drawer being
+  the case it is reserved for, and the one thing built there since.
+- **Third instance, caught before it shipped (rev 6).** §B1 specified a slim bottom strip for tracking an
+  in-progress line placement. It was cut at build time *because this principle was already written down* —
+  which is the whole point of having written it. Reusing a pattern is not a reason; check what the pattern
+  is anchored TO.
 
 ## A4 — In-cell reorder by tap-to-number — ❌ DROPPED (rev 5)
 
@@ -646,35 +655,82 @@ New pure module `lyricSyllables.ts`:
 
 Paste already satisfies no-ripple (§5) and stays append-only; the plan adds a regression test asserting it.
 
-## B1 — Lyric drawer (rev 3: ONE store — still needs its own sign-off before step 7)
+## B1 — Lyric drawer — ✅ BUILT (step 7, rev 6 · 2026-08-10)
 
-Per §2.0b the drawer no longer unifies three buckets — there is only one list. It shows **the song's full
-lyrics as lines**, and that same list is the paste target, the unplaced pool, and the reference sheet. The
-bar grid stops hosting the paste box and the pending tray entirely.
+One store per song, one list. The drawer shows **the song's full lyrics as lines**, and that same list is the
+paste target, the unplaced pool, and the reference sheet.
 
-**Proposed interaction, mobile-first:**
+**Two things changed between sign-off and build, and both shrank the scope.**
 
-- **Edge tab** — a slim vertical tab pinned to the right edge, `position: fixed`, vertically centred, visible
-  at any scroll position while a lead sheet is in edit mode. Label: `♪ lyrics` + a count badge of unplaced
-  syllables. ~32px wide, thumb-reachable one-handed.
-- **Tap → slide-up sheet** (mobile) / **slide-in panel** (≥768px). Mobile sheet is `fixed inset-x-0 bottom-0`,
-  default height ~55vh, drag-handle at top to expand to ~90vh or dismiss — the same bottom-sheet pattern
-  `ChordEditorPopover` already uses (`BarGridView.tsx:2190`), so it is a known-good shape on this device.
-- **Contents, top to bottom:** staging paste area (collapsed to a `+ paste lyrics` link once the song has
-  lines) → **the one line list**, headers as divider rows, lyric lines beneath them. A commit renders in
-  place with **no scroll jump** — the new lines appear exactly where the list already was.
-- **Staging preview** — while text sits in the paste area, the list below shows the *parsed* result live:
-  detected headers as dividers, lyric lines as rows. `add lines` commits; `clear` discards. Nothing is
-  written until commit.
-- **Row tap → header toggle** — one control (`make header` / `make lyric line`), visible only on tap.
-- **Arming collapses the drawer** to a slim hint bar (~40px, fixed bottom) reading *"tap the beat where this
-  line starts — tap here to cancel"*, leaving the grid fully tappable. Completing or cancelling restores the
-  sheet to its prior height.
-- **Un-placed syllables return here**, so the drawer is also the ghost pool.
+### rev 6 change 1 — the drawer builds NO arming UI
 
-Open sub-questions for the step-7 sign-off: edge tab on the right edge or bottom-right corner; does the
-drawer stay open across section navigation; is the line list selectable-for-copy or tap-only (tap is
-overloaded by both arming and the header toggle — likely needs tap = arm, long-press = header toggle).
+> ~~**Arming collapses the drawer** to a slim hint bar (~40px, fixed bottom) reading *"tap the beat where
+> this line starts — tap here to cancel"*, leaving the grid fully tappable.~~ — **CUT.**
+
+Tapping a line arms it, the drawer collapses, and the **existing anchored prompt** takes over. Step 7 builds
+no placement UI of its own.
+
+**Why:** the [cell-anchoring principle](#principle--feedback-about-a-cell-anchors-to-that-cell). A strip at
+the bottom tracking an in-progress placement is exactly the mistake corrected twice on 2026-08-09 — the
+refusal toast, then the placement prompt. A third instance was specified right here and would have been
+built if the principle hadn't been written down first. A test asserts the drawer renders no cancel control
+and no "tap the beat" copy, so it cannot creep back.
+
+### rev 6 change 2 — the per-section trays STAY
+
+> ~~The bar grid stops hosting the paste box and the pending tray entirely.~~ — **superseded.**
+
+Trays remain, collapsed by default. Drag has known problems (see PARKED) and the tray is the fallback path
+onto the grid; removing it before the drawer is proven is the wrong order. **7b must not delete them on
+schedule** — that is its own decision, after the drawer has been in real use.
+
+### What was built
+
+- **Slim strip docked at the bottom** of the song page — not rev 3's right-edge vertical tab. **This one
+  belongs at the bottom**: it is whole-screen chrome about the SONG, like a nav bar, which is precisely the
+  distinction the anchoring principle draws.
+- **Tap → ~50vh list** of every line in song order, headers as divider rows, fully placed lines **dimmed
+  rather than hidden** — the drawer doubles as the readable lyric sheet.
+- **Tap a line → arms beat one**, drawer collapses, anchored prompt asks for the end.
+  **No auto-scroll and no section awareness**: you scroll where you want and tap, and the monotonic guard
+  refuses anything out of order.
+- **Paste behind "+ add lyrics"** — editable staging text with the parser's guesses rendered **live**, so a
+  misread header is visible before commit. `add lines` commits; nothing is written until then. Raw text is
+  passed and **parsed once**; the old `string[][]` round-trip (text → words → text → parse) is gone.
+- **Header↔lyric correction via a visible "…" control**, long-press as a shortcut — the same call as the
+  syllable popover, for the same reason: an invisible affordance is not an affordance. Converting a line
+  with placed words is **explained, not offered-and-refused**.
+
+### Two numbers, two jobs
+
+| Where | Shows |
+|---|---|
+| Collapsed strip | one overall **line** count — "4 of 9 lines placed" |
+| Each row | its own **word** count — "2/7 placed" |
+
+**Vocabulary: the drawer says WORDS, not syllables.** A word only becomes syllables once split, which
+normally happens after placement — so "syllables" belongs to the grid, where splitting has actually
+happened. No per-section counts: the drawer is deliberately song-level and per-section numbers would muddy
+that.
+
+### Chrome
+
+The drawer marks itself `data-app-chrome="bottom"`, so the cell-anchored overlays inset past it — including
+the full ~50vh when it is open, which is correct: the prompt belongs in the part of the grid still visible.
+Because the safe area is **measured**, slim and open need no special-casing.
+
+**The circularity, handled explicitly:** the drawer is bottom chrome AND needs to know how much bottom
+chrome to dock above (`MobileBottomNav`, below `md`, whose height moves with `env(safe-area-inset-bottom)`).
+`measureSafeArea({ exclude: '[data-lyric-drawer]' })` skips itself — without that it measures its own height
+and pushes itself up by it, every frame.
+
+`z-40`: above the grid, alongside the nav, **below the overlays at 180/190** so the prompt is never behind
+the drawer.
+
+### Still open
+
+Whether the drawer stays open across navigation, and whether the line list should be selectable-for-copy.
+~~Tap = arm vs long-press = header toggle~~ — resolved by the "…" control.
 
 ## B2 — Chord color: flattened degrees
 
@@ -955,7 +1011,7 @@ Zero coupling to the lyric refactor, and both need your eyes in-browser, which i
 | **5** | **A1** marker semantics + split/join anchor inheritance + un-place `×` | markers place one unit; split stops shifting the line |
 | **6a** | **A3** tap-to-place, **intra-section**. ✅ SHIPPED. Tap arms (placed and unplaced alike), every cell offers itself, `checkPlacementOrder` is the sole legality authority, "…" and long-press open the edit menu. Line → start/end is step 7, not this. | tap placement works |
 | **6b** | **A3** cross-section placement. ✅ SHIPPED. Armed state lifted to `SongDetailView` above the per-section `DndContext`s; **cross-line monotonic guard** folded in, making lyric lines strictly sequential (§2.0 rev 4). The anchor index was already song-level from step 2, so only arming needed lifting. | syllables span sections |
-| **7** | **B1 lyric drawer — needs its own sign-off on §B1 first.** 7a: drawer shell + staging paste with live parse preview + header dividers + header toggle. 7b: delete the per-section paste box and the pending tray. 7c: placed/partial/unplaced row status. | one drawer, one store |
+| **7** | **B1 lyric drawer.** ✅ SHIPPED (rev 6). Shared line row; arming union generalised to carry an `edge`; drawer shell + tap-to-arm handing off to the anchored prompt; paste with live parse preview; header↔lyric correction via a "…" control. **The per-section trays were NOT deleted** — that is its own decision once the drawer is proven. | one drawer, one store |
 | **8** | Paste + bar-op safety: regression tests that commit-paste, reorder, add/delete-bar never move a placed syllable; bar-delete guard for placed syllables | |
 | ~~**9**~~ | ~~**A4** tap-to-number in-cell reorder~~ — **DROPPED (rev 5).** Stack order is decided by song order, so there is nothing for the user to set. See §A4. | — |
 | **10** | **Cross-section drag — free-reign drag anywhere.** Unify dragging across sections, either by hoisting to a single song-level drag context or by a handoff bridge between per-section contexts. **Sequenced after 6b and 7 by decision**, not by dependency: tap-to-place covers cross-section placement first, so drag unification builds on a stable placement model rather than inventing one. | drag a syllable into any section |

@@ -53,6 +53,7 @@ import {
   cellKey,
   findSyllable,
   linesFromParsedRows,
+  setLineKind,
   foldSectionLyrics,
   restoreLineSyllables,
 } from './lyricSyllables';
@@ -854,6 +855,15 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         ...(song?.lyricLines ?? []),
         ...linesFromParsedRows(rows),
       ]);
+    },
+    [song?.lyricLines, commitSongLyrics],
+  );
+
+  const handleSetLineKind = useCallback(
+    async (lineId: string, kind: 'lyric' | 'header') => {
+      if (!song?.lyricLines) return;
+      const next = setLineKind(song.lyricLines, lineId, kind);
+      await commitSongLyrics(next);
     },
     [song?.lyricLines, commitSongLyrics],
   );
@@ -1711,6 +1721,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           onOpenChange={setDrawerOpen}
           onArmLine={handleArmLine}
           onAddLines={handleAddLines}
+          onSetLineKind={handleSetLineKind}
         />
       )}
 

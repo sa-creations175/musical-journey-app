@@ -20,7 +20,9 @@ import {
   placedSyllablesInBar,
   provisionalPlacements,
   remapAnchorBars,
+  canConvertToHeader,
   restoreLineSyllables,
+  setLineKind,
   setSyllableText,
   shiftAnchorsAfterBarDelete,
   splitSyllable,
@@ -1392,5 +1394,71 @@ describe('foldSectionLyrics — real O Come All Ye Faithful data', () => {
       const line = folded.find(l => l.text === legacyLine.words.join(' '))!;
       expect(cellsOf(line)).toEqual(expected);
     }
+  });
+});
+
+describe('setLineKind — correcting a parser guess', () => {
+  const ids = () => seqIds('k');
+
+  it('turns a mis-detected header back into a placeable line', () => {
+    const lines: SongLyricLine[] = [{ id: 'h', kind: 'header', text: 'Hold me now' }];
+    const next = setLineKind(lines, 'h', 'lyric', ids());
+    expect(next[0].kind).toBe('lyric');
+    expect(next[0].syllables?.map(s => s.text)).toEqual(['Hold', 'me', 'now']);
+    expect(next[0].syllables?.every(s => s.anchor === undefined)).toBe(true);
+  });
+
+  it('turns an unplaced lyric line into a header, dropping its words', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'Chorus' }])];
+    const next = setLineKind(lines, 'l1', 'header', ids());
+    expect(next[0].kind).toBe('header');
+    expect(next[0].syllables).toBeUndefined();
+    expect(next[0].text).toBe('Chorus');
+  });
+
+  it('REFUSES to make a header of a line with placed words', () => {
+    // Converting discards syllables, so allowing this would silently
+    // throw away positions the user had already set.
+    const lines = [
+      line('l1', [
+        { id: 'a', text: 'a', at: [0, 0] },
+        { id: 'b', text: 'b' },
+      ]),
+    ];
+    const next = setLineKind(lines, 'l1', 'header', ids());
+    expect(next[0].kind).toBe('lyric');
+    expect(anchorOf(next, 'a')).toEqual({ sectionId: SEC, barIndex: 0, beatPos: 0 });
+  });
+
+  it('canConvertToHeader is the same rule the write enforces', () => {
+    const clean = line('l1', [{ id: 'a', text: 'a' }]);
+    const placed = line('l2', [{ id: 'b', text: 'b', at: [0, 0] }]);
+    expect(canConvertToHeader(clean)).toBe(true);
+    expect(canConvertToHeader(placed)).toBe(false);
+    // A header is trivially already one.
+    expect(canConvertToHeader({ id: 'h', kind: 'header', text: 'V' })).toBe(true);
+  });
+
+  it('is a no-op for an unknown id or a kind it already is', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'a' }])];
+    expect(setLineKind(lines, 'nope', 'header', ids())).toEqual(lines);
+    expect(setLineKind(lines, 'l1', 'lyric', ids())).toEqual(lines);
+  });
+
+  it('leaves other lines untouched', () => {
+    const lines = [
+      line('l1', [{ id: 'a', text: 'a' }]),
+      line('l2', [{ id: 'b', text: 'b', at: [1, 0] }]),
+    ];
+    const next = setLineKind(lines, 'l1', 'header', ids());
+    expect(next[1]).toBe(lines[1]);
+  });
+
+  it('round-trips a header through lyric and back', () => {
+    const lines: SongLyricLine[] = [{ id: 'h', kind: 'header', text: 'Bridge' }];
+    const asLyric = setLineKind(lines, 'h', 'lyric', ids());
+    const back = setLineKind(asLyric, 'h', 'header', ids());
+    expect(back[0].kind).toBe('header');
+    expect(back[0].text).toBe('Bridge');
   });
 });

@@ -193,3 +193,93 @@ describe('LyricDrawer — chrome', () => {
     expect(el.className).toContain('z-40');
   });
 });
+
+describe('LyricDrawer — header correction', () => {
+  const withMenu = (onSetLineKind = vi.fn()) => {
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onSetLineKind={onSetLineKind}
+      />,
+    );
+    return onSetLineKind;
+  };
+
+  it('shows a VISIBLE "…" control on every row', () => {
+    // Long-press alone was rejected for the syllable popover for the
+    // same reason: an invisible affordance is not an affordance.
+    withMenu();
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    expect(dots).toHaveLength(SONG.length);
+  });
+
+  it('offers "make lyric line" on a header row', () => {
+    withMenu();
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[0] as HTMLElement).click());
+    expect(container!.textContent).toContain('make lyric line');
+  });
+
+  it('offers "make header" on an unplaced lyric row', () => {
+    withMenu();
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[4] as HTMLElement).click()); // l3, nothing placed
+    expect(container!.textContent).toContain('make header');
+  });
+
+  it('EXPLAINS instead of offering when words are placed', () => {
+    // Offer-then-refuse would be a dead action; the menu says why.
+    withMenu();
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[1] as HTMLElement).click()); // l1, fully placed
+    expect(container!.textContent).toContain('un-place its words first');
+    expect(container!.textContent).not.toContain('make header');
+  });
+
+  it('applies the correction', () => {
+    const onSetLineKind = withMenu();
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[4] as HTMLElement).click());
+    const btn = Array.from(container!.querySelectorAll('button')).find(b =>
+      b.textContent === 'make header',
+    ) as HTMLElement;
+    act(() => btn.click());
+    expect(onSetLineKind).toHaveBeenCalledWith('l3', 'header');
+  });
+
+  it('opens one menu at a time', () => {
+    withMenu();
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[0] as HTMLElement).click());
+    act(() => (dots[4] as HTMLElement).click());
+    expect(container!.textContent).not.toContain('make lyric line');
+    expect(container!.textContent).toContain('make header');
+  });
+
+  it('does not arm the line while its menu is open', () => {
+    // The tap that dismisses a menu should not also start a placement.
+    const onArmLine = vi.fn();
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={onArmLine}
+        onSetLineKind={vi.fn()}
+      />,
+    );
+    const dots = container!.querySelectorAll('[aria-label^="row options"]');
+    act(() => (dots[4] as HTMLElement).click());
+    const bodies = Array.from(container!.querySelectorAll('[data-line-body]'));
+    act(() => (bodies[4] as HTMLElement).click());
+    expect(onArmLine).not.toHaveBeenCalled();
+  });
+
+  it('renders no "…" when correction is unavailable', () => {
+    render(<LyricDrawer lines={SONG} open onOpenChange={noop} onArmLine={noop} />);
+    expect(container!.querySelectorAll('[aria-label^="row options"]')).toHaveLength(0);
+  });
+});
