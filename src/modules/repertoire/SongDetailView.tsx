@@ -82,6 +82,7 @@ import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
 import FullLyricsSection from './FullLyricsSection';
 import SectionToggle from './SectionToggle';
+import CellAnchoredMessage from './CellAnchoredMessage';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
@@ -128,7 +129,13 @@ const TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
 /** Long enough to read a short sentence, short enough that the message
  *  is gone before a scroll could strand it away from its cell. */
 const REFUSAL_MS = 2200;
-const REFUSAL_TEXT = "Can't place here — syllables must stay in order.";
+const REFUSAL_TEXT: Record<'order' | 'off-axis', string> = {
+  order: "Can't place here — syllables must stay in order.",
+  // Its own wording rather than silence. This is a data problem, not a
+  // user mistake, but a shake with no message reads as broken feedback
+  // — which is exactly how the old silent branch was experienced.
+  'off-axis': "Can't place here — this section isn't on the beat grid.",
+};
 
 
 /** Generate a stable id for a reference-video entry. Prefer
@@ -650,6 +657,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     key: number;
     left: number;
     top: number;
+    reason: 'order' | 'off-axis';
   } | null>(null);
   const refusalTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -659,24 +667,29 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     [],
   );
 
-  const handleRefusalNotice = useCallback((cellRect: DOMRect) => {
-    // Same geometry the line-end prompt uses — above by default, flip
-    // below when there is no room, clamp so it can't run off any edge.
-    // Shared rather than duplicated so the two can't drift into
-    // subtly different flip and clamp behaviour. The edge-sticking
-    // modes never fire here: a refusal is triggered by a tap, so its
-    // cell is on screen by construction.
-    const { left, top } = anchoredOverlayPosition({
-      cell: toAnchorRect(cellRect),
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      box: { width: OVERLAY_MAX_W, height: OVERLAY_H },
-      gap: OVERLAY_GAP,
-      edgePad: OVERLAY_EDGE_PAD,
-    });
-    if (refusalTimer.current) clearTimeout(refusalTimer.current);
-    setRefusalNotice({ key: Date.now(), left, top });
-    refusalTimer.current = setTimeout(() => setRefusalNotice(null), REFUSAL_MS);
-  }, []);
+  const handleRefusalNotice = useCallback(
+    (reason: 'order' | 'off-axis', cellRect?: DOMRect) => {
+      // Same geometry the line-end prompt uses — below by default, flip
+      // above when there is no room, clamp so it can't run off any
+      // edge. Shared rather than duplicated so the two can't drift.
+      //
+      // A MISSING RECT IS NOT A REASON TO SHOW NOTHING: passing null
+      // parks the message at the bottom edge, which is worse placement
+      // but still feedback. Dropping it was a silent failure
+      // indistinguishable from the overlay being broken.
+      const { left, top } = anchoredOverlayPosition({
+        cell: cellRect ? toAnchorRect(cellRect) : null,
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        box: { width: OVERLAY_MAX_W, height: OVERLAY_H },
+        gap: OVERLAY_GAP,
+        edgePad: OVERLAY_EDGE_PAD,
+      });
+      if (refusalTimer.current) clearTimeout(refusalTimer.current);
+      setRefusalNotice({ key: Date.now(), left, top, reason });
+      refusalTimer.current = setTimeout(() => setRefusalNotice(null), REFUSAL_MS);
+    },
+    [],
+  );
 
   const commitSongLyrics = useCallback(
     async (next: SongLyricLine[]) => {
@@ -1656,34 +1669,25 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           cancel") reused rather than a second vocabulary invented for
           the same job. */}
       {awaitingLineEndId && promptPos && (
-        <div
-          role="status"
-          aria-live="polite"
+        <CellAnchoredMessage
+          left={promptPos.left}
+          top={promptPos.top}
+          z={180}
+          /* The BODY passes taps through; only the cancel control takes
+             them. A floating prompt sits over the grid, and the end
+             cell can easily be the one underneath it. Rather than flip
+             away from a target we cannot know in advance, the prompt
+             simply never blocks one. */
+          className="flex items-start justify-between gap-2"
           /* Marked as an arming surface so the document pointerdown
              listener doesn't dismiss on the way to the cancel BUTTON —
              pointerdown fires before click, so without this the
              listener would swallow the gesture and the button would
-             never run. Same outcome either way, but the button would
-             have been decorative. Still required now that the element
-             floats rather than sitting at the screen edge. */
-          data-lyric-arm-keep=""
-          style={{
-            left: promptPos.left,
-            top: promptPos.top,
-            maxWidth: OVERLAY_MAX_W,
-          }}
-          /* The BODY passes taps through; only the cancel control takes
-             them. A floating prompt sits over the grid, and the end
-             cell can easily be the one underneath it — the row above
-             the head cell, say. Rather than flip away from a target we
-             cannot know in advance, the prompt simply never blocks one.
-             `data-lyric-arm-keep` still applies to the button through
-             this container, so the dismiss listener leaves it alone. */
-          className="fixed z-[180] pointer-events-none flex items-start justify-between gap-2 px-2 py-1 rounded-md text-[11px] leading-tight bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-lg"
+             never run. */
+          armKeep
         >
           {/* No truncation, ever: this sentence is the whole
-              instruction, and half of it is not an instruction. It
-              wraps within the max width instead. */}
+              instruction, and half of it is not an instruction. */}
           <span>tap the beat where this line ends</span>
           <button
             type="button"
@@ -1692,7 +1696,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           >
             cancel
           </button>
-        </div>
+        </CellAnchoredMessage>
       )}
 
       {/* Re-keyed per refusal so a repeat on another cell restarts the
@@ -1701,19 +1705,15 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           next cell can be tried immediately, and a message lying over
           the grid must never swallow that tap. */}
       {refusalNotice && (
-        <div
+        <CellAnchoredMessage
           key={refusalNotice.key}
-          role="status"
-          aria-live="polite"
-          style={{
-            left: refusalNotice.left,
-            top: refusalNotice.top,
-            maxWidth: OVERLAY_MAX_W,
-          }}
-          className="fixed z-[190] pointer-events-none text-center text-[11px] leading-tight px-2 py-1 rounded-md shadow-lg bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900"
+          left={refusalNotice.left}
+          top={refusalNotice.top}
+          z={190}
+          className="text-center"
         >
-          {REFUSAL_TEXT}
-        </div>
+          {REFUSAL_TEXT[refusalNotice.reason]}
+        </CellAnchoredMessage>
       )}
     </div>
   );

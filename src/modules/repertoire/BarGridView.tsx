@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLongPress } from '../../lib/useLongPress';
 import {
   type DraggableSyntheticListeners,
@@ -2001,12 +2001,25 @@ function SyllableDropSlot({
     return () => anchorReport.current?.(null);
   }, [isPromptAnchor]);
 
+  // STABLE ref callback. An inline arrow here would be a new function
+  // every render, and React detaches the old ref (calling it with null)
+  // before attaching the new one — so dnd-kit's `setNodeRef` would
+  // unregister and re-register this droppable on EVERY render. That is
+  // churn in the drop-target registry, which is the last place this
+  // codebase needs surprises. `useCallback` keeps the identity stable,
+  // restoring the single-attach behaviour the plain `ref={setNodeRef}`
+  // had before the anchor tracking was added.
+  const setRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      cellNode.current = node;
+    },
+    [setNodeRef],
+  );
+
   return (
     <div
-      ref={node => {
-        setNodeRef(node);
-        cellNode.current = node;
-      }}
+      ref={setRefs}
       data-lyric-arm-keep=""
       role={armingActive && onBeatCellTap ? 'button' : undefined}
       onClick={

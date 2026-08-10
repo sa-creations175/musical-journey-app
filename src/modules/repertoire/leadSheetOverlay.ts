@@ -139,13 +139,17 @@ export function anchoredOverlayPosition({
     return { left, top: bottomEdge, placement: 'bottom-edge' };
   }
 
-  // Above by default — it keeps the cell itself, and the row under it,
-  // unobscured.
-  const above = cell.top - box.height - gap;
-  if (above >= edgePad) return { left, top: above, placement: 'above' };
-
+  // BELOW by default. Above puts the box over the CHORD row for that
+  // bar, and the chord is the thing the lyric is being placed against —
+  // covering it is worse than covering an empty cell. The row beneath a
+  // lyric row is usually empty, and the next tap is heading later in
+  // the bar anyway, so below sits ahead of where the user is going
+  // rather than behind it.
   const below = cell.bottom + gap;
   if (below <= bottomEdge) return { left, top: below, placement: 'below' };
+
+  const above = cell.top - box.height - gap;
+  if (above >= edgePad) return { left, top: above, placement: 'above' };
 
   return { left, top: bottomEdge, placement: 'bottom-edge' };
 }

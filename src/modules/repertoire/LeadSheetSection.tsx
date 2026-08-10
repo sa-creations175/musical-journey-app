@@ -263,7 +263,12 @@ interface Props {
   /** A tap placement was refused on ordering grounds. Carries the
    *  viewport rect of the tapped cell so the message can float over it.
    *  Song-level, because the message is one overlay for the page. */
-  onRefusalNotice?: (cellRect: DOMRect) => void;
+  onRefusalNotice?: (
+    reason: 'order' | 'off-axis',
+    /** Absent when the tap had no measurable cell; the message parks at
+     *  the screen edge rather than being dropped. */
+    cellRect?: DOMRect,
+  ) => void;
   /** Progression-patterns block collapsed? A GLOBAL pref owned by
    *  SongDetailView — every section's block follows the one value, so
    *  expressing the preference costs one tap and not one per section. */
@@ -1113,20 +1118,26 @@ export default function LeadSheetSection({
           onSyllablePlaced?.();
           return;
         }
-        // Every ordering violation reads the same to the user, whether
-        // the blocker is a sibling in this line or a syllable in the
-        // line before or after it (step 6b). Listed as exclusions
-        // rather than as a whitelist so a future violation code gets
-        // the message by default instead of silently losing it.
+        // A SHAKE ALWAYS COMES WITH A MESSAGE. Two silent paths used to
+        // exist here and both were indistinguishable, to the user, from
+        // the message being broken:
         //
-        // `off-axis` means the target section isn't on the beat axis —
-        // a data problem, not the user putting syllables out of order.
-        // The shake still fires from refusePlacement; explaining it as
-        // an ordering error would be wrong. `unavailable` never
-        // reaches a cell at all.
-        if (result !== 'off-axis' && result !== 'unavailable' && cellRect) {
-          onRefusalNotice?.(cellRect);
-        }
+        //  · `off-axis` showed nothing, on the grounds that it is a
+        //    data problem rather than an ordering mistake. True, but
+        //    silence doesn't communicate that — it communicates
+        //    "nothing happened". It gets its own honest wording now.
+        //  · a missing `cellRect` dropped the message entirely. A
+        //    measurement being unavailable is no reason to withhold
+        //    feedback; the overlay parks at the screen edge when it
+        //    has nothing to anchor to.
+        //
+        // `unavailable` cannot reach here — tryPlaceSyllable returns it
+        // before it ever calls refusePlacement, so it produces no shake
+        // either.
+        onRefusalNotice?.(
+          result === 'off-axis' ? 'off-axis' : 'order',
+          cellRect,
+        );
       }
     : undefined;
 
@@ -1164,9 +1175,13 @@ export default function LeadSheetSection({
       return;
     }
     // A refused end keeps the wait alive so the next cell can be tried
-    // straight away — the same contract syllable arming has.
-    if (result !== 'off-axis' && result !== 'unavailable' && cellRect) {
-      onRefusalNotice?.(cellRect);
+    // straight away — the same contract syllable arming has, and it
+    // gets the same always-a-message treatment.
+    if (result !== 'unavailable') {
+      onRefusalNotice?.(
+        result === 'off-axis' ? 'off-axis' : 'order',
+        cellRect,
+      );
     }
   };
 

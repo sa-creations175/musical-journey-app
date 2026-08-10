@@ -31,23 +31,26 @@ function place(overrides: Partial<OverlayGeometry> = {}) {
 }
 
 describe('anchoredOverlayPosition — visible anchor', () => {
-  it('floats above the cell by default', () => {
-    const p = place({ cell: cell(400) });
+  it('floats BELOW the cell by default', () => {
+    // Above would put the box over the chord row for that bar, and the
+    // chord is what the lyric is being placed against.
+    const c = cell(400);
+    const p = place({ cell: c });
+    expect(p.placement).toBe('below');
+    expect(p.top).toBe(c.bottom + GAP);
+  });
+
+  it('flips above when there is no room below', () => {
+    const c = cell(740);
+    const p = place({ cell: c });
     expect(p.placement).toBe('above');
-    expect(p.top).toBe(400 - BOX.height - GAP);
+    expect(p.top).toBe(c.top - BOX.height - GAP);
   });
 
   it('centres horizontally on the cell', () => {
     const p = place({ cell: cell(400, 150, 28, 40) });
     // cell centre 170 → box left 170 - 116 = 54
     expect(p.left).toBe(54);
-  });
-
-  it('flips below when there is no room above', () => {
-    const c = cell(10);
-    const p = place({ cell: c });
-    expect(p.placement).toBe('below');
-    expect(p.top).toBe(c.bottom + GAP);
   });
 
   it('falls back to the bottom edge when neither side fits', () => {
