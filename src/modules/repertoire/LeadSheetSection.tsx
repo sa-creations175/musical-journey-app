@@ -2001,18 +2001,37 @@ export default function LeadSheetSection({
           <ConfirmDialog
             open={confirmDeleteBar !== null}
             title={`Delete bar ${(confirmDeleteBar ?? 0) + 1}?`}
-            message={
-              <p>
-                {homelessAfterBarDelete(confirmDeleteBar ?? -1).length} placed{' '}
-                {homelessAfterBarDelete(confirmDeleteBar ?? -1).length === 1
-                  ? 'word has'
-                  : 'words have'}{' '}
-                nowhere to go once this bar is gone — the ones in it, and
-                any on the last bar, since the section gets shorter.
-                They return to the lyrics drawer as unplaced text.
-                Everything else stays exactly where you put it.
-              </p>
-            }
+            message={(() => {
+              // Two cases with genuinely different shapes, so two
+              // sentences rather than one that covers both. Deleting
+              // the LAST bar affects one group of words; the old copy
+              // described that bar twice ("the ones in it, and any on
+              // the last bar") and read as a riddle.
+              //
+              // Neither version explains WHY the last bar is affected.
+              // That mechanism matters when reading the code, not when
+              // deciding whether to delete.
+              const bar = confirmDeleteBar ?? -1;
+              const n = homelessAfterBarDelete(bar).length;
+              const words = n === 1 ? '1 placed word' : `${n} placed words`;
+              const isLastBar = bar === materializeBarLayout().length - 1;
+              return (
+                <p>
+                  {isLastBar ? (
+                    <>
+                      {words} {n === 1 ? 'is' : 'are'} in this bar.{' '}
+                    </>
+                  ) : (
+                    <>
+                      {words} lose their place: the ones in this bar, and
+                      the ones in the last bar.{' '}
+                    </>
+                  )}
+                  They return to the lyrics drawer as unplaced text.
+                  Everything else stays where you put it.
+                </p>
+              );
+            })()}
             confirmLabel="Delete bar"
             onCancel={() => setConfirmDeleteBar(null)}
             onConfirm={async () => {

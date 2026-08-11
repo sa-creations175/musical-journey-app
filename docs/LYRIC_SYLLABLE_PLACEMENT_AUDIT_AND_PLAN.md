@@ -613,6 +613,11 @@ it was anchored to reproduced the exact failure the refusal fix had just closed.
   height is a two-line budget, and the max is small enough to fit the narrowest supported viewport with
   padding — asserted in `leadSheetOverlay.test.ts`, since wrapping only saves a box that had somewhere to
   wrap to.
+- **Anchored popups are for FEEDBACK, not DECISIONS.** The pattern's defining behaviour is
+  dismiss-on-outside-tap, which is exactly what a destructive confirm must not do — a warning you can
+  dismiss by looking away is not a warning. So: transient feedback about a cell anchors to that cell;
+  anything demanding an answer uses `ConfirmDialog`. Established when step 8's bar-delete and
+  time-signature warnings were specified as anchored popups and built as dialogs instead.
 - The bottom of the screen stays available for genuinely screen-level state — the step-7 lyric drawer being
   the case it is reserved for, and the one thing built there since.
 - **Third instance, caught before it shipped (rev 6).** §B1 specified a slim bottom strip for tracking an
