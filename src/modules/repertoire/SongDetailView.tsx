@@ -910,14 +910,44 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // nothing is placed yet, so there is genuinely nothing to point at
   // and the geometry parks the prompt at the bottom edge — above the
   // drawer, since the drawer is bottom chrome.
-  const promptAnchorCellKey = useMemo(() => {
-    if (!awaitingLine || awaitingLine.edge !== 'end' || !songLyricLines) {
-      return null;
+  /**
+   * WHEN A PROMPT IS NEEDED, and what it points at.
+   *
+   * One rule decides both: **show it when the armed thing has nothing
+   * on screen to look at.** An armed syllable that is already placed
+   * wears the inverted chip in its cell and speaks for itself; an
+   * armed syllable with no anchor — picked out of the drawer, which
+   * then collapsed — leaves a field of hinted cells and no indication
+   * of what is being placed. Same for a line whose head is not down
+   * yet.
+   *
+   * The anchor follows from the same fact: if there were something to
+   * look at there would be a cell to point at, so the no-anchor cases
+   * park at the screen edge by definition.
+   */
+  const prompt = useMemo((): { text: string; anchorCellKey: string | null } | null => {
+    if (awaitingLine) {
+      if (awaitingLine.edge === 'start') {
+        return { text: 'tap the beat where this line starts', anchorCellKey: null };
+      }
+      const head = songLyricLines?.find(l => l.id === awaitingLine.lineId)
+        ?.syllables?.[0]?.anchor;
+      return {
+        text: 'tap the beat where this line ends',
+        anchorCellKey: head ? cellKey(head) : null,
+      };
     }
-    const head = songLyricLines.find(l => l.id === awaitingLine.lineId)
-      ?.syllables?.[0]?.anchor;
-    return head ? cellKey(head) : null;
-  }, [awaitingLine, songLyricLines]);
+    if (!armedSyllableId || !songLyricLines) return null;
+    const found = findSyllable(songLyricLines, armedSyllableId);
+    // Placed and visible: the armed chip is the prompt.
+    if (!found || found.syllable.anchor) return null;
+    return {
+      text: `tap the beat for “${found.syllable.text}”`,
+      anchorCellKey: null,
+    };
+  }, [awaitingLine, armedSyllableId, songLyricLines]);
+
+  const promptAnchorCellKey = prompt?.anchorCellKey ?? null;
 
   const [promptAnchorNode, setPromptAnchorNode] = useState<HTMLElement | null>(
     null,
@@ -938,7 +968,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // detection, `over`, or the drop ring, and runs between taps rather
   // than during a drag.
   useEffect(() => {
-    if (!awaitingLine) {
+    if (!prompt) {
       setPromptPos(null);
       return;
     }
@@ -967,7 +997,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [awaitingLine, promptAnchorNode]);
+  }, [prompt, promptAnchorNode]);
 
 
   // Lazy fold: the first time a song is opened after the redesign,
@@ -1797,7 +1827,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           drawer to a slim hint bar, ~40px, fixed bottom, tap here to
           cancel") reused rather than a second vocabulary invented for
           the same job. */}
-      {awaitingLine && promptPos && (
+      {prompt && promptPos && (
         <CellAnchoredMessage
           left={promptPos.left}
           top={promptPos.top}
@@ -1817,11 +1847,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         >
           {/* No truncation, ever: this sentence is the whole
               instruction, and half of it is not an instruction. */}
-          <span>
-            {awaitingLine?.edge === 'start'
-              ? 'tap the beat where this line starts'
-              : 'tap the beat where this line ends'}
-          </span>
+          <span>{prompt.text}</span>
           <button
             type="button"
             onClick={dismissArming}
