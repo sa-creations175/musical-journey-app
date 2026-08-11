@@ -25,6 +25,8 @@ import { lineStatus } from './lyricSyllables';
 export default function LyricLineRow({
   line,
   dimPlaced = false,
+  pickMode = false,
+  onWordTap,
   handle,
   bodyRef,
   bodyProps,
@@ -38,6 +40,13 @@ export default function LyricLineRow({
    *  reads as the whole lyric sheet; dimming keeps "what's left"
    *  legible at a glance without hiding anything. */
   dimPlaced?: boolean;
+  /** PICK MODE inverts the row's emphasis. At rest a row answers "how
+   *  much of this is done", so placed words read solid and unplaced
+   *  ones recede. While picking it answers "which word do I place
+   *  next", and the unplaced ones are the targets — leaving them faint
+   *  would read as "unavailable", which is backwards. */
+  pickMode?: boolean;
+  onWordTap?: (syllableId: string) => void;
   /** Leading affordance glyph, e.g. the tray's drag handle. */
   handle?: ReactNode;
   bodyRef?: (node: HTMLDivElement | null) => void;
@@ -84,22 +93,56 @@ export default function LyricLineRow({
             widened. Contrast only, no hue: this sits directly above a
             grid of chord-family colours, and green in particular is
             1maj. */}
-        <span className="truncate min-w-0">
+        <span className={pickMode ? 'min-w-0' : 'truncate min-w-0'}>
           {isHeader || !line.syllables
             ? line.text
-            : line.syllables.map((s, i) => (
-                <span
-                  key={s.id}
-                  className={
-                    s.anchor
-                      ? undefined
-                      : 'text-neutral-600 dark:text-neutral-300 italic'
-                  }
-                >
-                  {i > 0 ? ' ' : ''}
-                  {s.text}
-                </span>
-              ))}
+            : line.syllables.map((s, i) => {
+                const placed = s.anchor !== undefined;
+                // Contrast and weight, not hue. Indigo is licensed for
+                // "where will this land" on the grid; this answers
+                // "what will be placed", which is a different question
+                // on a different surface.
+                const tone = pickMode
+                  ? placed
+                    ? 'text-neutral-400 dark:text-neutral-500'
+                    : 'font-semibold text-neutral-900 dark:text-neutral-100'
+                  : placed
+                    ? undefined
+                    : 'text-neutral-600 dark:text-neutral-300 italic';
+                const body = (
+                  <>
+                    {i > 0 ? ' ' : ''}
+                    {s.text}
+                  </>
+                );
+                if (!pickMode || !onWordTap) {
+                  return (
+                    <span key={s.id} className={tone}>
+                      {body}
+                    </span>
+                  );
+                }
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    // The row body is itself tappable; a word tap must
+                    // not also fire it.
+                    onClick={e => {
+                      e.stopPropagation();
+                      onWordTap(s.id);
+                    }}
+                    aria-label={
+                      placed
+                        ? `move "${s.text}"`
+                        : `place "${s.text}"`
+                    }
+                    className={`${tone} rounded px-0.5 hover:text-fluent hover:bg-fluent/10`}
+                  >
+                    {body}
+                  </button>
+                );
+              })}
         </span>
         {status.status === 'partial' && (
           <span className="ml-auto pl-2 text-[10px] text-neutral-500 dark:text-neutral-400 shrink-0">

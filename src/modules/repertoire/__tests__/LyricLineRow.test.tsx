@@ -222,3 +222,95 @@ describe('LyricLineRow — dimPlaced', () => {
     expect(body.className).not.toContain('opacity-55');
   });
 });
+
+describe('LyricLineRow — pick mode', () => {
+  // Looked up by attribute VALUE rather than a CSS selector: an
+  // aria-label containing quotes cannot be escaped into an attribute
+  // selector with JS string escapes.
+  const byLabel = (label: string) =>
+    Array.from(container!.querySelectorAll('button')).find(
+      b => b.getAttribute('aria-label') === label,
+    ) as HTMLElement | undefined;
+
+  const mixed = () =>
+    line('l1', [
+      { id: 'a', text: 'Christ', placed: true },
+      { id: 'b', text: 'the', placed: true },
+      { id: 'c', text: 'Lord' },
+    ]);
+
+  it('makes every word tappable', () => {
+    render(<LyricLineRow line={mixed()} pickMode onWordTap={vi.fn()} />);
+    expect(container!.querySelectorAll('[data-line-body] button')).toHaveLength(3);
+  });
+
+  it('labels unplaced words as PLACE and placed ones as MOVE', () => {
+    render(<LyricLineRow line={mixed()} pickMode onWordTap={vi.fn()} />);
+    expect(byLabel('place "Lord"')).toBeDefined();
+    expect(byLabel('move "Christ"')).toBeDefined();
+  });
+
+  it('INVERTS the emphasis — unplaced words become the prominent ones', () => {
+    // At rest the row answers "how much is done"; picking, it answers
+    // "which word next". Leaving the targets faint would read as
+    // "unavailable", which is backwards.
+    render(<LyricLineRow line={mixed()} pickMode onWordTap={vi.fn()} />);
+    const target = byLabel('place "Lord"')!;
+    const placed = byLabel('move "Christ"')!;
+    expect(target.className).toContain('font-semibold');
+    expect(placed.className).toContain('text-neutral-400');
+    expect(target.className).not.toContain('italic');
+  });
+
+  it('reports which word was tapped', () => {
+    const onWordTap = vi.fn();
+    render(<LyricLineRow line={mixed()} pickMode onWordTap={onWordTap} />);
+    act(() => byLabel('place "Lord"')!.click());
+    expect(onWordTap).toHaveBeenCalledWith('c');
+  });
+
+  it('a word tap does NOT also fire the row body', () => {
+    const onWordTap = vi.fn();
+    const onClick = vi.fn();
+    render(
+      <LyricLineRow
+        line={mixed()}
+        pickMode
+        onWordTap={onWordTap}
+        bodyProps={{ onClick }}
+      />,
+    );
+    act(() => byLabel('place "Lord"')!.click());
+    expect(onWordTap).toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+describe('LyricLineRow — at rest, unchanged by the flip', () => {
+  // The same row renders three ways now: tray, drawer at rest, drawer
+  // picking. These pin the first two against the third's styling.
+  const mixed = () =>
+    line('l1', [
+      { id: 'a', text: 'Christ', placed: true },
+      { id: 'c', text: 'Lord' },
+    ]);
+
+  it('keeps placed solid and unplaced lighter when not picking', () => {
+    render(<LyricLineRow line={mixed()} />);
+    const spans = Array.from(container!.querySelectorAll('[data-line-body] span span'));
+    const placed = spans.find(s => s.textContent?.includes('Christ'))!;
+    const unplaced = spans.find(s => s.textContent?.includes('Lord'))!;
+    expect(placed.className).toBe('');
+    expect(unplaced.className).toContain('italic');
+  });
+
+  it('renders NO buttons without pick mode — the tray never sees them', () => {
+    render(<LyricLineRow line={mixed()} onWordTap={vi.fn()} />);
+    expect(container!.querySelectorAll('[data-line-body] button')).toHaveLength(0);
+  });
+
+  it('renders no buttons in pick mode without a handler', () => {
+    render(<LyricLineRow line={mixed()} pickMode />);
+    expect(container!.querySelectorAll('[data-line-body] button')).toHaveLength(0);
+  });
+});
