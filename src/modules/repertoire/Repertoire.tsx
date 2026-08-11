@@ -15,6 +15,7 @@ import WantToLearnView from './WantToLearnView';
 // `window` so the matrix's original-key state can be inspected from
 // the browser console without a module import path.
 import './devInspectSongKeys';
+import './devInspectChordDurations';
 
 type TabId = 'active' | 'detail' | 'want-to-learn';
 
