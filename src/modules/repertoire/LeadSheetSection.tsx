@@ -23,6 +23,7 @@ import type {
   LyricSyllable,
   Phrase,
   Song,
+  SequenceView,
   SongLyricLine,
   SongSection,
   VoicingEntry,
@@ -79,7 +80,13 @@ import {
 } from './beatsModel';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
-import { EMPTY_SEQUENCE_VIEW, buildPhrases } from './sequenceView';
+import {
+  EMPTY_SEQUENCE_VIEW,
+  buildPhrases,
+  removeBreak,
+  setBreak,
+  toggleHidden,
+} from './sequenceView';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
@@ -1784,6 +1791,59 @@ export default function LeadSheetSection({
 
   const sequenceView = section.sequenceView ?? EMPTY_SEQUENCE_VIEW;
 
+  const [sequenceEditing, setSequenceEditing] = useState(false);
+  // An invisible editor is a trap, so collapsing the block leaves edit
+  // mode. The annotations themselves are section data and are entirely
+  // unaffected by a per-device collapse pref.
+  useEffect(() => {
+    if (patternsCollapsed) {
+      setSequenceEditing(false);
+      setSeqTarget(null);
+    }
+  }, [patternsCollapsed]);
+  /** Which gap or token has its choices open. */
+  const [seqTarget, setSeqTarget] = useState<
+    { kind: 'gap' | 'token'; placementId: string } | null
+  >(null);
+
+  const commitSequenceView = async (next: SequenceView) => {
+    // Legacy phrase-anchored sections carry SYNTHETIC placement ids
+    // (`legacy:phraseId:beatId`) that are replaced on migration, so
+    // annotations made against them would be orphaned. Materialise
+    // first, exactly as the first chord add does.
+    const sec = sectionRef.current;
+    if (sec.chordPlacements === undefined) {
+      await commit({
+        chordPlacements: materializeChordPlacements(sec, beatsPerBar),
+        sequenceView: next,
+      });
+      return;
+    }
+    await commit({ sequenceView: next });
+  };
+
+  const handleSetBreak = async (
+    afterPlacementId: string,
+    kind: 'separator' | 'row',
+  ) => {
+    setSeqTarget(null);
+    await commitSequenceView(
+      setBreak(sequenceView, afterPlacementId, kind, sequenceOrder),
+    );
+  };
+
+  const handleRemoveBreak = async (afterPlacementId: string) => {
+    setSeqTarget(null);
+    await commitSequenceView(
+      removeBreak(sequenceView, afterPlacementId, sequenceOrder),
+    );
+  };
+
+  const handleToggleHidden = async (placementId: string) => {
+    setSeqTarget(null);
+    await commitSequenceView(toggleHidden(sequenceView, placementId));
+  };
+
   const phrases = useMemo(
     () => buildPhrases(sequenceOrder, sequenceView),
     [sequenceOrder, sequenceView],
@@ -2143,11 +2203,35 @@ export default function LeadSheetSection({
                   patterns list is the taller half, so collapsing only
                   the strip would save little of the space this is
                   meant to reclaim. */}
-              <SectionToggle
-                label="progression patterns"
-                expanded={!patternsCollapsed}
-                onToggle={onTogglePatterns}
-              />
+              {/* The edit control sits BESIDE the toggle, not inside
+                  it: the header is one big tappable button, so a
+                  control nested in it would toggle the section on the
+                  way through. Same collision solved on syllable chips,
+                  avoided here by not creating it. */}
+              <div className="flex items-center gap-3">
+                <SectionToggle
+                  label="progression patterns"
+                  expanded={!patternsCollapsed}
+                  onToggle={onTogglePatterns}
+                />
+                {!patternsCollapsed && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSequenceEditing(v => !v);
+                      setSeqTarget(null);
+                    }}
+                    aria-pressed={sequenceEditing}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                      sequenceEditing
+                        ? 'border-fluent bg-fluent/10 text-fluent'
+                        : 'border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+                    }`}
+                  >
+                    {sequenceEditing ? 'done' : 'edit'}
+                  </button>
+                )}
+              </div>
 
               {!patternsCollapsed && (
                 <>
@@ -2175,20 +2259,84 @@ export default function LeadSheetSection({
                           const token = sequenceTokens.get(id);
                           return (
                             <span key={id}>
-                              {i > 0 && (
-                                <span className="text-neutral-400"> · </span>
+                              {i > 0 &&
+                                (sequenceEditing ? null : (
+                                  <span className="text-neutral-400"> · </span>
+                                ))}
+                              {/* The GAP before this token. Modelled on
+                                  the syllable split popover's "tap
+                                  between two letters" — a dashed target
+                                  in the space itself — so the gesture
+                                  is one the user already knows. */}
+                              {sequenceEditing && i > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSeqTarget({
+                                      kind: 'gap',
+                                      placementId: phrase.placementIds[i - 1],
+                                    })
+                                  }
+                                  aria-label={`break after ${
+                                    sequenceTokens.get(phrase.placementIds[i - 1])
+                                      ?.text ?? 'chord'
+                                  }`}
+                                  className="inline-block min-w-[10px] min-h-[20px] mx-0.5 align-middle rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
+                                />
                               )}
-                              <span style={{ color: token?.color }}>
+                              <button
+                                type="button"
+                                disabled={!sequenceEditing}
+                                onClick={() =>
+                                  setSeqTarget({ kind: 'token', placementId: id })
+                                }
+                                style={{ color: token?.color }}
+                                className={
+                                  sequenceEditing
+                                    ? 'rounded px-0.5 hover:bg-fluent/10'
+                                    : 'cursor-default'
+                                }
+                              >
                                 {token?.text || '—'}
-                              </span>
+                              </button>
                             </span>
                           );
                         })}
                       </span>
-                      {phrase.endKind === 'separator' && (
-                        <span className="text-neutral-400" aria-hidden>
-                          |
-                        </span>
+                      {phrase.endKind === 'separator' &&
+                        (sequenceEditing ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSeqTarget({
+                                kind: 'gap',
+                                placementId: phrase.endsAfterPlacementId!,
+                              })
+                            }
+                            aria-label="edit this break"
+                            className="text-fluent px-1 rounded hover:bg-fluent/10"
+                          >
+                            |
+                          </button>
+                        ) : (
+                          <span className="text-neutral-400" aria-hidden>
+                            |
+                          </span>
+                        ))}
+                      {phrase.endKind === 'row' && sequenceEditing && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSeqTarget({
+                              kind: 'gap',
+                              placementId: phrase.endsAfterPlacementId!,
+                            })
+                          }
+                          aria-label="edit this break"
+                          className="text-fluent px-1 rounded hover:bg-fluent/10"
+                        >
+                          ⏎
+                        </button>
                       )}
                       {phrase.endKind === 'row' && (
                         <span className="basis-full h-0" aria-hidden />
@@ -2196,6 +2344,20 @@ export default function LeadSheetSection({
                     </Fragment>
                   ))}
                 </div>
+                {seqTarget && (
+                  <SequenceChoices
+                    target={seqTarget}
+                    label={sequenceTokens.get(seqTarget.placementId)?.text ?? ''}
+                    hasBreak={sequenceView.breaks.some(
+                      b => b.afterPlacementId === seqTarget.placementId,
+                    )}
+                    hidden={sequenceView.hidden.includes(seqTarget.placementId)}
+                    onSetBreak={handleSetBreak}
+                    onRemoveBreak={handleRemoveBreak}
+                    onToggleHidden={handleToggleHidden}
+                    onClose={() => setSeqTarget(null)}
+                  />
+                )}
               </div>
 
               {/* Pattern highlights — structural matches with bar
@@ -2329,3 +2491,89 @@ export default function LeadSheetSection({
 }
 
 export { parseChord };
+
+/**
+ * The choices offered by tapping a gap or a token in sequence edit
+ * mode.
+ *
+ * A gap offers the two break kinds and, once one exists, removing it —
+ * which merges the phrases and combines their notes. A token offers
+ * hiding, which affects THIS STRIP ONLY; the chord stays in the grid
+ * untouched, and pattern detection keeps reading it.
+ */
+function SequenceChoices({
+  target,
+  label,
+  hasBreak,
+  hidden,
+  onSetBreak,
+  onRemoveBreak,
+  onToggleHidden,
+  onClose,
+}: {
+  target: { kind: 'gap' | 'token'; placementId: string };
+  label: string;
+  hasBreak: boolean;
+  hidden: boolean;
+  onSetBreak: (afterPlacementId: string, kind: 'separator' | 'row') => void;
+  onRemoveBreak: (afterPlacementId: string) => void;
+  onToggleHidden: (placementId: string) => void;
+  onClose: () => void;
+}) {
+  const chip =
+    'px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10';
+  const plain =
+    'px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent';
+  return (
+    <div className="basis-full mt-1 flex flex-wrap items-center gap-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-[11px] shadow-md">
+      <span className="text-neutral-500">
+        {target.kind === 'gap' ? `after ${label}` : label}
+      </span>
+      {target.kind === 'gap' ? (
+        <>
+          <button
+            type="button"
+            className={chip}
+            onClick={() => onSetBreak(target.placementId, 'separator')}
+          >
+            separator
+          </button>
+          <button
+            type="button"
+            className={chip}
+            onClick={() => onSetBreak(target.placementId, 'row')}
+          >
+            new row
+          </button>
+          {hasBreak && (
+            <button
+              type="button"
+              className={plain}
+              onClick={() => onRemoveBreak(target.placementId)}
+              title="the two phrases merge and their notes combine"
+            >
+              remove break
+            </button>
+          )}
+        </>
+      ) : (
+        <button
+          type="button"
+          className={plain}
+          onClick={() => onToggleHidden(target.placementId)}
+          title="hides it from this strip only — the chord stays in the grid"
+        >
+          {hidden ? 'show in strip' : 'hide from strip'}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onClose}
+        className="ml-auto text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        aria-label="close"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
