@@ -3,6 +3,7 @@ import type { LyricLine, SongLyricLine } from '../../../lib/db';
 import { distributedWordPositions } from '../lyricLine';
 import {
   anchorIsOnAxis,
+  anchorsMatching,
   anchorToGlobal,
   buildBeatAxis,
   buildCellIndex,
@@ -18,17 +19,15 @@ import {
   linesFromParsedRows,
   markerTargetSyllable,
   placeSyllable,
-  placedSyllablesInBar,
   provisionalPlacements,
-  remapAnchorBars,
   canConvertToHeader,
   duplicateLine,
   restoreLineSyllables,
   setLineKind,
   setSyllableText,
-  shiftAnchorsAfterBarDelete,
   splitSyllable,
   syllablesFromText,
+  unplaceAnchorsMatching,
   unplaceLine,
   unplaceSyllable,
 } from '../lyricSyllables';
@@ -1088,62 +1087,7 @@ describe('marker placement moves exactly one unit', () => {
 
 // --- bar operations ---------------------------------------------------
 
-describe('remapAnchorBars', () => {
-  it('moves anchors through a bar permutation, keeping the beat', () => {
-    const lines = [
-      line('l1', [
-        { id: 'a', text: 'A', at: [0, 2] },
-        { id: 'b', text: 'B', at: [1, 0] },
-      ]),
-    ];
-    const next = remapAnchorBars(lines, SEC, new Map([[0, 1], [1, 0]]));
-    expect(anchorOf(next, 'a')).toEqual({
-      sectionId: SEC, barIndex: 1, beatPos: 2,
-    });
-    expect(anchorOf(next, 'b')?.barIndex).toBe(0);
-  });
 
-  it('leaves other sections alone', () => {
-    const lines = [
-      {
-        id: 'l1',
-        kind: 'lyric' as const,
-        text: 'A',
-        syllables: [
-          { id: 'a', text: 'A', anchor: { sectionId: 'other', barIndex: 0, beatPos: 0, order: 0 } },
-        ],
-      },
-    ];
-    expect(remapAnchorBars(lines, SEC, new Map([[0, 3]]))).toEqual(lines);
-  });
-});
-
-describe('bar delete helpers', () => {
-  it('reports the placed syllables a delete would destroy', () => {
-    const lines = [
-      line('l1', [
-        { id: 'a', text: 'A', at: [1, 0] },
-        { id: 'b', text: 'B', at: [2, 0] },
-      ]),
-    ];
-    expect(placedSyllablesInBar(lines, SEC, 1).map(s => s.id)).toEqual(['a']);
-    expect(placedSyllablesInBar(lines, SEC, 5)).toEqual([]);
-  });
-
-  it('un-places anchors in the deleted bar and shifts later ones down', () => {
-    const lines = [
-      line('l1', [
-        { id: 'a', text: 'A', at: [0, 0] },
-        { id: 'b', text: 'B', at: [1, 0] },
-        { id: 'c', text: 'C', at: [2, 0] },
-      ]),
-    ];
-    const next = shiftAnchorsAfterBarDelete(lines, SEC, 1);
-    expect(anchorOf(next, 'a')?.barIndex).toBe(0);
-    expect(anchorOf(next, 'b')).toBeUndefined();
-    expect(anchorOf(next, 'c')?.barIndex).toBe(1);
-  });
-});
 
 // --- migration --------------------------------------------------------
 
@@ -1610,5 +1554,86 @@ describe('anchorToGlobal — one global beat is exactly one cell', () => {
     const lines = [line('l1', [{ id: 'a', text: 'a' }])];
     const next = placeSyllable(lines, 'a', at(SEC, 9, 0), axis);
     expect(anchorOf(next, 'a')).toBeUndefined();
+  });
+});
+
+describe('structural un-place — nothing shifts on its own', () => {
+  const axis = buildBeatAxis([
+    { sectionId: SEC, beatsPerBar: 4, barCount: 3 },
+    { sectionId: 'sec-b', beatsPerBar: 4, barCount: 2 },
+  ]);
+  const spanning = (): SongLyricLine[] => [
+    {
+      id: 'l1',
+      kind: 'lyric',
+      text: 'a b c d',
+      syllables: [
+        { id: 'a', text: 'a', anchor: { sectionId: SEC, barIndex: 0, beatPos: 0 } },
+        { id: 'b', text: 'b', anchor: { sectionId: SEC, barIndex: 1, beatPos: 0 } },
+        { id: 'c', text: 'c', anchor: { sectionId: SEC, barIndex: 2, beatPos: 3 } },
+        { id: 'd', text: 'd', anchor: { sectionId: 'sec-b', barIndex: 0, beatPos: 0 } },
+      ],
+    },
+  ];
+
+  it('un-places ONLY the deleted bar, leaving later bars where they are', () => {
+    // The whole principle: words after the deleted bar do NOT slide
+    // backwards to follow it.
+    const next = unplaceAnchorsMatching(
+      spanning(),
+      a => a.sectionId === SEC && a.barIndex === 1,
+    );
+    expect(anchorOf(next, 'b')).toBeUndefined();
+    expect(anchorOf(next, 'a')).toMatchObject({ barIndex: 0 });
+    expect(anchorOf(next, 'c')).toMatchObject({ barIndex: 2 });
+    expect(anchorOf(next, 'd')).toMatchObject({ sectionId: 'sec-b' });
+  });
+
+  it('un-places a whole section, keeping the same line placed elsewhere', () => {
+    // A line can span sections; only the homeless part is un-placed.
+    const next = unplaceAnchorsMatching(spanning(), a => a.sectionId === 'sec-b');
+    expect(anchorOf(next, 'd')).toBeUndefined();
+    expect(anchorOf(next, 'a')).toBeDefined();
+    expect(anchorOf(next, 'c')).toBeDefined();
+    expect(lineStatus(next[0]).placed).toBe(3);
+  });
+
+  it('un-places only beats that no longer exist under a new signature', () => {
+    // 4/4 → 3/4: beat 3 has nowhere to be, beats 0-2 do not move.
+    const next = unplaceAnchorsMatching(
+      spanning(),
+      a => a.sectionId === SEC && a.beatPos >= 3,
+    );
+    expect(anchorOf(next, 'c')).toBeUndefined();
+    expect(anchorOf(next, 'a')).toMatchObject({ barIndex: 0, beatPos: 0 });
+    expect(anchorOf(next, 'b')).toMatchObject({ barIndex: 1, beatPos: 0 });
+  });
+
+  it('counts exactly what it will un-place, for the warning', () => {
+    expect(
+      anchorsMatching(spanning(), a => a.sectionId === SEC && a.barIndex === 1),
+    ).toHaveLength(1);
+    expect(anchorsMatching(spanning(), a => a.sectionId === 'sec-b')).toHaveLength(1);
+    expect(anchorsMatching(spanning(), () => true)).toHaveLength(4);
+  });
+
+  it('leaves the store untouched when nothing matches', () => {
+    const lines = spanning();
+    expect(unplaceAnchorsMatching(lines, () => false)).toEqual(lines);
+  });
+
+  it('keeps the words — un-placing is not deleting', () => {
+    const next = unplaceAnchorsMatching(spanning(), () => true);
+    expect(next[0].syllables?.map(s => s.text)).toEqual(['a', 'b', 'c', 'd']);
+    expect(lineStatus(next[0]).status).toBe('unplaced');
+  });
+
+  it('reordering bars needs no un-place at all', () => {
+    // Every bar still exists after a permutation, so nothing is
+    // homeless — and anchors deliberately do not chase their chords.
+    const lines = spanning();
+    for (const s of lines[0].syllables ?? []) {
+      if (s.anchor) expect(anchorIsOnAxis(axis, s.anchor)).toBe(true);
+    }
   });
 });

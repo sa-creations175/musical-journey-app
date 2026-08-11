@@ -995,27 +995,62 @@ export function markerTargetSyllable(
     : syllables[syllables.length - 1].id;
 }
 
-// --- bar operations ---------------------------------------------------
+// --- structural operations --------------------------------------------
 
-/** Remap anchors through a bar permutation, for whole-bar reorder.
- *  Only the named section's anchors move; beatPos and order are
- *  untouched, so a bar's stacks travel intact. */
-export function remapAnchorBars(
+/**
+ * NOTHING SHIFTS ON ITS OWN.
+ *
+ * These exist instead of the shift/remap helpers they replaced, and
+ * the difference is the whole point. A restructure NEVER drags placed
+ * syllables along with it: deleting a bar does not slide the words
+ * after it backwards, and reordering bars does not make anchors chase
+ * their chords around.
+ *
+ * That is place-as-pin applied to structure. A syllable goes where the
+ * user put it and moves only when the user moves it — bars sliding
+ * underneath and dragging words with them is the same violation the
+ * whole rebuild exists to eliminate, just at a different scale. If a
+ * restructure leaves lyrics against the wrong chord, that is the
+ * user's to fix, and they can see it.
+ *
+ * The only thing an operation may do is UN-PLACE what genuinely has
+ * nowhere left to be — a bar that no longer exists, a section that was
+ * deleted, a beat outside the new time signature. Un-placed words
+ * return to the drawer with their text intact, which is recoverable;
+ * silently relocated words are not.
+ */
+
+/** Every placed syllable whose anchor matches — for counting before an
+ *  operation, so a warning can say what it will actually do. */
+export function anchorsMatching(
   lines: ReadonlyArray<SongLyricLine>,
-  sectionId: string,
-  oldToNew: ReadonlyMap<number, number>,
+  matches: (anchor: LyricSyllableAnchor) => boolean,
+): LyricSyllable[] {
+  const out: LyricSyllable[] = [];
+  for (const line of lines) {
+    for (const s of line.syllables ?? []) {
+      if (s.anchor && matches(s.anchor)) out.push(s);
+    }
+  }
+  return out;
+}
+
+/** Clear the anchor of every syllable whose anchor matches, returning
+ *  those words to the drawer unplaced. Every other anchor is left
+ *  exactly as it was. */
+export function unplaceAnchorsMatching(
+  lines: ReadonlyArray<SongLyricLine>,
+  matches: (anchor: LyricSyllableAnchor) => boolean,
 ): SongLyricLine[] {
   let touched = false;
   const next = lines.map(line => {
     if (!line.syllables) return line;
     let lineTouched = false;
     const syllables = line.syllables.map(s => {
-      const a = s.anchor;
-      if (!a || a.sectionId !== sectionId) return s;
-      const to = oldToNew.get(a.barIndex);
-      if (to === undefined || to === a.barIndex) return s;
+      if (!s.anchor || !matches(s.anchor)) return s;
       lineTouched = true;
-      return { ...s, anchor: { ...a, barIndex: to } };
+      const { anchor: _dropped, ...rest } = s;
+      return rest;
     });
     if (!lineTouched) return line;
     touched = true;
@@ -1024,58 +1059,8 @@ export function remapAnchorBars(
   return touched ? next : [...lines];
 }
 
-/** Syllables anchored in one bar — what a bar-delete would destroy.
- *  The caller uses this to refuse (or warn about) the delete rather
- *  than silently moving placed work. */
-export function placedSyllablesInBar(
-  lines: ReadonlyArray<SongLyricLine>,
-  sectionId: string,
-  barIndex: number,
-): LyricSyllable[] {
-  const out: LyricSyllable[] = [];
-  for (const line of lines) {
-    for (const s of line.syllables ?? []) {
-      if (s.anchor?.sectionId === sectionId && s.anchor.barIndex === barIndex) {
-        out.push(s);
-      }
-    }
-  }
-  return out;
-}
 
-/** Shift anchors down after a bar is removed. Anchors IN the deleted
- *  bar are un-placed (back to the ghost pool) rather than silently
- *  relocated — losing a position is recoverable, a wrong one isn't. */
-export function shiftAnchorsAfterBarDelete(
-  lines: ReadonlyArray<SongLyricLine>,
-  sectionId: string,
-  deletedBar: number,
-): SongLyricLine[] {
-  let touched = false;
-  const next = lines.map(line => {
-    if (!line.syllables) return line;
-    let lineTouched = false;
-    const syllables = line.syllables.map(s => {
-      const a = s.anchor;
-      if (!a || a.sectionId !== sectionId) return s;
-      if (a.barIndex === deletedBar) {
-        lineTouched = true;
-        const { anchor: _dropped, ...rest } = s;
-        return rest;
-      }
-      if (a.barIndex > deletedBar) {
-        lineTouched = true;
-        return { ...s, anchor: { ...a, barIndex: a.barIndex - 1 } };
-      }
-      return s;
-    });
-    if (!lineTouched) return line;
-    touched = true;
-    return { ...line, syllables };
-  });
-  if (!touched) return [...lines];
-  return next;
-}
+
 
 // --- migration --------------------------------------------------------
 
