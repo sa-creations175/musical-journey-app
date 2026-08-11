@@ -386,6 +386,11 @@ export interface SongSection {
    *  chord-derived chunks outrun the layout. Unindexed; rides in
    *  the section JSONB blob. */
   barLayout?: Array<'chord' | 'empty'>;
+  /** User annotations on this section's Progression Patterns strip —
+   *  phrase breaks, hidden tokens and phrase notes. A view over the
+   *  grid, never a change to it. Unindexed; rides the section JSONB
+   *  blob, so it syncs with no schema version bump. */
+  sequenceView?: SequenceView;
   /** Bar-anchored chord placements (Lead Sheet Redesign Option C).
    *  When defined, this is the authoritative source for the bar
    *  grid — each placement names its exact `(barIndex, beatPos)`
@@ -520,6 +525,38 @@ export interface VoicingPattern {
  * section-local; it also lets a line's syllables live in different
  * sections (rev 3 §A3 — cross-section placement is allowed).
  */
+/**
+ * User annotations on a section's Progression Patterns strip.
+ *
+ * A VIEW over the grid, never a change to it: hiding a token removes
+ * it from that strip and nothing else, and pattern detection keeps
+ * reading the true grid. Anchored to `ChordPlacement.id` rather than
+ * to positions, so adding a chord to an early bar cannot silently
+ * re-phrase everything.
+ *
+ * Unindexed, so it rides the section's synced JSONB blob — no schema
+ * version bump, same precedent as `barLayout` and `chordPlacements`.
+ */
+export interface SequenceBreak {
+  /** The placement this break follows. */
+  afterPlacementId: string;
+  /** `separator` divides on the same line; `row` wraps to the next. */
+  kind: 'separator' | 'row';
+  /** Note for the phrase ENDING at this break. Kept here so removing
+   *  the break merges notes locally — no re-keying, no sentinel for
+   *  the first phrase. */
+  note?: string;
+}
+
+export interface SequenceView {
+  breaks: SequenceBreak[];
+  /** Note for the phrase after the last break. One explicit special
+   *  case, preferred over a sentinel break that isn't really one. */
+  tailNote?: string;
+  /** Placement ids hidden from the strip. */
+  hidden: string[];
+}
+
 export interface LyricSyllableAnchor {
   sectionId: string;
   /** 0-indexed bar within that section. */
