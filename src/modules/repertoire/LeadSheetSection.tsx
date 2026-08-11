@@ -968,6 +968,30 @@ export default function LeadSheetSection({
     [section, activeArrangementId, beatsPerBar],
   );
 
+  /**
+   * How many bars the grid will actually render once this bar is
+   * deleted — DERIVED, not `barLayout.length`.
+   *
+   * The two differ, and assuming otherwise un-places words that still
+   * have a home. `deriveBarGridAnchored` sizes the section as
+   * `max(highest placement's bar + 1, barCount, barLayout.length)`, so
+   * chord placements PIN the bar count: splice an empty bar out of the
+   * middle and the layout shrinks while the rendered grid does not.
+   *
+   * Deriving from the post-delete section is also what keeps this
+   * agreeing with the beat axis, which sizes sections the same way.
+   */
+  const barCountAfterDelete = (barIndex: number): number => {
+    const layout = materializeBarLayout();
+    if (barIndex < 0 || barIndex >= layout.length) return layout.length;
+    layout.splice(barIndex, 1);
+    return deriveBarGrid(
+      { ...sectionRef.current, barLayout: layout },
+      activeArrangementId,
+      beatsPerBar,
+    ).length;
+  };
+
   const materializeBarLayout = (): ('chord' | 'empty')[] => {
     const sec = sectionRef.current;
     if (sec.barLayout) return [...sec.barLayout];
@@ -999,7 +1023,7 @@ export default function LeadSheetSection({
    */
   const homelessAfterBarDelete = (barIndex: number) => {
     if (!songLyricsActive || !songLyricLines) return [];
-    const remainingBars = Math.max(0, materializeBarLayout().length - 1);
+    const remainingBars = barCountAfterDelete(barIndex);
     return anchorsMatching(
       songLyricLines,
       a =>
@@ -1035,7 +1059,11 @@ export default function LeadSheetSection({
       // was given even though the bar under it renumbers — sliding them
       // back would move words the user placed, to somewhere the user
       // did not put them.
-      const remainingBars = layout.length;
+      const remainingBars = deriveBarGrid(
+        { ...sectionRef.current, barLayout: layout },
+        activeArrangementId,
+        beatsPerBar,
+      ).length;
       await onSongLyricsChange(
         unplaceAnchorsMatching(
           songLyricLines,
@@ -2014,7 +2042,9 @@ export default function LeadSheetSection({
               const bar = confirmDeleteBar ?? -1;
               const n = homelessAfterBarDelete(bar).length;
               const words = n === 1 ? '1 placed word' : `${n} placed words`;
-              const isLastBar = bar === materializeBarLayout().length - 1;
+              // "Last bar" by the RENDERED count, not the layout's —
+              // see barCountAfterDelete.
+              const isLastBar = bar >= barCountAfterDelete(bar);
               return (
                 <p>
                   {isLastBar ? (
