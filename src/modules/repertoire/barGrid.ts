@@ -666,6 +666,38 @@ export function swapChordPlacements(
 /** Permute placements' barIndex via an old→new bar-position map.
  *  Used by `reorderBar` after computing the layout permutation, so
  *  chord data follows its bar through a drag reorder. */
+/**
+ * Delete one bar's worth of chords and close the gap behind it.
+ *
+ * CHORDS SHIFT, unlike lyric anchors, and the asymmetry is deliberate:
+ * a chord DEFINES what a bar is, so a chord left at index 3 while bar
+ * 3 becomes a different bar is meaningless. A lyric is placed AGAINST
+ * a bar, which is exactly why it must not be dragged along — see the
+ * plan doc's "nothing shifts on its own".
+ *
+ * Closing the gap is also what makes the delete visible at all.
+ * `deriveBarGridAnchored` sizes a section as `max(highest placement's
+ * bar + 1, barCount, barLayout.length)`, so placements PIN the bar
+ * count: splicing an empty bar out of the middle used to shrink the
+ * layout while the rendered grid stayed the same size, and the bar
+ * came straight back.
+ *
+ * Spans EVERY arrangement, because bars are structural and an
+ * arrangement is chords over them. A bar cannot exist in one
+ * arrangement and not another.
+ */
+export function deleteBarFromPlacements(
+  placements: ReadonlyArray<ChordPlacement>,
+  barIndex: number,
+): ChordPlacement[] {
+  const out: ChordPlacement[] = [];
+  for (const p of placements) {
+    if (p.barIndex === barIndex) continue;
+    out.push(p.barIndex > barIndex ? { ...p, barIndex: p.barIndex - 1 } : p);
+  }
+  return out;
+}
+
 export function remapPlacementBars(
   placements: ReadonlyArray<ChordPlacement>,
   oldToNew: Map<number, number>,

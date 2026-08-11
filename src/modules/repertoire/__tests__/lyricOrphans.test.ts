@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { SongLyricLine } from '../../../lib/db';
+import type { ChordPlacement, SongLyricLine, SongSection } from '../../../lib/db';
+import { deleteBarFromPlacements, deriveBarGrid } from '../barGrid';
 import {
   anchorsMatching,
   buildBeatAxis,
@@ -213,5 +214,151 @@ describe('reorder bars', () => {
     // Anchors deliberately do not chase reordered bars, and a
     // permutation removes no cell, so nothing is homeless.
     expect(orphans(spanningLine(), THREE_BARS)).toEqual([]);
+  });
+});
+
+// --- deleting a bar, measured on the RENDERED grid ---------------------
+// Both bar-count bugs this session came from trusting barLayout.length
+// instead of what deriveBarGrid produces, so these assert the derived
+// grid rather than the stored layout.
+
+const ARR = 'arr';
+
+function sectionWith(
+  layout: ('chord' | 'empty')[],
+  chordBars: number[],
+): SongSection {
+  return {
+    id: A,
+    songId: 'song',
+    name: 'S',
+    order: 0,
+    barLayout: layout,
+    arrangements: [{ id: ARR, name: 'main' }],
+    chordPlacements: chordBars.map((b, i) => ({
+      id: `p${i}`,
+      arrangementId: ARR,
+      barIndex: b,
+      beatPos: 0,
+      beats: 1,
+      chord: { function: '1', quality: 'maj' },
+    })),
+  } as unknown as SongSection;
+}
+
+const barsOf = (sec: SongSection) => deriveBarGrid(sec, ARR, 4).length;
+
+function afterDeletingBar(sec: SongSection, barIndex: number): SongSection {
+  const layout = [...(sec.barLayout ?? [])];
+  if (barIndex < layout.length) layout.splice(barIndex, 1);
+  return {
+    ...sec,
+    barLayout: layout,
+    chordPlacements: deleteBarFromPlacements(sec.chordPlacements ?? [], barIndex),
+  };
+}
+
+describe('delete a bar — the grid actually shrinks', () => {
+  it('closes up a MIDDLE bar, which used to be a silent no-op', () => {
+    // Placements pin the bar count via max(maxBar + 1, …), so splicing
+    // the layout alone left the grid the same size and the bar came
+    // straight back.
+    const before = sectionWith(['chord', 'empty', 'chord'], [0, 2]);
+    expect(barsOf(before)).toBe(3);
+    expect(barsOf(afterDeletingBar(before, 1))).toBe(2);
+  });
+
+  it('closes up a bar that HAS chords', () => {
+    const before = sectionWith(['chord', 'chord', 'chord'], [0, 1, 2]);
+    expect(barsOf(afterDeletingBar(before, 1))).toBe(2);
+  });
+
+  it('deletes that bar’s chords and keeps the rest', () => {
+    const before = sectionWith(['chord', 'chord', 'chord'], [0, 1, 2]);
+    const after = afterDeletingBar(before, 1);
+    expect(after.chordPlacements?.map(p => p.id)).toEqual(['p0', 'p2']);
+  });
+
+  it('shifts later chords DOWN — a chord defines its bar', () => {
+    const before = sectionWith(['chord', 'chord', 'chord'], [0, 1, 2]);
+    const after = afterDeletingBar(before, 1);
+    expect(after.chordPlacements?.find(p => p.id === 'p2')?.barIndex).toBe(1);
+    expect(after.chordPlacements?.find(p => p.id === 'p0')?.barIndex).toBe(0);
+  });
+
+  it('removes the bar from EVERY arrangement', () => {
+    // Bars are structural; an arrangement is chords over them.
+    const placements: ChordPlacement[] = [
+      { id: 'a1', arrangementId: 'A', barIndex: 1, beatPos: 0, beats: 1,
+        chord: { function: '1', quality: 'maj' } },
+      { id: 'b1', arrangementId: 'B', barIndex: 1, beatPos: 0, beats: 1,
+        chord: { function: '4', quality: 'maj' } },
+      { id: 'b2', arrangementId: 'B', barIndex: 2, beatPos: 0, beats: 1,
+        chord: { function: '5', quality: 'maj' } },
+    ];
+    const next = deleteBarFromPlacements(placements, 1);
+    expect(next.map(p => p.id)).toEqual(['b2']);
+    expect(next[0].barIndex).toBe(1);
+  });
+
+  it('is a no-op on a bar with no chords in it', () => {
+    const placements: ChordPlacement[] = [
+      { id: 'x', arrangementId: ARR, barIndex: 0, beatPos: 0, beats: 1,
+        chord: { function: '1', quality: 'maj' } },
+    ];
+    expect(deleteBarFromPlacements(placements, 5)).toEqual(placements);
+  });
+});
+
+describe('delete a bar — lyrics do NOT follow', () => {
+  const words = (): SongLyricLine[] => [
+    {
+      id: 'l1',
+      kind: 'lyric',
+      text: 'p q r',
+      syllables: [
+        { id: 'p', text: 'p', anchor: at(A, 0, 0) },
+        { id: 'q', text: 'q', anchor: at(A, 1, 0) },
+        { id: 'r', text: 'r', anchor: at(A, 2, 0) },
+      ],
+    },
+  ];
+
+  it('un-places ONLY the deleted bar, blanket', () => {
+    const next = unplaceAnchorsMatching(
+      words(),
+      a => a.sectionId === A && a.barIndex === 1,
+    );
+    expect(next[0].syllables!.find(s => s.id === 'q')!.anchor).toBeUndefined();
+  });
+
+  it('leaves later words on their bar NUMBER while chords close up', () => {
+    // The asymmetry, stated: chords shift, lyrics don't. 'r' stays at
+    // bar 2 and is now under whatever chord bar 3 used to hold.
+    const next = unplaceAnchorsMatching(
+      words(),
+      a => a.sectionId === A && a.barIndex === 1,
+    );
+    expect(next[0].syllables!.find(s => s.id === 'r')!.anchor).toMatchObject({
+      barIndex: 2,
+    });
+  });
+
+  it('orphans nothing when the section is still long enough', () => {
+    const next = unplaceAnchorsMatching(
+      words(),
+      a => a.sectionId === A && a.barIndex === 1,
+    );
+    expect(orphans(next, [{ id: A, bars: 3, bpb: 4 }])).toEqual([]);
+  });
+
+  it('leaves a trailing word orphaned when the section DOES shrink past it', () => {
+    // Honest consequence of not shifting, and the reason the warning
+    // says lyrics keep their bar numbers.
+    const next = unplaceAnchorsMatching(
+      words(),
+      a => a.sectionId === A && a.barIndex === 1,
+    );
+    expect(orphans(next, [{ id: A, bars: 2, bpb: 4 }])).toEqual(['r']);
   });
 });

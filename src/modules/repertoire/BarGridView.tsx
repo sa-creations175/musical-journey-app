@@ -1158,7 +1158,6 @@ function BarBox({
       ? bar.cells.find(c => c.placementId === editing.placementId) ?? null
       : null;
 
-  const isEmptyBar = bar.cells.length === 0;
 
   // Walk beats 0..beatsPerBar-1 to assemble the row. At each position
   // we either emit a chord cell (its leading half), skip a position
@@ -1240,12 +1239,16 @@ function BarBox({
           ⋮⋮
         </button>
       )}
-      {isEmptyBar && onDeleteBar && (
+      {/* ANY bar is deletable, not just chord-free ones. The case that
+          most needs it is a section transcribed as five bars that is
+          actually four — and the spare bar has chords in it. A confirm
+          names what will be removed. */}
+      {onDeleteBar && (
         <button
           type="button"
           onClick={() => onDeleteBar(bar.index)}
           aria-label={`delete bar ${bar.index + 1}`}
-          title="delete this empty bar"
+          title="delete this bar"
           className="absolute top-0.5 right-1 text-[10px] leading-none text-neutral-400 hover:text-needswork px-0.5"
         >
           ×

@@ -91,6 +91,7 @@ import {
   effectiveTimeSignature,
   isDominantQuality,
   isLegacyPlacementId,
+  deleteBarFromPlacements,
   materializeChordPlacements,
   moveChordPlacement,
   parseTimeSignature,
@@ -981,16 +982,7 @@ export default function LeadSheetSection({
    * Deriving from the post-delete section is also what keeps this
    * agreeing with the beat axis, which sizes sections the same way.
    */
-  const barCountAfterDelete = (barIndex: number): number => {
-    const layout = materializeBarLayout();
-    if (barIndex < 0 || barIndex >= layout.length) return layout.length;
-    layout.splice(barIndex, 1);
-    return deriveBarGrid(
-      { ...sectionRef.current, barLayout: layout },
-      activeArrangementId,
-      beatsPerBar,
-    ).length;
-  };
+  const barCountNow = (): number => allBars.length;
 
   const materializeBarLayout = (): ('chord' | 'empty')[] => {
     const sec = sectionRef.current;
@@ -1021,26 +1013,35 @@ export default function LeadSheetSection({
    * That is the intended trade: visible and fixable beats silently
    * relocated.
    */
+  /** Chords this delete will remove, across every arrangement. */
+  const chordsInBar = (barIndex: number) => {
+    const sec = sectionRef.current;
+    const placements =
+      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar);
+    return placements.filter(p => p.barIndex === barIndex);
+  };
+
+  /** Words in the deleted bar. BLANKET — every word placed here goes
+   *  back to the drawer, with no analysis of what merely shifted.
+   *  Words in other bars keep their bar number and do not un-place,
+   *  even though the chords under them close up: seeing the
+   *  misalignment and fixing it by hand beats the app clearing work. */
   const homelessAfterBarDelete = (barIndex: number) => {
     if (!songLyricsActive || !songLyricLines) return [];
-    const remainingBars = barCountAfterDelete(barIndex);
     return anchorsMatching(
       songLyricLines,
-      a =>
-        a.sectionId === section.id &&
-        (a.barIndex === barIndex || a.barIndex >= remainingBars),
+      a => a.sectionId === section.id && a.barIndex === barIndex,
     );
   };
 
   const [confirmDeleteBar, setConfirmDeleteBar] = useState<number | null>(null);
 
   const handleDeleteBar = async (barIndex: number) => {
-    const layout = materializeBarLayout();
-    if (barIndex < 0 || barIndex >= layout.length) return;
-    // Only empty bars can be deleted via this affordance. "Empty" means
-    // no CHORDS — a bar full of placed lyrics is still deletable.
-    if (layout[barIndex] !== 'empty') return;
-    if (homelessAfterBarDelete(barIndex).length > 0) {
+    // ANY bar is deletable, not just chord-free ones. The case that
+    // most needs it is a section transcribed as five bars that is
+    // actually four — and the spare bar has chords in it.
+    if (barIndex < 0 || barIndex >= barCountNow()) return;
+    if (chordsInBar(barIndex).length + homelessAfterBarDelete(barIndex).length > 0) {
       setConfirmDeleteBar(barIndex);
       return;
     }
@@ -1048,36 +1049,34 @@ export default function LeadSheetSection({
   };
 
   const performDeleteBar = async (barIndex: number) => {
+    const sec = sectionRef.current;
+    if (barIndex < 0 || barIndex >= barCountNow()) return;
+
     const layout = materializeBarLayout();
-    if (barIndex < 0 || barIndex >= layout.length) return;
-    layout.splice(barIndex, 1);
+    if (barIndex < layout.length) layout.splice(barIndex, 1);
+
+    // Chords close up; the bar genuinely disappears. Without this the
+    // placements pin the bar count and the delete is a silent no-op.
+    const placements = deleteBarFromPlacements(
+      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar),
+      barIndex,
+    );
 
     if (songLyricsActive && songLyricLines && onSongLyricsChange) {
-      // NOTHING SHIFTS. Words in the deleted bar return to the drawer,
-      // and so do words on the old last bar index, which the shrunken
-      // section no longer has. Everything between keeps the anchor it
-      // was given even though the bar under it renumbers — sliding them
-      // back would move words the user placed, to somewhere the user
-      // did not put them.
-      const remainingBars = deriveBarGrid(
-        { ...sectionRef.current, barLayout: layout },
-        activeArrangementId,
-        beatsPerBar,
-      ).length;
-      await onSongLyricsChange(
-        unplaceAnchorsMatching(
-          songLyricLines,
-          a =>
-            a.sectionId === section.id &&
-            (a.barIndex === barIndex || a.barIndex >= remainingBars),
-        ),
+      // Only the deleted bar's words. Everything after keeps its bar
+      // number and stays placed — often now against a different chord,
+      // which is intended and visible.
+      const cleared = unplaceAnchorsMatching(
+        songLyricLines,
+        a => a.sectionId === section.id && a.barIndex === barIndex,
       );
-      await commit({ barLayout: layout });
+      if (cleared !== songLyricLines) await onSongLyricsChange(cleared);
+      await commit({ barLayout: layout, chordPlacements: placements });
       return;
     }
 
-    // Pre-migration path, unchanged: legacy lines are range-based and
-    // are dropped or re-indexed here.
+    // Pre-migration path: legacy lines are range-based, so lines that
+    // touch the bar are dropped and later ranges re-indexed.
     const touchesBar = (l: LyricLine): boolean =>
       l.startBar === barIndex ||
       l.endBar === barIndex ||
@@ -1089,7 +1088,11 @@ export default function LeadSheetSection({
         startBar: l.startBar > barIndex ? l.startBar - 1 : l.startBar,
         endBar: l.endBar > barIndex ? l.endBar - 1 : l.endBar,
       }));
-    await commit({ barLayout: layout, lyricLines: nextLyrics });
+    await commit({
+      barLayout: layout,
+      chordPlacements: placements,
+      lyricLines: nextLyrics,
+    });
   };
 
   const handleBarReorder = async (fromIndex: number, toIndex: number) => {
@@ -2030,36 +2033,30 @@ export default function LeadSheetSection({
             open={confirmDeleteBar !== null}
             title={`Delete bar ${(confirmDeleteBar ?? 0) + 1}?`}
             message={(() => {
-              // Two cases with genuinely different shapes, so two
-              // sentences rather than one that covers both. Deleting
-              // the LAST bar affects one group of words; the old copy
-              // described that bar twice ("the ones in it, and any on
-              // the last bar") and read as a riddle.
-              //
-              // Neither version explains WHY the last bar is affected.
-              // That mechanism matters when reading the code, not when
-              // deciding whether to delete.
               const bar = confirmDeleteBar ?? -1;
-              const n = homelessAfterBarDelete(bar).length;
-              const words = n === 1 ? '1 placed word' : `${n} placed words`;
-              // "Last bar" by the RENDERED count, not the layout's —
-              // see barCountAfterDelete.
-              const isLastBar = bar >= barCountAfterDelete(bar);
+              const chords = chordsInBar(bar).length;
+              const words = homelessAfterBarDelete(bar).length;
+              const list = [
+                chords > 0 && `${chords} chord${chords === 1 ? '' : 's'}`,
+                words > 0 && `${words} placed word${words === 1 ? '' : 's'}`,
+              ].filter(Boolean) as string[];
               return (
-                <p>
-                  {isLastBar ? (
-                    <>
-                      {words} {n === 1 ? 'is' : 'are'} in this bar.{' '}
-                    </>
-                  ) : (
-                    <>
-                      {words} lose their place: the ones in this bar, and
-                      the ones in the last bar.{' '}
-                    </>
-                  )}
-                  They return to the lyrics drawer as unplaced text.
-                  Everything else stays where you put it.
-                </p>
+                <div className="space-y-2">
+                  <p>This bar has {list.join(' and ')}.</p>
+                  <p>
+                    {chords > 0 && 'The chords are deleted. '}
+                    {words > 0 &&
+                      `The word${words === 1 ? '' : 's'} return to the lyrics drawer as unplaced text. `}
+                    Chords in later bars close up; lyrics keep their bar
+                    numbers and stay where you put them, so some may end
+                    up against a different chord.
+                  </p>
+                  {/* Not guessable from a × on one bar. */}
+                  <p className="text-neutral-500">
+                    Bars are structural, so this removes the bar from
+                    every arrangement of this section.
+                  </p>
+                </div>
               );
             })()}
             confirmLabel="Delete bar"
