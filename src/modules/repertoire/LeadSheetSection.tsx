@@ -85,6 +85,7 @@ import {
   buildPhrases,
   removeBreak,
   setBreak,
+  setPhraseNote,
   toggleHidden,
 } from './sequenceView';
 import SectionToggle from './SectionToggle';
@@ -1839,6 +1840,17 @@ export default function LeadSheetSection({
     );
   };
 
+  /** `undefined` targets the final phrase, which has no break to hang
+   *  its note on. */
+  const handleSetPhraseNote = async (
+    afterPlacementId: string | undefined,
+    note: string,
+  ) => {
+    await commitSequenceView(
+      setPhraseNote(sequenceView, afterPlacementId, note),
+    );
+  };
+
   const handleToggleHidden = async (placementId: string) => {
     setSeqTarget(null);
     await commitSequenceView(toggleHidden(sequenceView, placementId));
@@ -2323,6 +2335,19 @@ export default function LeadSheetSection({
                             |
                           </span>
                         ))}
+                      {(phrase.note || sequenceEditing) &&
+                        phrase.placementIds.length > 0 && (
+                          <PhraseNote
+                            note={phrase.note}
+                            editing={sequenceEditing}
+                            onChange={next =>
+                              void handleSetPhraseNote(
+                                phrase.endsAfterPlacementId,
+                                next,
+                              )
+                            }
+                          />
+                        )}
                       {phrase.endKind === 'row' && sequenceEditing && (
                         <button
                           type="button"
@@ -2575,5 +2600,51 @@ function SequenceChoices({
         ×
       </button>
     </div>
+  );
+}
+
+/**
+ * A phrase's note.
+ *
+ * Notes belong to phrases, and phrases are made by breaking — there is
+ * no separate "define a phrase" step, so there is no separate place to
+ * attach a note either. Read-only it is a quiet annotation; in edit
+ * mode it becomes an input.
+ *
+ * Committed on blur rather than per keystroke: every write goes to the
+ * synced section record, and a write per character would be both noisy
+ * and a sync burden.
+ */
+function PhraseNote({
+  note,
+  editing,
+  onChange,
+}: {
+  note?: string;
+  editing: boolean;
+  onChange: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(note ?? '');
+  useEffect(() => setDraft(note ?? ''), [note]);
+
+  if (!editing) {
+    return note ? (
+      <span className="text-[10px] italic text-neutral-500 normal-case">
+        {note}
+      </span>
+    ) : null;
+  }
+  return (
+    <input
+      type="text"
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onBlur={() => {
+        if (draft !== (note ?? '')) onChange(draft);
+      }}
+      placeholder="note"
+      aria-label="phrase note"
+      className="text-[10px] italic w-24 px-1 py-0.5 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
+    />
   );
 }

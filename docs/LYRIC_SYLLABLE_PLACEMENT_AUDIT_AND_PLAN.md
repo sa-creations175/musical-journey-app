@@ -806,6 +806,23 @@ down.
 `shiftAnchorsAfterBarDelete` and `remapAnchorBars` were **deleted** rather than wired up: they existed to
 make anchors follow structure, which this principle rules out.
 
+### The companion rule — anchor to a THING and it travels with the thing
+
+"Nothing shifts on its own" and the sequence strip's phrase breaks look contradictory until you notice
+**they anchor to different kinds of thing**, and that is what decides the behaviour:
+
+| | Anchors to | So when structure changes |
+|---|---|---|
+| **A lyric syllable** | a CELL — a position the user chose | it must **not** chase. Moving it would relocate work the user placed. |
+| **A sequence break** | a CHORD — a thing | it **travels with that chord**. Staying attached is not shifting; a break that did *not* follow its chord through a bar reorder would be the violation. |
+
+Same principle, opposite surface behaviour. Recorded because "why do breaks follow reordering when lyrics
+don't?" is exactly the question that gets a future change wrong.
+
+The deletion case then needs no special handling at all: delete the chord a break sits on and the break has
+no anchor, so the phrases it separated merge and **their notes combine** — identical to removing the break
+by hand. Nothing disappears unless the user deletes it.
+
 ### Orphan class — reported placed, rendered nowhere
 
 The failure these fixes address: an anchor pointing at a cell that no longer exists is **invisible on the
