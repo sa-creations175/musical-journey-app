@@ -35,6 +35,7 @@ export default function LyricDrawer({
   open,
   onOpenChange,
   onArmLine,
+  onArmWord,
   onAddLines,
   onSetLineKind,
   onDuplicateLine,
@@ -44,9 +45,13 @@ export default function LyricDrawer({
   lines: SongLyricLine[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Tapping a lyric row arms its placement. The caller collapses the
-   *  drawer and hands off to the anchored prompt. */
+  /** Tapping a fully UNPLACED lyric row arms the two-part line
+   *  gesture. The caller collapses the drawer and hands off to the
+   *  anchored prompt. */
   onArmLine: (lineId: string) => void;
+  /** Tapping a word in pick mode arms that one syllable. Same existing
+   *  arming intent a grid chip tap produces. */
+  onArmWord?: (syllableId: string) => void;
   /** Raw pasted text. Parsed once, by the caller, at the write. */
   onAddLines?: (text: string) => void | Promise<void>;
   /** Correct a parser guess: flip a row between header and lyric. */
@@ -67,6 +72,11 @@ export default function LyricDrawer({
   // drawer and push it up by its own height, every frame.
   // Which row's "…" menu is open. One at a time.
   const [menuLineId, setMenuLineId] = useState<string | null>(null);
+  // Which row is PICKING a word. Drawer UI state, deliberately not an
+  // arming kind: pick mode does not change what a beat-cell tap does.
+  // Only once a word is tapped is anything armed, and that is the
+  // existing `{ kind: 'syllable' }` intent, unchanged.
+  const [pickLineId, setPickLineId] = useState<string | null>(null);
   const [dockOffset, setDockOffset] = useState(0);
   useEffect(() => {
     const measure = () =>
@@ -150,6 +160,11 @@ export default function LyricDrawer({
                 onArm={onArmLine}
                 onSetLineKind={onSetLineKind}
                 onDuplicate={onDuplicateLine}
+                onArmWord={onArmWord}
+                picking={pickLineId === line.id}
+                onPickingChange={pick =>
+                  setPickLineId(pick ? line.id : null)
+                }
                 menuOpen={menuLineId === line.id}
                 onMenuOpenChange={openNow =>
                   setMenuLineId(openNow ? line.id : null)
@@ -178,6 +193,9 @@ export default function LyricDrawer({
 function DrawerRow({
   line,
   onArm,
+  onArmWord,
+  picking,
+  onPickingChange,
   onSetLineKind,
   onDuplicate,
   menuOpen,
@@ -187,6 +205,9 @@ function DrawerRow({
 }: {
   line: SongLyricLine;
   onArm: (lineId: string) => void;
+  onArmWord?: (syllableId: string) => void;
+  picking: boolean;
+  onPickingChange: (picking: boolean) => void;
   onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
   onDuplicate?: (lineId: string) => void | Promise<void>;
   menuOpen: boolean;
@@ -204,31 +225,99 @@ function DrawerRow({
   // and the rule enforced on write are the same rule.
   const convertible = canConvertToHeader(line);
 
+  // WHAT A ROW TAP DOES, by how much of it is already down:
+  //
+  //   unplaced  → the two-part line gesture, unchanged
+  //   partial   → PICK MODE. The gesture fixed initial placement but
+  //               not repair: un-place one word of a finished line and
+  //               it exists only in the drawer, where nothing could
+  //               place it. Tap-to-place needs a chip on the grid.
+  //   placed    → pick mode too, every word in "move it?" state. Also
+  //               replaces re-arming the line's head, which is almost
+  //               never wanted on a finished line.
+  //   header    → nothing; the row body takes no handlers.
+  const status = lineStatus(line).status;
+  const picksWords = status === 'partial' || status === 'placed';
+
+  const [moveWordId, setMoveWordId] = useState<string | null>(null);
+
+  const handleWordTap = (syllableId: string) => {
+    const word = (line.syllables ?? []).find(s => s.id === syllableId);
+    if (!word) return;
+    if (word.anchor) {
+      // Already down. Offer the move rather than refusing — but say so
+      // first, since tapping a placed word is as likely to be a misfire
+      // as an intent.
+      setMoveWordId(syllableId);
+      return;
+    }
+    onArmWord?.(syllableId);
+  };
+
   return (
     <div className="relative">
       <LyricLineRow
         line={line}
-        dimPlaced
+        dimPlaced={!picking}
+        pickMode={picking}
+        onWordTap={onArmWord ? handleWordTap : undefined}
         bodyProps={{
           onClick: () => {
             if (menuOpen) {
               onMenuOpenChange(false);
               return;
             }
+            if (picksWords && onArmWord) {
+              onPickingChange(!picking);
+              setMoveWordId(null);
+              return;
+            }
             onArm(line.id);
           },
           role: 'button',
-          'aria-label': `place "${line.text}"`,
+          'aria-label': picksWords
+            ? `choose a word from "${line.text}"`
+            : `place "${line.text}"`,
           onPointerDown: longPress.onPointerDown,
           onPointerMove: longPress.onPointerMove,
           onPointerUp: longPress.onPointerUp,
           onPointerCancel: longPress.onPointerCancel,
           onPointerLeave: longPress.onPointerLeave,
         }}
-        bodyClassName="cursor-pointer hover:border-fluent"
+        bodyClassName={`cursor-pointer hover:border-fluent ${
+          picking ? 'border-fluent' : ''
+        }`}
         onDelete={onDelete}
         onUnplace={onUnplace}
       />
+      {moveWordId && (
+        <div className="mt-1 mb-1 flex flex-wrap items-center gap-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2 text-[11px] shadow-md">
+          <span className="text-neutral-600 dark:text-neutral-300">
+            “{(line.syllables ?? []).find(s => s.id === moveWordId)?.text}” is
+            already placed.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              // Arming writes NOTHING — re-placing is a single anchor
+              // overwrite — so backing out needs no snapshot to undo.
+              const id = moveWordId;
+              setMoveWordId(null);
+              onArmWord?.(id);
+            }}
+            className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
+          >
+            move it
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoveWordId(null)}
+            className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
+          >
+            cancel
+          </button>
+        </div>
+      )}
       {hasMenu && (
         <button
           type="button"

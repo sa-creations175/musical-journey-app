@@ -423,3 +423,138 @@ describe('LyricDrawer — duplicate', () => {
     expect(container!.textContent).not.toContain('make header');
   });
 });
+
+describe('LyricDrawer — pick mode', () => {
+  const byLabel = (label: string) =>
+    Array.from(container!.querySelectorAll('button')).find(
+      b => b.getAttribute('aria-label') === label,
+    ) as HTMLElement | undefined;
+
+  const withPick = (onArmWord = vi.fn(), onArmLine = vi.fn()) => {
+    render(
+      <LyricDrawer
+        lines={SONG}
+        open
+        onOpenChange={noop}
+        onArmLine={onArmLine}
+        onArmWord={onArmWord}
+      />,
+    );
+    return { onArmWord, onArmLine };
+  };
+
+  const bodies = () =>
+    Array.from(container!.querySelectorAll('[data-line-body]')) as HTMLElement[];
+
+  // SONG: [header, l1 fully placed, l2 partial, header, l3 unplaced]
+  const PARTIAL = 2;
+  const PLACED = 1;
+  const UNPLACED = 4;
+
+  it('a PARTIAL row enters pick mode instead of arming the line', () => {
+    // The gap this closes: un-place one word of a finished line and it
+    // exists only in the drawer, where nothing could place it.
+    const { onArmLine } = withPick();
+    act(() => bodies()[PARTIAL].click());
+    expect(onArmLine).not.toHaveBeenCalled();
+    expect(byLabel('place "now"')).toBeDefined();
+  });
+
+  it('a FULLY PLACED row picks too, every word offering a move', () => {
+    const { onArmLine } = withPick();
+    act(() => bodies()[PLACED].click());
+    expect(onArmLine).not.toHaveBeenCalled();
+    expect(byLabel('move "O"')).toBeDefined();
+  });
+
+  it('an UNPLACED row still arms the two-part line gesture', () => {
+    const { onArmLine, onArmWord } = withPick();
+    act(() => bodies()[UNPLACED].click());
+    expect(onArmLine).toHaveBeenCalledWith('l3');
+    expect(onArmWord).not.toHaveBeenCalled();
+  });
+
+  it('a HEADER row does nothing', () => {
+    const { onArmLine } = withPick();
+    act(() => bodies()[0].click());
+    expect(onArmLine).not.toHaveBeenCalled();
+  });
+
+  it('shows the picker even when only ONE word is unplaced', () => {
+    // No auto-arming the single candidate: behaviour should not change
+    // shape depending on state.
+    const oneLeft: SongLyricLine[] = [lyric('l', 'a b c', 2)];
+    render(
+      <LyricDrawer
+        lines={oneLeft}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onArmWord={vi.fn()}
+      />,
+    );
+    act(() => bodies()[0].click());
+    expect(byLabel('place "c"')).toBeDefined();
+  });
+
+  it('arms an unplaced word directly', () => {
+    const { onArmWord } = withPick();
+    act(() => bodies()[PARTIAL].click());
+    act(() => byLabel('place "now"')!.click());
+    expect(onArmWord).toHaveBeenCalledWith('l2-2');
+  });
+
+  it('a PLACED word offers a move rather than refusing', () => {
+    const { onArmWord } = withPick();
+    act(() => bodies()[PARTIAL].click());
+    act(() => byLabel('move "adore"')!.click());
+    expect(onArmWord).not.toHaveBeenCalled();
+    expect(container!.textContent).toContain('is already placed');
+  });
+
+  it('confirming the move arms it — one gesture, no un-place step', () => {
+    const { onArmWord } = withPick();
+    act(() => bodies()[PARTIAL].click());
+    act(() => byLabel('move "adore"')!.click());
+    const go = Array.from(container!.querySelectorAll('button')).find(
+      b => b.textContent === 'move it',
+    ) as HTMLElement;
+    act(() => go.click());
+    expect(onArmWord).toHaveBeenCalledWith('l2-0');
+  });
+
+  it('cancelling the move arms nothing — no write to undo', () => {
+    const { onArmWord } = withPick();
+    act(() => bodies()[PARTIAL].click());
+    act(() => byLabel('move "adore"')!.click());
+    const cancel = Array.from(container!.querySelectorAll('button')).find(
+      b => b.textContent === 'cancel',
+    ) as HTMLElement;
+    act(() => cancel.click());
+    expect(onArmWord).not.toHaveBeenCalled();
+    expect(container!.textContent).not.toContain('is already placed');
+  });
+
+  it('re-tapping the row leaves pick mode', () => {
+    withPick();
+    act(() => bodies()[PARTIAL].click());
+    expect(byLabel('place "now"')).toBeDefined();
+    act(() => bodies()[PARTIAL].click());
+    expect(byLabel('place "now"')).toBeUndefined();
+  });
+
+  it('only one row picks at a time', () => {
+    withPick();
+    act(() => bodies()[PARTIAL].click());
+    act(() => bodies()[PLACED].click());
+    expect(byLabel('place "now"')).toBeUndefined();
+    expect(byLabel('move "O"')).toBeDefined();
+  });
+
+  it('rows stay at rest when no word handler is supplied', () => {
+    // Guards the tray, which shares this row and must never pick.
+    render(<LyricDrawer lines={SONG} open onOpenChange={noop} onArmLine={noop} />);
+    act(() => bodies()[PARTIAL].click());
+    expect(container!.querySelectorAll('[data-line-body] button')).toHaveLength(0);
+  });
+});

@@ -808,6 +808,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dispatchArming({ type: 'tap-syllable', syllableId });
   }, []);
 
+  /** A word picked from a drawer row. Same arming intent a grid chip
+   *  tap produces — pick mode is drawer UI, not a third kind — and the
+   *  drawer gets out of the way so the grid is tappable. */
+  const handleArmWord = useCallback((syllableId: string) => {
+    dispatchArming({ type: 'tap-syllable', syllableId });
+    setDrawerOpen(false);
+  }, []);
+
   const handleSyllablePlaced = useCallback(() => {
     // Beat two completing is also what retires the snapshot: the
     // gesture finished, so there is no longer anything to roll back.
@@ -1772,6 +1780,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onArmLine={handleArmLine}
+          onArmWord={handleArmWord}
           onAddLines={handleAddLines}
           onSetLineKind={handleSetLineKind}
           onDuplicateLine={handleDuplicateLine}
