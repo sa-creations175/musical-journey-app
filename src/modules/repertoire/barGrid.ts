@@ -180,6 +180,9 @@ export interface BarCell {
    *  0..beatsPerBar-1). In bar-anchored mode this comes from the
    *  placement; in legacy mode the packer assigns it sequentially. */
   beatPos: number;
+  /** On the "and" of `beatPos`. Only ever set when the song has
+   *  eighths enabled. */
+  offbeat?: boolean;
   /** True when this cell continues a chord that started in the
    *  previous bar (the bar-grid renderer can draw a tie indicator). */
   tiedFromPrev?: boolean;
@@ -368,6 +371,9 @@ export function deriveBarGrid(
   section: SongSection,
   activeArrangementId: string,
   beatsPerBar: number,
+  /** Song-level eighths toggle. Off by default so every existing
+   *  caller keeps quarter-note behaviour exactly. */
+  eighths = false,
 ): Bar[] {
   if (beatsPerBar <= 0) return [];
 
@@ -377,7 +383,12 @@ export function deriveBarGrid(
   // phrase chords in document order. Mixed legacy + bar-anchored
   // isn't supported — migration converts all arrangements at once.
   if (section.chordPlacements !== undefined) {
-    return deriveBarGridAnchored(section, activeArrangementId, beatsPerBar);
+    return deriveBarGridAnchored(
+      section,
+      activeArrangementId,
+      beatsPerBar,
+      eighths,
+    );
   }
 
   const cells = collectChordCells(section, activeArrangementId);
@@ -428,10 +439,41 @@ export function deriveBarGrid(
  *  with each placement landing at its explicit (barIndex, beatPos)
  *  inside its bar. Bars without placements come back empty so the
  *  per-beat-empty droppables can render. */
+/**
+ * Positions a bar offers. With eighths on, every beat gains its "and".
+ *
+ * The BEAT count is unchanged — eighths add positions, they do not
+ * change how long a bar is — so this is a display resolution, not a
+ * different time signature.
+ */
+export function slotsPerBar(beatsPerBar: number, eighths: boolean): number {
+  return eighths ? beatsPerBar * 2 : beatsPerBar;
+}
+
+/** Where a placement sits, in slot units. With eighths off an offbeat
+ *  is unreachable, so it collapses to its beat rather than vanishing. */
+export function placementSlot(
+  p: { beatPos: number; offbeat?: boolean },
+  eighths: boolean,
+): number {
+  return eighths ? p.beatPos * 2 + (p.offbeat ? 1 : 0) : p.beatPos;
+}
+
+/** The inverse: a slot back to the position it names. */
+export function slotToPosition(
+  slot: number,
+  eighths: boolean,
+): { beatPos: number; offbeat?: boolean } {
+  if (!eighths) return { beatPos: slot };
+  const beatPos = Math.floor(slot / 2);
+  return slot % 2 === 1 ? { beatPos, offbeat: true } : { beatPos };
+}
+
 function deriveBarGridAnchored(
   section: SongSection,
   activeArrangementId: string,
   beatsPerBar: number,
+  eighths: boolean,
 ): Bar[] {
   const placements = (section.chordPlacements ?? []).filter(
     p =>
@@ -450,7 +492,9 @@ function deriveBarGridAnchored(
     else byBar.set(p.barIndex, [p]);
   }
   for (const list of byBar.values()) {
-    list.sort((a, b) => a.beatPos - b.beatPos);
+    list.sort(
+      (a, b) => placementSlot(a, eighths) - placementSlot(b, eighths),
+    );
   }
 
   // Total bar count = max(barLayout.length, placements' max bar + 1,
@@ -469,6 +513,7 @@ function deriveBarGridAnchored(
       chord: p.chord,
       beats: sanitiseBeats(p.beats),
       beatPos: p.beatPos,
+      ...(eighths && p.offbeat ? { offbeat: true as const } : {}),
       placementId: p.id,
       voicing: p.voicing,
       voicingPatternId: p.voicingPatternId,

@@ -94,6 +94,10 @@ import CellAnchoredMessage from './CellAnchoredMessage';
 import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
 import { parseLyricSheet } from './lyricSheetParse';
+import {
+  doubleChordDurations,
+  halveChordDurations,
+} from './eighthsMigration';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
@@ -581,6 +585,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     () =>
       buildBeatAxis(
         sections.map(s => {
+          const eighths = song?.eighths === true;
           const { beatsPerBar } = parseTimeSignature(
             effectiveTimeSignature(song, s),
           );
@@ -593,7 +598,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           return {
             sectionId: s.id,
             beatsPerBar,
-            barCount: deriveBarGrid(s, activeId, beatsPerBar).length,
+            barCount: deriveBarGrid(s, activeId, beatsPerBar, eighths).length,
           };
         }),
       ),
@@ -850,6 +855,71 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
    *  prompt already owns that job, and a second one at the bottom of
    *  the screen is the mistake this session corrected twice. */
   /** Raw pasted text in, parsed once here at the write. */
+  /**
+   * Turning eighths ON migrates this song's chord DURATIONS to eighth
+   * units. LAZY on purpose: a song where eighths is never enabled has
+   * no reason to have every placement rewritten, so only songs
+   * deliberately opted in are touched.
+   *
+   * Turning it OFF is REFUSED while anything sits on an offbeat —
+   * those positions stop existing, and a preference toggle does not
+   * get to discard placed work. The caller shows the count.
+   */
+  const offbeatOccupants = useCallback(() => {
+    const chords = sections.reduce(
+      (n, sec) =>
+        n + (sec.chordPlacements ?? []).filter(p => p.offbeat).length,
+      0,
+    );
+    const words = (song?.lyricLines ?? []).reduce(
+      (n, l) => n + (l.syllables ?? []).filter(sy => sy.anchor?.offbeat).length,
+      0,
+    );
+    return { chords, words };
+  }, [sections, song?.lyricLines]);
+
+  const setEighths = useCallback(
+    async (on: boolean) => {
+      const fresh = await db.songs.get(songId);
+      if (!fresh) return;
+      await db.songs.put({ ...fresh, eighths: on, updatedAt: Date.now() });
+      if (!on) return;
+      // Durations become eighth units, once, on first enable.
+      for (const sec of sections) {
+        if (!sec.chordPlacements) continue;
+        await db.songSections.update(sec.id, {
+          chordPlacements: doubleChordDurations(sec.chordPlacements),
+        });
+      }
+    },
+    [songId, sections],
+  );
+
+  const [eighthsRefusal, setEighthsRefusal] = useState<
+    { chords: number; words: number } | null
+  >(null);
+
+  const handleToggleEighths = useCallback(async () => {
+    if (song?.eighths) {
+      const occupied = offbeatOccupants();
+      if (occupied.chords + occupied.words > 0) {
+        setEighthsRefusal(occupied);
+        return;
+      }
+      // Halve back only when every value round-trips.
+      for (const sec of sections) {
+        if (!sec.chordPlacements) continue;
+        const halved = halveChordDurations(sec.chordPlacements);
+        if (halved) {
+          await db.songSections.update(sec.id, { chordPlacements: halved });
+        }
+      }
+      await setEighths(false);
+      return;
+    }
+    await setEighths(true);
+  }, [song?.eighths, sections, offbeatOccupants, setEighths]);
+
   const handleAddLines = useCallback(
     async (text: string) => {
       const rows = parseLyricSheet(text);
@@ -1415,6 +1485,23 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                                 ))}
                               </select>
                             </label>
+                            {/* Song-level, never per-bar or per-section:
+                                mixing resolutions within a song would
+                                make the beat axis mean different things
+                                in different places. */}
+                            <button
+                              type="button"
+                              onClick={() => void handleToggleEighths()}
+                              aria-pressed={song.eighths === true}
+                              title="show the ‘and’ of every beat across this song"
+                              className={`px-2 py-0.5 rounded-full border ${
+                                song.eighths
+                                  ? 'border-fluent bg-fluent/10 text-fluent'
+                                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+                              }`}
+                            >
+                              eighths
+                            </button>
                             <button
                               onClick={addSection}
                               className="text-neutral-500 hover:text-fluent"
@@ -1801,6 +1888,34 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           setConfirmDeleteSection(null);
           if (s) await deleteSection(s);
         }}
+      />
+
+      {/* Refusing, not offering to clear. A preference toggle does not
+          get to discard placed work — those positions simply stop
+          existing, so the user moves or deletes them first. */}
+      <ConfirmDialog
+        open={eighthsRefusal !== null}
+        title="Turn eighths off?"
+        message={
+          <p>
+            {[
+              eighthsRefusal?.chords
+                ? `${eighthsRefusal.chords} chord${eighthsRefusal.chords === 1 ? '' : 's'}`
+                : null,
+              eighthsRefusal?.words
+                ? `${eighthsRefusal.words} word${eighthsRefusal.words === 1 ? '' : 's'}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' and ')}{' '}
+            sit on offbeats. Move or delete them before turning eighths
+            off — those positions stop existing.
+          </p>
+        }
+        confirmLabel="OK"
+        variant="default"
+        onConfirm={() => setEighthsRefusal(null)}
+        onCancel={() => setEighthsRefusal(null)}
       />
 
       {/* The lyric drawer. Whole-screen chrome about the SONG, which

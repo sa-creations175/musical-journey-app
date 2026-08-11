@@ -350,6 +350,7 @@ export default function LeadSheetSection({
   // write below routes on this; the legacy section-owned path stays
   // intact underneath for songs that haven't folded yet.
   const songLyricsActive = Boolean(cellIndex && onSongLyricsChange);
+  const eighths = song.eighths === true;
   const stage = section.stage ?? song.stage ?? DEFAULT_STAGE;
   const { toast } = useToast();
   // Same source the grid cells read, so the sequence strip and the
@@ -679,9 +680,17 @@ export default function LeadSheetSection({
     placementId: string,
     barIndex: number,
     beatPos: number,
+    offbeat?: boolean,
   ) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
-    const next = moveChordPlacement(placements, realPlacementId, barIndex, beatPos);
+    const moved = moveChordPlacement(placements, realPlacementId, barIndex, beatPos);
+    // `offbeat` is set explicitly rather than left alone, so dragging a
+    // chord from an "and" back onto a beat clears the flag.
+    const next = moved.map(p =>
+      p.id === realPlacementId
+        ? { ...p, ...(offbeat ? { offbeat: true } : { offbeat: undefined }) }
+        : p,
+    );
     const patch: Partial<SongSection> = { chordPlacements: next };
     const reconciled = reconcileBarLayout(sectionRef.current.barLayout, next);
     if (reconciled) patch.barLayout = reconciled;
@@ -984,7 +993,7 @@ export default function LeadSheetSection({
   // kind of each bar position. Before the first operation, layout is
   // derived from chord placements + the legacy `barCount` padding.
   const allBars = useMemo(
-    () => deriveBarGrid(section, activeArrangementId, beatsPerBar),
+    () => deriveBarGrid(section, activeArrangementId, beatsPerBar, eighths),
     [section, activeArrangementId, beatsPerBar],
   );
 
@@ -1241,12 +1250,23 @@ export default function LeadSheetSection({
    *  tap — every cell is offered, and checkPlacementOrder is the only
    *  thing that decides. */
   const handleBeatCellTap = songLyricsActive
-    ? async (barIndex: number, beatPos: number, cellRect?: DOMRect) => {
+    ? async (
+        barIndex: number,
+        beatPos: number,
+        cellRect?: DOMRect,
+        offbeat?: boolean,
+      ) => {
         // A line placement outranks syllable arming — the reducer
         // guarantees they are mutually exclusive, so this branch is a
         // dispatch, not a precedence rule.
         if (awaitingLine) {
-          await handleLineEdgeTap(awaitingLine, barIndex, beatPos, cellRect);
+          await handleLineEdgeTap(
+            awaitingLine,
+            barIndex,
+            beatPos,
+            cellRect,
+            offbeat,
+          );
           return;
         }
         if (!armedSyllableId) return;
@@ -1254,6 +1274,7 @@ export default function LeadSheetSection({
           sectionId: section.id,
           barIndex,
           beatPos,
+          ...(offbeat ? { offbeat: true } : {}),
         });
         if (result === null) {
           onSyllablePlaced?.();
@@ -1300,6 +1321,7 @@ export default function LeadSheetSection({
     barIndex: number,
     beatPos: number,
     cellRect?: DOMRect,
+    offbeat?: boolean,
   ) => {
     if (!songLyricLines) return;
     const { lineId, edge } = pending;
@@ -1322,6 +1344,7 @@ export default function LeadSheetSection({
       sectionId: section.id,
       barIndex,
       beatPos,
+      ...(offbeat ? { offbeat: true } : {}),
     });
     if (result === null) {
       // Beat one advances to beat two; beat two completes the gesture.
@@ -1354,6 +1377,7 @@ export default function LeadSheetSection({
     sectionId: string;
     barIndex: number;
     beatPos: number;
+    offbeat?: boolean;
   }) => {
     if (rejectTimer.current) clearTimeout(rejectTimer.current);
     setRejectedCell(null);
@@ -1382,7 +1406,12 @@ export default function LeadSheetSection({
    *  is unchanged. */
   const tryPlaceSyllable = async (
     syllableId: string,
-    cell: { sectionId: string; barIndex: number; beatPos: number },
+    cell: {
+      sectionId: string;
+      barIndex: number;
+      beatPos: number;
+      offbeat?: boolean;
+    },
   ): Promise<OrderViolation | 'unavailable' | null> => {
     if (!songLyricLines || !onSongLyricsChange || !beatAxis) return 'unavailable';
     const violation = checkPlacementOrder(songLyricLines, syllableId, cell, beatAxis);
@@ -1544,9 +1573,18 @@ export default function LeadSheetSection({
       if (overId.startsWith('emptybeat:')) {
         const [, barStr, beatStr] = overId.split(':');
         const dropBar = parseInt(barStr, 10);
+        // The trailing `+` marks an offbeat. Parsed explicitly rather
+        // than left to parseInt, which would read "3+" as 3 and drop
+        // the offbeat silently.
+        const dropOffbeat = beatStr.endsWith('+');
         const dropBeat = parseInt(beatStr, 10);
         if (!Number.isFinite(dropBar) || !Number.isFinite(dropBeat)) return;
-        await handleChordMoveToEmpty(fromPlacementId, dropBar, dropBeat);
+        await handleChordMoveToEmpty(
+          fromPlacementId,
+          dropBar,
+          dropBeat,
+          dropOffbeat,
+        );
         return;
       }
       return;

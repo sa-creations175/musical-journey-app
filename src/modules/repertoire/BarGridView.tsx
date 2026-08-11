@@ -43,6 +43,9 @@ import {
   type Bar,
   type BarCell,
   deriveBarGrid,
+  slotsPerBar,
+  placementSlot,
+  slotToPosition,
   effectiveHarmonicTag,
   effectiveTimeSignature,
   parseTimeSignature,
@@ -73,12 +76,17 @@ import LyricListRow from './LyricListRow';
 export const DRAG_ID = {
   chord: (placementId: string) => `chord:${placementId}`,
   /** Empty beat slot in a bar (chord drop target). */
-  emptyBeat: (barIndex: number, beatPos: number) =>
-    `emptybeat:${barIndex}:${beatPos}`,
+  /** Empty slot in a bar (chord drop target). The trailing `+` marks
+   *  an offbeat, so on-beat ids are byte-identical to what they were
+   *  before eighths existed — an existing target cannot be renamed by
+   *  a feature the song has not enabled. */
+  emptyBeat: (barIndex: number, beatPos: number, offbeat?: boolean) =>
+    `emptybeat:${barIndex}:${beatPos}${offbeat ? '+' : ''}`,
   /** Lyric drop slot per beat (lyric drop target). Distinct prefix
    *  from `emptybeat:` because chord drags only see emptybeat targets
    *  and lyric drags only see beat targets. */
-  beat: (barIndex: number, beatPos: number) => `beat:${barIndex}:${beatPos}`,
+  beat: (barIndex: number, beatPos: number, offbeat?: boolean) =>
+    `beat:${barIndex}:${beatPos}${offbeat ? '+' : ''}`,
   pending: (lineId: string) => `pending:${lineId}`,
   lineStart: (lineId: string) => `lineStart:${lineId}`,
   lineEnd: (lineId: string) => `lineEnd:${lineId}`,
@@ -204,6 +212,7 @@ interface Props {
     /** Viewport rect of the tapped cell, for positioning a refusal
      *  message over it. */
     cellRect?: DOMRect,
+    offbeat?: boolean,
   ) => void | Promise<void>;
   /** Full song store — the edit popover needs a syllable's text and
    *  whether it has a next sibling to join with. */
@@ -344,14 +353,19 @@ export default function BarGridView({
   onCopyChord,
   playMode = false,
 }: Props) {
+  const eighths = song.eighths === true;
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
   const { beatsPerBar } = parseTimeSignature(timeSignature);
 
   const bars = useMemo(
-    () => deriveBarGrid(section, activeArrangementId, beatsPerBar),
+    () => deriveBarGrid(section, activeArrangementId, beatsPerBar, eighths),
     [section, activeArrangementId, beatsPerBar],
   );
+  /** Positions a bar offers. Every width in the row divides by THIS,
+   *  not by beatsPerBar — which is what keeps a migrated chord's
+   *  rendered width identical to what it was before. */
+  const barSlots = slotsPerBar(beatsPerBar, eighths);
 
   // Flat list of chord sortable ids across all bars so cross-bar
   // drag-to-reorder uses one SortableContext. Each cell carries its
@@ -604,6 +618,8 @@ export default function BarGridView({
                   key={bar.index}
                   bar={bar}
                   beatsPerBar={beatsPerBar}
+                  eighths={eighths}
+                  barSlots={barSlots}
                   sectionKey={song.key}
                   notationMode={notationMode}
                   editing={editing}
@@ -651,7 +667,8 @@ export default function BarGridView({
                   key={bar.index}
                   sectionId={section.id}
                   barIndex={bar.index}
-                  beatsPerBar={beatsPerBar}
+                  eighths={eighths}
+                  barSlots={barSlots}
                   cellIndex={cellIndex}
                   lyricDragActive={lyricDragActive}
                   rejectedCell={rejectedCell}
@@ -1179,6 +1196,8 @@ function PendingLineStrip({
 function BarBox({
   bar,
   beatsPerBar,
+  eighths,
+  barSlots,
   sectionKey,
   notationMode,
   editing,
@@ -1202,6 +1221,8 @@ function BarBox({
 }: {
   bar: Bar;
   beatsPerBar: number;
+  eighths: boolean;
+  barSlots: number;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
   editing: EditingState | null;
@@ -1217,8 +1238,12 @@ function BarBox({
   draggable: boolean;
   onDeleteBar?: (barIndex: number) => void;
   barDragEnabled: boolean;
-  onEmptyBeatClick?: (barIndex: number, beatPos: number) => void;
-  newChordAt: { barIndex: number; beatPos: number } | null;
+  onEmptyBeatClick?: (
+    barIndex: number,
+    beatPos: number,
+    offbeat?: boolean,
+  ) => void;
+  newChordAt: { barIndex: number; beatPos: number; offbeat?: boolean } | null;
   onChordAddSubmit?: (
     barIndex: number,
     beatPos: number,
@@ -1241,26 +1266,34 @@ function BarBox({
   // discrete droppables for chord drag.
   type Item =
     | { kind: 'cell'; cell: BarCell; widthPct: number }
-    | { kind: 'empty'; beatPos: number };
+    | { kind: 'empty'; beatPos: number; offbeat?: boolean };
   const items: Item[] = [];
+  // Walks SLOTS, not beats. With eighths off a slot is a beat and this
+  // is the behaviour it always had; with eighths on every beat has its
+  // "and" beside it, and durations are already in eighths, so widths
+  // still divide out to exactly what they were.
   let pos = 0;
-  while (pos < beatsPerBar) {
-    const cell = bar.cells.find(c => !c.tiedFromPrev && c.beatPos === pos);
+  while (pos < barSlots) {
+    const cell = bar.cells.find(
+      c => !c.tiedFromPrev && placementSlot(c, eighths) === pos,
+    );
     if (cell) {
-      const widthPct = (cell.beats / beatsPerBar) * 100;
+      const widthPct = (cell.beats / barSlots) * 100;
       items.push({ kind: 'cell', cell, widthPct });
       pos += Math.max(1, cell.beats);
       continue;
     }
-    // Skip positions covered by a multi-beat cell that started earlier.
-    const covering = bar.cells.find(
-      c => !c.tiedFromPrev && c.beatPos < pos && c.beatPos + c.beats > pos,
-    );
+    // Skip positions covered by a multi-slot cell that started earlier.
+    const covering = bar.cells.find(c => {
+      if (c.tiedFromPrev) return false;
+      const start = placementSlot(c, eighths);
+      return start < pos && start + c.beats > pos;
+    });
     if (covering) {
       pos += 1;
       continue;
     }
-    items.push({ kind: 'empty', beatPos: pos });
+    items.push({ kind: 'empty', ...slotToPosition(pos, eighths) });
     pos += 1;
   }
 
@@ -1343,19 +1376,21 @@ function BarBox({
             if (playMode) return null;
             return (
               <EmptyBeatSlot
-                key={`e-${item.beatPos}`}
+                key={`e-${item.beatPos}${item.offbeat ? '+' : ''}`}
                 barIndex={bar.index}
                 beatPos={item.beatPos}
-                widthPct={(1 / beatsPerBar) * 100}
+                widthPct={(1 / barSlots) * 100}
+                offbeat={item.offbeat}
                 onClick={
                   onEmptyBeatClick
-                    ? () => onEmptyBeatClick(bar.index, item.beatPos)
+                    ? () => onEmptyBeatClick(bar.index, item.beatPos, item.offbeat)
                     : undefined
                 }
                 isAdding={
                   newChordAt !== null &&
                   newChordAt.barIndex === bar.index &&
-                  newChordAt.beatPos === item.beatPos
+                  newChordAt.beatPos === item.beatPos &&
+                  (newChordAt.offbeat ?? false) === (item.offbeat ?? false)
                 }
               />
             );
@@ -1586,9 +1621,10 @@ interface SyllableEditingState {
 }
 
 function SyllableBarSegment({
+  eighths,
+  barSlots,
   sectionId,
   barIndex,
-  beatsPerBar,
   cellIndex,
   lyricDragActive,
   rejectedCell,
@@ -1611,7 +1647,8 @@ function SyllableBarSegment({
 }: {
   sectionId: string;
   barIndex: number;
-  beatsPerBar: number;
+  eighths: boolean;
+  barSlots: number;
   cellIndex: Map<string, CellOccupant[]>;
   lyricDragActive: boolean;
   rejectedCell: string | null;
@@ -1630,6 +1667,7 @@ function SyllableBarSegment({
     /** Viewport rect of the tapped cell, for positioning a refusal
      *  message over it. */
     cellRect?: DOMRect,
+    offbeat?: boolean,
   ) => void | Promise<void>;
   onOpenSyllableMenu?: (syllableId: string) => void;
   onSplit?: (syllableId: string, splitAt: number) => void | Promise<void>;
@@ -1644,13 +1682,15 @@ function SyllableBarSegment({
       : null;
   return (
     <div className="relative flex gap-0.5 px-1">
-      {Array.from({ length: beatsPerBar }).map((_, beatPos) => {
-        const key = cellKey({ sectionId, barIndex, beatPos });
+      {Array.from({ length: barSlots }).map((_, slot) => {
+        const { beatPos, offbeat } = slotToPosition(slot, eighths);
+        const key = cellKey({ sectionId, barIndex, beatPos, offbeat });
         return (
           <SyllableDropSlot
-            key={beatPos}
+            key={slot}
             barIndex={barIndex}
             beatPos={beatPos}
+            offbeat={offbeat}
             occupants={cellIndex.get(key) ?? []}
             markers={markerIndex?.get(key) ?? []}
             dragActive={lyricDragActive}
@@ -1927,6 +1967,7 @@ function SyllableEditPopover({
 function SyllableDropSlot({
   barIndex,
   beatPos,
+  offbeat,
   occupants,
   markers,
   dragActive,
@@ -1942,6 +1983,7 @@ function SyllableDropSlot({
 }: {
   barIndex: number;
   beatPos: number;
+  offbeat?: boolean;
   occupants: CellOccupant[];
   markers: LineMarkerPlacement[];
   dragActive: boolean;
@@ -1958,11 +2000,12 @@ function SyllableDropSlot({
     /** Viewport rect of the tapped cell, for positioning a refusal
      *  message over it. */
     cellRect?: DOMRect,
+    offbeat?: boolean,
   ) => void | Promise<void>;
   onOpenSyllableMenu?: (syllableId: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
-    id: DRAG_ID.beat(barIndex, beatPos),
+    id: DRAG_ID.beat(barIndex, beatPos, offbeat),
   });
   // The old treatment was a 1px border-colour change plus a 10%-alpha
   // tint on an already-bordered 28px cell — technically present, not
@@ -2085,6 +2128,7 @@ function SyllableDropSlot({
                 barIndex,
                 beatPos,
                 e.currentTarget.getBoundingClientRect(),
+                offbeat,
               );
             }
           : undefined
@@ -2798,18 +2842,20 @@ function ChordAddPopover({
 function EmptyBeatSlot({
   barIndex,
   beatPos,
+  offbeat,
   widthPct,
   onClick,
   isAdding,
 }: {
   barIndex: number;
   beatPos: number;
+  offbeat?: boolean;
   widthPct: number;
   onClick?: () => void;
   isAdding?: boolean;
 }) {
   const { isOver, setNodeRef } = useDroppable({
-    id: DRAG_ID.emptyBeat(barIndex, beatPos),
+    id: DRAG_ID.emptyBeat(barIndex, beatPos, offbeat),
   });
   return (
     <div

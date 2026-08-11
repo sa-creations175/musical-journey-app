@@ -225,7 +225,12 @@ function placedGlobalRange(
 export function checkPlacementOrder(
   lines: ReadonlyArray<SongLyricLine>,
   syllableId: string,
-  target: { sectionId: string; barIndex: number; beatPos: number },
+  target: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+    offbeat?: boolean;
+  },
   axis: BeatAxis,
 ): OrderViolation | null {
   const found = findSyllable(lines, syllableId);
@@ -284,7 +289,12 @@ export function checkPlacementOrder(
 export function placeSyllable(
   lines: ReadonlyArray<SongLyricLine>,
   syllableId: string,
-  target: { sectionId: string; barIndex: number; beatPos: number },
+  target: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+    offbeat?: boolean;
+  },
   /** When supplied, the monotonic-order rule is enforced here too, so
    *  no caller can write an inverted line even by skipping the UI's
    *  pre-check. Omitted only where there is no axis to check against. */

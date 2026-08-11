@@ -67,6 +67,16 @@ export interface Song {
   genre?: string;
   /** Original/home key, e.g. "C", "Db", "G". */
   key?: string;
+  /** Show eighth-note positions across the whole song's lead sheet.
+   *  Off by default, never per-bar or per-section — mixing resolutions
+   *  within a song would make the beat axis mean different things in
+   *  different places.
+   *
+   *  Turning it ON is a no-op for everything already placed: `beatPos`
+   *  is untouched and an offbeat is a separate flag, so beat 2 stays
+   *  beat 2 and gains a neighbour. Chord DURATIONS are migrated to
+   *  eighth units on first enable — see `eighthsMigration.ts`. */
+  eighths?: boolean;
   /** Marks the key as an estimate that the user should verify against
    *  the original recording. Pre-populated songs set this for songs
    *  where the home key couldn't be determined confidently. */
