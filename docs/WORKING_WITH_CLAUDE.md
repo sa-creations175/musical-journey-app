@@ -72,6 +72,9 @@ If a bug keeps recurring, we're treating the wrong thing. Dig deeper.
 ### Name it when builds fail to land
 If Claude Code says it did something but it didn't ship, say so clearly. Don't make me discover it by testing.
 
+### Trace downstream implications before approving plans
+When CC proposes a change to a shared value (plannedSeconds, a schema field, a timing calculation), Claude Chat should explicitly ask: "what else reads this field, and does the change break any invariants?" CC should be required to trace dependents before the plan is approved — not discover breakage in the live run. If CC says "X stays unchanged to preserve invariant Y," Claude Chat should verify that Y still holds given the change.
+
 ---
 
 ## Communication preferences

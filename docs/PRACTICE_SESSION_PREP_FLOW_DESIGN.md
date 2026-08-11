@@ -48,16 +48,17 @@ A **Prep → Drill → Rate** flow for every block, with three simultaneous time
 ## Prep → Drill → Rate Flow
 
 ### Prep Screen
-Shown before each block. Block timer starts here.
+Shown before each block. Block timer starts here. This is the **only configuration screen** — all settings that previously lived inside the drill modal (BPM, metronome style, timing adjustments) are surfaced here instead.
 
 **Displays:**
 - What's coming: block type, specific content, planned duration
   - "Scales · C major + C major pentatonic · 2 min"
   - "Chord shapes · Minor triads · 5 min"
   - "HF Flashcards · 20 cards · 4 min"
-- Recommended BPM (for timed drills)
+- Recommended BPM — editable inline
+- Metronome style selector (remembers last-used)
 - Metronome on/off toggle
-- **Time adjustment**: +30s / -30s buttons to modify the drill duration before starting
+- **Time adjustment**: +1 min / +2 min / +5 min / -30s buttons
 - **Ready button** — starts the countdown
 
 **Voice prompt (on arrival):**
@@ -65,6 +66,11 @@ Shown before each block. Block timer starts here.
 
 **Block timer starts** when prep screen appears.
 **Drill timer does NOT start** until after the countdown.
+
+### Auto-navigation (Level 3)
+On GO, the app navigates directly to the specific drill — not just the module home, but the exact matrix cell, flashcard queue, or drill screen for the block's itemRefs. The drill modal opens pre-configured with the BPM and style set on the prep screen. No additional navigation, no tapping inside the matrix, no re-configuring inside the modal.
+
+The prep screen eliminates all overhead that previously happened inside the drill modal. The drill modal becomes purely the drill.
 
 ---
 
@@ -78,14 +84,15 @@ After tapping Ready:
 ---
 
 ### Drill
-Active drilling phase.
+Active drilling phase. App has auto-navigated directly to the specific drill (Level 3).
 
-- Drill timer counts down visibly
+- Drill timer counts down visibly in the banner
 - Session timer continues counting up
 - Block timer continues counting up
+- Drill modal is already open on the correct cell/queue, pre-configured with BPM and style from prep screen
 - **Warning chime** at 10 seconds remaining
 - **End chime** when drill timer hits 0
-- Drill modal/interface appears as it does today
+- Auto-returns to rating screen
 
 ---
 
@@ -97,7 +104,16 @@ After drill completes. Block timer continues.
 
 - Flying / Cruising / Crawling (existing rating UI)
 - Auto-advances after rating is selected (no extra tap needed)
-- Optional: 2-second delay before advancing so the tap doesn't accidentally trigger the next prep screen
+- 2-second grace delay before auto-advancing
+
+**Extend time option (shown below rating):**
+"Want more time on this?"
+- +1 min · +2 min · +5 min · Done (move on)
+
+If extended: drill resumes, drill timer resets to chosen amount, block timer continues. Session runs longer — subsequent blocks are NOT compressed. Repeat rating screen after extension ends.
+
+Extend option appears on: flashcard blocks, shapes & patterns drills, repertoire/song drills.
+Does NOT appear on: mental visualization, warm-up/intro blocks.
 
 **Voice prompt on advance:**
 Brief session status update every 2-3 blocks:
@@ -107,8 +123,9 @@ Brief session status update every 2-3 blocks:
 
 ## Session End Summary
 
-At session end, show the three-timer breakdown:
+At session end, show in sequence:
 
+### 1. Three-timer breakdown
 ```
 Session time:     47 min
 True practice:    34 min  (drill timer total)
@@ -116,10 +133,14 @@ Overhead:         13 min  (session - practice)
 Efficiency:       72%
 ```
 
-Over multiple sessions, the app tracks:
-- Average overhead per block type
-- Average block duration (planned vs actual)
-- Efficiency trend over time
+### 2. Matrix progress review
+After the timing summary, show a visual review of the matrices for each module practiced in the session:
+- Read-only heat grid for each module (shapes, HF, ET, etc.)
+- Cells drilled in this session highlighted with a "practiced today" indicator
+- Stage changes called out: "3 new cells acquired · 7 cells reinforced · 2 cells due again tomorrow"
+- Tap any cell to see its current spacing state
+
+This closes the loop — you can see what actually changed, not just get a summary number. Over time the matrix becomes a visual record of accumulated progress.
 
 ---
 
@@ -211,13 +232,16 @@ On the prep screen:
 
 ## Build Sequence
 
-1. **Three-timer infrastructure** — session, block, drill timers running simultaneously; data model for capturing timing data
-2. **Prep screen** — block preview, time adjustment, Ready button; block timer starts here
-3. **Countdown + chimes** — 4-3-2-1 with audio; drill timer starts on GO
-4. **Rating screen auto-advance** — auto-advance after rating, no extra tap
-5. **Voice prompts** — toggleable, uses best system voice; scripts for intro/rating/progress/end
-6. **Session end summary** — three-timer breakdown, efficiency display
-7. **Overhead learning** — feed block timing data back into session proposal estimates (Phase 4 / deferred until data accumulates)
+1. **Three-timer infrastructure** — session, block, drill timers; data model for capturing timing ✅ Phase 1 (CC building)
+2. **Prep screen** — block preview, BPM/style config, time adjustment, Ready button; block timer starts here
+3. **Level 3 auto-navigation** — GO routes directly to specific drill screen (matrix cell, flashcard queue, etc.), opens pre-configured
+4. **Countdown + chimes** — 4-3-2-1-GO with audio; drill timer starts on GO; auto-starts metronome
+5. **Drill timer + rating auto-advance** — global drill countdown in banner; warning chime at 10s; end chime → auto-return to rating; auto-advance after rating
+6. **Extend time option** — +1/+2/+5 min on rating screen for flashcard/shapes/repertoire blocks
+7. **Voice prompts** — toggleable, best system voice; scripts for intro/rating/progress/end
+8. **Session end — timing summary** — three-timer breakdown, efficiency %
+9. **Session end — matrix progress review** — heat grid for each module practiced, stage changes highlighted, "practiced today" indicators
+10. **Overhead learning** — feed real block timing data back into session proposal estimates (Phase 4, deferred)
 
 ---
 

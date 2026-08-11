@@ -881,6 +881,62 @@ store:
 count. Not currently reachable as a bug, but it is the same assumption; **anything asking "how many bars"
 should derive it.**
 
+### EIGHTHS — offbeat positions, and why the axis scale is fixed (2026-08-11)
+
+A song-level toggle. On, every bar offers the "and" of each beat. Off by default, never per-bar or
+per-section.
+
+**Beat 2 keeps its identity and gains a neighbour.** `beatPos` is untouched; an offbeat is a separate flag.
+So turning eighths on is a **no-op for everything already placed** — nothing to remap, nothing to orphan.
+Raising `beatsPerBar` from 4 to 8 instead would have renumbered everything (beat 2 becoming position 3),
+which is the same class as the orphaning bugs.
+
+**THE AXIS IS ALWAYS IN EIGHTHS, whether a song offers offbeats or not**, and the even/odd scheme looks
+arbitrary without this reason beside it:
+
+- The axis spans **every section of a song**. A per-song scale would make it mean different things in
+  different places, and two cells could share a global.
+- So the scale is fixed: **on-beats are always EVEN, offbeats always ODD.** "One global = one cell" then
+  holds by construction rather than by every caller remembering.
+- `subdivision` on the axis says only which positions a song **offers**. It never changes the scale — it
+  tells consumers whether odd globals are *addressable*.
+
+**The ghost-spread bug is the concrete example of what that distinction is for.** `provisionalPlacements`
+interpolates on globals, so with eighths **off** it would happily land a syllable on an odd global — a slot
+the grid draws no cell for. The syllable would report as placed and render nowhere: the orphan class,
+arriving through a side door, invisible until a song was opened and a word was missing. Ghosts now snap to
+the resolution the song actually offers. Confusing "the scale" with "what's addressable" is exactly how that
+happens.
+
+**Durations moved to eighth units; positions did not.** Positions were free, durations were not — the moment
+a chord sits on beat 1 and another on the "and of 1", the first lasts an eighth, and `beats` was an integer
+count of beats. Three options were weighed:
+
+| | |
+|---|---|
+| Keep `beats` in beats, clip at the next chord | No migration, but declared duration and rendered width stop agreeing. **Stored-vs-derived divergence caused both bar-count bugs**; declined. |
+| **Double to eighth units** ✅ | A migration, but a *lossless mechanical* one. Keeps declared = rendered. |
+| Derive duration entirely | Loses a chord that ends early and leaves a gap, which is expressible today. |
+
+The invariant is tested as **rendered width**, not stored numbers: width is `beats / slotsPerBar`, and the
+migration doubles numerator *and* denominator, so the ratio holds. If a chord looks different afterwards the
+migration is wrong whatever the numbers say.
+
+**The migration is LAZY, gated on the toggle rather than run on load.** A song where eighths is never
+enabled has no reason to have every placement rewritten — fewer songs touched, and the ones that are were
+deliberately opted in. Reversal halves back, and **refuses rather than flooring** any value that would not
+round-trip.
+
+**Turning it off is refused** while anything sits on an offbeat, naming both the chord and word counts.
+Those positions stop existing, and a preference toggle does not get to discard placed work.
+
+**No layout change was needed, and the audit's prediction was wrong.** §7 of the audit assumed four bars per
+row on mobile and predicted ~10px slots. Measured, `useBarsPerRow` already returns **1 on mobile and 2 on
+desktop**, so 4/4 with eighths lands at ~39px on a phone and ~43px on desktop — usable. The one genuinely
+tight case is **12/8 with eighths at ~12px**, and 12/8 was already tight at ~26px before eighths existed. A
+"fewer bars per row" special case was therefore not built: it would have added a branch for a problem that
+does not occur.
+
 ### Design item — can arrangements differ in BAR COUNT? (needs its own pass)
 
 Today an arrangement is *different chords over the same bars*, and everything assumes that: bars are
