@@ -32,6 +32,7 @@ import {
   type CellOccupant,
   type OrderViolation,
   type LineMarkerPlacement,
+  anchorsMatching,
   cellKey,
   checkPlacementOrder,
   findSyllable,
@@ -42,10 +43,12 @@ import {
   placeSyllable,
   setSyllableText,
   splitSyllable,
+  unplaceAnchorsMatching,
   unplaceLine,
   unplaceSyllable,
 } from './lyricSyllables';
 import { parseLyricSheet } from './lyricSheetParse';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import {
   DEFAULT_LYRIC_TRAY_COLLAPSED,
   DEFAULT_PATTERNS_COLLAPSED,
@@ -797,10 +800,47 @@ export default function LeadSheetSection({
   // override so the section falls back to the song-level default.
   // commit() routes the undefined-clear through onReplace so the
   // field actually goes back to undefined in storage.
+  /** Words on beats that a new signature would delete. */
+  const wordsOffNewSignature = (nextSignature: string | undefined) => {
+    if (!songLyricsActive || !songLyricLines) return [];
+    const nextBeats = parseTimeSignature(
+      nextSignature ?? song.timeSignature ?? '4/4',
+    ).beatsPerBar;
+    return anchorsMatching(
+      songLyricLines,
+      a => a.sectionId === section.id && a.beatPos >= nextBeats,
+    );
+  };
+
+  const [confirmSignature, setConfirmSignature] = useState<{
+    value: string | undefined;
+  } | null>(null);
+
   const handleTimeSignatureChange = async (next: string | null) => {
     const cleaned =
       next === null || next.trim() === '' ? undefined : next.trim();
     if ((sectionRef.current.timeSignature ?? undefined) === cleaned) return;
+    if (wordsOffNewSignature(cleaned).length > 0) {
+      setConfirmSignature({ value: cleaned });
+      return;
+    }
+    await performSignatureChange(cleaned);
+  };
+
+  const performSignatureChange = async (cleaned: string | undefined) => {
+    if (songLyricsActive && songLyricLines && onSongLyricsChange) {
+      // Only beats that stop existing are un-placed. A word on beat 2
+      // of a bar going 4/4 → 3/4 stays exactly where it is; a word on
+      // beat 4 has nowhere to be.
+      const nextBeats = parseTimeSignature(
+        cleaned ?? song.timeSignature ?? '4/4',
+      ).beatsPerBar;
+      const cleared = unplaceAnchorsMatching(
+        songLyricLines,
+        a => a.sectionId === section.id && a.beatPos >= nextBeats,
+      );
+      if (cleared !== songLyricLines) await onSongLyricsChange(cleared);
+    }
     await commit({ timeSignature: cleaned });
   };
 
@@ -940,29 +980,80 @@ export default function LeadSheetSection({
     await commit({ barLayout: layout });
   };
 
+  /**
+   * Words a bar delete would leave homeless. Read from the SONG store —
+   * the old count came from `section.lyricLines`, the legacy field, so
+   * a migrated song was warned about nothing while its real syllables
+   * were silently orphaned.
+   *
+   * TWO groups, not one, and the second is easy to miss. Deleting a bar
+   * removes that bar — and it also shrinks the section, so an anchor on
+   * the old LAST bar index now addresses nothing. Because anchors
+   * deliberately do not shift, that anchor does not follow anything
+   * down; it simply stops resolving.
+   *
+   * Everything between keeps its index and stays exactly where the user
+   * put it, which does mean it may now sit under a different chord.
+   * That is the intended trade: visible and fixable beats silently
+   * relocated.
+   */
+  const homelessAfterBarDelete = (barIndex: number) => {
+    if (!songLyricsActive || !songLyricLines) return [];
+    const remainingBars = Math.max(0, materializeBarLayout().length - 1);
+    return anchorsMatching(
+      songLyricLines,
+      a =>
+        a.sectionId === section.id &&
+        (a.barIndex === barIndex || a.barIndex >= remainingBars),
+    );
+  };
+
+  const [confirmDeleteBar, setConfirmDeleteBar] = useState<number | null>(null);
+
   const handleDeleteBar = async (barIndex: number) => {
     const layout = materializeBarLayout();
     if (barIndex < 0 || barIndex >= layout.length) return;
-    // Only empty bars can be deleted via this affordance.
+    // Only empty bars can be deleted via this affordance. "Empty" means
+    // no CHORDS — a bar full of placed lyrics is still deletable.
     if (layout[barIndex] !== 'empty') return;
+    if (homelessAfterBarDelete(barIndex).length > 0) {
+      setConfirmDeleteBar(barIndex);
+      return;
+    }
+    await performDeleteBar(barIndex);
+  };
 
-    // Lines touching this bar: starts here, ends here, or spans across.
+  const performDeleteBar = async (barIndex: number) => {
+    const layout = materializeBarLayout();
+    if (barIndex < 0 || barIndex >= layout.length) return;
+    layout.splice(barIndex, 1);
+
+    if (songLyricsActive && songLyricLines && onSongLyricsChange) {
+      // NOTHING SHIFTS. Words in the deleted bar return to the drawer,
+      // and so do words on the old last bar index, which the shrunken
+      // section no longer has. Everything between keeps the anchor it
+      // was given even though the bar under it renumbers — sliding them
+      // back would move words the user placed, to somewhere the user
+      // did not put them.
+      const remainingBars = layout.length;
+      await onSongLyricsChange(
+        unplaceAnchorsMatching(
+          songLyricLines,
+          a =>
+            a.sectionId === section.id &&
+            (a.barIndex === barIndex || a.barIndex >= remainingBars),
+        ),
+      );
+      await commit({ barLayout: layout });
+      return;
+    }
+
+    // Pre-migration path, unchanged: legacy lines are range-based and
+    // are dropped or re-indexed here.
     const touchesBar = (l: LyricLine): boolean =>
       l.startBar === barIndex ||
       l.endBar === barIndex ||
       (l.startBar < barIndex && l.endBar > barIndex);
-    const touched = lyricLines.filter(touchesBar);
-
-    if (touched.length > 0) {
-      const ok = window.confirm(
-        `Bar ${barIndex + 1} has ${touched.length} placed lyric ` +
-          `line${touched.length === 1 ? '' : 's'}. Delete the bar and ` +
-          `remove ${touched.length === 1 ? 'it' : 'them'}?`,
-      );
-      if (!ok) return;
-    }
-
-    // Drop touching lines; shift lines past the deletion point down by 1.
     const nextLyrics = lyricLines
       .filter(l => !touchesBar(l))
       .map(l => ({
@@ -970,8 +1061,6 @@ export default function LeadSheetSection({
         startBar: l.startBar > barIndex ? l.startBar - 1 : l.startBar,
         endBar: l.endBar > barIndex ? l.endBar - 1 : l.endBar,
       }));
-
-    layout.splice(barIndex, 1);
     await commit({ barLayout: layout, lyricLines: nextLyrics });
   };
 
@@ -1899,6 +1988,63 @@ export default function LeadSheetSection({
               ) : null}
             </DragOverlay>
           </DndContext>
+
+          {/* Both warnings say what will actually happen, and both
+              counts come from the SONG store. The old bar-delete
+              confirm counted `section.lyricLines` — the legacy field —
+              so a migrated song was warned about nothing while its
+              real syllables were orphaned.
+              A ConfirmDialog rather than the anchored-popup pattern
+              deliberately: the anchored pattern's defining behaviour is
+              dismiss-on-outside-tap, which is exactly what a
+              destructive confirm must not do. */}
+          <ConfirmDialog
+            open={confirmDeleteBar !== null}
+            title={`Delete bar ${(confirmDeleteBar ?? 0) + 1}?`}
+            message={
+              <p>
+                {homelessAfterBarDelete(confirmDeleteBar ?? -1).length} placed{' '}
+                {homelessAfterBarDelete(confirmDeleteBar ?? -1).length === 1
+                  ? 'word has'
+                  : 'words have'}{' '}
+                nowhere to go once this bar is gone — the ones in it, and
+                any on the last bar, since the section gets shorter.
+                They return to the lyrics drawer as unplaced text.
+                Everything else stays exactly where you put it.
+              </p>
+            }
+            confirmLabel="Delete bar"
+            onCancel={() => setConfirmDeleteBar(null)}
+            onConfirm={async () => {
+              const bar = confirmDeleteBar;
+              setConfirmDeleteBar(null);
+              if (bar !== null) await performDeleteBar(bar);
+            }}
+          />
+
+          <ConfirmDialog
+            open={confirmSignature !== null}
+            title="Change the time signature?"
+            message={
+              <p>
+                {wordsOffNewSignature(confirmSignature?.value).length} placed{' '}
+                {wordsOffNewSignature(confirmSignature?.value).length === 1
+                  ? 'word sits'
+                  : 'words sit'}{' '}
+                on beats this signature does not have. They return to the
+                lyrics drawer as unplaced text; everything on the
+                remaining beats stays where it is.
+              </p>
+            }
+            confirmLabel="Change signature"
+            variant="default"
+            onCancel={() => setConfirmSignature(null)}
+            onConfirm={async () => {
+              const pending = confirmSignature;
+              setConfirmSignature(null);
+              if (pending) await performSignatureChange(pending.value);
+            }}
+          />
 
 
           {!playMode && sequenceStrip.length > 0 && !comparing && (

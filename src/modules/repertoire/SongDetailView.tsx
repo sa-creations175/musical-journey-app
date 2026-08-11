@@ -50,11 +50,13 @@ import {
   buildBeatAxis,
   buildCellIndex,
   buildMarkerIndex,
+  anchorsMatching,
   cellKey,
   findSyllable,
   linesFromParsedRows,
   duplicateLine,
   setLineKind,
+  unplaceAnchorsMatching,
   unplaceLine,
   foldSectionLyrics,
   restoreLineSyllables,
@@ -1020,11 +1022,34 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // Section delete with full-state undo. Snapshot the section row +
   // every related progress/chord row so Undo restores the exact
   // prior state.
+  /** Words anchored into a section, which its deletion leaves
+   *  homeless. A LINE may also have words in other sections; only the
+   *  part inside this one is affected. */
+  const wordsInSection = useCallback(
+    (sectionId: string) =>
+      song?.lyricLines
+        ? anchorsMatching(song.lyricLines, a => a.sectionId === sectionId)
+        : [],
+    [song?.lyricLines],
+  );
+
   const deleteSection = async (section: SongSection) => {
     const [chordRows, ckRows] = await Promise.all([
       db.songChords.where('sectionId').equals(section.id).toArray(),
       db.songCrossKeyProgress.where('[songId+sectionId]').equals([section.songId, section.id]).toArray(),
     ]);
+    // Un-place anything anchored here BEFORE the section row goes, so
+    // the words return to the drawer rather than becoming anchors
+    // pointing at a section that no longer exists. Words of the same
+    // LINE anchored in other sections keep their anchors — a line can
+    // span sections, and only the part inside this one is homeless.
+    if (song?.lyricLines) {
+      const cleared = unplaceAnchorsMatching(
+        song.lyricLines,
+        a => a.sectionId === section.id,
+      );
+      if (cleared !== song.lyricLines) await commitSongLyrics(cleared);
+    }
     await db.transaction('rw', [db.songSections, db.songChords, db.songCrossKeyProgress], async () => {
       await db.songSections.delete(section.id);
       if (chordRows.length > 0) await db.songChords.bulkDelete(chordRows.map(r => r.id));
@@ -1703,6 +1728,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                   }
                   if ((s.notes ?? '').trim() !== '') {
                     bullets.push('section notes');
+                  }
+                  // Lyrics were never mentioned here, and the section
+                  // delete silently orphaned every syllable anchored
+                  // into it — including words belonging to lines that
+                  // live mostly in OTHER sections.
+                  const words = wordsInSection(s.id).length;
+                  if (words > 0) {
+                    bullets.push(
+                      `${words} placed lyric word${words === 1 ? '' : 's'} — ` +
+                        `${words === 1 ? 'it returns' : 'they return'} to the ` +
+                        `lyrics drawer as unplaced text, and words of the same ` +
+                        `line placed in other sections stay where they are`,
+                    );
                   }
                   if (bullets.length === 0) bullets.push('chord or note data');
                   return bullets.map((b, i) => <li key={i}>{b}</li>);
