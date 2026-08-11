@@ -1925,20 +1925,34 @@ function SyllableDropSlot({
   // WHY NOT MORE GREY: the previous hint was a 10%-alpha grey wash — a
   // ~4% luminance shift on a 28px cell, measured at 1.05:1 against a
   // resting cell. That is below the threshold where a change reads as
-  // intentional at all, which is why it was scanned straight past. The
-  // wash is now sized by measurement (1.38:1 light, 1.66:1 dark) AND
-  // paired with a solid inset ring, because the wash alone was the
-  // thing that failed. Colour makes it findable; the ring makes it a
-  // target.
+  // intentional at all, which is why it was scanned straight past.
+  //
+  // BALANCE: the WASH is what made it shout, because it is a large
+  // filled area; the RING is what makes it read as a target. So the
+  // ring carries more of the load (/50 → /70) and the wash carries
+  // less, which softens the highlighter quality without softening the
+  // signal.
+  //
+  // Every value here is measured, not judged by eye, and the two modes
+  // are measured SEPARATELY — an alpha that works over white is close
+  // to invisible over neutral-900, which is why dark takes both a
+  // lighter hue step and a higher alpha. Against a resting cell:
+  //
+  //   light  indigo-500/20 → 1.29:1   (was 1.38, floor 1.16)
+  //   dark   indigo-400/25 → 1.49:1   (was 1.64, floor 1.35)
+  //
+  // The floors are not guesses: 1.16 and 1.35 are values already tried
+  // and judged too weak to read. Softening stops well above them
+  // rather than creeping back toward the 1.05 that failed.
   const placementTarget =
     'border-solid border-indigo-500 dark:border-indigo-400 ' +
-    'bg-indigo-500/25 dark:bg-indigo-400/30 ' +
-    'ring-2 ring-inset ring-indigo-500/50 dark:ring-indigo-400/50';
+    'bg-indigo-500/20 dark:bg-indigo-400/25 ' +
+    'ring-2 ring-inset ring-indigo-500/70 dark:ring-indigo-400/70';
 
   const surface = rejected
     ? 'border-solid border-needswork bg-needswork/20 ring-2 ring-needswork'
     : armingActive && !dragActive
-      ? `${placementTarget} cursor-pointer hover:bg-indigo-500/35 dark:hover:bg-indigo-400/40`
+      ? `${placementTarget} cursor-pointer hover:bg-indigo-500/30 dark:hover:bg-indigo-400/35`
     : isOver
     ? placementTarget
     : dragActive

@@ -640,8 +640,28 @@ green and 3 teal.
 **What made the case, and the measurement is the part worth keeping.** The grey hint was a 10%-alpha wash —
 **1.05:1 against a resting cell.** That is not a subtle signal; it is below the threshold at which a change
 reads as intentional, which is why it was scanned straight past by the person who specified it. Sizing by
-measurement rather than by eye is the lesson: the replacement is 1.38:1 in light and 1.66:1 in dark **and**
-carries a solid inset ring, because the wash alone was the thing that had failed.
+measurement rather than by eye is the lesson.
+
+**Tuning log — measure each mode separately, and keep the floors.** An alpha that works over white is close
+to invisible over `neutral-900`, so dark takes both a lighter hue step *and* a higher alpha. Contrast is
+against a resting cell:
+
+| | Light | Dark |
+|---|---|---|
+| Failed grey hint | 1.05 | — |
+| Tried, judged too weak | 1.16 (`indigo-500/12`) | 1.35 (`indigo-400/20`) |
+| First shipped — read as a highlighter | 1.38 (`/25`) | 1.64 (`/30`) |
+| **Current** | **1.29 (`/20`)** | **1.49 (`/25`)** |
+
+The two "too weak" numbers are **floors, not guesses** — both were tried and rejected as unreadable, so any
+future softening stops above them rather than creeping back toward 1.05. The wash was what made it shout,
+because it is a large filled area; the **ring** is what makes it read as a target, so the ring carries more
+of the load (`/70`) and the wash carries less.
+
+**Verify the built stylesheet, not the build.** Invalid Tailwind opacity values emit **no CSS at all** and
+the build still passes — `dark:bg-indigo-400/28` shipped nothing until it was caught by grepping
+`dist/assets/*.css`. Use `grep -qF` with the escaped class name; a `\:` inside double quotes collapses to
+`:` and produces a false "missing" on classes that are actually fine.
 
 The armed syllable chip stays **neutral** against the indigo field, and now does more work than it used to:
 *"the thing being placed"* and *"places it could go"* are different statements, and different hues are what
