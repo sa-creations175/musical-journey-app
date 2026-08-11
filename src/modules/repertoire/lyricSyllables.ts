@@ -290,6 +290,10 @@ export function placeSyllable(
    *  pre-check. Omitted only where there is no axis to check against. */
   axis?: BeatAxis,
 ): SongLyricLine[] {
+  // `checkPlacementOrder` returns 'off-axis' for a target that names no
+  // real cell, so this also refuses out-of-range writes — the write
+  // path cannot create the collision `anchorToGlobal` now guards
+  // against at read time.
   if (axis && checkPlacementOrder(lines, syllableId, target, axis) !== null) {
     return [...lines];
   }
@@ -640,6 +644,32 @@ export function buildBeatAxis(
 }
 
 /** Anchor → absolute beat. Null when the section isn't on the axis. */
+/**
+ * Anchor → absolute beat. Null when the anchor does not name a real
+ * cell.
+ *
+ * THE INVARIANT THIS PROTECTS: **one global beat is exactly one cell.**
+ * The unified stacking rule (§2.0 rev 5) rests on it entirely —
+ * "equality on the global axis IS the same cell" is what makes
+ * same-cell placement legal and cross-cell placement guarded.
+ *
+ * An anchor outside its bar's or section's range breaks that. Two
+ * measured examples, both reachable from real operations:
+ *
+ *   · beat 3 of a bar that is now 3/4 computes to the same global as
+ *     beat 0 of the NEXT bar
+ *   · bar 9 of a section that now has 2 bars computes into the range
+ *     of a LATER section entirely
+ *
+ * In both cases two distinct cells become indistinguishable to the
+ * guard, which surfaces later as inexplicable refusals. Range-checking
+ * here makes the invariant hold for ALL data — including anchors
+ * written before the check existed — rather than depending on every
+ * handler remembering to behave. An out-of-range anchor reads as
+ * off-axis: invisible, and skipped when looking for binding
+ * neighbours, which is the honest treatment of a position that does
+ * not exist.
+ */
 export function anchorToGlobal(
   axis: BeatAxis,
   anchor: { sectionId: string; barIndex: number; beatPos: number },
@@ -648,7 +678,20 @@ export function anchorToGlobal(
   if (base === undefined) return null;
   const entry = axis.entries.find(e => e.sectionId === anchor.sectionId);
   if (!entry) return null;
-  return base + anchor.barIndex * Math.max(1, entry.beatsPerBar) + anchor.beatPos;
+  const beatsPerBar = Math.max(1, entry.beatsPerBar);
+  if (anchor.barIndex < 0 || anchor.barIndex >= Math.max(0, entry.barCount)) {
+    return null;
+  }
+  if (anchor.beatPos < 0 || anchor.beatPos >= beatsPerBar) return null;
+  return base + anchor.barIndex * beatsPerBar + anchor.beatPos;
+}
+
+/** True when this anchor names a cell that actually exists. */
+export function anchorIsOnAxis(
+  axis: BeatAxis,
+  anchor: { sectionId: string; barIndex: number; beatPos: number },
+): boolean {
+  return anchorToGlobal(axis, anchor) !== null;
 }
 
 /** Absolute beat → the cell it lands in. Null when off the axis. */

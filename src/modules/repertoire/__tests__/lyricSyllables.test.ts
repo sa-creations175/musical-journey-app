@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LyricLine, SongLyricLine } from '../../../lib/db';
 import { distributedWordPositions } from '../lyricLine';
 import {
+  anchorIsOnAxis,
   anchorToGlobal,
   buildBeatAxis,
   buildCellIndex,
@@ -1538,5 +1539,76 @@ describe('duplicateLine — repeated material', () => {
     expect(twice).toHaveLength(3);
     expect(twice[0].id).toBe('l1');
     expect(new Set(twice.map(l => l.id)).size).toBe(3);
+  });
+});
+
+describe('anchorToGlobal — one global beat is exactly one cell', () => {
+  // The invariant the unified stacking rule rests on. Both collisions
+  // below were MEASURED from real operations before this check existed.
+  const axis = buildBeatAxis([
+    { sectionId: SEC, beatsPerBar: 4, barCount: 2 },
+    { sectionId: 'sec-b', beatsPerBar: 4, barCount: 2 },
+  ]);
+  const at = (sectionId: string, barIndex: number, beatPos: number) => ({
+    sectionId,
+    barIndex,
+    beatPos,
+  });
+
+  it('rejects a beat outside its bar', () => {
+    // 4/4 → 3/4 leaves words on beat 3 with nowhere to be, and beat 3
+    // of a 3/4 bar computes to the same global as beat 0 of the next.
+    const threeFour = buildBeatAxis([
+      { sectionId: SEC, beatsPerBar: 3, barCount: 2 },
+    ]);
+    expect(anchorToGlobal(threeFour, at(SEC, 0, 3))).toBeNull();
+    expect(anchorToGlobal(threeFour, at(SEC, 1, 0))).toBe(3);
+  });
+
+  it('rejects a bar outside its section', () => {
+    // Deleting bars leaves anchors past the end, and bar 9 of a 2-bar
+    // section computes straight into a LATER section's range.
+    expect(anchorToGlobal(axis, at(SEC, 9, 0))).toBeNull();
+    expect(anchorToGlobal(axis, at('sec-b', 1, 0))).toBe(12);
+  });
+
+  it('rejects negatives', () => {
+    expect(anchorToGlobal(axis, at(SEC, -1, 0))).toBeNull();
+    expect(anchorToGlobal(axis, at(SEC, 0, -1))).toBeNull();
+  });
+
+  it('maps every real cell to a DISTINCT global', () => {
+    // The invariant stated directly: no two cells share a number.
+    const seen = new Map<number, string>();
+    for (const s of [SEC, 'sec-b']) {
+      for (let b = 0; b < 2; b++) {
+        for (let p = 0; p < 4; p++) {
+          const g = anchorToGlobal(axis, at(s, b, p))!;
+          expect(g).not.toBeNull();
+          expect(seen.has(g)).toBe(false);
+          seen.set(g, `${s}:${b}:${p}`);
+        }
+      }
+    }
+    expect(seen.size).toBe(16);
+  });
+
+  it('round-trips through globalToCell for every real cell', () => {
+    for (let g = 0; g < 16; g++) {
+      const cell = globalToCell(axis, g)!;
+      expect(anchorToGlobal(axis, cell)).toBe(g);
+    }
+  });
+
+  it('anchorIsOnAxis agrees', () => {
+    expect(anchorIsOnAxis(axis, at(SEC, 0, 0))).toBe(true);
+    expect(anchorIsOnAxis(axis, at(SEC, 9, 0))).toBe(false);
+    expect(anchorIsOnAxis(axis, at('gone', 0, 0))).toBe(false);
+  });
+
+  it('placeSyllable refuses to write an out-of-range target', () => {
+    const lines = [line('l1', [{ id: 'a', text: 'a' }])];
+    const next = placeSyllable(lines, 'a', at(SEC, 9, 0), axis);
+    expect(anchorOf(next, 'a')).toBeUndefined();
   });
 });
