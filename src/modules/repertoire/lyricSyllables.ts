@@ -772,8 +772,14 @@ export function globalToCell(
 export interface ProvisionalPlacement {
   syllableId: string;
   lineId: string;
-  /** Derived, never stored. */
-  cell: { sectionId: string; barIndex: number; beatPos: number };
+  /** Derived, never stored. Carries `offbeat` when the song offers
+   *  eighths and the spread landed on one. */
+  cell: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+    offbeat?: boolean;
+  };
 }
 
 /**
