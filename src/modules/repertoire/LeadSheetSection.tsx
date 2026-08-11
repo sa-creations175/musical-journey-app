@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   closestCenter,
   type CollisionDetection,
@@ -79,6 +79,7 @@ import {
 } from './beatsModel';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
+import { EMPTY_SEQUENCE_VIEW, buildPhrases } from './sequenceView';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
 import BarGridView from './BarGridView';
@@ -1719,11 +1720,22 @@ export default function LeadSheetSection({
   // post-redesign), in left-to-right order, keeping each chord's bar
   // index for position display.
   const detectionSequence = useMemo(() => {
-    const seq: { chord: ChordFunction; barIndex: number }[] = [];
+    const seq: {
+      chord: ChordFunction;
+      barIndex: number;
+      placementId: string;
+    }[] = [];
     for (const bar of allBars) {
       for (const cell of bar.cells) {
+        // Tied continuations are skipped, so one token is exactly one
+        // placement — which is what lets the strip's annotations anchor
+        // to `placementId` unambiguously.
         if (cell.tiedFromPrev) continue;
-        seq.push({ chord: cell.chord, barIndex: bar.index });
+        seq.push({
+          chord: cell.chord,
+          barIndex: bar.index,
+          placementId: cell.placementId,
+        });
       }
     }
     return seq;
@@ -1750,13 +1762,31 @@ export default function LeadSheetSection({
   // every case the grid handles: unparsed falls to the neutral palette,
   // slash chords resolve to the bass family, and flat degrees pick up
   // their darkened twin, all inside `chordPalette`.
-  const sequenceStrip = useMemo(
-    () =>
-      detectionSequence.map(s => ({
+  const sequenceTokens = useMemo(() => {
+    const map = new Map<string, { text: string; color: string }>();
+    for (const s of detectionSequence) {
+      map.set(s.placementId, {
         text: chordToDisplay(s.chord, notationMode, song.key),
         color: chordPalette(s.chord, isDark).text,
-      })),
-    [detectionSequence, notationMode, song.key, isDark],
+      });
+    }
+    return map;
+  }, [detectionSequence, notationMode, song.key, isDark]);
+
+  /** Live token order — the anchor set the view's annotations resolve
+   *  against. Deliberately UNFILTERED: hiding is applied when phrases
+   *  are built for rendering, never here, because `patternMatches`
+   *  reads this list and detection must keep seeing the true grid. */
+  const sequenceOrder = useMemo(
+    () => detectionSequence.map(s => s.placementId),
+    [detectionSequence],
+  );
+
+  const sequenceView = section.sequenceView ?? EMPTY_SEQUENCE_VIEW;
+
+  const phrases = useMemo(
+    () => buildPhrases(sequenceOrder, sequenceView),
+    [sequenceOrder, sequenceView],
   );
 
   // Pattern matches via flexible root-motion detection. The effective
@@ -2101,7 +2131,7 @@ export default function LeadSheetSection({
           />
 
 
-          {!playMode && sequenceStrip.length > 0 && !comparing && (
+          {!playMode && sequenceOrder.length > 0 && !comparing && (
             <div className="flex flex-col gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200 dark:border-neutral-800">
               {/* "Progression Patterns", not "Numerals" — the old label
                   described the notation the strip happened to use,
@@ -2133,14 +2163,39 @@ export default function LeadSheetSection({
                   or concrete. */}
               <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="uppercase tracking-wide">sequence:</span>
-                <span className="font-mono">
-                  {sequenceStrip.map((item, i) => (
-                    <span key={i}>
-                      {i > 0 && <span className="text-neutral-400"> · </span>}
-                      <span style={{ color: item.color }}>{item.text || '—'}</span>
-                    </span>
+                {/* Phrases, not one continuous run. A break renders as
+                    a divider on the same line or as a wrap to the next;
+                    hidden tokens are dropped HERE and nowhere else, so
+                    the grid and pattern detection are untouched. */}
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono min-w-0">
+                  {phrases.map((phrase, pi) => (
+                    <Fragment key={phrase.endsAfterPlacementId ?? `tail-${pi}`}>
+                      <span className="text-neutral-700 dark:text-neutral-200">
+                        {phrase.placementIds.map((id, i) => {
+                          const token = sequenceTokens.get(id);
+                          return (
+                            <span key={id}>
+                              {i > 0 && (
+                                <span className="text-neutral-400"> · </span>
+                              )}
+                              <span style={{ color: token?.color }}>
+                                {token?.text || '—'}
+                              </span>
+                            </span>
+                          );
+                        })}
+                      </span>
+                      {phrase.endKind === 'separator' && (
+                        <span className="text-neutral-400" aria-hidden>
+                          |
+                        </span>
+                      )}
+                      {phrase.endKind === 'row' && (
+                        <span className="basis-full h-0" aria-hidden />
+                      )}
+                    </Fragment>
                   ))}
-                </span>
+                </div>
               </div>
 
               {/* Pattern highlights — structural matches with bar
