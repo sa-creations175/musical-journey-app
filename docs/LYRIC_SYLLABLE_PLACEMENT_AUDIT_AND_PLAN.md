@@ -826,6 +826,64 @@ Two defences, deliberately independent:
 `__tests__/lyricOrphans.test.ts` walks every cell that exists and flags anything counted as placed but not
 drawn. Write-path unit tests passed throughout the original bug.
 
+### Bar delete — what shifts and what does not (2026-08-11)
+
+Any bar is deletable now, chords or not. Only chord-free bars were before, which meant the case that most
+needs it — a section transcribed as five bars that is actually four, with chords in the spare — was the one
+case that could not be fixed.
+
+| | On delete |
+|---|---|
+| **Chords in that bar** | deleted |
+| **Chords after it** | **shift down one**, across every arrangement |
+| **Words in that bar** | return to the drawer unplaced — blanket, no analysis |
+| **Words after it** | **keep their bar number**, stay placed, may now sit under a different chord |
+
+**The asymmetry is the point.** A chord *defines* what a bar is, so a chord left at index 3 while bar 3
+becomes a different bar is meaningless. A lyric is placed *against* a bar, which is exactly why it must not
+be dragged along. Seeing a misalignment and fixing it by hand beats the app clearing work that was placed
+deliberately — a visible mess you can correct is better than silent tidying.
+
+Bars are structural and an arrangement is chords over them, so a delete removes the bar from **every**
+arrangement. The warning says so, because it is not guessable from a `×` on one bar.
+
+### The derived-vs-stored trap — bit twice, worth naming
+
+`deriveBarGridAnchored` sizes a section as **`max(highest placement's bar + 1, barCount, barLayout.length)`**.
+So `barLayout.length` is NOT the bar count: chord placements pin it.
+
+Two bugs came from assuming otherwise, both caught by testing against the RENDERED grid rather than the
+store:
+
+1. **Deleting a middle bar was a silent no-op** — the layout shrank, the derived grid did not, and the bar
+   came straight back. Fixed by closing the placements up.
+2. **Words in the last bar were un-placed while that bar still existed** — the un-place predicate used
+   `barLayout.length - 1` as the remaining count. Fixed by deriving.
+
+`reorderBar` still bounds-checks `fromIndex`/`toIndex` against `barLayout.length` rather than the derived
+count. Not currently reachable as a bug, but it is the same assumption; **anything asking "how many bars"
+should derive it.**
+
+### Design item — can arrangements differ in BAR COUNT? (needs its own pass)
+
+Today an arrangement is *different chords over the same bars*, and everything assumes that: bars are
+section-level, `chordPlacements` carry an `arrangementId` but bar structure does not, and deleting a bar
+removes it everywhere.
+
+**There is a real case for arrangements differing in length** — a Full arrangement with an intro the Basic
+does not have. That is not a feature on top of the current model; it changes what an arrangement *is*, and
+it reaches:
+
+- **the beat axis**, which assumes one bar count per section and is what lyric anchors resolve against
+- **lyric anchors**, which carry `sectionId` but no arrangement — a word placed in the Full intro would have
+  no meaning in Basic
+- **the matrix and practice data**, which treat a section as one structural unit
+- **bar delete, reorder and add**, all of which currently act on every arrangement at once
+
+**It gets more expensive the longer it sits**, because each new feature quietly assumes a shared bar count —
+this document already records several. Worth deciding deliberately rather than discovering the cost when
+something finally forces it.
+
 ### Known constraint — duplicated lines cannot be reordered
 
 `duplicate` inserts an independent copy **directly below** the original, and line order carries positional
