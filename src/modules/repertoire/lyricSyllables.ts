@@ -310,11 +310,20 @@ export function placeSyllable(
   const anchor: LyricSyllableAnchor = { ...target };
   return mapSyllable(lines, syllableId, s => {
     const a = s.anchor;
+    // "Already here, so nothing to write." This must compare the WHOLE
+    // cell, and `offbeat` is part of it: beat 2 and the "and of 2" are
+    // different cells that agree on all three of the other fields.
+    // Omitting it made moving a word between them a SILENT no-op —
+    // the guard passed, the write discarded it, and the arming cleared,
+    // which is indistinguishable from a broken tap. Normalised with
+    // `?? false` because absent and false are the same cell and an
+    // identity check on `undefined === false` would be a second bug.
     if (
       a &&
       a.sectionId === anchor.sectionId &&
       a.barIndex === anchor.barIndex &&
-      a.beatPos === anchor.beatPos
+      a.beatPos === anchor.beatPos &&
+      (a.offbeat ?? false) === (anchor.offbeat ?? false)
     ) {
       return s;
     }
@@ -976,8 +985,16 @@ export interface LineMarkerPlacement {
   /** The syllable this marker places when dragged — the line's first
    *  unit for 'start', its last for 'end'. */
   syllableId: string;
-  /** Where the marker draws. */
-  cell: { sectionId: string; barIndex: number; beatPos: number };
+  /** Where the marker draws. Carries `offbeat`, because the renderer
+   *  looks markers up by `cellKey` — dropping it filed a marker under
+   *  the on-beat's key and drew it one slot away from the very
+   *  syllable it governs. */
+  cell: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+    offbeat?: boolean;
+  };
   /** True when the governed unit is already placed, i.e. the marker
    *  sits on the very syllable it controls. */
   onItsUnit: boolean;
@@ -1001,6 +1018,18 @@ export interface LineMarkerPlacement {
  *
  * A line with nothing placed has no markers; it lives in the tray.
  */
+/** The cell an anchor names, with nothing dropped. Written once rather
+ *  than field-by-field at each call site, which is how `offbeat` went
+ *  missing from both of them. */
+function markerCell(anchor: LyricSyllableAnchor): LineMarkerPlacement['cell'] {
+  return {
+    sectionId: anchor.sectionId,
+    barIndex: anchor.barIndex,
+    beatPos: anchor.beatPos,
+    ...(anchor.offbeat ? { offbeat: true as const } : {}),
+  };
+}
+
 export function lineMarkers(
   lines: ReadonlyArray<SongLyricLine>,
 ): LineMarkerPlacement[] {
@@ -1020,11 +1049,7 @@ export function lineMarkers(
       lineId: line.id,
       edge: 'start',
       syllableId: head.id,
-      cell: {
-        sectionId: firstPlaced.anchor.sectionId,
-        barIndex: firstPlaced.anchor.barIndex,
-        beatPos: firstPlaced.anchor.beatPos,
-      },
+      cell: markerCell(firstPlaced.anchor),
       onItsUnit: head.id === firstPlaced.id,
     });
     if (tail.id !== head.id && lastPlaced.anchor) {
@@ -1032,11 +1057,7 @@ export function lineMarkers(
         lineId: line.id,
         edge: 'end',
         syllableId: tail.id,
-        cell: {
-          sectionId: lastPlaced.anchor.sectionId,
-          barIndex: lastPlaced.anchor.barIndex,
-          beatPos: lastPlaced.anchor.beatPos,
-        },
+        cell: markerCell(lastPlaced.anchor),
         onItsUnit: tail.id === lastPlaced.id,
       });
     }

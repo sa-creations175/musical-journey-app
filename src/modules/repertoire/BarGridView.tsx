@@ -99,6 +99,35 @@ export const DRAG_ID = {
 };
 
 /**
+ * The INVERSE of `DRAG_ID.beat` / `DRAG_ID.emptyBeat`.
+ *
+ * Lives beside the builders because keeping them apart is what broke:
+ * the drop handler open-coded `parseInt(beatStr, 10)`, which reads
+ * "2+" as 2 and DROPS THE OFFBEAT SILENTLY — no refusal, just a word
+ * landing on the cell next door. The chord branch had its own correct
+ * copy of this parse a few lines above; the lyric branch had a wrong
+ * one. One parser, next to the builder it inverts.
+ *
+ * Returns null for an id that is not a slot target at all.
+ */
+export function parseSlotDropId(
+  id: string,
+): { barIndex: number; beatPos: number; offbeat: boolean } | null {
+  const prefix = id.startsWith('beat:')
+    ? 'beat:'
+    : id.startsWith('emptybeat:')
+      ? 'emptybeat:'
+      : null;
+  if (!prefix) return null;
+  const [barStr, beatStr] = id.slice(prefix.length).split(':');
+  if (beatStr === undefined) return null;
+  const barIndex = parseInt(barStr, 10);
+  const beatPos = parseInt(beatStr, 10);
+  if (!Number.isFinite(barIndex) || !Number.isFinite(beatPos)) return null;
+  return { barIndex, beatPos, offbeat: beatStr.endsWith('+') };
+}
+
+/**
  * Bars per row: 2 on desktop, 1 on mobile (≤768px). Compound meters
  * (e.g. 6/8's 6 beat slots) are unreadably cramped at 2-per-row on a
  * phone, so each bar takes the full container width there.

@@ -16,6 +16,7 @@ import {
   reorderBar,
   resolveLegacyPlacementId,
   swapChordPlacements,
+  songBeatAxis,
   updateChordPlacement,
 } from '../barGrid';
 import type { ChordPlacement } from '../../../lib/db';
@@ -888,5 +889,44 @@ describe('cascadeChordPlacements (push overlaps aside)', () => {
     expect(pushed.beatPos).toBe(2);
     expect(pushed.beats).toBe(1);
     expect(pushed.chord).toMatchObject({ function: '5', quality: '7', harmonicTag: 'pedal' });
+  });
+});
+
+describe('songBeatAxis — the song’s subdivision reaches the axis', () => {
+  // This exists because the bug was a FORGOTTEN ARGUMENT, not a wrong
+  // one. `buildBeatAxis` defaults `subdivision` to 1; the view built
+  // the axis inline and never passed the song's setting, so with
+  // eighths ON the axis still said only quarters were addressable. The
+  // ghost-spread snapping read that and stepped by 2, meaning a ghost
+  // could never land on an "and" — the defence built for exactly that
+  // job, sitting inert. A default that is silently wrong at one call
+  // site cannot be tested while that call site is an inline useMemo.
+  // One full 4/4 bar, so each section spans exactly 8 eighths.
+  const bar = () => phraseWithChords([cf('1', 'maj'), cf('4'), cf('5'), cf('1')]);
+  const sec = mkSection([bar()], { id: 'sec-a' });
+
+  it('reports subdivision 2 when the song offers eighths', () => {
+    expect(songBeatAxis({ eighths: true }, [sec]).subdivision).toBe(2);
+  });
+
+  it('reports subdivision 1 otherwise', () => {
+    expect(songBeatAxis({ eighths: false }, [sec]).subdivision).toBe(1);
+    expect(songBeatAxis({}, [sec]).subdivision).toBe(1);
+    expect(songBeatAxis(undefined, [sec]).subdivision).toBe(1);
+  });
+
+  it('the SCALE is eighths either way — only what is offered changes', () => {
+    // The uniformity the whole stacking model rests on: a bar of 4/4
+    // spans 8 globals whether or not the song draws the odd ones.
+    expect(songBeatAxis({ eighths: false }, [sec]).totalEighths).toBe(
+      songBeatAxis({ eighths: true }, [sec]).totalEighths,
+    );
+  });
+
+  it('places each section at its predecessor’s end', () => {
+    const b = mkSection([bar()], { id: 'sec-b' });
+    const axis = songBeatAxis({ eighths: true }, [sec, b]);
+    expect(axis.offsets.get('sec-a')).toBe(0);
+    expect(axis.offsets.get('sec-b')).toBe(8);
   });
 });

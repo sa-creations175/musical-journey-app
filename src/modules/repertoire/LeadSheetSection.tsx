@@ -90,7 +90,7 @@ import {
 } from './sequenceView';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
-import BarGridView from './BarGridView';
+import BarGridView, { parseSlotDropId } from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
 import {
   addChordPlacement,
@@ -1571,19 +1571,13 @@ export default function LeadSheetSection({
         return;
       }
       if (overId.startsWith('emptybeat:')) {
-        const [, barStr, beatStr] = overId.split(':');
-        const dropBar = parseInt(barStr, 10);
-        // The trailing `+` marks an offbeat. Parsed explicitly rather
-        // than left to parseInt, which would read "3+" as 3 and drop
-        // the offbeat silently.
-        const dropOffbeat = beatStr.endsWith('+');
-        const dropBeat = parseInt(beatStr, 10);
-        if (!Number.isFinite(dropBar) || !Number.isFinite(dropBeat)) return;
+        const slot = parseSlotDropId(overId);
+        if (!slot) return;
         await handleChordMoveToEmpty(
           fromPlacementId,
-          dropBar,
-          dropBeat,
-          dropOffbeat,
+          slot.barIndex,
+          slot.beatPos,
+          slot.offbeat,
         );
         return;
       }
@@ -1591,11 +1585,19 @@ export default function LeadSheetSection({
     }
 
     // Lyric drags all target beat drop zones.
+    //
+    // THE OFFBEAT COMES FROM THE SHARED PARSER. Open-coding
+    // `parseInt(beatStr, 10)` here read "2+" as 2 and dropped the
+    // offbeat SILENTLY — not a refusal, a word landing on the cell next
+    // door. The chord branch above had a correct copy of the same
+    // parse; this one had a wrong one, which is the argument for there
+    // being exactly one.
     if (!overId.startsWith('beat:')) return;
-    const [, barStr, beatStr] = overId.split(':');
-    const dropBar = parseInt(barStr, 10);
-    const dropBeat = parseInt(beatStr, 10);
-    if (!Number.isFinite(dropBar) || !Number.isFinite(dropBeat)) return;
+    const slot = parseSlotDropId(overId);
+    if (!slot) return;
+    const dropBar = slot.barIndex;
+    const dropBeat = slot.beatPos;
+    const at = slot.offbeat ? { offbeat: true as const } : {};
 
     // --- song-owned syllables (rev 3) ---------------------------------
     // A drop writes exactly one syllable's anchor. `placeSyllable`
@@ -1607,6 +1609,7 @@ export default function LeadSheetSection({
         sectionId: section.id,
         barIndex: dropBar,
         beatPos: dropBeat,
+        ...at,
       });
       return;
     }
@@ -1639,6 +1642,7 @@ export default function LeadSheetSection({
         sectionId: section.id,
         barIndex: dropBar,
         beatPos: dropBeat,
+        ...at,
       });
       // BEAT TWO. A tray drop is half a gesture: it places the head and
       // nothing else, and until now left the user hunting for a dimmed
@@ -1691,10 +1695,16 @@ export default function LeadSheetSection({
         sectionId: section.id,
         barIndex: dropBar,
         beatPos: dropBeat,
+        ...at,
       });
       return;
     }
 
+    // The LEGACY marker/word paths below deliberately ignore `at`. They
+    // drive the pre-rev-3 `lyricLines` model, which has no offbeat
+    // concept at all, so there is nothing to carry — and they are only
+    // reachable when `songLyricsActive` is false, i.e. on data that
+    // predates both this model and eighths.
     if (activeId.startsWith('lineStart:')) {
       const lineId = activeId.slice('lineStart:'.length);
       const target = lyricLines.find(l => l.id === lineId);

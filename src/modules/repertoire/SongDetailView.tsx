@@ -43,11 +43,9 @@ import {
   nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
-import { deriveBarGrid, effectiveTimeSignature, parseTimeSignature } from './barGrid';
-import { normalizeArrangements } from './beatsModel';
+import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
 import {
   LYRIC_FOLD_VERSION,
-  buildBeatAxis,
   buildCellIndex,
   buildMarkerIndex,
   anchorsMatching,
@@ -581,29 +579,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   // One ascending beat line across every section, in song order. Needed
   // because the ghost spread reasons across section boundaries.
-  const beatAxis = useMemo(
-    () =>
-      buildBeatAxis(
-        sections.map(s => {
-          const eighths = song?.eighths === true;
-          const { beatsPerBar } = parseTimeSignature(
-            effectiveTimeSignature(song, s),
-          );
-          const arrangements = normalizeArrangements(s);
-          const activeId =
-            s.activeArrangementId &&
-            arrangements.some(a => a.id === s.activeArrangementId)
-              ? s.activeArrangementId
-              : arrangements[0].id;
-          return {
-            sectionId: s.id,
-            beatsPerBar,
-            barCount: deriveBarGrid(s, activeId, beatsPerBar, eighths).length,
-          };
-        }),
-      ),
-    [sections, song],
-  );
+  const beatAxis = useMemo(() => songBeatAxis(song, sections), [sections, song]);
 
   const songLyricLines = song?.lyricLines;
 

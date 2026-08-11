@@ -1785,3 +1785,145 @@ describe('ghosts snap to slots the song actually offers', () => {
     expect(ghosts[0].cell.offbeat).toBe(true);
   });
 });
+
+// --- OFFBEATS: the cell is four fields, not three ---------------------
+//
+// Every bug in this block was the same shape — code that treated a cell
+// as (section, bar, beat) and dropped `offbeat` on the floor. None of
+// them refused anything, which is why they were invisible: a refusal is
+// legible, a discarded field is not.
+
+const axisEighths = buildBeatAxis(
+  [{ sectionId: SEC, beatsPerBar: 4, barCount: 4 }],
+  2,
+);
+
+/** Same as `line()` above, but every anchor lands on its beat's "and". */
+function offbeatLine(
+  id: string,
+  syllables: Array<{ id: string; text: string; at?: [number, number] }>,
+): SongLyricLine {
+  const l = line(id, syllables);
+  return {
+    ...l,
+    syllables: (l.syllables ?? []).map(s =>
+      s.anchor ? { ...s, anchor: { ...s.anchor, offbeat: true } } : s,
+    ),
+  };
+}
+
+describe('placeSyllable — a beat and its “and” are DIFFERENT cells', () => {
+  it('moves a placed word from beat 2 onto the “and of 2”', () => {
+    // THE REPORTED BUG. The same-cell short-circuit compared only
+    // section/bar/beat, so this move matched "already here" and was
+    // discarded. The guard passed, the write did nothing, and the
+    // arming cleared — no placement, no shake, no message. Silence is
+    // the worst failure mode available, because it is identical to the
+    // tap never having been received.
+    const l = line('l1', [{ id: 'a', text: 'A', at: [0, 1] }]);
+    const next = placeSyllable([l], 'a', {
+      sectionId: SEC,
+      barIndex: 0,
+      beatPos: 1,
+      offbeat: true,
+    }, axisEighths);
+    expect(anchorOf(next, 'a')).toEqual({
+      sectionId: SEC,
+      barIndex: 0,
+      beatPos: 1,
+      offbeat: true,
+    });
+  });
+
+  it('moves it back off the “and” onto the beat', () => {
+    const l = offbeatLine('l1', [{ id: 'a', text: 'A', at: [0, 1] }]);
+    const next = placeSyllable([l], 'a', {
+      sectionId: SEC,
+      barIndex: 0,
+      beatPos: 1,
+    }, axisEighths);
+    expect(anchorOf(next, 'a')?.offbeat).toBeUndefined();
+    expect(anchorOf(next, 'a')?.beatPos).toBe(1);
+  });
+
+  it('still short-circuits a genuine no-op on an offbeat', () => {
+    // The short-circuit must survive the fix: re-placing a word where
+    // it already is returns the SAME object, which is what keeps the
+    // no-ripple rule from churning React identities.
+    const l = offbeatLine('l1', [{ id: 'a', text: 'A', at: [0, 1] }]);
+    const before = (l.syllables ?? [])[0];
+    const next = placeSyllable([l], 'a', {
+      sectionId: SEC,
+      barIndex: 0,
+      beatPos: 1,
+      offbeat: true,
+    }, axisEighths);
+    expect((next[0].syllables ?? [])[0]).toBe(before);
+  });
+
+  it('the two cells are distinct to the guard and to the index', () => {
+    // The invariant underneath all of the above: one global = one cell,
+    // and an "and" is its own global.
+    const onBeat = { sectionId: SEC, barIndex: 0, beatPos: 1 };
+    const offBeat = { ...onBeat, offbeat: true };
+    expect(anchorToGlobal(axisEighths, offBeat)).toBe(
+      anchorToGlobal(axisEighths, onBeat)! + 1,
+    );
+    expect(cellKey(offBeat)).not.toBe(cellKey(onBeat));
+  });
+
+  it('an offbeat word renders in the offbeat cell, not the on-beat one', () => {
+    const l = offbeatLine('l1', [{ id: 'a', text: 'A', at: [0, 1] }]);
+    const index = buildCellIndex([l], axisEighths);
+    expect(index.get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1 }))).toBe(
+      undefined,
+    );
+    expect(
+      index
+        .get(cellKey({ sectionId: SEC, barIndex: 0, beatPos: 1, offbeat: true }))
+        ?.map(o => o.syllable.id),
+    ).toEqual(['a']);
+  });
+});
+
+describe('lineMarkers — a marker follows its syllable onto an “and”', () => {
+  it('carries offbeat on both edges', () => {
+    // Dropped, the marker was filed under the ON-BEAT's cellKey and
+    // drew one slot away from the syllable it governs — a handle
+    // pointing at the wrong cell.
+    const l = offbeatLine('l1', [
+      { id: 'a', text: 'A', at: [1, 0] },
+      { id: 'b', text: 'B' },
+      { id: 'c', text: 'C', at: [3, 2] },
+    ]);
+    const markers = lineMarkers([l]);
+    const start = markers.find(m => m.edge === 'start')!;
+    const end = markers.find(m => m.edge === 'end')!;
+    expect(start.cell).toEqual({
+      sectionId: SEC,
+      barIndex: 1,
+      beatPos: 0,
+      offbeat: true,
+    });
+    expect(end.cell).toEqual({
+      sectionId: SEC,
+      barIndex: 3,
+      beatPos: 2,
+      offbeat: true,
+    });
+  });
+
+  it('omits the flag entirely for an on-beat marker', () => {
+    // On-beat cells must stay byte-identical to what they were before
+    // offbeats existed, so nothing already stored or rendered shifts.
+    const l = line('l1', [
+      { id: 'a', text: 'A', at: [1, 0] },
+      { id: 'b', text: 'B', at: [3, 2] },
+    ]);
+    expect(lineMarkers([l])[0].cell).toEqual({
+      sectionId: SEC,
+      barIndex: 1,
+      beatPos: 0,
+    });
+  });
+});

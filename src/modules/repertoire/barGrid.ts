@@ -7,7 +7,8 @@ import type {
   SongSection,
   VoicingEntry,
 } from '../../lib/db';
-import { normalizePhrase } from './beatsModel';
+import { normalizeArrangements, normalizePhrase } from './beatsModel';
+import { type BeatAxis, buildBeatAxis } from './lyricSyllables';
 
 // Bar-grid derivation for the redesigned lead sheet view
 // (Lead Sheet Redesign, May 2026 — docs/LEAD_SHEET_REDESIGN.md).
@@ -979,4 +980,47 @@ export function reorderBar(
   }
 
   return { phrases, barLayout: newLayout, lyricLines };
+}
+
+/**
+ * The song's beat axis: one ascending line across every section, in
+ * song order.
+ *
+ * EXTRACTED FROM ITS CALL SITE because the bug it now guards was a
+ * forgotten ARGUMENT, not a wrong one. `buildBeatAxis` defaults
+ * `subdivision` to 1, the view built the axis inline, and nothing ever
+ * passed the song's setting — so in a song with eighths on, the axis
+ * still reported that only quarters were addressable. The snapping
+ * defence in `provisionalPlacements` read that and stepped by 2, and a
+ * ghost could never land on an "and". A default that is silently wrong
+ * at one call site is untestable while that call site is an inline
+ * `useMemo`; here it is a function with a test.
+ *
+ * `subdivision` says only which positions the song OFFERS. The axis
+ * scale is always eighths and this does not change it.
+ */
+export function songBeatAxis(
+  song: Pick<Song, 'timeSignature' | 'eighths'> | undefined,
+  sections: ReadonlyArray<SongSection>,
+): BeatAxis {
+  const eighths = song?.eighths === true;
+  return buildBeatAxis(
+    sections.map(s => {
+      const { beatsPerBar } = parseTimeSignature(
+        effectiveTimeSignature(song as Song | undefined, s),
+      );
+      const arrangements = normalizeArrangements(s);
+      const activeId =
+        s.activeArrangementId &&
+        arrangements.some(a => a.id === s.activeArrangementId)
+          ? s.activeArrangementId
+          : arrangements[0].id;
+      return {
+        sectionId: s.id,
+        beatsPerBar,
+        barCount: deriveBarGrid(s, activeId, beatsPerBar, eighths).length,
+      };
+    }),
+    eighths ? 2 : 1,
+  );
 }
