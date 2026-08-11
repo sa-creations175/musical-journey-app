@@ -497,7 +497,8 @@ describe('provisionalPlacements — never runs backwards', () => {
     expect(globals).toEqual([...globals].sort((a, b) => a - b));
     for (const g of globals) {
       expect(g).toBeGreaterThanOrEqual(0);
-      expect(g).toBeLessThanOrEqual(8);
+      // Eighth scale: a 2-bar 4/4 section spans 16, not 8.
+      expect(g).toBeLessThanOrEqual(16);
     }
   });
 });
@@ -756,9 +757,11 @@ describe('beat axis', () => {
       { sectionId: 'a', beatsPerBar: 4, barCount: 2 },
       { sectionId: 'b', beatsPerBar: 3, barCount: 2 },
     ]);
+    // Offsets are in EIGHTHS — the scale is fixed regardless of
+    // whether a song offers offbeats, so an on-beat is always even.
     expect(axis.offsets.get('a')).toBe(0);
-    expect(axis.offsets.get('b')).toBe(8);
-    expect(axis.totalBeats).toBe(14);
+    expect(axis.offsets.get('b')).toBe(16);
+    expect(axis.totalEighths).toBe(28);
   });
 
   it('round-trips an anchor through the global axis', () => {
@@ -768,7 +771,8 @@ describe('beat axis', () => {
     ]);
     const anchor = { sectionId: 'b', barIndex: 1, beatPos: 2 };
     const global = anchorToGlobal(axis, anchor)!;
-    expect(global).toBe(8 + 3 + 2);
+    // (8 beats before + 1 bar of 3 + 2 beats) doubled: on-beats are even.
+    expect(global).toBe((8 + 3 + 2) * 2);
     expect(globalToCell(axis, global)).toEqual(anchor);
   });
 
@@ -1506,14 +1510,14 @@ describe('anchorToGlobal — one global beat is exactly one cell', () => {
       { sectionId: SEC, beatsPerBar: 3, barCount: 2 },
     ]);
     expect(anchorToGlobal(threeFour, at(SEC, 0, 3))).toBeNull();
-    expect(anchorToGlobal(threeFour, at(SEC, 1, 0))).toBe(3);
+    expect(anchorToGlobal(threeFour, at(SEC, 1, 0))).toBe(6);
   });
 
   it('rejects a bar outside its section', () => {
     // Deleting bars leaves anchors past the end, and bar 9 of a 2-bar
     // section computes straight into a LATER section's range.
     expect(anchorToGlobal(axis, at(SEC, 9, 0))).toBeNull();
-    expect(anchorToGlobal(axis, at('sec-b', 1, 0))).toBe(12);
+    expect(anchorToGlobal(axis, at('sec-b', 1, 0))).toBe(24);
   });
 
   it('rejects negatives', () => {
@@ -1635,5 +1639,149 @@ describe('structural un-place — nothing shifts on its own', () => {
     for (const s of lines[0].syllables ?? []) {
       if (s.anchor) expect(anchorIsOnAxis(axis, s.anchor)).toBe(true);
     }
+  });
+});
+
+describe('eighths — beat 2 keeps its identity and gains a neighbour', () => {
+  const axis = buildBeatAxis(
+    [
+      { sectionId: SEC, beatsPerBar: 4, barCount: 2 },
+      { sectionId: 'sec-b', beatsPerBar: 4, barCount: 2 },
+    ],
+    2,
+  );
+  const at2 = (
+    sectionId: string,
+    barIndex: number,
+    beatPos: number,
+    offbeat?: boolean,
+  ) => ({ sectionId, barIndex, beatPos, ...(offbeat ? { offbeat } : {}) });
+
+  it('an existing beat keeps its number — nothing renumbers', () => {
+    // The whole reason this model is cheap: turning eighths on cannot
+    // move anything already placed, because beatPos is untouched.
+    const quarters = buildBeatAxis(
+      [{ sectionId: SEC, beatsPerBar: 4, barCount: 2 }],
+      1,
+    );
+    const eighths = buildBeatAxis(
+      [{ sectionId: SEC, beatsPerBar: 4, barCount: 2 }],
+      2,
+    );
+    for (let bar = 0; bar < 2; bar++) {
+      for (let beat = 0; beat < 4; beat++) {
+        expect(anchorToGlobal(eighths, at2(SEC, bar, beat))).toBe(
+          anchorToGlobal(quarters, at2(SEC, bar, beat)),
+        );
+      }
+    }
+  });
+
+  it('an offbeat sits BETWEEN its beat and the next', () => {
+    const on = anchorToGlobal(axis, at2(SEC, 0, 1))!;
+    const and = anchorToGlobal(axis, at2(SEC, 0, 1, true))!;
+    const next = anchorToGlobal(axis, at2(SEC, 0, 2))!;
+    expect(and).toBeGreaterThan(on);
+    expect(and).toBeLessThan(next);
+  });
+
+  it('on-beats are EVEN and offbeats ODD, so they cannot collide', () => {
+    expect(anchorToGlobal(axis, at2(SEC, 1, 3))! % 2).toBe(0);
+    expect(anchorToGlobal(axis, at2(SEC, 1, 3, true))! % 2).toBe(1);
+  });
+
+  it('every position across two sections maps to a DISTINCT global', () => {
+    // The invariant the whole stacking and ordering model rests on.
+    const seen = new Map<number, string>();
+    for (const sec of [SEC, 'sec-b']) {
+      for (let bar = 0; bar < 2; bar++) {
+        for (let beat = 0; beat < 4; beat++) {
+          for (const off of [false, true]) {
+            const g = anchorToGlobal(axis, at2(sec, bar, beat, off))!;
+            expect(seen.has(g)).toBe(false);
+            seen.set(g, `${sec}:${bar}:${beat}${off ? '+' : ''}`);
+          }
+        }
+      }
+    }
+    expect(seen.size).toBe(32);
+  });
+
+  it('round-trips every position through globalToCell', () => {
+    for (let g = 0; g < 32; g++) {
+      const cell = globalToCell(axis, g)!;
+      expect(anchorToGlobal(axis, cell)).toBe(g);
+    }
+  });
+
+  it('the guard orders an offbeat between its neighbours', () => {
+    const l = line('l1', [
+      { id: 'a', text: 'a', at: [0, 0] },
+      { id: 'b', text: 'b' },
+      { id: 'c', text: 'c', at: [0, 2] },
+    ]);
+    // The "and of 1" is legal between beat 1 and beat 3...
+    expect(
+      checkPlacementOrder([l], 'b', at2(SEC, 0, 0, true), axis),
+    ).toBeNull();
+    // ...but the "and of 2" is not, being past c.
+    expect(
+      checkPlacementOrder([l], 'b', at2(SEC, 0, 2, true), axis),
+    ).toBe('after-next');
+  });
+
+  it('an on-beat and its offbeat are DIFFERENT cells', () => {
+    const l: SongLyricLine = {
+      id: 'l1',
+      kind: 'lyric',
+      text: 'a b',
+      syllables: [
+        { id: 'a', text: 'a', anchor: at2(SEC, 0, 1) },
+        { id: 'b', text: 'b', anchor: at2(SEC, 0, 1, true) },
+      ],
+    };
+    const index = buildCellIndex([l], axis);
+    expect(index.get(cellKey(at2(SEC, 0, 1)))?.map(o => o.syllable.id)).toEqual([
+      'a',
+    ]);
+    expect(
+      index.get(cellKey(at2(SEC, 0, 1, true)))?.map(o => o.syllable.id),
+    ).toEqual(['b']);
+  });
+});
+
+describe('ghosts snap to slots the song actually offers', () => {
+  it('lands only on on-beats when eighths are off', () => {
+    // Odd globals exist on the axis but the grid draws no cell for
+    // them, so an unsnapped ghost would vanish — the orphan class
+    // arriving through the back door.
+    const quarters = buildBeatAxis(
+      [{ sectionId: SEC, beatsPerBar: 4, barCount: 4 }],
+      1,
+    );
+    const l = line('l1', [
+      { id: 'p0', text: 'A', at: [0, 0] },
+      { id: 'g1', text: 'b' },
+      { id: 'g2', text: 'c' },
+      { id: 'p1', text: 'D', at: [1, 1] },
+    ]);
+    for (const p of provisionalPlacements(l, quarters)) {
+      expect(p.cell.offbeat).toBeUndefined();
+    }
+  });
+
+  it('may use offbeats when the song offers them', () => {
+    const eighths = buildBeatAxis(
+      [{ sectionId: SEC, beatsPerBar: 4, barCount: 4 }],
+      2,
+    );
+    const l = line('l1', [
+      { id: 'p0', text: 'A', at: [0, 0] },
+      { id: 'g1', text: 'b' },
+      { id: 'p1', text: 'D', at: [0, 1] },
+    ]);
+    const ghosts = provisionalPlacements(l, eighths);
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0].cell.offbeat).toBe(true);
   });
 });

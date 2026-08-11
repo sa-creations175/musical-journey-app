@@ -434,6 +434,10 @@ export interface ChordPlacement {
   barIndex: number;
   /** 0-indexed beat position within the bar (0..beatsPerBar-1). */
   beatPos: number;
+  /** On the "and" of `beatPos`, when the song has eighths enabled.
+   *  Same model as the lyric anchor's: an added position, never a
+   *  renumbering of the existing ones. */
+  offbeat?: boolean;
   /** Beats this chord occupies inside the bar. Always >= 1. Same
    *  field that `ChordFunction.beats` used in the legacy model. */
   beats: number;
@@ -561,8 +565,15 @@ export interface LyricSyllableAnchor {
   sectionId: string;
   /** 0-indexed bar within that section. */
   barIndex: number;
-  /** 0-indexed beat within that bar. */
+  /** 0-indexed beat within that bar. UNCHANGED by the eighths toggle:
+   *  beat 2 stays beat 2 and gains a neighbour rather than renumbering
+   *  to position 3. That is what makes turning eighths on a no-op for
+   *  everything already placed. */
   beatPos: number;
+  /** On the "and" of `beatPos` — a position that could not be expressed
+   *  at all before, so nothing existing can collide with it. Absent
+   *  means on the beat. */
+  offbeat?: boolean;
   // NO `order` FIELD — deliberately (rev 5). A cell's stack reads in
   // SONG ORDER, derived at render by `buildCellIndex` from
   // (lineIndex, textIndex). The anchor says WHICH CELL and nothing

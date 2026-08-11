@@ -622,15 +622,36 @@ export interface SectionAxisEntry {
   barCount: number;
 }
 
+/**
+ * THE AXIS IS ALWAYS IN EIGHTHS, whether the song offers offbeats or
+ * not, and that uniformity is load-bearing.
+ *
+ * "One global position = one cell" is what the whole stacking and
+ * ordering model rests on. If the scale were per-song, the axis — which
+ * spans every section of a song — would mean different things in
+ * different places, and two cells could share a number. So the scale is
+ * fixed: an on-beat is always EVEN, an offbeat always ODD, and the
+ * invariant holds by construction rather than by every caller
+ * remembering.
+ *
+ * `subdivision` says only which positions the song currently OFFERS.
+ * It never changes the scale — it tells consumers whether odd globals
+ * are addressable, which is what the ghost spread needs to know so it
+ * cannot land a syllable on a slot the grid does not draw.
+ */
 export interface BeatAxis {
   entries: SectionAxisEntry[];
-  /** sectionId → global beat at which that section's bar 0 beat 0 sits. */
+  /** sectionId → global EIGHTH at which that section's bar 0 beat 0
+   *  sits. */
   offsets: Map<string, number>;
-  totalBeats: number;
+  /** Positions offered per beat: 1 = quarters only, 2 = eighths. */
+  subdivision: 1 | 2;
+  totalEighths: number;
 }
 
 export function buildBeatAxis(
   sections: ReadonlyArray<SectionAxisEntry>,
+  subdivision: 1 | 2 = 1,
 ): BeatAxis {
   const offsets = new Map<string, number>();
   let cursor = 0;
@@ -638,9 +659,9 @@ export function buildBeatAxis(
   for (const s of sections) {
     entries.push(s);
     offsets.set(s.sectionId, cursor);
-    cursor += Math.max(0, s.barCount) * Math.max(1, s.beatsPerBar);
+    cursor += Math.max(0, s.barCount) * Math.max(1, s.beatsPerBar) * 2;
   }
-  return { entries, offsets, totalBeats: cursor };
+  return { entries, offsets, subdivision, totalEighths: cursor };
 }
 
 /** Anchor → absolute beat. Null when the section isn't on the axis. */
@@ -672,7 +693,12 @@ export function buildBeatAxis(
  */
 export function anchorToGlobal(
   axis: BeatAxis,
-  anchor: { sectionId: string; barIndex: number; beatPos: number },
+  anchor: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+    offbeat?: boolean;
+  },
 ): number | null {
   const base = axis.offsets.get(anchor.sectionId);
   if (base === undefined) return null;
@@ -683,13 +709,24 @@ export function anchorToGlobal(
     return null;
   }
   if (anchor.beatPos < 0 || anchor.beatPos >= beatsPerBar) return null;
-  return base + anchor.barIndex * beatsPerBar + anchor.beatPos;
+  // On-beats land on even globals, offbeats on the odd one between —
+  // so an offbeat can never collide with a beat that already existed.
+  return (
+    base +
+    (anchor.barIndex * beatsPerBar + anchor.beatPos) * 2 +
+    (anchor.offbeat ? 1 : 0)
+  );
 }
 
 /** True when this anchor names a cell that actually exists. */
 export function anchorIsOnAxis(
   axis: BeatAxis,
-  anchor: { sectionId: string; barIndex: number; beatPos: number },
+  anchor: {
+    sectionId: string;
+    barIndex: number;
+    beatPos: number;
+    offbeat?: boolean;
+  },
 ): boolean {
   return anchorToGlobal(axis, anchor) !== null;
 }
@@ -698,20 +735,33 @@ export function anchorIsOnAxis(
 export function globalToCell(
   axis: BeatAxis,
   global: number,
-): { sectionId: string; barIndex: number; beatPos: number } | null {
+): {
+  sectionId: string;
+  barIndex: number;
+  beatPos: number;
+  offbeat?: boolean;
+} | null {
   if (global < 0) return null;
   for (const entry of axis.entries) {
     const base = axis.offsets.get(entry.sectionId);
     if (base === undefined) continue;
     const beatsPerBar = Math.max(1, entry.beatsPerBar);
-    const span = Math.max(0, entry.barCount) * beatsPerBar;
+    const span = Math.max(0, entry.barCount) * beatsPerBar * 2;
     if (global < base + span) {
       const local = global - base;
-      return {
+      const beatIndex = Math.floor(local / 2);
+      const cell: {
+        sectionId: string;
+        barIndex: number;
+        beatPos: number;
+        offbeat?: boolean;
+      } = {
         sectionId: entry.sectionId,
-        barIndex: Math.floor(local / beatsPerBar),
-        beatPos: local % beatsPerBar,
+        barIndex: Math.floor(beatIndex / beatsPerBar),
+        beatPos: beatIndex % beatsPerBar,
       };
+      if (local % 2 === 1) cell.offbeat = true;
+      return cell;
     }
   }
   return null;
@@ -768,8 +818,14 @@ export function provisionalPlacements(
     // pair produced before the guard existed. Emit nothing instead —
     // no ghosts is a legible state; ghosts running backwards is not.
     if (span < 0) continue;
+    // Snap to a slot the song actually OFFERS. With eighths off, the
+    // odd globals exist on the axis but the grid draws no cell for
+    // them, so an unsnapped ghost would vanish — the orphan class
+    // again, arriving through the back door.
+    const step = axis.subdivision === 2 ? 1 : 2;
     for (let k = 1; k <= gapLength; k++) {
-      const global = Math.round(left.global + (span * k) / (gapLength + 1));
+      const raw = left.global + (span * k) / (gapLength + 1);
+      const global = Math.round(raw / step) * step;
       const cell = globalToCell(axis, global);
       if (!cell) continue;
       out.push({
@@ -800,8 +856,13 @@ function cellKey(cell: {
   sectionId: string;
   barIndex: number;
   beatPos: number;
+  offbeat?: boolean;
 }): string {
-  return `${cell.sectionId}:${cell.barIndex}:${cell.beatPos}`;
+  // On-beat keys are byte-identical to what they were before offbeats
+  // existed, so nothing already stored or rendered shifts.
+  return `${cell.sectionId}:${cell.barIndex}:${cell.beatPos}${
+    cell.offbeat ? '+' : ''
+  }`;
 }
 
 export { cellKey };
