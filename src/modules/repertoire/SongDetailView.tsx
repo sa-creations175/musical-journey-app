@@ -1494,6 +1494,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                             onSyllablePlaced={handleSyllablePlaced}
                             awaitingLine={awaitingLine}
                             onLineHeadPlaced={handleLineHeadPlaced}
+                            onArmLine={handleArmLine}
+                            onArmWord={handleArmWord}
+                            onSetLineKind={handleSetLineKind}
+                            onDuplicateLine={handleDuplicateLine}
                             promptAnchorCellKey={promptAnchorCellKey}
                             onPromptAnchorNode={setPromptAnchorNode}
                             onRefusalNotice={handleRefusalNotice}

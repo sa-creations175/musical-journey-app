@@ -42,7 +42,9 @@ export default function LyricListRow({
   dimPlaced = true,
 }: {
   line: SongLyricLine;
-  onArm: (lineId: string) => void;
+  /** Absent means the two-part line gesture is unavailable, so a
+   *  fully-unplaced row simply does nothing. */
+  onArm?: (lineId: string) => void;
   onArmWord?: (syllableId: string) => void;
   picking: boolean;
   onPickingChange: (picking: boolean) => void;
@@ -129,7 +131,7 @@ export default function LyricListRow({
               setMoveWordId(null);
               return;
             }
-            onArm(line.id);
+            onArm?.(line.id);
           },
           role: 'button',
           'aria-label': picksWords

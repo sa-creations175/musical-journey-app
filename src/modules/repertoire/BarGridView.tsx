@@ -24,6 +24,7 @@ import {
   type LineMarkerPlacement,
   canJoinNext,
   cellKey,
+  lineStatus,
   findSyllable,
 } from './lyricSyllables';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
@@ -50,7 +51,7 @@ import { distributedWordPositions } from './lyricLine';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import ChordGlyph from './chordGlyph';
 import SectionToggle from './SectionToggle';
-import LyricLineRow from './LyricLineRow';
+import LyricListRow from './LyricListRow';
 
 // Bar-grid renderer (Lead Sheet Redesign, May 2026 —
 // docs/LEAD_SHEET_REDESIGN.md).
@@ -165,7 +166,14 @@ interface Props {
    *  them. */
   cellIndex?: Map<string, CellOccupant[]>;
   /** Song lines with nothing placed yet — the pre-drawer tray. */
+  /** EVERY lyric line, not just unfinished ones. The tray still shows
+   *  unfinished ones by default and hides finished ones behind a
+   *  grouped reveal, but it needs them all to offer that. */
   unplacedLines?: SongLyricLine[];
+  onArmLine?: (lineId: string) => void;
+  onArmWord?: (syllableId: string) => void;
+  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
+  onDuplicateLine?: (lineId: string) => void | Promise<void>;
   /** Unplaced-lyrics tray collapsed? Global pref, owned by
    *  SongDetailView; separate from the patterns block's. */
   lyricTrayCollapsed?: boolean;
@@ -298,6 +306,10 @@ export default function BarGridView({
   lyricLines = [],
   cellIndex,
   unplacedLines,
+  onArmLine,
+  onArmWord,
+  onSetLineKind,
+  onDuplicateLine,
   lyricTrayCollapsed = true,
   onToggleLyricTray,
   lyricDragActive = false,
@@ -556,9 +568,11 @@ export default function BarGridView({
 
   const body = (
     <>
-      {/* Tray of not-yet-placed lines. Sourced from the song store once
-          migrated, from the section's legacy lines before that. The
-          lyric drawer replaces this entirely in step 7. */}
+      {/* The per-section tray. Every lyric line reaches it now —
+          unfinished ones listed, finished ones behind a grouped reveal
+          — because the tray offers the same tap actions the drawer
+          does, and "which list am I looking at" must not change what a
+          row can do. Drag is the tray's addition on top. */}
       {cellIndex &&
         unplacedLines &&
         unplacedLines.some(l => l.kind !== 'header') && (
@@ -566,6 +580,10 @@ export default function BarGridView({
             lines={unplacedLines}
             onLineDelete={onLineDelete}
             onLineUnplace={onLineUnplace}
+            onArmLine={onArmLine}
+            onArmWord={onArmWord}
+            onSetLineKind={onSetLineKind}
+            onDuplicateLine={onDuplicateLine}
             collapsed={lyricTrayCollapsed}
             onToggle={onToggleLyricTray}
           />
@@ -960,20 +978,59 @@ function TimeSignaturePicker({
 /** Song-owned variant (rev 3). Lists lines with nothing placed yet.
  *  Interim only — the lyric drawer subsumes this in step 7, at which
  *  point "pending" stops being a bucket and is just "unplaced". */
-function SongPendingTray({
+export function SongPendingTray({
   lines,
   onLineDelete,
   onLineUnplace,
+  onArmLine,
+  onArmWord,
+  onSetLineKind,
+  onDuplicateLine,
   collapsed,
   onToggle,
 }: {
   lines: SongLyricLine[];
   onLineDelete?: (lineId: string) => void;
   onLineUnplace?: (lineId: string) => void | Promise<void>;
+  onArmLine?: (lineId: string) => void;
+  onArmWord?: (syllableId: string) => void;
+  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
+  onDuplicateLine?: (lineId: string) => void | Promise<void>;
   collapsed: boolean;
   onToggle?: () => void;
 }) {
-  const placeable = lines.filter(l => l.kind !== 'header').length;
+  const [pickLineId, setPickLineId] = useState<string | null>(null);
+  const [menuLineId, setMenuLineId] = useState<string | null>(null);
+  // Momentary reveal, deliberately NOT persisted like the other lead
+  // sheet prefs. Those are standing preferences — "I don't want to see
+  // this" — whereas showing finished lines is "let me fix one thing".
+  // It also sits inside a tray that is itself collapsed by default, so
+  // a remembered expansion would be invisible state waiting to
+  // surprise someone.
+  const [showPlaced, setShowPlaced] = useState(false);
+
+  const unfinished = lines.filter(l => lineStatus(l).status !== 'placed');
+  const placed = lines.filter(l => lineStatus(l).status === 'placed');
+  const placeable = unfinished.filter(l => l.kind !== 'header').length;
+
+  const rowFor = (line: SongLyricLine, dimPlaced: boolean) => (
+    <TrayRow
+      key={line.id}
+      line={line}
+      dimPlaced={dimPlaced}
+      onArm={onArmLine}
+      onArmWord={onArmWord}
+      picking={pickLineId === line.id}
+      onPickingChange={pick => setPickLineId(pick ? line.id : null)}
+      menuOpen={menuLineId === line.id}
+      onMenuOpenChange={open => setMenuLineId(open ? line.id : null)}
+      onSetLineKind={onSetLineKind}
+      onDuplicate={onDuplicateLine}
+      onDelete={onLineDelete}
+      onUnplace={onLineUnplace}
+    />
+  );
+
   return (
     <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
       {/* Collapsed by default, and HIDDEN rather than removed on
@@ -988,53 +1045,70 @@ function SongPendingTray({
         expanded={!collapsed}
         onToggle={onToggle}
         count={placeable}
-        hint={collapsed ? undefined : 'drag onto a beat to place'}
+        hint={collapsed ? undefined : 'tap to place, or drag onto a beat'}
       />
       {!collapsed && (
         <div className="flex flex-col gap-1 mt-1">
-          {lines.map(line => (
-            <SongPendingStrip
-              key={line.id}
-              line={line}
-              onDelete={onLineDelete}
-              onUnplace={onLineUnplace}
-            />
-          ))}
+          {unfinished.map(line => rowFor(line, false))}
+          {placed.length > 0 && (
+            <>
+              {/* ONE group control, not per-line collapsing. Finished
+                  lines have to be reachable now that the tray can pick
+                  words — otherwise moving one word of a finished line
+                  would mean opening the drawer — but showing them all
+                  by default would undo the compactness that justified
+                  hiding them. */}
+              <SectionToggle
+                label={`${placed.length} placed line${placed.length === 1 ? '' : 's'}`}
+                expanded={showPlaced}
+                onToggle={() => setShowPlaced(v => !v)}
+                className="mt-1"
+              />
+              {showPlaced && placed.map(line => rowFor(line, true))}
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-/** Song-owned tray row: the shared LyricLineRow made draggable. Drag
- *  is the tray's mechanism; the drawer taps the same row to arm. */
-function SongPendingStrip({
+/** A tray row: the shared list row, made draggable. */
+function TrayRow({
   line,
-  onDelete,
-  onUnplace,
+  dimPlaced,
+  ...rest
 }: {
   line: SongLyricLine;
-  onDelete?: (lineId: string) => void;
-  onUnplace?: (lineId: string) => void | Promise<void>;
-}) {
+  dimPlaced: boolean;
+} & Omit<React.ComponentProps<typeof LyricListRow>, 'line' | 'drag' | 'dimPlaced'>) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: DRAG_ID.pending(line.id),
   });
   const isHeader = line.kind === 'header';
   return (
-    <LyricLineRow
+    <LyricListRow
+      {...rest}
       line={line}
-      bodyRef={setNodeRef}
-      bodyStyle={{ opacity: isDragging ? 0.3 : 1 }}
-      bodyProps={{ ...attributes, ...listeners }}
-      bodyClassName={isHeader ? '' : 'cursor-grab active:cursor-grabbing'}
-      handle={
-        <span className="text-neutral-500 dark:text-neutral-400 mr-1" aria-hidden>
-          ≡
-        </span>
+      dimPlaced={dimPlaced}
+      drag={
+        isHeader
+          ? undefined
+          : {
+              setNodeRef,
+              attributes: attributes as unknown as Record<string, unknown>,
+              listeners: listeners as unknown as Record<string, unknown>,
+              isDragging,
+              handle: (
+                <span
+                  className="text-neutral-500 dark:text-neutral-400 mr-1"
+                  aria-hidden
+                >
+                  ≡
+                </span>
+              ),
+            }
       }
-      onDelete={onDelete}
-      onUnplace={onUnplace}
     />
   );
 }

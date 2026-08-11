@@ -290,6 +290,12 @@ interface Props {
    *  Carries the line's syllables as they were BEFORE the write, so
    *  cancelling undoes the gesture rather than the line. */
   onLineHeadPlaced?: (lineId: string, snapshot: LyricSyllable[]) => void;
+  /** Song-level lyric actions the per-section tray now offers too, so
+   *  the tray and the drawer behave identically. Pass-through only. */
+  onArmLine?: (lineId: string) => void;
+  onArmWord?: (syllableId: string) => void;
+  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
+  onDuplicateLine?: (lineId: string) => void | Promise<void>;
   /** Cell the line-end prompt anchors to, and the channel the matching
    *  cell uses to report its node. Pass-through only. */
   promptAnchorCellKey?: string | null;
@@ -324,6 +330,10 @@ export default function LeadSheetSection({
   onToggleLyricTray,
   awaitingLine = null,
   onLineHeadPlaced,
+  onArmLine,
+  onArmWord,
+  onSetLineKind,
+  onDuplicateLine,
   promptAnchorCellKey = null,
   onPromptAnchorNode,
 }: Props) {
@@ -1964,18 +1974,16 @@ export default function LeadSheetSection({
               onSyllableJoin={handleSyllableJoin}
               onSyllableChange={handleSyllableChange}
               onSyllableUnplace={handleSyllableUnplace}
-              unplacedLines={
-                songLyricsActive
-                  ? // Everything not fully placed, INCLUDING header rows —
-                    // they carry the grouping that makes the list
-                    // readable. `lineStatus` reports headers as 'header',
-                    // never 'unplaced', so filtering on 'unplaced' alone
-                    // silently dropped them.
-                    (songLyricLines ?? []).filter(
-                      l => lineStatus(l).status !== 'placed',
-                    )
-                  : undefined
-              }
+              // EVERY line now. The tray shows unfinished ones by
+              // default and puts finished ones behind a grouped reveal,
+              // which it can only offer if it has them — and it needs
+              // them because the tray can pick words now, so moving one
+              // word of a finished line must not require the drawer.
+              unplacedLines={songLyricsActive ? (songLyricLines ?? []) : undefined}
+              onArmLine={onArmLine}
+              onArmWord={onArmWord}
+              onSetLineKind={onSetLineKind}
+              onDuplicateLine={onDuplicateLine}
               onLineDelete={handleDeleteLyricLine}
               onLineUnplace={handleUnplaceLine}
               onAddBar={handleAddBar}
