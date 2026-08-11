@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import type { SongLyricLine } from '../../../lib/db';
 import LyricDrawer from '../LyricDrawer';
+import { lineMarkers, lineStatus } from '../lyricSyllables';
 
 // jsdom does no layout, so the DOCKING offset and the half-height
 // panel can't be verified here — those need eyes. What is covered is
@@ -556,5 +557,100 @@ describe('LyricDrawer — pick mode', () => {
     render(<LyricDrawer lines={SONG} open onOpenChange={noop} onArmLine={noop} />);
     act(() => bodies()[PARTIAL].click());
     expect(container!.querySelectorAll('[data-line-body] button')).toHaveLength(0);
+  });
+});
+
+describe('routing a partially-placed line — the reported failure', () => {
+  const byLabel = (label: string) =>
+    Array.from(container!.querySelectorAll('button')).find(
+      b => b.getAttribute('aria-label') === label,
+    ) as HTMLElement | undefined;
+
+  // "Christ the Lord" at 2/3: the first two words down, the last not.
+  // lineMarkers emits BOTH a start and an end marker for this, the end
+  // sitting on "the" — the last PLACED word rather than the last word.
+  const CHRIST = (): SongLyricLine[] => [lyric('l', 'Christ the Lord', 2)];
+
+  it('lineStatus reports partial, and markers do not enter into it', () => {
+    // The hypothesis was that a line carrying both markers reads as
+    // complete. lineStatus counts anchors and never looks at markers.
+    const line = CHRIST()[0];
+    expect(lineStatus(line)).toMatchObject({ status: 'partial', placed: 2, total: 3 });
+    expect(lineMarkers([line]).map(m => m.edge).sort()).toEqual(['end', 'start']);
+  });
+
+  it('routes to PICK MODE, not the line gesture', () => {
+    const onArmLine = vi.fn();
+    render(
+      <LyricDrawer
+        lines={CHRIST()}
+        open
+        onOpenChange={noop}
+        onArmLine={onArmLine}
+        onArmWord={vi.fn()}
+      />,
+    );
+    const body = container!.querySelector('[data-line-body]') as HTMLElement;
+    act(() => body.click());
+    expect(onArmLine).not.toHaveBeenCalled();
+    expect(byLabel('place "Lord"')).toBeDefined();
+  });
+
+  it('markers are not a variable at all — every partial line has both', () => {
+    // The hypothesis needed lines that differ in whether an end marker
+    // exists. They do not: lineMarkers emits BOTH edges for any line
+    // with at least one placed word and more than one word, so a 1/3
+    // line carries the same markers as a 2/3 one.
+    for (const placed of [1, 2]) {
+      const l = lyric('l', 'Christ the Lord', placed);
+      expect(lineMarkers([l]).map(m => m.edge).sort()).toEqual(['end', 'start']);
+      expect(lineStatus(l).status).toBe('partial');
+    }
+  });
+
+  it('routes to pick mode at any partial count', () => {
+    const oneDown: SongLyricLine[] = [lyric('l', 'Christ the Lord', 1)];
+    const onArmLine = vi.fn();
+    render(
+      <LyricDrawer
+        lines={oneDown}
+        open
+        onOpenChange={noop}
+        onArmLine={onArmLine}
+        onArmWord={vi.fn()}
+      />,
+    );
+    act(() => (container!.querySelector('[data-line-body]') as HTMLElement).click());
+    expect(onArmLine).not.toHaveBeenCalled();
+    expect(byLabel('place "the"')).toBeDefined();
+  });
+
+  it('the BADGE and the ROUTING read the same call, so they cannot disagree', () => {
+    // The reported clue was a correct "2/3 placed" badge beside wrong
+    // routing. Both derive from lineStatus, and the badge only renders
+    // for 'partial' — which is exactly the status that picks. If the
+    // badge shows, pick mode is reachable.
+    render(
+      <LyricDrawer
+        lines={CHRIST()}
+        open
+        onOpenChange={noop}
+        onArmLine={vi.fn()}
+        onArmWord={vi.fn()}
+      />,
+    );
+    expect(container!.textContent).toContain('2/3 placed');
+    const body = container!.querySelector('[data-line-body]') as HTMLElement;
+    expect(body.getAttribute('aria-label')).toBe('choose a word from "Christ the Lord"');
+  });
+
+  it('falls back to the line gesture only when no word handler exists', () => {
+    // The one code path that produces the reported symptom.
+    const onArmLine = vi.fn();
+    render(
+      <LyricDrawer lines={CHRIST()} open onOpenChange={noop} onArmLine={onArmLine} />,
+    );
+    act(() => (container!.querySelector('[data-line-body]') as HTMLElement).click());
+    expect(onArmLine).toHaveBeenCalledWith('l');
   });
 });
