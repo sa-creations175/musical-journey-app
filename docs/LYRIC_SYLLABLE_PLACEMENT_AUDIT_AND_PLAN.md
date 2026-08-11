@@ -774,6 +774,53 @@ and pushes itself up by it, every frame.
 `z-40`: above the grid, alongside the nav, **below the overlays at 180/190** so the prompt is never behind
 the drawer.
 
+### PRINCIPLE — nothing shifts on its own (step 8, 2026-08-11)
+
+**A restructure never drags placed syllables along with it.** Deleting a bar does not slide the words after
+it backwards; reordering bars does not make anchors chase their chords around.
+
+This is place-as-pin applied to *structure*. A syllable goes where the user put it and moves only when the
+user moves it — bars sliding underneath and dragging words with them is the same violation the rebuild
+exists to eliminate, one scale up. If a restructure leaves lyrics against the wrong chord, that is the
+user's to fix, and they can see it.
+
+**The only thing an operation may do is UN-PLACE what genuinely has nowhere left to be.** Un-placed words
+return to the drawer with their text intact, which is recoverable; silently relocated words are not.
+
+| Operation | Un-placed | Untouched |
+|---|---|---|
+| **Delete bar** | words in that bar, **and** words on the old last bar index — the section shrinks, so that index stops addressing anything | every other bar, even though the bar under it renumbers |
+| **Delete section** | every word anchored in it | words of the *same line* anchored in other sections |
+| **Change time signature** | words on beats the new signature does not have | words on beats that survive |
+| **Reorder bars** | nothing — a permutation removes no cell | everything |
+
+The second group in the bar-delete row was **found by the orphan tests, not by reasoning** — un-placing only
+the deleted bar was not enough, because "nothing shifts" means the trailing anchor does not follow anything
+down.
+
+`shiftAnchorsAfterBarDelete` and `remapAnchorBars` were **deleted** rather than wired up: they existed to
+make anchors follow structure, which this principle rules out.
+
+### Orphan class — reported placed, rendered nowhere
+
+The failure these fixes address: an anchor pointing at a cell that no longer exists is **invisible on the
+grid while `lineStatus` still counts it as placed**, so the drawer shows the line as finished and the tray
+excludes it. The UI actively said the line was fine.
+
+Two defences, deliberately independent:
+
+1. **Operations un-place what they orphan** (above).
+2. **`anchorToGlobal` range-checks bar and beat**, so an out-of-range anchor reads as off-axis rather than
+   colliding. This protects the invariant the unified stacking rule rests on — *one global beat is exactly
+   one cell*. Two measured collisions motivated it: beat 3 of a bar now in 3/4 computes to the same global
+   as beat 0 of the next bar, and bar 9 of a section now holding 2 bars computes into a *later section's*
+   range. It holds for data written before the check existed, so it is a net under the operations rather
+   than a substitute for them.
+
+**Tests for this class must assert against what the grid RENDERS**, not against anchors —
+`__tests__/lyricOrphans.test.ts` walks every cell that exists and flags anything counted as placed but not
+drawn. Write-path unit tests passed throughout the original bug.
+
 ### Known constraint — duplicated lines cannot be reordered
 
 `duplicate` inserts an independent copy **directly below** the original, and line order carries positional
@@ -783,6 +830,11 @@ refrain that returns later in the song.
 **There is no line-reorder in the drawer**, so a duplicate is stuck where it is inserted. If a repeat ever
 needs to sit somewhere else in the running order, the only route today is delete and re-paste. Deliberately
 not built until it is actually hit — noted so the cause is obvious when it is.
+
+**Paste has the same shape.** New lines always append to the END of the song, and line order is positional,
+so pasted lines can only be placed after everything already placed. Paste verse 2 after placing verse 1 and
+it is fine; paste something that belongs earlier and the guard blocks it with no way to reorder. Same
+family, same deferral — not corruption, and left alone deliberately.
 
 ### Still open
 
