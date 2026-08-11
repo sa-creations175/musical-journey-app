@@ -106,7 +106,19 @@ export default function LyricDrawer({
          edges with a shadow says "control", which is what it is.
          z-40: above the grid, below the cell-anchored overlays at
          180/190 so the prompt is never behind the drawer. */
-      className="fixed inset-x-3 z-40 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
+      /* COLOURED, because white-on-white made it read as page
+         background — it measured 1.00:1 against the page behind it,
+         invisible by construction rather than by degree, which is
+         exactly the "kept losing track of it" report.
+         The hue is REPERTOIRE'S OWN MODULE ACCENT, the one the sidebar
+         already wears. Chrome inside a module wearing that module's
+         colour needs no further justification, and it stays clear of
+         both the chord families and the indigo now licensed for
+         transient placement feedback on the grid.
+         Surface, not type: the button below keeps SectionToggle's
+         stone/fluent idiom, so the strip stays in the collapsible-
+         header family. Being hard to see was a SURFACE problem. */
+      className="fixed inset-x-3 z-40 rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-repertoire-50 dark:bg-repertoire-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
     >
       {/* Label and count GROUPED, not pushed to opposite ends — at
           arm's length a label on the left and a number on the right
@@ -118,7 +130,13 @@ export default function LyricDrawer({
         type="button"
         onClick={() => onOpenChange(!open)}
         aria-expanded={open}
-        className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wide font-semibold text-stone-500 dark:text-stone-400 hover:text-fluent"
+        /* One stone step darker than SectionToggle's resting colour,
+           because the surface underneath it moved. Measured so the
+           label ends up MORE legible than it was, not less: 4.80:1 on
+           the old white → 5.84:1 here, and 7.85:1 → 8.77:1 in dark.
+           Same token family, same idiom; only the step tracks the
+           surface it sits on. */
+        className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wide font-semibold text-stone-600 dark:text-stone-300 hover:text-fluent"
       >
         <span aria-hidden className="text-[9px] leading-none">
           {open ? '▾' : '▸'}
@@ -135,7 +153,13 @@ export default function LyricDrawer({
 
       {open && (
         <div
-          className="overflow-y-auto px-3 pb-3 flex flex-col gap-1"
+          /* THE BODY IS CONTENT, NOT CHROME, so it keeps the plain
+             reading surface. The tint identifies the strip — which is
+             the whole control when collapsed, and that is where it was
+             getting lost — while half a viewport of lyrics stays on
+             the surface lyrics are meant to be read on. The accent
+             rule is what separates the two. */
+          className="overflow-y-auto px-3 pb-3 pt-2 flex flex-col gap-1 border-t border-repertoire-200 dark:border-repertoire-600 bg-white dark:bg-neutral-900"
           style={{ maxHeight: '50vh' }}
         >
           {onAddLines && (

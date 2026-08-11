@@ -31,6 +31,25 @@ export default {
           700: '#25304e',
           800: '#1a2238',
         },
+        // Repertoire's own module accent (#a8556b, the sidebar's), as
+        // SURFACE steps for chrome that belongs to this module. Not a
+        // new hue — the strip wearing its module's colour is the most
+        // explainable choice available, and it is already licensed as
+        // navigation chrome elsewhere.
+        //
+        // Deliberately NOT any chord family hue and not indigo: at
+        // 344°/33% it sits 16° off the alert reds (needswork 0°/72%,
+        // family dim 0°/84%) but at under half their saturation, which
+        // is what keeps a dusty plum from reading as a warning. Steps
+        // are flat values with no alpha modifiers, so Tailwind cannot
+        // silently emit nothing the way an off-scale opacity does.
+        repertoire: {
+          50: '#eedde2',  // light surface — 1.31:1 against the white page
+          200: '#c9a3ae', // light edge    — 1.72:1 against that surface
+          500: '#a8556b', // the accent itself
+          600: '#6d4a53', // dark edge     — 1.71:1 against its surface
+          800: '#402b31', // dark surface  — 1.52:1 against the near-black page
+        },
         family: {
           major: { 50: '#ecfdf5', 500: '#10b981', 600: '#059669', 700: '#047857' },
           minor: { 50: '#eff6ff', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
