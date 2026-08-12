@@ -194,11 +194,26 @@ export function toVexKey(p: Pitch): string {
   return `${p.letter.toLowerCase()}${acc}/${p.octave}`;
 }
 
-/** Human spelling, e.g. `Eb`, `F#`, `Bbb`. Octave is not included —
+/**
+ * Swap typed accidentals for the real glyphs: `Gb` -> `G♭`,
+ * `F#` -> `F♯`, `Bbb` -> `B♭♭`.
+ *
+ * CAPTIONS ONLY. `toVexKey` builds its strings independently and must
+ * keep ASCII, because VexFlow parses `gb/4` and would not know what to
+ * do with `g♭/4`. Splitting letter from accidental before replacing is
+ * what keeps `Bb` from becoming `♭♭` — the first character is the
+ * note name, never an accidental.
+ */
+export function withAccidentalGlyphs(name: string): string {
+  if (name.length === 0) return name;
+  return name[0] + name.slice(1).replace(/#/g, '♯').replace(/b/g, '♭');
+}
+
+/** Human spelling, e.g. `E♭`, `F♯`, `B♭♭`. Octave is not included —
  *  callers that want scientific pitch append it themselves. */
 export function pitchName(p: Pitch): string {
   const acc = p.accidental === null || p.accidental === 'n' ? '' : p.accidental;
-  return `${p.letter}${acc}`;
+  return withAccidentalGlyphs(`${p.letter}${acc}`);
 }
 
 /** Scientific pitch, e.g. `C4`. */

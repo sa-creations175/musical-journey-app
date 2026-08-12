@@ -41,6 +41,7 @@ import {
   pitchAtStaffPosition,
   pitchName,
   scientificPitch,
+  withAccidentalGlyphs,
   spellInterval,
   toVexKey,
   type Letter,
@@ -60,9 +61,28 @@ export interface ReadingRenderOptions {
    *  ("C", "Eb", "F#") and an octave. Absent from the itemRef by
    *  design; reading E-G-B is the same act in every key. */
   root?: { letter: Letter; accidental?: 'b' | '#' | null; octave: number };
+  /**
+   * Single staff or a braced grand staff. RENDER-TIME, exactly like
+   * clef and root — framing changes how a card is drawn, never which
+   * card it is, so no itemRef gains a segment and no count moves.
+   *
+   * Honoured by KEY SIGNATURE cards only. A signature genuinely
+   * appears on both staves of piano music, which is the thing worth
+   * seeing. A note or chord item's clef IS its identity, so drawing a
+   * second staff would either show the answer on the wrong clef or
+   * imply the card asks about both. Defaults to single, so nothing
+   * that renders today changes.
+   */
+  frame?: ReadingFrame;
 }
 
+export type ReadingFrame = 'single' | 'grand';
+
 export interface ReadingStaffSpec {
+  /** `grand` draws treble over bass, braced, with the signature on
+   *  both. `clef` is then which staff the CARD is nominally about,
+   *  and is what a single-staff render would have used. */
+  frame: ReadingFrame;
   clef: Clef;
   /** VexFlow key strings for the notes to draw, low to high. Empty for
    *  a key-signature card, which draws a signature and no notes. */
@@ -94,7 +114,7 @@ function vexKeySignature(sig: SignatureDef): string {
 function accidentalListFor(sig: SignatureDef): string[] {
   if (sig.accidental === null) return [];
   const order = sig.accidental === 'sharp' ? SHARP_ORDER : FLAT_ORDER;
-  const mark = sig.accidental === 'sharp' ? '#' : 'b';
+  const mark = sig.accidental === 'sharp' ? '♯' : '♭';
   return order.slice(0, sig.count).map(l => `${l}${mark}`);
 }
 
@@ -103,7 +123,10 @@ function signatureCaption(
   mode: 'major' | 'minor',
   direction: 'name' | 'count' | 'which',
 ): string {
-  const tonic = mode === 'major' ? sig.major : sig.minor;
+  // SIGNATURES stores tonics as ASCII ('Gb', 'F#') because they are
+  // data, not display. The glyph swap happens here, at the caption,
+  // so the staff and the label use the same notation vocabulary.
+  const tonic = withAccidentalGlyphs(mode === 'major' ? sig.major : sig.minor);
   const key = `${tonic} ${mode}`;
   if (direction === 'which') {
     const list = accidentalListFor(sig);
@@ -198,6 +221,7 @@ export function resolveReadingCard(
       itemRef,
       skill: 'sig',
       staff: {
+        frame: options.frame ?? 'single',
         clef: options.clef ?? 'treble',
         keys: [],
         keySignature: vexKeySignature(sig),
@@ -212,9 +236,10 @@ export function resolveReadingCard(
       itemRef,
       skill: 'note',
       staff: {
-        // Clef IS identity for a note item — an options.clef override
-        // would change which note the card asks about, so it is
-        // deliberately not consulted here.
+        // Neither clef NOR frame is consulted: clef IS identity for a
+        // note item, and a grand staff would draw a second clef the
+        // card is not asking about.
+        frame: 'single',
         clef: parsed.clef,
         keys: [toVexKey(pitch)],
         // No signature, ever: the answer ignores it, so drawing one
@@ -251,6 +276,9 @@ export function resolveReadingCard(
     itemRef,
     skill: 'chord',
     staff: {
+      // Same reasoning as note items — the clef a chord is read on is
+      // part of what the card asks.
+      frame: 'single',
       clef: parsed.clef,
       keys: pitches.map(toVexKey),
       // No overlay in this step — all accidentals are written on the

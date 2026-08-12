@@ -95,13 +95,13 @@ describe('spellInterval keeps letter and accidental separate', () => {
     // Both are 4 semitones. Only the letter distance separates them,
     // which is exactly what pitch-class helpers cannot do.
     expect(scientificPitch(spellInterval(C4, 2, 4)!)).toBe('E4');
-    expect(scientificPitch(spellInterval(C4, 3, 4)!)).toBe('Fb4');
+    expect(scientificPitch(spellInterval(C4, 3, 4)!)).toBe('F\u266d4');
   });
 
   it('produces a double flat for a diminished seventh', () => {
     // C dim7's seventh is Bbb, not A. This is the case that made
     // stack-position derivation necessary.
-    expect(scientificPitch(spellInterval(C4, 6, 9)!)).toBe('Bbb4');
+    expect(scientificPitch(spellInterval(C4, 6, 9)!)).toBe('B\u266d\u266d4');
   });
 
   it('refuses a spelling needing more than a double accidental', () => {
@@ -203,7 +203,7 @@ describe('captions', () => {
     expect(resolveReadingCard('sig:1s:major:name')!.caption)
       .toBe('G major, 1 sharp');
     expect(resolveReadingCard('sig:6f:major:name')!.caption)
-      .toBe('Gb major, 6 flats');
+      .toBe('G♭ major, 6 flats');
     expect(resolveReadingCard('sig:2s:minor:name')!.caption)
       .toBe('B minor, 2 sharps');
   });
@@ -222,9 +222,9 @@ describe('captions', () => {
     expect(resolveReadingCard('sig:3s:major:name')!.caption)
       .toBe('A major, 3 sharps');
     expect(resolveReadingCard('sig:3s:major:which')!.caption)
-      .toBe('A major: F# C# G#');
+      .toBe('A major: F♯ C♯ G♯');
     expect(resolveReadingCard('sig:2f:major:which')!.caption)
-      .toBe('Bb major: Bb Eb');
+      .toBe('B♭ major: B♭ E♭');
   });
 
   it('a chord caption names the supplied root, position, and quality', () => {
@@ -340,10 +340,10 @@ describe('preview samples', () => {
       ALL_SAMPLES.map(s => [s.n, resolveReadingCard(s.itemRef, s.options)!.caption]),
     );
     expect(captions[1]).toBe('C major, no accidentals');
-    expect(captions[4]).toBe('F# major, 6 sharps');
-    expect(captions[5]).toBe('Gb major, 6 flats');
+    expect(captions[4]).toBe('F♯ major, 6 sharps');
+    expect(captions[5]).toBe('G♭ major, 6 flats');
     expect(captions[6]).toBe('B minor, 2 sharps');
-    expect(captions[7]).toBe('Eb major, 3 flats');
+    expect(captions[7]).toBe('E♭ major, 3 flats');
     expect(captions[8]).toBe('C6');
     expect(captions[9]).toBe('C2');
     expect(captions[10]).toBe('C4');
@@ -365,5 +365,78 @@ describe('preview samples', () => {
         .some(k => k.split('/')[0].length > 1),
     );
     expect(anyAccidental).toBe(true);
+  });
+});
+
+// =====================================================================
+// Caption glyphs and the grand-staff frame
+// =====================================================================
+
+describe('caption accidental glyphs', () => {
+  it('uses \u266f and \u266d, not ASCII # and b', () => {
+    for (const ref of enumerateAllReadingItems()) {
+      const caption = resolveReadingCard(ref)!.caption;
+      // The letter B is legal; a lone lowercase b or a # is not.
+      expect(caption, ref).not.toMatch(/#/);
+      expect(caption.replace(/\bflats?\b/g, ''), ref).not.toMatch(/[A-G]b/);
+    }
+  });
+
+  it('does not mangle B-flat into a double glyph', () => {
+    // The trap: naive replacement of "b" turns "Bb" into "\u266d\u266d".
+    expect(resolveReadingCard('sig:2f:major:name')!.caption)
+      .toBe('B\u266d major, 2 flats');
+  });
+
+  it('leaves VexFlow key strings as ASCII', () => {
+    // VexFlow parses `gb/4`; it would not know what to do with `g\u266d/4`.
+    const card = resolveReadingCard('chord:dim:root:treble', {
+      root: { letter: 'C', octave: 4 },
+    })!;
+    expect(card.staff.keys).toEqual(['c/4', 'eb/4', 'gb/4']);
+    for (const k of card.staff.keys) expect(k).not.toMatch(/[\u266f\u266d]/);
+  });
+
+  it('signature specs handed to VexFlow stay ASCII too', () => {
+    expect(resolveReadingCard('sig:6f:major:name')!.staff.keySignature).toBe('Gb');
+    expect(resolveReadingCard('sig:6s:major:name')!.staff.keySignature).toBe('F#');
+  });
+});
+
+describe('grand staff framing', () => {
+  it('defaults to single, so nothing that renders today changes', () => {
+    for (const ref of enumerateAllReadingItems()) {
+      expect(resolveReadingCard(ref)!.staff.frame, ref).toBe('single');
+    }
+  });
+
+  it('a signature card honours the frame option', () => {
+    const card = resolveReadingCard('sig:1s:major:name', { frame: 'grand' })!;
+    expect(card.staff.frame).toBe('grand');
+    expect(card.staff.keySignature).toBe('G');
+  });
+
+  it('note and chord cards IGNORE it — their clef is identity', () => {
+    // A second staff would draw a clef the card is not asking about.
+    expect(resolveReadingCard('note:treble:4', { frame: 'grand' })!.staff.frame)
+      .toBe('single');
+    expect(resolveReadingCard('chord:maj:root:bass', { frame: 'grand' })!.staff.frame)
+      .toBe('single');
+  });
+
+  it('framing changes no caption — it is render-time, not identity', () => {
+    for (const ref of enumerateAllReadingItems()) {
+      expect(resolveReadingCard(ref, { frame: 'grand' })!.caption)
+        .toBe(resolveReadingCard(ref)!.caption);
+    }
+  });
+
+  it('framing changes no itemRef and no count', () => {
+    // The settled rule: render-time variation never touches identity.
+    const before = enumerateAllReadingItems();
+    expect(before).toHaveLength(181);
+    for (const ref of before) {
+      expect(resolveReadingCard(ref, { frame: 'grand' })!.itemRef).toBe(ref);
+    }
   });
 });

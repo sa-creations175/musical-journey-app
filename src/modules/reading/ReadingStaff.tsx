@@ -40,19 +40,47 @@ function loadVexFlow(): Promise<VexModule> {
 
 interface Props {
   spec: ReadingStaffSpec;
-  /** Rendered width in px. Height follows from the staff. */
+  /** Overrides the size chosen from the spec. Rarely needed. */
   width?: number;
   height?: number;
 }
 
+/**
+ * WHY SIGNATURE CARDS GET A WIDER STAVE.
+ *
+ * The report was that key-signature accidentals read as "scattered
+ * wide" rather than as one cluster. The gaps are not the cause and
+ * cannot be: VexFlow's KeySignature.convertToGlyph places each
+ * accidental at `previous.xShift + previous.getWidth() + 1`, so they
+ * already sit one pixel apart at the font's own advance width. There
+ * is no spacing parameter to turn down — the `+1` is hardcoded and the
+ * rest is Bravura's metrics, measured at runtime.
+ *
+ * What was actually wrong is the RATIO. Six sharps plus a clef nearly
+ * filled a 180px stave, so the cluster had no empty staff after it to
+ * be a silhouette against — it read as a wall of accidentals rather
+ * than as a signature at the head of a system, which is the shape
+ * engraved music teaches you to recognise. Widening the stave leaves
+ * the glyphs and their spacing untouched and restores that contrast.
+ *
+ * MEASUREMENT CAVEAT, stated because it matters: this could not be
+ * verified numerically. jsdom has no canvas, so every VexFlow glyph
+ * measures as zero width in tests and the accidentals collapse to
+ * x = 15,16,17,18,19,20. The ratio argument is sound but the result
+ * is an eyeball check, not an asserted one.
+ */
 const DEFAULT_WIDTH = 200;
 const DEFAULT_HEIGHT = 130;
+const SIGNATURE_WIDTH = 300;
+/** Grand staff needs room for two staves plus the gap between them. */
+const GRAND_HEIGHT = 200;
+const GRAND_STAVE_GAP = 80;
 
-export default function ReadingStaff({
-  spec,
-  width = DEFAULT_WIDTH,
-  height = DEFAULT_HEIGHT,
-}: Props) {
+export default function ReadingStaff({ spec, width, height }: Props) {
+  const isGrand = spec.frame === 'grand';
+  const hasSignature = spec.keySignature !== null && spec.keys.length === 0;
+  const w = width ?? (hasSignature ? SIGNATURE_WIDTH : DEFAULT_WIDTH);
+  const h = height ?? (isGrand ? GRAND_HEIGHT : DEFAULT_HEIGHT);
   const hostRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,15 +98,33 @@ export default function ReadingStaff({
 
       try {
         const renderer = new VF.Renderer(el, VF.Renderer.Backends.SVG);
-        renderer.resize(width, height);
+        renderer.resize(w, h);
         const ctx = renderer.getContext();
 
         // Staves start a little in from the left so the clef is not
         // flush against the edge, and the drawable width follows.
-        const stave = new VF.Stave(10, 20, width - 20);
+        const stave = new VF.Stave(10, 20, w - 20);
         stave.addClef(spec.clef);
         if (spec.keySignature) stave.addKeySignature(spec.keySignature);
         stave.setContext(ctx).draw();
+
+        if (isGrand) {
+          // Piano framing: treble over bass, braced, signature on
+          // both. The brace and the left barline are separate
+          // connectors — the brace is the curly bracket, the line is
+          // what makes the two staves read as one system.
+          const lower = new VF.Stave(10, 20 + GRAND_STAVE_GAP, w - 20);
+          lower.addClef(spec.clef === 'treble' ? 'bass' : 'treble');
+          if (spec.keySignature) lower.addKeySignature(spec.keySignature);
+          lower.setContext(ctx).draw();
+
+          new VF.StaveConnector(stave, lower)
+            .setType(VF.StaveConnector.type.BRACE)
+            .setContext(ctx).draw();
+          new VF.StaveConnector(stave, lower)
+            .setType(VF.StaveConnector.type.SINGLE_LEFT)
+            .setContext(ctx).draw();
+        }
 
         if (spec.keys.length > 0) {
           // ONE StaveNote carrying every key — a chord is a single
@@ -104,7 +150,7 @@ export default function ReadingStaff({
 
           const voice = new VF.Voice({ numBeats: 4, beatValue: 4 });
           voice.addTickables([note]);
-          new VF.Formatter().joinVoices([voice]).format([voice], width - 80);
+          new VF.Formatter().joinVoices([voice]).format([voice], w - 80);
           voice.draw(ctx, stave);
         }
 
@@ -121,11 +167,11 @@ export default function ReadingStaff({
     });
 
     return () => { cancelled = true; };
-  }, [spec, width, height]);
+  }, [spec, w, h, isGrand]);
 
   return (
     <div>
-      <div ref={hostRef} aria-hidden style={{ minHeight: height }} />
+      <div ref={hostRef} aria-hidden style={{ minHeight: h }} />
       {error && (
         <p className="text-[11px] text-needswork" role="alert">
           {error}

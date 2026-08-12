@@ -23,11 +23,18 @@ import { PREVIEW_SECTIONS, type ReadingSample } from './previewSamples';
  *  hue was chosen and how far it measures from every other accent. */
 const SEPIA = '#6f4a2f';
 
-function SampleCard({ sample, showLabels }: {
+function SampleCard({ sample, showLabels, grand }: {
   sample: ReadingSample;
   showLabels: boolean;
+  grand: boolean;
 }) {
-  const card = resolveReadingCard(sample.itemRef, sample.options);
+  // The frame rides in as a render option like any other, so the
+  // resolver still produces the staff spec and the caption together.
+  // Only signature cards honour it; the resolver ignores it elsewhere.
+  const card = resolveReadingCard(sample.itemRef, {
+    ...sample.options,
+    ...(grand ? { frame: 'grand' as const } : {}),
+  });
 
   if (!card) {
     return (
@@ -65,6 +72,9 @@ function SampleCard({ sample, showLabels }: {
 
 export default function ReadingPreview() {
   const [showLabels, setShowLabels] = useState(true);
+  // Single staff is the DEFAULT and stays the default — the toggle
+  // adds the piano framing, it does not replace what renders now.
+  const [grand, setGrand] = useState(false);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-8">
@@ -78,14 +88,27 @@ export default function ReadingPreview() {
             itemRef, never written by hand.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-[12px] shrink-0">
-          <input
-            type="checkbox"
-            checked={showLabels}
-            onChange={e => setShowLabels(e.target.checked)}
-          />
-          Labels
-        </label>
+        <div className="flex items-center gap-4 shrink-0">
+          <label className="flex items-center gap-2 text-[12px]">
+            <input
+              type="checkbox"
+              checked={showLabels}
+              onChange={e => setShowLabels(e.target.checked)}
+            />
+            Labels
+          </label>
+          <label
+            className="flex items-center gap-2 text-[12px]"
+            title="Key signature cards only — a signature appears on both staves of piano music"
+          >
+            <input
+              type="checkbox"
+              checked={grand}
+              onChange={e => setGrand(e.target.checked)}
+            />
+            Grand staff
+          </label>
+        </div>
       </header>
 
       {PREVIEW_SECTIONS.map(section => (
@@ -93,9 +116,21 @@ export default function ReadingPreview() {
           <h2 className="text-[13px] uppercase tracking-wide font-semibold text-neutral-500">
             {section.heading}
           </h2>
-          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(210px,1fr))]">
+          {/* Signature cards render on a wider stave, so their column
+              is wider — otherwise the extra width would be scaled away
+              by the grid and the ratio fix would do nothing. */}
+          <div className={`grid gap-3 ${
+            section.heading === 'Key signatures'
+              ? 'grid-cols-[repeat(auto-fill,minmax(320px,1fr))]'
+              : 'grid-cols-[repeat(auto-fill,minmax(210px,1fr))]'
+          }`}>
             {section.samples.map(s => (
-              <SampleCard key={s.n} sample={s} showLabels={showLabels} />
+              <SampleCard
+                key={s.n}
+                sample={s}
+                showLabels={showLabels}
+                grand={grand}
+              />
             ))}
           </div>
         </section>
