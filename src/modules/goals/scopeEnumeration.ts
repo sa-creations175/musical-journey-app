@@ -41,6 +41,8 @@ import { MODES } from '../ear-training/scales-modes/catalog';
 import { PRODUCTION_PATHS } from '../production/content/paths';
 import { lessonsByPath } from '../production/content/lessons';
 import { ET_MODULE_REFS } from './progress';
+import { enumerateAllReadingItems } from '../reading/catalog';
+import { itemRefMatcherForReadingGroup } from '../reading/coverageGroups';
 
 // =====================================================================
 // Per-module enumerators — each one mirrors moduleItemCounts.ts's
@@ -188,6 +190,29 @@ export function enumerateScopeForGoal(goal: Goal): string[] {
   }
 
   return [];
+}
+
+/**
+ * Every Reading itemRef. Walks the catalog exactly like the other
+ * enumerators here, so the count follows the catalog automatically.
+ *
+ * NOT yet reachable from `enumerateScopeForGoal` — Reading has no
+ * coverage metric until the step-5 goal flow introduces one, and
+ * adding the metric id early would pull the goal picker's exhaustive
+ * maps into a data-only step. Exported so `readingCounts()` can
+ * derive denominators from it now, and so the metric branch is a
+ * two-line addition when the flow lands.
+ */
+export function enumerateReading(): string[] {
+  return enumerateAllReadingItems();
+}
+
+/** Reading sub-area scope, by coverage-group id. Returns [] for an
+ *  unknown group, matching the Shapes branch's behaviour. */
+export function enumerateReadingGroup(groupId: string): string[] {
+  const matcher = itemRefMatcherForReadingGroup(groupId);
+  if (!matcher) return [];
+  return enumerateReading().filter(matcher);
 }
 
 /**

@@ -47,6 +47,9 @@ import { MODES } from '../modules/ear-training/scales-modes/catalog';
 import { FLASHCARDS, type FlashcardCategory } from '../modules/harmonic-fluency/catalog';
 import { PRODUCTION_PATHS } from '../modules/production/content/paths';
 import { lessonsByPath } from '../modules/production/content/lessons';
+import { readingSkillForItemRef } from '../modules/reading/catalog';
+import { READING_COVERAGE_GROUPS } from '../modules/reading/coverageGroups';
+import { enumerateReading } from '../modules/goals/scopeEnumeration';
 
 // =====================================================================
 // Ear Training
@@ -199,4 +202,52 @@ export function productionCounts(): ProductionCounts {
     total += n;
   }
   return { byPath, total };
+}
+
+// =====================================================================
+// Reading
+// =====================================================================
+
+export interface ReadingCounts {
+  /** 13 signatures x 2 modes x 3 question directions = 78. */
+  keySignatures: number;
+  /** 17 staff positions x 2 clefs = 34. */
+  noteRecognition: number;
+  /** Triads and sevenths in both clefs across their inversions, plus
+   *  the bass-only open shapes. */
+  chordIdentification: number;
+  /** Per-coverage-group totals, keyed by ReadingCoverageGroupId. */
+  byGroup: Record<string, number>;
+  /** Sum of the three skills. */
+  total: number;
+}
+
+/**
+ * Reading denominators, DERIVED — every number here is a length of a
+ * catalog walk, not a literal. `scopeEnumeration.enumerateReading()`
+ * is the single walk; the per-group figures re-filter the same list
+ * through each group's own matcher, so a group total can never drift
+ * from the module total or from what a goal would actually cover.
+ *
+ * This is why the key-signature count is not written down anywhere:
+ * drop a signature from SIGNATURES or a direction from
+ * SIGNATURE_DIRECTIONS and the number moves on its own.
+ */
+export function readingCounts(): ReadingCounts {
+  const all = enumerateReading();
+  const bySkill = (skill: string) =>
+    all.filter(ref => readingSkillForItemRef(ref) === skill).length;
+
+  const byGroup: Record<string, number> = {};
+  for (const group of READING_COVERAGE_GROUPS) {
+    byGroup[group.id] = all.filter(group.matches).length;
+  }
+
+  return {
+    keySignatures:       bySkill('sig'),
+    noteRecognition:     bySkill('note'),
+    chordIdentification: bySkill('chord'),
+    byGroup,
+    total: all.length,
+  };
 }
