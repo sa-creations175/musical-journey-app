@@ -930,3 +930,105 @@ describe('songBeatAxis — the song’s subdivision reaches the axis', () => {
     expect(axis.offsets.get('sec-b')).toBe(8);
   });
 });
+
+// ---------------------------------------------------------------------
+// Regression — the eighths toggle over a LEGACY section (step 3)
+//
+// The duration suite only ever exercised pure functions over sections
+// that were ALREADY materialised, which is exactly the shape of data
+// this bug did not live in. A section with no stored `chordPlacements`
+// reaches the eighths path through `materializeChordPlacements`, and
+// that is where its durations change units. Nothing tested it, and the
+// unit mismatch went out.
+//
+// The invariant, stated the way it is experienced: a legacy section
+// must render every chord at the same width whether the song is on
+// quarters or eighths.
+// ---------------------------------------------------------------------
+
+describe('legacy section — width is invariant across the eighths toggle', () => {
+  const BEATS_PER_BAR = 4;
+
+  /** A section that has never been migrated: chords live in phrase
+   *  data, `chordPlacements` genuinely absent. Durations chosen to
+   *  cover the audit's real distribution (4, 1, 2, 3) and to overflow
+   *  a bar so tie-splitting is exercised. */
+  const legacy = () =>
+    mkSection([
+      phraseWithChords([
+        cf('1', 'maj7', { beats: 4 }),
+        cf('4', '', { beats: 2 }),
+        cf('5', '7', { beats: 1 }),
+        cf('6', 'm', { beats: 3 }),
+        cf('2', 'm7', { beats: 4 }),
+      ]),
+    ]);
+
+  const width = (beats: number, slots: number) => beats / slots;
+
+  it('has no stored placements — it is the excluded shape', () => {
+    expect(legacy().chordPlacements).toBeUndefined();
+  });
+
+  it('renders every chord at an identical width either side', () => {
+    const off = materializeChordPlacements(legacy(), BEATS_PER_BAR, false);
+    const on = materializeChordPlacements(legacy(), BEATS_PER_BAR, true);
+
+    expect(on).toHaveLength(off.length);
+    off.forEach((quarter, i) => {
+      expect(width(on[i].beats, BEATS_PER_BAR * 2)).toBe(
+        width(quarter.beats, BEATS_PER_BAR),
+      );
+    });
+  });
+
+  it('doubles every duration and nothing else (invariants 2 and 4)', () => {
+    const off = materializeChordPlacements(legacy(), BEATS_PER_BAR, false);
+    const on = materializeChordPlacements(legacy(), BEATS_PER_BAR, true);
+
+    off.forEach((quarter, i) => {
+      expect(on[i].beats).toBe(quarter.beats * 2);
+      expect(Number.isInteger(on[i].beats)).toBe(true);
+      expect(on[i].beats).toBeGreaterThan(0);
+      // Invariant 4 — the coordinate lyric anchors share is untouched.
+      expect(on[i].beatPos).toBe(quarter.beatPos);
+      expect(on[i].barIndex).toBe(quarter.barIndex);
+      expect(on[i].id).toBe(quarter.id);
+    });
+  });
+
+  it('keeps the bar count identical — tie-splitting moved with the units (invariant 5)', () => {
+    // The failure this guards: pack slot-counted durations against a
+    // beat-counted capacity and a full-bar chord splits across two
+    // bars, so the section silently grows.
+    const off = deriveBarGrid(
+      mkSection([], { chordPlacements: materializeChordPlacements(legacy(), BEATS_PER_BAR, false) }),
+      BASIC_ARRANGEMENT_ID,
+      BEATS_PER_BAR,
+      false,
+    );
+    const on = deriveBarGrid(
+      mkSection([], { chordPlacements: materializeChordPlacements(legacy(), BEATS_PER_BAR, true) }),
+      BASIC_ARRANGEMENT_ID,
+      BEATS_PER_BAR,
+      true,
+    );
+    expect(on).toHaveLength(off.length);
+  });
+
+  it('a full-bar chord stays exactly one bar wide, not two', () => {
+    const fullBar = mkSection([
+      phraseWithChords([cf('1', '', { beats: BEATS_PER_BAR })]),
+    ]);
+    const on = materializeChordPlacements(fullBar, BEATS_PER_BAR, true);
+    expect(on).toHaveLength(1);
+    expect(on[0].beats).toBe(BEATS_PER_BAR * 2);
+    expect(width(on[0].beats, BEATS_PER_BAR * 2)).toBe(1);
+  });
+
+  it('is unchanged on the quarter-note path (eighths defaulted off)', () => {
+    expect(materializeChordPlacements(legacy(), BEATS_PER_BAR)).toEqual(
+      materializeChordPlacements(legacy(), BEATS_PER_BAR, false),
+    );
+  });
+});

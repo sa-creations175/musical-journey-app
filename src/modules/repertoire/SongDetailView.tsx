@@ -93,9 +93,11 @@ import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
 import { parseLyricSheet } from './lyricSheetParse';
 import {
-  halveChordDurations,
+  describeHalveBlockers,
+  planDurationHalving,
   planDurationRepair,
   repairSectionDurations,
+  type HalveBlocker,
 } from './eighthsMigration';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -905,6 +907,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [eighthsRefusal, setEighthsRefusal] = useState<
     { chords: number; words: number } | null
   >(null);
+  /** Sections whose durations cannot go back to beats. Non-null means
+   *  the last attempt to turn eighths off was refused outright. */
+  const [halveRefusal, setHalveRefusal] = useState<HalveBlocker[] | null>(null);
 
   const handleToggleEighths = useCallback(async () => {
     if (song?.eighths) {
@@ -913,28 +918,42 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         setEighthsRefusal(occupied);
         return;
       }
-      // Halve back only when every value round-trips. The stamp is
-      // cleared in the same write as the halving — a section back in
-      // beats must not keep claiming slots, or re-enabling eighths
-      // would skip it and leave it half as long as it reads.
+      // ALL OR NOTHING. Decide over the whole song first, and write
+      // only if every section can go back. A song whose setting says
+      // quarters while one section still holds slot units is wrong
+      // about itself, and refusing is the same move `halveChordDurations`
+      // already makes on a single value.
+      const plan = planDurationHalving(sections);
+      if (plan.blockers.length > 0) {
+        setHalveRefusal(plan.blockers);
+        return;
+      }
+      // One transaction: the durations, the stamps, and the song's own
+      // setting land together or not at all, so the stamp and the
+      // setting cannot end up disagreeing in either direction.
       //
       // Full `put`, not `update`: Dexie strips undefined out of an
       // update patch, so `update` can set a field but never clear one.
       // Same reason `commit` in LeadSheetSection routes clears through
       // onReplace.
-      for (const sec of sections) {
-        if (!sec.chordPlacements) continue;
-        const halved = halveChordDurations(sec.chordPlacements);
-        if (!halved) continue;
-        const next: SongSection = { ...sec, chordPlacements: halved };
-        delete next.eighthsDurationVersion;
-        await db.songSections.put(next);
-      }
-      await setEighths(false);
+      const byId = new Map(sections.map(s => [s.id, s]));
+      await db.transaction('rw', db.songs, db.songSections, async () => {
+        for (const { sectionId, chordPlacements } of plan.patches) {
+          const sec = byId.get(sectionId);
+          if (!sec) continue;
+          const next: SongSection = { ...sec, chordPlacements };
+          delete next.eighthsDurationVersion;
+          await db.songSections.put(next);
+        }
+        const fresh = await db.songs.get(songId);
+        if (fresh) {
+          await db.songs.put({ ...fresh, eighths: false, updatedAt: Date.now() });
+        }
+      });
       return;
     }
     await setEighths(true);
-  }, [song?.eighths, sections, offbeatOccupants, setEighths]);
+  }, [song?.eighths, songId, sections, offbeatOccupants, setEighths]);
 
   const handleAddLines = useCallback(
     async (text: string) => {
@@ -1932,6 +1951,32 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         variant="default"
         onConfirm={() => setEighthsRefusal(null)}
         onCancel={() => setEighthsRefusal(null)}
+      />
+
+      {/* The other refusal: durations that cannot go back to beats.
+          Names the sections, because "something is blocking" leaves
+          the user with a toggle that just doesn't work and no way to
+          find out why. */}
+      <ConfirmDialog
+        open={halveRefusal !== null}
+        title="Turn eighths off?"
+        message={
+          <p>
+            {describeHalveBlockers(halveRefusal ?? [])}{' '}
+            {(halveRefusal?.length ?? 0) === 1 ? 'has' : 'have'}{' '}
+            {halveRefusal?.reduce((n, b) => n + b.odd.length, 0)} chord
+            {halveRefusal?.reduce((n, b) => n + b.odd.length, 0) === 1
+              ? ''
+              : 's'}{' '}
+            an odd number of eighths long, which cannot be expressed in
+            whole beats. Nothing was changed. Adjust those durations
+            first, then turn eighths off.
+          </p>
+        }
+        confirmLabel="OK"
+        variant="default"
+        onConfirm={() => setHalveRefusal(null)}
+        onCancel={() => setHalveRefusal(null)}
       />
 
       {/* The lyric drawer. Whole-screen chrome about the SONG, which

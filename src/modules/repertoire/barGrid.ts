@@ -619,14 +619,25 @@ export function materializeChordPlacements(
           cell.phraseId && cell.beatId
             ? migratedPlacementId(arrId, cell.phraseId, cell.beatId)
             : crypto.randomUUID();
-        out.push({
+        // The packer counts positions in whatever unit it was handed,
+        // so on the eighths path `cell.beatPos` is a SLOT index (0..7
+        // in 4/4). `ChordPlacement.beatPos` is not that — it is a BEAT
+        // index with `offbeat` carrying the half, because it is the
+        // coordinate lyric anchors are written against. Convert rather
+        // than copy: a raw slot index lands out of range and
+        // `deriveBarGridAnchored`, which filters `beatPos < beatsPerBar`,
+        // drops the chord and the bar count silently shrinks.
+        const { beatPos, offbeat } = slotToPosition(cell.beatPos, eighths);
+        const placement: ChordPlacement = {
           id: placementId,
           arrangementId: arrId,
           barIndex,
-          beatPos: cell.beatPos,
+          beatPos,
           beats: totalBeats,
           chord: cell.chord,
-        });
+        };
+        if (offbeat) placement.offbeat = true;
+        out.push(placement);
       }
     }
   }

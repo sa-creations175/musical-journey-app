@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { ChordPlacement, SongSection } from '../../../lib/db';
 import {
   auditChordDurations,
+  describeHalveBlockers,
   doubleChordDurations,
   EIGHTHS_DURATION_VERSION,
   halveChordDurations,
   isInSlotUnits,
+  planDurationHalving,
   planDurationRepair,
   renderedWidth,
   repairSectionDurations,
@@ -278,5 +280,89 @@ describe('repairSectionDurations', () => {
     expect(renderedWidth(patch.chordPlacements![0].beats, 8)).toBe(
       renderedWidth(4, 4),
     );
+  });
+});
+
+// ---------------------------------------------------------------------
+// Turning eighths off — all or nothing (step 3)
+// ---------------------------------------------------------------------
+
+describe('planDurationHalving', () => {
+  it('halves every stamped section when all of them round-trip', () => {
+    const plan = planDurationHalving([
+      stamped('verse', [p('a', 8), p('b', 4)]),
+      stamped('chorus', [p('c', 2)]),
+    ]);
+    expect(plan.blockers).toEqual([]);
+    expect(plan.patches).toEqual([
+      { sectionId: 'verse', chordPlacements: [p('a', 4), p('b', 2)] },
+      { sectionId: 'chorus', chordPlacements: [p('c', 1)] },
+    ]);
+  });
+
+  it('REFUSES THE WHOLE SONG when one section holds an odd duration', () => {
+    const plan = planDurationHalving([
+      stamped('verse', [p('a', 8)]),
+      stamped('chorus', [p('c', 3)]),
+    ]);
+    expect(plan.blockers).toHaveLength(1);
+    expect(plan.blockers[0].sectionId).toBe('chorus');
+    // The plan still COMPUTES the clean section's patch — it is a
+    // decision to inspect, not a command. The contract is that a
+    // caller seeing any blocker writes NONE of them, which is what
+    // makes the refusal all-or-nothing. Asserted here so the contract
+    // is written down next to the shape that depends on it.
+    expect(plan.patches.map(x => x.sectionId)).toEqual(['verse']);
+  });
+
+  it('names the blocking section and the offending durations', () => {
+    const plan = planDurationHalving([stamped('Bridge', [p('a', 3), p('b', 4), p('c', 5)])]);
+    expect(plan.blockers[0]).toEqual({
+      sectionId: 'Bridge',
+      sectionName: 'Bridge',
+      odd: [
+        { placementId: 'a', beats: 3 },
+        { placementId: 'c', beats: 5 },
+      ],
+    });
+  });
+
+  it('leaves an UNSTAMPED section alone — it is already in beats', () => {
+    // Halving this would make every chord half as long.
+    const plan = planDurationHalving([section('never-doubled', [p('a', 4)])]);
+    expect(plan.patches).toEqual([]);
+    expect(plan.blockers).toEqual([]);
+  });
+
+  it('leaves a section with no stored placements alone', () => {
+    const plan = planDurationHalving([unmigrated('legacy')]);
+    expect(plan.patches).toEqual([]);
+    expect(plan.blockers).toEqual([]);
+  });
+
+  it('round-trips against the repair: double then halve restores the original', () => {
+    const before = section('v', [p('a', 4), p('b', 1), p('c', 2)]);
+    const doubled = { ...before, ...repairSectionDurations(before)! };
+    const plan = planDurationHalving([doubled]);
+    expect(plan.blockers).toEqual([]);
+    expect(plan.patches[0].chordPlacements).toEqual(before.chordPlacements);
+  });
+});
+
+describe('describeHalveBlockers', () => {
+  const b = (name: string) => ({ sectionId: name, sectionName: name, odd: [] });
+
+  it('renders one, two, and three names readably', () => {
+    expect(describeHalveBlockers([b('Chorus')])).toBe('Chorus');
+    expect(describeHalveBlockers([b('Verse'), b('Chorus')])).toBe('Verse and Chorus');
+    expect(describeHalveBlockers([b('A'), b('B'), b('C')])).toBe('A, B and C');
+  });
+
+  it('falls back for an untitled section rather than rendering blank', () => {
+    expect(describeHalveBlockers([b('  ')])).toBe('an untitled section');
+  });
+
+  it('is empty for no blockers', () => {
+    expect(describeHalveBlockers([])).toBe('');
   });
 });

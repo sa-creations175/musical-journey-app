@@ -253,3 +253,97 @@ export function repairSectionDurations(
     eighthsDurationVersion: EIGHTHS_DURATION_VERSION,
   };
 }
+
+// =====================================================================
+// Turning eighths back off — all or nothing
+// =====================================================================
+
+/**
+ * WHY THE WHOLE SONG REFUSES RATHER THAN EACH SECTION DECIDING.
+ *
+ * `halveChordDurations` refuses a value that would not round-trip,
+ * which is right. But the caller used to apply that refusal PER
+ * SECTION and flip the song anyway: the setting said quarters while a
+ * refusing section still held slot units. Two things disagreeing about
+ * one fact is the same class of bug the stamp was introduced to end,
+ * so the refusal is lifted to the song.
+ *
+ * Note that offbeat OCCUPANCY is not the test. A section can hold an
+ * odd duration — a genuine eighth-length chord created with the
+ * stepper — while no offbeat POSITION is occupied, so the occupancy
+ * guard passes and the halve still cannot round-trip. Halve-ability
+ * is the actual question, so it is the one asked.
+ */
+
+/** A section that cannot go back to beats, and the durations to blame.
+ *  Carries enough to name the section to the user — a refusal that
+ *  doesn't say what is blocking is worse than the drift it prevents. */
+export interface HalveBlocker {
+  sectionId: string;
+  sectionName: string;
+  /** The odd durations, in slot units. */
+  odd: Array<{ placementId: string; beats: number }>;
+}
+
+export interface HalvePlan {
+  /** Per-section patches to apply, in order. Empty when the song has
+   *  nothing in slot units. */
+  patches: Array<{
+    sectionId: string;
+    chordPlacements: ChordPlacement[];
+  }>;
+  /** Non-empty means the ENTIRE operation refuses and none of
+   *  `patches` may be written. */
+  blockers: HalveBlocker[];
+}
+
+/**
+ * Decide what turning eighths off would do, without writing anything.
+ * Pure, so the decision is inspectable and the caller can check before
+ * it touches Dexie — a partial flip followed by a rollback would be
+ * the same drift with extra steps.
+ *
+ * Only sections actually IN slot units are halved. A section with
+ * stored placements but no stamp is already in beats (nothing doubled
+ * it), so halving it would make every chord half as long; it is left
+ * alone. A section with no stored placements has nothing to halve —
+ * its durations live in phrase data, in beats, untouched by any of
+ * this.
+ */
+export function planDurationHalving(
+  sections: ReadonlyArray<SongSection>,
+): HalvePlan {
+  const patches: HalvePlan['patches'] = [];
+  const blockers: HalveBlocker[] = [];
+
+  for (const section of sections) {
+    if (section.chordPlacements === undefined) continue;
+    if (!isInSlotUnits(section)) continue;
+
+    const halved = halveChordDurations(section.chordPlacements);
+    if (halved === null) {
+      blockers.push({
+        sectionId: section.id,
+        sectionName: section.name,
+        odd: section.chordPlacements
+          .filter(p => p.beats % 2 !== 0)
+          .map(p => ({ placementId: p.id, beats: p.beats })),
+      });
+      continue;
+    }
+    patches.push({ sectionId: section.id, chordPlacements: halved });
+  }
+
+  return { patches, blockers };
+}
+
+/** Convenience for the refusal copy: "Chorus and Bridge" from the
+ *  blocking sections, in section order. */
+export function describeHalveBlockers(
+  blockers: ReadonlyArray<HalveBlocker>,
+): string {
+  const names = blockers.map(b => b.sectionName.trim() || 'an untitled section');
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
