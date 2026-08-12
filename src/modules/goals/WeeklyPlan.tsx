@@ -393,7 +393,9 @@ const MODULE_ACCENT_HEX: Record<GoalFlowModuleId, string> = {
   'production':           MODULE_ORDER.find(m => m.id === 'production')?.accentHex           ?? '#3a4875',
   // Literal rather than a MODULE_ORDER lookup: Reading has no
   // moduleMeta entry yet (that is a UI registration, not this step).
-  'reading':              '#2f6f6a',
+  // Sepia ink — see the note in moduleSectionPalette.ts for the
+  // measured justification.
+  'reading':              '#6f4a2f',
   'practice-consistency': PRACTICE_SESSIONS_META.accentHex,
 };
 
