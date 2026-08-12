@@ -123,6 +123,7 @@ import {
   getGoalFeasibility,
   HF_MODULE_REF,
   PRODUCTION_MODULE_REF,
+  READING_MODULE_REF,
   REPERTOIRE_MODULE_REF,
   SHAPES_MODULE_REF,
 } from '../goals/progress';
@@ -1341,14 +1342,6 @@ function shuffleInPlace<T>(arr: T[]): T[] {
 const ET_MODULE_REFS_SET: ReadonlySet<string> = new Set(ET_MODULE_REFS);
 
 /**
- * Map a spacingState moduleRef onto the GoalFlowModuleId space used
- * by weekly goals + getWeeklyAttempts. Each ET sub-module rolls up
- * to 'ear-training' so a weekly ET goal's pace boost lifts every
- * sub-module's blocks uniformly. Returns null for moduleRefs we
- * don't recognise (e.g. mental-viz, future modules) so the caller
- * skips applying a weekly factor rather than crashing.
- */
-/**
  * Modules whose EVERY contributing coverage scope is in maintenance.
  *
  * The allocation slice is per-MODULE while maintenance is per-SCOPE,
@@ -1397,6 +1390,21 @@ function endOfLocalDay(now: number): number {
   return nextLocalMidnight(new Date(now)) - 1;
 }
 
+/**
+ * Map a spacingState moduleRef onto the GoalFlowModuleId space used
+ * by weekly goals + getWeeklyAttempts. Each ET sub-module rolls up
+ * to 'ear-training' so a weekly ET goal's pace boost lifts every
+ * sub-module's blocks uniformly. Returns null for moduleRefs we
+ * don't recognise (e.g. mental-viz, future modules) so the caller
+ * skips applying a weekly factor rather than crashing.
+ *
+ * THIS SILENT NULL is why Reading is registered here in the same
+ * commit as `getMemoryType`. The two failure modes are opposites and
+ * both bad: `getMemoryType` THROWS on an unknown ref, while this
+ * returns null and the caller quietly skips the module. A reading
+ * row written before both exist would crash one path and vanish from
+ * the other.
+ */
 export function goalFlowModuleForSpacingModuleRef(
   moduleRef: string,
 ): GoalFlowModuleId | null {
@@ -1405,6 +1413,7 @@ export function goalFlowModuleForSpacingModuleRef(
   if (moduleRef === SHAPES_MODULE_REF) return 'shapes-and-patterns';
   if (moduleRef === REPERTOIRE_MODULE_REF) return 'repertoire';
   if (moduleRef === PRODUCTION_MODULE_REF) return 'production';
+  if (moduleRef === READING_MODULE_REF) return 'reading';
   return null;
 }
 

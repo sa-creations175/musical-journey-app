@@ -37,6 +37,7 @@ export type GoalFlowModuleId =
   | 'repertoire'
   | 'shapes-and-patterns'
   | 'production'
+  | 'reading'
   | 'practice-consistency';
 
 export function moduleForMetric(metric: string | null): GoalFlowModuleId | null {

@@ -50,6 +50,14 @@ export const MODULE_MEMORY_TYPES: Readonly<Record<string, MemoryType>> = Object.
   'chord-progressions':  'declarative',
   'scales-modes':        'declarative',
   'glossary':            'declarative',
+  // Reading — notation decoding. All three skills (key signatures,
+  // note recognition, chord identification) are objectively scored
+  // against a correct answer, so the whole module is declarative and
+  // takes the attempt signal. ONE row, like Shapes: the skill lives
+  // in an itemRef prefix, not a separate moduleRef. Splitting it the
+  // way ET is split would buy nothing — the three skills share a
+  // memory type, and ET's split is historical rather than designed.
+  'reading':             'declarative',
 
   // Procedural — physical skill / muscle memory.
   // Single row covering all four Shapes & Patterns sub-areas

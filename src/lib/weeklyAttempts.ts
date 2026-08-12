@@ -1,5 +1,5 @@
 import { db } from './db';
-import { ET_MODULE_REFS } from '../modules/goals/progress';
+import { ET_MODULE_REFS, READING_MODULE_REF } from '../modules/goals/progress';
 import type { GoalFlowModuleId } from '../modules/goals/goalVocabulary';
 import {
   TIME_PER_ATTEMPT_MINUTES,
@@ -120,6 +120,16 @@ export async function getWeeklyAttempts(
       }
       return count;
     }
+
+    case 'reading':
+      // Same shape as HF: one attempts row per answered card, under a
+      // single moduleId. Counts correctly from the moment the step-4
+      // attempt writer exists, and returns 0 before then — no
+      // placeholder needed because the query is already right.
+      return db.attempts
+        .where('moduleId').equals(READING_MODULE_REF)
+        .filter(a => a.timestamp >= weekStart && a.timestamp <= weekEnd)
+        .count();
 
     case 'practice-consistency':
       return db.practiceSessions
@@ -353,6 +363,15 @@ export function getWeeklyTimeEstimate(
       ? SHAPES_TIME_PER_REP_MINUTES[shapesActivityArea]
       : SHAPES_DEFAULT_TIME_PER_REP_MINUTES;
     return { kind: 'point', minutes: attempts * perRep };
+  }
+  if (moduleId === 'reading') {
+    // Reading is deliberately absent from TIME_PER_ATTEMPT_MINUTES —
+    // its seeds are PER-SKILL and live in TIME_PER_ATTEMPT_SECONDS
+    // (step 5), because a key-signature card and a chord-under-a-
+    // signature card are very different costs. This branch becomes
+    // `attempts * SECONDS['reading'] / 60` there. Zero until then;
+    // unreachable, since Reading has no goals to estimate yet.
+    return { kind: 'point', minutes: 0 };
   }
   return {
     kind: 'point',

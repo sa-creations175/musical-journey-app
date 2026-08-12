@@ -77,6 +77,19 @@ export const HF_MODULE_REF = 'harmonic-fluency';
 export const SHAPES_MODULE_REF = 'shapes-and-patterns';
 export const PRODUCTION_MODULE_REF = 'production';
 export const REPERTOIRE_MODULE_REF = 'repertoire';
+/** Reading — notation decoding. ONE moduleRef covering all three
+ *  skills (key signatures, note recognition, chord identification),
+ *  with the skill carried by an itemRef prefix rather than by
+ *  separate refs.
+ *
+ *  Deliberately NOT modelled on Ear Training's four-ref split. That
+ *  split is historical, not designed: intervals / chord-recognition /
+ *  chord-progressions / scales-modes were four independent quiz
+ *  screens that the goals layer was built over afterwards, which is
+ *  why ET needs ET_MODULE_REFS plumbing at every layer that touches
+ *  it. Reading is being designed with the goals layer already in
+ *  place, so it takes the single-ref shape S&P uses. */
+export const READING_MODULE_REF = 'reading';
 
 /** moduleIds for the AttemptRecord table. AttemptRecord and
  *  spacingState happen to share names for ET / HF, so the two
@@ -503,6 +516,8 @@ export function coverageUnitForModule(moduleId: GoalFlowModuleId): string {
   switch (moduleId) {
     case 'ear-training':
     case 'harmonic-fluency':
+      return 'cards';
+    case 'reading':
       return 'cards';
     case 'shapes-and-patterns':
       return 'shapes';

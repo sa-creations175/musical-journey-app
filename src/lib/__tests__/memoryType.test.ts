@@ -13,7 +13,7 @@ import type { MemoryType } from '../db';
  */
 
 describe('MODULE_MEMORY_TYPES', () => {
-  it('contains exactly the 14 canonical module refs', () => {
+  it('contains exactly the 15 canonical module refs', () => {
     expect(Object.keys(MODULE_MEMORY_TYPES).sort()).toEqual([
       'chord-progression-quiz',
       'chord-progressions',
@@ -26,6 +26,7 @@ describe('MODULE_MEMORY_TYPES', () => {
       'just-produce',
       'mental-viz',
       'production',
+      'reading',
       'repertoire',
       'scales-modes',
       'shapes-and-patterns',

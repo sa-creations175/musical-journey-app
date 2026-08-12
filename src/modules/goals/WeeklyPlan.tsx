@@ -381,6 +381,7 @@ const MODULE_LABEL: Record<GoalFlowModuleId, string> = {
   'shapes-and-patterns':  'Shapes & Patterns',
   'repertoire':           'Repertoire',
   'production':           'Production',
+  'reading':              'Reading',
   'practice-consistency': 'Practice Consistency',
 };
 
@@ -390,6 +391,9 @@ const MODULE_ACCENT_HEX: Record<GoalFlowModuleId, string> = {
   'shapes-and-patterns':  MODULE_ORDER.find(m => m.id === 'shapes-and-patterns')?.accentHex  ?? '#d4885a',
   'repertoire':           MODULE_ORDER.find(m => m.id === 'repertoire')?.accentHex           ?? '#a8556b',
   'production':           MODULE_ORDER.find(m => m.id === 'production')?.accentHex           ?? '#3a4875',
+  // Literal rather than a MODULE_ORDER lookup: Reading has no
+  // moduleMeta entry yet (that is a UI registration, not this step).
+  'reading':              '#2f6f6a',
   'practice-consistency': PRACTICE_SESSIONS_META.accentHex,
 };
 

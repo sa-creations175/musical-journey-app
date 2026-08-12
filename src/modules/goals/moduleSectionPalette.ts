@@ -19,5 +19,9 @@ export const SECTION_PALETTE: Record<
   'shapes-and-patterns':  { bg: '#FAEEDA', border: '#854F0B' },
   'repertoire':           { bg: '#FBEAF0', border: '#8B3A52' },
   'production':           { bg: '#E6F1FB', border: '#1F3A6E' },
+  // Reading — teal. Clear of every accent already spoken for: ET's
+  // olive-green sits near 90 deg, this near 175, and it collides with
+  // none of the status colours.
+  'reading':              { bg: '#E3EFEE', border: '#1F5350' },
   'practice-consistency': { bg: '#F1EFE8', border: '#5F5E5A' },
 };

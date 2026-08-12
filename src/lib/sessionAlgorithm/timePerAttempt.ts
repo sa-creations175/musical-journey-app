@@ -44,7 +44,7 @@ import type {
  *  Both are preserved exactly as they were — reconciling them is a
  *  later Phase B step, not this consolidation. */
 export const TIME_PER_ATTEMPT_MINUTES: Record<
-  Exclude<GoalFlowModuleId, 'production' | 'shapes-and-patterns'>,
+  Exclude<GoalFlowModuleId, 'production' | 'shapes-and-patterns' | 'reading'>,
   number
 > = {
   'harmonic-fluency':     20 / 60,  // 20 seconds per flashcard

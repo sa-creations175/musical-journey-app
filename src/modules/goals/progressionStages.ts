@@ -557,6 +557,14 @@ export const MODULE_PROGRESSIONS: Readonly<
     moduleId: 'repertoire',
     stages: [],
   },
+  reading: {
+    // Stages land with the catalog in step 2. Empty is the honest
+    // value now and behaves correctly: progressionForGoal returns []
+    // and the UI takes its existing "no actionable progression" path,
+    // the same one repertoire and practice-consistency use.
+    moduleId: 'reading',
+    stages: [],
+  },
   'practice-consistency': {
     moduleId: 'practice-consistency',
     stages: [],

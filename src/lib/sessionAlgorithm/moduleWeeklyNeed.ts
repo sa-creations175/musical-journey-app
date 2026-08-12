@@ -171,6 +171,13 @@ export function minutesPerAttemptForModule(moduleId: GoalFlowModuleId): number {
         PRODUCTION_TIME_RANGE_MINUTES.minPerLesson
         + PRODUCTION_TIME_RANGE_MINUTES.maxPerLesson
       ) / 2;
+    case 'reading':
+      // 0 until the per-skill seeds land in step 5. Unreachable
+      // before then — this is only called for a module with an active
+      // weekly coverage goal, and Reading has no catalog, no goal
+      // card, and no metrics yet. A placeholder module-wide minute
+      // value would be a number someone could start trusting.
+      return 0;
     case 'practice-consistency':
       // Practice Consistency is the global cadence denominator, not a
       // coverage module — it never carries a weekly attempt target,

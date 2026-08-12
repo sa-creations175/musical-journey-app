@@ -4206,6 +4206,13 @@ function decodePracticeConsistency(goal: Goal): PracticeConsistencyTarget {
 function decodeGoalToDraft(goal: Goal): Draft | null {
   const moduleId = moduleForMetric(goal.targetMetric);
   if (!moduleId) return null;
+  // Reading has no goal-flow card yet, so there is no draft shape to
+  // decode into and ModuleCardId deliberately excludes it. Bailing to
+  // null is the existing "this goal can't be edited in the new flow"
+  // path — the same one old-vocab metrics take. Unreachable today:
+  // `moduleForMetric` can't return 'reading' until the step-5 encoder
+  // introduces reading metrics.
+  if (moduleId === 'reading') return null;
 
   const baseDraft: Draft = {
     ...EMPTY_DRAFT,

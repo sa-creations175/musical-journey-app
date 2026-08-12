@@ -1,6 +1,7 @@
 import { db } from '../../../lib/db';
 import { localDayKey } from '../../../lib/dailyGoal';
 import type { GoalFlowModuleId } from '../goalVocabulary';
+import { READING_MODULE_REF } from '../progress';
 
 /**
  * Phase 2 step 6c — live daily-activity helper for the goal-row
@@ -104,6 +105,12 @@ export async function getDailyActivity(
         r => (r.durationSeconds ?? 0) / 60,
         range,
       );
+    case 'reading':
+      // Reads the dailySummaries rows the step-4 attempt writer will
+      // emit, exactly like HF. Empty until they exist, which is the
+      // correct rendering of "no activity yet" rather than a special
+      // case.
+      return await fromDailySummaries([READING_MODULE_REF], range);
     case 'practice-consistency':
       return [];
   }

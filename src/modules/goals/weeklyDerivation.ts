@@ -105,6 +105,7 @@ const MODULE_DISPLAY_LABEL: Record<GoalFlowModuleId, string> = {
   'shapes-and-patterns':  'Shapes & Patterns',
   'repertoire':           'Repertoire',
   'production':           'Production',
+  'reading':              'Reading',
   'practice-consistency': 'Practice Consistency',
 };
 

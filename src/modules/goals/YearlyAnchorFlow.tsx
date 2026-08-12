@@ -3,6 +3,7 @@ import Modal from '../../components/Modal';
 import { db, type Goal } from '../../lib/db';
 import { earTrainingCounts, harmonicFluencyCounts, productionCounts, shapesCounts } from '../../lib/moduleItemCounts';
 import { DASHBOARD_META, PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
+import type { GoalFlowModuleId } from './goalVocabulary';
 import {
   AccuracySlider,
   BreadthYesNoPicker,
@@ -97,12 +98,19 @@ export type AnchorModuleId =
   | 'production'
   | 'practice-consistency';
 
-export const MODULE_DISPLAY_NAME: Record<AnchorModuleId, string> = {
+/** Display labels. Keyed by the FULL GoalFlowModuleId space, not by
+ *  AnchorModuleId: a module can have a name without being something
+ *  you set a yearly anchor for. Reading is the first such module —
+ *  the by-module goal views label it, YearlyAnchorFlow does not offer
+ *  it. Widening the label map is correct; widening AnchorModuleId
+ *  would claim an anchor flow that does not exist. */
+export const MODULE_DISPLAY_NAME: Record<GoalFlowModuleId, string> = {
   'ear-training':         'Ear Training',
   'harmonic-fluency':     'Harmonic Fluency',
   'repertoire':           'Song Repertoire',
   'shapes-and-patterns':  'Shapes & Patterns',
   'production':           'Production',
+  'reading':              'Reading',
   'practice-consistency': 'Practice consistency',
 };
 

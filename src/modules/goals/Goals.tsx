@@ -917,7 +917,11 @@ export default function Goals() {
             : 'monthly'
         }
         moduleId={
-          suggestionFlow?.mode === 'create'
+          // Reading has no suggestion-flow card yet (step 5), and
+          // SuggestionFlowModule deliberately excludes it. Nothing
+          // can open the flow for Reading today; the guard is here so
+          // the type says that rather than a cast hiding it.
+          suggestionFlow?.mode === 'create' && suggestionFlow.moduleId !== 'reading'
             ? suggestionFlow.moduleId
             : 'harmonic-fluency'
         }

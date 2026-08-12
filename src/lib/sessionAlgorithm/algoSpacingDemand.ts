@@ -124,6 +124,15 @@ export function computeAlgoSpacingDemandSeconds(
       // Mastery-enum progression, no due-date scheduling — see header.
       return 0;
 
+    case 'reading':
+      // Reading IS a due-bearing declarative module and will have a
+      // real demand figure — but it needs per-SKILL seconds (a key-
+      // signature card and a chord-under-a-signature card cost very
+      // differently), and those land with the seeds in step 5. Zero
+      // until then, which reads as "no expansion" and matches the
+      // repertoire / production branches above rather than inventing
+      // a module-wide number this design explicitly rejected.
+      return 0;
     case 'practice-consistency':
       // Not a coverage module; can't reach the over-practice slice.
       return 0;
