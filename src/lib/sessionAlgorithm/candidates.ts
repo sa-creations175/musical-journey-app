@@ -19,7 +19,7 @@
  * pipeline — keeps unit tests fast and the math obvious.
  */
 
-import type { Goal } from '../db';
+import type { AcquisitionStage, Goal } from '../db';
 import { cardById } from '../../modules/harmonic-fluency/catalog';
 import {
   COVERAGE_OVERALL_METRIC,
@@ -308,6 +308,12 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
  *   AND row.acquisitionStage NOT in spec.excludeStages
  *   AND (no filter OR filter passes)
  *
+ * Maintenance (the inverse of coverage):
+ *   row.moduleRef in spec.moduleRefs
+ *   AND row.acquisitionStage IS in COVERED_STAGES
+ *   AND row.nextDueAt != null AND row.nextDueAt <= spec.dueBefore
+ *   AND (no filter OR filter passes)
+ *
  * Accuracy / consistency:
  *   row.moduleRef in spec.moduleRefs
  *   (any stage; filter applied if present)
@@ -348,7 +354,9 @@ export function resolveCandidates(
   // Non-coverage specs don't carry the field so the check is a
   // straight false → behaves as before.
   const acceptedRefs: ReadonlySet<string> | undefined =
-    spec.kind === 'coverage' ? spec.relatedItems : undefined;
+    spec.kind === 'coverage' || spec.kind === 'maintenance'
+      ? spec.relatedItems
+      : undefined;
   const out: string[] = [];
 
   for (const row of rows) {
@@ -368,6 +376,14 @@ export function resolveCandidates(
     if (spec.kind === 'coverage') {
       if (spec.excludeStages.has(row.acquisitionStage)) continue;
       if (spec.itemRefFilter && !spec.itemRefFilter(row.itemRef)) continue;
+    } else if (spec.kind === 'maintenance') {
+      // The inverse of coverage: KEEP what coverage drops. Both
+      // conditions are required — acquired-but-not-due items are
+      // resting, not neglected, and surfacing them would make a
+      // maintenance block re-drill the whole scope every session.
+      if (!COVERED_STAGES.has(row.acquisitionStage)) continue;
+      if (row.nextDueAt === null || row.nextDueAt > spec.dueBefore) continue;
+      if (spec.itemRefFilter && !spec.itemRefFilter(row.itemRef)) continue;
     } else if (spec.kind === 'accuracy') {
       if (spec.itemRefFilter && !spec.itemRefFilter(row.itemRef)) continue;
     }
@@ -377,4 +393,110 @@ export function resolveCandidates(
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------
+// Scope-level maintenance — derivation
+// ---------------------------------------------------------------------
+
+/** Empty exclusion set — turns a coverage spec into "every in-scope
+ *  row, whatever its stage" without duplicating the scope-matching
+ *  logic (module set, Accept-extended refs, ET gate, itemRefFilter)
+ *  that `resolveCandidates` already owns. */
+const NO_EXCLUDED_STAGES: ReadonlySet<AcquisitionStage> = new Set();
+
+/**
+ * Convert a coverage spec into its maintenance twin, preserving scope
+ * membership exactly — same moduleRefs, same itemRefFilter, same
+ * Accept-extended relatedItems. Returns `null` for every other kind,
+ * because maintenance is only meaningful for a scope that HAS a
+ * coverage notion in the first place (accuracy and consistency specs
+ * already accept acquired rows, and the specialised song / production
+ * kinds resolve elsewhere in the pipeline).
+ *
+ * Pure. `dueBefore` is supplied by the caller rather than read from a
+ * clock so this stays a test seam like the rest of this file.
+ */
+export function maintenanceSpecFrom(
+  spec: CandidateSpec,
+  dueBefore: number,
+): CandidateSpec | null {
+  if (spec.kind !== 'coverage') return null;
+  return {
+    kind: 'maintenance',
+    moduleRefs: spec.moduleRefs,
+    itemRefFilter: spec.itemRefFilter,
+    relatedItems: spec.relatedItems,
+    dueBefore,
+  };
+}
+
+/**
+ * Has this coverage scope run out of things to cover?
+ *
+ * True when the scope contains at least one row and NONE of them are
+ * still uncovered. Both halves matter:
+ *
+ *   · the uncovered count is the actual signal;
+ *   · the "at least one row" guard is what stops an EMPTY scope from
+ *     reading as a finished one. A scope nobody has touched has zero
+ *     uncovered rows for the same reason a finished scope does, and
+ *     those two states could not be more different.
+ *
+ * ⚠️ SATURATED IS NOT THE SAME AS FULLY ACQUIRED. `resolveCandidates`
+ * is a pure row filter — it deliberately does not enumerate catalog
+ * items that have no spacingState row yet (see its doc comment; those
+ * surface via 2i cold-start ordering instead). So a 300-item scope
+ * where 3 items have rows and all 3 are acquired is SATURATED by this
+ * predicate while being nowhere near fully acquired.
+ *
+ * That gap is real and is left open on purpose: closing it needs
+ * catalog cardinality (`lib/moduleItemCounts.ts`), which belongs with
+ * the trigger that decides a scope may be OFFERED maintenance — not
+ * with the selection primitive that decides what a maintenance block
+ * would contain. Do not treat this predicate as the trigger.
+ */
+export function isCoverageSaturated(
+  spec: CandidateSpec,
+  rows: ReadonlyArray<SpacingRow>,
+  etEligibleByModule?: ReadonlyMap<string, ReadonlySet<string>>,
+): boolean {
+  if (spec.kind !== 'coverage') return false;
+  const inScope = resolveCandidates(
+    { ...spec, excludeStages: NO_EXCLUDED_STAGES },
+    rows,
+    etEligibleByModule,
+  );
+  if (inScope.length === 0) return false;
+  return resolveCandidates(spec, rows, etEligibleByModule).length === 0;
+}
+
+/**
+ * The goal→spec translation, escalated to maintenance when the goal's
+ * coverage scope has nothing left to cover.
+ *
+ * Kept SEPARATE from `candidateSpecForGoal` rather than folded into
+ * it. That function's contract is "inspect the goal, touch no state"
+ * — it takes a Goal and nothing else, which is what lets ~40 call
+ * sites and tests treat it as a pure lookup. Coverage saturation is a
+ * fact about spacingState, not about the goal, so it enters here
+ * where rows are already in hand.
+ *
+ * ⚠️ NOT WIRED INTO THE LIVE PIPELINE, deliberately. Scope-level
+ * maintenance is suggest-and-confirm: the user opts a scope in, it
+ * never happens on its own. Calling this from
+ * `aggregateGoalCandidatesByModule` today would flip saturated scopes
+ * into maintenance selection with nobody having agreed to it. The
+ * confirmed-state gate is the next step; this is the primitive it
+ * will call once that gate exists.
+ */
+export function candidateSpecForGoalAtCoverage(
+  goal: Goal,
+  rows: ReadonlyArray<SpacingRow>,
+  dueBefore: number,
+  etEligibleByModule?: ReadonlyMap<string, ReadonlySet<string>>,
+): CandidateSpec {
+  const spec = candidateSpecForGoal(goal);
+  if (!isCoverageSaturated(spec, rows, etEligibleByModule)) return spec;
+  return maintenanceSpecFrom(spec, dueBefore) ?? spec;
 }

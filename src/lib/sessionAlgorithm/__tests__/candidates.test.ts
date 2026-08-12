@@ -15,7 +15,13 @@ import {
   COVERAGE_SPECIFIC_METRIC,
 } from '../../../modules/goals/coverageMetrics';
 import { SONG_METRIC } from '../../../modules/goals/songTarget';
-import { candidateSpecForGoal, resolveCandidates } from '../candidates';
+import {
+  candidateSpecForGoal,
+  candidateSpecForGoalAtCoverage,
+  isCoverageSaturated,
+  maintenanceSpecFrom,
+  resolveCandidates,
+} from '../candidates';
 import type { SpacingRow } from '../types';
 
 function makeGoal(partial: Partial<Goal> = {}): Goal {
@@ -446,5 +452,208 @@ describe('candidateSpecForGoal — ET-specific cross-submodule relatedItems (Fix
     ];
     const out = resolveCandidates(spec, rows);
     expect(out).toEqual(['M3:asc']);
+  });
+});
+
+// =====================================================================
+// Scope-level maintenance — selection primitive
+// =====================================================================
+
+const NOW = 1_000_000;
+
+/** A saturated HF-overall scope: every row acquired, mixed dueness. */
+function hfSaturatedRows(): SpacingRow[] {
+  return [
+    row({
+      itemRef: 'a', moduleRef: 'harmonic-fluency',
+      acquisitionStage: 'acquired', nextDueAt: NOW - 1,
+    }),
+    row({
+      itemRef: 'b', moduleRef: 'harmonic-fluency',
+      acquisitionStage: 'acquired', nextDueAt: NOW,
+    }),
+    row({
+      itemRef: 'c', moduleRef: 'harmonic-fluency',
+      acquisitionStage: 'acquired', nextDueAt: NOW + 1,
+    }),
+    row({
+      itemRef: 'd', moduleRef: 'harmonic-fluency',
+      acquisitionStage: 'acquired', nextDueAt: null,
+    }),
+  ];
+}
+
+const hfGoal = () =>
+  makeGoal({ targetMetric: COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY });
+
+describe('maintenance spec — resolveCandidates', () => {
+  it('selects acquired AND due, inclusive of the boundary', () => {
+    const spec = maintenanceSpecFrom(
+      candidateSpecForGoal(hfGoal()), NOW,
+    );
+    expect(spec).not.toBeNull();
+    // 'a' (past due) and 'b' (due exactly now) qualify; 'c' is not
+    // yet due and 'd' is unscheduled.
+    expect([...resolveCandidates(spec!, hfSaturatedRows())].sort())
+      .toEqual(['a', 'b']);
+  });
+
+  it('is the exact inverse of coverage on the stage axis', () => {
+    const coverage = candidateSpecForGoal(hfGoal());
+    const maint = maintenanceSpecFrom(coverage, NOW)!;
+    const rows: SpacingRow[] = [
+      row({
+        itemRef: 'new-due', moduleRef: 'harmonic-fluency',
+        acquisitionStage: 'new', nextDueAt: NOW - 1,
+      }),
+      row({
+        itemRef: 'acq-due', moduleRef: 'harmonic-fluency',
+        acquisitionStage: 'acquired', nextDueAt: NOW - 1,
+      }),
+    ];
+    // A due row is claimed by exactly one of the two specs, decided
+    // purely by stage. No row is claimed by both or neither.
+    expect(resolveCandidates(coverage, rows)).toEqual(['new-due']);
+    expect(resolveCandidates(maint, rows)).toEqual(['acq-due']);
+  });
+
+  it('a null nextDueAt is never due, matching algo spacing demand', () => {
+    const spec = maintenanceSpecFrom(candidateSpecForGoal(hfGoal()), NOW)!;
+    const rows = [
+      row({
+        itemRef: 'unscheduled', moduleRef: 'harmonic-fluency',
+        acquisitionStage: 'acquired', nextDueAt: null,
+      }),
+    ];
+    expect(resolveCandidates(spec, rows)).toEqual([]);
+  });
+
+  it('respects the module set', () => {
+    const spec = maintenanceSpecFrom(candidateSpecForGoal(hfGoal()), NOW)!;
+    const rows = [
+      row({
+        itemRef: 'elsewhere', moduleRef: 'intervals',
+        acquisitionStage: 'acquired', nextDueAt: NOW - 1,
+      }),
+    ];
+    expect(resolveCandidates(spec, rows)).toEqual([]);
+  });
+
+  it('carries the sub-area itemRefFilter through the conversion', () => {
+    // A scope narrowed to one HF group must stay narrowed when it
+    // flips to maintenance — otherwise saturating a sub-area would
+    // silently widen it to the whole module.
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY,
+      targetUnit: 'foundational',
+    });
+    const coverage = candidateSpecForGoal(goal);
+    if (coverage.kind !== 'coverage') throw new Error('expected coverage');
+    expect(coverage.itemRefFilter).toBeDefined();
+    const maint = maintenanceSpecFrom(coverage, NOW)!;
+    if (maint.kind !== 'maintenance') throw new Error('expected maintenance');
+    expect(maint.itemRefFilter).toBe(coverage.itemRefFilter);
+    expect(maint.moduleRefs).toEqual(coverage.moduleRefs);
+  });
+
+  it('carries Accept-extended relatedItems through the conversion', () => {
+    const goal = makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
+      targetUnit: 'chord-recognition',
+      relatedItems: ['M3:asc'],
+    });
+    const maint = maintenanceSpecFrom(candidateSpecForGoal(goal), NOW)!;
+    // The cross-submodule item is still reachable, and still has to
+    // be both acquired and due to surface.
+    const rows = [
+      row({
+        itemRef: 'M3:asc', moduleRef: 'intervals',
+        acquisitionStage: 'acquired', nextDueAt: NOW - 1,
+      }),
+    ];
+    expect(resolveCandidates(maint, rows)).toEqual(['M3:asc']);
+  });
+
+  it('returns null for every non-coverage kind', () => {
+    const accuracy = candidateSpecForGoal(
+      makeGoal({ targetMetric: 'harmonic_fluency_accuracy_overall' }),
+    );
+    expect(accuracy.kind).toBe('accuracy');
+    expect(maintenanceSpecFrom(accuracy, NOW)).toBeNull();
+    expect(maintenanceSpecFrom({ kind: 'umbrella' }, NOW)).toBeNull();
+    expect(maintenanceSpecFrom({ kind: 'unsupported' }, NOW)).toBeNull();
+  });
+});
+
+describe('isCoverageSaturated', () => {
+  it('true when every in-scope row is covered', () => {
+    expect(
+      isCoverageSaturated(candidateSpecForGoal(hfGoal()), hfSaturatedRows()),
+    ).toBe(true);
+  });
+
+  it('false when a single uncovered row remains', () => {
+    const rows = [
+      ...hfSaturatedRows(),
+      row({
+        itemRef: 'e', moduleRef: 'harmonic-fluency',
+        acquisitionStage: 'acquiring',
+      }),
+    ];
+    expect(isCoverageSaturated(candidateSpecForGoal(hfGoal()), rows)).toBe(false);
+  });
+
+  it('FALSE for an empty scope — untouched is not finished', () => {
+    // The guard that matters: zero uncovered rows because there are
+    // zero rows at all must not read as a completed scope.
+    expect(isCoverageSaturated(candidateSpecForGoal(hfGoal()), [])).toBe(false);
+    // Rows exist but none are in scope — same story.
+    const offScope = [
+      row({
+        itemRef: 'x', moduleRef: 'intervals',
+        acquisitionStage: 'acquired', nextDueAt: NOW - 1,
+      }),
+    ];
+    expect(isCoverageSaturated(candidateSpecForGoal(hfGoal()), offScope)).toBe(false);
+  });
+
+  it('false for non-coverage kinds', () => {
+    const accuracy = candidateSpecForGoal(
+      makeGoal({ targetMetric: 'harmonic_fluency_accuracy_overall' }),
+    );
+    expect(isCoverageSaturated(accuracy, hfSaturatedRows())).toBe(false);
+  });
+});
+
+describe('candidateSpecForGoalAtCoverage', () => {
+  it('escalates a saturated scope to maintenance', () => {
+    const spec = candidateSpecForGoalAtCoverage(
+      hfGoal(), hfSaturatedRows(), NOW,
+    );
+    expect(spec.kind).toBe('maintenance');
+    expect([...resolveCandidates(spec, hfSaturatedRows())].sort())
+      .toEqual(['a', 'b']);
+  });
+
+  it('leaves an unsaturated scope on its coverage spec', () => {
+    const rows = [
+      row({
+        itemRef: 'e', moduleRef: 'harmonic-fluency',
+        acquisitionStage: 'acquiring',
+      }),
+    ];
+    expect(candidateSpecForGoalAtCoverage(hfGoal(), rows, NOW).kind)
+      .toBe('coverage');
+  });
+
+  it('leaves an empty scope on its coverage spec', () => {
+    expect(candidateSpecForGoalAtCoverage(hfGoal(), [], NOW).kind)
+      .toBe('coverage');
+  });
+
+  it('passes non-coverage goals through untouched', () => {
+    const goal = makeGoal({ targetMetric: 'harmonic_fluency_accuracy_overall' });
+    expect(candidateSpecForGoalAtCoverage(goal, hfSaturatedRows(), NOW).kind)
+      .toBe('accuracy');
   });
 });
