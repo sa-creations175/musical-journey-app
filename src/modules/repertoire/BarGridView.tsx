@@ -575,7 +575,7 @@ export default function BarGridView({
 
   const handleBeatsChange = onChordBeatsChange
     ? async (cell: BarCell, nextBeats: number) => {
-        const clamped = Math.min(Math.max(1, Math.round(nextBeats)), beatsPerBar);
+        const clamped = Math.min(Math.max(1, Math.round(nextBeats)), barSlots);
         // Compare against `cell.beats` (the live placement.beats),
         // not `cell.chord.beats` (the stale legacy ChordFunction
         // field that's only set at materialization and never updated).
@@ -646,7 +646,6 @@ export default function BarGridView({
                 <BarBox
                   key={bar.index}
                   bar={bar}
-                  beatsPerBar={beatsPerBar}
                   eighths={eighths}
                   barSlots={barSlots}
                   sectionKey={song.key}
@@ -1224,7 +1223,6 @@ function PendingLineStrip({
 
 function BarBox({
   bar,
-  beatsPerBar,
   eighths,
   barSlots,
   sectionKey,
@@ -1249,7 +1247,6 @@ function BarBox({
   playMode,
 }: {
   bar: Bar;
-  beatsPerBar: number;
   eighths: boolean;
   barSlots: number;
   sectionKey: string | undefined;
@@ -1287,7 +1284,7 @@ function BarBox({
       : null;
 
 
-  // Walk beats 0..beatsPerBar-1 to assemble the row. At each position
+  // Walk slots 0..barSlots-1 to assemble the row. At each position
   // we either emit a chord cell (its leading half), skip a position
   // that's covered by a tied multi-beat chord, or emit an empty beat
   // drop slot. This is what makes Option C work: empty positions —
@@ -1393,7 +1390,7 @@ function BarBox({
       {/* No horizontal scroll at any size: slots flex-shrink to fit the
           bar with NO min-width floor, so every beat slot (e.g. 6/8's six)
           stays fully visible and scales equally to the bar width on both
-          desktop and mobile. Each slot's `width: beats/beatsPerBar %`
+          desktop and mobile. Each slot's `width: beats/barSlots %`
           basis still yields large slots when the bar is wide; a min-width
           floor only ever bound on narrow columns — which was exactly what
           caused the clipping/scroll. */}
@@ -1460,7 +1457,7 @@ function BarBox({
         <ChordEditorPopover
           key={editingCellInThisBar.placementId}
           cell={editingCellInThisBar}
-          beatsPerBar={beatsPerBar}
+          barSlots={barSlots}
           sectionKey={sectionKey}
           notationMode={notationMode}
           onBeatsChange={onBeatsChange}
@@ -3110,7 +3107,7 @@ function labelForTag(tag: string): string {
 
 function ChordEditorPopover({
   cell,
-  beatsPerBar,
+  barSlots,
   sectionKey,
   notationMode,
   onBeatsChange,
@@ -3121,7 +3118,10 @@ function ChordEditorPopover({
   onCopyChord,
 }: {
   cell: BarCell;
-  beatsPerBar: number;
+  /** Duration ceiling, in the positions a bar offers — `beatsPerBar`
+   *  doubled when the song is on eighths. Clamping to beats here
+   *  would cap a migrated chord at half a bar. */
+  barSlots: number;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
@@ -3136,7 +3136,7 @@ function ChordEditorPopover({
   // pre-Option-C materialization and isn't updated after edits.
   const chordBeats = cell.beats;
   const canDec = chordBeats > 1;
-  const canInc = chordBeats < beatsPerBar;
+  const canInc = chordBeats < barSlots;
   const text = chordToDisplay(cell.chord, notationMode, sectionKey);
 
   const manualTag = cell.chord.harmonicTag;

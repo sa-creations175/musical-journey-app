@@ -312,20 +312,25 @@ function sanitiseBeats(raw: number | undefined): number {
  *  cells (each chunk = one bar's worth). Used by the legacy phrase-
  *  anchored render path; the bar-anchored path reads placements
  *  directly. */
+/** `capacityPerBar` is in whatever unit the incoming `cells[].beats`
+ *  are counted in — beats on the quarter-note path, slots on the
+ *  eighths path. Tie-splitting has to move with the units: pack
+ *  slot-counted chords against a beat-counted capacity and a full-bar
+ *  chord splits across bars, which changes the bar count. */
 function packChordChunks(
   cells: SourceChord[],
-  beatsPerBar: number,
+  capacityPerBar: number,
 ): BarCell[][] {
   const chunks: BarCell[][] = [];
   let current: BarCell[] = [];
   let currentBeatPos = 0;
-  let remaining = beatsPerBar;
+  let remaining = capacityPerBar;
   const flush = () => {
     if (current.length === 0) return;
     chunks.push(current);
     current = [];
     currentBeatPos = 0;
-    remaining = beatsPerBar;
+    remaining = capacityPerBar;
   };
   for (const { chord, beats, phraseId, beatId } of cells) {
     let unplaced = beats;
@@ -568,17 +573,38 @@ export function resolveLegacyPlacementId(
  *  Uses deterministic `migratedPlacementId(arrId, phraseId, beatId)`
  *  ids so `resolveLegacyPlacementId` can map a still-rendering legacy
  *  BarCell id to its new placement id in a single op.
+ *
+ *  THIS IS A WRITE, and on a song with eighths on it is the seam where
+ *  a legacy duration changes units. Phrase-anchored chords count
+ *  `beats` in BEATS — the duration migration never touched them,
+ *  because it only ever walked `section.chordPlacements` and these
+ *  sections have none. So the beats are doubled into slots HERE, at
+ *  the moment they first become placements, and the packer is handed
+ *  the matching slot capacity. The two go together: double without the
+ *  slot capacity and a full-bar chord tie-splits across bars; take the
+ *  slot capacity without doubling and every chord materialises half as
+ *  wide as it renders today.
+ *
+ *  A section materialised through this path is therefore already in
+ *  slot units and must NOT be doubled again by a later repair pass.
  */
 export function materializeChordPlacements(
   section: SongSection,
   beatsPerBar: number,
+  /** Song-level eighths toggle. Off by default so every existing
+   *  caller keeps quarter-note behaviour exactly. */
+  eighths = false,
 ): ChordPlacement[] {
   if (section.chordPlacements !== undefined) return section.chordPlacements;
   const arrangementIds = collectArrangementIds(section);
+  const capacityPerBar = slotsPerBar(beatsPerBar, eighths);
+  const perBeat = eighths ? 2 : 1;
   const out: ChordPlacement[] = [];
   for (const arrId of arrangementIds) {
-    const sourceCells = collectChordCells(section, arrId);
-    const chunks = packChordChunks(sourceCells, beatsPerBar);
+    const sourceCells = collectChordCells(section, arrId).map(c =>
+      perBeat === 1 ? c : { ...c, beats: c.beats * perBeat },
+    );
+    const chunks = packChordChunks(sourceCells, capacityPerBar);
     for (let barIndex = 0; barIndex < chunks.length; barIndex++) {
       for (const cell of chunks[barIndex]) {
         // Skip tied continuations — they share a placement with the
@@ -762,16 +788,21 @@ export function remapPlacementBars(
  * the now-overlapping beats (deriveBarGridAnchored skips beats covered
  * by an earlier multi-beat chord).
  *
- * Algorithm: walk all placements in the arrangement in absolute-beat
- * order (`barIndex * beatsPerBar + beatPos`). Each placement starts
- * at `max(desired, cursor)` where cursor = previous placement's end.
- * Translate the resulting absolute beat back to (barIndex, beatPos).
+ * Algorithm: walk all placements in the arrangement in absolute-SLOT
+ * order (`barIndex * slotsPerBar + placementSlot(p)`). Each placement
+ * starts at `max(desired, cursor)` where cursor = previous placement's
+ * end. Translate the resulting absolute slot back to a position.
  *
  *   · No-op for chords that don't overlap (cursor never overtakes
  *     their desired position).
- *   · Cascades naturally across bar boundaries — pushing past
- *     beatsPerBar carries into the next barIndex.
+ *   · Cascades naturally across bar boundaries — pushing past the
+ *     bar's capacity carries into the next barIndex.
  *   · Placements in OTHER arrangements pass through untouched.
+ *
+ * The slot is a DERIVED read of (beatPos, offbeat), never a new
+ * coordinate: `slotToPosition` hands back the same pair, so beatPos
+ * keeps meaning exactly what it means to a lyric anchor. On the
+ * quarter-note path slot === beatPos and the math is unchanged.
  *
  * Safe to call unconditionally after any chord op: shrinks/no-changes
  * leave the array unchanged; only true overlaps trigger movement.
@@ -780,8 +811,12 @@ export function cascadeChordPlacements(
   placements: ReadonlyArray<ChordPlacement>,
   arrangementId: string,
   beatsPerBar: number,
+  /** Song-level eighths toggle. Off by default so every existing
+   *  caller keeps quarter-note behaviour exactly. */
+  eighths = false,
 ): ChordPlacement[] {
   if (beatsPerBar <= 0) return [...placements];
+  const capacityPerBar = slotsPerBar(beatsPerBar, eighths);
   // Sort the active arrangement's placements by absolute beat,
   // stable-ish on placement.id as a tiebreak to keep deterministic
   // ordering when two placements coincide before the cascade fires.
@@ -792,8 +827,8 @@ export function cascadeChordPlacements(
     else others.push(p);
   }
   inArr.sort((a, b) => {
-    const ax = a.barIndex * beatsPerBar + a.beatPos;
-    const bx = b.barIndex * beatsPerBar + b.beatPos;
+    const ax = a.barIndex * capacityPerBar + placementSlot(a, eighths);
+    const bx = b.barIndex * capacityPerBar + placementSlot(b, eighths);
     if (ax !== bx) return ax - bx;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
@@ -801,15 +836,25 @@ export function cascadeChordPlacements(
   let cursor = -Infinity;
   const updated: ChordPlacement[] = [];
   for (const p of inArr) {
-    const desired = p.barIndex * beatsPerBar + p.beatPos;
+    const desired = p.barIndex * capacityPerBar + placementSlot(p, eighths);
     const beats = sanitiseBeats(p.beats);
     const actualStart = Math.max(desired, cursor);
     if (actualStart === desired) {
       updated.push(p);
     } else {
-      const newBar = Math.floor(actualStart / beatsPerBar);
-      const newBeat = actualStart - newBar * beatsPerBar;
-      updated.push({ ...p, barIndex: newBar, beatPos: newBeat });
+      const newBar = Math.floor(actualStart / capacityPerBar);
+      const { beatPos, offbeat } = slotToPosition(
+        actualStart - newBar * capacityPerBar,
+        eighths,
+      );
+      // Rebuilt rather than spread-merged: a chord cascading from an
+      // offbeat onto a downbeat has to LOSE the flag, and spreading a
+      // `{ beatPos }` over a placement that carries `offbeat: true`
+      // would silently keep it.
+      const next: ChordPlacement = { ...p, barIndex: newBar, beatPos };
+      if (offbeat) next.offbeat = true;
+      else delete next.offbeat;
+      updated.push(next);
     }
     cursor = actualStart + beats;
   }

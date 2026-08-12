@@ -107,6 +107,7 @@ import {
   removeChordPlacement,
   reorderBar,
   resolveLegacyPlacementId,
+  slotsPerBar,
   swapChordPlacements,
   updateChordPlacement,
 } from './barGrid';
@@ -527,6 +528,10 @@ export default function LeadSheetSection({
   const lyricLines = useMemo(() => section.lyricLines ?? [], [section.lyricLines]);
   const timeSignature = effectiveTimeSignature(song, section);
   const { beatsPerBar } = parseTimeSignature(timeSignature);
+  /** Chord DURATIONS are counted in the positions a bar offers, not in
+   *  beats — which is what keeps a migrated chord's rendered width
+   *  (`beats / barSlots`) identical either side of the eighths move. */
+  const barSlots = slotsPerBar(beatsPerBar, eighths);
 
   // Bar-grid chord ops (Option C). All chord interactions go through
   // bar-anchored ChordPlacement entries on section.chordPlacements.
@@ -540,7 +545,7 @@ export default function LeadSheetSection({
     if (sec.chordPlacements !== undefined) {
       return { placements: sec.chordPlacements, realPlacementId: placementId };
     }
-    const placements = materializeChordPlacements(sec, beatsPerBar);
+    const placements = materializeChordPlacements(sec, beatsPerBar, eighths);
     const real = isLegacyPlacementId(placementId)
       ? resolveLegacyPlacementId(placementId, activeArrangementId) ?? placementId
       : placementId;
@@ -581,14 +586,14 @@ export default function LeadSheetSection({
 
   const handleChordBeatsChange = async (placementId: string, beats: number) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);
-    const clamped = Math.min(Math.max(1, Math.round(beats)), beatsPerBar);
+    const clamped = Math.min(Math.max(1, Math.round(beats)), barSlots);
     const updated = updateChordPlacement(placements, realPlacementId, { beats: clamped });
     // Expanding a chord can push following placements onto beats that
     // are now covered — deriveBarGridAnchored would mask them. Cascade
     // them forward in beat order so every chord stays visible.
     const target = updated.find(p => p.id === realPlacementId);
     const arrId = target?.arrangementId ?? activeArrangementId;
-    const cascaded = cascadeChordPlacements(updated, arrId, beatsPerBar);
+    const cascaded = cascadeChordPlacements(updated, arrId, beatsPerBar, eighths);
     const patch: Partial<SongSection> = { chordPlacements: cascaded };
     const reconciled = reconcileBarLayout(sectionRef.current.barLayout, cascaded);
     if (reconciled) patch.barLayout = reconciled;
@@ -876,8 +881,12 @@ export default function LeadSheetSection({
   // Tap-to-add a chord on an empty beat slot. Materializes the
   // section to bar-anchored on the first add (so future ops route
   // through the new model end-to-end). The new placement gets a
-  // fresh uuid + beats:1; the bar-layout reconcile flips the
-  // containing bar from 'empty' → 'chord' if needed.
+  // fresh uuid + a one-BEAT duration; the bar-layout reconcile flips
+  // the containing bar from 'empty' → 'chord' if needed.
+  //
+  // One beat is 2 slots with eighths on. A new chord should land the
+  // width it has always landed at — the eighths move added positions,
+  // it did not make the default chord half as long.
   const handleChordAdd = async (
     barIndex: number,
     beatPos: number,
@@ -887,13 +896,13 @@ export default function LeadSheetSection({
     const placements =
       sec.chordPlacements !== undefined
         ? sec.chordPlacements
-        : materializeChordPlacements(sec, beatsPerBar);
+        : materializeChordPlacements(sec, beatsPerBar, eighths);
     const newPlacement: ChordPlacement = {
       id: crypto.randomUUID(),
       arrangementId: activeArrangementId,
       barIndex,
       beatPos,
-      beats: 1,
+      beats: eighths ? 2 : 1,
       chord,
     };
     const next = addChordPlacement(placements, newPlacement);
@@ -1045,7 +1054,7 @@ export default function LeadSheetSection({
   const chordsInBar = (barIndex: number) => {
     const sec = sectionRef.current;
     const placements =
-      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar);
+      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar, eighths);
     return placements.filter(p => p.barIndex === barIndex);
   };
 
@@ -1086,7 +1095,7 @@ export default function LeadSheetSection({
     // Chords close up; the bar genuinely disappears. Without this the
     // placements pin the bar count and the delete is a silent no-op.
     const placements = deleteBarFromPlacements(
-      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar),
+      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar, eighths),
       barIndex,
     );
 
@@ -1863,7 +1872,7 @@ export default function LeadSheetSection({
     const sec = sectionRef.current;
     if (sec.chordPlacements === undefined) {
       await commit({
-        chordPlacements: materializeChordPlacements(sec, beatsPerBar),
+        chordPlacements: materializeChordPlacements(sec, beatsPerBar, eighths),
         sequenceView: next,
       });
       return;
