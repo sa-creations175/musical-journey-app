@@ -106,19 +106,27 @@ export default function LyricDrawer({
          edges with a shadow says "control", which is what it is.
          z-40: above the grid, below the cell-anchored overlays at
          180/190 so the prompt is never behind the drawer. */
-      /* COLOURED, because white-on-white made it read as page
+      /* FILLED, because white-on-white made it read as page
          background — it measured 1.00:1 against the page behind it,
          invisible by construction rather than by degree, which is
          exactly the "kept losing track of it" report.
-         The hue is REPERTOIRE'S OWN MODULE ACCENT, the one the sidebar
-         already wears. Chrome inside a module wearing that module's
-         colour needs no further justification, and it stays clear of
-         both the chord families and the indigo now licensed for
-         transient placement feedback on the grid.
+         THE FILL IS NEUTRAL, NOT THE MODULE ACCENT. The strip reports
+         a SUCCESS state ("9 of 9 lines placed"), and pink reads as a
+         warning there however far its saturation sits from the alert
+         reds — the hue was making a claim about state that the strip
+         does not mean. Indigo was considered and rejected: it is
+         spoken for by transient placement feedback on armed cells,
+         and reusing it would make "this cell is armed" and "this is
+         the lyric drawer" visually indistinguishable.
+         THE ACCENT SURVIVES AS THE EDGE, which is what separates the
+         strip from the page and keeps the module's identity on it.
+         Findability does not regress — it improves slightly: the
+         neutral fill measures 1.32:1 against the white page where the
+         accent fill measured 1.31:1, and 1.55:1 vs 1.52:1 in dark.
          Surface, not type: the button below keeps SectionToggle's
          stone/fluent idiom, so the strip stays in the collapsible-
          header family. Being hard to see was a SURFACE problem. */
-      className="fixed inset-x-3 z-40 rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-repertoire-50 dark:bg-repertoire-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
+      className="fixed inset-x-3 z-40 rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-chrome-50 dark:bg-chrome-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
     >
       {/* Label and count GROUPED, not pushed to opposite ends — at
           arm's length a label on the left and a number on the right
@@ -131,11 +139,14 @@ export default function LyricDrawer({
         onClick={() => onOpenChange(!open)}
         aria-expanded={open}
         /* One stone step darker than SectionToggle's resting colour,
-           because the surface underneath it moved. Measured so the
-           label ends up MORE legible than it was, not less: 4.80:1 on
-           the old white → 5.84:1 here, and 7.85:1 → 8.77:1 in dark.
-           Same token family, same idiom; only the step tracks the
-           surface it sits on. */
+           because the surface underneath it moved. The RAISED step is
+           kept across the move to a neutral fill, and it still leaves
+           the label more legible than it was before the strip was
+           coloured at all: 4.80:1 on the old white → 5.80:1 on this
+           surface, and 7.85:1 → 8.58:1 in dark. (It was 5.84:1 /
+           8.77:1 on the accent fill — the fill moved, the step did
+           not.) Same token family, same idiom; only the surface
+           underneath it changed. */
         className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wide font-semibold text-stone-600 dark:text-stone-300 hover:text-fluent"
       >
         <span aria-hidden className="text-[9px] leading-none">
