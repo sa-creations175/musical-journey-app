@@ -77,6 +77,12 @@ export interface BarTiling {
    *  shape of a pickup / anacrusis. Under-covered but not damaged, so
    *  it is excluded from problem counts. */
   looksLikePickup: boolean;
+  /** Chords from the downbeat then silence — an ordinary partial bar.
+   *  Also excluded from problem counts. */
+  looksLikeTrailingRest: boolean;
+  /** Slots in this bar covered by a chord that started in an earlier
+   *  bar. Counted so a tie is not mistaken for a leading gap. */
+  tiedInFrom: number;
 }
 
 export interface SectionTiling {
@@ -153,6 +159,26 @@ export function analyseSectionTiling(
   const layout = section.barLayout;
   if (layout && layout.length > totalBars) totalBars = layout.length;
 
+  // Coverage is computed in ABSOLUTE slot space across the whole
+  // section, then sliced per bar. Computing it per bar would miss a
+  // chord tying over from the previous bar and report the slots it
+  // covers as a leading gap — a phantom that made every bar after a
+  // tie look broken.
+  const totalSlots = totalBars * perBar;
+  const cover = new Array<number>(Math.max(0, totalSlots)).fill(0);
+  const tiedInFrom = new Array<number>(totalBars).fill(0);
+  for (const pl of mine) {
+    if (pl.barIndex < 0) continue;
+    const start = pl.barIndex * perBar + placementSlot(pl, songOnEighths);
+    const end = start + Math.max(0, pl.beats);
+    for (let s = start; s < end; s++) {
+      if (s < 0 || s >= totalSlots) continue;
+      cover[s] += 1;
+      const owningBar = Math.floor(s / perBar);
+      if (owningBar > pl.barIndex) tiedInFrom[owningBar] += 1;
+    }
+  }
+
   const bars: BarTiling[] = [];
   const problemBars: number[] = [];
 
@@ -177,24 +203,19 @@ export function analyseSectionTiling(
       };
     });
 
-    // Count how many chords cover each slot in the bar.
-    const cover = new Array<number>(perBar).fill(0);
+    // This bar's window onto the section-wide coverage, so a chord
+    // tied in from an earlier bar counts as covering what it covers.
+    const base = barIndex * perBar;
+    const local = cover.slice(base, base + perBar);
     let overflow = 0;
     for (const s of spans) {
-      for (let slot = s.startSlot; slot < s.endSlot; slot++) {
-        if (slot < 0) continue;
-        if (slot >= perBar) {
-          overflow += 1;
-          continue;
-        }
-        cover[slot] += 1;
-      }
+      if (s.endSlot > perBar) overflow += s.endSlot - perBar;
     }
 
     const gaps: BarTiling['gaps'] = [];
     let run: number | null = null;
     for (let slot = 0; slot <= perBar; slot++) {
-      const empty = slot < perBar && cover[slot] === 0;
+      const empty = slot < perBar && (local[slot] ?? 0) === 0;
       if (empty && run === null) run = slot;
       if (!empty && run !== null) {
         gaps.push({ from: run, to: slot });
@@ -204,11 +225,11 @@ export function analyseSectionTiling(
 
     const overlaps: number[] = [];
     for (let slot = 0; slot < perBar; slot++) {
-      if (cover[slot] > 1) overlaps.push(slot);
+      if ((local[slot] ?? 0) > 1) overlaps.push(slot);
     }
 
-    const covered = cover.filter(n => n > 0).length;
-    const isEmpty = spans.length === 0;
+    const covered = local.filter(n => n > 0).length;
+    const isEmpty = spans.length === 0 && tiedInFrom[barIndex] === 0;
     const fillsBar = !isEmpty && covered === perBar && overlaps.length === 0;
     const anyOffbeat = spans.some(s => s.offbeat);
 
@@ -217,15 +238,19 @@ export function analyseSectionTiling(
     // nothing tied over, nothing on an "and". The on-the-beat clause
     // is what stops a damaged bar — which also shows a leading gap —
     // from being waved through as a pickup.
-    const looksLikePickup =
+    const partialButTidy =
       !isEmpty &&
       !fillsBar &&
       overlaps.length === 0 &&
       overflow === 0 &&
       !anyOffbeat &&
-      gaps.length === 1 &&
-      gaps[0].from === 0 &&
-      gaps[0].to < perBar;
+      gaps.length === 1;
+    const looksLikePickup =
+      partialButTidy && gaps[0].from === 0 && gaps[0].to < perBar;
+    // A trailing rest is as legitimate as a leading one — chords from
+    // the downbeat, then silence. Counting it as damage was inflating
+    // the scope number with ordinary partial bars.
+    const looksLikeTrailingRest = partialButTidy && gaps[0].to === perBar;
 
     bars.push({
       barIndex,
@@ -239,8 +264,12 @@ export function analyseSectionTiling(
       overflow,
       anyOffbeat,
       looksLikePickup,
+      looksLikeTrailingRest,
+      tiedInFrom: tiedInFrom[barIndex],
     });
-    if (!isEmpty && !fillsBar && !looksLikePickup) problemBars.push(barIndex);
+    if (!isEmpty && !fillsBar && !looksLikePickup && !looksLikeTrailingRest) {
+      problemBars.push(barIndex);
+    }
   }
 
   const stamp = section.eighthsDurationVersion ?? null;

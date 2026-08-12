@@ -329,3 +329,153 @@ describe('shiftPlacementsBySlots — testing a repair without writing one', () =
     expect(shifted[0].beats).toBe(4);
   });
 });
+
+// ---------------------------------------------------------------------
+// The class-1 cause, reproduced from clean input
+// ---------------------------------------------------------------------
+
+describe('a transient odd duration displaces permanently', () => {
+  const chord = (id: string, barIndex: number, beatPos: number, beats: number) =>
+    p(id, barIndex, beatPos, beats);
+
+  /** Two bars, chords at slots 0/4/8/12, four slots each. Tiles exactly. */
+  const clean = () => [
+    chord('A', 0, 0, 4),
+    chord('B', 0, 2, 4),
+    chord('C', 1, 0, 4),
+    chord('D', 1, 2, 4),
+  ];
+
+  const cascade = (list: ChordPlacement[]) =>
+    cascadeChordPlacements(list, BASIC_ARRANGEMENT_ID, 4, true);
+
+  it('is a no-op on clean input', () => {
+    const out = cascade(clean());
+    expect(out.some(q => q.offbeat === true)).toBe(false);
+  });
+
+  it('REPRODUCES bar 4: odd duration then corrected leaves an offbeat run', () => {
+    // 1. The user lengthens A to an odd number of slots. The cascade
+    //    pushes everything after it onto an "and".
+    const displaced = cascade(
+      cascade(clean()).map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)),
+    );
+    expect(displaced.filter(q => q.offbeat === true).map(q => q.id).sort()).toEqual([
+      'B',
+      'C',
+      'D',
+    ]);
+
+    // 2. The user corrects A back to an even duration. The cascade
+    //    only moves a chord when the cursor OVERTAKES it, and B's
+    //    desired position is now its displaced one — so nothing is
+    //    pulled back. The trigger is gone; the damage remains.
+    const corrected = cascade(
+      displaced.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)),
+    );
+
+    // No odd duration survives anywhere...
+    expect(corrected.every(q => q.beats % 2 === 0)).toBe(true);
+    // ...yet every downstream chord is still on an "and".
+    expect(corrected.filter(q => q.offbeat === true).map(q => q.id).sort()).toEqual([
+      'B',
+      'C',
+      'D',
+    ]);
+
+    // And bar 4's exact shape: first chord clean, second displaced by
+    // one slot, one slot of nothing between them.
+    const a = corrected.find(q => q.id === 'A')!;
+    const b = corrected.find(q => q.id === 'B')!;
+    expect([a.beatPos, a.offbeat, a.beats]).toEqual([0, undefined, 4]);
+    expect([b.beatPos, b.offbeat, b.beats]).toEqual([2, true, 4]);
+  });
+
+  const slotOf = (q: ChordPlacement) =>
+    q.barIndex * 8 + q.beatPos * 2 + (q.offbeat ? 1 : 0);
+
+  it('repeating on the SAME chord saturates at one slot, it does not compound', () => {
+    // After the first episode the run is already packed tight against
+    // the odd cursor, so a second lengthening of the same chord pushes
+    // nothing further.
+    let list = cascade(clean());
+    for (let episode = 0; episode < 3; episode++) {
+      list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)));
+      list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)));
+    }
+    expect(slotOf(list.find(q => q.id === 'D')!)).toBe(12 + 1);
+  });
+
+  it('a SECOND seed further along adds another slot to the tail', () => {
+    // This is what makes the displacement non-uniform across a
+    // section, and therefore why a single blanket shift cannot repair
+    // it: chords before the second seed are out by one, chords after
+    // it are out by two.
+    let list = cascade(clean());
+    list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)));
+    list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)));
+    list = cascade(list.map(q => (q.id === 'C' ? { ...q, beats: 5 } : q)));
+    list = cascade(list.map(q => (q.id === 'C' ? { ...q, beats: 4 } : q)));
+
+    expect(slotOf(list.find(q => q.id === 'B')!)).toBe(4 + 1);
+    expect(slotOf(list.find(q => q.id === 'D')!)).toBe(12 + 2);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Analyser fixes — ties across bars, and trailing rests
+// ---------------------------------------------------------------------
+
+describe('cross-bar ties are not phantom gaps', () => {
+  it('a chord tying into the next bar counts as covering it', () => {
+    // One chord starting in bar 0 and running two full bars.
+    const t = analyseSectionTiling(
+      eighthsSong,
+      section([p('a', 0, 0, 16)], { barCount: 2 }),
+    )!;
+    expect(t.bars[0].fillsBar).toBe(true);
+    expect(t.bars[1].tiedInFrom).toBe(8);
+    expect(t.bars[1].gaps).toEqual([]);
+    expect(t.bars[1].fillsBar).toBe(true);
+    expect(t.problemBars).toEqual([]);
+  });
+
+  it('a bar covered only by a tie is not reported as empty', () => {
+    const t = analyseSectionTiling(
+      eighthsSong,
+      section([p('a', 0, 0, 12)], { barCount: 2 }),
+    )!;
+    expect(t.bars[1].isEmpty).toBe(false);
+    expect(t.bars[1].tiedInFrom).toBe(4);
+    // Half covered by the tie, half genuinely silent.
+    expect(t.bars[1].gaps).toEqual([{ from: 4, to: 8 }]);
+  });
+});
+
+describe('trailing rests are ordinary, not damage', () => {
+  it('chords from the downbeat then silence is not a problem bar', () => {
+    const t = analyseSectionTiling(eighthsSong, section([p('a', 0, 0, 4)]))!;
+    expect(t.bars[0].looksLikeTrailingRest).toBe(true);
+    expect(t.bars[0].looksLikePickup).toBe(false);
+    expect(t.problemBars).toEqual([]);
+  });
+
+  it('but an INTERNAL gap still counts as a problem', () => {
+    const t = analyseSectionTiling(
+      eighthsSong,
+      section([p('a', 0, 0, 2), p('b', 0, 2, 2)]),
+    )!;
+    expect(t.bars[0].looksLikeTrailingRest).toBe(false);
+    expect(t.bars[0].looksLikePickup).toBe(false);
+    expect(t.problemBars).toEqual([0]);
+  });
+
+  it('and an offbeat partial bar is still a problem', () => {
+    const t = analyseSectionTiling(
+      eighthsSong,
+      section([p('a', 0, 0, 4, { offbeat: true })]),
+    )!;
+    expect(t.bars[0].looksLikeTrailingRest).toBe(false);
+    expect(t.problemBars).toEqual([0]);
+  });
+});
