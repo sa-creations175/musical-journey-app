@@ -17,6 +17,7 @@ import WantToLearnView from './WantToLearnView';
 import './devInspectSongKeys';
 import './devInspectChordDurations';
 import './devInspectSlotPositions';
+import './devInspectBarTiling';
 
 type TabId = 'active' | 'detail' | 'want-to-learn';
 
