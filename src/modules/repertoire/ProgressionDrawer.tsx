@@ -1,0 +1,397 @@
+import { Fragment, useEffect, useState } from 'react';
+import { measureSafeArea } from './leadSheetOverlay';
+import { useNotationMode } from '../../lib/notationPref';
+import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
+import { chordPalette, useIsDarkMode } from './chordColors';
+import SequenceChoices, { type SequenceTarget } from './SequenceChoices';
+import PhraseNote from './PhraseNote';
+import type { ProgressionSection, ProgressionToken } from './progressionOutline';
+
+/** Breathing room between the drawer and whatever it docks above, so
+ *  the inset edges read as floating rather than as a seam. Matches
+ *  LyricDrawer. */
+const DRAWER_GAP = 8;
+
+/**
+ * The whole song's chord movement, docked at the bottom of the lead
+ * sheet beside the lyrics drawer.
+ *
+ * WHY SONG-LEVEL. Per-section framing gives section shapes but not the
+ * song's arc, and sections resemble one another closely enough to be
+ * mistaken at a glance — which has already caused a bug report about
+ * chords that were never missing. Headings plus a continuous run gives
+ * both readings from one view: scan the headings for shapes, read
+ * straight down for the arc.
+ *
+ * TWO STRIPS, NOT A SWITCHER. Lyrics and Progressions each get their
+ * own drawer. A tabbed panel remembers its last tab, so opening it
+ * sometimes lands on the wrong content and costs a second tap; two
+ * strips always open what was asked for. They are mutually exclusive —
+ * opening one closes the other — so only one half-height panel is ever
+ * competing for the screen, and each excludes BOTH from its own
+ * docking measurement.
+ *
+ * IT IS A WORKING SURFACE, NOT A READING ONE. Breaks, notes and hides
+ * are all editable here, writing to the same per-section
+ * `sequenceView` the strip writes. Two windows onto one thing: split a
+ * phrase here and the per-section view shows the split too.
+ *
+ * SECTION HEADINGS ARE READ-ONLY, and so is section order — song
+ * structure is edited on the lead sheet. Only phrase structure is
+ * editable here.
+ *
+ * A break cannot span a section boundary, because `sequenceView` is
+ * stored per section and has no way to express one. Headings ARE the
+ * boundary. If phrasing across a section line is ever wanted it needs
+ * new storage, not a rework of this.
+ */
+export default function ProgressionDrawer({
+  sections,
+  songKey,
+  open,
+  onOpenChange,
+  onSetBreak,
+  onRemoveBreak,
+  onSetPhraseNote,
+  onToggleHidden,
+}: {
+  sections: ProgressionSection[];
+  songKey: string | undefined;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSetBreak: (
+    sectionId: string,
+    afterPlacementId: string,
+    kind: 'separator' | 'row',
+  ) => void | Promise<void>;
+  onRemoveBreak: (sectionId: string, afterPlacementId: string) => void | Promise<void>;
+  /** `undefined` afterPlacementId targets the section's final phrase,
+   *  which has no break to hang its note on. */
+  onSetPhraseNote: (
+    sectionId: string,
+    afterPlacementId: string | undefined,
+    note: string,
+  ) => void | Promise<void>;
+  onToggleHidden: (sectionId: string, placementId: string) => void | Promise<void>;
+}) {
+  const [notationMode] = useNotationMode();
+  const isDark = useIsDarkMode();
+  const [editing, setEditing] = useState(false);
+  /** Hidden chords are OFF by default — a clean read is the whole
+   *  point of hiding. The toggle reveals them greyed, in place. */
+  const [revealHidden, setRevealHidden] = useState(false);
+  const [target, setTarget] = useState<
+    (SequenceTarget & { sectionId: string }) | null
+  >(null);
+  /** Which sections have their patterns list expanded. Collapsed by
+   *  default: the list is carried so it costs nothing to reach, not
+   *  because it earns the space. */
+  const [openPatterns, setOpenPatterns] = useState<Set<string>>(new Set());
+
+  const [dockOffset, setDockOffset] = useState(0);
+  useEffect(() => {
+    const measure = () =>
+      setDockOffset(
+        measureSafeArea({
+          // Excludes BOTH drawers: itself for the obvious circularity,
+          // and its sibling because they are mutually exclusive, so a
+          // collapsed sibling must not push this one up.
+          exclude: '[data-lyric-drawer], [data-progression-drawer]',
+        }).bottom,
+      );
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open]);
+
+  // Leaving edit mode closes any open choices row — an editor that is
+  // no longer editing should not leave a live control behind.
+  useEffect(() => {
+    if (!editing) setTarget(null);
+  }, [editing]);
+  useEffect(() => {
+    if (!open) {
+      setEditing(false);
+      setTarget(null);
+    }
+  }, [open]);
+
+  const totalHidden = sections.reduce((n, s) => n + s.hiddenCount, 0);
+  const totalChords = sections.reduce((n, s) => n + s.order.length, 0);
+
+  const labelFor = (t: ProgressionToken) =>
+    chordToDisplay(t.chord, notationMode, songKey);
+
+  return (
+    <div
+      data-app-chrome="bottom"
+      data-progression-drawer=""
+      style={{ bottom: dockOffset + DRAWER_GAP }}
+      /* Same inset, radius, elevation and z-index as the lyrics
+         drawer: they are siblings and should read as one family. */
+      className="fixed inset-x-3 z-40 rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-chrome-50 dark:bg-chrome-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-expanded={open}
+        className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wide font-semibold text-stone-600 dark:text-stone-300 hover:text-fluent"
+      >
+        <span aria-hidden className="text-[9px] leading-none">
+          {open ? '▾' : '▸'}
+        </span>
+        progressions
+        <span className="font-normal normal-case tracking-normal text-neutral-500 dark:text-neutral-400">
+          {totalChords === 0
+            ? '· no chords yet'
+            : `· ${totalChords} chord${totalChords === 1 ? '' : 's'}${
+                totalHidden > 0 ? `, ${totalHidden} hidden` : ''
+              }`}
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="overflow-y-auto px-3 pb-3 pt-2 flex flex-col gap-3 border-t border-repertoire-200 dark:border-repertoire-600 bg-white dark:bg-neutral-900"
+          style={{ maxHeight: '50vh' }}
+        >
+          <div className="flex items-center gap-2 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setEditing(v => !v)}
+              aria-pressed={editing}
+              className={`px-2 py-0.5 rounded-full border ${
+                editing
+                  ? 'border-fluent bg-fluent/10 text-fluent'
+                  : 'border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+              }`}
+            >
+              {editing ? 'done' : 'edit'}
+            </button>
+            {totalHidden > 0 && (
+              <button
+                type="button"
+                onClick={() => setRevealHidden(v => !v)}
+                aria-pressed={revealHidden}
+                className={`px-2 py-0.5 rounded-full border ${
+                  revealHidden
+                    ? 'border-fluent bg-fluent/10 text-fluent'
+                    : 'border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+                }`}
+              >
+                {revealHidden ? 'hide hidden' : `show hidden (${totalHidden})`}
+              </button>
+            )}
+          </div>
+
+          {sections.length === 0 ? (
+            <p className="text-[11px] text-neutral-500 italic py-2">
+              no chords yet.
+            </p>
+          ) : (
+            sections.map(section => (
+              <section key={section.sectionId} className="flex flex-col gap-1">
+                {/* Read-only: song structure is edited on the lead
+                    sheet, not here. */}
+                <h3 className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+                  {section.heading}
+                </h3>
+
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-mono text-[11px] min-w-0">
+                  {section.phrases.map((phrase, pi) => {
+                    const shown = phrase.tokens.filter(
+                      t => !t.hidden || revealHidden,
+                    );
+                    return (
+                      <Fragment
+                        key={phrase.endsAfterPlacementId ?? `tail-${pi}`}
+                      >
+                        <span className="text-neutral-700 dark:text-neutral-200">
+                          {shown.map((token, i) => (
+                            <span key={token.key}>
+                              {i > 0 && !editing && (
+                                <span className="text-neutral-400"> · </span>
+                              )}
+                              {editing && i > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setTarget({
+                                      kind: 'gap',
+                                      placementId: shown[i - 1].placementId,
+                                      sectionId: section.sectionId,
+                                    })
+                                  }
+                                  aria-label={`break after ${labelFor(
+                                    shown[i - 1],
+                                  )}`}
+                                  className="inline-block min-w-[10px] min-h-[20px] mx-0.5 align-middle rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
+                                />
+                              )}
+                              <button
+                                type="button"
+                                /* A greyed chord is tappable even when
+                                   not editing — that is the unhide
+                                   gesture, matching the lyric row's
+                                   tap-to-place. Editing a visible one
+                                   opens the choices row instead. */
+                                disabled={!editing && !token.hidden}
+                                onClick={() => {
+                                  if (token.hidden && !editing) {
+                                    void onToggleHidden(
+                                      section.sectionId,
+                                      token.placementId,
+                                    );
+                                    return;
+                                  }
+                                  setTarget({
+                                    kind: 'token',
+                                    placementId: token.placementId,
+                                    sectionId: section.sectionId,
+                                  });
+                                }}
+                                aria-label={
+                                  token.hidden
+                                    ? `${labelFor(token)} — hidden, tap to show`
+                                    : labelFor(token)
+                                }
+                                style={
+                                  token.hidden
+                                    ? undefined
+                                    : { color: chordPalette(token.chord, isDark).text }
+                                }
+                                className={
+                                  token.hidden
+                                    ? 'rounded px-0.5 line-through text-neutral-400 dark:text-neutral-500 hover:bg-fluent/10 hover:text-fluent'
+                                    : editing
+                                      ? 'rounded px-0.5 hover:bg-fluent/10'
+                                      : 'cursor-default'
+                                }
+                              >
+                                {labelFor(token)}
+                              </button>
+                            </span>
+                          ))}
+                        </span>
+                        {phrase.endKind === 'separator' &&
+                          (editing ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTarget({
+                                  kind: 'gap',
+                                  placementId: phrase.endsAfterPlacementId!,
+                                  sectionId: section.sectionId,
+                                })
+                              }
+                              aria-label="edit this break"
+                              className="text-fluent px-1 rounded hover:bg-fluent/10"
+                            >
+                              |
+                            </button>
+                          ) : (
+                            <span className="text-neutral-400" aria-hidden>
+                              |
+                            </span>
+                          ))}
+                        {(phrase.note || editing) && shown.length > 0 && (
+                          <PhraseNote
+                            note={phrase.note}
+                            editing={editing}
+                            onChange={next =>
+                              void onSetPhraseNote(
+                                section.sectionId,
+                                phrase.endsAfterPlacementId,
+                                next,
+                              )
+                            }
+                          />
+                        )}
+                        {phrase.endKind === 'row' && (
+                          <span className="basis-full" aria-hidden />
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </div>
+
+                {target?.sectionId === section.sectionId && (
+                  <SequenceChoices
+                    target={target}
+                    label={
+                      section.phrases
+                        .flatMap(p => p.tokens)
+                        .filter(t => t.placementId === target.placementId)
+                        .map(labelFor)[0] ?? ''
+                    }
+                    hasBreak={section.phrases.some(
+                      p => p.endsAfterPlacementId === target.placementId,
+                    )}
+                    hidden={section.phrases
+                      .flatMap(p => p.tokens)
+                      .some(t => t.placementId === target.placementId && t.hidden)}
+                    onSetBreak={(after, kind) => {
+                      setTarget(null);
+                      void onSetBreak(section.sectionId, after, kind);
+                    }}
+                    onRemoveBreak={after => {
+                      setTarget(null);
+                      void onRemoveBreak(section.sectionId, after);
+                    }}
+                    onToggleHidden={id => {
+                      setTarget(null);
+                      void onToggleHidden(section.sectionId, id);
+                    }}
+                    onClose={() => setTarget(null)}
+                  />
+                )}
+
+                {section.patterns.length > 0 && (
+                  <div className="text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenPatterns(prev => {
+                          const next = new Set(prev);
+                          if (next.has(section.sectionId)) {
+                            next.delete(section.sectionId);
+                          } else next.add(section.sectionId);
+                          return next;
+                        })
+                      }
+                      aria-expanded={openPatterns.has(section.sectionId)}
+                      className="text-neutral-500 hover:text-fluent uppercase tracking-wide"
+                    >
+                      <span aria-hidden className="text-[9px]">
+                        {openPatterns.has(section.sectionId) ? '▾' : '▸'}
+                      </span>{' '}
+                      patterns · {section.patterns.length}
+                    </button>
+                    {openPatterns.has(section.sectionId) && (
+                      <ul className="pl-3 pt-1 flex flex-col gap-0.5 text-neutral-600 dark:text-neutral-300">
+                        {section.patterns.map((m, i) => (
+                          <li key={`${m.patternId}-${m.matchIndex}-${i}`}>
+                            {m.numerals
+                              .map(n => patternNumeralToDisplay(n, notationMode, songKey))
+                              .join(' · ')}
+                            <span className="text-neutral-400">
+                              {' '}
+                              ·{' '}
+                              {m.startBar === m.endBar
+                                ? `bar ${m.startBar + 1}`
+                                : `bars ${m.startBar + 1}–${m.endBar + 1}`}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </section>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

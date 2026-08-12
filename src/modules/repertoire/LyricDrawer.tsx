@@ -79,7 +79,14 @@ export default function LyricDrawer({
   const [dockOffset, setDockOffset] = useState(0);
   useEffect(() => {
     const measure = () =>
-      setDockOffset(measureSafeArea({ exclude: '[data-lyric-drawer]' }).bottom);
+      setDockOffset(
+        measureSafeArea({
+          // Excludes BOTH drawers: itself for the circularity, and the
+          // progressions drawer because they are mutually exclusive —
+          // a collapsed sibling must not push this one up.
+          exclude: '[data-lyric-drawer], [data-progression-drawer]',
+        }).bottom,
+      );
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);

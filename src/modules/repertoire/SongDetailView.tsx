@@ -94,8 +94,18 @@ import { useDismissOnOutside } from './useDismissOnOutside';
 import { parseLyricSheet } from './lyricSheetParse';
 import {
   buildSectionProgression,
+  buildSongProgression,
   clearOrphanedHides,
 } from './progressionOutline';
+import ProgressionDrawer from './ProgressionDrawer';
+import type { SequenceView } from '../../lib/db';
+import {
+  EMPTY_SEQUENCE_VIEW,
+  removeBreak,
+  setBreak,
+  setPhraseNote,
+  toggleHidden,
+} from './sequenceView';
 import {
   describeHalveBlockers,
   planDurationHalving,
@@ -823,6 +833,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   // --- the drawer ---------------------------------------------------
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [progressionsOpen, setProgressionsOpen] = useState(false);
+  // MUTUALLY EXCLUSIVE. Both are half-height panels docked at the same
+  // edge; two open at once would leave almost no grid visible, and the
+  // sibling exclusion in each drawer's docking measurement assumes only
+  // one is ever expanded.
+  const openLyrics = useCallback((next: boolean) => {
+    setDrawerOpen(next);
+    if (next) setProgressionsOpen(false);
+  }, []);
+  const openProgressions = useCallback((next: boolean) => {
+    setProgressionsOpen(next);
+    if (next) setDrawerOpen(false);
+  }, []);
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   // Same mechanism as arming, different keep region — an open drawer is
@@ -937,6 +960,32 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       cancelled = true;
     };
   }, [song, sections]);
+
+  /** The song's chord movement, section by section. A VIEW over the
+   *  same per-section `sequenceView` records the strip writes — the
+   *  drawer and the strip are two windows onto one thing. */
+  const progression = useMemo(
+    () => (song ? buildSongProgression(song, sections) : []),
+    [song, sections],
+  );
+
+  /** Every progression edit routes through here: same pure helpers the
+   *  per-section strip uses, same stored record. `order` comes from the
+   *  model so break sorting matches what is on screen. */
+  const editSequenceView = useCallback(
+    async (
+      sectionId: string,
+      apply: (view: SequenceView, order: string[]) => SequenceView,
+    ) => {
+      const sec = sections.find(s => s.id === sectionId);
+      if (!sec) return;
+      const order =
+        progression.find(p => p.sectionId === sectionId)?.order ?? [];
+      const next = apply(sec.sequenceView ?? EMPTY_SEQUENCE_VIEW, order);
+      await db.songSections.update(sectionId, { sequenceView: next });
+    },
+    [sections, progression],
+  );
 
   const [eighthsRefusal, setEighthsRefusal] = useState<
     { chords: number; words: number } | null
@@ -2018,11 +2067,32 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           overlays do not — see the plan doc's anchoring principle.
           Only when the song's lyric store is live; before migration
           the section-level path still owns lyrics. */}
+      <ProgressionDrawer
+        sections={progression}
+        songKey={song?.key}
+        open={progressionsOpen}
+        onOpenChange={openProgressions}
+        onSetBreak={(sectionId, after, kind) =>
+          editSequenceView(sectionId, (v, order) =>
+            setBreak(v, after, kind, order),
+          )
+        }
+        onRemoveBreak={(sectionId, after) =>
+          editSequenceView(sectionId, (v, order) => removeBreak(v, after, order))
+        }
+        onSetPhraseNote={(sectionId, after, note) =>
+          editSequenceView(sectionId, v => setPhraseNote(v, after, note))
+        }
+        onToggleHidden={(sectionId, placementId) =>
+          editSequenceView(sectionId, v => toggleHidden(v, placementId))
+        }
+      />
+
       {songLyricLines && (
         <LyricDrawer
           lines={songLyricLines}
           open={drawerOpen}
-          onOpenChange={setDrawerOpen}
+          onOpenChange={openLyrics}
           onArmLine={handleArmLine}
           onArmWord={handleArmWord}
           onAddLines={handleAddLines}
