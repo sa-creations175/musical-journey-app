@@ -93,6 +93,10 @@ import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
 import { parseLyricSheet } from './lyricSheetParse';
 import {
+  buildSectionProgression,
+  clearOrphanedHides,
+} from './progressionOutline';
+import {
   describeHalveBlockers,
   planDurationHalving,
   planDurationRepair,
@@ -903,6 +907,36 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       cancelled = true;
     };
   }, [song?.eighths, sections]);
+
+  /**
+   * Clear strip hides that name a chord no longer in the grid.
+   *
+   * Deletions before 13.1 left them behind, and a dead hide is not
+   * merely inert: it filters nothing, renders nothing, and no surface
+   * can reach it, so it can never be undone. The drawer will not
+   * surface them either — there is no chord left to draw greyed out.
+   *
+   * ONLY HIDES. Orphaned BREAKS are left exactly as they are:
+   * `buildPhrases` carries a dead break's note forward into the next
+   * surviving phrase, so they already behave correctly, and removing
+   * them would destroy phrase notes the user wrote.
+   */
+  useEffect(() => {
+    if (!song || sections.length === 0) return;
+    const target = song;
+    let cancelled = false;
+    void (async () => {
+      for (const sec of sections) {
+        if (cancelled) return;
+        const built = buildSectionProgression(target, sec);
+        const patch = clearOrphanedHides(sec, built?.order ?? []);
+        if (patch) await db.songSections.update(sec.id, patch);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [song, sections]);
 
   const [eighthsRefusal, setEighthsRefusal] = useState<
     { chords: number; words: number } | null

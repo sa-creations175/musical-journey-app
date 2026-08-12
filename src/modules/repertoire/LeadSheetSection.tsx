@@ -63,7 +63,6 @@ import {
 import { parseChord } from './chordParser';
 import {
   detectPatterns,
-  type DetectChord,
   type PatternMatch,
 } from '../../lib/progressionDetection';
 import {
@@ -89,6 +88,7 @@ import {
   setPhraseNote,
   toggleHidden,
 } from './sequenceView';
+import { toDetectChords } from './progressionOutline';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
 import BarGridView, { parseSlotDropId } from './BarGridView';
@@ -97,9 +97,7 @@ import {
   addChordPlacement,
   cascadeChordPlacements,
   deriveBarGrid,
-  effectiveHarmonicTag,
   effectiveTimeSignature,
-  isDominantQuality,
   isLegacyPlacementId,
   deleteBarFromPlacements,
   materializeChordPlacements,
@@ -1965,23 +1963,12 @@ export default function LeadSheetSection({
   // Pattern matches via flexible root-motion detection. The effective
   // harmonic tag (manual over auto) decides whether a chord is acting
   // as a secondary dominant and so can't fill a tonic/subdominant slot.
-  const patternMatches = useMemo(() => {
-    const chords: DetectChord[] = [];
-    for (const { chord, barIndex } of detectionSequence) {
-      if (chord.unparsed || chord.function === '') continue;
-      const q = chord.quality ?? '';
-      const qLower = q.toLowerCase();
-      const isMinor = qLower.startsWith('m') && !qLower.startsWith('maj');
-      chords.push({
-        degree: chord.function,
-        isMinor,
-        isDominant: isDominantQuality(q),
-        effectiveTag: effectiveHarmonicTag(chord),
-        barIndex,
-      });
-    }
-    return detectPatterns(chords);
-  }, [detectionSequence]);
+  // Shared with the Progressions drawer via `toDetectChords`, so the
+  // two surfaces cannot report different patterns for the same chords.
+  const patternMatches = useMemo(
+    () => detectPatterns(toDetectChords(detectionSequence)),
+    [detectionSequence],
+  );
 
   const setSectionStage = async (next: SongSection['stage']) => {
     await commit({ stage: next });
