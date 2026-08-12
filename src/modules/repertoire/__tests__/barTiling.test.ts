@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { ChordPlacement, Song, SongSection } from '../../../lib/db';
 import { EIGHTHS_DURATION_VERSION } from '../eighthsMigration';
-import { analyseSectionTiling, chordLabel, looksUndoubled } from '../barTiling';
+import {
+  analyseSectionTiling,
+  chordLabel,
+  looksUndoubled,
+  oddDurations,
+  problemBarCount,
+  shiftPlacementsBySlots,
+} from '../barTiling';
+import { cascadeChordPlacements } from '../barGrid';
 import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
 
 const eighthsSong = {
@@ -189,5 +197,135 @@ describe('chordLabel', () => {
     expect(chordLabel(p('x', 0, 0, 2, { chord: { function: '5', quality: 'maj' } }))).toBe(
       '5maj',
     );
+  });
+});
+
+// ---------------------------------------------------------------------
+// Pickup bars, odd durations, and the candidate repair
+// ---------------------------------------------------------------------
+
+describe('pickup bars', () => {
+  it('recognises a right-aligned on-the-beat partial bar as a pickup', () => {
+    // Bar 0's real shape: one chord at beatPos 3, 2 slots, gap [0-6).
+    const t = analyseSectionTiling(eighthsSong, section([p('a', 0, 3, 2)]))!;
+    const bar = t.bars[0];
+    expect(bar.gaps).toEqual([{ from: 0, to: 6 }]);
+    expect(bar.looksLikePickup).toBe(true);
+    expect(t.problemBars).toEqual([]);
+  });
+
+  it('does NOT wave through a damaged bar that also has a leading gap', () => {
+    // Same leading-gap shape, but offbeat and tying past the end.
+    const t = analyseSectionTiling(
+      eighthsSong,
+      section([p('a', 0, 1, 8, { offbeat: true })]),
+    )!;
+    const bar = t.bars[0];
+    expect(bar.gaps[0]).toEqual({ from: 0, to: 3 });
+    expect(bar.anyOffbeat).toBe(true);
+    expect(bar.overflow).toBe(3);
+    expect(bar.looksLikePickup).toBe(false);
+    expect(t.problemBars).toEqual([0]);
+  });
+});
+
+describe('oddDurations — the cascade parity seed', () => {
+  it('finds odd durations and ignores even ones', () => {
+    const odd = oddDurations(section([p('a', 0, 0, 4), p('b', 0, 2, 5)]));
+    expect(odd).toHaveLength(1);
+    expect(odd[0]).toMatchObject({ placementId: 'b', beats: 5 });
+  });
+
+  it('only considers the active arrangement', () => {
+    expect(
+      oddDurations(section([p('x', 0, 0, 5, { arrangementId: 'alt' })])),
+    ).toEqual([]);
+  });
+});
+
+describe('the cascade turns one odd duration into a contiguous offbeat run', () => {
+  it('pushes every downstream chord onto an "and"', () => {
+    // Four chords meant to tile two bars: 4+4 | 4+4 slots. Give the
+    // first an odd duration of 5 and cascade.
+    const placements = [
+      p('a', 0, 0, 5),
+      p('b', 0, 2, 4),
+      p('c', 1, 0, 4),
+      p('d', 1, 2, 4),
+    ];
+    const cascaded = cascadeChordPlacements(
+      placements,
+      BASIC_ARRANGEMENT_ID,
+      4,
+      true,
+    );
+    const moved = cascaded.filter(q => q.offbeat === true);
+    // Everything after the odd chord lands on an odd slot.
+    expect(moved.map(q => q.id).sort()).toEqual(['b', 'c', 'd']);
+    // And the run is contiguous — no on-beat chord survives after it.
+    const after = cascaded
+      .filter(q => q.id !== 'a')
+      .every(q => q.offbeat === true);
+    expect(after).toBe(true);
+  });
+
+  it('leaves everything on the beat when all durations are even', () => {
+    const placements = [
+      p('a', 0, 0, 4),
+      p('b', 0, 2, 4),
+      p('c', 1, 0, 4),
+    ];
+    const cascaded = cascadeChordPlacements(
+      placements,
+      BASIC_ARRANGEMENT_ID,
+      4,
+      true,
+    );
+    expect(cascaded.some(q => q.offbeat === true)).toBe(false);
+  });
+});
+
+describe('shiftPlacementsBySlots — testing a repair without writing one', () => {
+  it('a uniform one-slot shift resolves a purely parity-shifted section', () => {
+    // The undamaged bar is two chords at slots 0 and 4, four slots
+    // each. A one-slot parity shift puts them at 1 and 5 — which is
+    // beatPos 0 and 2, both flagged offbeat.
+    const damaged = section([
+      p('a', 0, 0, 4, { offbeat: true }),
+      p('b', 0, 2, 4, { offbeat: true }),
+    ]);
+    expect(problemBarCount(eighthsSong, damaged)).toBe(1);
+    const shifted = shiftPlacementsBySlots(
+      eighthsSong,
+      damaged,
+      -1,
+      q => q.offbeat === true,
+    );
+    expect(problemBarCount(eighthsSong, damaged, shifted)).toBe(0);
+    expect(shifted.every(q => q.offbeat === undefined)).toBe(true);
+    expect(shifted.map(q => q.beatPos)).toEqual([0, 2]);
+  });
+
+  it('does not silently "resolve" a section whose damage is not a parity shift', () => {
+    // Durations genuinely too short — shifting cannot fill the bar.
+    const wrong = section([p('a', 0, 1, 2, { offbeat: true })]);
+    const shifted = shiftPlacementsBySlots(
+      eighthsSong,
+      wrong,
+      -1,
+      q => q.offbeat === true,
+    );
+    expect(problemBarCount(eighthsSong, wrong, shifted)).toBeGreaterThan(0);
+  });
+
+  it('leaves durations untouched — it moves chords, it does not resize them', () => {
+    const damaged = section([p('a', 0, 1, 4, { offbeat: true })]);
+    const shifted = shiftPlacementsBySlots(
+      eighthsSong,
+      damaged,
+      -1,
+      q => q.offbeat === true,
+    );
+    expect(shifted[0].beats).toBe(4);
   });
 });

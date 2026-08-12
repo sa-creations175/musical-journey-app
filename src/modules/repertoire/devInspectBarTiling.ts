@@ -1,5 +1,11 @@
 import { db } from '../../lib/db';
-import { analyseSectionTiling, looksUndoubled } from './barTiling';
+import {
+  analyseSectionTiling,
+  looksUndoubled,
+  oddDurations,
+  problemBarCount,
+  shiftPlacementsBySlots,
+} from './barTiling';
 
 /**
  * RAW DUMP of what a song's bars actually contain, in slots. Reads
@@ -74,12 +80,25 @@ export async function dumpBars(titleFragment = ''): Promise<void> {
           (warn ? ` — ${warn}` : ''),
       );
 
+      const odd = oddDurations(section);
+      if (odd.length > 0) {
+        console.warn(
+          `${odd.length} placement(s) carry an ODD duration. An odd value is ` +
+            'legal on its own, but it flips the cascade cursor\'s parity, and ' +
+            'every chord the cascade subsequently pushes then lands on an ' +
+            '"and". This is where a contiguous offbeat run starts:',
+        );
+        console.table(odd);
+      }
+
       for (const bar of t.bars) {
         if (bar.isEmpty) {
           console.log(`bar ${bar.barIndex}: empty`);
           continue;
         }
         const flags = [
+          bar.looksLikePickup ? 'PICKUP (right-aligned, on the beat)' : '',
+          bar.anyOffbeat ? 'has offbeat chords' : '',
           bar.fillsBar ? 'fills bar' : 'DOES NOT FILL',
           bar.gaps.length
             ? `gaps ${bar.gaps.map(g => `[${g.from}-${g.to})`).join(' ')}`
@@ -125,9 +144,19 @@ export async function auditBarTiling(): Promise<void> {
   const allSections = await db.songSections.toArray();
 
   const rows: Array<Record<string, unknown>> = [];
+  const shiftRows: Array<Record<string, unknown>> = [];
   const perSong = new Map<
     string,
-    { problems: number; undoubled: number; bars: number; sections: number }
+    {
+      problems: number;
+      undoubled: number;
+      bars: number;
+      sections: number;
+      pickups: number;
+      offbeatBars: number;
+      odd: number;
+      fixedByShift: number;
+    }
   >();
 
   for (const song of songs) {
@@ -142,12 +171,20 @@ export async function auditBarTiling(): Promise<void> {
         undoubled: 0,
         bars: 0,
         sections: 0,
+        pickups: 0,
+        offbeatBars: 0,
+        odd: 0,
+        fixedByShift: 0,
       };
       agg.sections += 1;
       agg.bars += t.bars.filter(b => !b.isEmpty).length;
+      agg.pickups += t.bars.filter(b => b.looksLikePickup).length;
+      agg.odd += oddDurations(section).length;
+
       for (const bar of t.bars) {
-        if (bar.isEmpty || bar.fillsBar) continue;
+        if (bar.isEmpty || bar.fillsBar || bar.looksLikePickup) continue;
         agg.problems += 1;
+        if (bar.anyOffbeat) agg.offbeatBars += 1;
         const undoubled = looksUndoubled(bar);
         if (undoubled) agg.undoubled += 1;
         rows.push({
@@ -156,13 +193,38 @@ export async function auditBarTiling(): Promise<void> {
           bar: bar.barIndex,
           'slots covered': `${bar.covered}/${bar.slotsPerBar}`,
           chords: bar.spans.length,
+          offbeat: bar.anyOffbeat,
           gaps: bar.gaps.map(g => `[${g.from}-${g.to})`).join(' '),
           overlaps: bar.overlaps.length,
+          'ties past end': bar.overflow,
           'looks undoubled': undoubled,
           'song on eighths': t.songOnEighths,
           'claims unit': t.claimedUnit,
         });
       }
+
+      // Candidate repair, dry run: move every offbeat chord back one
+      // slot and see whether the section then tiles. Tests the fix
+      // instead of arguing for it. Nothing is written.
+      if (t.problemBars.length > 0) {
+        const before = t.problemBars.length;
+        const shifted = shiftPlacementsBySlots(
+          song,
+          section,
+          -1,
+          p => p.offbeat === true,
+        );
+        const after = problemBarCount(song, section, shifted);
+        shiftRows.push({
+          song: song.title,
+          section: t.sectionName,
+          'problem bars before': before,
+          'after shifting offbeats back 1 slot': after,
+          resolves: after === 0 ? 'ALL' : after < before ? 'some' : 'none',
+        });
+        if (after === 0) agg.fixedByShift += 1;
+      }
+
       perSong.set(song.title, agg);
     }
   }
@@ -171,8 +233,11 @@ export async function auditBarTiling(): Promise<void> {
   console.group('[auditBarTiling] DRY RUN — nothing is written');
   console.log(
     'A bar "fails to tile" when its chords leave slots uncovered or ' +
-      'overlap. Empty bars are ignored — an empty bar is a legitimate ' +
-      'rest, not a defect.',
+      'overlap. Empty bars are ignored — an empty bar is a legitimate rest. ' +
+      'PICKUP bars are excluded too: a right-aligned partial bar with every ' +
+      'chord on the beat is an anacrusis, not damage. The on-the-beat clause ' +
+      'is what keeps a damaged bar, which also shows a leading gap, from ' +
+      'being waved through as one.',
   );
   console.log(
     '"looks undoubled" means every chord in the bar would tile it exactly ' +
@@ -187,19 +252,35 @@ export async function auditBarTiling(): Promise<void> {
   } else {
     console.warn(`${rows.length} bar(s) do not tile:`);
     console.table(rows);
-    console.log('Per song:');
+    console.log('Per song (pickups excluded from the problem count):');
     console.table(
       [...perSong.entries()]
         .map(([song, a]) => ({
           song,
           sections: a.sections,
           'non-empty bars': a.bars,
+          pickups: a.pickups,
           'bars not tiling': a.problems,
+          'of those, with offbeats': a.offbeatBars,
           'of those, look undoubled': a.undoubled,
+          'odd durations': a.odd,
         }))
         .filter(r => r['non-empty bars'] > 0)
         .sort((x, y) => y['bars not tiling'] - x['bars not tiling']),
     );
+  }
+
+  if (shiftRows.length > 0) {
+    console.group('Candidate repair, DRY RUN — nothing written');
+    console.log(
+      'Moves every chord carrying `offbeat` back one slot and re-tests the ' +
+        'tiling. If a section resolves to zero problem bars, the damage is a ' +
+        'uniform one-slot parity shift and the repair is determined. If it ' +
+        'only partly resolves, the shift is not uniform and a blanket fix ' +
+        'would be wrong.',
+    );
+    console.table(shiftRows);
+    console.groupEnd();
   }
   console.groupEnd();
   /* eslint-enable no-console */

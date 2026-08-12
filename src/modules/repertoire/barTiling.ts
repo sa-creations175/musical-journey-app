@@ -71,6 +71,12 @@ export interface BarTiling {
   isEmpty: boolean;
   /** Slots of chord that spill past the end of the bar (ties). */
   overflow: number;
+  /** True when any chord in the bar carries `offbeat`. */
+  anyOffbeat: boolean;
+  /** A right-aligned partial bar with everything on the beat — the
+   *  shape of a pickup / anacrusis. Under-covered but not damaged, so
+   *  it is excluded from problem counts. */
+  looksLikePickup: boolean;
 }
 
 export interface SectionTiling {
@@ -204,6 +210,22 @@ export function analyseSectionTiling(
     const covered = cover.filter(n => n > 0).length;
     const isEmpty = spans.length === 0;
     const fillsBar = !isEmpty && covered === perBar && overlaps.length === 0;
+    const anyOffbeat = spans.some(s => s.offbeat);
+
+    // A pickup is right-aligned and ON THE BEAT: one gap, at the very
+    // start, everything after it covered through to the bar's end,
+    // nothing tied over, nothing on an "and". The on-the-beat clause
+    // is what stops a damaged bar — which also shows a leading gap —
+    // from being waved through as a pickup.
+    const looksLikePickup =
+      !isEmpty &&
+      !fillsBar &&
+      overlaps.length === 0 &&
+      overflow === 0 &&
+      !anyOffbeat &&
+      gaps.length === 1 &&
+      gaps[0].from === 0 &&
+      gaps[0].to < perBar;
 
     bars.push({
       barIndex,
@@ -215,8 +237,10 @@ export function analyseSectionTiling(
       fillsBar,
       isEmpty,
       overflow,
+      anyOffbeat,
+      looksLikePickup,
     });
-    if (!isEmpty && !fillsBar) problemBars.push(barIndex);
+    if (!isEmpty && !fillsBar && !looksLikePickup) problemBars.push(barIndex);
   }
 
   const stamp = section.eighthsDurationVersion ?? null;
@@ -249,6 +273,93 @@ export function analyseSectionTiling(
  * similar, which is why the caller is told to compare against a bar
  * known to render correctly rather than trusting this alone.
  */
+/**
+ * Every placement carrying an ODD duration, in slots.
+ *
+ * An odd duration is not itself wrong — a genuine eighth-length chord
+ * is exactly that, and `halveChordDurations` refusing to round-trip
+ * one is deliberate. It matters because of what it does to the
+ * CASCADE: `cascadeChordPlacements` advances its cursor by each
+ * chord's duration, so one odd value flips the parity of the cursor
+ * and every chord it subsequently pushes lands on an odd slot — which
+ * is to say, on an "and". One odd duration can therefore convert an
+ * unbroken run of downstream chords to offbeats.
+ *
+ * Reported so the seed of a contiguous offbeat run can be located
+ * rather than guessed at: it sits at, or immediately before, the first
+ * bar of the run.
+ */
+export function oddDurations(
+  section: SongSection,
+): Array<{ placementId: string; label: string; barIndex: number; beats: number }> {
+  if (section.chordPlacements === undefined) return [];
+  const arrangementId = activeArrangementIdFor(section);
+  return section.chordPlacements
+    .filter(p => p.arrangementId === arrangementId && p.beats % 2 !== 0)
+    .map(p => ({
+      placementId: p.id,
+      label: chordLabel(p),
+      barIndex: p.barIndex,
+      beats: p.beats,
+    }));
+}
+
+/**
+ * Apply a whole-slot shift to selected placements and return a NEW
+ * array. Pure — nothing is written, and the caller can feed the result
+ * straight back into `analyseSectionTiling` to see whether a candidate
+ * repair would actually tile.
+ *
+ * This exists so a repair can be TESTED rather than argued for. The
+ * damage under investigation is a uniform parity shift, and the claim
+ * "moving these back one slot fixes it" is checkable against every
+ * affected bar before a single byte is written.
+ */
+export function shiftPlacementsBySlots(
+  song: Pick<Song, 'timeSignature' | 'eighths'>,
+  section: SongSection,
+  deltaSlots: number,
+  select: (p: ChordPlacement) => boolean,
+): ChordPlacement[] {
+  const placements = section.chordPlacements ?? [];
+  const { beatsPerBar } = parseTimeSignature(
+    effectiveTimeSignature(song as Song, section),
+  );
+  const perBar = slotsPerBar(beatsPerBar, song.eighths === true);
+  const eighths = song.eighths === true;
+
+  return placements.map(p => {
+    if (!select(p)) return p;
+    const absolute =
+      p.barIndex * perBar + placementSlot(p, eighths) + deltaSlots;
+    if (absolute < 0) return p;
+    const newBar = Math.floor(absolute / perBar);
+    const slot = absolute - newBar * perBar;
+    const next: ChordPlacement = { ...p, barIndex: newBar, beatPos: 0 };
+    if (eighths) {
+      next.beatPos = Math.floor(slot / 2);
+      if (slot % 2 === 1) next.offbeat = true;
+      else delete next.offbeat;
+    } else {
+      next.beatPos = slot;
+      delete next.offbeat;
+    }
+    return next;
+  });
+}
+
+/** Problem-bar count for a section, after optionally substituting a
+ *  candidate set of placements. Convenience for before/after dry runs. */
+export function problemBarCount(
+  song: Pick<Song, 'timeSignature' | 'eighths'>,
+  section: SongSection,
+  placements?: ChordPlacement[],
+): number {
+  const target =
+    placements === undefined ? section : { ...section, chordPlacements: placements };
+  return analyseSectionTiling(song, target)?.problemBars.length ?? 0;
+}
+
 export function looksUndoubled(bar: BarTiling): boolean {
   if (bar.isEmpty || bar.fillsBar) return false;
   if (bar.overlaps.length > 0) return false;
