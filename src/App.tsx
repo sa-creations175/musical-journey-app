@@ -1,4 +1,5 @@
 // Future feature ideas live in /ROADMAP.md at the project root.
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './modules/dashboard/Dashboard';
@@ -21,6 +22,11 @@ import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
 import SkillsCatalogue from './modules/skills/SkillsCatalogue';
 import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
+
+// LAZY — the app's first code-split route. VexFlow plus one music font
+// is ~1 MB and Reading is dev-only, so it must not ride in the initial
+// bundle. See ReadingStaff.tsx for why the bravura subpath is used.
+const ReadingPreview = lazy(() => import('./modules/reading/ReadingPreview'));
 import Goals from './modules/goals/Goals';
 import PracticeSessions from './modules/practice/PracticeSessions';
 import ActiveSessionScreen from './modules/practice/ActiveSessionScreen';
@@ -65,6 +71,21 @@ export default function App() {
             <Route path="session-log" element={<SessionLog />} />
             <Route path="skills-catalogue" element={<SkillsCatalogue />} />
             <Route path="harmonic-diary" element={<HarmonicDiary />} />
+            {/* DEV ONLY. `import.meta.env.DEV` is a compile-time
+                constant, so this whole subtree — including the lazy
+                chunk's import site — is dropped from a production
+                build rather than merely being unreachable. Reading
+                has no user-facing surface until its drills land. */}
+            {import.meta.env.DEV && (
+              <Route
+                path="reading/preview"
+                element={
+                  <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
+                    <ReadingPreview />
+                  </Suspense>
+                }
+              />
+            )}
           </Route>
         </Routes>
       </BrowserRouter>
