@@ -68,13 +68,32 @@ export interface ScopeMaintenanceRecord {
   status: ScopeMaintenanceStatus;
   /** When the user confirmed. Null unless status is 'confirmed'. */
   confirmedAt: number | null;
-  /** When the suggestion was last dismissed. Null if never. Retained
-   *  after a later confirm so the history stays readable. */
+  /** When the ENTRY suggestion was last dismissed. Null if never.
+   *  Retained after a later confirm so the history stays readable. */
   dismissedAt: number | null;
   /** Total dismissals, for the same reason `PromptRecord` keeps one:
    *  a suggestion refused many times is a signal about the
    *  suggestion, not the user. Not consumed yet. */
   dismissalCount: number;
+  /**
+   * When the RELEASE suggestion was last dismissed. Tracked
+   * separately from the entry dismissal rather than sharing one
+   * field.
+   *
+   * The two suggestions are mutually exclusive at any instant — entry
+   * only asks while unconfirmed, release only while confirmed — so
+   * one field would MOSTLY work. It would break at the handover:
+   * dismiss the entry suggestion, confirm from the goal flow a day
+   * later, then slip. The release suggestion would arrive already
+   * six days into a quiet window it never earned. Separate fields
+   * cost one key and remove the whole class of bug.
+   *
+   * Optional so records written before release suggestions existed
+   * still read cleanly — `recordForScope` fills the default.
+   */
+  releaseDismissedAt?: number | null;
+  /** Total release dismissals. Same rationale as `dismissalCount`. */
+  releaseDismissalCount?: number;
 }
 
 export type ScopeMaintenanceMap = Readonly<
@@ -86,6 +105,8 @@ const EMPTY_RECORD: ScopeMaintenanceRecord = {
   confirmedAt: null,
   dismissedAt: null,
   dismissalCount: 0,
+  releaseDismissedAt: null,
+  releaseDismissalCount: 0,
 };
 
 // ---------------------------------------------------------------------
@@ -98,7 +119,16 @@ export function recordForScope(
   map: ScopeMaintenanceMap,
   scopeKey: string,
 ): ScopeMaintenanceRecord {
-  return map[scopeKey] ?? EMPTY_RECORD;
+  const stored = map[scopeKey];
+  if (!stored) return EMPTY_RECORD;
+  // Fill fields added after the first records were written, so a
+  // pre-existing pref row reads as "never dismissed a release"
+  // rather than undefined.
+  return {
+    releaseDismissedAt: null,
+    releaseDismissalCount: 0,
+    ...stored,
+  };
 }
 
 /** Is a dismissal still inside its quiet window? */
@@ -132,16 +162,47 @@ export function shouldSuggestMaintenance(
   return !isDismissalQuiet(record, now);
 }
 
-/** Is this scope currently in maintenance? A confirmed scope stays
- *  confirmed until explicitly released — losing the state because a
- *  bad week dropped accuracy below the bar would silently restore a
- *  full allocation the user did not ask for. Re-evaluating a
- *  confirmed scope is a later decision, not an implicit one. */
+/** Is this scope currently in maintenance? A confirmed scope NEVER
+ *  auto-exits — losing the state because a bad week dropped accuracy
+ *  would silently restore a full allocation the user did not ask for.
+ *  When accuracy slips the app SUGGESTS release and the user
+ *  confirms, the same shape as entry. See
+ *  `shouldSuggestRelease`. */
 export function isScopeInMaintenance(
   map: ScopeMaintenanceMap,
   scopeKey: string,
 ): boolean {
   return recordForScope(map, scopeKey).status === 'confirmed';
+}
+
+/** Is a release dismissal still inside its quiet window? */
+export function isReleaseDismissalQuiet(
+  record: ScopeMaintenanceRecord,
+  now: number,
+): boolean {
+  const at = record.releaseDismissedAt ?? null;
+  if (at === null) return false;
+  return now - at < MAINTENANCE_DISMISSAL_QUIET_MS;
+}
+
+/**
+ * Should a surface suggest RELEASING this scope from maintenance?
+ *
+ * The mirror of `shouldSuggestMaintenance`, and deliberately the same
+ * shape: only for a confirmed scope, only when it has actually
+ * slipped, and quiet for 7 days after a dismissal. Like entry, the
+ * live verdict is an argument rather than stored state — a scope that
+ * recovers above the bar stops being offered release with no
+ * bookkeeping and no stale suggestion to clear.
+ */
+export function shouldSuggestRelease(
+  record: ScopeMaintenanceRecord,
+  hasSlipped: boolean,
+  now: number,
+): boolean {
+  if (!hasSlipped) return false;
+  if (record.status !== 'confirmed') return false;
+  return !isReleaseDismissalQuiet(record, now);
 }
 
 // ---------------------------------------------------------------------
@@ -176,6 +237,22 @@ export function withDismissal(
   };
 }
 
+export function withReleaseDismissal(
+  map: ScopeMaintenanceMap,
+  scopeKey: string,
+  now: number,
+): ScopeMaintenanceMap {
+  const prev = recordForScope(map, scopeKey);
+  return {
+    ...map,
+    [scopeKey]: {
+      ...prev,
+      releaseDismissedAt: now,
+      releaseDismissalCount: (prev.releaseDismissalCount ?? 0) + 1,
+    },
+  };
+}
+
 /** Take a scope back out of maintenance. Returns the map unchanged
  *  when the scope was never in it. */
 export function withRelease(
@@ -184,7 +261,20 @@ export function withRelease(
 ): ScopeMaintenanceMap {
   const prev = map[scopeKey];
   if (!prev || prev.status !== 'confirmed') return map;
-  return { ...map, [scopeKey]: { ...prev, status: 'none', confirmedAt: null } };
+  return {
+    ...map,
+    [scopeKey]: {
+      ...prev,
+      status: 'none',
+      confirmedAt: null,
+      // Clear the release-quiet window on the way out. It exists to
+      // stop the app re-asking about a scope the user is keeping;
+      // once released there is nothing left to ask, and carrying it
+      // forward would silence the FIRST release suggestion of a
+      // future maintenance run for reasons belonging to this one.
+      releaseDismissedAt: null,
+    },
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -224,7 +314,17 @@ export function dismissScopeMaintenanceSuggestion(
   return mutate(map => withDismissal(map, scopeKey, now));
 }
 
-/** User took the scope back out of maintenance. */
+/** User dismissed the RELEASE suggestion — keep the scope in
+ *  maintenance and stay quiet about it for 7 days. */
+export function dismissScopeMaintenanceReleaseSuggestion(
+  scopeKey: string,
+  now: number = Date.now(),
+): Promise<ScopeMaintenanceMap> {
+  return mutate(map => withReleaseDismissal(map, scopeKey, now));
+}
+
+/** User took the scope back out of maintenance — either by confirming
+ *  a release suggestion or deliberately. */
 export function releaseScopeMaintenance(
   scopeKey: string,
 ): Promise<ScopeMaintenanceMap> {

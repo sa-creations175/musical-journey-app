@@ -167,6 +167,54 @@ export const MIN_MAINTENANCE_SECONDS = 5 * SECONDS_PER_MINUTE;
  *  in keys sessions (or stands alone in laptop/phone sessions). */
 export const CHORD_QUIZ_SECONDS = 3 * SECONDS_PER_MINUTE;
 
+// ─── Scope-level maintenance ──────────────────────────────────────────────
+
+/**
+ * Fraction of a module's typical-high allotted to a scope the user
+ * has confirmed into SCOPE-LEVEL MAINTENANCE. Sits alongside the
+ * over-practice fractions (0.50 weekly / 0.25 monthly) in
+ * `moduleTotalSliceSeconds`, and like them is a FLOOR that the SR
+ * due-demand can lift, capped at typical-high.
+ *
+ * WHY 0.30 rather than reusing either existing value. Only
+ * declarative modules can reach maintenance (see scopeMaintenance.ts),
+ * and their typical-high is 10 min, so:
+ *
+ *   0.50 → 5 min.  That is the WEEKLY over-practice share, and it is
+ *          for a scope still being learned that happens to have hit
+ *          this week's count — a transient state that clears when the
+ *          week rolls over. A settled scope recurring at that size in
+ *          every session forever is too much.
+ *   0.25 → 2.5 min. The MONTHLY share, and below the 3-min
+ *          declarative `minSeconds` — a floor that exists precisely
+ *          because a shorter block is not worth the context switch.
+ *          Repertoire reached the same conclusion independently with
+ *          MIN_MAINTENANCE_SECONDS (5 min).
+ *   0.30 → 3 min exactly: the smallest allocation this design already
+ *          considers worth having.
+ *
+ * The fraction only decides quiet days. When a lot comes due the
+ * spacing floor lifts the slice toward the 10-min cap, which is the
+ * behaviour that actually matters — and on a day when NOTHING in the
+ * scope is due, the maintenance spec yields no candidates, so no
+ * block is built and no time is spent. That falls out of the existing
+ * machinery rather than needing a rule.
+ */
+export const SCOPE_MAINTENANCE_FRACTION = 0.30;
+
+/* A maintenance slice is FLOORED at its memory-type minimum rather
+ * than emitted undersized — the same call Repertoire makes with
+ * MIN_MAINTENANCE_SECONDS. Implemented in `moduleTotalSliceSeconds`
+ * against `tier.minSeconds` rather than as a constant here, because
+ * the right floor is per-memory-type and that tier is already the
+ * canonical statement of it. Inert for declarative modules at the
+ * 0.30 fraction (3 min is exactly the floor); it earns its keep if
+ * the fraction, the tier, or the eligible memory types change.
+ *
+ * The DROP half of "floor or drop" needs no rule: a maintenance scope
+ * with nothing due produces no candidates, so no block exists to
+ * allocate to. */
+
 /** Per-key scale-prep block duration in seconds — two scale types
  *  × ~45 s each. Lives between chord-quiz and the song block in
  *  the proposal. */

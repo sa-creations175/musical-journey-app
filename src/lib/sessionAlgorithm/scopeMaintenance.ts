@@ -99,6 +99,19 @@ export const MAINTENANCE_MIN_ATTEMPTS = 20;
  *  the session count. */
 export const MAINTENANCE_MIN_DISTINCT_DAYS = 4;
 
+/**
+ * Accuracy below which a CONFIRMED scope is suggested for release,
+ * over the same 20-attempt window.
+ *
+ * THE GAP BETWEEN 0.90 AND 0.85 IS THE WHOLE POINT. A single shared
+ * threshold would put a scope hovering at the bar into alternating
+ * enter/release suggestions week after week — each one individually
+ * correct, and collectively noise. Five points is about one miss in
+ * twenty: wide enough that an off rep changes nothing, narrow enough
+ * to catch real drift.
+ */
+export const MAINTENANCE_RELEASE_THRESHOLD = 0.85;
+
 // ---------------------------------------------------------------------
 // Per-item bar
 // ---------------------------------------------------------------------
@@ -149,6 +162,41 @@ export function itemMeetsMaintenanceBar(
 
   const correct = attempts.filter(a => a.correct).length;
   return correct / attempts.length >= MAINTENANCE_ACCURACY_THRESHOLD;
+}
+
+/**
+ * Windowed accuracy for one item, or null when the buffer is not yet
+ * full. Null is NOT a failure — it means "no verdict available",
+ * which entry and release read in opposite directions: entry treats
+ * an unjudgeable item as not-yet-qualifying, release treats it as no
+ * evidence of slipping.
+ */
+export function windowedAccuracy(
+  history: ReadonlyArray<PerformanceEntry>,
+): number | null {
+  const attempts = history
+    .filter((e): e is Extract<PerformanceEntry, { kind: 'attempt' }> =>
+      e.kind === 'attempt')
+    .slice(-MAINTENANCE_ACCURACY_WINDOW);
+  if (attempts.length < MAINTENANCE_MIN_ATTEMPTS) return null;
+  return attempts.filter(a => a.correct).length / attempts.length;
+}
+
+/**
+ * Has this item slipped far enough to warrant suggesting release?
+ *
+ * NO DAY-SPREAD REQUIREMENT here, deliberately. Spread is an ENTRY
+ * requirement — it is how the app satisfies itself that the learning
+ * is durable rather than crammed. Slipping accuracy is slipping
+ * accuracy however it is distributed, and demanding spread before
+ * acknowledging a decline would just delay the suggestion.
+ */
+export function itemBelowReleaseBar(
+  history: ReadonlyArray<PerformanceEntry>,
+): boolean {
+  const accuracy = windowedAccuracy(history);
+  if (accuracy === null) return false;
+  return accuracy < MAINTENANCE_RELEASE_THRESHOLD;
 }
 
 // ---------------------------------------------------------------------
@@ -271,4 +319,36 @@ export function scopeQualifiesForMaintenance(
   }
 
   return { qualifies: true, reason: null, catalogTotal, acquiredCount };
+}
+
+/**
+ * Has a CONFIRMED scope slipped far enough to suggest releasing it?
+ *
+ * Symmetric with entry, one threshold lower. Entry needs EVERY item
+ * at or above 0.90; release fires when ANY item has fallen below
+ * 0.85. Reading the same measure in both directions is what makes
+ * the 5-point gap function as hysteresis — a scope that dips to 0.88
+ * neither re-qualifies for entry nor triggers a release, which is
+ * exactly the dead band the gap is for.
+ *
+ * (The alternative reading — scope-AGGREGATE accuracy below 0.85 —
+ * would let one badly-rotted item hide inside a large scope's
+ * average. Per-item matches how entry is measured, so the two ends
+ * of the state describe the same thing.)
+ *
+ * Items without a full window are skipped, not counted against the
+ * scope: no verdict is not a bad verdict.
+ */
+export function scopeShouldSuggestRelease(
+  rows: ReadonlyArray<MaintenanceItemRow>,
+  itemInScope: (itemRef: string) => boolean,
+  moduleRefs: readonly string[],
+): boolean {
+  const moduleSet = new Set(moduleRefs);
+  for (const row of rows) {
+    if (!moduleSet.has(row.moduleRef)) continue;
+    if (!itemInScope(row.itemRef)) continue;
+    if (itemBelowReleaseBar(row.performanceHistory)) return true;
+  }
+  return false;
 }

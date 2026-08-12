@@ -16,7 +16,7 @@
  *
  * 6b ships the top zone only; subsequent substeps fill in.
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   useSessionTimer,
@@ -30,6 +30,10 @@ import type {
   SessionBlock,
 } from '../../lib/sessionTimer/types';
 import { BLOCK_RATING_FEEL_OPTIONS } from '../../lib/sessionTimer/blockRatingOptions';
+import {
+  ScopeMaintenanceNotices,
+  useScopeMaintenanceViews,
+} from '../goals/ScopeMaintenanceNotice';
 import { runEndOfSessionPipeline } from './endOfSessionPersistence';
 
 const SESSION_RATING_OPTIONS: ReadonlyArray<{
@@ -80,6 +84,20 @@ export default function EndOfSessionSummary() {
     Record<string, PerformanceRating>
   >({});
 
+  const { views: maintenanceViews, refresh: refreshMaintenance } =
+    useScopeMaintenanceViews();
+  // Only scopes this session actually TOUCHED. The suggestion belongs
+  // where the practice just happened — surfacing every eligible scope
+  // here would turn a session summary into a settings screen.
+  const touchedScopeKeys = useMemo(() => {
+    const refs = new Set(state.blocks.map(b => b.moduleRef));
+    return new Set(
+      maintenanceViews
+        .filter(v => v.moduleRefs.some(r => refs.has(r)))
+        .map(v => v.scopeKey),
+    );
+  }, [state.blocks, maintenanceViews]);
+
   const totalActiveSec = Math.floor(times.activeMs / 1000);
   const completedBlocks = state.blocks.filter(
     b => b.status === 'completed' || b.status === 'skipped',
@@ -125,6 +143,12 @@ export default function EndOfSessionSummary() {
           })}
         </div>
       </section>
+
+      <ScopeMaintenanceNotices
+        views={maintenanceViews}
+        onChanged={refreshMaintenance}
+        filterScopeKeys={touchedScopeKeys}
+      />
 
       <BlockList blocks={state.blocks} />
 

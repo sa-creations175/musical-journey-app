@@ -35,8 +35,16 @@ import {
 } from '../../lib/sessionAlgorithm/abundance';
 import {
   candidateSpecForGoal,
+  maintenanceSpecFrom,
   resolveCandidates,
 } from '../../lib/sessionAlgorithm/candidates';
+import { scopeKeyForGoal } from '../../lib/sessionAlgorithm/scopeCatalog';
+import {
+  loadScopeMaintenanceViews,
+  maintenanceScopeKeysFrom,
+  type ScopeMaintenanceView,
+} from '../../lib/sessionAlgorithm/scopeMaintenanceResolve';
+import { nextLocalMidnight } from '../../lib/dailyGoal';
 import {
   contextFactorForModule,
   isModuleAllowedForContext,
@@ -80,6 +88,7 @@ import {
   PRODUCTION_VOCAB_FRACTION,
   PRODUCTION_VOCAB_MAX_SECONDS,
   PRODUCTION_VOCAB_MIN_SECONDS,
+  SCOPE_MAINTENANCE_FRACTION,
 } from '../../lib/sessionAlgorithm/sessionDesign';
 import {
   weightForItem,
@@ -306,6 +315,13 @@ export async function buildSessionProposals(
   const factorByModule = neutralizePhaseBPaceFactors(intentFactor, phaseBModules);
   const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
 
+  // Scope-level maintenance: confirmed scopes select acquired-and-due
+  // items instead of not-yet-acquired ones, and their modules take a
+  // reduced slice. Loaded once and used by both stages.
+  const maintenanceViews = await loadScopeMaintenanceViews(now);
+  const maintenanceScopeKeys = maintenanceScopeKeysFrom(maintenanceViews);
+  const maintenanceModules = maintenanceModulesFrom(maintenanceViews);
+
   const moduleBlocks = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
@@ -315,6 +331,7 @@ export async function buildSessionProposals(
     undefined,
     etEligibleByModule,
     carryoverBacklog,
+    maintenanceScopeKeys,
   );
 
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
@@ -348,7 +365,7 @@ export async function buildSessionProposals(
   // slices can expand to cover the algo's actual due-today demand.
   const { blockTimeNeeds, paceByBlock } =
     buildBlockBudgetsFromWeeklyNeeds(
-      withColdStart, moduleWeeklyNeeds, spacingRows, now,
+      withColdStart, moduleWeeklyNeeds, spacingRows, now, maintenanceModules,
     );
   const cards = generateAndShape(
     withColdStart,
@@ -482,6 +499,10 @@ export async function buildSessionPlan(
   });
   const factorByModule = neutralizePhaseBPaceFactors(intentFactor, phaseBModules);
   const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
+  const maintenanceViews = await loadScopeMaintenanceViews(now);
+  const maintenanceScopeKeys = maintenanceScopeKeysFrom(maintenanceViews);
+  const maintenanceModules = maintenanceModulesFrom(maintenanceViews);
+
   const aggregated = aggregateGoalCandidatesByModule(
     goals,
     spacingRows,
@@ -491,6 +512,7 @@ export async function buildSessionPlan(
     options.forceIncludeModules,
     etEligibleByModule,
     carryoverBacklog,
+    maintenanceScopeKeys,
   );
   const repertoireSplit = await loadRepertoireSplitContext(inputs.context, now);
   // Inject a Repertoire cold-start block before abundance detection so
@@ -597,7 +619,7 @@ export async function buildSessionPlan(
   // through so over-practice slices can expand to cover algo demand.
   const { blockTimeNeeds, paceByBlock } =
     buildBlockBudgetsFromWeeklyNeeds(
-      moduleBlocks, moduleWeeklyNeeds, spacingRows, now,
+      moduleBlocks, moduleWeeklyNeeds, spacingRows, now, maintenanceModules,
     );
   const cards = generateAndShape(
     moduleBlocks,
@@ -749,6 +771,12 @@ export function buildBlockBudgetsFromWeeklyNeeds(
    */
   spacingRows: ReadonlyArray<SpacingState> = [],
   asOf: number = Date.now(),
+  /** Step 3 — modules whose every contributing coverage scope the user
+   *  has confirmed into scope-level maintenance. Those modules take
+   *  SCOPE_MAINTENANCE_FRACTION of their tier instead of a full
+   *  budget. Empty by default, which preserves every existing
+   *  caller's behaviour exactly. */
+  maintenanceModules: ReadonlySet<GoalFlowModuleId> = new Set(),
 ): {
   blockTimeNeeds: Map<string, number>;
   paceByBlock: Map<string, WeeklyPace>;
@@ -769,7 +797,12 @@ export function buildBlockBudgetsFromWeeklyNeeds(
     // saved time can flow to behind-pace modules via Step 6 overflow.
     const hasBudget = need.estimatedMinutesNeeded > 0;
     const isOverPractice = need.overPractice !== 'none';
-    if (!hasBudget && !isOverPractice) continue;
+    // A maintenance module keeps its blocks even with no Phase B
+    // budget: "nothing left to cover" is exactly why it has none, and
+    // dropping it here is the silence this whole feature exists to
+    // fix.
+    const isMaintenance = maintenanceModules.has(moduleId);
+    if (!hasBudget && !isOverPractice && !isMaintenance) continue;
     const arr = blocksByModule.get(moduleId) ?? [];
     arr.push(b);
     blocksByModule.set(moduleId, arr);
@@ -783,6 +816,7 @@ export function buildBlockBudgetsFromWeeklyNeeds(
     if (!need) continue;
     const totalSeconds = moduleTotalSliceSeconds(
       need, moduleBlocks, spacingRows, asOf,
+      maintenanceModules.has(moduleId),
     );
     if (totalSeconds <= 0) continue;
     phaseBModules.add(moduleId);
@@ -832,20 +866,47 @@ function moduleTotalSliceSeconds(
   moduleBlocks: ReadonlyArray<AlgorithmBlock>,
   spacingRows: ReadonlyArray<SpacingState>,
   asOf: number,
+  /** Step 3 — the user has confirmed every contributing scope of this
+   *  module into scope-level maintenance. Takes precedence over the
+   *  over-practice fractions: over-practice says "enough for THIS
+   *  week", maintenance says "learned, keep it warm", and the second
+   *  is the more settled claim. */
+  isMaintenance = false,
 ): number {
-  if (need.overPractice === 'none') {
+  if (need.overPractice === 'none' && !isMaintenance) {
     return need.estimatedMinutesNeeded * 60;
   }
   const firstBlock = moduleBlocks[0];
   if (!firstBlock) return 0;
   const tier = durationTierFor(firstBlock.memoryType, firstBlock.moduleRef);
-  const fraction = need.overPractice === 'monthly' ? 0.25 : 0.50;
+  const fraction = isMaintenance
+    ? SCOPE_MAINTENANCE_FRACTION
+    : need.overPractice === 'monthly' ? 0.25 : 0.50;
   const target = tier.typicalHighSeconds * fraction;
   const spacingFloorSeconds = computeAlgoSpacingDemandSeconds(
     need.moduleId, spacingRows, asOf,
   );
   const cap = tier.typicalHighSeconds;
-  return Math.min(Math.max(target, spacingFloorSeconds), cap);
+  const slice = Math.min(Math.max(target, spacingFloorSeconds), cap);
+
+  // FLOOR, maintenance only — clamp UP to the memory-type minimum
+  // rather than emitting a block too short to settle into. Same call
+  // Repertoire makes with MIN_MAINTENANCE_SECONDS.
+  //
+  // Note this floors rather than drops, and the difference matters:
+  // returning 0 here would remove the module from `blockTimeNeeds`,
+  // and a module absent from that map falls back to the FULL
+  // memory-type tier — it would hand a maintenance scope MORE time
+  // than the fraction, not less.
+  //
+  // The genuine drop case needs no rule at this layer. A maintenance
+  // scope with nothing due yields no candidates from the maintenance
+  // spec, so no block is built and the module never reaches
+  // allocation at all. Quiet days cost nothing on their own.
+  if (isMaintenance && slice < tier.minSeconds) {
+    return tier.minSeconds;
+  }
+  return slice;
 }
 
 /**
@@ -1287,6 +1348,55 @@ const ET_MODULE_REFS_SET: ReadonlySet<string> = new Set(ET_MODULE_REFS);
  * don't recognise (e.g. mental-viz, future modules) so the caller
  * skips applying a weekly factor rather than crashing.
  */
+/**
+ * Modules whose EVERY contributing coverage scope is in maintenance.
+ *
+ * The allocation slice is per-MODULE while maintenance is per-SCOPE,
+ * and a module can carry several scopes (HF overall alongside HF
+ * foundational, say). Reducing the module's time because ONE of its
+ * scopes is settled would quietly starve the others, so the fraction
+ * applies only when the module has nothing else going on. A module
+ * with one maintenance scope and one active scope keeps its full
+ * budget — correctly, since it still has work to do.
+ *
+ * Lives here rather than beside the resolver because the spacingRef →
+ * GoalFlowModuleId mapping does, and importing it the other way would
+ * make sessionGenerator and the resolver mutually dependent.
+ */
+export function maintenanceModulesFrom(
+  views: ReadonlyArray<ScopeMaintenanceView>,
+): Set<GoalFlowModuleId> {
+  const total = new Map<GoalFlowModuleId, number>();
+  const inMaint = new Map<GoalFlowModuleId, number>();
+
+  for (const view of views) {
+    const modules = new Set<GoalFlowModuleId>();
+    for (const ref of view.moduleRefs) {
+      const id = goalFlowModuleForSpacingModuleRef(ref);
+      if (id) modules.add(id);
+    }
+    for (const id of modules) {
+      total.set(id, (total.get(id) ?? 0) + 1);
+      if (view.inMaintenance) inMaint.set(id, (inMaint.get(id) ?? 0) + 1);
+    }
+  }
+
+  const out = new Set<GoalFlowModuleId>();
+  for (const [id, n] of total) {
+    if (n > 0 && inMaint.get(id) === n) out.add(id);
+  }
+  return out;
+}
+
+/** Last millisecond of `now`'s local day — the `dueBefore` bound for
+ *  maintenance selection. `nextLocalMidnight` is the FIRST instant of
+ *  tomorrow and the resolver's test is inclusive (`nextDueAt <=
+ *  dueBefore`), so passing it straight through would count an item
+ *  due at exactly 00:00:00.000 tomorrow as due today. */
+function endOfLocalDay(now: number): number {
+  return nextLocalMidnight(new Date(now)) - 1;
+}
+
 export function goalFlowModuleForSpacingModuleRef(
   moduleRef: string,
 ): GoalFlowModuleId | null {
@@ -1480,6 +1590,17 @@ export function aggregateGoalCandidatesByModule(
    *  when they have no active-goal contribution. Undefined / empty
    *  preserves pre-9b behaviour. */
   carryoverBacklogItemRefs?: ReadonlySet<string>,
+  /** Step 3 — scope keys the user has CONFIRMED into scope-level
+   *  maintenance. A goal whose scope is in this set resolves through
+   *  the maintenance spec (acquired AND due) instead of the coverage
+   *  spec (not-yet-acquired), which is the only way a fully-learned
+   *  scope produces candidates at all.
+   *
+   *  Gated on the CONFIRMED state, never on saturation — a scope that
+   *  merely qualifies has not been agreed to, and flipping it here
+   *  would make the state happen on its own. Empty by default, so
+   *  every existing caller keeps coverage behaviour exactly. */
+  maintenanceScopeKeys: ReadonlySet<string> = new Set(),
 ): AlgorithmBlock[] {
   // Build the inverse of goalFlowModuleForSpacingModuleRef: which
   // spacingState moduleRefs are protected from the hard filter for
@@ -1527,7 +1648,17 @@ export function aggregateGoalCandidatesByModule(
     // a null contextTag always pass.
     if (!isGoalCompatibleWithContext(goal, context)) continue;
 
-    const spec = candidateSpecForGoal(goal);
+    const baseSpec = candidateSpecForGoal(goal);
+    // Scope-level maintenance swaps the spec, not the scope: the
+    // maintenance twin keeps the same moduleRefs, itemRefFilter and
+    // relatedItems, and only inverts which stages it wants. `dueBefore`
+    // is END OF TODAY so a session sweeps up everything due today
+    // rather than leaving stragglers for tomorrow.
+    const scopeKey = scopeKeyForGoal(goal);
+    const spec =
+      scopeKey !== null && maintenanceScopeKeys.has(scopeKey)
+        ? maintenanceSpecFrom(baseSpec, endOfLocalDay(now)) ?? baseSpec
+        : baseSpec;
     if (spec.kind === 'umbrella' || spec.kind === 'unsupported') continue;
 
     const candidateModuleRefs =

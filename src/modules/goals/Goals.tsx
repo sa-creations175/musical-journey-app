@@ -10,6 +10,7 @@ import GoalFormModal from './GoalFormModal';
 import GoalCreationFlow from './GoalCreationFlow';
 import GoalSuggestionFlow from './GoalSuggestionFlow';
 import WeeklyPlan from './WeeklyPlan';
+import { ScopeMaintenanceNoticeForGoal } from './ScopeMaintenanceNotice';
 import WeeklyPlanBanner from './WeeklyPlanBanner';
 import PlanMonthBanner from './PlanMonthBanner';
 import NextMonthGoalBanner from './NextMonthGoalBanner';
@@ -1894,6 +1895,10 @@ function GoalRow({
 
       {expanded && !select.active && (
         <div className="pl-2 pr-2 pb-3 -mx-2 space-y-3">
+          {/* Scope-level maintenance, at the point of relevance: the
+              user is reviewing this goal, which is when a question
+              about how much time its scope should get belongs. */}
+          <ScopeMaintenanceNoticeForGoal goalId={goal.id} />
           {/* Activity chart slot — populated with mock data in
               step 6b. Step 6c swaps the mock generator for the
               live getDailyActivity helper without disturbing the

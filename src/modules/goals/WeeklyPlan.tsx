@@ -39,6 +39,10 @@ import {
   WEEKLY_AVAILABLE_DAYS_MAX,
   WEEKLY_AVAILABLE_DAYS_MIN,
 } from './weeklyPlanData';
+import {
+  ScopeMaintenanceNotices,
+  useScopeMaintenanceViews,
+} from './ScopeMaintenanceNotice';
 
 /**
  * Phase 4 Step 3 — WeeklyPlan modal.
@@ -501,6 +505,8 @@ function sumTimeEstimates(estimates: TimeEstimate[]): TimeEstimate {
 // ---------------------------------------------------------------------
 
 export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, inline = false }: Props) {
+  const { views: maintenanceViews, refresh: refreshMaintenance } =
+    useScopeMaintenanceViews();
   const weekStart = useMemo(
     () => weekStartProp ?? startOfWeekLocal(Date.now()),
     [weekStartProp],
@@ -1314,6 +1320,17 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
               timeframe Weekly section — the user lands on the
               section to act, not to relive last week. */}
           <section className="space-y-3">
+            {/* Scope-level maintenance sits at the TOP of the plan,
+                above the per-module rows, because it changes how big
+                a module's slot is — it is a statement about the plan
+                rather than a row inside it. Reads the same resolver
+                and writes the same record as the goal-flow and
+                post-session surfaces, so a dismissal here quiets all
+                three. */}
+            <ScopeMaintenanceNotices
+              views={maintenanceViews}
+              onChanged={refreshMaintenance}
+            />
             {/* No inner "THIS WEEK · date · what's the plan?" label —
                 the THIS WEEK section header (with the week's date
                 range) already carries that context, so the plan table

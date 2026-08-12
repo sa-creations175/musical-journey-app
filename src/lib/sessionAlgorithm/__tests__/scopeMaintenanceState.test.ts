@@ -25,6 +25,9 @@ describe('recordForScope', () => {
   it('returns a neutral record for an unknown scope', () => {
     expect(recordForScope(EMPTY, KEY)).toEqual({
       status: 'none', confirmedAt: null, dismissedAt: null, dismissalCount: 0,
+      // Release-suggestion tracking, added with the symmetric
+      // suggest-and-confirm release path.
+      releaseDismissedAt: null, releaseDismissalCount: 0,
     });
   });
 });
