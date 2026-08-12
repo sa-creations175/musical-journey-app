@@ -50,6 +50,11 @@ import {
   effectiveTimeSignature,
   parseTimeSignature,
 } from './barGrid';
+import {
+  beatNoteName,
+  formatDurationBeats,
+  slotsFromDurationInput,
+} from './chordDuration';
 import { distributedWordPositions } from './lyricLine';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import ChordGlyph from './chordGlyph';
@@ -385,7 +390,7 @@ export default function BarGridView({
   const eighths = song.eighths === true;
   const [notationMode] = useNotationMode();
   const timeSignature = effectiveTimeSignature(song, section);
-  const { beatsPerBar } = parseTimeSignature(timeSignature);
+  const { beatsPerBar, beatUnit } = parseTimeSignature(timeSignature);
 
   const bars = useMemo(
     () => deriveBarGrid(section, activeArrangementId, beatsPerBar, eighths),
@@ -648,6 +653,7 @@ export default function BarGridView({
                   bar={bar}
                   eighths={eighths}
                   barSlots={barSlots}
+                  durationUnit={beatNoteName(beatUnit)}
                   sectionKey={song.key}
                   notationMode={notationMode}
                   editing={editing}
@@ -1225,6 +1231,7 @@ function BarBox({
   bar,
   eighths,
   barSlots,
+  durationUnit,
   sectionKey,
   notationMode,
   editing,
@@ -1249,6 +1256,9 @@ function BarBox({
   bar: Bar;
   eighths: boolean;
   barSlots: number;
+  /** Note value one beat represents, e.g. "quarter notes". Named from
+   *  the time signature's denominator, never assumed. */
+  durationUnit: string;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
   editing: EditingState | null;
@@ -1458,6 +1468,8 @@ function BarBox({
           key={editingCellInThisBar.placementId}
           cell={editingCellInThisBar}
           barSlots={barSlots}
+          eighths={eighths}
+          durationUnit={durationUnit}
           sectionKey={sectionKey}
           notationMode={notationMode}
           onBeatsChange={onBeatsChange}
@@ -3108,6 +3120,8 @@ function labelForTag(tag: string): string {
 function ChordEditorPopover({
   cell,
   barSlots,
+  eighths,
+  durationUnit,
   sectionKey,
   notationMode,
   onBeatsChange,
@@ -3122,6 +3136,8 @@ function ChordEditorPopover({
    *  doubled when the song is on eighths. Clamping to beats here
    *  would cap a migrated chord at half a bar. */
   barSlots: number;
+  eighths: boolean;
+  durationUnit: string;
   sectionKey: string | undefined;
   notationMode: ReturnType<typeof useNotationMode>[0];
   onBeatsChange?: (cell: BarCell, beats: number) => void | Promise<void>;
@@ -3359,10 +3375,30 @@ function ChordEditorPopover({
     </div>
   );
 
+  // Stepping is already the right size: one SLOT is half a beat on an
+  // eighths song and a whole beat otherwise, which is exactly the
+  // asked-for behaviour. Only the number shown was ever wrong.
   const stepBy = (delta: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onBeatsChange) return;
+    setDurationDraft(null);
     void onBeatsChange(cell, chordBeats + delta);
+  };
+
+  /** Non-null while the user is typing; null means "show the stored
+   *  value". Keeps a half-finished entry like "2." from being parsed
+   *  on every keystroke. */
+  const [durationDraft, setDurationDraft] = useState<string | null>(null);
+
+  const commitDuration = () => {
+    const draft = durationDraft;
+    setDurationDraft(null);
+    if (draft === null || !onBeatsChange) return;
+    const slots = slotsFromDurationInput(draft, eighths, barSlots);
+    // Unparseable or non-positive input leaves the chord alone rather
+    // than coercing a typo into a duration.
+    if (slots === null || slots === chordBeats) return;
+    void onBeatsChange(cell, slots);
   };
 
   const applyTag = (tag: string | null) => {
@@ -3402,25 +3438,45 @@ function ChordEditorPopover({
             onClick={stepBy(-1)}
             disabled={!canDec}
             className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="decrease beat count"
+            aria-label="shorten chord"
           >
             −
           </button>
-          <span className="font-mono tabular-nums text-sm min-w-[1.5ch] text-center text-neutral-700 dark:text-neutral-200">
-            {chordBeats}
-          </span>
+          {/* TYPEABLE, and in note values. Stepper-only made the long
+              jumps painful, which is half of why odd values got typed
+              in the first place. The field shows what is stored,
+              converted — never the raw slot count. */}
+          <input
+            type="text"
+            inputMode="decimal"
+            value={durationDraft ?? formatDurationBeats(chordBeats, eighths)}
+            onChange={e => setDurationDraft(e.target.value)}
+            onFocus={e => e.currentTarget.select()}
+            onBlur={commitDuration}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setDurationDraft(null);
+                e.currentTarget.blur();
+              }
+            }}
+            aria-label={`duration in ${durationUnit}`}
+            className="font-mono tabular-nums text-sm w-[4ch] text-center rounded border border-neutral-300 dark:border-neutral-700 bg-transparent text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+          />
           <button
             type="button"
             onClick={stepBy(1)}
             disabled={!canInc}
             className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="increase beat count"
+            aria-label="lengthen chord"
           >
             +
           </button>
-          <span className="text-[10px] text-neutral-400">
-            beat{chordBeats === 1 ? '' : 's'}
-          </span>
+          <span className="text-[10px] text-neutral-400">{durationUnit}</span>
         </div>
       )}
 

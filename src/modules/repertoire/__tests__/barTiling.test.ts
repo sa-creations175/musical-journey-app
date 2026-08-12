@@ -243,10 +243,11 @@ describe('oddDurations — the cascade parity seed', () => {
   });
 });
 
-describe('the cascade turns one odd duration into a contiguous offbeat run', () => {
-  it('pushes every downstream chord onto an "and"', () => {
+describe('one odd duration no longer creates an offbeat run', () => {
+  it('pushes downstream chords to the next WHOLE BEAT, not onto an "and"', () => {
     // Four chords meant to tile two bars: 4+4 | 4+4 slots. Give the
-    // first an odd duration of 5 and cascade.
+    // first an odd duration and cascade. Before 12.11 every chord
+    // after it came back flagged offbeat.
     const placements = [
       p('a', 0, 0, 5),
       p('b', 0, 2, 4),
@@ -259,14 +260,10 @@ describe('the cascade turns one odd duration into a contiguous offbeat run', () 
       4,
       true,
     );
-    const moved = cascaded.filter(q => q.offbeat === true);
-    // Everything after the odd chord lands on an odd slot.
-    expect(moved.map(q => q.id).sort()).toEqual(['b', 'c', 'd']);
-    // And the run is contiguous — no on-beat chord survives after it.
-    const after = cascaded
-      .filter(q => q.id !== 'a')
-      .every(q => q.offbeat === true);
-    expect(after).toBe(true);
+    expect(cascaded.some(q => q.offbeat === true)).toBe(false);
+    for (const q of cascaded) {
+      expect((q.barIndex * 8 + q.beatPos * 2) % 2).toBe(0);
+    }
   });
 
   it('leaves everything on the beat when all durations are even', () => {
@@ -334,7 +331,7 @@ describe('shiftPlacementsBySlots — testing a repair without writing one', () =
 // The class-1 cause, reproduced from clean input
 // ---------------------------------------------------------------------
 
-describe('a transient odd duration displaces permanently', () => {
+describe('a push preserves a chord\'s rhythmic character (12.11 fix)', () => {
   const chord = (id: string, barIndex: number, beatPos: number, beats: number) =>
     p(id, barIndex, beatPos, beats);
 
@@ -349,76 +346,62 @@ describe('a transient odd duration displaces permanently', () => {
   const cascade = (list: ChordPlacement[]) =>
     cascadeChordPlacements(list, BASIC_ARRANGEMENT_ID, 4, true);
 
-  it('is a no-op on clean input', () => {
-    const out = cascade(clean());
-    expect(out.some(q => q.offbeat === true)).toBe(false);
-  });
-
-  it('REPRODUCES bar 4: odd duration then corrected leaves an offbeat run', () => {
-    // 1. The user lengthens A to an odd number of slots. The cascade
-    //    pushes everything after it onto an "and".
-    const displaced = cascade(
-      cascade(clean()).map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)),
-    );
-    expect(displaced.filter(q => q.offbeat === true).map(q => q.id).sort()).toEqual([
-      'B',
-      'C',
-      'D',
-    ]);
-
-    // 2. The user corrects A back to an even duration. The cascade
-    //    only moves a chord when the cursor OVERTAKES it, and B's
-    //    desired position is now its displaced one — so nothing is
-    //    pulled back. The trigger is gone; the damage remains.
-    const corrected = cascade(
-      displaced.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)),
-    );
-
-    // No odd duration survives anywhere...
-    expect(corrected.every(q => q.beats % 2 === 0)).toBe(true);
-    // ...yet every downstream chord is still on an "and".
-    expect(corrected.filter(q => q.offbeat === true).map(q => q.id).sort()).toEqual([
-      'B',
-      'C',
-      'D',
-    ]);
-
-    // And bar 4's exact shape: first chord clean, second displaced by
-    // one slot, one slot of nothing between them.
-    const a = corrected.find(q => q.id === 'A')!;
-    const b = corrected.find(q => q.id === 'B')!;
-    expect([a.beatPos, a.offbeat, a.beats]).toEqual([0, undefined, 4]);
-    expect([b.beatPos, b.offbeat, b.beats]).toEqual([2, true, 4]);
-  });
-
   const slotOf = (q: ChordPlacement) =>
     q.barIndex * 8 + q.beatPos * 2 + (q.offbeat ? 1 : 0);
 
-  it('repeating on the SAME chord saturates at one slot, it does not compound', () => {
-    // After the first episode the run is already packed tight against
-    // the odd cursor, so a second lengthening of the same chord pushes
-    // nothing further.
-    let list = cascade(clean());
-    for (let episode = 0; episode < 3; episode++) {
-      list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)));
-      list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)));
-    }
-    expect(slotOf(list.find(q => q.id === 'D')!)).toBe(12 + 1);
+  it('is a no-op on clean input', () => {
+    expect(cascade(clean()).some(q => q.offbeat === true)).toBe(false);
   });
 
-  it('a SECOND seed further along adds another slot to the tail', () => {
-    // This is what makes the displacement non-uniform across a
-    // section, and therefore why a single blanket shift cannot repair
-    // it: chords before the second seed are out by one, chords after
-    // it are out by two.
+  it('an odd duration NO LONGER puts following chords on an "and"', () => {
+    // This is the exact sequence that produced O Come's contiguous
+    // offbeat run. Before the fix, B, C and D all came back flagged
+    // offbeat and stayed that way even after the duration was
+    // corrected. Now the push rounds forward to the next ON-BEAT slot.
+    const displaced = cascade(
+      cascade(clean()).map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)),
+    );
+    expect(displaced.some(q => q.offbeat === true)).toBe(false);
+    // Every start lands on a whole beat.
+    for (const q of displaced) expect(slotOf(q) % 2).toBe(0);
+  });
+
+  it('correcting the duration afterwards still leaves the chords moved', () => {
+    // The fix stops the SILENT half-beat drift; it does not make the
+    // cascade reversible. A chord pushed aside stays pushed, which is
+    // pre-existing behaviour and now shows up as an honest gap on a
+    // beat rather than an invisible offset.
+    const displaced = cascade(
+      cascade(clean()).map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)),
+    );
+    const corrected = cascade(
+      displaced.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)),
+    );
+    expect(corrected.some(q => q.offbeat === true)).toBe(false);
+    expect(slotOf(corrected.find(q => q.id === 'B')!)).toBe(6);
+  });
+
+  it('a deliberate offbeat chord STAYS offbeat when pushed', () => {
+    // Parity is preserved in both directions: the cascade must not
+    // decide a chord is on the beat any more than it may decide it is
+    // off it.
+    const list = [
+      chord('A', 0, 0, 5),
+      { ...chord('B', 0, 2, 4), offbeat: true },
+    ];
+    const out = cascade(list);
+    const b = out.find(q => q.id === 'B')!;
+    expect(b.offbeat).toBe(true);
+    expect(slotOf(b) % 2).toBe(1);
+  });
+
+  it('displacement is now in whole beats, so nothing lands half a beat late', () => {
     let list = cascade(clean());
     list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 5 } : q)));
     list = cascade(list.map(q => (q.id === 'A' ? { ...q, beats: 4 } : q)));
     list = cascade(list.map(q => (q.id === 'C' ? { ...q, beats: 5 } : q)));
     list = cascade(list.map(q => (q.id === 'C' ? { ...q, beats: 4 } : q)));
-
-    expect(slotOf(list.find(q => q.id === 'B')!)).toBe(4 + 1);
-    expect(slotOf(list.find(q => q.id === 'D')!)).toBe(12 + 2);
+    for (const q of list) expect(slotOf(q) % 2).toBe(0);
   });
 });
 

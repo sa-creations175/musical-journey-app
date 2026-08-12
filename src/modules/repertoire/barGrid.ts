@@ -849,7 +849,25 @@ export function cascadeChordPlacements(
   for (const p of inArr) {
     const desired = p.barIndex * capacityPerBar + placementSlot(p, eighths);
     const beats = sanitiseBeats(p.beats);
-    const actualStart = Math.max(desired, cursor);
+    let actualStart = Math.max(desired, cursor);
+    // A PUSH MUST NOT CHANGE A CHORD'S RHYTHMIC CHARACTER. Preventing
+    // overlap is this function's job; deciding that a chord is now on
+    // an "and" is not. Before this, one odd duration flipped the
+    // cursor's parity and every chord it subsequently pushed landed
+    // half a beat late — silently, and permanently, since correcting
+    // the duration afterwards left each displaced chord sitting at
+    // what had become its own desired position.
+    //
+    // So a push rounds forward to the next slot of the SAME parity the
+    // chord already had: on-beat stays on-beat, and a deliberate
+    // offbeat stays offbeat. The cost is up to one slot of visible gap
+    // after an odd-duration chord, which is a fair trade — a gap can
+    // be seen and fixed, a half-beat drift cannot.
+    if (eighths && actualStart !== desired) {
+      const wantOdd = placementSlot(p, eighths) % 2 === 1;
+      const isOdd = actualStart % 2 === 1;
+      if (isOdd !== wantOdd) actualStart += 1;
+    }
     if (actualStart === desired) {
       updated.push(p);
     } else {
