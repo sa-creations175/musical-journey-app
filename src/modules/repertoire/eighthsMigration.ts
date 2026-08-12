@@ -129,3 +129,127 @@ export function renderedWidth(
 ): number {
   return beats / slotsPerBar;
 }
+
+// =====================================================================
+// The repair pass
+// =====================================================================
+
+/**
+ * WHY THIS EXISTS. The toggle doubled durations from the moment it
+ * shipped, but songs that had `eighths` turned on BEFORE that wiring
+ * landed never got the pass — their durations are still counted in
+ * beats while the song renders in slots. A dry run over real data
+ * found 74 such placements across 7 sections, topping out at 4 with
+ * no value above it: nothing had been doubled, so the repair is
+ * blanket rather than selective.
+ *
+ * WHY A STAMP RATHER THAN A LOOK AT THE VALUES. "Does this look
+ * doubled?" is unanswerable — 4 is a legitimate duration in either
+ * unit. Inferring the unit from the value range is precisely what let
+ * this go unnoticed, so the unit becomes a recorded fact
+ * (`eighthsDurationVersion`) that a later pass reads instead of
+ * guessing. Unstamped means beats; stamped means slots.
+ */
+
+/** True when a section's stored durations are already slot units. */
+export function isInSlotUnits(
+  section: Pick<SongSection, 'eighthsDurationVersion'>,
+): boolean {
+  return section.eighthsDurationVersion === EIGHTHS_DURATION_VERSION;
+}
+
+/** Why the repair left a section alone. Named rather than implied, so
+ *  the exclusion is something a test can assert on instead of a
+ *  property of how the loop happens to iterate. */
+export type RepairSkipReason =
+  /** No stored `chordPlacements`. These sections were NEVER broken:
+   *  their durations live in phrase data, and `materializeChordPlacements`
+   *  converts them to slots at the moment they first become placements.
+   *  They arrive already correct, so doubling them here would double
+   *  them a second time. */
+  | 'no-stored-placements'
+  /** Already stamped at the current version. */
+  | 'already-in-slot-units';
+
+export interface RepairDecision {
+  sectionId: string;
+  /** True when the repair will rewrite this section. */
+  double: boolean;
+  /** Set exactly when `double` is false. */
+  skipped?: RepairSkipReason;
+  /** Placements in the section (0 when there are none stored). */
+  placements: number;
+}
+
+export interface RepairPlan {
+  decisions: RepairDecision[];
+  /** Sections the repair will rewrite. */
+  sectionsToDouble: number;
+  /** Placements the repair will touch. */
+  placementsToDouble: number;
+}
+
+/**
+ * Decide, per section, what the repair would do. Pure and inspectable
+ * — the caller can log or dry-run it before writing anything.
+ *
+ * The two exclusions are checked EXPLICITLY and in order. In
+ * particular "no stored placements" is tested first and on its own
+ * terms, not left to fall out of `chordPlacements ?? []` quietly
+ * producing an empty map.
+ */
+export function planDurationRepair(
+  sections: ReadonlyArray<SongSection>,
+): RepairPlan {
+  const decisions: RepairDecision[] = [];
+  let sectionsToDouble = 0;
+  let placementsToDouble = 0;
+
+  for (const section of sections) {
+    if (section.chordPlacements === undefined) {
+      decisions.push({
+        sectionId: section.id,
+        double: false,
+        skipped: 'no-stored-placements',
+        placements: 0,
+      });
+      continue;
+    }
+    const placements = section.chordPlacements.length;
+    if (isInSlotUnits(section)) {
+      decisions.push({
+        sectionId: section.id,
+        double: false,
+        skipped: 'already-in-slot-units',
+        placements,
+      });
+      continue;
+    }
+    decisions.push({ sectionId: section.id, double: true, placements });
+    sectionsToDouble += 1;
+    placementsToDouble += placements;
+  }
+
+  return { decisions, sectionsToDouble, placementsToDouble };
+}
+
+/**
+ * The patch that repairs one section, or `null` when the section is
+ * excluded. Doubles `beats` and records the unit in the same write, so
+ * a section can never be left doubled-but-unstamped and get doubled
+ * again by the next pass.
+ *
+ * A section with a defined-but-empty `chordPlacements` still gets
+ * stamped: it IS migrated, it simply holds no chords yet, and leaving
+ * it unstamped would make the next pass reconsider it forever.
+ */
+export function repairSectionDurations(
+  section: SongSection,
+): Pick<SongSection, 'chordPlacements' | 'eighthsDurationVersion'> | null {
+  if (section.chordPlacements === undefined) return null;
+  if (isInSlotUnits(section)) return null;
+  return {
+    chordPlacements: doubleChordDurations(section.chordPlacements),
+    eighthsDurationVersion: EIGHTHS_DURATION_VERSION,
+  };
+}

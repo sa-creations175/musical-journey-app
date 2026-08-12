@@ -111,6 +111,7 @@ import {
   swapChordPlacements,
   updateChordPlacement,
 } from './barGrid';
+import { EIGHTHS_DURATION_VERSION } from './eighthsMigration';
 import {
   applyEndMarkerDrag,
   applyStartMarkerDrag,
@@ -423,7 +424,20 @@ export default function LeadSheetSection({
     setCanRedo(false);
   }, [section.id]);
 
-  const commit = async (patch: Partial<SongSection>) => {
+  const commit = async (rawPatch: Partial<SongSection>) => {
+    // Any write of `chordPlacements` on a song with eighths on is in
+    // SLOT units, and says so in the same write. Enforced here, at the
+    // one boundary every chord op funnels through, rather than at each
+    // materialisation site — a new call site added later inherits it
+    // instead of having to remember it.
+    //
+    // Without this, a section materialised under eighths would be
+    // correct but unstamped, and the repair pass would read "unstamped"
+    // as "still in beats" and double it a second time.
+    const patch: Partial<SongSection> =
+      eighths && rawPatch.chordPlacements !== undefined
+        ? { ...rawPatch, eighthsDurationVersion: EIGHTHS_DURATION_VERSION }
+        : rawPatch;
     // Snapshot the full section BEFORE applying the patch. Reads from
     // sectionRef.current so the captured state is always up-to-date,
     // even if the closure here was created earlier.

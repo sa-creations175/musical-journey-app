@@ -93,8 +93,9 @@ import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
 import { parseLyricSheet } from './lyricSheetParse';
 import {
-  doubleChordDurations,
   halveChordDurations,
+  planDurationRepair,
+  repairSectionDurations,
 } from './eighthsMigration';
 import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -860,16 +861,46 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       if (!fresh) return;
       await db.songs.put({ ...fresh, eighths: on, updatedAt: Date.now() });
       if (!on) return;
-      // Durations become eighth units, once, on first enable.
+      // Durations become eighth units, once, on first enable. Routed
+      // through the repair helper so enable and repair cannot drift
+      // apart: same exclusions, same stamp, one definition.
       for (const sec of sections) {
-        if (!sec.chordPlacements) continue;
-        await db.songSections.update(sec.id, {
-          chordPlacements: doubleChordDurations(sec.chordPlacements),
-        });
+        const patch = repairSectionDurations(sec);
+        if (patch) await db.songSections.update(sec.id, patch);
       }
     },
     [songId, sections],
   );
+
+  /**
+   * Songs that had eighths turned on BEFORE the toggle learned to
+   * double are still counted in beats. Repair them where they are
+   * found, once, then record the unit so this never re-runs.
+   *
+   * Sections with no stored `chordPlacements` are excluded by
+   * `planDurationRepair` — see `RepairSkipReason`. They were never
+   * broken and materialisation already hands them over in slots.
+   */
+  useEffect(() => {
+    if (!song?.eighths) return;
+    if (sections.length === 0) return;
+    const plan = planDurationRepair(sections);
+    if (plan.sectionsToDouble === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const decision of plan.decisions) {
+        if (cancelled) return;
+        if (!decision.double) continue;
+        const sec = sections.find(s => s.id === decision.sectionId);
+        if (!sec) continue;
+        const patch = repairSectionDurations(sec);
+        if (patch) await db.songSections.update(sec.id, patch);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [song?.eighths, sections]);
 
   const [eighthsRefusal, setEighthsRefusal] = useState<
     { chords: number; words: number } | null
@@ -882,13 +913,22 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         setEighthsRefusal(occupied);
         return;
       }
-      // Halve back only when every value round-trips.
+      // Halve back only when every value round-trips. The stamp is
+      // cleared in the same write as the halving — a section back in
+      // beats must not keep claiming slots, or re-enabling eighths
+      // would skip it and leave it half as long as it reads.
+      //
+      // Full `put`, not `update`: Dexie strips undefined out of an
+      // update patch, so `update` can set a field but never clear one.
+      // Same reason `commit` in LeadSheetSection routes clears through
+      // onReplace.
       for (const sec of sections) {
         if (!sec.chordPlacements) continue;
         const halved = halveChordDurations(sec.chordPlacements);
-        if (halved) {
-          await db.songSections.update(sec.id, { chordPlacements: halved });
-        }
+        if (!halved) continue;
+        const next: SongSection = { ...sec, chordPlacements: halved };
+        delete next.eighthsDurationVersion;
+        await db.songSections.put(next);
       }
       await setEighths(false);
       return;

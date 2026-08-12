@@ -414,6 +414,22 @@ export interface SongSection {
    *  editor (legacy → bar-anchored). Unindexed; rides in the
    *  section JSONB blob. */
   chordPlacements?: ChordPlacement[];
+  /** What unit `chordPlacements[].beats` is counted in.
+   *
+   *  Absent means BEATS. `EIGHTHS_DURATION_VERSION` means slots (an
+   *  eighth each), which is what a song with `eighths` on uses.
+   *
+   *  This exists because the unit was previously INFERRED — from
+   *  whether values looked doubled — and an inference that is only
+   *  probably right is how a whole song's durations stayed in beats
+   *  after the toggle moved them to eighths without anyone noticing.
+   *  A recorded fact cannot be misread the way a value range can.
+   *
+   *  Written by the doubling paths (the eighths toggle, the repair
+   *  pass, and materialisation under eighths) and cleared by the
+   *  halve-back. Unindexed; rides in the section JSONB blob, so no
+   *  schema version bump. */
+  eighthsDurationVersion?: number;
 }
 
 /** Bar-anchored chord placement for the redesigned bar grid (Option

@@ -3,8 +3,12 @@ import type { ChordPlacement, SongSection } from '../../../lib/db';
 import {
   auditChordDurations,
   doubleChordDurations,
+  EIGHTHS_DURATION_VERSION,
   halveChordDurations,
+  isInSlotUnits,
+  planDurationRepair,
   renderedWidth,
+  repairSectionDurations,
 } from '../eighthsMigration';
 
 const p = (id: string, beats: number, beatPos = 0): ChordPlacement =>
@@ -149,5 +153,130 @@ describe('auditChordDurations — the dry run', () => {
     auditChordDurations([sec]);
     expect(list[0].beats).toBe(1);
     expect(sec.chordPlacements).toBe(list);
+  });
+});
+
+// ---------------------------------------------------------------------
+// The repair pass (step 2)
+// ---------------------------------------------------------------------
+
+/** A section that has never been migrated to bar-anchored placements —
+ *  `chordPlacements` genuinely absent, not an empty array. */
+const unmigrated = (id: string): SongSection =>
+  ({ id, songId: 's', name: id, order: 0 }) as unknown as SongSection;
+
+const stamped = (id: string, placements: ChordPlacement[]): SongSection =>
+  ({
+    ...section(id, placements),
+    eighthsDurationVersion: EIGHTHS_DURATION_VERSION,
+  }) as SongSection;
+
+describe('isInSlotUnits', () => {
+  it('reads an absent stamp as beats', () => {
+    expect(isInSlotUnits(section('a', [p('x', 4)]))).toBe(false);
+  });
+
+  it('reads the current version as slots', () => {
+    expect(isInSlotUnits(stamped('a', [p('x', 8)]))).toBe(true);
+  });
+
+  it('does not accept a stamp from another version', () => {
+    expect(
+      isInSlotUnits({ eighthsDurationVersion: EIGHTHS_DURATION_VERSION + 1 }),
+    ).toBe(false);
+  });
+});
+
+describe('planDurationRepair — the exclusions', () => {
+  it('EXCLUDES a section with no stored placements, and says why', () => {
+    const plan = planDurationRepair([unmigrated('legacy')]);
+    expect(plan.sectionsToDouble).toBe(0);
+    expect(plan.decisions).toEqual([
+      {
+        sectionId: 'legacy',
+        double: false,
+        skipped: 'no-stored-placements',
+        placements: 0,
+      },
+    ]);
+  });
+
+  it('excludes a section already stamped, and says why', () => {
+    const plan = planDurationRepair([stamped('done', [p('x', 8)])]);
+    expect(plan.sectionsToDouble).toBe(0);
+    expect(plan.decisions[0].skipped).toBe('already-in-slot-units');
+  });
+
+  it('doubles an unstamped section that has stored placements', () => {
+    const plan = planDurationRepair([section('broken', [p('x', 4), p('y', 2)])]);
+    expect(plan.sectionsToDouble).toBe(1);
+    expect(plan.placementsToDouble).toBe(2);
+    expect(plan.decisions[0].skipped).toBeUndefined();
+  });
+
+  it('sorts a mixed set into exactly the three outcomes', () => {
+    const plan = planDurationRepair([
+      unmigrated('legacy'),
+      stamped('done', [p('a', 8)]),
+      section('broken', [p('b', 4)]),
+    ]);
+    expect(plan.decisions.map(d => d.skipped)).toEqual([
+      'no-stored-placements',
+      'already-in-slot-units',
+      undefined,
+    ]);
+    expect(plan.sectionsToDouble).toBe(1);
+  });
+});
+
+describe('repairSectionDurations', () => {
+  it('returns null for an unmigrated section — the hole-1 guard', () => {
+    expect(repairSectionDurations(unmigrated('legacy'))).toBeNull();
+  });
+
+  it('doubles and stamps in a single patch', () => {
+    expect(repairSectionDurations(section('broken', [p('x', 4)]))).toEqual({
+      chordPlacements: [p('x', 8)],
+      eighthsDurationVersion: EIGHTHS_DURATION_VERSION,
+    });
+  });
+
+  it('stamps a migrated-but-empty section so it stops being reconsidered', () => {
+    const patch = repairSectionDurations(section('empty', []));
+    expect(patch).toEqual({
+      chordPlacements: [],
+      eighthsDurationVersion: EIGHTHS_DURATION_VERSION,
+    });
+  });
+
+  it('IS IDEMPOTENT — a second pass over its own output is a no-op', () => {
+    const before = section('broken', [p('x', 4), p('y', 3)]);
+    const first = repairSectionDurations(before)!;
+    const after = { ...before, ...first };
+    expect(repairSectionDurations(after)).toBeNull();
+    expect(after.chordPlacements).toEqual([p('x', 8), p('y', 6)]);
+  });
+
+  it('never touches beatPos (invariant 4)', () => {
+    const before = section('b', [p('x', 4, 2), p('y', 1, 3)]);
+    const patch = repairSectionDurations(before)!;
+    expect(patch.chordPlacements!.map(q => q.beatPos)).toEqual([2, 3]);
+  });
+
+  it('keeps every duration a positive integer (invariant 2)', () => {
+    const patch = repairSectionDurations(section('b', [p('x', 1), p('y', 3)]))!;
+    for (const q of patch.chordPlacements!) {
+      expect(Number.isInteger(q.beats)).toBe(true);
+      expect(q.beats).toBeGreaterThan(0);
+    }
+  });
+
+  it('holds rendered width across the repair (invariant 1)', () => {
+    // 4 beats in a 4-beat bar is a full bar; 8 slots in an 8-slot bar
+    // is the same full bar.
+    const patch = repairSectionDurations(section('b', [p('x', 4)]))!;
+    expect(renderedWidth(patch.chordPlacements![0].beats, 8)).toBe(
+      renderedWidth(4, 4),
+    );
   });
 });
