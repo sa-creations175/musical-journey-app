@@ -16,6 +16,7 @@ import WantToLearnView from './WantToLearnView';
 // the browser console without a module import path.
 import './devInspectSongKeys';
 import './devInspectChordDurations';
+import './devInspectSlotPositions';
 
 type TabId = 'active' | 'detail' | 'want-to-learn';
 
