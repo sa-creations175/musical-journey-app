@@ -4,6 +4,7 @@ import {
   EMPTY_SEQUENCE_VIEW,
   buildPhrases,
   isEmptyView,
+  pruneDeletedPlacements,
   removeBreak,
   setBreak,
   setPhraseNote,
@@ -206,5 +207,133 @@ describe('isEmptyView', () => {
     expect(
       isEmptyView(setPhraseNote(EMPTY_SEQUENCE_VIEW, undefined, 'x')),
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------
+// pruneDeletedPlacements — deletion flows one direction
+// ---------------------------------------------------------------------
+
+describe('pruneDeletedPlacements', () => {
+  it('returns the SAME object when nothing was anchored to the deleted chords', () => {
+    const view: SequenceView = {
+      breaks: [{ afterPlacementId: 'p1', kind: 'separator' }],
+      hidden: ['p3'],
+    };
+    expect(pruneDeletedPlacements(view, ['p4'], ORDER)).toBe(view);
+    expect(pruneDeletedPlacements(view, [], ORDER)).toBe(view);
+  });
+
+  it('drops a hide when its chord is deleted', () => {
+    const view: SequenceView = { breaks: [], hidden: ['p1', 'p3'] };
+    expect(pruneDeletedPlacements(view, ['p1'], ORDER).hidden).toEqual(['p3']);
+  });
+
+  it('closes the unrecoverable case: no hide survives its chord', () => {
+    // An orphaned hide filters nothing, renders nothing, and no UI can
+    // reach it — so it could never be undone. It must not be created.
+    const view: SequenceView = { breaks: [], hidden: ['p2'] };
+    const after = pruneDeletedPlacements(view, ['p2'], ORDER);
+    expect(after.hidden).toEqual([]);
+  });
+
+  it('drops a break whose chord is deleted', () => {
+    const view: SequenceView = {
+      breaks: [{ afterPlacementId: 'p1', kind: 'separator' }],
+      hidden: [],
+    };
+    expect(pruneDeletedPlacements(view, ['p1'], ORDER).breaks).toEqual([]);
+  });
+
+  it('CARRIES THE NOTE FORWARD — deleting a chord is not deleting a note', () => {
+    // The phrase the note describes still exists; it has only lost its
+    // boundary. A raw filter would destroy the writing.
+    const view: SequenceView = {
+      breaks: [
+        { afterPlacementId: 'p1', kind: 'separator', note: 'first half' },
+        { afterPlacementId: 'p3', kind: 'separator', note: 'second half' },
+      ],
+      hidden: [],
+    };
+    const after = pruneDeletedPlacements(view, ['p1'], ORDER);
+    expect(after.breaks).toHaveLength(1);
+    expect(after.breaks[0].afterPlacementId).toBe('p3');
+    expect(after.breaks[0].note).toBe('first half · second half');
+  });
+
+  it('carries the last break\'s note into the tail', () => {
+    const view: SequenceView = {
+      breaks: [{ afterPlacementId: 'p3', kind: 'separator', note: 'ending' }],
+      hidden: [],
+      tailNote: 'coda',
+    };
+    const after = pruneDeletedPlacements(view, ['p3'], ORDER);
+    expect(after.breaks).toEqual([]);
+    expect(after.tailNote).toBe('ending · coda');
+  });
+
+  it('combines notes when two adjacent breaks are deleted together', () => {
+    // A bar delete removes several chords at once.
+    const view: SequenceView = {
+      breaks: [
+        { afterPlacementId: 'p0', kind: 'separator', note: 'a' },
+        { afterPlacementId: 'p1', kind: 'separator', note: 'b' },
+        { afterPlacementId: 'p3', kind: 'separator', note: 'c' },
+      ],
+      hidden: [],
+    };
+    const after = pruneDeletedPlacements(view, ['p0', 'p1'], ORDER);
+    expect(after.breaks).toHaveLength(1);
+    expect(after.breaks[0].afterPlacementId).toBe('p3');
+    expect(after.breaks[0].note).toBe('a · b · c');
+  });
+
+  it('prunes hides and breaks together for a multi-chord delete', () => {
+    const view: SequenceView = {
+      breaks: [
+        { afterPlacementId: 'p1', kind: 'separator', note: 'keep me' },
+        { afterPlacementId: 'p4', kind: 'row' },
+      ],
+      hidden: ['p0', 'p2', 'p3'],
+    };
+    const after = pruneDeletedPlacements(view, ['p0', 'p1', 'p2'], ORDER);
+    expect(after.hidden).toEqual(['p3']);
+    expect(after.breaks.map(b => b.afterPlacementId)).toEqual(['p4']);
+    expect(after.breaks[0].note).toBe('keep me');
+  });
+
+  it('leaves the surviving strip rendering correctly afterwards', () => {
+    const view: SequenceView = {
+      breaks: [{ afterPlacementId: 'p1', kind: 'separator' }],
+      hidden: ['p2'],
+    };
+    const after = pruneDeletedPlacements(view, ['p1', 'p2'], ORDER);
+    // p1 and p2 are gone from the grid, so the live order shrinks too.
+    expect(shape(after, ['p0', 'p3', 'p4'])).toEqual(['p0p3p4']);
+  });
+
+  it('sorts by the order BEFORE deletion, so notes merge into the right neighbour', () => {
+    // Passing the post-deletion order would sort the dead anchor last
+    // and pile its note onto the tail instead of its neighbour.
+    const view: SequenceView = {
+      breaks: [
+        { afterPlacementId: 'p1', kind: 'separator', note: 'early' },
+        { afterPlacementId: 'p3', kind: 'separator', note: 'late' },
+      ],
+      hidden: [],
+      tailNote: 'tail',
+    };
+    const after = pruneDeletedPlacements(view, ['p1'], ORDER);
+    expect(after.breaks[0].note).toBe('early · late');
+    expect(after.tailNote).toBe('tail');
+  });
+
+  it('is idempotent — pruning the same ids twice changes nothing further', () => {
+    const view: SequenceView = {
+      breaks: [{ afterPlacementId: 'p1', kind: 'separator', note: 'n' }],
+      hidden: ['p1'],
+    };
+    const once = pruneDeletedPlacements(view, ['p1'], ORDER);
+    expect(pruneDeletedPlacements(once, ['p1'], ORDER)).toBe(once);
   });
 });

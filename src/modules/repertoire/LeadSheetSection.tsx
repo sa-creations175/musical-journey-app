@@ -83,6 +83,7 @@ import { chordPalette, useIsDarkMode } from './chordColors';
 import {
   EMPTY_SEQUENCE_VIEW,
   buildPhrases,
+  pruneDeletedPlacements,
   removeBreak,
   setBreak,
   setPhraseNote,
@@ -623,6 +624,18 @@ export default function LeadSheetSection({
     const patch: Partial<SongSection> = { chordPlacements: next };
     const reconciled = reconcileBarLayout(sectionRef.current.barLayout, next);
     if (reconciled) patch.barLayout = reconciled;
+    // The strip's annotations follow the chord out. BOTH ids are
+    // pruned: on a legacy section the rendered strip — and therefore
+    // any annotation made against it — uses the synthetic
+    // `legacy:phrase:beat` id, while `realPlacementId` is its
+    // post-materialisation counterpart. Which one is anchored depends
+    // on when the annotation was written, so neither can be assumed.
+    const prunedView = pruneDeletedPlacements(
+      sequenceView,
+      [realPlacementId, placementId],
+      sequenceOrder,
+    );
+    if (prunedView !== sequenceView) patch.sequenceView = prunedView;
     await commit(patch);
   };
 
@@ -1108,10 +1121,22 @@ export default function LeadSheetSection({
 
     // Chords close up; the bar genuinely disappears. Without this the
     // placements pin the bar count and the delete is a silent no-op.
-    const placements = deleteBarFromPlacements(
-      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar, eighths),
-      barIndex,
+    const before =
+      sec.chordPlacements ?? materializeChordPlacements(sec, beatsPerBar, eighths);
+    const placements = deleteBarFromPlacements(before, barIndex);
+    // A bar delete removes SEVERAL chords, across every arrangement —
+    // `deleteBarFromPlacements` spans them all because a bar is
+    // structural. So every one of their annotations goes with them.
+    const deletedIds = before
+      .filter(p => p.barIndex === barIndex)
+      .map(p => p.id);
+    const prunedView = pruneDeletedPlacements(
+      sequenceView,
+      deletedIds,
+      sequenceOrder,
     );
+    const viewPatch: Partial<SongSection> =
+      prunedView === sequenceView ? {} : { sequenceView: prunedView };
 
     if (songLyricsActive && songLyricLines && onSongLyricsChange) {
       // Only the deleted bar's words. Everything after keeps its bar
@@ -1122,7 +1147,11 @@ export default function LeadSheetSection({
         a => a.sectionId === section.id && a.barIndex === barIndex,
       );
       if (cleared !== songLyricLines) await onSongLyricsChange(cleared);
-      await commit({ barLayout: layout, chordPlacements: placements });
+      await commit({
+        barLayout: layout,
+        chordPlacements: placements,
+        ...viewPatch,
+      });
       return;
     }
 
@@ -1143,6 +1172,7 @@ export default function LeadSheetSection({
       barLayout: layout,
       chordPlacements: placements,
       lyricLines: nextLyrics,
+      ...viewPatch,
     });
   };
 

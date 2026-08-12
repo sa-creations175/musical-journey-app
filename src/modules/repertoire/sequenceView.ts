@@ -176,6 +176,54 @@ export function removeBreak(
   };
 }
 
+/**
+ * Drop every annotation anchored to a chord that has just been deleted
+ * from the grid.
+ *
+ * DELETION FLOWS ONE DIRECTION. The lead sheet is the source of truth,
+ * so removing a chord there removes its strip annotations too. Without
+ * this, a hide on a deleted chord survives forever: it filters nothing,
+ * renders nothing, and no UI can reach it, so it can never be undone.
+ * That is the unrecoverable state this closes.
+ *
+ * DELETING A CHORD IS NOT DELETING A NOTE. A break's note describes the
+ * phrase ENDING at it, and that phrase still exists — it has merely
+ * lost its boundary. So breaks are removed through `removeBreak`, which
+ * merges the note forward into whatever break now ends the joined
+ * phrase (or into the tail). A raw filter would silently destroy
+ * writing the user did, which is the same class of loss the module's
+ * "nothing disappears unless the user deletes it" rule exists to
+ * prevent.
+ *
+ * `orderBefore` is the sequence as it stood BEFORE the deletion, so the
+ * removed breaks still have positions and each note merges into the
+ * right neighbour. Passing the post-deletion order would sort the dead
+ * anchors last and pile their notes onto the tail.
+ *
+ * Returns the SAME view object when nothing was anchored to the deleted
+ * chords, so a caller can skip a pointless write.
+ */
+export function pruneDeletedPlacements(
+  view: SequenceView,
+  deletedIds: ReadonlyArray<string>,
+  orderBefore: ReadonlyArray<string>,
+): SequenceView {
+  const deleted = new Set(deletedIds);
+  if (deleted.size === 0) return view;
+
+  // Sequence order, so each merge lands on the break that now ends the
+  // joined phrase rather than on an arbitrary one.
+  const anchors = sorted(view.breaks, orderBefore)
+    .map(b => b.afterPlacementId)
+    .filter(id => deleted.has(id));
+  const hiddenChanged = view.hidden.some(id => deleted.has(id));
+  if (anchors.length === 0 && !hiddenChanged) return view;
+
+  let next = view;
+  for (const id of anchors) next = removeBreak(next, id, orderBefore);
+  return { ...next, hidden: next.hidden.filter(id => !deleted.has(id)) };
+}
+
 /** Show or hide one token in the strip. The chord is untouched. */
 export function toggleHidden(
   view: SequenceView,
