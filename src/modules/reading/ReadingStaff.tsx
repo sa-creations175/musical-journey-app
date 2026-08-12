@@ -72,6 +72,22 @@ interface Props {
 const DEFAULT_WIDTH = 200;
 const DEFAULT_HEIGHT = 130;
 const SIGNATURE_WIDTH = 300;
+/**
+ * Extra room between the clef and a lone notehead, applied to NOTE
+ * cards only.
+ *
+ * A chord card fills that space with its accidentals, and a signature
+ * card with its accidentals, so only a single notehead sits with
+ * nothing between it and the clef. `spec.keys.length === 1` is exactly
+ * the note-card case and cannot drift: no chord quality in the catalog
+ * has fewer than two tones (the smallest are the octave and the
+ * root-fifth, both two), and a signature card draws no notes at all.
+ * A test pins that invariant.
+ *
+ * Deliberately NOT centring — just enough that the note is not jammed
+ * against the clef.
+ */
+const NOTE_CLEF_GAP = 14;
 /** Grand staff needs room for two staves plus the gap between them. */
 const GRAND_HEIGHT = 200;
 const GRAND_STAVE_GAP = 80;
@@ -107,6 +123,11 @@ export default function ReadingStaff({ spec, width, height }: Props) {
         stave.addClef(spec.clef);
         if (spec.keySignature) stave.addKeySignature(spec.keySignature);
         stave.setContext(ctx).draw();
+        if (spec.keys.length === 1) {
+          // Push the note area right AFTER draw, so the staff lines and
+          // clef are unaffected and only where notes start moves.
+          stave.setNoteStartX(stave.getNoteStartX() + NOTE_CLEF_GAP);
+        }
 
         if (isGrand) {
           // Piano framing: treble over bass, braced, signature on
@@ -150,7 +171,15 @@ export default function ReadingStaff({ spec, width, height }: Props) {
 
           const voice = new VF.Voice({ numBeats: 4, beatValue: 4 });
           voice.addTickables([note]);
-          new VF.Formatter().joinVoices([voice]).format([voice], w - 80);
+          // formatToStave, NOT format(voice, someWidth). The justify
+          // width has to be the stave's own note area
+          // (noteEndX - noteStartX - padding); the invented `w - 80`
+          // it replaces was 120px for a stave whose note area is ~165,
+          // and formatting into a width the stave does not have is
+          // what left accidentals sitting away from their noteheads.
+          // It also means the note-start gap above is picked up
+          // automatically rather than needing a second adjustment.
+          new VF.Formatter().joinVoices([voice]).formatToStave([voice], stave);
           voice.draw(ctx, stave);
         }
 

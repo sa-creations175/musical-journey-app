@@ -440,3 +440,31 @@ describe('grand staff framing', () => {
     }
   });
 });
+
+// =====================================================================
+// The invariant the clef-gap rule depends on
+// =====================================================================
+
+describe('keys.length discriminates note cards', () => {
+  it('EXACTLY the note cards draw a single notehead', () => {
+    // ReadingStaff keys its clef-gap off `spec.keys.length === 1`.
+    // That is only safe while no chord quality has fewer than two
+    // tones and signature cards draw none — assert both rather than
+    // leave the renderer resting on an unstated assumption.
+    for (const ref of enumerateAllReadingItems()) {
+      const card = resolveReadingCard(ref)!;
+      if (card.skill === 'note') {
+        expect(card.staff.keys, ref).toHaveLength(1);
+      } else {
+        expect(card.staff.keys.length, ref).not.toBe(1);
+      }
+    }
+  });
+
+  it('the smallest chord still has two tones', () => {
+    // Octave and root-fifth are the floor. If a one-note "chord" is
+    // ever added, the clef-gap rule needs revisiting first.
+    const smallest = Math.min(...CHORD_QUALITIES.map(q => q.intervals.length));
+    expect(smallest).toBe(2);
+  });
+});
