@@ -86,8 +86,6 @@ import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
-import FullLyricsSection from './FullLyricsSection';
-import SectionToggle from './SectionToggle';
 import CellAnchoredMessage from './CellAnchoredMessage';
 import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
@@ -330,9 +328,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [whyEditing, setWhyEditing] = useState(false);
   const [whyDraft, setWhyDraft] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
-  // Full lyrics collapsible inside the lead sheet section. Closed by
-  // default; the user opens it explicitly via the "full lyrics" toggle.
-  const [showFullLyrics, setShowFullLyrics] = useState(false);
 
   // Section-order drag state. The sortable list reads from
   // song.sectionOrder (falling back to DEFAULT_SECTION_ORDER); the
@@ -521,13 +516,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     await db.songs.update(song.id, { description: next || undefined, updatedAt: Date.now() });
     setWhyEditing(false);
     toast({ message: next ? 'Note saved.' : 'Note cleared.', variant: 'success' });
-  };
-
-  const saveFullLyrics = async (fullLyrics: string) => {
-    if (!song) return;
-    const trimmed = fullLyrics.trim();
-    await db.songs.update(song.id, { fullLyrics: trimmed || undefined, updatedAt: Date.now() });
-    toast({ message: 'Full lyrics saved.', variant: 'success' });
   };
 
   // --- Advancement --------------------------------------------------
@@ -1715,24 +1703,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         ))}
                       </div>
                     )}
-                    {/* Full lyrics collapsible — opens via "Show full
-                        lyrics" toggle, closed by default. The full
-                        lyrics live HERE now rather than as a
-                        standalone section. */}
-                    <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800">
-                      {/* Label is static now — the chevron carries the
-                          state, so "Show…"/"Hide…" said it twice. */}
-                      <SectionToggle
-                        label="full lyrics"
-                        expanded={showFullLyrics}
-                        onToggle={() => setShowFullLyrics(v => !v)}
-                      />
-                      {showFullLyrics && (
-                        <div className="mt-3">
-                          <FullLyricsSection song={song} onSave={saveFullLyrics} />
-                        </div>
-                      )}
-                    </div>
                   </section>
                 )}
 
