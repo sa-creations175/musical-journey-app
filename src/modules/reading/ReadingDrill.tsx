@@ -1,21 +1,23 @@
 /**
  * Reading drill — the answering surface.
  *
- * NO ATTEMPT WRITING. Nothing here touches Dexie: no `addAttempt`, no
- * `recordEngagement`, no daily summary. Sub-step 4.3 adds that on top
- * of whatever this settles into. Answering, verdicts and the reveal
- * are all local state, so this can be reshaped without touching data.
+ * Attempts ARE written now (4.3) — through `recordReadingAttempt`,
+ * which owns the three calls. This file decides what the verdict is
+ * and when the card is answered; it does not talk to Dexie directly.
  *
- * NO TIMER AND NO SPEED PRESSURE anywhere in here. Elapsed time gets
- * measured silently when the attempt writer lands; nothing about it is
- * shown to the user, by design.
+ * NO TIMER AND NO SPEED PRESSURE anywhere in here. Elapsed time is
+ * measured from the card appearing to the answer being submitted and
+ * recorded silently — nothing counts down, nothing is shown, and no
+ * behaviour branches on it. That was an explicit decision, not an
+ * oversight: recognition speed is close to what reading practice
+ * trains, and it cannot be backfilled later.
  *
  * Every answer set comes from `answerModels.ts` and every option list
  * is derived from the catalog, so a picker cannot offer an answer the
  * card could not have, or omit one it could.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReadingStaff from './ReadingStaff';
 import FullSetPicker from '../../components/FullSetPicker';
 import AnswerVerdict from '../../components/AnswerVerdict';
@@ -38,6 +40,8 @@ import {
   judgeNote,
   judgeSignatureCount,
   keyNameOptions,
+  type CountStage,
+  type NoteVerdict,
   letterOptions,
   mnemonicFor,
   octaveOptions,
@@ -46,6 +50,7 @@ import {
   shapeOptions,
 } from './answerModels';
 import { withAccidentalGlyphs } from './pitch';
+import { recordReadingAttempt } from './recordReadingAttempt';
 
 const SEPIA = '#6f4a2f';
 
@@ -68,15 +73,118 @@ const EMPTY: AnswerState = {
   count: null, sequence: [], inversion: null, root: null, quality: null,
 };
 
+interface Evaluation {
+  correct: boolean;
+  /** Enough answered to submit. */
+  ready: boolean;
+  countStage: CountStage | null;
+  /** Note items only — carries which half missed, for the attempt. */
+  noteVerdict?: NoteVerdict;
+}
+
+/**
+ * The verdict for an answer, as a pure function of (card, answer).
+ *
+ * Pulled out of the render body so `submit` can judge the answer it is
+ * actually recording. The count direction submits from inside its own
+ * onPick handler, where component state has not yet caught up — and a
+ * verdict computed from stale state would be written to the attempt
+ * while a different one was shown on screen.
+ */
+function evaluate(
+  parsed: NonNullable<ReturnType<typeof parseReadingItemRef>>,
+  card: PickedCard,
+  answer: AnswerState,
+): Evaluation {
+  if (parsed.skill === 'note') {
+    const noteVerdict = judgeNote(
+      parsed.clef, parsed.position, answer.letter, answer.octave,
+    );
+    return {
+      correct: noteVerdict.correct,
+      ready: answer.letter !== null && answer.octave !== null,
+      countStage: null,
+      noteVerdict,
+    };
+  }
+
+  if (parsed.skill === 'shape') {
+    return {
+      correct: answer.shape === card.itemRef,
+      ready: answer.shape !== null,
+      countStage: null,
+    };
+  }
+
+  if (parsed.skill === 'sig') {
+    if (parsed.direction === 'count') {
+      // Derived, not stored — a stored stage is a second source of
+      // truth that can disagree with the pick that produced it.
+      const countStage = answer.count !== null
+        ? countStageAfterPick(parsed.signature as SignatureId, answer.count)
+        : null;
+      return {
+        // A settled stage is already answered — a wrong kind, or
+        // "none", needs no sequence to be complete.
+        ready: countStage !== null
+          && (countStage.stage === 'settled' || answer.sequence.length > 0),
+        correct: judgeSignatureCount(
+          parsed.signature as SignatureId, answer.count, answer.sequence,
+        ).correct,
+        countStage,
+      };
+    }
+    if (parsed.direction === 'which') {
+      const expected = correctAccidentalSequence(parsed.signature as SignatureId);
+      return {
+        ready: answer.sequence.length > 0 || expected.length === 0,
+        correct: answer.sequence.length === expected.length
+          && expected.every((a, i) => answer.sequence[i] === a),
+        countStage: null,
+      };
+    }
+    return {
+      ready: answer.keyName !== null,
+      correct: answer.keyName === parsed.signature,
+      countStage: null,
+    };
+  }
+
+  // Every chord card asks all three, open shapes included — their
+  // inversion answer is 'open shape', which is a real answer.
+  return {
+    ready: answer.root !== null && answer.quality !== null
+      && answer.inversion !== null,
+    correct: judgeChord(
+      {
+        position: inversionAnswerFor(parsed.qualityId, parsed.position),
+        rootId: card.rootId ?? '',
+        qualityId: parsed.qualityId,
+      },
+      { position: answer.inversion, rootId: answer.root, qualityId: answer.quality },
+    ).correct,
+    countStage: null,
+  };
+}
+
 export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
   const [card, setCard] = useState<PickedCard | null>(null);
   const [answer, setAnswer] = useState<AnswerState>(EMPTY);
   const [submitted, setSubmitted] = useState(false);
+  /** Hint state is per-DRILL, not per-card — it is a mode the user is
+   *  in while learning, and resetting it every card would make it
+   *  useless. Only key-signature `name` cards consult it. */
+  const [hintOn, setHintOn] = useState(false);
+  /** When the current card appeared. A ref, not state: it must not
+   *  trigger a re-render, and reading it during submit must give the
+   *  value set at mount rather than one a render cycle behind. */
+  const shownAt = useRef<number>(Date.now());
 
   const next = useCallback(() => {
     setCard(pickCard(skill));
     setAnswer(EMPTY);
     setSubmitted(false);
+    shownAt.current = Date.now();
   }, [skill]);
 
   // A skill change is a new drill, not a continuation.
@@ -95,65 +203,38 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
     return <p className="text-sm text-neutral-500">Loading…</p>;
   }
 
-  // -------------------------------------------------------------
-  // Verdicts — computed, never stored. Storing a verdict alongside
-  // the answer is how the two drift.
-  // -------------------------------------------------------------
   const sig = parsed.skill === 'sig'
     ? SIGNATURES.find(s => s.id === parsed.signature) ?? null
     : null;
 
-  // Which stage the count direction is in, derived from the answer
-  // rather than stored — a stored stage is a second source of truth
-  // that can disagree with the pick that produced it.
-  const countStage =
-    parsed.skill === 'sig' && parsed.direction === 'count' && answer.count !== null
-      ? countStageAfterPick(parsed.signature as SignatureId, answer.count)
-      : null;
-
-  let correct = false;
-  let ready = false;
-  if (parsed.skill === 'note') {
-    ready = answer.letter !== null && answer.octave !== null;
-    correct = judgeNote(parsed.clef, parsed.position, answer.letter, answer.octave).correct;
-  } else if (parsed.skill === 'shape') {
-    ready = answer.shape !== null;
-    correct = answer.shape === card.itemRef;
-  } else if (parsed.skill === 'sig') {
-    if (parsed.direction === 'count') {
-      // A settled stage is already answered — a wrong kind, or "none",
-      // needs no sequence to be complete.
-      ready = countStage !== null
-        && (countStage.stage === 'settled' || answer.sequence.length > 0);
-      correct = judgeSignatureCount(
-        parsed.signature as SignatureId, answer.count, answer.sequence,
-      ).correct;
-    } else if (parsed.direction === 'which') {
-      const expected = correctAccidentalSequence(parsed.signature as SignatureId);
-      ready = answer.sequence.length > 0 || expected.length === 0;
-      correct = answer.sequence.length === expected.length
-        && expected.every((a, i) => answer.sequence[i] === a);
-    } else {
-      ready = answer.keyName !== null;
-      correct = answer.keyName === parsed.signature;
-    }
-  } else {
-    // Every chord card asks all three, open shapes included — their
-    // inversion answer is 'open shape', which is a real answer.
-    ready = answer.root !== null && answer.quality !== null
-      && answer.inversion !== null;
-    correct = judgeChord(
-      {
-        position: inversionAnswerFor(parsed.qualityId, parsed.position),
-        rootId: card.rootId ?? '',
-        qualityId: parsed.qualityId,
-      },
-      { position: answer.inversion, rootId: answer.root, qualityId: answer.quality },
-    ).correct;
-  }
+  const { correct, ready, countStage } = evaluate(parsed, card, answer);
+  // Only the `name` direction has a hint to offer.
+  const hintAvailable = parsed.skill === 'sig' && parsed.direction === 'name';
 
   const set = (patch: Partial<AnswerState>) =>
     setAnswer(prev => ({ ...prev, ...patch }));
+
+  /**
+   * Submit, and write the attempt.
+   *
+   * Takes the answer to judge EXPLICITLY rather than reading state,
+   * because the count direction submits from inside its own onPick —
+   * at which point `answer` is still the pre-pick value. Passing the
+   * merged answer is what keeps the recorded verdict and the displayed
+   * one the same judgement rather than two that usually agree.
+   */
+  const submit = (finalAnswer: AnswerState) => {
+    if (submitted) return;
+    setSubmitted(true);
+    const v = evaluate(parsed, card, finalAnswer);
+    void recordReadingAttempt({
+      itemRef: card.itemRef,
+      correct: v.correct,
+      elapsedMs: Date.now() - shownAt.current,
+      noteVerdict: v.noteVerdict,
+      hintUsed: hintOn,
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -237,6 +318,32 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
         />
       )}
 
+      {hintAvailable && sig && (
+        <div className="flex items-center justify-center">
+          {/* A LEARNING AID, not a difficulty setting: the hint stays on
+              across cards until turned off, and the attempts it
+              produces stay in the same pile for streaks and coverage.
+              They are recorded as hint-on so "with hint" and "without"
+              can be read apart — see readingProgress.ts for why
+              excludeFromFluency was the wrong lever. */}
+          <label className="flex items-center gap-2 text-[11px] text-neutral-500 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hintOn}
+              onChange={e => setHintOn(e.target.checked)}
+            />
+            show the accidental count
+            {hintOn && (
+              <span className="font-medium" style={{ color: SEPIA }}>
+                {sig.count === 0
+                  ? 'none'
+                  : `${sig.count} ${sig.accidental === 'sharp' ? 'sharp' : 'flat'}${sig.count === 1 ? '' : 's'}`}
+              </span>
+            )}
+          </label>
+        </div>
+      )}
+
       {parsed.skill === 'sig' && parsed.direction === 'name' && (
         <FullSetPicker
           title={`which ${parsed.mode} key?`}
@@ -258,13 +365,15 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
             selectedId={answer.count}
             locked={submitted}
             onPick={id => {
+              const merged = { ...answer, count: id, sequence: [] };
               set({ count: id, sequence: [] });
               // A wrong KIND ends the attempt here — see
               // countStageAfterPick for why finishing it would
               // rehearse the wrong accidental order. "none" settles
-              // too: there is nothing to name.
+              // too: there is nothing to name. Submitting with the
+              // MERGED answer, since state has not caught up yet.
               const stage = countStageAfterPick(parsed.signature as SignatureId, id);
-              if (stage.stage === 'settled') setSubmitted(true);
+              if (stage.stage === 'settled') submit(merged);
             }}
             gridClassName="grid grid-cols-3 sm:grid-cols-7 gap-2"
           />
@@ -326,7 +435,7 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
           <button
             type="button"
             disabled={!ready}
-            onClick={() => setSubmitted(true)}
+            onClick={() => submit(answer)}
             className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 disabled:cursor-default"
             style={{ backgroundColor: SEPIA }}
           >

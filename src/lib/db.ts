@@ -1246,6 +1246,40 @@ export interface AttemptRecord {
    *  Captured so a future rolling-average planner can reason about
    *  the user's actual answer pace vs the cap they chose. */
   targetSeconds?: number;
+  /**
+   * How long the card was on screen before it was answered, in ms.
+   *
+   * NOT `targetSeconds`, which is the cap the user CHOSE — this is the
+   * time actually taken. The two are different measurements and
+   * overloading one for the other would make both unreadable.
+   *
+   * Written by Reading and nothing else so far. DELIBERATELY UNREAD:
+   * recognition speed is close to the thing reading practice trains,
+   * and it cannot be backfilled for sessions that never recorded it.
+   * Nothing branches on it, no timer is shown, and there is no speed
+   * pressure anywhere in the drill — this is silent measurement, and
+   * the decision to keep it was explicit. */
+  elapsedMs?: number;
+  /**
+   * Reading note items only. Which half of the staged letter/octave
+   * answer was missed, set ONLY when the attempt was wrong.
+   *
+   * Note recognition is one item answered in two stages, and a half-
+   * right answer is still wrong — so `correct` alone loses the thing
+   * worth knowing, which is whether octaves or letters are the
+   * weakness. Read by `readingMissBreakdown()`. */
+  noteMiss?: 'letter' | 'octave' | 'both';
+  /**
+   * Reading key-signature `name` items only. True when the accidental
+   * count was shown on the front of the card.
+   *
+   * Present ONLY when the hint was on, matching `excludeFromFluency`'s
+   * convention of omitting the false case. Hint-on attempts stay in
+   * the same pile for streaks and coverage — this makes "with hint"
+   * and "without" separable in the accuracy breakdown, which
+   * `excludeFromFluency` could not do because it drops the row from
+   * accuracy entirely. Read by `readingHintSplit()`. */
+  hintUsed?: boolean;
 }
 
 export interface DailySummary {
