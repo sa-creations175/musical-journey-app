@@ -32,8 +32,10 @@ type VexModule = typeof import('vexflow/bravura');
 
 let vexPromise: Promise<VexModule> | null = null;
 
-/** Load VexFlow once per session, on first card render. */
-function loadVexFlow(): Promise<VexModule> {
+/** Load VexFlow once per session, on first card render. Exported so
+ *  MnemonicStaff shares this promise rather than starting a second
+ *  load of the same 330 KB font. */
+export function loadVexFlow(): Promise<VexModule> {
   vexPromise ??= import('vexflow/bravura');
   return vexPromise;
 }

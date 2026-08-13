@@ -11,6 +11,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   WHITE_KEY_COUNT,
+  blackKeySpans,
+  bracketEndpointsX,
   cLandmarks,
   keyCentreX,
   whiteIndexOf,
@@ -98,6 +100,95 @@ describe('the staff-range bracket spans what the staff actually covers', () => {
 
   it('the bass staff sits entirely below the treble staff', () => {
     expect(whiteIndexOf('A', 3)!).toBeLessThan(whiteIndexOf('E', 4)!);
+  });
+});
+
+describe('BRACKET ENDPOINTS LAND ON THE RIGHT KEYS', () => {
+  // The bug this exists for: drawn edge-to-edge, the endpoints sat at
+  // white-key BOUNDARIES, and a black key straddles every boundary —
+  // so the bass bracket appeared to name G-flat 2 and B-flat 3 rather
+  // than G2 and A3. The range was right and the drawing was not, which
+  // is the worst combination for a diagram nobody can check by eye.
+
+  /** Index of the black key covering an x, or -1. */
+  const blackKeyAt = (x: number) =>
+    blackKeySpans().findIndex(s => x >= s.x1 && x <= s.x2);
+
+  const endsFor = (clef: 'treble' | 'bass') => {
+    const low = pitchAtStaffPosition(clef, 0);
+    const high = pitchAtStaffPosition(clef, 8);
+    return {
+      low, high,
+      ends: bracketEndpointsX(
+        { letter: low.letter, octave: low.octave },
+        { letter: high.letter, octave: high.octave },
+      )!,
+    };
+  };
+
+  it('no endpoint sits over a black key, for either clef', () => {
+    for (const clef of ['treble', 'bass'] as const) {
+      const { ends } = endsFor(clef);
+      expect(blackKeyAt(ends.x1), `${clef} low`).toBe(-1);
+      expect(blackKeyAt(ends.x2), `${clef} high`).toBe(-1);
+    }
+  });
+
+  it('each endpoint is inside the white key it NAMES', () => {
+    // Stronger than "not on a black key": it must be on the right
+    // white key, not merely on some white key.
+    for (const clef of ['treble', 'bass'] as const) {
+      const { low, high, ends } = endsFor(clef);
+      const lowIdx = whiteIndexOf(low.letter, low.octave)!;
+      const highIdx = whiteIndexOf(high.letter, high.octave)!;
+      expect(ends.x1).toBeGreaterThan(whiteKeyX(lowIdx));
+      expect(ends.x1).toBeLessThan(whiteKeyX(lowIdx + 1));
+      expect(ends.x2).toBeGreaterThan(whiteKeyX(highIdx));
+      expect(ends.x2).toBeLessThan(whiteKeyX(highIdx + 1));
+    }
+  });
+
+  it('the OLD edge-based endpoints really did fall on black keys', () => {
+    // Pins the bug itself, so "simplifying" back to edges goes red
+    // rather than silently reintroducing it.
+    for (const clef of ['treble', 'bass'] as const) {
+      const { low, high } = endsFor(clef);
+      const lowEdge = whiteKeyX(whiteIndexOf(low.letter, low.octave)!);
+      const highEdge = whiteKeyX(whiteIndexOf(high.letter, high.octave)! + 1);
+      expect(blackKeyAt(lowEdge), `${clef} low edge`).not.toBe(-1);
+      expect(blackKeyAt(highEdge), `${clef} high edge`).not.toBe(-1);
+    }
+  });
+
+  it('EVERY white key centre is clear of every black key', () => {
+    // The general property the fix rests on, checked across all 52
+    // rather than trusting the arithmetic for the four in use.
+    for (let i = 0; i < WHITE_KEY_COUNT; i++) {
+      expect(blackKeyAt(whiteKeyX(i) + 11.5), `white ${i}`).toBe(-1);
+    }
+  });
+});
+
+describe('THE HIGHLIGHT MARKER SITS ON THE ANSWER KEY', () => {
+  it('the marker is inside the key it names, for every drillable note', () => {
+    // Same class of error as the bracket, and the one that would teach
+    // a wrong note outright.
+    for (const clef of ['treble', 'bass'] as const) {
+      for (let position = -4; position <= 12; position++) {
+        const p = pitchAtStaffPosition(clef, position);
+        const idx = whiteIndexOf(p.letter, p.octave)!;
+        const x = keyCentreX({ letter: p.letter, octave: p.octave })!;
+        expect(x, `${clef}:${position}`).toBeGreaterThan(whiteKeyX(idx));
+        expect(x, `${clef}:${position}`).toBeLessThan(whiteKeyX(idx + 1));
+      }
+    }
+  });
+
+  it('a marker never lands on the key next door', () => {
+    // Off-by-one is the failure that looks entirely plausible.
+    for (let i = 0; i < WHITE_KEY_COUNT; i++) {
+      expect(Math.floor((whiteKeyX(i) + 11.5) / 23), `white ${i}`).toBe(i);
+    }
   });
 });
 

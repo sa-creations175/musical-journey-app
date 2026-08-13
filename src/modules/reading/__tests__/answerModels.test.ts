@@ -41,6 +41,7 @@ import {
   parseReadingItemRef,
 } from '../catalog';
 import { pitchAtStaffPosition } from '../pitch';
+import { vexLinesForItem } from '../MnemonicStaff';
 
 // =====================================================================
 // Note recognition
@@ -144,6 +145,33 @@ describe('mnemonics', () => {
         m.items.forEach((item, i) => {
           const actual = pitchAtStaffPosition(clef, positions[i]).letter;
           expect(item.letter, `${clef}/${m.kind}[${i}]`).toBe(actual);
+        });
+      }
+    }
+  });
+
+  it('VexFlow line indices invert bottom-to-top correctly', () => {
+    // items run BOTTOM to TOP; VexFlow counts lines TOP-DOWN, so the
+    // bottom line is index 4. Getting this backwards draws every
+    // mnemonic upside down and looks entirely plausible.
+    expect(vexLinesForItem('line', 0)).toEqual([4]);   // bottom line
+    expect(vexLinesForItem('line', 4)).toEqual([0]);   // top line
+    // A space sits between the two lines either side of it.
+    expect(vexLinesForItem('space', 0)).toEqual([4, 3]); // bottom space
+    expect(vexLinesForItem('space', 3)).toEqual([1, 0]); // top space
+  });
+
+  it('every mnemonic item maps to a line index on the staff', () => {
+    // Five lines are indices 0-4. Anything outside would draw off the
+    // staff entirely.
+    for (const clef of ['treble', 'bass'] as const) {
+      for (const kind of [0, 1]) {
+        const m = mnemonicFor(clef, kind);
+        m.items.forEach((_, i) => {
+          for (const line of vexLinesForItem(m.kind, i)) {
+            expect(line, `${clef}/${m.kind}[${i}]`).toBeGreaterThanOrEqual(0);
+            expect(line, `${clef}/${m.kind}[${i}]`).toBeLessThanOrEqual(4);
+          }
         });
       }
     }

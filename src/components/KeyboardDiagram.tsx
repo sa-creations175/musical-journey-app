@@ -91,9 +91,50 @@ export function cLandmarks(): Array<{ index: number; octave: number }> {
   return out;
 }
 
-const VIEW_TOP = -58;
-const VIEW_HEIGHT = 200;
+/**
+ * BRACKET ENDPOINTS SIT AT KEY CENTRES, NOT KEY EDGES.
+ *
+ * Drawing the span edge-to-edge is the obvious thing and it lies: a
+ * black key straddles every white-key boundary, so an endpoint at the
+ * left edge of G2 lands visually on G♭2 and the bracket appears to
+ * name the wrong notes. The range was right; the drawing was not.
+ *
+ * A centre is provably clear of black keys. Centre of white key i is
+ * i·WW + WW/2 = i·23 + 11.5. The black keys nearest it span
+ * [i·23 − 6.5, i·23 + 6.5] and [i·23 + 16.5, i·23 + 29.5], and 11.5
+ * falls in neither — with 5 units of clearance either side. A test
+ * checks this across every white key rather than trusting the algebra.
+ */
+export function bracketEndpointsX(
+  from: KeyboardPitch,
+  to: KeyboardPitch,
+): { x1: number; x2: number } | null {
+  const x1 = keyCentreX({ letter: from.letter, octave: from.octave });
+  const x2 = keyCentreX({ letter: to.letter, octave: to.octave });
+  if (x1 === null || x2 === null) return null;
+  return { x1, x2 };
+}
+
+/** Every black key's horizontal span, for the clearance test. */
+export function blackKeySpans(): Array<{ x1: number; x2: number }> {
+  const out: Array<{ x1: number; x2: number }> = [];
+  for (let i = 0; i < WHITE_KEY_COUNT - 1; i++) {
+    const letter = LETTER_AT[(i + FIRST_WHITE) % 7];
+    if (!HAS_BLACK_AFTER.has(letter)) continue;
+    const x = whiteKeyX(i) + WW - BW / 2;
+    out.push({ x1: x, x2: x + BW });
+  }
+  return out;
+}
+
+const VIEW_TOP = -70;
+const VIEW_HEIGHT = 210;
 const VIEW_WIDTH = WHITE_KEY_COUNT * WW;
+
+/** Pitch as it is spoken — "G2", "F5". */
+function pitchLabel(p: KeyboardPitch): string {
+  return `${p.letter}${p.accidental ?? ''}${p.octave}`;
+}
 
 export default function KeyboardDiagram({
   highlight,
@@ -111,11 +152,10 @@ export default function KeyboardDiagram({
     : null;
   const markerX = highlight ? keyCentreX(highlight) : null;
 
-  const bracketFrom = bracket ? whiteIndexOf(bracket.from.letter, bracket.from.octave) : null;
-  const bracketTo = bracket ? whiteIndexOf(bracket.to.letter, bracket.to.octave) : null;
-  const bracketOk = bracketFrom !== null && bracketTo !== null;
-  const bx1 = bracketOk ? whiteKeyX(bracketFrom!) : 0;
-  const bx2 = bracketOk ? whiteKeyX(bracketTo!) + WW : 0;
+  const ends = bracket ? bracketEndpointsX(bracket.from, bracket.to) : null;
+  const bracketOk = ends !== null;
+  const bx1 = ends?.x1 ?? 0;
+  const bx2 = ends?.x2 ?? 0;
 
   const whites = Array.from({ length: WHITE_KEY_COUNT }, (_, i) => i);
 
@@ -169,30 +209,41 @@ export default function KeyboardDiagram({
           to miss; the triangle is what makes it findable at a glance. */}
       {markerX !== null && (
         <polygon
-          points={`${markerX - 9},-14 ${markerX + 9},-14 ${markerX},-1`}
+          points={`${markerX - 9},-10 ${markerX + 9},-10 ${markerX},-1`}
           fill={accentHex}
         />
       )}
 
-      {/* Staff-range bracket. */}
+      {/* Staff-range bracket. Ticks point DOWN to the exact key each
+          end names — see bracketEndpointsX for why centres, not edges. */}
       {bracketOk && (
         <g stroke={accentHex} strokeWidth={2.5} fill="none">
-          <line x1={bx1} y1={-30} x2={bx2} y2={-30} />
-          <line x1={bx1} y1={-30} x2={bx1} y2={-20} />
-          <line x1={bx2} y1={-30} x2={bx2} y2={-20} />
+          <line x1={bx1} y1={-20} x2={bx2} y2={-20} />
+          <line x1={bx1} y1={-20} x2={bx1} y2={-12} />
+          <line x1={bx2} y1={-20} x2={bx2} y2={-12} />
         </g>
       )}
       {bracketOk && (
-        <text
-          x={(bx1 + bx2) / 2}
-          y={-38}
-          textAnchor="middle"
-          fontSize={26}
-          fill={accentHex}
-          fontWeight={600}
-        >
-          {bracket!.label}
-        </text>
+        <>
+          <text
+            x={(bx1 + bx2) / 2}
+            y={-50}
+            textAnchor="middle"
+            fontSize={26}
+            fill={accentHex}
+            fontWeight={600}
+          >
+            {bracket!.label}
+          </text>
+          {/* The endpoints named, so the bracket states a fact rather
+              than gesturing at a span. */}
+          <text x={bx1} y={-28} textAnchor="middle" fontSize={24} fill={accentHex}>
+            {pitchLabel(bracket!.from)}
+          </text>
+          <text x={bx2} y={-28} textAnchor="middle" fontSize={24} fill={accentHex}>
+            {pitchLabel(bracket!.to)}
+          </text>
+        </>
       )}
 
       {/* C landmarks. Every C labelled — these are what the whole
