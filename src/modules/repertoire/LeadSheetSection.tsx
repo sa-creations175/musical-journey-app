@@ -1035,7 +1035,10 @@ export default function LeadSheetSection({
   // derived from chord placements + the legacy `barCount` padding.
   const allBars = useMemo(
     () => deriveBarGrid(section, activeArrangementId, beatsPerBar, eighths),
-    [section, activeArrangementId, beatsPerBar],
+    // `eighths` decides how many positions a bar has, so leaving it out
+    // meant toggling it mid-session kept rendering the grid derived
+    // under the old setting until something else happened to change.
+    [section, activeArrangementId, beatsPerBar, eighths],
   );
 
   /**

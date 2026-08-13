@@ -395,7 +395,10 @@ export default function BarGridView({
 
   const bars = useMemo(
     () => deriveBarGrid(section, activeArrangementId, beatsPerBar, eighths),
-    [section, activeArrangementId, beatsPerBar],
+    // `eighths` decides how many positions a bar has, so leaving it out
+    // meant toggling it mid-session kept rendering the grid derived
+    // under the old setting until something else happened to change.
+    [section, activeArrangementId, beatsPerBar, eighths],
   );
   /** Positions a bar offers. Every width in the row divides by THIS,
    *  not by beatsPerBar — which is what keeps a migrated chord's
