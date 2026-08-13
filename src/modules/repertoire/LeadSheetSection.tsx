@@ -2443,8 +2443,9 @@ export default function LeadSheetSection({
                           <PhraseNote
                             note={phrase.note}
                             editing={sequenceEditing}
+                            /* RETURNED, not voided — see PhraseNote. */
                             onChange={next =>
-                              void handleSetPhraseNote(
+                              handleSetPhraseNote(
                                 phrase.endsAfterPlacementId,
                                 next,
                               )

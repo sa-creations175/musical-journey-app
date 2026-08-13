@@ -276,8 +276,12 @@ export default function ProgressionDrawer({
                           <PhraseNote
                             note={phrase.note}
                             editing={editing}
+                            /* RETURNED, not voided: PhraseNote awaits
+                               this to decide between a tick and a
+                               failure. Discarding it makes every write
+                               look successful. */
                             onChange={next =>
-                              void onSetPhraseNote(
+                              onSetPhraseNote(
                                 section.sectionId,
                                 phrase.endsAfterPlacementId,
                                 next,
