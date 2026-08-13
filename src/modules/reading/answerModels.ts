@@ -182,6 +182,41 @@ export interface SignatureCountVerdict {
   correct: boolean;
 }
 
+/**
+ * What happens after the count is committed, in the `count` direction.
+ *
+ * A WRONG KIND ENDS THE ATTEMPT IMMEDIATELY. If the prompt says
+ * "G♭ major" and the answer picked is sharps, that is not a near miss
+ * — the spelling is in the key name, so it is a category error and
+ * realistically a mistap. Tapping out six sharps to confirm it would
+ * rehearse a wrong accidental order against a card that names flats,
+ * which teaches something false and spends the card doing it.
+ *
+ * A wrong COUNT with the right kind does NOT stop: naming the flats in
+ * written order is still the right rehearsal, and only the number is
+ * off. That is a near miss and worth finishing.
+ *
+ * The empty signature settles here too — "none" has nothing to name,
+ * so there is no second stage to enter.
+ */
+export type CountStage =
+  | { stage: 'sequence'; kind: 'sharp' | 'flat' }
+  | { stage: 'settled'; reason: 'wrong-kind' | 'no-accidentals' };
+
+export function countStageAfterPick(
+  cardId: SignatureId,
+  pickedCountId: string,
+): CountStage {
+  const card = SIGNATURES.find(s => s.id === cardId);
+  const picked = SIGNATURES.find(s => s.id === pickedCountId);
+  const pickedKind = picked?.accidental ?? null;
+  if (pickedKind !== (card?.accidental ?? null)) {
+    return { stage: 'settled', reason: 'wrong-kind' };
+  }
+  if (pickedKind === null) return { stage: 'settled', reason: 'no-accidentals' };
+  return { stage: 'sequence', kind: pickedKind };
+}
+
 export function judgeSignatureCount(
   id: SignatureId,
   pickedCountId: string | null,
@@ -237,14 +272,49 @@ export function qualityOptions(): PickerOption[] {
   return CHORD_QUALITIES.map(q => ({ id: q.id, label: q.label }));
 }
 
-/** All four, always — including for open shapes, which have only a
- *  root position. See `chordInversionAsked` for why that is a
- *  question rather than a settled call. */
+/**
+ * The answer to "which inversion" — the four positions plus OPEN
+ * SHAPE, which is a real answer rather than a missing one.
+ *
+ * An octave or a root–tenth has no inversion: it IS a voicing, and
+ * `positionsForFamily` gives it only 'root'. The two obvious ways to
+ * handle that are both wrong. Hiding the picker on those cards
+ * announces "this is an open shape" through the layout, before the
+ * staff has been read. Showing four buttons and accepting only 'root'
+ * asks a question with no meaning.
+ *
+ * Naming the open shape as its own answer fixes both: the picker is
+ * IDENTICAL on every chord card, so it leaks nothing, and recognising
+ * a voicing as an open shape becomes part of the skill instead of
+ * something the interface gives away.
+ */
+export const OPEN_SHAPE_ANSWER = 'open';
+
+/** What the inversion picker can return — a real position, or the
+ *  open-shape answer, which is deliberately not a ChordPosition. */
+export type InversionAnswer = ChordPosition | typeof OPEN_SHAPE_ANSWER;
+
 export function inversionOptions(): PickerOption[] {
-  return (['root', 'inv1', 'inv2', 'inv3'] as ChordPosition[]).map(p => ({
-    id: p,
-    label: POSITION_WORD[p],
-  }));
+  const positions: PickerOption[] =
+    (['root', 'inv1', 'inv2', 'inv3'] as ChordPosition[]).map(p => ({
+      id: p,
+      label: POSITION_WORD[p],
+    }));
+  return [
+    ...positions,
+    { id: OPEN_SHAPE_ANSWER, label: 'open shape', hint: 'octave, fifth, tenth — a voicing, not an inversion' },
+  ];
+}
+
+/** The inversion answer for a chord item: open-family cards answer
+ *  'open', everything else answers its written position. Derived from
+ *  the quality so the picker and the judge cannot disagree. */
+export function inversionAnswerFor(
+  qualityId: string,
+  position: ChordPosition,
+): InversionAnswer {
+  const family = CHORD_QUALITIES.find(q => q.id === qualityId)?.family;
+  return family === 'open' ? OPEN_SHAPE_ANSWER : position;
 }
 
 export interface ChordVerdict {
@@ -255,7 +325,7 @@ export interface ChordVerdict {
 }
 
 export function judgeChord(
-  expected: { position: ChordPosition; rootId: string; qualityId: string },
+  expected: { position: InversionAnswer; rootId: string; qualityId: string },
   picked: { position: string | null; rootId: string | null; qualityId: string | null },
 ): ChordVerdict {
   const inversionCorrect = picked.position === expected.position;

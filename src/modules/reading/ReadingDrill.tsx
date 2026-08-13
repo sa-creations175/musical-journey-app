@@ -22,7 +22,6 @@ import AnswerVerdict from '../../components/AnswerVerdict';
 import { resolveReadingCard } from './renderCard';
 import { pickCard, type ReadingDrillSkill, type PickedCard } from './pickCard';
 import {
-  CHORD_QUALITIES,
   SIGNATURES,
   parseReadingItemRef,
   type ChordPosition,
@@ -32,6 +31,8 @@ import {
   accidentalCountOptions,
   accidentalNameOptions,
   correctAccidentalSequence,
+  countStageAfterPick,
+  inversionAnswerFor,
   inversionOptions,
   judgeChord,
   judgeNote,
@@ -102,6 +103,14 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
     ? SIGNATURES.find(s => s.id === parsed.signature) ?? null
     : null;
 
+  // Which stage the count direction is in, derived from the answer
+  // rather than stored — a stored stage is a second source of truth
+  // that can disagree with the pick that produced it.
+  const countStage =
+    parsed.skill === 'sig' && parsed.direction === 'count' && answer.count !== null
+      ? countStageAfterPick(parsed.signature as SignatureId, answer.count)
+      : null;
+
   let correct = false;
   let ready = false;
   if (parsed.skill === 'note') {
@@ -112,7 +121,10 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
     correct = answer.shape === card.itemRef;
   } else if (parsed.skill === 'sig') {
     if (parsed.direction === 'count') {
-      ready = answer.count !== null && answer.sequence.length > 0;
+      // A settled stage is already answered — a wrong kind, or "none",
+      // needs no sequence to be complete.
+      ready = countStage !== null
+        && (countStage.stage === 'settled' || answer.sequence.length > 0);
       correct = judgeSignatureCount(
         parsed.signature as SignatureId, answer.count, answer.sequence,
       ).correct;
@@ -126,16 +138,17 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
       correct = answer.keyName === parsed.signature;
     }
   } else {
-    const isOpen = CHORD_QUALITIES.find(q => q.id === parsed.qualityId)?.family === 'open';
+    // Every chord card asks all three, open shapes included — their
+    // inversion answer is 'open shape', which is a real answer.
     ready = answer.root !== null && answer.quality !== null
-      && (isOpen || answer.inversion !== null);
+      && answer.inversion !== null;
     correct = judgeChord(
-      { position: parsed.position, rootId: card.rootId ?? '', qualityId: parsed.qualityId },
       {
-        position: isOpen ? 'root' : answer.inversion,
-        rootId: answer.root,
-        qualityId: answer.quality,
+        position: inversionAnswerFor(parsed.qualityId, parsed.position),
+        rootId: card.rootId ?? '',
+        qualityId: parsed.qualityId,
       },
+      { position: answer.inversion, rootId: answer.root, qualityId: answer.quality },
     ).correct;
   }
 
@@ -244,21 +257,35 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
             correctId={parsed.signature}
             selectedId={answer.count}
             locked={submitted}
-            onPick={id => set({ count: id, sequence: [] })}
+            onPick={id => {
+              set({ count: id, sequence: [] });
+              // A wrong KIND ends the attempt here — see
+              // countStageAfterPick for why finishing it would
+              // rehearse the wrong accidental order. "none" settles
+              // too: there is nothing to name.
+              const stage = countStageAfterPick(parsed.signature as SignatureId, id);
+              if (stage.stage === 'settled') setSubmitted(true);
+            }}
             gridClassName="grid grid-cols-3 sm:grid-cols-7 gap-2"
           />
           {/* Which ones — only after committing to a number, which is
               the point of the ordering. The kind shown follows the
               user's OWN answer, not the card's, so part one cannot
               leak into part two. */}
-          {answer.count !== null && (
+          {countStage?.stage === 'sequence' && (
             <AccidentalSequence
-              kind={SIGNATURES.find(s => s.id === answer.count)?.accidental ?? 'sharp'}
+              kind={countStage.kind}
               sequence={answer.sequence}
               onChange={seq => set({ sequence: seq })}
               locked={submitted}
               expected={correctAccidentalSequence(parsed.signature as SignatureId)}
             />
+          )}
+          {submitted && countStage?.stage === 'settled'
+            && countStage.reason === 'wrong-kind' && (
+            <p className="text-center text-xs text-needswork">
+              wrong kind — the key name says which.
+            </p>
           )}
         </div>
       )}
@@ -394,30 +421,23 @@ function ChordPanel({
   submitted: boolean;
   correctRootId: string | null;
 }) {
-  // Open shapes ARE a voicing — "root position" adds nothing to an
-  // octave or a tenth, and the caption omits it. So the inversion
-  // picker is hidden rather than answered trivially.
-  //
-  // OPEN QUESTION for review: hiding it tells the user the card is an
-  // open shape before they have read it. Showing all four and
-  // accepting only 'root' would leak nothing but would ask a question
-  // that has no meaning. Neither is obviously right.
-  const isOpen = CHORD_QUALITIES.find(q => q.id === parsed.qualityId)?.family === 'open';
-
   return (
     <div className="space-y-3">
       {/* Top to bottom: inversion, root, quality — the order the
-          reading actually goes. Any order is allowed; this is layout. */}
-      {!isOpen && (
-        <FullSetPicker
-          title="inversion"
-          options={inversionOptions()}
-          correctId={parsed.position}
-          selectedId={answer.inversion}
-          locked={submitted}
-          onPick={id => set({ inversion: id })}
-        />
-      )}
+          reading actually goes. Any order is allowed; this is layout.
+
+          The inversion picker is IDENTICAL on every chord card,
+          including open shapes, whose answer is "open shape". A picker
+          that appeared or disappeared would announce which kind of card
+          this is before the staff had been read. */}
+      <FullSetPicker
+        title="inversion"
+        options={inversionOptions()}
+        correctId={inversionAnswerFor(parsed.qualityId, parsed.position)}
+        selectedId={answer.inversion}
+        locked={submitted}
+        onPick={id => set({ inversion: id })}
+      />
       <FullSetPicker
         title="root"
         options={rootOptions()}

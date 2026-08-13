@@ -12,9 +12,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHORD_ROOTS,
+  OPEN_SHAPE_ANSWER,
   accidentalCountOptions,
   accidentalNameOptions,
   correctAccidentalSequence,
+  countStageAfterPick,
+  inversionAnswerFor,
   inversionOptions,
   judgeChord,
   judgeNote,
@@ -32,6 +35,7 @@ import {
 import {
   CHORD_QUALITIES,
   SIGNATURES,
+  enumerateChordItems,
   enumerateNoteItems,
   enumerateShapeItems,
   parseReadingItemRef,
@@ -173,6 +177,55 @@ describe('signature answer sets', () => {
     }
   });
 
+  it('a WRONG KIND settles the attempt instead of asking for six taps', () => {
+    // G-flat major is flats. Picking sharps is a category error, not a
+    // near miss — the spelling is in the key name. Finishing it would
+    // rehearse the sharp order against a card that names flats.
+    expect(countStageAfterPick('6f', '6s')).toEqual({
+      stage: 'settled', reason: 'wrong-kind',
+    });
+    expect(countStageAfterPick('6f', '3s')).toEqual({
+      stage: 'settled', reason: 'wrong-kind',
+    });
+    // "none" against a card that has accidentals is also a wrong kind.
+    expect(countStageAfterPick('2s', '0')).toEqual({
+      stage: 'settled', reason: 'wrong-kind',
+    });
+    expect(countStageAfterPick('0', '2s')).toEqual({
+      stage: 'settled', reason: 'wrong-kind',
+    });
+  });
+
+  it('a wrong COUNT with the right kind still asks for the sequence', () => {
+    // Naming the flats in written order is the right rehearsal; only
+    // the number is off. That is a near miss and worth finishing.
+    expect(countStageAfterPick('6f', '3f')).toEqual({ stage: 'sequence', kind: 'flat' });
+    expect(countStageAfterPick('2s', '5s')).toEqual({ stage: 'sequence', kind: 'sharp' });
+  });
+
+  it('the right kind enters the sequence stage on the kind PICKED', () => {
+    expect(countStageAfterPick('3s', '3s')).toEqual({ stage: 'sequence', kind: 'sharp' });
+    expect(countStageAfterPick('2f', '2f')).toEqual({ stage: 'sequence', kind: 'flat' });
+  });
+
+  it('the empty signature settles — there is nothing to name', () => {
+    expect(countStageAfterPick('0', '0')).toEqual({
+      stage: 'settled', reason: 'no-accidentals',
+    });
+    // ...and settling it correct is what the verdict says, with no
+    // sequence ever entered.
+    expect(judgeSignatureCount('0', '0', []).correct).toBe(true);
+  });
+
+  it('a settled wrong-kind attempt judges wrong with an empty sequence', () => {
+    // The UI submits immediately, so the sequence never gets filled.
+    // The verdict has to be wrong on that alone.
+    const v = judgeSignatureCount('6f', '6s', []);
+    expect(v.countCorrect).toBe(false);
+    expect(v.whichCorrect).toBe(false);
+    expect(v.correct).toBe(false);
+  });
+
   it('ORDER MATTERS — the right accidentals in the wrong order is wrong', () => {
     // "name them, in order" is the question; a set-equality check
     // would quietly accept a different question.
@@ -198,10 +251,11 @@ describe('signature answer sets', () => {
 // =====================================================================
 
 describe('chord answer sets', () => {
-  it('is 4 + 12 + 14 buttons, split rather than flat', () => {
+  it('is 5 + 12 + 14 buttons, split rather than flat', () => {
     // Flat, the answer space is ~168. None of these exceeds what ET
-    // already puts on screen.
-    expect(inversionOptions()).toHaveLength(4);
+    // already puts on screen. Five, not four: "open shape" is a real
+    // answer, not a missing inversion.
+    expect(inversionOptions()).toHaveLength(5);
     expect(rootOptions()).toHaveLength(12);
     expect(qualityOptions()).toHaveLength(CHORD_QUALITIES.length);
     expect(qualityOptions()).toHaveLength(14);
@@ -219,6 +273,59 @@ describe('chord answer sets', () => {
   it('every quality is offered, including the open shapes', () => {
     const offered = new Set(qualityOptions().map(o => o.id));
     for (const q of CHORD_QUALITIES) expect(offered.has(q.id), q.id).toBe(true);
+  });
+
+  it('THE PICKER IS IDENTICAL ON EVERY CHORD CARD', () => {
+    // The property that makes this leak nothing. If the option list
+    // varied with the card — hidden for open shapes, say — the layout
+    // would announce which kind of card it is before the staff had
+    // been read. One list, every card.
+    const list = JSON.stringify(inversionOptions());
+    for (const ref of enumerateChordItems()) {
+      expect(JSON.stringify(inversionOptions()), ref).toBe(list);
+    }
+    expect(inversionOptions().map(o => o.id))
+      .toEqual(['root', 'inv1', 'inv2', 'inv3', OPEN_SHAPE_ANSWER]);
+  });
+
+  it('open shapes answer "open shape"; everything else answers its position', () => {
+    // An octave or a tenth IS a voicing — asking which inversion it is
+    // has no meaning, so the answer names what it actually is.
+    expect(inversionAnswerFor('octave', 'root')).toBe(OPEN_SHAPE_ANSWER);
+    expect(inversionAnswerFor('r10', 'root')).toBe(OPEN_SHAPE_ANSWER);
+    expect(inversionAnswerFor('r5', 'root')).toBe(OPEN_SHAPE_ANSWER);
+    expect(inversionAnswerFor('maj', 'root')).toBe('root');
+    expect(inversionAnswerFor('dom7', 'inv3')).toBe('inv3');
+  });
+
+  it('every chord item has its inversion answer on the picker', () => {
+    const offered = new Set(inversionOptions().map(o => o.id));
+    for (const ref of enumerateChordItems()) {
+      const p = parseReadingItemRef(ref);
+      if (p?.skill !== 'chord') continue;
+      const answer = inversionAnswerFor(p.qualityId, p.position);
+      expect(offered.has(answer), `${ref} → ${answer}`).toBe(true);
+    }
+  });
+
+  it('an open shape answered "root position" is WRONG', () => {
+    // The whole point of the fourth option: 'root' is no longer a free
+    // pass on a voicing.
+    const expected = {
+      position: inversionAnswerFor('octave', 'root'),
+      rootId: 'C',
+      qualityId: 'octave',
+    };
+    expect(judgeChord(expected, { position: 'root', rootId: 'C', qualityId: 'octave' }).correct)
+      .toBe(false);
+    expect(judgeChord(expected, { position: OPEN_SHAPE_ANSWER, rootId: 'C', qualityId: 'octave' }).correct)
+      .toBe(true);
+  });
+
+  it('a triad answered "open shape" is WRONG', () => {
+    const expected = { position: inversionAnswerFor('maj', 'inv1'), rootId: 'C', qualityId: 'maj' };
+    expect(judgeChord(expected, { position: OPEN_SHAPE_ANSWER, rootId: 'C', qualityId: 'maj' }).correct)
+      .toBe(false);
   });
 
   it('all three picks must be right', () => {
