@@ -918,6 +918,7 @@ export default function LeadSheetSection({
     barIndex: number,
     beatPos: number,
     chord: ChordFunction,
+    offbeat?: boolean,
   ) => {
     const sec = sectionRef.current;
     const placements =
@@ -931,6 +932,10 @@ export default function LeadSheetSection({
       beatPos,
       beats: eighths ? 2 : 1,
       chord,
+      // The chord lands on the slot that was TAPPED. Without this an
+      // "and" slot could be tapped and the chord would arrive on the
+      // beat beside it.
+      ...(offbeat ? { offbeat: true as const } : {}),
     };
     const next = addChordPlacement(placements, newPlacement);
     const patch: Partial<SongSection> = { chordPlacements: next };

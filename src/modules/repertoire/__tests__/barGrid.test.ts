@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ChordFunction, Phrase, SongSection } from '../../../lib/db';
 import {
   addChordPlacement,
+  assembleBarItems,
+  type BarCell,
   autoHarmonicTag,
   cascadeChordPlacements,
   deriveBarGrid,
@@ -1030,5 +1032,75 @@ describe('legacy section — width is invariant across the eighths toggle', () =
     expect(materializeChordPlacements(legacy(), BEATS_PER_BAR)).toEqual(
       materializeChordPlacements(legacy(), BEATS_PER_BAR, false),
     );
+  });
+});
+
+// ---------------------------------------------------------------------
+// assembleBarItems — the free slots that make a gap addable
+// ---------------------------------------------------------------------
+
+describe('assembleBarItems', () => {
+  const cell = (beatPos: number, beats: number, offbeat?: boolean): BarCell =>
+    ({
+      chord: cf('1'),
+      beats,
+      beatPos,
+      ...(offbeat ? { offbeat: true } : {}),
+      placementId: `p${beatPos}${offbeat ? '+' : ''}`,
+    }) as BarCell;
+
+  it('REPRODUCES bar 10: shortening a full-bar chord leaves addable slots', () => {
+    // O Come, bar index 9: one chord filling 8 slots, shortened to 4.
+    // The freed half must come back as free slots or there is no way
+    // to put anything in it — the user's dead end.
+    const items = assembleBarItems([cell(0, 4)], 8, true);
+    expect(items[0].kind).toBe('cell');
+    const empties = items.filter(i => i.kind === 'empty');
+    expect(empties).toHaveLength(4);
+    expect(empties.map(e => (e as { beatPos: number }).beatPos)).toEqual([
+      2, 2, 3, 3,
+    ]);
+    // Two on the beat, two on the "and", in slot order.
+    expect(
+      empties.map(e => (e as { offbeat?: boolean }).offbeat ?? false),
+    ).toEqual([false, true, false, true]);
+  });
+
+  it('emits nothing free when the bar is exactly full', () => {
+    const items = assembleBarItems([cell(0, 4), cell(2, 4)], 8, true);
+    expect(items.filter(i => i.kind === 'empty')).toHaveLength(0);
+  });
+
+  it('fills a whole empty bar with free slots', () => {
+    expect(assembleBarItems([], 8, true).filter(i => i.kind === 'empty')).toHaveLength(8);
+  });
+
+  it('does not offer a slot a multi-slot chord is covering', () => {
+    const items = assembleBarItems([cell(0, 6)], 8, true);
+    const empties = items.filter(i => i.kind === 'empty');
+    expect(empties).toHaveLength(2);
+    expect((empties[0] as { beatPos: number }).beatPos).toBe(3);
+  });
+
+  it('offers the gap BEFORE a chord as well as after', () => {
+    const items = assembleBarItems([cell(2, 4)], 8, true);
+    const kinds = items.map(i => i.kind);
+    expect(kinds.slice(0, 4)).toEqual(['empty', 'empty', 'empty', 'empty']);
+    expect(kinds[4]).toBe('cell');
+  });
+
+  it('is unchanged on the quarter-note path', () => {
+    const items = assembleBarItems([cell(0, 2)], 4, false);
+    const empties = items.filter(i => i.kind === 'empty');
+    expect(empties).toHaveLength(2);
+    expect(
+      empties.map(e => (e as { offbeat?: boolean }).offbeat),
+    ).toEqual([undefined, undefined]);
+  });
+
+  it('gives each free slot a width that divides the bar', () => {
+    const items = assembleBarItems([cell(0, 4)], 8, true);
+    const c = items.find(i => i.kind === 'cell') as { widthPct: number };
+    expect(c.widthPct).toBe(50);
   });
 });

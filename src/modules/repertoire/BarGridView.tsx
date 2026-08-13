@@ -41,10 +41,10 @@ import {
 import { useNotationMode } from '../../lib/notationPref';
 import {
   type Bar,
+  assembleBarItems,
   type BarCell,
   deriveBarGrid,
   slotsPerBar,
-  placementSlot,
   slotToPosition,
   effectiveHarmonicTag,
   effectiveTimeSignature,
@@ -313,6 +313,7 @@ interface Props {
     barIndex: number,
     beatPos: number,
     chord: ChordFunction,
+    offbeat?: boolean,
   ) => void | Promise<void>;
   /** Session-lifetime chord clipboard. When set, the chord-add popover
    *  on an empty beat shows a one-tap 'Paste' option. */
@@ -448,7 +449,7 @@ export default function BarGridView({
   // Chord-add popover (step ?: tap-to-add chord on empty beat slot).
   // Anchored under the bar containing the tapped empty slot.
   const [newChordAt, setNewChordAt] = useState<
-    { barIndex: number; beatPos: number } | null
+    { barIndex: number; beatPos: number; offbeat?: boolean } | null
   >(null);
   // Foundation view (detection redesign part 4). When on, harmonically-
   // tagged chords (secondary dominants etc.) ghost out to reveal the
@@ -567,13 +568,21 @@ export default function BarGridView({
     : undefined;
 
   const handleEmptyBeatClick = onChordAdd
-    ? (barIndex: number, beatPos: number) => {
+    ? (barIndex: number, beatPos: number, offbeat?: boolean) => {
         // Opening chord-add dismisses any chord-edit popover.
         setEditing(null);
+        // `offbeat` is part of the identity of the slot that was
+        // tapped. Dropping it made every "and" slot a dead target —
+        // the add box could only ever match an on-beat position — and
+        // silently, because a handler with FEWER parameters than its
+        // prop type is assignable in TypeScript.
         setNewChordAt(prev =>
-          prev && prev.barIndex === barIndex && prev.beatPos === beatPos
+          prev &&
+          prev.barIndex === barIndex &&
+          prev.beatPos === beatPos &&
+          (prev.offbeat ?? false) === (offbeat ?? false)
             ? null
-            : { barIndex, beatPos },
+            : { barIndex, beatPos, offbeat },
         );
       }
     : undefined;
@@ -673,8 +682,8 @@ export default function BarGridView({
                   newChordAt={newChordAt}
                   onChordAddSubmit={
                     onChordAdd
-                      ? (barIdx, beatPos, chord) => {
-                          void onChordAdd(barIdx, beatPos, chord);
+                      ? (barIdx, beatPos, chord, offbeat) => {
+                          void onChordAdd(barIdx, beatPos, chord, offbeat);
                           setNewChordAt(null);
                         }
                       : undefined
@@ -1284,6 +1293,7 @@ function BarBox({
     barIndex: number,
     beatPos: number,
     chord: ChordFunction,
+    offbeat?: boolean,
   ) => void;
   onChordAddCancel: () => void;
   playMode: boolean;
@@ -1300,38 +1310,7 @@ function BarBox({
   // drop slot. This is what makes Option C work: empty positions —
   // both gaps between chords AND trailing dashed space — become
   // discrete droppables for chord drag.
-  type Item =
-    | { kind: 'cell'; cell: BarCell; widthPct: number }
-    | { kind: 'empty'; beatPos: number; offbeat?: boolean };
-  const items: Item[] = [];
-  // Walks SLOTS, not beats. With eighths off a slot is a beat and this
-  // is the behaviour it always had; with eighths on every beat has its
-  // "and" beside it, and durations are already in eighths, so widths
-  // still divide out to exactly what they were.
-  let pos = 0;
-  while (pos < barSlots) {
-    const cell = bar.cells.find(
-      c => !c.tiedFromPrev && placementSlot(c, eighths) === pos,
-    );
-    if (cell) {
-      const widthPct = (cell.beats / barSlots) * 100;
-      items.push({ kind: 'cell', cell, widthPct });
-      pos += Math.max(1, cell.beats);
-      continue;
-    }
-    // Skip positions covered by a multi-slot cell that started earlier.
-    const covering = bar.cells.find(c => {
-      if (c.tiedFromPrev) return false;
-      const start = placementSlot(c, eighths);
-      return start < pos && start + c.beats > pos;
-    });
-    if (covering) {
-      pos += 1;
-      continue;
-    }
-    items.push({ kind: 'empty', ...slotToPosition(pos, eighths) });
-    pos += 1;
-  }
+  const items = assembleBarItems(bar.cells, barSlots, eighths);
 
   // Bar drag (whole-bar reorder). useDraggable supplies the visual
   // transform + drag listeners attached to a small handle in the
@@ -1491,7 +1470,12 @@ function BarBox({
             notationMode={notationMode}
             copiedChord={copiedChord}
             onSubmit={chord =>
-              onChordAddSubmit(newChordAt.barIndex, newChordAt.beatPos, chord)
+              onChordAddSubmit(
+                newChordAt.barIndex,
+                newChordAt.beatPos,
+                chord,
+                newChordAt.offbeat,
+              )
             }
             onCancel={onChordAddCancel}
           />

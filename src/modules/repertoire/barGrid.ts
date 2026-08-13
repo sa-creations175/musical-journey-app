@@ -373,6 +373,64 @@ export function isLegacyPlacementId(id: string): boolean {
   return id.startsWith('legacy:');
 }
 
+/** One position in a rendered bar row: either a chord cell (with the
+ *  width it should occupy) or a free slot. */
+export type BarSlotItem =
+  | { kind: 'cell'; cell: BarCell; widthPct: number }
+  | { kind: 'empty'; beatPos: number; offbeat?: boolean };
+
+/**
+ * Lay a bar's cells out across its slots, emitting a free slot for
+ * every position no chord covers.
+ *
+ * EXTRACTED FROM THE RENDERER so the question "does a shortened chord
+ * leave addable space behind it?" has an answer that can be asserted
+ * rather than inspected in a browser. It was previously a loop inside
+ * a component, which made it untestable and therefore unprovable — and
+ * the free slots it emits are the ONLY way to add a chord to a gap, so
+ * a silent failure here is a dead end for the user with no way out but
+ * to undo their edit.
+ *
+ * Walks SLOTS, not beats. With eighths off a slot is a beat; with
+ * eighths on every beat has its "and" beside it and durations are
+ * already counted in eighths, so widths divide out unchanged.
+ */
+export function assembleBarItems(
+  cells: ReadonlyArray<BarCell>,
+  barSlots: number,
+  eighths: boolean,
+): BarSlotItem[] {
+  const items: BarSlotItem[] = [];
+  let pos = 0;
+  while (pos < barSlots) {
+    const cell = cells.find(
+      c => !c.tiedFromPrev && placementSlot(c, eighths) === pos,
+    );
+    if (cell) {
+      items.push({
+        kind: 'cell',
+        cell,
+        widthPct: (cell.beats / barSlots) * 100,
+      });
+      pos += Math.max(1, cell.beats);
+      continue;
+    }
+    // Skip positions covered by a multi-slot cell that started earlier.
+    const covering = cells.find(c => {
+      if (c.tiedFromPrev) return false;
+      const start = placementSlot(c, eighths);
+      return start < pos && start + c.beats > pos;
+    });
+    if (covering) {
+      pos += 1;
+      continue;
+    }
+    items.push({ kind: 'empty', ...slotToPosition(pos, eighths) });
+    pos += 1;
+  }
+  return items;
+}
+
 export function deriveBarGrid(
   section: SongSection,
   activeArrangementId: string,
