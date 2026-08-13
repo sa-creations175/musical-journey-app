@@ -113,6 +113,7 @@ import {
   updateChordPlacement,
 } from './barGrid';
 import { EIGHTHS_DURATION_VERSION } from './eighthsMigration';
+import { sequenceViewCommitPatch } from './sequenceAnchors';
 import {
   applyEndMarkerDrag,
   applyStartMarkerDrag,
@@ -1918,18 +1919,22 @@ export default function LeadSheetSection({
 
   const commitSequenceView = async (next: SequenceView) => {
     // Legacy phrase-anchored sections carry SYNTHETIC placement ids
-    // (`legacy:phraseId:beatId`) that are replaced on migration, so
-    // annotations made against them would be orphaned. Materialise
-    // first, exactly as the first chord add does.
-    const sec = sectionRef.current;
-    if (sec.chordPlacements === undefined) {
-      await commit({
-        chordPlacements: materializeChordPlacements(sec, beatsPerBar, eighths),
-        sequenceView: next,
-      });
-      return;
-    }
-    await commit({ sequenceView: next });
+    // (`legacy:phraseId:beatId`) that materialisation replaces. Writing
+    // the annotation and materialising in one commit — which is what
+    // this used to do — orphaned the annotation in the same
+    // transaction that saved it. `sequenceViewCommitPatch` carries it
+    // across the id change; see sequenceAnchors.ts for why the remap
+    // is positional rather than derived from the id.
+    await commit(
+      sequenceViewCommitPatch({
+        section: sectionRef.current,
+        beatsPerBar,
+        eighths,
+        activeArrangementId,
+        legacyOrder: sequenceOrder,
+        next,
+      }),
+    );
   };
 
   const handleSetBreak = async (
