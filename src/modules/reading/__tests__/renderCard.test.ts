@@ -176,6 +176,134 @@ describe('chord spelling', () => {
 });
 
 // =====================================================================
+// Notation shapes — the silhouette, not the chord
+// =====================================================================
+
+describe('notation shapes', () => {
+  it('every shape resolves on both clefs and every legal quality', () => {
+    // A shape card is meant to be drawn many different ways. If any
+    // combination fails to spell, the drill silently narrows to the
+    // ones that happen to work.
+    for (const ref of enumerateAllReadingItems()) {
+      if (!ref.startsWith('shape:')) continue;
+      const family = ref.split(':')[1];
+      const qualities = CHORD_QUALITIES.filter(q => q.family === family);
+      expect(qualities.length, ref).toBeGreaterThan(0);
+      for (const clef of ['treble', 'bass'] as const) {
+        for (const q of qualities) {
+          const card = resolveReadingCard(ref, { clef, shapeQuality: q.id });
+          expect(card, `${ref} / ${clef} / ${q.id}`).not.toBeNull();
+          expect(card!.staff.clef).toBe(clef);
+          expect(card!.staff.keys, `${ref} / ${q.id}`)
+            .toHaveLength(q.intervals.length);
+        }
+      }
+    }
+  });
+
+  it('a shape card HONOURS the clef option — clef is not identity', () => {
+    // The opposite of a note or chord card, and the reason there are
+    // 7 shape items rather than 14.
+    expect(resolveReadingCard('shape:triad:inv1', { clef: 'bass' })!.staff.clef)
+      .toBe('bass');
+    expect(resolveReadingCard('shape:triad:inv1')!.staff.clef).toBe('treble');
+  });
+
+  it('the clef and quality options change no caption and no itemRef', () => {
+    // Render-time variation never touches identity — the same rule the
+    // frame option lives under.
+    const plain = resolveReadingCard('shape:triad:inv2')!;
+    const varied = resolveReadingCard('shape:triad:inv2', {
+      clef: 'bass', shapeQuality: 'dim', root: { letter: 'F', octave: 2 },
+    })!;
+    expect(varied.caption).toBe(plain.caption);
+    expect(varied.itemRef).toBe(plain.itemRef);
+    // ...but the ink genuinely differs, which is the point of varying.
+    expect(varied.staff.keys).not.toEqual(plain.staff.keys);
+  });
+
+  it('major and minor really are the same silhouette', () => {
+    // The claim the seven-item count rests on. Same diatonic span and
+    // the same line/space pattern; only the accidentals differ.
+    for (const position of ['root', 'inv1', 'inv2'] as const) {
+      const maj = resolveReadingCard(`shape:triad:${position}`, {
+        shapeQuality: 'maj', root: { letter: 'C', octave: 4 },
+      })!;
+      const min = resolveReadingCard(`shape:triad:${position}`, {
+        shapeQuality: 'min', root: { letter: 'C', octave: 4 },
+      })!;
+      expect(diatonicSpan(min.staff.keys), position)
+        .toBe(diatonicSpan(maj.staff.keys));
+      const letters = (c: typeof maj) =>
+        c.staff.keys.map(k => `${k[0]}${k.split('/')[1]}`);
+      expect(letters(min), position).toEqual(letters(maj));
+      expect(min.staff.keys).not.toEqual(maj.staff.keys); // accidentals
+    }
+  });
+
+  it('root position is the only triad shape with no fourth in it', () => {
+    // The actual reading rule this skill teaches: the root is the note
+    // directly above the fourth, and root position has no fourth at
+    // all. Asserted in diatonic steps — a fourth is 3 letter-steps.
+    const gaps = (ref: string) => {
+      const keys = resolveReadingCard(ref, {
+        root: { letter: 'C', octave: 4 },
+      })!.staff.keys;
+      const idx = keys.map(k => fromDiatonicIndexOf(k));
+      return idx.slice(1).map((v, i) => v - idx[i]);
+    };
+    expect(gaps('shape:triad:root')).toEqual([2, 2]);   // third, third
+    expect(gaps('shape:triad:inv1')).toEqual([2, 3]);   // third, FOURTH
+    expect(gaps('shape:triad:inv2')).toEqual([3, 2]);   // FOURTH, third
+    expect(gaps('shape:seventh:root')).toEqual([2, 2, 2]);
+  });
+
+  it('rejects a quality from the wrong family rather than drawing it', () => {
+    // A seventh cannot draw a triad silhouette — four noteheads under
+    // a three-note answer would teach the wrong shape outright.
+    expect(resolveReadingCard('shape:triad:root', { shapeQuality: 'dom7' }))
+      .toBeNull();
+    expect(resolveReadingCard('shape:seventh:root', { shapeQuality: 'maj' }))
+      .toBeNull();
+    expect(resolveReadingCard('shape:triad:root', { shapeQuality: 'r10' }))
+      .toBeNull();
+    expect(resolveReadingCard('shape:triad:root', { shapeQuality: 'nope' }))
+      .toBeNull();
+  });
+
+  it('a shape caption names the family, so the seven are distinguishable', () => {
+    // "root position" alone would label two different items identically.
+    expect(resolveReadingCard('shape:triad:root')!.caption)
+      .toBe('triad, root position');
+    expect(resolveReadingCard('shape:seventh:inv3')!.caption)
+      .toBe('seventh, third inversion');
+    const captions = enumerateAllReadingItems()
+      .filter(r => r.startsWith('shape:'))
+      .map(r => resolveReadingCard(r)!.caption);
+    expect(new Set(captions).size).toBe(7);
+  });
+
+  it('shape cards carry no key signature', () => {
+    // Stronger than the chord case: a signature would pull accidentals
+    // off the noteheads, and accidentals are the only thing separating
+    // the qualities this card is deliberately not asking about.
+    for (const ref of enumerateAllReadingItems()) {
+      if (!ref.startsWith('shape:')) continue;
+      expect(resolveReadingCard(ref)!.staff.keySignature, ref).toBeNull();
+      expect(resolveReadingCard(ref, { frame: 'grand' })!.staff.frame, ref)
+        .toBe('single');
+    }
+  });
+});
+
+/** Diatonic index of a VexFlow key string, for gap arithmetic. */
+function fromDiatonicIndexOf(key: string): number {
+  const [name, oct] = key.split('/');
+  const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+  return Number(oct) * 7 + LETTERS.indexOf(name[0].toUpperCase());
+}
+
+// =====================================================================
 // Captions — derived, and agreeing with the render
 // =====================================================================
 
@@ -434,7 +562,7 @@ describe('grand staff framing', () => {
   it('framing changes no itemRef and no count', () => {
     // The settled rule: render-time variation never touches identity.
     const before = enumerateAllReadingItems();
-    expect(before).toHaveLength(181);
+    expect(before).toHaveLength(188);
     for (const ref of before) {
       expect(resolveReadingCard(ref, { frame: 'grand' })!.itemRef).toBe(ref);
     }

@@ -216,9 +216,12 @@ export interface ReadingCounts {
   /** Triads and sevenths in both clefs across their inversions, plus
    *  the bass-only open shapes. */
   chordIdentification: number;
+  /** 3 triad positions + 4 seventh positions = 7. Clef-free and
+   *  quality-free — the silhouette is the whole item. */
+  notationShapes: number;
   /** Per-coverage-group totals, keyed by ReadingCoverageGroupId. */
   byGroup: Record<string, number>;
-  /** Sum of the three skills. */
+  /** Sum of the four skills. */
   total: number;
 }
 
@@ -247,6 +250,7 @@ export function readingCounts(): ReadingCounts {
     keySignatures:       bySkill('sig'),
     noteRecognition:     bySkill('note'),
     chordIdentification: bySkill('chord'),
+    notationShapes:      bySkill('shape'),
     byGroup,
     total: all.length,
   };

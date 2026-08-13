@@ -25,12 +25,15 @@
 import {
   CHORD_QUALITIES,
   FLAT_ORDER,
+  SHAPE_FAMILY_LABEL,
   SHARP_ORDER,
   SIGNATURES,
   parseReadingItemRef,
   positionsForFamily,
   type ChordPosition,
+  type ChordQualityDef,
   type Clef,
+  type ShapeFamily,
   type SignatureDef,
 } from './catalog';
 import {
@@ -52,15 +55,33 @@ import {
  *  every itemRef. Picking them is the caller's job; using them
  *  consistently is this module's. */
 export interface ReadingRenderOptions {
-  /** Which clef to draw a key signature on. Signatures have no clef in
-   *  their identity — the same signature is the same signature on
-   *  either staff. Ignored for note and chord items, whose clef IS
+  /** Which clef to draw a key signature or a notation shape on. Neither
+   *  has a clef in its identity — the same signature is the same
+   *  signature on either staff, and a stack of thirds is the same
+   *  silhouette. Ignored for note and chord items, whose clef IS
    *  identity. */
   clef?: Clef;
   /** Root for a chord item, as a letter plus optional accidental
    *  ("C", "Eb", "F#") and an octave. Absent from the itemRef by
    *  design; reading E-G-B is the same act in every key. */
   root?: { letter: Letter; accidental?: 'b' | '#' | null; octave: number };
+  /**
+   * Which chord quality to DRAW a notation-shape card as. Shape items
+   * carry no quality — major and minor are the same silhouette — so
+   * one has to be picked to put ink on the staff, exactly as a root
+   * does for a chord card.
+   *
+   * Varying it is the point rather than a nicety: leave it fixed and
+   * every first-inversion triad is the same picture, and the drill
+   * teaches that picture instead of the shape. Must belong to the
+   * ref's own family — a seventh cannot draw a triad silhouette — and
+   * a mismatch resolves to null rather than quietly drawing four
+   * noteheads for a three-note shape.
+   *
+   * Ignored by every other skill, where quality is either identity
+   * (chord) or absent (note, signature).
+   */
+  shapeQuality?: string;
   /**
    * Single staff or a braced grand staff. RENDER-TIME, exactly like
    * clef and root — framing changes how a card is drawn, never which
@@ -93,7 +114,7 @@ export interface ReadingStaffSpec {
 
 export interface ResolvedReadingCard {
   itemRef: string;
-  skill: 'sig' | 'note' | 'chord';
+  skill: 'sig' | 'note' | 'chord' | 'shape';
   staff: ReadingStaffSpec;
   /** The answer, and only the answer — nothing the picture already
    *  says. Derived, never authored. */
@@ -199,6 +220,48 @@ function chordPitches(
 }
 
 // ---------------------------------------------------------------------
+// Notation shapes
+// ---------------------------------------------------------------------
+
+/**
+ * What a shape card draws when the caller names no quality.
+ *
+ * A DEFAULT, not a canon. These two are the plainest members of each
+ * family — fewest accidentals, so the silhouette is least cluttered —
+ * which makes them the right thing to fall back to and the wrong
+ * thing to leave a whole drill sitting on. See `shapeQuality`.
+ */
+const DEFAULT_SHAPE_QUALITY: Readonly<Record<ShapeFamily, string>> = {
+  triad: 'maj',
+  seventh: 'dom7',
+};
+
+/** The quality a shape card renders as, or null when the caller asked
+ *  for one that is unknown or belongs to another family. */
+function shapeQualityFor(
+  family: ShapeFamily,
+  requested: string | undefined,
+): ChordQualityDef | null {
+  const id = requested ?? DEFAULT_SHAPE_QUALITY[family];
+  const quality = CHORD_QUALITIES.find(q => q.id === id);
+  if (!quality) return null;
+  return quality.family === family ? quality : null;
+}
+
+/**
+ * The answer to a shape card, and the reason it names the family.
+ *
+ * The seven items are three triad positions plus four seventh
+ * positions, so "root position" alone would label two DIFFERENT items
+ * identically. The family is visible in the picture — three noteheads
+ * or four — but it is also genuinely part of which of the seven this
+ * is, so it belongs in the answer.
+ */
+function shapeCaption(family: ShapeFamily, position: ChordPosition): string {
+  return `${SHAPE_FAMILY_LABEL[family]}, ${POSITION_LABEL[position]}`;
+}
+
+// ---------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------
 
@@ -247,6 +310,43 @@ export function resolveReadingCard(
         keySignature: null,
       },
       caption: scientificPitch(pitch),
+    };
+  }
+
+  if (parsed.skill === 'shape') {
+    const quality = shapeQualityFor(parsed.family, options.shapeQuality);
+    if (!quality) return null;
+    // Clef is render-time here, so the option is HONOURED rather than
+    // ignored — the opposite of a note or chord card.
+    const clef = options.clef ?? 'treble';
+    const rootSpec = options.root ?? {
+      letter: 'C' as Letter,
+      accidental: null,
+      octave: DEFAULT_ROOT_OCTAVE[clef],
+    };
+    const pitches = chordPitches(quality.id, parsed.position, {
+      letter: rootSpec.letter,
+      octave: rootSpec.octave,
+      accidental: rootSpec.accidental ?? null,
+    });
+    if (!pitches) return null;
+    return {
+      itemRef,
+      skill: 'shape',
+      staff: {
+        // Single staff only. A shape is read on one staff at a time;
+        // a grand staff would draw a second one the card is silent
+        // about, and the silhouette would appear twice.
+        frame: 'single',
+        clef,
+        keys: pitches.map(toVexKey),
+        // No overlay, same as chord cards — and here it matters more:
+        // a signature would move accidentals off the noteheads, and
+        // accidentals are the only thing distinguishing the qualities
+        // this card is deliberately NOT asking about.
+        keySignature: null,
+      },
+      caption: shapeCaption(parsed.family, parsed.position),
     };
   }
 

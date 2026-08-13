@@ -1,7 +1,7 @@
 /**
  * Reading catalog — notation decoding. Static data, no UI, no Dexie.
  *
- * Three skills under ONE moduleRef ('reading'), distinguished by an
+ * Four skills under ONE moduleRef ('reading'), distinguished by an
  * itemRef prefix. The goal is skimming a chart and decoding it fast,
  * not fluent transposing sight-reading; wherever a dimension would add
  * items without adding a skill that serves that, it is not here.
@@ -168,8 +168,14 @@ export function noteItemRef(clef: Clef, position: number): string {
  * multiplying these qualities by twelve keys would produce a set that
  * sat at low single-digit coverage for years.
  *
- * SHAPE READING IS NOT A SEPARATE SKILL. Naming the chord subsumes it
- * — you cannot say "E minor" without having read the pattern.
+ * SHAPE READING WAS FOLDED IN HERE AND NO LONGER IS. The original
+ * reasoning was "naming the chord subsumes it — you cannot say 'E
+ * minor' without having read the pattern". True, and it hides the
+ * order the reading actually happens in: the silhouette is legible
+ * BEFORE any note is decoded, and it locates the root. Skill 4 splits
+ * that out. This skill still subsumes it, in the same way that
+ * naming a key subsumes counting its accidentals — and key
+ * signatures drill both, for the same reason.
  */
 export type ChordFamily = 'triad' | 'seventh' | 'open';
 
@@ -268,6 +274,60 @@ export const OVERLAY_MIX = {
 } as const;
 
 // =====================================================================
+// Skill 4 — Notation shapes
+// =====================================================================
+
+/**
+ * The silhouette vocabulary: which stack pattern is on the staff,
+ * with no reference to what the chord IS.
+ *
+ * WHY THIS IS ITS OWN SKILL AND NOT A SLICE OF SKILL 3.
+ *
+ * The shape is visible before any note is decoded, and it is what
+ * locates the root — the root is the note directly above the fourth.
+ * Root position has no fourth in it at all. Chord identification asks
+ * for an answer that depends on reading the letters and accidentals;
+ * this asks for one that depends on nothing but the spacing.
+ *
+ * MAJOR AND MINOR ARE THE SAME SHAPE. Quality lives entirely in the
+ * accidentals, which is exactly why the vocabulary stays at seven
+ * items instead of multiplying by quality. Nothing here should ever
+ * grow a quality segment; if it did, this would just be skill 3 with
+ * the answer thrown away.
+ *
+ * CLEF IS NOT IDENTITY HERE — unlike a note or a chord item. A stack
+ * of thirds is the same silhouette on either staff, and drilling it
+ * twice would teach two pictures of one fact. Clef is therefore
+ * render-time, alongside quality and root, so a first-inversion
+ * triad turns up on different roots and both clefs across sessions
+ * and the SHAPE is what gets learned rather than one memorised image.
+ *
+ * SEVEN ITEMS, AND THAT IS THE POINT. This should be acquired in a
+ * few sessions and then recede to maintenance through the ordinary
+ * scope-level path. A skill that stayed effortful at seven items
+ * would be the wrong seven items.
+ */
+export type ShapeFamily = Extract<ChordFamily, 'triad' | 'seventh'>;
+
+/** Open shapes are deliberately absent: they are single-position
+ *  voicings, so they have no inversion silhouette to read. */
+export const SHAPE_FAMILIES: ReadonlyArray<ShapeFamily> = ['triad', 'seventh'];
+
+export const SHAPE_FAMILY_LABEL: Readonly<Record<ShapeFamily, string>> = {
+  triad: 'triad',
+  seventh: 'seventh',
+};
+
+/** `shape:{family}:{position}` — three segments, where a chord ref has
+ *  four. The arity difference is what keeps the two unambiguous. */
+export function shapeItemRef(
+  family: ShapeFamily,
+  position: ChordPosition,
+): string {
+  return `shape:${family}:${position}`;
+}
+
+// =====================================================================
 // Enumeration — the single source every count derives from
 // =====================================================================
 
@@ -303,12 +363,26 @@ export function enumerateChordItems(): string[] {
   return out;
 }
 
+/** 7 = 3 triad positions + 4 seventh positions. The position list per
+ *  family is `positionsForFamily`, shared with skill 3 so a shape can
+ *  never exist that no chord could be in. */
+export function enumerateShapeItems(): string[] {
+  const out: string[] = [];
+  for (const family of SHAPE_FAMILIES) {
+    for (const pos of positionsForFamily(family)) {
+      out.push(shapeItemRef(family, pos));
+    }
+  }
+  return out;
+}
+
 /** Every Reading itemRef. Counts derive from this, never by hand. */
 export function enumerateAllReadingItems(): string[] {
   return [
     ...enumerateSignatureItems(),
     ...enumerateNoteItems(),
     ...enumerateChordItems(),
+    ...enumerateShapeItems(),
   ];
 }
 
@@ -316,15 +390,17 @@ export function enumerateAllReadingItems(): string[] {
 // Parsing — the guard that keeps render-time variation out
 // =====================================================================
 
-export type ReadingSkill = 'sig' | 'note' | 'chord';
+export type ReadingSkill = 'sig' | 'note' | 'chord' | 'shape';
 
 export type ParsedReadingItemRef =
   | { skill: 'sig'; signature: SignatureId; mode: KeyMode; direction: SignatureDirection }
   | { skill: 'note'; clef: Clef; position: number }
-  | { skill: 'chord'; qualityId: string; position: ChordPosition; clef: Clef };
+  | { skill: 'chord'; qualityId: string; position: ChordPosition; clef: Clef }
+  | { skill: 'shape'; family: ShapeFamily; position: ChordPosition };
 
 const SIGNATURE_IDS = new Set<string>(SIGNATURES.map(s => s.id));
 const QUALITY_IDS = new Set<string>(CHORD_QUALITIES.map(q => q.id));
+const SHAPE_FAMILY_IDS = new Set<string>(SHAPE_FAMILIES);
 
 /**
  * Parse an itemRef, or null when it is not a well-formed Reading ref.
@@ -363,6 +439,25 @@ export function parseReadingItemRef(ref: string): ParsedReadingItemRef | null {
         && position !== 'inv2' && position !== 'inv3') return null;
     if (clef !== 'treble' && clef !== 'bass') return null;
     return { skill: 'chord', qualityId: quality, position, clef };
+  }
+
+  if (parts[0] === 'shape') {
+    // Three segments, not four. A clef segment here would be the
+    // render-time-variation leak this schema exists to prevent: the
+    // same silhouette on two staves is one fact, not two.
+    if (parts.length !== 3) return null;
+    const [, family, position] = parts;
+    if (!SHAPE_FAMILY_IDS.has(family)) return null;
+    // Position is validated AGAINST THE FAMILY, so `shape:triad:inv3`
+    // is rejected rather than enumerated-but-unreachable — a triad has
+    // no third inversion to see.
+    if (!(positionsForFamily(family as ShapeFamily) as ReadonlyArray<string>)
+      .includes(position)) return null;
+    return {
+      skill: 'shape',
+      family: family as ShapeFamily,
+      position: position as ChordPosition,
+    };
   }
 
   return null;

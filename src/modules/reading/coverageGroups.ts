@@ -1,18 +1,26 @@
 /**
  * Reading coverage groups — the sub-areas a coverage goal can target.
  *
- * FIVE GROUPS, deliberately in the Harmonic-Fluency direction rather
+ * SIX GROUPS, deliberately in the Harmonic-Fluency direction rather
  * than the Shapes one. HF gets by with four groups over ~130 cards
  * because its groups are just category unions; Shapes needs 776 lines
  * because its coverage groups carry per-family inversion multipliers,
  * key fan-out, and back-compat ids from a redesign. Reading has none
  * of that — a group here is a predicate over itemRefs and a label.
  *
- * The three skills are the natural axis: "get my key signatures
+ * The four skills are the natural axis: "get my key signatures
  * solid" is a goal someone actually has. Chord identification is then
  * split by family because at 69 items it is the bulk of the module
  * and triads / sevenths / open shapes are separately targetable in a
- * way the other two skills are not.
+ * way the other three skills are not.
+ *
+ * EVERY SKILL NEEDS A GROUP, not just the ones worth targeting.
+ * The groups PARTITION the module — an item matched by none of them
+ * would silently drop out of `readingCounts().byGroup`, and the
+ * group-sum invariant would catch it as a total mismatch rather than
+ * as the missing group it actually is. Notation shapes gets a group
+ * at seven items for that reason, not because seven items make a
+ * compelling goal.
  *
  * Denominators are NOT written here. Each group carries a matcher and
  * the count falls out of the catalog walk — see `readingCounts()` in
@@ -30,6 +38,7 @@ import {
 export type ReadingCoverageGroupId =
   | 'key-signatures'
   | 'note-recognition'
+  | 'notation-shapes'
   | 'chord-triads'
   | 'chord-sevenths'
   | 'chord-open-shapes';
@@ -69,6 +78,12 @@ export const READING_COVERAGE_GROUPS: ReadonlyArray<ReadingCoverageGroupDef> = [
     label: 'Note recognition',
     blurb: 'Name a note on either clef, two ledger lines either side.',
     matches: ref => parseReadingItemRef(ref)?.skill === 'note',
+  },
+  {
+    id: 'notation-shapes',
+    label: 'Notation shapes',
+    blurb: 'Read the silhouette — root position and the inversions.',
+    matches: ref => parseReadingItemRef(ref)?.skill === 'shape',
   },
   {
     id: 'chord-triads',

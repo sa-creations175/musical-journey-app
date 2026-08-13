@@ -11,6 +11,7 @@ import {
   NOTE_POSITIONS,
   NOTE_POSITION_MAX,
   NOTE_POSITION_MIN,
+  SHAPE_FAMILIES,
   SIGNATURES,
   SIGNATURE_DIRECTIONS,
   chordItemRef,
@@ -18,11 +19,13 @@ import {
   enumerateAllReadingItems,
   enumerateChordItems,
   enumerateNoteItems,
+  enumerateShapeItems,
   enumerateSignatureItems,
   noteItemRef,
   parseReadingItemRef,
   positionsForFamily,
   readingSkillForItemRef,
+  shapeItemRef,
   signatureItemRef,
 } from '../catalog';
 import {
@@ -115,10 +118,31 @@ describe('derived counts match the design', () => {
     expect(n).toBeLessThanOrEqual(100);
   });
 
+  it('notation shapes: 7 = 3 triad positions + 4 seventh positions', () => {
+    // The whole design rests on this staying small. Quality is NOT a
+    // dimension here — major and minor are one silhouette — and nor is
+    // clef, so the only two multipliers a shape could grow are both
+    // absent by construction.
+    expect(enumerateShapeItems()).toHaveLength(7);
+    expect(enumerateShapeItems()).toEqual([
+      'shape:triad:root', 'shape:triad:inv1', 'shape:triad:inv2',
+      'shape:seventh:root', 'shape:seventh:inv1',
+      'shape:seventh:inv2', 'shape:seventh:inv3',
+    ]);
+  });
+
+  it('open shapes get no silhouette items — they are single-position', () => {
+    for (const ref of enumerateShapeItems()) {
+      expect(ref, ref).not.toContain('open');
+    }
+    expect(SHAPE_FAMILIES).toEqual(['triad', 'seventh']);
+  });
+
   it('every itemRef is unique across the whole module', () => {
     const all = enumerateAllReadingItems();
     expect(new Set(all).size).toBe(all.length);
-    expect(all).toHaveLength(78 + 34 + 69);
+    expect(all).toHaveLength(78 + 34 + 69 + 7);
+    expect(all).toHaveLength(188);
   });
 
   it('readingCounts derives from the catalog, not from literals', () => {
@@ -126,7 +150,13 @@ describe('derived counts match the design', () => {
     expect(c.keySignatures).toBe(enumerateSignatureItems().length);
     expect(c.noteRecognition).toBe(enumerateNoteItems().length);
     expect(c.chordIdentification).toBe(enumerateChordItems().length);
+    expect(c.notationShapes).toBe(enumerateShapeItems().length);
     expect(c.total).toBe(enumerateAllReadingItems().length);
+    // The four skills account for the module with nothing left over.
+    expect(
+      c.keySignatures + c.noteRecognition + c.chordIdentification
+      + c.notationShapes,
+    ).toBe(c.total);
   });
 
   it('scopeEnumeration is the same walk the counts use', () => {
@@ -180,8 +210,37 @@ describe('itemRef schema excludes render-time variation', () => {
       } else if (parsed?.skill === 'chord') {
         expect(chordItemRef(parsed.qualityId, parsed.position, parsed.clef))
           .toBe(ref);
+      } else if (parsed?.skill === 'shape') {
+        expect(shapeItemRef(parsed.family, parsed.position)).toBe(ref);
       }
     }
+  });
+
+  it('shape refs carry no clef and no quality segment', () => {
+    // The two dimensions that would turn 7 items into 56. Neither has
+    // anywhere to sit: the ref is exactly three segments and the tail
+    // may only be a position.
+    const QUALITY_IDS = new Set(CHORD_QUALITIES.map(q => q.id));
+    for (const ref of enumerateShapeItems()) {
+      const parts = ref.split(':');
+      expect(parts, ref).toHaveLength(3); // shape:family:position
+      expect(parts, ref).not.toContain('treble');
+      expect(parts, ref).not.toContain('bass');
+      expect(QUALITY_IDS.has(parts[2]), ref).toBe(false);
+    }
+    expect(parseReadingItemRef('shape:triad:inv1:treble')).toBeNull();
+    expect(parseReadingItemRef('shape:maj:inv1')).toBeNull();
+  });
+
+  it('rejects a shape position its family does not have', () => {
+    // A triad has no third inversion to SEE, so the ref for one must
+    // not parse — otherwise a picker could offer a silhouette that
+    // cannot be drawn.
+    expect(parseReadingItemRef('shape:triad:inv3')).toBeNull();
+    expect(parseReadingItemRef('shape:seventh:inv3')).toEqual({
+      skill: 'shape', family: 'seventh', position: 'inv3',
+    });
+    expect(parseReadingItemRef('shape:open:root')).toBeNull();
   });
 
   it('REJECTS a ref that tries to encode render-time variation', () => {
@@ -214,8 +273,12 @@ describe('itemRef schema excludes render-time variation', () => {
     expect(readingSkillForItemRef('sig:0:major:name')).toBe('sig');
     expect(readingSkillForItemRef('note:bass:0')).toBe('note');
     expect(readingSkillForItemRef('chord:min:inv1:bass')).toBe('chord');
+    expect(readingSkillForItemRef('shape:seventh:inv2')).toBe('shape');
     // Prefix alone is not enough — a malformed ref is not a skill.
     expect(readingSkillForItemRef('chord:nonsense')).toBeNull();
+    // `chord-shape:` belongs to Shapes-and-Patterns. Routing by parse
+    // rather than by `startsWith('shape')` is what keeps them apart.
+    expect(readingSkillForItemRef('chord-shape:maj:C:root')).toBeNull();
   });
 });
 
@@ -224,16 +287,28 @@ describe('itemRef schema excludes render-time variation', () => {
 // =====================================================================
 
 describe('coverage groups', () => {
-  it('has five groups — the HF-simple direction, not the S&P one', () => {
-    expect(READING_COVERAGE_GROUPS).toHaveLength(5);
+  it('has six groups — the HF-simple direction, not the S&P one', () => {
+    expect(READING_COVERAGE_GROUPS).toHaveLength(6);
     expect(READING_COVERAGE_GROUPS.map(g => g.id)).toEqual([
-      'key-signatures', 'note-recognition',
+      'key-signatures', 'note-recognition', 'notation-shapes',
       'chord-triads', 'chord-sevenths', 'chord-open-shapes',
     ]);
   });
 
+  it('every skill is covered by some group', () => {
+    // The invariant that would otherwise fail only as a confusing
+    // total mismatch: a skill outside every group vanishes from
+    // `byGroup` while still counting toward `total`.
+    const grouped = new Set(
+      enumerateAllReadingItems().filter(
+        ref => READING_COVERAGE_GROUPS.some(g => g.matches(ref)),
+      ),
+    );
+    expect(grouped.size).toBe(enumerateAllReadingItems().length);
+  });
+
   it('the groups PARTITION the module — every item in exactly one', () => {
-    // Not merely "they add up": each item is checked against all five
+    // Not merely "they add up": each item is checked against all six
     // so an overlap cannot hide behind a matching total.
     for (const ref of enumerateAllReadingItems()) {
       const hits = READING_COVERAGE_GROUPS.filter(g => g.matches(ref));
@@ -252,6 +327,7 @@ describe('coverage groups', () => {
     const c = readingCounts();
     expect(c.byGroup['key-signatures']).toBe(78);
     expect(c.byGroup['note-recognition']).toBe(34);
+    expect(c.byGroup['notation-shapes']).toBe(7);
     expect(c.byGroup['chord-triads']).toBe(24);
     expect(c.byGroup['chord-sevenths']).toBe(40);
     expect(c.byGroup['chord-open-shapes']).toBe(5);
