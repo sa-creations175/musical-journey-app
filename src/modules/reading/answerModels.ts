@@ -196,11 +196,32 @@ export interface SignatureCountVerdict {
  * written order is still the right rehearsal, and only the number is
  * off. That is a near miss and worth finishing.
  *
+ * BUT THE NUMBER IS CORRECTED FIRST. Carrying a wrong count into the
+ * sequence means naming flats while still believing there are three of
+ * them and finding out at the end — the rep happens against the wrong
+ * number, which is the thing being rehearsed. `actualCount` is
+ * returned so the correction can be shown before the tapping starts.
+ * The attempt is still wrong either way; what changes is what gets
+ * practised.
+ *
+ * ORDER IS REQUIRED, and this is settled rather than open: "which four
+ * flats" is a set, but the WRITTEN ORDER is why a signature has a
+ * recognisable silhouette, and recognising that silhouette is how
+ * signatures actually get read. In a reading module the order is the
+ * notation.
+ *
  * The empty signature settles here too — "none" has nothing to name,
  * so there is no second stage to enter.
  */
 export type CountStage =
-  | { stage: 'sequence'; kind: 'sharp' | 'flat' }
+  | {
+      stage: 'sequence';
+      kind: 'sharp' | 'flat';
+      /** False when the number was wrong but the kind was right. */
+      countCorrect: boolean;
+      /** How many the card actually has — shown as the correction. */
+      actualCount: number;
+    }
   | { stage: 'settled'; reason: 'wrong-kind' | 'no-accidentals' };
 
 export function countStageAfterPick(
@@ -214,7 +235,12 @@ export function countStageAfterPick(
     return { stage: 'settled', reason: 'wrong-kind' };
   }
   if (pickedKind === null) return { stage: 'settled', reason: 'no-accidentals' };
-  return { stage: 'sequence', kind: pickedKind };
+  return {
+    stage: 'sequence',
+    kind: pickedKind,
+    countCorrect: pickedCountId === cardId,
+    actualCount: card?.count ?? 0,
+  };
 }
 
 export function judgeSignatureCount(

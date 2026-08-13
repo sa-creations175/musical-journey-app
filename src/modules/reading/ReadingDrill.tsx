@@ -272,6 +272,16 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
               the point of the ordering. The kind shown follows the
               user's OWN answer, not the card's, so part one cannot
               leak into part two. */}
+          {/* The number is corrected BEFORE the tapping starts. Naming
+              four flats while still believing there are three rehearses
+              the wrong count — the attempt is wrong either way, but the
+              rep should happen against the right number. */}
+          {countStage?.stage === 'sequence' && !countStage.countCorrect && (
+            <p className="text-center text-xs text-needswork">
+              not {SIGNATURES.find(s => s.id === answer.count)?.count}
+              {' — '}it&rsquo;s {countStage.actualCount}. name them in order.
+            </p>
+          )}
           {countStage?.stage === 'sequence' && (
             <AccidentalSequence
               kind={countStage.kind}

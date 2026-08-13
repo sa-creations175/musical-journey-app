@@ -199,13 +199,27 @@ describe('signature answer sets', () => {
   it('a wrong COUNT with the right kind still asks for the sequence', () => {
     // Naming the flats in written order is the right rehearsal; only
     // the number is off. That is a near miss and worth finishing.
-    expect(countStageAfterPick('6f', '3f')).toEqual({ stage: 'sequence', kind: 'flat' });
-    expect(countStageAfterPick('2s', '5s')).toEqual({ stage: 'sequence', kind: 'sharp' });
+    // ...and the RIGHT number rides along, so the correction can be
+    // shown before the tapping starts. Rehearsing four flats while
+    // still believing there are three practises the wrong count.
+    expect(countStageAfterPick('6f', '3f')).toEqual({
+      stage: 'sequence', kind: 'flat', countCorrect: false, actualCount: 6,
+    });
+    expect(countStageAfterPick('4f', '3f')).toEqual({
+      stage: 'sequence', kind: 'flat', countCorrect: false, actualCount: 4,
+    });
+    expect(countStageAfterPick('2s', '5s')).toEqual({
+      stage: 'sequence', kind: 'sharp', countCorrect: false, actualCount: 2,
+    });
   });
 
   it('the right kind enters the sequence stage on the kind PICKED', () => {
-    expect(countStageAfterPick('3s', '3s')).toEqual({ stage: 'sequence', kind: 'sharp' });
-    expect(countStageAfterPick('2f', '2f')).toEqual({ stage: 'sequence', kind: 'flat' });
+    expect(countStageAfterPick('3s', '3s')).toEqual({
+      stage: 'sequence', kind: 'sharp', countCorrect: true, actualCount: 3,
+    });
+    expect(countStageAfterPick('2f', '2f')).toEqual({
+      stage: 'sequence', kind: 'flat', countCorrect: true, actualCount: 2,
+    });
   });
 
   it('the empty signature settles — there is nothing to name', () => {
