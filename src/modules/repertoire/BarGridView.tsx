@@ -207,19 +207,6 @@ interface Props {
    *  sections, because a line's syllables may be anchored into any of
    *  them. */
   cellIndex?: Map<string, CellOccupant[]>;
-  /** Song lines with nothing placed yet — the pre-drawer tray. */
-  /** EVERY lyric line, not just unfinished ones. The tray still shows
-   *  unfinished ones by default and hides finished ones behind a
-   *  grouped reveal, but it needs them all to offer that. */
-  unplacedLines?: SongLyricLine[];
-  onArmLine?: (lineId: string) => void;
-  onArmWord?: (syllableId: string) => void;
-  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
-  onDuplicateLine?: (lineId: string) => void | Promise<void>;
-  /** Unplaced-lyrics tray collapsed? Global pref, owned by
-   *  SongDetailView; separate from the patterns block's. */
-  lyricTrayCollapsed?: boolean;
-  onToggleLyricTray?: () => void;
   /** A lyric drag is in flight — beat cells switch to their
    *  drop-target treatment. */
   lyricDragActive?: boolean;
@@ -349,13 +336,6 @@ export default function BarGridView({
   chordsAreSortable = false,
   lyricLines = [],
   cellIndex,
-  unplacedLines,
-  onArmLine,
-  onArmWord,
-  onSetLineKind,
-  onDuplicateLine,
-  lyricTrayCollapsed = true,
-  onToggleLyricTray,
   lyricDragActive = false,
   rejectedCell = null,
   markerIndex,
@@ -628,29 +608,13 @@ export default function BarGridView({
 
   const body = (
     <>
-      {/* The per-section tray. Every lyric line reaches it now —
-          unfinished ones listed, finished ones behind a grouped reveal
-          — because the tray offers the same tap actions the drawer
-          does, and "which list am I looking at" must not change what a
-          row can do. Drag is the tray's addition on top. */}
-      {cellIndex &&
-        unplacedLines &&
-        unplacedLines.some(l => l.kind !== 'header') && (
-          <SongPendingTray
-            lines={unplacedLines}
-            onLineDelete={onLineDelete}
-            onLineUnplace={onLineUnplace}
-            onArmLine={onArmLine}
-            onArmWord={onArmWord}
-            onSetLineKind={onSetLineKind}
-            onDuplicateLine={onDuplicateLine}
-            collapsed={lyricTrayCollapsed}
-            onToggle={onToggleLyricTray}
-          />
-        )}
-      {!cellIndex && pendingLines.length > 0 && (
-        <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
-      )}
+      {/* THE GRID IS THE BODY OF THE SECTION and nothing sits above
+          it. The per-section lyric tray used to render here, splitting
+          the lyric controls across the section — tray above the grid,
+          add box below it — for no reason other than where each was
+          built. The tray now renders in LeadSheetSection beneath the
+          add box, so the two halves of one job are together and in the
+          same order the lyrics drawer uses. */}
       <div className="mt-2 space-y-3">
         {rows.map((row, rowIdx) => (
           <div key={rowIdx}>
@@ -782,6 +746,9 @@ export default function BarGridView({
             </div>
           </div>
         ))}
+        {!playMode && !cellIndex && pendingLines.length > 0 && (
+          <PendingTray lines={pendingLines} onLineDelete={onLineDelete} />
+        )}
         {!playMode && onAddBar && (
           <div className="pt-1">
             <AddBarButton onAddBar={onAddBar} />

@@ -153,7 +153,7 @@ describe('LyricPasteBox — the header capability is named (13.15)', () => {
     // Asserted on the rendered TEXT — the mechanism by which the
     // capability becomes discoverable — not on a prop default.
     render(<LyricPasteBox onCommit={() => {}} />);
-    expect(container!.textContent).toContain('header');
+    expect(container!.textContent).toContain('section header');
   });
 
   it('shows the BARE header form in the placeholder, not only the bracketed one', () => {

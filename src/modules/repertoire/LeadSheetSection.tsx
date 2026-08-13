@@ -93,7 +93,7 @@ import SequenceChoices from './SequenceChoices';
 import PhraseNote from './PhraseNote';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
-import BarGridView, { parseSlotDropId } from './BarGridView';
+import BarGridView, { parseSlotDropId, SongPendingTray } from './BarGridView';
 import LyricStagingArea from './LyricStagingArea';
 import {
   addChordPlacement,
@@ -2166,8 +2166,6 @@ export default function LeadSheetSection({
               lyricDragActive={activeLyricDrag !== null}
               rejectedCell={rejectedCell}
               markerIndex={markerIndex}
-              lyricTrayCollapsed={lyricTrayCollapsed}
-              onToggleLyricTray={onToggleLyricTray}
               armedSyllableId={armedSyllableId}
               awaitingLine={awaitingLine}
               promptAnchorCellKey={promptAnchorCellKey}
@@ -2179,16 +2177,6 @@ export default function LeadSheetSection({
               onSyllableJoin={handleSyllableJoin}
               onSyllableChange={handleSyllableChange}
               onSyllableUnplace={handleSyllableUnplace}
-              // EVERY line now. The tray shows unfinished ones by
-              // default and puts finished ones behind a grouped reveal,
-              // which it can only offer if it has them — and it needs
-              // them because the tray can pick words now, so moving one
-              // word of a finished line must not require the drawer.
-              unplacedLines={songLyricsActive ? (songLyricLines ?? []) : undefined}
-              onArmLine={onArmLine}
-              onArmWord={onArmWord}
-              onSetLineKind={onSetLineKind}
-              onDuplicateLine={onDuplicateLine}
               onLineDelete={handleDeleteLyricLine}
               onLineUnplace={handleUnplaceLine}
               onAddBar={handleAddBar}
@@ -2211,6 +2199,38 @@ export default function LeadSheetSection({
             {!playMode && (
               <LyricStagingArea onSubmitText={handleSubmitLyricLines} />
             )}
+
+            {/* THE LYRIC CONTROLS ARE ONE GROUP, BELOW THE GRID. The
+                tray used to render inside BarGridView above the grid
+                while the add box sat below it — two halves of one job
+                split across the section by where each was built. Add
+                box then list, matching the lyrics drawer, so the two
+                surfaces read the same way.
+
+                Still inside the DndContext, so a row can still be
+                dragged onto the grid. That drag now travels upward,
+                which is accepted: placement is moving to the drawer,
+                and per-section drag is mostly for syllables already
+                placed.
+
+                HIDDEN IN PLAY MODE. An unplaced-lyrics tray is editing
+                chrome, and an empty one is pure noise. */}
+            {!playMode &&
+              cellIndex &&
+              songLyricLines &&
+              songLyricLines.some(l => l.kind !== 'header') && (
+                <SongPendingTray
+                  lines={songLyricLines}
+                  onLineDelete={handleDeleteLyricLine}
+                  onLineUnplace={handleUnplaceLine}
+                  onArmLine={onArmLine}
+                  onArmWord={onArmWord}
+                  onSetLineKind={onSetLineKind}
+                  onDuplicateLine={onDuplicateLine}
+                  collapsed={lyricTrayCollapsed}
+                  onToggle={onToggleLyricTray}
+                />
+              )}
 
             {/* The dragged item follows the pointer exactly instead of
                 the source node translating in place. Two reasons: the

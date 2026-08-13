@@ -20,10 +20,12 @@ import SectionToggle from './SectionToggle';
  */
 export default function LyricPasteBox({
   onCommit,
-  /* Names the header capability, because nothing else did. Typing a
-     section name on its own line has always created a header, and the
-     only way to find that out was to stumble into it. */
-  label = 'add lyrics or header',
+  /* Names the capability, because nothing else did — typing a section
+     name on its own line has always created a header, and the only way
+     to find that out was to stumble into it.
+     "SECTION header" rather than bare "header", which could be read as
+     a page heading. */
+  label = 'add lyrics or section header',
 }: {
   /** Receives the raw draft text. Parsing happens in one place, at the
    *  caller's write. */
