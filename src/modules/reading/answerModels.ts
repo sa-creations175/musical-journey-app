@@ -90,15 +90,65 @@ export function judgeNote(
  * Shown on EVERY note answer rather than only on a miss. A mnemonic
  * offered only after a mistake reads as a correction; offered every
  * time it reads as the thing being learned, which is what it is.
+ *
+ * STRUCTURED, NOT A SENTENCE. It used to be one string — "E G B D F —
+ * Every Good Boy Does Fine" — which is a sentence you have to decode
+ * into a picture of the staff before it helps. `items` is ordered
+ * BOTTOM TO TOP so it can be laid against the lines it names and be
+ * the picture instead.
+ *
+ * `label` exists because there are four of these and a bare rhyme does
+ * not say which staff or which of lines/spaces it applies to. Without
+ * it the mnemonic is unusable on the next card.
  */
-const MNEMONICS: Readonly<Record<string, string>> = {
-  'treble-line':  'E G B D F — Every Good Boy Does Fine',
-  'treble-space': 'F A C E',
-  'bass-line':    'G B D F A — Good Boys Do Fine Always',
-  'bass-space':   'A C E G — All Cows Eat Grass',
+export interface StaffMnemonic {
+  clef: Clef;
+  kind: 'line' | 'space';
+  /** Which staff and which run — e.g. "treble clef · staff lines". */
+  label: string;
+  /** Bottom to top. `word` is absent where the letters spell
+   *  themselves (F A C E needs no sentence). */
+  items: ReadonlyArray<{ letter: string; word?: string }>;
+  /** Flat form, for screen readers and any caller that just wants the
+   *  line of text. */
+  phrase: string;
+}
+
+const MNEMONICS: Readonly<Record<string, StaffMnemonic>> = {
+  'treble-line': {
+    clef: 'treble', kind: 'line', label: 'treble clef · staff lines',
+    items: [
+      { letter: 'E', word: 'Every' }, { letter: 'G', word: 'Good' },
+      { letter: 'B', word: 'Boy' }, { letter: 'D', word: 'Does' },
+      { letter: 'F', word: 'Fine' },
+    ],
+    phrase: 'E G B D F — Every Good Boy Does Fine',
+  },
+  'treble-space': {
+    clef: 'treble', kind: 'space', label: 'treble clef · staff spaces',
+    items: [{ letter: 'F' }, { letter: 'A' }, { letter: 'C' }, { letter: 'E' }],
+    phrase: 'F A C E — the spaces spell FACE',
+  },
+  'bass-line': {
+    clef: 'bass', kind: 'line', label: 'bass clef · staff lines',
+    items: [
+      { letter: 'G', word: 'Good' }, { letter: 'B', word: 'Boys' },
+      { letter: 'D', word: 'Do' }, { letter: 'F', word: 'Fine' },
+      { letter: 'A', word: 'Always' },
+    ],
+    phrase: 'G B D F A — Good Boys Do Fine Always',
+  },
+  'bass-space': {
+    clef: 'bass', kind: 'space', label: 'bass clef · staff spaces',
+    items: [
+      { letter: 'A', word: 'All' }, { letter: 'C', word: 'Cows' },
+      { letter: 'E', word: 'Eat' }, { letter: 'G', word: 'Grass' },
+    ],
+    phrase: 'A C E G — All Cows Eat Grass',
+  },
 };
 
-export function mnemonicFor(clef: Clef, position: number): string {
+export function mnemonicFor(clef: Clef, position: number): StaffMnemonic {
   return MNEMONICS[`${clef}-${isLinePosition(position) ? 'line' : 'space'}`];
 }
 

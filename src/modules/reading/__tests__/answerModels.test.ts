@@ -110,17 +110,62 @@ describe('note answer sets', () => {
 describe('mnemonics', () => {
   it('names the right rhyme for each clef and line/space', () => {
     // treble position 0 is the bottom LINE (E), 1 is the first space (F).
-    expect(mnemonicFor('treble', 0)).toContain('Every Good Boy');
-    expect(mnemonicFor('treble', 1)).toContain('F A C E');
-    expect(mnemonicFor('bass', 0)).toContain('Good Boys Do Fine');
-    expect(mnemonicFor('bass', 1)).toContain('All Cows Eat Grass');
+    expect(mnemonicFor('treble', 0).phrase).toContain('Every Good Boy');
+    expect(mnemonicFor('treble', 1).phrase).toContain('F A C E');
+    expect(mnemonicFor('bass', 0).phrase).toContain('Good Boys Do Fine');
+    expect(mnemonicFor('bass', 1).phrase).toContain('All Cows Eat Grass');
+  });
+
+  it('SAYS WHICH STAFF AND WHICH RUN IT IS FOR', () => {
+    // There are four of these. A bare rhyme does not say when it
+    // applies, which makes it unusable on the next card.
+    expect(mnemonicFor('treble', 0).label).toBe('treble clef · staff lines');
+    expect(mnemonicFor('treble', 1).label).toBe('treble clef · staff spaces');
+    expect(mnemonicFor('bass', 0).label).toBe('bass clef · staff lines');
+    expect(mnemonicFor('bass', 1).label).toBe('bass clef · staff spaces');
+    // All four labels distinct — the point is telling them apart.
+    const labels = new Set([
+      mnemonicFor('treble', 0).label, mnemonicFor('treble', 1).label,
+      mnemonicFor('bass', 0).label, mnemonicFor('bass', 1).label,
+    ]);
+    expect(labels.size).toBe(4);
+  });
+
+  it('items run BOTTOM TO TOP and match the staff they name', () => {
+    // The ordering contract the diagram relies on: item 0 is drawn on
+    // the bottom line. Reversed, every mnemonic would be upside down
+    // and still look plausible.
+    for (const clef of ['treble', 'bass'] as const) {
+      for (const kind of [0, 1]) {
+        const m = mnemonicFor(clef, kind);
+        // Lines are positions 0,2,4,6,8; spaces are 1,3,5,7.
+        const positions = m.kind === 'line' ? [0, 2, 4, 6, 8] : [1, 3, 5, 7];
+        expect(m.items, `${clef}/${m.kind}`).toHaveLength(positions.length);
+        m.items.forEach((item, i) => {
+          const actual = pitchAtStaffPosition(clef, positions[i]).letter;
+          expect(item.letter, `${clef}/${m.kind}[${i}]`).toBe(actual);
+        });
+      }
+    }
+  });
+
+  it('each word starts with the letter it stands for', () => {
+    for (const clef of ['treble', 'bass'] as const) {
+      for (const kind of [0, 1]) {
+        for (const item of mnemonicFor(clef, kind).items) {
+          if (!item.word) continue;
+          expect(item.word[0].toUpperCase(), item.word).toBe(item.letter);
+        }
+      }
+    }
   });
 
   it('every note item resolves to a mnemonic', () => {
     for (const ref of enumerateNoteItems()) {
       const p = parseReadingItemRef(ref);
       if (p?.skill !== 'note') continue;
-      expect(mnemonicFor(p.clef, p.position), ref).toBeTruthy();
+      expect(mnemonicFor(p.clef, p.position).items.length, ref)
+        .toBeGreaterThan(0);
     }
   });
 });

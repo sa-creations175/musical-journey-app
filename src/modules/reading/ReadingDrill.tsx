@@ -27,6 +27,7 @@ import {
   SIGNATURES,
   parseReadingItemRef,
   type ChordPosition,
+  type Clef,
   type SignatureId,
 } from './catalog';
 import {
@@ -49,7 +50,9 @@ import {
   rootOptions,
   shapeOptions,
 } from './answerModels';
-import { withAccidentalGlyphs } from './pitch';
+import { pitchAtStaffPosition, withAccidentalGlyphs } from './pitch';
+import MnemonicStaff from './MnemonicStaff';
+import KeyboardDiagram, { type KeyboardBracket } from '../../components/KeyboardDiagram';
 import { recordReadingAttempt } from './recordReadingAttempt';
 
 const SEPIA = '#6f4a2f';
@@ -167,6 +170,26 @@ function evaluate(
   };
 }
 
+/**
+ * The bracket marking what a clef's five lines actually span —
+ * DERIVED from the staff itself, so it cannot drift from the notation.
+ *
+ * Position 0 is the bottom line and 8 the top, so treble comes out
+ * E4-F5 and bass G2-A3 without either being written down. The catalog
+ * range runs two ledger lines further either way; the bracket
+ * deliberately marks the STAFF, not the drilled range, because the
+ * question it answers is "how much of the piano is this clef".
+ */
+function staffRangeBracket(clef: Clef): KeyboardBracket {
+  const low = pitchAtStaffPosition(clef, 0);
+  const high = pitchAtStaffPosition(clef, 8);
+  return {
+    from: { letter: low.letter, octave: low.octave },
+    to: { letter: high.letter, octave: high.octave },
+    label: `${clef} staff`,
+  };
+}
+
 export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
   const [card, setCard] = useState<PickedCard | null>(null);
   const [answer, setAnswer] = useState<AnswerState>(EMPTY);
@@ -208,6 +231,15 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
     : null;
 
   const { correct, ready, countStage } = evaluate(parsed, card, answer);
+  // Letter and octave only. Note cards carry no accidental by design,
+  // and `Pitch.accidental` admits doubles that a keyboard has no
+  // separate key for — narrowing here keeps that impossible case out
+  // of the diagram rather than handling it there.
+  const notePitch = parsed.skill === 'note'
+    ? (({ letter, octave }) => ({ letter, octave }))(
+        pitchAtStaffPosition(parsed.clef, parsed.position),
+      )
+    : null;
   // Only the `name` direction has a hint to offer.
   const hintAvailable = parsed.skill === 'sig' && parsed.direction === 'name';
 
@@ -267,12 +299,29 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
             {resolved.caption}
           </p>
           {parsed.skill === 'note' && (
-            // Right or wrong, every time — a mnemonic shown only after
-            // a miss reads as a correction rather than as the thing
-            // being learned.
-            <p className="text-center text-xs text-neutral-500">
-              {mnemonicFor(parsed.clef, parsed.position)}
-            </p>
+            // THE ANSWER SCREEN IS WHERE TESTING AND TEACHING MEET.
+            // The preview page teaches without testing and the drill
+            // tested without teaching; a wrong answer should leave
+            // something behind. Shown right or wrong, every time — a
+            // mnemonic that only appears after a miss reads as a
+            // correction rather than as the thing being learned.
+            <div className="space-y-4 pt-1">
+              <MnemonicStaff
+                mnemonic={mnemonicFor(parsed.clef, parsed.position)}
+                accentHex={SEPIA}
+              />
+              {/* Octave numbers are being tested with nothing to
+                  anchor them to. The full 88 is what supplies the
+                  anchor: where this note actually falls, how little of
+                  the instrument the clef covers, and every C to count
+                  from — middle C included, sitting between the staves
+                  rather than being a fact to memorise. */}
+              <KeyboardDiagram
+                highlight={notePitch}
+                bracket={staffRangeBracket(parsed.clef)}
+                accentHex={SEPIA}
+              />
+            </div>
           )}
         </div>
       )}
