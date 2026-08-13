@@ -1,4 +1,19 @@
 import { useState } from 'react';
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import type { SongLyricLine } from '../../lib/db';
 import { lineStatus } from './lyricSyllables';
 import LyricListRow from './LyricListRow';
@@ -35,6 +50,7 @@ export default function LyricDrawer({
   onDuplicateLine,
   onLineDelete,
   onLineUnplace,
+  onReorder,
 }: {
   lines: SongLyricLine[];
   open: boolean;
@@ -54,6 +70,9 @@ export default function LyricDrawer({
   onDuplicateLine?: (lineId: string) => void | Promise<void>;
   onLineDelete?: (lineId: string) => void;
   onLineUnplace?: (lineId: string) => void | Promise<void>;
+  /** Move one row to another row's position. Headers included; nothing
+   *  is carried along with them. */
+  onReorder?: (fromId: string, toId: string) => void | Promise<void>;
 }) {
   // Dock above whatever bottom chrome already exists — MobileBottomNav
   // below the md breakpoint, nothing above it. Measured, not assumed:
@@ -71,6 +90,21 @@ export default function LyricDrawer({
   // Only once a word is tapped is anything armed, and that is the
   // existing `{ kind: 'syllable' }` intent, unchanged.
   const [pickLineId, setPickLineId] = useState<string | null>(null);
+
+  // 5px activation distance so a TAP still arms the line — rows are
+  // tappable and draggable at once, the same bargain the per-section
+  // tray already makes. Keyboard sensor for the same reason the song
+  // list has one: space picks up, arrows move, space drops.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onReorder) return;
+    void onReorder(String(active.id), String(over.id));
+  };
 
   const lyricLines = lines.filter(l => l.kind === 'lyric');
   const placedLines = lyricLines.filter(
@@ -172,29 +206,87 @@ export default function LyricDrawer({
             // drawer doubles as the readable lyric sheet, so hiding
             // finished lines would break the read. The per-section tray
             // filters instead; same row, different caller.
-            lines.map(line => (
-              <LyricListRow
-                key={line.id}
-                line={line}
-                onArm={onArmLine}
-                onSetLineKind={onSetLineKind}
-                onDuplicate={onDuplicateLine}
-                onArmWord={onArmWord}
-                picking={pickLineId === line.id}
-                onPickingChange={pick =>
-                  setPickLineId(pick ? line.id : null)
-                }
-                menuOpen={menuLineId === line.id}
-                onMenuOpenChange={openNow =>
-                  setMenuLineId(openNow ? line.id : null)
-                }
-                onDelete={onLineDelete}
-                onUnplace={onLineUnplace}
-              />
-            ))
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={lines.map(l => l.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {lines.map(line => (
+                  <SortableLyricRow
+                    key={line.id}
+                    line={line}
+                    draggable={Boolean(onReorder)}
+                    onArm={onArmLine}
+                    onSetLineKind={onSetLineKind}
+                    onDuplicate={onDuplicateLine}
+                    onArmWord={onArmWord}
+                    picking={pickLineId === line.id}
+                    onPickingChange={pick =>
+                      setPickLineId(pick ? line.id : null)
+                    }
+                    menuOpen={menuLineId === line.id}
+                    onMenuOpenChange={openNow =>
+                      setMenuLineId(openNow ? line.id : null)
+                    }
+                    onDelete={onLineDelete}
+                    onUnplace={onLineUnplace}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One drawer row, made sortable.
+ *
+ * HEADERS ARE DRAGGABLE HERE, unlike in the per-section tray which
+ * withholds the handle from them. A header typed into the paste box
+ * lands at the bottom of the list, and without this there is no way to
+ * move it to the section it names — creation without placement is half
+ * a feature.
+ */
+function SortableLyricRow({
+  line,
+  draggable,
+  ...rest
+}: {
+  line: SongLyricLine;
+  draggable: boolean;
+} & Omit<Parameters<typeof LyricListRow>[0], 'line' | 'drag'>) {
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+    id: line.id,
+  });
+  return (
+    <LyricListRow
+      {...rest}
+      line={line}
+      drag={
+        draggable
+          ? {
+              setNodeRef,
+              attributes: attributes as unknown as Record<string, unknown>,
+              listeners: listeners as unknown as Record<string, unknown>,
+              isDragging,
+              handle: (
+                <span
+                  className="text-neutral-500 dark:text-neutral-400 mr-1"
+                  aria-hidden
+                >
+                  ≡
+                </span>
+              ),
+            }
+          : undefined
+      }
+    />
   );
 }

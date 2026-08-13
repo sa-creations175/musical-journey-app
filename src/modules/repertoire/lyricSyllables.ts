@@ -977,6 +977,43 @@ export function buildCellIndex(
   return index;
 }
 
+/**
+ * Move one line to another line's position. Pure.
+ *
+ * EXACTLY ONE ROW MOVES. Dragging a header does NOT carry the lines
+ * beneath it — a header is a row like any other here. Moving a section
+ * as a block is a different feature and would need a different model,
+ * because nothing in the data says which lines belong to a header:
+ * every syllable's anchor carries its own `sectionId`, and headers are
+ * a reading aid over the list rather than a container in it.
+ *
+ * WHAT ORDER ACTUALLY CONTROLS, so this is not mistaken for cosmetic.
+ * Section membership is untouched — anchors carry their own section,
+ * bar and beat, so no placed syllable changes cell. But order feeds two
+ * things: `buildCellIndex` sorts a cell's occupants by
+ * `(lineIndex, textIndex)`, so two placed lines that share a cell swap
+ * their stacking when reordered; and the monotonic guard walks
+ * neighbouring lines, so reordering changes what a LATER placement is
+ * allowed to do. Both are visible immediately and undone by dragging
+ * back, which is why neither is guarded against here.
+ *
+ * Returns the same array when the move is a no-op.
+ */
+export function moveLine(
+  lines: ReadonlyArray<SongLyricLine>,
+  fromId: string,
+  toId: string,
+): SongLyricLine[] {
+  if (fromId === toId) return lines as SongLyricLine[];
+  const from = lines.findIndex(l => l.id === fromId);
+  const to = lines.findIndex(l => l.id === toId);
+  if (from === -1 || to === -1) return lines as SongLyricLine[];
+  const out = [...lines];
+  const [moved] = out.splice(from, 1);
+  out.splice(to, 0, moved);
+  return out;
+}
+
 // --- line markers (rev 3 §A1) -----------------------------------------
 
 export interface LineMarkerPlacement {

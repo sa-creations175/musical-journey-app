@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LyricLine, SongLyricLine } from '../../../lib/db';
 import { distributedWordPositions } from '../lyricLine';
 import {
+  moveLine,
   anchorIsOnAxis,
   anchorsMatching,
   anchorToGlobal,
@@ -1925,5 +1926,55 @@ describe('lineMarkers — a marker follows its syllable onto an “and”', () =
       barIndex: 1,
       beatPos: 0,
     });
+  });
+});
+
+// ---------------------------------------------------------------------
+// moveLine — one row moves, nothing is carried (13.13)
+// ---------------------------------------------------------------------
+
+describe('moveLine', () => {
+  const L = (id: string, kind: 'lyric' | 'header' = 'lyric'): SongLyricLine =>
+    ({ id, kind, text: id, syllables: [] }) as SongLyricLine;
+  const ids = (list: ReadonlyArray<SongLyricLine>) => list.map(l => l.id);
+
+  it('moves a row from the bottom to the top — the reported case', () => {
+    // A header typed into the paste box lands last and belongs first.
+    const lines = [L('a'), L('b'), L('VERSE 1', 'header')];
+    expect(ids(moveLine(lines, 'VERSE 1', 'a'))).toEqual(['VERSE 1', 'a', 'b']);
+  });
+
+  it('moves a row downward', () => {
+    const lines = [L('a'), L('b'), L('c')];
+    expect(ids(moveLine(lines, 'a', 'c'))).toEqual(['b', 'c', 'a']);
+  });
+
+  it('CARRIES NOTHING with a header', () => {
+    // One row dragged, one row moved. Moving a section as a block is a
+    // different feature — nothing in the data even says which lines a
+    // header owns.
+    const lines = [L('V1', 'header'), L('a'), L('b'), L('C', 'header'), L('c')];
+    expect(ids(moveLine(lines, 'V1', 'c'))).toEqual(['a', 'b', 'C', 'c', 'V1']);
+  });
+
+  it('returns the SAME array for a no-op, so no write happens', () => {
+    const lines = [L('a'), L('b')];
+    expect(moveLine(lines, 'a', 'a')).toBe(lines);
+    expect(moveLine(lines, 'ghost', 'b')).toBe(lines);
+    expect(moveLine(lines, 'a', 'ghost')).toBe(lines);
+  });
+
+  it('never drops or duplicates a row', () => {
+    const lines = [L('a'), L('b'), L('c'), L('d')];
+    const out = moveLine(lines, 'c', 'a');
+    expect(out).toHaveLength(4);
+    expect(new Set(ids(out)).size).toBe(4);
+  });
+
+  it('leaves every line object untouched — only order changes', () => {
+    const lines = [L('a'), L('b')];
+    const out = moveLine(lines, 'b', 'a');
+    expect(out[0]).toBe(lines[1]);
+    expect(out[1]).toBe(lines[0]);
   });
 });

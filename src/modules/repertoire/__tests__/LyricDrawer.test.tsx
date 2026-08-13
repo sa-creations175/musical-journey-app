@@ -12,6 +12,9 @@ import { lineMarkers, lineStatus } from '../lyricSyllables';
 // tapping a line arms it, and that it declares itself as bottom chrome
 // while excluding itself from its own measurement.
 
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true;
+
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
@@ -165,11 +168,21 @@ describe('LyricDrawer — arming', () => {
   });
 
   it('builds no arming UI of its own', () => {
-    // The anchored prompt owns that job. A second cancel control at the
+    // The anchored prompt owns that job. A second cancel CONTROL at the
     // bottom of the screen is the mistake this session corrected twice.
+    //
+    // Scoped to interactive elements rather than to all text, because
+    // dnd-kit renders hidden screen-reader instructions that mention
+    // pressing escape to cancel. Those are an accessibility aid for the
+    // reorder drag, not a control the drawer built — narrowing to
+    // buttons keeps what this was guarding and stops it tripping over
+    // an unrelated string.
     render(<LyricDrawer lines={SONG} open onOpenChange={noop} onArmLine={noop} />);
-    expect(container!.textContent).not.toContain('cancel');
-    expect(container!.textContent).not.toContain('tap the beat');
+    const controls = [...container!.querySelectorAll('button')].map(
+      b => b.textContent ?? '',
+    );
+    expect(controls.some(t => t.toLowerCase().includes('cancel'))).toBe(false);
+    expect(controls.some(t => t.includes('tap the beat'))).toBe(false);
   });
 });
 
@@ -649,5 +662,50 @@ describe('routing a partially-placed line — the reported failure', () => {
     );
     act(() => (container!.querySelector('[data-line-body]') as HTMLElement).click());
     expect(onArmLine).toHaveBeenCalledWith('l');
+  });
+});
+
+// ---------------------------------------------------------------------
+// Drag to reorder (13.13)
+// ---------------------------------------------------------------------
+
+describe('LyricDrawer — reordering', () => {
+  const header = (id: string, text: string): SongLyricLine =>
+    ({ id, kind: 'header', text }) as SongLyricLine;
+
+  it('makes EVERY row draggable, headers included', () => {
+    // The per-section tray withholds the handle from headers. Here a
+    // header must move: created by the paste box, it lands at the
+    // bottom, and without this there is no way to get it to the
+    // section it names.
+    //
+    // Counted rather than "at least one", because lyric rows are
+    // draggable either way — a version that excluded only headers
+    // passed a >0 check.
+    const lines = [header('h', 'VERSE 1'), ...SONG];
+    render(
+      <LyricDrawer
+        lines={lines}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onReorder={noop}
+      />,
+    );
+    expect(container!.querySelectorAll('.cursor-grab')).toHaveLength(
+      lines.length,
+    );
+  });
+
+  it('offers no drag affordance when the caller cannot reorder', () => {
+    render(
+      <LyricDrawer
+        lines={[header('h', 'VERSE 1'), ...SONG]}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+      />,
+    );
+    expect(container!.querySelectorAll('.cursor-grab')).toHaveLength(0);
   });
 });

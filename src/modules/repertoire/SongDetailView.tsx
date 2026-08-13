@@ -58,6 +58,7 @@ import {
   unplaceLine,
   foldSectionLyrics,
   restoreLineSyllables,
+  moveLine,
 } from './lyricSyllables';
 import {
   armedSyllableId as selectArmedSyllableId,
@@ -1026,6 +1027,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     }
     await setEighths(true);
   }, [song?.eighths, songId, sections, offbeatOccupants, setEighths]);
+
+  /** Move one lyric row to another's position. One row, nothing
+   *  carried — see `moveLine` for what order does and does not
+   *  control. */
+  const handleReorderLines = useCallback(
+    async (fromId: string, toId: string) => {
+      if (!songLyricLines) return;
+      const next = moveLine(songLyricLines, fromId, toId);
+      if (next === songLyricLines) return;
+      await commitSongLyrics(next);
+    },
+    [songLyricLines, commitSongLyrics],
+  );
 
   const handleAddLines = useCallback(
     async (text: string) => {
@@ -2074,6 +2088,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             onSetLineKind={handleSetLineKind}
             onDuplicateLine={handleDuplicateLine}
             onLineUnplace={handleUnplaceLine}
+            onReorder={handleReorderLines}
           />
         )}
       </LeadSheetDrawers>
