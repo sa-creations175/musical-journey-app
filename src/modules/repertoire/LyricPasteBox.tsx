@@ -20,7 +20,10 @@ import SectionToggle from './SectionToggle';
  */
 export default function LyricPasteBox({
   onCommit,
-  label = 'add lyrics',
+  /* Names the header capability, because nothing else did. Typing a
+     section name on its own line has always created a header, and the
+     only way to find that out was to stumble into it. */
+  label = 'add lyrics or header',
 }: {
   /** Receives the raw draft text. Parsing happens in one place, at the
    *  caller's write. */
@@ -79,7 +82,10 @@ export default function LyricPasteBox({
         value={draft}
         onChange={e => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={'paste a verse\n[Chorus]\none line per lyric line'}
+        /* Shows BOTH header forms. The bracketed one was the only
+           example, so the bare form — the one people actually type —
+           looked unsupported. */
+        placeholder={'paste a verse, one line each\nChorus\n[Verse 2]'}
         className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-[11px]"
       />
       {rows.length > 0 && (

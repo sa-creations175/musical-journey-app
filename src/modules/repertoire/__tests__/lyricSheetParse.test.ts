@@ -85,3 +85,45 @@ describe('parseLyricSheet', () => {
     expect(parseLyricSheet('\n\n\t\n')).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------
+// Names added in 13.15
+// ---------------------------------------------------------------------
+
+describe('interlude and hook are recognised', () => {
+  it('reads them as headers', () => {
+    expect(isHeaderLine('interlude')).toBe(true);
+    expect(isHeaderLine('Hook')).toBe(true);
+  });
+
+  it('reads their numbered and bracketed forms', () => {
+    expect(isHeaderLine('Interlude 2')).toBe(true);
+    expect(isHeaderLine('[Hook]')).toBe(true);
+    expect(isHeaderLine('Hook 2:')).toBe(true);
+  });
+
+  it('parses them into header rows, not placeable lines', () => {
+    expect(parseLyricSheet('Interlude\nHook 2')).toEqual([
+      { kind: 'header', text: 'Interlude' },
+      { kind: 'header', text: 'Hook 2' },
+    ]);
+  });
+
+  it('still refuses a multi-word line containing one of them', () => {
+    // The matcher is anchored: "Hook me up" is a lyric, not a header.
+    expect(isHeaderLine('Hook me up')).toBe(false);
+    expect(isHeaderLine('the interlude begins')).toBe(false);
+  });
+});
+
+describe('a name that is NOT recognised', () => {
+  it('becomes a placeable lyric line, silently', () => {
+    // Worth pinning: this is the failure mode behind naming the header
+    // capability on the button. It is recoverable — the row menu flips
+    // any unplaced line to a header — but nothing announces it.
+    expect(parseLyricSheet('Breakdown')).toEqual([
+      { kind: 'lyric', text: 'Breakdown' },
+    ]);
+    expect(isHeaderLine('Coda')).toBe(false);
+  });
+});

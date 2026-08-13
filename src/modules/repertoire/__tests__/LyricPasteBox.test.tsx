@@ -145,3 +145,29 @@ describe('LyricPasteBox — commit', () => {
     expect(container!.querySelector('textarea')).toBeNull();
   });
 });
+
+describe('LyricPasteBox — the header capability is named (13.15)', () => {
+  it('says headers are possible in its own label', () => {
+    // Typing a section name has always created a header; nothing said
+    // so, and the only way to find out was to stumble into it.
+    // Asserted on the rendered TEXT — the mechanism by which the
+    // capability becomes discoverable — not on a prop default.
+    render(<LyricPasteBox onCommit={() => {}} />);
+    expect(container!.textContent).toContain('header');
+  });
+
+  it('shows the BARE header form in the placeholder, not only the bracketed one', () => {
+    render(<LyricPasteBox onCommit={() => {}} />);
+    open();
+    const box = container!.querySelector('textarea') as HTMLTextAreaElement;
+    const ph = box.getAttribute('placeholder') ?? '';
+    expect(ph).toContain('Chorus');
+    expect(ph).not.toContain('[Chorus]');
+    expect(ph).toContain('[Verse 2]');
+  });
+
+  it('still lets a caller override the label', () => {
+    render(<LyricPasteBox onCommit={() => {}} label="add lines" />);
+    expect(container!.textContent).toContain('add lines');
+  });
+});

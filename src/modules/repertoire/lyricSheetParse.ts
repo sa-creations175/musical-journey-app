@@ -38,6 +38,15 @@ const HEADER_WORDS = [
   'outro',
   'tag',
   'vamp',
+  // Added 13.15. Both were names the user expected to work and neither
+  // did — they fell through to a placeable lyric line. `interlude` is
+  // unambiguous; `hook` is a real English word and could in principle
+  // appear as a one-word lyric line, which would then be read as a
+  // header. That miss costs one tap on the row menu to flip back,
+  // which is the trade the matcher already makes for `tag`, `vamp` and
+  // `bridge`.
+  'interlude',
+  'hook',
 ];
 
 // A header is one of the known words, optionally followed by a single
