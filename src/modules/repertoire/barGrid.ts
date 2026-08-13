@@ -798,10 +798,36 @@ export function swapChordPlacements(
   const to = placements.find(p => p.id === toId);
   if (!from || !to) return [...placements];
   return placements.map(p => {
-    if (p.id === fromId) return { ...p, barIndex: to.barIndex, beatPos: to.beatPos };
-    if (p.id === toId) return { ...p, barIndex: from.barIndex, beatPos: from.beatPos };
+    if (p.id === fromId) return atPositionOf(p, to);
+    if (p.id === toId) return atPositionOf(p, from);
     return p;
   });
+}
+
+/**
+ * Put `p` where `target` sits. A POSITION is (barIndex, beatPos,
+ * offbeat) — all three, or the chord does not actually arrive.
+ *
+ * `offbeat` is set or deleted explicitly rather than spread, because
+ * spreading `{ ...p }` keeps p's OWN flag: swapping an on-beat chord
+ * with one on an "and" left both flags where they were while the
+ * positions crossed over, so both chords ended up half a beat from
+ * where they were dropped. Same shape as the cascade's parity handling
+ * and as the empty-slot arity bug — a positional field that a
+ * position-moving function forgot about.
+ */
+function atPositionOf(
+  p: ChordPlacement,
+  target: Pick<ChordPlacement, 'barIndex' | 'beatPos' | 'offbeat'>,
+): ChordPlacement {
+  const next: ChordPlacement = {
+    ...p,
+    barIndex: target.barIndex,
+    beatPos: target.beatPos,
+  };
+  if (target.offbeat) next.offbeat = true;
+  else delete next.offbeat;
+  return next;
 }
 
 /** Permute placements' barIndex via an old→new bar-position map.

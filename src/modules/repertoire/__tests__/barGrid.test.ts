@@ -1104,3 +1104,74 @@ describe('assembleBarItems', () => {
     expect(c.widthPct).toBe(50);
   });
 });
+
+// ---------------------------------------------------------------------
+// swapChordPlacements — a position is (bar, beat, offbeat)
+// ---------------------------------------------------------------------
+
+describe('swapChordPlacements — offbeat travels with the position', () => {
+  const pl = (
+    id: string,
+    barIndex: number,
+    beatPos: number,
+    offbeat?: boolean,
+  ): ChordPlacement =>
+    ({
+      id,
+      arrangementId: BASIC_ARRANGEMENT_ID,
+      barIndex,
+      beatPos,
+      beats: 2,
+      chord: cf('1'),
+      ...(offbeat ? { offbeat: true } : {}),
+    }) as ChordPlacement;
+
+  const byId = (list: ChordPlacement[], id: string) =>
+    list.find(p => p.id === id)!;
+
+  it('swaps an ON-BEAT chord with an OFFBEAT one, flags included', () => {
+    // The reported shape: before the fix both flags stayed put while
+    // the positions crossed, so both chords landed half a beat out.
+    const out = swapChordPlacements([pl('a', 0, 0), pl('b', 0, 2, true)], 'a', 'b');
+    expect(byId(out, 'a').beatPos).toBe(2);
+    expect(byId(out, 'a').offbeat).toBe(true);
+    expect(byId(out, 'b').beatPos).toBe(0);
+    expect(byId(out, 'b').offbeat).toBeUndefined();
+  });
+
+  it('CLEARS the flag on a chord moving onto a downbeat', () => {
+    // The direction a spread-merge silently gets wrong.
+    const out = swapChordPlacements([pl('a', 0, 1, true), pl('b', 1, 3)], 'a', 'b');
+    expect(byId(out, 'a')).not.toHaveProperty('offbeat');
+  });
+
+  it('carries barIndex across too', () => {
+    const out = swapChordPlacements([pl('a', 0, 0), pl('b', 3, 1, true)], 'a', 'b');
+    expect(byId(out, 'a').barIndex).toBe(3);
+    expect(byId(out, 'b').barIndex).toBe(0);
+  });
+
+  it('leaves two on-beat chords behaving exactly as before', () => {
+    const out = swapChordPlacements([pl('a', 0, 0), pl('b', 1, 2)], 'a', 'b');
+    expect(byId(out, 'a')).toMatchObject({ barIndex: 1, beatPos: 2 });
+    expect(byId(out, 'b')).toMatchObject({ barIndex: 0, beatPos: 0 });
+    expect(byId(out, 'a')).not.toHaveProperty('offbeat');
+  });
+
+  it('keeps both flags when both chords are on an "and"', () => {
+    const out = swapChordPlacements(
+      [pl('a', 0, 0, true), pl('b', 1, 2, true)],
+      'a',
+      'b',
+    );
+    expect(byId(out, 'a').offbeat).toBe(true);
+    expect(byId(out, 'b').offbeat).toBe(true);
+  });
+
+  it('moves nothing else, and keeps each chord its own duration', () => {
+    const third = pl('c', 2, 0, true);
+    const out = swapChordPlacements([pl('a', 0, 0), pl('b', 0, 2, true), third], 'a', 'b');
+    expect(byId(out, 'c')).toEqual(third);
+    expect(byId(out, 'a').beats).toBe(2);
+  });
+});
