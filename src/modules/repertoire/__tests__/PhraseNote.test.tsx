@@ -36,7 +36,7 @@ afterEach(() => {
 });
 
 const input = (el: HTMLElement) =>
-  el.querySelector('[aria-label="phrase note"]') as HTMLInputElement;
+  el.querySelector('[aria-label="phrase note"]') as HTMLTextAreaElement;
 const tick = (el: HTMLElement) => el.querySelector('[aria-label="note saved"]');
 const failure = (el: HTMLElement) => el.querySelector('[role="alert"]');
 const deleteBtn = (el: HTMLElement) =>
@@ -44,10 +44,12 @@ const deleteBtn = (el: HTMLElement) =>
 
 /** Assigning `.value` directly is invisible to React's change tracker,
  *  so the native setter is used and an input event dispatched — the
- *  standard way to drive a controlled input from a test. */
-function setValue(field: HTMLInputElement, value: string) {
+ *  standard way to drive a controlled field from a test. The setter
+ *  lives on the TEXTAREA prototype; borrowing the input one silently
+ *  fails to notify React. */
+function setValue(field: HTMLTextAreaElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
+    HTMLTextAreaElement.prototype,
     'value',
   )!.set!;
   setter.call(field, value);
@@ -56,7 +58,7 @@ function setValue(field: HTMLInputElement, value: string) {
 
 /** React's onBlur is delegated from `focusout`, which bubbles; a plain
  *  `blur` event never reaches it. */
-function blur(field: HTMLInputElement) {
+function blur(field: HTMLTextAreaElement) {
   field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
 }
 
@@ -203,5 +205,67 @@ describe('PhraseNote — deleting', () => {
     await act(async () => { deleteBtn(el)!.click(); });
     expect(tick(el)).toBeNull();
     expect(failure(el)).not.toBeNull();
+  });
+});
+
+describe('PhraseNote — the field grows without moving the chords', () => {
+  it('takes its OWN LINE while editing, so growth cannot reflow the chord row', () => {
+    // Both surfaces render this as a sibling flex item in the same
+    // wrapping row as the chord tokens. Without a full basis, widening
+    // the field moves the wrap points and the chords jump on every
+    // keystroke.
+    const el = render(<PhraseNote note="x" editing onChange={vi.fn()} />);
+    expect(el.firstElementChild!.className).toContain('basis-full');
+  });
+
+  it('stays inline when read-only', () => {
+    const el = render(<PhraseNote note="x" editing={false} onChange={vi.fn()} />);
+    expect(el.firstElementChild!.className).not.toContain('basis-full');
+  });
+
+  it('is a textarea, because an input cannot wrap past the cap', () => {
+    const el = render(<PhraseNote note="x" editing onChange={vi.fn()} />);
+    expect(input(el).tagName).toBe('TEXTAREA');
+  });
+
+  it('widens with the content', async () => {
+    const el = render(<PhraseNote note="" editing onChange={vi.fn()} />);
+    const before = parseFloat(input(el).style.width);
+    await act(async () => setValue(input(el), 'Joyful and triumphant'));
+    expect(parseFloat(input(el).style.width)).toBeGreaterThan(before);
+  });
+
+  it('carries a responsive cap so it never runs to the drawer edge', () => {
+    const el = render(<PhraseNote note="x" editing onChange={vi.fn()} />);
+    const cls = input(el).className;
+    expect(cls).toContain('max-w-[14rem]');
+    expect(cls).toContain('sm:max-w-[22rem]');
+  });
+});
+
+describe('PhraseNote — Enter commits and newlines never reach storage', () => {
+  it('commits on Enter instead of inserting a line break', async () => {
+    const onChange = vi.fn().mockResolvedValue(undefined);
+    const el = render(<PhraseNote note="old" editing onChange={onChange} />);
+    const field = input(el);
+    await act(async () => setValue(field, 'new'));
+    await act(async () => {
+      field.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      );
+    });
+    await act(async () => blur(field));
+    expect(onChange).toHaveBeenCalledWith('new');
+    expect(field.value).not.toContain('\n');
+  });
+
+  it('collapses a pasted multi-line note rather than losing half of it', async () => {
+    // The read-only view is a span: a stored newline would vanish on
+    // save, so the input would eat what was typed.
+    const onChange = vi.fn().mockResolvedValue(undefined);
+    const el = render(<PhraseNote note="" editing onChange={onChange} />);
+    await act(async () => setValue(input(el), 'first line\nsecond line'));
+    await act(async () => blur(input(el)));
+    expect(onChange).toHaveBeenCalledWith('first line second line');
   });
 });
