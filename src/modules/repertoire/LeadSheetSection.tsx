@@ -29,6 +29,7 @@ import type {
   VoicingEntry,
 } from '../../lib/db';
 import {
+  moveLine,
   type BeatAxis,
   type CellOccupant,
   type OrderViolation,
@@ -93,7 +94,8 @@ import SequenceChoices from './SequenceChoices';
 import PhraseNote from './PhraseNote';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
-import BarGridView, { parseSlotDropId, SongPendingTray } from './BarGridView';
+import BarGridView, { parseSlotDropId } from './BarGridView';
+import LyricLineList from './LyricLineList';
 import LyricStagingArea from './LyricStagingArea';
 import {
   addChordPlacement,
@@ -1917,6 +1919,25 @@ export default function LeadSheetSection({
     { kind: 'gap' | 'token'; placementId: string } | null
   >(null);
 
+  /** Reorder from the per-section list. Same write the drawer makes —
+   *  one row moves, nothing is carried. */
+  const handleReorderLyricLines = async (fromId: string, toId: string) => {
+    if (!songLyricLines || !onSongLyricsChange) return;
+    const next = moveLine(songLyricLines, fromId, toId);
+    if (next === songLyricLines) return;
+    await onSongLyricsChange(next);
+  };
+
+  /** "9 of 10 placed" — the count that matters, on the collapsed
+   *  header. The old tray led with the UNPLACED count, so a fully
+   *  placed song showed a "(0)" you had to expand to see anything. */
+  const lyricListSummary = (() => {
+    const lyrics = (songLyricLines ?? []).filter(l => l.kind === 'lyric');
+    if (lyrics.length === 0) return 'none yet';
+    const placed = lyrics.filter(l => lineStatus(l).status === 'placed').length;
+    return `${placed} of ${lyrics.length} placed`;
+  })();
+
   const commitSequenceView = async (next: SequenceView) => {
     // Legacy phrase-anchored sections carry SYNTHETIC placement ids
     // (`legacy:phraseId:beatId`) that materialisation replaces. Writing
@@ -2200,37 +2221,6 @@ export default function LeadSheetSection({
               <LyricStagingArea onSubmitText={handleSubmitLyricLines} />
             )}
 
-            {/* THE LYRIC CONTROLS ARE ONE GROUP, BELOW THE GRID. The
-                tray used to render inside BarGridView above the grid
-                while the add box sat below it — two halves of one job
-                split across the section by where each was built. Add
-                box then list, matching the lyrics drawer, so the two
-                surfaces read the same way.
-
-                Still inside the DndContext, so a row can still be
-                dragged onto the grid. That drag now travels upward,
-                which is accepted: placement is moving to the drawer,
-                and per-section drag is mostly for syllables already
-                placed.
-
-                HIDDEN IN PLAY MODE. An unplaced-lyrics tray is editing
-                chrome, and an empty one is pure noise. */}
-            {!playMode &&
-              cellIndex &&
-              songLyricLines &&
-              songLyricLines.some(l => l.kind !== 'header') && (
-                <SongPendingTray
-                  lines={songLyricLines}
-                  onLineDelete={handleDeleteLyricLine}
-                  onLineUnplace={handleUnplaceLine}
-                  onArmLine={onArmLine}
-                  onArmWord={onArmWord}
-                  onSetLineKind={onSetLineKind}
-                  onDuplicateLine={onDuplicateLine}
-                  collapsed={lyricTrayCollapsed}
-                  onToggle={onToggleLyricTray}
-                />
-              )}
 
             {/* The dragged item follows the pointer exactly instead of
                 the source node translating in place. Two reasons: the
@@ -2252,6 +2242,51 @@ export default function LeadSheetSection({
               ) : null}
             </DragOverlay>
           </DndContext>
+
+          {/* THE LYRIC CONTROLS ARE ONE GROUP, BELOW THE GRID — add
+              box first, then the list, matching the lyrics drawer so
+              the two surfaces read the same way.
+
+              THE SAME LIST COMPONENT the drawer uses, not a similar
+              one. It shows the whole song's lines in both places, so
+              two views of one list had no reason to be two components,
+              and being two is what let this one drift into an
+              `unplaced lyrics (0)` wrapper with the placed lines — the
+              ones worth looking at — nested two levels inside it, and
+              headers floated away from the lines they head.
+
+              OUTSIDE the DndContext deliberately. The list owns its own
+              drag for reordering, and nesting one DndContext in another
+              is not something to rely on. The cost is that a row can no
+              longer be dragged from here onto the grid; placement here
+              is tap-to-arm, as it is in the drawer.
+
+              HIDDEN IN PLAY MODE — editing chrome, and an empty one is
+              pure noise. */}
+          {!playMode && songLyricsActive && songLyricLines && (
+            <div className="pt-1">
+              <SectionToggle
+                label="lyrics"
+                expanded={!lyricTrayCollapsed}
+                onToggle={onToggleLyricTray}
+                hint={lyricListSummary}
+              />
+              {!lyricTrayCollapsed && (
+                <div className="mt-1 flex flex-col gap-1">
+                  <LyricLineList
+                    lines={songLyricLines}
+                    onArmLine={onArmLine}
+                    onArmWord={onArmWord}
+                    onSetLineKind={onSetLineKind}
+                    onDuplicateLine={onDuplicateLine}
+                    onLineDelete={handleDeleteLyricLine}
+                    onLineUnplace={handleUnplaceLine}
+                    onReorder={handleReorderLyricLines}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Both warnings say what will actually happen, and both
               counts come from the SONG store. The old bar-delete

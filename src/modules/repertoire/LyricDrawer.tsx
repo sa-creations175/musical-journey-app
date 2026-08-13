@@ -1,22 +1,6 @@
-import { useState } from 'react';
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
 import type { SongLyricLine } from '../../lib/db';
 import { lineStatus } from './lyricSyllables';
-import LyricListRow from './LyricListRow';
+import LyricLineList from './LyricLineList';
 import LyricPasteBox from './LyricPasteBox';
 
 /**
@@ -83,28 +67,6 @@ export default function LyricDrawer({
   // bottom chrome so the cell-anchored overlays stay clear of it — so
   // measuring "bottom chrome" without the exclusion would measure the
   // drawer and push it up by its own height, every frame.
-  // Which row's "…" menu is open. One at a time.
-  const [menuLineId, setMenuLineId] = useState<string | null>(null);
-  // Which row is PICKING a word. Drawer UI state, deliberately not an
-  // arming kind: pick mode does not change what a beat-cell tap does.
-  // Only once a word is tapped is anything armed, and that is the
-  // existing `{ kind: 'syllable' }` intent, unchanged.
-  const [pickLineId, setPickLineId] = useState<string | null>(null);
-
-  // 5px activation distance so a TAP still arms the line — rows are
-  // tappable and draggable at once, the same bargain the per-section
-  // tray already makes. Keyboard sensor for the same reason the song
-  // list has one: space picks up, arrows move, space drops.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !onReorder) return;
-    void onReorder(String(active.id), String(over.id));
-  };
 
   const lyricLines = lines.filter(l => l.kind === 'lyric');
   const placedLines = lyricLines.filter(
@@ -197,96 +159,22 @@ export default function LyricDrawer({
               <LyricPasteBox onCommit={onAddLines} />
             </div>
           )}
-          {lyricLines.length === 0 ? (
-            <p className="text-[11px] text-neutral-500 italic py-2">
-              no lyrics yet.
-            </p>
-          ) : (
-            // EVERY line, in song order, placed ones dimmed — the
-            // drawer doubles as the readable lyric sheet, so hiding
-            // finished lines would break the read. The per-section tray
-            // filters instead; same row, different caller.
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={lines.map(l => l.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {lines.map(line => (
-                  <SortableLyricRow
-                    key={line.id}
-                    line={line}
-                    draggable={Boolean(onReorder)}
-                    onArm={onArmLine}
-                    onSetLineKind={onSetLineKind}
-                    onDuplicate={onDuplicateLine}
-                    onArmWord={onArmWord}
-                    picking={pickLineId === line.id}
-                    onPickingChange={pick =>
-                      setPickLineId(pick ? line.id : null)
-                    }
-                    menuOpen={menuLineId === line.id}
-                    onMenuOpenChange={openNow =>
-                      setMenuLineId(openNow ? line.id : null)
-                    }
-                    onDelete={onLineDelete}
-                    onUnplace={onLineUnplace}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
+          {/* ONE FLAT LIST, shared with the per-section tray. Every
+              line in song order, headers inline, placed ones dimmed —
+              the drawer doubles as the readable lyric sheet, so hiding
+              finished lines would break the read. */}
+          <LyricLineList
+            lines={lines}
+            onArmLine={onArmLine}
+            onArmWord={onArmWord}
+            onSetLineKind={onSetLineKind}
+            onDuplicateLine={onDuplicateLine}
+            onLineDelete={onLineDelete}
+            onLineUnplace={onLineUnplace}
+            onReorder={onReorder}
+          />
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * One drawer row, made sortable.
- *
- * HEADERS ARE DRAGGABLE HERE, unlike in the per-section tray which
- * withholds the handle from them. A header typed into the paste box
- * lands at the bottom of the list, and without this there is no way to
- * move it to the section it names — creation without placement is half
- * a feature.
- */
-function SortableLyricRow({
-  line,
-  draggable,
-  ...rest
-}: {
-  line: SongLyricLine;
-  draggable: boolean;
-} & Omit<Parameters<typeof LyricListRow>[0], 'line' | 'drag'>) {
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
-    id: line.id,
-  });
-  return (
-    <LyricListRow
-      {...rest}
-      line={line}
-      drag={
-        draggable
-          ? {
-              setNodeRef,
-              attributes: attributes as unknown as Record<string, unknown>,
-              listeners: listeners as unknown as Record<string, unknown>,
-              isDragging,
-              handle: (
-                <span
-                  className="text-neutral-500 dark:text-neutral-400 mr-1"
-                  aria-hidden
-                >
-                  ≡
-                </span>
-              ),
-            }
-          : undefined
-      }
-    />
   );
 }

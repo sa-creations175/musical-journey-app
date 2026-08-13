@@ -24,7 +24,6 @@ import {
   type LineMarkerPlacement,
   canJoinNext,
   cellKey,
-  lineStatus,
   findSyllable,
 } from './lyricSyllables';
 import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
@@ -58,8 +57,6 @@ import {
 import { distributedWordPositions } from './lyricLine';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import ChordGlyph from './chordGlyph';
-import SectionToggle from './SectionToggle';
-import LyricListRow from './LyricListRow';
 
 // Bar-grid renderer (Lead Sheet Redesign, May 2026 —
 // docs/LEAD_SHEET_REDESIGN.md).
@@ -1005,143 +1002,6 @@ function TimeSignaturePicker({
 // a draggable strip showing all words. Dropping on a beat slot
 // initialises the line's range to that beat + a default of 1 bar.
 
-/** Song-owned variant (rev 3). Lists lines with nothing placed yet.
- *  Interim only — the lyric drawer subsumes this in step 7, at which
- *  point "pending" stops being a bucket and is just "unplaced". */
-export function SongPendingTray({
-  lines,
-  onLineDelete,
-  onLineUnplace,
-  onArmLine,
-  onArmWord,
-  onSetLineKind,
-  onDuplicateLine,
-  collapsed,
-  onToggle,
-}: {
-  lines: SongLyricLine[];
-  onLineDelete?: (lineId: string) => void;
-  onLineUnplace?: (lineId: string) => void | Promise<void>;
-  onArmLine?: (lineId: string) => void;
-  onArmWord?: (syllableId: string) => void;
-  onSetLineKind?: (lineId: string, kind: 'lyric' | 'header') => void | Promise<void>;
-  onDuplicateLine?: (lineId: string) => void | Promise<void>;
-  collapsed: boolean;
-  onToggle?: () => void;
-}) {
-  const [pickLineId, setPickLineId] = useState<string | null>(null);
-  const [menuLineId, setMenuLineId] = useState<string | null>(null);
-  // Momentary reveal, deliberately NOT persisted like the other lead
-  // sheet prefs. Those are standing preferences — "I don't want to see
-  // this" — whereas showing finished lines is "let me fix one thing".
-  // It also sits inside a tray that is itself collapsed by default, so
-  // a remembered expansion would be invisible state waiting to
-  // surprise someone.
-  const [showPlaced, setShowPlaced] = useState(false);
-
-  const unfinished = lines.filter(l => lineStatus(l).status !== 'placed');
-  const placed = lines.filter(l => lineStatus(l).status === 'placed');
-  const placeable = unfinished.filter(l => l.kind !== 'header').length;
-
-  const rowFor = (line: SongLyricLine, dimPlaced: boolean) => (
-    <TrayRow
-      key={line.id}
-      line={line}
-      dimPlaced={dimPlaced}
-      onArm={onArmLine}
-      onArmWord={onArmWord}
-      picking={pickLineId === line.id}
-      onPickingChange={pick => setPickLineId(pick ? line.id : null)}
-      menuOpen={menuLineId === line.id}
-      onMenuOpenChange={open => setMenuLineId(open ? line.id : null)}
-      onSetLineKind={onSetLineKind}
-      onDuplicate={onDuplicateLine}
-      onDelete={onLineDelete}
-      onUnplace={onLineUnplace}
-    />
-  );
-
-  return (
-    <div className="mt-2 rounded border border-dashed border-neutral-300 dark:border-neutral-700 p-2 bg-white/40 dark:bg-neutral-900/40">
-      {/* Collapsed by default, and HIDDEN rather than removed on
-          purpose. Step 7 replaces these per-section trays with a
-          song-level lyric drawer; they will probably go entirely then.
-          But drag has known problems, so the fallback stays until the
-          drawer has been in real use — see the plan doc's note on the
-          step 2 → step 7 gap. The count keeps the tray honest while
-          shut: you can see there is unplaced work without opening it. */}
-      <SectionToggle
-        label="unplaced lyrics"
-        expanded={!collapsed}
-        onToggle={onToggle}
-        count={placeable}
-        hint={collapsed ? undefined : 'tap to place, or drag onto a beat'}
-      />
-      {!collapsed && (
-        <div className="flex flex-col gap-1 mt-1">
-          {unfinished.map(line => rowFor(line, false))}
-          {placed.length > 0 && (
-            <>
-              {/* ONE group control, not per-line collapsing. Finished
-                  lines have to be reachable now that the tray can pick
-                  words — otherwise moving one word of a finished line
-                  would mean opening the drawer — but showing them all
-                  by default would undo the compactness that justified
-                  hiding them. */}
-              <SectionToggle
-                label={`${placed.length} placed line${placed.length === 1 ? '' : 's'}`}
-                expanded={showPlaced}
-                onToggle={() => setShowPlaced(v => !v)}
-                className="mt-1"
-              />
-              {showPlaced && placed.map(line => rowFor(line, true))}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** A tray row: the shared list row, made draggable. */
-function TrayRow({
-  line,
-  dimPlaced,
-  ...rest
-}: {
-  line: SongLyricLine;
-  dimPlaced: boolean;
-} & Omit<React.ComponentProps<typeof LyricListRow>, 'line' | 'drag' | 'dimPlaced'>) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: DRAG_ID.pending(line.id),
-  });
-  const isHeader = line.kind === 'header';
-  return (
-    <LyricListRow
-      {...rest}
-      line={line}
-      dimPlaced={dimPlaced}
-      drag={
-        isHeader
-          ? undefined
-          : {
-              setNodeRef,
-              attributes: attributes as unknown as Record<string, unknown>,
-              listeners: listeners as unknown as Record<string, unknown>,
-              isDragging,
-              handle: (
-                <span
-                  className="text-neutral-500 dark:text-neutral-400 mr-1"
-                  aria-hidden
-                >
-                  ≡
-                </span>
-              ),
-            }
-      }
-    />
-  );
-}
 
 function PendingTray({
   lines,
