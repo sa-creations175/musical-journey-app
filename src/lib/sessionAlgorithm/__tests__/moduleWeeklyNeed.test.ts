@@ -614,13 +614,31 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
   const MONTH_END_9A = new Date(2026, 2, 28, 23, 59, 59, 999).getTime();
 
   it("'monthly' over-practice when monthly attempts are all logged", async () => {
-    // 130 cards × 10 = 1300 monthly. Seed 1400 attempts (over target).
     // Weekly Goal record at 50, completed 0 this week — weekly remaining > 0,
     // but monthly hits trumps it.
+    //
+    // THE CARD COUNT IS DELIBERATELY SMALL. What this asserts is a
+    // classification branch, and the branch fires on `monthly
+    // remaining <= 0` regardless of magnitude — so the fixture only
+    // has to clear the monthly attempt target, not resemble a real
+    // month. It used to use the full 130-card HF catalog, which at
+    // x10 meant seeding 1400 rows; every read path here is a
+    // fake-indexeddb cursor walk and several of them run per call,
+    // which put the test at ~2.1s alone and over the 5s default under
+    // parallel-suite pressure. Same coverage at a twentieth of the
+    // rows. If a test genuinely needs volume, it needs its own
+    // timeout and a comment saying why — this one never did.
+    const MONTHLY_CARDS = 6;
+    // Mirrors DECLARATIVE_ATTEMPTS_PER_ITEM in weeklyDerivation.ts,
+    // kept local for the same reason weeklyTimeEstimate.ts keeps its
+    // copy — these tests stay import-flat.
+    const ATTEMPTS_PER_CARD = 10;
+    const MONTHLY_ATTEMPT_TARGET = MONTHLY_CARDS * ATTEMPTS_PER_CARD; // 60
+    const SEEDED = MONTHLY_ATTEMPT_TARGET + 10;                       // over it
     await db.goals.add(mkGoal({
       scope: 'monthly',
       targetMetric: 'harmonic_fluency_coverage_at_acquired',
-      targetValue: 130,
+      targetValue: MONTHLY_CARDS,
       targetUnit: 'cards',
       relatedModules: ['harmonic-fluency'],
       startDate: SUN_9A - 14 * DAY,
@@ -634,11 +652,10 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
       startDate: SUN_9A,
       targetDate: SUN_9A + 7 * DAY - 1,
     }));
-    // 1400 historical attempts logged across the month. bulkAdd
-    // keeps the test fast under parallel-test pressure (sequential
-    // `add` calls churn fake-indexeddb's microtask queue enough to
-    // time out the 5s default when other tests run alongside).
-    const seedRows = Array.from({ length: 1400 }, (_, i) => ({
+    // Logged LAST week, so they count toward the month but leave this
+    // week's completed count at 0 — that is what makes the weekly side
+    // still open while the monthly side is met.
+    const seedRows = Array.from({ length: SEEDED }, (_, i) => ({
       moduleId: 'harmonic-fluency',
       itemId: `seed-${i}`,
       correct: true,
@@ -648,6 +665,10 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
     const result = await loadModuleWeeklyNeeds(SUN_9A);
     const hf = result.find(n => n.moduleId === 'harmonic-fluency');
     expect(hf).toBeDefined();
+    // The weekly side really is still open — otherwise 'monthly'
+    // could pass for the wrong reason (both fired, monthly won a
+    // tie-break that was never tested).
+    expect(hf!.remainingAttempts).toBeGreaterThan(0);
     expect(hf!.overPractice).toBe('monthly');
   });
 
