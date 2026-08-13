@@ -47,6 +47,11 @@ const HEADER_WORDS = [
   // `bridge`.
   'interlude',
   'hook',
+  // Added 13.16. A real section type in gospel and R&B — a passage
+  // with no lyrics — and NOT covered by intro or outro, since it can
+  // sit anywhere in the song. Unambiguous as a one-word line: nobody
+  // sings "instrumental".
+  'instrumental',
 ];
 
 // A header is one of the known words, optionally followed by a single

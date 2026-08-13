@@ -127,3 +127,30 @@ describe('a name that is NOT recognised', () => {
     expect(isHeaderLine('Coda')).toBe(false);
   });
 });
+
+describe('instrumental is recognised (13.16)', () => {
+  it('reads as a header, bare, bracketed and numbered', () => {
+    expect(isHeaderLine('instrumental')).toBe(true);
+    expect(isHeaderLine('[Instrumental]')).toBe(true);
+    expect(isHeaderLine('Instrumental 2')).toBe(true);
+  });
+
+  it('parses into a header row', () => {
+    expect(parseLyricSheet('Instrumental')).toEqual([
+      { kind: 'header', text: 'Instrumental' },
+    ]);
+  });
+
+  it('still refuses it inside a longer line', () => {
+    expect(isHeaderLine('the instrumental break')).toBe(false);
+  });
+
+  it('leaves the names deliberately excluded as lyric lines', () => {
+    // coda, solo, breakdown and ending were considered and left out —
+    // intro and outro cover ending in practice, and coda is rare
+    // enough outside classical that the false-positive risk wins.
+    for (const name of ['Coda', 'Solo', 'Breakdown', 'Ending']) {
+      expect(isHeaderLine(name)).toBe(false);
+    }
+  });
+});
