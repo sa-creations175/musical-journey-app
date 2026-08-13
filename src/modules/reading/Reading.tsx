@@ -45,13 +45,11 @@ export default function Reading() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
-      <header className="space-y-1">
-        <h1 className="text-xl font-medium tracking-tight" style={{ color: SEPIA }}>
-          reading
-        </h1>
-        <p className="text-[12px] text-neutral-500">{active.blurb}</p>
-      </header>
-
+      {/* No module heading here. The pinned header in Layout already
+          carries the name and the module tagline — see pageTitle.ts —
+          and no other module repeats its own. What DOES belong here is
+          the per-skill line, which the header cannot show because it is
+          static per route and this changes with the tab. */}
       <div className="flex gap-1.5 flex-wrap">
         {TABS.map(tab => {
           const on = tab.id === skill;
@@ -75,6 +73,8 @@ export default function Reading() {
           );
         })}
       </div>
+
+      <p className="text-[12px] text-neutral-500">{active.blurb}</p>
 
       {/* Remounting per skill resets the drill's local state without
           the drill needing to know a skill can change under it. */}
