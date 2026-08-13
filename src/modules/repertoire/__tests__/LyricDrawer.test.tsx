@@ -174,24 +174,21 @@ describe('LyricDrawer — arming', () => {
 });
 
 describe('LyricDrawer — chrome', () => {
-  it('declares itself bottom chrome so overlays clear it', () => {
-    render(<LyricDrawer lines={SONG} open={false} onOpenChange={noop} onArmLine={noop} />);
-    const el = container!.querySelector('[data-lyric-drawer]') as HTMLElement;
-    expect(el.getAttribute('data-app-chrome')).toBe('bottom');
-  });
-
-  it('carries a self-exclusion marker so it cannot measure itself', () => {
-    // Without this the drawer measures its own height as bottom chrome
-    // and pushes itself up by it, every frame.
+  // The docking assertions that lived here moved to
+  // LeadSheetDrawers.test.tsx when the drawer stopped positioning
+  // itself: bottom-chrome declaration, self-exclusion and z-index are
+  // now the container's contract, not this component's. What stays
+  // here is the marker the dismiss-on-outside handler keys on.
+  it('carries its identifying marker, which dismiss-on-outside keeps', () => {
     render(<LyricDrawer lines={SONG} open={false} onOpenChange={noop} onArmLine={noop} />);
     expect(container!.querySelector('[data-lyric-drawer]')).not.toBeNull();
   });
 
-  it('sits below the cell-anchored overlays', () => {
-    // Overlays are z-180/190; the drawer must never cover the prompt.
+  it('no longer positions itself — the container owns that', () => {
     render(<LyricDrawer lines={SONG} open={false} onOpenChange={noop} onArmLine={noop} />);
     const el = container!.querySelector('[data-lyric-drawer]') as HTMLElement;
-    expect(el.className).toContain('z-40');
+    expect(el.className).not.toContain('fixed');
+    expect(el.getAttribute('data-app-chrome')).toBeNull();
   });
 });
 

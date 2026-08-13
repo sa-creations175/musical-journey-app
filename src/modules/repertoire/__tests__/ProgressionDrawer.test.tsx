@@ -355,11 +355,16 @@ describe('patterns list', () => {
 });
 
 describe('docking', () => {
-  it('declares itself bottom chrome and identifies itself', () => {
+  // Positioning moved to LeadSheetDrawers; see its test for the
+  // bottom-chrome contract. What matters here is that the drawer no
+  // longer claims to be chrome in its own right — two self-declaring
+  // drawers landing on one rectangle is exactly the bug that moved it.
+  it('does not position itself or claim to be bottom chrome', () => {
     const el = render(
       <ProgressionDrawer {...base} open={false} onOpenChange={noop} sections={[]} />,
     );
-    const drawer = el.querySelector('[data-progression-drawer]')!;
-    expect(drawer.getAttribute('data-app-chrome')).toBe('bottom');
+    const drawer = el.querySelector('[data-progression-drawer]') as HTMLElement;
+    expect(drawer.getAttribute('data-app-chrome')).toBeNull();
+    expect(drawer.className).not.toContain('fixed');
   });
 });

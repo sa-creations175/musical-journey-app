@@ -1,13 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { SongLyricLine } from '../../lib/db';
 import { lineStatus } from './lyricSyllables';
-import { measureSafeArea } from './leadSheetOverlay';
 import LyricListRow from './LyricListRow';
 import LyricPasteBox from './LyricPasteBox';
-
-/** Breathing room between the drawer and whatever it docks above, so
- *  the inset edges read as floating rather than as a seam. */
-const DRAWER_GAP = 8;
 
 /**
  * The song's lyrics, docked at the bottom of the lead sheet.
@@ -76,21 +71,6 @@ export default function LyricDrawer({
   // Only once a word is tapped is anything armed, and that is the
   // existing `{ kind: 'syllable' }` intent, unchanged.
   const [pickLineId, setPickLineId] = useState<string | null>(null);
-  const [dockOffset, setDockOffset] = useState(0);
-  useEffect(() => {
-    const measure = () =>
-      setDockOffset(
-        measureSafeArea({
-          // Excludes BOTH drawers: itself for the circularity, and the
-          // progressions drawer because they are mutually exclusive —
-          // a collapsed sibling must not push this one up.
-          exclude: '[data-lyric-drawer], [data-progression-drawer]',
-        }).bottom,
-      );
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [open]);
 
   const lyricLines = lines.filter(l => l.kind === 'lyric');
   const placedLines = lyricLines.filter(
@@ -104,9 +84,7 @@ export default function LyricDrawer({
          it, which is right: the prompt belongs in the part of the grid
          still visible. Measured rather than declared, so slim and open
          need no special-casing. */
-      data-app-chrome="bottom"
       data-lyric-drawer=""
-      style={{ bottom: dockOffset + DRAWER_GAP }}
       /* INSET and rounded, not full-bleed. Edge-to-edge with a top
          border read as browser chrome — a status bar the app happened
          to have — rather than as part of the page. Floating it off the
@@ -133,7 +111,7 @@ export default function LyricDrawer({
          Surface, not type: the button below keeps SectionToggle's
          stone/fluent idiom, so the strip stays in the collapsible-
          header family. Being hard to see was a SURFACE problem. */
-      className="fixed inset-x-3 z-40 rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-chrome-50 dark:bg-chrome-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
+      className="rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-chrome-50 dark:bg-chrome-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
     >
       {/* Label and count GROUPED, not pushed to opposite ends — at
           arm's length a label on the left and a number on the right

@@ -1,16 +1,10 @@
 import { Fragment, useEffect, useState } from 'react';
-import { measureSafeArea } from './leadSheetOverlay';
 import { useNotationMode } from '../../lib/notationPref';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import SequenceChoices, { type SequenceTarget } from './SequenceChoices';
 import PhraseNote from './PhraseNote';
 import type { ProgressionSection, ProgressionToken } from './progressionOutline';
-
-/** Breathing room between the drawer and whatever it docks above, so
- *  the inset edges read as floating rather than as a seam. Matches
- *  LyricDrawer. */
-const DRAWER_GAP = 8;
 
 /**
  * The whole song's chord movement, docked at the bottom of the lead
@@ -28,8 +22,9 @@ const DRAWER_GAP = 8;
  * sometimes lands on the wrong content and costs a second tap; two
  * strips always open what was asked for. They are mutually exclusive —
  * opening one closes the other — so only one half-height panel is ever
- * competing for the screen, and each excludes BOTH from its own
- * docking measurement.
+ * competing for the screen. Positioning is NOT this component's job:
+ * `LeadSheetDrawers` owns the one fixed box and stacks both drawers
+ * inside it.
  *
  * IT IS A WORKING SURFACE, NOT A READING ONE. Breaks, notes and hides
  * are all editable here, writing to the same per-section
@@ -88,22 +83,6 @@ export default function ProgressionDrawer({
    *  because it earns the space. */
   const [openPatterns, setOpenPatterns] = useState<Set<string>>(new Set());
 
-  const [dockOffset, setDockOffset] = useState(0);
-  useEffect(() => {
-    const measure = () =>
-      setDockOffset(
-        measureSafeArea({
-          // Excludes BOTH drawers: itself for the obvious circularity,
-          // and its sibling because they are mutually exclusive, so a
-          // collapsed sibling must not push this one up.
-          exclude: '[data-lyric-drawer], [data-progression-drawer]',
-        }).bottom,
-      );
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [open]);
-
   // Leaving edit mode closes any open choices row — an editor that is
   // no longer editing should not leave a live control behind.
   useEffect(() => {
@@ -124,12 +103,11 @@ export default function ProgressionDrawer({
 
   return (
     <div
-      data-app-chrome="bottom"
       data-progression-drawer=""
-      style={{ bottom: dockOffset + DRAWER_GAP }}
-      /* Same inset, radius, elevation and z-index as the lyrics
-         drawer: they are siblings and should read as one family. */
-      className="fixed inset-x-3 z-40 rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-chrome-50 dark:bg-chrome-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
+      /* Same radius, border, fill and elevation as the lyrics drawer:
+         they are siblings in one stack and should read as one family.
+         Positioning belongs to `LeadSheetDrawers`. */
+      className="rounded-xl border border-repertoire-200 dark:border-repertoire-600 bg-chrome-50 dark:bg-chrome-800 shadow-[0_2px_16px_rgba(0,0,0,0.16)] overflow-hidden"
     >
       <button
         type="button"

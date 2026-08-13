@@ -98,6 +98,7 @@ import {
   clearOrphanedHides,
 } from './progressionOutline';
 import ProgressionDrawer from './ProgressionDrawer';
+import LeadSheetDrawers from './LeadSheetDrawers';
 import type { SequenceView } from '../../lib/db';
 import {
   EMPTY_SEQUENCE_VIEW,
@@ -2067,40 +2068,45 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           overlays do not — see the plan doc's anchoring principle.
           Only when the song's lyric store is live; before migration
           the section-level path still owns lyrics. */}
-      <ProgressionDrawer
-        sections={progression}
-        songKey={song?.key}
-        open={progressionsOpen}
-        onOpenChange={openProgressions}
-        onSetBreak={(sectionId, after, kind) =>
-          editSequenceView(sectionId, (v, order) =>
-            setBreak(v, after, kind, order),
-          )
-        }
-        onRemoveBreak={(sectionId, after) =>
-          editSequenceView(sectionId, (v, order) => removeBreak(v, after, order))
-        }
-        onSetPhraseNote={(sectionId, after, note) =>
-          editSequenceView(sectionId, v => setPhraseNote(v, after, note))
-        }
-        onToggleHidden={(sectionId, placementId) =>
-          editSequenceView(sectionId, v => toggleHidden(v, placementId))
-        }
-      />
-
-      {songLyricLines && (
-        <LyricDrawer
-          lines={songLyricLines}
-          open={drawerOpen}
-          onOpenChange={openLyrics}
-          onArmLine={handleArmLine}
-          onArmWord={handleArmWord}
-          onAddLines={handleAddLines}
-          onSetLineKind={handleSetLineKind}
-          onDuplicateLine={handleDuplicateLine}
-          onLineUnplace={handleUnplaceLine}
+      {/* ONE fixed box, stacked. Lyrics renders LAST so it sits
+          against the docking edge and keeps the exact position it
+          has always had. */}
+      <LeadSheetDrawers>
+        <ProgressionDrawer
+          sections={progression}
+          songKey={song?.key}
+          open={progressionsOpen}
+          onOpenChange={openProgressions}
+          onSetBreak={(sectionId, after, kind) =>
+            editSequenceView(sectionId, (v, order) =>
+              setBreak(v, after, kind, order),
+            )
+          }
+          onRemoveBreak={(sectionId, after) =>
+            editSequenceView(sectionId, (v, order) => removeBreak(v, after, order))
+          }
+          onSetPhraseNote={(sectionId, after, note) =>
+            editSequenceView(sectionId, v => setPhraseNote(v, after, note))
+          }
+          onToggleHidden={(sectionId, placementId) =>
+            editSequenceView(sectionId, v => toggleHidden(v, placementId))
+          }
         />
-      )}
+
+        {songLyricLines && (
+          <LyricDrawer
+            lines={songLyricLines}
+            open={drawerOpen}
+            onOpenChange={openLyrics}
+            onArmLine={handleArmLine}
+            onArmWord={handleArmWord}
+            onAddLines={handleAddLines}
+            onSetLineKind={handleSetLineKind}
+            onDuplicateLine={handleDuplicateLine}
+            onLineUnplace={handleUnplaceLine}
+          />
+        )}
+      </LeadSheetDrawers>
 
       {/* BEAT TWO's prompt. A slim fixed bar rather than an inline hint
           for two reasons: it stays visible while the grid is scrolled
