@@ -137,6 +137,11 @@ const NAV_GROUPS: NavGroup[] = [
       // Repertoire so the "hands learn the vocabulary" step precedes
       // "hands apply the vocabulary to songs."
       {
+        id: 'reading',
+        label: 'reading',
+        to: '/reading',
+      },
+      {
         id: 'shapes-and-patterns',
         label: 'shapes & patterns',
         to: '/shapes-and-patterns',

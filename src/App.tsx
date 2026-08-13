@@ -23,9 +23,13 @@ import SessionLog from './modules/session-log/SessionLog';
 import SkillsCatalogue from './modules/skills/SkillsCatalogue';
 import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 
-// LAZY — the app's first code-split route. VexFlow plus one music font
-// is ~1 MB and Reading is dev-only, so it must not ride in the initial
+// LAZY — the app's first code-split routes. VexFlow plus one music
+// font is ~1 MB, so neither Reading surface may ride in the initial
 // bundle. See ReadingStaff.tsx for why the bravura subpath is used.
+// Reading is no longer dev-only (the drills landed in step 4), so the
+// lazy boundary now carries real weight rather than merely deferring
+// a page nobody could reach.
+const Reading = lazy(() => import('./modules/reading/Reading'));
 const ReadingPreview = lazy(() => import('./modules/reading/ReadingPreview'));
 import Goals from './modules/goals/Goals';
 import PracticeSessions from './modules/practice/PracticeSessions';
@@ -71,11 +75,21 @@ export default function App() {
             <Route path="session-log" element={<SessionLog />} />
             <Route path="skills-catalogue" element={<SkillsCatalogue />} />
             <Route path="harmonic-diary" element={<HarmonicDiary />} />
-            {/* DEV ONLY. `import.meta.env.DEV` is a compile-time
-                constant, so this whole subtree — including the lazy
-                chunk's import site — is dropped from a production
-                build rather than merely being unreachable. Reading
-                has no user-facing surface until its drills land. */}
+            <Route
+              path="reading"
+              element={
+                <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
+                  <Reading />
+                </Suspense>
+              }
+            />
+            {/* DEV ONLY, and STAYS dev-only now that /reading ships.
+                The preview is the standing notation check — a fixed
+                21-card set to re-verify against an outside reference
+                when the key overlay lands — not a user surface.
+                `import.meta.env.DEV` is a compile-time constant, so
+                this subtree is dropped from a production build rather
+                than merely being unreachable. */}
             {import.meta.env.DEV && (
               <Route
                 path="reading/preview"

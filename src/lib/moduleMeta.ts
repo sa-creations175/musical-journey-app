@@ -18,6 +18,7 @@ export type ModuleId =
   | 'chord-progressions'
   | 'chord-progression-quiz'
   | 'scales-modes'
+  | 'reading'
   | 'shapes-and-patterns'
   | 'repertoire'
   | 'practice-sessions'
@@ -86,6 +87,19 @@ export const MODULE_ORDER: ModuleMeta[] = [
     iconName: 'ear',
     accentToken: 'teal',
     accentHex: '#5a8752',
+    status: 'live',
+  },
+  {
+    // Reading sits between ear and body: decoding the page is a
+    // theory-side skill that feeds the shapes the hands then learn.
+    // Sepia ink — the only warm brown in the palette, and far enough
+    // from Shapes' amber (#d4885a) to stay distinguishable.
+    id: 'reading',
+    label: 'reading',
+    route: '/reading',
+    icon: '𝄞',
+    accentToken: 'amber',
+    accentHex: '#6f4a2f',
     status: 'live',
   },
   {

@@ -1,0 +1,84 @@
+/**
+ * Reading — module home.
+ *
+ * Four skills behind a tab strip. NO SESSION SEQUENCING: chord
+ * identification is selectable from the start rather than unlocking
+ * once the other three reach maintenance. That suggest-and-confirm
+ * rule was deferred, and may not be built at all — picking which
+ * skills a month's goals cover already produces the ordering, so a
+ * hard-coded gate would duplicate it.
+ *
+ * Nothing here writes an attempt; see ReadingDrill.
+ */
+
+import { useState } from 'react';
+import ReadingDrill from './ReadingDrill';
+import { readingCounts } from '../../lib/moduleItemCounts';
+import type { ReadingDrillSkill } from './pickCard';
+
+const SEPIA = '#6f4a2f';
+
+const TABS: ReadonlyArray<{
+  id: ReadingDrillSkill;
+  label: string;
+  blurb: string;
+}> = [
+  // Notes, shapes and signatures first — the three the design starts
+  // with. Chord identification is last because it genuinely depends on
+  // the other three, which is a reason to order it, not to lock it.
+  { id: 'note',  label: 'notes',       blurb: 'Name the note — letter, then octave.' },
+  { id: 'shape', label: 'shapes',      blurb: 'Read the silhouette before the notes.' },
+  { id: 'sig',   label: 'signatures',  blurb: 'Name the key, count the accidentals.' },
+  { id: 'chord', label: 'chords',      blurb: 'Inversion, root, quality.' },
+];
+
+export default function Reading() {
+  const [skill, setSkill] = useState<ReadingDrillSkill>('note');
+  const counts = readingCounts();
+  const active = TABS.find(t => t.id === skill)!;
+
+  const countFor = (id: ReadingDrillSkill) =>
+    id === 'note' ? counts.noteRecognition
+    : id === 'shape' ? counts.notationShapes
+    : id === 'sig' ? counts.keySignatures
+    : counts.chordIdentification;
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+      <header className="space-y-1">
+        <h1 className="text-xl font-medium tracking-tight" style={{ color: SEPIA }}>
+          reading
+        </h1>
+        <p className="text-[12px] text-neutral-500">{active.blurb}</p>
+      </header>
+
+      <div className="flex gap-1.5 flex-wrap">
+        {TABS.map(tab => {
+          const on = tab.id === skill;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setSkill(tab.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition ${
+                on
+                  ? 'text-white border-transparent'
+                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-neutral-400'
+              }`}
+              style={on ? { backgroundColor: SEPIA } : undefined}
+            >
+              {tab.label}
+              <span className={`ml-1.5 tabular-nums ${on ? 'opacity-70' : 'text-neutral-400'}`}>
+                {countFor(tab.id)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Remounting per skill resets the drill's local state without
+          the drill needing to know a skill can change under it. */}
+      <ReadingDrill key={skill} skill={skill} />
+    </div>
+  );
+}
