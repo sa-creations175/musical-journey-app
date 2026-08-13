@@ -118,7 +118,21 @@ export default function LyricListRow({
         handle={drag?.handle}
         bodyRef={drag?.setNodeRef}
         bodyStyle={drag ? { opacity: drag.isDragging ? 0.3 : 1 } : undefined}
-        bodyProps={{
+        /* A HEADER GETS THE DRAG WIRING AND NOTHING ELSE. It has no
+           syllables, so arming it is meaningless and long-press-for-
+           menu is reachable from the row's own button — but it must be
+           draggable, because a header created by the paste box lands
+           at the bottom of the list and moving it is the whole point.
+           Suppressing the arming props HERE rather than inside
+           LyricLineRow keeps the decision with the component that
+           knows what a row is for. */
+        bodyProps={
+          isHeader
+            ? {
+                ...(drag?.attributes as Record<string, never> | undefined),
+                ...(drag?.listeners as Record<string, never> | undefined),
+              }
+            : {
           ...(drag?.attributes as Record<string, never> | undefined),
           ...(drag?.listeners as Record<string, never> | undefined),
           onClick: () => {
@@ -152,7 +166,8 @@ export default function LyricListRow({
           onPointerUp: longPress.onPointerUp,
           onPointerCancel: longPress.onPointerCancel,
           onPointerLeave: longPress.onPointerLeave,
-        }}
+              }
+        }
         bodyClassName={`${
           drag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
         } hover:border-fluent ${picking ? 'border-fluent' : ''}`}

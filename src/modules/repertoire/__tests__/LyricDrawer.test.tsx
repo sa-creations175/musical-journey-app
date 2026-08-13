@@ -679,9 +679,12 @@ describe('LyricDrawer — reordering', () => {
     // bottom, and without this there is no way to get it to the
     // section it names.
     //
-    // Counted rather than "at least one", because lyric rows are
-    // draggable either way — a version that excluded only headers
-    // passed a >0 check.
+    // ASSERTED ON THE WIRING, NOT THE PAINT. The first version of this
+    // counted `.cursor-grab`, which LyricLineRow appends to every row
+    // unconditionally — so it matched while headers had no drag
+    // listeners and no handle at all, and the bug shipped. A drag
+    // attribute and the handle glyph both exist only if the drag props
+    // were actually spread onto the row.
     const lines = [header('h', 'VERSE 1'), ...SONG];
     render(
       <LyricDrawer
@@ -692,9 +695,33 @@ describe('LyricDrawer — reordering', () => {
         onReorder={noop}
       />,
     );
-    expect(container!.querySelectorAll('.cursor-grab')).toHaveLength(
-      lines.length,
+    const bodies = [...container!.querySelectorAll('[data-line-body]')];
+    expect(bodies).toHaveLength(lines.length);
+    for (const body of bodies) {
+      expect(body.getAttribute('aria-roledescription')).toBe('sortable');
+      expect(body.textContent).toContain('≡');
+    }
+  });
+
+  it('wires the HEADER rows specifically, not just the lyric ones', () => {
+    // The case that shipped broken: every lyric line was draggable and
+    // only the headers were not, which any "at least one" or
+    // whole-list-class assertion sails straight past.
+    render(
+      <LyricDrawer
+        lines={[header('h', 'VERSE 1'), ...SONG]}
+        open
+        onOpenChange={noop}
+        onArmLine={noop}
+        onReorder={noop}
+      />,
     );
+    const headerBodies = [
+      ...container!.querySelectorAll('[data-line-body]'),
+    ].filter(b => (b.textContent ?? '').includes('VERSE 1'));
+    expect(headerBodies).toHaveLength(1);
+    expect(headerBodies[0].getAttribute('aria-roledescription')).toBe('sortable');
+    expect(headerBodies[0].textContent).toContain('≡');
   });
 
   it('offers no drag affordance when the caller cannot reorder', () => {

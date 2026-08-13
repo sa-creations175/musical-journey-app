@@ -70,7 +70,12 @@ export default function LyricLineRow({
         data-line-body=""
         ref={bodyRef}
         style={bodyStyle}
-        {...(isHeader ? {} : bodyProps)}
+        /* Spread UNCONDITIONALLY. This used to drop everything for a
+           header, which silently un-wired the drag while leaving
+           `bodyClassName`'s grab cursor in place — the row looked
+           draggable and was not. What a header should or should not
+           receive is the caller's call, and LyricListRow makes it. */
+        {...bodyProps}
         /* Row fill is lifted off the page (neutral-50 light,
            neutral-800 dark) rather than sitting at white/neutral-900,
            where it was nearly invisible against the tray's own
@@ -82,7 +87,10 @@ export default function LyricLineRow({
             : 'border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100'
         } ${dim ? 'opacity-55' : ''} ${bodyClassName}`}
       >
-        {!isHeader && handle}
+        {/* A handle appears when the caller supplied one, header or
+            not — withholding it here contradicted the caller that
+            deliberately passed it. */}
+        {handle}
         {/* Word-by-word status: placed solid, unplaced lighter, so one
             glance shows what's left rather than an abstract count.
             BOTH tiers sit close to the text colour, not just the faint

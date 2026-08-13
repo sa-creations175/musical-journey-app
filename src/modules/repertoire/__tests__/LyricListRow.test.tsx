@@ -191,3 +191,83 @@ describe('LyricListRow — routing is identical with or without drag', () => {
     });
   }
 });
+
+// ---------------------------------------------------------------------
+// Headers: draggable, but never armable (13.14)
+// ---------------------------------------------------------------------
+
+describe('LyricListRow — a header is draggable but not placeable', () => {
+  const hdr = (id: string, text: string): SongLyricLine =>
+    ({ id, kind: 'header', text }) as SongLyricLine;
+
+  const dragProps = {
+    setNodeRef: () => {},
+    attributes: { 'aria-roledescription': 'sortable' },
+    listeners: {},
+    isDragging: false,
+    handle: <span data-testid="handle">≡</span>,
+  };
+
+  it('does NOT arm a header when its row is tapped', () => {
+    // MOVED HERE from LyricLineRow.test.tsx in 13.14. That component
+    // used to enforce this by dropping every body prop on a header,
+    // which also un-wired the drag. The guarantee is unchanged; the
+    // component that makes the decision is not.
+    const onArm = vi.fn();
+    render(
+      <LyricListRow
+        line={hdr('h', 'VERSE 1')}
+        onArm={onArm}
+        picking={false}
+        onPickingChange={() => {}}
+        menuOpen={false}
+        onMenuOpenChange={() => {}}
+        drag={dragProps}
+      />,
+    );
+    const body = container!.querySelector('[data-line-body]') as HTMLElement;
+    act(() => body.click());
+    expect(onArm).not.toHaveBeenCalled();
+  });
+
+  it('still arms a LYRIC row on tap', () => {
+    const onArm = vi.fn();
+    render(
+      <LyricListRow
+        line={
+          {
+            id: 'l1',
+            kind: 'lyric',
+            text: 'a',
+            syllables: [{ id: 's1', text: 'a' }],
+          } as SongLyricLine
+        }
+        onArm={onArm}
+        picking={false}
+        onPickingChange={() => {}}
+        menuOpen={false}
+        onMenuOpenChange={() => {}}
+        drag={dragProps}
+      />,
+    );
+    const body = container!.querySelector('[data-line-body]') as HTMLElement;
+    act(() => body.click());
+    expect(onArm).toHaveBeenCalledWith('l1');
+  });
+
+  it('gives a header the drag wiring and the handle', () => {
+    render(
+      <LyricListRow
+        line={hdr('h', 'VERSE 1')}
+        picking={false}
+        onPickingChange={() => {}}
+        menuOpen={false}
+        onMenuOpenChange={() => {}}
+        drag={dragProps}
+      />,
+    );
+    const body = container!.querySelector('[data-line-body]') as HTMLElement;
+    expect(body.getAttribute('aria-roledescription')).toBe('sortable');
+    expect(container!.querySelector('[data-testid="handle"]')).not.toBeNull();
+  });
+});

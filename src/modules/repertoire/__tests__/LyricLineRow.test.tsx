@@ -116,15 +116,25 @@ describe('LyricLineRow — caller-supplied body', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it('never activates a HEADER body — headers are not placeable', () => {
+  it('spreads what it is given on a HEADER body too', () => {
+    // CONTRACT MOVED (13.14). This used to drop every body prop for a
+    // header so headers could not be armed. That also silently
+    // un-wired the drag on a header the caller had deliberately made
+    // draggable, while leaving the grab cursor in place — the row
+    // looked draggable and was not.
+    //
+    // Deciding what a header is FOR belongs to LyricListRow, which
+    // knows; this component is presentational. The "headers are not
+    // placeable" guarantee still holds and is asserted where it is now
+    // enforced — see LyricListRow.test.tsx.
     const onClick = vi.fn();
     render(<LyricLineRow line={header('h', 'Verse 1')} bodyProps={{ onClick }} />);
     const body = container!.querySelector('[data-line-body]') as HTMLElement;
     act(() => body.click());
-    expect(onClick).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a handle only for lyric rows', () => {
+  it('renders a handle for a lyric row', () => {
     render(
       <LyricLineRow
         line={line('l1', [{ id: 'a', text: 'x' }])}
@@ -134,14 +144,19 @@ describe('LyricLineRow — caller-supplied body', () => {
     expect(container!.querySelector('[data-testid="handle"]')).not.toBeNull();
   });
 
-  it('omits the handle on a header row', () => {
+  it('renders a handle on a header row too, when given one', () => {
+    // Reversed deliberately (13.14). Withholding it here contradicted
+    // the caller that passed it, and a header created by the paste box
+    // lands at the bottom of the lyrics drawer with no other way to
+    // move it. A caller that does not want a draggable header simply
+    // passes no handle — as the per-section tray does.
     render(
       <LyricLineRow
         line={header('h', 'Verse 1')}
         handle={<span data-testid="handle">≡</span>}
       />,
     );
-    expect(container!.querySelector('[data-testid="handle"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="handle"]')).not.toBeNull();
   });
 });
 
