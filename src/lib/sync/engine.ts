@@ -8,6 +8,14 @@ import {
 import { beginPull, endPull } from './pullLock';
 import { getCurrentUserId } from './currentUser';
 import { getLastLocalWriteAt } from './hooks';
+import {
+  advanceWatermark,
+  clearAllWatermarks,
+  isSweepDue,
+  laterTimestamp,
+  pullSince,
+  recordSweepAt,
+} from './watermark';
 
 /**
  * Translate a Dexie row into the Postgres row shape the sync layer
@@ -65,19 +73,38 @@ export async function pullAll(mode: 'additive' | 'replace' = 'additive'): Promis
   }
 }
 
-async function pullOneTable(
+/** Supabase page size. Shared by the content fetch and the id sweep. */
+const PAGE = 1000;
+
+/**
+ * Fetch the rows that changed since `since`, or every row when `since`
+ * is null (first pull on this device, or an unreadable watermark).
+ *
+ * Returns `ok: false` on any error so the caller can leave local state
+ * alone AND skip advancing the watermark — a mark advanced past rows
+ * that were never fetched would skip them permanently.
+ *
+ * `maxUpdatedAt` is read from the top-level `updated_at` COLUMN, not
+ * from the `data` blob: the blob is the Dexie row, which has no
+ * knowledge of Postgres's trigger-maintained timestamp.
+ */
+async function fetchChangedRows(
   cfg: SyncTableConfig,
   userId: string,
-  mode: 'additive' | 'replace',
-): Promise<void> {
-  const PAGE = 1000;
+  since: string | null,
+): Promise<{ ok: boolean; rows: Record<string, unknown>[]; maxUpdatedAt: string | null }> {
   let from = 0;
-  const cloudRows: Record<string, unknown>[] = [];
+  const rows: Record<string, unknown>[] = [];
+  let maxUpdatedAt: string | null = null;
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(cfg.pg)
       .select('id, data, updated_at')
-      .eq('user_id', userId)
+      .eq('user_id', userId);
+    if (since !== null) query = query.gt('updated_at', since);
+    const { data, error } = await query
+      // Ordered by id, not updated_at: id is unique, so pages can't
+      // skip or repeat a row when several share a timestamp.
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) {
@@ -85,15 +112,95 @@ async function pullOneTable(
       // is worse than stale. The next pull (on focus / reconnect) will
       // try again.
       console.warn(`[sync] pull ${cfg.pg} failed`, error);
-      return;
+      return { ok: false, rows: [], maxUpdatedAt: null };
     }
     if (!data || data.length === 0) break;
-    for (const row of data as Array<{ data: Record<string, unknown> | null }>) {
-      if (row.data) cloudRows.push(row.data);
+    for (const row of data as Array<{
+      data: Record<string, unknown> | null;
+      updated_at?: string | null;
+    }>) {
+      if (row.data) rows.push(row.data);
+      maxUpdatedAt = laterTimestamp(maxUpdatedAt, row.updated_at);
     }
     if (data.length < PAGE) break;
     from += PAGE;
   }
+  return { ok: true, rows, maxUpdatedAt };
+}
+
+/**
+ * Fetch the COMPLETE set of cloud ids for a table — id column only, no
+ * data blob.
+ *
+ * ---------------------------------------------------------------
+ * THIS EXISTS SO ORPHAN DETECTION CANNOT SEE THE FILTERED RESULT.
+ *
+ * Orphan detection asks "which local rows are absent from the cloud?",
+ * which is only answerable against the full cloud id set. Once the
+ * content pull became incremental, its result stopped being that set —
+ * it is "rows changed since T". Computing orphans from it would mark
+ * every UNCHANGED row as absent and delete the entire local table.
+ *
+ * Keeping it as its own query, taking no argument derived from the
+ * content fetch, is what makes that mistake hard to make.
+ * ---------------------------------------------------------------
+ *
+ * Returns null on error so the caller skips the sweep entirely rather
+ * than deleting against a partial set.
+ */
+async function fetchAllCloudIds(
+  cfg: SyncTableConfig,
+  userId: string,
+): Promise<Set<string> | null> {
+  let from = 0;
+  const ids = new Set<string>();
+  while (true) {
+    const { data, error } = await supabase
+      .from(cfg.pg)
+      .select('id')
+      .eq('user_id', userId)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.warn(`[sync] id sweep ${cfg.pg} failed`, error);
+      return null;
+    }
+    if (!data || data.length === 0) break;
+    for (const row of data as Array<{ id?: unknown }>) {
+      if (typeof row.id === 'string' && row.id !== '') ids.add(row.id);
+    }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return ids;
+}
+
+/**
+ * Whether this pull should run an orphan sweep. Pure, so the interaction
+ * of the three conditions is testable without Supabase.
+ *
+ *   · additive mode never deletes (the queue still holds local writes)
+ *   · append-only tables have no deletes to propagate
+ *   · otherwise, only on the slow cadence
+ */
+export function shouldSweepOrphans(
+  mode: 'additive' | 'replace',
+  appendOnly: boolean | undefined,
+  sweepDue: boolean,
+): boolean {
+  if (mode !== 'replace') return false;
+  if (appendOnly) return false;
+  return sweepDue;
+}
+
+async function pullOneTable(
+  cfg: SyncTableConfig,
+  userId: string,
+  mode: 'additive' | 'replace',
+): Promise<void> {
+  const since = pullSince(userId, cfg.pg);
+  const { ok, rows: cloudRows, maxUpdatedAt } = await fetchChangedRows(cfg, userId, since);
+  if (!ok) return;
 
   const table = (db as unknown as Record<string, DexieMiniTable | undefined>)[cfg.dexie];
   if (!table) return;
@@ -102,21 +209,23 @@ async function pullOneTable(
   // the bulkPut so bulkDelete/bulkPut aren't fighting over the same
   // primary keys. beginPull is already active, so the delete hooks
   // don't echo back to Supabase.
-  if (mode === 'replace') {
-    const cloudIds = new Set<string>();
-    for (const row of cloudRows) {
-      const id = row[cfg.idField];
-      if (typeof id === 'string' && id !== '') cloudIds.add(id);
-    }
-    const localRows = (await table.toArray()) as Array<Record<string, unknown>>;
-    const orphanIds = computeOrphanIdsForReplacePull(
-      localRows,
-      cloudIds,
-      cfg.idField,
-      Date.now(),
-    );
-    if (orphanIds.length > 0) {
-      await table.bulkDelete(orphanIds);
+  //
+  // NOTE the id set comes from its own full query — see fetchAllCloudIds.
+  if (shouldSweepOrphans(mode, cfg.appendOnly, isSweepDue(userId, cfg.pg))) {
+    const cloudIds = await fetchAllCloudIds(cfg, userId);
+    if (cloudIds) {
+      const localRows = (await table.toArray()) as Array<Record<string, unknown>>;
+      const orphanIds = computeOrphanIdsForReplacePull(
+        localRows,
+        cloudIds,
+        cfg.idField,
+        Date.now(),
+      );
+      if (orphanIds.length > 0) {
+        await table.bulkDelete(orphanIds);
+      }
+      // Only after the deletes landed — see recordSweepAt.
+      recordSweepAt(userId, cfg.pg);
     }
   }
 
@@ -145,6 +254,13 @@ async function pullOneTable(
   if (rowsToPut.length > 0) {
     await table.bulkPut(rowsToPut);
   }
+
+  // Advance ONLY after the write landed. Rows that computeRowsToBulkPut
+  // deliberately skipped (pending local write, or local wins on LWW)
+  // still count as seen: skipping them was a decision that the local
+  // copy is better, and a pending local write will re-push with a fresh
+  // updated_at and come back down anyway.
+  advanceWatermark(userId, cfg.pg, maxUpdatedAt);
 }
 
 /** The slice of the Dexie Table type we actually need inside pull. */
@@ -541,6 +657,12 @@ export async function clearLocalCache(): Promise<void> {
       if (table) await table.clear();
     }
     await db.syncQueue.clear();
+    // Watermarks and sweep markers describe local rows that no longer
+    // exist. Left behind, the next account's first pull would ask for
+    // "changes since T" against an empty database and skip everything
+    // written before T. (The per-user key scoping makes this belt-and-
+    // braces rather than the only defence — see watermark.ts.)
+    clearAllWatermarks();
   } finally {
     endPull();
   }

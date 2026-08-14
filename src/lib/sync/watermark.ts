@@ -44,6 +44,14 @@
 
 export const WATERMARK_KEY_PREFIX = 'syncWatermark:';
 
+/** Separate prefix for orphan-sweep bookkeeping (see the sweep section
+ *  at the foot of this file). Distinct rather than an infix on the
+ *  watermark prefix so no user id could ever collide with it. */
+export const SWEEP_KEY_PREFIX = 'syncSweep:';
+
+/** Every prefix this module owns, for the sign-out sweep. */
+const OWNED_PREFIXES = [WATERMARK_KEY_PREFIX, SWEEP_KEY_PREFIX];
+
 /**
  * How far back a read rewinds the stored mark before handing it to the
  * query.
@@ -176,10 +184,77 @@ export function clearAllWatermarks(): void {
     const doomed: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key !== null && key.startsWith(WATERMARK_KEY_PREFIX)) doomed.push(key);
+      if (key === null) continue;
+      if (OWNED_PREFIXES.some(prefix => key.startsWith(prefix))) doomed.push(key);
     }
     for (const key of doomed) localStorage.removeItem(key);
   } catch {
     // Nothing to clear if storage is unavailable.
+  }
+}
+
+// =====================================================================
+// Orphan-sweep bookkeeping
+// =====================================================================
+
+/**
+ * Deletes made on another device can only be detected by comparing the
+ * FULL cloud id set against local — which a watermark-filtered pull
+ * cannot supply. So orphan detection keeps its own id-only query, and
+ * runs on this slower cadence rather than on every focus.
+ *
+ * The cost of the gap is bounded and small: a row deleted elsewhere
+ * lingers locally for at most this long. The cost of NOT having the
+ * gap is re-reading every id of every table on every tab focus, which
+ * is most of what incremental pull exists to stop doing.
+ */
+export const SWEEP_INTERVAL_MS = 10 * 60_000;
+
+/** Storage key for one (user, table) sweep marker. */
+export function sweepKey(userId: string, pgTable: string): string {
+  return `${SWEEP_KEY_PREFIX}${userId}:${pgTable}`;
+}
+
+/**
+ * Whether a table is due an orphan sweep.
+ *
+ * A table that has NEVER swept is always due. That matters for rollout:
+ * on the first pull after this ships there is no watermark and no sweep
+ * marker, so the pull behaves exactly as it did before — full content,
+ * full orphan check — and only subsequent pulls go incremental.
+ */
+export function isSweepDue(
+  userId: string,
+  pgTable: string,
+  now: number = Date.now(),
+): boolean {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(sweepKey(userId, pgTable));
+  } catch {
+    // Storage unavailable — sweep. Errs toward doing the work.
+    return true;
+  }
+  if (raw === null) return true;
+  const last = Number(raw);
+  if (!Number.isFinite(last)) return true;
+  return now - last >= SWEEP_INTERVAL_MS;
+}
+
+/**
+ * Mark a table as swept. Call only after the sweep's deletes have
+ * actually been applied — recording a sweep that didn't finish would
+ * suppress the next one and let a remote delete linger for two full
+ * intervals.
+ */
+export function recordSweepAt(
+  userId: string,
+  pgTable: string,
+  now: number = Date.now(),
+): void {
+  try {
+    localStorage.setItem(sweepKey(userId, pgTable), String(now));
+  } catch {
+    // Couldn't persist — the next pull sweeps again. Wasteful, correct.
   }
 }

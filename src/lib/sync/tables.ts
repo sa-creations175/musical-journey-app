@@ -38,6 +38,19 @@ export interface SyncTableConfig {
   /** Per-row top-level Postgres columns to populate on push (beyond
    *  id / user_id / data / created_at / updated_at). */
   topLevel: ColumnMapping[];
+  /**
+   * True for tables whose rows are appended and never deleted in normal
+   * use. Such a table skips the orphan sweep entirely — there are no
+   * deletes to propagate, so the full id-only query would be pure cost.
+   *
+   * SET THIS ONLY WHERE IT IS ACTUALLY TRUE. The consequence of getting
+   * it wrong is that a row deleted on one device stays forever on the
+   * other, with nothing to correct it. Dev-only wipes don't count as
+   * normal use, but anything reachable from the UI does — which is why
+   * drillSessions (deletable via deletePracticeSession) does NOT
+   * qualify despite looking like an event log.
+   */
+  appendOnly?: boolean;
 }
 
 /**

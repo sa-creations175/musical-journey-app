@@ -9,15 +9,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  SWEEP_INTERVAL_MS,
+  SWEEP_KEY_PREFIX,
   WATERMARK_KEY_PREFIX,
   WATERMARK_OVERLAP_MS,
   advanceWatermark,
   applyOverlap,
   clearAllWatermarks,
+  isSweepDue,
   laterTimestamp,
   parseTimestamp,
   pullSince,
   readWatermark,
+  recordSweepAt,
+  sweepKey,
   watermarkKey,
 } from '../watermark';
 
@@ -218,5 +223,70 @@ describe('clearAllWatermarks', () => {
     expect(
       Object.keys(localStorage).filter(k => k.startsWith(WATERMARK_KEY_PREFIX)),
     ).toHaveLength(0);
+  });
+
+  it('clears sweep markers too, not just watermarks', () => {
+    // Both describe local rows. A sweep marker outliving its rows would
+    // suppress the next orphan check on a database that no longer has
+    // the rows it was reasoning about.
+    advanceWatermark(USER, TABLE, PG_TS);
+    recordSweepAt(USER, TABLE, 1_000);
+    clearAllWatermarks();
+    expect(localStorage.getItem(sweepKey(USER, TABLE))).toBeNull();
+    expect(
+      Object.keys(localStorage).filter(k => k.startsWith(SWEEP_KEY_PREFIX)),
+    ).toHaveLength(0);
+  });
+});
+
+describe('orphan-sweep cadence', () => {
+  const NOW = 1_700_000_000_000;
+
+  it('is due when the table has never swept, regardless of the clock', () => {
+    // The rollout property: first pull after this ships has no sweep
+    // marker and no watermark, so it behaves exactly as pulls did
+    // before — full content, full orphan check.
+    //
+    // The `now` values matter. Asserting only at a realistic epoch
+    // would pass even without the explicit absent-marker branch, since
+    // Number(null) is 0 and `hugeEpoch - 0 >= INTERVAL` is true by
+    // accident. Pinning now=0 forces the branch to exist.
+    expect(isSweepDue(USER, TABLE, NOW)).toBe(true);
+    expect(isSweepDue(USER, TABLE, 0)).toBe(true);
+    expect(isSweepDue(USER, TABLE, SWEEP_INTERVAL_MS - 1)).toBe(true);
+  });
+
+  it('is not due again immediately after a sweep', () => {
+    recordSweepAt(USER, TABLE, NOW);
+    expect(isSweepDue(USER, TABLE, NOW)).toBe(false);
+    expect(isSweepDue(USER, TABLE, NOW + SWEEP_INTERVAL_MS - 1)).toBe(false);
+  });
+
+  it('comes due again once the interval has elapsed', () => {
+    recordSweepAt(USER, TABLE, NOW);
+    expect(isSweepDue(USER, TABLE, NOW + SWEEP_INTERVAL_MS)).toBe(true);
+  });
+
+  it('tracks cadence per table and per user', () => {
+    recordSweepAt(USER, TABLE, NOW);
+    expect(isSweepDue(USER, 'drill_sessions', NOW)).toBe(true);
+    expect(isSweepDue(OTHER_USER, TABLE, NOW)).toBe(true);
+  });
+
+  it('sweeps when the marker is corrupt or storage is unreadable', () => {
+    // Errs toward doing the work: a missed sweep leaves a remotely
+    // deleted row in place indefinitely, which nothing else corrects.
+    localStorage.setItem(sweepKey(USER, TABLE), 'not-a-number');
+    expect(isSweepDue(USER, TABLE, NOW)).toBe(true);
+
+    recordSweepAt(USER, TABLE, NOW);
+    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage disabled');
+    });
+    try {
+      expect(isSweepDue(USER, TABLE, NOW)).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
