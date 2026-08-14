@@ -218,11 +218,58 @@ export function computeRowsToBulkPut(
  * `setTimeout(fn, 0)` defer in the Dexie write hook plus realistic
  * drain + network latency, with headroom for a slow connection.
  *
- * Tables without an `updatedAt` field get no protection — the legacy
- * behavior holds. Add the field to any table that needs guarding,
- * and the protection picks it up automatically.
+ * Which field carries that recency is NOT uniform across the schema —
+ * see ROW_RECENCY_FIELDS below.
  */
 export const PENDING_PUSH_PROTECTION_MS = 60_000;
+
+/**
+ * Row-lifecycle fields consulted for pending-push protection, in no
+ * particular order — `rowRecency` takes the newest of whichever are
+ * present.
+ *
+ * This used to read `updatedAt` alone, which meant the protection
+ * covered almost nothing: `updatedAt` exists on the mutable
+ * user-content tables (songs, goals, songCells) and on essentially none
+ * of the append-only event tables, which are the ones a replace-pull is
+ * most likely to catch mid-drain. Unprotected today:
+ *
+ *   timestamp  → drillSessions, songPracticeLog,
+ *                productionLessonSessions, creativeSessions
+ *   createdAt  → songCellRunThroughs, songKeyRunThroughs,
+ *                songKeyEngagements
+ *
+ * Every one of those is a row the user just created by finishing a
+ * drill or logging a run-through — precisely the write that must not
+ * evaporate because a tab-focus pull raced the queue.
+ *
+ * DOMAIN timestamps are deliberately excluded (`engagedAt`,
+ * `startedAt`, `addedDate`, …). They describe when the practice
+ * happened, not when the row was written, and the user can set them —
+ * a value dated into the future would protect a genuinely-orphaned row
+ * forever.
+ */
+export const ROW_RECENCY_FIELDS = ['updatedAt', 'timestamp', 'createdAt'] as const;
+
+/**
+ * Newest row-lifecycle timestamp on a row, or null when it carries
+ * none. Pure; exported for its own tests.
+ *
+ * Takes the MAX rather than the first match because the fields mean
+ * subtly different things and a row can carry several. Max resolves
+ * toward protection, which is the safe direction: over-protecting
+ * leaves an orphan for one more pull cycle, under-protecting deletes a
+ * local write that never reached the cloud.
+ */
+export function rowRecency(row: Record<string, unknown>): number | null {
+  let newest: number | null = null;
+  for (const field of ROW_RECENCY_FIELDS) {
+    const value = row[field];
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+    if (newest === null || value > newest) newest = value;
+  }
+  return newest;
+}
 
 /**
  * Pure orphan-id computation for replace-mode pull. Extracted as an
@@ -230,8 +277,8 @@ export const PENDING_PUSH_PROTECTION_MS = 60_000;
  * up Supabase. Returns the ids of local rows that:
  *   · have a valid string id
  *   · don't appear in the cloud id set
- *   · either lack an `updatedAt` field or have an `updatedAt` older
- *     than `now - PENDING_PUSH_PROTECTION_MS`
+ *   · either carry no row-lifecycle timestamp at all, or carry one
+ *     older than `now - PENDING_PUSH_PROTECTION_MS`
  *
  * The third clause is the recent-write protection — it preserves
  * local writes that haven't had a chance to push yet.
@@ -247,10 +294,10 @@ export function computeOrphanIdsForReplacePull(
     const id = row[idField];
     if (typeof id !== 'string' || id === '') continue;
     if (cloudIds.has(id)) continue;
-    const updatedAt = row.updatedAt;
+    const recency = rowRecency(row);
     if (
-      typeof updatedAt === 'number'
-      && now - updatedAt < PENDING_PUSH_PROTECTION_MS
+      recency !== null
+      && now - recency < PENDING_PUSH_PROTECTION_MS
     ) continue;
     orphans.push(id);
   }
