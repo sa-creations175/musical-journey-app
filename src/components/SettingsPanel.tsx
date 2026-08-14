@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth/useAuth';
 import { useSyncStatus } from '../lib/sync/useSyncStatus';
 import { useDevMode } from '../lib/devMode';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
+import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -293,6 +294,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
               getting practice data safely off and onto this device —
               and the merge procedure needs both together. */}
           <SyncDiagnosticsSection />
+
+          <RepertoireKeyDiagnostics />
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
