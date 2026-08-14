@@ -22,6 +22,35 @@ export const CIRCLE_OF_FOURTHS_KEYS: readonly string[] = [
 ] as const;
 
 /**
+ * The same twelve keys in chromatic order, for pickers.
+ *
+ * Membership is DERIVED from CIRCLE_OF_FOURTHS_KEYS rather than
+ * written out again — a picker offering a key the matrix doesn't
+ * recognise is precisely the failure it exists to prevent, and a
+ * second hand-maintained list is how that happens. Sorting is by
+ * pitch class so the dropdown reads the way a keyboard does; the
+ * matrix keeps its own cycle order for row layout.
+ *
+ * (There are several other chromatic key lists in the codebase —
+ * shapes-and-patterns/catalog, chordFunction, voicingColors — but
+ * they disagree on F# vs Gb, and this one has to match the matrix
+ * exactly, so it derives rather than borrows.)
+ */
+const CHROMATIC_ORDER = [
+  'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
+];
+
+export const SONG_KEY_OPTIONS: readonly string[] = CHROMATIC_ORDER
+  .filter(k => CIRCLE_OF_FOURTHS_KEYS.includes(k));
+
+/** Whether a string is one of the twelve keys the matrix can render.
+ *  Anything else produces a phantom 13th row — see
+ *  keysOrderedFromOriginal's unknown-key fallback. */
+export function isCanonicalSongKey(key: string | undefined | null): boolean {
+  return typeof key === 'string' && CIRCLE_OF_FOURTHS_KEYS.includes(key);
+}
+
+/**
  * Build the 12-key display ordering for the matrix view, with the
  * original key pinned first and the remaining 11 keys following the
  * circle of fourths from there.

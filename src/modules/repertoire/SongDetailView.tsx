@@ -119,6 +119,7 @@ import { useScrollHighlight } from './useScrollHighlight';
 import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/notationPref';
 import SongMatrixView from './matrix/SongMatrixView';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
+import { SONG_KEY_OPTIONS, isCanonicalSongKey } from './matrix/keys';
 import { ensureSongHasOriginalKey } from './matrixMigration';
 
 /**
@@ -1454,7 +1455,35 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-neutral-500 text-xs uppercase tracking-wide">original key</span>
-                <input value={keyDraft} onChange={e => setKeyDraft(e.target.value)} placeholder="e.g. G or Db" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5" />
+                {/* A picker, not free text. The field can only
+                    legitimately hold one of twelve values, and a
+                    non-canonical one (a Unicode flat, "Ab major", a
+                    stray space) is silently accepted everywhere and
+                    then renders a phantom 13th matrix row via
+                    keysOrderedFromOriginal's unknown-key fallback.
+                    Making it unselectable is cheaper than validating
+                    it in every reader.
+
+                    The blank option is retained: a song whose key is
+                    genuinely unknown should stay unknown rather than
+                    being forced to claim C. Legacy non-canonical
+                    values render as a disabled option so the current
+                    value is visible rather than silently reset. */}
+                <select
+                  value={keyDraft}
+                  onChange={e => setKeyDraft(e.target.value)}
+                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                >
+                  <option value="">(not set)</option>
+                  {keyDraft !== '' && !isCanonicalSongKey(keyDraft) && (
+                    <option value={keyDraft} disabled>
+                      {keyDraft} — not a recognised key
+                    </option>
+                  )}
+                  {SONG_KEY_OPTIONS.map(k => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-neutral-500 text-xs uppercase tracking-wide">tempo</span>
