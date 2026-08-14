@@ -8,13 +8,23 @@
  *
  *   intervals          (ascCorrect/ascTotal/descCorrect/descTotal)
  *   chordQualities     (correct/total)
- *   attempts           (++id auto-increment, needs UUID switch)
  *   dailySummaries     (correctCount/wrongCount — increment-merge)
  *   drillTypes         (repCount/totalSeconds)
  *   producerStats      (count)
  *   quizStats          (correct/wrong/streak/bestStreak)
  *
  * Phase B lands those with proper per-table merge rules.
+ *
+ * `attempts` used to head that list, and it was the odd one out: it is
+ * an append-only event log, not a counter. Its only disqualification
+ * was the `++id` auto-increment key, and once v33/v34 replaced that
+ * with client-generated `att-<uuid>` ids there was nothing left to
+ * merge — two devices never write the same row. It joined below.
+ *
+ * `dailySummaries` genuinely IS a counter table and stays out. It is
+ * also derivable: every row is a re-aggregation of `attempts` for one
+ * day, so once attempts sync it should be REBUILT from them rather
+ * than replicated. See dailySummariesBackfill.ts.
  */
 
 /** Top-level Postgres columns we extract from the Dexie row payload.
@@ -245,6 +255,27 @@ export const SYNC_TABLES: SyncTableConfig[] = [
   // top-level column so server-side queries can range over weeks
   // without unwrapping the data blob. See migration 006_weekly_overrides.sql.
   // -----------------------------------------------------------------
+  // -----------------------------------------------------------------
+  // attempts — the practice event log. Requires migration
+  // 008_attempts.sql to be applied first; a push to a missing table
+  // fails the drain batch and returns early, stalling the queue for
+  // every other table too.
+  //
+  // appendOnly: rows are inserted and never deleted from the UI, so
+  // the orphan sweep is skipped entirely. That matters here more than
+  // anywhere else — the sweep's id-only full query would grow with
+  // practice history forever, and this is the table that grows.
+  //
+  // The dev wipes in devInspectActivity DO delete attempts, but those
+  // are console-only helpers; a row deleted that way lingers on other
+  // devices until they too are wiped, which is the right trade for a
+  // debugging tool.
+  // -----------------------------------------------------------------
+  { dexie: 'attempts', pg: 'attempts', idField: 'id', appendOnly: true,
+    topLevel: [
+      { dexie: 'moduleId', pg: 'module_id' },
+      { dexie: 'timestamp', pg: 'timestamp' },
+    ] },
   { dexie: 'weeklyOverrides', pg: 'weekly_overrides', idField: 'id',
     topLevel: [
       { dexie: 'weekStart', pg: 'week_start' },
