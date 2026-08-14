@@ -1,5 +1,6 @@
 import {
   db,
+  newAttemptId,
   type AttemptRecord,
   type DrillSession,
   type SpacingState,
@@ -22,16 +23,31 @@ import { isDevMode } from './devMode';
  * fire-and-forget usage at the call sites.
  */
 
+/**
+ * The single place attempt ids are minted.
+ *
+ * Every quiz builds its `AttemptRecord` literal without an id and hands
+ * it here, so stamping it at this choke point covers all twelve writing
+ * surfaces without touching any of them. An id already present is kept
+ * — the caller knew something we don't (a replay, a test fixture).
+ */
+function withAttemptId(record: AttemptRecord): AttemptRecord {
+  return record.id ? record : { ...record, id: newAttemptId() };
+}
+
 export async function addAttempt(record: AttemptRecord): Promise<void> {
   if (isDevMode()) return;
-  await db.attempts.add(record);
+  await db.attempts.add(withAttemptId(record));
 }
 
 export async function bulkAddAttempts(
   records: ReadonlyArray<AttemptRecord>,
 ): Promise<void> {
   if (isDevMode()) return;
-  await db.attempts.bulkAdd([...records]);
+  // Mapped individually — one id per row, not one per batch. A shared
+  // id would collapse a whole progression submission into a single row
+  // on the first upsert.
+  await db.attempts.bulkAdd(records.map(withAttemptId));
 }
 
 export async function putSpacingState(state: SpacingState): Promise<void> {

@@ -9,7 +9,14 @@ import {
   overridePromptThreshold,
   OVERRIDE_PROMPT_MIN_ABS_DIFF,
 } from '../weeklyDerivation';
-import { db, type AttemptRecord, type Goal } from '../../../lib/db';
+import { db, newAttemptId, type AttemptRecord, type Goal } from '../../../lib/db';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRow = (r: AttemptRecord) => db.attempts.add(withAttemptId(r));
+
 
 // ---------------------------------------------------------------------
 // Time anchors
@@ -328,7 +335,7 @@ describe('deriveWeeklyGoals — coverage goals', () => {
         timestamp: priorWeekTime,
       });
     }
-    for (const r of records) await db.attempts.add(r);
+    for (const r of records) await addAttemptRow(r);
 
     const [weekly] = await deriveWeeklyGoals([monthly], WEEK_START, WEEK_START);
     expect(weekly.targetValue).toBe(417);
@@ -601,7 +608,7 @@ describe('recomputeWeeklyTargetForMonthlyGoal', () => {
       targetDate: MONTH_END,
     });
     for (let i = 0; i < 400; i++) {
-      await db.attempts.add({
+      await addAttemptRow({
         moduleId: 'harmonic-fluency',
         itemId: `c-${i}`,
         correct: true,

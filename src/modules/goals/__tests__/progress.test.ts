@@ -15,7 +15,7 @@
  */
 import 'fake-indexeddb/auto';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db, type AcquisitionStage, type AttemptRecord, type Goal, type SpacingState } from '../../../lib/db';
+import { db, newAttemptId, type AcquisitionStage, type AttemptRecord, type Goal, type SpacingState } from '../../../lib/db';
 import { FLASHCARDS, type FlashcardCategory } from '../../harmonic-fluency/catalog';
 import {
   COVERAGE_OVERALL_METRIC,
@@ -32,6 +32,13 @@ import {
   getHarmonicFluencyAccuracy,
   moduleAccuracy,
 } from '../progress';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRows = (rows: AttemptRecord[]) => db.attempts.bulkAdd(rows.map(withAttemptId));
+
 
 // -------------------------------------------------------------------
 // Helpers
@@ -439,7 +446,7 @@ describe('getEffectiveCoverageCount — relatedItems-aware coverage', () => {
 
 describe('moduleAccuracy', () => {
   it('returns null percent when total < MIN_ATTEMPTS_FOR_TIER (5)', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', true,  1),
       makeAttempt('intervals', 'M3', true,  2),
       makeAttempt('intervals', 'M3', false, 3),
@@ -451,7 +458,7 @@ describe('moduleAccuracy', () => {
   });
 
   it('computes percent when total >= 5', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', true,  1),
       makeAttempt('intervals', 'M3', true,  2),
       makeAttempt('intervals', 'M3', true,  3),
@@ -463,7 +470,7 @@ describe('moduleAccuracy', () => {
   });
 
   it('excludes excludeFromFluency rows', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', true,  1),
       makeAttempt('intervals', 'M3', true,  2),
       makeAttempt('intervals', 'M3', true,  3),
@@ -479,7 +486,7 @@ describe('moduleAccuracy', () => {
 
   it('takes only the most recent `window` attempts', async () => {
     // 6 attempts: oldest 3 false, newest 3 true. Window of 3 → 100%.
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', false, 1),
       makeAttempt('intervals', 'M3', false, 2),
       makeAttempt('intervals', 'M3', false, 3),
@@ -501,7 +508,7 @@ describe('moduleAccuracy', () => {
     const seeds: AttemptRecord[] = [];
     for (let i = 0; i < 50; i++) seeds.push(makeAttempt('intervals', 'M3', false, i));
     for (let i = 50; i < 250; i++) seeds.push(makeAttempt('intervals', 'M3', true, i));
-    await db.attempts.bulkAdd(seeds);
+    await addAttemptRows(seeds);
     const r = await moduleAccuracy(['intervals']);
     expect(r.total).toBe(200);
     expect(r.correct).toBe(200);
@@ -514,7 +521,7 @@ describe('moduleAccuracy', () => {
   });
 
   it('aggregates across multiple moduleIds', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals',         'M3', true,  1),
       makeAttempt('intervals',         'M3', true,  2),
       makeAttempt('chord-recognition', 'maj7', true, 3),
@@ -528,7 +535,7 @@ describe('moduleAccuracy', () => {
   });
 
   it('respects attemptFilter', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', true,  1, { direction: 'asc'  }),
       makeAttempt('intervals', 'M3', false, 2, { direction: 'asc'  }),
       makeAttempt('intervals', 'M3', true,  3, { direction: 'asc'  }),
@@ -552,7 +559,7 @@ describe('moduleAccuracy', () => {
 
 describe('getEarTrainingAccuracy', () => {
   it('overall aggregates across all 4 ET submodules', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals',          'M3',     true,  1),
       makeAttempt('chord-recognition',  'maj7',   true,  2),
       makeAttempt('chord-progressions', 'cycle1', true,  3),
@@ -566,7 +573,7 @@ describe('getEarTrainingAccuracy', () => {
   });
 
   it('ignores HF attempts even though HF cards may share itemIds', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('harmonic-fluency', 'mo-1', true, 1),
       makeAttempt('harmonic-fluency', 'mo-1', true, 2),
       makeAttempt('harmonic-fluency', 'mo-1', true, 3),
@@ -581,7 +588,7 @@ describe('getEarTrainingAccuracy', () => {
 
 describe('getHarmonicFluencyAccuracy', () => {
   it('overall counts only harmonic-fluency attempts', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('harmonic-fluency', 'mo-1', true,  1),
       makeAttempt('harmonic-fluency', 'mo-1', true,  2),
       makeAttempt('harmonic-fluency', 'mo-1', false, 3),
@@ -665,7 +672,7 @@ describe('getGoalProgress — coverage routing', () => {
 
 describe('getGoalProgress — accuracy routing', () => {
   it('routes ear_training_accuracy_overall to ET accuracy', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', true,  1),
       makeAttempt('intervals', 'M3', true,  2),
       makeAttempt('intervals', 'M3', true,  3),
@@ -684,7 +691,7 @@ describe('getGoalProgress — accuracy routing', () => {
   });
 
   it('routes harmonic_fluency_accuracy_overall to HF accuracy', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('harmonic-fluency', 'mo-1', true,  1),
       makeAttempt('harmonic-fluency', 'mo-1', true,  2),
       makeAttempt('harmonic-fluency', 'mo-1', true,  3),
@@ -702,7 +709,7 @@ describe('getGoalProgress — accuracy routing', () => {
   });
 
   it('returns null current when accuracy has insufficient signal', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       makeAttempt('intervals', 'M3', true, 1),
       makeAttempt('intervals', 'M3', true, 2),
     ]);

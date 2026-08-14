@@ -20,6 +20,14 @@ import {
   type SongCellRunThrough,
   type SpacingState,
 } from '../db';
+import { newAttemptId } from '../db';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRow = (r: AttemptRecord) => db.attempts.add(withAttemptId(r));
+
 
 // Sunday May 11, 2025 00:00 local-ish — picked an arbitrary epoch so
 // the math is transparent. Week ends at + 7 days.
@@ -169,17 +177,17 @@ describe('getWeeklyAttempts — HF', () => {
       { moduleId: 'harmonic-fluency', itemId: 'maj', correct: true,  timestamp: AFTER },    // after window
       { moduleId: 'intervals',        itemId: 'M3',  correct: true,  timestamp: MID_WEEK }, // wrong module
     ];
-    for (const a of attempts) await db.attempts.add(a);
+    for (const a of attempts) await addAttemptRow(a);
 
     expect(await getWeeklyAttempts('harmonic-fluency', WEEK_START, WEEK_END)).toBe(2);
   });
 
   it('treats weekStart and weekEnd as inclusive boundaries', async () => {
-    await db.attempts.add({
+    await addAttemptRow({
       moduleId: 'harmonic-fluency', itemId: 'maj', correct: true,
       timestamp: WEEK_START,
     });
-    await db.attempts.add({
+    await addAttemptRow({
       moduleId: 'harmonic-fluency', itemId: 'maj', correct: true,
       timestamp: WEEK_END,
     });
@@ -200,7 +208,7 @@ describe('getWeeklyAttempts — ET', () => {
       { moduleId: 'scales-modes',       itemId: 'dorian', correct: true, timestamp: MID_WEEK },
       { moduleId: 'harmonic-fluency',   itemId: 'maj', correct: true, timestamp: MID_WEEK }, // not ET
     ];
-    for (const a of attempts) await db.attempts.add(a);
+    for (const a of attempts) await addAttemptRow(a);
     expect(await getWeeklyAttempts('ear-training', WEEK_START, WEEK_END)).toBe(4);
   });
 });
@@ -218,7 +226,7 @@ describe('getEarTrainingAttemptsBySubActivity', () => {
       { moduleId: 'chord-recognition', itemId: 'maj', correct: true,  timestamp: MID_WEEK },
       { moduleId: 'chord-recognition', itemId: 'min', correct: true,  timestamp: MID_WEEK },
     ];
-    for (const a of attempts) await db.attempts.add(a);
+    for (const a of attempts) await addAttemptRow(a);
 
     const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
     expect(result).toEqual({ intervals: 3, chordRecognition: 2, total: 5 });
@@ -234,7 +242,7 @@ describe('getEarTrainingAttemptsBySubActivity', () => {
       { moduleId: 'chord-progressions', itemId: 'ii-V-I', correct: true, timestamp: MID_WEEK },
       { moduleId: 'scales-modes',       itemId: 'dorian', correct: true, timestamp: MID_WEEK },
     ];
-    for (const a of attempts) await db.attempts.add(a);
+    for (const a of attempts) await addAttemptRow(a);
 
     const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
     expect(result.intervals).toBe(1);
@@ -252,7 +260,7 @@ describe('getEarTrainingAttemptsBySubActivity', () => {
       { moduleId: 'scales-modes',       itemId: 'dorian', correct: true, timestamp: MID_WEEK },
       { moduleId: 'harmonic-fluency',   itemId: 'maj',    correct: true, timestamp: MID_WEEK }, // not ET
     ];
-    for (const a of attempts) await db.attempts.add(a);
+    for (const a of attempts) await addAttemptRow(a);
 
     const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
     const legacyTotal = await getWeeklyAttempts('ear-training', WEEK_START, WEEK_END);
@@ -268,14 +276,14 @@ describe('getEarTrainingAttemptsBySubActivity', () => {
       { moduleId: 'chord-recognition', itemId: 'min', correct: true, timestamp: AFTER },      // after
       { moduleId: 'harmonic-fluency',  itemId: 'maj', correct: true, timestamp: MID_WEEK },   // not ET
     ];
-    for (const a of attempts) await db.attempts.add(a);
+    for (const a of attempts) await addAttemptRow(a);
 
     const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);
     expect(result).toEqual({ intervals: 1, chordRecognition: 1, total: 2 });
   });
 
   it('returns all-zero when there are no ET attempts in the window', async () => {
-    await db.attempts.add({
+    await addAttemptRow({
       moduleId: 'harmonic-fluency', itemId: 'maj', correct: true, timestamp: MID_WEEK,
     });
     const result = await getEarTrainingAttemptsBySubActivity(WEEK_START, WEEK_END);

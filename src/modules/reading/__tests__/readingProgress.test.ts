@@ -13,13 +13,20 @@
  */
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { db, type AttemptRecord } from '../../../lib/db';
+import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
 import {
   readingHintSplit,
   readingMissBreakdown,
   readingSkillAccuracy,
 } from '../readingProgress';
 import { moduleAccuracy } from '../../goals/progress';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRows = (rows: AttemptRecord[]) => db.attempts.bulkAdd(rows.map(withAttemptId));
+
 
 let clock = 1_700_000_000_000;
 function attempt(partial: Partial<AttemptRecord> & { itemId: string; correct: boolean }) {
@@ -38,7 +45,7 @@ beforeEach(async () => {
 
 describe('hint split', () => {
   it('reads "with hint" and "without" apart from ONE pile', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       // 5 with the hint, 4 right.
       ...Array.from({ length: 4 }, () =>
         attempt({ itemId: 'sig:2s:major:name', correct: true, hintUsed: true })),
@@ -60,7 +67,7 @@ describe('hint split', () => {
   it('HINT-ON ATTEMPTS STAY IN THE OVERALL PILE', async () => {
     // The property excludeFromFluency would have destroyed: it drops
     // the row from moduleAccuracy entirely. Separable, not excluded.
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'sig:2s:major:name', correct: true, hintUsed: true }),
       attempt({ itemId: 'sig:2s:major:name', correct: true, hintUsed: true }),
       attempt({ itemId: 'sig:2s:major:name', correct: true, hintUsed: true }),
@@ -76,7 +83,7 @@ describe('hint split', () => {
     // Chord and count cards have no hint state at all. Counting them
     // as "without hint" would inflate the unaided figure with cards
     // that were never eligible for help.
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'chord:maj:root:treble', correct: true }),
       attempt({ itemId: 'sig:2s:major:count', correct: true }),
       attempt({ itemId: 'note:treble:4', correct: true }),
@@ -90,7 +97,7 @@ describe('hint split', () => {
 
 describe('miss breakdown', () => {
   it('says how much of the miss is octave versus letter', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'note:treble:4', correct: false, noteMiss: 'octave' }),
       attempt({ itemId: 'note:treble:5', correct: false, noteMiss: 'octave' }),
       attempt({ itemId: 'note:bass:2', correct: false, noteMiss: 'octave' }),
@@ -103,7 +110,7 @@ describe('miss breakdown', () => {
   });
 
   it('ignores correct attempts and other skills', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'note:treble:4', correct: true, noteMiss: 'octave' }),
       attempt({ itemId: 'chord:maj:root:treble', correct: false }),
       attempt({ itemId: 'shape:triad:root', correct: false }),
@@ -117,7 +124,7 @@ describe('miss breakdown', () => {
     // Summing the three would silently rebalance the percentages if a
     // wrong note attempt ever arrived without a noteMiss. Counting the
     // rows makes that visible as octave+letter+both < totalWrong.
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'note:treble:4', correct: false, noteMiss: 'octave' }),
       attempt({ itemId: 'note:treble:5', correct: false }), // no attribution
     ]);
@@ -129,7 +136,7 @@ describe('miss breakdown', () => {
 
 describe('per-skill accuracy', () => {
   it('narrows to one skill via attemptFilter', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'note:treble:4', correct: true }),
       attempt({ itemId: 'note:treble:5', correct: true }),
       attempt({ itemId: 'note:bass:2', correct: true }),
@@ -145,7 +152,7 @@ describe('per-skill accuracy', () => {
   });
 
   it('routes by PARSE, so a foreign itemId cannot be counted', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       attempt({ itemId: 'note:treble:4', correct: true }),
       attempt({ itemId: 'note:treble:5', correct: true }),
       attempt({ itemId: 'note:treble:6', correct: true }),

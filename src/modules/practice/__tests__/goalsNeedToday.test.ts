@@ -25,7 +25,14 @@ import type {
   ModuleWeeklyNeed,
   WeeklyPace,
 } from '../../../lib/sessionAlgorithm/moduleWeeklyNeed';
-import { db, type Goal, type PracticeSession } from '../../../lib/db';
+import { db, newAttemptId, type AttemptRecord, type Goal, type PracticeSession } from '../../../lib/db';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRow = (r: AttemptRecord) => db.attempts.add(withAttemptId(r));
+
 
 function need(partial: Partial<ModuleWeeklyNeed> & {
   moduleId: ModuleWeeklyNeed['moduleId'];
@@ -373,7 +380,7 @@ describe('loadGoalsNeedToday — integration', () => {
     // Seed 30 HF attempts within the current week so the keystone's
     // remainingAttempts lands at 70.
     for (let i = 0; i < 30; i++) {
-      await db.attempts.add({
+      await addAttemptRow({
         moduleId: 'harmonic-fluency',
         itemId: `seed-${i}`,
         correct: true,

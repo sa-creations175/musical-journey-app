@@ -20,7 +20,15 @@ import {
 } from '../spacingStateBackfill';
 import { getSpacingState, recordEngagement } from '../spacingState';
 import { getPref, setPref } from '../userPrefs';
-import { db } from '../db';
+import { db, newAttemptId, type AttemptRecord } from '../db';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRow = (r: AttemptRecord) => db.attempts.add(withAttemptId(r));
+const addAttemptRows = (rows: AttemptRecord[]) => db.attempts.bulkAdd(rows.map(withAttemptId));
+
 
 beforeEach(async () => {
   await Promise.all([
@@ -174,7 +182,7 @@ describe('backfillSpacingStateIfNeeded — gating', () => {
   it('short-circuits on second call (pref already set)', async () => {
     await setPref(PREF_SPACING_STATE_BACKFILL_V1, 12345);
     // Seed source data that WOULD produce rows if backfill ran.
-    await db.attempts.add({
+    await addAttemptRow({
       moduleId: 'intervals', itemId: 'M3', direction: 'asc',
       correct: true, timestamp: 1000,
     });
@@ -190,7 +198,7 @@ describe('backfillSpacingStateIfNeeded — gating', () => {
 
 describe('backfillSpacingStateIfNeeded — declarative modules', () => {
   it('intervals: encodes direction in itemRef', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       { moduleId: 'intervals', itemId: 'M3', direction: 'asc',  correct: true,  timestamp: 1 },
       { moduleId: 'intervals', itemId: 'M3', direction: 'desc', correct: true,  timestamp: 2 },
       { moduleId: 'intervals', itemId: 'M3', direction: 'asc',  correct: false, timestamp: 3 },
@@ -205,7 +213,7 @@ describe('backfillSpacingStateIfNeeded — declarative modules', () => {
   });
 
   it('chord-progressions: skips sub-skill itemIds', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       { moduleId: 'chord-progressions', itemId: '1-4-5',           correct: true, timestamp: 1 },
       { moduleId: 'chord-progressions', itemId: '1-4-5-pattern',   correct: true, timestamp: 2 },
       { moduleId: 'chord-progressions', itemId: '1-4-5-inversion', correct: true, timestamp: 3 },
@@ -224,7 +232,7 @@ describe('backfillSpacingStateIfNeeded — declarative modules', () => {
       moduleId: 'chord-recognition', itemId: 'maj7',
       correct: true, timestamp: 1000 + i,
     }));
-    await db.attempts.bulkAdd(writes);
+    await addAttemptRows(writes);
     await backfillSpacingStateIfNeeded();
     const row = await getSpacingState('maj7', 'chord-recognition');
     expect(row!.acquisitionStage).toBe('acquired');
@@ -232,7 +240,7 @@ describe('backfillSpacingStateIfNeeded — declarative modules', () => {
   });
 
   it('scales-modes: tab1 and tab2 are independent rows', async () => {
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       { moduleId: 'scales-modes', itemId: 'dorian-tab1', correct: true, timestamp: 1 },
       { moduleId: 'scales-modes', itemId: 'dorian-tab2', correct: true, timestamp: 2 },
     ]);
@@ -361,7 +369,7 @@ describe('backfillSpacingStateIfNeeded — live wiring takes precedence', () => 
     const liveId = before!.id;
 
     // Now seed historical attempts that would otherwise create a row.
-    await db.attempts.bulkAdd([
+    await addAttemptRows([
       { moduleId: 'intervals', itemId: 'M3', direction: 'asc', correct: false, timestamp: 1 },
       { moduleId: 'intervals', itemId: 'M3', direction: 'asc', correct: false, timestamp: 2 },
     ]);
@@ -375,11 +383,11 @@ describe('backfillSpacingStateIfNeeded — live wiring takes precedence', () => 
 describe('backfillSpacingStateIfNeeded — counts', () => {
   it('returns honest per-module counts', async () => {
     const now = 1000;
-    await db.attempts.add({
+    await addAttemptRow({
       moduleId: 'intervals', itemId: 'M3', direction: 'asc',
       correct: true, timestamp: now,
     });
-    await db.attempts.add({
+    await addAttemptRow({
       moduleId: 'chord-recognition', itemId: 'maj7',
       correct: true, timestamp: now,
     });

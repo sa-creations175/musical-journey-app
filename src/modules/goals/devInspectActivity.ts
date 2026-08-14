@@ -248,7 +248,7 @@ export async function wipeHFAttemptsInRange(
     })),
   );
   await db.transaction('rw', db.attempts, async () => {
-    await db.attempts.bulkDelete(rows.map(r => r.id!).filter((id): id is number => typeof id === 'number'));
+    await db.attempts.bulkDelete(rows.map(r => r.id).filter((id): id is string => typeof id === 'string'));
   });
   // eslint-disable-next-line no-console
   console.log(`[wipeHFAttemptsInRange] Done. Deleted ${rows.length}.`);
@@ -285,7 +285,7 @@ export async function wipeETAttemptsInRange(
     })),
   );
   await db.transaction('rw', db.attempts, async () => {
-    await db.attempts.bulkDelete(rows.map(r => r.id!).filter((id): id is number => typeof id === 'number'));
+    await db.attempts.bulkDelete(rows.map(r => r.id).filter((id): id is string => typeof id === 'string'));
   });
   // eslint-disable-next-line no-console
   console.log(`[wipeETAttemptsInRange] Done. Deleted ${rows.length}.`);

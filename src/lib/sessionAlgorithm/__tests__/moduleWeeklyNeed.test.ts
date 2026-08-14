@@ -26,8 +26,16 @@ import {
   TIME_PER_ATTEMPT_MINUTES,
   TIME_PER_ATTEMPT_SECONDS,
 } from '../timePerAttempt';
-import { db, type Goal, type ProductionLessonSession, type AttemptRecord } from '../../db';
+import { db, newAttemptId, type Goal, type ProductionLessonSession, type AttemptRecord } from '../../db';
 import { startOfWeekLocal, endOfWeekLocal } from '../../../modules/goals/weeklyPlanData';
+
+// Attempts carry client-minted ids since v33/v34 (see db.ts), so the
+// store no longer generates one. Seed rows here go through the same
+// stamping the production write path does.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+const addAttemptRow = (r: AttemptRecord) => db.attempts.add(withAttemptId(r));
+const addAttemptRows = (rows: AttemptRecord[]) => db.attempts.bulkAdd(rows.map(withAttemptId));
+
 
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK_START = 1_700_000_000_000;
@@ -336,7 +344,7 @@ describe('loadModuleWeeklyNeeds — wrapper integration', () => {
       { moduleId: 'chord-recognition',  itemId: 'maj',    correct: true, timestamp: inWindow },
       { moduleId: 'chord-progressions', itemId: 'I-V',    correct: true, timestamp: inWindow },
     ];
-    for (const a of et) await db.attempts.add(a);
+    for (const a of et) await addAttemptRow(a);
 
     const result = await loadModuleWeeklyNeeds(today);
     const etNeed = result.find(n => n.moduleId === 'ear-training');
@@ -661,7 +669,7 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
       correct: true,
       timestamp: SUN_9A - 7 * DAY,
     }));
-    await db.attempts.bulkAdd(seedRows);
+    await addAttemptRows(seedRows);
     const result = await loadModuleWeeklyNeeds(SUN_9A);
     const hf = result.find(n => n.moduleId === 'harmonic-fluency');
     expect(hf).toBeDefined();
@@ -693,7 +701,7 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
       targetDate: SUN_9A + 7 * DAY - 1,
     }));
     for (let i = 0; i < 50; i++) {
-      await db.attempts.add({
+      await addAttemptRow({
         moduleId: 'harmonic-fluency',
         itemId: `s-${i}`,
         correct: true,
@@ -726,7 +734,7 @@ describe('loadModuleWeeklyNeeds — monthly remaining + over-practice classifica
     }));
     // 30 attempts this week — far from done.
     for (let i = 0; i < 30; i++) {
-      await db.attempts.add({
+      await addAttemptRow({
         moduleId: 'harmonic-fluency',
         itemId: `s-${i}`,
         correct: true,

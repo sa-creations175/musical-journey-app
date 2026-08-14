@@ -1225,8 +1225,42 @@ export interface UserPref {
 
 export type AttemptDirection = 'asc' | 'desc';
 
+/**
+ * Mint an attempt id.
+ *
+ * `crypto.randomUUID()` rather than the `uid()` helpers in the module
+ * folders: those live under src/modules and importing one up into
+ * src/lib would invert the layering, and there are already three copies
+ * of `uid` to not add a fourth. randomUUID is what src/lib already uses
+ * for generated ids (see spacingState.ts).
+ *
+ * The `att-` prefix carries no meaning to any parser — it is there so a
+ * stray id is recognisable in a console dump or a Postgres row.
+ *
+ * Defined here rather than in practiceWrites.ts because the v33
+ * migration needs it too, and the two must not drift.
+ */
+export function newAttemptId(): string {
+  return `att-${crypto.randomUUID()}`;
+}
+
 export interface AttemptRecord {
-  id?: number;
+  /**
+   * Client-generated stable id, `att-<uuid>`, minted by `addAttempt` /
+   * `bulkAddAttempts` in practiceWrites.ts.
+   *
+   * Was `++id` auto-increment until v33. Two devices both counting from
+   * 1 produce colliding ids for entirely different attempts, which is
+   * why this table sat out of sync while every other practice table
+   * synced — see the deferred list in sync/tables.ts.
+   *
+   * Optional on the interface because rows are CONSTRUCTED without one
+   * (buildReadingAttempt, and every quiz's inline record literal) and
+   * the id is stamped at the single write choke point. A row that
+   * reaches Dexie without an id is rejected by IndexedDB rather than
+   * silently keyed — which is the loud failure we want.
+   */
+  id?: string;
   moduleId: string;
   itemId: string;
   direction?: AttemptDirection;
@@ -2161,7 +2195,7 @@ export class AppDB extends Dexie {
   producerStats!: Table<ProducerStat, string>;
   quizStats!: Table<QuizStat, string>;
   userPrefs!: Table<UserPref, string>;
-  attempts!: Table<AttemptRecord, number>;
+  attempts!: Table<AttemptRecord, string>;
   dailySummaries!: Table<DailySummary, [string, string]>;
   progressionAssociations!: Table<ProgressionAssociation, string>;
   flashcardStates!: Table<FlashcardState, string>;
@@ -3409,6 +3443,54 @@ export class AppDB extends Dexie {
       //    (re-materialises lazily on first drill). Scales / VL have none.
       if (chordTypeIds.length) await types.bulkDelete(chordTypeIds);
       if (chordSkillIds.size) await skills.bulkDelete([...chordSkillIds]);
+    });
+
+    // =================================================================
+    // v33 + v34 — attempts: ++id auto-increment → client-generated
+    // `att-<uuid>` string ids, so the table can join sync.
+    //
+    // WHY TWO VERSIONS. Dexie cannot change a primary key in place: a
+    // table present in both the old and new schema with a different
+    // primKey throws `Upgrade: 'Not yet support for changing primary
+    // key'` (dexie.js:3829). The route that preserves the table NAME —
+    // and therefore all ~60 `db.attempts` call sites — is to move the
+    // rows out to a temp store while dropping the original, then move
+    // them back into a freshly-created one.
+    //
+    // Reading a table that the SAME version deletes is supported and
+    // deliberate: Dexie re-adds `diff.del` tables to the upgrade schema
+    // from the old schema (dexie.js:3845-3848) and only runs
+    // `deleteRemovedTables` after the upgrade callback returns.
+    //
+    // Both versions run inside ONE IndexedDB versionchange transaction,
+    // so the pair is atomic: an abort at any point rolls back to v32
+    // with the original table intact. There is no state where the rows
+    // exist in neither store.
+    //
+    // Whole-table toArray() rather than chunking, matching the v32
+    // precedent above — this table holds tens of rows, and batching
+    // machinery for that would be inventing a problem.
+    // =================================================================
+    this.version(33).stores({
+      attemptsTmp: 'id, timestamp, moduleId, [moduleId+itemId+direction]',
+      attempts: null,
+    }).upgrade(async tx => {
+      const rows = await tx.table('attempts').toArray();
+      if (rows.length === 0) return;
+      await tx.table('attemptsTmp').bulkAdd(
+        rows.map(row => ({ ...row, id: newAttemptId() })),
+      );
+    });
+
+    this.version(34).stores({
+      attempts: 'id, timestamp, moduleId, [moduleId+itemId+direction]',
+      attemptsTmp: null,
+    }).upgrade(async tx => {
+      const rows = await tx.table('attemptsTmp').toArray();
+      if (rows.length === 0) return;
+      // Ids were minted in v33; carry them across unchanged so the two
+      // halves of the move cannot disagree about what a row is.
+      await tx.table('attempts').bulkAdd(rows);
     });
   }
 }
