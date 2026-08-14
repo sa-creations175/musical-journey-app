@@ -1,5 +1,13 @@
-import { db, type Song, type SongKey, type SongKeyState } from '../../lib/db';
+import {
+  db,
+  type Song,
+  type SongCell,
+  type SongCellRunThrough,
+  type SongKey,
+  type SongKeyState,
+} from '../../lib/db';
 import { isCanonicalSongKey } from './matrix/keys';
+import { computeKeyStateFromCells } from './matrix/cellRollup';
 
 /**
  * Why the matrix's original key disagrees with `Song.key` — for every
@@ -45,11 +53,43 @@ export type SongKeyProblem =
    *  or was reverted afterwards. */
   | 'original-mismatch';
 
+/**
+ * Per-row consistency findings. Separate from SongKeyProblem, which is
+ * about the song as a whole.
+ */
+export type KeyRowFlag =
+  /** keyName isn't one of the twelve — this row can never render. */
+  | 'non-canonical'
+  /** Advanced state with no cells at all. EXPECTED for rows the
+   *  original migration created: matrixMigration seeds keyState from
+   *  the song's legacy stage, with no cells in existence. Reported so
+   *  it is visible, but it is history, not corruption. */
+  | 'state-from-migration'
+  /** not_started despite having practice attached. A real
+   *  inconsistency — something logged against this key and the rollup
+   *  didn't follow. */
+  | 'state-behind-history'
+  /** Stored keyState disagrees with what its cells derive to, by the
+   *  app's own computeKeyStateFromCells rule. */
+  | 'state-mismatch';
+
 export interface SongKeyRowInfo {
   keyName: string;
   isOriginalKey: boolean;
   keyState: SongKeyState;
   updatedAt: number;
+  /** songCells rows pointing at this key. */
+  cellCount: number;
+  /** ...of which show practice (non-empty state or a logged run). */
+  engagedCellCount: number;
+  /** songCellRunThroughs rows pointing at this key. */
+  runThroughCount: number;
+  /** What the app's own rollup would compute for this row, or null
+   *  when it has no cells to derive from. */
+  derivedState: SongKeyState | null;
+  flags: KeyRowFlag[];
+  /** Safe to delete: unrenderable AND carrying no practice. */
+  deletable: boolean;
 }
 
 export interface SongKeyDiagnostic {
@@ -64,6 +104,62 @@ export interface SongKeyDiagnostic {
 }
 
 /**
+ * Describe one key row: what hangs off it, and whether its stored
+ * state agrees with that.
+ *
+ * The agreement check runs the app's OWN rollup rule
+ * (computeKeyStateFromCells) rather than a hand-rolled approximation,
+ * so the diagnostic cannot disagree with what the matrix would
+ * compute. Pure.
+ */
+export function describeKeyRow(
+  row: SongKey,
+  cells: ReadonlyArray<SongCell>,
+  runThroughCount: number,
+  sectionCount: number,
+): SongKeyRowInfo {
+  const engagedCellCount = cells.filter(
+    c => c.cellState !== 'empty' || c.lastRunAt !== null,
+  ).length;
+  const hasHistory = engagedCellCount > 0 || runThroughCount > 0;
+
+  const derivedState = cells.length > 0
+    ? computeKeyStateFromCells(cells, sectionCount, row.wholeSongTestPassedAt ?? null)
+    : null;
+
+  const flags: KeyRowFlag[] = [];
+  if (!isCanonicalSongKey(row.keyName)) flags.push('non-canonical');
+
+  if (row.keyState !== 'not_started' && cells.length === 0) {
+    // The migration's signature: state seeded from the legacy stage
+    // with no cells to derive it from. History, not corruption.
+    flags.push('state-from-migration');
+  }
+  if (row.keyState === 'not_started' && hasHistory) {
+    flags.push('state-behind-history');
+  }
+  if (derivedState !== null && derivedState !== row.keyState) {
+    flags.push('state-mismatch');
+  }
+
+  return {
+    keyName: row.keyName,
+    isOriginalKey: row.isOriginalKey === true,
+    keyState: row.keyState,
+    updatedAt: row.updatedAt,
+    cellCount: cells.length,
+    engagedCellCount,
+    runThroughCount,
+    derivedState,
+    flags,
+    // Deleting a row orphans its cells and run-throughs, and no
+    // cascade exists anywhere in the codebase — so a row is only
+    // offered for deletion when there is nothing to orphan.
+    deletable: !isCanonicalSongKey(row.keyName) && cells.length === 0 && runThroughCount === 0,
+  };
+}
+
+/**
  * Classify one song. Pure — exported so every branch is testable
  * without a database.
  *
@@ -75,14 +171,23 @@ export interface SongKeyDiagnostic {
 export function classifySongKeys(
   song: Pick<Song, 'id' | 'title' | 'key'>,
   keyRows: ReadonlyArray<SongKey>,
+  cells: ReadonlyArray<SongCell> = [],
+  runThroughs: ReadonlyArray<SongCellRunThrough> = [],
+  sectionCount = 0,
 ): SongKeyDiagnostic {
+  const cellsByKey = new Map<string, SongCell[]>();
+  for (const c of cells) {
+    const list = cellsByKey.get(c.songKeyId);
+    if (list) list.push(c);
+    else cellsByKey.set(c.songKeyId, [c]);
+  }
+  const runsByKey = new Map<string, number>();
+  for (const r of runThroughs) {
+    runsByKey.set(r.songKeyId, (runsByKey.get(r.songKeyId) ?? 0) + 1);
+  }
+
   const rows: SongKeyRowInfo[] = [...keyRows]
-    .map(r => ({
-      keyName: r.keyName,
-      isOriginalKey: r.isOriginalKey === true,
-      keyState: r.keyState,
-      updatedAt: r.updatedAt,
-    }))
+    .map(r => describeKeyRow(r, cellsByKey.get(r.id) ?? [], runsByKey.get(r.id) ?? 0, sectionCount))
     .sort((a, b) => {
       if (a.isOriginalKey !== b.isOriginalKey) return a.isOriginalKey ? -1 : 1;
       return a.keyName.localeCompare(b.keyName);
@@ -131,18 +236,38 @@ export function orderDiagnostics(
 
 /** Read every song and its key rows. Read-only. */
 export async function collectSongKeyDiagnostics(): Promise<SongKeyDiagnostic[]> {
-  const [songs, allKeys] = await Promise.all([
+  const [songs, allKeys, allCells, allRuns, allSections] = await Promise.all([
     db.songs.toArray(),
     db.songKeys.toArray(),
+    db.songCells.toArray(),
+    db.songCellRunThroughs.toArray(),
+    db.songMatrixSections.toArray(),
   ]);
-  const bySong = new Map<string, SongKey[]>();
-  for (const row of allKeys) {
-    const list = bySong.get(row.songId);
-    if (list) list.push(row);
-    else bySong.set(row.songId, [row]);
-  }
+
+  const group = <T,>(rows: T[], songIdOf: (r: T) => string): Map<string, T[]> => {
+    const m = new Map<string, T[]>();
+    for (const row of rows) {
+      const id = songIdOf(row);
+      const list = m.get(id);
+      if (list) list.push(row);
+      else m.set(id, [row]);
+    }
+    return m;
+  };
+
+  const keysBySong = group(allKeys, r => r.songId);
+  const cellsBySong = group(allCells, r => r.songId);
+  const runsBySong = group(allRuns, r => r.songId);
+  const sectionsBySong = group(allSections, r => r.songId);
+
   return orderDiagnostics(
-    songs.map(s => classifySongKeys(s, bySong.get(s.id) ?? [])),
+    songs.map(s => classifySongKeys(
+      s,
+      keysBySong.get(s.id) ?? [],
+      cellsBySong.get(s.id) ?? [],
+      runsBySong.get(s.id) ?? [],
+      (sectionsBySong.get(s.id) ?? []).filter(sec => !sec.isArchived).length,
+    )),
   );
 }
 
@@ -154,4 +279,12 @@ export const PROBLEM_LABEL: Record<SongKeyProblem, string> = {
   'no-original': 'matrix rows exist but none is marked original',
   'multiple-originals': 'more than one row marked original',
   'original-mismatch': 'matrix original disagrees with the song key',
+};
+
+/** Short labels for the per-row flags. */
+export const ROW_FLAG_LABEL: Record<KeyRowFlag, string> = {
+  'non-canonical': 'not a key',
+  'state-from-migration': 'state from migration',
+  'state-behind-history': 'state behind its history',
+  'state-mismatch': 'state disagrees with cells',
 };

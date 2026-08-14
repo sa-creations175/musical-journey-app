@@ -13,9 +13,11 @@ import { describe, expect, it } from 'vitest';
 import type { Song, SongKey, SongKeyState } from '../../../lib/db';
 import {
   classifySongKeys,
+  describeKeyRow,
   orderDiagnostics,
   type SongKeyDiagnostic,
 } from '../keyDiagnostics';
+import type { SongCell, SongCellRunThrough } from '../../../lib/db';
 
 const NOW = 1_700_000_000_000;
 
@@ -134,5 +136,121 @@ describe('orderDiagnostics', () => {
     const out = orderDiagnostics(input);
     expect(out.map(r => r.title)).toEqual(['alpha', 'zed']);
     expect(input.map(r => r.title)).toEqual(['zed', 'alpha']);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Per-row dependents + state consistency
+// ---------------------------------------------------------------------
+
+function cell(songKeyId: string, sectionId: string, o: Partial<SongCell> = {}): SongCell {
+  return {
+    id: `cell-${songKeyId}-${sectionId}`,
+    songId: 's1', sectionId, songKeyId,
+    cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
+    lastRunAt: null, lastRunWasClean: null, notes: null,
+    lastEngagedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
+  } as SongCell;
+}
+
+function runThrough(songKeyId: string): SongCellRunThrough {
+  return {
+    id: `run-${Math.random()}`, cellId: 'c', songId: 's1',
+    sectionId: 'verse', songKeyId, wasClean: true,
+    tempoBpm: null, notes: null, createdAt: NOW,
+  } as SongCellRunThrough;
+}
+
+describe('describeKeyRow — dependents', () => {
+  it('a junk row with nothing attached is safe to delete', () => {
+    // The three live junk rows (Ab flat, B maj, B maj / G# min) should
+    // land here — but only if they genuinely have no dependents.
+    const out = describeKeyRow(row('Ab flat', false), [], 0, 3);
+    expect(out.flags).toContain('non-canonical');
+    expect(out.deletable).toBe(true);
+  });
+
+  it('REFUSES to call a junk row deletable when cells hang off it', () => {
+    // Deleting would orphan them, and no cascade exists anywhere in
+    // the codebase — so this must never be offered.
+    const out = describeKeyRow(row('B maj', false), [cell('songkey-s1-B maj', 'verse')], 0, 3);
+    expect(out.flags).toContain('non-canonical');
+    expect(out.deletable).toBe(false);
+  });
+
+  it('REFUSES when run-throughs hang off it, even with no cells', () => {
+    const out = describeKeyRow(row('B maj', false), [], 2, 3);
+    expect(out.deletable).toBe(false);
+    expect(out.runThroughCount).toBe(2);
+  });
+
+  it('never offers a canonical key for deletion, however empty', () => {
+    // A real key with no practice yet is the normal state of a
+    // materialised grid, not junk.
+    expect(describeKeyRow(row('C', false), [], 0, 3).deletable).toBe(false);
+  });
+
+  it('counts played cells apart from merely existing ones', () => {
+    const out = describeKeyRow(row('C', false), [
+      cell('songkey-s1-C', 'verse'),
+      cell('songkey-s1-C', 'chorus', { cellState: 'learning' }),
+      cell('songkey-s1-C', 'bridge', { lastRunAt: NOW }),
+    ], 0, 3);
+    expect(out.cellCount).toBe(3);
+    expect(out.engagedCellCount).toBe(2);
+  });
+});
+
+describe('describeKeyRow — state consistency', () => {
+  it('labels advanced-state-with-no-cells as migration history, not damage', () => {
+    // Every pre-existing row looks like this (matrixMigration seeds
+    // keyState from the legacy stage with no cells in existence). If
+    // it read as corruption it would drown the real findings.
+    const out = describeKeyRow(row('A', false, 'learning'), [], 0, 3);
+    expect(out.flags).toContain('state-from-migration');
+    expect(out.flags).not.toContain('state-behind-history');
+    expect(out.derivedState).toBeNull();
+  });
+
+  it('flags a not_started row that has practice attached', () => {
+    // The genuine inconsistency: something logged against this key and
+    // the rollup did not follow.
+    const out = describeKeyRow(row('C', false, 'not_started'), [], 3, 3);
+    expect(out.flags).toContain('state-behind-history');
+  });
+
+  it('flags stored state disagreeing with what its cells derive to', () => {
+    // All cells comfortable across every section derives to
+    // 'comfortable'; a row still claiming 'learning' disagrees.
+    const cells = ['verse', 'chorus', 'bridge'].map(sec =>
+      cell('songkey-s1-C', sec, { cellState: 'comfortable' }));
+    const out = describeKeyRow(row('C', false, 'learning'), cells, 0, 3);
+    expect(out.derivedState).toBe('comfortable');
+    expect(out.flags).toContain('state-mismatch');
+  });
+
+  it('is silent when stored and derived agree', () => {
+    const cells = ['verse', 'chorus', 'bridge'].map(sec =>
+      cell('songkey-s1-C', sec, { cellState: 'comfortable' }));
+    const out = describeKeyRow(row('C', false, 'comfortable'), cells, 0, 3);
+    expect(out.flags).toEqual([]);
+  });
+});
+
+describe('classifySongKeys threads dependents through', () => {
+  it('attaches each key row its own cells and runs, not another row\'s', () => {
+    const out = classifySongKeys(
+      song('Ab'),
+      [row('Ab', true), row('C', false)],
+      [cell('songkey-s1-Ab', 'verse'), cell('songkey-s1-C', 'verse'), cell('songkey-s1-C', 'chorus')],
+      [runThrough('songkey-s1-C')],
+      3,
+    );
+    const ab = out.rows.find(r => r.keyName === 'Ab')!;
+    const c = out.rows.find(r => r.keyName === 'C')!;
+    expect(ab.cellCount).toBe(1);
+    expect(ab.runThroughCount).toBe(0);
+    expect(c.cellCount).toBe(2);
+    expect(c.runThroughCount).toBe(1);
   });
 });

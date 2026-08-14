@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import {
   PROBLEM_LABEL,
+  ROW_FLAG_LABEL,
   collectSongKeyDiagnostics,
   type SongKeyDiagnostic,
 } from '../modules/repertoire/keyDiagnostics';
@@ -118,11 +119,41 @@ export default function RepertoireKeyDiagnostics() {
                       ) : (
                         <div className="space-y-0.5">
                           {r.rows.map(k => (
-                            <div key={k.keyName} className="font-mono whitespace-nowrap">
-                              {k.isOriginalKey ? '★ ' : '  '}
-                              {k.keyName}
-                              <span className="opacity-70"> · {k.keyState}</span>
-                              <span className="opacity-70"> · {ago(k.updatedAt, checkedAt)}</span>
+                            <div key={k.keyName} className="whitespace-nowrap">
+                              <span className="font-mono">
+                                {k.isOriginalKey ? '★ ' : '  '}
+                                {k.keyName}
+                                <span className="opacity-70"> · {k.keyState}</span>
+                                {k.derivedState !== null && k.derivedState !== k.keyState && (
+                                  <span className="text-needswork"> (cells say {k.derivedState})</span>
+                                )}
+                                <span className="opacity-70">
+                                  {' · '}
+                                  {k.cellCount === 0 && k.runThroughCount === 0
+                                    ? 'no cells'
+                                    : `${k.cellCount} cells, ${k.engagedCellCount} played, ${k.runThroughCount} runs`}
+                                </span>
+                                <span className="opacity-70"> · {ago(k.updatedAt, checkedAt)}</span>
+                              </span>
+                              {k.flags.length > 0 && (
+                                <span className="ml-1 text-[10px]">
+                                  {k.flags.map(f => (
+                                    <span
+                                      key={f}
+                                      className={
+                                        f === 'state-from-migration'
+                                          ? 'ml-1 opacity-70'
+                                          : 'ml-1 text-needswork'
+                                      }
+                                    >
+                                      [{ROW_FLAG_LABEL[f]}]
+                                    </span>
+                                  ))}
+                                  {k.deletable && (
+                                    <span className="ml-1 opacity-70">[safe to delete]</span>
+                                  )}
+                                </span>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -135,7 +166,10 @@ export default function RepertoireKeyDiagnostics() {
           </div>
 
           <p className="text-[11px] text-neutral-500">
-            ★ marks the row the matrix anchors to. if song.key and the ★ row
+            &ldquo;state from migration&rdquo; is expected on old rows — their state
+            came from the song&rsquo;s legacy stage before cells existed, so it is
+            history rather than damage. The other flags are real
+            disagreements. ★ marks the row the matrix anchors to. if song.key and the ★ row
             disagree, the key edit reached the song record but not the matrix —
             the timestamps say whether the matrix row was never written or was
             written and then overwritten.
