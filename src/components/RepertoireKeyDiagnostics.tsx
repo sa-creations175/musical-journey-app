@@ -11,12 +11,32 @@
  * failing differently rules out a shared cause immediately.
  */
 import { useState } from 'react';
+import { isCanonicalSongKey } from '../modules/repertoire/matrix/keys';
+import {
+  canApplyWithoutConfirm,
+  deleteJunkKeyRow,
+  normaliseSongKey,
+  recomputeKeyStateFromCells,
+  recomputeSafety,
+  resolveKeyMismatch,
+} from '../modules/repertoire/keyRepairs';
 import {
   PROBLEM_LABEL,
   ROW_FLAG_LABEL,
   collectSongKeyDiagnostics,
   type SongKeyDiagnostic,
+  type SongKeyRowInfo,
 } from '../modules/repertoire/keyDiagnostics';
+
+const BTN = 'px-2 py-0.5 rounded border text-[10px] font-medium';
+const BTN_ACTION = `${BTN} border-fluent text-fluent hover:bg-fluent/10`;
+const BTN_DANGER = `${BTN} border-needswork text-needswork hover:bg-needswork/10`;
+
+/** The canonical key sharing a pitch class with a non-canonical one.
+ *  Only the enharmonic spellings the app has actually produced. */
+const ENHARMONIC: Record<string, string> = {
+  Gb: 'F#', 'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb',
+};
 
 function ago(ts: number, now: number): string {
   const ms = now - ts;
@@ -34,6 +54,33 @@ export default function RepertoireKeyDiagnostics() {
   const [rows, setRows] = useState<SongKeyDiagnostic[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<number>(0);
+  /** Last repair outcome, shown inline so a press is never silent. */
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  /** Row id awaiting an explicit override confirmation. */
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  /**
+   * Run one repair, then re-read. Refusals from the repair layer are
+   * shown verbatim — they explain what would have been destroyed, and
+   * paraphrasing them here would put a second, driftable copy of the
+   * reasoning in the UI.
+   */
+  const repair = async (label: string, fn: () => Promise<unknown>) => {
+    if (busy) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      await fn();
+      setNote({ ok: true, text: `${label} — done` });
+      setRows(await collectSongKeyDiagnostics());
+      setCheckedAt(Date.now());
+    } catch (err) {
+      setNote({ ok: false, text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setBusy(false);
+      setConfirming(null);
+    }
+  };
 
   const run = async () => {
     if (busy) return;
@@ -73,6 +120,11 @@ export default function RepertoireKeyDiagnostics() {
       </button>
 
       {error && <p className="text-sm text-needswork mb-3">check failed: {error}</p>}
+      {note && (
+        <p className={`text-xs mb-3 ${note.ok ? 'text-fluent' : 'text-needswork'}`}>
+          {note.text}
+        </p>
+      )}
 
       {rows && (
         <div className="space-y-3">
@@ -111,6 +163,11 @@ export default function RepertoireKeyDiagnostics() {
                       {r.problem && (
                         <div className="text-[10px] opacity-80">{PROBLEM_LABEL[r.problem]}</div>
                       )}
+                      <SongActions
+                        entry={r}
+                        busy={busy}
+                        repair={repair}
+                      />
                     </td>
                     <td className="px-2 py-1.5 font-mono">{r.songKey ?? '—'}</td>
                     <td className="px-2 py-1.5">
@@ -135,6 +192,14 @@ export default function RepertoireKeyDiagnostics() {
                                 </span>
                                 <span className="opacity-70"> · {ago(k.updatedAt, checkedAt)}</span>
                               </span>
+                              <RowActions
+                                row={k}
+                                songId={r.songId}
+                                busy={busy}
+                                confirming={confirming}
+                                setConfirming={setConfirming}
+                                repair={repair}
+                              />
                               {k.flags.length > 0 && (
                                 <span className="ml-1 text-[10px]">
                                   {k.flags.map(f => (
@@ -177,5 +242,187 @@ export default function RepertoireKeyDiagnostics() {
         </div>
       )}
     </section>
+  );
+}
+
+// ---------------------------------------------------------------------
+// Actions
+// ---------------------------------------------------------------------
+
+type Repair = (label: string, fn: () => Promise<unknown>) => Promise<void>;
+
+/**
+ * Song-level repairs: the two decisions the data cannot make.
+ *
+ * The mismatch case offers BOTH directions with no default and no
+ * pre-selection. In the live data the matrix was right and the song
+ * record was stale, so a UI that nudged toward either would have been
+ * wrong half the time.
+ */
+function SongActions({
+  entry, busy, repair,
+}: {
+  entry: SongKeyDiagnostic;
+  busy: boolean;
+  repair: Repair;
+}) {
+  const anchor = entry.rows.find(r => r.isOriginalKey);
+
+  if (entry.problem === 'song-key-non-canonical' && entry.songKey) {
+    const target = ENHARMONIC[entry.songKey];
+    if (!target || !isCanonicalSongKey(target)) return null;
+    return (
+      <div className="mt-1">
+        <button
+          type="button"
+          disabled={busy}
+          className={BTN_ACTION}
+          onClick={() => repair(
+            `${entry.title}: ${entry.songKey} → ${target}`,
+            () => normaliseSongKey(entry.songId, target),
+          )}
+        >
+          change to {target}
+        </button>
+        <div className="text-[10px] opacity-70 mt-0.5">
+          same pitch class · temporary until per-song spelling
+        </div>
+      </div>
+    );
+  }
+
+  if (entry.problem === 'original-mismatch' && entry.songKey && anchor) {
+    return (
+      <div className="mt-1 space-y-0.5">
+        <div className="text-[10px] opacity-80">which is right?</div>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            disabled={busy}
+            className={BTN_ACTION}
+            onClick={() => repair(
+              `${entry.title}: anchor → ${entry.songKey}`,
+              () => resolveKeyMismatch(entry.songId, 'use-song-key'),
+            )}
+          >
+            {entry.songKey}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className={BTN_ACTION}
+            onClick={() => repair(
+              `${entry.title}: song key → ${anchor.keyName}`,
+              () => resolveKeyMismatch(entry.songId, 'use-matrix-anchor'),
+            )}
+          >
+            {anchor.keyName} ★
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Row-level repairs: delete an unrenderable row, or bring a row's
+ * stored state in line with its cells.
+ *
+ * An unevidenced demotion is SHOWN rather than hidden, with the reason
+ * and an explicit confirm. Hiding it would conceal a real disagreement;
+ * enabling it silently would destroy the only record that a song was
+ * ever worked in that key. The app cannot tell those apart — the user
+ * can, so the decision is theirs and it costs two presses.
+ */
+function RowActions({
+  row, songId, busy, confirming, setConfirming, repair,
+}: {
+  row: SongKeyRowInfo;
+  songId: string;
+  busy: boolean;
+  confirming: string | null;
+  setConfirming: (id: string | null) => void;
+  repair: Repair;
+}) {
+  const rowId = `songkey-${songId}-${row.keyName}`;
+  const safety = recomputeSafety(row);
+  const showRecompute = safety !== 'none';
+  const needsConfirm = !canApplyWithoutConfirm(safety);
+  const isConfirming = confirming === rowId;
+
+  if (!row.deletable && !showRecompute) return null;
+
+  return (
+    <span className="ml-1 inline-flex flex-wrap gap-1 align-middle">
+      {row.deletable && (
+        <button
+          type="button"
+          disabled={busy}
+          className={BTN_DANGER}
+          onClick={() => repair(
+            `deleted ${row.keyName}`,
+            () => deleteJunkKeyRow(rowId),
+          )}
+        >
+          delete row
+        </button>
+      )}
+
+      {showRecompute && !needsConfirm && (
+        <button
+          type="button"
+          disabled={busy}
+          className={BTN_ACTION}
+          onClick={() => repair(
+            `${row.keyName}: ${row.keyState} → ${row.derivedState}`,
+            () => recomputeKeyStateFromCells(rowId),
+          )}
+        >
+          set to {row.derivedState}
+        </button>
+      )}
+
+      {showRecompute && needsConfirm && !isConfirming && (
+        <button
+          type="button"
+          disabled={busy}
+          className={BTN}
+          title="nothing in this row's cells has been played, so they cannot confirm the stored state"
+          onClick={() => setConfirming(rowId)}
+        >
+          set to {row.derivedState}?
+        </button>
+      )}
+
+      {showRecompute && needsConfirm && isConfirming && (
+        <span className="inline-flex flex-wrap items-center gap-1">
+          <span className="text-[10px] text-needswork">
+            nothing here has been played — setting {row.keyState} → {row.derivedState}{' '}
+            erases the only record you worked this key.
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            className={BTN_DANGER}
+            onClick={() => repair(
+              `${row.keyName}: ${row.keyState} → ${row.derivedState} (overridden)`,
+              () => recomputeKeyStateFromCells(rowId, { force: true }),
+            )}
+          >
+            yes, {row.derivedState}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            className={BTN}
+            onClick={() => setConfirming(null)}
+          >
+            keep {row.keyState}
+          </button>
+        </span>
+      )}
+    </span>
   );
 }

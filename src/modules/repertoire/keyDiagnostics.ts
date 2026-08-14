@@ -155,7 +155,17 @@ export function describeKeyRow(
     // Deleting a row orphans its cells and run-throughs, and no
     // cascade exists anywhere in the codebase — so a row is only
     // offered for deletion when there is nothing to orphan.
-    deletable: !isCanonicalSongKey(row.keyName) && cells.length === 0 && runThroughCount === 0,
+    //
+    // AND never the anchor, however empty. Blessed's only row is a
+    // non-canonical 'Gb' that is also its original key: deleting it
+    // would leave the song with no key rows at all, which is a worse
+    // state than the one being repaired. A bad anchor gets renamed
+    // (normaliseSongKey), never removed.
+    deletable:
+      !isCanonicalSongKey(row.keyName)
+      && row.isOriginalKey !== true
+      && cells.length === 0
+      && runThroughCount === 0,
   };
 }
 
