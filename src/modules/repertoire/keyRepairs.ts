@@ -87,7 +87,10 @@ export function canApplyWithoutConfirm(safety: RecomputeSafety): boolean {
  */
 export async function deleteJunkKeyRow(keyRowId: string): Promise<void> {
   const row = await db.songKeys.get(keyRowId);
-  if (!row) return;
+  // Loudly, not silently. A press that addresses a row which is not
+  // there must say so — a quiet return reports success and changes
+  // nothing, which is indistinguishable from the button being dead.
+  if (!row) throw new Error(`no key row found for id ${keyRowId}`);
   if (row.isOriginalKey === true) {
     throw new Error('refusing to delete the original-key row');
   }
@@ -222,7 +225,9 @@ export async function recomputeKeyStateFromCells(
   opts: { force?: boolean } = {},
 ): Promise<{ from: SongKeyState; to: SongKeyState } | null> {
   const row = await db.songKeys.get(keyRowId);
-  if (!row) return null;
+  // Throws rather than returning null: null here means "nothing to
+  // change", and a missing row must not be reported as agreement.
+  if (!row) throw new Error(`no key row found for id ${keyRowId}`);
 
   const [cells, sections] = await Promise.all([
     db.songCells.where('songKeyId').equals(keyRowId).toArray(),

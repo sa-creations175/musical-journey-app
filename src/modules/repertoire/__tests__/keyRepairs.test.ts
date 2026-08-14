@@ -39,7 +39,8 @@ const SECTIONS = ['verse', 'chorus', 'bridge'];
 
 function info(o: Partial<SongKeyRowInfo> = {}): SongKeyRowInfo {
   return {
-    keyName: 'C', isOriginalKey: false, keyState: 'not_started', updatedAt: NOW,
+    id: 'songkey-s1-C', keyName: 'C', isOriginalKey: false,
+    keyState: 'not_started', updatedAt: NOW,
     cellCount: 0, engagedCellCount: 0, runThroughCount: 0,
     derivedState: null, flags: [], deletable: false, ...o,
   };
@@ -332,3 +333,38 @@ describe('recomputeKeyStateFromCells', () => {
     expect(await recomputeKeyStateFromCells(`songkey-${SONG}-Ab`)).toBeNull();
   });
 });
+
+describe('addressing rows by their stored id', () => {
+  it('acts on a row whose id does NOT match songId + keyName', async () => {
+    // The UI used to rebuild the id from songId and keyName. All three
+    // current generators happen to produce that shape, but a row whose
+    // keyName was edited after creation keeps its original id — and a
+    // rebuilt guess addresses nothing.
+    await seedSong();
+    await db.songKeys.bulkPut([
+      key('Ab', true),
+      { ...key('X', false), id: 'legacy-row-id', keyName: 'B maj' },
+    ]);
+    await deleteJunkKeyRow('legacy-row-id');
+    expect(await db.songKeys.count()).toBe(1);
+  });
+
+  it('THROWS rather than silently succeeding on a missing row', async () => {
+    // The failure this prevents: a press that addresses a row which is
+    // not there returns quietly, the caller reports "done", and
+    // nothing changed. Indistinguishable from a dead button.
+    await seedSong();
+    await expect(deleteJunkKeyRow('does-not-exist')).rejects.toThrow(/no key row found/);
+    await expect(recomputeKeyStateFromCells('does-not-exist')).rejects.toThrow(/no key row found/);
+  });
+
+  it('still returns null for a real row that needs no change', async () => {
+    // "No change needed" and "row missing" must stay distinguishable —
+    // collapsing them is how the silent failure happened.
+    await seedSong();
+    await db.songKeys.put(key('Ab', true, 'not_started'));
+    await db.songCells.bulkPut(SECTIONS.map(sec => cell(`songkey-${SONG}-Ab`, sec)));
+    expect(await recomputeKeyStateFromCells(`songkey-${SONG}-Ab`)).toBeNull();
+  });
+});
+

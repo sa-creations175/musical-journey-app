@@ -56,8 +56,24 @@ export default function RepertoireKeyDiagnostics() {
   const [checkedAt, setCheckedAt] = useState<number>(0);
   /** Last repair outcome, shown inline so a press is never silent. */
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
-  /** Row id awaiting an explicit override confirmation. */
-  const [confirming, setConfirming] = useState<string | null>(null);
+  /**
+   * Row ids awaiting an explicit override confirmation.
+   *
+   * A SET, not a single slot. With one slot, opening a confirm on a
+   * second protected row silently closed the first — so on a report
+   * with several of them the user could never see more than one, and a
+   * press appeared to do nothing. Each row's confirm is its own state.
+   */
+  const [confirming, setConfirming] = useState<ReadonlySet<string>>(new Set());
+
+  const setRowConfirming = (rowId: string, on: boolean) => {
+    setConfirming(prev => {
+      const next = new Set(prev);
+      if (on) next.add(rowId);
+      else next.delete(rowId);
+      return next;
+    });
+  };
 
   /**
    * Run one repair, then re-read. Refusals from the repair layer are
@@ -65,7 +81,7 @@ export default function RepertoireKeyDiagnostics() {
    * paraphrasing them here would put a second, driftable copy of the
    * reasoning in the UI.
    */
-  const repair = async (label: string, fn: () => Promise<unknown>) => {
+  const repair = async (rowId: string | null, label: string, fn: () => Promise<unknown>) => {
     if (busy) return;
     setBusy(true);
     setNote(null);
@@ -78,7 +94,9 @@ export default function RepertoireKeyDiagnostics() {
       setNote({ ok: false, text: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(false);
-      setConfirming(null);
+      // Close only the confirm that was acted on. Leaving the others
+      // open is the point — they are independent decisions.
+      if (rowId) setRowConfirming(rowId, false);
     }
   };
 
@@ -194,10 +212,9 @@ export default function RepertoireKeyDiagnostics() {
                               </span>
                               <RowActions
                                 row={k}
-                                songId={r.songId}
                                 busy={busy}
                                 confirming={confirming}
-                                setConfirming={setConfirming}
+                                setRowConfirming={setRowConfirming}
                                 repair={repair}
                               />
                               {k.flags.length > 0 && (
@@ -249,7 +266,7 @@ export default function RepertoireKeyDiagnostics() {
 // Actions
 // ---------------------------------------------------------------------
 
-type Repair = (label: string, fn: () => Promise<unknown>) => Promise<void>;
+type Repair = (rowId: string | null, label: string, fn: () => Promise<unknown>) => Promise<void>;
 
 /**
  * Song-level repairs: the two decisions the data cannot make.
@@ -278,6 +295,7 @@ function SongActions({
           disabled={busy}
           className={BTN_ACTION}
           onClick={() => repair(
+            null,
             `${entry.title}: ${entry.songKey} → ${target}`,
             () => normaliseSongKey(entry.songId, target),
           )}
@@ -301,6 +319,7 @@ function SongActions({
             disabled={busy}
             className={BTN_ACTION}
             onClick={() => repair(
+              null,
               `${entry.title}: anchor → ${entry.songKey}`,
               () => resolveKeyMismatch(entry.songId, 'use-song-key'),
             )}
@@ -312,6 +331,7 @@ function SongActions({
             disabled={busy}
             className={BTN_ACTION}
             onClick={() => repair(
+              null,
               `${entry.title}: song key → ${anchor.keyName}`,
               () => resolveKeyMismatch(entry.songId, 'use-matrix-anchor'),
             )}
@@ -337,20 +357,22 @@ function SongActions({
  * can, so the decision is theirs and it costs two presses.
  */
 function RowActions({
-  row, songId, busy, confirming, setConfirming, repair,
+  row, busy, confirming, setRowConfirming, repair,
 }: {
   row: SongKeyRowInfo;
-  songId: string;
   busy: boolean;
-  confirming: string | null;
-  setConfirming: (id: string | null) => void;
+  confirming: ReadonlySet<string>;
+  setRowConfirming: (id: string, on: boolean) => void;
   repair: Repair;
 }) {
-  const rowId = `songkey-${songId}-${row.keyName}`;
+  // The stored id, never a reconstruction from songId + keyName: a row
+  // whose keyName changed after creation keeps its original id, and a
+  // guess would address a row that does not exist.
+  const rowId = row.id;
   const safety = recomputeSafety(row);
   const showRecompute = safety !== 'none';
   const needsConfirm = !canApplyWithoutConfirm(safety);
-  const isConfirming = confirming === rowId;
+  const isConfirming = confirming.has(rowId);
 
   if (!row.deletable && !showRecompute) return null;
 
@@ -362,6 +384,7 @@ function RowActions({
           disabled={busy}
           className={BTN_DANGER}
           onClick={() => repair(
+            rowId,
             `deleted ${row.keyName}`,
             () => deleteJunkKeyRow(rowId),
           )}
@@ -376,6 +399,7 @@ function RowActions({
           disabled={busy}
           className={BTN_ACTION}
           onClick={() => repair(
+            rowId,
             `${row.keyName}: ${row.keyState} → ${row.derivedState}`,
             () => recomputeKeyStateFromCells(rowId),
           )}
@@ -390,7 +414,7 @@ function RowActions({
           disabled={busy}
           className={BTN}
           title="nothing in this row's cells has been played, so they cannot confirm the stored state"
-          onClick={() => setConfirming(rowId)}
+          onClick={() => setRowConfirming(rowId, true)}
         >
           set to {row.derivedState}?
         </button>
@@ -407,6 +431,7 @@ function RowActions({
             disabled={busy}
             className={BTN_DANGER}
             onClick={() => repair(
+              rowId,
               `${row.keyName}: ${row.keyState} → ${row.derivedState} (overridden)`,
               () => recomputeKeyStateFromCells(rowId, { force: true }),
             )}
@@ -417,7 +442,7 @@ function RowActions({
             type="button"
             disabled={busy}
             className={BTN}
-            onClick={() => setConfirming(null)}
+            onClick={() => setRowConfirming(rowId, false)}
           >
             keep {row.keyState}
           </button>

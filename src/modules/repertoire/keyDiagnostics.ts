@@ -74,6 +74,14 @@ export type KeyRowFlag =
   | 'state-mismatch';
 
 export interface SongKeyRowInfo {
+  /** The songKeys row id, carried through verbatim.
+   *
+   *  NOT reconstructible from songId + keyName, though all three
+   *  current generators happen to use that shape: a row whose keyName
+   *  was edited after creation keeps its original id, and a rebuilt
+   *  guess would address a row that does not exist. Repairs act on
+   *  this. */
+  id: string;
   keyName: string;
   isOriginalKey: boolean;
   keyState: SongKeyState;
@@ -143,6 +151,7 @@ export function describeKeyRow(
   }
 
   return {
+    id: row.id,
     keyName: row.keyName,
     isOriginalKey: row.isOriginalKey === true,
     keyState: row.keyState,
