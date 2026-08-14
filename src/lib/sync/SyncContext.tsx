@@ -6,6 +6,12 @@ import { setCurrentUserId } from './currentUser';
 import { pullAll, drain, clearLocalCache, refreshFromCloud } from './engine';
 import { markSyncReady, resetSyncReady } from './syncReady';
 import './backfill'; // side-effect: registers window.__backfillUnsyncedRows
+// side-effect: registers window.__backfillDailySummaries. Lives here
+// rather than anywhere else because its trigger IS a sync event —
+// attempt rows arriving from another device leave dailySummaries with
+// gaps for the days they belong to. Without this import the module is
+// tree-shaken out and the console handle silently never exists.
+import '../dailySummariesBackfill';
 import { db } from '../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 
