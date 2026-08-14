@@ -1,5 +1,6 @@
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { computeSolidDecayState, daysSinceEngaged } from './solidDecay';
+import { isKeyRowEngaged } from './songLevelState';
 
 /**
  * One row of the matrix: key name cell on the left (with the
@@ -58,7 +59,9 @@ export default function KeyRow({
   onCellTap,
   onRunTest,
 }: Props) {
-  const keyEngaged = songKey !== null;
+  // See isKeyRowEngaged — row existence stopped meaning "touched" once
+  // all 12 keys are materialised.
+  const keyEngaged = isKeyRowEngaged(songKey);
   const keyState = songKey?.keyState ?? 'not_started';
 
   return (

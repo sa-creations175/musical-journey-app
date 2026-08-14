@@ -20,6 +20,23 @@ import { computeSolidDecayState } from './solidDecay';
  * note line 283). The shape returned reflects that: we always
  * compute crossKeyPercent and let the consumer decide whether to
  * display it for a given top-level state.
+ *
+ * ---------------------------------------------------------------
+ * "HAS CELLS" IS NOT "HAS PRACTISED"
+ *
+ * The spec sentence above says Cross-key means "any non-original key
+ * has cells", and this file used to implement it literally, as
+ * `nonOriginalKeyCells.length > 0`. That held only while cells were
+ * created one key at a time by an explicit user choice — the row
+ * existing WAS the choice.
+ *
+ * It stops holding the moment the matrix materialises all 12 keys
+ * up front: every song would read Cross-key the instant its original
+ * key reached Comfortable, having never been played in another key.
+ * The distinction the state machine actually wants is ENGAGEMENT, so
+ * that is what `isCellEngaged` encodes, and the spec's wording is
+ * read as intent rather than as a predicate.
+ * ---------------------------------------------------------------
  */
 
 export type SongLevelStateName =
@@ -56,6 +73,66 @@ export interface SongLevelState {
  *  Internalized through fresh practice, not by virtue of migration. */
 function isLivedWith(key: SongKey): boolean {
   return key.livedWithSessionsInWindow >= 5;
+}
+
+/**
+ * Whether a cell represents practice that actually happened.
+ *
+ * A materialised cell starts `empty` with `lastRunAt: null`; both move
+ * only through `cellRollup`, i.e. only when the user logs a run-through.
+ *
+ * Both fields are checked, not just `cellState`: a run-through that
+ * wasn't clean sets `lastRunAt` while leaving the state at `empty`
+ * (see applyAttemptsToCell). That is still engagement — the user
+ * played it — and counting it as untouched would under-report exactly
+ * the cells they are working hardest on.
+ *
+ * Exported as the single definition of "engaged" so the state machine
+ * and the cross-key prompt cannot drift apart on it.
+ */
+export function isCellEngaged(cell: SongCell): boolean {
+  return cell.cellState !== 'empty' || cell.lastRunAt !== null;
+}
+
+/**
+ * Whether a key row represents practice that actually happened —
+ * the signal behind the matrix's row dimming.
+ *
+ * Was `songKey !== null` inline in KeyRow. Row existence answered
+ * "is this key in the grid", which after materialisation is true for
+ * all 12; every row would un-dim and the grid would lose the only
+ * at-a-glance mark of where the user has actually been.
+ *
+ * `keyState` moves only through cellRollup, so it is the state
+ * machine's own answer to the same question. Lifted out of the
+ * component so it can be tested on the predicate rather than on
+ * rendered output — a count of rows would pass either way.
+ */
+export function isKeyRowEngaged(songKey: SongKey | null): boolean {
+  return songKey !== null && songKey.keyState !== 'not_started';
+}
+
+/**
+ * Whether the user has practised this song in any key other than the
+ * original — the real signal behind both the Cross-key state and the
+ * cross-key expansion prompt.
+ *
+ * Deliberately derived from CELLS rather than from the existence of
+ * `songKeys` rows: after full materialisation every song has 12 key
+ * rows, so counting rows would answer "does the grid exist", not
+ * "have they gone cross-key".
+ */
+export function hasCrossKeyEngagement(
+  songKeys: ReadonlyArray<SongKey>,
+  songCells: ReadonlyArray<SongCell>,
+): boolean {
+  const nonOriginalKeyIds = new Set(
+    songKeys.filter(k => !k.isOriginalKey).map(k => k.id),
+  );
+  if (nonOriginalKeyIds.size === 0) return false;
+  return songCells.some(
+    c => nonOriginalKeyIds.has(c.songKeyId) && isCellEngaged(c),
+  );
 }
 
 /** Live-derive lapsed status — the persisted solidDecayState column
@@ -108,7 +185,14 @@ export function computeSongLevelState(
     // is "original Comfortable OR Solid" — the Solid arm is already
     // handled, so checking 'comfortable' alone covers what reaches
     // this point.
-    if (originalKey?.keyState === 'comfortable' && nonOriginalKeyCells.length > 0) {
+    // ENGAGED non-original cells, not merely existing ones — see the
+    // header note. `nonOriginalKeyCells` is the materialised grid;
+    // filtering it is what separates "has 11 other rows" from "has
+    // played it in another key".
+    if (
+      originalKey?.keyState === 'comfortable'
+      && nonOriginalKeyCells.some(isCellEngaged)
+    ) {
       return 'cross_key';
     }
     if (originalKey?.keyState === 'comfortable') return 'comfortable';

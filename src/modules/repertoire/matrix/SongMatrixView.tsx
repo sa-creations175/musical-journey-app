@@ -16,7 +16,11 @@ import SectionSetupModal from './SectionSetupModal';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
 import { computeSolidDecayState } from './solidDecay';
-import { computeSongLevelState, songLevelStateLabel } from './songLevelState';
+import {
+  computeSongLevelState,
+  hasCrossKeyEngagement,
+  songLevelStateLabel,
+} from './songLevelState';
 
 /**
  * Section × key matrix view for a single song. Step 3a ships this
@@ -185,11 +189,23 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   // so the modal re-opens — that's the intentional "give them
   // another chance" behaviour. A persistent opt-out can layer on
   // later if it becomes annoying.
+  // DELIBERATE PATCH, not a fix — CrossKeyFollowupModal is deferred to
+  // a later repair and this keeps its prompt alive in the meantime.
+  //
+  // The guard used to be `songKeys.length === 1`, i.e. "only the
+  // original key row exists". That read row existence as intent, which
+  // was true while keys were created one at a time by choosing them.
+  // Now that all 12 are materialised up front it is never true, and the
+  // prompt would simply never fire again — the modal would join
+  // SectionSetupModal as unreachable-by-construction, which is the
+  // failure this whole repair exists to undo.
+  //
+  // Same substitution as the state machine: ask whether any non-original
+  // key has been PLAYED, not whether its row exists.
   const eligibleForCrossKey =
     song.stage === 'cross-key'
     && visibleSections.length > 0
-    && songKeys.length === 1
-    && songKeys[0]?.isOriginalKey === true;
+    && !hasCrossKeyEngagement(songKeys, songCells);
 
   if (eligibleForCrossKey && !crossKeyAutoFired) {
     setCrossKeyAutoFired(true);
