@@ -6,6 +6,7 @@ import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import { migrateSongsToMatrixIfNeeded } from './matrixMigration';
+import { materialiseAllSongs } from './matrix/materialise';
 import { seedRepertoireIfNeeded } from './seedSongs';
 import { seedVoicingPatternsIfNeeded } from '../shapes-and-patterns/seedVoicingPatterns';
 import ActiveRepertoireView from './ActiveRepertoireView';
@@ -60,9 +61,17 @@ export default function Repertoire() {
   // original-key row. Lifecycle-aware: the helper awaits sync-ready
   // before writing. See src/modules/repertoire/matrixMigration.ts.
   useEffect(() => {
-    void migrateSongsToMatrixIfNeeded().catch(err => {
-      console.warn('[repertoire] matrix migration failed', err);
-    });
+    void migrateSongsToMatrixIfNeeded()
+      // Then fill every song's grid: all twelve keys, every section, a
+      // real cell in each intersection. Chained rather than parallel —
+      // materialisation builds on the original-key row the migration
+      // creates. Both are idempotent and both wait for sync-ready, so
+      // the rows reach Supabase instead of being deleted as orphans by
+      // the next replace-mode pull.
+      .then(() => materialiseAllSongs())
+      .catch(err => {
+        console.warn('[repertoire] matrix materialisation failed', err);
+      });
   }, []);
 
   // Declared above the prefs-load effect so that effect can defer to an

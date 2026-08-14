@@ -11,8 +11,6 @@ import {
 import CellInteractionModal from './CellInteractionModal';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
-import SectionSetupBanner from './SectionSetupBanner';
-import SectionSetupModal from './SectionSetupModal';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
 import { computeSolidDecayState } from './solidDecay';
@@ -95,20 +93,10 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
     [] as SongKeyRunThrough[],
   );
 
-  // Modal lifecycle for the section setup flow lives here so the
-  // banner can stay a stateless presentational component.
-  // closeSetup is memoized so the SectionSetupModal's handleClose
-  // (also memoized) stays stable across re-renders — Modal's
-  // focus-handling useEffect treats onClose as a dep and would
-  // otherwise re-fire on every keystroke, stealing focus from the
-  // modal's text inputs.
-  const [setupOpen, setSetupOpen] = useState(false);
-  const closeSetup = useCallback(() => setSetupOpen(false), []);
-
   // Cross-key follow-up modal — auto-fires once per mount when the
   // song was migrated from legacy `stage: 'cross-key'`, sections
   // exist, and no non-original songKeys rows exist yet. Same close-
-  // handler memoization rationale as closeSetup.
+  // handler memoization rationale as the other modal closers.
   const [crossKeyOpen, setCrossKeyOpen] = useState(false);
   const [crossKeyAutoFired, setCrossKeyAutoFired] = useState(false);
   const closeCrossKey = useCallback(() => setCrossKeyOpen(false), []);
@@ -197,7 +185,7 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   // was true while keys were created one at a time by choosing them.
   // Now that all 12 are materialised up front it is never true, and the
   // prompt would simply never fire again — the modal would join
-  // SectionSetupModal as unreachable-by-construction, which is the
+  // the section-setup modal as unreachable-by-construction, which is the
   // failure this whole repair exists to undo.
   //
   // Same substitution as the state machine: ask whether any non-original
@@ -302,9 +290,6 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
         lapsedKeyCount={lapsedKeyCount}
       />
 
-      {visibleSections.length === 0 && (
-        <SectionSetupBanner onSetUp={() => setSetupOpen(true)} />
-      )}
 
       <WholeSongTestBanner
         eligibleKeys={eligibleTestKeys}
@@ -321,12 +306,6 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
         onRunTest={handleRunTest}
       />
 
-      <SectionSetupModal
-        open={setupOpen}
-        onClose={closeSetup}
-        song={song}
-        songKeys={songKeys}
-      />
 
       {originalKey && (
         <CrossKeyFollowupModal

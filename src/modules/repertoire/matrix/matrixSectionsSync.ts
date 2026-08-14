@@ -1,4 +1,5 @@
 import { db, type SongMatrixSection, type SongSection } from '../../../lib/db';
+import { materialiseMatrixForSong } from './materialise';
 
 /**
  * One-way reconciler: bring `songMatrixSections` into sync with the
@@ -196,8 +197,14 @@ export function installMatrixSectionsHook(): void {
 function schedule(songId: string | undefined): void {
   if (typeof songId !== 'string' || songId === '') return;
   setTimeout(() => {
-    void syncMatrixSectionsForSong(songId).catch(err => {
-      console.warn('[matrix-sections-sync] reconcile failed', err);
-    });
+    void syncMatrixSectionsForSong(songId)
+      // A new section needs a cell in all twelve keys, or the column
+      // renders inert exactly the way the whole grid used to. Chained
+      // rather than parallel: materialisation reads the matrix rows
+      // the reconcile above has just written.
+      .then(() => materialiseMatrixForSong(songId))
+      .catch(err => {
+        console.warn('[matrix-sections-sync] reconcile failed', err);
+      });
   }, 0);
 }

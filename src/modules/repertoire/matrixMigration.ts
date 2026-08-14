@@ -6,6 +6,7 @@ import {
   type SongKeyState,
 } from '../../lib/db';
 import { whenSyncReady } from '../../lib/sync/syncReady';
+import { songKeyRowId } from './matrix/ids';
 
 /**
  * Phase 1.5 step 2 — auto-populate `songKeys` for every existing
@@ -111,7 +112,7 @@ function buildOriginalKeyRow(song: Song, now: number): SongKey {
   const keyName = song.key ?? 'C';
 
   return {
-    id: `songkey-${song.id}-${keyName}`,
+    id: songKeyRowId(song.id, keyName),
     songId: song.id,
     keyName,
     isOriginalKey: true,

@@ -8,6 +8,7 @@ import {
   type SongMatrixSection,
 } from '../../../lib/db';
 import { keysOrderedFromOriginal } from './keys';
+import { songCellRowId, songKeyRowId } from './ids';
 
 /**
  * Cross-key follow-up — auto-fires after section setup completes
@@ -92,7 +93,7 @@ export default function CrossKeyFollowupModal({
         // the original key. Lets a stale re-run upsert without
         // duplicates on this device or across sync from another
         // device that picked the same keys.
-        id: `songkey-${song.id}-${keyName}`,
+        id: songKeyRowId(song.id, keyName),
         songId: song.id,
         keyName,
         isOriginalKey: false,
@@ -119,7 +120,7 @@ export default function CrossKeyFollowupModal({
       for (const newKey of newKeyRows) {
         for (const section of visibleSections) {
           newCellRows.push({
-            id: `cell-${newKey.id}-${section.id}`,
+            id: songCellRowId(newKey.id, section.id),
             songId: song.id,
             sectionId: section.id,
             songKeyId: newKey.id,

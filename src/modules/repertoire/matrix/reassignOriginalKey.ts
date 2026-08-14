@@ -1,4 +1,5 @@
 import { db, type SongKey } from '../../../lib/db';
+import { songKeyRowId } from './ids';
 
 /**
  * Reassign which row in `db.songKeys` carries `isOriginalKey: true`
@@ -104,7 +105,7 @@ function buildOriginalKeyRow(
   now: number,
 ): SongKey {
   return {
-    id: `songkey-${songId}-${keyName}`,
+    id: songKeyRowId(songId, keyName),
     songId,
     keyName,
     isOriginalKey: true,
