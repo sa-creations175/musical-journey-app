@@ -165,7 +165,7 @@ export default function ProductionOverview({
                     onClick={() => onOpenLesson(l.id)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-production/5 transition-colors"
                   >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${MASTERY_DOT[s.mastery]}`} aria-hidden />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${MASTERY_DOT[s.mastery ?? 'not-started']}`} aria-hidden />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate">{l.title}</div>
                       <div className="text-[10px] text-neutral-500 truncate">{l.goal}</div>

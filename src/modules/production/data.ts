@@ -5,7 +5,7 @@ import {
   type LessonReferenceTrack,
   type ProductionLesson,
   type ProductionLessonMastery,
-  type ProductionLessonRating,
+  type LegacySessionFeelRating,
   type ProductionLessonSession,
   type ReferenceTrack,
 } from '../../lib/db';
@@ -103,6 +103,7 @@ async function runProductionSeed(): Promise<void> {
       id: l.id,
       pathId: l.pathId,
       order: l.order,
+      rating: 0,
       mastery: 'not-started' as ProductionLessonMastery,
       revisitCount: 0,
       completedAt: null,
@@ -297,7 +298,7 @@ export async function recordLessonOpen(
  */
 export async function recordLessonRating(
   lessonId: string,
-  rating: ProductionLessonRating,
+  rating: LegacySessionFeelRating,
   startedAt: number,
 ): Promise<ProductionLessonSession> {
   const endedAt = Date.now();

@@ -339,10 +339,10 @@ describe('backfillSpacingStateIfNeeded — Production', () => {
   it('mirrors mastery enum directly; not-started → no row', async () => {
     const now = 1000;
     await db.productionLessons.bulkAdd([
-      { id: 'wf-01', pathId: 'workflow', order: 1, mastery: 'not-started', revisitCount: 0, completedAt: null, lastOpenedAt: null, createdAt: now, updatedAt: now },
-      { id: 'wf-02', pathId: 'workflow', order: 2, mastery: 'in-progress', revisitCount: 1, completedAt: null, lastOpenedAt: now, createdAt: now, updatedAt: now },
-      { id: 'wf-03', pathId: 'workflow', order: 3, mastery: 'completed',   revisitCount: 3, completedAt: now,  lastOpenedAt: now, createdAt: now, updatedAt: now },
-      { id: 'wf-04', pathId: 'workflow', order: 4, mastery: 'mastered',    revisitCount: 5, completedAt: now,  lastOpenedAt: now, createdAt: now, updatedAt: now },
+      { id: 'wf-01', pathId: 'workflow', order: 1, rating: 0, mastery: 'not-started', revisitCount: 0, completedAt: null, lastOpenedAt: null, createdAt: now, updatedAt: now },
+      { id: 'wf-02', pathId: 'workflow', order: 2, rating: 0, mastery: 'in-progress', revisitCount: 1, completedAt: null, lastOpenedAt: now, createdAt: now, updatedAt: now },
+      { id: 'wf-03', pathId: 'workflow', order: 3, rating: 0, mastery: 'completed',   revisitCount: 3, completedAt: now,  lastOpenedAt: now, createdAt: now, updatedAt: now },
+      { id: 'wf-04', pathId: 'workflow', order: 4, rating: 0, mastery: 'mastered',    revisitCount: 5, completedAt: now,  lastOpenedAt: now, createdAt: now, updatedAt: now },
     ]);
     await backfillSpacingStateIfNeeded();
     const not = await getSpacingState('wf-01', 'production');
@@ -392,7 +392,7 @@ describe('backfillSpacingStateIfNeeded — counts', () => {
       correct: true, timestamp: now,
     });
     await db.productionLessons.add({
-      id: 'wf-01', pathId: 'workflow', order: 1, mastery: 'completed',
+      id: 'wf-01', pathId: 'workflow', order: 1, rating: 0, mastery: 'completed',
       revisitCount: 1, completedAt: now, lastOpenedAt: now,
       createdAt: now, updatedAt: now,
     });

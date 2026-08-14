@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type ProductionLessonMastery, type ProductionLessonRating } from '../../lib/db';
+import { db, type ProductionLessonMastery, type LegacySessionFeelRating } from '../../lib/db';
 import Modal from '../../components/Modal';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import { lessonById } from './content/lessons';
@@ -81,7 +81,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
   // navigation back to the parent. The rating modal is the ONLY path
   // to recordLessonRating, so leaving the lesson any other way
   // (back button, sidebar, browser back) writes no rated row.
-  const handleSubmitRating = async (rating: ProductionLessonRating) => {
+  const handleSubmitRating = async (rating: LegacySessionFeelRating) => {
     if (!lesson) return;
     await recordLessonRating(lesson.id, rating, startedAtRef.current);
     setRatingOpen(false);
@@ -292,7 +292,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
 // -------------------------------------------------------------------
 
 const LESSON_FEEL_OPTIONS: ReadonlyArray<{
-  value: ProductionLessonRating;
+  value: LegacySessionFeelRating;
   label: string;
   hint: string;
   activeClass: string;
@@ -339,9 +339,9 @@ function LessonRatingModal({
 }: {
   lessonTitle: string;
   onClose: () => void;
-  onSubmit: (rating: ProductionLessonRating) => void | Promise<void>;
+  onSubmit: (rating: LegacySessionFeelRating) => void | Promise<void>;
 }) {
-  const [selected, setSelected] = useState<ProductionLessonRating | null>(null);
+  const [selected, setSelected] = useState<LegacySessionFeelRating | null>(null);
   const [saving, setSaving] = useState(false);
 
   const save = async () => {

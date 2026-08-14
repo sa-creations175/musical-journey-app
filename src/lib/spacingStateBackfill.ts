@@ -318,6 +318,6 @@ async function backfillProduction(
 ): Promise<void> {
   const lessons = await db.productionLessons.toArray();
   for (const lesson of lessons) {
-    await bump('production', lesson.id, STAGE_FOR_MASTERY[lesson.mastery]);
+    await bump('production', lesson.id, STAGE_FOR_MASTERY[lesson.mastery ?? 'not-started']);
   }
 }

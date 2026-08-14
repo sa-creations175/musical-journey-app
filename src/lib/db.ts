@@ -961,12 +961,44 @@ export interface CreativeSession {
 // here carry per-user state on top. A seed function migrates any
 // new content into the user's DB on mount (idempotent).
 
-/** Mastery state for a production lesson. */
+/**
+ * Self-rating for a production lesson — a five-step ladder over what
+ * the lesson page actually offers, stored as a 0-100 value so it
+ * reads as a percentage anywhere a progress figure is wanted:
+ *
+ *   0    not started  — untouched
+ *   25   read it      — the lesson body
+ *   50   deep dive    — the Deep dive section / reference tutorial
+ *   75   tried it     — the Try now block
+ *   100  mastered     — owns it
+ *
+ * The ladder describes DOING the thing, not recalling it: that is why
+ * "tried it" sits above "deep dive", and why coverage (see
+ * STAGE_FOR_RATING in the Production module) begins at 75 rather
+ * than at comprehension. Replaces the former `mastery` enum,
+ * `openedDeepDive` boolean and flying/cruising/crawling session
+ * rating, which overlapped and disagreed.
+ */
+export type ProductionLessonRating = 0 | 25 | 50 | 75 | 100;
+
+/** Mastery state for a production lesson.
+ *  @deprecated Replaced by [[ProductionLessonRating]]. Every reader is
+ *  retired across this build sequence; the type and the fields typed
+ *  by it are deleted once the last one goes. No row carries a value
+ *  after the v35 wipe. */
 export type ProductionLessonMastery =
   | 'not-started'
   | 'in-progress'
   | 'completed'
   | 'mastered';
+
+/** Self-reported feel for a Production lesson session — the former
+ *  3-point vocabulary.
+ *  @deprecated Replaced by the five-step [[ProductionLessonRating]].
+ *  Retained only so the not-yet-rewritten rating modal compiles; it
+ *  and the modal go together. No row carries a value after the v35
+ *  wipe. */
+export type LegacySessionFeelRating = 'flying' | 'cruising' | 'crawling';
 
 export interface ProductionLesson {
   /** Stable string id — e.g. 'wf-01' for the first Workflow lesson. */
@@ -975,22 +1007,21 @@ export interface ProductionLesson {
   pathId: string;
   /** Ordering within the path. */
   order: number;
-  /** User mastery state. Seeds as 'not-started'. */
-  mastery: ProductionLessonMastery;
+  /** Cumulative self-rating for this lesson — the single source of
+   *  truth for where the user stands on it. Seeds as 0 (not started). */
+  rating: ProductionLessonRating;
+  /** @deprecated See [[ProductionLessonMastery]]. */
+  mastery?: ProductionLessonMastery;
   /** Number of times the user has opened this lesson. */
   revisitCount: number;
-  /** Timestamp of first completion, null until Mastered/Completed. */
-  completedAt: number | null;
+  /** @deprecated Written by the old mastery path, read by nothing.
+   *  `updatedAt` already carries when the rating last moved. */
+  completedAt?: number | null;
   /** Last time the user opened the lesson. */
   lastOpenedAt: number | null;
   createdAt: number;
   updatedAt: number;
 }
-
-/** Self-reported feel for a Production lesson session — same 3-point
- *  vocabulary as [[SongRunThroughRating]], kept as its own named type
- *  so the two domains can diverge later without a shared-type ripple. */
-export type ProductionLessonRating = 'flying' | 'cruising' | 'crawling';
 
 export interface ProductionLessonSession {
   /** Generated uid. */
@@ -998,24 +1029,29 @@ export interface ProductionLessonSession {
   lessonId: string;
   /** When this session event was recorded. For a rated session (see
    *  `rating`) this is lessonEndedAt — the moment the user submitted
-   *  the Flying / Cruising / Crawling rating. */
+   *  the rating. */
   timestamp: number;
   /** Duration the user spent in this session (seconds). Set on rated
    *  sessions as `timestamp - startedAt`; otherwise optional and
    *  currently unset on the passive open events. */
   durationSeconds?: number;
-  /** Whether this visit opened the Deep Dive layer. */
-  openedDeepDive: boolean;
+  /** @deprecated Written since the module shipped, read by nothing.
+   *  The Deep dive step is a rating value now, not a side channel. */
+  openedDeepDive?: boolean;
   /** lessonStartedAt — when the user entered the lesson page for the
    *  session this row rates. Present only on rated sessions; paired
    *  with `timestamp` (lessonEndedAt) it gives the honest session
    *  duration for future calibration. */
   startedAt?: number;
-  /** Self-reported feel for the lesson session (Phase B Decision 4).
-   *  A Production attempt counts when this is submitted — rows
-   *  without a rating are passive open events (recordLessonOpen), not
-   *  attempts. */
-  rating?: ProductionLessonRating;
+  /** The rating the user submitted in this session — the timestamped
+   *  EVENT, where ProductionLesson.rating is the cumulative state.
+   *  A Production attempt counts when this is present; rows without
+   *  it are passive open events (recordLessonOpen), not attempts.
+   *
+   *  The legacy arm exists only until the rating modal is rewritten
+   *  and goes with it — no stored row carries a string after the v35
+   *  wipe. */
+  rating?: ProductionLessonRating | LegacySessionFeelRating;
 }
 
 /** Per-user understanding state for a glossary term. */
@@ -3491,6 +3527,52 @@ export class AppDB extends Dexie {
       // Ids were minted in v33; carry them across unchanged so the two
       // halves of the move cannot disagree about what a row is.
       await tx.table('attempts').bulkAdd(rows);
+    });
+
+    // v35 — Production lessons move from three overlapping signals
+    // (a 4-state `mastery` enum, an `openedDeepDive` boolean, and a
+    // flying/cruising/crawling session `rating` whose value nothing
+    // read) to one five-step self-rating: 0 / 25 / 50 / 75 / 100.
+    //
+    // DELIBERATE WIPE, no migration. The old values don't map onto
+    // the new steps — "completed" could mean read-and-understood or
+    // actually-tried, and `openedDeepDive` recorded a page interaction
+    // rather than a claim — so inferring a starting rating would
+    // manufacture a number the user never gave. Every lesson resets to
+    // 0 (not started) and the session log starts empty.
+    //
+    // Three tables are touched:
+    //   productionLessons        — cleared; the module's seed re-adds
+    //                              all 56 lessons at rating 0 on next
+    //                              mount (runProductionSeed is
+    //                              idempotent and keyed on id).
+    //   productionLessonSessions — cleared; every row is either a
+    //                              passive open event or a legacy
+    //                              string rating, neither of which
+    //                              means anything under the new scale.
+    //   spacingState             — production rows dropped, since they
+    //                              mirrored the mastery enum. Absence
+    //                              is the canonical "new" state, so
+    //                              deleting is the honest reset;
+    //                              re-asserted on the first rating.
+    //
+    // The `mastery` index is retired from the store string: nothing
+    // ever queried by it (no `where('mastery')` anywhere), so it was
+    // pure write cost. `rating` is deliberately NOT indexed in its
+    // place — the module loads its lessons by path or in full and
+    // filters in memory, and IndexedDB gains nothing from an index
+    // over five distinct values across 56 rows.
+    this.version(35).stores({
+      productionLessons: 'id, pathId, [pathId+order], lastOpenedAt',
+    }).upgrade(async tx => {
+      await tx.table('productionLessons').clear();
+      await tx.table('productionLessonSessions').clear();
+
+      const spacing = tx.table('spacingState');
+      const productionRowIds = (await spacing.toArray())
+        .filter(r => r.moduleRef === 'production')
+        .map(r => r.id);
+      if (productionRowIds.length) await spacing.bulkDelete(productionRowIds);
     });
   }
 }
