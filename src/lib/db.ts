@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 
 export interface IntervalData {
   id: string;
@@ -2212,6 +2213,40 @@ export class AppDB extends Dexie {
 
   constructor() {
     super('musical-journey');
+
+    // --- Cross-tab upgrade handling ---------------------------------
+    // Registered BEFORE any version() call so it is in place for the
+    // very first open, which is when an upgrade actually runs.
+    //
+    // Dexie ships defaults for both of these (dexie.js:5946 / :5953).
+    // Subscribers chain in reverse and are stoppable
+    // (`reverseStoppableEventChain`, dexie.js:549), so these run first
+    // and `return false` suppresses the default.
+    //
+    // versionchange — another tab is upgrading and needs this
+    // connection gone. Dexie's default closes with auto-open still
+    // ENABLED, so the next query here quietly reopens at the version
+    // this bundle declares, which is now older than the one on disk;
+    // IndexedDB rejects it and the tab is left with queries that never
+    // resolve. Closing with `disableAutoOpen` instead means the tab
+    // stops rather than half-works, and dbLifecycle decides whether to
+    // reload it or hold it behind an overlay.
+    this.on('versionchange', () => {
+      this.close({ disableAutoOpen: true });
+      onAnotherTabUpgrading();
+      return false;
+    });
+
+    // blocked — the mirror case: THIS tab is upgrading and another
+    // connection hasn't yielded (a suspended tab that never processed
+    // its versionchange). Nothing here can resolve it, so surface it
+    // rather than sitting on a spinner. Dexie's default only warns to
+    // the console.
+    this.on('blocked', () => {
+      onUpgradeBlocked();
+      return false;
+    });
+
     this.version(1).stores({
       intervals: 'id, name, semitones',
       chordQualities: 'id, name, tier, family',

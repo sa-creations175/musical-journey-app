@@ -36,6 +36,7 @@ import PracticeSessions from './modules/practice/PracticeSessions';
 import ActiveSessionScreen from './modules/practice/ActiveSessionScreen';
 import { InstrumentProvider } from './lib/instrumentContext';
 import { Toaster } from './components/Toaster';
+import DbUpgradeOverlay from './components/DbUpgradeOverlay';
 import { AuthProvider } from './lib/auth/AuthContext';
 import AuthGate from './lib/auth/AuthGate';
 import { SyncProvider } from './lib/sync/SyncContext';
@@ -102,6 +103,10 @@ export default function App() {
             )}
           </Route>
         </Routes>
+        {/* Inside the router (needs the route) and inside the session
+            provider (needs session state) — both feed the idle probe
+            that decides auto-reload vs overlay on a cross-tab upgrade. */}
+        <DbUpgradeOverlay />
       </BrowserRouter>
       </Toaster>
     </SessionTimerProvider>
