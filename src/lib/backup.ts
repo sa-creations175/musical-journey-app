@@ -1,5 +1,5 @@
 import type { Table } from 'dexie';
-import { db } from './db';
+import { db, newAttemptId } from './db';
 import { setPref } from './userPrefs';
 import { APP_VERSION } from './appVersion';
 import { localDayKey } from './dailyGoal';
@@ -124,6 +124,46 @@ export async function readBackupFile(file: File): Promise<BackupValidation> {
   }
 }
 
+/**
+ * Give every attempt row a string id, minting one where it is missing
+ * or numeric.
+ *
+ * ---------------------------------------------------------------
+ * WHY THIS ISN'T HANDLED BY THE STORE REJECTING IT
+ *
+ * `attempts` moved from `++id` auto-increment to client-generated
+ * `att-<uuid>` in v33/v34, so every backup exported before then holds
+ * numeric ids. The tempting assumption is that restoring one fails
+ * loudly — it does not. IndexedDB accepts numbers as keys, so those
+ * rows restore CLEANLY and then sit there permanently unsyncable:
+ * `queueUpsert` skips any row whose id isn't a string (hooks.ts) and
+ * `toPgRow` throws on one (engine.ts), so the write is dropped with a
+ * console warning nobody reads. And numeric ids are what collided
+ * across devices in the first place.
+ *
+ * A restore is also the one moment the app knowingly overwrites
+ * everything, so silently importing rows that can never leave the
+ * device is the worst possible time for it.
+ * ---------------------------------------------------------------
+ *
+ * Minting fresh ids is safe here precisely because nothing references
+ * an attempt id: no foreign key anywhere in the schema, and no reader
+ * orders by it. Identity for an attempt is (moduleId, itemId,
+ * timestamp), all of which are preserved untouched.
+ *
+ * Pure, and exported for its own tests.
+ */
+export function normalizeRestoredAttempts(
+  rows: ReadonlyArray<unknown>,
+): unknown[] {
+  return rows.map(row => {
+    if (!row || typeof row !== 'object') return row;
+    const id = (row as { id?: unknown }).id;
+    if (typeof id === 'string' && id !== '') return row;
+    return { ...(row as Record<string, unknown>), id: newAttemptId() };
+  });
+}
+
 export async function restoreBackup(backup: BackupFile): Promise<void> {
   const tables = TABLE_NAMES.map(name => TABLES[name] as unknown as Table<unknown, unknown>);
   await db.transaction('rw', tables, async () => {
@@ -132,7 +172,9 @@ export async function restoreBackup(backup: BackupFile): Promise<void> {
       await table.clear();
       const rows = backup.data[name];
       if (Array.isArray(rows) && rows.length > 0) {
-        await table.bulkPut(rows);
+        await table.bulkPut(
+          name === 'attempts' ? normalizeRestoredAttempts(rows) : rows,
+        );
       }
     }
   });
