@@ -5,6 +5,7 @@ import Modal from '../../components/Modal';
 import { DEFAULT_STAGE } from './stage';
 import { assignNextLearningOrder } from './seedSongs';
 import { useToast } from '../../components/Toaster';
+import { SONG_KEY_OPTIONS } from './matrix/keys';
 
 interface Props {
   onClose: () => void;
@@ -283,12 +284,26 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="flex flex-col gap-1">
               <span className="text-neutral-500 text-xs uppercase tracking-wide">key</span>
-              <input
+              {/* A picker, matching the meta editor. Free text here was
+                  the last remaining way a non-key ("B maj", "Ab flat",
+                  "B maj / G# min") could reach songKeys.keyName: the
+                  value flows into Song.key, then verbatim into
+                  buildOriginalKeyRow. Cleaning the existing junk while
+                  this stayed open would only have re-dirtied on the
+                  next song added.
+
+                  Blank stays allowed — a song whose key you don't know
+                  yet shouldn't be forced to claim one. */}
+              <select
                 value={key}
                 onChange={e => setKey(e.target.value)}
-                placeholder="e.g. G"
                 className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-              />
+              >
+                <option value="">(not set)</option>
+                {SONG_KEY_OPTIONS.map(k => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-neutral-500 text-xs uppercase tracking-wide">tempo</span>
