@@ -275,8 +275,18 @@ export function deriveRatingStage(
 /** Mirrors `feelToRating` in repertoire/PracticeLogModal.tsx (the
  *  5-point version, more lenient than the procedural 4-point). Same
  *  duplication rationale as the procedural variant above. */
+/**
+ * Takes a raw `number`, and deliberately keeps the FIVE-point mapping.
+ *
+ * This is a one-shot backfill over rows written before the fifth step
+ * ("breakthrough") was dropped, so it has to interpret them under the
+ * scale they were written in — normalising 5 onto 4 here would
+ * retroactively downgrade every breakthrough session from flying to
+ * cruising. Normalisation belongs on the paths that compare or display
+ * a feel going forward, not on one reading history.
+ */
 function feelToRatingIntegration(
-  feel: 1 | 2 | 3 | 4 | 5,
+  feel: number,
 ): 'flying' | 'cruising' | 'crawling' {
   if (feel >= 5) return 'flying';
   if (feel >= 3) return 'cruising';

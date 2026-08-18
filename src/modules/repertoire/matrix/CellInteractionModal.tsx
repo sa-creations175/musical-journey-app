@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import Modal from '../../../components/Modal';
+import type { Feel } from '../../../lib/fluencyScale';
+import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
 import {
   db,
   type Song,
@@ -480,35 +482,34 @@ function AddAttemptArea({
 
 // -------------------------------------------------------------------
 
-const FEEL_OPTIONS: ReadonlyArray<{
-  value: SongRunThroughRating;
-  label: string;
-  hint: string;
-  activeClass: string;
-  inactiveClass: string;
-}> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    hint: 'effortless',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    inactiveClass: 'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    hint: 'steady, clean',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
+/**
+ * Presentation for the shared four-step scale. Membership and order
+ * come from FEEL_OPTIONS in lib/fluencyScale.ts — only the styling
+ * lives here, so this cannot drift into offering a step the scale
+ * does not define.
+ */
+const FEEL_STYLES: Record<Feel, { activeClass: string; inactiveClass: string; hint: string }> = {
+  1: {
     hint: 'breakdowns',
     activeClass: 'bg-needswork text-white border-needswork',
     inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
   },
-];
+  2: {
+    hint: 'getting there',
+    activeClass: 'bg-developing text-white border-developing',
+    inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
+  },
+  3: {
+    hint: 'steady, clean',
+    activeClass: 'bg-fluent text-white border-fluent',
+    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
+  },
+  4: {
+    hint: 'effortless',
+    activeClass: 'bg-mastered text-white border-mastered',
+    inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
+  },
+};
 
 /**
  * Session feel picker — Flying / Cruising / Crawling. Optional: the
@@ -533,19 +534,20 @@ function SessionFeelPicker({
       </div>
       <div className="flex items-stretch gap-2">
         {FEEL_OPTIONS.map(opt => {
-          const active = value === opt.value;
+          const active = value === opt.feel;
+          const style = FEEL_STYLES[opt.feel];
           return (
             <button
-              key={opt.value}
+              key={opt.feel}
               type="button"
-              onClick={() => onChange(active ? null : opt.value)}
+              onClick={() => onChange(active ? null : opt.feel)}
               aria-pressed={active}
               className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
-                active ? opt.activeClass : opt.inactiveClass
+                active ? style.activeClass : style.inactiveClass
               }`}
             >
               <span className="font-medium">{opt.label}</span>
-              <span className="ml-1.5 opacity-70 text-[11px]">{opt.hint}</span>
+              <span className="ml-1.5 opacity-70 text-[11px]">{style.hint}</span>
             </button>
           );
         })}

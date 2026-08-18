@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { db, type Song, type SongSection } from '../../lib/db';
 import Modal from '../../components/Modal';
 import { recordEngagement } from '../../lib/spacingState';
+import { FEEL_OPTIONS, type Feel } from '../../lib/fluencyScale';
 
 interface Props {
   song: Song;
@@ -12,31 +13,30 @@ interface Props {
 
 const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 const DURATION_PRESETS = [5, 10, 15, 20, 30, 45, 60] as const;
-const FEELS: Array<{ value: 1 | 2 | 3 | 4 | 5; label: string; emoji: string }> = [
-  { value: 1, label: 'struggled',      emoji: '😓' },
-  { value: 2, label: 'working on it',  emoji: '🧗' },
-  { value: 3, label: 'comfortable',    emoji: '🙂' },
-  { value: 4, label: 'in flow',        emoji: '🎶' },
-  { value: 5, label: 'breakthrough',   emoji: '✨' },
-];
+/** Emoji per step. Membership and labels come from the shared scale
+ *  (lib/fluencyScale.ts) so this cannot offer a step the scale does
+ *  not define — "breakthrough" was the fifth, and it is gone. */
+const FEEL_EMOJI: Record<Feel, string> = {
+  1: '😓', 2: '🧗', 3: '🙂', 4: '🎶',
+};
 
 /**
- * Map the 5-point feel scale onto the 3-categorical rating vocabulary
- * spacingState consumes. Integration memory (songs) calibrates more
- * leniently than procedural (Shapes & Patterns 4-point): "in flow" (4)
- * is still cruising, not flying — flying is reserved for genuine
- * breakthrough sessions (5). Promotion threshold remains "last 3
- * ratings all in {flying, cruising}", so 3-or-better keeps the streak
- * alive.
+ * Collapse a feel onto the 3-value vocabulary `spacingState` consumes.
+ *
+ * Recalibrated when the fifth step went. Flying used to be reserved
+ * for "breakthrough"; with that step gone, the top of the scale is
+ * "in flow", and holding flying back for a level that no longer exists
+ * would mean nothing could ever reach it — the promotion rule
+ * ("last 3 ratings all in {flying, cruising}") would still work, but
+ * the top grade would be dead.
  *
  *   1 (struggled)      → crawling
  *   2 (working on it)  → crawling
  *   3 (comfortable)    → cruising
- *   4 (in flow)        → cruising
- *   5 (breakthrough)   → flying
+ *   4 (in flow)        → flying
  */
-function feelToRating(feel: 1 | 2 | 3 | 4 | 5): 'flying' | 'cruising' | 'crawling' {
-  if (feel >= 5) return 'flying';
+function feelToRating(feel: Feel): 'flying' | 'cruising' | 'crawling' {
+  if (feel >= 4) return 'flying';
   if (feel >= 3) return 'cruising';
   return 'crawling';
 }
@@ -106,7 +106,7 @@ export default function PracticeLogModal({ song, sections, onClose, onLogged }: 
   const [customDuration, setCustomDuration] = useState('');
   const [sectionIds, setSectionIds] = useState<string[]>([]);
   const [keys, setKeys] = useState<string[]>([]);
-  const [feel, setFeel] = useState<1 | 2 | 3 | 4 | 5>(3);
+  const [feel, setFeel] = useState<Feel>(3);
   const [notes, setNotes] = useState('');
   const [atTargetTempo, setAtTargetTempo] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -349,18 +349,18 @@ export default function PracticeLogModal({ song, sections, onClose, onLogged }: 
             how did it feel?
           </div>
           <div className="flex items-center gap-1.5 flex-wrap">
-            {FEELS.map(f => (
+            {FEEL_OPTIONS.map(f => (
               <button
-                key={f.value}
-                onClick={() => setFeel(f.value)}
+                key={f.feel}
+                onClick={() => setFeel(f.feel)}
                 className={`px-2.5 py-1 rounded-md border text-xs inline-flex items-center gap-1.5 ${
-                  feel === f.value
+                  feel === f.feel
                     ? 'bg-fluent text-white border-fluent'
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
                 }`}
                 title={f.label}
               >
-                <span aria-hidden>{f.emoji}</span>
+                <span aria-hidden>{FEEL_EMOJI[f.feel]}</span>
                 <span>{f.label}</span>
               </button>
             ))}

@@ -21,6 +21,7 @@ import {
 import { getSpacingState, recordEngagement } from '../spacingState';
 import { getPref, setPref } from '../userPrefs';
 import { db, newAttemptId, type AttemptRecord } from '../db';
+import type { Feel } from '../fluencyScale';
 
 // Attempts carry client-minted ids since v33/v34 (see db.ts), so the
 // store no longer generates one. Seed rows here go through the same
@@ -322,7 +323,10 @@ describe('backfillSpacingStateIfNeeded — Song Repertoire', () => {
     await db.songPracticeLog.bulkAdd([
       { id: 'l1', songId: 'song-A', timestamp: 1, durationMin: 10, sectionIds: [], keys: [], feelRating: 3 },
       { id: 'l2', songId: 'song-A', timestamp: 2, durationMin: 10, sectionIds: [], keys: [], feelRating: 4 },
-      { id: 'l3', songId: 'song-A', timestamp: 3, durationMin: 10, sectionIds: [], keys: [], feelRating: 5 },
+      // Legacy 'breakthrough'. The fifth step no longer exists on the
+      // scale, but rows written under it do — the backfill must still
+      // read them as flying, so the cast is the point of this case.
+      { id: 'l3', songId: 'song-A', timestamp: 3, durationMin: 10, sectionIds: [], keys: [], feelRating: 5 as unknown as Feel },
       { id: 'l4', songId: 'song-B', timestamp: 4, durationMin: 10, sectionIds: [], keys: [], feelRating: 1 },
     ]);
     await backfillSpacingStateIfNeeded();

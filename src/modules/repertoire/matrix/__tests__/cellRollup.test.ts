@@ -77,10 +77,10 @@ const TWO_ATTEMPTS: AttemptDraft[] = [
 describe('applyAttemptsToCell — rating stamping', () => {
   it('stamps the rating on every run-through row when one is provided', () => {
     const { runThroughRows } = applyAttemptsToCell(
-      mkCell(), TWO_ATTEMPTS, null, 'cruising', false, null, NOW,
+      mkCell(), TWO_ATTEMPTS, null, 3, false, null, NOW,
     );
     expect(runThroughRows).toHaveLength(2);
-    expect(runThroughRows.every(r => r.rating === 'cruising')).toBe(true);
+    expect(runThroughRows.every(r => r.rating === 3)).toBe(true);
   });
 
   it('omits the rating field entirely when rating is null', () => {
@@ -96,14 +96,14 @@ describe('applyAttemptsToCell — rating stamping', () => {
 
   it('gives every row from one save the same rating', () => {
     const { runThroughRows } = applyAttemptsToCell(
-      mkCell(), TWO_ATTEMPTS, null, 'flying', false, null, NOW,
+      mkCell(), TWO_ATTEMPTS, null, 4, false, null, NOW,
     );
-    expect(new Set(runThroughRows.map(r => r.rating))).toEqual(new Set(['flying']));
+    expect(new Set(runThroughRows.map(r => r.rating))).toEqual(new Set([4]));
   });
 
   it('produces no rows on a notes-only save — nothing to stamp', () => {
     const { runThroughRows } = applyAttemptsToCell(
-      mkCell(), [], 'just notes', 'crawling', false, null, NOW,
+      mkCell(), [], 'just notes', 1, false, null, NOW,
     );
     expect(runThroughRows).toHaveLength(0);
   });
@@ -117,7 +117,7 @@ describe('saveAttemptsAndRollup — rating round-trip', () => {
   });
 
   async function save(
-    rating: 'flying' | 'cruising' | 'crawling' | null,
+    rating: 4 | 3 | 1 | null,
     now: number,
   ): Promise<void> {
     const cell = mkCell();
@@ -139,10 +139,10 @@ describe('saveAttemptsAndRollup — rating round-trip', () => {
   }
 
   it('persists the rating on the run-through rows', async () => {
-    await save('cruising', NOW);
+    await save(3, NOW);
     const rows = await db.songCellRunThroughs.toArray();
     expect(rows).toHaveLength(1);
-    expect(rows[0].rating).toBe('cruising');
+    expect(rows[0].rating).toBe(3);
   });
 
   it('persists rows without a rating when none is picked', async () => {
@@ -153,9 +153,45 @@ describe('saveAttemptsAndRollup — rating round-trip', () => {
   });
 
   it('rated and unrated rows coexist and both count in getWeeklyAttempts', async () => {
-    await save('flying', NOW + 1_000);
+    await save(4, NOW + 1_000);
     await save(null, NOW + 2_000); // an "existing-style" unrated row
     const count = await getWeeklyAttempts('repertoire', NOW, NOW + 10_000);
     expect(count).toBe(2);
   });
 });
+
+describe('practiceLogId — the link to a timed session', () => {
+  it('stamps the id on every run-through when one is supplied', () => {
+    const { runThroughRows } = applyAttemptsToCell(
+      mkCell(), TWO_ATTEMPTS, null, null, false, null, NOW, 'plog-1',
+    );
+    expect(runThroughRows).toHaveLength(2);
+    expect(runThroughRows.every(r => r.practiceLogId === 'plog-1')).toBe(true);
+  });
+
+  it('OMITS the field entirely when there is no session', () => {
+    // Run-throughs logged without timing are an ordinary case, not a
+    // degraded one. Writing an explicit null would make "logged
+    // outside a session" indistinguishable from "field not yet
+    // written" for any later reader.
+    const { runThroughRows } = applyAttemptsToCell(
+      mkCell(), TWO_ATTEMPTS, null, null, false, null, NOW,
+    );
+    expect(runThroughRows.every(r => !('practiceLogId' in r))).toBe(true);
+  });
+
+  it('carries no duration of its own', () => {
+    // Duration lives on the practice log, never per run-through: a
+    // 4-bar retry and a full read-through would otherwise carry equal
+    // weight, and splitting a session across cells would invent a
+    // distribution the user never gave.
+    const { runThroughRows } = applyAttemptsToCell(
+      mkCell(), TWO_ATTEMPTS, null, null, false, null, NOW, 'plog-1',
+    );
+    for (const row of runThroughRows) {
+      expect('durationMin' in row).toBe(false);
+      expect('durationSeconds' in row).toBe(false);
+    }
+  });
+});
+

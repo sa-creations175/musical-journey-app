@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { Feel } from './fluencyScale';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 
 export interface IntervalData {
@@ -725,8 +726,12 @@ export interface SongPracticeLog {
   sectionIds: string[];
   /** Key names practised in this session. E.g. ['C', 'G', 'Eb']. */
   keys: string[];
-  /** 1-5 feel rating — 1 struggled, 5 breakthrough. */
-  feelRating: 1 | 2 | 3 | 4 | 5;
+  /** How the session went, on the shared four-step scale
+   *  (lib/fluencyScale.ts). Was 1-5, whose fifth step "breakthrough"
+   *  was dropped — a breakthrough is an event, not a level. Rows
+   *  written before that still hold a 5; read them through
+   *  `normaliseFeel`, which collapses 5 onto 4. */
+  feelRating: Feel;
   /** Optional session notes. */
   notes?: string;
   /** Marker for sessions where the user indicated they worked at
@@ -2052,7 +2057,13 @@ export interface SongCell {
 /** Self-reported feel for a song practice session — the 3-point
  *  Flying / Cruising / Crawling vocabulary the rest of the app uses
  *  for procedural / integration ratings. */
-export type SongRunThroughRating = 'flying' | 'cruising' | 'crawling';
+/**
+ * Was `'flying' | 'cruising' | 'crawling'`. Now the shared four-step
+ * scale, so one vocabulary answers "how did that go?" across every
+ * surface. Retyping was free: the field is written and read by
+ * nothing, so no stored value depended on the old strings.
+ */
+export type SongRunThroughRating = Feel;
 
 export interface SongCellRunThrough {
   id: string;
@@ -2073,6 +2084,23 @@ export interface SongCellRunThrough {
    *  cell-modal save carries the same rating: it describes the
    *  session, not the individual attempt. */
   rating?: SongRunThroughRating;
+  /**
+   * The `songPracticeLog` session this run-through happened inside,
+   * when there was one.
+   *
+   * NULLABLE IN BOTH DIRECTIONS, deliberately. A practice log carries
+   * the duration and needs no run-throughs (the fast path: "40
+   * minutes, couldn't tell you which sections" — a real record the
+   * per-cell model structurally cannot hold). A run-through logged
+   * without timing carries null. Neither is a degraded case.
+   *
+   * This is the ONLY link between the two granularities. Duration is
+   * deliberately not stored per run-through: a 4-bar retry and a full
+   * read-through would carry equal weight, and splitting a session's
+   * minutes across its cells would be inventing a distribution the
+   * user never gave.
+   */
+  practiceLogId?: string | null;
   createdAt: number;
 }
 

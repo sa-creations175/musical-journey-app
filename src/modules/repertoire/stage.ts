@@ -1,4 +1,5 @@
 import type { RepertoireStage, SongPracticeLog } from '../../lib/db';
+import { CONSISTENTLY_FLUENT_AVG, normaliseFeel } from '../../lib/fluencyScale';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -126,8 +127,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvaluation {
   switch (input.currentStage) {
     case 'learning': {
+      // `>= 3` is "comfortable or better", and it still is: dropping
+      // the fifth step changed the top of the scale, not step 3.
+      // Normalised so a legacy 5 counts, rather than being dropped by
+      // a comparison written for the current range.
       const qualifying = input.logs.filter(
-        l => l.atTargetTempo === true && l.feelRating >= 3,
+        l => l.atTargetTempo === true && (normaliseFeel(l.feelRating) ?? 0) >= 3,
       ).length;
       if (qualifying >= 5) {
         return {
@@ -154,11 +159,18 @@ export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvalua
       const last5 = [...input.logs].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
       const avgFeel = last5.length === 0
         ? 0
-        : last5.reduce((s, l) => s + l.feelRating, 0) / last5.length;
-      if (recentEnough >= 3 && avgFeel >= 4 && last5.length >= 5) {
+        : last5.reduce((s, l) => s + (normaliseFeel(l.feelRating) ?? 0), 0) / last5.length;
+      // CONSISTENTLY_FLUENT_AVG (3.5), not the literal 4 this used to
+      // carry. On the old 1-5 scale an average of 4 was reachable with
+      // a mix, because 5s pulled 3s up. With the fifth step gone 4 is
+      // the maximum, so the old literal would demand five perfect
+      // sessions in a row — and the failure would have been silent:
+      // no error, just a promotion prompt that never appears again.
+      // See the rationale on the constant.
+      if (recentEnough >= 3 && avgFeel >= CONSISTENTLY_FLUENT_AVG && last5.length >= 5) {
         return {
           suggest: true,
-          reason: `3+ weeks of practice with feel ≥ 4 — consider advancing to Internalized.`,
+          reason: `3+ weeks of practice, mostly in flow — consider advancing to Internalized.`,
         };
       }
       return { suggest: false };

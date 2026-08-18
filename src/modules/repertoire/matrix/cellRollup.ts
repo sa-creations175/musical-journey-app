@@ -154,6 +154,11 @@ export function applyAttemptsToCell(
   markComfortable: boolean,
   performanceTempo: number | null,
   now: number,
+  /** The songPracticeLog session these run-throughs happened inside,
+   *  when one is being logged at the same time. Null when the user
+   *  logged run-throughs without timing anything — both are ordinary
+   *  cases, neither is degraded. */
+  practiceLogId: string | null = null,
 ): { updatedCell: SongCell; runThroughRows: SongCellRunThrough[] } {
   const projectedCount = projectConsecutiveCleanCount(
     cell.consecutiveCleanCount,
@@ -174,6 +179,7 @@ export function applyAttemptsToCell(
     tempoBpm: Math.max(1, Math.floor(a.bpm)),
     notes: null, // per-attempt notes not surfaced in step 4; cell-level notes only
     ...(rating ? { rating } : {}),
+    ...(practiceLogId ? { practiceLogId } : {}),
     createdAt: now + i,
   }));
 
@@ -221,7 +227,7 @@ export async function saveAttemptsAndRollup(args: {
   siblingCells: ReadonlyArray<SongCell>;
   attempts: ReadonlyArray<AttemptDraft>;
   notes: string | null;
-  /** Session-level Flying / Cruising / Crawling feel. Null when the
+  /** Session-level feel on the shared four-step scale. Null when the
    *  user didn't pick one — the run-through rows then carry no
    *  rating, exactly like pre-v22 data. */
   rating: SongRunThroughRating | null;
@@ -229,6 +235,9 @@ export async function saveAttemptsAndRollup(args: {
   performanceTempo: number | null;
   expectedSectionCount: number;
   now: number;
+  /** Links these run-throughs to the timed session they happened
+   *  inside. Optional: run-throughs logged on their own carry null. */
+  practiceLogId?: string | null;
 }): Promise<void> {
   const { updatedCell, runThroughRows } = applyAttemptsToCell(
     args.cell,
@@ -238,6 +247,7 @@ export async function saveAttemptsAndRollup(args: {
     args.markComfortable,
     args.performanceTempo,
     args.now,
+    args.practiceLogId ?? null,
   );
 
   const updatedSiblings = args.siblingCells.map(c =>
