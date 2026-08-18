@@ -300,6 +300,10 @@ async function backfillRepertoire(
   const bySong = new Map<string, Array<{ rating: 'flying' | 'cruising' | 'crawling'; ts: number }>>();
   for (const log of logs) {
     const list = bySong.get(log.songId) ?? [];
+    // Unrated sessions carry no rating to backfill from. Historical
+    // rows all have one (the field was required when they were
+    // written); this guards the type, not a known case.
+    if (log.feelRating === undefined) continue;
     list.push({ rating: feelToRatingIntegration(log.feelRating), ts: log.timestamp });
     bySong.set(log.songId, list);
   }

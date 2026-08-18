@@ -157,9 +157,16 @@ export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvalua
       const recentEnough = [...byWeek.keys()]
         .filter(w => w * 7 * DAY_MS >= now - 21 * DAY_MS).length;
       const last5 = [...input.logs].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
-      const avgFeel = last5.length === 0
+      // Unrated sessions are EXCLUDED from the average, not scored
+      // zero. "I practised for 40 minutes and didn't say how it went"
+      // is not a bad session, and counting it as one would let the
+      // fast path suppress a promotion the user has earned.
+      const rated = last5
+        .map(l => normaliseFeel(l.feelRating))
+        .filter((f): f is NonNullable<typeof f> => f !== null);
+      const avgFeel = rated.length === 0
         ? 0
-        : last5.reduce((s, l) => s + (normaliseFeel(l.feelRating) ?? 0), 0) / last5.length;
+        : rated.reduce((sum, f) => sum + f, 0) / rated.length;
       // CONSISTENTLY_FLUENT_AVG (3.5), not the literal 4 this used to
       // carry. On the old 1-5 scale an average of 4 was reachable with
       // a mix, because 5s pulled 3s up. With the fifth step gone 4 is

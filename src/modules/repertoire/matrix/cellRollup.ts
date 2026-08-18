@@ -33,7 +33,11 @@ import { decayStateAfterEngagement } from './solidDecay';
  *  for React keying and isn't persisted. */
 export interface AttemptDraft {
   id: string;
-  bpm: number;
+  /** Null when the user didn't give one. The schema has always
+   *  allowed `tempoBpm: number | null`; requiring it in the UI was
+   *  the friction, not the data model. A null tempo simply cannot be
+   *  gate-relevant — see isInTempoRange. */
+  bpm: number | null;
   wasClean: boolean;
 }
 
@@ -83,10 +87,18 @@ export function projectConsecutiveCleanCount(
  *  above performance tempo demonstrates mastery and is never
  *  penalized. */
 export function isInTempoRange(
-  bpm: number,
+  bpm: number | null,
   performanceTempo: number | null,
 ): boolean {
+  // No target to measure against — every run-through counts.
   if (performanceTempo == null) return true;
+  // A run-through logged without a tempo cannot be VERIFIED at the
+  // performance target, so it does not advance the gate. It is still
+  // recorded honestly, exactly like a below-floor attempt: the gate
+  // asks "clean at tempo", and "clean at a tempo you didn't say" is
+  // not an answer to it. Counting it would let the comfortable
+  // threshold be reached on unverified runs.
+  if (bpm == null) return false;
   return bpm >= performanceTempo - 10;
 }
 
@@ -176,7 +188,7 @@ export function applyAttemptsToCell(
     sectionId: cell.sectionId,
     songKeyId: cell.songKeyId,
     wasClean: a.wasClean,
-    tempoBpm: Math.max(1, Math.floor(a.bpm)),
+    tempoBpm: a.bpm == null ? null : Math.max(1, Math.floor(a.bpm)),
     notes: null, // per-attempt notes not surfaced in step 4; cell-level notes only
     ...(rating ? { rating } : {}),
     ...(practiceLogId ? { practiceLogId } : {}),

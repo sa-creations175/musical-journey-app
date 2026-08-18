@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db, type SongCell, type SongKey } from '../../../../lib/db';
 import {
   applyAttemptsToCell,
+  isInTempoRange,
   saveAttemptsAndRollup,
   type AttemptDraft,
 } from '../cellRollup';
@@ -192,6 +193,37 @@ describe('practiceLogId — the link to a timed session', () => {
       expect('durationMin' in row).toBe(false);
       expect('durationSeconds' in row).toBe(false);
     }
+  });
+});
+
+describe('optional tempo', () => {
+  it('records a run-through with no tempo at all', () => {
+    // The gate that used to block this — "type a BPM before you may
+    // say it was clean" — was the same friction one level down from
+    // the one duration capture removes.
+    const { runThroughRows } = applyAttemptsToCell(
+      mkCell(), [{ id: 'a1', bpm: null, wasClean: true }],
+      null, null, false, null, NOW,
+    );
+    expect(runThroughRows).toHaveLength(1);
+    expect(runThroughRows[0].tempoBpm).toBeNull();
+    expect(runThroughRows[0].wasClean).toBe(true);
+  });
+
+  it('an untimed run does NOT advance the tempo gate', () => {
+    // The gate asks "clean at performance tempo". "Clean at a tempo
+    // you did not state" is not an answer to it, so the run is
+    // recorded but must not count toward comfortable.
+    expect(isInTempoRange(null, 120)).toBe(false);
+  });
+
+  it('...but counts when the song has no performance tempo to miss', () => {
+    expect(isInTempoRange(null, null)).toBe(true);
+  });
+
+  it('still gates a stated tempo on the floor', () => {
+    expect(isInTempoRange(115, 120)).toBe(true);
+    expect(isInTempoRange(90, 120)).toBe(false);
   });
 });
 

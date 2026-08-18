@@ -66,7 +66,13 @@ export default function PracticeHistory({ logs, sections }: Props) {
                     <span className="text-neutral-500 font-mono">{log.keys.join(' · ')}</span>
                   </>
                 )}
-                <span aria-hidden title={FEEL_LABELS[feel]}>{FEEL_EMOJI[feel]}</span>
+                {/* Absent when the session was logged without a
+                    rating — the fast path. Shown as nothing rather
+                    than as a neutral face, which would read as "it
+                    was OK" for a session the user never judged. */}
+                {feel !== undefined && (
+                  <span aria-hidden title={FEEL_LABELS[feel]}>{FEEL_EMOJI[feel]}</span>
+                )}
               </div>
               <span className="text-[11px] text-neutral-400">
                 {humanAgo(log.timestamp)}
@@ -75,7 +81,8 @@ export default function PracticeHistory({ logs, sections }: Props) {
             {open && (
               <div className="mt-2 ml-1 pl-3 border-l-2 border-neutral-200 dark:border-neutral-800 text-xs text-neutral-600 dark:text-neutral-300 space-y-1">
                 <div>
-                  <span className="text-neutral-500">feel:</span> {FEEL_LABELS[feel]}
+                  <span className="text-neutral-500">feel:</span>{' '}
+                  {feel === undefined ? 'not rated' : FEEL_LABELS[feel]}
                 </div>
                 {log.atTargetTempo && (
                   <div className="text-fluent">marked as at-or-near target tempo</div>

@@ -1,6 +1,8 @@
 import { useCallback, useState } from 'react';
 import Modal from '../../../components/Modal';
 import type { Feel } from '../../../lib/fluencyScale';
+import DurationCapture from '../DurationCapture';
+import { logPracticeSession } from '../logPractice';
 import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
 import {
   db,
@@ -85,6 +87,8 @@ export default function CellInteractionModal({
   // BPM defaults to song.tempo when set, else empty (forces user to
   // declare what they're working at — honest, no fake default).
   const [bpmInput, setBpmInput] = useState<string>(String(song.tempo ?? ''));
+  /** Minutes captured this visit; 0 means none. */
+  const [minutes, setMinutes] = useState(0);
   // Notes init from cell.notes — the cell carries notes across
   // sessions, consistent with the rest of the data model.
   const [notesInput, setNotesInput] = useState<string>(cell.notes ?? '');
@@ -119,10 +123,19 @@ export default function CellInteractionModal({
   const notesChanged = (cell.notes ?? '') !== trimmedNotes;
   // Save-block enabled when there's something to save: at least
   // one attempt, OR notes changed from the cell's stored value.
-  const hasContent = attempts.length > 0 || notesChanged;
+  // Duration alone is enough to save — that IS the fast path.
+  const hasContent = attempts.length > 0 || notesChanged || minutes > 0;
 
   const parsedBpm = parseInt(bpmInput, 10);
-  const bpmValid = Number.isFinite(parsedBpm) && parsedBpm > 0;
+  const hasBpm = Number.isFinite(parsedBpm) && parsedBpm > 0;
+  // BPM is OPTIONAL. It used to gate the clean / not-clean buttons
+  // entirely, so "I played it and it was clean" could not be recorded
+  // without first typing a number — the same friction one level down
+  // from the one this step exists to remove. A blank field is now a
+  // run-through with no tempo, which the schema has always allowed
+  // (`tempoBpm: number | null`). Only a NEGATIVE or non-numeric entry
+  // is rejected, and only by ignoring it.
+  const bpmValid = bpmInput.trim() === '' || hasBpm;
 
   const handleAddAttempt = (wasClean: boolean) => {
     if (!bpmValid) return;
@@ -130,7 +143,7 @@ export default function CellInteractionModal({
       ...prev,
       {
         id: `attempt-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`,
-        bpm: parsedBpm,
+        bpm: hasBpm ? parsedBpm : null,
         wasClean,
       },
     ]);
@@ -150,18 +163,42 @@ export default function CellInteractionModal({
     if (busy || !hasContent) return;
     setBusy(true);
     try {
-      await saveAttemptsAndRollup({
-        cell,
-        songKey,
-        siblingCells,
-        attempts,
-        notes: trimmedNotes === '' ? null : trimmedNotes,
-        rating,
-        markComfortable,
-        performanceTempo,
-        expectedSectionCount: totalSections,
-        now: Date.now(),
-      });
+      const now = Date.now();
+
+      // The session row first, so its id can stamp the run-throughs.
+      // Written only when a duration was captured: a save that is
+      // purely run-throughs (the old behaviour) still produces none,
+      // and those rows carry a null link rather than a fabricated
+      // zero-minute session.
+      const practiceLogId = minutes > 0
+        ? await logPracticeSession({
+            songId: song.id,
+            durationMin: minutes,
+            // The cell surface knows exactly which section and key —
+            // strictly more than the song-level logger could offer,
+            // where both were optional toggles.
+            sectionIds: [section.id],
+            keys: [songKey.keyName],
+            ...(rating !== null ? { feelRating: rating } : {}),
+            timestamp: now,
+          })
+        : null;
+
+      if (attempts.length > 0 || notesChanged || markComfortable) {
+        await saveAttemptsAndRollup({
+          cell,
+          songKey,
+          siblingCells,
+          attempts,
+          notes: trimmedNotes === '' ? null : trimmedNotes,
+          rating,
+          markComfortable,
+          performanceTempo,
+          expectedSectionCount: totalSections,
+          now,
+          practiceLogId,
+        });
+      }
       onSaved?.();
       handleClose();
     } catch (err) {
@@ -209,6 +246,15 @@ export default function CellInteractionModal({
       }
     >
       <div className="flex flex-col gap-4">
+        {/* First, and above everything the old modal demanded: this is
+            the one field worth capturing when you don't want to
+            elaborate, so it must not sit below a tempo box. */}
+        <DurationCapture minutes={minutes} onChange={setMinutes} />
+
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-1 text-[11px] uppercase tracking-wide text-neutral-400">
+          detail — all optional
+        </div>
+
         <TempoEditRow song={song} />
 
         <StateHeader
@@ -442,7 +488,8 @@ function AddAttemptArea({
   return (
     <div>
       <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
-        Add attempt
+        Add attempt{' '}
+        <span className="text-neutral-400 font-normal">(tempo optional)</span>
       </div>
       <div className="flex items-stretch gap-2">
         <label className="flex items-center gap-1.5 px-3 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900">
@@ -456,7 +503,7 @@ function AddAttemptArea({
             onChange={e => onBpmChange(e.target.value)}
             placeholder="BPM"
             className="w-16 py-2 bg-transparent text-sm tabular-nums focus:outline-none"
-            aria-label="Tempo BPM"
+            aria-label="Tempo BPM (optional)"
           />
         </label>
         <button

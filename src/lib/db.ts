@@ -726,12 +726,20 @@ export interface SongPracticeLog {
   sectionIds: string[];
   /** Key names practised in this session. E.g. ['C', 'G', 'Eb']. */
   keys: string[];
-  /** How the session went, on the shared four-step scale
-   *  (lib/fluencyScale.ts). Was 1-5, whose fifth step "breakthrough"
-   *  was dropped — a breakthrough is an event, not a level. Rows
-   *  written before that still hold a 5; read them through
-   *  `normaliseFeel`, which collapses 5 onto 4. */
-  feelRating: Feel;
+  /**
+   * How the session went, on the shared four-step scale
+   * (lib/fluencyScale.ts). Was 1-5, whose fifth step "breakthrough"
+   * was dropped — a breakthrough is an event, not a level. Rows
+   * written before that still hold a 5; read them through
+   * `normaliseFeel`, which collapses 5 onto 4.
+   *
+   * OPTIONAL, because the fast path is "log the time and say nothing
+   * else". Absent means the user did not rate the session — which is
+   * different from rating it average, and must not be averaged as
+   * though it were. Readers should skip it, not coerce it to a
+   * number.
+   */
+  feelRating?: Feel;
   /** Optional session notes. */
   notes?: string;
   /** Marker for sessions where the user indicated they worked at
