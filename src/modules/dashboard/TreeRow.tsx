@@ -36,6 +36,20 @@ export interface TreeRowProps {
   onDrill?: () => void;
   /** Trailing module name, for the flat grouping-off view. */
   moduleLabel?: string;
+  /**
+   * The module's accent, for a depth-0 header row.
+   *
+   * TINT READS AS STRUCTURE, NOT STATUS. The row already carries meaning
+   * in the score colour, and a tint strong enough to compete with a red
+   * or green number would make the eye read the block as a verdict. So
+   * the accent goes on a solid left edge - which says "a block starts
+   * here" without occupying the same channel - and the row fill is a
+   * wash at 10%, below the threshold where it competes.
+   *
+   * If the two ever cannot coexist, the score colour wins and the tint
+   * gets quieter.
+   */
+  accentHex?: string;
 }
 
 /** Row background by depth. Indentation carries the structure; the
@@ -47,6 +61,10 @@ const DEPTH_SHADE = [
   'bg-neutral-100 dark:bg-neutral-900',
 ];
 
+/** A hairline between the number columns. Light enough to guide the eye
+ *  down a column without reading as a border. */
+const COLUMN_RULE = 'border-l border-neutral-200/70 dark:border-neutral-800/70 pl-2';
+
 const COMPARE_TINT: Readonly<Record<'weakest' | 'strongest', string>> = {
   weakest: 'bg-rose-50 dark:bg-rose-950/40',
   strongest: 'bg-emerald-50 dark:bg-emerald-950/40',
@@ -54,9 +72,10 @@ const COMPARE_TINT: Readonly<Record<'weakest' | 'strongest', string>> = {
 
 function TreeRowImpl({
   node, moduleId, now, expanded, onToggleExpand,
-  compareHighlight, compareActive, onCompare, onDrill, moduleLabel,
+  compareHighlight, compareActive, onCompare, onDrill, moduleLabel, accentHex,
 }: TreeRowProps) {
   const isLeaf = node.children.length === 0;
+  const isModuleRow = node.depth === 0;
   const band = bandFor(node.score, node.accuracyKind);
   const target = drillTargetFor(node, moduleId);
   const summary = drillTargetSummary(target);
@@ -67,13 +86,32 @@ function TreeRowImpl({
     ? COMPARE_TINT[compareHighlight]
     : DEPTH_SHADE[Math.min(node.depth, DEPTH_SHADE.length - 1)];
 
+  // A module header's wash and edge come from the accent as inline
+  // style, because the colour is data rather than one of a fixed set of
+  // classes. 1a is 10% - a wash in light mode and a lift in dark,
+  // subtle enough in both that a red score still reads as the loudest
+  // thing on the row.
+  const headerStyle = isModuleRow && accentHex
+    ? { backgroundColor: `${accentHex}1a`, borderLeftColor: accentHex }
+    : undefined;
+
   return (
     <div
       data-testid="tree-row"
       data-depth={node.depth}
       data-node-id={node.id}
       data-compare={compareHighlight ?? undefined}
-      className={`flex items-center gap-2 border-b border-neutral-200/60 dark:border-neutral-800/60 px-2 py-1 text-[13px] ${background}`}
+      data-module-row={isModuleRow ? 'true' : undefined}
+      style={headerStyle}
+      className={[
+        'flex items-center gap-2 border-b border-neutral-200/60 dark:border-neutral-800/60',
+        isModuleRow
+          // Taller, and a 3px accent edge so a block start is findable
+          // by eye without reading a word.
+          ? 'px-2 py-2 text-[12px] border-l-[3px] mt-2 first:mt-0'
+          : 'px-2 py-1 text-[13px] border-l-[3px] border-l-transparent',
+        headerStyle ? '' : background,
+      ].join(' ')}
     >
       {/* Name, indented by depth. */}
       <div
@@ -98,7 +136,14 @@ function TreeRowImpl({
             {expanded ? '▾' : '▸'}
           </button>
         )}
-        <span className="truncate" title={node.label}>{node.label}</span>
+        <span
+          className={`truncate ${
+            isModuleRow ? 'uppercase tracking-wider font-semibold' : ''
+          }`}
+          title={node.label}
+        >
+          {node.label}
+        </span>
         {moduleLabel && (
           <span
             data-testid="row-module-label"
@@ -116,7 +161,7 @@ function TreeRowImpl({
         data-testid="cell-score"
         data-band={band ?? 'none'}
         data-kind={node.accuracyKind}
-        className={`w-16 shrink-0 text-right tabular-nums ${
+        className={`${COLUMN_RULE} w-16 shrink-0 text-right tabular-nums ${
           band ? BAND_TEXT_CLASS[band] : 'text-neutral-400'
         }`}
       >
@@ -125,7 +170,7 @@ function TreeRowImpl({
 
       <div
         data-testid="cell-coverage"
-        className="w-36 shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400"
+        className={`${COLUMN_RULE} w-36 shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400`}
       >
         {formatCoverage({
           isLeaf,
@@ -137,7 +182,7 @@ function TreeRowImpl({
 
       <div
         data-testid="cell-recency"
-        className="w-24 shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400"
+        className={`${COLUMN_RULE} w-24 shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400`}
       >
         {formatRecency({
           isLeaf,

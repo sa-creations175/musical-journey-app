@@ -42,6 +42,16 @@ export interface DashboardViewState {
   grouping: boolean;
   /** Keys from `expansionKey`. */
   expanded: ReadonlySet<string>;
+  /**
+   * Module ids the player has COLLAPSED.
+   *
+   * Inverted from `expanded`, deliberately. The screen opens at
+   * submodule level every time, so a module is open unless it is named
+   * here - which keeps the default view's URL empty and means the set
+   * records a choice rather than a default. Encoding the open ones
+   * would put six ids in the query string before anything happened.
+   */
+  collapsedModules: ReadonlySet<string>;
 }
 
 /** Submodule level, worst first, grouped, nothing filtered. What the
@@ -51,6 +61,7 @@ export const DEFAULT_VIEW_STATE: DashboardViewState = {
   filter: { match: 'all' },
   grouping: true,
   expanded: new Set<string>(),
+  collapsedModules: new Set<string>(),
 };
 
 // =====================================================================
@@ -113,6 +124,16 @@ export function pruneExpansion(
   return out;
 }
 
+/** Collapse or reopen a whole module. */
+export function withModuleCollapsed(
+  state: DashboardViewState,
+  moduleId: string,
+): DashboardViewState {
+  const collapsedModules = new Set(state.collapsedModules);
+  if (!collapsedModules.delete(moduleId)) collapsedModules.add(moduleId);
+  return { ...state, collapsedModules };
+}
+
 export function withExpansionToggled(
   state: DashboardViewState,
   key: string,
@@ -171,6 +192,9 @@ export function encodeViewState(state: DashboardViewState): URLSearchParams {
   if (state.expanded.size > 0) {
     params.set('open', [...state.expanded].sort().join(','));
   }
+  if (state.collapsedModules.size > 0) {
+    params.set('closed', [...state.collapsedModules].sort().join(','));
+  }
   return params;
 }
 
@@ -221,11 +245,21 @@ export function decodeViewState(params: URLSearchParams): DashboardViewState {
     }
   }
 
+  const closed = params.get('closed');
+  const collapsedModules = new Set<string>();
+  if (closed) {
+    for (const id of closed.split(',')) {
+      const trimmed = id.trim();
+      if (trimmed) collapsedModules.add(trimmed);
+    }
+  }
+
   return {
     sort: { field, direction },
     filter,
     grouping: params.get('flat') !== '1',
     expanded,
+    collapsedModules,
   };
 }
 

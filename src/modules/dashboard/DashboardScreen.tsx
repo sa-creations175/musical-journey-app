@@ -25,8 +25,10 @@ import {
   expansionKey,
   pruneExpansion,
   withExpansionToggled,
+  withModuleCollapsed,
   type DashboardViewState,
 } from './read/urlState';
+import { moduleMetaById } from '../../lib/moduleMeta';
 import {
   flatView,
   groupedView,
@@ -42,6 +44,12 @@ import {
   toggleComparison,
   type Comparison,
 } from './compare';
+
+/** The module's own colour, for its header row. Undefined for a module
+ *  with no meta entry, which renders untinted rather than guessing. */
+function accentFor(moduleId: string): string | undefined {
+  return moduleMetaById(moduleId)?.accentHex;
+}
 
 /** A row to render: the node, where it sits, and how to address it. */
 interface VisibleRow {
@@ -147,6 +155,11 @@ export default function DashboardScreen({
       const out: VisibleRow[] = [
         { node: module.root, moduleId: module.moduleId, indexPath: [] },
       ];
+      // A collapsed module renders as its header row alone. Six rows
+      // instead of forty-four, which is a different way of looking at
+      // the same screen rather than a way of hiding rows: nothing is
+      // dropped, it is folded.
+      if (state.collapsedModules.has(module.moduleId)) return out;
       const indexOf = new Map(
         module.root.children.map((child, i) => [child, i]),
       );
@@ -159,13 +172,22 @@ export default function DashboardScreen({
       }
       return out;
     });
-  }, [modules, state.sort, state.filter, state.grouping, ctx, expanded, sortChildren]);
+  }, [
+    modules, state.sort, state.filter, state.grouping, state.collapsedModules,
+    ctx, expanded, sortChildren,
+  ]);
 
   const onToggleExpand = useCallback((row: VisibleRow) => {
-    setState(withExpansionToggled(
-      { ...state, expanded },
-      expansionKey(row.moduleId, row.indexPath),
-    ));
+    // A module row folds the whole module; anything deeper toggles its
+    // own key. The two use different state because a module is open by
+    // default and everything else is closed - see
+    // `DashboardViewState.collapsedModules`.
+    setState(row.indexPath.length === 0
+      ? withModuleCollapsed({ ...state, expanded }, row.moduleId)
+      : withExpansionToggled(
+        { ...state, expanded },
+        expansionKey(row.moduleId, row.indexPath),
+      ));
   }, [state, expanded, setState]);
 
   const onCompare = useCallback((row: VisibleRow) => {
@@ -218,16 +240,16 @@ export default function DashboardScreen({
               node={row.node}
               moduleId={row.moduleId}
               now={now}
-              expanded={expanded.has(key)}
-              /* Module rows carry no toggle: the screen opens at
-                 submodule level every time, so their children always
-                 show and a chevron there would do nothing. Collapsing
-                 a whole module is a separate decision - see the note
-                 on 44 default rows in the spec. */
+              expanded={
+                row.indexPath.length === 0
+                  ? !state.collapsedModules.has(row.moduleId)
+                  : expanded.has(key)
+              }
+              {...(row.indexPath.length === 0
+                ? { accentHex: accentFor(row.moduleId) }
+                : {})}
               onToggleExpand={
-                row.indexPath.length > 0 && row.node.children.length > 0
-                  ? () => onToggleExpand(row)
-                  : undefined
+                row.node.children.length > 0 ? () => onToggleExpand(row) : undefined
               }
               compareHighlight={highlightFor(comparison, row.node.id)}
               compareActive={comparison?.parentId === row.node.id}

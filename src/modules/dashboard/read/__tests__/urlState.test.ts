@@ -17,6 +17,7 @@ import {
   parseExpansionKey,
   pruneExpansion,
   withExpansionToggled,
+  withModuleCollapsed,
   type DashboardViewState,
 } from '../urlState';
 import { buildModuleTree } from '../tree';
@@ -303,5 +304,48 @@ describe('expansion survives filtering', () => {
     );
     expect(displayed).toHaveLength(0);
     expect(pruneExpansion(new Set([key]), [module]).has(key)).toBe(true);
+  });
+});
+
+describe('collapsed modules', () => {
+  it('records what was CLOSED, so the default view stays clean', () => {
+    // Modules are open by default. Encoding the open ones would put six
+    // ids in the query string before anything happened.
+    expect(encodeViewState(DEFAULT_VIEW_STATE).toString()).toBe('');
+    const folded = withModuleCollapsed(state(), 'ear-training');
+    expect(encodeViewState(folded).get('closed')).toBe('ear-training');
+  });
+
+  it('toggles back off', () => {
+    const folded = withModuleCollapsed(state(), 'reading');
+    expect(withModuleCollapsed(folded, 'reading').collapsedModules.size).toBe(0);
+  });
+
+  it('round-trips several, in a stable order', () => {
+    const a = state({ collapsedModules: new Set(['production', 'reading']) });
+    const b = state({ collapsedModules: new Set(['reading', 'production']) });
+    expect(encodeViewState(a).toString()).toBe(encodeViewState(b).toString());
+    expect([...roundTrip(a).collapsedModules].sort()).toEqual(['production', 'reading']);
+  });
+
+  it('is independent of expansion', () => {
+    // Different state because they mean opposite things: a module is
+    // open unless named, everything else is closed unless named.
+    const both = withExpansionToggled(
+      withModuleCollapsed(state(), 'reading'),
+      expansionKey('reading', [0]),
+    );
+    const out = roundTrip(both);
+    expect([...out.collapsedModules]).toEqual(['reading']);
+    expect([...out.expanded]).toEqual(['reading~0']);
+  });
+
+  it('keeps an unknown module id rather than dropping it', () => {
+    // Unlike an expansion path, a module id cannot address the wrong
+    // row — it either matches or does nothing. Dropping it would lose
+    // a fold across a catalog change that a later change would restore.
+    expect([...roundTrip(state({
+      collapsedModules: new Set(['not-a-module']),
+    })).collapsedModules]).toEqual(['not-a-module']);
   });
 });

@@ -14,7 +14,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useSearchParams } from 'react-router-dom';
 import DashboardScreen from '../DashboardScreen';
 import { db, type AttemptRecord } from '../../../lib/db';
 
@@ -27,6 +27,22 @@ let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
 /** Render and let the live query resolve. */
+/**
+ * Renders the router's current query string.
+ *
+ * `window.location` does NOT move under MemoryRouter, so an assertion
+ * against it passes whatever the screen writes — which is how the
+ * compare test below was passing vacuously. This reads the router.
+ */
+function LocationProbe() {
+  const [params] = useSearchParams();
+  return <i data-testid="search">{params.toString()}</i>;
+}
+
+function search(el: HTMLElement): string {
+  return el.querySelector('[data-testid="search"]')!.textContent ?? '';
+}
+
 async function renderScreen(initialEntry = '/'): Promise<HTMLDivElement> {
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -35,6 +51,7 @@ async function renderScreen(initialEntry = '/'): Promise<HTMLDivElement> {
     root!.render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <DashboardScreen now={NOW} />
+        <LocationProbe />
       </MemoryRouter>,
     );
   });
@@ -212,30 +229,27 @@ describe('the default view', () => {
 });
 
 describe('expansion', () => {
-  it('adds exactly that row s children and nothing else', async () => {
+  /** The first SUBMODULE chevron — depth 1, not a module header. */
+  function submoduleToggle(el: HTMLElement): Element {
+    return rows(el)
+      .find(r => r.getAttribute('data-depth') === '1'
+        && r.querySelector('[data-testid="expand-toggle"]'))!
+      .querySelector('[data-testid="expand-toggle"]')!;
+  }
+
+  it('adds that row s children and nothing else', async () => {
     const el = await renderScreen();
     const before = rows(el).length;
-    const target = rows(el).find(r => r.querySelector('[data-testid="expand-toggle"]'))!;
-    const expectedChildren = Number(
-      // Its own depth tells us what depth its children sit at.
-      target.getAttribute('data-depth'),
-    );
-    expect(expectedChildren).toBeGreaterThanOrEqual(0);
-
-    click(target.querySelector('[data-testid="expand-toggle"]')!);
-    const after = rows(el).length;
-    expect(after).toBeGreaterThan(before);
+    click(submoduleToggle(el));
+    expect(rows(el).length).toBeGreaterThan(before);
   });
 
   it('collapses back to where it started', async () => {
     const el = await renderScreen();
     const before = rowLabels(el);
-    const toggle = () => rows(el)
-      .find(r => r.querySelector('[data-testid="expand-toggle"]'))!
-      .querySelector('[data-testid="expand-toggle"]')!;
-    click(toggle());
+    click(submoduleToggle(el));
     expect(rowLabels(el)).not.toEqual(before);
-    click(toggle());
+    click(submoduleToggle(el));
     expect(rowLabels(el)).toEqual(before);
   });
 
@@ -356,9 +370,9 @@ describe('the comparison', () => {
     const compare = el.querySelector('[data-testid="compare-toggle"]');
     expect(compare).not.toBeNull();
     click(compare!);
-    // Nothing tinted here (no scores yet), but the important assertion
-    // is that pressing it did not write to the query string.
-    expect(window.location.search).toBe('');
+    // Nothing tinted here (no scores yet); the assertion that matters
+    // is that pressing it wrote nothing to the query string.
+    expect(search(el)).toBe('');
   });
 
   it('marks at most two rows at once', async () => {
@@ -388,5 +402,89 @@ describe('the drill affordance', () => {
       expect(row.querySelector('[data-testid="drill-affordance"]')!.textContent)
         .toBe('open module');
     }
+  });
+});
+
+describe('collapsing a module', () => {
+  function moduleRows(el: HTMLElement): HTMLElement[] {
+    return rows(el).filter(r => r.getAttribute('data-depth') === '0');
+  }
+
+  it('folds to its header row alone', async () => {
+    const el = await renderScreen();
+    const before = rows(el).length;
+    click(moduleRows(el)[0].querySelector('[data-testid="expand-toggle"]')!);
+    const after = rows(el);
+    // Six headers still there; the folded module's submodules gone.
+    expect(after.filter(r => r.getAttribute('data-depth') === '0')).toHaveLength(6);
+    expect(after.length).toBeLessThan(before);
+  });
+
+  it('folds every module to six rows', async () => {
+    // The different way of looking at the same screen. Nothing is
+    // hidden by distance — it is folded, and unfolds again.
+    const el = await renderScreen();
+    // Re-query each time: the list is stale the moment the DOM
+    // re-renders.
+    for (let i = 0; i < 6; i++) {
+      const next = moduleRows(el).find(
+        r => r.querySelector('[data-testid="expand-toggle"]')
+          ?.getAttribute('aria-expanded') === 'true',
+      );
+      if (!next) break;
+      click(next.querySelector('[data-testid="expand-toggle"]')!);
+    }
+    expect(rows(el)).toHaveLength(6);
+  });
+
+  it('records the choice in the URL, and only the choice', async () => {
+    // Modules are open by default, so the set names what was CLOSED.
+    // Encoding the open ones would put six ids in the query string
+    // before anything happened.
+    const el = await renderScreen();
+    expect(search(el)).toBe('');
+    click(moduleRows(el)[0].querySelector('[data-testid="expand-toggle"]')!);
+    expect(search(el)).toContain('closed=');
+  });
+
+  it('restores a folded module from the URL', async () => {
+    const open = await renderScreen('/');
+    const openCount = rows(open).length;
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    const el = await renderScreen('/?closed=ear-training');
+    expect(rows(el).length).toBeLessThan(openCount);
+    expect(rows(el).filter(r => r.getAttribute('data-depth') === '0')).toHaveLength(6);
+  });
+
+  it('reports its state to assistive tech', async () => {
+    const el = await renderScreen('/?closed=ear-training');
+    const et = rows(el).find(
+      r => r.querySelector('span[title]')?.textContent === 'ear training',
+    )!;
+    const toggle = et.querySelector('[data-testid="expand-toggle"]')!;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('module header rows', () => {
+  it('are marked as headers and carry the module accent', async () => {
+    const el = await renderScreen();
+    const headers = rows(el).filter(r => r.getAttribute('data-module-row') === 'true');
+    expect(headers).toHaveLength(6);
+    // The accent goes on the left edge and a 10% wash, both inline
+    // because the colour is data rather than one of a fixed set.
+    for (const header of headers) {
+      expect((header as HTMLElement).style.borderLeftColor).not.toBe('');
+      expect((header as HTMLElement).style.backgroundColor).not.toBe('');
+    }
+  });
+
+  it('does not mark a submodule as a header', async () => {
+    const el = await renderScreen();
+    const submodule = rows(el).find(r => r.getAttribute('data-depth') === '1')!;
+    expect(submodule.getAttribute('data-module-row')).toBeNull();
+    expect((submodule as HTMLElement).style.backgroundColor).toBe('');
   });
 });
