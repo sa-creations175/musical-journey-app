@@ -19,6 +19,7 @@
  * A module with no legacy shapes returns its id unchanged. That is the
  * common case and deliberately requires no registration.
  */
+import type { AttemptRecord } from '../../../lib/db';
 import {
   normalizeAttemptItemId,
   parseAttemptItemId,
@@ -83,4 +84,37 @@ export function catalogRollupKey(moduleId: string, itemId: string): string {
     return parseAttemptItemId(itemId).chordId;
   }
   return canonicalItemId(moduleId, itemId);
+}
+
+/**
+ * The catalog itemRef one stored attempt belongs to.
+ *
+ * `canonicalItemId` takes an id string, but for one module the id is
+ * not the whole identity. Intervals store the interval in `itemId` and
+ * the direction in a SEPARATE `direction` column, so an ascending and a
+ * descending major 3rd share `M3` and are told apart only by that
+ * field. Ascending and descending are different sounds and different
+ * skills — the catalog treats them as two items, and this is where the
+ * two columns are recombined into the one ref that identifies them.
+ *
+ * `spacingState` already stores intervals the composed way
+ * (`M3:asc`), so this brings the attempt log into line with the shape
+ * the rest of the app already uses.
+ *
+ * Attempts with no `direction` predate the field and read as
+ * ascending, matching `skills/registry.ts`.
+ *
+ * NOTE the relationship to `catalogRollupKey`: for intervals the two
+ * deliberately differ. This returns the ITEM (`M3:asc`); the rollup key
+ * returns the catalog ROW the Skills catalogue walks, which is the bare
+ * interval, with direction handled by that surface's own split.
+ */
+export function itemRefForAttempt(
+  attempt: Pick<AttemptRecord, 'moduleId' | 'itemId' | 'direction'>,
+): string {
+  const base = canonicalItemId(attempt.moduleId, attempt.itemId);
+  if (attempt.moduleId === 'intervals') {
+    return `${base}:${attempt.direction ?? 'asc'}`;
+  }
+  return base;
 }

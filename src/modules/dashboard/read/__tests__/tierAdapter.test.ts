@@ -9,9 +9,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AttemptRecord } from '../../../../lib/db';
 import { STALE_DAYS, MIN_ATTEMPTS_FOR_TIER } from '../../../../lib/tier';
+import { readingCatalog, scalesModesCatalog } from '../catalogs';
 import {
   bucketAttemptsForCatalog,
   emptyTierCounts,
+  itemStatsForCatalog,
+  tierCountsForCatalog,
   tierAndLastFromAttempts,
   tierCountsFromAttempts,
   tierFromItemStats,
@@ -180,5 +183,65 @@ describe('bucketAttemptsForCatalog — the Skills-catalogue miss', () => {
     expect([...buckets.get('intervals')!.keys()]).toEqual(['M3']);
     expect([...buckets.get('scales-modes')!.keys()]).toEqual(['dorian-tab1']);
     expect([...buckets.get('chord-progressions')!.keys()]).toEqual(['motion:1-5-asc']);
+  });
+});
+
+describe('tierCountsForCatalog — the denominator fix', () => {
+  it('totals the catalog, not the log', () => {
+    // THE BUG. snapshotEarTrainingModules derived `total` from items
+    // present in db.attempts, so the denominator grew as you practised
+    // and `untouched` was permanently 0. One attempt against one mode
+    // must not make the module "1 item, 100% seen".
+    const counts = tierCountsForCatalog(
+      scalesModesCatalog,
+      [attempt({ moduleId: 'scales-modes', itemId: 'ionian-tab1' })],
+      NOW,
+    );
+    expect(counts.total).toBe(18);
+    expect(counts.untouched).toBe(18);
+  });
+
+  it('does not move when nothing has been practised', () => {
+    expect(tierCountsForCatalog(scalesModesCatalog, [], NOW).total).toBe(18);
+  });
+
+  it('ignores attempts against refs the catalog no longer holds', () => {
+    // Numerator filtered to catalog membership by construction: stats
+    // are looked up BY catalog ref, so stored practice that outlived a
+    // catalog entry cannot push a percentage over 100%.
+    const counts = tierCountsForCatalog(
+      scalesModesCatalog,
+      correctRun(10, 0, { moduleId: 'scales-modes', itemId: 'cut-mode-tab1' }),
+      NOW,
+    );
+    expect(counts.total).toBe(18);
+    expect(counts.untouched).toBe(18);
+    expect(counts.fluent).toBe(0);
+  });
+
+  it('tiers a real run against its catalog row', () => {
+    const counts = tierCountsForCatalog(
+      scalesModesCatalog,
+      correctRun(10, 0, { moduleId: 'scales-modes', itemId: 'dorian-tab2' }),
+      NOW,
+    );
+    expect(counts.total).toBe(18);
+    expect(counts.fluent + counts.mastered).toBe(1);
+    expect(counts.untouched).toBe(17);
+  });
+
+  it('tiers a merged row on its refs combined', () => {
+    // Reading's conceptual-knowledge row aggregates `count` and
+    // `which`. Three attempts on each is six engagements for one row —
+    // enough to clear the tier minimum, which neither ref would manage
+    // alone.
+    const refs = ['sig:2s:major:count', 'sig:2s:major:which'];
+    const attempts = refs.flatMap((ref, r) =>
+      Array.from({ length: 3 }, (_, i) =>
+        attempt({ moduleId: 'reading', itemId: ref, timestamp: NOW - (r * 10 + i) * 1000 })));
+    const stats = itemStatsForCatalog(readingCatalog, attempts)
+      .find(s => s.itemRef === '2s:major:conceptual')!;
+    expect(stats.engagementCount).toBe(6);
+    expect(tierFromItemStats(stats, NOW)).not.toBe('untouched');
   });
 });

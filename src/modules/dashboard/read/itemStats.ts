@@ -42,7 +42,7 @@
  */
 import type { AttemptRecord } from '../../../lib/db';
 import { fluencyValue, normaliseFeel } from '../../../lib/fluencyScale';
-import { canonicalItemId } from './canonicalItemId';
+import { itemRefForAttempt } from './canonicalItemId';
 
 /** Engagements the accuracy mean is taken over. */
 export const ACCURACY_WINDOW = 20;
@@ -245,12 +245,14 @@ export function itemStatsByRef(
 // =====================================================================
 
 /**
- * A right/wrong attempt row. `itemRef` is canonicalised here so every
- * caller buckets identically; see `canonicalItemId`.
+ * A right/wrong attempt row. The ref is resolved by
+ * `itemRefForAttempt`, so every caller buckets identically — including
+ * intervals, whose direction lives in its own column rather than in
+ * the id.
  */
 export function engagementFromAttempt(attempt: AttemptRecord): Engagement {
   return {
-    itemRef: canonicalItemId(attempt.moduleId, attempt.itemId),
+    itemRef: itemRefForAttempt(attempt),
     timestamp: attempt.timestamp,
     score: attempt.correct ? 100 : 0,
     ...(attempt.excludeFromFluency ? { excludeFromFluency: true } : {}),

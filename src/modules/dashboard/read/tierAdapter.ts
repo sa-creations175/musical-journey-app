@@ -20,7 +20,9 @@
 import type { AttemptRecord } from '../../../lib/db';
 import { computeTier, type Tier } from '../../../lib/tier';
 import { catalogRollupKey } from './canonicalItemId';
+import type { ModuleCatalog } from './catalogs';
 import {
+  emptyItemStats,
   engagementsFromAttempts,
   itemStatsByRef,
   itemStatsFromEngagements,
@@ -149,4 +151,63 @@ export function bucketAttemptsForCatalog(
     byModule.set(a.moduleId, mod);
   }
   return byModule;
+}
+
+/**
+ * Tier counts across a FULL CATALOG rather than across whatever
+ * happens to be in the log.
+ *
+ * This is the fix for the denominator gap documented on
+ * `tierCountsFromAttempts` above. Every catalog row is tallied: one
+ * with no engagements lands in `untouched`, so `total` is the catalog
+ * size and stays put whether you have practised nothing or everything.
+ *
+ * The numerator is filtered to catalog membership by construction —
+ * stats are looked up BY catalog ref, so an attempt against a ref the
+ * catalog no longer holds contributes to nothing. That is what keeps a
+ * percentage from exceeding 100% when stored practice outlives a
+ * catalog entry, the way it did for the cut chord shapes.
+ *
+ * A row that merges several stored refs (Reading's conceptual
+ * knowledge) is tiered on their engagements combined — one row, one
+ * verdict, over everything it aggregates.
+ */
+export function tierCountsForCatalog(
+  catalog: ModuleCatalog,
+  attempts: ReadonlyArray<AttemptRecord>,
+  now: number,
+): TierCounts {
+  const counts = emptyTierCounts();
+  for (const stats of itemStatsForCatalog(catalog, attempts)) {
+    bumpTier(counts, tierFromItemStats(stats, now));
+  }
+  return counts;
+}
+
+/**
+ * Stats for every row in a catalog, in catalog order. Rows with no
+ * engagements come back as `emptyItemStats` rather than being omitted —
+ * an uncovered item is part of the denominator, which is the whole
+ * point of walking the catalog instead of the log.
+ */
+export function itemStatsForCatalog(
+  catalog: ModuleCatalog,
+  attempts: ReadonlyArray<AttemptRecord>,
+): ItemStats[] {
+  const byRef = new Map<string, Engagement[]>();
+  for (const e of engagementsFromAttempts(attempts)) {
+    const bucket = byRef.get(e.itemRef);
+    if (bucket) bucket.push(e);
+    else byRef.set(e.itemRef, [e]);
+  }
+  const options = {
+    accuracyKind: catalog.accuracyKind,
+    ...(catalog.coverageRule ? { coverageRule: catalog.coverageRule } : {}),
+  };
+  return catalog.items.map(item => {
+    const engagements = item.itemRefs.flatMap(ref => byRef.get(ref) ?? []);
+    return engagements.length === 0
+      ? emptyItemStats(item.id, options)
+      : itemStatsFromEngagements(item.id, engagements, options);
+  });
 }

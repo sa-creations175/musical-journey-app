@@ -102,6 +102,20 @@ The clearest case is ET chord motion — the catalog is 132 motions and the `42`
 on screen today is the diatonic-only scope readout. See the chord motion tree
 below.
 
+**This failure is already live, in four rows of the current dashboard.**
+*Found 20 Aug 2026 while building the read layer.* `snapshotEarTrainingModules`
+derived each module's `total` from the items present in `db.attempts`, so the
+denominator **grew as you practised** — drill one new mode and the module's
+item count went up by one — and `untouched` was permanently 0.
+`snapshotHarmonicFluency` walks the 375-card catalog and reports a true count.
+The two halves of the same dashboard have never meant the same thing by
+"total". Fixed in read-layer step 3 (`tierCountsForCatalog`), which walks the
+catalog and files an unpractised row as `untouched` instead of omitting it.
+
+The same step closes the numerator half: stats are looked up **by catalog ref**,
+so stored practice that outlives a catalog entry — the cut chord shapes, a
+renamed item — contributes to nothing and cannot push a percentage over 100%.
+
 ### Focus-pool attempts — `excludeFromFluency`
 
 > **Added 20 Aug 2026.** A rule already enforced in eight drills that the
@@ -906,9 +920,14 @@ Turned up while applying the above. **Flagged, not decided** — each needs a
 call that was not in the corrections.
 
 **1. Mental visualisation is not "the same catalog as chord shapes".**
-*RESOLVED 20 Aug — the 96 extended dominant voicings are cut; see **Catalog
-cuts**. Whether mental viz rolls into S&P coverage or stays its own module row
-is still open.* The doc said so; `mentalVizLibrary.ts` says 600 = 216 triads (6 × 3 inversions × 12
+*RESOLVED 20 Aug — the 96 extended dominant voicings are cut (see **Catalog
+cuts**), and mental viz is **its own module row**, not part of the Shapes &
+Patterns tree. It writes spacing rows under the dedicated `mental-viz`
+moduleRef and is deliberately excluded from every S&P coverage number (an
+April 27 design call, `RULE_LEGIBILITY` §1.6); folding it into S&P would
+reverse that quietly. The **Shapes & Patterns** tree section below still
+describes it as a fourth submodule — that text is stale, and the module trees
+should read S&P as three submodules with mental visualisation alongside them.* The doc said so; `mentalVizLibrary.ts` says 600 = 216 triads (6 × 3 inversions × 12
 keys) + 288 sevenths (6 × 4 × 12) + **96 extended dominant voicings** (8 × 12).
 The extended voicings have no inversion axis at all — their ids look like
 `mv:dom9_13:A:G` — so the proposed `quality → inversion → key` tree has no

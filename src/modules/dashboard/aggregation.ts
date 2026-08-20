@@ -3,9 +3,11 @@ import { computeTier } from '../../lib/tier';
 import {
   bumpTier,
   emptyTierCounts,
+  tierCountsForCatalog,
   tierCountsFromAttempts,
   type TierCounts,
 } from './read/tierAdapter';
+import { catalogBySourceId } from './read/catalogs';
 import { localDayKey } from '../../lib/dailyGoal';
 import {
   defaultDailyGoal,
@@ -85,7 +87,16 @@ export async function snapshotEarTrainingModules(): Promise<ModuleSnapshot[]> {
   const snapshots: ModuleSnapshot[] = [];
   for (const mod of EAR_TRAINING_MODULES) {
     const attempts = byModule.get(mod.moduleId) ?? [];
-    const counts = tierCountsFromAttempts(attempts, Date.now());
+    // Catalog-driven, not log-driven. `counts.total` used to be the
+    // number of items present in db.attempts, so the denominator grew
+    // as you practised and `untouched` was permanently 0 — the exact
+    // failure a coverage number must not have. Every module here has a
+    // catalog; the fallback keeps a future module from crashing the
+    // dashboard before its catalog is written.
+    const catalog = catalogBySourceId(mod.moduleId);
+    const counts = catalog
+      ? tierCountsForCatalog(catalog, attempts, Date.now())
+      : tierCountsFromAttempts(attempts, Date.now());
     const attemptsToday = attempts.filter(a => a.timestamp >= startOfToday).length;
     const goal = await readDailyGoal(mod.moduleId);
     const latest = attempts.reduce<number | null>(
