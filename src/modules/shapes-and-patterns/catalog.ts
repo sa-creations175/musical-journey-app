@@ -878,3 +878,78 @@ export const QUALITY_INTERVALS: Record<string, number[]> = {
   min6:      [0, 3, 7, 9],
   maj6_9:    [0, 4, 7, 9, 14],
 };
+
+// --- Voicing-engine vocabulary (independent of the drill catalog) ---
+
+/**
+ * WHY THIS IS SEPARATE FROM `CHORD_QUALITIES`
+ *
+ * `CHORD_QUALITIES` used to do two unrelated jobs: name what the
+ * player *drills*, and name what the app can *voice*. Cutting the
+ * drill catalog to triads + sevenths (20 Aug 2026, see
+ * docs/DASHBOARD_REDESIGN_DESIGN.md § Catalog cuts) silently broke the
+ * second job — the lead-sheet voicing carousel derives its system
+ * patterns from the catalog and auto-prunes rows that fall out of it,
+ * and `voicingQualityMap` built its suffix table from it, so a `C6/9`
+ * on a chart resolved to a dominant-7 voicing.
+ *
+ * The two are now independent. `QUALITY_INTERVALS` above and the
+ * groupings below are the voicing engine's vocabulary: every chord the
+ * app can spell, render and offer as a carousel candidate. They change
+ * only when the app learns a new chord — never because the drill
+ * catalog grew or shrank.
+ *
+ * Ordering is the historical `CHORD_QUALITIES` order so seeded
+ * voicing-pattern ids and sort orders stay byte-identical across the
+ * split (no spurious prune-and-reseed on upgrade).
+ */
+
+/** Triads — the carousel gives each a full 3-inversion set. */
+export const VOICING_TRIAD_IDS: ReadonlyArray<string> = [
+  'maj', 'min', 'dim', 'aug', 'sus2', 'sus4',
+];
+
+/** Seventh chords — the carousel gives each a full 4-inversion set. */
+export const VOICING_SEVENTH_IDS: ReadonlyArray<string> = [
+  'maj7', 'min7', 'dom7', 'm7b5', 'dim7', 'mmaj7',
+];
+
+/** Extensions — one root-position stack each in the carousel. These
+ *  are NOT in the drill catalog; they exist so a chart can spell them
+ *  and the mental-viz answer set can offer them as distractors. */
+export const VOICING_EXTENSION_IDS: ReadonlyArray<string> = [
+  'maj9', 'min9', 'dom9', 'maj11', 'min11', 'dom11',
+  'maj13', 'min13', 'dom13', 'add9', 'maj7s11',
+  'dom7b9', 'dom7s9', 'dom7b13',
+];
+
+/** Sixth-family voicings — one root-position stack each. Same
+ *  rationale as extensions. */
+export const VOICING_SPECIAL_IDS: ReadonlyArray<string> = [
+  'maj6', 'min6', 'maj6_9',
+];
+
+/**
+ * Canonical display suffix for every voicing-engine quality id — the
+ * form a player types on a lead sheet. Alternate spellings are folded
+ * to these in `voicingQualityMap.ALTERNATE_TO_CANONICAL`.
+ *
+ * Every key here must exist in `QUALITY_INTERVALS`; the unit test
+ * pins both directions so the two can never drift.
+ */
+export const VOICING_QUALITY_SUFFIX: Readonly<Record<string, string>> = {
+  // Triads — the bare root is the standard notation for major.
+  maj: '',        min: 'm',       dim: '°',       aug: '+',
+  sus2: 'sus2',   sus4: 'sus4',
+  // Sevenths
+  maj7: 'maj7',   min7: 'm7',     dom7: '7',      m7b5: 'm7b5',
+  dim7: '°7',     mmaj7: 'm(maj7)',
+  // Extensions
+  maj9: 'maj9',   min9: 'm9',     dom9: '9',
+  maj11: 'maj11', min11: 'm11',   dom11: '11',
+  maj13: 'maj13', min13: 'm13',   dom13: '13',
+  add9: 'add9',   maj7s11: 'maj7#11',
+  dom7b9: '7b9',  dom7s9: '7#9',  dom7b13: '7b13',
+  // Special / sixth
+  maj6: '6',      min6: 'm6',     maj6_9: '6/9',
+};

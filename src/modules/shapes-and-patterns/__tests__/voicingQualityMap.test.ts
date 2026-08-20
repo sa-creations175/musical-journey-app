@@ -1,12 +1,54 @@
 import { describe, expect, it } from 'vitest';
 import { qualityIdFromSuffix } from '../voicingQualityMap';
-import { CHORD_QUALITIES, QUALITY_INTERVALS } from '../catalog';
+import {
+  QUALITY_INTERVALS,
+  VOICING_QUALITY_SUFFIX,
+  VOICING_TRIAD_IDS,
+  VOICING_SEVENTH_IDS,
+  VOICING_EXTENSION_IDS,
+  VOICING_SPECIAL_IDS,
+} from '../catalog';
+
+/**
+ * These pin the voicing vocabulary to QUALITY_INTERVALS and NOT to
+ * CHORD_QUALITIES. The drill catalog is deliberately smaller (triads +
+ * sevenths only, 20 Aug 2026); a chart must still be able to spell an
+ * extension and get real voicings back. If someone re-points this file
+ * at CHORD_QUALITIES, these fail.
+ */
+describe('voicing vocabulary — independent of the drill catalog', () => {
+  it('covers every quality the voicing engine can spell', () => {
+    expect(Object.keys(VOICING_QUALITY_SUFFIX).sort())
+      .toEqual(Object.keys(QUALITY_INTERVALS).sort());
+  });
+
+  it('groups partition the vocabulary with no overlap or omission', () => {
+    const grouped = [
+      ...VOICING_TRIAD_IDS,
+      ...VOICING_SEVENTH_IDS,
+      ...VOICING_EXTENSION_IDS,
+      ...VOICING_SPECIAL_IDS,
+    ];
+    expect(new Set(grouped).size).toBe(grouped.length);
+    expect(grouped.sort()).toEqual(Object.keys(QUALITY_INTERVALS).sort());
+  });
+
+  it('keeps extensions and sixths spellable after the drill-catalog cut', () => {
+    // The exact suffixes a player types on a chart for the qualities
+    // that are NOT in the drill catalog.
+    expect(qualityIdFromSuffix('6/9')).toEqual({ id: 'maj6_9', exact: true });
+    expect(qualityIdFromSuffix('maj9')).toEqual({ id: 'maj9', exact: true });
+    expect(qualityIdFromSuffix('13')).toEqual({ id: 'dom13', exact: true });
+    expect(qualityIdFromSuffix('add9')).toEqual({ id: 'add9', exact: true });
+    expect(qualityIdFromSuffix('m6')).toEqual({ id: 'min6', exact: true });
+    expect(qualityIdFromSuffix('maj7#11')).toEqual({ id: 'maj7s11', exact: true });
+  });
+});
 
 describe('qualityIdFromSuffix', () => {
-  it('maps every canonical CHORD_QUALITIES suffix to its own id (exact)', () => {
-    for (const q of CHORD_QUALITIES) {
-      const r = qualityIdFromSuffix(q.suffix);
-      expect(r).toEqual({ id: q.id, exact: true });
+  it('maps every canonical voicing suffix to its own id (exact)', () => {
+    for (const [id, suffix] of Object.entries(VOICING_QUALITY_SUFFIX)) {
+      expect(qualityIdFromSuffix(suffix)).toEqual({ id, exact: true });
     }
   });
 

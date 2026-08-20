@@ -15,7 +15,12 @@
 import { db, type VoicingEntry, type VoicingPattern } from '../../lib/db';
 import { whenSyncReady } from '../../lib/sync/syncReady';
 import { normalizeVoicing } from '../../lib/voicingColors';
-import { CHORD_QUALITIES } from './catalog';
+import {
+  VOICING_TRIAD_IDS,
+  VOICING_SEVENTH_IDS,
+  VOICING_EXTENSION_IDS,
+  VOICING_SPECIAL_IDS,
+} from './catalog';
 import {
   EXTENDED_DOM_VOICINGS,
   chordShapeOffsets,
@@ -27,8 +32,13 @@ import {
 // is meaningless for them. 2026-05-23, the feature's creation date.
 const SYSTEM_TIMESTAMP = Date.UTC(2026, 4, 23);
 
-const TRIAD_IDS = ['maj', 'min', 'dim', 'aug', 'sus2', 'sus4'] as const;
-const SEVENTH_IDS = ['maj7', 'min7', 'dom7', 'm7b5', 'dim7', 'mmaj7'] as const;
+// Sourced from the voicing-engine vocabulary in catalog.ts, NOT from
+// CHORD_QUALITIES. The carousel offers whatever a chart can spell; the
+// drill catalog is a separate, smaller list. Reading CHORD_QUALITIES
+// here meant the 20 Aug drill-catalog cut would have silently
+// bulk-deleted 17 system voicings via runSeed's prune step.
+const TRIAD_IDS = VOICING_TRIAD_IDS;
+const SEVENTH_IDS = VOICING_SEVENTH_IDS;
 const INVERSION_TAG = ['root', 'inv1', 'inv2', 'inv3'];
 const INVERSION_LABEL = [
   'Root position',
@@ -113,20 +123,26 @@ export function buildSystemVoicingPatterns(): VoicingPattern[] {
     }
   }
 
-  // Root-position stacks for the extension + special qualities (triads and
-  // sevenths are covered above by their inversion sets).
-  for (const q of CHORD_QUALITIES) {
-    if (q.kind !== 'extension' && q.kind !== 'special') continue;
-    out.push(
-      pattern(
-        q.id,
-        'root',
-        'Root position',
-        toEntries(chordShapeOffsets(q.id, 0)),
-        0,
-        q.kind,
-      ),
-    );
+  // Root-position stacks for the extension + sixth voicings (triads and
+  // sevenths are covered above by their inversion sets). These qualities
+  // are deliberately absent from the drill catalog — a player can still
+  // write Cmaj13 on a chart and wants voicings for it.
+  for (const [ids, source] of [
+    [VOICING_EXTENSION_IDS, 'extension'],
+    [VOICING_SPECIAL_IDS, 'special'],
+  ] as const) {
+    for (const id of ids) {
+      out.push(
+        pattern(
+          id,
+          'root',
+          'Root position',
+          toEntries(chordShapeOffsets(id, 0)),
+          0,
+          source,
+        ),
+      );
+    }
   }
 
   // Curated extended-dominant voicings (A/B positions, dom7b9 inversions),

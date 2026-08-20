@@ -9,12 +9,19 @@
 // (''→maj, 'm'→min, '7'→dom7, 'm7'→min7), so the voicing carousel maps
 // suffix → id explicitly here.
 //
+// SOURCE OF TRUTH: `VOICING_QUALITY_SUFFIX`, NOT `CHORD_QUALITIES`.
+// What a chart can spell and what the player drills are different
+// questions. This file used to read `CHORD_QUALITIES`, so the 20 Aug
+// drill-catalog cut (extensions + sixths out) would have made `C6/9`
+// resolve to a dominant-7 voicing. The voicing vocabulary lives beside
+// QUALITY_INTERVALS and shrinks only when the app forgets a chord.
+//
 // Contract: NEVER throws, and ALWAYS returns an id that exists in
 // QUALITY_INTERVALS — unrecognized input falls back to the nearest base
 // triad/seventh with `exact: false`, so the carousel shows sensible
 // candidates rather than nothing (it must never silently drop voicings).
 
-import { CHORD_QUALITIES, QUALITY_INTERVALS } from './catalog';
+import { QUALITY_INTERVALS, VOICING_QUALITY_SUFFIX } from './catalog';
 
 export interface QualityIdResult {
   /** A key of QUALITY_INTERVALS — always valid. */
@@ -24,14 +31,14 @@ export interface QualityIdResult {
   exact: boolean;
 }
 
-// Canonical suffix (as stored in CHORD_QUALITIES) → catalog id.
-// The empty suffix '' maps to the major triad.
+// Canonical suffix → voicing-engine id. The empty suffix '' maps to the
+// major triad.
 const SUFFIX_TO_ID = new Map<string, string>(
-  CHORD_QUALITIES.map(q => [q.suffix, q.id]),
+  Object.entries(VOICING_QUALITY_SUFFIX).map(([id, suffix]) => [suffix, id]),
 );
 
 // Common alternate spellings the parser can emit or a user can type, folded
-// to the CANONICAL suffix used in CHORD_QUALITIES. Case-sensitive where it
+// to the CANONICAL suffix in VOICING_QUALITY_SUFFIX. Case-sensitive where it
 // matters ('M7' major vs 'm7' minor). Only genuinely-alternate forms live
 // here; exact canonical suffixes are matched directly by SUFFIX_TO_ID.
 const ALTERNATE_TO_CANONICAL: Record<string, string> = {
