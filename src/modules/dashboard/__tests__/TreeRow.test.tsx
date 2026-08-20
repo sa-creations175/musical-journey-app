@@ -315,3 +315,32 @@ describe('depth and module label', () => {
     expect(without.querySelector('[data-testid="row-module-label"]')).toBeNull();
   });
 });
+
+describe('a chevron only where there is something to toggle', () => {
+  it('renders none on a parent with no handler', () => {
+    // A module row's submodules always show, so a chevron there would
+    // look live and do nothing — the same class of failure as a
+    // disabled control that tests still exercise.
+    const el = render(
+      <TreeRow node={parent([{}, {}])} moduleId="intervals" now={NOW} expanded={false} />,
+    );
+    expect(el.querySelector('[data-testid="expand-toggle"]')).toBeNull();
+  });
+
+  it('keeps the name cell aligned with and without one', () => {
+    const withToggle = render(
+      <TreeRow node={parent([{}, {}])} moduleId="intervals" now={NOW}
+        expanded={false} onToggleExpand={() => {}} />,
+    );
+    const a = withToggle.querySelector('span[title]')!.previousElementSibling!;
+    expect(a.className).toContain('w-4');
+    act(() => root!.unmount());
+    container!.remove();
+
+    const without = render(
+      <TreeRow node={parent([{}, {}])} moduleId="intervals" now={NOW} expanded={false} />,
+    );
+    const b = without.querySelector('span[title]')!.previousElementSibling!;
+    expect(b.className).toContain('w-4');
+  });
+});

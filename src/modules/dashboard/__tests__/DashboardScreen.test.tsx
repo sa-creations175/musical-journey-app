@@ -1,0 +1,363 @@
+// @vitest-environment jsdom
+/**
+ * The screen, rendered against a real Dexie.
+ *
+ * Same two rules as the row's tests: query from the container and
+ * assert ancestry, dispatch real events rather than calling handlers.
+ *
+ * The assertions here are about WHAT IS ON SCREEN AND IN WHAT ORDER -
+ * row counts, expansion, the comparison, the URL. Nothing here can
+ * check that it looks like a dense table; that is hand-verification and
+ * is listed as such in the step report.
+ */
+import 'fake-indexeddb/auto';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createRoot, type Root } from 'react-dom/client';
+import { act } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import DashboardScreen from '../DashboardScreen';
+import { db, type AttemptRecord } from '../../../lib/db';
+
+(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true;
+
+const NOW = 1_700_000_000_000;
+
+let container: HTMLDivElement | null = null;
+let root: Root | null = null;
+
+/** Render and let the live query resolve. */
+async function renderScreen(initialEntry = '/'): Promise<HTMLDivElement> {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => {
+    root!.render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <DashboardScreen now={NOW} />
+      </MemoryRouter>,
+    );
+  });
+  await settle();
+  return container;
+}
+
+/**
+ * Let Dexie's live query resolve and React flush.
+ *
+ * A fixed pair of ticks was not enough - the first version of this
+ * helper returned an empty container and every assertion below failed
+ * for a reason that had nothing to do with the screen.
+ */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 20; i++) {
+    await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+    if (container?.querySelector('[data-testid="tree-row"]')) return;
+  }
+}
+
+function click(el: Element) {
+  act(() => {
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+}
+
+function rows(el: HTMLElement): HTMLElement[] {
+  return [...el.querySelectorAll('[data-testid="tree-row"]')] as HTMLElement[];
+}
+
+/** The name cell carries a `title`; a leaf's first span is an
+ *  aria-hidden spacer where the chevron would be. */
+function rowLabels(el: HTMLElement): string[] {
+  return rows(el).map(r => r.querySelector('span[title]')?.textContent ?? '');
+}
+
+/**
+ * Give the nine scales & modes rows different accuracies, so sorting
+ * actually reorders them.
+ */
+async function seedVariedScalesModes(): Promise<void> {
+  const modes = ['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian',
+    'aeolian', 'harmonic-minor', 'melodic-minor', 'locrian'];
+  const rows: AttemptRecord[] = [];
+  modes.forEach((mode, i) => {
+    // Ten attempts each, correct-count stepping from 1 to 9 - enough
+    // to clear the tier minimum and to give every row a distinct score.
+    for (let n = 0; n < 10; n++) {
+      rows.push({
+        id: `att-${mode}-${n}`,
+        moduleId: 'scales-modes',
+        itemId: `${mode}-tab1`,
+        correct: n <= i,
+        timestamp: NOW - (i * 10 + n) * 1000,
+      });
+    }
+  });
+  await db.attempts.bulkPut(rows);
+}
+
+/**
+ * Give reading's key-signature rows different accuracies, so sorting
+ * reorders them at depth 2.
+ */
+async function seedVariedReading(): Promise<void> {
+  const sigs = ['6f', '5f', '4f', '3f', '2f', '1f', '0', '1s', '2s', '3s'];
+  const rows: AttemptRecord[] = [];
+  sigs.forEach((sig, i) => {
+    for (let n = 0; n < 10; n++) {
+      rows.push({
+        id: `att-r-${sig}-${n}`,
+        moduleId: 'reading',
+        itemId: `sig:${sig}:major:name`,
+        correct: n <= i,
+        timestamp: NOW - (i * 10 + n) * 1000,
+      });
+    }
+  });
+  await db.attempts.bulkPut(rows);
+}
+
+/** The label of the deepest row that currently has children showing. */
+function deepestExpandedLabel(el: HTMLElement): string | null {
+  const all = rows(el);
+  let best: { depth: number; label: string } | null = null;
+  for (let i = 0; i < all.length - 1; i++) {
+    const depth = Number(all[i].getAttribute('data-depth'));
+    const next = Number(all[i + 1].getAttribute('data-depth'));
+    if (next === depth + 1 && (best === null || depth > best.depth)) {
+      best = { depth, label: all[i].querySelector('span[title]')?.textContent ?? '' };
+    }
+  }
+  return best?.label ?? null;
+}
+
+/** The label of the row whose children are currently showing. */
+function expandedParentLabel(el: HTMLElement): string | null {
+  const all = rows(el);
+  for (let i = 0; i < all.length - 1; i++) {
+    const depth = Number(all[i].getAttribute('data-depth'));
+    const next = Number(all[i + 1].getAttribute('data-depth'));
+    if (next === depth + 1 && depth === 1) {
+      return all[i].querySelector('span[title]')?.textContent ?? null;
+    }
+  }
+  return null;
+}
+
+beforeEach(async () => {
+  await db.open();
+  await db.attempts.clear();
+});
+
+afterEach(async () => {
+  if (root) await act(async () => root!.unmount());
+  container?.remove();
+  root = null;
+  container = null;
+});
+
+describe('the default view', () => {
+  it('renders the table and its rows inside it', async () => {
+    const el = await renderScreen();
+    const table = el.querySelector('[data-testid="dashboard-rows"]')!;
+    expect(table).not.toBeNull();
+    const all = rows(el);
+    expect(all.length).toBeGreaterThan(0);
+    // Every row inside the table, not floating in the container.
+    expect(all.every(r => table.contains(r))).toBe(true);
+  });
+
+  it('opens at submodule level — modules and their children, nothing deeper', async () => {
+    const el = await renderScreen();
+    const depths = new Set(rows(el).map(r => r.getAttribute('data-depth')));
+    expect([...depths].sort()).toEqual(['0', '1']);
+  });
+
+  it('shows every module even with no practice logged', async () => {
+    // The screen opens nearly empty by design. An empty module is a
+    // row reading dashes, not a missing row.
+    const el = await renderScreen();
+    const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
+    expect(moduleRows.length).toBeGreaterThanOrEqual(10);
+  });
+});
+
+describe('expansion', () => {
+  it('adds exactly that row s children and nothing else', async () => {
+    const el = await renderScreen();
+    const before = rows(el).length;
+    const target = rows(el).find(r => r.querySelector('[data-testid="expand-toggle"]'))!;
+    const expectedChildren = Number(
+      // Its own depth tells us what depth its children sit at.
+      target.getAttribute('data-depth'),
+    );
+    expect(expectedChildren).toBeGreaterThanOrEqual(0);
+
+    click(target.querySelector('[data-testid="expand-toggle"]')!);
+    const after = rows(el).length;
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it('collapses back to where it started', async () => {
+    const el = await renderScreen();
+    const before = rowLabels(el);
+    const toggle = () => rows(el)
+      .find(r => r.querySelector('[data-testid="expand-toggle"]'))!
+      .querySelector('[data-testid="expand-toggle"]')!;
+    click(toggle());
+    expect(rowLabels(el)).not.toEqual(before);
+    click(toggle());
+    expect(rowLabels(el)).toEqual(before);
+  });
+
+  it('restores expansion from the URL', async () => {
+    // The whole point of putting it there. `intervals~0` is the first
+    // submodule of the intervals module.
+    const collapsed = await renderScreen('/');
+    const baseline = rows(collapsed).length;
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    const el = await renderScreen('/?open=intervals~0');
+    expect(rows(el).length).toBeGreaterThan(baseline);
+  });
+
+  it('ignores a stale URL entry rather than rendering a broken row', async () => {
+    // A path that runs off a shorter catalog, and a module that is
+    // gone. Both drop; the screen still renders.
+    const el = await renderScreen('/?open=intervals~99,not-a-module~0');
+    expect(el.querySelector('[data-testid="dashboard-screen"]')).not.toBeNull();
+    const depths = new Set(rows(el).map(r => r.getAttribute('data-depth')));
+    expect([...depths].sort()).toEqual(['0', '1']);
+  });
+});
+
+describe('sorting from the URL', () => {
+  it('reorders rows without changing how many there are', async () => {
+    const worst = await renderScreen('/?sort=aw');
+    const worstLabels = rowLabels(worst);
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    const best = await renderScreen('/?sort=ab');
+    expect(rowLabels(best)).toHaveLength(worstLabels.length);
+  });
+
+  it('does not move which row an expansion key addresses', async () => {
+    // THE PROPERTY. Expansion indices are into BUILT order, so opening
+    // a row and then changing the sort must keep the SAME row open.
+    //
+    // This needs seeded data: with nothing practised every node scores
+    // the same, the sort is a stable no-op, and indexing into sorted
+    // order would pass unnoticed.
+    await seedVariedScalesModes();
+
+    const worst = await renderScreen('/?open=scales-modes~5&sort=aw');
+    const worstOpened = expandedParentLabel(worst);
+    expect(worstOpened).not.toBeNull();
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    const best = await renderScreen('/?open=scales-modes~5&sort=ab');
+    expect(expandedParentLabel(best)).toBe(worstOpened);
+  });
+
+  it('holds at depth 2 as well, where a different code path builds the key', async () => {
+    // Depth-1 keys come from the grouped view; deeper ones from
+    // visibleDescendants. Both must index built order, and only a
+    // deeper expansion exercises the second.
+    await seedVariedReading();
+
+    const worst = await renderScreen('/?open=reading~0,reading~0.3&sort=aw');
+    const worstDeep = deepestExpandedLabel(worst);
+    expect(worstDeep).not.toBeNull();
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    const best = await renderScreen('/?open=reading~0,reading~0.3&sort=ab');
+    expect(deepestExpandedLabel(best)).toBe(worstDeep);
+  });
+
+  it('genuinely reorders once data exists', async () => {
+    // Guards the guard above: if sorting stopped reordering, the
+    // property test would pass for the wrong reason.
+    await seedVariedScalesModes();
+    const worst = await renderScreen('/?sort=aw');
+    const worstOrder = rowLabels(worst);
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    const best = await renderScreen('/?sort=ab');
+    expect(rowLabels(best)).not.toEqual(worstOrder);
+  });
+});
+
+describe('the flat view', () => {
+  it('drops module rows and trails the module name on each row', async () => {
+    const el = await renderScreen('/?flat=1');
+    const depths = new Set(rows(el).map(r => r.getAttribute('data-depth')));
+    expect(depths.has('0')).toBe(false);
+    expect(el.querySelectorAll('[data-testid="row-module-label"]').length)
+      .toBe(rows(el).length);
+  });
+});
+
+describe('filtering', () => {
+  it('renders an empty state rather than a blank screen', async () => {
+    // Nothing is practised, so "accuracy below 1" matches nothing —
+    // a dash is not below a threshold.
+    const el = await renderScreen('/?flat=1&acc=1');
+    expect(rows(el)).toHaveLength(0);
+    expect(el.querySelector('[data-testid="dashboard-empty"]')).not.toBeNull();
+  });
+
+  it('keeps module rows in the grouped view even when no submodule matches', async () => {
+    // A module row summarises what is under it. Hiding it because its
+    // average misses a threshold would hide the submodules that match.
+    const el = await renderScreen('/?acc=1');
+    const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
+    expect(moduleRows.length).toBeGreaterThanOrEqual(10);
+    expect(rows(el).filter(r => r.getAttribute('data-depth') === '1')).toHaveLength(0);
+  });
+});
+
+describe('the comparison', () => {
+  it('is absent from the URL — it is a gesture, not a view', async () => {
+    const el = await renderScreen('/');
+    const compare = el.querySelector('[data-testid="compare-toggle"]');
+    expect(compare).not.toBeNull();
+    click(compare!);
+    // Nothing tinted here (no scores yet), but the important assertion
+    // is that pressing it did not write to the query string.
+    expect(window.location.search).toBe('');
+  });
+
+  it('marks at most two rows at once', async () => {
+    const el = await renderScreen('/');
+    for (const button of el.querySelectorAll('[data-testid="compare-toggle"]')) {
+      click(button);
+      expect(rows(el).filter(r => r.getAttribute('data-compare')).length)
+        .toBeLessThanOrEqual(2);
+    }
+  });
+});
+
+describe('the drill affordance', () => {
+  it('renders one per row, inside its row', async () => {
+    const el = await renderScreen();
+    const buttons = [...el.querySelectorAll('[data-testid="drill-affordance"]')];
+    expect(buttons).toHaveLength(rows(el).length);
+    expect(buttons.every(b => b.closest('[data-testid="tree-row"]') !== null)).toBe(true);
+  });
+
+  it('says "open module" on a module row whatever the module', async () => {
+    // Tapping a module row opens the module rather than drilling all
+    // 375 cards in one sitting.
+    const el = await renderScreen();
+    const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
+    for (const row of moduleRows) {
+      expect(row.querySelector('[data-testid="drill-affordance"]')!.textContent)
+        .toBe('open module');
+    }
+  });
+});

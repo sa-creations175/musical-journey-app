@@ -80,7 +80,11 @@ function TreeRowImpl({
         className="flex-1 min-w-0 flex items-center gap-1"
         style={{ paddingLeft: `${node.depth * 14}px` }}
       >
-        {isLeaf ? (
+        {/* A chevron only where there is something to toggle. Rendering
+            one without a handler - on a module row, whose submodules
+            always show - would be a control that looks live and does
+            nothing. */}
+        {isLeaf || !onToggleExpand ? (
           <span aria-hidden="true" className="inline-block w-4 shrink-0" />
         ) : (
           <button
