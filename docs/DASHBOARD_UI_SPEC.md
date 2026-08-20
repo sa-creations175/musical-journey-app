@@ -392,17 +392,31 @@ question is whether the isolation teaches chord reading or delays it:
 
 Answering it decides whether `OVERLAY_MIX` gets wired, retired, or redesigned.
 
-### Per-node regrouping
+### Let me control the arrangement
 
-A control on a parent row offering an ALTERNATE grouping of its children.
+*Expanded 20 August 2026 to cover both halves of the same want.*
+
+The underlying ask is one thing: **let me decide how this list is arranged
+rather than inheriting one shape.** It has two parts, and they will share
+whatever mechanism gets built.
+
+**Custom module order.** Pin what is being focused on to the top, regardless of
+sort. Priorities change by season and the nav order is only a default — a good
+one, and still just a default. Note that the nav order now genuinely IS the
+default (see `natural` sort), so this is about overriding it deliberately
+rather than about fixing it.
+
+**Per-node regrouping.** A control on a parent row offering an ALTERNATE
+grouping of its children:
 
 - Key signatures by relative pair, or by major / minor
 - Intervals by size, or by direction
 - Chord shapes by inversion, or by key
 
-This is a second axis alongside the existing grouping toggle, which acts on the
-whole screen. Per-node regrouping acts on one branch, which is what makes it
-worth having and also what makes it its own design pass. Open questions:
+The second is a second axis alongside the whole-screen grouping toggle.
+Per-node regrouping acts on one branch, which is what makes it worth having and
+also what makes it its own design pass. Open questions, which apply to both
+halves:
 
 - **Which nodes offer it.** Not every parent has a second sensible axis, and a
   control that appears on rows where it does nothing is the inert-chevron
@@ -417,6 +431,14 @@ worth having and also what makes it its own design pass. Open questions:
 - **What it does to the catalog.** A regrouped branch has different `path`
   values, so either the catalog carries both axes or the tree is rebuilt per
   choice.
+- **How a pinned module interacts with a sort.** "Worst first" and "these two
+  first" are both orderings, and one has to win. Pinned-then-sorted is probably
+  right — the pin says which rows to look at, the sort says in what order
+  within that — but it needs stating rather than falling out of
+  implementation order.
+- **Whether a pin survives a reset.** Reset returns to the default view. A pin
+  is arguably part of the default once set, which would make it the first
+  piece of view state that reset does not clear.
 
 ---
 

@@ -540,3 +540,71 @@ describe('the controls drive the list', () => {
     expect(flatRows).toContain('key signature recognition');
   });
 });
+
+describe('the default order is the nav bar s', () => {
+  const NAV_ORDER = [
+    'harmonic fluency', 'ear training', 'reading',
+    'shapes & patterns', 'song repertoire', 'production',
+  ];
+
+  function moduleLabels(el: HTMLElement): (string | null)[] {
+    return rows(el)
+      .filter(r => r.getAttribute('data-depth') === '0')
+      .map(r => r.querySelector('span[title]')?.textContent ?? null);
+  }
+
+  it('holds once modules have DIFFERENT scores', async () => {
+    // THE BUG. With nothing practised every module scores null, the
+    // sort is a stable no-op and the order looks right. Give two
+    // modules real and different scores and the default sort — which
+    // is a sort, not an absence of one — reorders the module rows.
+    await seedVariedScalesModes();
+    await seedVariedReading();
+    const el = await renderScreen();
+    expect(moduleLabels(el)).toEqual(NAV_ORDER);
+  });
+
+  it('holds again after reset', async () => {
+    await seedVariedScalesModes();
+    await seedVariedReading();
+    const el = await renderScreen('/?sort=aw');
+    click(el.querySelector('[data-testid="reset"]')!);
+    expect(search(el)).toBe('');
+    expect(moduleLabels(el)).toEqual(NAV_ORDER);
+  });
+
+  it('and an explicit sort DOES reorder them', async () => {
+    // Guards the guard: if nothing reorders, the two tests above pass
+    // on a screen where the sort control is broken.
+    await seedVariedScalesModes();
+    await seedVariedReading();
+    const el = await renderScreen('/?sort=aw');
+    expect(moduleLabels(el)).not.toEqual(NAV_ORDER);
+  });
+});
+
+describe('fold all, end to end', () => {
+  it('folds the screen to six rows and back', async () => {
+    const el = await renderScreen();
+    const before = rows(el).length;
+    expect(before).toBeGreaterThan(6);
+
+    click(el.querySelector('[data-testid="collapse-all"]')!);
+    expect(rows(el)).toHaveLength(6);
+    expect(search(el)).toContain('closed=');
+
+    click(el.querySelector('[data-testid="collapse-all"]')!);
+    expect(rows(el)).toHaveLength(before);
+    expect(search(el)).toBe('');
+  });
+
+  it('keeps the six in nav order while folded', async () => {
+    await seedVariedScalesModes();
+    const el = await renderScreen();
+    click(el.querySelector('[data-testid="collapse-all"]')!);
+    expect(rows(el).map(r => r.querySelector('span[title]')?.textContent)).toEqual([
+      'harmonic fluency', 'ear training', 'reading',
+      'shapes & patterns', 'song repertoire', 'production',
+    ]);
+  });
+});

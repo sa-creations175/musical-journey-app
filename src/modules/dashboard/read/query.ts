@@ -26,7 +26,21 @@
  */
 import { coverageFraction, type TreeNode } from './tree';
 
-export type SortField = 'accuracy' | 'coverage' | 'recency';
+/**
+ * `natural` is the DEFAULT and is not a sort at all — it means "leave
+ * everything in the order the catalog defines".
+ *
+ * It exists because the alternative was a default that sorts. Making
+ * accuracy/worst-first the default meant module rows reordered the
+ * moment two modules had different scores, so the nav-bar order the
+ * player is used to never appeared. It looked correct for as long as
+ * nothing was practised, which is the same fixture trap that has bitten
+ * this workstream four times.
+ *
+ * Implemented as a null sort key: every node compares equal, the sort
+ * is stable, and the incoming order survives untouched.
+ */
+export type SortField = 'natural' | 'accuracy' | 'coverage' | 'recency';
 
 /** `worst-first` is the default: the dashboard opens on what needs
  *  work, not on what is going well. */
@@ -37,7 +51,7 @@ export interface SortSpec {
   direction: SortDirection;
 }
 
-export const DEFAULT_SORT: SortSpec = { field: 'accuracy', direction: 'worst-first' };
+export const DEFAULT_SORT: SortSpec = { field: 'natural', direction: 'worst-first' };
 
 /**
  * The five filters, plus the switch.
@@ -173,6 +187,10 @@ export function filterNodes(
  */
 function sortValue(node: TreeNode, spec: SortSpec, now: number): number | null {
   switch (spec.field) {
+    case 'natural':
+      // Every node equal, so the stable sort returns them as they came:
+      // module rows in nav order, submodules in catalog order.
+      return null;
     case 'accuracy':
       return node.score;
     case 'coverage':
@@ -199,7 +217,8 @@ function sortValue(node: TreeNode, spec: SortSpec, now: number): number | null {
  */
 function ascendingMeansWorst(field: SortField): boolean {
   // Low accuracy and low coverage are bad; a LARGE age is bad, and the
-  // recency case already converts to age above.
+  // recency case already converts to age above. `natural` never reaches
+  // the comparator's value branch, so its answer does not matter.
   return field !== 'recency';
 }
 

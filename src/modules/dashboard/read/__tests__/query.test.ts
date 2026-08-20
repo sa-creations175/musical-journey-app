@@ -22,6 +22,8 @@ import {
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
 const ctx: FilterContext = { now: NOW };
+/** The old default. Tests that want a real sort say so. */
+const WORST_ACCURACY = { field: 'accuracy', direction: 'worst-first' } as const;
 
 function stats(patch: Partial<ItemStats>): ItemStats {
   return { ...emptyItemStats('x'), ...patch };
@@ -67,8 +69,25 @@ describe('sorting on accuracy', () => {
   const subs = mod.root.children;
 
   it('worst first puts the low number at the top', () => {
-    expect(labels(sortNodes(subs, DEFAULT_SORT, NOW)).slice(0, 3))
+    // Explicit, not DEFAULT_SORT: the default is `natural`, which is
+    // deliberately not a sort at all.
+    expect(labels(sortNodes(subs, WORST_ACCURACY, NOW)).slice(0, 3))
       .toEqual(['weak', 'middling', 'strong']);
+  });
+
+  it('the default leaves everything in catalog order', () => {
+    // `natural` is the DEFAULT and means "as the catalog defines".
+    // Making a real sort the default is what put module rows out of
+    // nav order on load.
+    expect(DEFAULT_SORT.field).toBe('natural');
+    expect(labels(sortNodes(subs, DEFAULT_SORT, NOW))).toEqual(labels(subs));
+  });
+
+  it('leaves catalog order alone whatever the direction says', () => {
+    // The direction control is disabled under `natural`, but a URL can
+    // still carry one, and it must not flip anything.
+    expect(labels(sortNodes(subs, { field: 'natural', direction: 'best-first' }, NOW)))
+      .toEqual(labels(subs));
   });
 
   it('best first reverses it', () => {
@@ -92,7 +111,7 @@ describe('sorting on accuracy', () => {
       b: [stats({ score: 50 })],
       c: [stats({ score: 50 })],
     });
-    expect(labels(sortNodes(tied.root.children, DEFAULT_SORT, NOW)))
+    expect(labels(sortNodes(tied.root.children, WORST_ACCURACY, NOW)))
       .toEqual(['a', 'b', 'c']);
   });
 });
@@ -233,7 +252,7 @@ describe('grouped view', () => {
     moduleOf('alpha', { weak: [stats({ score: 30 })], ok: [stats({ score: 80 })] }),
     moduleOf('beta', { great: [stats({ score: 99 })] }),
   ];
-  const spec = { sort: DEFAULT_SORT, filter: {}, grouping: true };
+  const spec = { sort: WORST_ACCURACY, filter: {}, grouping: true };
 
   it('reorders modules and sorts submodules inside them', () => {
     const view = groupedView(modules, spec, ctx);
@@ -258,7 +277,7 @@ describe('flat view', () => {
     moduleOf('alpha', { weak: [stats({ score: 30 })], ok: [stats({ score: 80 })] }),
     moduleOf('beta', { worst: [stats({ score: 10 })] }),
   ];
-  const spec = { sort: DEFAULT_SORT, filter: {}, grouping: false };
+  const spec = { sort: WORST_ACCURACY, filter: {}, grouping: false };
 
   it('interleaves submodules across modules and carries the module name', () => {
     const rows = flatView(modules, spec, ctx);

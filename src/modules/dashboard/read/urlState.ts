@@ -57,7 +57,9 @@ export interface DashboardViewState {
 /** Submodule level, worst first, grouped, nothing filtered. What the
  *  reset button returns to. */
 export const DEFAULT_VIEW_STATE: DashboardViewState = {
-  sort: { field: 'accuracy', direction: 'worst-first' },
+  // `natural` is the catalog's own order, which for module rows is the
+  // nav bar's. Not a sort — see SortField.
+  sort: { field: 'natural', direction: 'worst-first' },
   filter: { match: 'all' },
   grouping: true,
   expanded: new Set<string>(),
@@ -134,6 +136,29 @@ export function withModuleCollapsed(
   return { ...state, collapsedModules };
 }
 
+/**
+ * Fold every module, or unfold them all.
+ *
+ * Distinct from reset, which returns to submodule depth — the opposite
+ * of what folding is for. Seeing the shape of things and returning to
+ * the default are two different wants, and one button cannot be both.
+ *
+ * Folding also clears deeper expansion: a branch left open inside a
+ * folded module is invisible state that reappears on unfold, having
+ * moved without being touched.
+ */
+export function withAllModulesCollapsed(
+  state: DashboardViewState,
+  moduleIds: ReadonlyArray<string>,
+  collapsed: boolean,
+): DashboardViewState {
+  return {
+    ...state,
+    collapsedModules: collapsed ? new Set(moduleIds) : new Set<string>(),
+    expanded: collapsed ? new Set<string>() : state.expanded,
+  };
+}
+
 export function withExpansionToggled(
   state: DashboardViewState,
   key: string,
@@ -148,10 +173,10 @@ export function withExpansionToggled(
 // =====================================================================
 
 const SORT_FIELD_CODE: Readonly<Record<SortField, string>> = {
-  accuracy: 'a', coverage: 'c', recency: 'r',
+  natural: 'n', accuracy: 'a', coverage: 'c', recency: 'r',
 };
 const SORT_FIELD_BY_CODE: Readonly<Record<string, SortField>> = {
-  a: 'accuracy', c: 'coverage', r: 'recency',
+  n: 'natural', a: 'accuracy', c: 'coverage', r: 'recency',
 };
 const SORT_DIRECTION_CODE: Readonly<Record<SortDirection, string>> = {
   'worst-first': 'w', 'best-first': 'b',

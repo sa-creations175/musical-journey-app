@@ -23,6 +23,7 @@ import {
   DEFAULT_VIEW_STATE,
   activeFilterCount,
   isDefaultViewState,
+  withAllModulesCollapsed,
   type DashboardViewState,
 } from './read/urlState';
 import type { FilterSpec, SortField } from './read/query';
@@ -34,6 +35,9 @@ export interface DashboardControlsProps {
 }
 
 const SORT_FIELDS: ReadonlyArray<{ id: SortField; label: string }> = [
+  // The default, and not a sort: modules in nav order, submodules in
+  // catalog order.
+  { id: 'natural', label: 'nav order' },
   { id: 'accuracy', label: 'accuracy' },
   { id: 'coverage', label: 'coverage' },
   { id: 'recency', label: 'recency' },
@@ -47,6 +51,9 @@ const SORT_FIELDS: ReadonlyArray<{ id: SortField; label: string }> = [
  * the left.
  */
 const DIRECTION_WORDS: Readonly<Record<SortField, [string, string]>> = {
+  // Never shown — the direction control is disabled under `natural`,
+  // because "worst first" of nothing is not a question.
+  natural: ['nav order', 'nav order'],
   accuracy: ['worst first', 'best first'],
   coverage: ['least covered', 'most covered'],
   recency: ['stalest first', 'most recent first'],
@@ -127,6 +134,9 @@ export default function DashboardControls({ state, onChange }: DashboardControls
   const [open, setOpen] = useState(false);
   const filterCount = activeFilterCount(state.filter);
   const atDefault = isDefaultViewState(state);
+  const allCollapsed = DASHBOARD_MODULE_ORDER.every(
+    id => state.collapsedModules.has(id),
+  );
 
   const setFilter = (patch: Partial<FilterSpec>) =>
     onChange({ ...state, filter: { ...state.filter, ...patch } });
@@ -156,12 +166,20 @@ export default function DashboardControls({ state, onChange }: DashboardControls
       </span>
 
       {/* Direction, worded for the field it applies to. */}
-      <Pill
-        testId="sort-direction"
-        active={state.sort.direction === 'worst-first'}
-        label={`Sort direction: ${
-          state.sort.direction === 'worst-first' ? worstWord : bestWord
-        }`}
+      {/* Disabled under `natural` rather than hidden: the control keeps
+          its place, so choosing a sort field does not shift the row of
+          pills sideways under the finger about to press one. */}
+      <button
+        type="button"
+        data-testid="sort-direction"
+        data-active={state.sort.direction === 'worst-first' ? 'true' : 'false'}
+        disabled={state.sort.field === 'natural'}
+        aria-pressed={state.sort.direction === 'worst-first'}
+        aria-label={state.sort.field === 'natural'
+          ? 'Sort direction — pick a sort field first'
+          : `Sort direction: ${
+            state.sort.direction === 'worst-first' ? worstWord : bestWord
+          }`}
         onClick={() => onChange({
           ...state,
           sort: {
@@ -171,9 +189,14 @@ export default function DashboardControls({ state, onChange }: DashboardControls
               : 'worst-first',
           },
         })}
+        className={`${CONTROL} ${
+          state.sort.direction === 'worst-first' ? ACTIVE : IDLE
+        } disabled:opacity-40 disabled:cursor-default`}
       >
-        {state.sort.direction === 'worst-first' ? worstWord : bestWord}
-      </Pill>
+        {state.sort.field === 'natural'
+          ? 'direction'
+          : state.sort.direction === 'worst-first' ? worstWord : bestWord}
+      </button>
 
       <Pill
         testId="grouping-toggle"
@@ -258,6 +281,19 @@ export default function DashboardControls({ state, onChange }: DashboardControls
         })}
       >
         {state.filter.match === 'any' ? 'match any' : 'match all'}
+      </Pill>
+
+      {/* Fold, and unfold. Separate from reset, which returns to
+          submodule depth — the opposite of what folding is for. */}
+      <Pill
+        testId="collapse-all"
+        active={allCollapsed}
+        label={allCollapsed ? 'Unfold every module' : 'Fold every module'}
+        onClick={() => onChange(withAllModulesCollapsed(
+          state, DASHBOARD_MODULE_ORDER, !allCollapsed,
+        ))}
+      >
+        {allCollapsed ? 'unfold all' : 'fold all'}
       </Pill>
 
       <button

@@ -300,3 +300,76 @@ describe('the mobile collapse', () => {
     expect(find(filtered.el, 'filter-count-badge').textContent).toBe('2');
   });
 });
+
+describe('fold all', () => {
+  const ALL = ['harmonic-fluency', 'ear-training', 'reading',
+    'shapes-and-patterns', 'repertoire', 'production'];
+
+  it('folds every module in one press', () => {
+    const { el, onChange } = render();
+    click(find(el, 'collapse-all'));
+    const next = onChange.mock.calls[0][0] as DashboardViewState;
+    expect([...next.collapsedModules].sort()).toEqual([...ALL].sort());
+  });
+
+  it('unfolds them all when they are already folded', () => {
+    const { el, onChange } = render(state({ collapsedModules: new Set(ALL) }));
+    expect(find(el, 'collapse-all').textContent).toBe('unfold all');
+    click(find(el, 'collapse-all'));
+    expect((onChange.mock.calls[0][0] as DashboardViewState).collapsedModules.size)
+      .toBe(0);
+  });
+
+  it('still reads "fold all" when only some are folded', () => {
+    // Half-folded is not folded. A button that said "unfold all" here
+    // would unfold two and leave four, which is not what it said.
+    const { el } = render(state({ collapsedModules: new Set(['reading']) }));
+    expect(find(el, 'collapse-all').textContent).toBe('fold all');
+  });
+
+  it('clears deeper expansion when folding', () => {
+    // A branch left open inside a folded module is invisible state
+    // that reappears on unfold, having moved without being touched.
+    const { el, onChange } = render(state({
+      expanded: new Set(['reading~0', 'reading~0.2']),
+    }));
+    click(find(el, 'collapse-all'));
+    expect((onChange.mock.calls[0][0] as DashboardViewState).expanded.size).toBe(0);
+  });
+
+  it('is not the same button as reset', () => {
+    // Reset returns to submodule depth, which is the opposite of what
+    // folding is for.
+    const { el } = render();
+    expect(find(el, 'collapse-all')).not.toBe(find(el, 'reset'));
+    expect((find(el, 'reset') as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('the nav-order default', () => {
+  it('offers it as a field, first', () => {
+    const { el } = render();
+    const fields = [...el.querySelectorAll('[data-testid^="sort-"]')]
+      .filter(n => n.getAttribute('data-testid') !== 'sort-direction')
+      .map(n => n.textContent);
+    expect(fields).toEqual(['nav order', 'accuracy', 'coverage', 'recency']);
+  });
+
+  it('marks it active at the default view', () => {
+    expect(find(render().el, 'sort-natural').getAttribute('data-active')).toBe('true');
+  });
+
+  it('disables the direction control under it', () => {
+    // "Worst first" of nothing is not a question. Disabled rather than
+    // hidden, so picking a sort field does not shift the pills sideways
+    // under the finger about to press one.
+    const natural = render();
+    const button = find(natural.el, 'sort-direction') as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe('direction');
+    act(() => root!.unmount()); container!.remove();
+
+    const sorted = render(state({ sort: { field: 'accuracy', direction: 'worst-first' } }));
+    expect((find(sorted.el, 'sort-direction') as HTMLButtonElement).disabled).toBe(false);
+  });
+});
