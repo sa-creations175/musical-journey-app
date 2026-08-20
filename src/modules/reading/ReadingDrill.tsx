@@ -22,7 +22,13 @@ import ReadingStaff from './ReadingStaff';
 import FullSetPicker from '../../components/FullSetPicker';
 import AnswerVerdict from '../../components/AnswerVerdict';
 import { resolveReadingCard } from './renderCard';
-import { pickCard, type ReadingDrillSkill, type PickedCard } from './pickCard';
+import {
+  optionsForItem,
+  pickCard,
+  type ReadingDrillSkill,
+  type PickedCard,
+} from './pickCard';
+import { readingSkillForItemRef } from './catalog';
 import {
   SIGNATURES,
   parseReadingItemRef,
@@ -190,7 +196,26 @@ function staffRangeBracket(clef: Clef): KeyboardBracket {
   };
 }
 
-export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
+export default function ReadingDrill({
+  skill,
+  focusRefs,
+}: {
+  skill: ReadingDrillSkill;
+  /**
+   * Restrict the drill to these stored item refs.
+   *
+   * Set when the dashboard sends you here from a tapped row: "drill
+   * this key's conceptual knowledge" is two refs, "drill key signature
+   * recognition" is seventy-eight. Absent means the normal spaced
+   * selection over the whole skill.
+   *
+   * Refs that do not belong to `skill` are ignored rather than served -
+   * a stale link must not put a chord card inside a key-signature
+   * drill. An empty result falls back to the unfiltered pick, because a
+   * drill that serves nothing is worse than one that serves the module.
+   */
+  focusRefs?: readonly string[];
+}) {
   const [card, setCard] = useState<PickedCard | null>(null);
   const [answer, setAnswer] = useState<AnswerState>(EMPTY);
   const [submitted, setSubmitted] = useState(false);
@@ -203,12 +228,22 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
    *  value set at mount rather than one a render cycle behind. */
   const shownAt = useRef<number>(Date.now());
 
+  const focusPool = useMemo(() => {
+    if (!focusRefs || focusRefs.length === 0) return null;
+    const own = focusRefs.filter(ref => readingSkillForItemRef(ref) === skill);
+    return own.length > 0 ? own : null;
+  }, [focusRefs, skill]);
+
   const next = useCallback(() => {
-    setCard(pickCard(skill));
+    setCard(
+      focusPool
+        ? optionsForItem(focusPool[Math.floor(Math.random() * focusPool.length)])
+        : pickCard(skill),
+    );
     setAnswer(EMPTY);
     setSubmitted(false);
     shownAt.current = Date.now();
-  }, [skill]);
+  }, [skill, focusPool]);
 
   // A skill change is a new drill, not a continuation.
   useEffect(() => { next(); }, [next]);
@@ -269,7 +304,12 @@ export default function ReadingDrill({ skill }: { skill: ReadingDrillSkill }) {
   };
 
   return (
-    <div className="space-y-5">
+    /* `data-item-ref` names which catalog item is on screen. It is what
+       lets a test assert that a focus pool served what it was given,
+       and the only alternative was inferring the item from rendered
+       glyphs — which would pass on the wrong card whenever two items
+       happen to look alike. */
+    <div className="space-y-5" data-item-ref={card.itemRef}>
       {/* ---------------------------------------------------------
           The prompt. Key-signature COUNT cards show no staff — the
           prompt is a key name, and drawing the signature would be

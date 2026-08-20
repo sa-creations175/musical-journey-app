@@ -11,9 +11,11 @@
  * Nothing here writes an attempt; see ReadingDrill.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ReadingDrill from './ReadingDrill';
 import { readingCounts } from '../../lib/moduleItemCounts';
+import { readingSkillForItemRef } from './catalog';
 import type { ReadingDrillSkill } from './pickCard';
 
 const SEPIA = '#6f4a2f';
@@ -33,7 +35,24 @@ const TABS: ReadonlyArray<{
 ];
 
 export default function Reading() {
-  const [skill, setSkill] = useState<ReadingDrillSkill>('note');
+  const [params] = useSearchParams();
+  /**
+   * `?focus=ref,ref` — the dashboard sending you here from a tapped
+   * row. The skill opens on whichever one those refs belong to, so
+   * tapping "conceptual knowledge" for D major lands in the signatures
+   * drill rather than on the default note tab.
+   */
+  const focusRefs = useMemo(() => {
+    const raw = params.get('focus');
+    if (!raw) return undefined;
+    const refs = raw.split(',').map(r => r.trim()).filter(Boolean);
+    return refs.length > 0 ? refs : undefined;
+  }, [params]);
+  const focusSkill = focusRefs
+    ? readingSkillForItemRef(focusRefs[0]) ?? undefined
+    : undefined;
+
+  const [skill, setSkill] = useState<ReadingDrillSkill>(focusSkill ?? 'note');
   const counts = readingCounts();
   const active = TABS.find(t => t.id === skill)!;
 
@@ -78,7 +97,11 @@ export default function Reading() {
 
       {/* Remounting per skill resets the drill's local state without
           the drill needing to know a skill can change under it. */}
-      <ReadingDrill key={skill} skill={skill} />
+      <ReadingDrill
+        key={skill}
+        skill={skill}
+        {...(focusRefs && skill === focusSkill ? { focusRefs } : {})}
+      />
     </div>
   );
 }

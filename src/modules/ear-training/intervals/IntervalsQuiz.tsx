@@ -44,9 +44,12 @@ function keyOf(itemId: string, direction: PlayDirection): string {
 interface Props {
   intervals: IntervalData[];
   attempts: AttemptRecord[];
+  /** `id|direction` keys to open in focus mode on - the format
+   *  `buildCandidates` matches. Sent by a dashboard row tap. */
+  initialFocusKeys?: readonly string[];
 }
 
-export default function IntervalsQuiz({ intervals, attempts }: Props) {
+export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }: Props) {
   const [filter, setFilter] = useState<DirectionFilter>('both');
   const [current, setCurrent] = useState<{ interval: IntervalData; rootMidi: number; direction: PlayDirection } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
@@ -54,8 +57,19 @@ export default function IntervalsQuiz({ intervals, attempts }: Props) {
   const [answered, setAnswered] = useState(false);
   const [showLifetime, setShowLifetime] = useState(false);
   const [showFocusPanel, setShowFocusPanel] = useState(false);
-  const [focusActive, setFocusActive] = useState(false);
-  const [focusKeys, setFocusKeys] = useState<string[]>([]);
+  /**
+   * FOCUS PROTECTION STILL APPLIES to a pool the dashboard sent. Under
+   * 4 items it logs `excludeFromFluency`, because the rule is about how
+   * few items you were choosing between, not about who chose them.
+   * Tapping "minor 7th descending" and drilling one interval must not
+   * move an accuracy number.
+   */
+  const [focusActive, setFocusActive] = useState(
+    (initialFocusKeys?.length ?? 0) > 0,
+  );
+  const [focusKeys, setFocusKeys] = useState<string[]>(
+    initialFocusKeys ? [...initialFocusKeys] : [],
+  );
 
   const filterRef = useRef(filter);
   filterRef.current = filter;

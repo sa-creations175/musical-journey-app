@@ -31,6 +31,7 @@ import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 // a page nobody could reach.
 const Reading = lazy(() => import('./modules/reading/Reading'));
 const ReadingPreview = lazy(() => import('./modules/reading/ReadingPreview'));
+import DashboardScreen from './modules/dashboard/DashboardScreen';
 import Goals from './modules/goals/Goals';
 import PracticeSessions from './modules/practice/PracticeSessions';
 import ActiveSessionScreen from './modules/practice/ActiveSessionScreen';
@@ -54,6 +55,11 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
+            {/* The new dashboard, alongside the old one rather than
+                replacing it. The swap and the deletion are separate
+                steps: this exists so the screen can be looked at while
+                the controls are built. */}
+            <Route path="dashboard-next" element={<DashboardScreen />} />
             <Route path="goals" element={<Goals />} />
             <Route path="practice-sessions" element={<PracticeSessions />} />
             <Route path="practice-sessions/active" element={<ActiveSessionScreen />} />

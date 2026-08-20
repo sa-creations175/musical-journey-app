@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
 import { seedIntervals } from './seed';
@@ -11,6 +11,16 @@ import DailyGoalBar from '../../../components/DailyGoalBar';
 const MODULE_ID = 'intervals';
 
 export default function Intervals() {
+  const [params] = useSearchParams();
+  /** `?focus=M3|asc,m7|desc` — a dashboard row tap. Opens the quiz
+   *  already in focus mode over exactly those intervals. */
+  const focusKeys = useMemo(() => {
+    const raw = params.get('focus');
+    if (!raw) return undefined;
+    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+    return keys.length > 0 ? keys : undefined;
+  }, [params]);
+
   useEffect(() => {
     seedIntervals();
   }, []);
@@ -41,7 +51,11 @@ export default function Intervals() {
         <div className="text-sm text-neutral-500">loading intervals…</div>
       ) : (
         <>
-          <IntervalsQuiz intervals={intervals} attempts={attempts} />
+          <IntervalsQuiz
+            intervals={intervals}
+            attempts={attempts}
+            {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
+          />
           <FluencyTracker intervals={intervals} attempts={attempts} />
         </>
       )}
