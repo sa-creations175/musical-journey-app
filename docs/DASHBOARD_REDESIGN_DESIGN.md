@@ -726,7 +726,25 @@ things in a similar format.
    (`SidebarNav.tsx:107-110`). So the work is (a) add three missing links, and
    (b) the real question, whether all 15 categories earn their place.
 
-6. **MIDI-in accuracy grading.** S&P and Song Repertoire are keyboard modules
+6. **Mental visualisation still uses the old three-value rating scale.**
+   *Found 20 Aug 2026 while wiring its dashboard adapter.*
+   `MentalVizChordDrill` offers Flying / Cruising / Crawling, and
+   `recordEngagement` stores exactly those three strings, so
+   `spacingState.performanceHistory` is the module's only per-item record. The
+   four-step fluency scale never reached it. Until it does, the read layer
+   projects the three onto the four via `MENTAL_VIZ_RATING_PROJECTION`
+   (crawling 25, cruising 75, flying 100) — cruising maps to *comfortable*
+   because the drill's own hint reads "got there, took a beat", which describes
+   comfort rather than effort. That middle value is the one number in the read
+   layer not read off stored data. Migrating the drill to the four-step scale
+   makes removing the projection a single edit.
+
+   Second-order: `performanceHistory` caps at 20 entries, so a mental-viz
+   item's raw attempt count is a **floor, not a total**. Coverage needs three,
+   so the threshold is unaffected — but a count that silently stops climbing
+   must say so in the affordance.
+
+7. **MIDI-in accuracy grading.** S&P and Song Repertoire are keyboard modules
    practised at a plugged-in keyboard, so MIDI is the path rather than audio —
    exact note numbers, exact timestamps, no pitch detection or overtone
    problems. Needs decisions on note matching against expected shapes, timing
