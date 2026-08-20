@@ -226,3 +226,40 @@ describe('productionLessonEngagements', () => {
     )[0].timestamp).toBe(NOW);
   });
 });
+
+describe('an unreadable rating is not a rating', () => {
+  it('emits nothing for a row whose rating is missing', () => {
+    // THE BUG: `rating <= 0` is FALSE for undefined, so the guard let
+    // the row through and the engagement carried score `undefined`.
+    // One NaN in the window turned the whole rolled-up parent into
+    // "NaN%" in red — a number that is not a number, painted as a
+    // failing one.
+    expect(productionLessonEngagements([
+      lesson({ rating: undefined as unknown as ProductionLesson['rating'] }),
+    ])).toEqual([]);
+    expect(productionLessonEngagements([
+      lesson({ rating: null as unknown as ProductionLesson['rating'] }),
+    ])).toEqual([]);
+    expect(productionLessonEngagements([
+      lesson({ rating: NaN as unknown as ProductionLesson['rating'] }),
+    ])).toEqual([]);
+  });
+
+  it('still emits for every real rating', () => {
+    for (const rating of [25, 50, 75, 100] as const) {
+      expect(productionLessonEngagements([lesson({ rating })])).toHaveLength(1);
+    }
+  });
+
+  it('leaves the row reading as a dash rather than as a failure', () => {
+    const stats = statsForCatalog(
+      productionLessonsCatalog,
+      productionLessonEngagements([
+        lesson({ rating: undefined as unknown as ProductionLesson['rating'] }),
+      ]),
+    );
+    const row = stats.find(s => s.itemRef === 'wf-01')!;
+    expect(row.score).toBeNull();
+    expect(row.covered).toBe(false);
+  });
+});

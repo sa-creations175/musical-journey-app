@@ -269,3 +269,39 @@ describe('itemStatsByRef', () => {
     expect(stats.size).toBe(0);
   });
 });
+
+describe('a non-finite score is refused, not averaged', () => {
+  it('keeps one NaN from poisoning the whole window', () => {
+    // "NaN%" renders as a value when there is none, which is the exact
+    // failure this screen exists to avoid. An adapter should never emit
+    // one; this is the backstop for when one does.
+    const stats = itemStatsFromEngagements('x', [
+      eng({ score: 100 }),
+      eng({ score: NaN, timestamp: T0 + 1 }),
+      eng({ score: 100, timestamp: T0 + 2 }),
+    ]);
+    expect(stats.score).toBe(100);
+    expect(Number.isNaN(stats.score)).toBe(false);
+    expect(stats.windowTotal).toBe(2);
+  });
+
+  it('reads as a dash when every score is unreadable', () => {
+    const stats = itemStatsFromEngagements('x', [
+      eng({ score: NaN }),
+      eng({ score: Infinity, timestamp: T0 + 1 }),
+    ]);
+    expect(stats.score).toBeNull();
+  });
+
+  it('still counts the engagement for coverage and recency', () => {
+    // The rep happened. Only its score is unusable.
+    const stats = itemStatsFromEngagements('x', [
+      eng({ score: NaN }),
+      eng({ score: NaN, timestamp: T0 + 1 }),
+      eng({ score: NaN, timestamp: T0 + 2 }),
+    ]);
+    expect(stats.engagementCount).toBe(3);
+    expect(stats.covered).toBe(true);
+    expect(stats.lastAt).toBe(T0 + 2);
+  });
+});

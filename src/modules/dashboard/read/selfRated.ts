@@ -180,7 +180,14 @@ export function productionLessonEngagements(
   }
   const out: Engagement[] = [];
   for (const lesson of lessons) {
-    if (lesson.rating <= 0) continue;
+    // `rating <= 0` alone was not enough: it is FALSE for undefined, so
+    // a row whose rating never got written let an engagement through
+    // carrying `score: undefined`. One of those in a window turns the
+    // mean into NaN, and the rolled-up parent rendered "NaN%" in red -
+    // a number that is not a number, painted as a failing one.
+    //
+    // An unreadable rating is not a rating. The row reads as a dash.
+    if (!Number.isFinite(lesson.rating) || lesson.rating <= 0) continue;
     // Recency prefers a real session over `updatedAt`, which any write
     // to the row moves.
     const timestamp = latestSessionAt.get(lesson.id)

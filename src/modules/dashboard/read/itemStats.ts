@@ -219,8 +219,13 @@ export function itemStatsFromEngagements(
   for (const e of sorted) if (e.notCounted) excludedByReason[e.notCounted] += 1;
   const excludedCount = excludedByReason['focus-pool'] + excludedByReason['not-graded'];
 
+  // Non-finite scores are refused outright rather than averaged. One
+  // NaN poisons the whole window, and "NaN%" is worse than a dash in
+  // the specific way this screen exists to avoid: it renders as a
+  // value when there is none. An adapter should never emit one - this
+  // is the backstop for when one does.
   const window = sorted
-    .filter(e => !e.notCounted)
+    .filter(e => !e.notCounted && Number.isFinite(e.score))
     .slice(0, ACCURACY_WINDOW);
   const windowTotal = window.length;
   const windowCorrect = window.filter(e => e.score === 100).length;
