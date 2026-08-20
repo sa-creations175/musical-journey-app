@@ -34,7 +34,6 @@ import {
   getAttemptsInRange,
   getEarTrainingAttemptsBySubActivity,
   getWeeklyAttempts,
-  getWeeklyRatedProductionAttempts,
 } from '../weeklyAttempts';
 import { startOfWeekLocal, endOfWeekLocal, loadDerivationMonthBounds } from '../../modules/goals/weeklyPlanData';
 import { recomputeWeeklyTargetForMonthlyGoal } from '../../modules/goals/weeklyDerivation';
@@ -379,10 +378,11 @@ const KEYSTONE_MODULES: ReadonlySet<GoalFlowModuleId> = new Set<GoalFlowModuleId
  * for those, exactly as the design doc's "no active goal" path
  * specifies.
  *
- * Production uses the rated-session counter (Step 3's
- * getWeeklyRatedProductionAttempts), NOT the legacy
- * getWeeklyAttempts('production', …) spacingState walk — Phase B's
- * notion of a Production attempt is a rated lesson session.
+ * Production needs no special case here any more. It used to: the
+ * generic getWeeklyAttempts('production', …) walked spacingState and
+ * could only ever return 0, so this loop reached past it to the
+ * rated-session counter. getWeeklyAttempts now counts rated lesson
+ * sessions itself, so the two agree and the fork is gone.
  */
 export async function loadModuleWeeklyNeeds(
   today: number = Date.now(),
@@ -477,13 +477,6 @@ export async function loadModuleWeeklyNeeds(
           intervals: breakdown.intervals,
           chordRecognition: breakdown.chordRecognition,
         },
-      });
-    } else if (moduleId === 'production') {
-      const completed = await getWeeklyRatedProductionAttempts(weekStart, weekEnd);
-      inputs.push({
-        moduleId, targetAttemptsThisWeek,
-        completedAttemptsThisWeek: completed,
-        monthlyRemainingAttempts,
       });
     } else {
       const completed = await getWeeklyAttempts(moduleId, weekStart, weekEnd);

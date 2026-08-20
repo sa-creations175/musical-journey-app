@@ -78,26 +78,22 @@ export async function inspectLastWeekActivity(): Promise<ModuleSnapshot[]> {
     .where('startedAt').between(lastWeekStart, lastWeekEnd, true, true)
     .toArray();
 
-  // Production: walk performanceHistory.
-  const prodRows = await db.spacingState
-    .where('moduleRef').equals('production')
-    .toArray();
-  const prodEntries: Array<Record<string, unknown>> = [];
-  for (const row of prodRows) {
-    for (const entry of row.performanceHistory) {
-      const t = (entry as { t?: unknown }).t;
-      const kind = (entry as { kind?: unknown }).kind;
-      if (typeof t !== 'number') continue;
-      if (t < lastWeekStart || t > lastWeekEnd) continue;
-      if (kind === 'recency') continue;
-      prodEntries.push({
-        itemRef: row.itemRef,
-        t,
-        when: new Date(t).toLocaleString(),
-        ...entry,
-      });
-    }
-  }
+  // Production: rated lesson sessions — the same source the weekly
+  // pace counts. This used to walk spacingState.performanceHistory,
+  // which nothing writes for Production, so the diagnostic reported
+  // zero for a reason no one could see. A diagnostic that is
+  // structurally always empty is worse than no diagnostic.
+  const prodEntries = (await db.productionLessonSessions
+    .where('timestamp').between(lastWeekStart, lastWeekEnd, true, true)
+    .filter(s => s.rating !== undefined)
+    .toArray())
+    .map(s => ({
+      itemRef: s.lessonId,
+      t: s.timestamp,
+      when: new Date(s.timestamp).toLocaleString(),
+      rating: s.rating,
+      durationSeconds: s.durationSeconds,
+    }));
 
   const snapshots: ModuleSnapshot[] = [
     {
@@ -143,7 +139,7 @@ export async function inspectLastWeekActivity(): Promise<ModuleSnapshot[]> {
       })),
     },
     {
-      module: 'production (db.spacingState performanceHistory)',
+      module: 'production (db.productionLessonSessions, rated only)',
       count: prodEntries.length,
       rows: prodEntries,
     },

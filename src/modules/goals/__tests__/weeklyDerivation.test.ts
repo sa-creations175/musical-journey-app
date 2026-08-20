@@ -488,6 +488,7 @@ describe('deriveWeeklyGoals — production completion goals', () => {
 describe('deriveWeeklyGoals — record shape', () => {
   beforeEach(async () => {
     await db.attempts.clear();
+    await db.productionLessonSessions.clear();
   });
 
   it('builds a complete weekly Goal record with proper field values', async () => {
@@ -543,8 +544,11 @@ describe('deriveWeeklyGoals — record shape', () => {
 
   it('drops weekly records whose computed target is 0 (monthly already met)', async () => {
     // Coverage / completion uses getAttemptsInRange, not currentValue.
-    // Production source is spacingState performanceHistory — log enough
-    // entries so attemptsSoFar exceeds the monthly target.
+    // Production attempts are rated productionLessonSessions rows —
+    // log enough so attemptsSoFar exceeds the monthly target. (This
+    // used to seed spacingState performanceHistory, which nothing in
+    // the app writes for Production; the count it produced was one
+    // only a test could create.)
     const monthly = buildMonthly({
       targetMetric: 'production_lessons_count',
       targetValue: 8,
@@ -552,22 +556,16 @@ describe('deriveWeeklyGoals — record shape', () => {
       startDate: WEEK_START - 7 * ONE_DAY,
     });
     const priorWeekTime = WEEK_START - 3 * ONE_DAY;
-    await db.spacingState.add({
-      id: 'spacing-overshoot',
-      itemRef: 'lesson-overshoot',
-      moduleRef: 'production',
-      memoryType: 'integration',
-      hand: 'both',
-      style: 'solid',
-      acquisitionStage: 'mastered',
-      currentIntervalDays: 0,
-      lastEngagedAt: priorWeekTime,
-      nextDueAt: null,
-      performanceHistory: Array.from({ length: 10 }, () => ({
-        t: priorWeekTime,
-        kind: 'state-change',
+    await db.productionLessonSessions.bulkAdd(
+      Array.from({ length: 10 }, (_, i) => ({
+        id: `pls-overshoot-${i}`,
+        lessonId: `lesson-overshoot-${i}`,
+        timestamp: priorWeekTime,
+        startedAt: priorWeekTime - 600_000,
+        durationSeconds: 600,
+        rating: 75 as const,
       })),
-    });
+    );
 
     const out = await deriveWeeklyGoals([monthly], WEEK_START, WEEK_START);
     expect(out).toHaveLength(0);

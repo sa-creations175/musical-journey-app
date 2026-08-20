@@ -2,6 +2,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  getDaysWithActivity,
   getEarTrainingAttemptsBySubActivity,
   getWeeklyAttempts,
   getWeeklyRatedProductionAttempts,
@@ -11,6 +12,7 @@ import {
   SHAPES_TIME_PER_REP_MINUTES,
   TIME_PER_ATTEMPT_MINUTES,
 } from '../weeklyAttempts';
+import { recordLessonOpen, setLessonRating } from '../../modules/production/data';
 import {
   db,
   type AttemptRecord,
@@ -18,7 +20,6 @@ import {
   type PracticeSession,
   type ProductionLessonSession,
   type SongCellRunThrough,
-  type SpacingState,
 } from '../db';
 import { newAttemptId } from '../db';
 
@@ -291,19 +292,19 @@ describe('getEarTrainingAttemptsBySubActivity', () => {
   });
 });
 
+function mkSession(overrides: Partial<ProductionLessonSession>): ProductionLessonSession {
+  return {
+    id: `pls-${Math.random().toString(36).slice(2, 8)}`,
+    lessonId: 'wf-01',
+    timestamp: MID_WEEK,
+    ...overrides,
+  };
+}
+
 describe('getWeeklyRatedProductionAttempts', () => {
   beforeEach(async () => {
     await db.productionLessonSessions.clear();
   });
-
-  function mkSession(overrides: Partial<ProductionLessonSession>): ProductionLessonSession {
-    return {
-      id: `pls-${Math.random().toString(36).slice(2, 8)}`,
-      lessonId: 'wf-01',
-      timestamp: MID_WEEK,
-      ...overrides,
-    };
-  }
 
   it('counts only rated sessions within the window — open events stay uncounted', async () => {
     await db.productionLessonSessions.bulkAdd([
@@ -374,86 +375,97 @@ describe('getWeeklyAttempts — Repertoire', () => {
 describe('getWeeklyAttempts — Production', () => {
   beforeEach(async () => {
     await db.spacingState.clear();
+    await db.productionLessons.clear();
+    await db.productionLessonSessions.clear();
   });
 
-  function spacing(partial: Partial<SpacingState> & { performanceHistory: SpacingState['performanceHistory'] }): SpacingState {
-    return {
-      hand: 'both',
-      style: 'solid',
-      id: `row-${Math.random().toString(36).slice(2, 8)}`,
-      itemRef: 'lesson-x',
-      moduleRef: 'production',
-      memoryType: 'integration',
-      acquisitionStage: 'acquiring',
-      currentIntervalDays: 0,
-      lastEngagedAt: null,
-      nextDueAt: null,
-      ...partial,
-    };
+  async function seedLesson(id: string) {
+    await db.productionLessons.add({
+      id,
+      pathId: 'workflow',
+      order: 1,
+      rating: 0,
+      revisitCount: 0,
+      lastOpenedAt: null,
+      createdAt: 1,
+      updatedAt: 1,
+    });
   }
 
-  it('counts performanceHistory entries within the window on production rows', async () => {
-    await db.spacingState.add(
-      spacing({
-        id: 'row-1',
-        moduleRef: 'production',
-        performanceHistory: [
-          { t: BEFORE,    kind: 'rating', rating: 50 }, // before
-          { t: WEEK_START, kind: 'rating', rating: 100 },  // boundary
-          { t: MID_WEEK,  kind: 'rating', rating: 25 }, // in
-          { t: AFTER,     kind: 'rating', rating: 50 }, // after
-        ],
-      }),
-    );
-    expect(await getWeeklyAttempts('production', WEEK_START, WEEK_END)).toBe(2);
+  // THE REGRESSION TEST. Production attempts used to be counted by
+  // walking db.spacingState.performanceHistory, a number that could
+  // only ever be zero: assertSpacingStage — the only writer of
+  // production spacing rows — deliberately never appends to
+  // performanceHistory, and recordEngagement, the only function that
+  // does, is never called for Production. Rating a lesson through the
+  // real write path and asking for the count is what catches it;
+  // seeding performanceHistory by hand (as these tests used to)
+  // exercises a path the app never takes and passes either way.
+  // The real write path stamps the row at Date.now(), so these two
+  // use a window around now rather than the fixed 2023 fixture week.
+  it('counts a lesson rated through the real write path', async () => {
+    const from = Date.now() - 60_000;
+    await seedLesson('wf-01');
+    await setLessonRating('wf-01', 75, from);
+    const to = Date.now();
+
+    expect(await getWeeklyAttempts('production', from, to)).toBe(1);
+    // The spacing row exists and carries the stage — it just carries
+    // no history, which is exactly why it can't be the count.
+    const spacingRows = await db.spacingState
+      .where('moduleRef').equals('production').toArray();
+    expect(spacingRows).toHaveLength(1);
+    expect(spacingRows[0].performanceHistory).toEqual([]);
   });
 
-  it('skips recency entries (passive surfacing, not state changes)', async () => {
-    await db.spacingState.add(
-      spacing({
-        id: 'row-1',
-        moduleRef: 'production',
-        performanceHistory: [
-          { t: MID_WEEK, kind: 'rating', rating: 50 },
-          { t: MID_WEEK + 1, kind: 'recency' },                  // skipped
-          { t: MID_WEEK + 2, kind: 'rating', rating: 100 },
-        ],
-      }),
-    );
-    expect(await getWeeklyAttempts('production', WEEK_START, WEEK_END)).toBe(2);
+  it('agrees with getWeeklyRatedProductionAttempts — one definition, two names', async () => {
+    const from = Date.now() - 60_000;
+    await seedLesson('wf-01');
+    await seedLesson('wf-02');
+    await setLessonRating('wf-01', 25, from);
+    await setLessonRating('wf-02', 100, from);
+    const to = Date.now();
+
+    const generic = await getWeeklyAttempts('production', from, to);
+    const named = await getWeeklyRatedProductionAttempts(from, to);
+    expect(generic).toBe(named);
+    expect(generic).toBe(2);
   });
 
-  it('ignores rows from other modules', async () => {
-    await db.spacingState.bulkAdd([
-      spacing({
-        id: 'row-prod', moduleRef: 'production',
-        performanceHistory: [{ t: MID_WEEK, kind: 'rating', rating: 100 }],
-      }),
-      spacing({
-        id: 'row-hf', moduleRef: 'harmonic-fluency',
-        performanceHistory: [{ t: MID_WEEK, kind: 'attempt', correct: true }],
-      }),
-    ]);
-    expect(await getWeeklyAttempts('production', WEEK_START, WEEK_END)).toBe(1);
-  });
-
-  it('aggregates across multiple production rows', async () => {
-    await db.spacingState.bulkAdd([
-      spacing({
-        id: 'row-1', moduleRef: 'production',
-        performanceHistory: [
-          { t: MID_WEEK, kind: 'rating', rating: 100 },
-          { t: MID_WEEK + 1, kind: 'rating', rating: 50 },
-        ],
-      }),
-      spacing({
-        id: 'row-2', moduleRef: 'production',
-        performanceHistory: [
-          { t: MID_WEEK + 2, kind: 'rating', rating: 100 },
-        ],
-      }),
+  it('counts rated sessions in the window and ignores those outside it', async () => {
+    await db.productionLessonSessions.bulkAdd([
+      mkSession({ id: 'a', rating: 50, timestamp: WEEK_START }),
+      mkSession({ id: 'b', rating: 75, timestamp: MID_WEEK }),
+      mkSession({ id: 'c', rating: 75, timestamp: WEEK_END }),
+      mkSession({ id: 'd', rating: 25, timestamp: BEFORE }),
+      mkSession({ id: 'e', rating: 25, timestamp: AFTER }),
     ]);
     expect(await getWeeklyAttempts('production', WEEK_START, WEEK_END)).toBe(3);
+  });
+
+  it('does not count passive open events — opening a lesson is not an attempt', async () => {
+    const from = Date.now() - 60_000;
+    await seedLesson('wf-01');
+    await recordLessonOpen('wf-01');
+    await recordLessonOpen('wf-01');
+    expect(await getWeeklyAttempts('production', from, Date.now())).toBe(0);
+  });
+});
+
+describe('getDaysWithActivity — Production', () => {
+  beforeEach(async () => {
+    await db.productionLessonSessions.clear();
+  });
+
+  it('counts distinct local days that carry a rated session', async () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    await db.productionLessonSessions.bulkAdd([
+      mkSession({ id: 'a', rating: 25, timestamp: WEEK_START + 1000 }),
+      mkSession({ id: 'b', rating: 75, timestamp: WEEK_START + 2000 }), // same day
+      mkSession({ id: 'c', rating: 50, timestamp: WEEK_START + DAY }),  // next day
+      mkSession({ id: 'd', timestamp: WEEK_START + 2 * DAY }),          // unrated
+    ]);
+    expect(await getDaysWithActivity('production', WEEK_START, WEEK_END)).toBe(2);
   });
 });
 

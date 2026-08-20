@@ -59,10 +59,8 @@ export type { ShapesActivityArea };
  *   ear-training         → db.attempts (moduleId in ET_MODULE_REFS)
  *   shapes-and-patterns  → db.drillSessions
  *   repertoire           → db.songCellRunThroughs
- *   production           → db.spacingState.performanceHistory entries
- *                          on production rows (excluding 'recency'
- *                          marks — those represent passive surfacing,
- *                          not user-initiated state changes)
+ *   production           → db.productionLessonSessions rows carrying
+ *                          a rating (passive open events don't count)
  *   practice-consistency → db.practiceSessions (any module counts)
  *
  * `weekStart` and `weekEnd` are epoch ms, both inclusive. Caller
@@ -97,29 +95,11 @@ export async function getWeeklyAttempts(
         .where('createdAt').between(weekStart, weekEnd, true, true)
         .count();
 
-    case 'production': {
-      // Walk performanceHistory on every production row. Each entry
-      // (other than passive 'recency' marks) represents a user state
-      // change — the "any state change except not_yet" semantics from
-      // the Phase 4 spec. 'not_yet' selections don't write to
-      // performanceHistory at all (they're the implicit default
-      // state, no engagement event), so no explicit filter needed.
-      const rows = await db.spacingState
-        .where('moduleRef').equals('production')
-        .toArray();
-      let count = 0;
-      for (const row of rows) {
-        for (const entry of row.performanceHistory) {
-          const t = (entry as { t?: unknown }).t;
-          const kind = (entry as { kind?: unknown }).kind;
-          if (typeof t !== 'number') continue;
-          if (t < weekStart || t > weekEnd) continue;
-          if (kind === 'recency') continue;
-          count++;
-        }
-      }
-      return count;
-    }
+    case 'production':
+      // Rated lesson sessions — the same source
+      // getWeeklyRatedProductionAttempts reads. See the note on that
+      // function for why this branch no longer walks spacingState.
+      return getWeeklyRatedProductionAttempts(weekStart, weekEnd);
 
     case 'reading':
       // Same shape as HF: one attempts row per answered card, under a
@@ -210,19 +190,28 @@ export async function getEarTrainingAttemptsBySubActivity(
 // ---------------------------------------------------------------------
 
 /**
- * Production attempts for the window — Phase B definition: rated
- * ProductionLessonSession rows (Step 3 — a Production attempt counts
- * when the user submits a Flying / Cruising / Crawling rating on the
- * lesson session).
+ * Production attempts for the window: ProductionLessonSession rows
+ * carrying a rating. Passive open events (recordLessonOpen) have no
+ * rating and don't count — opening a lesson is not an attempt at it.
  *
- * Deliberately NOT the same as getWeeklyAttempts('production', …):
- * that walks db.spacingState.performanceHistory (mastery-state
- * changes), the pre-Step-3 notion of a Production "attempt", and the
- * call-sites that consume it (existing weekly-plan UI, the
- * Phase B-prototype loader in sessionNeed.ts) still want that shape.
- * Phase B's keystone wants the rated-session count, so it gets its
- * own helper rather than overloading getWeeklyAttempts's per-module
- * contract.
+ * This is now the SAME thing getWeeklyAttempts('production', …)
+ * returns; the two agree by construction and the helper survives
+ * because callers name it directly.
+ *
+ * It used not to. getWeeklyAttempts walked
+ * db.spacingState.performanceHistory on production rows, which is a
+ * count that could only ever be zero: the only writer of production
+ * spacing rows is assertSpacingStage, and that deliberately does NOT
+ * append to performanceHistory (see spacingState.ts) — it creates
+ * rows with an empty history. recordEngagement, the only function
+ * that appends, is never called with moduleRef 'production'. So the
+ * weekly-plan UI and the session generator read 0 Production
+ * attempts forever, no matter how much Production work was done.
+ *
+ * Counting the module's own source table is also what every other
+ * module already does — attempts, drillSessions, songCellRunThroughs.
+ * Production walking spacingState was the odd one out, not the
+ * consistent case.
  */
 export async function getWeeklyRatedProductionAttempts(
   weekStart: number,
@@ -298,19 +287,11 @@ export async function getDaysWithActivity(
       break;
     }
     case 'production': {
-      const rows = await db.spacingState
-        .where('moduleRef').equals('production')
+      const rows = await db.productionLessonSessions
+        .where('timestamp').between(weekStart, weekEnd, true, true)
+        .filter(s => s.rating !== undefined)
         .toArray();
-      for (const row of rows) {
-        for (const entry of row.performanceHistory) {
-          const t = (entry as { t?: unknown }).t;
-          const kind = (entry as { kind?: unknown }).kind;
-          if (typeof t !== 'number') continue;
-          if (t < weekStart || t > weekEnd) continue;
-          if (kind === 'recency') continue;
-          days.add(localDayKey(t));
-        }
-      }
+      for (const r of rows) days.add(localDayKey(r.timestamp));
       break;
     }
     case 'practice-consistency': {
