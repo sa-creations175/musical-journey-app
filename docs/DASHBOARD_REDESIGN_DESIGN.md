@@ -692,6 +692,172 @@ rebuilds before any dashboard is the opposite of that.
 
 ---
 
+## Catalog cuts — settled 20 August 2026
+
+Two catalogs were audited against the code and cut. Both cuts follow the same
+principle as the chord progression catalog rebuild: **keep what was chosen,
+remove what was generated to fill a grid, and let it grow back when a specific
+item is wanted.** Adding one back is a one-line edit, not a migration.
+
+### Why the audit happened
+
+Coverage denominators are moving to full catalog counts. That makes catalog
+size load-bearing — 852 stops being trivia and becomes the number a percentage
+is divided by. A denominator padded with shapes that will never be drilled is
+misleading before the dashboard is even built.
+
+### Chord shapes — 852 → 648
+
+**The catalog keeps triads and sevenths only.**
+
+| Group | Qualities | Rows each | Cells | Gating |
+|---|---|---|---|---|
+| Triads | 6 | 4 (root · 1st · 2nd · fluid) | 288 | 288 |
+| Sevenths | 6 | 6 (root · 1st · 2nd · 3rd · fluid · supplementary) | 432 | 360 |
+| ~~Extensions~~ | ~~14~~ | ~~1~~ | ~~168~~ | **cut** |
+| ~~Special / sixth~~ | ~~3~~ | ~~1~~ | ~~36~~ | **cut** |
+
+```
+triads    6 × 4 × 12 = 288      288 gating
+sevenths  6 × 6 × 12 = 432      360 gating  (−72 supplementary)
+                       ───      ───
+                       720      648
+```
+
+**Why the extensions went.** Two independently authored catalogs exclude
+exactly the same six of them — the S&P tier ladder (`SP_TIERS`) leaves
+`dom9`, `maj11`, `dom11`, `min13`, `maj7s11` and `dom7b13` untiered, and ET's
+separately curated chord-recognition seed list omits the same six, spelling the
+real territory as the voicing actually played (`dom7sus4` for `dom11`,
+`dom9_13` for `dom9`, `dom7#9#5` for `dom7b13`). Nine of the fourteen were a
+`{maj,min,dom} × {9,11,13}` grid filled completely; `maj11` and `dom11` put a
+natural 11 a semitone above the major 3rd, the textbook avoid note, which is
+why `maj7#11` exists separately.
+
+**Why all fourteen went, not just the six.** Extensions have a voicing axis
+that coverage cannot see. `defaultDrillTypesForQuality('extension')` seeds five
+sub-skills — root voicing, skip-a-note, rootless 3-7/7-3, two-handed, flowing
+between voicings — but they share **one** cell, one spacing row, one unit of
+coverage. A triad's four sub-skills each get their own cell. So `Cmaj13`
+silently held five times the practice of `Cmaj` root position and counted for a
+quarter as much. Rather than build the voicing axis for shapes not yet chosen,
+the shapes come out until specific ones are wanted.
+
+**Why the sixth chords went.** `maj6`, `min6` and `6/9` are stylistic choices
+played several ways, not shapes drilled the way triads and sevenths are.
+
+### Mental visualisation — 600 → 504
+
+Triads (216) and sevenths (288) with their inversions. The **96 extended
+dominant voicings** are cut — the same generated-to-fill-a-grid pattern, and
+they carry no inversion axis, so `quality → inversion → key` never had a shelf
+for them.
+
+`EXTENDED_DOM_VOICINGS` itself stays in `mentalVizVoicing.ts`. It is voicing-
+engine data that the lead-sheet carousel also reads; only the enumeration into
+`MENTAL_VIZ_ITEMS` is removed.
+
+**Card design change — recorded, not yet built.** The card should show a
+specific set of notes and ask *which chord is this*, rather than naming a chord
+and asking the player to picture it. Naming a chord has ten valid voicings;
+showing C–E–G–A has one right answer — and that answer might be C6 rather than
+Cmaj13, which is exactly the discrimination worth training.
+
+This makes mental visualisation the same skill as Reading's chord
+identification and ET's chord recognition, tested through a third sense. It
+also turns `MentalVizItem.prompt` into the *answer* rather than the question,
+so it needs a distractor model like ET's.
+
+Note the interaction with the cut: the **answer set should stay the full 29
+qualities** even though the drill catalog is 12. `QUALITY_INTERVALS` is a
+separate map holding every chord formula and is untouched by the cut. Keeping
+what the app *knows* richer than what the player *drills* is what makes the
+C6-vs-Cmaj13 distractor possible at all.
+
+### The denominator, stated
+
+> **648 = quality × key × inversion-state, supplementary rows excluded.**
+>
+> It does **not** multiply by hand (left / right / both) or by style (solid /
+> arpeggiated), even though `spacingState` is keyed
+> `[moduleRef+itemRef+hand+style]` and each combination carries its own
+> independent SM-2 row. Drilling C major root position right-hand-solid and
+> again left-hand-arpeggiated is two spacing rows and **one** covered cell.
+>
+> The cell is the shape in the key. Hands and articulation are ways of
+> practising it, not separate things to know — and collapsing them keeps the
+> number comparable with every other module, none of which have a hand axis.
+
+`moduleItemCounts.shapesCounts()` and `spTiers.tierTotalCells()` already
+collapsed this way. What changed is that it is now stated, here and in the UI
+affordance, instead of inherited.
+
+**The 72 supplementary rows stay excluded**, and now get surfaced. They are the
+two-handed LH-root + RH-triad drills — practice tools, not shapes to own.
+Folding them in would put them in the same number as knowing Cmaj7 in second
+inversion. At 72 of 720 materialisable rows they are 10% of the catalog, too
+large to stay `[INVISIBLE]` (see `docs/RULE_LEGIBILITY.md` §1.7).
+
+### Structural consequence — two catalogs, not one
+
+`CHORD_QUALITIES` was doing two unrelated jobs: naming what the player drills,
+and naming what the app can voice. Cutting the first silently broke the second
+— the lead-sheet voicing carousel derives 17 system voicings from it and
+auto-prunes rows that fall out of the desired set, and
+`voicingQualityMap.qualityIdFromSuffix` builds its suffix table from it, so a
+`C6/9` on a chart resolved to a dominant-7 voicing.
+
+`QUALITY_INTERVALS` is the seam. It holds all 29 chord formulas and is
+independent of the drill catalog. The carousel and the suffix map are
+re-sourced from it plus an explicit suffix table, so **what I practise** and
+**what the app can voice** move independently from here on.
+
+### Two-tier system
+
+`SP_TIERS` tier 3 (8 qualities) and tier 4 (3 qualities) were entirely
+extension and special — both become empty under the cut. Rather than leave
+empty buckets, `SPTier` narrows to `1 | 2`.
+
+Leaving tiers 3 and 4 in place "for later" would reproduce the fill-the-grid
+habit the cut exists to end. When a quality is added back it gets a tier
+containing the shapes that were chosen.
+
+---
+
+## Design items recorded, not scheduled
+
+### Personal voicing library
+
+A player should be able to add a voicing they like — from a tutorial, from a
+song they are learning, from anywhere — and have it become drillable in mental
+visualisation.
+
+The pieces already exist and do not know about each other: the lead sheet
+already stores voicings (`db.voicingPatterns`, user rows with
+`isSystem: false`), and mental visualisation already drills shapes. Nothing
+connects them.
+
+**The model:** a **core catalog** — triads, sevenths, inversions, the 504 —
+plus a **personal library that grows**. When a new voicing is added, the app
+asks *at drill time* whether to include it in coverage. **Suggest and confirm,
+never automatic** — silently moving someone's denominator is the failure this
+whole redesign exists to prevent.
+
+This is where the voicings that were cut or never built would live:
+
+- Rootless right-hand voicings over a root — e.g. C in the left hand,
+  E–A–B♭–D in the right (a C13). A specific voicing system worth adding
+  deliberately, not a subtraction from an existing catalog.
+- Drop-2 voicings.
+- Octave-doubled voicings.
+- Song-specific voicings learned from a particular recording.
+
+Needs its own design pass: how a personal item enters spacing state, whether it
+joins the same coverage denominator or a parallel one, and what happens to
+coverage history when the library grows.
+
+---
+
 ## Revision log
 
 ### 20 August 2026
@@ -720,6 +886,15 @@ applies; this is the index.
 cards · 199 vocabulary cards · 56 lessons over 6 paths · Reading 34 / 7 / 78 /
 69 = 188 items · 9 modes · 4 ET chord-recognition types · 96 S&P scale cells.
 
+### 20 August 2026 — later the same day
+
+Chord shapes cut 852 → 648 and mental visualisation 600 → 504, after a
+full catalog audit. See **Catalog cuts**. This resolves items 1, 2 and 3 of
+**Found stale, not resolved** below and adds the two-catalog split
+(`QUALITY_INTERVALS` as the seam between what is drilled and what can be
+voiced). The **Personal voicing library** is recorded under **Design items
+recorded, not scheduled**.
+
 **Text left alone** everywhere the correction did not reach it. This was an
 edit, not a rewrite.
 
@@ -730,8 +905,10 @@ edit, not a rewrite.
 Turned up while applying the above. **Flagged, not decided** — each needs a
 call that was not in the corrections.
 
-**1. Mental visualisation is not "the same catalog as chord shapes".** The doc
-says so; `mentalVizLibrary.ts` says 600 = 216 triads (6 × 3 inversions × 12
+**1. Mental visualisation is not "the same catalog as chord shapes".**
+*RESOLVED 20 Aug — the 96 extended dominant voicings are cut; see **Catalog
+cuts**. Whether mental viz rolls into S&P coverage or stays its own module row
+is still open.* The doc said so; `mentalVizLibrary.ts` says 600 = 216 triads (6 × 3 inversions × 12
 keys) + 288 sevenths (6 × 4 × 12) + **96 extended dominant voicings** (8 × 12).
 The extended voicings have no inversion axis at all — their ids look like
 `mv:dom9_13:A:G` — so the proposed `quality → inversion → key` tree has no
@@ -741,7 +918,9 @@ today**, deliberately, as an April 27 design call. The doc puts it inside the
 S&P tree with its own coverage. Needs a call: own module row, or fold into
 S&P and reverse that decision.
 
-**2. Chord shapes is not four inversion rows.** The doc says four (root / 1st /
+**2. Chord shapes is not four inversion rows.** *RESOLVED 20 Aug — extensions
+and special are cut, so the catalog is now triads (4 rows) and sevenths (6),
+and the doc says so.* The doc said four (root / 1st /
 2nd / fluid). `INVERSION_STATES_FOR_CHORD_SHAPE_KIND` says it depends on the
 quality's kind — triads 4, sevenths **6** (adding 3rd inversion and
 `supplementary`), extensions and special/sixth **1** with no inversion suffix at
@@ -749,7 +928,8 @@ all. There are 29 qualities, not one shape. The doc's "four, not three" is
 right for triads and wrong for everything else.
 
 **3. That same code already breaks the new denominator rule — and may be
-right to.** `gatesAcquisition()` filters `supplementary` rows out of coverage
+right to.** *RESOLVED 20 Aug — the exception is kept and stated. See the
+denominator statement under **Catalog cuts**.* `gatesAcquisition()` filters `supplementary` rows out of coverage
 denominators (`RULE_LEGIBILITY` §1.7): they are two-handed practice tools, not
 things to acquire. That is an existing, deliberate exception to "the
 denominator is always the full catalog". Either the rule needs an "excluding
