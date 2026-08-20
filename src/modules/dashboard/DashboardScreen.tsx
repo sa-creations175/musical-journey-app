@@ -17,6 +17,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import TreeRow from './TreeRow';
+import DashboardControls from './DashboardControls';
 import { useDashboardData } from './useDashboardData';
 import {
   DEFAULT_VIEW_STATE,
@@ -227,6 +228,13 @@ export default function DashboardScreen({
 
   return (
     <div data-testid="dashboard-screen" className="pb-8">
+      {/* Sticky, and it will host the column headers in step 7 — they
+          have to stay visible on a 55-row list, where the top is off
+          screen most of the time and position alone does not say which
+          column is which. */}
+      <div className="sticky top-0 z-10 bg-white/95 dark:bg-neutral-950/95 backdrop-blur">
+        <DashboardControls state={{ ...state, expanded }} onChange={setState} />
+      </div>
       <div
         data-testid="dashboard-rows"
         role="table"

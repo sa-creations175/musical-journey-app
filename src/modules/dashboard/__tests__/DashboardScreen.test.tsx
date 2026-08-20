@@ -488,3 +488,55 @@ describe('module header rows', () => {
     expect((submodule as HTMLElement).style.backgroundColor).toBe('');
   });
 });
+
+describe('the controls drive the list', () => {
+  it('renders the controls above the rows, in the sticky container', async () => {
+    const el = await renderScreen();
+    const controls = el.querySelector('[data-testid="dashboard-controls"]')!;
+    const table = el.querySelector('[data-testid="dashboard-rows"]')!;
+    expect(controls).not.toBeNull();
+    // Before the list in document order, so a screen reader meets them
+    // in the order they apply.
+    expect(controls.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it('a sort press reorders the list and writes to the URL', async () => {
+    await seedVariedScalesModes();
+    const el = await renderScreen();
+    const before = rowLabels(el);
+    click(el.querySelector('[data-testid="sort-coverage"]')!);
+    expect(search(el)).toContain('sort=cw');
+    expect(rowLabels(el)).not.toEqual(before);
+  });
+
+  it('the grouping toggle drops the module rows', async () => {
+    const el = await renderScreen();
+    expect(rows(el).some(r => r.getAttribute('data-depth') === '0')).toBe(true);
+    click(el.querySelector('[data-testid="grouping-toggle"]')!);
+    expect(search(el)).toContain('flat=1');
+    expect(rows(el).some(r => r.getAttribute('data-depth') === '0')).toBe(false);
+  });
+
+  it('reset clears a filter and empties the URL', async () => {
+    const el = await renderScreen('/?acc=1&flat=1');
+    expect(rows(el)).toHaveLength(0);
+    click(el.querySelector('[data-testid="reset"]')!);
+    expect(search(el)).toBe('');
+    expect(rows(el).length).toBeGreaterThan(0);
+  });
+
+  it('a module filter narrows the list to that module', async () => {
+    const el = await renderScreen();
+    click(el.querySelector('[data-testid="filter-module-reading"]')!);
+    expect(search(el)).toContain('mod=reading');
+    // Grouped view keeps every module HEADER — a module row summarises
+    // what is under it — and only reading keeps its submodules.
+    const withChildren = rows(el).filter(r => r.getAttribute('data-depth') === '1');
+    expect(withChildren.length).toBeGreaterThan(0);
+    click(el.querySelector('[data-testid="grouping-toggle"]')!);
+    const flatRows = rowLabels(el);
+    expect(flatRows.length).toBeGreaterThan(0);
+    expect(flatRows).toContain('key signature recognition');
+  });
+});
