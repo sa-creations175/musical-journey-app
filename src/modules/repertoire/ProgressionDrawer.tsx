@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useNotationMode } from '../../lib/notationPref';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
@@ -81,6 +81,22 @@ export default function ProgressionDrawer({
    *  rather than only that it undoes. */
   undoLabel?: string;
 }) {
+  // ---- TEMPORARY DIAGNOSTIC ------------------------------------
+  // The break control renders and is wired, and tapping it does
+  // nothing on the deployed app. Three candidates remain and they need
+  // different fixes, so this reports which one it is rather than
+  // inviting a fourth speculative change:
+  //   · handler never fires          → taps stays 0 (event swallowed)
+  //   · state set then discarded     → taps rises, target stays none
+  //   · component remounting         → instance id changes on tap
+  // Remove once the cause is known.
+  const [instanceId] = useState(() => Math.random().toString(36).slice(2, 7));
+  const renders = useRef(0);
+  renders.current += 1;
+  const [taps, setTaps] = useState(0);
+  const [lastEvent, setLastEvent] = useState('none');
+  // ---------------------------------------------------------------
+
   const [notationMode] = useNotationMode();
   const isDark = useIsDarkMode();
   const [editing, setEditing] = useState(false);
@@ -167,6 +183,15 @@ export default function ProgressionDrawer({
               >
                 ↶ undo{undoLabel ? ` ${undoLabel}` : ''}
               </button>
+            )}
+            {editing && (
+              <span className="ml-auto font-mono text-[9px] leading-tight text-neutral-500 text-right">
+                #{instanceId} r{renders.current} taps{taps}
+                <br />
+                tgt {target ? `${target.placementId?.slice(0, 6) ?? 'undef'}@${target.sectionId.slice(0, 6)}` : 'none'}
+                <br />
+                {lastEvent}
+              </span>
             )}
             {totalHidden > 0 && (
               <button
@@ -306,13 +331,17 @@ export default function ProgressionDrawer({
                         {phrase.endKind === 'row' && editing && (
                           <button
                             type="button"
-                            onClick={() =>
+                            onClick={e => {
+                              setTaps(n => n + 1);
+                              setLastEvent(
+                                `row tap · ${phrase.endsAfterPlacementId ?? 'NO-ANCHOR'} · sec ${section.sectionId.slice(0, 6)} · default ${e.defaultPrevented ? 'prevented' : 'ok'}`,
+                              );
                               setTarget({
                                 kind: 'gap',
                                 placementId: phrase.endsAfterPlacementId!,
                                 sectionId: section.sectionId,
-                              })
-                            }
+                              });
+                            }}
                             aria-label="edit this line break"
                             title="line break — convert or remove"
                             className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
@@ -345,6 +374,18 @@ export default function ProgressionDrawer({
                   })}
                 </div>
 
+                {/* TEMPORARY: a sentinel at the menu's own render
+                    site. Seeing it but no chips means SequenceChoices
+                    mounts and its content is hidden or collapsed; not
+                    seeing it means the condition below never became
+                    true. Those need different fixes. */}
+                {target !== null && (
+                  <div className="text-[9px] font-mono text-white bg-needswork px-1 rounded">
+                    menu slot · target sec {target.sectionId.slice(0, 6)} · this sec{' '}
+                    {section.sectionId.slice(0, 6)} ·{' '}
+                    {target.sectionId === section.sectionId ? 'MATCH' : 'no match'}
+                  </div>
+                )}
                 {target?.sectionId === section.sectionId && (
                   <SequenceChoices
                     target={target}
