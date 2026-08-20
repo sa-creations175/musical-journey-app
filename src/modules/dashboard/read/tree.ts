@@ -87,6 +87,18 @@ export interface TreeNode {
    * which is the honest answer to a question with two units.
    */
   mixedKinds: boolean;
+  /**
+   * When true, this node's coverage and score are its own and do NOT
+   * feed the row above it. Its recency still does.
+   *
+   * Mental visualisation is the only case: it is a Shapes & Patterns
+   * submodule and shows real numbers, but the April 27 decision keeps
+   * it out of every S&P coverage number (RULE_LEGIBILITY 1.6). Set from
+   * `ModuleCatalog.countsTowardModuleTotals`, so the exclusion is
+   * declared by the catalog rather than being an accident of how the
+   * merge happens to walk.
+   */
+  excludedFromParentTotals: boolean;
   /** Mean of descendant leaf scores, or null when none is graded, or
    *  when descendants disagree about what a score means. */
   score: number | null;
@@ -136,6 +148,7 @@ function emptyNode(
     children: [],
     accuracyKind,
     mixedKinds: false,
+    excludedFromParentTotals: false,
     score: null,
     gradedLeafCount: 0,
     coveredItems: 0,
@@ -164,20 +177,34 @@ function rollUp(node: TreeNode): void {
   const refs: string[] = [];
 
   for (const child of node.children) {
+    // Two things roll up from an EXCLUDED child, and only two.
+    //
+    //   The ref list, so the due filter can still reach its items.
+    //
+    //   MOST-RECENT recency, because "counts toward consistency" means
+    //   practising it should make the row above look touched.
+    //
+    // Everything else stops here. Stalest and hasUntouched are
+    // excluded along with coverage: mental viz has 504 items and a
+    // player has barely started it, so letting its untouched rows set
+    // S&P's stalest would make a module they drill weekly read as
+    // neglected on the strength of a submodule that is deliberately not
+    // in its numbers.
+    refs.push(...child.itemRefs);
+    if (child.recency.mostRecentAt !== null
+      && (mostRecent === null || child.recency.mostRecentAt > mostRecent)) {
+      mostRecent = child.recency.mostRecentAt;
+    }
+    if (child.excludedFromParentTotals) continue;
     covered += child.coveredItems;
     total += child.totalItems;
     engagements += child.engagementCount;
-    refs.push(...child.itemRefs);
     if (child.score !== null) {
       // Weighted by graded leaves, which keeps the result
       // depth-invariant: a category holding one item must not outweigh
       // a category holding fifty.
       scoreSum += child.score * child.gradedLeafCount;
       graded += child.gradedLeafCount;
-    }
-    if (child.recency.mostRecentAt !== null
-      && (mostRecent === null || child.recency.mostRecentAt > mostRecent)) {
-      mostRecent = child.recency.mostRecentAt;
     }
     if (child.recency.stalestAt !== null
       && (stalest === null || child.recency.stalestAt < stalest)) {
@@ -274,6 +301,12 @@ export function buildMergedTree(
         let node = byId.get(prefix);
         if (!node) {
           node = emptyNode(prefix, segment, parent.depth + 1, catalog.accuracyKind);
+          // The first level a catalog creates is its branch. Marking it
+          // here is what keeps the exclusion declared by the catalog
+          // rather than inferred from a label somewhere downstream.
+          if (catalog.countsTowardModuleTotals === false && parent === root) {
+            node.excludedFromParentTotals = true;
+          }
           byId.set(prefix, node);
           parent.children.push(node);
         }

@@ -83,9 +83,24 @@ export interface ModuleCatalog {
    * production is two (lessons, vocabulary); each is one row on screen
    * with the catalogs as its branches. Without this they rendered as
    * separate top-level modules, which is how eleven rows appeared where
-   * there should be seven.
+   * there should be six.
    */
   moduleId: string;
+  /**
+   * Whether this catalog's items count toward its MODULE row's coverage
+   * and score. Default true.
+   *
+   * False for mental visualisation only. It renders as a Shapes &
+   * Patterns submodule with its own numbers, but the April 27 decision
+   * (RULE_LEGIBILITY 1.6) keeps it out of every S&P coverage number: it
+   * counts toward consistency, never toward breadth, depth or mastery.
+   * That is a rule about ARITHMETIC, not placement - which is why it
+   * lives here as a flag rather than as a separate module row.
+   *
+   * RECENCY still rolls up either way. Practising mental viz is
+   * practising, so it should make the S&P row look touched.
+   */
+  countsTowardModuleTotals?: boolean;
   label: string;
   accuracyKind: AccuracyKind;
   coverageRule?: CoverageRule;
@@ -407,23 +422,35 @@ export const shapesCatalog: ModuleCatalog = {
 };
 
 /**
- * Mental visualisation is ITS OWN MODULE ROW, not part of Shapes &
- * Patterns.
+ * Mental visualisation is a Shapes & Patterns SUBMODULE whose numbers do
+ * not roll up into S&P's.
  *
- * It writes spacing rows under the dedicated `mental-viz` moduleRef and
- * is deliberately excluded from every S&P coverage number (an April 27
- * design call, `RULE_LEGIBILITY` §1.6). Folding it into the S&P tree
- * would reverse that quietly. 504 items since the extended-dominant cut.
+ * It lives inside S&P everywhere else in the app, so pulling it out on
+ * the dashboard alone would be confusing. What the April 27 decision
+ * (`RULE_LEGIBILITY` §1.6) says is narrower than "separate module":
+ * mental-viz drills count toward consistency and never toward breadth,
+ * depth or mastery. That is arithmetic, not placement, so it is a flag
+ * — `countsTowardModuleTotals: false` — rather than a module row.
+ *
+ * S&P's coverage and score skip it; its most-recent recency still rolls
+ * up; its own row shows its own real numbers. It keeps the dedicated
+ * `mental-viz` moduleRef, which is where its spacing rows live and how
+ * its adapter finds them. 504 items since the extended-dominant cut.
  */
 export const mentalVizCatalog: ModuleCatalog = {
   sourceId: 'mental-viz',
-  moduleId: 'mental-viz',
+  moduleId: 'shapes-and-patterns',
+  countsTowardModuleTotals: false,
   label: 'mental visualisation',
   accuracyKind: 'self-rated',
   items: MENTAL_VIZ_ITEMS.map(item => one(
     item.itemRef,
     item.prompt,
-    ['mental visualisation', item.itemRef.startsWith('mv:triad:') ? 'triads' : 'sevenths'],
+    [
+      'shapes & patterns',
+      'mental visualisation',
+      item.itemRef.startsWith('mv:triad:') ? 'triads' : 'sevenths',
+    ],
   )),
 };
 
@@ -463,10 +490,10 @@ export const SCALE_CELL_REFS: ReadonlyArray<string> = SCALE_CELLS.map(c => c.ite
  * gets used to. A screen that invented its own order would make the
  * same six modules read as a different set.
  *
- * Mental visualisation sits with the away-from-keyboard group rather
- * than at the end. It is its own row - own `mental-viz` moduleRef, and
- * deliberately outside every S&P coverage number - but it is a row
- * beside the six, not an eleventh thing in a mixed list.
+ * Six rows, matching the nav bar exactly. Mental visualisation is a
+ * Shapes & Patterns submodule rather than a row of its own: it lives
+ * inside S&P everywhere else in the app, and its exclusion from S&P's
+ * coverage is a rule about arithmetic rather than a reason to move it.
  */
 export interface DashboardModule {
   moduleId: string;
@@ -478,19 +505,18 @@ const MODULE_LABELS: Readonly<Record<string, string>> = {
   'harmonic-fluency': 'harmonic fluency',
   'ear-training': EAR_TRAINING,
   'reading': 'reading',
-  'mental-viz': 'mental visualisation',
   'shapes-and-patterns': 'shapes & patterns',
   'repertoire': 'song repertoire',
   'production': 'production',
 };
 
-/** Away-from-keyboard first, keyboard second - the nav bar's grouping,
- *  with mental visualisation at the end of the first group. */
+/** The nav bar's order, exactly. Away-from-keyboard first, keyboard
+ *  second - a grouping a player gets used to, and not the dashboard's
+ *  to reorder. */
 export const DASHBOARD_MODULE_ORDER: ReadonlyArray<string> = [
   'harmonic-fluency',
   'ear-training',
   'reading',
-  'mental-viz',
   'shapes-and-patterns',
   'repertoire',
   'production',

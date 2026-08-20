@@ -19,6 +19,7 @@ import {
 } from '../load';
 import { leavesOf } from '../tree';
 import { PRODUCTION_VOCAB_FLASHCARDS } from '../../../production/vocabularyFlashcards';
+import { MENTAL_VIZ_ITEMS } from '../../../shapes-and-patterns/mentalVizLibrary';
 
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
@@ -35,7 +36,7 @@ function source(patch: Partial<DashboardSource> = {}): DashboardSource {
 }
 
 describe('every catalog has a source wired', () => {
-  it('assembles seven module rows, in nav-bar order', () => {
+  it('assembles six module rows, in nav-bar order', () => {
     // Ten catalogs, seven rows: ear training is four of them and
     // production is two. statsFor still throws on a catalog with no
     // source, which is the loud failure that replaces three modules
@@ -48,7 +49,6 @@ describe('every catalog has a source wired', () => {
       'harmonic-fluency',
       'ear-training',
       'reading',
-      'mental-viz',
       'shapes-and-patterns',
       'repertoire',
       'production',
@@ -127,8 +127,10 @@ describe('every catalog has a source wired', () => {
     expect(totals).toMatchObject({
       'harmonic-fluency': 375,
       'reading': 188,
+      // 648 chord shapes + 96 scales + 372 voice-leading. Mental
+      // visualisation's 504 are a submodule of this row and are
+      // deliberately NOT in the total — see the exclusion test below.
       'shapes-and-patterns': 1116,
-      'mental-viz': 504,
       // 199 vocabulary cards + 56 lessons.
       'production': 255,
       // 26 intervals + 114 chord recognition + 18 scales & modes +
@@ -166,9 +168,9 @@ describe('routing sources to catalogs', () => {
     expect(touched.map(m => m.moduleId)).toEqual(['reading']);
   });
 
-  it('sends drill sessions to Shapes & Patterns, not mental viz', () => {
-    // Both are self-rated and both live under shapes-and-patterns in
-    // the app; only one reads drillSessions.
+  it('sends drill sessions to the S&P branches, not the mental-viz one', () => {
+    // Both are self-rated and both live under shapes-and-patterns; only
+    // one reads drillSessions.
     const dashboard = assembleDashboard(source({
       drillSessions: [{
         id: 'd1', drillTypeId: 't', skillId: 's1', hand: 'both', style: 'solid',
@@ -179,12 +181,13 @@ describe('routing sources to catalogs', () => {
         inversionState: 'root', createdAt: NOW,
       } as DrillSkill],
     }), NOW);
-    const byId = new Map(dashboard.modules.map(m => [m.moduleId, m]));
-    expect(byId.get('shapes-and-patterns')!.root.engagementCount).toBe(1);
-    expect(byId.get('mental-viz')!.root.engagementCount).toBe(0);
+    const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
+    const mv = sp.root.children.find(c => c.label === 'mental visualisation')!;
+    expect(sp.root.engagementCount).toBe(1);
+    expect(mv.engagementCount).toBe(0);
   });
 
-  it('sends mental-viz spacing rows to mental viz, not Shapes & Patterns', () => {
+  it('sends mental-viz spacing rows to the mental-viz branch', () => {
     const dashboard = assembleDashboard(source({
       spacingRows: [{
         id: 'x', itemRef: 'mv:triad:maj:root:C', moduleRef: 'mental-viz',
@@ -194,9 +197,59 @@ describe('routing sources to catalogs', () => {
         performanceHistory: [{ t: NOW, kind: 'rating', rating: 'flying' }],
       } as unknown as SpacingState],
     }), NOW);
-    const byId = new Map(dashboard.modules.map(m => [m.moduleId, m]));
-    expect(byId.get('mental-viz')!.root.engagementCount).toBe(1);
-    expect(byId.get('shapes-and-patterns')!.root.engagementCount).toBe(0);
+    const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
+    const mv = sp.root.children.find(c => c.label === 'mental visualisation')!;
+    expect(mv.engagementCount).toBe(1);
+    // Excluded from the module's totals, so the S&P row's own count
+    // does not move.
+    expect(sp.root.engagementCount).toBe(0);
+  });
+
+  it('keeps mental visualisation out of S&P coverage and score', () => {
+    // THE APRIL 27 RULE. Mental viz is a submodule with real numbers,
+    // and none of them feed the row above. Both branches need data or
+    // the assertion passes for want of scores rather than for the rule.
+    const dashboard = assembleDashboard(source({
+      spacingRows: [{
+        id: 'x', itemRef: MENTAL_VIZ_ITEMS[0].itemRef, moduleRef: 'mental-viz',
+        hand: 'both', style: 'solid', memoryType: 'procedural',
+        acquisitionStage: 'acquiring', currentIntervalDays: 0,
+        lastEngagedAt: NOW, nextDueAt: null,
+        performanceHistory: Array.from({ length: 4 }, (_, i) => ({
+          t: NOW - i * 1000, kind: 'rating', rating: 'flying',
+        })),
+      } as unknown as SpacingState],
+      // S&P's own branch practised 30 days ago; mental viz today. If
+      // recency did not roll up from an excluded child, the module row
+      // would read as 30 days stale while the player drilled it this
+      // morning.
+      drillSessions: Array.from({ length: 4 }, (_, i) => ({
+        id: `d${i}`, drillTypeId: 't', skillId: 's1', hand: 'both', style: 'solid',
+        durationSeconds: 60, feelRating: 1, timestamp: NOW - 30 * DAY - i * 1000,
+      } as DrillSession)),
+      drillSkills: [{
+        id: 's1', kind: 'chord-shape', keyName: 'C', quality: 'maj',
+        inversionState: 'root', createdAt: NOW,
+      } as DrillSkill],
+    }), NOW);
+    const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
+    const mv = sp.root.children.find(c => c.label === 'mental visualisation')!;
+
+    // The submodule has its own real numbers.
+    expect(mv.score).toBe(100);
+    expect(mv.coveredItems).toBe(1);
+    expect(mv.totalItems).toBe(504);
+
+    // And none of them reach the module row, whose own chord-shape
+    // branch scored 25 and covered one of 1116.
+    expect(sp.root.totalItems).toBe(1116);
+    expect(sp.root.coveredItems).toBe(1);
+    expect(sp.root.score).toBe(25);
+
+    // Recency DOES roll up: practising mental viz is practising, so
+    // the module row reads as touched today rather than 30 days stale.
+    expect(mv.recency.mostRecentAt).toBe(NOW);
+    expect(sp.root.recency.mostRecentAt).toBe(NOW);
   });
 
   it('sends lessons to the lessons branch, not the vocabulary one', () => {

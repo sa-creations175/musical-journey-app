@@ -96,6 +96,54 @@ When I'm moving fast, short answers are better. When I'm lost, longer explanatio
 
 ---
 
+## Testing notes
+
+*Added 20 August 2026, after the dashboard read layer.*
+
+### A test on empty or uniform data cannot distinguish a rule from its absence
+
+This cost four catches in one workstream, and every one was found by
+**reintroducing the bug and watching the test stay green** — never by reading
+the test.
+
+The shape is always the same. A property test builds its fixture from an empty
+catalog or from rows that all carry the same value. Sorting a uniform list is a
+stable no-op. Averaging nothing is null whether or not the rule that nulls it
+exists. Excluding a branch that contributes zero changes nothing. So the
+assertion passes, the property is unprotected, and the test occupies the slot
+that would have made someone look again.
+
+The four:
+
+- **Expansion indices into built order.** Fixture had no practice data, so
+  sorting never reordered. Reintroducing sorted-order indexing passed.
+- **The same property at depth 2.** Fixed at depth 1 and still uncovered
+  deeper, because a different code path builds that key.
+- **Mixed-kind roll-up.** Empty source meant neither branch was graded, so the
+  parent was null for want of scores rather than for mixing units.
+- **Mental viz excluded from S&P recency.** Both branches shared a timestamp,
+  so the parent read the same either way.
+
+### Two habits that catch it
+
+**Reverse every property test, not only bug fixes.** Back the file up to the
+scratchpad, reintroduce the behaviour the test forbids, watch it fail, restore.
+If it passes, the test is decorative. And reversing it once proves the test
+catches it *there* — where two code paths can produce the same property, both
+need their own reversal.
+
+**Guard the guard.** Where a test depends on its fixture having a property that
+is not obvious from reading it, assert that property first: *"sorting genuinely
+reorders this fixture"*, *"both branches have a real, different score"*. One
+extra assertion, and it fails loudly the day someone simplifies the fixture.
+
+### Numbers in reports
+
+Two catalog counts shipped wrong in reports before being caught — 432 for a
+420, 104 for a 114 — both from arithmetic done while writing rather than read
+off the source. **If a number was not read from the code, say so when writing
+it.** A number stated plainly reads as verified.
+
 ## Technical context
 
 ### My setup

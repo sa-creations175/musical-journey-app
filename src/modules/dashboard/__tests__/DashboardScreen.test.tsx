@@ -192,8 +192,9 @@ describe('the default view', () => {
     // row reading dashes, not a missing row.
     const el = await renderScreen();
     const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
-    // Seven: the six nav-bar modules plus mental visualisation.
-    expect(moduleRows).toHaveLength(7);
+    // Six, matching the nav bar. Mental visualisation is a Shapes &
+    // Patterns submodule, not a row of its own.
+    expect(moduleRows).toHaveLength(6);
   });
 
   it('renders modules in nav-bar order', async () => {
@@ -204,7 +205,7 @@ describe('the default view', () => {
       .filter(r => r.getAttribute('data-depth') === '0')
       .map(r => r.querySelector('span[title]')?.textContent);
     expect(moduleLabels).toEqual([
-      'harmonic fluency', 'ear training', 'reading', 'mental visualisation',
+      'harmonic fluency', 'ear training', 'reading',
       'shapes & patterns', 'song repertoire', 'production',
     ]);
   });
@@ -344,7 +345,7 @@ describe('filtering', () => {
     // average misses a threshold would hide the submodules that match.
     const el = await renderScreen('/?acc=1');
     const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
-    expect(moduleRows).toHaveLength(7);
+    expect(moduleRows).toHaveLength(6);
     expect(rows(el).filter(r => r.getAttribute('data-depth') === '1')).toHaveLength(0);
   });
 });
