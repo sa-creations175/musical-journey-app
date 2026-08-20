@@ -6,6 +6,7 @@ import {
   formatDuration,
   humanAgo,
 } from './drillModel';
+import { isCatalogQuality } from './catalog';
 
 const MS_24H = 24 * 60 * 60 * 1000;
 
@@ -22,8 +23,25 @@ const MS_24H = 24 * 60 * 60 * 1000;
  * are no recommendations this renders nothing rather than an empty card.
  */
 export default function TodayAndAttention() {
-  const allSkills = useLiveQuery<DrillSkill[]>(() => db.drillSkills.toArray(), []) ?? [];
+  const storedSkills = useLiveQuery<DrillSkill[]>(() => db.drillSkills.toArray(), []) ?? [];
   const allTypes = useLiveQuery<DrillType[]>(() => db.drillTypes.toArray(), []) ?? [];
+
+  /**
+   * Practice data for the qualities cut on 20 Aug 2026 is kept on
+   * purpose, so `db.drillSkills` still holds rows for shapes that are
+   * no longer in the catalog. Without this filter the panel would nag
+   * about them forever — "Cmaj9 — Root position is going stale" for a
+   * shape there is no longer any way to drill.
+   *
+   * Filtered here rather than deleted: re-add the quality and its rows
+   * become live again, at the stage they were left.
+   */
+  const allSkills = useMemo(
+    () => storedSkills.filter(
+      s => s.kind !== 'chord-shape' || isCatalogQuality(s.quality ?? ''),
+    ),
+    [storedSkills],
+  );
 
   const recommendations = useMemo(() => {
     // Build per-skill aggregates.

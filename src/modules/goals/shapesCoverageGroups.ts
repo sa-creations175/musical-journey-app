@@ -448,6 +448,23 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
   ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
 ];
 
+/**
+ * The defs a goal picker should offer — everything with items in it.
+ *
+ * ONE SOURCE FOR BOTH PICKERS. GoalCreationFlow rendered every def
+ * unfiltered while GoalSuggestionFlow filtered `denominator > 0` on
+ * extension families only, so the two disagreed about what was
+ * offerable even before the catalog cut. After the cut that gap would
+ * have shown eight "(0 items)" pills in one flow and not the other.
+ *
+ * Filtering on the live denominator rather than an explicit blocklist
+ * means a group reappears on its own the moment its qualities return
+ * to the catalog — the same grow-back-organically property the cut was
+ * made to preserve.
+ */
+export const SHAPES_COVERAGE_PICKER_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
+  SHAPES_COVERAGE_GROUP_DEFS.filter(g => g.denominator > 0);
+
 /** Per-pattern VL coverage-group id → catalog patternId. Drives the
  *  matcher in `itemRefMatcherForCoverageGroup`. Declared AFTER the
  *  DEFS array because the array is built via inline calls to

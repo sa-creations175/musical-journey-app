@@ -40,7 +40,7 @@ import {
 import { findAnchorGoalForModule } from './anchorLookup';
 import { loadGoalForEdit, type EditPrefill } from './editLoad';
 import {
-  SHAPES_COVERAGE_GROUP_DEFS,
+  SHAPES_COVERAGE_PICKER_DEFS,
   type ShapesCoverageGroupId,
 } from './shapesCoverageGroups';
 import { suggestHfMonthly } from './suggestions/hfMonthly';
@@ -1451,8 +1451,11 @@ interface ShapesCoverageGroupOption {
   denominator: number;
 }
 
+// Sourced from SHAPES_COVERAGE_PICKER_DEFS, the shared "has items"
+// filter — same list GoalCreationFlow renders, so the two pickers can
+// no longer disagree about what is offerable.
 const SHAPES_COVERAGE_GROUP_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
-  SHAPES_COVERAGE_GROUP_DEFS.map(g => ({
+  SHAPES_COVERAGE_PICKER_DEFS.map(g => ({
     id: g.id,
     label: g.label,
     denominator: g.denominator,
@@ -1578,14 +1581,13 @@ const SHAPES_TRIAD_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => TRIAD_QUALITY_GROUP_ID_SET.has(g.id));
 const SHAPES_SEVENTH_QUALITY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => SEVENTH_QUALITY_GROUP_ID_SET.has(g.id));
-// Picker filter: forward-compat placeholders (denominator 0) are
-// hidden until the catalog gains items in that family. Once items
-// land, the denominator becomes nonzero automatically (sourced from
-// the catalog) and the pill starts rendering.
+// Empty after the 20 Aug 2026 catalog cut — no extension quality is in
+// the drill catalog. The whole extensions section (shortcut pill +
+// family sub-pills) is gated on this being non-empty, so it vanishes
+// now and comes back on its own if an extension is ever re-added.
 const SHAPES_EXTENSION_FAMILY_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
-  SHAPES_COVERAGE_GROUP_OPTIONS.filter(
-    g => EXTENSION_FAMILY_GROUP_ID_SET.has(g.id) && g.denominator > 0,
-  );
+  SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => EXTENSION_FAMILY_GROUP_ID_SET.has(g.id));
+const SHAPES_HAS_EXTENSIONS = SHAPES_EXTENSION_FAMILY_OPTIONS.length > 0;
 const SHAPES_SCALE_KIND_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
   SHAPES_COVERAGE_GROUP_OPTIONS.filter(g => SCALE_KIND_GROUP_ID_SET.has(g.id));
 const SHAPES_VL_PATTERN_OPTIONS: ReadonlyArray<ShapesCoverageGroupOption> =
@@ -1828,9 +1830,11 @@ function ShapesFocusSection({
   const extensionsShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
     g => g.id === 'chord_shape_extensions',
   );
+  // No hardcoded fallback: if the def is gone the section doesn't
+  // render at all, and a stale "extensions (168)" pill would be a lie.
   const extensionsShortcutLabel = extensionsShortcutDef
     ? `${extensionsShortcutDef.label} (${extensionsShortcutDef.denominator})`
-    : 'extensions (168)';
+    : '';
   const scalesShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'scale_drills');
   const scalesShortcutLabel = scalesShortcutDef
     ? `${scalesShortcutDef.label} (${scalesShortcutDef.denominator})`
@@ -1883,14 +1887,16 @@ function ShapesFocusSection({
               onClick={toggleAllSeventhQualities}
               selectedStyle="accent"
             />
-            <CategoryPillButton
-              key="chord_shape_extensions"
-              label={extensionsShortcutLabel}
-              accentHex={shapesAccent}
-              active={allExtensionFamiliesSelected}
-              onClick={toggleAllExtensionFamilies}
-              selectedStyle="accent"
-            />
+            {SHAPES_HAS_EXTENSIONS && (
+              <CategoryPillButton
+                key="chord_shape_extensions"
+                label={extensionsShortcutLabel}
+                accentHex={shapesAccent}
+                active={allExtensionFamiliesSelected}
+                onClick={toggleAllExtensionFamilies}
+                selectedStyle="accent"
+              />
+            )}
             {SHAPES_LAYER1_OPTIONS.map(group => (
               <CategoryPillButton
                 key={group.id}
@@ -1968,7 +1974,7 @@ function ShapesFocusSection({
               </div>
             </div>
           )}
-          {anyExtensionSelected && (
+          {SHAPES_HAS_EXTENSIONS && anyExtensionSelected && (
             <div className="space-y-1.5">
               <div className="text-[10px] uppercase tracking-wide text-neutral-500">
                 Extension families

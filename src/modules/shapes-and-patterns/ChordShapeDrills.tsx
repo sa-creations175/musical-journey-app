@@ -18,7 +18,14 @@ const KIND_LABEL: Record<QualityKind | 'all', string> = {
   extension:  'extensions',
   special:    'specials (6, 6/9, etc.)',
 };
-const KIND_OPTIONS: Array<QualityKind | 'all'> = ['all', 'triad', 'seventh', 'extension', 'special'];
+// 'extension' and 'special' are gone with the 20 Aug 2026 catalog cut —
+// selecting either rendered an empty grid. Derived from the catalog
+// rather than hardcoded so a kind reappears here the moment a quality
+// carrying it is added back.
+const KIND_OPTIONS: Array<QualityKind | 'all'> = [
+  'all',
+  ...Array.from(new Set(CHORD_QUALITIES.map(q => q.kind))),
+];
 
 /**
  * Chord Shape Drills activity area — 12×N heat grid where N varies

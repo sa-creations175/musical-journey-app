@@ -52,7 +52,7 @@ import {
   COVERAGE_SPECIFIC_METRIC,
 } from './coverageMetrics';
 import {
-  SHAPES_COVERAGE_GROUP_DEFS,
+  SHAPES_COVERAGE_PICKER_DEFS,
   type ShapesCoverageGroupId,
 } from './shapesCoverageGroups';
 import {
@@ -2481,7 +2481,12 @@ const SHAPES_COVERAGE_GROUPS: ReadonlyArray<{
   id: ShapesCoverageGroupId;
   label: string;
   denominator: number;
-}> = SHAPES_COVERAGE_GROUP_DEFS.map(g => ({
+  // Sourced from SHAPES_COVERAGE_PICKER_DEFS — the shared "has items"
+  // filter. This list used to be every def, unfiltered, while
+  // GoalSuggestionFlow filtered zero-item extension families; after the
+  // 20 Aug 2026 catalog cut that gap would have rendered eight
+  // "(0 items)" pills here and none there.
+}> = SHAPES_COVERAGE_PICKER_DEFS.map(g => ({
   id: g.id,
   label: g.label,
   denominator: g.denominator,
