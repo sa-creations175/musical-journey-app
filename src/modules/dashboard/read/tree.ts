@@ -84,6 +84,17 @@ export interface TreeNode {
   gradedLeafCount: number;
   coveredItems: number;
   totalItems: number;
+  /**
+   * Every engagement under this node, focus-protected and ungraded ones
+   * included.
+   *
+   * The coverage cell needs it. A percentage alone cannot tell "worked
+   * on, nothing consolidated yet" from "never opened" - both read 0% -
+   * and that gap would make real practice look like neglect, which is
+   * the failure this screen exists to correct. So a parent row reads
+   * "0% · 24 attempts", not "0%".
+   */
+  engagementCount: number;
   recency: RecencyPair;
 }
 
@@ -122,6 +133,7 @@ export function buildModuleTree(
     );
     leaf.stats = stats[i];
     leaf.itemRefs = [...item.itemRefs];
+    leaf.engagementCount = stats[i].engagementCount;
     // A leaf's totals come from the catalog row, so a merged row
     // contributes both of its stored refs to the denominator.
     leaf.totalItems = item.itemRefs.length;
@@ -153,6 +165,7 @@ function emptyNode(
     gradedLeafCount: 0,
     coveredItems: 0,
     totalItems: 0,
+    engagementCount: 0,
     itemRefs: [],
     recency: { mostRecentAt: null, stalestAt: null, hasUntouched: false },
   };
@@ -165,6 +178,7 @@ function rollUp(node: TreeNode): void {
 
   let covered = 0;
   let total = 0;
+  let engagements = 0;
   let scoreSum = 0;
   let graded = 0;
   let mostRecent: number | null = null;
@@ -175,6 +189,7 @@ function rollUp(node: TreeNode): void {
   for (const child of node.children) {
     covered += child.coveredItems;
     total += child.totalItems;
+    engagements += child.engagementCount;
     refs.push(...child.itemRefs);
     if (child.score !== null) {
       // Weighted by graded leaves, which keeps the result
@@ -196,6 +211,7 @@ function rollUp(node: TreeNode): void {
 
   node.coveredItems = covered;
   node.totalItems = total;
+  node.engagementCount = engagements;
   node.itemRefs = refs;
   node.gradedLeafCount = graded;
   node.score = graded === 0 ? null : scoreSum / graded;

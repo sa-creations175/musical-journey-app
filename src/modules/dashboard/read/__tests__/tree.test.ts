@@ -283,3 +283,38 @@ describe('against the real catalogs', () => {
     expect(row.coveredItems).toBe(2);
   });
 });
+
+describe('engagement count roll-up', () => {
+  it('sums every engagement, so 0% can be told from never opened', () => {
+    // A percentage alone cannot distinguish "worked on, nothing
+    // consolidated" from "never opened" — both read 0%, and that gap
+    // would make real practice look like neglect.
+    const tree = buildModuleTree(
+      catalog([item('a', ['test']), item('b', ['test'])]),
+      [
+        stats({ engagementCount: 22, covered: false }),
+        stats({ engagementCount: 2, covered: false }),
+      ],
+    );
+    expect(tree.coveredItems).toBe(0);
+    expect(tree.engagementCount).toBe(24);
+  });
+
+  it('distinguishes a worked-on module from an untouched one', () => {
+    const untouched = buildModuleTree(
+      catalog([item('a', ['test'])]), [stats({ engagementCount: 0 })],
+    );
+    expect(untouched.engagementCount).toBe(0);
+  });
+
+  it('counts focus-protected and ungraded engagements too', () => {
+    // Both stay out of accuracy and both are real practice, so the
+    // attempt readout has to include them or it contradicts coverage.
+    const tree = buildModuleTree(
+      catalog([item('a', ['test'])]),
+      [stats({ engagementCount: 9, excludedCount: 9, score: null })],
+    );
+    expect(tree.engagementCount).toBe(9);
+    expect(tree.score).toBeNull();
+  });
+});
