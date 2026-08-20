@@ -5,7 +5,7 @@ import {
   type LessonReferenceTrack,
   type ProductionLesson,
   type ProductionLessonMastery,
-  type LegacySessionFeelRating,
+  type ProductionLessonRating,
   type ProductionLessonSession,
   type ReferenceTrack,
 } from '../../lib/db';
@@ -18,26 +18,37 @@ import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenc
 import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
 
 /**
- * Mapping from Production's mastery enum to the unified spacingState
- * acquisition stage. Production lessons don't have per-rep rating
- * signals — the user declares state directly via the mastery buttons,
- * so spacingState mirrors that declaration rather than going through
+ * Mapping from the five-step lesson self-rating to the unified
+ * spacingState acquisition stage. Production lessons have no per-rep
+ * rating signals — the user declares state directly, so spacingState
+ * mirrors that declaration rather than going through
  * recordEngagement's signal-driven transition logic.
  *
- *   not-started → null    (delete row — canonical "absence = new")
- *   in-progress → acquiring
- *   completed   → acquired   (initial competency demonstrated)
- *   mastered    → mastered   (user-declared full ownership)
+ *     0 not started → null       (delete row — canonical "absence = new")
+ *    25 read it     → acquiring  (touched, not covered)
+ *    50 deep dive   → acquiring  (still reading)
+ *    75 tried it    → acquired   ← the coverage line
+ *   100 mastered    → mastered   (user-declared full ownership)
  *
- * If consolidated/mastered ever needs to be distinguished for
- * Production specifically, that's a future design call captured in
- * BUILD_SEQUENCER_2.md.
+ * COVERAGE BEGINS AT "TRIED IT", not at comprehension. `COVERED_STAGES`
+ * in goals/progress.ts is {acquired, consolidated, mastered}, so 75 is
+ * where a lesson starts counting toward a Production coverage goal.
+ * That is the whole point of the scale: covered means you did the
+ * thing, not that you understood the words. It makes Production
+ * coverage goals strictly harder than the mastery enum did (where
+ * "completed" — understood-and-can-use — was the line), which is
+ * intended.
+ *
+ * 'consolidated' stays unused for Production, exactly as under the
+ * mastery enum — there's no signal that would distinguish it from
+ * 'acquired' here.
  */
-const STAGE_FOR_MASTERY: Record<ProductionLessonMastery, AcquisitionStage | null> = {
-  'not-started': null,
-  'in-progress': 'acquiring',
-  'completed':   'acquired',
-  'mastered':    'mastered',
+const STAGE_FOR_RATING: Record<ProductionLessonRating, AcquisitionStage | null> = {
+  0:   null,
+  25:  'acquiring',
+  50:  'acquiring',
+  75:  'acquired',
+  100: 'mastered',
 };
 
 /** Module-level in-flight guard — second concurrent caller awaits the
@@ -239,37 +250,24 @@ async function refreshStarterListeningPrompts(): Promise<void> {
 
 // --- Lesson state CRUD ---------------------------------------------
 
-export async function updateLessonMastery(
-  lessonId: string,
-  mastery: ProductionLessonMastery,
-): Promise<void> {
-  const now = Date.now();
-  const row = await db.productionLessons.get(lessonId);
-  if (!row) return;
-  await db.productionLessons.update(lessonId, {
-    mastery,
-    completedAt: (mastery === 'completed' || mastery === 'mastered')
-      ? (row.completedAt ?? now)
-      : null,
-    updatedAt: now,
-  });
-  // Mirror the mastery state into spacingState. Outside the existing
-  // update pattern by design — assertSpacingStage failure must not
-  // roll back the productionLessons mutation.
-  await assertSpacingStage(lessonId, 'production', STAGE_FOR_MASTERY[mastery]);
-}
-
-export async function recordLessonOpen(
-  lessonId: string,
-  openedDeepDive: boolean,
-): Promise<void> {
+/**
+ * Record that the user opened a lesson. Bumps the revisit counter and
+ * writes a passive open event — a session row with NO rating, which
+ * is what distinguishes it from an attempt.
+ *
+ * Deliberately does NOT touch `rating`. The previous version promoted
+ * 'not-started' → 'in-progress' just for opening the page, which
+ * contradicts a scale built on declaring what you did: opening a
+ * lesson is not a claim about it. The user moves the rating, nothing
+ * else does.
+ */
+export async function recordLessonOpen(lessonId: string): Promise<void> {
   const now = Date.now();
   const existing = await db.productionLessons.get(lessonId);
   if (existing) {
     await db.productionLessons.update(lessonId, {
       revisitCount: existing.revisitCount + 1,
       lastOpenedAt: now,
-      mastery: existing.mastery === 'not-started' ? 'in-progress' : existing.mastery,
       updatedAt: now,
     });
   }
@@ -277,42 +275,74 @@ export async function recordLessonOpen(
     id: uid('pls'),
     lessonId,
     timestamp: now,
-    openedDeepDive,
   };
   await db.productionLessonSessions.add(session);
 }
 
 /**
- * Log a rated Production lesson session — Phase B Decision 4. Writes
- * a ProductionLessonSession row carrying the self-reported feel plus
- * the start / end timestamps. This is the row that counts as a
- * Production "attempt"; the open events written by recordLessonOpen
- * stay rating-less and don't count.
+ * THE single write path for the five-step lesson self-rating. Three
+ * writes, one call:
  *
- * `startedAt` is lessonStartedAt (captured when the lesson page
- * mounted, passed in by the caller); `timestamp` doubles as
- * lessonEndedAt (now); `durationSeconds` is the honest difference,
- * floored at 0 against clock skew. `openedDeepDive` is false — this
- * row marks the rating event, not a deep-dive open (those get their
- * own row from recordLessonOpen).
+ *   1. productionLessons.rating — the cumulative state (where the
+ *      user stands on this lesson now).
+ *   2. a rated productionLessonSessions row — the timestamped EVENT,
+ *      which is what the weekly pace counts as a Production attempt.
+ *   3. the spacingState mirror via STAGE_FOR_RATING, which is what
+ *      Production coverage goals read.
+ *
+ * ONE RATED ROW PER VISIT, not per tap. `startedAt` identifies the
+ * visit (the caller captures it on mount), and a second rating in the
+ * same visit UPDATES that visit's row rather than adding another.
+ * Walking 0 → 25 → 75 in one sitting is one session that ended at 75,
+ * not three attempts; adding a row per tap would inflate the weekly
+ * count by rewarding indecision. A later visit carries a new
+ * `startedAt`, so genuine revisits still count separately.
+ *
+ * A no-op re-tap of the current rating writes nothing at all.
+ *
+ * The spacing mirror sits outside any transaction by design, matching
+ * the previous mastery path: an assertSpacingStage failure must not
+ * roll back the rating the user just declared.
  */
-export async function recordLessonRating(
+export async function setLessonRating(
   lessonId: string,
-  rating: LegacySessionFeelRating,
+  rating: ProductionLessonRating,
   startedAt: number,
-): Promise<ProductionLessonSession> {
+): Promise<void> {
+  const row = await db.productionLessons.get(lessonId);
+  if (!row) return;
+  if (row.rating === rating) return;
+
   const endedAt = Date.now();
-  const session: ProductionLessonSession = {
-    id: uid('pls'),
-    lessonId,
-    timestamp: endedAt,
-    startedAt,
-    durationSeconds: Math.max(0, Math.round((endedAt - startedAt) / 1000)),
-    openedDeepDive: false,
+  await db.productionLessons.update(lessonId, {
     rating,
-  };
-  await db.productionLessonSessions.add(session);
-  return session;
+    updatedAt: endedAt,
+  });
+
+  const existingForVisit = await db.productionLessonSessions
+    .where('lessonId').equals(lessonId)
+    .filter(s => s.startedAt === startedAt)
+    .first();
+
+  const durationSeconds = Math.max(0, Math.round((endedAt - startedAt) / 1000));
+  if (existingForVisit) {
+    await db.productionLessonSessions.update(existingForVisit.id, {
+      rating,
+      timestamp: endedAt,
+      durationSeconds,
+    });
+  } else {
+    await db.productionLessonSessions.add({
+      id: uid('pls'),
+      lessonId,
+      timestamp: endedAt,
+      startedAt,
+      durationSeconds,
+      rating,
+    });
+  }
+
+  await assertSpacingStage(lessonId, 'production', STAGE_FOR_RATING[rating]);
 }
 
 // --- Glossary state CRUD -------------------------------------------

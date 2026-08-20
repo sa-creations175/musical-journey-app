@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type ProductionLessonMastery, type LegacySessionFeelRating } from '../../lib/db';
-import Modal from '../../components/Modal';
+import { db, type ProductionLessonRating } from '../../lib/db';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import { lessonById } from './content/lessons';
 import { glossaryById } from './content/glossary';
 import { pathById } from './content/paths';
-import { recordLessonOpen, recordLessonRating, updateLessonMastery } from './data';
+import { recordLessonOpen, setLessonRating } from './data';
 import GlossaryOverlay from './GlossaryOverlay';
 import LessonReferenceSection from './LessonReferenceSection';
 
@@ -17,32 +16,62 @@ interface Props {
   onBack: () => void;
 }
 
-const MASTERY_LABEL: Record<ProductionLessonMastery, string> = {
-  'not-started': 'not started',
-  'in-progress': 'in progress',
-  'completed':   'completed',
-  'mastered':    'mastered',
-};
-
-const MASTERY_DOT: Record<ProductionLessonMastery, string> = {
-  'not-started': 'bg-neutral-200 dark:bg-neutral-700',
-  'in-progress': 'bg-developing',
-  'completed':   'bg-fluent',
-  'mastered':    'bg-mastered',
-};
-
-const MASTERY_LEGEND: Array<{ key: ProductionLessonMastery; label: string; meaning: string }> = [
-  { key: 'not-started', label: 'not yet',     meaning: "haven't looked at this yet" },
-  { key: 'in-progress', label: 'in progress', meaning: 'started but still working through it' },
-  { key: 'completed',   label: 'got it',      meaning: 'understand the idea and can use it' },
-  { key: 'mastered',    label: 'mastered',    meaning: 'solid enough to teach it or apply it instinctively' },
+/**
+ * The five steps, in order. Each one names something this page
+ * actually offers — the lesson body, the Deep dive section, the Try
+ * now block — so the rating is a claim about what you did, not a
+ * guess at how well you understood it.
+ *
+ * The dot colours climb neutral → amber → green: reading is progress
+ * but not coverage, and the shift to green lands on "tried it", the
+ * step where a Production coverage goal starts counting the lesson
+ * (see STAGE_FOR_RATING in data.ts).
+ */
+const RATING_OPTIONS: ReadonlyArray<{
+  value: ProductionLessonRating;
+  label: string;
+  meaning: string;
+  dot: string;
+}> = [
+  {
+    value: 0,
+    label: 'not started',
+    meaning: "haven't opened this yet",
+    dot: 'bg-neutral-200 dark:bg-neutral-700',
+  },
+  {
+    value: 25,
+    label: 'read it',
+    meaning: 'read the lesson through',
+    dot: 'bg-developing/50',
+  },
+  {
+    value: 50,
+    label: 'deep dive',
+    meaning: 'went through the deep dive or the reference tutorial',
+    dot: 'bg-developing',
+  },
+  {
+    value: 75,
+    label: 'tried it',
+    meaning: 'actually ran the Try now exercise',
+    dot: 'bg-fluent',
+  },
+  {
+    value: 100,
+    label: 'mastered',
+    meaning: 'use it instinctively in my own work',
+    dot: 'bg-mastered',
+  },
 ];
+
+const RATING_OPTION_BY_VALUE = new Map(RATING_OPTIONS.map(o => [o.value, o]));
 
 /**
  * Single-lesson view. Surface content is always visible; the Deep
  * Dive layer expands on demand. Glossary terms render as inline
- * chips that open an overlay. Footer carries the self-assessment
- * ("Got it" / "Need more") plus the YouTube link and revisit count.
+ * chips that open an overlay. Footer carries the five-step self-
+ * rating plus the YouTube link and revisit count.
  */
 export default function LessonView({ lessonId, onBack }: Props) {
   const lesson = lessonById(lessonId);
@@ -59,47 +88,29 @@ export default function LessonView({ lessonId, onBack }: Props) {
     && sessionState.context === 'phone';
 
   const [showDeepDive, setShowDeepDive] = useState(false);
-  const deepDiveLoggedRef = useRef(false);
   const [glossaryOpen, setGlossaryOpen] = useState<string | null>(null);
-  const [ratingOpen, setRatingOpen] = useState(false);
   // lessonStartedAt — when the user entered this lesson page. Seeded
   // at first render and refreshed by the mount effect below when the
-  // user navigates between lessons without unmounting.
+  // user navigates between lessons without unmounting. Doubles as the
+  // visit key: setLessonRating folds repeat ratings within one visit
+  // into a single rated session row.
   const startedAtRef = useRef(Date.now());
 
-  // Record an open event once per mount. The effect is guarded so
-  // re-opening Deep Dive doesn't double-count.
+  // Record a passive open event once per mount. Opening Deep Dive no
+  // longer logs a second event — that used to double-bump
+  // revisitCount, and the deep-dive step is a rating value now rather
+  // than a side channel.
   useEffect(() => {
     if (!lesson) return;
-    void recordLessonOpen(lesson.id, false);
-    deepDiveLoggedRef.current = false;
+    void recordLessonOpen(lesson.id);
     startedAtRef.current = Date.now();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
 
-  // Phase B Decision 4 — write the rated session row, then hand
-  // navigation back to the parent. The rating modal is the ONLY path
-  // to recordLessonRating, so leaving the lesson any other way
-  // (back button, sidebar, browser back) writes no rated row.
-  const handleSubmitRating = async (rating: LegacySessionFeelRating) => {
+  const handleRate = async (rating: ProductionLessonRating) => {
     if (!lesson) return;
-    await recordLessonRating(lesson.id, rating, startedAtRef.current);
-    setRatingOpen(false);
-    onBack();
+    await setLessonRating(lesson.id, rating, startedAtRef.current);
   };
-
-  // When the user opens Deep Dive, log a second (enriched) session
-  // event — lets freshness heuristics see which lessons get the
-  // full treatment vs. a quick skim. Guarded with a ref so we avoid
-  // setState-in-effect cascades.
-  useEffect(() => {
-    if (!lesson) return;
-    if (showDeepDive && !deepDiveLoggedRef.current) {
-      deepDiveLoggedRef.current = true;
-      void recordLessonOpen(lesson.id, true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showDeepDive]);
 
   const state = useLiveQuery(
     async () => (lesson ? db.productionLessons.get(lesson.id) : undefined),
@@ -115,7 +126,8 @@ export default function LessonView({ lessonId, onBack }: Props) {
     );
   }
 
-  const mastery = state?.mastery ?? 'not-started';
+  const rating: ProductionLessonRating = state?.rating ?? 0;
+  const ratingOption = RATING_OPTION_BY_VALUE.get(rating) ?? RATING_OPTIONS[0];
   const revisitCount = state?.revisitCount ?? 0;
 
   return (
@@ -135,8 +147,8 @@ export default function LessonView({ lessonId, onBack }: Props) {
         <div className="flex items-center gap-3 flex-wrap text-[11px] text-neutral-500">
           <span>{path.title}</span>
           <span className="text-neutral-400">·</span>
-          <span className={mastery === 'completed' || mastery === 'mastered' ? 'text-fluent font-medium' : ''}>
-            {MASTERY_LABEL[mastery]}
+          <span className={rating >= 75 ? 'text-fluent font-medium' : ''}>
+            {ratingOption.label}
           </span>
           {revisitCount > 0 && (
             <>
@@ -233,8 +245,8 @@ export default function LessonView({ lessonId, onBack }: Props) {
         </section>
       )}
 
-      {/* External link + mastery footer */}
-      <section className="flex items-center justify-between gap-2 flex-wrap pt-2">
+      {/* External link */}
+      <section className="pt-2">
         <a
           href={lesson.youtubeLink}
           target="_blank"
@@ -243,31 +255,14 @@ export default function LessonView({ lessonId, onBack }: Props) {
         >
           watch a reference tutorial →
         </a>
-        <MasteryControls
-          lessonId={lesson.id}
-          current={mastery}
-        />
       </section>
 
-      <MasteryLegend />
-
-      {/* Phase B Decision 4 — per-session self-report. Distinct from
-          the mastery declaration above (mastery is cumulative state;
-          this rates how THIS session felt) and is the row Phase B
-          counts as a Production attempt. Explicit done-flow: no rated
-          row is written unless the user opens this and submits. */}
-      <section className="pt-3 border-t border-neutral-200 dark:border-neutral-800">
-        <button
-          type="button"
-          onClick={() => setRatingOpen(true)}
-          className="w-full sm:w-auto px-4 py-2 rounded-md bg-production text-white text-sm font-medium hover:opacity-90"
-        >
-          Done — rate this session
-        </button>
-        <p className="mt-1.5 text-[11px] text-neutral-500">
-          A quick self-report — it's how Production practice shows up in your weekly plan.
-        </p>
-      </section>
+      {/* The five-step self-rating — the ONLY control that records
+          progress on this lesson, and the only writer of a Production
+          attempt. Sets in place rather than navigating away: the
+          rating is cumulative state, so moving from "read it" to
+          "tried it" later in the same visit has to be possible. */}
+      <RatingControls current={rating} onRate={handleRate} />
 
       {glossaryOpen && (
         <GlossaryOverlay
@@ -275,144 +270,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
           onClose={() => setGlossaryOpen(null)}
         />
       )}
-
-      {ratingOpen && (
-        <LessonRatingModal
-          lessonTitle={lesson.title}
-          onClose={() => setRatingOpen(false)}
-          onSubmit={handleSubmitRating}
-        />
-      )}
     </div>
-  );
-}
-
-// -------------------------------------------------------------------
-// Session rating modal (Phase B Decision 4)
-// -------------------------------------------------------------------
-
-const LESSON_FEEL_OPTIONS: ReadonlyArray<{
-  value: LegacySessionFeelRating;
-  label: string;
-  hint: string;
-  activeClass: string;
-  inactiveClass: string;
-}> = [
-  {
-    value: 'flying',
-    label: 'Flying',
-    hint: 'clicked — I can apply this',
-    activeClass: 'bg-amber-500 text-white border-amber-500',
-    inactiveClass: 'border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10',
-  },
-  {
-    value: 'cruising',
-    label: 'Cruising',
-    hint: 'followed it, need reps',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  {
-    value: 'crawling',
-    label: 'Crawling',
-    hint: 'still fuzzy',
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-];
-
-/**
- * Explicit done-flow rating prompt. Opened by the "Done — rate this
- * session" button; submitting writes the rated ProductionLessonSession
- * row (via the parent's handleSubmitRating) and the parent navigates
- * back. Cancelling — or leaving the lesson by any other route —
- * writes nothing, since this modal is the only path to
- * recordLessonRating. Navigate-away interception was rejected: the
- * Production module navigates via react-router query params, browser
- * back, and the sidebar, so a back-button wrap would miss most exit
- * paths and a router/beforeunload block would be fragile.
- */
-function LessonRatingModal({
-  lessonTitle,
-  onClose,
-  onSubmit,
-}: {
-  lessonTitle: string;
-  onClose: () => void;
-  onSubmit: (rating: LegacySessionFeelRating) => void | Promise<void>;
-}) {
-  const [selected, setSelected] = useState<LegacySessionFeelRating | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const save = async () => {
-    if (selected === null || saving) return;
-    setSaving(true);
-    try {
-      await onSubmit(selected);
-      // No setSaving(false) on success — onSubmit navigates away and
-      // unmounts this modal; touching state here would warn.
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[production] lesson rating save failed', err);
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      open
-      onClose={onClose}
-      title="How did this session feel?"
-      description={lessonTitle}
-      footer={(
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={selected === null || saving}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium text-white ${
-              selected === null || saving
-                ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
-                : 'bg-production hover:opacity-90'
-            }`}
-          >
-            {saving ? 'Saving…' : 'Save & finish'}
-          </button>
-        </div>
-      )}
-    >
-      <div className="space-y-3">
-        <p className="text-sm text-neutral-600 dark:text-neutral-300">
-          Self-assessed — how the ideas in this lesson sat with you this session.
-        </p>
-        <div className="grid grid-cols-1 gap-2">
-          {LESSON_FEEL_OPTIONS.map(opt => {
-            const active = selected === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setSelected(opt.value)}
-                aria-pressed={active}
-                className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
-                  active ? opt.activeClass : opt.inactiveClass
-                }`}
-              >
-                <span className="font-medium">{opt.label}</span>
-                <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -522,126 +380,79 @@ function Inline({
 }
 
 // -------------------------------------------------------------------
-// Mastery controls
+// Five-step self-rating control
 // -------------------------------------------------------------------
 
-function MasteryControls({
-  lessonId,
+/**
+ * The lesson's rating control. Each step names something the page
+ * offers, and the meanings sit alongside the buttons rather than
+ * behind a "what do these mean?" toggle — the old legend hid the one
+ * thing the user needs while deciding.
+ *
+ * Selecting a step writes through setLessonRating, which is the
+ * single path for all three consequences (lesson state, the rated
+ * session row, the spacing mirror). Re-tapping the current step is a
+ * no-op there, so it can't manufacture an attempt.
+ */
+function RatingControls({
   current,
+  onRate,
 }: {
-  lessonId: string;
-  current: ProductionLessonMastery;
+  current: ProductionLessonRating;
+  onRate: (rating: ProductionLessonRating) => void | Promise<void>;
 }) {
-  const mark = async (next: ProductionLessonMastery) => {
-    await updateLessonMastery(lessonId, next);
+  const [saving, setSaving] = useState(false);
+
+  const pick = async (next: ProductionLessonRating) => {
+    if (saving || next === current) return;
+    setSaving(true);
+    try {
+      await onRate(next);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[production] lesson rating save failed', err);
+    } finally {
+      setSaving(false);
+    }
   };
-  const options: Array<{ value: ProductionLessonMastery; label: string }> = [
-    { value: 'not-started', label: 'not yet' },
-    { value: 'in-progress', label: 'in progress' },
-    { value: 'completed',   label: 'got it' },
-    { value: 'mastered',    label: 'mastered' },
-  ];
+
   return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      {options.map(o => {
-        const active = current === o.value;
-        const button = (
-          <button
-            key={o.value}
-            onClick={() => mark(o.value)}
-            className="px-2.5 py-1 rounded-md border text-xs transition"
-            style={active ? {
-              backgroundColor: '#3a4875',
-              borderColor: '#3a4875',
-              color: 'white',
-            } : {
-              borderColor: 'rgb(229 231 235)',
-              color: 'rgb(75 85 99)',
-            }}
-          >
-            {o.label}
-          </button>
-        );
-        if (o.value === 'completed') {
+    <section
+      className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-3"
+      aria-label="Lesson self-rating"
+    >
+      <div>
+        <div className="text-[10px] uppercase tracking-wide text-production font-medium">
+          where am I with this
+        </div>
+        <p className="mt-1 text-[11px] text-neutral-500">
+          What you actually did — not how well you followed it. From
+          &ldquo;tried it&rdquo; on, the lesson counts toward Production coverage.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 gap-2">
+        {RATING_OPTIONS.map(o => {
+          const active = current === o.value;
           return (
-            <span key={o.value} className="inline-flex items-center gap-1">
-              {button}
-              <GotItInfoTip />
-            </span>
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => void pick(o.value)}
+              disabled={saving}
+              aria-pressed={active}
+              className={`w-full px-3 py-2 rounded-md border text-sm text-left flex items-baseline gap-2.5 transition-colors ${
+                active
+                  ? 'border-production bg-production/10'
+                  : 'border-neutral-200 dark:border-neutral-700 hover:border-production/50'
+              } ${saving ? 'opacity-60' : ''}`}
+            >
+              <span className={`shrink-0 inline-block w-2.5 h-2.5 rounded-full ${o.dot}`} aria-hidden />
+              <span className={`font-medium ${active ? 'text-production' : ''}`}>{o.label}</span>
+              <span className="text-neutral-500 text-xs">{o.meaning}</span>
+            </button>
           );
-        }
-        return button;
-      })}
-    </div>
-  );
-}
-
-/** Collapsible legend explaining what each mastery state means.
- *  Lives next to MasteryControls so the explanation is one tap away
- *  from the buttons the user is actually deciding between. */
-function MasteryLegend() {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className="flex flex-col gap-1">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        aria-expanded={open}
-        className="text-[11px] text-neutral-500 hover:text-production inline-flex items-center gap-1 self-end"
-      >
-        What do these mean?
-        <span aria-hidden>{open ? '▾' : '▸'}</span>
-      </button>
-      {open && (
-        <ul className="text-[11px] text-neutral-600 dark:text-neutral-300 space-y-1 border-l-2 border-production/20 pl-3 self-end">
-          {MASTERY_LEGEND.map(entry => (
-            <li key={entry.key} className="flex items-baseline gap-2">
-              <span className={`shrink-0 inline-block w-2 h-2 rounded-full mt-0.5 ${MASTERY_DOT[entry.key]}`} aria-hidden />
-              <span>
-                <span className="font-medium">{entry.label}</span>
-                <span className="text-neutral-500"> — {entry.meaning}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+        })}
+      </div>
     </section>
-  );
-}
-
-/** Visible-popover info tip pinned to the "got it" button. Same
- *  hover/focus/click pattern as InputQuestionnaire's IntentInfoTip —
- *  native `title` tooltips don't fire on touch and have a long
- *  reveal delay on desktop, neither of which fits a moment where
- *  the user is actively deciding between mastery states. */
-function GotItInfoTip() {
-  const [open, setOpen] = useState(false);
-  const text = 'Self-assessed — you understand the idea and can apply it in your work.';
-  return (
-    <span className="relative inline-flex items-center">
-      <button
-        type="button"
-        aria-label={text}
-        aria-expanded={open}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
-        onClick={() => setOpen(v => !v)}
-        className="inline-flex items-center justify-center text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 focus:outline-none focus:text-production"
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-          <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zm0 1a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2.25a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zM7.25 7h1.5v5h-1.5V7z" />
-        </svg>
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute z-10 right-0 bottom-full mb-1.5 w-56 px-2.5 py-1.5 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-[11px] leading-snug shadow-lg pointer-events-none"
-        >
-          {text}
-        </span>
-      )}
-    </span>
   );
 }
