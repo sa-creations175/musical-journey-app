@@ -309,6 +309,64 @@ Columns stay. Nothing hides — three columns is few enough.
 
 ---
 
+## Outstanding
+
+*Recorded 20 August 2026, after the first look at the built screen. Kept here
+rather than in conversation so nothing gets lost between sessions.*
+
+| # | Item | Where |
+|---|---|---|
+| 1 | **Sticky column headers** — accuracy / coverage / recency / drill. They must stay visible while scrolling; on a 55-row list the top is off screen most of the time, and position alone does not say which column is which. | step 7 |
+| 2 | **Capitalisation is inconsistent.** Harmonic fluency's submodules are Title Case (`Scale Degree Math`) because they read `CATEGORY_LABELS`; every other module's are lowercase (`note recognition`). One convention, applied everywhere. | step 7 |
+| 3 | **Item counts on unfilterable rows.** A filterable row reads `drill 34 items`, which doubles as a size. An unfilterable one reads `open module` and says nothing. Make it `open module · 188 items` so both carry the same information in the same place. | step 7 |
+| 4 | **Key signatures do not read as pairs.** The relative pairs (G♭ major / E♭ minor) are correct but sit as twelve unrelated rows. A rule or spacing between each pair would make the shared signature visible. | step 7 |
+| 5 | Reading chord-identification question design — **being handled in another tab.** Do not duplicate. | elsewhere |
+
+### On capitalisation, since it needs a decision
+
+**Lowercase everywhere is the smaller change, and it matches the app.** The nav
+bar, the module labels and every other catalog already use lowercase; harmonic
+fluency is the outlier because it reads `CATEGORY_LABELS`, which is Title Case
+and shared with the module's own chip list and sidebar.
+
+Applying `.toLowerCase()` in the dashboard's catalog leaves those surfaces
+alone — the dashboard is a dense table with its own typography, and a per-
+surface convention is defensible. Title Case everywhere would mean re-casing
+around thirty literals plus deriving Title Case from chord, mode and interval
+names that are not stored that way.
+
+---
+
+## Design item recorded, not scheduled
+
+### Per-node regrouping
+
+A control on a parent row offering an ALTERNATE grouping of its children.
+
+- Key signatures by relative pair, or by major / minor
+- Intervals by size, or by direction
+- Chord shapes by inversion, or by key
+
+This is a second axis alongside the existing grouping toggle, which acts on the
+whole screen. Per-node regrouping acts on one branch, which is what makes it
+worth having and also what makes it its own design pass. Open questions:
+
+- **Which nodes offer it.** Not every parent has a second sensible axis, and a
+  control that appears on rows where it does nothing is the inert-chevron
+  failure again.
+- **Whether the choice persists.** Expansion and sort live in the URL;
+  comparison deliberately does not. Regrouping could be either — it is closer
+  to a view configuration than to a gesture, which argues for the URL, but it
+  is per-node and the URL would need a compact encoding like expansion's.
+- **How it interacts with sorting.** Sorting orders siblings; regrouping
+  changes what the siblings ARE. The two compose, but the order they apply in
+  decides whether "worst first" means worst group or worst item.
+- **What it does to the catalog.** A regrouped branch has different `path`
+  values, so either the catalog carries both axes or the tree is rebuilt per
+  choice.
+
+---
+
 ## Day one
 
 The screen will open nearly empty. 46 attempts exist in total; most rows will

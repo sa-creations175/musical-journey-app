@@ -124,6 +124,19 @@ The four:
 - **Mental viz excluded from S&P recency.** Both branches shared a timestamp,
   so the parent read the same either way.
 
+A fifth, found the same way and worth stating as the general form:
+
+- **An assertion against something that cannot change.** A test asserted
+  `window.location.search === ''` to prove the compare control writes nothing
+  to the URL. `window.location` does not move under `MemoryRouter`, so it
+  passed whatever the screen wrote. Rendering the router's own query string
+  and asserting on that fails the moment compare writes to it.
+
+**The general form of all five: an assertion against something that cannot
+change is indistinguishable from one against something that did not.** Empty
+fixtures, uniform data and unreachable globals are three faces of the same
+thing.
+
 ### Two habits that catch it
 
 **Reverse every property test, not only bug fixes.** Back the file up to the
