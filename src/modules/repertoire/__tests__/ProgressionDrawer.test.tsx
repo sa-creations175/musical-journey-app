@@ -368,3 +368,114 @@ describe('docking', () => {
     expect(drawer.className).not.toContain('fixed');
   });
 });
+
+describe('reaching a line break', () => {
+  /** A section split by a `row` break, as the intro was. */
+  function withRowBreak() {
+    const a = token('s1', 'p1', '2');
+    const b = token('s1', 'p2', '6');
+    return sec('s1', 'Intro', [], {
+      phrases: [
+        { tokens: [a], endKind: 'row', endsAfterPlacementId: 'p1' },
+        { tokens: [b], endKind: 'end' },
+      ],
+      order: ['p1', 'p2'],
+    });
+  }
+
+  function enterEditMode(el: HTMLElement) {
+    const edit = [...el.querySelectorAll('button')].find(
+      b => b.textContent?.trim() === 'edit',
+    )!;
+    act(() => edit.click());
+  }
+
+  it('offers a control for a row break — it used to have none', () => {
+    // The only thing at the end of the line was the note field, so
+    // tapping there edited the note and the break could not be
+    // selected at all.
+    const el = render(
+      <ProgressionDrawer {...base} sections={[withRowBreak()]} open onOpenChange={noop} />,
+    );
+    enterEditMode(el);
+    const control = el.querySelector('[aria-label="edit this line break"]');
+    expect(control).not.toBeNull();
+  });
+
+  it('CONVERTS it to a separator in one tap, keeping the same anchor', () => {
+    // The action the user actually wanted: not "delete this break" but
+    // "stop it being a line break". Asserting on the callback, not on
+    // what the row looks like — a test that found the chip would pass
+    // on a build where tapping it did nothing.
+    const calls: Array<[string, string, string]> = [];
+    const el = render(
+      <ProgressionDrawer
+        {...base}
+        sections={[withRowBreak()]}
+        open
+        onOpenChange={noop}
+        onSetBreak={(sectionId, after, kind) => {
+          calls.push([sectionId, after, kind]);
+        }}
+      />,
+    );
+    enterEditMode(el);
+    act(() =>
+      (el.querySelector('[aria-label="edit this line break"]') as HTMLElement).click(),
+    );
+    const convert = [...el.querySelectorAll('button')].find(
+      b => b.textContent?.trim() === 'make it a separator',
+    );
+    expect(convert).toBeDefined();
+    act(() => convert!.click());
+    expect(calls).toEqual([['s1', 'p1', 'separator']]);
+  });
+
+  it('shows the kind already in place as current, not as an action', () => {
+    // Offering "new row" on something that is already a row is a no-op
+    // wearing an action's clothes.
+    const el = render(
+      <ProgressionDrawer {...base} sections={[withRowBreak()]} open onOpenChange={noop} />,
+    );
+    enterEditMode(el);
+    act(() =>
+      (el.querySelector('[aria-label="edit this line break"]') as HTMLElement).click(),
+    );
+    const asButton = [...el.querySelectorAll('button')].some(
+      b => b.textContent?.trim() === 'new row',
+    );
+    expect(asButton).toBe(false);
+  });
+
+  it('can remove the break outright', () => {
+    const removed: string[] = [];
+    const el = render(
+      <ProgressionDrawer
+        {...base}
+        sections={[withRowBreak()]}
+        open
+        onOpenChange={noop}
+        onRemoveBreak={(_sectionId, after) => {
+          removed.push(after);
+        }}
+      />,
+    );
+    enterEditMode(el);
+    act(() =>
+      (el.querySelector('[aria-label="edit this line break"]') as HTMLElement).click(),
+    );
+    const remove = [...el.querySelectorAll('button')].find(
+      b => b.textContent?.trim() === 'remove break',
+    )!;
+    act(() => remove.click());
+    expect(removed).toEqual(['p1']);
+  });
+
+  it('offers no break control outside edit mode', () => {
+    const el = render(
+      <ProgressionDrawer {...base} sections={[withRowBreak()]} open onOpenChange={noop} />,
+    );
+    expect(el.querySelector('[aria-label="edit this line break"]')).toBeNull();
+  });
+});
+

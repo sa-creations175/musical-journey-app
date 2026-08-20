@@ -2553,6 +2553,11 @@ export default function LeadSheetSection({
                     hasBreak={sequenceView.breaks.some(
                       b => b.afterPlacementId === seqTarget.placementId,
                     )}
+                    existingKind={
+                      sequenceView.breaks.find(
+                        b => b.afterPlacementId === seqTarget.placementId,
+                      )?.kind ?? null
+                    }
                     hidden={sequenceView.hidden.includes(seqTarget.placementId)}
                     onSetBreak={handleSetBreak}
                     onRemoveBreak={handleRemoveBreak}

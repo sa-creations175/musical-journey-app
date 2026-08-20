@@ -381,3 +381,36 @@ describe('shouldOfferNote — a note belongs to a line, not a grouping', () => {
   });
 });
 
+describe('converting a break keeps what was written about it', () => {
+  it('changing row → separator preserves the note', () => {
+    // The action behind "make it a separator": the user wants the
+    // grouping to stop being a line break, NOT to lose what they wrote
+    // about that phrase. A convert that dropped the note would be a
+    // delete wearing a conversion's label.
+    const view = {
+      breaks: [{ afterPlacementId: 'a', kind: 'row' as const, note: 'the turnaround' }],
+      hidden: [],
+    };
+    const next = setBreak(view, 'a', 'separator', ['a', 'b']);
+    expect(next.breaks).toHaveLength(1);
+    expect(next.breaks[0].kind).toBe('separator');
+    expect(next.breaks[0].note).toBe('the turnaround');
+  });
+
+  it('changing separator → row preserves it too', () => {
+    const view = {
+      breaks: [{ afterPlacementId: 'a', kind: 'separator' as const, note: 'kept' }],
+      hidden: [],
+    };
+    expect(setBreak(view, 'a', 'row', ['a', 'b']).breaks[0].note).toBe('kept');
+  });
+
+  it('does not add a second break at the same anchor', () => {
+    const view = {
+      breaks: [{ afterPlacementId: 'a', kind: 'row' as const }],
+      hidden: [],
+    };
+    expect(setBreak(view, 'a', 'separator', ['a', 'b']).breaks).toHaveLength(1);
+  });
+});
+

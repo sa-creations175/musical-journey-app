@@ -15,10 +15,15 @@ export interface SequenceTarget {
   placementId: string;
 }
 
+/** What already sits at this gap, so the row can offer a CONVERSION
+ *  rather than restating both kinds as if nothing were there. */
+export type ExistingBreakKind = 'separator' | 'row' | null;
+
 export default function SequenceChoices({
   target,
   label,
   hasBreak,
+  existingKind = null,
   hidden,
   onSetBreak,
   onRemoveBreak,
@@ -28,6 +33,8 @@ export default function SequenceChoices({
   target: SequenceTarget;
   label: string;
   hasBreak: boolean;
+  /** The kind already at this gap, when there is one. */
+  existingKind?: ExistingBreakKind;
   hidden: boolean;
   onSetBreak: (afterPlacementId: string, kind: 'separator' | 'row') => void;
   onRemoveBreak: (afterPlacementId: string) => void;
@@ -36,6 +43,8 @@ export default function SequenceChoices({
 }) {
   const chip =
     'px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10';
+  const current =
+    'px-2 py-0.5 rounded-full border border-fluent bg-fluent/10 text-fluent';
   const plain =
     'px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent';
   return (
@@ -45,20 +54,47 @@ export default function SequenceChoices({
       </span>
       {target.kind === 'gap' ? (
         <>
-          <button
-            type="button"
-            className={chip}
-            onClick={() => onSetBreak(target.placementId, 'separator')}
-          >
-            separator
-          </button>
-          <button
-            type="button"
-            className={chip}
-            onClick={() => onSetBreak(target.placementId, 'row')}
-          >
-            new row
-          </button>
+          {/* CONVERSION IS THE COMMON CASE once a break exists — most
+              often "this shouldn't have been a line break" — so the
+              chip names the change rather than restating both kinds as
+              though the gap were empty. The kind already in place is
+              shown as current instead of being offered again, which
+              would be a no-op wearing an action's clothes.
+
+              Converting keeps the note: setBreak overrides `kind` on
+              the existing break and nothing else. */}
+          {existingKind === 'separator' ? (
+            <span className={current}>separator</span>
+          ) : (
+            <button
+              type="button"
+              className={chip}
+              onClick={() => onSetBreak(target.placementId, 'separator')}
+              title={
+                existingKind === 'row'
+                  ? 'keeps the phrase on one line; the note stays'
+                  : 'divides the phrase without starting a new line'
+              }
+            >
+              {existingKind === 'row' ? 'make it a separator' : 'separator'}
+            </button>
+          )}
+          {existingKind === 'row' ? (
+            <span className={current}>new row</span>
+          ) : (
+            <button
+              type="button"
+              className={chip}
+              onClick={() => onSetBreak(target.placementId, 'row')}
+              title={
+                existingKind === 'separator'
+                  ? 'starts a new line here; the note stays'
+                  : 'starts a new line here'
+              }
+            >
+              {existingKind === 'separator' ? 'make it a new row' : 'new row'}
+            </button>
+          )}
           {hasBreak && (
             <button
               type="button"

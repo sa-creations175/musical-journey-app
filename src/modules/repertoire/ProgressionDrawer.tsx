@@ -311,6 +311,30 @@ export default function ProgressionDrawer({
                             }
                           />
                         )}
+                        {/* A row break was UNREACHABLE here: the only
+                            thing at the end of the line was the note
+                            field, so tapping it edited the note and
+                            the break itself could not be selected at
+                            all. The strip has always had this control;
+                            the drawer did not, which made the more
+                            disruptive of the two break kinds the one
+                            you could not undo. */}
+                        {phrase.endKind === 'row' && editing && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTarget({
+                                kind: 'gap',
+                                placementId: phrase.endsAfterPlacementId!,
+                                sectionId: section.sectionId,
+                              })
+                            }
+                            aria-label="edit this line break"
+                            className="text-fluent px-1 rounded hover:bg-fluent/10"
+                          >
+                            ⏎
+                          </button>
+                        )}
                         {phrase.endKind === 'row' && (
                           <span className="basis-full" aria-hidden />
                         )}
@@ -331,6 +355,17 @@ export default function ProgressionDrawer({
                     hasBreak={section.phrases.some(
                       p => p.endsAfterPlacementId === target.placementId,
                     )}
+                    existingKind={
+                      section.phrases.find(
+                        p => p.endsAfterPlacementId === target.placementId,
+                      )?.endKind === 'row'
+                        ? 'row'
+                        : section.phrases.some(
+                              p => p.endsAfterPlacementId === target.placementId,
+                            )
+                          ? 'separator'
+                          : null
+                    }
                     hidden={section.phrases
                       .flatMap(p => p.tokens)
                       .some(t => t.placementId === target.placementId && t.hidden)}
