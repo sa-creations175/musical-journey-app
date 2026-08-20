@@ -129,10 +129,41 @@ export default function ProgressionDrawer({
     }
     const r = el.getBoundingClientRect();
     const cs = window.getComputedStyle(el);
+
+    // WHAT IS ACTUALLY AT THAT POINT. Geometry says the row is there
+    // and painted; the sentinel beside it is invisible. Only a hit
+    // test distinguishes "covered by something" from "clipped by an
+    // ancestor" — and they need different fixes.
+    const cx = Math.round(r.left + r.width / 2);
+    const cy = Math.round(r.top + r.height / 2);
+    // Guarded: jsdom has no hit testing, and a diagnostic must never
+    // be the thing that breaks the surface it is measuring.
+    const hit =
+      typeof document.elementFromPoint === 'function'
+        ? document.elementFromPoint(cx, cy)
+        : null;
+    const describe = (n: Element | null): string => {
+      if (!n) return 'nothing';
+      const marks = ['data-choices-probe', 'data-progression-drawer',
+        'data-lead-sheet-drawers', 'data-app-chrome']
+        .filter(a => n.closest(`[${a}]`));
+      return `${n.tagName.toLowerCase()}${marks.length ? ' in:' + marks.join(',') : ''}`;
+    };
+    const insideProbe = Boolean(hit?.closest('[data-choices-probe]'));
+
+    // The clip boundary: if the row sits outside the scroller's own
+    // box it is scrolled out of view, which reports real geometry and
+    // paints nothing.
+    const scroller = el.closest('[data-progression-scroll]');
+    const sr = scroller?.getBoundingClientRect();
+    const clipped = sr ? (r.top < sr.top || r.bottom > sr.bottom) : null;
+
     setRect(
       `${Math.round(r.width)}x${Math.round(r.height)} @${Math.round(r.top)} ` +
-        `basis:${cs.flexBasis} disp:${cs.display} vis:${cs.visibility} ` +
-        `op:${cs.opacity} ovf:${cs.overflow}`,
+        `basis:${cs.flexBasis} vis:${cs.visibility} z:${cs.zIndex}\n` +
+        `scroll ${sr ? `${Math.round(sr.top)}..${Math.round(sr.bottom)}` : 'none'} ` +
+        `clipped:${clipped}\n` +
+        `hit@${cx},${cy}: ${describe(hit)} ${insideProbe ? 'SELF' : 'COVERED'}`,
     );
   }, [target]);
 
@@ -183,6 +214,7 @@ export default function ProgressionDrawer({
 
       {open && (
         <div
+          data-progression-scroll=""
           className="overflow-y-auto px-3 pb-3 pt-2 flex flex-col gap-3 border-t border-repertoire-200 dark:border-repertoire-600 bg-white dark:bg-neutral-900"
           style={{ maxHeight: '50vh' }}
         >
@@ -217,7 +249,7 @@ export default function ProgressionDrawer({
                 <br />
                 {lastEvent}
                 <br />
-                {rect}
+                <span className="whitespace-pre-line">{rect}</span>
               </span>
             )}
             {totalHidden > 0 && (
