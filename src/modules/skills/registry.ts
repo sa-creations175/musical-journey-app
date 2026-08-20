@@ -5,7 +5,7 @@ import {
   type DrillType,
   type FlashcardState,
   type ProductionLesson,
-  type ProductionLessonMastery,
+  type ProductionLessonRating,
   type SkillAnnotation,
   type SkillType,
   type SkillPriority,
@@ -26,6 +26,7 @@ import {
 import { freshnessTier, type FreshnessTier } from '../shapes-and-patterns/drillModel';
 import { PRODUCTION_LESSONS } from '../production/content/lessons';
 import { pathById } from '../production/content/paths';
+import { COVERAGE_RATING } from '../production/lessonRating';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const TIER_WINDOW = 20;
@@ -700,7 +701,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
 
   // --- Production ---------------------------------------------------
   // Each Phase-1 lesson surfaces as a trackable skill with tier
-  // derived from its mastery state. Glossary terms are reference
+  // derived from its five-step self-rating. Glossary terms are reference
   // lookups rather than practised skills, so they stay inside the
   // Production module's own Glossary view (with "got it" tracking)
   // and are intentionally NOT enumerated here. A future "glossary
@@ -713,7 +714,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
 
     for (const lesson of PRODUCTION_LESSONS) {
       const state = lessonStateById.get(lesson.id);
-      const mastery: ProductionLessonMastery = state?.mastery ?? 'not-started';
+      const rating: ProductionLessonRating = state?.rating ?? 0;
       const lastPracticed = state?.lastOpenedAt ?? null;
       const path = pathById(lesson.pathId);
       const skillId = canonicalSkillId('production', 'lesson', lesson.id);
@@ -728,7 +729,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         name: ann?.customName ?? lesson.title,
         category: path ? path.title : 'Production',
         skillType: 'production',
-        currentTier: mapProductionMastery(mastery),
+        currentTier: mapProductionRating(rating),
         freshness: freshnessFrom(lastPracticed),
         daysSince: daysSinceOf(lastPracticed, now),
         lastPracticed,
@@ -743,18 +744,24 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
   return records;
 }
 
-/** Map Production lesson mastery to the shared Tier vocabulary used
- *  across the catalogue. Completed/Mastered read as fluent/mastered
- *  so they sort alongside other practised skills; in-progress reads
- *  as developing; not-started is untouched. */
-function mapProductionMastery(m: ProductionLessonMastery): Tier {
-  switch (m) {
-    case 'mastered':    return 'mastered';
-    case 'completed':   return 'fluent';
-    case 'in-progress': return 'developing';
-    case 'not-started':
-    default:            return 'untouched';
-  }
+/**
+ * Map the five-step lesson rating onto the shared Tier vocabulary
+ * used across the catalogue.
+ *
+ * 'fluent' lands on "tried it" (75) — the same line STAGE_FOR_RATING
+ * treats as covered — so a lesson reads as practised in the skills
+ * grid exactly when it counts toward a coverage goal. The two reading
+ * surfaces must not disagree about what "done" means.
+ *
+ * Both reading steps collapse to 'developing': the Tier vocabulary
+ * has no rung between untouched and practised, and inventing one here
+ * would put a distinction in the catalogue that no other module has.
+ */
+function mapProductionRating(rating: ProductionLessonRating): Tier {
+  if (rating >= 100) return 'mastered';
+  if (rating >= COVERAGE_RATING) return 'fluent';
+  if (rating > 0) return 'developing';
+  return 'untouched';
 }
 
 function mapStageToTier(song: Song): Tier {

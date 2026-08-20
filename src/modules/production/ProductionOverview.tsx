@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type ProductionLessonMastery } from '../../lib/db';
+import { db } from '../../lib/db';
 import { PRODUCTION_PATHS } from './content/paths';
 import { lessonById, lessonsByPath, PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
+import { isCovered, isStarted, ratingOption } from './lessonRating';
 
 interface Props {
   onOpenPath: (pathId: string) => void;
@@ -12,13 +13,6 @@ interface Props {
   onOpenReferenceTracks: () => void;
   onOpenVocabulary: () => void;
 }
-
-const MASTERY_DOT: Record<ProductionLessonMastery, string> = {
-  'not-started': 'bg-neutral-200 dark:bg-neutral-700',
-  'in-progress': 'bg-developing',
-  'completed':   'bg-fluent',
-  'mastered':    'bg-mastered',
-};
 
 /**
  * Production module landing view. Three rails: a stats strip,
@@ -50,13 +44,14 @@ export default function ProductionOverview({
 
   const totals = useMemo(() => {
     const total = PRODUCTION_LESSONS.length;
-    let completed = 0;
-    let inProgress = 0;
+    // Covered = tried it or better. Started = read about, not yet run.
+    let covered = 0;
+    let started = 0;
     for (const s of lessonStates) {
-      if (s.mastery === 'completed' || s.mastery === 'mastered') completed += 1;
-      else if (s.mastery === 'in-progress') inProgress += 1;
+      if (isCovered(s.rating ?? 0)) covered += 1;
+      else if (isStarted(s.rating ?? 0)) started += 1;
     }
-    return { total, completed, inProgress };
+    return { total, covered, started };
   }, [lessonStates]);
 
   const glossaryTotals = useMemo(() => {
@@ -76,8 +71,8 @@ export default function ProductionOverview({
     <div className="space-y-6 max-w-4xl">
       {/* Stats strip */}
       <section className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <Stat label="lessons" value={`${totals.completed}/${totals.total}`} accent="text-production" />
-        <Stat label="in progress" value={String(totals.inProgress)} />
+        <Stat label="lessons tried" value={`${totals.covered}/${totals.total}`} accent="text-production" />
+        <Stat label="in progress" value={String(totals.started)} />
         <Stat
           label="glossary"
           value={`${glossaryTotals.gotIt}/${glossaryTotals.all}`}
@@ -104,11 +99,10 @@ export default function ProductionOverview({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
           {PRODUCTION_PATHS.map(p => {
             const lessons = lessonsByPath(p.id);
-            const completed = lessons.filter(l => {
-              const m = stateById.get(l.id)?.mastery;
-              return m === 'completed' || m === 'mastered';
-            }).length;
-            const pct = lessons.length === 0 ? 0 : Math.round((completed / lessons.length) * 100);
+            const covered = lessons.filter(
+              l => isCovered(stateById.get(l.id)?.rating ?? 0),
+            ).length;
+            const pct = lessons.length === 0 ? 0 : Math.round((covered / lessons.length) * 100);
             const planned = p.status === 'planned';
             return (
               <button
@@ -128,7 +122,7 @@ export default function ProductionOverview({
                     </span>
                   ) : (
                     <span className="text-[10px] font-mono tabular-nums text-neutral-500">
-                      {completed}/{lessons.length}
+                      {covered}/{lessons.length}
                     </span>
                   )}
                 </div>
@@ -165,7 +159,7 @@ export default function ProductionOverview({
                     onClick={() => onOpenLesson(l.id)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-production/5 transition-colors"
                   >
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${MASTERY_DOT[s.mastery ?? 'not-started']}`} aria-hidden />
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${ratingOption(s.rating).dot}`} aria-hidden />
                     <div className="min-w-0 flex-1">
                       <div className="text-sm truncate">{l.title}</div>
                       <div className="text-[10px] text-neutral-500 truncate">{l.goal}</div>

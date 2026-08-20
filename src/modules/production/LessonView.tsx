@@ -6,6 +6,7 @@ import { lessonById } from './content/lessons';
 import { glossaryById } from './content/glossary';
 import { pathById } from './content/paths';
 import { recordLessonOpen, setLessonRating } from './data';
+import { RATING_OPTIONS, isCovered, ratingOption } from './lessonRating';
 import GlossaryOverlay from './GlossaryOverlay';
 import LessonReferenceSection from './LessonReferenceSection';
 
@@ -16,56 +17,6 @@ interface Props {
   onBack: () => void;
 }
 
-/**
- * The five steps, in order. Each one names something this page
- * actually offers — the lesson body, the Deep dive section, the Try
- * now block — so the rating is a claim about what you did, not a
- * guess at how well you understood it.
- *
- * The dot colours climb neutral → amber → green: reading is progress
- * but not coverage, and the shift to green lands on "tried it", the
- * step where a Production coverage goal starts counting the lesson
- * (see STAGE_FOR_RATING in data.ts).
- */
-const RATING_OPTIONS: ReadonlyArray<{
-  value: ProductionLessonRating;
-  label: string;
-  meaning: string;
-  dot: string;
-}> = [
-  {
-    value: 0,
-    label: 'not started',
-    meaning: "haven't opened this yet",
-    dot: 'bg-neutral-200 dark:bg-neutral-700',
-  },
-  {
-    value: 25,
-    label: 'read it',
-    meaning: 'read the lesson through',
-    dot: 'bg-developing/50',
-  },
-  {
-    value: 50,
-    label: 'deep dive',
-    meaning: 'went through the deep dive or the reference tutorial',
-    dot: 'bg-developing',
-  },
-  {
-    value: 75,
-    label: 'tried it',
-    meaning: 'actually ran the Try now exercise',
-    dot: 'bg-fluent',
-  },
-  {
-    value: 100,
-    label: 'mastered',
-    meaning: 'use it instinctively in my own work',
-    dot: 'bg-mastered',
-  },
-];
-
-const RATING_OPTION_BY_VALUE = new Map(RATING_OPTIONS.map(o => [o.value, o]));
 
 /**
  * Single-lesson view. Surface content is always visible; the Deep
@@ -127,7 +78,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
   }
 
   const rating: ProductionLessonRating = state?.rating ?? 0;
-  const ratingOption = RATING_OPTION_BY_VALUE.get(rating) ?? RATING_OPTIONS[0];
+  const currentOption = ratingOption(rating);
   const revisitCount = state?.revisitCount ?? 0;
 
   return (
@@ -147,8 +98,8 @@ export default function LessonView({ lessonId, onBack }: Props) {
         <div className="flex items-center gap-3 flex-wrap text-[11px] text-neutral-500">
           <span>{path.title}</span>
           <span className="text-neutral-400">·</span>
-          <span className={rating >= 75 ? 'text-fluent font-medium' : ''}>
-            {ratingOption.label}
+          <span className={isCovered(rating) ? 'text-fluent font-medium' : ''}>
+            {currentOption.label}
           </span>
           {revisitCount > 0 && (
             <>

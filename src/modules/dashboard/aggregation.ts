@@ -8,6 +8,7 @@ import { FLASHCARDS } from '../harmonic-fluency/catalog';
 import { freshnessTier, aggregateCell } from '../shapes-and-patterns/drillModel';
 import { PRODUCTION_LESSONS } from '../production/content/lessons';
 import { GLOSSARY } from '../production/content/glossary';
+import { isCovered, isStarted } from '../production/lessonRating';
 
 // Rolling-window size for tier calculations — matches what quiz modules use.
 const TIER_WINDOW = 20;
@@ -551,7 +552,11 @@ export async function musicianBalance(now: number = Date.now()): Promise<Musicia
 
 export interface ProductionSnapshot {
   totalLessons: number;
+  /** Lessons at "tried it" or better — the coverage line. NOT
+   *  "read and understood": the five-step scale counts doing. */
   completed: number;
+  /** Read about but not yet run — rating above 0, below the
+   *  coverage line. */
   inProgress: number;
   glossaryGotIt: number;
   glossaryTotal: number;
@@ -589,8 +594,8 @@ async function snapshotProduction(): Promise<ProductionSnapshot> {
   let completed = 0;
   let inProgress = 0;
   for (const l of lessons) {
-    if (l.mastery === 'completed' || l.mastery === 'mastered') completed += 1;
-    else if (l.mastery === 'in-progress') inProgress += 1;
+    if (isCovered(l.rating ?? 0)) completed += 1;
+    else if (isStarted(l.rating ?? 0)) inProgress += 1;
   }
   const glossaryGotIt = terms.filter(t => t.mastery === 'got-it').length;
   return {
