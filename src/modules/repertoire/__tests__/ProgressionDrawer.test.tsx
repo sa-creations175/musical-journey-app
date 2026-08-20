@@ -608,12 +608,118 @@ describe('where the break control sits', () => {
 
   it('is a sibling of the chords it follows', () => {
     // Same wrapping row as the tokens, so it renders at the break
-    // rather than in a block of its own.
+    // rather than in a block of its own. The control is wrapped in its
+    // own anchor now — that anchor is the sibling, and it is
+    // `inline-flex`, so it takes part in the row like a chord does.
     const el = render(
       <ProgressionDrawer {...base} sections={[rowSection()]} open onOpenChange={noop} />,
     );
     editing(el);
     const control = el.querySelector('[aria-label="edit this line break"]')!;
-    expect(control.parentElement?.className).toContain('flex-wrap');
+    const anchor = control.parentElement!;
+    expect(anchor.className).toContain('inline-flex');
+    expect(anchor.parentElement?.className).toContain('flex-wrap');
+  });
+});
+
+describe('where the choices row OPENS', () => {
+  /**
+   * The row rendered once per section, after every phrase — so tapping
+   * a break in the first line opened a menu at the FOOT of the section.
+   * It was measured, painted and correct, and a scroll below the fold;
+   * the report was "the ⏎ control does nothing".
+   *
+   * Every earlier test asserted the row's CONTENT ("a convert chip is
+   * offered") and passed on that build, because content is right
+   * wherever it renders. What was never asserted is the only thing that
+   * was wrong: WHERE. jsdom does no layout, but it does do document
+   * order and containment, and order is the whole mechanism.
+   */
+  function twoPhraseSection() {
+    return sec('s1', 'Intro', [], {
+      phrases: [
+        {
+          tokens: [token('s1', 'p1', '2')],
+          endKind: 'row',
+          endsAfterPlacementId: 'p1',
+        },
+        { tokens: [token('s1', 'p2', '6')], endKind: 'end' },
+      ],
+      order: ['p1', 'p2'],
+    });
+  }
+
+  function openAtTheBreak() {
+    const el = render(
+      <ProgressionDrawer
+        {...base}
+        sections={[twoPhraseSection()]}
+        open
+        onOpenChange={noop}
+      />,
+    );
+    act(() =>
+      [...el.querySelectorAll('button')]
+        .find(b => b.textContent?.trim() === 'edit')!
+        .click(),
+    );
+    const control = el.querySelector(
+      '[aria-label="edit this line break"]',
+    ) as HTMLElement;
+    // Captured BEFORE opening: once the row is up it adds buttons of
+    // its own, and the last one would no longer be the second phrase.
+    const laterChord = [...el.querySelectorAll('button[aria-label]')].pop()!;
+    act(() => control.click());
+    const menu = el.querySelector('[data-sequence-choices]')!;
+    return { el, control, laterChord, menu };
+  }
+
+  it('opens inside the anchor of the control that was TAPPED', () => {
+    const { control, menu } = openAtTheBreak();
+    expect(menu).not.toBeNull();
+    expect(control.parentElement!.contains(menu)).toBe(true);
+  });
+
+  it('opens BEFORE the phrases that follow — not at the foot of the section', () => {
+    // The failing assertion on the shipped build: the menu came after
+    // every chord in the section, which is what put it off-screen.
+    const { laterChord, menu } = openAtTheBreak();
+    expect(
+      menu.compareDocumentPosition(laterChord) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('is taken out of flow, so opening it does not shove the chords', () => {
+    // A full-width inline row would also be adjacent, and would reflow
+    // every chord below it on open — the same layout-shove the note
+    // field's `basis-full` already causes once per phrase.
+    const { menu } = openAtTheBreak();
+    expect(menu.className).toContain('absolute');
+  });
+
+  it('opens exactly one row for the whole drawer', () => {
+    const { el } = openAtTheBreak();
+    expect(el.querySelectorAll('[data-sequence-choices]')).toHaveLength(1);
+  });
+
+  it('opens at the tapped CHORD too, not only at breaks', () => {
+    const el = render(
+      <ProgressionDrawer
+        {...base}
+        sections={[twoPhraseSection()]}
+        open
+        onOpenChange={noop}
+      />,
+    );
+    act(() =>
+      [...el.querySelectorAll('button')]
+        .find(b => b.textContent?.trim() === 'edit')!
+        .click(),
+    );
+    const chord = [...el.querySelectorAll('button[aria-label]')].pop()!;
+    act(() => (chord as HTMLElement).click());
+    const menu = el.querySelector('[data-sequence-choices]')!;
+    expect(menu).not.toBeNull();
+    expect(chord.parentElement!.contains(menu)).toBe(true);
   });
 });

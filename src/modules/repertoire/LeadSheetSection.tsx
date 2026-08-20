@@ -91,7 +91,7 @@ import {
   toggleHidden,
 } from './sequenceView';
 import { toDetectChords } from './progressionOutline';
-import SequenceChoices from './SequenceChoices';
+import { ChoicesAnchor, type SequenceTarget } from './SequenceChoices';
 import PhraseNote from './PhraseNote';
 import SectionToggle from './SectionToggle';
 import ArrangementBar from './ArrangementBar';
@@ -2006,6 +2006,29 @@ export default function LeadSheetSection({
     await commitSequenceView(toggleHidden(sequenceView, placementId), 'hide');
   };
 
+  /** Props for the choices row at one trigger. Built once so the four
+   *  anchors here cannot drift from one another, or from the drawer's. */
+  const seqChoicesFor = (t: SequenceTarget) => ({
+    target: t,
+    label: sequenceTokens.get(t.placementId)?.text ?? '',
+    hasBreak: sequenceView.breaks.some(
+      b => b.afterPlacementId === t.placementId,
+    ),
+    existingKind:
+      sequenceView.breaks.find(b => b.afterPlacementId === t.placementId)
+        ?.kind ?? null,
+    hidden: sequenceView.hidden.includes(t.placementId),
+    onSetBreak: handleSetBreak,
+    onRemoveBreak: handleRemoveBreak,
+    onToggleHidden: handleToggleHidden,
+    onClose: () => setSeqTarget(null),
+  });
+
+  /** True when the open target IS this trigger, so the row renders
+   *  beside the control that opened it rather than once per section. */
+  const isSeqTarget = (kind: 'gap' | 'token', placementId: string) =>
+    seqTarget?.kind === kind && seqTarget.placementId === placementId;
+
   const phrases = useMemo(
     () => buildPhrases(sequenceOrder, sequenceView),
     [sequenceOrder, sequenceView],
@@ -2454,55 +2477,86 @@ export default function LeadSheetSection({
                                   in the space itself — so the gesture
                                   is one the user already knows. */}
                               {sequenceEditing && i > 0 && (
+                                <ChoicesAnchor
+                                  open={isSeqTarget(
+                                    'gap',
+                                    phrase.placementIds[i - 1],
+                                  )}
+                                  {...seqChoicesFor({
+                                    kind: 'gap',
+                                    placementId: phrase.placementIds[i - 1],
+                                  })}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSeqTarget({
+                                        kind: 'gap',
+                                        placementId: phrase.placementIds[i - 1],
+                                      })
+                                    }
+                                    aria-label={`break after ${
+                                      sequenceTokens.get(
+                                        phrase.placementIds[i - 1],
+                                      )?.text ?? 'chord'
+                                    }`}
+                                    className="inline-block min-w-[10px] min-h-[20px] mx-0.5 align-middle rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
+                                  />
+                                </ChoicesAnchor>
+                              )}
+                              <ChoicesAnchor
+                                open={isSeqTarget('token', id)}
+                                {...seqChoicesFor({
+                                  kind: 'token',
+                                  placementId: id,
+                                })}
+                              >
                                 <button
                                   type="button"
+                                  disabled={!sequenceEditing}
                                   onClick={() =>
-                                    setSeqTarget({
-                                      kind: 'gap',
-                                      placementId: phrase.placementIds[i - 1],
-                                    })
+                                    setSeqTarget({ kind: 'token', placementId: id })
                                   }
-                                  aria-label={`break after ${
-                                    sequenceTokens.get(phrase.placementIds[i - 1])
-                                      ?.text ?? 'chord'
-                                  }`}
-                                  className="inline-block min-w-[10px] min-h-[20px] mx-0.5 align-middle rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
-                                />
-                              )}
-                              <button
-                                type="button"
-                                disabled={!sequenceEditing}
-                                onClick={() =>
-                                  setSeqTarget({ kind: 'token', placementId: id })
-                                }
-                                style={{ color: token?.color }}
-                                className={
-                                  sequenceEditing
-                                    ? 'rounded px-0.5 hover:bg-fluent/10'
-                                    : 'cursor-default'
-                                }
-                              >
-                                {token?.text || '—'}
-                              </button>
+                                  style={{ color: token?.color }}
+                                  className={
+                                    sequenceEditing
+                                      ? 'rounded px-0.5 hover:bg-fluent/10'
+                                      : 'cursor-default'
+                                  }
+                                >
+                                  {token?.text || '—'}
+                                </button>
+                              </ChoicesAnchor>
                             </span>
                           );
                         })}
                       </span>
                       {phrase.endKind === 'separator' &&
                         (sequenceEditing ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setSeqTarget({
-                                kind: 'gap',
-                                placementId: phrase.endsAfterPlacementId!,
-                              })
-                            }
-                            aria-label="edit this break"
-                            className="text-fluent px-1 rounded hover:bg-fluent/10"
+                          <ChoicesAnchor
+                            open={isSeqTarget(
+                              'gap',
+                              phrase.endsAfterPlacementId!,
+                            )}
+                            {...seqChoicesFor({
+                              kind: 'gap',
+                              placementId: phrase.endsAfterPlacementId!,
+                            })}
                           >
-                            |
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSeqTarget({
+                                  kind: 'gap',
+                                  placementId: phrase.endsAfterPlacementId!,
+                                })
+                              }
+                              aria-label="edit this break"
+                              className="text-fluent px-1 rounded hover:bg-fluent/10"
+                            >
+                              |
+                            </button>
+                          </ChoicesAnchor>
                         ) : (
                           <span className="text-neutral-400" aria-hidden>
                             |
@@ -2512,20 +2566,28 @@ export default function LeadSheetSection({
                           PhraseNote is `basis-full` in edit mode, so
                           anything after it lands on its own line. */}
                       {phrase.endKind === 'row' && sequenceEditing && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSeqTarget({
-                              kind: 'gap',
-                              placementId: phrase.endsAfterPlacementId!,
-                            })
-                          }
-                          aria-label="edit this line break"
-                          title="line break — convert or remove"
-                          className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
+                        <ChoicesAnchor
+                          open={isSeqTarget('gap', phrase.endsAfterPlacementId!)}
+                          {...seqChoicesFor({
+                            kind: 'gap',
+                            placementId: phrase.endsAfterPlacementId!,
+                          })}
                         >
-                          ⏎
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSeqTarget({
+                                kind: 'gap',
+                                placementId: phrase.endsAfterPlacementId!,
+                              })
+                            }
+                            aria-label="edit this line break"
+                            title="line break — convert or remove"
+                            className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
+                          >
+                            ⏎
+                          </button>
+                        </ChoicesAnchor>
                       )}
                       {shouldOfferNote(
                         phrase,
@@ -2550,25 +2612,6 @@ export default function LeadSheetSection({
                     </Fragment>
                   ))}
                 </div>
-                {seqTarget && (
-                  <SequenceChoices
-                    target={seqTarget}
-                    label={sequenceTokens.get(seqTarget.placementId)?.text ?? ''}
-                    hasBreak={sequenceView.breaks.some(
-                      b => b.afterPlacementId === seqTarget.placementId,
-                    )}
-                    existingKind={
-                      sequenceView.breaks.find(
-                        b => b.afterPlacementId === seqTarget.placementId,
-                      )?.kind ?? null
-                    }
-                    hidden={sequenceView.hidden.includes(seqTarget.placementId)}
-                    onSetBreak={handleSetBreak}
-                    onRemoveBreak={handleRemoveBreak}
-                    onToggleHidden={handleToggleHidden}
-                    onClose={() => setSeqTarget(null)}
-                  />
-                )}
               </div>
 
               {/* Pattern highlights — structural matches with bar

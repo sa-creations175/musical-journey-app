@@ -237,3 +237,96 @@ describe('LeadSheetSection — the lyric list is the drawer\'s list', () => {
     }
   });
 });
+
+describe('LeadSheetSection — where the sequence choices row opens', () => {
+  /**
+   * The per-section strip had the SAME bug as the Progressions drawer,
+   * because both render the same component: one choices row per
+   * section, emitted after every phrase, so tapping a break in the
+   * first line opened a menu below the last one. Fixing only the
+   * drawer would have left the strip broken in a way that reads as the
+   * fix not having shipped.
+   *
+   * Asserted on containment and document order — jsdom has no layout,
+   * but order is the mechanism that displaced it.
+   */
+  const twoChords = {
+    ...section,
+    chordPlacements: [
+      section.chordPlacements![0],
+      {
+        id: 'p2',
+        arrangementId: 'basic',
+        barIndex: 1,
+        beatPos: 0,
+        beats: 4,
+        chord: { function: '5', quality: 'maj' },
+      },
+    ],
+    // A stored line break after the first chord — the case that could
+    // not be reached at all until the ⏎ control existed.
+    sequenceView: {
+      breaks: [{ afterPlacementId: 'p1', kind: 'row' as const }],
+      hidden: [],
+    },
+  } as SongSection;
+
+  function openAtTheBreak() {
+    const el = render(
+      <LeadSheetSection
+        song={song}
+        section={twoChords}
+        canMoveUp={false}
+        canMoveDown={false}
+        onChange={vi.fn()}
+        songLyricLines={lyricLines}
+        cellIndex={new Map()}
+        onSongLyricsChange={vi.fn()}
+        playMode={false}
+        lyricTrayCollapsed
+        onToggleLyricTray={vi.fn()}
+        patternsCollapsed={false}
+      />,
+    );
+    act(() =>
+      [...el.querySelectorAll('button')]
+        .find(b => b.textContent?.trim() === 'edit')!
+        .click(),
+    );
+    const control = el.querySelector(
+      '[aria-label="edit this line break"]',
+    ) as HTMLElement;
+    const strip = control.closest('.font-mono')!;
+    // Captured BEFORE opening: the row adds buttons of its own.
+    const laterChord = [...strip.querySelectorAll('button')].pop()!;
+    act(() => control.click());
+    return { el, control, laterChord, menu: el.querySelector('[data-sequence-choices]')! };
+  }
+
+  it('offers a control at a stored line break at all', () => {
+    const { control } = openAtTheBreak();
+    expect(control).not.toBeNull();
+  });
+
+  it('opens inside the anchor of the control that was TAPPED', () => {
+    const { control, menu } = openAtTheBreak();
+    expect(menu).not.toBeNull();
+    expect(control.parentElement!.contains(menu)).toBe(true);
+  });
+
+  it('opens BEFORE the chords that follow — not at the foot of the strip', () => {
+    const { laterChord, menu } = openAtTheBreak();
+    expect(
+      menu.compareDocumentPosition(laterChord) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('is taken out of flow, so opening it does not shove the chords', () => {
+    expect(openAtTheBreak().menu.className).toContain('absolute');
+  });
+
+  it('opens exactly one row for the whole strip', () => {
+    const { el } = openAtTheBreak();
+    expect(el.querySelectorAll('[data-sequence-choices]')).toHaveLength(1);
+  });
+});

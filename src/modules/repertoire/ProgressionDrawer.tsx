@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNotationMode } from '../../lib/notationPref';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
-import SequenceChoices, { type SequenceTarget } from './SequenceChoices';
+import { ChoicesAnchor, type SequenceTarget } from './SequenceChoices';
 import PhraseNote from './PhraseNote';
 import { shouldOfferNote } from './sequenceView';
 import type { ProgressionSection, ProgressionToken } from './progressionOutline';
@@ -81,23 +81,6 @@ export default function ProgressionDrawer({
    *  rather than only that it undoes. */
   undoLabel?: string;
 }) {
-  // ---- TEMPORARY DIAGNOSTIC ------------------------------------
-  // The break control renders and is wired, and tapping it does
-  // nothing on the deployed app. Three candidates remain and they need
-  // different fixes, so this reports which one it is rather than
-  // inviting a fourth speculative change:
-  //   · handler never fires          → taps stays 0 (event swallowed)
-  //   · state set then discarded     → taps rises, target stays none
-  //   · component remounting         → instance id changes on tap
-  // Remove once the cause is known.
-  const [instanceId] = useState(() => Math.random().toString(36).slice(2, 7));
-  const renders = useRef(0);
-  renders.current += 1;
-  const [taps, setTaps] = useState(0);
-  const [lastEvent, setLastEvent] = useState('none');
-
-  // ---------------------------------------------------------------
-
   const [notationMode] = useNotationMode();
   const isDark = useIsDarkMode();
   const [editing, setEditing] = useState(false);
@@ -111,61 +94,6 @@ export default function ProgressionDrawer({
    *  default: the list is carried so it costs nothing to reach, not
    *  because it earns the space. */
   const [openPatterns, setOpenPatterns] = useState<Set<string>>(new Set());
-
-  // Measured from the LIVE element, because the remaining candidates
-  // (collapsed / off-screen / not painted) are indistinguishable from
-  // the source and jsdom has no layout to test them with.
-  const choicesRef = useRef<HTMLDivElement | null>(null);
-  const [rect, setRect] = useState('unmeasured');
-  useEffect(() => {
-    if (!target) {
-      setRect('no target');
-      return;
-    }
-    const el = choicesRef.current;
-    if (!el) {
-      setRect('NOT IN DOM');
-      return;
-    }
-    const r = el.getBoundingClientRect();
-    const cs = window.getComputedStyle(el);
-
-    // WHAT IS ACTUALLY AT THAT POINT. Geometry says the row is there
-    // and painted; the sentinel beside it is invisible. Only a hit
-    // test distinguishes "covered by something" from "clipped by an
-    // ancestor" — and they need different fixes.
-    const cx = Math.round(r.left + r.width / 2);
-    const cy = Math.round(r.top + r.height / 2);
-    // Guarded: jsdom has no hit testing, and a diagnostic must never
-    // be the thing that breaks the surface it is measuring.
-    const hit =
-      typeof document.elementFromPoint === 'function'
-        ? document.elementFromPoint(cx, cy)
-        : null;
-    const describe = (n: Element | null): string => {
-      if (!n) return 'nothing';
-      const marks = ['data-choices-probe', 'data-progression-drawer',
-        'data-lead-sheet-drawers', 'data-app-chrome']
-        .filter(a => n.closest(`[${a}]`));
-      return `${n.tagName.toLowerCase()}${marks.length ? ' in:' + marks.join(',') : ''}`;
-    };
-    const insideProbe = Boolean(hit?.closest('[data-choices-probe]'));
-
-    // The clip boundary: if the row sits outside the scroller's own
-    // box it is scrolled out of view, which reports real geometry and
-    // paints nothing.
-    const scroller = el.closest('[data-progression-scroll]');
-    const sr = scroller?.getBoundingClientRect();
-    const clipped = sr ? (r.top < sr.top || r.bottom > sr.bottom) : null;
-
-    setRect(
-      `${Math.round(r.width)}x${Math.round(r.height)} @${Math.round(r.top)} ` +
-        `basis:${cs.flexBasis} vis:${cs.visibility} z:${cs.zIndex}\n` +
-        `scroll ${sr ? `${Math.round(sr.top)}..${Math.round(sr.bottom)}` : 'none'} ` +
-        `clipped:${clipped}\n` +
-        `hit@${cx},${cy}: ${describe(hit)} ${insideProbe ? 'SELF' : 'COVERED'}`,
-    );
-  }, [target]);
 
   // Leaving edit mode closes any open choices row — an editor that is
   // no longer editing should not leave a live control behind.
@@ -184,6 +112,56 @@ export default function ProgressionDrawer({
 
   const labelFor = (t: ProgressionToken) =>
     chordToDisplay(t.chord, notationMode, songKey);
+
+  /** Props for the choices row at one trigger. Built once so the four
+   *  anchors cannot drift apart on what they offer — the divergence
+   *  between the drawer and the strip began exactly that way. */
+  const choicesFor = (
+    section: ProgressionSection,
+    t: SequenceTarget & { sectionId: string },
+  ) => ({
+    target: t,
+    label:
+      section.phrases
+        .flatMap(p => p.tokens)
+        .filter(tok => tok.placementId === t.placementId)
+        .map(labelFor)[0] ?? '',
+    hasBreak: section.phrases.some(p => p.endsAfterPlacementId === t.placementId),
+    existingKind: (section.phrases.find(
+      p => p.endsAfterPlacementId === t.placementId,
+    )?.endKind === 'row'
+      ? 'row'
+      : section.phrases.some(p => p.endsAfterPlacementId === t.placementId)
+        ? 'separator'
+        : null) as 'separator' | 'row' | null,
+    hidden: section.phrases
+      .flatMap(p => p.tokens)
+      .some(tok => tok.placementId === t.placementId && tok.hidden),
+    onSetBreak: (after: string, kind: 'separator' | 'row') => {
+      setTarget(null);
+      void onSetBreak(section.sectionId, after, kind);
+    },
+    onRemoveBreak: (after: string) => {
+      setTarget(null);
+      void onRemoveBreak(section.sectionId, after);
+    },
+    onToggleHidden: (id: string) => {
+      setTarget(null);
+      void onToggleHidden(section.sectionId, id);
+    },
+    onClose: () => setTarget(null),
+  });
+
+  /** True when the open target IS this trigger, so the row renders
+   *  beside the control that opened it rather than once per section. */
+  const isTarget = (
+    sectionId: string,
+    kind: 'gap' | 'token',
+    placementId: string,
+  ) =>
+    target?.sectionId === sectionId &&
+    target.kind === kind &&
+    target.placementId === placementId;
 
   return (
     <div
@@ -214,7 +192,6 @@ export default function ProgressionDrawer({
 
       {open && (
         <div
-          data-progression-scroll=""
           className="overflow-y-auto px-3 pb-3 pt-2 flex flex-col gap-3 border-t border-repertoire-200 dark:border-repertoire-600 bg-white dark:bg-neutral-900"
           style={{ maxHeight: '50vh' }}
         >
@@ -240,17 +217,6 @@ export default function ProgressionDrawer({
               >
                 ↶ undo{undoLabel ? ` ${undoLabel}` : ''}
               </button>
-            )}
-            {editing && (
-              <span className="ml-auto font-mono text-[9px] leading-tight text-neutral-500 text-right">
-                #{instanceId} r{renders.current} taps{taps}
-                <br />
-                tgt {target ? `${target.placementId?.slice(0, 6) ?? 'undef'}@${target.sectionId.slice(0, 6)}` : 'none'}
-                <br />
-                {lastEvent}
-                <br />
-                <span className="whitespace-pre-line">{rect}</span>
-              </span>
             )}
             {totalHidden > 0 && (
               <button
@@ -297,82 +263,124 @@ export default function ProgressionDrawer({
                                 <span className="text-neutral-400"> · </span>
                               )}
                               {editing && i > 0 && (
+                                <ChoicesAnchor
+                                  open={isTarget(
+                                    section.sectionId,
+                                    'gap',
+                                    shown[i - 1].placementId,
+                                  )}
+                                  {...choicesFor(section, {
+                                    kind: 'gap',
+                                    placementId: shown[i - 1].placementId,
+                                    sectionId: section.sectionId,
+                                  })}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setTarget({
+                                        kind: 'gap',
+                                        placementId: shown[i - 1].placementId,
+                                        sectionId: section.sectionId,
+                                      })
+                                    }
+                                    aria-label={`break after ${labelFor(
+                                      shown[i - 1],
+                                    )}`}
+                                    className="inline-block min-w-[10px] min-h-[20px] mx-0.5 align-middle rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
+                                  />
+                                </ChoicesAnchor>
+                              )}
+                              <ChoicesAnchor
+                                open={isTarget(
+                                  section.sectionId,
+                                  'token',
+                                  token.placementId,
+                                )}
+                                {...choicesFor(section, {
+                                  kind: 'token',
+                                  placementId: token.placementId,
+                                  sectionId: section.sectionId,
+                                })}
+                              >
                                 <button
                                   type="button"
-                                  onClick={() =>
+                                  /* A greyed chord is tappable even when
+                                     not editing — that is the unhide
+                                     gesture, matching the lyric row's
+                                     tap-to-place. Editing a visible one
+                                     opens the choices row instead. */
+                                  disabled={!editing && !token.hidden}
+                                  onClick={() => {
+                                    if (token.hidden && !editing) {
+                                      void onToggleHidden(
+                                        section.sectionId,
+                                        token.placementId,
+                                      );
+                                      return;
+                                    }
                                     setTarget({
-                                      kind: 'gap',
-                                      placementId: shown[i - 1].placementId,
+                                      kind: 'token',
+                                      placementId: token.placementId,
                                       sectionId: section.sectionId,
-                                    })
+                                    });
+                                  }}
+                                  aria-label={
+                                    token.hidden
+                                      ? `${labelFor(token)} — hidden, tap to show`
+                                      : labelFor(token)
                                   }
-                                  aria-label={`break after ${labelFor(
-                                    shown[i - 1],
-                                  )}`}
-                                  className="inline-block min-w-[10px] min-h-[20px] mx-0.5 align-middle rounded-sm border border-dashed border-neutral-300 dark:border-neutral-700 hover:bg-fluent/10 hover:border-fluent"
-                                />
-                              )}
-                              <button
-                                type="button"
-                                /* A greyed chord is tappable even when
-                                   not editing — that is the unhide
-                                   gesture, matching the lyric row's
-                                   tap-to-place. Editing a visible one
-                                   opens the choices row instead. */
-                                disabled={!editing && !token.hidden}
-                                onClick={() => {
-                                  if (token.hidden && !editing) {
-                                    void onToggleHidden(
-                                      section.sectionId,
-                                      token.placementId,
-                                    );
-                                    return;
+                                  style={
+                                    token.hidden
+                                      ? undefined
+                                      : {
+                                          color: chordPalette(token.chord, isDark)
+                                            .text,
+                                        }
                                   }
-                                  setTarget({
-                                    kind: 'token',
-                                    placementId: token.placementId,
-                                    sectionId: section.sectionId,
-                                  });
-                                }}
-                                aria-label={
-                                  token.hidden
-                                    ? `${labelFor(token)} — hidden, tap to show`
-                                    : labelFor(token)
-                                }
-                                style={
-                                  token.hidden
-                                    ? undefined
-                                    : { color: chordPalette(token.chord, isDark).text }
-                                }
-                                className={
-                                  token.hidden
-                                    ? 'rounded px-0.5 line-through text-neutral-400 dark:text-neutral-500 hover:bg-fluent/10 hover:text-fluent'
-                                    : editing
-                                      ? 'rounded px-0.5 hover:bg-fluent/10'
-                                      : 'cursor-default'
-                                }
-                              >
-                                {labelFor(token)}
-                              </button>
+                                  className={
+                                    token.hidden
+                                      ? 'rounded px-0.5 line-through text-neutral-400 dark:text-neutral-500 hover:bg-fluent/10 hover:text-fluent'
+                                      : editing
+                                        ? 'rounded px-0.5 hover:bg-fluent/10'
+                                        : 'cursor-default'
+                                  }
+                                >
+                                  {labelFor(token)}
+                                </button>
+                              </ChoicesAnchor>
                             </span>
                           ))}
                         </span>
                         {phrase.endKind === 'separator' &&
                           (editing ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setTarget({
-                                  kind: 'gap',
-                                  placementId: phrase.endsAfterPlacementId!,
-                                  sectionId: section.sectionId,
-                                })
-                              }
-                              aria-label="edit this break"
-                              className="text-fluent px-1 rounded hover:bg-fluent/10"
+                            <ChoicesAnchor
+                              open={isTarget(
+                                section.sectionId,
+                                'gap',
+                                phrase.endsAfterPlacementId!,
+                              )}
+                              {...choicesFor(section, {
+                                kind: 'gap',
+                                placementId: phrase.endsAfterPlacementId!,
+                                sectionId: section.sectionId,
+                              })}
                             >
-                              |
-                            </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTarget({
+                                    kind: 'gap',
+                                    placementId: phrase.endsAfterPlacementId!,
+                                    sectionId: section.sectionId,
+                                  })
+                                }
+                                aria-label="edit this break"
+                                className="text-fluent px-1 rounded hover:bg-fluent/10"
+                              >
+                                |
+                              </button>
+                            </ChoicesAnchor>
                           ) : (
                             <span className="text-neutral-400" aria-hidden>
                               |
@@ -388,25 +396,34 @@ export default function ProgressionDrawer({
                             actually taps. It marks a break, so it has
                             to sit AT the break. */}
                         {phrase.endKind === 'row' && editing && (
-                          <button
-                            type="button"
-                            onClick={e => {
-                              setTaps(n => n + 1);
-                              setLastEvent(
-                                `row tap · ${phrase.endsAfterPlacementId ?? 'NO-ANCHOR'} · sec ${section.sectionId.slice(0, 6)} · default ${e.defaultPrevented ? 'prevented' : 'ok'}`,
-                              );
-                              setTarget({
-                                kind: 'gap',
-                                placementId: phrase.endsAfterPlacementId!,
-                                sectionId: section.sectionId,
-                              });
-                            }}
-                            aria-label="edit this line break"
-                            title="line break — convert or remove"
-                            className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
+                          <ChoicesAnchor
+                            open={isTarget(
+                              section.sectionId,
+                              'gap',
+                              phrase.endsAfterPlacementId!,
+                            )}
+                            {...choicesFor(section, {
+                              kind: 'gap',
+                              placementId: phrase.endsAfterPlacementId!,
+                              sectionId: section.sectionId,
+                            })}
                           >
-                            ⏎
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTarget({
+                                  kind: 'gap',
+                                  placementId: phrase.endsAfterPlacementId!,
+                                  sectionId: section.sectionId,
+                                })
+                              }
+                              aria-label="edit this line break"
+                              title="line break — convert or remove"
+                              className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
+                            >
+                              ⏎
+                            </button>
+                          </ChoicesAnchor>
                         )}
                         {shouldOfferNote(phrase, editing, shown.length > 0) && (
                           <PhraseNote
@@ -432,60 +449,6 @@ export default function ProgressionDrawer({
                     );
                   })}
                 </div>
-
-                {/* TEMPORARY: a sentinel at the menu's own render
-                    site. Seeing it but no chips means SequenceChoices
-                    mounts and its content is hidden or collapsed; not
-                    seeing it means the condition below never became
-                    true. Those need different fixes. */}
-                {target?.sectionId === section.sectionId && (
-                  <div className="text-[9px] font-mono text-white bg-needswork px-1 rounded">
-                    menu slot · {section.heading}
-                  </div>
-                )}
-                {target?.sectionId === section.sectionId && (
-                  <div ref={choicesRef} data-choices-probe="">
-                  <SequenceChoices
-                    target={target}
-                    label={
-                      section.phrases
-                        .flatMap(p => p.tokens)
-                        .filter(t => t.placementId === target.placementId)
-                        .map(labelFor)[0] ?? ''
-                    }
-                    hasBreak={section.phrases.some(
-                      p => p.endsAfterPlacementId === target.placementId,
-                    )}
-                    existingKind={
-                      section.phrases.find(
-                        p => p.endsAfterPlacementId === target.placementId,
-                      )?.endKind === 'row'
-                        ? 'row'
-                        : section.phrases.some(
-                              p => p.endsAfterPlacementId === target.placementId,
-                            )
-                          ? 'separator'
-                          : null
-                    }
-                    hidden={section.phrases
-                      .flatMap(p => p.tokens)
-                      .some(t => t.placementId === target.placementId && t.hidden)}
-                    onSetBreak={(after, kind) => {
-                      setTarget(null);
-                      void onSetBreak(section.sectionId, after, kind);
-                    }}
-                    onRemoveBreak={after => {
-                      setTarget(null);
-                      void onRemoveBreak(section.sectionId, after);
-                    }}
-                    onToggleHidden={id => {
-                      setTarget(null);
-                      void onToggleHidden(section.sectionId, id);
-                    }}
-                    onClose={() => setTarget(null)}
-                  />
-                  </div>
-                )}
 
                 {section.patterns.length > 0 && (
                   <div className="text-[10px]">
