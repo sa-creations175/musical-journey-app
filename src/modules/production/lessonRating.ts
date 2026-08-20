@@ -1,20 +1,54 @@
-import type { ProductionLessonRating } from '../../lib/db';
+import type { AcquisitionStage, ProductionLessonRating } from '../../lib/db';
 
 /**
- * Presentation + predicates for the five-step Production lesson
- * self-rating. One definition, shared by every surface that renders a
- * lesson's state (LessonView, PathView, ProductionOverview) and by the
- * dashboard's aggregate counts.
+ * The five-step Production lesson self-rating: what it means, how it
+ * renders, and what acquisition stage it mirrors to. One definition,
+ * shared by every surface that reads a lesson's state (LessonView,
+ * PathView, ProductionOverview), by the dashboard's aggregate counts,
+ * by the skills catalogue, and by both writers of production
+ * spacingState rows (data.ts's live path and the one-time backfill).
  *
- * This file exists because the thing it replaced did not: the mastery
+ * This file exists because the thing it replaced did not. The mastery
  * enum's dot colours and labels were copy-pasted across three
- * components, which is how PathView came to say "got it" where
- * LessonView said "completed" for the same stored value.
- *
- * The stage mapping lives in data.ts (STAGE_FOR_RATING) rather than
- * here — it's a write-path concern, and keeping it next to the write
- * keeps the coverage contract in one place.
+ * components — which is how PathView came to say "got it" where
+ * LessonView said "completed" for the same stored value — and its
+ * stage map existed twice, in data.ts and in spacingStateBackfill.ts,
+ * free to drift.
  */
+
+/**
+ * Mapping from the five-step rating to the unified spacingState
+ * acquisition stage. Production lessons have no per-rep rating
+ * signals — the user declares state directly, so spacingState mirrors
+ * that declaration rather than going through recordEngagement's
+ * signal-driven transition logic.
+ *
+ *     0 not started → null       (delete row — canonical "absence = new")
+ *    25 read it     → acquiring  (touched, not covered)
+ *    50 deep dive   → acquiring  (still reading)
+ *    75 tried it    → acquired   ← the coverage line
+ *   100 mastered    → mastered   (user-declared full ownership)
+ *
+ * COVERAGE BEGINS AT "TRIED IT", not at comprehension. `COVERED_STAGES`
+ * in goals/progress.ts is {acquired, consolidated, mastered}, so 75 is
+ * where a lesson starts counting toward a Production coverage goal.
+ * That is the whole point of the scale: covered means you did the
+ * thing, not that you understood the words. It makes Production
+ * coverage goals strictly harder than the mastery enum did (where
+ * "completed" — understood-and-can-use — was the line), which is
+ * intended.
+ *
+ * 'consolidated' stays unused for Production, exactly as under the
+ * mastery enum — there's no signal that would distinguish it from
+ * 'acquired' here.
+ */
+export const STAGE_FOR_RATING: Record<ProductionLessonRating, AcquisitionStage | null> = {
+  0:   null,
+  25:  'acquiring',
+  50:  'acquiring',
+  75:  'acquired',
+  100: 'mastered',
+};
 
 /**
  * The rating at which a lesson starts counting toward a Production

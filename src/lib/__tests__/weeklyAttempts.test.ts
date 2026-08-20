@@ -301,7 +301,6 @@ describe('getWeeklyRatedProductionAttempts', () => {
       id: `pls-${Math.random().toString(36).slice(2, 8)}`,
       lessonId: 'wf-01',
       timestamp: MID_WEEK,
-      openedDeepDive: false,
       ...overrides,
     };
   }
@@ -309,23 +308,23 @@ describe('getWeeklyRatedProductionAttempts', () => {
   it('counts only rated sessions within the window — open events stay uncounted', async () => {
     await db.productionLessonSessions.bulkAdd([
       // Rated, in window → counted.
-      mkSession({ id: 'a', rating: 'cruising', timestamp: WEEK_START + 1 }),
-      mkSession({ id: 'b', rating: 'flying',   timestamp: MID_WEEK }),
+      mkSession({ id: 'a', rating: 50, timestamp: WEEK_START + 1 }),
+      mkSession({ id: 'b', rating: 100,   timestamp: MID_WEEK }),
       // Rated, outside window → not counted.
-      mkSession({ id: 'c', rating: 'crawling', timestamp: BEFORE }),
-      mkSession({ id: 'd', rating: 'flying',   timestamp: AFTER }),
+      mkSession({ id: 'c', rating: 25, timestamp: BEFORE }),
+      mkSession({ id: 'd', rating: 100,   timestamp: AFTER }),
       // Unrated open events, in window → not counted (passive opens
       // aren't Phase B "attempts").
       mkSession({ id: 'e', timestamp: MID_WEEK }),
-      mkSession({ id: 'f', timestamp: MID_WEEK, openedDeepDive: true }),
+      mkSession({ id: 'f', timestamp: MID_WEEK }),
     ]);
     expect(await getWeeklyRatedProductionAttempts(WEEK_START, WEEK_END)).toBe(2);
   });
 
   it('treats weekStart and weekEnd as inclusive boundaries', async () => {
     await db.productionLessonSessions.bulkAdd([
-      mkSession({ id: 'start', rating: 'cruising', timestamp: WEEK_START }),
-      mkSession({ id: 'end',   rating: 'flying',   timestamp: WEEK_END }),
+      mkSession({ id: 'start', rating: 50, timestamp: WEEK_START }),
+      mkSession({ id: 'end',   rating: 100,   timestamp: WEEK_END }),
     ]);
     expect(await getWeeklyRatedProductionAttempts(WEEK_START, WEEK_END)).toBe(2);
   });
@@ -399,10 +398,10 @@ describe('getWeeklyAttempts — Production', () => {
         id: 'row-1',
         moduleRef: 'production',
         performanceHistory: [
-          { t: BEFORE,    kind: 'rating', rating: 'cruising' }, // before
-          { t: WEEK_START, kind: 'rating', rating: 'flying' },  // boundary
-          { t: MID_WEEK,  kind: 'rating', rating: 'crawling' }, // in
-          { t: AFTER,     kind: 'rating', rating: 'cruising' }, // after
+          { t: BEFORE,    kind: 'rating', rating: 50 }, // before
+          { t: WEEK_START, kind: 'rating', rating: 100 },  // boundary
+          { t: MID_WEEK,  kind: 'rating', rating: 25 }, // in
+          { t: AFTER,     kind: 'rating', rating: 50 }, // after
         ],
       }),
     );
@@ -415,9 +414,9 @@ describe('getWeeklyAttempts — Production', () => {
         id: 'row-1',
         moduleRef: 'production',
         performanceHistory: [
-          { t: MID_WEEK, kind: 'rating', rating: 'cruising' },
+          { t: MID_WEEK, kind: 'rating', rating: 50 },
           { t: MID_WEEK + 1, kind: 'recency' },                  // skipped
-          { t: MID_WEEK + 2, kind: 'rating', rating: 'flying' },
+          { t: MID_WEEK + 2, kind: 'rating', rating: 100 },
         ],
       }),
     );
@@ -428,7 +427,7 @@ describe('getWeeklyAttempts — Production', () => {
     await db.spacingState.bulkAdd([
       spacing({
         id: 'row-prod', moduleRef: 'production',
-        performanceHistory: [{ t: MID_WEEK, kind: 'rating', rating: 'flying' }],
+        performanceHistory: [{ t: MID_WEEK, kind: 'rating', rating: 100 }],
       }),
       spacing({
         id: 'row-hf', moduleRef: 'harmonic-fluency',
@@ -443,14 +442,14 @@ describe('getWeeklyAttempts — Production', () => {
       spacing({
         id: 'row-1', moduleRef: 'production',
         performanceHistory: [
-          { t: MID_WEEK, kind: 'rating', rating: 'flying' },
-          { t: MID_WEEK + 1, kind: 'rating', rating: 'cruising' },
+          { t: MID_WEEK, kind: 'rating', rating: 100 },
+          { t: MID_WEEK + 1, kind: 'rating', rating: 50 },
         ],
       }),
       spacing({
         id: 'row-2', moduleRef: 'production',
         performanceHistory: [
-          { t: MID_WEEK + 2, kind: 'rating', rating: 'flying' },
+          { t: MID_WEEK + 2, kind: 'rating', rating: 100 },
         ],
       }),
     ]);

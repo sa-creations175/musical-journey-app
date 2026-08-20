@@ -1,6 +1,7 @@
-import { db, type AcquisitionStage, type ProductionLessonMastery } from './db';
+import { db, type AcquisitionStage } from './db';
 import { getPref, setPref } from './userPrefs';
 import { assertSpacingStage, getSpacingState } from './spacingState';
+import { STAGE_FOR_RATING } from '../modules/production/lessonRating';
 
 /**
  * Phase 2 substep 1h — one-time backfill that derives a starting
@@ -317,21 +318,26 @@ async function backfillRepertoire(
 }
 
 // ===================================================================
-// Production — direct mirror from productionLessons.mastery
+// Production — direct mirror from productionLessons.rating
 // ===================================================================
 
-const STAGE_FOR_MASTERY: Record<ProductionLessonMastery, AcquisitionStage | null> = {
-  'not-started': null,
-  'in-progress': 'acquiring',
-  'completed':   'acquired',
-  'mastered':    'mastered',
-};
-
+/**
+ * Mirrors the five-step self-rating through the SAME map the live
+ * write path uses (STAGE_FOR_RATING in the Production module). This
+ * file used to carry its own copy of the mapping, which meant two
+ * definitions of where the coverage line sits and no mechanism to
+ * keep them agreeing.
+ *
+ * Every lesson reads 0 immediately after the v35 wipe, so this
+ * contributes nothing on a fresh DB — that is the correct outcome,
+ * not a reason to drop the pass: a user who rates lessons before the
+ * one-time backfill pref is set still gets an honest mirror.
+ */
 async function backfillProduction(
   bump: (moduleRef: string, itemRef: string, stage: AcquisitionStage | null) => Promise<void>,
 ): Promise<void> {
   const lessons = await db.productionLessons.toArray();
   for (const lesson of lessons) {
-    await bump('production', lesson.id, STAGE_FOR_MASTERY[lesson.mastery ?? 'not-started']);
+    await bump('production', lesson.id, STAGE_FOR_RATING[lesson.rating ?? 0]);
   }
 }

@@ -166,8 +166,8 @@ describe('getDailyActivity — repertoire', () => {
 describe('getDailyActivity — production', () => {
   it('treats sessions without durationSeconds as zero contribution', async () => {
     await db.productionLessonSessions.bulkPut([
-      { id: '1', lessonId: 'l1', timestamp: new Date(2026, 3, 15, 10).getTime(), openedDeepDive: false /* no duration */ },
-      { id: '2', lessonId: 'l1', timestamp: new Date(2026, 3, 15, 11).getTime(), durationSeconds: 1200, openedDeepDive: true },
+      { id: '1', lessonId: 'l1', timestamp: new Date(2026, 3, 15, 10).getTime() /* no duration */ },
+      { id: '2', lessonId: 'l1', timestamp: new Date(2026, 3, 15, 11).getTime(), durationSeconds: 1200 },
     ]);
 
     const out = await getDailyActivity('production', APRIL_29_RANGE);
@@ -176,7 +176,7 @@ describe('getDailyActivity — production', () => {
 
   it('returns nothing when all sessions in range lack durationSeconds', async () => {
     await db.productionLessonSessions.bulkPut([
-      { id: '1', lessonId: 'l1', timestamp: new Date(2026, 3, 15).getTime(), openedDeepDive: false },
+      { id: '1', lessonId: 'l1', timestamp: new Date(2026, 3, 15).getTime() },
     ]);
 
     const out = await getDailyActivity('production', APRIL_29_RANGE);

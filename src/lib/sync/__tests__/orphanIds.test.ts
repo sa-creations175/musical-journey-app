@@ -170,7 +170,7 @@ describe('pending-push protection across the real schema', () => {
   it('protects a just-written songPracticeLog and productionLessonSession', () => {
     const local = [
       { id: 'plog-1', songId: 's1', durationMin: 20, feelRating: 4, timestamp: fresh },
-      { id: 'pls-1', lessonId: 'wf-01', openedDeepDive: false, timestamp: fresh },
+      { id: 'pls-1', lessonId: 'wf-01', timestamp: fresh },
     ];
     expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW)).toEqual([]);
   });

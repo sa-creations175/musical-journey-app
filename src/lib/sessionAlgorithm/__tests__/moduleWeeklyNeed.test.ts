@@ -375,15 +375,13 @@ describe('loadModuleWeeklyNeeds — wrapper integration', () => {
       timestamp: ws + DAY,
       startedAt: ws + DAY - 600_000,
       durationSeconds: 600,
-      openedDeepDive: false,
-      rating: 'cruising',
+      rating: 75,
     };
     // One unrated open event inside the window — should NOT count.
     const open: ProductionLessonSession = {
       id: 'pls-open',
       lessonId: 'wf-01',
       timestamp: ws + DAY,
-      openedDeepDive: false,
     };
     await db.productionLessonSessions.bulkAdd([rated, open]);
 

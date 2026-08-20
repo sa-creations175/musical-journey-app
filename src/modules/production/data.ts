@@ -1,10 +1,8 @@
 import {
   db,
-  type AcquisitionStage,
   type GlossaryMastery,
   type LessonReferenceTrack,
   type ProductionLesson,
-  type ProductionLessonMastery,
   type ProductionLessonRating,
   type ProductionLessonSession,
   type ReferenceTrack,
@@ -12,44 +10,11 @@ import {
 import { getPref, setPref } from '../../lib/userPrefs';
 import { whenSyncReady } from '../../lib/sync/syncReady';
 import { assertSpacingStage } from '../../lib/spacingState';
+import { STAGE_FOR_RATING } from './lessonRating';
 import { PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
 import { buildSpotifySearchLink, buildYouTubeProducerLink } from './searchLinks';
-
-/**
- * Mapping from the five-step lesson self-rating to the unified
- * spacingState acquisition stage. Production lessons have no per-rep
- * rating signals — the user declares state directly, so spacingState
- * mirrors that declaration rather than going through
- * recordEngagement's signal-driven transition logic.
- *
- *     0 not started → null       (delete row — canonical "absence = new")
- *    25 read it     → acquiring  (touched, not covered)
- *    50 deep dive   → acquiring  (still reading)
- *    75 tried it    → acquired   ← the coverage line
- *   100 mastered    → mastered   (user-declared full ownership)
- *
- * COVERAGE BEGINS AT "TRIED IT", not at comprehension. `COVERED_STAGES`
- * in goals/progress.ts is {acquired, consolidated, mastered}, so 75 is
- * where a lesson starts counting toward a Production coverage goal.
- * That is the whole point of the scale: covered means you did the
- * thing, not that you understood the words. It makes Production
- * coverage goals strictly harder than the mastery enum did (where
- * "completed" — understood-and-can-use — was the line), which is
- * intended.
- *
- * 'consolidated' stays unused for Production, exactly as under the
- * mastery enum — there's no signal that would distinguish it from
- * 'acquired' here.
- */
-const STAGE_FOR_RATING: Record<ProductionLessonRating, AcquisitionStage | null> = {
-  0:   null,
-  25:  'acquiring',
-  50:  'acquiring',
-  75:  'acquired',
-  100: 'mastered',
-};
 
 /** Module-level in-flight guard — second concurrent caller awaits the
  *  same in-flight promise instead of starting a parallel seed. Mirrors
@@ -115,9 +80,7 @@ async function runProductionSeed(): Promise<void> {
       pathId: l.pathId,
       order: l.order,
       rating: 0,
-      mastery: 'not-started' as ProductionLessonMastery,
       revisitCount: 0,
-      completedAt: null,
       lastOpenedAt: null,
       createdAt: now,
       updatedAt: now,

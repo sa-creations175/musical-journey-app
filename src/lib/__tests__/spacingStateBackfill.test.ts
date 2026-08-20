@@ -340,23 +340,26 @@ describe('backfillSpacingStateIfNeeded — Song Repertoire', () => {
 });
 
 describe('backfillSpacingStateIfNeeded — Production', () => {
-  it('mirrors mastery enum directly; not-started → no row', async () => {
+  // The backfill and the live write path (setLessonRating) must map a
+  // rating to the SAME stage — they share STAGE_FOR_RATING precisely
+  // so they cannot drift. The coverage line is the assertion that
+  // matters: 50 ("deep dive") must stay below acquired, 75 ("tried
+  // it") must reach it.
+  it('mirrors the five-step rating; 0 → no row, coverage starts at 75', async () => {
     const now = 1000;
     await db.productionLessons.bulkAdd([
-      { id: 'wf-01', pathId: 'workflow', order: 1, rating: 0, mastery: 'not-started', revisitCount: 0, completedAt: null, lastOpenedAt: null, createdAt: now, updatedAt: now },
-      { id: 'wf-02', pathId: 'workflow', order: 2, rating: 0, mastery: 'in-progress', revisitCount: 1, completedAt: null, lastOpenedAt: now, createdAt: now, updatedAt: now },
-      { id: 'wf-03', pathId: 'workflow', order: 3, rating: 0, mastery: 'completed',   revisitCount: 3, completedAt: now,  lastOpenedAt: now, createdAt: now, updatedAt: now },
-      { id: 'wf-04', pathId: 'workflow', order: 4, rating: 0, mastery: 'mastered',    revisitCount: 5, completedAt: now,  lastOpenedAt: now, createdAt: now, updatedAt: now },
+      { id: 'wf-01', pathId: 'workflow', order: 1, rating: 0,   revisitCount: 0, lastOpenedAt: null, createdAt: now, updatedAt: now },
+      { id: 'wf-02', pathId: 'workflow', order: 2, rating: 25,  revisitCount: 1, lastOpenedAt: now,  createdAt: now, updatedAt: now },
+      { id: 'wf-03', pathId: 'workflow', order: 3, rating: 50,  revisitCount: 2, lastOpenedAt: now,  createdAt: now, updatedAt: now },
+      { id: 'wf-04', pathId: 'workflow', order: 4, rating: 75,  revisitCount: 3, lastOpenedAt: now,  createdAt: now, updatedAt: now },
+      { id: 'wf-05', pathId: 'workflow', order: 5, rating: 100, revisitCount: 5, lastOpenedAt: now,  createdAt: now, updatedAt: now },
     ]);
     await backfillSpacingStateIfNeeded();
-    const not = await getSpacingState('wf-01', 'production');
-    const inp = await getSpacingState('wf-02', 'production');
-    const com = await getSpacingState('wf-03', 'production');
-    const mas = await getSpacingState('wf-04', 'production');
-    expect(not).toBeUndefined();
-    expect(inp!.acquisitionStage).toBe('acquiring');
-    expect(com!.acquisitionStage).toBe('acquired');
-    expect(mas!.acquisitionStage).toBe('mastered');
+    expect(await getSpacingState('wf-01', 'production')).toBeUndefined();
+    expect((await getSpacingState('wf-02', 'production'))!.acquisitionStage).toBe('acquiring');
+    expect((await getSpacingState('wf-03', 'production'))!.acquisitionStage).toBe('acquiring');
+    expect((await getSpacingState('wf-04', 'production'))!.acquisitionStage).toBe('acquired');
+    expect((await getSpacingState('wf-05', 'production'))!.acquisitionStage).toBe('mastered');
   });
 });
 
@@ -396,8 +399,7 @@ describe('backfillSpacingStateIfNeeded — counts', () => {
       correct: true, timestamp: now,
     });
     await db.productionLessons.add({
-      id: 'wf-01', pathId: 'workflow', order: 1, rating: 0, mastery: 'completed',
-      revisitCount: 1, completedAt: now, lastOpenedAt: now,
+      id: 'wf-01', pathId: 'workflow', order: 1, rating: 75, revisitCount: 1, lastOpenedAt: now,
       createdAt: now, updatedAt: now,
     });
     const counts = await backfillSpacingStateIfNeeded();

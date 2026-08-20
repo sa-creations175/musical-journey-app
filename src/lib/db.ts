@@ -994,25 +994,6 @@ export interface CreativeSession {
  */
 export type ProductionLessonRating = 0 | 25 | 50 | 75 | 100;
 
-/** Mastery state for a production lesson.
- *  @deprecated Replaced by [[ProductionLessonRating]]. Every reader is
- *  retired across this build sequence; the type and the fields typed
- *  by it are deleted once the last one goes. No row carries a value
- *  after the v35 wipe. */
-export type ProductionLessonMastery =
-  | 'not-started'
-  | 'in-progress'
-  | 'completed'
-  | 'mastered';
-
-/** Self-reported feel for a Production lesson session — the former
- *  3-point vocabulary.
- *  @deprecated Replaced by the five-step [[ProductionLessonRating]].
- *  Retained only so the not-yet-rewritten rating modal compiles; it
- *  and the modal go together. No row carries a value after the v35
- *  wipe. */
-export type LegacySessionFeelRating = 'flying' | 'cruising' | 'crawling';
-
 export interface ProductionLesson {
   /** Stable string id — e.g. 'wf-01' for the first Workflow lesson. */
   id: string;
@@ -1023,13 +1004,8 @@ export interface ProductionLesson {
   /** Cumulative self-rating for this lesson — the single source of
    *  truth for where the user stands on it. Seeds as 0 (not started). */
   rating: ProductionLessonRating;
-  /** @deprecated See [[ProductionLessonMastery]]. */
-  mastery?: ProductionLessonMastery;
   /** Number of times the user has opened this lesson. */
   revisitCount: number;
-  /** @deprecated Written by the old mastery path, read by nothing.
-   *  `updatedAt` already carries when the rating last moved. */
-  completedAt?: number | null;
   /** Last time the user opened the lesson. */
   lastOpenedAt: number | null;
   createdAt: number;
@@ -1048,9 +1024,6 @@ export interface ProductionLessonSession {
    *  sessions as `timestamp - startedAt`; otherwise optional and
    *  currently unset on the passive open events. */
   durationSeconds?: number;
-  /** @deprecated Written since the module shipped, read by nothing.
-   *  The Deep dive step is a rating value now, not a side channel. */
-  openedDeepDive?: boolean;
   /** lessonStartedAt — when the user entered the lesson page for the
    *  session this row rates. Present only on rated sessions; paired
    *  with `timestamp` (lessonEndedAt) it gives the honest session
@@ -1059,12 +1032,8 @@ export interface ProductionLessonSession {
   /** The rating the user submitted in this session — the timestamped
    *  EVENT, where ProductionLesson.rating is the cumulative state.
    *  A Production attempt counts when this is present; rows without
-   *  it are passive open events (recordLessonOpen), not attempts.
-   *
-   *  The legacy arm exists only until the rating modal is rewritten
-   *  and goes with it — no stored row carries a string after the v35
-   *  wipe. */
-  rating?: ProductionLessonRating | LegacySessionFeelRating;
+   *  it are passive open events (recordLessonOpen), not attempts. */
+  rating?: ProductionLessonRating;
 }
 
 /** Per-user understanding state for a glossary term. */
