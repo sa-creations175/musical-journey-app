@@ -371,7 +371,14 @@ conceptual row's affordance says it covers two questions.
 
 ### Shapes & Patterns
 
-Four submodules. The first three are grids of skill × key; a cell is the item.
+> **Corrected 20 Aug 2026 — was "four submodules".** Three. Mental
+> visualisation is **its own module row**, not an S&P submodule: it writes
+> spacing rows under the dedicated `mental-viz` moduleRef and is deliberately
+> excluded from every S&P coverage number (the April 27 design call,
+> `RULE_LEGIBILITY` §1.6). Folding it in would reverse that quietly. Its entry
+> is below, after Song Repertoire.
+
+**Three submodules**, each a grid of skill × key; a cell is the item.
 
 **Scales** — `scales → scale type → key`
 
@@ -394,9 +401,18 @@ Patterns are the named ones on screen (diatonic cycle, 5→1 movement, major
 diatonic cycle; guide tones / seventh chords / full voicing × Pos A/B for
 5→1.
 
-**Mental visualisation** — `mental visualisation → quality → inversion → key`
+(Mental visualisation used to be listed here as a fourth submodule. It is its
+own module row — see below.)
 
-Same catalog as chord shapes, drilled away from the keyboard. ~600 cards.
+### Mental visualisation
+
+`mental visualisation → family → item`
+
+> **Moved out of Shapes & Patterns, 20 Aug 2026.** Own `mental-viz` moduleRef,
+> own coverage number, excluded from S&P's.
+
+**504 items** — 216 triads (6 × 3 inversions × 12 keys) and 288 sevenths
+(6 × 4 × 12) — after the extended-dominant cut. See **Catalog cuts**.
 
 Inversion sits above key deliberately: "major 7, second inversion — 54%"
 across all keys is a truer weakness than any per-key number. Inversions trip
@@ -596,6 +612,35 @@ The list, all of which ship with the dashboard:
 | **Coverage denominators are the full catalog, not the filter scope** | coverage column affordance |
 | Self-assessed starting stages don't count toward coverage | coverage column affordance |
 | Due means past SM-2's next-review date, not a deadline | the due filter |
+
+### Every row says what would advance it
+
+> **Added 20 Aug 2026.** Not a separate requirement — the second half of
+> this one.
+
+Explaining what a number *means* is not enough. Every row must also say
+**what would move it**.
+
+A row reading "3 of 6 covered" that cannot tell you what makes it 4 of 6 is a
+status report again — the exact thing this redesign exists to replace. The
+definitions above answer *what am I looking at*; this answers *what do I do
+about it*, which is the question you actually opened the app with.
+
+| Row | What advances it |
+|---|---|
+| Any drill item, uncovered | a third attempt — the coverage threshold |
+| Any drill item, covered | answers inside the 20-attempt accuracy window |
+| A repertoire section × key cell | **three consecutive clean run-throughs at ≥ (performance tempo − 10) BPM** |
+| A repertoire section, uncovered | a third logged practice session touching it |
+| A production lesson | reaching "tried it" — reading it is not practice |
+| An S&P cell | a rated drill rep; the rating is the signal, not the minutes |
+
+The cell gate is worth calling out. `docs/RULE_LEGIBILITY.md` §3.8 names it
+**the best-surfaced rule in the app** — stated on the button tooltip, the
+progress dots' aria-label, the per-attempt below-tempo tag, a banner on tempo
+change, and the whole-song modal. But every one of those is *at the drill*, and
+the dashboard is where the number gets looked at. The rule has to be legible in
+both places, because that is where the question gets asked.
 
 Three of these are already open items in the audit: §1.2 and §1.3 on
 `excludeFromFluency` reaching more than its notice claims, and §1.4 on the
