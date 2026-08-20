@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
+import { CHORD_QUALITIES } from '../catalog';
 import {
   CIRCLE_OF_FOURTHS,
   SP_MAX_TIER,
@@ -26,9 +27,13 @@ import {
 // -----------------------------------------------------------------
 
 describe('SP_TIERS', () => {
-  it('has 4 tiers', () => {
-    expect(SP_MAX_TIER).toBe(4);
-    expect(Object.keys(SP_TIERS)).toEqual(['1', '2', '3', '4']);
+  it('has 2 tiers', () => {
+    // WAS 4. Tiers 3 and 4 were entirely extension / special-sixth
+    // qualities, all of which left the drill catalog on 20 Aug 2026.
+    // Deleted rather than left empty — an unlockable tier containing
+    // nothing is worse than no tier.
+    expect(SP_MAX_TIER).toBe(2);
+    expect(Object.keys(SP_TIERS)).toEqual(['1', '2']);
   });
 
   it('tier 1 = core triads (maj / min / dim / aug / sus2 / sus4)', () => {
@@ -43,23 +48,17 @@ describe('SP_TIERS', () => {
     ]);
   });
 
-  it('tier 3 = extended maj/min', () => {
-    // 8 catalog-aligned items. min6/9 / maj9/13 / add2 / min9/11 /
-    // dom9/13 from the ET tier list aren't in the shapes catalog,
-    // so they're omitted — see spTiers.ts header.
-    expect(SP_TIERS[3]).toEqual([
-      'maj9', 'maj13', 'maj6', 'maj6_9',
-      'add9', 'min9', 'min11', 'min6',
-    ]);
-  });
-
-  it('tier 4 = altered dominants (catalog spelling — dom7s9, not dom7#9)', () => {
-    expect(SP_TIERS[4]).toEqual(['dom7b9', 'dom7s9', 'dom13']);
+  it('covers the whole drill catalog and nothing else', () => {
+    // The tier ladder and the catalog must agree exactly. Before the
+    // cut they didn't — six catalog qualities sat in no tier at all,
+    // which is what exposed them as grid-fill in the first place.
+    const tiered = [...SP_TIERS[1], ...SP_TIERS[2]].sort();
+    expect(tiered).toEqual(CHORD_QUALITIES.map(q => q.id).sort());
   });
 
   it('every quality appears in exactly one tier', () => {
     const seen = new Set<string>();
-    for (const t of [1, 2, 3, 4] as SPTier[]) {
+    for (const t of [1, 2] as SPTier[]) {
       for (const q of SP_TIERS[t]) {
         expect(seen.has(q)).toBe(false);
         seen.add(q);
@@ -87,41 +86,28 @@ describe('getTierForShape', () => {
     expect(getTierForShape('mmaj7')).toBe(2);
   });
 
-  it('classifies all tier-3 extensions', () => {
-    expect(getTierForShape('maj9')).toBe(3);
-    expect(getTierForShape('maj13')).toBe(3);
-    expect(getTierForShape('maj6')).toBe(3);
-    expect(getTierForShape('maj6_9')).toBe(3);
-    expect(getTierForShape('add9')).toBe(3);
-    expect(getTierForShape('min9')).toBe(3);
-    expect(getTierForShape('min11')).toBe(3);
-    expect(getTierForShape('min6')).toBe(3);
-  });
-
-  it('classifies all tier-4 altered dominants', () => {
-    expect(getTierForShape('dom7b9')).toBe(4);
-    expect(getTierForShape('dom7s9')).toBe(4);
-    expect(getTierForShape('dom13')).toBe(4);
-  });
-
   it('throws on qualities outside the tier system', () => {
     expect(() => getTierForShape('bogus')).toThrow(/not part of the S&P tier system/);
-    // Quality that's in the catalog but not in any S&P tier yet.
-    expect(() => getTierForShape('dom9')).toThrow(/not part of the S&P tier system/);
+    // Cut qualities. Stored drillSkills / spacingState rows still carry
+    // these ids, so every caller must gate on isTrackedShape first.
+    expect(() => getTierForShape('maj9')).toThrow(/not part of the S&P tier system/);
+    expect(() => getTierForShape('maj6_9')).toThrow(/not part of the S&P tier system/);
   });
 });
 
 describe('isTrackedShape', () => {
   it('returns true for every tier member', () => {
-    for (const t of [1, 2, 3, 4] as SPTier[]) {
+    for (const t of [1, 2] as SPTier[]) {
       for (const q of SP_TIERS[t]) {
         expect(isTrackedShape(q)).toBe(true);
       }
     }
   });
 
-  it('returns false for non-tier qualities', () => {
+  it('returns false for cut and unknown qualities', () => {
     expect(isTrackedShape('dom9')).toBe(false);
+    expect(isTrackedShape('maj9')).toBe(false);
+    expect(isTrackedShape('min6')).toBe(false);
     expect(isTrackedShape('bogus')).toBe(false);
   });
 });
@@ -129,7 +115,7 @@ describe('isTrackedShape', () => {
 describe('shapesForTier', () => {
   it('returns the same array as SP_TIERS[t]', () => {
     expect(shapesForTier(1)).toBe(SP_TIERS[1]);
-    expect(shapesForTier(4)).toBe(SP_TIERS[4]);
+    expect(shapesForTier(2)).toBe(SP_TIERS[2]);
   });
 });
 
@@ -151,14 +137,8 @@ describe('tierTotalCells', () => {
     expect(tierTotalCells(2)).toBe(6 * 5 * 12);
   });
 
-  it('tier 3 = 8 extension/special qualities × 1 cell × 12 keys = 96', () => {
-    // extension + special kinds each have [null] as their single
-    // inversion state. 8 items × 1 × 12 = 96.
-    expect(tierTotalCells(3)).toBe(8 * 1 * 12);
-  });
-
-  it('tier 4 = 3 dominant extensions × 1 cell × 12 keys = 36', () => {
-    expect(tierTotalCells(4)).toBe(3 * 1 * 12);
+  it('the two tiers sum to the 648 acquisition catalog', () => {
+    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(648);
   });
 });
 
@@ -223,35 +203,21 @@ describe('computeSPUnlockedTier', () => {
     expect(computeSPUnlockedTier(rows)).toBe(2);
   });
 
-  it('cascades — fully-cleared tier 1 + tier 2 unlocks tier 3', () => {
-    // 144 comfortable rows in T1 (50% of 288) +
-    // 180 comfortable rows in T2 (50% of 360) → unlock T3.
-    const rows = new Map<SPTier, SpacingState[]>([
-      [1, comfortableRowsForTier(1, 144)],
-      [2, comfortableRowsForTier(2, 180)],
-    ]);
-    expect(computeSPUnlockedTier(rows)).toBe(3);
-  });
-
   it('stops at the first tier under threshold', () => {
-    // T1 cleared; T2 only at 30% (108 / 360). T3 has comfortable
-    // rows too, but the walk halts at T2 → returns 2.
+    // T1 cleared; T2 only at 30% (108 / 360). The walk halts at T2.
     const rows = new Map<SPTier, SpacingState[]>([
       [1, comfortableRowsForTier(1, 144)],
       [2, comfortableRowsForTier(2, 108)],
-      [3, comfortableRowsForTier(3, 96)],  // 100% of T3, but locked
     ]);
     expect(computeSPUnlockedTier(rows)).toBe(2);
   });
 
-  it('returns MAX_TIER (4) when every tier is fully cleared', () => {
+  it('returns MAX_TIER (2) when every tier is fully cleared', () => {
     const rows = new Map<SPTier, SpacingState[]>([
       [1, comfortableRowsForTier(1, 288)],
       [2, comfortableRowsForTier(2, 360)],
-      [3, comfortableRowsForTier(3, 96)],
-      [4, comfortableRowsForTier(4, 36)],
     ]);
-    expect(computeSPUnlockedTier(rows)).toBe(4);
+    expect(computeSPUnlockedTier(rows)).toBe(SP_MAX_TIER);
   });
 
   it('counts consolidated + mastered alongside acquired for the unlock check', () => {

@@ -1,4 +1,4 @@
-// Enumerated mental-visualisation chord library — the ~600 items the
+// Enumerated mental-visualisation chord library — the 504 items the
 // drill walks via SM-2. Each item carries a stable itemRef, a prompt
 // label, and the PianoKeyboard reveal data (rootPc + octave-aware
 // offsets-from-root). Spacing rows for these items use the dedicated
@@ -7,15 +7,23 @@
 //
 //   Triads:    6 qualities × 3 inversions × 12 keys = 216
 //   Sevenths:  6 qualities × 4 inversions × 12 keys = 288
-//   Extended:  8 dominant voicings × 12 keys         =  96
-//                                              total  = 600
+//                                              total  = 504
+//
+// WAS 600. The 96 extended dominant voicings (8 × 12 keys) were cut on
+// 20 Aug 2026 — same generated-to-fill-a-grid pattern as the chord-shape
+// extensions, and they carry no inversion axis, so `quality → inversion
+// → key` never had a shelf for them. See
+// docs/DASHBOARD_REDESIGN_DESIGN.md § Catalog cuts.
+//
+// EXTENDED_DOM_VOICINGS itself deliberately STAYS in mentalVizVoicing.ts.
+// It is voicing-engine data that the lead-sheet carousel reads via
+// seedVoicingPatterns; only the enumeration into MENTAL_VIZ_ITEMS is
+// removed here.
 
 import { KEYS } from './catalog';
 import type { VoicingEntry } from '../../lib/db';
 import {
-  EXTENDED_DOM_VOICINGS,
   chordShapeOffsets,
-  extendedDomOffsets,
   preferFlatsFor,
   rootPcOf,
 } from './mentalVizVoicing';
@@ -24,11 +32,15 @@ import {
 export const MENTAL_VIZ_MODULE_REF = 'mental-viz';
 
 export interface MentalVizItem {
-  /** e.g. "mv:triad:maj:root:C", "mv:dom9_13:A:G", "mv:dom7b9:from3:Bb". */
+  /** e.g. "mv:triad:maj:root:C", "mv:seventh:min7:inv2:Eb". */
   itemRef: string;
   /** "[Key] [Quality] — [Inversion/Position]". */
   prompt: string;
-  /** Alternate chord name shown on the reveal card (dom7#9#5 only). */
+  /** Alternate chord name shown on the reveal card. Unset by every
+   *  current item — the only producer was the extended-dominant set,
+   *  cut 20 Aug 2026. Kept because MentalVizChordDrill renders it and
+   *  the planned "show notes, ask which chord" redesign will want it
+   *  again (C-E-G-A is C6 *and* arguably rootless Am7). */
   altName?: string;
   rootPc: number;
   voicing: Array<number | VoicingEntry>;
@@ -78,27 +90,9 @@ function buildShapeItems(
   return items;
 }
 
-function buildExtendedItems(): MentalVizItem[] {
-  const items: MentalVizItem[] = [];
-  for (const v of EXTENDED_DOM_VOICINGS) {
-    for (const key of KEYS) {
-      items.push({
-        itemRef: `mv:${v.family}:${v.position}:${key}`,
-        prompt: `${key} ${v.label}`,
-        ...(v.altName ? { altName: v.altName } : {}),
-        rootPc: rootPcOf(key),
-        voicing: extendedDomOffsets(v),
-        preferFlats: preferFlatsFor(key),
-      });
-    }
-  }
-  return items;
-}
-
 export const MENTAL_VIZ_ITEMS: MentalVizItem[] = [
   ...buildShapeItems('triad', TRIADS, 3),
   ...buildShapeItems('seventh', SEVENTHS, 4),
-  ...buildExtendedItems(),
 ];
 
 export const MENTAL_VIZ_ITEM_BY_REF: ReadonlyMap<string, MentalVizItem> = new Map(

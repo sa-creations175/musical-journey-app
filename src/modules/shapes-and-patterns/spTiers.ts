@@ -2,25 +2,27 @@
  * Phase 1 of the Shapes & Patterns Session Structure design
  * (docs/SHAPES_AND_PATTERNS_SESSION_DESIGN.md — May 2026).
  *
- * Four-tier progression for the Chord Shape Track. Mirrors the ET
+ * TWO-tier progression for the Chord Shape Track. Mirrors the ET
  * chord-recognition tier system in shape but advances INDEPENDENTLY
  * — playing a chord and recognising it by ear are different skills.
  * Cross-module dashboards may surface progress side-by-side later;
  * the registries don't cite each other.
  *
- *   Tier 1 — Core Triads:        maj / min / dim / aug / sus2 / sus4
- *   Tier 2 — Essential 7ths:     maj7 / min7 / dom7 / dim7 / m7b5 / mmaj7
- *   Tier 3 — Extended maj / min: maj9 / maj13 / maj6 / maj6_9 /
- *                                add9 / min9 / min11 / min6
- *   Tier 4 — Altered Dominants:  dom7b9 / dom7s9 / dom13
+ *   Tier 1 — Core Triads:    maj / min / dim / aug / sus2 / sus4
+ *   Tier 2 — Essential 7ths: maj7 / min7 / dom7 / dim7 / m7b5 / mmaj7
+ *
+ * WAS four tiers. Tier 3 (8 qualities) and tier 4 (3) were entirely
+ * extension and special/sixth, so the 20 Aug 2026 drill-catalog cut
+ * emptied both. They are DELETED rather than left as empty buckets:
+ * an empty tier you can unlock into nothing is worse than no tier, and
+ * keeping 3 and 4 "for later" reproduces the fill-the-grid habit the
+ * cut exists to end. When a quality is added back it gets a tier
+ * containing the shapes that were actually chosen.
  *
  * Quality IDs match the shapes catalog (CHORD_QUALITIES in
  * catalog.ts) so the tier lookup composes cleanly with
  * spacingState itemRefs (parsed via parseShapesItemRef → quality
- * field). The design doc lists a few additional T3 / T4 qualities
- * ("min6/9", "dom7#9#5", "dom9(13)", "dom7sus4") that aren't in
- * the current catalog — they're omitted here; catalog additions
- * will flow in automatically once their IDs exist.
+ * field).
  *
  * Unlock model: tier N+1 unlocks when at least
  * `SP_TIER_UNLOCK_THRESHOLD` (50%) of the tier-N possible-cell
@@ -41,9 +43,24 @@ import {
 } from './catalog';
 import { parseShapesItemRef } from './drillModel';
 
-export type SPTier = 1 | 2 | 3 | 4;
+export type SPTier = 1 | 2;
 
-export const SP_MAX_TIER: SPTier = 4;
+export const SP_MAX_TIER: SPTier = 2;
+
+/**
+ * Tier values that existed before the 20 Aug 2026 two-tier change.
+ * Nothing in the app persists an unlocked tier today —
+ * `getSPUnlockedTier` recomputes from spacingState on every read, and
+ * `ShapesSplitContext.unlockedTier` is passed in per call — so there is
+ * no stored 3 or 4 to migrate. `clampStoredTier` exists so that if a
+ * caller ever DOES read a tier from storage (a cached plan, a synced
+ * session context written by an older build), it lands on 2 rather
+ * than falling through a `> unlockedTier` comparison that would drop
+ * every cell from the walk.
+ */
+export function clampStoredTier(value: unknown): SPTier {
+  return value === 1 ? 1 : 2;
+}
 
 /** Fraction of a tier's possible cells that must be at comfortable+
  *  for the next tier to unlock. 50% mirrors the design-doc example
@@ -62,20 +79,9 @@ const TIER_2_QUALITIES = [
   'maj7', 'min7', 'dom7', 'dim7', 'm7b5', 'mmaj7',
 ] as const;
 
-const TIER_3_QUALITIES = [
-  'maj9', 'maj13', 'maj6', 'maj6_9',
-  'add9', 'min9', 'min11', 'min6',
-] as const;
-
-const TIER_4_QUALITIES = [
-  'dom7b9', 'dom7s9', 'dom13',
-] as const;
-
 export const SP_TIERS: Readonly<Record<SPTier, readonly string[]>> = {
   1: TIER_1_QUALITIES,
   2: TIER_2_QUALITIES,
-  3: TIER_3_QUALITIES,
-  4: TIER_4_QUALITIES,
 };
 
 const TIER_BY_QUALITY: ReadonlyMap<string, SPTier> = (() => {
@@ -89,7 +95,7 @@ const TIER_BY_QUALITY: ReadonlyMap<string, SPTier> = (() => {
 })();
 
 /**
- * Tier number (1–4) for a chord-shape quality id (catalog form —
+ * Tier number (1–2) for a chord-shape quality id (catalog form —
  * e.g. `maj7`, `mmaj7`, `maj6_9`). Throws on qualities outside the
  * tier system; callers that may receive untracked qualities should
  * gate on `isTrackedShape` first.
@@ -131,7 +137,7 @@ export function tierTotalCells(tier: SPTier): number {
     const entry = CHORD_QUALITY_BY_ID.get(qualityId);
     if (!entry) return sum;
     const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[entry.kind];
-    const eligible = states.filter(s => gatesAcquisition(entry.kind, s));
+    const eligible = states.filter(s => gatesAcquisition(s));
     return sum + eligible.length * KEY_COUNT;
   }, 0);
 }

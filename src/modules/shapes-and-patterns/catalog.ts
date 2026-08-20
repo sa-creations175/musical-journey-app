@@ -1,10 +1,13 @@
 // Catalog data for the Shapes & Patterns module.
 //
 //   · KEYS                        — 12 pitch names used as grid columns
-//   · CHORD_QUALITIES             — 29 qualities grouped by "kind"
-//                                   (triad / seventh / extension / special).
-//                                   The kind drives the default drill-type
-//                                   set materialised for a fresh cell.
+//   · CHORD_QUALITIES             — the DRILL catalog: 12 qualities
+//                                   (6 triads + 6 sevenths). The kind
+//                                   drives the default drill-type set
+//                                   materialised for a fresh cell.
+//                                   NOT the same list as the voicing
+//                                   vocabulary — see QUALITY_INTERVALS
+//                                   and VOICING_QUALITY_SUFFIX below.
 //   · SCALES                      — scales the user practises on the
 //                                   scale heat-grid (major + natural
 //                                   minor in v1).
@@ -49,6 +52,14 @@ export function keyPrefersFlats(k: string): boolean {
 
 // --- Chord qualities ------------------------------------------------
 
+/**
+ * `extension` and `special` are LEGACY-ONLY as of the 20 Aug 2026 cut.
+ * No `CHORD_QUALITIES` entry carries them any more, but stored
+ * `drillSkills` rows for cut qualities do, and `findOrCreateSkill`'s
+ * `?? 'special'` fallback relies on them to give an unknown quality a
+ * single no-inversion row — which is exactly how those rows were
+ * created. Removing the variants would break that degradation path.
+ */
 export type QualityKind = 'triad' | 'seventh' | 'extension' | 'special';
 
 export interface ChordQualityEntry {
@@ -59,11 +70,34 @@ export interface ChordQualityEntry {
 }
 
 /**
- * 29 chord qualities covering the vocabulary most gospel / R&B / jazz
- * players practise. Ordering mirrors pedagogical progression —
- * triads first, seventh chords, then extensions, then special
- * voicings — so the heat grid's row order matches how users think
- * about their vocabulary.
+ * The DRILL catalog — 12 qualities, 6 triads and 6 sevenths.
+ *
+ * Cut from 29 on 20 Aug 2026 (see docs/DASHBOARD_REDESIGN_DESIGN.md
+ * § Catalog cuts). The 14 extensions and 3 sixth-family qualities came
+ * out for two reasons:
+ *
+ *   1. Nine of the fourteen extensions were a {maj,min,dom} × {9,11,13}
+ *      grid filled completely rather than chosen. Two independently
+ *      authored catalogs — this module's own SP_TIERS ladder and ET's
+ *      chord-recognition seed list — omit exactly the same six.
+ *   2. Extensions carry a five-way VOICING axis (root / skip-a-note /
+ *      rootless / two-handed / flowing) that all shares ONE cell, while
+ *      a triad's four inversions each get their own. Cmaj13 held five
+ *      times the practice of Cmaj root position and counted a quarter
+ *      as much. Rather than build that axis for shapes not yet chosen,
+ *      the shapes come out until specific ones are wanted.
+ *
+ * Adding one back is a one-line edit here — itemRefs are
+ * `chord-shape:{quality}:{key}:{state}`, catalog-independent strings,
+ * so an old quality's spacing state, rep counts and session history all
+ * come back live at the stage they were left.
+ *
+ * This list is NOT what the app can voice. A player can still write
+ * Cmaj13 on a lead sheet and get real voicings — that vocabulary lives
+ * in QUALITY_INTERVALS / VOICING_QUALITY_SUFFIX and moves independently.
+ *
+ * Ordering mirrors pedagogical progression so the heat grid's row order
+ * matches how players think about their vocabulary.
  */
 export const CHORD_QUALITIES: ChordQualityEntry[] = [
   // Triads (6)
@@ -80,25 +114,6 @@ export const CHORD_QUALITIES: ChordQualityEntry[] = [
   { id: 'm7b5',      label: 'Half-diminished', suffix: 'm7b5',  kind: 'seventh' },
   { id: 'dim7',      label: 'Diminished 7',   suffix: '°7',     kind: 'seventh' },
   { id: 'mmaj7',     label: 'Minor-major 7',  suffix: 'm(maj7)',kind: 'seventh' },
-  // Extensions (14)
-  { id: 'maj9',      label: 'Major 9',        suffix: 'maj9',   kind: 'extension' },
-  { id: 'min9',      label: 'Minor 9',        suffix: 'm9',     kind: 'extension' },
-  { id: 'dom9',      label: 'Dominant 9',     suffix: '9',      kind: 'extension' },
-  { id: 'maj11',     label: 'Major 11',       suffix: 'maj11',  kind: 'extension' },
-  { id: 'min11',     label: 'Minor 11',       suffix: 'm11',    kind: 'extension' },
-  { id: 'dom11',     label: 'Dominant 11',    suffix: '11',     kind: 'extension' },
-  { id: 'maj13',     label: 'Major 13',       suffix: 'maj13',  kind: 'extension' },
-  { id: 'min13',     label: 'Minor 13',       suffix: 'm13',    kind: 'extension' },
-  { id: 'dom13',     label: 'Dominant 13',    suffix: '13',     kind: 'extension' },
-  { id: 'add9',      label: 'Add 9',          suffix: 'add9',   kind: 'extension' },
-  { id: 'maj7s11',   label: 'Maj 7 #11',      suffix: 'maj7#11',kind: 'extension' },
-  { id: 'dom7b9',    label: '7 ♭9',            suffix: '7b9',   kind: 'extension' },
-  { id: 'dom7s9',    label: '7 #9',           suffix: '7#9',    kind: 'extension' },
-  { id: 'dom7b13',   label: '7 ♭13',           suffix: '7b13',  kind: 'extension' },
-  // Special / sixth (3)
-  { id: 'maj6',      label: 'Major 6',        suffix: '6',      kind: 'special' },
-  { id: 'min6',      label: 'Minor 6',        suffix: 'm6',     kind: 'special' },
-  { id: 'maj6_9',    label: '6/9',            suffix: '6/9',    kind: 'special' },
 ];
 
 export const CHORD_QUALITY_BY_ID = new Map<string, ChordQualityEntry>(
@@ -183,17 +198,41 @@ export const INVERSION_STATES_FOR_CHORD_SHAPE_KIND: Record<
 };
 
 /**
- * Whether a (kind, state) skill row counts toward acquisition
- * (i.e., shows up in coverage denominators and goal progress).
- * Supplementary rows for sevenths are excluded — they're practice
- * tools, not acquisition requirements.
+ * Whether an inversion-state skill row counts toward acquisition —
+ * i.e. shows up in coverage denominators and goal progress.
+ *
+ * ONE RULE: `supplementary` rows don't gate. They host the two-handed
+ * LH-root + RH-triad drills, which are practice tools rather than
+ * shapes to own; counting them would put two-handed comping in the same
+ * number as knowing Cmaj7 in second inversion.
+ *
+ * That is 72 rows — 6 sevenths × 12 keys — out of 720 materialisable,
+ * so the drillable catalog is 720 and the acquisition catalog is 648.
+ * At 10% of the catalog this is too large to leave unexplained; it is
+ * surfaced in the coverage affordance rather than only living here.
+ * See docs/RULE_LEGIBILITY.md §1.7.
+ *
+ * The `kind` argument used to be part of this and was always dead —
+ * only sevenths have a `supplementary` state, so the extension/special
+ * early-return could never change the answer.
  */
 export function gatesAcquisition(
-  kind: QualityKind,
   inversionState: InversionState | null | undefined,
 ): boolean {
-  if (kind === 'extension' || kind === 'special') return true;
   return inversionState !== 'supplementary';
+}
+
+/**
+ * True when `quality` is in the current DRILL catalog.
+ *
+ * The load-bearing use is coverage: practice data for cut qualities is
+ * deliberately KEPT (so adding a quality back restores its history),
+ * which means `spacingState` still holds rows the denominator no longer
+ * counts. Without this filter on the numerator a coverage percentage
+ * can exceed 100%.
+ */
+export function isCatalogQuality(quality: string): boolean {
+  return CHORD_QUALITY_BY_ID.has(quality);
 }
 
 /**

@@ -44,6 +44,7 @@ import {
 import { moduleForMetric, type GoalFlowModuleId } from './goalVocabulary';
 import { mondayOf } from './activity/dailyActivity';
 import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
+import { countsTowardShapesCoverage } from '../shapes-and-patterns/drillModel';
 import { effectiveScopeForGoal } from './scopeEnumeration';
 
 // =====================================================================
@@ -215,7 +216,12 @@ export async function getCoverageCount(
     return countCoveredSpacingRows([HF_MODULE_REF]);
   }
   if (metric === COVERAGE_OVERALL_METRIC.SHAPES) {
-    return countCoveredSpacingRows([SHAPES_MODULE_REF]);
+    // The predicate is not optional. Practice data for qualities cut
+    // from the catalog on 20 Aug 2026 is kept on purpose, and
+    // supplementary rows have never gated acquisition — both would
+    // otherwise land in the numerator against a denominator that
+    // excludes them, and coverage could read over 100%.
+    return countCoveredSpacingRows([SHAPES_MODULE_REF], countsTowardShapesCoverage);
   }
   if (metric === COVERAGE_OVERALL_METRIC.PRODUCTION) {
     return countCoveredSpacingRows([PRODUCTION_MODULE_REF]);
@@ -243,7 +249,13 @@ export async function getCoverageCount(
     if (!subArea) return 0;
     const matcher = itemRefMatcherForCoverageGroup(subArea);
     if (!matcher) return 0;
-    return countCoveredSpacingRows([SHAPES_MODULE_REF], matcher);
+    // Same reasoning as the overall branch — the group matcher scopes
+    // WHICH items count, `countsTowardShapesCoverage` decides whether
+    // an item is still in the catalog at all.
+    return countCoveredSpacingRows(
+      [SHAPES_MODULE_REF],
+      itemRef => matcher(itemRef) && countsTowardShapesCoverage(itemRef),
+    );
   }
   if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
     if (!subArea) return 0;

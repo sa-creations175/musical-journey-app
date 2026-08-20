@@ -73,19 +73,19 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
     );
-    // Chord-shape side now includes Layer 2 quality sub-groups for
-    // sevenths and Layer 2 family sub-groups for extensions:
+    // Chord-shape side, post 20 Aug 2026 catalog cut. Every extension
+    // and special bucket is still DEFINED (saved goals reference them,
+    // and the scope-shrank notice needs their labels) but every one
+    // now contributes 0:
     //   triads bucket (288) + 6 triad-quality subs (6×48=288) +
     //   sevenths bucket (360) + 6 seventh-quality subs (6×60=360) +
-    //   extensions bucket (168) +
-    //   extension families: major (60) + minor (36) + dominant (36) +
-    //     altered_dominant (36) + diminished (0) + augmented (0) = 168
-    //   special bucket (36)
+    //   extensions bucket (0) + 6 extension families (0) +
+    //   special bucket (0)
     const chordShapeSide =
       288 + 6 * 48 +
       360 + 6 * 60 +
-      168 + (60 + 36 + 36 + 36 + 0 + 0) +
-      36;
+      0 + 0 +
+      0;
     const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
     const vlSide = 372 + 36 + 72 + 72 + 72 + 24 + 48 + 48;
     expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
@@ -463,27 +463,38 @@ describe('Extension-family coverage groups', () => {
     },
   ];
 
-  it('exposes all four active family defs with catalog-sourced denominators', () => {
+  // The 20 Aug 2026 drill-catalog cut removed every extension and
+  // sixth-family quality, so all of these denominators are now 0.
+  //
+  // The DEFS DELIBERATELY REMAIN. A goal saved before the cut can
+  // still carry `chord_shape_extensions_dominant` as its sub-area, and
+  // the scope-shrank notice needs the id to resolve to a label so it
+  // can say WHICH scope went away. What gets removed is their place in
+  // the pickers, not their existence.
+  it('still exposes every family def, now at zero cells', () => {
     for (const f of EXTENSION_FAMILIES) {
       const def = getShapesCoverageGroup(f.id);
       expect(def, `missing def for ${f.id}`).toBeDefined();
-      expect(def!.denominator).toBe(f.denominator);
+      expect(def!.denominator).toBe(0);
       expect(def!.activityArea).toBe('chord_shape_drills');
     }
-  });
-
-  it('exposes diminished + augmented as forward-compat placeholders (0 cells)', () => {
     expect(getShapesCoverageGroup('chord_shape_extensions_diminished')!.denominator).toBe(0);
     expect(getShapesCoverageGroup('chord_shape_extensions_augmented')!.denominator).toBe(0);
   });
 
-  it('active family denominators sum to the broad extensions denominator', () => {
+  it('the broad extensions and special buckets are zero too', () => {
+    expect(getShapesCoverageGroup('chord_shape_extensions')!.denominator).toBe(0);
+    expect(getShapesCoverageGroup('chord_shape_special')!.denominator).toBe(0);
+  });
+
+  it('family denominators still sum to the broad extensions denominator', () => {
+    // The invariant survives the cut — both sides are 0. It is the
+    // relationship that is pinned, not the number.
     const sum = EXTENSION_FAMILIES.reduce(
       (acc, f) => acc + getShapesCoverageGroup(f.id)!.denominator,
       0,
     );
     expect(sum).toBe(getShapesCoverageGroup('chord_shape_extensions')!.denominator);
-    expect(sum).toBe(168);
   });
 
   it('each family matcher accepts only its own qualities', () => {

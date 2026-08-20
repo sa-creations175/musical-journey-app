@@ -11,6 +11,8 @@ import { addDrillSession } from '../../lib/practiceWrites';
 import {
   CHORD_QUALITY_BY_ID,
   defaultDrillForChordShape,
+  gatesAcquisition,
+  isCatalogQuality,
   defaultDrillTypesForMentalViz,
   defaultDrillTypesForScale,
   defaultDrillTypesForVoiceLeading,
@@ -352,6 +354,35 @@ function defaultDrillTypesForDescriptor(desc: SkillDescriptor) {
  * we can render the human label without touching db.drillSkills
  * (which keys by an unrelated random `skill-…` uid).
  */
+/**
+ * True when a `shapes-and-patterns` spacingState itemRef points at
+ * something the current catalog still counts toward coverage.
+ *
+ * WHY THIS EXISTS — the coverage numerator would otherwise exceed the
+ * denominator, in two separate ways:
+ *
+ *   1. Cut qualities. Practice data for the 17 qualities removed on
+ *      20 Aug 2026 is deliberately KEPT, so adding one back restores
+ *      its history intact. Those spacingState rows still carry
+ *      moduleRef 'shapes-and-patterns' and still reach `acquired`, but
+ *      the denominator (648) no longer counts them.
+ *   2. Supplementary rows. `gatesAcquisition` has always excluded the
+ *      two-handed seventh rows from denominators, and the overall
+ *      shapes coverage numerator has never filtered them — a
+ *      pre-existing overcount that the smaller denominator makes
+ *      visible rather than causes.
+ *
+ * Scale and voice-leading itemRefs pass through untouched: they are
+ * part of the same moduleRef and the same coverage total.
+ */
+export function countsTowardShapesCoverage(itemRef: string): boolean {
+  const desc = parseShapesItemRef(itemRef);
+  if (!desc) return false;
+  if (desc.kind !== 'chord-shape') return true;
+  if (!isCatalogQuality(desc.quality)) return false;
+  return gatesAcquisition(desc.inversionState);
+}
+
 export function parseShapesItemRef(itemRef: string): SkillDescriptor | null {
   const parts = itemRef.split(':');
   if (parts.length < 3) return null;

@@ -114,20 +114,22 @@ describe('harmonicFluencyCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Shapes & Patterns — Phase 4 inversion redesign:
-// triads (6×12×4 = 288) + sevenths (6×12×5 = 360) +
-// extensions (14×12 = 168) + special (3×12 = 36) = 852 chord-shape;
-// + 48 scales + 36 voice-leading = 936 total (Mental Viz excluded).
+// Shapes & Patterns — post 20 Aug 2026 drill-catalog cut:
+// triads (6×12×4 = 288) + sevenths (6×12×5 = 360) = 648 chord-shape;
+// + 96 scales + 372 voice-leading = 1116 total (Mental Viz excluded).
+// Extensions (14) and special/sixth (3) left the catalog — see
+// docs/DASHBOARD_REDESIGN_DESIGN.md § Catalog cuts.
 // Supplementary two-handed seventh rows are excluded — they're
-// practice tools, not acquisition-gating items.
+// practice tools, not acquisition-gating items. That is the whole
+// difference between 720 materialisable rows and 648 gating ones.
 // -------------------------------------------------------------------
 
 describe('shapesCounts', () => {
   const c = shapesCounts();
 
-  it('chordShapeDrills counts triad+seventh inversions plus voicing-based extensions/special', () => {
-    // 6×12×4 + 6×12×5 + 14×12 + 3×12 = 288 + 360 + 168 + 36 = 852
-    expect(c.chordShapeDrills).toBe(852);
+  it('chordShapeDrills counts triad + seventh inversion states only', () => {
+    // 6×12×4 + 6×12×5 = 288 + 360 = 648
+    expect(c.chordShapeDrills).toBe(648);
   });
 
   it('scaleDrills = 96 from the Scales-submodule catalog (12 + 36 + 12 + 36)', () => {
@@ -145,9 +147,9 @@ describe('shapesCounts', () => {
     expect(c.voiceLeading).toBe(372);
   });
 
-  it('total = 1320 (sum of sub-areas, post-VL fan-out)', () => {
-    // 852 chord-shape + 96 scale + 372 voice-leading.
-    expect(c.total).toBe(1320);
+  it('total = 1116 (sum of sub-areas, post-cut)', () => {
+    // 648 chord-shape + 96 scale + 372 voice-leading.
+    expect(c.total).toBe(1116);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 

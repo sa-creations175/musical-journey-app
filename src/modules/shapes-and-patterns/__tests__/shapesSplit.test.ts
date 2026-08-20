@@ -33,6 +33,7 @@ import {
   KEYS,
   VOICE_LEADING_PATTERNS,
 } from '../catalog';
+import { SP_MAX_TIER, type SPTier } from '../spTiers';
 import { parseScaleItemRef } from '../scaleSkills';
 import { HANDS_PER_SHAPE_ITEM, SCALE_KIND_SECONDS } from '../../../lib/sessionAlgorithm/timePerAttempt';
 
@@ -72,7 +73,7 @@ function row(
 function ctx(
   rows: SpacingState[],
   options: {
-    unlockedTier?: 1 | 2 | 3 | 4;
+    unlockedTier?: SPTier;
     now?: number;
     /** Active-Scales-goal proportional budget. `null` (default) ⇒
      *  no goal, fixed 5/8-min fallback path. A number ⇒ goal-aware
@@ -82,7 +83,7 @@ function ctx(
 ): ShapesSplitContext {
   return {
     rowsByItemRef: new Map(rows.map(r => [r.itemRef, r])),
-    unlockedTier: options.unlockedTier ?? 4,
+    unlockedTier: options.unlockedTier ?? SP_MAX_TIER,
     now: options.now ?? NOW,
     scalesGoalDueSeconds: options.scalesGoalDueSeconds ?? null,
   };

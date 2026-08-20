@@ -21,6 +21,7 @@
  *   · existing blocks preserved, cold-start appended at the end
  */
 import { describe, expect, it } from 'vitest';
+import { SP_MAX_TIER } from '../../shapes-and-patterns/spTiers';
 import { maybeInjectShapesColdStartBlock } from '../sessionGenerator';
 import {
   itemRefMatcherForCoverageGroup,
@@ -100,7 +101,7 @@ describe('maybeInjectShapesColdStartBlock — context gating', () => {
   it('no-op on laptop / phone (S&P excluded by the context filter)', async () => {
     for (const ctx of ['laptop', 'phone'] as const) {
       const out = await maybeInjectShapesColdStartBlock(
-        [], [MAJ_TRIAD_GOAL], [], ctx as PracticeSessionContext, 4,
+        [], [MAJ_TRIAD_GOAL], [], ctx as PracticeSessionContext, SP_MAX_TIER,
       );
       expect(out).toEqual([]);
     }
@@ -109,7 +110,7 @@ describe('maybeInjectShapesColdStartBlock — context gating', () => {
   it('injects on keys and full (S&P is allowed there)', async () => {
     for (const ctx of ['keys', 'full'] as const) {
       const out = await maybeInjectShapesColdStartBlock(
-        [], [MAJ_TRIAD_GOAL], [], ctx as PracticeSessionContext, 4,
+        [], [MAJ_TRIAD_GOAL], [], ctx as PracticeSessionContext, SP_MAX_TIER,
       );
       expect(out.some(b => b.id === 'block-shapes-cold-start')).toBe(true);
     }
@@ -117,7 +118,7 @@ describe('maybeInjectShapesColdStartBlock — context gating', () => {
 
   it('no-op when there is no S&P coverage goal', async () => {
     const goals = [mkGoal({ targetMetric: 'harmonic_fluency_coverage_at_acquired' })];
-    const out = await maybeInjectShapesColdStartBlock([], goals, [], 'full', 4);
+    const out = await maybeInjectShapesColdStartBlock([], goals, [], 'full', SP_MAX_TIER);
     expect(out).toEqual([]);
   });
 });
@@ -125,7 +126,7 @@ describe('maybeInjectShapesColdStartBlock — context gating', () => {
 describe('maybeInjectShapesColdStartBlock — injection', () => {
   it('S&P coverage goal + no rows → keyboard block with scoped catalog refs', async () => {
     const out = await maybeInjectShapesColdStartBlock(
-      [], [MAJ_TRIAD_GOAL], [], 'full', 4,
+      [], [MAJ_TRIAD_GOAL], [], 'full', SP_MAX_TIER,
     );
     const block = out.find(b => b.id === 'block-shapes-cold-start');
     expect(block).toBeDefined();
@@ -154,7 +155,7 @@ describe('maybeInjectShapesColdStartBlock — injection', () => {
     };
     const rows = [mkRow('chord-shape:maj:C:root')];
     const out = await maybeInjectShapesColdStartBlock(
-      [real], [MAJ_TRIAD_GOAL], rows, 'full', 4,
+      [real], [MAJ_TRIAD_GOAL], rows, 'full', SP_MAX_TIER,
     );
     // Same block, supplemented in place — no second block added.
     expect(out).toHaveLength(1);
@@ -185,7 +186,7 @@ describe('maybeInjectShapesColdStartBlock — injection', () => {
       isKeyboardRequired: true,
     };
     const out = await maybeInjectShapesColdStartBlock(
-      [real], [MAJ_TRIAD_GOAL], [], 'full', 4,
+      [real], [MAJ_TRIAD_GOAL], [], 'full', SP_MAX_TIER,
     );
     expect(out).toHaveLength(1);
     expect(out[0].itemRefs).toEqual(fullRefs);
@@ -207,7 +208,7 @@ describe('maybeInjectShapesColdStartBlock — injection', () => {
       isKeyboardRequired: true,
     };
     const out = await maybeInjectShapesColdStartBlock(
-      [real], [MAJ_TRIAD_GOAL], rows, 'full', 4,
+      [real], [MAJ_TRIAD_GOAL], rows, 'full', SP_MAX_TIER,
     );
     expect(out).toHaveLength(1);
     expect(out[0].itemRefs).toEqual(allStarted.slice(0, 3));
@@ -224,7 +225,7 @@ describe('maybeInjectShapesColdStartBlock — injection', () => {
     ];
     const rows = startedRefs.map(mkRow);
     const out = await maybeInjectShapesColdStartBlock(
-      [], [MAJ_TRIAD_GOAL], rows, 'full', 4,
+      [], [MAJ_TRIAD_GOAL], rows, 'full', SP_MAX_TIER,
     );
     const block = out.find(b => b.id === 'block-shapes-cold-start')!;
     for (const ref of startedRefs) {
@@ -247,7 +248,7 @@ describe('maybeInjectShapesColdStartBlock — injection', () => {
   it('preserves existing blocks and appends the cold-start block at the end', async () => {
     const existing = [blk('harmonic-fluency', 'block-hf'), blk('repertoire', 'block-rep')];
     const out = await maybeInjectShapesColdStartBlock(
-      existing, [MAJ_TRIAD_GOAL], [], 'full', 4,
+      existing, [MAJ_TRIAD_GOAL], [], 'full', SP_MAX_TIER,
     );
     expect(out).toHaveLength(3);
     expect(out[0].id).toBe('block-hf');

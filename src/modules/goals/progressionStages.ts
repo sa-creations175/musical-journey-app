@@ -135,23 +135,6 @@ function seventhStage(qualityId: string, displayName: string): ProgressionStage 
   };
 }
 
-/** Layer-3 stages group multiple extension/special qualities. Each
- *  stage's `qualityIds` are the catalog qualities that belong; empty
- *  qualityIds → empty itemRefs → stage is informational only. */
-function depthStage(
-  id: string,
-  name: string,
-  description: string,
-  qualityIds: ReadonlyArray<string>,
-): ProgressionStage {
-  return {
-    id: `depth-${id}`,
-    name,
-    description,
-    itemRefs: qualityIds.flatMap(chordShapesForQuality),
-  };
-}
-
 const CHORD_SHAPES_STAGES: ReadonlyArray<ProgressionStage> = [
   // Layer 1 — Triads (12 keys × 4 acquisition inversion states = 48 items per stage)
   triadStage('maj',  'Major'),
@@ -173,46 +156,6 @@ const CHORD_SHAPES_STAGES: ReadonlyArray<ProgressionStage> = [
   // (5 items × 12 keys) — placed at the end of Layer 2 so the
   // progression order matches the natural seventh sequence.
   seventhStage('mmaj7', 'Minor-major 7'),
-  // Layer 3 — Depth by quality. Each extension/special quality has a
-  //   single (null-state) row, so per-stage item counts are 12 ×
-  //   number-of-qualities. Stages that reference qualities the
-  //   catalog doesn't yet expose (slash chords, augmaj7) appear with
-  //   empty itemRefs and are skipped by the suggestion engine.
-  depthStage(
-    'major-extensions', 'Major extensions',
-    'Major 9 / Maj 11 / Maj 13 / Maj 7♯11 in all 12 keys',
-    ['maj9', 'maj11', 'maj13', 'maj7s11'],
-  ),
-  depthStage(
-    'minor-extensions', 'Minor extensions',
-    'Minor 9 / Minor 11 / Minor 13 in all 12 keys',
-    ['min9', 'min11', 'min13'],
-  ),
-  depthStage(
-    'dominant-extensions', 'Dominant extensions',
-    'Dom 9 / 11 / 13 plus altered dominants (♭9, ♯9, ♭13)',
-    ['dom9', 'dom11', 'dom13', 'dom7b9', 'dom7s9', 'dom7b13'],
-  ),
-  depthStage(
-    'altered', 'Altered chords / bright + dark tensions',
-    'Altered-dominant voicings cross-referenced from the VL design doc',
-    [],
-  ),
-  depthStage(
-    'slash', 'Slash chords',
-    'Slash chord voicings — catalog support pending',
-    [],
-  ),
-  depthStage(
-    'add', 'Add9 / Add11',
-    'Add9 in all 12 keys (add11 catalog support pending)',
-    ['add9'],
-  ),
-  depthStage(
-    'augmaj7', 'Augmaj7',
-    'Augmented-major 7 — catalog support pending',
-    [],
-  ),
 ];
 
 // =====================================================================
@@ -494,8 +437,11 @@ export const SUB_AREA_PROGRESSIONS: Readonly<
   chord_shape_triads_sus2:   [triadStage('sus2', 'Sus2')],
   chord_shape_triads_sus4:   [triadStage('sus4', 'Sus4')],
   chord_shape_sevenths:      CHORD_SHAPES_STAGES.slice(6, 12),
-  chord_shape_extensions:    CHORD_SHAPES_STAGES.slice(12),
-  chord_shape_special:       depthStageQualities(['maj6', 'min6', 'maj6_9']),
+  // chord_shape_extensions / chord_shape_special are deliberately
+  // absent — their qualities left the drill catalog on 20 Aug 2026.
+  // An unkeyed sub-area falls back to the module-level progression,
+  // which is the right degradation for a goal scoped to something
+  // that no longer exists.
   // S&P Scales / VL
   scale_drills:              SCALES_STAGES,
   voice_leading:             VOICE_LEADING_STAGES,
@@ -514,15 +460,6 @@ export const SUB_AREA_PROGRESSIONS: Readonly<
     PRODUCTION_PATHS.map(p => [p.id, [PRODUCTION_STAGES.find(s => s.id === `prod-${p.id}`)!]]),
   ),
 };
-
-/** Tiny one-shot helper used by the special-cases above. */
-function depthStageQualities(qualityIds: ReadonlyArray<string>): ProgressionStage[] {
-  return [{
-    id: 'special-sixths',
-    name: 'Special / sixth chords',
-    itemRefs: qualityIds.flatMap(chordShapesForQuality),
-  }];
-}
 
 /**
  * Module → ordered progression. Covers every coverage-bearing module

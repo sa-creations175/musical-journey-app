@@ -73,24 +73,22 @@ describe('Chord-Shapes progression — Layer 2 Sevenths', () => {
   });
 });
 
-describe('Chord-Shapes progression — Layer 3 Depth stages', () => {
-  // Layer 3 has catalog-grounded + TBD entries. Tests pin which are
-  // which (regression guard against accidentally dropping items as
-  // the catalog grows).
-  it('major-extensions stage is non-empty (maj9 + maj11 + maj13 + maj7♯11)', () => {
+describe('Chord-Shapes progression — Layer 3 Depth stages are gone', () => {
+  // The whole of Layer 3 was extension / special qualities plus TBD
+  // placeholders (slash, altered, augmaj7). The 20 Aug 2026 drill-
+  // catalog cut emptied the first group, and the placeholders were
+  // always empty. Both are deleted rather than kept as empty stages:
+  // a stage the progression walk always skips is dead weight, and
+  // keeping them "for later" is the fill-the-grid habit the cut ends.
+  it('carries no depth- stages at all', () => {
     const sp = MODULE_PROGRESSIONS['shapes-and-patterns'];
-    const stage = sp.stages.find(s => s.id === 'depth-major-extensions')!;
-    // 4 qualities × 12 keys = 48.
-    expect(stage.itemRefs).toHaveLength(48);
+    expect(sp.stages.filter(s => s.id.startsWith('depth-'))).toEqual([]);
   });
 
-  it('TBD stages have empty itemRefs (slash, altered, augmaj7)', () => {
+  it('every remaining stage has real items', () => {
     const sp = MODULE_PROGRESSIONS['shapes-and-patterns'];
-    const tbd = ['depth-altered', 'depth-slash', 'depth-augmaj7'];
-    for (const id of tbd) {
-      const stage = sp.stages.find(s => s.id === id)!;
-      expect(stage).toBeDefined();
-      expect(stage.itemRefs).toEqual([]);
+    for (const stage of sp.stages) {
+      expect(stage.itemRefs.length).toBeGreaterThan(0);
     }
   });
 });

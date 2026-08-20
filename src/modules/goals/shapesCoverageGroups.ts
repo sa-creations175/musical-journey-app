@@ -44,10 +44,19 @@ const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
  * blending the four chord-shape kinds into a single 348-item
  * bucket. This file defines the finer-grained id space for that.
  *
- *   chord_shape_triads     — 6 triad qualities × 12 keys = 72
- *   chord_shape_sevenths   — 6 seventh qualities × 12 keys = 72
- *   chord_shape_extensions — 14 extension qualities × 12 keys = 168
- *   chord_shape_special    — 3 special/sixth qualities × 12 keys = 36
+ *   chord_shape_triads     — 6 triad qualities × 12 keys × 4 = 288
+ *   chord_shape_sevenths   — 6 seventh qualities × 12 keys × 5 = 360
+ *   chord_shape_extensions — 0 since the 20 Aug 2026 catalog cut
+ *   chord_shape_special    — 0 since the 20 Aug 2026 catalog cut
+ *
+ * The extension and special ids DELIBERATELY REMAIN defined at zero
+ * rather than being deleted. A goal saved before the cut still carries
+ * one of them as its sub-area, and the scope-shrank notice needs the id
+ * to resolve to a human label so it can say which scope went away.
+ * Deleting them would turn an explainable "this goal's scope no longer
+ * exists" into an unresolvable id. What gets removed is their place in
+ * the pickers — see GoalCreationFlow / GoalSuggestionFlow, which both
+ * filter on `denominator > 0`.
  *   scale_drills           — 4 scales × 12 keys = 48
  *   voice_leading          — 31 sub-cells × 12 keys = 372
  *                            (7 patterns; see voiceLeadingTotalCellCount)
