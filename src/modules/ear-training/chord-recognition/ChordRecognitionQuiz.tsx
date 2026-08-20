@@ -33,7 +33,6 @@ import {
   INVERSION_LABEL,
   attemptItemId,
   inversionsForIntervalCount,
-  normalizeAttemptItemId,
   rotateForInversion,
   rotateFormula,
   type Inversion,
@@ -48,6 +47,7 @@ import {
   getEligibleItems,
   MIX_WEIGHT,
 } from './tierUnlock';
+import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 import { useToast } from '../../../components/Toaster';
 
 const MODULE_ID = 'chord-recognition';
@@ -205,7 +205,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     for (const a of attempts) {
       if (a.moduleId !== MODULE_ID) continue;
       if (a.excludeFromFluency) continue;
-      const key = normalizeAttemptItemId(a.itemId);
+      const key = canonicalItemId(MODULE_ID, a.itemId);
       const arr = m.get(key);
       if (arr) arr.push(a); else m.set(key, [a]);
     }
@@ -218,7 +218,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
       .filter(a => a.moduleId === MODULE_ID)
       .sort((a, b) => b.timestamp - a.timestamp);
     return new Set(
-      sorted.slice(0, RECENT_HISTORY_SIZE).map(a => normalizeAttemptItemId(a.itemId)),
+      sorted.slice(0, RECENT_HISTORY_SIZE).map(a => canonicalItemId(MODULE_ID, a.itemId)),
     );
   }, [attempts]);
 
@@ -240,10 +240,13 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
     for (const a of attempts) {
       if (a.moduleId !== MODULE_ID) continue;
       if (a.excludeFromFluency) continue;
-      const cur = stats.get(a.itemId) ?? { correct: 0, total: 0 };
+      // Canonicalised so a legacy bare `maj` tallies with `maj:0`.
+      // computeUnlockedTier looks items up in attempt form, so an
+      // unfolded legacy row would silently never satisfy its gate.
+      const cur = stats.get(canonicalItemId(MODULE_ID, a.itemId)) ?? { correct: 0, total: 0 };
       cur.total += 1;
       if (a.correct) cur.correct += 1;
-      stats.set(a.itemId, cur);
+      stats.set(canonicalItemId(MODULE_ID, a.itemId), cur);
     }
     return computeUnlockedTier(stats);
   }, [attempts]);

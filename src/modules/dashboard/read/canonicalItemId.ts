@@ -19,7 +19,10 @@
  * A module with no legacy shapes returns its id unchanged. That is the
  * common case and deliberately requires no registration.
  */
-import { normalizeAttemptItemId } from '../../ear-training/chord-recognition/inversionUtils';
+import {
+  normalizeAttemptItemId,
+  parseAttemptItemId,
+} from '../../ear-training/chord-recognition/inversionUtils';
 
 /**
  * Modules whose stored item ids need folding before they can be
@@ -52,4 +55,32 @@ export function canonicalItemId(moduleId: string, itemId: string): string {
  *  the numbers silently differ from the raw log. */
 export function moduleNormalisesItemIds(moduleId: string): boolean {
   return moduleId in NORMALISERS;
+}
+
+/**
+ * Some modules store attempts at a FINER granularity than the row a
+ * catalog surface shows. This is the key such a row buckets under.
+ *
+ * `chord-recognition` is the live case. Attempts log against
+ * `chordId:inversion` (`maj:0`, `min:2`), but both the Skills
+ * catalogue and the dashboard tree show one row per chord — the tree
+ * is `chord recognition → chord type → chord`, with inversion below
+ * the leaf rather than beside it.
+ *
+ * THIS FIXES A REAL MISS, not a rounding difference. `skills/registry.ts`
+ * bucketed on the raw `itemId` and then looked up the bare chord id
+ * from `db.chordQualities`, so `mod.get('maj')` never matched a stored
+ * `maj:0`. Every chord-recognition attempt logged since the inversion
+ * build was invisible to the Skills catalogue, which showed the whole
+ * module as untouched.
+ *
+ * Distinct from `canonicalItemId`, which answers "which item is this?"
+ * — this answers "which catalog row does this item roll up into?".
+ * For every module without a rollup the two agree.
+ */
+export function catalogRollupKey(moduleId: string, itemId: string): string {
+  if (moduleId === 'chord-recognition') {
+    return parseAttemptItemId(itemId).chordId;
+  }
+  return canonicalItemId(moduleId, itemId);
 }

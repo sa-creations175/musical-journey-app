@@ -6,6 +6,7 @@ import {
   itemsForTier,
   toAttemptForm,
 } from './chordRecognitionTiers';
+import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 
 /** Module ref string for chord-recognition spacingState rows. */
 const MODULE_REF = 'chord-recognition';
@@ -39,10 +40,14 @@ async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
   const stats = new Map<string, ItemStats>();
   for (const a of attempts) {
     if (a.excludeFromFluency) continue;
-    const cur = stats.get(a.itemId) ?? { correct: 0, total: 0 };
+    // Canonicalised: computeUnlockedTier looks items up via
+    // toAttemptForm (`maj` → `maj:0`), so bucketing on the raw stored
+    // id left every legacy bare-id attempt unable to satisfy a gate.
+    const key = canonicalItemId(MODULE_REF, a.itemId);
+    const cur = stats.get(key) ?? { correct: 0, total: 0 };
     cur.total += 1;
     if (a.correct) cur.correct += 1;
-    stats.set(a.itemId, cur);
+    stats.set(key, cur);
   }
   return stats;
 }

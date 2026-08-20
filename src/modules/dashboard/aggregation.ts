@@ -1,5 +1,11 @@
 import { db, type AttemptRecord, type FlashcardState, type SongPracticeLog } from '../../lib/db';
-import { computeTier, type Tier } from '../../lib/tier';
+import { computeTier } from '../../lib/tier';
+import {
+  bumpTier,
+  emptyTierCounts,
+  tierCountsFromAttempts,
+  type TierCounts,
+} from './read/tierAdapter';
 import { localDayKey } from '../../lib/dailyGoal';
 import {
   defaultDailyGoal,
@@ -10,71 +16,26 @@ import { PRODUCTION_LESSONS } from '../production/content/lessons';
 import { GLOSSARY } from '../production/content/glossary';
 import { isCovered, isStarted } from '../production/lessonRating';
 
-// Rolling-window size for tier calculations — matches what quiz modules use.
+// Rolling-window size for the flashcard-state proxy below. The
+// attempt-driven path gets its window from the read layer's
+// ACCURACY_WINDOW instead.
 const TIER_WINDOW = 20;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // --- Module fluency snapshots --------------------------------------
 
-export interface TierCounts {
-  mastered: number;
-  fluent: number;
-  developing: number;
-  needsWork: number;
-  stale: number;
-  untouched: number;
-  total: number;
-}
-
-function emptyCounts(): TierCounts {
-  return { mastered: 0, fluent: 0, developing: 0, needsWork: 0, stale: 0, untouched: 0, total: 0 };
-}
-
 /**
- * Group attempts by itemId and compute the tier for each using the
- * rolling-window rules defined in src/lib/tier.ts. Matches what the
- * module-level fluency trackers do internally, so dashboard numbers
- * agree with the per-module views. Attempts flagged
- * `excludeFromFluency` are ignored — they shouldn't skew tier
- * classifications.
+ * Tier vocabulary + per-item tallying now live in the read layer's
+ * `tierAdapter`, shared with `skills/registry.ts` and
+ * `ChordRecognitionQuiz.tsx`. This file used to carry its own copy,
+ * which is how the Dashboard could disagree with the Skills catalogue
+ * about the same item (docs/RULE_LEGIBILITY.md §1.12).
+ *
+ * Re-exported so `Dashboard.tsx` and anything else importing
+ * `TierCounts` from here keeps working unchanged.
  */
-function tierCountsFromAttempts(attempts: AttemptRecord[], now: number = Date.now()): TierCounts {
-  const byItem = new Map<string, AttemptRecord[]>();
-  for (const a of attempts) {
-    if (a.excludeFromFluency) continue;
-    const bucket = byItem.get(a.itemId) ?? [];
-    bucket.push(a);
-    byItem.set(a.itemId, bucket);
-  }
-  const counts = emptyCounts();
-  for (const bucket of byItem.values()) {
-    bucket.sort((a, b) => b.timestamp - a.timestamp);
-    const window = bucket.slice(0, TIER_WINDOW);
-    const correct = window.filter(a => a.correct).length;
-    const lastTs = bucket[0].timestamp;
-    const daysSince = Math.floor((now - lastTs) / DAY_MS);
-    const tier = computeTier({
-      windowCorrect: correct,
-      windowTotal: window.length,
-      daysSinceLastAttempt: daysSince,
-    });
-    bumpTier(counts, tier);
-  }
-  return counts;
-}
-
-function bumpTier(counts: TierCounts, tier: Tier) {
-  counts.total += 1;
-  switch (tier) {
-    case 'mastered':  counts.mastered += 1;  break;
-    case 'fluent':    counts.fluent += 1;    break;
-    case 'developing':counts.developing += 1;break;
-    case 'needsWork': counts.needsWork += 1; break;
-    case 'stale':     counts.stale += 1;     break;
-    case 'untouched': counts.untouched += 1; break;
-  }
-}
+export type { TierCounts } from './read/tierAdapter';
 
 export interface ModuleSnapshot {
   moduleId: string;
@@ -124,7 +85,7 @@ export async function snapshotEarTrainingModules(): Promise<ModuleSnapshot[]> {
   const snapshots: ModuleSnapshot[] = [];
   for (const mod of EAR_TRAINING_MODULES) {
     const attempts = byModule.get(mod.moduleId) ?? [];
-    const counts = tierCountsFromAttempts(attempts);
+    const counts = tierCountsFromAttempts(attempts, Date.now());
     const attemptsToday = attempts.filter(a => a.timestamp >= startOfToday).length;
     const goal = await readDailyGoal(mod.moduleId);
     const latest = attempts.reduce<number | null>(
@@ -200,7 +161,7 @@ export async function snapshotHarmonicFluency(): Promise<HarmonicFluencySnapshot
   for (const s of states) byId.set(s.cardId, s);
 
   const now = Date.now();
-  const counts = emptyCounts();
+  const counts = emptyTierCounts();
   for (const card of FLASHCARDS) {
     const state = byId.get(card.id);
     if (!state) {

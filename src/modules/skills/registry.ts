@@ -12,6 +12,10 @@ import {
   type Song,
 } from '../../lib/db';
 import { computeTier, type Tier } from '../../lib/tier';
+import {
+  bucketAttemptsForCatalog,
+  tierAndLastFromAttempts,
+} from '../dashboard/read/tierAdapter';
 import { CATEGORY_LABELS, FLASHCARDS } from '../harmonic-fluency/catalog';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { MODES } from '../ear-training/scales-modes/catalog';
@@ -147,18 +151,16 @@ function daysSinceOf(ts: number | null, now: number): number | null {
 
 // --- Tier computation (reused across ear-training modules) ----------
 
+/**
+ * Delegates to the read layer's shared adapter. This file used to
+ * carry its own copy, one of the three that could disagree about the
+ * same item (docs/RULE_LEGIBILITY.md §1.12). Its recency semantics —
+ * timestamp from the unfiltered list, so a focus-protected rep still
+ * counts as having touched the item — were the correct ones and are
+ * what the shared implementation encodes.
+ */
 function tierForAttempts(attempts: AttemptRecord[], now: number): { tier: Tier; last: number | null } {
-  if (attempts.length === 0) return { tier: 'untouched', last: null };
-  const sorted = [...attempts].sort((a, b) => b.timestamp - a.timestamp);
-  const window = sorted.filter(a => !a.excludeFromFluency).slice(0, TIER_WINDOW);
-  const correct = window.filter(a => a.correct).length;
-  const daysSince = Math.floor((now - sorted[0].timestamp) / DAY_MS);
-  const tier = computeTier({
-    windowCorrect: correct,
-    windowTotal: window.length,
-    daysSinceLastAttempt: daysSince,
-  });
-  return { tier, last: sorted[0].timestamp };
+  return tierAndLastFromAttempts(attempts, now);
 }
 
 function tierForFlashcardState(state: FlashcardState | undefined, now: number): Tier {
@@ -259,14 +261,12 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
   }
 
   // --- Ear Training — per-item tiers from attempts -----------------
-  const byModule = new Map<string, Map<string, AttemptRecord[]>>();
-  for (const a of attempts) {
-    const mod = byModule.get(a.moduleId) ?? new Map<string, AttemptRecord[]>();
-    const arr = mod.get(a.itemId) ?? [];
-    arr.push(a);
-    mod.set(a.itemId, arr);
-    byModule.set(a.moduleId, mod);
-  }
+  // Buckets on the CATALOG ROLLUP key, not the raw itemId. Chord
+  // recognition logs `chordId:inversion` while this file looks each
+  // chord up by the bare id from db.chordQualities, so a raw-itemId
+  // bucket made every post-inversion-build attempt invisible here and
+  // the whole module read as untouched.
+  const byModule = bucketAttemptsForCatalog(attempts);
 
   // Intervals — catalog is fixed. Produce separate asc / desc skill
   // rows because ear-training treats them as distinct (attempts
