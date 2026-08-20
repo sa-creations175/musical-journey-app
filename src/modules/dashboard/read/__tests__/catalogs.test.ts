@@ -15,6 +15,7 @@ import {
   catalogRefSet,
   catalogRowCount,
   chordProgressionsCatalog,
+  chordRecognitionCatalog,
   harmonicFluencyCatalog,
   intervalsCatalog,
   mentalVizCatalog,
@@ -37,6 +38,13 @@ describe('catalog sizes — the denominators', () => {
     expect(catalogItemCount(scalesModesCatalog)).toBe(18);
     expect(scalesModesCatalog.items.filter(i => i.label === 'hear simple scale')).toHaveLength(9);
     expect(scalesModesCatalog.items.filter(i => i.label === 'hear mode in context')).toHaveLength(9);
+  });
+
+  it('chord recognition: 114 — chord x inversion, per chord size', () => {
+    // 6 triads x 3 inversions + 24 four-note chords x 4. Never pinned
+    // before, and a report of mine said 104 from an estimate that was
+    // never checked.
+    expect(catalogItemCount(chordRecognitionCatalog)).toBe(114);
   });
 
   it('harmonic fluency: 375 cards', () => {
@@ -96,7 +104,9 @@ describe('reading — 78 signature items over 52 rows', () => {
   });
 
   it('keeps 78 items while showing 52 rows', () => {
-    const sigRows = readingCatalog.items.filter(i => i.path[1] === 'key signature recognition');
+    const sigRows = readingCatalog.items.filter(
+      i => i.path[1] === 'key signature recognition',
+    );
     expect(sigRows).toHaveLength(52);
     expect(sigRows.reduce((n, i) => n + i.itemRefs.length, 0)).toBe(78);
   });
@@ -123,7 +133,7 @@ describe('chord progressions — three sub-drills, one moduleId', () => {
   it('motion-first is a sibling sub-skill on the same 132 denominator', () => {
     expect(refs.filter(r => r.startsWith('motion-first:'))).toHaveLength(132);
     const firstRows = chordProgressionsCatalog.items.filter(
-      i => i.path[2] === 'first chord',
+      i => i.path[3] === 'first chord',
     );
     expect(firstRows).toHaveLength(132);
   });

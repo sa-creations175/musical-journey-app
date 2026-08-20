@@ -164,7 +164,7 @@ describe('statsForAttemptCatalog — the two rules', () => {
     // Four slot rows for one progression must land as ONE engagement
     // against that catalog row, not four.
     const progression = chordProgressionsCatalog.items.find(
-      i => i.path[1] === 'full progression' && i.label === 'chord accuracy',
+      i => i.path[2] === 'full progression' && i.label === 'chord accuracy',
     )!;
     const stats = statsForAttemptCatalog(
       chordProgressionsCatalog,

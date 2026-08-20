@@ -75,6 +75,17 @@ export interface ModuleCatalog {
   /** Matches `AttemptRecord.moduleId` / `SpacingState.moduleRef` for
    *  modules that write one. Sources with neither carry their own key. */
   sourceId: string;
+  /**
+   * The dashboard MODULE this catalog belongs to - a `MODULE_ORDER` id.
+   *
+   * Several catalogs can share one. Ear training is four (intervals,
+   * chord recognition, chord progressions, scales & modes) and
+   * production is two (lessons, vocabulary); each is one row on screen
+   * with the catalogs as its branches. Without this they rendered as
+   * separate top-level modules, which is how eleven rows appeared where
+   * there should be seven.
+   */
+  moduleId: string;
   label: string;
   accuracyKind: AccuracyKind;
   coverageRule?: CoverageRule;
@@ -100,6 +111,9 @@ export function catalogRefSet(catalog: ModuleCatalog): Set<string> {
   return out;
 }
 
+/** Every ear-training catalog hangs under one module row. */
+const EAR_TRAINING = 'ear training';
+
 function one(id: string, label: string, path: readonly string[]): CatalogItem {
   return { id, label, path, itemRefs: [id] };
 }
@@ -113,13 +127,14 @@ function one(id: string, label: string, path: readonly string[]): CatalogItem {
  *  direction column — see `itemRefForAttempt`. */
 export const intervalsCatalog: ModuleCatalog = {
   sourceId: 'intervals',
+  moduleId: 'ear-training',
   label: 'intervals',
   accuracyKind: 'measured',
   items: INTERVAL_SEEDS.flatMap(seed => (['asc', 'desc'] as const).map(dir =>
     one(
       `${seed.id}:${dir}`,
       `${seed.name} (${dir === 'asc' ? 'ascending' : 'descending'})`,
-      ['intervals', dir === 'asc' ? 'ascending' : 'descending'],
+      [EAR_TRAINING, 'intervals', dir === 'asc' ? 'ascending' : 'descending'],
     ),
   )),
 };
@@ -134,6 +149,7 @@ export const intervalsCatalog: ModuleCatalog = {
  */
 export const chordRecognitionCatalog: ModuleCatalog = {
   sourceId: 'chord-recognition',
+  moduleId: 'ear-training',
   label: 'chord recognition',
   accuracyKind: 'measured',
   items: CHORD_SEEDS.flatMap(chord => {
@@ -141,7 +157,7 @@ export const chordRecognitionCatalog: ModuleCatalog = {
     return inversions.map(inv => one(
       `${chord.id}:${inv}`,
       `${chord.name}${inv === 0 ? '' : ` (inv ${inv})`}`,
-      ['chord recognition', chord.tier, chord.name],
+      [EAR_TRAINING, 'chord recognition', chord.tier, chord.name],
     ));
   }),
 };
@@ -151,11 +167,12 @@ export const chordRecognitionCatalog: ModuleCatalog = {
  *  mode from a vamp with a progression and a melody over it. */
 export const scalesModesCatalog: ModuleCatalog = {
   sourceId: 'scales-modes',
+  moduleId: 'ear-training',
   label: 'scales & modes',
   accuracyKind: 'measured',
   items: MODES.flatMap(mode => [
-    one(`${mode.id}-tab1`, 'hear simple scale', ['scales & modes', mode.name]),
-    one(`${mode.id}-tab2`, 'hear mode in context', ['scales & modes', mode.name]),
+    one(`${mode.id}-tab1`, 'hear simple scale', [EAR_TRAINING, 'scales & modes', mode.name]),
+    one(`${mode.id}-tab2`, 'hear mode in context', [EAR_TRAINING, 'scales & modes', mode.name]),
   ]),
 };
 
@@ -182,24 +199,25 @@ export const scalesModesCatalog: ModuleCatalog = {
  */
 export const chordProgressionsCatalog: ModuleCatalog = {
   sourceId: 'chord-progressions',
+  moduleId: 'ear-training',
   label: 'chord progressions',
   accuracyKind: 'measured',
   items: [
     ...PROGRESSION_KEYS.map(key => one(
-      `key-detection:${key}`, key, ['chord progressions', 'key detection'],
+      `key-detection:${key}`, key, [EAR_TRAINING, 'chord progressions', 'key detection'],
     )),
     ...ALL_MOTIONS.map(m => one(
       `motion:${m.startLabel}-${m.destLabel}-${m.direction}`,
       `${m.startLabel} → ${m.destLabel} ${m.direction}`,
-      ['chord progressions', 'chord motion', 'destination'],
+      [EAR_TRAINING, 'chord progressions', 'chord motion', 'destination'],
     )),
     ...ALL_MOTIONS.map(m => one(
       `motion-first:${m.startLabel}-${m.destLabel}-${m.direction}`,
       `${m.startLabel} → ${m.destLabel} ${m.direction}`,
-      ['chord progressions', 'chord motion', 'first chord'],
+      [EAR_TRAINING, 'chord progressions', 'chord motion', 'first chord'],
     )),
     ...PROGRESSIONS.flatMap(p => {
-      const path = ['chord progressions', 'full progression', p.name];
+      const path = [EAR_TRAINING, 'chord progressions', 'full progression', p.name];
       const rows = [
         one(p.id, 'chord accuracy', path),
         one(`${p.id}-pattern`, 'pattern recognition', path),
@@ -228,6 +246,7 @@ const HF_CATEGORY_RANK = new Map(CATEGORY_ORDER.map((c, i) => [c, i]));
 
 export const harmonicFluencyCatalog: ModuleCatalog = {
   sourceId: 'harmonic-fluency',
+  moduleId: 'harmonic-fluency',
   label: 'harmonic fluency',
   accuracyKind: 'measured',
   items: [...FLASHCARDS]
@@ -282,6 +301,7 @@ function signatureRows(): CatalogItem[] {
 
 export const readingCatalog: ModuleCatalog = {
   sourceId: 'reading',
+  moduleId: 'reading',
   label: 'reading',
   accuracyKind: 'measured',
   items: [
@@ -315,6 +335,7 @@ const PATH_LABEL = new Map(PRODUCTION_PATHS.map(p => [p.id, p.title]));
  *  (75), not an attempt count: a lesson is not a rep you repeat. */
 export const productionLessonsCatalog: ModuleCatalog = {
   sourceId: 'production-lessons',
+  moduleId: 'production',
   label: 'production lessons',
   accuracyKind: 'self-rated',
   coverageRule: LESSON_COVERAGE_RULE,
@@ -329,6 +350,7 @@ export const productionLessonsCatalog: ModuleCatalog = {
  *  type stays VocabClusterId and only the vocabulary changes. */
 export const productionVocabularyCatalog: ModuleCatalog = {
   sourceId: 'production',
+  moduleId: 'production',
   label: 'production vocabulary',
   accuracyKind: 'measured',
   items: PRODUCTION_VOCAB_FLASHCARDS.map(card => one(
@@ -369,6 +391,7 @@ function shapeLabel(itemRef: string): { label: string; path: string[] } {
  */
 export const shapesCatalog: ModuleCatalog = {
   sourceId: 'shapes-and-patterns',
+  moduleId: 'shapes-and-patterns',
   label: 'shapes & patterns',
   accuracyKind: 'self-rated',
   items: enumerateScopeForShapes().map((ref: string) => {
@@ -394,6 +417,7 @@ export const shapesCatalog: ModuleCatalog = {
  */
 export const mentalVizCatalog: ModuleCatalog = {
   sourceId: 'mental-viz',
+  moduleId: 'mental-viz',
   label: 'mental visualisation',
   accuracyKind: 'self-rated',
   items: MENTAL_VIZ_ITEMS.map(item => one(
@@ -425,3 +449,64 @@ export function catalogBySourceId(sourceId: string): ModuleCatalog | undefined {
 /** Unused today; exported so a caller can enumerate scale cells without
  *  re-deriving them. */
 export const SCALE_CELL_REFS: ReadonlyArray<string> = SCALE_CELLS.map(c => c.itemRef);
+
+// =====================================================================
+// Modules
+// =====================================================================
+
+/**
+ * The dashboard's top-level rows, in NAV-BAR ORDER.
+ *
+ * The order is not the dashboard's to choose. `MODULE_ORDER` puts the
+ * three away-from-keyboard modules first and the three that need a
+ * keyboard or a computer after, and that grouping is something a player
+ * gets used to. A screen that invented its own order would make the
+ * same six modules read as a different set.
+ *
+ * Mental visualisation sits with the away-from-keyboard group rather
+ * than at the end. It is its own row - own `mental-viz` moduleRef, and
+ * deliberately outside every S&P coverage number - but it is a row
+ * beside the six, not an eleventh thing in a mixed list.
+ */
+export interface DashboardModule {
+  moduleId: string;
+  label: string;
+  catalogs: ReadonlyArray<ModuleCatalog>;
+}
+
+const MODULE_LABELS: Readonly<Record<string, string>> = {
+  'harmonic-fluency': 'harmonic fluency',
+  'ear-training': EAR_TRAINING,
+  'reading': 'reading',
+  'mental-viz': 'mental visualisation',
+  'shapes-and-patterns': 'shapes & patterns',
+  'repertoire': 'song repertoire',
+  'production': 'production',
+};
+
+/** Away-from-keyboard first, keyboard second - the nav bar's grouping,
+ *  with mental visualisation at the end of the first group. */
+export const DASHBOARD_MODULE_ORDER: ReadonlyArray<string> = [
+  'harmonic-fluency',
+  'ear-training',
+  'reading',
+  'mental-viz',
+  'shapes-and-patterns',
+  'repertoire',
+  'production',
+];
+
+export function moduleLabelFor(moduleId: string): string {
+  return MODULE_LABELS[moduleId] ?? moduleId;
+}
+
+/** Static modules, ordered. Repertoire is absent - its catalog is Dexie
+ *  rows and is assembled with the loaded data. */
+export const STATIC_MODULES: ReadonlyArray<DashboardModule> =
+  DASHBOARD_MODULE_ORDER
+    .map(moduleId => ({
+      moduleId,
+      label: moduleLabelFor(moduleId),
+      catalogs: STATIC_CATALOGS.filter(c => c.moduleId === moduleId),
+    }))
+    .filter(m => m.catalogs.length > 0);

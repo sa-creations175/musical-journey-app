@@ -77,7 +77,18 @@ export interface TreeNode {
    */
   itemRefs: string[];
   accuracyKind: AccuracyKind;
-  /** Mean of descendant leaf scores, or null when none is graded. */
+  /**
+   * True when descendants disagree about what the score MEANS.
+   *
+   * Production is the live case: lessons are self-rated on a five-step
+   * ladder and vocabulary is measured right/wrong. Both project onto
+   * 0-100, so averaging them produces a number - but one that means
+   * neither thing. A mixed node scores `null` and reads as a dash,
+   * which is the honest answer to a question with two units.
+   */
+  mixedKinds: boolean;
+  /** Mean of descendant leaf scores, or null when none is graded, or
+   *  when descendants disagree about what a score means. */
   score: number | null;
   /** Leaves under this node whose score is non-null. Exposed so a row
    *  can say what the average is actually over. */
@@ -98,58 +109,21 @@ export interface TreeNode {
   recency: RecencyPair;
 }
 
-/** Build one module's tree from its catalog and the stats for it.
+/**
+ * One catalog's tree.
  *
- *  `stats` must be in catalog order and the same length - that is what
- *  every adapter returns. */
+ * A thin wrapper over `buildMergedTree`, so a single catalog and a
+ * merged module cannot disagree about shape. The root takes its label
+ * from `path[0]`, which is the MODULE's name - ear training's four
+ * catalogs all carry "ear training" there, which is what lets them
+ * merge into one row.
+ */
 export function buildModuleTree(
   catalog: ModuleCatalog,
   stats: ReadonlyArray<ItemStats>,
 ): TreeNode {
-  if (stats.length !== catalog.items.length) {
-    throw new Error(
-      `tree: ${catalog.sourceId} has ${catalog.items.length} rows but ${stats.length} stats`,
-    );
-  }
-  const root: TreeNode = emptyNode(catalog.sourceId, catalog.label, 0, catalog.accuracyKind);
-  const byId = new Map<string, TreeNode>([[root.id, root]]);
-
-  catalog.items.forEach((item, i) => {
-    // path[0] is the module label, which the root already is.
-    let parent = root;
-    let prefix = root.id;
-    for (const segment of item.path.slice(1)) {
-      prefix = `${prefix}/${segment}`;
-      let node = byId.get(prefix);
-      if (!node) {
-        node = emptyNode(prefix, segment, parent.depth + 1, catalog.accuracyKind);
-        byId.set(prefix, node);
-        parent.children.push(node);
-      }
-      parent = node;
-    }
-    const leaf = emptyNode(
-      `${prefix}/${item.id}`, item.label, parent.depth + 1, catalog.accuracyKind,
-    );
-    leaf.stats = stats[i];
-    leaf.itemRefs = [...item.itemRefs];
-    leaf.engagementCount = stats[i].engagementCount;
-    // A leaf's totals come from the catalog row, so a merged row
-    // contributes both of its stored refs to the denominator.
-    leaf.totalItems = item.itemRefs.length;
-    leaf.coveredItems = stats[i].covered ? item.itemRefs.length : 0;
-    leaf.score = stats[i].score;
-    leaf.gradedLeafCount = stats[i].score === null ? 0 : 1;
-    leaf.recency = {
-      mostRecentAt: stats[i].lastAt,
-      stalestAt: stats[i].lastAt,
-      hasUntouched: stats[i].lastAt === null,
-    };
-    parent.children.push(leaf);
-  });
-
-  rollUp(root);
-  return root;
+  const rootLabel = catalog.items[0]?.path[0] ?? catalog.label;
+  return buildMergedTree(catalog.moduleId, rootLabel, [{ catalog, stats }]);
 }
 
 function emptyNode(
@@ -161,6 +135,7 @@ function emptyNode(
     depth,
     children: [],
     accuracyKind,
+    mixedKinds: false,
     score: null,
     gradedLeafCount: 0,
     coveredItems: 0,
@@ -184,6 +159,8 @@ function rollUp(node: TreeNode): void {
   let mostRecent: number | null = null;
   let stalest: number | null = null;
   let hasUntouched = false;
+  let mixed = false;
+  const kinds = new Set<AccuracyKind>();
   const refs: string[] = [];
 
   for (const child of node.children) {
@@ -207,14 +184,20 @@ function rollUp(node: TreeNode): void {
       stalest = child.recency.stalestAt;
     }
     if (child.recency.hasUntouched) hasUntouched = true;
+    if (child.mixedKinds) mixed = true;
+    kinds.add(child.accuracyKind);
   }
+  if (kinds.size > 1) mixed = true;
 
   node.coveredItems = covered;
   node.totalItems = total;
   node.engagementCount = engagements;
   node.itemRefs = refs;
   node.gradedLeafCount = graded;
-  node.score = graded === 0 ? null : scoreSum / graded;
+  node.mixedKinds = mixed;
+  // A mixed node has no single unit, so it has no score to show.
+  node.score = mixed || graded === 0 ? null : scoreSum / graded;
+  if (!mixed && kinds.size === 1) node.accuracyKind = [...kinds][0];
   node.recency = { mostRecentAt: mostRecent, stalestAt: stalest, hasUntouched };
 }
 
@@ -254,4 +237,67 @@ export function nodesAtDepth(root: TreeNode, depth: number): TreeNode[] {
 /** The leaves under a node, in tree order. */
 export function leavesOf(node: TreeNode): TreeNode[] {
   return flatten(node).filter(n => n.children.length === 0);
+}
+
+/**
+ * One module tree from several catalogs.
+ *
+ * Ear training is four catalogs and production is two; each is one row
+ * on screen with the catalogs as branches. Items are merged and grouped
+ * by their `path`, exactly as a single catalog's are - so the shape
+ * comes from the paths and this function needs no knowledge of which
+ * module it is building.
+ *
+ * Each leaf keeps ITS OWN catalog's `accuracyKind`, which is what lets
+ * production hold a self-rated lessons branch beside a measured
+ * vocabulary one without either pretending to be the other.
+ */
+export function buildMergedTree(
+  moduleId: string,
+  label: string,
+  sources: ReadonlyArray<{ catalog: ModuleCatalog; stats: ReadonlyArray<ItemStats> }>,
+): TreeNode {
+  const root = emptyNode(moduleId, label, 0, sources[0]?.catalog.accuracyKind ?? 'measured');
+  const byId = new Map<string, TreeNode>([[root.id, root]]);
+
+  for (const { catalog, stats } of sources) {
+    if (stats.length !== catalog.items.length) {
+      throw new Error(
+        `tree: ${catalog.sourceId} has ${catalog.items.length} rows but ${stats.length} stats`,
+      );
+    }
+    catalog.items.forEach((item, i) => {
+      let parent = root;
+      let prefix = root.id;
+      for (const segment of item.path.slice(1)) {
+        prefix = `${prefix}/${segment}`;
+        let node = byId.get(prefix);
+        if (!node) {
+          node = emptyNode(prefix, segment, parent.depth + 1, catalog.accuracyKind);
+          byId.set(prefix, node);
+          parent.children.push(node);
+        }
+        parent = node;
+      }
+      const leaf = emptyNode(
+        `${prefix}/${item.id}`, item.label, parent.depth + 1, catalog.accuracyKind,
+      );
+      leaf.stats = stats[i];
+      leaf.itemRefs = [...item.itemRefs];
+      leaf.engagementCount = stats[i].engagementCount;
+      leaf.totalItems = item.itemRefs.length;
+      leaf.coveredItems = stats[i].covered ? item.itemRefs.length : 0;
+      leaf.score = stats[i].score;
+      leaf.gradedLeafCount = stats[i].score === null ? 0 : 1;
+      leaf.recency = {
+        mostRecentAt: stats[i].lastAt,
+        stalestAt: stats[i].lastAt,
+        hasUntouched: stats[i].lastAt === null,
+      };
+      parent.children.push(leaf);
+    });
+  }
+
+  rollUp(root);
+  return root;
 }

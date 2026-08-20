@@ -100,6 +100,7 @@ export function repertoireCatalog(data: RepertoireData): ModuleCatalog {
   }
   return {
     sourceId: 'repertoire',
+    moduleId: 'repertoire',
     label: 'song repertoire',
     // Clean-or-not is an outcome, not a self-report. See the header.
     accuracyKind: 'measured',

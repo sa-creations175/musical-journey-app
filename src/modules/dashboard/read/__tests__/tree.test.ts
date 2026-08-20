@@ -28,7 +28,7 @@ function item(id: string, path: string[], refs = [id]): CatalogItem {
 
 function catalog(items: CatalogItem[], patch: Partial<ModuleCatalog> = {}): ModuleCatalog {
   return {
-    sourceId: 'test', label: 'test', accuracyKind: 'measured', items, ...patch,
+    sourceId: 'test', moduleId: 'test', label: 'test', accuracyKind: 'measured', items, ...patch,
   };
 }
 
@@ -223,10 +223,14 @@ describe('against the real catalogs', () => {
       statsForAttemptCatalog(scalesModesCatalog, []),
     );
     expect(tree.totalItems).toBe(18);
-    // Nine modes, two tabs each.
-    expect(tree.children).toHaveLength(9);
-    expect(tree.children.every(m => m.children.length === 2)).toBe(true);
-    expect(tree.children[0].children.map(t => t.label))
+    // The catalog now hangs under the ear-training module row, so the
+    // submodule sits one level down: ear training > scales & modes >
+    // mode > tab.
+    const submodule = tree.children[0];
+    expect(submodule.label).toBe('scales & modes');
+    expect(submodule.children).toHaveLength(9);
+    expect(submodule.children.every(m => m.children.length === 2)).toBe(true);
+    expect(submodule.children[0].children.map(t => t.label))
       .toEqual(['hear simple scale', 'hear mode in context']);
   });
 
@@ -248,7 +252,7 @@ describe('against the real catalogs', () => {
         attempt({ itemId: 'dorian-tab2', correct: false, timestamp: NOW + 1 }),
       ]),
     );
-    const dorian = tree.children.find(c => c.label === 'Dorian')!;
+    const dorian = flatten(tree).find(c => c.label === 'Dorian')!;
     expect(dorian.score).toBe(50);
     expect(dorian.gradedLeafCount).toBe(1);
     // The module average is that one graded leaf, not 50% of 18 items.

@@ -58,7 +58,7 @@ function nodeFrom(
   accuracyKind: ModuleCatalog['accuracyKind'] = 'measured',
 ): TreeNode {
   return buildModuleTree(
-    { sourceId: 'intervals', label: 'intervals', accuracyKind, items },
+    { sourceId: 'intervals', moduleId: 'ear-training', label: 'intervals', accuracyKind, items },
     stats.map((s, i) => ({ ...emptyItemStats(items[i].id), ...s })),
   );
 }

@@ -42,7 +42,7 @@ function moduleOf(
     });
   }
   const catalog: ModuleCatalog = {
-    sourceId, label: sourceId, accuracyKind: 'measured', items,
+    sourceId, moduleId: sourceId, label: sourceId, accuracyKind: 'measured', items,
   };
   return {
     moduleId: sourceId,

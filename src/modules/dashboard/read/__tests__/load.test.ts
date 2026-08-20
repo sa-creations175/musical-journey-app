@@ -17,8 +17,8 @@ import {
   moduleItemTotals,
   type DashboardSource,
 } from '../load';
-import { STATIC_CATALOGS } from '../catalogs';
 import { leavesOf } from '../tree';
+import { PRODUCTION_VOCAB_FLASHCARDS } from '../../../production/vocabularyFlashcards';
 
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
@@ -35,31 +35,110 @@ function source(patch: Partial<DashboardSource> = {}): DashboardSource {
 }
 
 describe('every catalog has a source wired', () => {
-  it('assembles all eleven modules without throwing', () => {
-    // statsFor throws by design on a catalog with no source. That is
-    // the loud failure that replaces three modules quietly rendering
-    // as untouched.
+  it('assembles seven module rows, in nav-bar order', () => {
+    // Ten catalogs, seven rows: ear training is four of them and
+    // production is two. statsFor still throws on a catalog with no
+    // source, which is the loud failure that replaces three modules
+    // quietly rendering as untouched.
+    //
+    // The ORDER is the nav bar's, not the dashboard's to choose:
+    // away-from-keyboard first, keyboard second.
     const dashboard = assembleDashboard(source(), NOW);
-    expect(dashboard.modules).toHaveLength(STATIC_CATALOGS.length + 1);
-    expect(dashboard.modules.map(m => m.moduleId)).toContain('repertoire');
+    expect(dashboard.modules.map(m => m.moduleId)).toEqual([
+      'harmonic-fluency',
+      'ear-training',
+      'reading',
+      'mental-viz',
+      'shapes-and-patterns',
+      'repertoire',
+      'production',
+    ]);
+  });
+
+  it('gives ear training its four submodules under one row', () => {
+    const et = assembleDashboard(source(), NOW).modules
+      .find(m => m.moduleId === 'ear-training')!;
+    expect(et.root.children.map(c => c.label).sort()).toEqual([
+      'chord progressions', 'chord recognition', 'intervals', 'scales & modes',
+    ]);
+  });
+
+  it('gives production its two, and no redundant level', () => {
+    // The lessons catalog used to render as its own module row with a
+    // single "lessons" child under it.
+    const prod = assembleDashboard(source(), NOW).modules
+      .find(m => m.moduleId === 'production')!;
+    expect(prod.root.children.map(c => c.label).sort())
+      .toEqual(['lessons', 'vocabulary']);
+  });
+
+  it('reads as a dash where a module mixes measured and self-rated', () => {
+    // Production holds a self-rated lessons branch beside a measured
+    // vocabulary one. Averaging them produces a number that means
+    // neither, so the module row shows a dash.
+    //
+    // BOTH BRANCHES NEED DATA. With an empty source neither is graded,
+    // the row is null for lack of scores rather than for mixing them,
+    // and the assertion would pass with the rule removed.
+    const dashboard = assembleDashboard(source({
+      lessons: [{
+        id: 'wf-01', pathId: 'workflow', order: 1, rating: 100,
+        revisitCount: 1, lastOpenedAt: NOW, createdAt: NOW, updatedAt: NOW,
+      } as ProductionLesson],
+      attempts: Array.from({ length: 5 }, (_, i) => ({
+        moduleId: 'production',
+        itemId: PRODUCTION_VOCAB_FLASHCARDS[0].id,
+        correct: true,
+        timestamp: NOW - i * 1000,
+      } as AttemptRecord)),
+    }), NOW);
+    const prod = dashboard.modules.find(m => m.moduleId === 'production')!;
+
+    // Each branch has a real, different score.
+    const branch = (label: string) =>
+      prod.root.children.find(c => c.label === label)!;
+    expect(branch('lessons').score).toBe(100);
+    expect(branch('vocabulary').score).toBe(100);
+    expect(branch('lessons').accuracyKind).toBe('self-rated');
+    expect(branch('vocabulary').accuracyKind).toBe('measured');
+
+    // And the row above them still refuses to average across units.
+    expect(prod.root.mixedKinds).toBe(true);
+    expect(prod.root.score).toBeNull();
+  });
+
+  it('still rolls up a module whose branches agree about units', () => {
+    // Guards the guard: ear training is four measured catalogs, so it
+    // is NOT mixed and does produce a number.
+    const dashboard = assembleDashboard(source({
+      attempts: Array.from({ length: 6 }, (_, i) => ({
+        moduleId: 'scales-modes', itemId: 'ionian-tab1',
+        correct: true, timestamp: NOW - i * 1000,
+      } as AttemptRecord)),
+    }), NOW);
+    const et = dashboard.modules.find(m => m.moduleId === 'ear-training')!;
+    expect(et.root.mixedKinds).toBe(false);
+    expect(et.root.score).toBe(100);
   });
 
   it('divides by the catalog, not by what is in the log', () => {
     // Empty source, full denominators.
     const totals = moduleItemTotals(assembleDashboard(source(), NOW));
     expect(totals).toMatchObject({
-      'intervals': 26,
-      'scales-modes': 18,
       'harmonic-fluency': 375,
       'reading': 188,
-      'production': 199,
-      'production-lessons': 56,
       'shapes-and-patterns': 1116,
       'mental-viz': 504,
-      // 12 key-detection + 132 motion + 132 motion-first + 144
-      // full-progression rows (69 chord + 69 pattern + 6 inversion,
-      // inversion only on the slash progressions).
-      'chord-progressions': 420,
+      // 199 vocabulary cards + 56 lessons.
+      'production': 255,
+      // 26 intervals + 114 chord recognition + 18 scales & modes +
+      // 420 chord progressions = 578.
+      //   chord recognition: 30 chords, 6 triads x 3 inversions (18)
+      //     plus 24 four-note chords x 4 inversions (96).
+      //   chord progressions: 12 key-detection + 132 motion +
+      //     132 motion-first + 144 full-progression rows (69 chord +
+      //     69 pattern + 6 inversion, inversion only on the slash ones).
+      'ear-training': 578,
     });
   });
 
@@ -120,8 +199,8 @@ describe('routing sources to catalogs', () => {
     expect(byId.get('shapes-and-patterns')!.root.engagementCount).toBe(0);
   });
 
-  it('sends lessons to production lessons, not production vocabulary', () => {
-    // Two catalogs, two sourceIds, one module name. Getting this
+  it('sends lessons to the lessons branch, not the vocabulary one', () => {
+    // Two catalogs, two sourceIds, one module row. Getting this
     // backwards would put a lesson rating on a flashcard row.
     const dashboard = assembleDashboard(source({
       lessons: [{
@@ -129,9 +208,11 @@ describe('routing sources to catalogs', () => {
         revisitCount: 1, lastOpenedAt: NOW, createdAt: NOW, updatedAt: NOW,
       } as ProductionLesson],
     }), NOW);
-    const byId = new Map(dashboard.modules.map(m => [m.moduleId, m]));
-    expect(byId.get('production-lessons')!.root.engagementCount).toBe(1);
-    expect(byId.get('production')!.root.engagementCount).toBe(0);
+    const prod = dashboard.modules.find(m => m.moduleId === 'production')!;
+    const branch = (label: string) =>
+      prod.root.children.find(c => c.label === label)!;
+    expect(branch('lessons').engagementCount).toBe(1);
+    expect(branch('vocabulary').engagementCount).toBe(0);
   });
 
   it('builds the repertoire catalog from loaded rows', () => {

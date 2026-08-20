@@ -35,13 +35,22 @@ function roundTrip(s: DashboardViewState): DashboardViewState {
   return decodeViewState(new URLSearchParams(encodeViewState(s).toString()));
 }
 
+/**
+ * The scales & modes SUBMODULE as its own tree.
+ *
+ * The real catalog hangs under the ear-training module row now, so
+ * these fixtures use the submodule directly - the index-path property
+ * is about children within a node, and testing it needs a node whose
+ * children vary.
+ */
 function scalesModes(): ModuleTree {
+  const full = buildModuleTree(
+    scalesModesCatalog, statsForAttemptCatalog(scalesModesCatalog, []),
+  );
   return {
     moduleId: 'scales-modes',
     moduleLabel: 'scales & modes',
-    root: buildModuleTree(
-      scalesModesCatalog, statsForAttemptCatalog(scalesModesCatalog, []),
-    ),
+    root: full.children[0],
   };
 }
 
@@ -66,7 +75,7 @@ describe('expansion indices address built order, never sorted order', () => {
     return {
       moduleId: 'scales-modes',
       moduleLabel: 'scales & modes',
-      root: buildModuleTree(scalesModesCatalog, stats),
+      root: buildModuleTree(scalesModesCatalog, stats).children[0],
     };
   }
 

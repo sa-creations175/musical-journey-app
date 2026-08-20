@@ -36,7 +36,9 @@ describe('intervals — the mechanism already exists', () => {
   });
 
   it('a direction row drills every interval in that direction', () => {
-    const descending = tree.children.find(c => c.label === 'descending')!;
+    // Intervals now hangs under the ear-training module row, so its
+    // direction rows sit one level deeper than they used to.
+    const descending = flatten(tree).find(c => c.label === 'descending')!;
     const target = drillTargetFor(descending, 'intervals');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
     expect(target.focusKeys).toHaveLength(13);
@@ -82,7 +84,7 @@ describe('modules with no filter mechanism', () => {
   it('navigates, and says why, rather than pretending to filter', () => {
     // The failure this prevents: a row that opens the whole module
     // while implying it narrowed the drill.
-    const mode = tree.children[0];
+    const mode = flatten(tree).find(n => n.depth === 2)!;
     const target = drillTargetFor(mode, 'scales-modes');
     expect(target.kind).toBe('navigate');
     if (target.kind !== 'navigate') throw new Error('unreachable');
@@ -91,7 +93,9 @@ describe('modules with no filter mechanism', () => {
   });
 
   it('summarises as unfiltered so a row cannot overclaim', () => {
-    const summary = drillTargetSummary(drillTargetFor(tree.children[0], 'scales-modes'));
+    const summary = drillTargetSummary(
+      drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'scales-modes'),
+    );
     expect(summary.filtered).toBe(false);
     expect(summary.itemCount).toBe(0);
     expect(summary.reason).toBe('no-filter-mechanism');
@@ -107,7 +111,7 @@ describe('modules with no filter mechanism', () => {
 describe('degenerate rows', () => {
   it('an empty node has nothing to drill', () => {
     const empty = buildModuleTree(
-      { sourceId: 'repertoire', label: 'r', accuracyKind: 'measured', items: [] }, [],
+      { sourceId: 'repertoire', moduleId: 'repertoire', label: 'r', accuracyKind: 'measured', items: [] }, [],
     );
     const target = drillTargetFor(empty, 'repertoire');
     if (target.kind !== 'navigate') throw new Error('expected navigate');
@@ -116,7 +120,7 @@ describe('degenerate rows', () => {
 
   it('an unknown module does not produce a broken route', () => {
     const tree = treeFor(scalesModesCatalog);
-    const target = drillTargetFor(tree.children[0], 'not-a-module');
+    const target = drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'not-a-module');
     if (target.kind !== 'navigate') throw new Error('expected navigate');
     expect(target.reason).toBe('nothing-to-drill');
     expect(target.route).toBe('/');

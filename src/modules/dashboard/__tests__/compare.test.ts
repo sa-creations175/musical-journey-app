@@ -26,7 +26,7 @@ function parentOf(scores: Array<number | null>, group = 'group'): TreeNode {
     ...emptyItemStats(`${group}-i${i}`), score,
   }));
   return buildModuleTree(
-    { sourceId: 'm', label: 'm', accuracyKind: 'measured', items }, stats,
+    { sourceId: 'm', moduleId: 'm', label: 'm', accuracyKind: 'measured', items }, stats,
   ).children[0];
 }
 

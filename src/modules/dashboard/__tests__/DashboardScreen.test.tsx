@@ -93,6 +93,20 @@ async function seedVariedScalesModes(): Promise<void> {
       });
     }
   });
+  // A second ear-training submodule, scoring differently, so the four
+  // depth-1 rows genuinely reorder between the two sort directions.
+  // With only one graded submodule both directions put it first and
+  // the reorder test would pass on a fixture that never moves.
+  for (let n = 0; n < 10; n++) {
+    rows.push({
+      id: `att-iv-${n}`,
+      moduleId: 'intervals',
+      itemId: 'M3',
+      direction: 'asc',
+      correct: n < 9,
+      timestamp: NOW - n * 1000,
+    } as AttemptRecord);
+  }
   await db.attempts.bulkPut(rows);
 }
 
@@ -178,7 +192,21 @@ describe('the default view', () => {
     // row reading dashes, not a missing row.
     const el = await renderScreen();
     const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
-    expect(moduleRows.length).toBeGreaterThanOrEqual(10);
+    // Seven: the six nav-bar modules plus mental visualisation.
+    expect(moduleRows).toHaveLength(7);
+  });
+
+  it('renders modules in nav-bar order', async () => {
+    // Away-from-keyboard first, keyboard second. The dashboard does not
+    // invent its own order.
+    const el = await renderScreen();
+    const moduleLabels = rows(el)
+      .filter(r => r.getAttribute('data-depth') === '0')
+      .map(r => r.querySelector('span[title]')?.textContent);
+    expect(moduleLabels).toEqual([
+      'harmonic fluency', 'ear training', 'reading', 'mental visualisation',
+      'shapes & patterns', 'song repertoire', 'production',
+    ]);
   });
 });
 
@@ -218,14 +246,14 @@ describe('expansion', () => {
     await act(async () => root!.unmount());
     container!.remove();
 
-    const el = await renderScreen('/?open=intervals~0');
+    const el = await renderScreen('/?open=ear-training~0');
     expect(rows(el).length).toBeGreaterThan(baseline);
   });
 
   it('ignores a stale URL entry rather than rendering a broken row', async () => {
     // A path that runs off a shorter catalog, and a module that is
     // gone. Both drop; the screen still renders.
-    const el = await renderScreen('/?open=intervals~99,not-a-module~0');
+    const el = await renderScreen('/?open=ear-training~99,not-a-module~0');
     expect(el.querySelector('[data-testid="dashboard-screen"]')).not.toBeNull();
     const depths = new Set(rows(el).map(r => r.getAttribute('data-depth')));
     expect([...depths].sort()).toEqual(['0', '1']);
@@ -252,13 +280,13 @@ describe('sorting from the URL', () => {
     // order would pass unnoticed.
     await seedVariedScalesModes();
 
-    const worst = await renderScreen('/?open=scales-modes~5&sort=aw');
+    const worst = await renderScreen('/?open=ear-training~3,ear-training~3.5&sort=aw');
     const worstOpened = expandedParentLabel(worst);
     expect(worstOpened).not.toBeNull();
     await act(async () => root!.unmount());
     container!.remove();
 
-    const best = await renderScreen('/?open=scales-modes~5&sort=ab');
+    const best = await renderScreen('/?open=ear-training~3,ear-training~3.5&sort=ab');
     expect(expandedParentLabel(best)).toBe(worstOpened);
   });
 
@@ -316,7 +344,7 @@ describe('filtering', () => {
     // average misses a threshold would hide the submodules that match.
     const el = await renderScreen('/?acc=1');
     const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
-    expect(moduleRows.length).toBeGreaterThanOrEqual(10);
+    expect(moduleRows).toHaveLength(7);
     expect(rows(el).filter(r => r.getAttribute('data-depth') === '1')).toHaveLength(0);
   });
 });

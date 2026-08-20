@@ -26,7 +26,8 @@ import {
 } from '../../../lib/db';
 import { statsForAttemptCatalog, statsForCatalog } from './adapters';
 import {
-  STATIC_CATALOGS,
+  DASHBOARD_MODULE_ORDER,
+  STATIC_MODULES,
   mentalVizCatalog,
   productionLessonsCatalog,
   shapesCatalog,
@@ -40,7 +41,7 @@ import {
   shapesEngagements,
 } from './selfRated';
 import { repertoireCatalog, repertoireEngagements, type RepertoireData } from './repertoire';
-import { buildModuleTree } from './tree';
+import { buildMergedTree } from './tree';
 
 /** Everything the dashboard reads, loaded once. */
 export interface DashboardSource {
@@ -137,25 +138,53 @@ export function assembleDashboard(
   source: DashboardSource,
   now: number,
 ): Dashboard {
-  const modules: ModuleTree[] = STATIC_CATALOGS.map(catalog => ({
-    moduleId: catalog.sourceId,
-    moduleLabel: catalog.label,
-    root: buildModuleTree(catalog, statsFor(catalog, source)),
+  // One tree per MODULE, not per catalog. Ear training's four catalogs
+  // and production's two are branches of one row each; building per
+  // catalog is what put eleven top-level rows on screen where there
+  // should be seven.
+  const modules: ModuleTree[] = STATIC_MODULES.map(module => ({
+    moduleId: module.moduleId,
+    moduleLabel: module.label,
+    root: buildMergedTree(
+      module.moduleId,
+      module.label,
+      module.catalogs.map(catalog => ({
+        catalog,
+        stats: statsFor(catalog, source),
+      })),
+    ),
   }));
 
   // Repertoire's catalog is Dexie rows rather than a constant, so it is
-  // built from the loaded data instead of imported.
+  // built from the loaded data and slotted into nav-bar position rather
+  // than appended.
   const repCatalog = repertoireCatalog(source.repertoire);
-  modules.push({
-    moduleId: repCatalog.sourceId,
+  const repertoire: ModuleTree = {
+    moduleId: repCatalog.moduleId,
     moduleLabel: repCatalog.label,
-    root: buildModuleTree(
-      repCatalog,
-      statsForCatalog(repCatalog, repertoireEngagements(source.repertoire)),
-    ),
-  });
+    root: buildMergedTree(repCatalog.moduleId, repCatalog.label, [{
+      catalog: repCatalog,
+      stats: statsForCatalog(repCatalog, repertoireEngagements(source.repertoire)),
+    }]),
+  };
+  const insertAt = DASHBOARD_MODULE_ORDER.indexOf(repCatalog.moduleId);
+  const ordered = [...modules];
+  ordered.splice(
+    insertAt < 0 ? ordered.length : positionFor(ordered, insertAt),
+    0,
+    repertoire,
+  );
 
-  return { modules, dueRefs: dueRefsFrom(source.spacingRows, now) };
+  return { modules: ordered, dueRefs: dueRefsFrom(source.spacingRows, now) };
+}
+
+/** Where a module whose nav-order index is `orderIndex` belongs among
+ *  the already-ordered list. */
+function positionFor(ordered: ReadonlyArray<ModuleTree>, orderIndex: number): number {
+  for (let i = 0; i < ordered.length; i++) {
+    if (DASHBOARD_MODULE_ORDER.indexOf(ordered[i].moduleId) > orderIndex) return i;
+  }
+  return ordered.length;
 }
 
 /**
