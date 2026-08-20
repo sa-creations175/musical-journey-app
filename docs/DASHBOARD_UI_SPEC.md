@@ -260,15 +260,25 @@ remembered from a design session, and not surfaced only at the drill.
 
 Two halves:
 
+> **Revised 20 August 2026.** Each entry now carries its **why**, not only its
+> what. A rule stated without its reason reads as an arbitrary constraint, and
+> the user's first instinct on seeing a number they did not expect is that the
+> screen is broken. Telling them the rule is half the job; telling them why the
+> rule exists is what stops them distrusting the number.
+
 **What the number means**
-- accuracy is the last 20 eligible attempts
-- coverage is items with 3 or more attempts, over the full catalog
-- recency shows most recent and stalest
-- the two rating scales and their values
-- `excludeFromFluency`: focus pools under 4 items don't count toward accuracy,
-  but do count toward coverage and recency
-- for chord progressions, how many attempts predate submission tracking and
-  therefore cannot be collapsed (`ungroupableCount`)
+
+| Rule | Why it exists |
+|---|---|
+| Accuracy is the last **20 eligible attempts** | A lifetime average never moves. Twenty is enough to be stable and short enough that improving actually shows. |
+| Coverage is items with **3 or more attempts**, over the full catalog | An item seen once, guessed wrong and never revisited must stay on the uncovered list, or that list stops being trustworthy. |
+| The denominator is the **full catalog**, never the current filter | A denominator that moves with a setting makes the percentage mean a different thing on different days. |
+| Recency shows **most recent and stalest** | Most-recent alone flatters — touch one item and the whole category looks fresh. Stalest alone freezes — one neglected corner pins it and nothing you do moves it. |
+| **A parent's fluency reads as the highest rating it has fully reached** | You reach a threshold, you are not rounded up into it. Three children at *comfortable* and one at *struggled* averages 62.5 and reads **working on it** — the parent still has a way to go. Without this stated, a parent reading lower than most of its children looks like a bug. |
+| The two rating scales and their values | Same column position, two different questions. A self-rated 75 is *comfortable*, not "75% correct". |
+| **`excludeFromFluency`** — focus pools under 4 items are out of accuracy, in for coverage and recency | A 3-item pool inflates a percentage: a blind guess is right one time in three and short-term recall carries the rest. But you did practise the item, so coverage and recency count it. |
+| For chord progressions, how many attempts **predate submission tracking** (`ungroupableCount`) | Those rows cannot be collapsed into one result per submitted answer, so they count one row per chord. Stated rather than silently mixed with collapsed rows. |
+| For mental visualisation, the attempt count is a **floor, not a total** | Its only per-item record is `performanceHistory`, which caps at 20 entries. A count that silently stops climbing is worse than one that says it stopped. |
 
 **What would advance it**
 

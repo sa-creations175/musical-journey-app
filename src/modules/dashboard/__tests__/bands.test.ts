@@ -58,24 +58,39 @@ describe('fluency bands', () => {
     }
   });
 
-  it('snaps a rolled-up average to the nearest rating, not a threshold', () => {
-    // A parent averages its children and lands between the four. 62.5
-    // is between "working on it" and "comfortable"; nearest-value puts
-    // it in one the player actually gave rather than inventing a fifth.
+  it('rounds a rolled-up average DOWN to the rating it has earned', () => {
+    // A parent shows the highest rating it has actually reached. You
+    // reach a threshold, you are not rounded up into it — a mix of 50s
+    // and 75s reads 50 until the average genuinely reaches 75.
     expect(bandFor(62.5, 'self-rated')).toBe('amber');
-    expect(bandFor(63, 'self-rated')).toBe('yellow-green');
+    expect(bandFor(74.9, 'self-rated')).toBe('amber');
+    expect(bandFor(75, 'self-rated')).toBe('yellow-green');
     expect(bandFor(87.5, 'self-rated')).toBe('yellow-green');
-    expect(bandFor(88, 'self-rated')).toBe('green');
+    expect(bandFor(99.9, 'self-rated')).toBe('yellow-green');
+    expect(bandFor(100, 'self-rated')).toBe('green');
+  });
+
+  it('never flatters a parent whose children are split', () => {
+    // Three children comfortable and one struggling averages 62.5. The
+    // parent has a way to go and must not read as comfortable.
+    const average = (75 + 75 + 75 + 25) / 4;
+    expect(average).toBe(62.5);
+    expect(bandFor(average, 'self-rated')).toBe('amber');
+  });
+
+  it('lands on the lowest rung below the scale rather than off it', () => {
+    expect(bandFor(10, 'self-rated')).toBe('red');
+    expect(bandFor(0, 'self-rated')).toBe('red');
   });
 
   it('bands the same number differently from accuracy', () => {
     // The whole reason there are two legends. 70 is yellow-green
     // measured and amber self-rated.
     expect(bandFor(70, 'measured')).toBe('yellow-green');
-    expect(bandFor(70, 'self-rated')).toBe('yellow-green');
+    expect(bandFor(70, 'self-rated')).toBe('amber');
     expect(bandFor(60, 'measured')).toBe('amber');
     expect(bandFor(40, 'measured')).toBe('red');
-    expect(bandFor(40, 'self-rated')).toBe('amber');
+    expect(bandFor(40, 'self-rated')).toBe('red');
   });
 });
 

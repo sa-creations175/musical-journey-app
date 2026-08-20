@@ -52,22 +52,31 @@ const FLUENCY_BANDS: ReadonlyArray<{ value: number; band: Band }> = [
  * signal - painting it red would say it failed, and painting it green
  * would say it holds up. It gets neither.
  *
- * A self-rated score is matched to the NEAREST scale value rather than
- * bucketed by threshold, because a rolled-up parent averages its
- * children and lands between the four. An average of 62.5 is between
- * "working on it" and "comfortable"; nearest-value puts it in one of
- * the two the player actually gave rather than inventing a fifth.
+ * A self-rated score ROUNDS DOWN to the highest rating it has actually
+ * earned. A rolled-up parent averages its children and lands between
+ * the four values; 62.5 sits between "working on it" and "comfortable"
+ * and reads as "working on it".
+ *
+ * You reach a threshold, you are not rounded up into it. If half a
+ * chord quality's inversions are still at 50, the parent has a way to
+ * go, and reading it as comfortable because 62.5 is nearer to 75 would
+ * flatter it. One rule, no special cases, and the same
+ * honest-over-flattering principle as the dash that is not a zero.
+ *
+ * The scale has four rungs rather than a continuum, which is why this
+ * lands on a rung at all instead of inventing a fifth colour for the
+ * gaps between them.
  */
 export function bandFor(score: number | null, kind: AccuracyKind): Band | null {
   if (score === null) return null;
   if (kind === 'self-rated') {
-    let best = FLUENCY_BANDS[0];
+    // Highest rung at or below the score. Below the lowest rung can
+    // only happen on a rolled-up average of nothing, and lands red.
+    let earned = FLUENCY_BANDS[0];
     for (const candidate of FLUENCY_BANDS) {
-      if (Math.abs(candidate.value - score) < Math.abs(best.value - score)) {
-        best = candidate;
-      }
+      if (score >= candidate.value) earned = candidate;
     }
-    return best.band;
+    return earned.band;
   }
   for (const { min, band } of ACCURACY_BANDS) {
     if (score >= min) return band;
