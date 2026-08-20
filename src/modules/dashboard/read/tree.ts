@@ -65,6 +65,17 @@ export interface TreeNode {
   children: TreeNode[];
   /** Present only on leaves - the catalog row this node is. */
   stats?: ItemStats;
+  /**
+   * The stored refs under this node, in tree order.
+   *
+   * A leaf carries its catalog row's refs, which is more than one where
+   * a row merges (Reading's conceptual knowledge). A parent carries
+   * every ref beneath it. Needed by two callers that must address the
+   * real stored items rather than the row's display id: the due filter,
+   * which matches against spacing rows, and drill targeting, which has
+   * to tell a drill exactly which items to serve.
+   */
+  itemRefs: string[];
   accuracyKind: AccuracyKind;
   /** Mean of descendant leaf scores, or null when none is graded. */
   score: number | null;
@@ -110,6 +121,7 @@ export function buildModuleTree(
       `${prefix}/${item.id}`, item.label, parent.depth + 1, catalog.accuracyKind,
     );
     leaf.stats = stats[i];
+    leaf.itemRefs = [...item.itemRefs];
     // A leaf's totals come from the catalog row, so a merged row
     // contributes both of its stored refs to the denominator.
     leaf.totalItems = item.itemRefs.length;
@@ -141,6 +153,7 @@ function emptyNode(
     gradedLeafCount: 0,
     coveredItems: 0,
     totalItems: 0,
+    itemRefs: [],
     recency: { mostRecentAt: null, stalestAt: null, hasUntouched: false },
   };
 }
@@ -157,10 +170,12 @@ function rollUp(node: TreeNode): void {
   let mostRecent: number | null = null;
   let stalest: number | null = null;
   let hasUntouched = false;
+  const refs: string[] = [];
 
   for (const child of node.children) {
     covered += child.coveredItems;
     total += child.totalItems;
+    refs.push(...child.itemRefs);
     if (child.score !== null) {
       // Weighted by graded leaves, which keeps the result
       // depth-invariant: a category holding one item must not outweigh
@@ -181,6 +196,7 @@ function rollUp(node: TreeNode): void {
 
   node.coveredItems = covered;
   node.totalItems = total;
+  node.itemRefs = refs;
   node.gradedLeafCount = graded;
   node.score = graded === 0 ? null : scoreSum / graded;
   node.recency = { mostRecentAt: mostRecent, stalestAt: stalest, hasUntouched };
