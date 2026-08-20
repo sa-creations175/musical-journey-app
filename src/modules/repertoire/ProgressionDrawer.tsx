@@ -49,6 +49,9 @@ export default function ProgressionDrawer({
   onRemoveBreak,
   onSetPhraseNote,
   onToggleHidden,
+  onUndo,
+  undoDepth = 0,
+  undoLabel,
 }: {
   sections: ProgressionSection[];
   songKey: string | undefined;
@@ -68,6 +71,14 @@ export default function ProgressionDrawer({
     note: string,
   ) => void | Promise<void>;
   onToggleHidden: (sectionId: string, placementId: string) => void | Promise<void>;
+  /** Reverses the last progression edit. Absent when there is nothing
+   *  to undo — the control is hidden rather than disabled, so it never
+   *  offers an action that would do nothing. */
+  onUndo?: () => void | Promise<void>;
+  undoDepth?: number;
+  /** Names what will be reversed, so the control says what it does
+   *  rather than only that it undoes. */
+  undoLabel?: string;
 }) {
   const [notationMode] = useNotationMode();
   const isDark = useIsDarkMode();
@@ -146,6 +157,16 @@ export default function ProgressionDrawer({
             >
               {editing ? 'done' : 'edit'}
             </button>
+            {onUndo && undoDepth > 0 && editing && (
+              <button
+                type="button"
+                onClick={() => void onUndo()}
+                title={undoLabel ? `undo ${undoLabel}` : 'undo the last change'}
+                className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
+              >
+                ↶ undo{undoLabel ? ` ${undoLabel}` : ''}
+              </button>
+            )}
             {totalHidden > 0 && (
               <button
                 type="button"

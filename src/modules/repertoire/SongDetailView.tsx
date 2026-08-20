@@ -101,11 +101,20 @@ import LeadSheetDrawers from './LeadSheetDrawers';
 import type { SequenceView } from '../../lib/db';
 import {
   EMPTY_SEQUENCE_VIEW,
+  pruneDeletedPlacements,
   removeBreak,
   setBreak,
   setPhraseNote,
   toggleHidden,
 } from './sequenceView';
+import {
+  deadAnchors,
+  peekUndo,
+  popUndo,
+  pushUndo,
+  setUndoSong,
+  useUndoDepth,
+} from './sequenceUndo';
 import {
   describeHalveBlockers,
   planDurationHalving,
@@ -967,16 +976,61 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     async (
       sectionId: string,
       apply: (view: SequenceView, order: string[]) => SequenceView,
+      /** Names the edit for the undo control. */
+      label = 'change',
     ) => {
       const sec = sections.find(s => s.id === sectionId);
       if (!sec) return;
       const order =
         progression.find(p => p.sectionId === sectionId)?.order ?? [];
-      const next = apply(sec.sequenceView ?? EMPTY_SEQUENCE_VIEW, order);
+      const before = sec.sequenceView ?? EMPTY_SEQUENCE_VIEW;
+      const next = apply(before, order);
+      // Captured BEFORE the write, and only once it is known the write
+      // will happen — an entry pushed for a no-op edit would make undo
+      // appear to do nothing.
+      if (song) {
+        pushUndo({
+          songId: song.id,
+          sectionId,
+          before,
+          orderAtCapture: order,
+          label,
+        });
+      }
       await db.songSections.update(sectionId, { sequenceView: next });
     },
-    [sections, progression],
+    [sections, progression, song],
   );
+
+  /**
+   * Restore the previous view for whichever section was last edited.
+   *
+   * Pruned against the CURRENT order first: a chord deleted since the
+   * edit would otherwise get its annotation back as an orphan — a row
+   * that filters nothing, renders nothing and cannot be reached from
+   * any UI, so it could never be removed again. `orderAtCapture` is
+   * what makes each orphaned note merge into the right neighbour
+   * rather than piling onto the tail.
+   */
+  const undoDepth = useUndoDepth();
+  // Scopes the stack, and clears it on a song change so an undo can
+  // never reach into a song no longer on screen. Idempotent, so a
+  // re-render cannot wipe the history.
+  useEffect(() => {
+    setUndoSong(song?.id ?? null);
+  }, [song?.id]);
+
+  const undoSequenceEdit = useCallback(async () => {
+    const entry = popUndo();
+    if (!entry) return;
+    const order =
+      progression.find(p => p.sectionId === entry.sectionId)?.order ?? [];
+    const dead = deadAnchors(entry.before, order);
+    const restored = dead.length > 0
+      ? pruneDeletedPlacements(entry.before, dead, entry.orderAtCapture)
+      : entry.before;
+    await db.songSections.update(entry.sectionId, { sequenceView: restored });
+  }, [progression]);
 
   const [eighthsRefusal, setEighthsRefusal] = useState<
     { chords: number; words: number } | null
@@ -2091,19 +2145,28 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           open={progressionsOpen}
           onOpenChange={openProgressions}
           onSetBreak={(sectionId, after, kind) =>
-            editSequenceView(sectionId, (v, order) =>
-              setBreak(v, after, kind, order),
+            editSequenceView(
+              sectionId,
+              (v, order) => setBreak(v, after, kind, order),
+              kind === 'row' ? 'new row' : 'separator',
             )
           }
           onRemoveBreak={(sectionId, after) =>
-            editSequenceView(sectionId, (v, order) => removeBreak(v, after, order))
+            editSequenceView(
+              sectionId,
+              (v, order) => removeBreak(v, after, order),
+              'remove break',
+            )
           }
           onSetPhraseNote={(sectionId, after, note) =>
-            editSequenceView(sectionId, v => setPhraseNote(v, after, note))
+            editSequenceView(sectionId, v => setPhraseNote(v, after, note), 'note')
           }
           onToggleHidden={(sectionId, placementId) =>
-            editSequenceView(sectionId, v => toggleHidden(v, placementId))
+            editSequenceView(sectionId, v => toggleHidden(v, placementId), 'hide')
           }
+          onUndo={undoSequenceEdit}
+          undoDepth={undoDepth}
+          undoLabel={peekUndo()?.label}
         />
 
         {songLyricLines && (

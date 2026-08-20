@@ -116,6 +116,7 @@ import {
 } from './barGrid';
 import { EIGHTHS_DURATION_VERSION } from './eighthsMigration';
 import { sequenceViewCommitPatch } from './sequenceAnchors';
+import { pushUndo } from './sequenceUndo';
 import {
   applyEndMarkerDrag,
   applyStartMarkerDrag,
@@ -1938,7 +1939,17 @@ export default function LeadSheetSection({
     return `${placed} of ${lyrics.length} placed`;
   })();
 
-  const commitSequenceView = async (next: SequenceView) => {
+  const commitSequenceView = async (next: SequenceView, label = 'change') => {
+    // The strip and the drawer are two windows onto one record, so they
+    // share one undo stack — undoing from either reverses whichever
+    // edit was last, wherever it was made.
+    pushUndo({
+      songId: sectionRef.current.songId,
+      sectionId: sectionRef.current.id,
+      before: sequenceView,
+      orderAtCapture: sequenceOrder,
+      label,
+    });
     // Legacy phrase-anchored sections carry SYNTHETIC placement ids
     // (`legacy:phraseId:beatId`) that materialisation replaces. Writing
     // the annotation and materialising in one commit — which is what
@@ -1965,6 +1976,7 @@ export default function LeadSheetSection({
     setSeqTarget(null);
     await commitSequenceView(
       setBreak(sequenceView, afterPlacementId, kind, sequenceOrder),
+      kind === 'row' ? 'new row' : 'separator',
     );
   };
 
@@ -1972,6 +1984,7 @@ export default function LeadSheetSection({
     setSeqTarget(null);
     await commitSequenceView(
       removeBreak(sequenceView, afterPlacementId, sequenceOrder),
+      'remove break',
     );
   };
 
@@ -1983,12 +1996,13 @@ export default function LeadSheetSection({
   ) => {
     await commitSequenceView(
       setPhraseNote(sequenceView, afterPlacementId, note),
+      'note',
     );
   };
 
   const handleToggleHidden = async (placementId: string) => {
     setSeqTarget(null);
-    await commitSequenceView(toggleHidden(sequenceView, placementId));
+    await commitSequenceView(toggleHidden(sequenceView, placementId), 'hide');
   };
 
   const phrases = useMemo(
