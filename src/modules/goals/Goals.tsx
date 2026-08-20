@@ -118,6 +118,7 @@ import {
   rollupChildFeasibilities,
   type GoalFeasibility,
 } from './progress';
+import { detectScopeShrink, describeScopeShrink } from './scopeShrink';
 import { FeasibilityPill, UmbrellaFeasibilityPill } from './FeasibilityPill';
 import {
   feasibilityDetailText,
@@ -1837,6 +1838,10 @@ function GoalRow({
   const metaLine = derivedTypeLabel && metaStatus
     ? `${derivedTypeLabel} · ${metaStatus}`
     : (derivedTypeLabel ?? metaStatus ?? null);
+  // A coverage goal's target is a frozen count. When a catalog shrinks
+  // under it the target can become unreachable — say so rather than
+  // quietly rewriting a number the user chose. Rescoping is their call.
+  const scopeShrink = useMemo(() => detectScopeShrink(goal), [goal]);
   // Feasibility — passes goal.currentValue as the live numerator
   // for now. Phase 5 keeps that column in sync with spacingState
   // automatically; until then the read may lag a session or two.
@@ -1875,6 +1880,17 @@ function GoalRow({
             {metaLine && (
               <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {metaLine}
+              </div>
+            )}
+            {scopeShrink && (
+              <div className="text-[10px] text-amber-700 dark:text-amber-500 mt-1 flex items-start gap-1">
+                <span aria-hidden="true">⚠</span>
+                <span>
+                  {describeScopeShrink(scopeShrink)}{' '}
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Edit the goal to rescope it, or leave it as a record of what you set.
+                  </span>
+                </span>
               </div>
             )}
           </div>
