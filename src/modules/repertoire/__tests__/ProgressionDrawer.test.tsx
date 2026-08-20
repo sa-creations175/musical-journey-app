@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import ProgressionDrawer from '../ProgressionDrawer';
-import type { ProgressionSection } from '../progressionOutline';
+import { buildSongProgression, type ProgressionSection } from '../progressionOutline';
+import { BASIC_ARRANGEMENT_ID } from '../beatsModel';
 
 // jsdom does no layout, so docking offset and the half-height panel
 // can't be verified here — those need eyes. What is covered is what
@@ -479,3 +480,140 @@ describe('reaching a line break', () => {
   });
 });
 
+
+// ---------------------------------------------------------------------
+// Through the REAL pipeline.
+//
+// The cases above hand-build a ProgressionSection, which proves the
+// component works on the shape it is given but not that the shape it
+// actually receives is that one. This builds a stored SongSection with
+// a `row` break in its sequenceView and runs it through
+// buildSongProgression — the same call SongDetailView makes.
+// ---------------------------------------------------------------------
+
+describe('a row break from stored data', () => {
+  const realSong = {
+    id: 's1', title: 'Can We Talk', timeSignature: '4/4', key: 'F',
+    eighths: false,
+  } as unknown as Parameters<typeof buildSongProgression>[0];
+
+  function placement(id: string, barIndex: number, fn: string) {
+    return {
+      id,
+      arrangementId: BASIC_ARRANGEMENT_ID,
+      barIndex,
+      beatPos: 0,
+      beats: 4,
+      chord: { function: fn, quality: 'min7' },
+    };
+  }
+
+  /** Intro: 3min7 6min 2min7 | 6min7, split by a ROW break after the
+   *  third chord — the shape reported as unreachable. */
+  function storedSections() {
+    return [{
+      id: 'intro',
+      songId: 's1',
+      name: 'Intro',
+      order: 0,
+      lyrics: '',
+      chordPlacements: [
+        placement('c1', 0, '3'),
+        placement('c2', 1, '6'),
+        placement('c3', 2, '2'),
+        placement('c4', 3, '6'),
+      ],
+      sequenceView: {
+        breaks: [{ afterPlacementId: 'c3', kind: 'row' as const }],
+        hidden: [],
+      },
+    }] as unknown as Parameters<typeof buildSongProgression>[1];
+  }
+
+  it('produces a row-ended phrase with an anchor the control can use', () => {
+    const built = buildSongProgression(realSong, storedSections());
+    const rowPhrase = built[0].phrases.find(p => p.endKind === 'row');
+    expect(rowPhrase).toBeDefined();
+    expect(rowPhrase!.endsAfterPlacementId).toBe('c3');
+  });
+
+  it('renders the control and opens the choices row on tap', () => {
+    const built = buildSongProgression(realSong, storedSections());
+    const el = render(
+      <ProgressionDrawer {...base} sections={built} open onOpenChange={noop} />,
+    );
+    const edit = [...el.querySelectorAll('button')].find(
+      b => b.textContent?.trim() === 'edit',
+    )!;
+    act(() => edit.click());
+
+    const control = el.querySelector('[aria-label="edit this line break"]');
+    expect(control).not.toBeNull();
+
+    act(() => (control as HTMLElement).click());
+    const convert = [...el.querySelectorAll('button')].find(
+      b => b.textContent?.trim() === 'make it a separator',
+    );
+    expect(convert).toBeDefined();
+  });
+});
+
+describe('where the break control sits', () => {
+  /**
+   * jsdom does no layout, so nothing here can prove the control is
+   * VISIBLE. What it can prove is DOM ORDER, and order is the mechanism
+   * that displaced it: PhraseNote is `basis-full` in edit mode, so in a
+   * wrapping row every sibling after it is pushed onto a line of its
+   * own. The control shipped after the note field and therefore landed
+   * two lines below the break it marks, with an empty textarea sitting
+   * where the user actually taps.
+   *
+   * Every other test in this file clicked the control by aria-label and
+   * passed regardless of where it was — which is exactly how this got
+   * out.
+   */
+  function rowSection() {
+    const a = token('s1', 'p1', '2');
+    const b = token('s1', 'p2', '6');
+    return sec('s1', 'Intro', [], {
+      phrases: [
+        { tokens: [a], endKind: 'row', endsAfterPlacementId: 'p1' },
+        { tokens: [b], endKind: 'end' },
+      ],
+      order: ['p1', 'p2'],
+    });
+  }
+
+  function editing(el: HTMLElement) {
+    const edit = [...el.querySelectorAll('button')].find(
+      b => b.textContent?.trim() === 'edit',
+    )!;
+    act(() => edit.click());
+  }
+
+  it('comes BEFORE the note field, not after it', () => {
+    const el = render(
+      <ProgressionDrawer {...base} sections={[rowSection()]} open onOpenChange={noop} />,
+    );
+    editing(el);
+    const control = el.querySelector('[aria-label="edit this line break"]')!;
+    const note = el.querySelector('textarea')!;
+    expect(control).not.toBeNull();
+    expect(note).not.toBeNull();
+    // DOCUMENT_POSITION_FOLLOWING === the note comes after the control.
+    expect(
+      control.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('is a sibling of the chords it follows', () => {
+    // Same wrapping row as the tokens, so it renders at the break
+    // rather than in a block of its own.
+    const el = render(
+      <ProgressionDrawer {...base} sections={[rowSection()]} open onOpenChange={noop} />,
+    );
+    editing(el);
+    const control = el.querySelector('[aria-label="edit this line break"]')!;
+    expect(control.parentElement?.className).toContain('flex-wrap');
+  });
+});

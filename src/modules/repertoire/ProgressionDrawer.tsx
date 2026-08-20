@@ -294,6 +294,32 @@ export default function ProgressionDrawer({
                               |
                             </span>
                           ))}
+                        {/* IMMEDIATELY AFTER THE CHORDS, before the
+                            note field. The note field is `basis-full`
+                            in edit mode, so anything rendered after it
+                            is pushed onto a line of its own — which is
+                            where this control used to sit: two lines
+                            below the break it belongs to, with an empty
+                            textarea occupying the spot the user
+                            actually taps. It marks a break, so it has
+                            to sit AT the break. */}
+                        {phrase.endKind === 'row' && editing && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setTarget({
+                                kind: 'gap',
+                                placementId: phrase.endsAfterPlacementId!,
+                                sectionId: section.sectionId,
+                              })
+                            }
+                            aria-label="edit this line break"
+                            title="line break — convert or remove"
+                            className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
+                          >
+                            ⏎
+                          </button>
+                        )}
                         {shouldOfferNote(phrase, editing, shown.length > 0) && (
                           <PhraseNote
                             note={phrase.note}
@@ -310,30 +336,6 @@ export default function ProgressionDrawer({
                               )
                             }
                           />
-                        )}
-                        {/* A row break was UNREACHABLE here: the only
-                            thing at the end of the line was the note
-                            field, so tapping it edited the note and
-                            the break itself could not be selected at
-                            all. The strip has always had this control;
-                            the drawer did not, which made the more
-                            disruptive of the two break kinds the one
-                            you could not undo. */}
-                        {phrase.endKind === 'row' && editing && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setTarget({
-                                kind: 'gap',
-                                placementId: phrase.endsAfterPlacementId!,
-                                sectionId: section.sectionId,
-                              })
-                            }
-                            aria-label="edit this line break"
-                            className="text-fluent px-1 rounded hover:bg-fluent/10"
-                          >
-                            ⏎
-                          </button>
                         )}
                         {phrase.endKind === 'row' && (
                           <span className="basis-full" aria-hidden />

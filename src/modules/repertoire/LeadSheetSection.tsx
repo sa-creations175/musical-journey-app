@@ -2508,6 +2508,25 @@ export default function LeadSheetSection({
                             |
                           </span>
                         ))}
+                      {/* At the break, before the note field —
+                          PhraseNote is `basis-full` in edit mode, so
+                          anything after it lands on its own line. */}
+                      {phrase.endKind === 'row' && sequenceEditing && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSeqTarget({
+                              kind: 'gap',
+                              placementId: phrase.endsAfterPlacementId!,
+                            })
+                          }
+                          aria-label="edit this line break"
+                          title="line break — convert or remove"
+                          className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
+                        >
+                          ⏎
+                        </button>
+                      )}
                       {shouldOfferNote(
                         phrase,
                         sequenceEditing,
@@ -2525,21 +2544,6 @@ export default function LeadSheetSection({
                             }
                           />
                         )}
-                      {phrase.endKind === 'row' && sequenceEditing && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSeqTarget({
-                              kind: 'gap',
-                              placementId: phrase.endsAfterPlacementId!,
-                            })
-                          }
-                          aria-label="edit this break"
-                          className="text-fluent px-1 rounded hover:bg-fluent/10"
-                        >
-                          ⏎
-                        </button>
-                      )}
                       {phrase.endKind === 'row' && (
                         <span className="basis-full h-0" aria-hidden />
                       )}
