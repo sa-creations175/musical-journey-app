@@ -158,6 +158,14 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 - **Where:** `src/modules/skills/registry.ts:167` (`tierForFlashcardState`).
 - **UI:** invisible. The badge reads "fluent" identically to a real rolling-window tier. It isn't one — it's a lifetime average wearing a rolling-window label.
 
+### 1.8b A catalog `id` rendered as a user-facing label `[DEFECT]`
+
+- **Rule:** none — this is a mistake, not a rule. `dashboard/read/catalogs.ts` built Reading row labels by interpolating `q.id`, so the screen showed `maj root (treble)`, `r5oct root` and `treble -4`. Fixed 20 Aug 2026 by reading `q.label` and deriving the rest.
+- **Why it belongs here:** an id is a key, chosen for uniqueness and brevity. A label is an answer, chosen to be read. The moment an id reaches a surface it becomes a claim about what the thing is called — and `r5oct` claims nothing while `maj` claims something *shorter* than the answer the picker wants back.
+- **Why it will recur:** the dashboard is the first surface in the app that renders **every catalog id**, across six modules. Five of those catalogs have not been audited for this. `chord-shape:maj7:C:inv1` and `mv:triad:maj:root:C` are one interpolation away from the same defect.
+- **Two labels were also wrong at the source**, which the dashboard only exposed: `root–seventh` for `[0, 10]` and `root–tenth` for `[0, 16]`. Each named a degree without its quality, so each described two different shapes. Now `root + ♭7` and `root + major 10th`.
+- **The guard:** `catalogs.test.ts` asserts no row label contains a quality's `id` unless the id *is* the label. Worth extending to the other five catalogs.
+
 ### 1.9 The Musician Balance radar's 0–100 scores are invented targets `[HALF]`
 
 - **Rule:** each axis divides weighted activity by a hardcoded target and clamps to 100. Last-7-days activity is weighted 2×.

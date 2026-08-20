@@ -338,6 +338,19 @@ export default function ReadingDrill({
           <p className="text-center text-sm font-medium" style={{ color: SEPIA }}>
             {resolved.caption}
           </p>
+          {/* The notes, under the name. Naming the chord without naming
+              its notes skips the connection the drill is building —
+              seeing F–A–C and calling it F major. Read off the same
+              pitches the staff drew. */}
+          {resolved.notes && (
+            <p
+              data-testid="chord-notes"
+              className="text-center text-[15px] tracking-[0.15em] tabular-nums"
+              style={{ color: SEPIA }}
+            >
+              {resolved.notes}
+            </p>
+          )}
           {parsed.skill === 'note' && (
             // THE ANSWER SCREEN IS WHERE TESTING AND TEACHING MEET.
             // The preview page teaches without testing and the drill

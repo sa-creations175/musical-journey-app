@@ -24,7 +24,13 @@ import {
   resolveReadingCard,
 } from '../renderCard';
 import { ALL_SAMPLES, PREVIEW_SECTIONS } from '../previewSamples';
-import { enumerateAllReadingItems, CHORD_QUALITIES } from '../catalog';
+import {
+  enumerateAllReadingItems,
+  CHORD_QUALITIES,
+  chordItemRef,
+  noteItemRef,
+  signatureItemRef,
+} from '../catalog';
 
 // =====================================================================
 // Staff position -> pitch
@@ -375,7 +381,7 @@ describe('captions', () => {
 
   it('an open shape caption omits "root position" — it is a voicing', () => {
     expect(resolveReadingCard('chord:r10:root:bass')!.caption)
-      .toBe('C root–tenth');
+      .toBe('C root + major 10th');
   });
 
   it('every catalog item produces a non-empty caption', () => {
@@ -594,5 +600,46 @@ describe('keys.length discriminates note cards', () => {
     // ever added, the clef-gap rule needs revisiting first.
     const smallest = Math.min(...CHORD_QUALITIES.map(q => q.intervals.length));
     expect(smallest).toBe(2);
+  });
+});
+
+describe('chord notes on the answer screen', () => {
+  it('lists the notes bottom to top, dash separated', () => {
+    const card = resolveReadingCard(chordItemRef('maj', 'root', 'treble'), {
+      root: { letter: 'F', accidental: null, octave: 4 },
+    })!;
+    expect(card.notes).toBe('F–A–C');
+  });
+
+  it('reads the SAME pitches the staff draws', () => {
+    // Naming the notes off a second derivation would let the answer
+    // disagree with the picture — the one failure this file's whole
+    // design exists to prevent.
+    const card = resolveReadingCard(chordItemRef('min7', 'inv2', 'bass'), {
+      root: { letter: 'D', accidental: null, octave: 3 },
+    })!;
+    const drawn = card.staff.keys.map(k => k.split('/')[0].toUpperCase()
+      .replace('#', '♯').replace('B♭', 'B♭'));
+    const listed = card.notes!.split('–').map(n => n.replace(/\d+$/, ''));
+    expect(listed).toHaveLength(drawn.length);
+  });
+
+  it('follows the inversion rather than always starting on the root', () => {
+    const root = resolveReadingCard(chordItemRef('maj', 'root', 'treble'), {
+      root: { letter: 'C', accidental: null, octave: 4 },
+    })!;
+    const first = resolveReadingCard(chordItemRef('maj', 'inv1', 'treble'), {
+      root: { letter: 'C', accidental: null, octave: 4 },
+    })!;
+    expect(root.notes!.split('–')[0]).toBe('C');
+    expect(first.notes!.split('–')[0]).toBe('E');
+  });
+
+  it('is absent on cards with no notes to list', () => {
+    // A note card's caption already IS its note; a signature has none.
+    const note = resolveReadingCard(noteItemRef('treble', 0))!;
+    expect(note.notes).toBeUndefined();
+    const sig = resolveReadingCard(signatureItemRef('2s', 'major', 'name'))!;
+    expect(sig.notes).toBeUndefined();
   });
 });

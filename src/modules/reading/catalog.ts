@@ -206,8 +206,13 @@ export const CHORD_QUALITIES: ReadonlyArray<ChordQualityDef> = [
   { id: 'octave',  label: 'octave',           family: 'open',    intervals: [0, 12] },
   { id: 'r5',      label: 'root–fifth',       family: 'open',    intervals: [0, 7] },
   { id: 'r5oct',   label: 'root–fifth–octave', family: 'open',   intervals: [0, 7, 12] },
-  { id: 'r7',      label: 'root–seventh',     family: 'open',    intervals: [0, 10] },
-  { id: 'r10',     label: 'root–tenth',       family: 'open',    intervals: [0, 16] },
+  // Named by the interval they actually contain, not by a degree that
+  // leaves the quality open. [0,10] is a MINOR seventh and [0,16] a
+  // MAJOR tenth; "root–seventh" and "root–tenth" would each describe
+  // two different shapes, and a label that fits the wrong answer is
+  // worse on the answer screen than on the picker.
+  { id: 'r7',      label: 'root + ♭7',        family: 'open',    intervals: [0, 10] },
+  { id: 'r10',     label: 'root + major 10th', family: 'open',   intervals: [0, 16] },
 ];
 
 /**

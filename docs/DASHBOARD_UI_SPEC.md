@@ -337,7 +337,60 @@ names that are not stored that way.
 
 ---
 
+## Every row says what SKILL it is building
+
+*Added 20 August 2026. Folds into step 7's affordances rather than sitting
+beside them.*
+
+The trigger: twenty minutes spent unable to work out what chord identification
+tests, or how it differs from notation shapes — on a module built the week
+before. If the author cannot reconstruct it, the row has to say it.
+
+An affordance already owes two things per row: what the number means, and what
+would advance it. This is a third, and it comes first: **what am I practising.**
+
+For Reading, the answers that took working out:
+
+| Row | The skill |
+|---|---|
+| **notation shapes** | The fast silhouette pre-read. Seven items: is this stack a triad or a seventh, and which inversion — read off the SHAPE, before any note is named. |
+| **chord identification** | The full conjunctive answer: inversion, quality and clef together, on a chord whose root changes every card. |
+
+And the relationship, which is what makes the pair legible:
+
+> **Shapes subsumes into chords the same way accidental-counting subsumes into
+> key-naming.** You can answer the smaller question on its own, and you cannot
+> answer the larger one without it. That is why notation shapes sits ABOVE
+> chord identification in the tree.
+
+The general form for every module: a row explains the skill in terms of what it
+asks you to do, and names the row it depends on when it has one. A skill
+described only by its own name is a label, not an explanation.
+
+---
+
 ## Design item recorded, not scheduled
+
+### The key-signature overlay tier for chord cards
+
+`reading/catalog.ts` defines `OVERLAY_MIX`, and `renderCard` passes
+`keySignature: null` for every chord card. A harder tier was designed and never
+wired: chords read **in the context of a key signature**, with the accidentals
+implied by the key rather than written on every note — which is how chords
+actually appear in music.
+
+**This is a design question, not a feature to schedule.** The sterile version
+isolates accidentals deliberately, and that was the original intent. The
+question is whether the isolation teaches chord reading or delays it:
+
+- Does reading a chord with every accidental spelled out build the skill, or
+  build a skill that does not transfer to a real score?
+- Is context a later TIER, or the thing that should have been there from the
+  start with the sterile version as scaffolding?
+- If it is a tier, what unlocks it — and does the sterile version stay in the
+  catalog afterwards, or does it subsume the way notation shapes does?
+
+Answering it decides whether `OVERLAY_MIX` gets wired, retired, or redesigned.
 
 ### Per-node regrouping
 

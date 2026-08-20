@@ -44,7 +44,10 @@ import {
   SIGNATURES, KEY_MODES, CLEFS, NOTE_POSITIONS, CHORD_QUALITIES as READING_CHORD_QUALITIES,
   positionsForFamily, clefsForFamily, SHAPE_FAMILIES, SHAPE_FAMILY_LABEL,
   signatureItemRef, noteItemRef, chordItemRef, shapeItemRef,
+  type ChordFamily, type ChordPosition, type Clef,
 } from '../../reading/catalog';
+import { POSITION_LABEL } from '../../reading/renderCard';
+import { pitchAtStaffPosition, scientificPitch } from '../../reading/pitch';
 import { PRODUCTION_VOCAB_FLASHCARDS, VOCAB_CLUSTER_LABELS } from '../../production/vocabularyFlashcards';
 import { PRODUCTION_LESSONS } from '../../production/content/lessons';
 import { PRODUCTION_PATHS } from '../../production/content/paths';
@@ -319,26 +322,69 @@ export const readingCatalog: ModuleCatalog = {
   moduleId: 'reading',
   label: 'reading',
   accuracyKind: 'measured',
+  /**
+   * ORDER IS THE LEARNING ORDER, not the enum order.
+   *
+   * Notation shapes comes BEFORE chord identification because it is the
+   * prerequisite: reading the silhouette is the fast pre-read that
+   * chord identification then builds a full answer on top of. Listing
+   * the dependent skill first buries the thing it depends on.
+   *
+   * The same relationship as accidental-counting under key naming —
+   * shapes subsumes into chords the way `count` subsumes into `name`.
+   */
   items: [
-    ...signatureRows(),
     ...CLEFS.flatMap(clef => NOTE_POSITIONS.map(pos => one(
-      noteItemRef(clef, pos), `${clef} ${pos}`, ['reading', 'note recognition', clef],
+      noteItemRef(clef, pos),
+      // `treble -4` is a staff position, which is an internal
+      // coordinate. The answer is a pitch, so the row says the pitch.
+      `${clef} · ${scientificPitch(pitchAtStaffPosition(clef, pos))}`,
+      ['reading', 'note recognition', clef],
     ))),
+    ...signatureRows(),
+    ...SHAPE_FAMILIES.flatMap(family =>
+      positionsForFamily(family).map(pos => one(
+        shapeItemRef(family, pos),
+        `${SHAPE_FAMILY_LABEL[family]} · ${POSITION_LABEL[pos]}`,
+        ['reading', 'notation shapes'],
+      ))),
     ...READING_CHORD_QUALITIES.flatMap(q =>
       clefsForFamily(q.family).flatMap(clef =>
         positionsForFamily(q.family).map(pos => one(
           chordItemRef(q.id, pos, clef),
-          `${q.id} ${pos} (${clef})`,
+          chordIdentificationLabel(q, pos, clef),
           ['reading', 'chord identification', q.family],
         )))),
-    ...SHAPE_FAMILIES.flatMap(family =>
-      positionsForFamily(family).map(pos => one(
-        shapeItemRef(family, pos),
-        `${SHAPE_FAMILY_LABEL[family]} ${pos}`,
-        ['reading', 'notation shapes'],
-      ))),
   ],
 };
+
+/**
+ * The three things a chord card asks you to identify, in the order the
+ * picker asks them.
+ *
+ * THE ROOT IS DELIBERATELY ABSENT. It varies per card — it is the
+ * variable being tested, not part of the item — so a row naming one
+ * would describe a card that only sometimes appears. The affordance
+ * says so, otherwise this reads as an omission.
+ *
+ * Labels come from `q.label`, never from `q.id`. The picker's buttons
+ * read the same field, so the row and the answer cannot disagree about
+ * what a quality is called.
+ *
+ * Open-family shapes carry no position: they ARE a voicing, so
+ * "root position" adds nothing — which is exactly what `renderCard`
+ * decides for their captions.
+ */
+function chordIdentificationLabel(
+  quality: { label: string; family: ChordFamily },
+  position: ChordPosition,
+  clef: Clef,
+): string {
+  const parts = quality.family === 'open'
+    ? [quality.label, `${clef} clef`]
+    : [POSITION_LABEL[position], quality.label, `${clef} clef`];
+  return parts.join(' · ');
+}
 
 // =====================================================================
 // Production — lessons and vocabulary are two subtrees

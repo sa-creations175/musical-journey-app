@@ -119,6 +119,21 @@ export interface ResolvedReadingCard {
   /** The answer, and only the answer — nothing the picture already
    *  says. Derived, never authored. */
   caption: string;
+  /**
+   * The chord's notes, bottom to top, for the answer screen.
+   *
+   * Naming a chord without naming its notes skips the connection the
+   * drill exists to build: what is being learned is seeing F–A–C on the
+   * staff and calling it F major, and an answer that says only "F
+   * major" leaves the reader to re-derive the half they got wrong.
+   *
+   * Read off the SAME `pitches` array the staff renders, so the notes
+   * shown and the notes drawn cannot disagree.
+   *
+   * Chord cards only. A note card's caption already is its note, and a
+   * signature has no notes to list.
+   */
+  notes?: string;
 }
 
 // ---------------------------------------------------------------------
@@ -162,7 +177,7 @@ function signatureCaption(
 // Chords
 // ---------------------------------------------------------------------
 
-const POSITION_LABEL: Readonly<Record<ChordPosition, string>> = {
+export const POSITION_LABEL: Readonly<Record<ChordPosition, string>> = {
   root: 'root position',
   inv1: 'first inversion',
   inv2: 'second inversion',
@@ -386,6 +401,7 @@ export function resolveReadingCard(
       keySignature: null,
     },
     caption: `${pitchName(root)} ${quality.label}${positionPart}`,
+    notes: pitches.map(pitchName).join('–'),
   };
 }
 

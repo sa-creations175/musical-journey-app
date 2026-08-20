@@ -25,7 +25,10 @@ import {
   scalesModesCatalog,
   shapesCatalog,
 } from '../catalogs';
-import { enumerateAllReadingItems } from '../../../reading/catalog';
+import {
+  enumerateAllReadingItems,
+  CHORD_QUALITIES as READING_CHORD_QUALITIES,
+} from '../../../reading/catalog';
 import { itemRefForAttempt } from '../canonicalItemId';
 import { LESSON_COVERAGE_RULE } from '../itemStats';
 
@@ -217,5 +220,90 @@ describe('catalog invariants', () => {
   it('source ids are unique — a catalog is addressable', () => {
     const ids = STATIC_CATALOGS.map(c => c.sourceId);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('reading labels are read off the catalog, never built from ids', () => {
+  const rows = readingCatalog.items;
+  const labelsIn = (skill: string) =>
+    rows.filter(i => i.path[1] === skill).map(i => i.label);
+
+  it('never leaks a raw catalog id into a row label', () => {
+    // THE DEFECT THIS PINS. The dashboard is the first surface that
+    // renders every catalog id in the app, so an id that was only ever
+    // a key becomes a label the moment someone interpolates it.
+    //
+    // An id that HAPPENS to equal its own label — `octave` — is not a
+    // leak; it is the label, and it arrived through `q.label`.
+    for (const q of READING_CHORD_QUALITIES) {
+      const row = rows.find(i => i.itemRefs[0].startsWith(`chord:${q.id}:`))!;
+      expect(row.label, q.id).toContain(q.label);
+      if (q.id !== q.label) {
+        expect(row.label.split(/[\s·]+/), q.id).not.toContain(q.id);
+      }
+    }
+  });
+
+  it('names a chord row by the three things the picker asks', () => {
+    const labels = labelsIn('chord identification');
+    expect(labels).toContain('root position · major · treble clef');
+    expect(labels).toContain('third inversion · minor 7th · bass clef');
+  });
+
+  it('omits the root, because the root is the variable being tested', () => {
+    // A row naming one root would describe a card that only sometimes
+    // appears.
+    for (const label of labelsIn('chord identification')) {
+      expect(label, label).not.toMatch(/\b[A-G][#b♯♭]?\b/);
+    }
+  });
+
+  it('drops the position on open shapes, agreeing with renderCard', () => {
+    // They ARE a voicing, so "root position" adds nothing — which is
+    // what renderCard already decides for their captions.
+    const open = READING_CHORD_QUALITIES.filter(q => q.family === 'open');
+    for (const q of open) {
+      const row = rows.find(i => i.itemRefs[0].startsWith(`chord:${q.id}:`))!;
+      expect(row.label, q.id).not.toContain('root position');
+      expect(row.label).toContain(q.label);
+    }
+  });
+
+  it('uses the corrected interval names for the two that under-specified', () => {
+    // [0,10] is a MINOR seventh and [0,16] a MAJOR tenth; the old
+    // labels each described two different shapes.
+    const labels = labelsIn('chord identification');
+    expect(labels.some(l => l.includes('root + ♭7'))).toBe(true);
+    expect(labels.some(l => l.includes('root + major 10th'))).toBe(true);
+    expect(labels.some(l => l.includes('root–seventh'))).toBe(false);
+  });
+
+  it('names a note row by its pitch, not by a staff coordinate', () => {
+    const labels = labelsIn('note recognition');
+    expect(labels).toContain('treble · A3');
+    expect(labels.some(l => /-\d/.test(l))).toBe(false);
+  });
+
+  it('names a shape row by its inversion in words', () => {
+    expect(labelsIn('notation shapes')).toContain('triad · first inversion');
+  });
+});
+
+describe('the reading tree is ordered by what depends on what', () => {
+  it('puts notation shapes before chord identification', () => {
+    // Shapes is the prerequisite: the silhouette pre-read that chord
+    // identification builds a full answer on. Listing the dependent
+    // skill first buries the thing it depends on.
+    const order: string[] = [];
+    for (const item of readingCatalog.items) {
+      const skill = item.path[1];
+      if (skill && order[order.length - 1] !== skill) order.push(skill);
+    }
+    expect(order).toEqual([
+      'note recognition',
+      'key signature recognition',
+      'notation shapes',
+      'chord identification',
+    ]);
   });
 });
