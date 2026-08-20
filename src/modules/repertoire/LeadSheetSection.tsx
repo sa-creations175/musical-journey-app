@@ -87,6 +87,7 @@ import {
   removeBreak,
   setBreak,
   setPhraseNote,
+  shouldOfferNote,
   toggleHidden,
 } from './sequenceView';
 import { toDetectChords } from './progressionOutline';
@@ -2507,8 +2508,11 @@ export default function LeadSheetSection({
                             |
                           </span>
                         ))}
-                      {(phrase.note || sequenceEditing) &&
-                        phrase.placementIds.length > 0 && (
+                      {shouldOfferNote(
+                        phrase,
+                        sequenceEditing,
+                        phrase.placementIds.length > 0,
+                      ) && (
                           <PhraseNote
                             note={phrase.note}
                             editing={sequenceEditing}

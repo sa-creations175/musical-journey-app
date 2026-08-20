@@ -8,6 +8,7 @@ import {
   removeBreak,
   setBreak,
   setPhraseNote,
+  shouldOfferNote,
   toggleHidden,
 } from '../sequenceView';
 
@@ -337,3 +338,46 @@ describe('pruneDeletedPlacements', () => {
     expect(pruneDeletedPlacements(once, ['p1'], ORDER)).toBe(once);
   });
 });
+
+describe('shouldOfferNote — a note belongs to a line, not a grouping', () => {
+  const sep = { endKind: 'separator' as const };
+  const row = { endKind: 'row' as const };
+  const tail = { endKind: 'end' as const };
+
+  it('offers NO field on a separator, which is what broke the line', () => {
+    // The reported bug: the note field is basis-full, so offering one
+    // here forced a full-width wrap. Five same-line groupings became
+    // five lines, each with a field nobody asked for.
+    expect(shouldOfferNote(sep, true, true)).toBe(false);
+  });
+
+  it('offers a field on a row break, where an annotation belongs', () => {
+    expect(shouldOfferNote(row, true, true)).toBe(true);
+  });
+
+  it('offers a field on the final phrase', () => {
+    expect(shouldOfferNote(tail, true, true)).toBe(true);
+  });
+
+  it('STILL renders an existing note on a separator', () => {
+    // Notes were storable on any break regardless of kind. Dropping
+    // them outright would leave writing stored but unreachable from
+    // any UI — the state pruneDeletedPlacements exists to prevent.
+    expect(shouldOfferNote({ ...sep, note: 'written earlier' }, true, true)).toBe(true);
+    // ...including outside edit mode, so it is readable as well.
+    expect(shouldOfferNote({ ...sep, note: 'written earlier' }, false, true)).toBe(true);
+  });
+
+  it('offers nothing outside edit mode when there is no note', () => {
+    expect(shouldOfferNote(row, false, true)).toBe(false);
+    expect(shouldOfferNote(sep, false, true)).toBe(false);
+  });
+
+  it('offers nothing when the phrase has no visible tokens', () => {
+    // A phrase whose chords are all hidden has nothing on screen to
+    // annotate — even one carrying a note.
+    expect(shouldOfferNote(row, true, false)).toBe(false);
+    expect(shouldOfferNote({ ...row, note: 'x' }, true, false)).toBe(false);
+  });
+});
+

@@ -47,6 +47,48 @@ export interface SequencePhrase {
   note?: string;
 }
 
+/**
+ * Whether a phrase gets a note field.
+ *
+ * ---------------------------------------------------------------
+ * A NOTE BELONGS TO A LINE, NOT TO A GROUPING
+ *
+ * Both surfaces used to ask `phrase.note || editing`, which offered a
+ * field on EVERY phrase — including one ended by a separator. And the
+ * field is `basis-full` in edit mode (deliberately: a textarea that
+ * grew as you typed would otherwise move the wrap points and reflow the
+ * chords of every following phrase, on every keystroke). In a wrapping
+ * row, `basis-full` forces a full-width line.
+ *
+ * So the note field was what broke the line, not the separator. Five
+ * same-line groupings became five lines, each with a field nobody
+ * asked for.
+ *
+ * A separator divides a phrase WITHIN a line. A row break starts a new
+ * one, and that is where an annotation belongs.
+ * ---------------------------------------------------------------
+ *
+ * An existing note on a separator still renders. Dropping it outright
+ * would leave writing stored but unreachable — the same unrecoverable
+ * state `pruneDeletedPlacements` exists to prevent — so it stays
+ * editable, and moving it elsewhere is a deliberate act.
+ *
+ * Pure, and shared, because the duplicated condition is how the two
+ * surfaces came to have the identical bug.
+ */
+export function shouldOfferNote(
+  phrase: Pick<SequencePhrase, 'note' | 'endKind'>,
+  editing: boolean,
+  hasVisibleTokens: boolean,
+): boolean {
+  // Nothing on screen to annotate.
+  if (!hasVisibleTokens) return false;
+  // Never strand writing that already exists.
+  if (phrase.note) return true;
+  // An empty field is offered only where a note would belong.
+  return editing && phrase.endKind !== 'separator';
+}
+
 export const EMPTY_SEQUENCE_VIEW: SequenceView = { breaks: [], hidden: [] };
 
 /** Notes combining keep both, visibly. A plain space would read as one

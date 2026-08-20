@@ -4,6 +4,7 @@ import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import SequenceChoices, { type SequenceTarget } from './SequenceChoices';
 import PhraseNote from './PhraseNote';
+import { shouldOfferNote } from './sequenceView';
 import type { ProgressionSection, ProgressionToken } from './progressionOutline';
 
 /**
@@ -293,7 +294,7 @@ export default function ProgressionDrawer({
                               |
                             </span>
                           ))}
-                        {(phrase.note || editing) && shown.length > 0 && (
+                        {shouldOfferNote(phrase, editing, shown.length > 0) && (
                           <PhraseNote
                             note={phrase.note}
                             editing={editing}
