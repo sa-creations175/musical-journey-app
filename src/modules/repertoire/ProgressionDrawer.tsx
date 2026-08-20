@@ -95,6 +95,7 @@ export default function ProgressionDrawer({
   renders.current += 1;
   const [taps, setTaps] = useState(0);
   const [lastEvent, setLastEvent] = useState('none');
+
   // ---------------------------------------------------------------
 
   const [notationMode] = useNotationMode();
@@ -110,6 +111,30 @@ export default function ProgressionDrawer({
    *  default: the list is carried so it costs nothing to reach, not
    *  because it earns the space. */
   const [openPatterns, setOpenPatterns] = useState<Set<string>>(new Set());
+
+  // Measured from the LIVE element, because the remaining candidates
+  // (collapsed / off-screen / not painted) are indistinguishable from
+  // the source and jsdom has no layout to test them with.
+  const choicesRef = useRef<HTMLDivElement | null>(null);
+  const [rect, setRect] = useState('unmeasured');
+  useEffect(() => {
+    if (!target) {
+      setRect('no target');
+      return;
+    }
+    const el = choicesRef.current;
+    if (!el) {
+      setRect('NOT IN DOM');
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const cs = window.getComputedStyle(el);
+    setRect(
+      `${Math.round(r.width)}x${Math.round(r.height)} @${Math.round(r.top)} ` +
+        `basis:${cs.flexBasis} disp:${cs.display} vis:${cs.visibility} ` +
+        `op:${cs.opacity} ovf:${cs.overflow}`,
+    );
+  }, [target]);
 
   // Leaving edit mode closes any open choices row — an editor that is
   // no longer editing should not leave a live control behind.
@@ -191,6 +216,8 @@ export default function ProgressionDrawer({
                 tgt {target ? `${target.placementId?.slice(0, 6) ?? 'undef'}@${target.sectionId.slice(0, 6)}` : 'none'}
                 <br />
                 {lastEvent}
+                <br />
+                {rect}
               </span>
             )}
             {totalHidden > 0 && (
@@ -379,14 +406,13 @@ export default function ProgressionDrawer({
                     mounts and its content is hidden or collapsed; not
                     seeing it means the condition below never became
                     true. Those need different fixes. */}
-                {target !== null && (
+                {target?.sectionId === section.sectionId && (
                   <div className="text-[9px] font-mono text-white bg-needswork px-1 rounded">
-                    menu slot · target sec {target.sectionId.slice(0, 6)} · this sec{' '}
-                    {section.sectionId.slice(0, 6)} ·{' '}
-                    {target.sectionId === section.sectionId ? 'MATCH' : 'no match'}
+                    menu slot · {section.heading}
                   </div>
                 )}
                 {target?.sectionId === section.sectionId && (
+                  <div ref={choicesRef} data-choices-probe="">
                   <SequenceChoices
                     target={target}
                     label={
@@ -426,6 +452,7 @@ export default function ProgressionDrawer({
                     }}
                     onClose={() => setTarget(null)}
                   />
+                  </div>
                 )}
 
                 {section.patterns.length > 0 && (
