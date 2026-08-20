@@ -1284,6 +1284,27 @@ export interface AttemptRecord {
   direction?: AttemptDirection;
   correct: boolean;
   timestamp: number;
+  /**
+   * Groups the rows written by ONE submitted answer.
+   *
+   * The chord-progressions full-progression drill writes one row per
+   * chord slot — four for a four-chord progression, eight when slash
+   * chords add inversion sub-records — all sharing an itemId and
+   * differing only by `timestamp + i`. The dashboard has to collapse
+   * those into a single all-or-nothing result, because the skill being
+   * tested is holding the whole progression together: getting three of
+   * four right is not 75% of that skill.
+   *
+   * Stamped rather than inferred. Clustering on timestamp proximity
+   * would be a heuristic over data never designed to support it, and a
+   * number produced that way is one you cannot trust. Rows written
+   * before this field existed carry no id and read as UNGROUPABLE —
+   * they stay one-row-per-slot rather than being guessed at, and the
+   * affordance says so.
+   *
+   * Absent on every module that writes one row per answer.
+   */
+  submissionId?: string;
   /** Set when the attempt should still be logged (so daily goals,
       streaks, and the calendar keep working) but must NOT feed the
       rolling-window fluency calculation. Used by small-pool focus

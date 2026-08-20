@@ -400,6 +400,14 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     const hasSlash = containsSlashChords(active.numerals);
     const records: AttemptRecord[] = [];
     const fluencyFlag = focusProtected ? { excludeFromFluency: true } : {};
+    // One submitted answer, one submission id across every row it
+    // writes. The dashboard collapses these to a single all-or-nothing
+    // result — the full-progression drill tests holding the whole thing
+    // together, so three of four correct is not 75% of that skill.
+    // Stamped rather than inferred: clustering on timestamp proximity
+    // would be a guess over data that was never designed to carry the
+    // grouping.
+    const submissionId = `sub-${Math.random().toString(36).slice(2, 10)}-${now.toString(36)}`;
     answers.forEach((ans, i) => {
       const user = splitAnswer(ans!);
       const correct = splitAnswer(active!.numerals[i]);
@@ -408,6 +416,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         itemId: active!.id,
         correct: user.chord === correct.chord,
         timestamp: now + i,
+        submissionId,
         ...fluencyFlag,
       });
       if (hasSlash) {
@@ -416,6 +425,7 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
           itemId: `${active!.id}-inversion`,
           correct: user.slash === correct.slash,
           timestamp: now + i,
+          submissionId,
           ...fluencyFlag,
         });
       }

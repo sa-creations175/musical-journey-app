@@ -82,6 +82,9 @@ export type AccuracyKind = 'measured' | 'self-rated';
  *   reading a lesson and taking it in are worth recording, but neither
  *   is practice, so `read it` and `deep dive` leave it uncovered.
  */
+/** Reasons an engagement sits outside the accuracy window. */
+export type AccuracyExclusion = 'focus-pool' | 'not-graded';
+
 export type CoverageRule =
   | { kind: 'engagements'; min: number }
   | { kind: 'score'; min: number };
@@ -109,8 +112,26 @@ export interface Engagement {
   timestamp: number;
   /** 0–100. */
   score: number;
-  /** Excluded from accuracy; still counts for coverage and recency. */
-  excludeFromFluency?: boolean;
+  /**
+   * Why this engagement is outside the accuracy window, when it is.
+   * Absent means it counts. Either way it counts toward coverage and
+   * recency: it happened.
+   *
+   * `focus-pool` - logged in a focus pool of fewer than 4 items. The
+   *   score is real but not trustworthy; a blind guess is right one
+   *   time in three and short-term recall carries the rest.
+   *
+   * `not-graded` - no score exists to count. Song Repertoire practice
+   *   is the case: a session records duration, sections and an
+   *   optional feel, and has no pass or fail at all. It is the honest
+   *   source for coverage and recency and says nothing about whether a
+   *   section holds up, which is what test run-throughs answer.
+   *
+   * Two values rather than one boolean, deliberately. They are
+   * different rules for different reasons, and an affordance that
+   * cannot tell them apart cannot explain the number.
+   */
+  notCounted?: AccuracyExclusion;
 }
 
 export interface ItemStats {
@@ -119,10 +140,12 @@ export interface ItemStats {
   /** Every engagement, excluded ones included. Coverage and the
    *  item-level attempt readout both use this. */
   engagementCount: number;
-  /** How many were flagged `excludeFromFluency`. Exposed so an
-   *  affordance can say "12 attempts, 4 of them in focus mode" rather
-   *  than leaving the gap between coverage and accuracy unexplained. */
+  /** How many engagements sat outside the accuracy window, and why.
+   *  Exposed so an affordance can say "12 attempts, 4 of them in focus
+   *  mode" or "9 practice sessions, none of them graded" rather than
+   *  leaving the gap between coverage and accuracy unexplained. */
   excludedCount: number;
+  excludedByReason: Readonly<Record<AccuracyExclusion, number>>;
   /** Engagements inside the accuracy window. 0 when every engagement
    *  was excluded. */
   windowTotal: number;
@@ -156,6 +179,7 @@ export function emptyItemStats(
     accuracyKind: options.accuracyKind ?? 'measured',
     engagementCount: 0,
     excludedCount: 0,
+    excludedByReason: { 'focus-pool': 0, 'not-graded': 0 },
     windowTotal: 0,
     windowCorrect: 0,
     score: null,
@@ -191,10 +215,12 @@ export function itemStatsFromEngagements(
   // Recency spans every engagement. Accuracy spans only the eligible
   // ones. Taking `lastAt` before the filter is the whole point.
   const lastAt = sorted[0].timestamp;
-  const excludedCount = sorted.filter(e => e.excludeFromFluency).length;
+  const excludedByReason = { 'focus-pool': 0, 'not-graded': 0 };
+  for (const e of sorted) if (e.notCounted) excludedByReason[e.notCounted] += 1;
+  const excludedCount = excludedByReason['focus-pool'] + excludedByReason['not-graded'];
 
   const window = sorted
-    .filter(e => !e.excludeFromFluency)
+    .filter(e => !e.notCounted)
     .slice(0, ACCURACY_WINDOW);
   const windowTotal = window.length;
   const windowCorrect = window.filter(e => e.score === 100).length;
@@ -207,6 +233,7 @@ export function itemStatsFromEngagements(
     accuracyKind,
     engagementCount: sorted.length,
     excludedCount,
+    excludedByReason,
     windowTotal,
     windowCorrect,
     score,
@@ -255,7 +282,7 @@ export function engagementFromAttempt(attempt: AttemptRecord): Engagement {
     itemRef: itemRefForAttempt(attempt),
     timestamp: attempt.timestamp,
     score: attempt.correct ? 100 : 0,
-    ...(attempt.excludeFromFluency ? { excludeFromFluency: true } : {}),
+    ...(attempt.excludeFromFluency ? { notCounted: 'focus-pool' as const } : {}),
   };
 }
 

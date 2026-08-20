@@ -10,10 +10,10 @@ import { describe, expect, it } from 'vitest';
 import type { AttemptRecord } from '../../../../lib/db';
 import { STALE_DAYS, MIN_ATTEMPTS_FOR_TIER } from '../../../../lib/tier';
 import { readingCatalog, scalesModesCatalog } from '../catalogs';
+import { statsForAttemptCatalog } from '../adapters';
 import {
   bucketAttemptsForCatalog,
   emptyTierCounts,
-  itemStatsForCatalog,
   tierCountsForCatalog,
   tierAndLastFromAttempts,
   tierCountsFromAttempts,
@@ -77,7 +77,7 @@ describe('focus-protected reps set freshness — the §1.12 divergence', () => {
       itemRef: 'x',
       timestamp: a.timestamp,
       score: a.correct ? 100 : 0,
-      ...(a.excludeFromFluency ? { excludeFromFluency: true as const } : {}),
+      ...(a.excludeFromFluency ? { notCounted: 'focus-pool' as const } : {}),
     })));
     expect(stats.windowTotal).toBe(10);
     expect(stats.score).toBe(0);
@@ -239,8 +239,8 @@ describe('tierCountsForCatalog — the denominator fix', () => {
     const attempts = refs.flatMap((ref, r) =>
       Array.from({ length: 3 }, (_, i) =>
         attempt({ moduleId: 'reading', itemId: ref, timestamp: NOW - (r * 10 + i) * 1000 })));
-    const stats = itemStatsForCatalog(readingCatalog, attempts)
-      .find(s => s.itemRef === '2s:major:conceptual')!;
+    const stats = statsForAttemptCatalog(readingCatalog, attempts)
+      .find(row => row.itemRef === '2s:major:conceptual')!;
     expect(stats.engagementCount).toBe(6);
     expect(tierFromItemStats(stats, NOW)).not.toBe('untouched');
   });

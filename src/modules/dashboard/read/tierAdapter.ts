@@ -21,8 +21,8 @@ import type { AttemptRecord } from '../../../lib/db';
 import { computeTier, type Tier } from '../../../lib/tier';
 import { catalogRollupKey } from './canonicalItemId';
 import type { ModuleCatalog } from './catalogs';
+import { statsForAttemptCatalog } from './adapters';
 import {
-  emptyItemStats,
   engagementsFromAttempts,
   itemStatsByRef,
   itemStatsFromEngagements,
@@ -178,36 +178,8 @@ export function tierCountsForCatalog(
   now: number,
 ): TierCounts {
   const counts = emptyTierCounts();
-  for (const stats of itemStatsForCatalog(catalog, attempts)) {
+  for (const stats of statsForAttemptCatalog(catalog, attempts)) {
     bumpTier(counts, tierFromItemStats(stats, now));
   }
   return counts;
-}
-
-/**
- * Stats for every row in a catalog, in catalog order. Rows with no
- * engagements come back as `emptyItemStats` rather than being omitted —
- * an uncovered item is part of the denominator, which is the whole
- * point of walking the catalog instead of the log.
- */
-export function itemStatsForCatalog(
-  catalog: ModuleCatalog,
-  attempts: ReadonlyArray<AttemptRecord>,
-): ItemStats[] {
-  const byRef = new Map<string, Engagement[]>();
-  for (const e of engagementsFromAttempts(attempts)) {
-    const bucket = byRef.get(e.itemRef);
-    if (bucket) bucket.push(e);
-    else byRef.set(e.itemRef, [e]);
-  }
-  const options = {
-    accuracyKind: catalog.accuracyKind,
-    ...(catalog.coverageRule ? { coverageRule: catalog.coverageRule } : {}),
-  };
-  return catalog.items.map(item => {
-    const engagements = item.itemRefs.flatMap(ref => byRef.get(ref) ?? []);
-    return engagements.length === 0
-      ? emptyItemStats(item.id, options)
-      : itemStatsFromEngagements(item.id, engagements, options);
-  });
 }

@@ -975,6 +975,13 @@ leave accuracy alone, it leaves the **due filter** alone too. Drill a flagged
 card ten times and it is still due tomorrow. Correction 9's two-line rule
 ("excluded from accuracy, counted toward coverage") is true but not complete.
 
+**6a. `read/shapesScope.ts` duplicates `goals/scopeEnumeration`.**
+*Accepted 20 Aug 2026, logged as a seam.* Both walk the same S&P catalog
+constants to produce the same ref list. The read layer cannot import the goals
+version — its enumerators are private, and pointing the read layer into goals
+is the wrong dependency direction — and a goals refactor mid-workstream is not
+worth it. If the two ever drift, this is where.
+
 **6. There is already a dashboard read layer.**
 `src/modules/dashboard/aggregation.ts` computes accuracy with its own
 20-attempt slice and its own `excludeFromFluency` filter (`:44-52`), and

@@ -89,8 +89,8 @@ describe('accuracy', () => {
 describe('excludeFromFluency', () => {
   const rows = [
     eng({ score: 100, timestamp: T0 }),
-    eng({ score: 100, timestamp: T0 + DAY, excludeFromFluency: true }),
-    eng({ score: 100, timestamp: T0 + 2 * DAY, excludeFromFluency: true }),
+    eng({ score: 100, timestamp: T0 + DAY, notCounted: 'focus-pool' }),
+    eng({ score: 100, timestamp: T0 + 2 * DAY, notCounted: 'focus-pool' }),
   ];
 
   it('is excluded from accuracy', () => {
@@ -120,9 +120,9 @@ describe('excludeFromFluency', () => {
     // Practised, but no eligible signal: covered, dash for accuracy,
     // and a real recency. All three at once.
     const stats = itemStatsFromEngagements('x', [
-      eng({ score: 100, timestamp: T0, excludeFromFluency: true }),
-      eng({ score: 100, timestamp: T0 + DAY, excludeFromFluency: true }),
-      eng({ score: 0, timestamp: T0 + 2 * DAY, excludeFromFluency: true }),
+      eng({ score: 100, timestamp: T0, notCounted: 'focus-pool' }),
+      eng({ score: 100, timestamp: T0 + DAY, notCounted: 'focus-pool' }),
+      eng({ score: 0, timestamp: T0 + 2 * DAY, notCounted: 'focus-pool' }),
     ]);
     expect(stats.score).toBeNull();
     expect(stats.windowTotal).toBe(0);
@@ -214,10 +214,13 @@ describe('engagementFromAttempt', () => {
     expect(legacy.itemRef).toBe('maj:0');
   });
 
-  it('carries the exclusion flag only when set', () => {
-    expect(engagementFromAttempt(attempt({})).excludeFromFluency).toBeUndefined();
-    expect(engagementFromAttempt(attempt({ excludeFromFluency: true })).excludeFromFluency)
-      .toBe(true);
+  it('maps the stored flag to the focus-pool exclusion reason', () => {
+    // The stored column stays `excludeFromFluency`; the read layer
+    // names WHY, so a second reason (ungraded practice) can exist
+    // without the two collapsing into one unexplainable number.
+    expect(engagementFromAttempt(attempt({})).notCounted).toBeUndefined();
+    expect(engagementFromAttempt(attempt({ excludeFromFluency: true })).notCounted)
+      .toBe('focus-pool');
   });
 });
 
