@@ -70,6 +70,16 @@ in flats and one in F♯ reads in sharps.
 
 **Why.** **Currently blocking lead sheet work.** No design doc yet.
 
+**Same root, found 20 Aug 2026: the app has two circle-of-fourths modules that
+disagree.** `matrix/keys.ts` spells the sixth key **F#** and that is what
+`songKeys.keyName` stores; `repertoire/circleOfFourths.ts` spells it **Gb**,
+and its `canonicaliseKey` maps 'F#' → 'Gb' — i.e. *into* the vocabulary the
+matrix does not use. Anything written against the wrong one matches zero rows
+and fails silently. The stage-quadrant table dodged it by deriving from
+`CIRCLE_OF_FOURTHS_KEYS` rather than being written out, but the split itself is
+still there for the next writer to walk into. Per-song spelling has to decide
+which module is canonical anyway, so the reconciliation belongs here.
+
 ---
 
 ### 4. Song detail page — collapse the three progress cards into one
@@ -165,9 +175,41 @@ nothing from repertoire or S&P.
 decisions on what each rating maps to in SM-2 terms and what happens to
 existing `drillSessions` rows.
 
+**Also carries the maintenance half of the stage rules (added 20 Aug 2026).**
+Maintenance stops being a fifth rung and becomes a mode on internalized:
+*entered* by reaching internalized, *held* by periodic checks where the app
+picks a key and asks for a run. Entry ships with the rule rewrite; the holding
+half lands here, because a maintenance check is an SM-2 review and not a
+bespoke timer. What exists already is per-key decay (`solidDecay.ts`, 14-day
+fading / 30-day lapsed) driven by engagement timestamps — which is a different
+thing from a check the user passes or fails.
+
 ---
 
-### 10. MIDI-in accuracy grading
+### 10. Collapse the two song-progress ladders
+
+**What.** Two things describe how far a song has come and neither knows about
+the other. `songs.stage` is stored and hand-advanced (learning → comfortable →
+cross-key → internalized). `computeSongLevelState` derives learning /
+comfortable / solid / cross_key / internalized from `songKeys` + `songCells` at
+read time, and is what the matrix and the goals module read.
+
+**Why.** They can disagree on one screen while both are correct — the matrix can
+read `cross_key` while the stage badge reads Learning. Same shape as the three
+disagreeing tier computations in `RULE_LEGIBILITY.md` §1.12.
+
+**Deliberately not fixed with the stage-rule rewrite.** The two Internalizeds
+are different claims — the derived one is "3+ keys solid with the lived-with
+gate", the stage one is "the four quadrant keys held plus one clean at-tempo run
+in each of the remaining eight" — and routing either through the other would
+force one definition to bend. What they now share is the vocabulary underneath:
+`matrix/keyProgress.ts` holds quadrant membership, `isComfortableOrBetter` and
+`isHeld`, and both sides read it. The collapse is deciding which ladder is the
+real one, which is a design question, not a refactor.
+
+---
+
+### 11. MIDI-in accuracy grading
 
 **What.** Grade S&P and Song Repertoire from a plugged-in keyboard — exact note
 numbers, exact timestamps, no pitch detection.
