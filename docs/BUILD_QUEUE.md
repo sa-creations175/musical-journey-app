@@ -193,6 +193,7 @@ of, not a changelog.
 
 | Date | What |
 |---|---|
+| 20 Aug 2026 | **Dashboard step 8 — the route swap.** `/` is the new screen. Old one at `/dashboard-old` for a few days' comparison; `/dashboard-next` redirects to `/` keeping its query string. **Deletion is a separate commit** — `Dashboard.tsx` and `aggregation.ts`'s snapshot functions are still live. |
 | 20 Aug 2026 | **Dashboard steps 1–7b.** Read layer, screen, row, controls, sticky headers, tap-to-drill targeting, and the legibility layer: both column legends, four `?` panels, and a per-row `i` giving what a row trains, what would advance it, and what is odd about its numbers. |
 | 20 Aug 2026 | **Supplementary rows count** — chord shapes 648 → 720. Found by writing the legend that explained the exclusion. `RULE_LEGIBILITY.md` §1.7 closed by removing the rule rather than surfacing it. |
 

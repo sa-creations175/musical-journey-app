@@ -37,6 +37,7 @@ import PracticeSessions from './modules/practice/PracticeSessions';
 import ActiveSessionScreen from './modules/practice/ActiveSessionScreen';
 import { InstrumentProvider } from './lib/instrumentContext';
 import { Toaster } from './components/Toaster';
+import RedirectPreservingSearch from './components/RedirectPreservingSearch';
 import DbUpgradeOverlay from './components/DbUpgradeOverlay';
 import { AuthProvider } from './lib/auth/AuthContext';
 import AuthGate from './lib/auth/AuthGate';
@@ -54,12 +55,28 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            {/* The new dashboard, alongside the old one rather than
-                replacing it. The swap and the deletion are separate
-                steps: this exists so the screen can be looked at while
-                the controls are built. */}
-            <Route path="dashboard-next" element={<DashboardScreen />} />
+            {/* THE HOME SCREEN. Swapped 20 Aug 2026 — step 8.
+                Everything else that means "home" already resolved to
+                `/`: the sidebar, the mobile tab bar, DASHBOARD_META,
+                the page-title map and the PWA start_url. `homeRoute`
+                pins that, because a swap leaving three paths on the old
+                screen is worse than no swap. */}
+            <Route index element={<DashboardScreen />} />
+            {/* The old dashboard, still reachable for comparison.
+                TEMPORARY: this route and `modules/dashboard/Dashboard`
+                come out in a separate commit once the new screen has
+                been used properly — the same way PracticeLogModal was
+                retired. Deleting it in the swap commit would remove the
+                thing the swap is meant to be checked against. */}
+            <Route path="dashboard-old" element={<Dashboard />} />
+            {/* Bookmarked and sitting open in tabs, so it redirects
+                rather than 404s. The search is carried across because
+                the dashboard's filters and sort live in the URL — a
+                saved view has to arrive as itself. */}
+            <Route
+              path="dashboard-next"
+              element={<RedirectPreservingSearch to="/" />}
+            />
             <Route path="goals" element={<Goals />} />
             <Route path="practice-sessions" element={<PracticeSessions />} />
             <Route path="practice-sessions/active" element={<ActiveSessionScreen />} />
