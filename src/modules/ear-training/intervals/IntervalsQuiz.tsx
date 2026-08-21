@@ -15,6 +15,7 @@ import { TIER_WEIGHT, computeTier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { recordEngagement } from '../../../lib/spacingState';
 import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
+import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
@@ -225,7 +226,12 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
   // the user knows what's coming. We still log the attempt (so daily
   // goal, calendar, and streaks all keep working), but flag it so it
   // doesn't inflate the rolling-window tier calculation.
-  const focusProtected = focusActive && focusKeys.length < 4;
+  // Counted over DISTINCT keys, because that is what `buildCandidates`
+  // builds its pool from. The third instance of this formula; sizing
+  // it off an array that can hold the same key twice reports a pool
+  // larger than the one being drilled.
+  const focusPoolSize = new Set(focusKeys).size;
+  const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
 
   const directionLabel = current?.direction === 'asc' ? 'ascending' : 'descending';
   const activeAnchor = current && (current.direction === 'asc'
@@ -300,7 +306,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
           {focusActive ? (
             <>
               <span>
-                focused practice — {focusKeys.length} interval{focusKeys.length === 1 ? '' : 's'} selected
+                focused practice — {focusPoolSize} interval{focusPoolSize === 1 ? '' : 's'} selected
               </span>
               <button
                 onClick={onExitFocus}

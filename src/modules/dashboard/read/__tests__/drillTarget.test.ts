@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
   drillTargetFor,
   drillTargetSummary,
+  drillHref,
   filterableModules,
   smallPoolPromptFor,
   smallPoolPromptText,
@@ -16,6 +17,7 @@ import {
 import type { ModuleCatalog } from '../catalogs';
 import { buildMergedTree, buildModuleTree, flatten, leavesOf } from '../tree';
 import {
+  chordProgressionsCatalog,
   chordRecognitionCatalog,
   earTrainingCatalogs,
   intervalsCatalog,
@@ -121,8 +123,10 @@ describe('modules with no filter mechanism', () => {
   it('names exactly the modules that can be filtered today', () => {
     // The unevenness is accepted and stated, not discovered one row at
     // a time.
+    // Membership is not a promise about every row — chord progressions
+    // is here on the strength of 132 refs out of 420.
     expect(filterableModules().sort())
-      .toEqual(['chord-recognition', 'intervals', 'reading']);
+      .toEqual(['chord-progressions', 'chord-recognition', 'intervals', 'reading']);
   });
 });
 
@@ -372,5 +376,78 @@ describe('the climb', () => {
     expect(prompt.poolSize).toBe(1);
     expect(prompt.offer).toBeNull();
     expect(smallPoolPromptText(prompt).offer).toBeNull();
+  });
+});
+
+// ── Chord motion: one catalog, four sub-drills ───────────────────────
+
+describe('chord progressions — filterability is per row', () => {
+  const tree = treeFor(chordProgressionsCatalog);
+  const nodeNamed = (label: string) => flatten(tree).find(n => n.label === label)!;
+
+  it('hands motion refs over untranslated', () => {
+    // `motionId()` builds the same string the catalog stores. The one
+    // module needing no translation — and the one where assuming a
+    // translation was needed would have filtered the pool to nothing.
+    const destination = nodeNamed('Destination');
+    const target = drillTargetFor(destination, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.focusKeys).toHaveLength(132);
+    expect(target.focusKeys).toEqual(target.itemRefs);
+    expect(target.focusKeys[0]).toMatch(/^motion:/);
+  });
+
+  it('sends the tab as well as the pool', () => {
+    // Three tabs behind one route. A pool landing on Key Detection is
+    // a drill silently ignoring what it was asked for.
+    const target = drillTargetFor(nodeNamed('Destination'), 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.params).toEqual({ tab: 'chord-motion' });
+    const href = drillHref(target);
+    expect(href.startsWith('/ear-training/chord-progressions?')).toBe(true);
+    const query = new URLSearchParams(href.slice(href.indexOf('?') + 1));
+    expect(query.get('tab')).toBe('chord-motion');
+    expect(query.get('focus')!.split(',')).toHaveLength(132);
+  });
+
+  it('refuses the first-chord rows rather than half-delivering them', () => {
+    // Same 132 motions, and the translation would be trivial — but an
+    // attempt only lands under `motion-first:` in the MINIMAL
+    // scaffold, so filtering the pool and arriving in full scaffold
+    // never touches the row's item.
+    const first = nodeNamed('First Chord');
+    // Guard the guard: these refs really are the same motions, so the
+    // refusal is a decision rather than a missing translation.
+    expect(first.itemRefs).toHaveLength(132);
+    expect(first.itemRefs[0]).toMatch(/^motion-first:/);
+    const target = drillTargetFor(first, 'ear-training');
+    if (target.kind !== 'navigate') throw new Error('expected navigate');
+    expect(target.reason).toBe('no-filter-mechanism');
+  });
+
+  it('refuses key detection and full progression', () => {
+    for (const label of ['Key Detection', 'Full Progression']) {
+      const target = drillTargetFor(nodeNamed(label), 'ear-training');
+      expect(target.kind, label).toBe('navigate');
+    }
+  });
+
+  it('a row MIXING filterable and unfilterable refs offers neither', () => {
+    // ALL OR NOTHING. Serving the motion refs and dropping the rest
+    // would read as the filter working while three quarters of the row
+    // went missing.
+    const root = nodeNamed('Chord Progressions');
+    const kinds = new Set(root.itemRefs.map(r => r.startsWith('motion:')));
+    expect(kinds).toEqual(new Set([true, false]));
+    const target = drillTargetFor(root, 'ear-training');
+    if (target.kind !== 'navigate') throw new Error('expected navigate');
+    expect(target.reason).toBe('no-filter-mechanism');
+  });
+
+  it('a single motion is a small pool like any other', () => {
+    const leaf = leavesOf(tree).find(n => n.itemRefs[0]?.startsWith('motion:'))!;
+    const summary = drillTargetSummary(drillTargetFor(leaf, 'ear-training'));
+    expect(summary.itemCount).toBe(1);
+    expect(summary.countsTowardAccuracy).toBe(false);
   });
 });

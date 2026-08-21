@@ -100,4 +100,12 @@ describe('focus protection is not bypassed', () => {
     expect(el.textContent).toContain('4 intervals selected');
     expect(protectionNotice(el)).toBeNull();
   });
+
+  it('counts distinct intervals, not repeats', async () => {
+    // `buildCandidates` pools on `new Set(focusKeys)`, so sizing the
+    // warning off the array would report four while drilling one.
+    const el = await render(['m7|desc', 'm7|desc', 'm7|desc', 'm7|desc']);
+    expect(el.textContent).toContain('1 interval selected');
+    expect(protectionNotice(el)).not.toBeNull();
+  });
 });

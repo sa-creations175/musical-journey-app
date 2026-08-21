@@ -39,6 +39,7 @@ import {
   type ModuleTree,
 } from './read/query';
 import {
+  drillHref,
   drillTargetFor,
   smallPoolPromptFor,
   type FilteredDrillTarget,
@@ -333,8 +334,11 @@ export default function DashboardScreen({
     { nodeId: string; prompt: SmallPoolPrompt } | null
   >(null);
 
+  // The whole URL comes from the read layer. Chord motion needs a tab
+  // as well as a pool, and a caller assembling half of it would land on
+  // the right screen ignoring the focus it was sent with.
   const goToDrill = useCallback((target: FilteredDrillTarget) => {
-    navigate(`${target.route}?focus=${encodeURIComponent(target.focusKeys.join(','))}`);
+    navigate(drillHref(target));
   }, [navigate]);
 
   /**

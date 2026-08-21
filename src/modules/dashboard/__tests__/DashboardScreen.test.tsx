@@ -524,6 +524,36 @@ describe('the drill affordance', () => {
     expect(pathname(el)).toBe('/reading');
   });
 
+  it('sends the tab as well as the pool where a route has tabs', async () => {
+    // Chord motion sits behind one of three tabs. A tap carrying only
+    // the pool lands on whichever tab was last open — and the two that
+    // are not chord motion do not read a pool at all, so the drill
+    // would look like it simply ignored the row.
+    const el = await renderScreen();
+    click(rowNamed(el, 'Chord Progressions').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Chord Motion').querySelector('[data-testid="expand-toggle"]')!);
+    const destination = rowNamed(el, 'Destination');
+    expect(drillButton(destination).getAttribute('data-filtered')).toBe('true');
+
+    click(drillButton(destination));
+    expect(pathname(el)).toBe('/ear-training/chord-progressions');
+    const query = new URLSearchParams(search(el));
+    expect(query.get('tab')).toBe('chord-motion');
+    expect(query.get('focus')!.split(',')).toHaveLength(132);
+  });
+
+  it('says open module on the first-chord rows beside them', async () => {
+    // Same 132 motions, and the pool filter would take them — but an
+    // attempt only lands under `motion-first:` in the minimal
+    // scaffold, so a filtered drill would never touch the row's item.
+    const el = await renderScreen();
+    click(rowNamed(el, 'Chord Progressions').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Chord Motion').querySelector('[data-testid="expand-toggle"]')!);
+    const first = rowNamed(el, 'First Chord');
+    expect(drillButton(first).getAttribute('data-filtered')).toBe('false');
+    expect(drillButton(first).textContent).toMatch(/^open module · \d+ items$/);
+  });
+
   it('opens ear training rather than the screen it started on', async () => {
     // The module row's own dead tap: `ear-training` is a module id and
     // was in no route table, so it fell through to `/`.

@@ -46,8 +46,21 @@ export interface FilteredDrillTarget {
    * its focus mechanism. Intervals key on `id|direction` where the
    * catalog refs on `id:direction`, so the translation happens here
    * rather than at four call sites.
+   *
+   * Distinct. Several refs can fold to one key, and every drill sizes
+   * its focus protection off this length.
    */
   focusKeys: string[];
+  /**
+   * Anything else the destination needs in its URL beyond the pool.
+   *
+   * Chord motion is one of three tabs behind a single route, so a
+   * focused pool that lands on Key Detection is a drill that silently
+   * ignores it. The param belongs here rather than at the navigate
+   * call, for the same reason the key translation does: one place that
+   * knows how a module is addressed.
+   */
+  params: Readonly<Record<string, string>>;
 }
 
 export interface UnfilteredDrillTarget {
@@ -102,15 +115,50 @@ const ROUTES: Readonly<Record<string, string>> = {
  *   by the pool. So a tapped chord row means every inversion of it,
  *   which is exactly what `catalogRollupKey` already expresses.
  *
+ * `chord-progressions` - PARTLY. See below; this is the module that
+ *   made the map return null.
+ *
  * Everything else opens its module. Adding one here is a two-line
  * change once its drill grows the mechanism.
+ *
+ * ─── Why a key can be null ───────────────────────────────────────────
+ *
+ * Filterability is a property of a ROW, not of a module. Chord
+ * progressions is one catalog holding four sub-drills: 132 `motion:`
+ * refs that Chord Motion's focus set matches exactly, 132
+ * `motion-first:` refs, 12 `key-detection:` refs and 144 full
+ * progression rows, none of which any focus mechanism reads.
+ *
+ * `motion-first:` is the one worth stating, because the translation is
+ * trivial and doing it would still be wrong. Those are the same 132
+ * motions, but an attempt only lands under `motion-first:` in the
+ * MINIMAL scaffold. Filtering the pool and arriving in full scaffold
+ * narrows the drill and never touches the row's item - a filtered
+ * claim the drill does not deliver, which is the failure the honest
+ * label exists to prevent. Sending `scaffold=minimal` alongside would
+ * deliver it, and overrides a persisted user setting, so it is queued
+ * rather than assumed.
  */
-const FOCUS_KEY_FORMAT: Readonly<Record<string, (itemRef: string) => string>> = {
+const FOCUS_KEY_FORMAT: Readonly<
+  Record<string, (itemRef: string) => string | null>
+> = {
   // `M3:asc` in the catalog, `M3|asc` in the quiz's focus set.
   'intervals': ref => ref.replace(/:([^:]*)$/, '|$1'),
   'reading': ref => ref,
   // `maj:1` in the catalog, `maj` in the quiz's focus set.
   'chord-recognition': ref => catalogRollupKey('chord-recognition', ref),
+  // `motion:1-b2-asc` in both - `motionId()` builds the same string.
+  // The one module that needs no translation, and the one where
+  // assuming a translation was needed would have broken it.
+  'chord-progressions': ref => (ref.startsWith('motion:') ? ref : null),
+};
+
+/** Extra URL params per source, keyed off the row's refs. */
+const DRILL_PARAMS: Readonly<
+  Record<string, (itemRefs: ReadonlyArray<string>) => Record<string, string>>
+> = {
+  // Three tabs behind one route, and `useUrlTabSync` already reads it.
+  'chord-progressions': () => ({ tab: 'chord-motion' }),
 };
 
 /**
@@ -128,8 +176,29 @@ function distinct(keys: string[]): string[] {
   return [...new Set(keys)];
 }
 
-function isFilterable(sourceId: string): boolean {
-  return sourceId in FOCUS_KEY_FORMAT;
+/**
+ * The row's items in its drill's key format, or null when this row
+ * cannot be filtered.
+ *
+ * ALL OR NOTHING. A row mixing refs its drill can select with refs it
+ * cannot is not partly filterable - drilling it would serve some of
+ * what the row promised and silently drop the rest, which reads as the
+ * filter working. The "Chord Progressions" row is exactly that mix,
+ * and it says "open module".
+ */
+function focusKeysFor(
+  sourceId: string,
+  itemRefs: ReadonlyArray<string>,
+): string[] | null {
+  const toKey = FOCUS_KEY_FORMAT[sourceId];
+  if (toKey === undefined) return null;
+  const keys: string[] = [];
+  for (const ref of itemRefs) {
+    const key = toKey(ref);
+    if (key === null) return null;
+    keys.push(key);
+  }
+  return distinct(keys);
 }
 
 /**
@@ -173,16 +242,17 @@ export function drillTargetFor(node: TreeNode, moduleId: string): DrillTarget {
     // cards in one sitting".
     return { kind: 'navigate', moduleId: id, route, reason: 'whole-module' };
   }
-  if (!isFilterable(id)) {
+  const focusKeys = focusKeysFor(id, node.itemRefs);
+  if (focusKeys === null) {
     return { kind: 'navigate', moduleId: id, route, reason: 'no-filter-mechanism' };
   }
-  const toKey = FOCUS_KEY_FORMAT[id];
   return {
     kind: 'filtered',
     moduleId: id,
     route,
     itemRefs: [...node.itemRefs],
-    focusKeys: distinct(node.itemRefs.map(toKey)),
+    focusKeys,
+    params: DRILL_PARAMS[id]?.(node.itemRefs) ?? {},
   };
 }
 
@@ -308,9 +378,30 @@ export function smallPoolPromptText(prompt: SmallPoolPrompt): {
 
 export { FLUENCY_POOL_MINIMUM };
 
-/** Source ids whose drills accept an item filter today. Exported so a
- *  caller can explain the unevenness rather than discovering it one row
- *  at a time. */
+/**
+ * Source ids whose drills accept an item filter for AT LEAST SOME of
+ * their rows.
+ *
+ * Membership is not a promise about every row: chord progressions is
+ * here on the strength of its 132 `motion:` refs while three quarters
+ * of the catalog under the same id cannot be filtered at all. Exported
+ * so a caller can explain the unevenness rather than discovering it one
+ * row at a time.
+ */
 export function filterableModules(): string[] {
   return Object.keys(FOCUS_KEY_FORMAT);
+}
+
+/**
+ * The URL a filtered drill lives at.
+ *
+ * Built here so a caller cannot assemble half of it. The pool and the
+ * tab are both required for chord motion to arrive focused, and a
+ * navigate call that remembered one and forgot the other would land on
+ * the right screen ignoring the pool.
+ */
+export function drillHref(target: FilteredDrillTarget): string {
+  const query = new URLSearchParams(target.params);
+  query.set('focus', target.focusKeys.join(','));
+  return `${target.route}?${query.toString()}`;
 }

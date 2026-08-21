@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
 import ModuleIntro from '../../../components/ModuleIntro';
@@ -41,17 +41,39 @@ const TABS: Array<{ id: TabId; label: string; hint: string }> = [
 const DEFAULT_TAB: TabId = 'full-progression';
 
 export default function ChordProgressions() {
-  const [tab, setTab] = useState<TabId>(DEFAULT_TAB);
+  const [params] = useSearchParams();
+  /** A tab named in the URL, if one is. */
+  const urlTab = useMemo(() => {
+    const raw = params.get('tab');
+    return raw && isTabId(raw) ? raw : null;
+  }, [params]);
+  /** `?focus=motion:1-b2-asc,…` — a dashboard row tap on a chord
+   *  motion row. Only Chord Motion reads a pool, which is why the tap
+   *  sends the tab as well: a pool that lands on another tab is a drill
+   *  silently ignoring what it was asked for. */
+  const focusKeys = useMemo(() => {
+    const raw = params.get('focus');
+    if (!raw) return undefined;
+    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+    return keys.length > 0 ? keys : undefined;
+  }, [params]);
+
+  const [tab, setTab] = useState<TabId>(urlTab ?? DEFAULT_TAB);
   const [tabHydrated, setTabHydrated] = useState(false);
 
   useEffect(() => {
     (async () => {
       const stored = await getPref<TabId>(PREF_ACTIVE_TAB, DEFAULT_TAB);
-      if (isTabId(stored)) {
+      // NOT when the URL named a tab. This read is async, so it
+      // resolves AFTER `useUrlTabSync` has applied the URL — the
+      // stored tab would win a race it should lose, and a tap sent to
+      // Chord Motion would settle on whichever tab was last open.
+      if (urlTab === null && isTabId(stored)) {
         setTab(stored);
       }
       setTabHydrated(true);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -111,7 +133,12 @@ export default function ChordProgressions() {
       </nav>
 
       {tab === 'key-detection' && <KeyDetectionTab attempts={attempts} />}
-      {tab === 'chord-motion' && <ChordMotionTab attempts={attempts} />}
+      {tab === 'chord-motion' && (
+        <ChordMotionTab
+          attempts={attempts}
+          {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
+        />
+      )}
       {tab === 'full-progression' && <ChordProgressionsQuiz attempts={attempts} />}
 
       <ProgressionFluencyTracker attempts={attempts} />

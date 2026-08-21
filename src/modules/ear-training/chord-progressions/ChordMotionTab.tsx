@@ -6,6 +6,7 @@ import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
+import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import SpeedControl from '../../../components/SpeedControl';
 import KeyboardVisual, { type HighlightedNote } from '../../../components/KeyboardVisual';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
@@ -295,17 +296,33 @@ async function playStep(
 
 // --- Selection + randomization ---------------------------------------
 
+/**
+ * FOCUS OVERRIDES SCOPE - an explicit selection always wins.
+ *
+ * These used to compose: the scope filters applied on top of the focus
+ * set, so a chromatic motion sent in while the default diatonic-only
+ * scope was active produced an empty pool. Worse, the scope controls
+ * are HIDDEN while focus is active, so there was no way to see the
+ * cause or fix it from the screen - a drill that looks broken rather
+ * than one that looks filtered.
+ *
+ * Matches what the other three modules already do: `IntervalsQuiz`
+ * branches the same way, and `ScalesModes` says it outright. Widening
+ * only, for the in-app "practice this motion specifically" button:
+ * that motion came out of the current pool, so it satisfied the
+ * filters anyway.
+ */
 function filterMotions(
   distance: DistanceFilter,
   direction: DirectionFilter,
   noteContext: NoteContext,
   focus: Set<string> | null,
 ): Motion[] {
+  if (focus) return ALL_MOTIONS.filter(m => focus.has(motionId(m)));
   return ALL_MOTIONS.filter(m => {
     if (noteContext === 'diatonic' && !m.isDiatonic) return false;
     if (distance !== 'all' && m.distance !== distance) return false;
     if (direction !== 'both' && m.direction !== direction) return false;
-    if (focus && !focus.has(motionId(m))) return false;
     return true;
   });
 }
@@ -317,6 +334,10 @@ function randomKey(): string {
 // --- Component -------------------------------------------------------
 
 interface Props {
+  /** `motion:1-b2-asc` keys to open in focus mode on - the format
+   *  `motionId()` builds and `filterMotions` matches. Sent by a
+   *  dashboard row tap. */
+  initialFocusKeys?: readonly string[];
   attempts: AttemptRecord[];
 }
 
@@ -369,7 +390,7 @@ function clickedToMidi(note: string, octave: number): number {
   return (octave + 1) * 12 + SEMITONE[note];
 }
 
-export default function ChordMotionTab({ attempts }: Props) {
+export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const [distance, setDistance] = useState<DistanceFilter>('all');
   const [direction, setDirection] = useState<DirectionFilter>('both');
   // Diatonic-only is the default starting point — chromatic motion
@@ -381,8 +402,17 @@ export default function ChordMotionTab({ attempts }: Props) {
   // training-purist setting.
   const [listening, setListening] = useState<ListeningMode>('bass-chords');
   const [scaffold, setScaffold] = useState<Scaffolding>('full');
-  const [focusKeys, setFocusKeys] = useState<string[]>([]);
-  const [focusActive, setFocusActive] = useState(false);
+  /**
+   * FOCUS PROTECTION STILL APPLIES to a pool the dashboard sent. The
+   * rule is about how few items you were choosing between, not about
+   * who chose them.
+   */
+  const [focusKeys, setFocusKeys] = useState<string[]>(
+    initialFocusKeys ? [...initialFocusKeys] : [],
+  );
+  const [focusActive, setFocusActive] = useState(
+    (initialFocusKeys?.length ?? 0) > 0,
+  );
   const [showFocusPanel, setShowFocusPanel] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
@@ -410,7 +440,12 @@ export default function ChordMotionTab({ attempts }: Props) {
       setNoteContext(nc === 'chromatic' ? 'chromatic' : 'diatonic');
       setListening(ls === 'bass' || ls === 'chords' ? ls : 'bass-chords');
       setScaffold(sc);
-      setFocusKeys(focus);
+      // NOT when the dashboard sent a pool. This effect runs after the
+      // first render, so hydrating the persisted selection over it
+      // would replace what was just asked for with whatever was last
+      // hand-picked - a tap that lands on the wrong motions, one tick
+      // after landing on the right ones.
+      if ((initialFocusKeys?.length ?? 0) === 0) setFocusKeys(focus);
       setPrefsLoaded(true);
     })();
   }, []);
@@ -437,7 +472,11 @@ export default function ChordMotionTab({ attempts }: Props) {
     [distance, direction, noteContext, focusActive, focusKeys],
   );
 
-  const focusProtected = focusActive && focusKeys.length < 4;
+  // Counted over DISTINCT keys, because that is what the pool is built
+  // from. Sizing it off an array that can hold the same motion twice
+  // would report a pool of four while drilling one.
+  const focusPoolSize = new Set(focusKeys).size;
+  const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
 
   // --- Playback control ----------------------------------------------
   const stopAll = () => {
@@ -725,6 +764,7 @@ export default function ChordMotionTab({ attempts }: Props) {
         {runState === 'idle' && (
           <button
             onClick={nextRound}
+            data-testid="play-motion"
             disabled={activePool.length === 0}
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
           >
@@ -1084,7 +1124,7 @@ export default function ChordMotionTab({ attempts }: Props) {
           <span className="text-neutral-500">current scope:</span>
           <span>
             {focusActive
-              ? `focused practice — ${focusKeys.length} motion${focusKeys.length === 1 ? '' : 's'} selected`
+              ? `focused practice — ${focusPoolSize} motion${focusPoolSize === 1 ? '' : 's'} selected`
               : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : INTERVAL_NAME[distance] + 's'} · ${listening === 'bass' ? 'bass only' : listening === 'chords' ? 'chords only' : 'bass + chords'} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
           </span>
           {focusActive && (
@@ -1110,7 +1150,7 @@ export default function ChordMotionTab({ attempts }: Props) {
           description="drill only the scale-degree motions you pick. scope filters still apply inside your selection."
           note={focusActive ? (
             <div className="rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-              <span className="font-medium text-fluent">focus mode is active</span> with {focusKeys.length} motion{focusKeys.length === 1 ? '' : 's'}.{' '}
+              <span className="font-medium text-fluent">focus mode is active</span> with {focusPoolSize} motion{focusPoolSize === 1 ? '' : 's'}.{' '}
               <button
                 type="button"
                 onClick={() => { setFocusActive(false); setShowFocusPanel(false); }}
