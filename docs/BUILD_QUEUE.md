@@ -70,6 +70,12 @@ in flats and one in F♯ reads in sharps.
 
 **Why.** **Currently blocking lead sheet work.** No design doc yet.
 
+**Blocked something twice on 20 Aug 2026** — lead sheet work, and then the
+stage-rule quadrants, where the design was written in G♭ and the stored data
+says F#. The cost is not only rules: every key name on screen is somebody
+else's spelling. Likely the next thing to start after the practice-vs-test
+workstream.
+
 **Same root, found 20 Aug 2026: the app has two circle-of-fourths modules that
 disagree.** `matrix/keys.ts` spells the sixth key **F#** and that is what
 `songKeys.keyName` stores; `repertoire/circleOfFourths.ts` spells it **Gb**,

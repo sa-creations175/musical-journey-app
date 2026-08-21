@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type Song,
-  type SongCellRunThrough,
+  type SongKey,
   type SongCrossKeyProgress,
   type SongPracticeLog,
 } from '../../lib/db';
@@ -111,14 +111,16 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     () => db.songCrossKeyProgress.toArray(),
     [],
   ) ?? [];
-  // Every song's run-throughs in one read, for the Learning →
-  // Comfortable rule. This view evaluates advancement for the whole
-  // active list, so a per-song query would be one round trip per card;
-  // the table is grouped below exactly like `logs` and `crossKey`.
-  const runThroughs = useLiveQuery<SongCellRunThrough[]>(
-    () => db.songCellRunThroughs.toArray(),
+  // Every song's key rows in one read, for the stage rules. This view
+  // evaluates advancement for the whole active list, so a per-song
+  // query would be one round trip per card; grouped below exactly
+  // like `logs` and `crossKey`.
+  const matrixKeys = useLiveQuery<SongKey[]>(
+    () => db.songKeys.toArray(),
     [],
   ) ?? [];
+  // See SongDetailView: captured once, not read during render.
+  const [advancementNow] = useState(() => Date.now());
 
   const logsBySong = useMemo(() => {
     const m = new Map<string, SongPracticeLog[]>();
@@ -130,15 +132,15 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     return m;
   }, [logs]);
 
-  const runThroughsBySong = useMemo(() => {
-    const m = new Map<string, SongCellRunThrough[]>();
-    for (const r of runThroughs) {
-      const arr = m.get(r.songId) ?? [];
-      arr.push(r);
-      m.set(r.songId, arr);
+  const keysBySong = useMemo(() => {
+    const m = new Map<string, SongKey[]>();
+    for (const k of matrixKeys) {
+      const arr = m.get(k.songId) ?? [];
+      arr.push(k);
+      m.set(k.songId, arr);
     }
     return m;
-  }, [runThroughs]);
+  }, [matrixKeys]);
 
   const crossKeyBySong = useMemo(() => {
     const m = new Map<string, Array<{ sectionId: string; keyName: string; sessionCount: number }>>();
@@ -159,15 +161,14 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
       const freshness = freshnessFor(lastPractisedAt);
       const advancement = evaluateAdvancement({
         currentStage: song.stage ?? DEFAULT_STAGE,
-        logs: songLogs,
+        songKeys: keysBySong.get(song.id) ?? [],
+        now: advancementNow,
         originalKey: song.key,
         crossKeyPairs: crossKeyBySong.get(song.id) ?? [],
-        runThroughs: runThroughsBySong.get(song.id) ?? [],
-        performanceTempo: song.tempo ?? null,
       });
       return { song, lastPractisedAt, freshness, readyToAdvance: advancement.suggest };
     });
-  }, [songs, logsBySong, crossKeyBySong, runThroughsBySong]);
+  }, [songs, logsBySong, crossKeyBySong, keysBySong, advancementNow]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};

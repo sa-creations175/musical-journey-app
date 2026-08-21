@@ -1,6 +1,5 @@
-import type { RepertoireStage, SongPracticeLog } from '../../lib/db';
-import { CONSISTENTLY_FLUENT_AVG, normaliseFeel } from '../../lib/fluencyScale';
-import { isInTempoRange } from './matrix/cellRollup';
+import type { RepertoireStage, SongKey } from '../../lib/db';
+import { QUADRANT_COUNT, coveredQuadrants, isHeld } from './matrix/keyProgress';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -91,178 +90,205 @@ export function nextStage(stage: RepertoireStage): RepertoireStage | null {
 
 // --- Advancement suggestions ----------------------------------------
 
-// System-suggested stage advancement — soft nudges only. User always
-// has the final word via the "Advance stage" button.
+// System-suggested stage advancement — soft nudges only. The user
+// always has the final word via the "Advance stage" button; nothing
+// here writes `songs.stage`.
 //
 // Criteria:
 //   Learning → Comfortable:
-//     5+ CLEAN TEST RUN-THROUGHS at performance tempo.
-//   Comfortable → Internalized:
-//     3+ weeks of recent practice (≥1 session in last 7 days) with
-//     average feel ≥ 4 across the last 5+ sessions.
-//   Internalized → Cross-key:
-//     ≥2 non-original keys practised on at least 1 section.
-//   Cross-key → Maintenance:
-//     ≥6 distinct keys covered across at least 3 different sections.
+//     The whole-song test passed in the original key — three
+//     CONSECUTIVE clean run-throughs at tempo, in one sitting.
+//   Comfortable → Cross-key:
+//     Held in four keys, one from each quadrant of the circle of
+//     fourths. The original key counts toward its own quadrant.
+//   Cross-key → Internalized:      [rewritten in 3a-5]
+//   Internalized → Maintenance:    [rewritten in 3a-5]
+//
+// ---------------------------------------------------------------
+// NO RULE NAMES ITS OWN DESTINATION.
+//
+// Three of the four used to end in a hard-coded stage name, and all
+// three named the WRONG one: the STAGES order was changed in April
+// 2026 so that cross-key precedes internalized, and this switch was
+// never revised. So a banner reading "consider advancing to
+// Internalized" sat directly beside a button reading "advance to
+// Cross-key", and one rule proposed moving back DOWN the ladder.
+//
+// The destination is now composed from `nextStage(currentStage)` by
+// `suggestion()` below, which is the only way any rule may return
+// suggest: true. A rule cannot name a stage the button will not go
+// to, because a rule no longer names a stage at all. That property
+// holds for the two rules still awaiting rewrite, which is why this
+// lands before them rather than with them.
+// ---------------------------------------------------------------
 
 export interface AdvancementEvaluation {
   /** True when the criteria for advancing from `currentStage` are met. */
   suggest: boolean;
-  /** Short reason shown beside the suggestion ("5 sessions at target
-   *  tempo — consider advancing to Comfortable"). */
+  /** Short reason shown beside the suggestion. Always composed by
+   *  `suggestion()`, never written by a rule — see above. */
   reason?: string;
 }
 
 export interface AdvancementInputs {
   currentStage: RepertoireStage;
-  logs: SongPracticeLog[];
-  /** Home/original key for this song. Used by Internalized → Cross-key
-   *  to count *non-original* keys. */
-  originalKey?: string;
-  /** Per-section cross-key coverage — from songCrossKeyProgress. */
-  crossKeyPairs: Array<{ sectionId: string; keyName: string; sessionCount: number }>;
   /**
-   * Every test run-through recorded for this song, across all
-   * sections and all keys. Source for the at-tempo half of
-   * Learning → Comfortable.
+   * Every `songKeys` row for this song. `materialise` creates all
+   * twelve up front, so a caller passing fewer is passing a filtered
+   * list and will get a quieter answer than the data supports.
+   */
+  songKeys: SongKey[];
+  /**
+   * Evaluation time, passed in rather than read from the clock.
    *
-   * REQUIRED, deliberately — not optional with a `[]` default. The
-   * bug this rewrite fixes was a rule reading a field nothing wrote,
-   * which cost nothing at compile time and silently stopped
-   * suggesting. An optional input would rebuild exactly that: a call
-   * site that forgot to pass run-throughs would type-check and
-   * quietly never promote. Required makes `tsc` the thing that
-   * notices.
+   * `isHeld` live-derives decay from `lastEngagedAt`, so this is load
+   * bearing rather than a testing convenience: the rules genuinely
+   * depend on when they are asked. Supplied by the caller because
+   * `evaluateAdvancement` runs inside a `useMemo` during render, and
+   * calling `Date.now()` there is the purity violation the matrix
+   * already avoids with a lazy `useState` initializer.
    */
-  runThroughs: AdvancementRunThrough[];
+  now: number;
+  /** Home/original key. Read only by the not-yet-rewritten
+   *  Internalized rule; leaves with it in 3a-5. */
+  originalKey?: string;
   /**
-   * The song's performance tempo (`songs.tempo`), or null when the
-   * user has not set one. Null suppresses the Learning → Comfortable
-   * suggestion entirely — see the rule.
+   * Per-section cross-key coverage from the DEPRECATED
+   * `songCrossKeyProgress` table.
+   *
+   * Still here only because the last two rules have not been
+   * rewritten yet. Both leave in 3a-5, and this input leaves with
+   * them — at which point `evaluateAdvancement` reads nothing but
+   * `songKeys`.
    */
-  performanceTempo: number | null;
+  crossKeyPairs: Array<{ sectionId: string; keyName: string; sessionCount: number }>;
 }
 
 /**
- * The run-through facts the at-tempo rule reads.
+ * Build a suggestion whose destination is derived, never stated.
  *
- * Structural rather than `SongCellRunThrough` so a caller can pass a
- * projection and a test can build one without inventing ids, cell
- * refs and timestamps that the rule never looks at. Widening this
- * later is additive; narrowing a full-row dependency would not be.
+ * `evidence` says what was counted ("whole-song test passed in C");
+ * the destination clause is appended from `nextStage`. Returns a
+ * non-suggestion when there is no stage above the current one, so a
+ * terminal stage cannot produce a suggestion pointing nowhere.
  */
-export interface AdvancementRunThrough {
-  wasClean: boolean;
-  /** Null when the run-through was logged without a tempo. */
-  tempoBpm: number | null;
+function suggestion(
+  currentStage: RepertoireStage,
+  evidence: string,
+): AdvancementEvaluation {
+  const next = nextStage(currentStage);
+  if (next === null) return { suggest: false };
+  return {
+    suggest: true,
+    reason: `${evidence} — consider advancing to ${STAGE_LABEL[next]}.`,
+  };
 }
-
-/**
- * Clean at-tempo run-throughs needed to suggest Comfortable.
- *
- * Carried over unchanged from the rule this replaces, which asked for
- * 5 sessions. The count is the same bar; only its SOURCE moved, from
- * a checkbox the user ticked to run-throughs the app measured.
- */
-export const CLEAN_RUNS_FOR_COMFORTABLE = 5;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvaluation {
   switch (input.currentStage) {
     case 'learning': {
       // ---------------------------------------------------------------
-      // AT TEMPO IS A TEST FACT, READ OFF TEST DATA.
+      // COMFORTABLE MEANS YOU CAN PLAY THE SONG — ALL OF IT.
       //
-      // This rule used to count practice logs carrying
-      // `atTargetTempo === true`. That field's only writer was
-      // PracticeLogModal — the cell modal never set it — so from the
-      // moment logging moved to the matrix, every session written
-      // there was invisible to this rule, and the retirement of that
-      // modal would have taken the writer count to zero. No error, no
-      // crash: just a promotion prompt that never appears again. Same
-      // silent shape as the `avgFeel >= 4` literal one case below.
+      // Read off `wholeSongTestPassedAt` rather than counted from
+      // run-through rows, for two reasons. One meaning of "passed the
+      // whole-song test" beats two that can drift apart. And the
+      // stored flag records three CONSECUTIVE clean runs in a single
+      // sitting, which is a different claim from three cumulative
+      // ones: three good days weeks apart with failures in between
+      // does not show you can do it on demand.
       //
-      // The fix is not a new writer. Practice and test are different
-      // events, and "at tempo" is a TEST fact — so the rule now reads
-      // the run-throughs directly and needs no self-report at all.
+      // This carries an implicit prerequisite worth naming, because
+      // it is not visible in this file. The whole-song test only
+      // becomes reachable once every section's cell in that key is
+      // comfortable (computeKeyStateFromCells, KeyRow.showRunTest).
+      // So Comfortable requires every part of the song AND a passed
+      // run of the whole thing. That is deliberate: nailing the
+      // chorus five times is not being comfortable with the song.
       //
-      // THE FEEL CONDITION IS GONE, and that is the deliberate half.
-      // The old rule paired at-tempo with `feel >= 3`, a rating that
-      // now describes a PRACTICE session. Joining the two would mean
-      // a run-through only counted if it happened inside a rated
-      // practice session — and under the two-mode split a test need
-      // not produce a practice log at all, so the join would kill the
-      // rule a second way. Clean-at-tempo is the stronger signal in
-      // any case: it is measured rather than ticked.
+      // The 3a rule this replaces read `songCellRunThroughs` — the
+      // per-section table — with no section or key spread required at
+      // all, so five clean runs of one section in one key promoted
+      // the whole song.
       // ---------------------------------------------------------------
-
-      // No performance tempo means there is no target to be at, and
-      // `isInTempoRange` deliberately returns TRUE in that case — the
-      // cell gate switches itself off rather than blocking a user who
-      // has not set a tempo. That default is right there and wrong
-      // here: inherited, it would promote a song to Comfortable on any
-      // five clean runs at any speed. So the suggestion is withheld
-      // until there is a tempo to have been at.
-      if (input.performanceTempo === null) return { suggest: false };
-
-      // Run-throughs logged without a tempo are excluded by
-      // isInTempoRange's own null-bpm branch. Step 2 wrote the reason
-      // and it holds unchanged: the gate asks "clean at performance
-      // tempo", and "clean at a tempo you didn't state" is not an
-      // answer to it.
-      const qualifying = input.runThroughs.filter(
-        r => r.wasClean && isInTempoRange(r.tempoBpm, input.performanceTempo),
-      ).length;
-      if (qualifying >= CLEAN_RUNS_FOR_COMFORTABLE) {
-        return {
-          suggest: true,
-          reason: `${qualifying} clean run-throughs at tempo — consider advancing to Comfortable.`,
-        };
+      const original = input.songKeys.find(k => k.isOriginalKey);
+      if (!original || original.wholeSongTestPassedAt === null) {
+        return { suggest: false };
+      }
+      return suggestion(
+        input.currentStage,
+        `whole-song test passed in ${original.keyName}`,
+      );
+    }
+    case 'comfortable': {
+      // ---------------------------------------------------------------
+      // SPREAD, NOT COUNT.
+      //
+      // Four keys, one from each quadrant of the circle of fourths.
+      // C, F and Bb share most of their shapes, so three adjacent
+      // keys prove much less than three spread ones — a plain count
+      // of four would be satisfied by a run of neighbours. The
+      // original key counts toward its own quadrant: a song in C is
+      // comfortable in C by definition, so this asks for three more
+      // from the other three quadrants.
+      //
+      // `isHeld` rather than a bare state check, so a key that
+      // climbed to solid and then lapsed stops counting. Cross-key is
+      // a claim about what you can play now, not what you once could.
+      //
+      // This rule replaces one that read practice feel — an average
+      // of the last five `feelRating`s — and so could not see a
+      // single key, section or run-through. It was also the next
+      // field about to lose its writer: practice carries no rating
+      // under the two-mode split, so a rule built on feel would have
+      // gone quiet inside this same build.
+      // ---------------------------------------------------------------
+      const held = input.songKeys.filter(k => isHeld(k, input.now));
+      const covered = coveredQuadrants(held.map(k => k.keyName));
+      if (covered.size >= QUADRANT_COUNT) {
+        return suggestion(
+          input.currentStage,
+          `comfortable in ${held.length} keys, covering all `
+            + `${QUADRANT_COUNT} quadrants of the circle of fourths`,
+        );
       }
       return { suggest: false };
     }
-    case 'comfortable': {
-      const now = Date.now();
-      const weekAgo = now - 7 * DAY_MS;
-      const recentSessions = input.logs.filter(l => l.timestamp >= weekAgo);
-      if (recentSessions.length === 0) return { suggest: false };
-      const byWeek = new Map<number, SongPracticeLog[]>();
-      for (const log of input.logs) {
-        const weekStart = Math.floor(log.timestamp / (7 * DAY_MS));
-        const arr = byWeek.get(weekStart) ?? [];
-        arr.push(log);
-        byWeek.set(weekStart, arr);
+    case 'cross-key': {
+      // NOT YET REWRITTEN — lands in 3a-5, where it becomes "the four
+      // quadrant keys still held, plus one clean at-tempo run in each
+      // of the remaining eight". That needs an affordance that does
+      // not exist yet (3a-4): the whole-song test is the only writer
+      // of key run-throughs and it is gated on every cell in the key
+      // already being comfortable, so a single pass in an untouched
+      // key cannot currently be logged at all.
+      //
+      // Until then it keeps its old criteria, reading the deprecated
+      // `songCrossKeyProgress`, where "touched" means one tap on the
+      // cross-key grid. The DESTINATION is no longer wrong — that is
+      // what `suggestion()` fixes today — but the evidence is still
+      // weak, and the two independent tallies below do not check what
+      // "6 keys across 3 sections" sounds like they check.
+      const sectionsTouched = new Set<string>();
+      const keysTouched = new Set<string>();
+      for (const p of input.crossKeyPairs) {
+        if (p.sessionCount <= 0) continue;
+        sectionsTouched.add(p.sectionId);
+        keysTouched.add(p.keyName);
       }
-      const recentEnough = [...byWeek.keys()]
-        .filter(w => w * 7 * DAY_MS >= now - 21 * DAY_MS).length;
-      const last5 = [...input.logs].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
-      // Unrated sessions are EXCLUDED from the average, not scored
-      // zero. "I practised for 40 minutes and didn't say how it went"
-      // is not a bad session, and counting it as one would let the
-      // fast path suppress a promotion the user has earned.
-      const rated = last5
-        .map(l => normaliseFeel(l.feelRating))
-        .filter((f): f is NonNullable<typeof f> => f !== null);
-      const avgFeel = rated.length === 0
-        ? 0
-        : rated.reduce((sum, f) => sum + f, 0) / rated.length;
-      // CONSISTENTLY_FLUENT_AVG (3.5), not the literal 4 this used to
-      // carry. On the old 1-5 scale an average of 4 was reachable with
-      // a mix, because 5s pulled 3s up. With the fifth step gone 4 is
-      // the maximum, so the old literal would demand five perfect
-      // sessions in a row — and the failure would have been silent:
-      // no error, just a promotion prompt that never appears again.
-      // See the rationale on the constant.
-      if (recentEnough >= 3 && avgFeel >= CONSISTENTLY_FLUENT_AVG && last5.length >= 5) {
-        return {
-          suggest: true,
-          reason: `3+ weeks of practice, mostly in flow — consider advancing to Internalized.`,
-        };
+      if (keysTouched.size >= 6 && sectionsTouched.size >= 3) {
+        return suggestion(
+          input.currentStage,
+          `${keysTouched.size} keys and ${sectionsTouched.size} sections touched`,
+        );
       }
       return { suggest: false };
     }
     case 'internalized': {
+      // NOT YET REWRITTEN — lands in 3a-5, where Maintenance stops
+      // being a rung and becomes a mode on Internalized. Old criteria
+      // retained; destination now derived rather than stated, so it
+      // no longer proposes moving back down the ladder.
       const nonOriginal = new Set<string>();
       for (const p of input.crossKeyPairs) {
         if (p.sessionCount <= 0) continue;
@@ -270,26 +296,10 @@ export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvalua
         nonOriginal.add(p.keyName);
       }
       if (nonOriginal.size >= 2) {
-        return {
-          suggest: true,
-          reason: `${nonOriginal.size} non-original keys touched — consider advancing to Cross-key.`,
-        };
-      }
-      return { suggest: false };
-    }
-    case 'cross-key': {
-      const sectionsByKey = new Set<string>();
-      const keysTouched = new Set<string>();
-      for (const p of input.crossKeyPairs) {
-        if (p.sessionCount <= 0) continue;
-        sectionsByKey.add(p.sectionId);
-        keysTouched.add(p.keyName);
-      }
-      if (keysTouched.size >= 6 && sectionsByKey.size >= 3) {
-        return {
-          suggest: true,
-          reason: `${keysTouched.size} keys across ${sectionsByKey.size} sections — consider advancing to Maintenance.`,
-        };
+        return suggestion(
+          input.currentStage,
+          `${nonOriginal.size} non-original keys touched`,
+        );
       }
       return { suggest: false };
     }
@@ -299,6 +309,8 @@ export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvalua
 }
 
 // --- Freshness (practice recency) -----------------------------------
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Freshness = 'fresh' | 'recent' | 'aging' | 'stale';
 

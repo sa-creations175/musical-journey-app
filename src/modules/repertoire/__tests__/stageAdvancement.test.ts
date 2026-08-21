@@ -1,235 +1,226 @@
 // @vitest-environment jsdom
 /**
- * Stage-advancement suggestions, and the two rules that were written
- * against something nothing wrote.
+ * Stage-advancement suggestions.
  *
- * Comfortable → Internalized compared an average against a literal 4,
- * which was mid-scale on 1-5 and is the MAXIMUM on 1-4.
+ * Two classes of bug live in this file's history and both were
+ * silent. Rules written against a field nothing writes
+ * (`atTargetTempo`, and `feelRating` after it) keep compiling and
+ * quietly stop suggesting. And three of the four rules named a
+ * destination the button beside them would not go to, because the
+ * STAGES order changed in April 2026 and the switch was never
+ * revised — one of them proposed moving back DOWN the ladder.
  *
- * Learning → Comfortable counted practice logs carrying
- * `atTargetTempo === true`, whose only writer was PracticeLogModal —
- * so matrix-logged sessions were already invisible to it, and
- * retiring that modal would have taken the writer count to zero.
- *
- * Both fail the same way: still compiles, still runs, quietly stops
- * suggesting. So these assert on whether each rule FIRES for
- * realistic input, never on a constant's value.
+ * So: assert that a rule FIRES for realistic input, never on a
+ * constant's value; and assert that no rule names a destination of
+ * its own choosing.
  */
 import { describe, expect, it } from 'vitest';
-import type { SongPracticeLog } from '../../../lib/db';
-import type { Feel } from '../../../lib/fluencyScale';
+import type { SongKey } from '../../../lib/db';
+import { DECAY_LAPSED_DAYS, MS_PER_DAY } from '../matrix/solidDecay';
+import { coveredQuadrants } from '../matrix/keyProgress';
 import {
+  STAGES,
+  STAGE_LABEL,
   evaluateAdvancement,
+  nextStage,
   type AdvancementInputs,
-  type AdvancementRunThrough,
 } from '../stage';
 
-const DAY = 24 * 60 * 60 * 1000;
+const NOW = 1_760_000_000_000;
 
-/** Performance tempo for the run-through fixtures. The gate floor is
- *  one-sided at (tempo - 10), so 90 is the lowest qualifying BPM. */
-const TEMPO = 100;
-const FLOOR = TEMPO - 10;
-
-function run(wasClean: boolean, tempoBpm: number | null): AdvancementRunThrough {
-  return { wasClean, tempoBpm };
-}
-
-/** `n` identical run-throughs. */
-function runsOf(n: number, wasClean: boolean, tempoBpm: number | null): AdvancementRunThrough[] {
-  return Array.from({ length: n }, () => run(wasClean, tempoBpm));
-}
-
-/** Inputs for the Learning → Comfortable rule, with the fields that
- *  rule does not read left empty so a pass can only come from the
- *  run-throughs. */
-function learningInputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
+function key(keyName: string, over: Partial<SongKey> = {}): SongKey {
   return {
-    currentStage: 'learning',
-    logs: [],
-    crossKeyPairs: [],
-    runThroughs: [],
-    performanceTempo: TEMPO,
+    id: `sk-${keyName}`, songId: 's1', keyName, isOriginalKey: false,
+    keyState: 'comfortable', solidAt: null, solidDecayState: null,
+    lastDecayCheckAt: null, livedWithSessionCount: 0,
+    livedWithFirstSessionAt: null, livedWithWindowStartAt: null,
+    livedWithSessionsInWindow: 0, wholeSongTestPassedAt: null,
+    isRetestRecommended: false, lastEngagedAt: NOW, createdAt: 0, updatedAt: 0,
     ...over,
   };
 }
 
-/** `n` sessions spread one per day, newest today. */
-function logs(feels: number[], atTargetTempo = true): SongPracticeLog[] {
-  const now = Date.now();
-  return feels.map((f, i) => ({
-    id: `l${i}`,
-    songId: 's1',
-    timestamp: now - i * DAY,
-    durationMin: 20,
-    sectionIds: [],
-    keys: [],
-    feelRating: f as Feel,
-    atTargetTempo,
-  }));
+function inputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
+  return {
+    currentStage: 'learning',
+    songKeys: [],
+    now: NOW,
+    crossKeyPairs: [],
+    ...over,
+  };
 }
 
-/** Sessions spread across `weeks` distinct weeks, so the
- *  three-weeks-of-practice half of the rule is satisfied. */
-function logsAcrossWeeks(feels: number[]): SongPracticeLog[] {
-  const now = Date.now();
-  return feels.map((f, i) => ({
-    id: `l${i}`,
-    songId: 's1',
-    timestamp: now - i * 5 * DAY,
-    durationMin: 20,
-    sectionIds: [],
-    keys: [],
-    feelRating: f as Feel,
-    atTargetTempo: true,
-  }));
-}
+/** One key per quadrant — the passing shape for Comfortable → Cross-key. */
+const ONE_PER_QUADRANT = ['C', 'Eb', 'F#', 'A'];
+
+// =====================================================================
+
+describe('no rule names its own destination', () => {
+  /** Inputs that make each stage's rule fire. */
+  const firing: Partial<Record<string, AdvancementInputs>> = {
+    learning: inputs({
+      currentStage: 'learning',
+      songKeys: [key('C', { isOriginalKey: true, wholeSongTestPassedAt: NOW })],
+    }),
+    comfortable: inputs({
+      currentStage: 'comfortable',
+      songKeys: ONE_PER_QUADRANT.map(k => key(k)),
+    }),
+    'cross-key': inputs({
+      currentStage: 'cross-key',
+      crossKeyPairs: [
+        ...['C', 'D', 'E', 'F', 'G', 'A'].map(k => ({ sectionId: 'chorus', keyName: k, sessionCount: 1 })),
+        { sectionId: 'verse', keyName: 'D', sessionCount: 1 },
+        { sectionId: 'bridge', keyName: 'E', sessionCount: 1 },
+      ],
+    }),
+    internalized: inputs({
+      currentStage: 'internalized',
+      originalKey: 'C',
+      crossKeyPairs: [
+        { sectionId: 'chorus', keyName: 'F', sessionCount: 1 },
+        { sectionId: 'chorus', keyName: 'G', sessionCount: 1 },
+      ],
+    }),
+  };
+
+  for (const stage of STAGES) {
+    const next = nextStage(stage);
+    if (next === null) continue;
+    it(`${stage} names ${next}, the stage nextStage() goes to`, () => {
+      const input = firing[stage];
+      // Guard the guard: a rule that did not fire would make the
+      // destination assertion vacuous.
+      expect(input).toBeDefined();
+      const out = evaluateAdvancement(input!);
+      expect(out.suggest).toBe(true);
+      expect(out.reason).toContain(`consider advancing to ${STAGE_LABEL[next]}.`);
+    });
+  }
+
+  it('maintenance, having nothing above it, suggests nothing', () => {
+    expect(nextStage('maintenance')).toBeNull();
+    expect(evaluateAdvancement(inputs({ currentStage: 'maintenance' })).suggest).toBe(false);
+  });
+});
+
+// =====================================================================
 
 describe('Learning → Comfortable', () => {
-  it('fires on five clean run-throughs at performance tempo', () => {
-    const out = evaluateAdvancement(learningInputs({
-      runThroughs: runsOf(5, true, TEMPO),
+  it('fires when the whole-song test has passed in the ORIGINAL key', () => {
+    const out = evaluateAdvancement(inputs({
+      songKeys: [
+        key('C', { isOriginalKey: true, wholeSongTestPassedAt: NOW }),
+        key('F'),
+      ],
     }));
     expect(out.suggest).toBe(true);
+    expect(out.reason).toContain('whole-song test passed in C');
   });
 
-  it('does not fire on four', () => {
-    const out = evaluateAdvancement(learningInputs({
-      runThroughs: runsOf(4, true, TEMPO),
+  it('does NOT fire when the test passed only in some OTHER key', () => {
+    // The rule is about the song in the key it lives in. A song whose
+    // original key is untested is not one you can play, however well
+    // it goes somewhere else. Guard: the test IS passed somewhere, so
+    // a rule reading "any key" would fire here.
+    const songKeys = [
+      key('C', { isOriginalKey: true, wholeSongTestPassedAt: null }),
+      key('F', { wholeSongTestPassedAt: NOW }),
+      key('Bb', { wholeSongTestPassedAt: NOW }),
+    ];
+    expect(songKeys.filter(k => k.wholeSongTestPassedAt !== null)).toHaveLength(2);
+    expect(evaluateAdvancement(inputs({ songKeys })).suggest).toBe(false);
+  });
+
+  it('does not fire when the original key has not passed', () => {
+    const out = evaluateAdvancement(inputs({
+      songKeys: [key('C', { isOriginalKey: true, wholeSongTestPassedAt: null })],
     }));
     expect(out.suggest).toBe(false);
   });
 
-  it('counts only the CLEAN runs out of a mixed pool', () => {
-    // Guard the guard: the pool has to contain both kinds, or
-    // "excludes not-clean" is indistinguishable from "excluded
-    // nothing". Five clean would pass on its own, so the four
-    // not-clean are what this is actually testing — and there are
-    // nine runs total, enough to fire if the filter were dropped.
-    const pool = [...runsOf(4, true, TEMPO), ...runsOf(5, false, TEMPO)];
-    expect(pool.filter(r => r.wasClean)).toHaveLength(4);
-    expect(pool.filter(r => !r.wasClean)).toHaveLength(5);
-    expect(evaluateAdvancement(learningInputs({ runThroughs: pool })).suggest).toBe(false);
+  it('does not fire when no key is designated original', () => {
+    const out = evaluateAdvancement(inputs({
+      songKeys: [key('C', { wholeSongTestPassedAt: NOW })],
+    }));
+    expect(out.suggest).toBe(false);
+  });
+});
+
+// =====================================================================
+
+describe('Comfortable → Cross-key', () => {
+  it('fires on four held keys, one from each quadrant', () => {
+    const out = evaluateAdvancement(inputs({
+      currentStage: 'comfortable',
+      songKeys: ONE_PER_QUADRANT.map(k => key(k)),
+    }));
+    expect(out.suggest).toBe(true);
   });
 
-  it('counts only the runs AT TEMPO out of a mixed pool', () => {
-    // Same shape one axis over: four qualifying, five below the
-    // floor, nine total. Firing here would mean the tempo filter is
-    // not running.
-    const pool = [...runsOf(4, true, TEMPO), ...runsOf(5, true, FLOOR - 1)];
-    expect(pool.filter(r => (r.tempoBpm ?? 0) >= FLOOR)).toHaveLength(4);
-    expect(pool.filter(r => (r.tempoBpm ?? 0) < FLOOR)).toHaveLength(5);
-    expect(evaluateAdvancement(learningInputs({ runThroughs: pool })).suggest).toBe(false);
+  it('does NOT fire on four held keys bunched into two quadrants', () => {
+    // SPREAD, NOT COUNT. Four keys — the same number that passes
+    // above — but C/F/Bb are one quadrant and Eb is a second. A rule
+    // checking `held.length >= 4` would fire here.
+    const bunched = ['C', 'F', 'Bb', 'Eb'];
+    expect(bunched).toHaveLength(ONE_PER_QUADRANT.length);
+    expect(coveredQuadrants(bunched).size).toBe(2);
+    expect(evaluateAdvancement(inputs({
+      currentStage: 'comfortable',
+      songKeys: bunched.map(k => key(k)),
+    })).suggest).toBe(false);
   });
 
-  it('counts a run exactly at the floor, and one above tempo', () => {
-    // The gate is one-sided: at-or-above (tempo - 10) qualifies and
-    // there is no upper cap, so playing faster than performance tempo
-    // is never penalised. Both boundaries in one fixture.
-    const out = evaluateAdvancement(learningInputs({
-      runThroughs: [
-        ...runsOf(3, true, FLOOR),
-        ...runsOf(2, true, TEMPO + 40),
+  it('counts the original key toward its own quadrant', () => {
+    // A song in C is comfortable in C by definition, so this asks for
+    // three more from the other three quadrants — not four besides.
+    const out = evaluateAdvancement(inputs({
+      currentStage: 'comfortable',
+      songKeys: [
+        key('C', { isOriginalKey: true }),
+        key('Eb'), key('F#'), key('A'),
       ],
     }));
     expect(out.suggest).toBe(true);
   });
 
-  it('does NOT count run-throughs logged without a tempo', () => {
-    // "Clean at a tempo you didn't state" is not an answer to "clean
-    // at performance tempo" — step 2's reasoning, unchanged.
-    const out = evaluateAdvancement(learningInputs({
-      runThroughs: runsOf(6, true, null),
-    }));
-    expect(out.suggest).toBe(false);
+  it('does not count a key that has LAPSED', () => {
+    // Cross-key is a claim about what you can play now. Guard: the
+    // same four keys fire when A is fresh, so the lapse is what moves
+    // this, not the shape of the fixture.
+    const withLapsed = [
+      key('C'), key('Eb'), key('F#'),
+      key('A', {
+        keyState: 'solid',
+        solidDecayState: 'solid',
+        lastEngagedAt: NOW - (DECAY_LAPSED_DAYS + 5) * MS_PER_DAY,
+      }),
+    ];
+    expect(evaluateAdvancement(inputs({
+      currentStage: 'comfortable', songKeys: ONE_PER_QUADRANT.map(k => key(k)),
+    })).suggest).toBe(true);
+    expect(evaluateAdvancement(inputs({
+      currentStage: 'comfortable', songKeys: withLapsed,
+    })).suggest).toBe(false);
   });
 
-  it('withholds the suggestion entirely when the song has no tempo set', () => {
-    // THE INHERITED DEFAULT. isInTempoRange returns TRUE when
-    // performanceTempo is null — right for the cell gate, which
-    // switches itself off rather than blocking a user who has not set
-    // a tempo, and wrong here, where inheriting it would promote on
-    // five clean runs at any speed. Same fixture as the passing case
-    // above; only the tempo is removed.
-    const out = evaluateAdvancement(learningInputs({
-      runThroughs: runsOf(5, true, TEMPO),
-      performanceTempo: null,
-    }));
-    expect(out.suggest).toBe(false);
-  });
-
-  it('does not promote on practice logs alone, however they are marked', () => {
-    // THE REGRESSION THIS REWRITE EXISTS FOR. Five sessions carrying
-    // atTargetTempo === true and a comfortable-or-better feel — the
-    // exact input the old rule promoted on — with no run-throughs.
-    // At tempo is a test fact now, and practice cannot supply it.
-    const out = evaluateAdvancement(learningInputs({
-      logs: logs([3, 3, 4, 3, 4]),
-      runThroughs: [],
-    }));
-    expect(out.suggest).toBe(false);
-  });
-
-  it('names clean run-throughs in the reason, not sessions', () => {
-    // The suggestion is the user's evidence for a promotion they are
-    // being asked to confirm; it has to describe what was actually
-    // counted.
-    const out = evaluateAdvancement(learningInputs({
-      runThroughs: runsOf(7, true, TEMPO),
-    }));
-    expect(out.reason).toContain('7 clean run-throughs at tempo');
-  });
-});
-
-describe('Comfortable → Internalized', () => {
-  it('FIRES on a realistic mostly-in-flow run', () => {
-    // Three in flow, two comfortable. Under the old literal 4 this
-    // averages 3.6 and would never have suggested anything again.
-    const out = evaluateAdvancement({
+  it('does not count keys below comfortable', () => {
+    const out = evaluateAdvancement(inputs({
       currentStage: 'comfortable',
-      runThroughs: [],
-      performanceTempo: TEMPO,
-      logs: logsAcrossWeeks([4, 4, 4, 3, 3]),
-      crossKeyPairs: [],
-    });
+      songKeys: ONE_PER_QUADRANT.map(k => key(k, { keyState: 'learning' })),
+    }));
+    expect(out.suggest).toBe(false);
+  });
+
+  it('does not read practice feel — there is none left to read', () => {
+    // The rule this replaced averaged the last five feelRatings.
+    // Practice carries no rating under the two-mode split, so a rule
+    // built on feel would have gone quiet inside this same build.
+    // Four quadrants held, nothing else supplied: it fires.
+    const out = evaluateAdvancement(inputs({
+      currentStage: 'comfortable',
+      songKeys: ONE_PER_QUADRANT.map(k => key(k)),
+    }));
     expect(out.suggest).toBe(true);
-  });
-
-  it('does NOT fire on five straight comfortables', () => {
-    // The rule means "better than comfortable", so the floor has to
-    // stay above it — a threshold low enough to fire here would
-    // promote on steady-but-unremarkable practice.
-    const out = evaluateAdvancement({
-      currentStage: 'comfortable',
-      runThroughs: [],
-      performanceTempo: TEMPO,
-      logs: logsAcrossWeeks([3, 3, 3, 3, 3]),
-      crossKeyPairs: [],
-    });
-    expect(out.suggest).toBe(false);
-  });
-
-  it('requires five sessions before suggesting anything', () => {
-    const out = evaluateAdvancement({
-      currentStage: 'comfortable',
-      runThroughs: [],
-      performanceTempo: TEMPO,
-      logs: logsAcrossWeeks([4, 4, 4]),
-      crossKeyPairs: [],
-    });
-    expect(out.suggest).toBe(false);
-  });
-
-  it('requires practice spread across weeks, not one burst', () => {
-    // Five in-flow sessions in five consecutive days is one good week,
-    // not internalisation.
-    const out = evaluateAdvancement({
-      currentStage: 'comfortable',
-      runThroughs: [],
-      performanceTempo: TEMPO,
-      logs: logs([4, 4, 4, 4, 4]),
-      crossKeyPairs: [],
-    });
-    expect(out.suggest).toBe(false);
   });
 });

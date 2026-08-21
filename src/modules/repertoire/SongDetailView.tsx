@@ -23,7 +23,7 @@ import {
   type HarmonicDiaryEntry,
   type ReferenceVideo,
   type Song,
-  type SongCellRunThrough,
+  type SongKey,
   type SongCrossKeyProgress,
   type SongPracticeLog,
   type LyricSyllable,
@@ -320,12 +320,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     () => db.songCrossKeyProgress.where('songId').equals(songId).toArray(),
     [songId],
   ) ?? [];
-  // Test run-throughs, for the Learning → Comfortable rule. It used to
-  // read `atTargetTempo` off the practice logs already loaded above;
-  // that field's only writer is being retired, and at-tempo is a test
-  // fact regardless — see the rule in stage.ts.
-  const runThroughs = useLiveQuery<SongCellRunThrough[]>(
-    () => db.songCellRunThroughs.where('songId').equals(songId).toArray(),
+  // The twelve key rows, for the stage rules. Learning → Comfortable
+  // reads the original key's `wholeSongTestPassedAt`; Comfortable →
+  // Cross-key reads which keys are still held and which quadrants
+  // they cover.
+  const matrixKeys = useLiveQuery<SongKey[]>(
+    () => db.songKeys.where('songId').equals(songId).toArray(),
     [songId],
   ) ?? [];
 
@@ -547,14 +547,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       sessionCount: p.sessionCount,
     }))
   ), [crossKey]);
+  // Captured once per mount rather than read during render — the
+  // purity rule the matrix already observes. A stage suggestion does
+  // not need second-accuracy, so a session left open overnight
+  // evaluating against this morning's clock is acceptable; the value
+  // only feeds `isHeld`'s 30-day lapse threshold.
+  const [advancementNow] = useState(() => Date.now());
   const advancement = useMemo(() => evaluateAdvancement({
     currentStage,
-    logs,
+    songKeys: matrixKeys,
+    now: advancementNow,
     originalKey: song?.key,
     crossKeyPairs,
-    runThroughs,
-    performanceTempo: song?.tempo ?? null,
-  }), [currentStage, logs, song?.key, crossKeyPairs, runThroughs, song?.tempo]);
+  }), [currentStage, matrixKeys, advancementNow, song?.key, crossKeyPairs]);
   const nextStageOption = nextStage(currentStage);
 
   const setStage = async (stage: RepertoireStage) => {
