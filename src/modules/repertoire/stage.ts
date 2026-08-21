@@ -1,6 +1,11 @@
 import type { RepertoireStage, SongKey } from '../../lib/db';
 import { isInTempoRange } from './matrix/cellRollup';
-import { QUADRANT_COUNT, coveredQuadrants, isHeld } from './matrix/keyProgress';
+import {
+  KEY_QUADRANTS,
+  QUADRANT_COUNT,
+  coveredQuadrants,
+  isHeld,
+} from './matrix/keyProgress';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -211,162 +216,222 @@ export interface AdvancementKeyRun {
 }
 
 /**
- * Build a suggestion whose destination is derived, never stated.
+ * One thing that has to be true before a stage suggestion appears.
  *
- * `evidence` says what was counted ("whole-song test passed in C");
- * the destination clause is appended from `nextStage`. Returns a
- * non-suggestion when there is no stage above the current one, so a
- * terminal stage cannot produce a suggestion pointing nowhere.
+ * Stated as the achievement rather than as an instruction, so the
+ * same string reads correctly whether it is met or not: "Four keys
+ * held, one per quadrant" works both as a target and as a completed
+ * item. `detail` names what is missing, when it can be named.
  */
-function suggestion(
-  currentStage: RepertoireStage,
-  evidence: string,
-): AdvancementEvaluation {
-  const next = nextStage(currentStage);
-  if (next === null) return { suggest: false };
-  return {
-    suggest: true,
-    reason: `${evidence} — consider advancing to ${STAGE_LABEL[next]}.`,
-  };
+export interface StageCriterion {
+  label: string;
+  met: boolean;
+  /** Progress toward `need`. A yes/no criterion uses 0 or 1 of 1. */
+  have: number;
+  need: number;
+  /** What is outstanding, spelled out. Present only when unmet and
+   *  only when the gap can be described more usefully than by the
+   *  numbers alone. */
+  detail?: string;
+  /**
+   * An enabling condition rather than an achievement — "a performance
+   * tempo is set". Listed in the panel, because anything that can
+   * withhold the suggestion has to be visible, but kept out of the
+   * banner: the banner says what you DID, and setting a tempo is not
+   * something you did toward this stage.
+   */
+  precondition?: boolean;
 }
 
-export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvaluation {
+/**
+ * What the current stage needs before it will suggest advancing.
+ *
+ * ---------------------------------------------------------------
+ * THE SINGLE SOURCE. `evaluateAdvancement` is DERIVED from this, not
+ * written alongside it.
+ *
+ * A panel that lists criteria and a rule that decides when to fire
+ * are two statements of the same thing, and two statements of the
+ * same thing can disagree. That failure is worse than either being
+ * wrong alone: a panel reading "3 of 3" beside a rule that never
+ * fires is unfalsifiable from the outside — the user cannot tell
+ * which half lied.
+ *
+ * So the rule fires exactly when every criterion is met, and a
+ * property test asserts that identity across a spread of inputs
+ * rather than trusting it.
+ *
+ * The suppressing preconditions are criteria too — "an original key
+ * is set", "the song has a performance tempo". They used to be early
+ * returns, which made them invisible: the panel would show everything
+ * met and nothing would happen. If a thing can stop the suggestion, it
+ * has to be listed.
+ * ---------------------------------------------------------------
+ */
+export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
   switch (input.currentStage) {
     case 'learning': {
-      // ---------------------------------------------------------------
-      // COMFORTABLE MEANS YOU CAN PLAY THE SONG — ALL OF IT.
-      //
-      // Read off `wholeSongTestPassedAt` rather than counted from
-      // run-through rows, for two reasons. One meaning of "passed the
-      // whole-song test" beats two that can drift apart. And the
-      // stored flag records three CONSECUTIVE clean runs in a single
-      // sitting, which is a different claim from three cumulative
-      // ones: three good days weeks apart with failures in between
-      // does not show you can do it on demand.
-      //
-      // This carries an implicit prerequisite worth naming, because
-      // it is not visible in this file. The whole-song test only
-      // becomes reachable once every section's cell in that key is
-      // comfortable (computeKeyStateFromCells, KeyRow.showRunTest).
-      // So Comfortable requires every part of the song AND a passed
-      // run of the whole thing. That is deliberate: nailing the
-      // chorus five times is not being comfortable with the song.
-      //
-      // The 3a rule this replaces read `songCellRunThroughs` — the
-      // per-section table — with no section or key spread required at
-      // all, so five clean runs of one section in one key promoted
-      // the whole song.
-      // ---------------------------------------------------------------
       const original = input.songKeys.find(k => k.isOriginalKey);
-      if (!original || original.wholeSongTestPassedAt === null) {
-        return { suggest: false };
+      if (!original) {
+        return [{
+          label: 'An original key is set for this song',
+          precondition: true,
+          met: false,
+          have: 0,
+          need: 1,
+          detail: 'Until one is, there is no key for the whole-song test to '
+            + 'be passed in.',
+        }];
       }
-      return suggestion(
-        input.currentStage,
-        `whole-song test passed in ${original.keyName}`,
-      );
+      const passed = original.wholeSongTestPassedAt !== null;
+      return [{
+        label: `Whole-song test passed in ${original.keyName}`,
+        met: passed,
+        have: passed ? 1 : 0,
+        need: 1,
+        ...(passed ? {} : {
+          detail: 'Three clean run-throughs in a row, in one sitting. Open it '
+            + `from the ${original.keyName} row of the matrix.`,
+        }),
+      }];
     }
+
     case 'comfortable': {
-      // ---------------------------------------------------------------
-      // SPREAD, NOT COUNT.
-      //
-      // Four keys, one from each quadrant of the circle of fourths.
-      // C, F and Bb share most of their shapes, so three adjacent
-      // keys prove much less than three spread ones — a plain count
-      // of four would be satisfied by a run of neighbours. The
-      // original key counts toward its own quadrant: a song in C is
-      // comfortable in C by definition, so this asks for three more
-      // from the other three quadrants.
-      //
-      // `isHeld` rather than a bare state check, so a key that
-      // climbed to solid and then lapsed stops counting. Cross-key is
-      // a claim about what you can play now, not what you once could.
-      //
-      // This rule replaces one that read practice feel — an average
-      // of the last five `feelRating`s — and so could not see a
-      // single key, section or run-through. It was also the next
-      // field about to lose its writer: practice carries no rating
-      // under the two-mode split, so a rule built on feel would have
-      // gone quiet inside this same build.
-      // ---------------------------------------------------------------
       const held = input.songKeys.filter(k => isHeld(k, input.now));
       const covered = coveredQuadrants(held.map(k => k.keyName));
-      if (covered.size >= QUADRANT_COUNT) {
-        return suggestion(
-          input.currentStage,
-          `comfortable in ${held.length} keys, covering all `
-            + `${QUADRANT_COUNT} quadrants of the circle of fourths`,
-        );
-      }
-      return { suggest: false };
+      const missing = KEY_QUADRANTS
+        .map((q, i) => (covered.has(i) ? null : q.join(' · ')))
+        .filter((q): q is string => q !== null);
+      return [{
+        label: `Comfortable in ${QUADRANT_COUNT} keys, one from each quadrant `
+          + 'of the circle of fourths',
+        met: covered.size >= QUADRANT_COUNT,
+        have: covered.size,
+        need: QUADRANT_COUNT,
+        ...(missing.length > 0
+          ? { detail: `Still to cover: ${missing.join(', ')}.` }
+          : {}),
+      }];
     }
-    case 'cross-key': {
-      // ---------------------------------------------------------------
-      // DEPTH IN FOUR, BREADTH ACROSS TWELVE.
-      //
-      // The four quadrant keys that earned Cross-key have to STILL be
-      // held — internalized is not a receipt for something you could
-      // once do — and every remaining key needs at least one clean
-      // run-through at tempo. Working a song in several keys is how it
-      // gets internalized rather than something done afterwards, which
-      // is why this rung sits where it does.
-      //
-      // Expressed as "every key is either held or has a clean run"
-      // rather than "the other eight have runs", because nothing
-      // records WHICH four keys earned cross-key. A key that is held
-      // satisfies the requirement by being held; a key that is not
-      // must show the run. Holding more than four is not penalised.
-      //
-      // This replaces a rule that read the deprecated
-      // `songCrossKeyProgress`, where a key counted as "touched" after
-      // ONE tap on the cross-key grid, and which checked two
-      // independent tallies — six keys anywhere and three sections
-      // anywhere — that together did not mean what "6 keys across 3
-      // sections" sounds like. Verified before replacing: six keys on
-      // the chorus plus two other sections in two other keys fired it,
-      // with no key covering more than two sections.
-      // ---------------------------------------------------------------
-      if (input.performanceTempo === null) return { suggest: false };
 
+    case 'cross-key': {
       const held = new Set(
         input.songKeys.filter(k => isHeld(k, input.now)).map(k => k.id),
       );
-      if (coveredQuadrants(
+      const covered = coveredQuadrants(
         input.songKeys.filter(k => held.has(k.id)).map(k => k.keyName),
-      ).size < QUADRANT_COUNT) {
-        return { suggest: false };
-      }
+      );
 
-      const provenByRun = new Set(
-        input.keyRunThroughs
-          .filter(r => r.wasClean && isInTempoRange(r.tempoBpm, input.performanceTempo))
-          .map(r => r.songKeyId),
+      const tempoSet = input.performanceTempo !== null;
+      const provenByRun = tempoSet
+        ? new Set(
+            input.keyRunThroughs
+              .filter(r => r.wasClean && isInTempoRange(r.tempoBpm, input.performanceTempo))
+              .map(r => r.songKeyId),
+          )
+        : new Set<string>();
+      const satisfied = input.songKeys.filter(
+        k => held.has(k.id) || provenByRun.has(k.id),
       );
-      const short = input.songKeys.filter(
-        k => !held.has(k.id) && !provenByRun.has(k.id),
-      );
-      if (short.length > 0) return { suggest: false };
+      const short = input.songKeys.filter(k => !held.has(k.id) && !provenByRun.has(k.id));
 
-      return suggestion(
-        input.currentStage,
-        `all ${input.songKeys.length} keys either held or run clean at tempo`,
-      );
+      return [
+        {
+          // Listed FIRST because it is the precondition, and because
+          // without it the breadth criterion below would read as
+          // achievable when no run can qualify.
+          label: 'A performance tempo is set for this song',
+          precondition: true,
+          met: tempoSet,
+          have: tempoSet ? 1 : 0,
+          need: 1,
+          ...(tempoSet ? {} : {
+            detail: 'Without one there is no tempo for a run to be clean AT, '
+              + 'so no run can count toward the remaining keys.',
+          }),
+        },
+        {
+          label: 'All four quadrants still held',
+          met: covered.size >= QUADRANT_COUNT,
+          have: covered.size,
+          need: QUADRANT_COUNT,
+          ...(covered.size >= QUADRANT_COUNT ? {} : {
+            detail: 'Cross-key is a claim about what you can play now, so a '
+              + 'key that lapsed stops counting until you retest it.',
+          }),
+        },
+        {
+          label: 'Every other key run clean at tempo, at least once',
+          met: short.length === 0,
+          have: satisfied.length,
+          need: input.songKeys.length,
+          ...(short.length > 0
+            ? {
+                detail: `Still to run: ${short.map(k => k.keyName).join(', ')}. `
+                  + 'Use "log a run" on those rows — one clean pass each is enough.',
+              }
+            : {}),
+        },
+      ];
     }
+
     case 'internalized':
-      // TERMINAL. 'maintenance' used to sit above this and is retired:
-      // it is the mode you are in once you get here, not a step beyond
-      // it. Its entry criteria were empty — nothing extra was required
-      // — and a suggestion whose condition is always true is not a
-      // suggestion, it is a banner that never goes away.
-      //
-      // What made maintenance a real idea is the HOLDING half: periodic
-      // checks where the app picks a key and asks for a run, which
-      // lapse if you fall behind. That is an SM-2 review rather than a
-      // bespoke timer, and it lands on build-queue item 9 with the rest
-      // of the spacing work. Until then, reaching internalized is the
-      // end of the ladder and STAGE_GUIDANCE carries the upkeep advice.
-      return { suggest: false };
+      // Terminal. No criteria, and `evaluateAdvancement` reads an
+      // empty list as "nothing to suggest" rather than as "everything
+      // satisfied" — see the length check there.
+      return [];
   }
+}
+
+/**
+ * Whether to suggest advancing, and why.
+ *
+ * DERIVED from `stageCriteria`. The destination is composed from
+ * `nextStage` and never named by a rule: three of the four used to
+ * hard-code one and all three named the wrong stage, because STAGES
+ * was reordered in April 2026 and this switch was not.
+ *
+ * TWO GUARDS STOP A TERMINAL STAGE SUGGESTING, and neither is
+ * individually load-bearing — which is worth stating, because the
+ * first draft's comment claimed the empty-list check was, and the
+ * reversal showed it is not: removing it left every test green.
+ *
+ * `[].every()` is true, so an empty criteria list reads as fully
+ * satisfied. What actually stops `internalized` there is
+ * `nextStage() === null`. The length check is belt: it would matter
+ * the day a NON-terminal stage is added with no criteria, where the
+ * null check would not fire. Removing either alone changes nothing;
+ * removing both suggests advancing to `undefined`.
+ */
+export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvaluation {
+  const criteria = stageCriteria(input);
+  if (criteria.length === 0 || !criteria.every(c => c.met)) {
+    return { suggest: false };
+  }
+  const next = nextStage(input.currentStage);
+  if (next === null) return { suggest: false };
+  return {
+    suggest: true,
+    reason: `${evidenceFrom(criteria)} — consider advancing to ${STAGE_LABEL[next]}.`,
+  };
+}
+
+/**
+ * The banner's "why", built from the criteria that were achieved.
+ *
+ * Preconditions are dropped: the banner says what you did, and having
+ * a tempo set is not something you did toward the stage. Everything
+ * after the first item is lowercased at the first character so a list
+ * of sentence-case panel labels reads as one sentence here — the
+ * labels are written for the panel, which is where they are read
+ * most, and this adapts them rather than keeping a second set.
+ */
+function evidenceFrom(criteria: StageCriterion[]): string {
+  const achievements = criteria.filter(c => !c.precondition);
+  if (achievements.length === 0) return 'criteria met';
+  return achievements
+    .map((c, i) => (i === 0 ? c.label : c.label.charAt(0).toLowerCase() + c.label.slice(1)))
+    .join(', and ');
 }
 
 // --- Freshness (practice recency) -----------------------------------

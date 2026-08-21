@@ -24,6 +24,7 @@ import {
   evaluateAdvancement,
   nextStage,
   normaliseStage,
+  stageCriteria,
   type AdvancementInputs,
 } from '../stage';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../matrix/keys';
@@ -125,7 +126,7 @@ describe('Learning → Comfortable', () => {
       ],
     }));
     expect(out.suggest).toBe(true);
-    expect(out.reason).toContain('whole-song test passed in C');
+    expect(out.reason).toContain('Whole-song test passed in C');
   });
 
   it('does NOT fire when the test passed only in some OTHER key', () => {
@@ -337,5 +338,117 @@ describe('normaliseStage', () => {
 
   it('STAGES no longer carries maintenance', () => {
     expect(STAGES).toEqual(['learning', 'comfortable', 'cross-key', 'internalized']);
+  });
+});
+
+// =====================================================================
+
+describe('the panel and the rule cannot disagree', () => {
+  /**
+   * `evaluateAdvancement` is derived from `stageCriteria`, so this
+   * identity should hold by construction. It is asserted anyway,
+   * across a spread that includes every stage and both sides of every
+   * criterion, because the failure it guards is the one the user
+   * cannot detect from outside: a panel reading "3 of 3" beside a
+   * rule that never fires gives them no way to tell which half lied.
+   */
+  const cases: Array<[string, AdvancementInputs]> = [
+    ['learning, no keys at all', inputs({ songKeys: [] })],
+    ['learning, no original key designated', inputs({
+      songKeys: [key('C', { wholeSongTestPassedAt: NOW })],
+    })],
+    ['learning, original key untested', inputs({
+      songKeys: [key('C', { isOriginalKey: true })],
+    })],
+    ['learning, original key tested', inputs({
+      songKeys: [key('C', { isOriginalKey: true, wholeSongTestPassedAt: NOW })],
+    })],
+    ['comfortable, nothing held', inputs({
+      currentStage: 'comfortable',
+      songKeys: allTwelve(() => ({ keyState: 'learning' })),
+    })],
+    ['comfortable, two quadrants', inputs({
+      currentStage: 'comfortable',
+      songKeys: allTwelve(k => ['C', 'Eb'].includes(k) ? {} : { keyState: 'learning' }),
+    })],
+    ['comfortable, all four quadrants', inputs({
+      currentStage: 'comfortable',
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' }),
+    })],
+    ['cross-key, no tempo set', inputs({
+      currentStage: 'cross-key',
+      performanceTempo: null,
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k))),
+    })],
+    ['cross-key, quadrants short', inputs({
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => ['C', 'F'].includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !['C', 'F'].includes(k))),
+    })],
+    ['cross-key, one key still unrun', inputs({
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(
+        CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)).slice(1),
+      ),
+    })],
+    ['cross-key, everything satisfied', inputs({
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k))),
+    })],
+    ['internalized, terminal', inputs({ currentStage: 'internalized' })],
+  ];
+
+  it('the spread genuinely covers both outcomes', () => {
+    // Guard the guard: an identity asserted only over failing cases
+    // would pass on a rule that never fires at all.
+    const results = cases.map(([, i]) => evaluateAdvancement(i).suggest);
+    expect(results.filter(Boolean).length).toBeGreaterThan(0);
+    expect(results.filter(r => !r).length).toBeGreaterThan(0);
+  });
+
+  for (const [name, input] of cases) {
+    it(`holds for ${name}`, () => {
+      const criteria = stageCriteria(input);
+      const allMet = criteria.length > 0 && criteria.every(c => c.met);
+      expect(evaluateAdvancement(input).suggest).toBe(allMet);
+    });
+  }
+
+  it('every unmet criterion reports progress short of its target', () => {
+    for (const [, input] of cases) {
+      for (const c of stageCriteria(input)) {
+        if (!c.met) expect(c.have).toBeLessThan(c.need);
+        else expect(c.have).toBeGreaterThanOrEqual(c.need);
+      }
+    }
+  });
+
+  it('a terminal stage suggests nothing, and names nothing', () => {
+    // TWO GUARDS PRODUCE THIS and neither reverses alone: `[].every()`
+    // is true, so the empty criteria list reads as satisfied, and what
+    // stops it is nextStage() === null. The length check is belt for a
+    // future non-terminal stage with no criteria. Removing either
+    // alone leaves this green; removing both makes the reason name
+    // `undefined`, which is what the second assertion catches.
+    expect(stageCriteria(inputs({ currentStage: 'internalized' }))).toEqual([]);
+    const out = evaluateAdvancement(inputs({ currentStage: 'internalized' }));
+    expect(out.suggest).toBe(false);
+    expect(out.reason).toBeUndefined();
+  });
+
+  it('preconditions are listed in the panel but kept out of the banner', () => {
+    const passing = inputs({
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k))),
+    });
+    const criteria = stageCriteria(passing);
+    expect(criteria.some(c => c.precondition)).toBe(true);
+    // The banner says what you DID; having a tempo set is not that.
+    expect(evaluateAdvancement(passing).reason).not.toContain('performance tempo is set');
+    expect(evaluateAdvancement(passing).reason).toContain('All four quadrants still held');
   });
 });
