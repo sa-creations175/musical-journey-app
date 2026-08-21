@@ -32,6 +32,8 @@ import {
   BAND_SWATCH_CLASS,
   COLUMN_RULES,
   FLUENCY_LEGEND,
+  TOPICS_USING_TREE_VOCABULARY,
+  TREE_VOCABULARY,
   type ColumnTopic,
   type LegendEntry,
 } from './bands';
@@ -94,9 +96,13 @@ function LegendColumn({
               aria-hidden="true"
               className={`h-2 w-2 shrink-0 rounded-sm ${BAND_SWATCH_CLASS[entry.band]}`}
             />
+            {/* The value sits NEXT TO its rating, not pushed to the
+                far edge. Right-aligned it read as a separate column
+                with an unexplained gap between the two halves of one
+                fact: "comfortable" and "75" are the same fact. */}
             <span className="truncate">{entry.label}</span>
             {showValue && (
-              <span className="ml-auto shrink-0 tabular-nums text-neutral-400">
+              <span className="shrink-0 tabular-nums text-neutral-400">
                 {entry.value}
               </span>
             )}
@@ -134,20 +140,39 @@ export default function ColumnLegend({ topic }: { topic: ColumnTopic }) {
           />
         </div>
       )}
-      <dl className="space-y-1.5">
+      {/* The two structural words, before anything uses them. */}
+      {TOPICS_USING_TREE_VOCABULARY.has(topic) && (
+        <ul
+          data-testid="tree-vocabulary"
+          className="mb-2 space-y-0.5 border-b border-neutral-200 pb-2
+            text-[11px] leading-snug text-neutral-500
+            dark:border-neutral-800 dark:text-neutral-400"
+        >
+          {TREE_VOCABULARY.map(({ term, meaning }) => (
+            <li key={term}>
+              <span className="text-neutral-700 dark:text-neutral-200">{term}</span>
+              {' — '}{meaning}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* ONE BULLET PER RULE, rule and reason on the same line. A bold
+          line over an indented paragraph reads as a wall of text at
+          this density — which is what it was. */}
+      <ul data-testid="column-rules" className="space-y-1.5">
         {COLUMN_RULES[topic].map(({ rule, why }) => (
-          <div key={rule}>
-            <dt className="text-[11px] text-neutral-700 dark:text-neutral-200">
-              {rule}
-            </dt>
-            {/* The WHY, always. A rule without its reason reads as an
-                arbitrary constraint. */}
-            <dd className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
-              {why}
-            </dd>
-          </div>
+          <li key={rule} className="flex gap-1.5 text-[11px] leading-snug">
+            <span aria-hidden="true" className="shrink-0 text-neutral-400">·</span>
+            <span className="text-neutral-500 dark:text-neutral-400">
+              <span className="text-neutral-700 dark:text-neutral-200">{rule}</span>
+              {/* The WHY, always, and on the same line. A rule without
+                  its reason reads as an arbitrary constraint. */}
+              {' — '}{why}
+            </span>
+          </li>
         ))}
-      </dl>
+      </ul>
     </div>
   );
 }

@@ -19,6 +19,8 @@ import {
   formatScore,
   legendFor,
   scoreColumnLabel,
+  TOPICS_USING_TREE_VOCABULARY,
+  TREE_VOCABULARY,
   type ColumnTopic,
 } from '../bands';
 import { FEEL_OPTIONS, fluencyValue } from '../../../lib/fluencyScale';
@@ -194,18 +196,93 @@ describe('column rules — every one carries its why', () => {
 
   it('names the rules the design doc ships as a requirement', () => {
     // The list in DASHBOARD_REDESIGN_DESIGN.md's Legibility requirement.
-    // Matched on the load-bearing phrase rather than whole sentences, so
-    // rewording the copy does not fail this, but dropping a RULE does.
+    // Matched on the load-bearing NUMBER or phrase rather than whole
+    // sentences, so a writing pass does not fail this but dropping a
+    // RULE does.
     const said = (topic: ColumnTopic) =>
       COLUMN_RULES[topic].map(r => `${r.rule} ${r.why}`).join(' ');
-    expect(said('score')).toContain('last 20 eligible attempts');
+    expect(said('score')).toContain('last 20 attempts');
     expect(said('score')).toContain('fewer than 4 items');
-    expect(said('score')).toContain('FULLY reached');
-    expect(said('coverage')).toContain('3 or more attempts');
-    expect(said('coverage')).toContain('FULL CATALOG');
-    expect(said('coverage')).toContain('tried it');
-    expect(said('recency')).toContain('most recent, then stalest');
+    expect(said('score')).toMatch(/only shows a rating once its average/);
+    expect(said('coverage')).toContain('3 or more');
+    expect(said('coverage')).toContain('full skill catalog');
+    expect(said('coverage')).toContain('tried it (75)');
+    expect(said('coverage')).toContain('648');
+    expect(said('recency')).toContain('most recent');
+    expect(said('recency')).toContain('oldest');
     expect(said('due')).toContain('not a deadline');
+  });
+});
+
+describe('the copy obeys its own writing rules', () => {
+  const topics: ColumnTopic[] = ['score', 'coverage', 'recency', 'due'];
+  const everything = topics.flatMap(t => COLUMN_RULES[t].map(r => `${r.rule} ${r.why}`));
+
+  it('uses no structural word it has not defined', () => {
+    // "Parent", "child", "branch", "leaf", "descendant" are the tree's
+    // own words rather than the reader's, and they were being used
+    // interchangeably. Exactly two are used, and both are defined in
+    // TREE_VOCABULARY above the rules.
+    // `leaves` is deliberately absent: it is far more often the verb
+    // ("the score leaves it out") than the tree's noun, and a guard
+    // that fires on ordinary English gets weakened rather than obeyed.
+    // `leaf` singular is the jargon worth catching.
+    const undefinedTerms = /\b(parent|child|children|branch|branches|leaf|descendant|descendants)\b/i;
+    for (const text of everything) {
+      expect(text, text.slice(0, 60)).not.toMatch(undefinedTerms);
+    }
+    expect(TREE_VOCABULARY.map(v => v.term)).toEqual(['group row', 'item row']);
+  });
+
+  it('defines the vocabulary on exactly the panels that use it', () => {
+    for (const topic of topics) {
+      const usesIt = COLUMN_RULES[topic].some(
+        r => /\b(group row|item row)\b/.test(`${r.rule} ${r.why}`),
+      );
+      expect(TOPICS_USING_TREE_VOCABULARY.has(topic), topic).toBe(usesIt);
+    }
+    // Guard the guard: this passes vacuously if no panel uses the terms
+    // or if every panel does.
+    expect(TOPICS_USING_TREE_VOCABULARY.size).toBeGreaterThan(0);
+    expect(TOPICS_USING_TREE_VOCABULARY.size).toBeLessThan(topics.length);
+  });
+
+  it('gives a rating its number every time it names one', () => {
+    // A rule leaning on another rule has to point at it. "Comfortable"
+    // three inches under a key that reads "comfortable 75" is still
+    // asking the reader to make the connection themselves.
+    for (const text of everything) {
+      for (const option of FEEL_OPTIONS) {
+        if (!text.includes(option.label)) continue;
+        expect(text, `${option.label} without its number`)
+          .toContain(`${option.label} (${option.value})`);
+      }
+    }
+    // Guard the guard: at least one rule genuinely names a rating.
+    expect(everything.some(t => t.includes('comfortable (75)'))).toBe(true);
+  });
+
+  it('reserves the em-dash for the rule/reason boundary', () => {
+    // FOUND BY READING THE RENDERED COPY BACK AS PLAIN TEXT, which no
+    // assertion here would have caught. The panel joins a rule to its
+    // reason with " — ", and several rules and reasons used em-dashes
+    // internally too, so the one boundary that matters was invisible
+    // among three that did not. Colons, commas and full stops do the
+    // internal work now.
+    for (const text of [
+      ...everything,
+      ...TREE_VOCABULARY.map(v => `${v.term} ${v.meaning}`),
+    ]) {
+      expect(text, text.slice(0, 60)).not.toContain('—');
+    }
+  });
+
+  it('cites nothing the screen does not show', () => {
+    // "A lifetime average never moves" asked the reader to picture a
+    // figure this screen has never displayed.
+    for (const text of everything) {
+      expect(text, text.slice(0, 60)).not.toMatch(/lifetime average/i);
+    }
   });
 });
 

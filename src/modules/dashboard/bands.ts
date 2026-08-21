@@ -166,11 +166,54 @@ export function scoreColumnLabel(kind: AccuracyKind): string {
  * `docs/RULE_LEGIBILITY.md` §2.3 — the 30-second minimum rep — is the
  * only rule in the app explained at all three moments, and it is the
  * pattern these copy.
+ *
+ * ─── How this copy is written ────────────────────────────────────────
+ *
+ * ONE BULLET PER RULE, rule and reason on the same line. A bold line
+ * over an indented paragraph reads as a wall of text at this density.
+ *
+ * NO UNDEFINED VOCABULARY. Exactly two structural words are used —
+ * *group row* and *item row* — and both are defined in
+ * `TREE_VOCABULARY`, rendered above the rules. "Parent", "child",
+ * "branch", "leaf" and "descendant" are the tree's own words, not the
+ * reader's, and they were being used interchangeably.
+ *
+ * NOTHING IS CITED THAT THE SCREEN DOES NOT SHOW. A reason that
+ * compares the number to something you cannot see — "a lifetime average
+ * never moves" — asks the reader to picture a figure this screen has
+ * never displayed.
+ *
+ * A RULE THAT LEANS ON ANOTHER RULE NAMES IT AND POINTS AT IT. Ratings
+ * are given with their numbers, *comfortable (75)*, matching the key
+ * directly above; a rule resting on the 3-attempt threshold says so.
  */
 export interface ColumnRule {
   rule: string;
   why: string;
 }
+
+/**
+ * The two structural words the rules use, defined before they are used.
+ *
+ * Rendered at the top of every panel whose rules distinguish the two.
+ * Four short lines, and without them half the copy below is describing
+ * a shape the reader is being asked to infer from the indentation.
+ */
+export const TREE_VOCABULARY: ReadonlyArray<{ term: string; meaning: string }> = [
+  {
+    term: 'group row',
+    meaning: 'a row you can open. Its numbers cover everything inside it.',
+  },
+  {
+    term: 'item row',
+    meaning: 'one thing you practise. It does not open any further.',
+  },
+];
+
+/** Panels whose rules distinguish the two. Due's do not — its rules are
+ *  about every row equally. */
+export const TOPICS_USING_TREE_VOCABULARY: ReadonlySet<ColumnTopic> =
+  new Set<ColumnTopic>(['score', 'coverage', 'recency']);
 
 /** The four things a reader can interrogate. `due` is not a column;
  *  it is the filter, and its rule belongs at the filter. */
@@ -186,123 +229,151 @@ export const COLUMN_TOPIC_TITLE: Readonly<Record<ColumnTopic, string>> = {
 export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule>>> = {
   score: [
     {
-      rule: 'Accuracy is the mean over the last 20 eligible attempts on an item.',
-      why: 'A lifetime average never moves. Twenty is enough to be stable, and '
-        + 'short enough that getting better actually shows.',
+      rule: 'Accuracy counts your last 20 attempts on an item, and only those.',
+      why: 'Twenty is enough to be stable, and short enough that getting '
+        + 'better actually shows: the window rolls, so a bad run stops '
+        + 'counting once you have done twenty more. Some attempts are left '
+        + 'out of it; see focus practice, below.',
     },
     {
-      rule: 'A parent row reads the highest rating it has FULLY reached.',
-      why: 'You reach a threshold, you are not rounded up into it. Three '
-        + 'children at comfortable and one at struggled averages 62.5 and '
-        + 'reads working on it — the parent still has a way to go. Without '
-        + 'this stated, a parent reading lower than most of its children '
-        + 'looks like a bug.',
+      rule: 'A group row only shows a rating once its average has reached '
+        + "that rating's number.",
+      why: 'Three items at comfortable (75) and one at struggled (25) average '
+        + '62.5, which has not reached 75, so the group reads working on it '
+        + '(50). The ratings and their numbers are in the fluency key above. '
+        + 'Without this, a group reading lower than most of the items inside '
+        + 'it looks like a bug.',
     },
     {
-      rule: 'Attempts made in a focus pool of fewer than 4 items are left out '
-        + 'of accuracy — but still count toward coverage and recency.',
-      why: 'A 3-item pool inflates a percentage: a blind guess is right one '
-        + 'time in three and short-term recall carries the rest, so the number '
-        + 'would read as skill. You did practise the item, though, so the fact '
-        + 'you sat down is not erased with it.',
+      rule: 'Focus practice: attempts made with fewer than 4 items selected '
+        + 'are left out of the accuracy score, but still count toward coverage '
+        + 'and recency.',
+      why: 'A pool of three inflates a percentage: a blind guess is right one '
+        + 'time in three, and short-term recall carries most of the rest. You '
+        + 'did practise the item, though, so the fact that you sat down is not '
+        + 'erased along with the score.',
     },
     {
       rule: 'A dash is not a zero.',
-      why: 'An ungraded row has no signal. It has not failed, so it gets '
-        + 'neither a red nor a green.',
+      why: 'A row with nothing scored yet has no signal, and it has not '
+        + 'failed, so it gets neither a red nor a green.',
     },
     {
-      rule: 'A row whose branches measure different things reads a dash.',
-      why: 'Production holds self-rated lessons beside measured vocabulary. '
-        + 'Both project onto 0–100, so averaging them produces a number — one '
-        + 'that means neither thing.',
+      rule: 'A group row whose items are scored in different ways shows a dash.',
+      why: 'Production mixes self-rated lessons with vocabulary that is marked '
+        + 'right or wrong, and averaging the two produces a number that means '
+        + 'neither. Open the row to see each on its own.',
     },
   ],
   coverage: [
     {
-      rule: 'An item is covered at 3 or more attempts.',
-      why: 'An item seen once, guessed wrong and never revisited has to stay '
-        + 'on the uncovered list, or that list stops being worth reading.',
+      rule: 'An item counts as covered once you have practised it 3 or more '
+        + 'times.',
+      why: 'One attempt tells you nothing about whether an item is on its way '
+        + 'to being learned: you may have guessed it right, or got it wrong '
+        + 'and never come back. Three is the point where the uncovered list '
+        + 'becomes worth reading.',
     },
     {
-      rule: 'The denominator is the FULL CATALOG for that row, never the '
-        + 'current filter.',
-      why: 'A denominator that moves with a setting makes the percentage mean '
-        + 'a different thing on different days — 60% on Tuesday and 20% on '
-        + 'Wednesday with no practice in between. Narrowing to what you are '
-        + 'working on is a filter: it changes which rows you look at, not what '
-        + 'a row is measured against.',
+      rule: 'Coverage is measured against the full skill catalog for that row, '
+        + 'never against what is currently on screen.',
+      why: 'Otherwise a setting elsewhere in the app would move it. Ear '
+        + "Training's chord-motion drill shows 42 motions with its "
+        + 'diatonic-only filter on, and the full catalog is 132. If coverage '
+        + 'divided by 42, turning that filter off would cut the '
+        + 'percentage by two thirds without you practising anything.',
     },
     {
-      rule: 'A parent shows a percentage AND a raw attempt total. An item row '
-        + 'shows the count alone.',
-      why: 'A percentage cannot tell "worked on, nothing consolidated yet" '
-        + 'from "never opened" — both read 0%, and that gap would make real '
-        + 'practice look like neglect. At item level, 5 attempts says more '
-        + 'than "covered", and 5 sits differently from 47.',
+      rule: 'A group row shows a percentage and a total attempt count. An item '
+        + 'row shows the count on its own.',
+      why: 'Because of the 3-attempt rule above, everything you have practised '
+        + 'once or twice still reads as uncovered, so a row can show 0% after '
+        + 'real work. The attempt count is what separates "worked on, nothing '
+        + 'over the line yet" from "never opened". On an item row the count '
+        + 'says more than "covered" would: 5 sits differently from 47.',
     },
     {
-      rule: 'A production lesson is covered at "tried it", not at a count.',
-      why: 'A lesson is not a rep you repeat. Reading it and taking it in are '
-        + 'worth recording, but neither is practice.',
+      rule: 'A production lesson counts as covered at tried it (75), not at an '
+        + 'attempt count.',
+      why: 'Lessons use their own five-step scale: not started (0), read it '
+        + '(25), deep dive (50), tried it (75), mastered (100). It is not '
+        + 'the fluency scale in the key above. A lesson is not a rep you '
+        + 'repeat: reading one and taking it in are worth recording, but '
+        + 'neither is practice, so the first three steps leave it uncovered.',
     },
     {
       rule: 'Saying how well you already know a shape does not cover it.',
-      why: 'The modal that asks "how well do you know C major?" sets where '
-        + 'spacing begins. Coverage measures practice done in the app.',
+      why: 'The Shapes & Patterns question that asks "how well do you know C '
+        + 'major?" sets where spaced repetition starts you off. Coverage '
+        + 'measures practice recorded in the app.',
     },
     {
-      rule: 'Shapes & Patterns divides by 648 chord shapes, not the 720 you '
-        + 'can open.',
-      why: 'The 72 two-handed supplementary rows are practice tools rather '
-        + 'than shapes to own, and they do not gate acquisition. Nor is a cell '
-        + 'multiplied by hand or by articulation: those are ways of practising '
-        + 'a shape, not separate things to know.',
+      rule: 'Shapes & Patterns counts 648 chord shapes, though there are 720 '
+        + 'you can open and drill.',
+      why: 'The other 72 are two-handed exercises: practice tools rather than '
+        + 'shapes to learn, so they are not counted as things to cover. They '
+        + 'are still there to drill.',
+    },
+    {
+      rule: 'Practising the same shape with the other hand, or broken instead '
+        + 'of solid, does not add to the count.',
+      why: 'What is being counted is the shape in the key. Hands and '
+        + 'articulation are ways of practising it rather than separate things '
+        + 'to know, and counting them would make Shapes & Patterns '
+        + 'incomparable with every other module, none of which has a hand to '
+        + 'choose.',
     },
   ],
   recency: [
     {
-      rule: 'A parent shows two numbers — most recent, then stalest.',
-      why: 'Most recent alone flatters: touch one item and the whole category '
-        + 'looks fresh. Stalest alone freezes: one neglected corner pins it '
-        + 'and nothing you do moves it.',
+      rule: 'A group row shows two numbers, like 12d / 61d: days since the '
+        + 'most recent practice anywhere inside it, then days since the '
+        + 'oldest. The sort control calls that second one stalest.',
+      why: 'The most recent alone flatters: practise one item and the whole '
+        + 'group looks fresh. The oldest alone freezes: one neglected corner '
+        + 'pins it and nothing you do moves it.',
     },
     {
-      rule: 'A never-touched item reads "never", not a number of days.',
-      why: 'Never is not an age, and rendering it as 0 would claim you '
-        + 'practised it today.',
+      rule: 'An item you have never practised reads never, not a number of '
+        + 'days.',
+      why: 'Never is not an age, and showing it as 0 would say you practised '
+        + 'it today.',
     },
     {
-      rule: 'Recency counts every attempt, including the ones accuracy leaves out.',
-      why: 'A focus-protected rep and an ungraded practice session both '
+      rule: 'Recency counts every attempt, including the ones the accuracy '
+        + 'score leaves out.',
+      why: 'A focus-practice attempt and an unscored practice session both '
         + 'happened. Recency asks when you last touched the item, not whether '
-        + 'the answer was a fluency signal.',
+        + 'the result could be scored. The exclusions are listed under '
+        + 'accuracy / fluency.',
     },
     {
-      rule: 'Sorting on recency reads a different number in each direction.',
+      rule: 'Sorting by recency reads a different one of the two numbers in '
+        + 'each direction.',
       why: 'Most recent first orders on the left number, stalest first on the '
-        + 'right. A row touched 2 days ago holding a 40-day-old item ranks on '
-        + 'the 40 one way and the 2 the other.',
+        + 'right. A group practised 2 days ago that still holds a 40-day-old '
+        + 'item ranks on the 40 one way and on the 2 the other.',
     },
   ],
   due: [
     {
-      rule: 'Due means an item is past the next-review date the spacing '
-        + 'algorithm gave it.',
+      rule: 'Due means an item is past the review date the spacing algorithm '
+        + 'gave it.',
       why: 'It is not a deadline and has nothing to do with goals. The date is '
-        + 'written when you answer the card, from how well you answered it.',
+        + 'set when you answer a card, from how well you answered it.',
     },
     {
       rule: 'Due is a filter and never a column.',
-      why: 'After a gap everything goes due and stays due, so the number would '
-        + 'read the same on every row and tell you nothing. As a filter it is '
-        + 'there for when you are caught up enough for it to mean something.',
+      why: 'After a break everything goes due and stays due, so as a column it '
+        + 'would read the same on every row and tell you nothing. As a filter '
+        + 'it is here for when you are caught up enough for it to mean '
+        + 'something.',
     },
     {
       rule: 'Modules that schedule no reviews return nothing from this filter.',
       why: 'Shapes & Patterns, song repertoire, key detection and chord motion '
-        + 'write no spacing state at all. They are absent here rather than '
-        + 'showing a dash on every row.',
+        + 'never set a review date at all, so they are absent from the results '
+        + 'rather than showing a dash on every row.',
     },
   ],
 };

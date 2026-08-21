@@ -19,6 +19,8 @@ import {
   ACCURACY_LEGEND,
   COLUMN_RULES,
   FLUENCY_LEGEND,
+  TOPICS_USING_TREE_VOCABULARY,
+  TREE_VOCABULARY,
   type ColumnTopic,
 } from '../bands';
 import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
@@ -104,9 +106,30 @@ describe('the score panel carries two legends, never one', () => {
       expect(labelsIn(el, 'accuracy').join(' '), entry.label).toContain(entry.label);
     }
     for (const entry of FLUENCY_LEGEND) {
-      // The rating AND what it is worth: "comfortable 75". The word
-      // alone leaves the number in the cell unexplained.
-      expect(labelsIn(el, 'fluency')).toContain(`${entry.label}${entry.value}`);
+      // The rating AND what it is worth, in the same row: "comfortable
+      // 75". The word alone leaves the number in the score cell
+      // unexplained. Asserted per row rather than on the concatenated
+      // string, so it holds however the two are spaced.
+      const row = labelsIn(el, 'fluency').find(l => l.includes(entry.label));
+      expect(row, entry.label).toBeDefined();
+      expect(row, entry.label).toContain(String(entry.value));
+    }
+  });
+
+  it('puts a fluency number in the SAME row as its rating', () => {
+    // It used to be pushed to the far edge with `ml-auto`, which read
+    // as a separate column with an unexplained gap between the two
+    // halves of one fact. Asserted structurally: the swatch, the word
+    // and the number are siblings, in that order, with nothing flexing
+    // them apart.
+    const el = render(<ColumnLegend topic="score" />);
+    const rows = [...el.querySelectorAll('[data-testid="legend-fluency"] li')];
+    expect(rows).toHaveLength(FLUENCY_LEGEND.length);
+    for (const [i, row] of rows.entries()) {
+      const spans = [...row.querySelectorAll('span')];
+      expect(spans[spans.length - 1].textContent)
+        .toBe(String(FLUENCY_LEGEND[i].value));
+      expect(spans.some(s => s.className.includes('ml-auto'))).toBe(false);
     }
   });
 
@@ -119,6 +142,48 @@ describe('the score panel carries two legends, never one', () => {
       expect(el.querySelector('[data-testid="legend-fluency"]'), topic).toBeNull();
       act(() => root!.unmount()); container!.remove();
     }
+  });
+});
+
+describe('the panel reads as bullets, with its terms defined first', () => {
+  it('gives each rule ONE bullet, not a heading over a paragraph', () => {
+    // A bold line above an indented paragraph reads as a wall of text
+    // at this density. Rule and reason share a line item.
+    for (const topic of ['score', 'coverage', 'recency', 'due'] as ColumnTopic[]) {
+      const el = render(<ColumnLegend topic={topic} />);
+      const items = [...el.querySelectorAll('[data-testid="column-rules"] > li')];
+      expect(items, topic).toHaveLength(COLUMN_RULES[topic].length);
+      for (const [i, item] of items.entries()) {
+        const { rule, why } = COLUMN_RULES[topic][i];
+        // Both halves in the SAME list item — not two siblings.
+        expect(item.textContent, rule).toContain(rule);
+        expect(item.textContent, rule).toContain(why);
+      }
+      act(() => root!.unmount()); container!.remove();
+    }
+  });
+
+  it('defines group row and item row ABOVE the rules that use them', () => {
+    const el = render(<ColumnLegend topic="coverage" />);
+    const vocabulary = el.querySelector('[data-testid="tree-vocabulary"]')!;
+    expect(vocabulary).not.toBeNull();
+    for (const { term, meaning } of TREE_VOCABULARY) {
+      expect(vocabulary.textContent).toContain(term);
+      expect(vocabulary.textContent).toContain(meaning);
+    }
+    // Above, not below: a definition after the sentence that needs it
+    // is a definition the reader has already had to guess.
+    const rules = el.querySelector('[data-testid="column-rules"]')!;
+    expect(vocabulary.compareDocumentPosition(rules)
+      & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('omits the definitions where no rule uses the words', () => {
+    // Guard the guard: if it rendered everywhere, the assertion above
+    // would say nothing about it being where it is needed.
+    const el = render(<ColumnLegend topic="due" />);
+    expect(el.querySelector('[data-testid="tree-vocabulary"]')).toBeNull();
+    expect(TOPICS_USING_TREE_VOCABULARY.has('due')).toBe(false);
   });
 });
 
