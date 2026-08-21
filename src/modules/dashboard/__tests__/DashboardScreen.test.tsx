@@ -654,6 +654,89 @@ describe('sticky column headers', () => {
   });
 });
 
+describe('the column rules, asked for from the column', () => {
+  const help = (el: HTMLElement, topic: string) =>
+    el.querySelector(`[data-testid="column-help-${topic}"]`)!;
+  const panel = (el: HTMLElement) => el.querySelector('[data-testid="column-legend"]');
+
+  it('starts closed, so nothing is spent on a rule nobody asked about', async () => {
+    const el = await renderScreen();
+    expect(panel(el)).toBeNull();
+    for (const topic of ['score', 'coverage', 'recency', 'due']) {
+      expect(help(el, topic), topic).not.toBeNull();
+    }
+  });
+
+  it('opens the topic that was pressed, and closes on a second press', async () => {
+    const el = await renderScreen();
+    click(help(el, 'coverage'));
+    expect(panel(el)!.getAttribute('data-topic')).toBe('coverage');
+    click(help(el, 'coverage'));
+    expect(panel(el)).toBeNull();
+  });
+
+  it('keeps exactly one open — a second topic MOVES it', async () => {
+    // Two open panels would push the list off screen to answer a
+    // question about one column.
+    const el = await renderScreen();
+    click(help(el, 'score'));
+    click(help(el, 'recency'));
+    expect(el.querySelectorAll('[data-testid="column-legend"]')).toHaveLength(1);
+    expect(panel(el)!.getAttribute('data-topic')).toBe('recency');
+    expect(help(el, 'score').getAttribute('data-open')).toBe('false');
+    expect(help(el, 'recency').getAttribute('data-open')).toBe('true');
+  });
+
+  it('shares that one panel with the due FILTER, which has no column', async () => {
+    // Due is deliberately not a column, so the filter is the only place
+    // its rule can be asked about — and it must not open a second panel
+    // alongside a column's.
+    const el = await renderScreen();
+    expect(help(el, 'due').closest('[data-testid="dashboard-controls"]')).not.toBeNull();
+    click(help(el, 'score'));
+    click(help(el, 'due'));
+    expect(el.querySelectorAll('[data-testid="column-legend"]')).toHaveLength(1);
+    expect(panel(el)!.getAttribute('data-topic')).toBe('due');
+  });
+
+  it('opens inside the sticky container, under the headers', async () => {
+    // Under, not over: the panel explains the row of labels it sits
+    // beneath, and opening it must not shift them out from under the
+    // finger that pressed the ?.
+    const el = await renderScreen();
+    click(help(el, 'score'));
+    const opened = panel(el)!;
+    const headers = el.querySelector('[data-testid="column-headers"]')!;
+    expect(opened.parentElement!.className).toContain('sticky');
+    expect(opened.parentElement).toBe(headers.parentElement);
+    expect(headers.compareDocumentPosition(opened) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it('leaves the URL alone — a momentary question is not a view', async () => {
+    // Read against the ROUTER's query string. `window.location` does
+    // not move under MemoryRouter, so asserting on it would pass
+    // whatever the screen wrote.
+    const el = await renderScreen();
+    const before = search(el);
+    click(help(el, 'coverage'));
+    expect(panel(el)).not.toBeNull();
+    expect(search(el)).toBe(before);
+  });
+
+  it('says what a self-rated 75 is, where the number is read', async () => {
+    // The one thing this whole panel exists for: the score column
+    // carries two scales, and a self-rated 75 is *comfortable*, not
+    // "75% correct".
+    const el = await renderScreen();
+    click(help(el, 'score'));
+    const text = panel(el)!.textContent!;
+    expect(text).toContain('comfortable');
+    expect(text).toContain('below 50%');
+    expect(text).toContain('85%+');
+  });
+});
+
 describe('key signatures read as pairs', () => {
   it('breaks after every second key, where the signature is shared', async () => {
     // G♭ major and E♭ minor read off the same six flats. Without the

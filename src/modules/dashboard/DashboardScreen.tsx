@@ -45,6 +45,8 @@ import {
   toggleComparison,
   type Comparison,
 } from './compare';
+import ColumnLegend, { ColumnHelpButton } from './ColumnLegend';
+import type { ColumnTopic } from './bands';
 
 /**
  * The column headers, sitting under the controls inside the sticky
@@ -61,11 +63,27 @@ import {
  * The score column reads "accuracy / fluency" because the column
  * genuinely carries both and ONE header spans every block. Most rows
  * are measured; Shapes & Patterns and the production lessons branch are
- * self-rated, and each cell already carries its own kind. Step 7b's
- * legends say which is which — naming only one here would make the
- * other read as the same thing.
+ * self-rated, and each cell already carries its own kind. The two
+ * legends behind the `?` say which is which — naming only one here would
+ * make the other read as the same thing.
+ *
+ * Each number column carries its own `?`, because each carries its own
+ * rules and the answer belongs at the question. One panel is open at a
+ * time, which is the screen's state, not the header's.
  */
-function ColumnHeaders() {
+function ColumnHeaders({
+  openTopic, onToggleTopic,
+}: {
+  openTopic: ColumnTopic | null;
+  onToggleTopic: (topic: ColumnTopic) => void;
+}) {
+  const help = (topic: ColumnTopic) => (
+    <ColumnHelpButton
+      topic={topic}
+      open={openTopic === topic}
+      onToggle={() => onToggleTopic(topic)}
+    />
+  );
   return (
     <div
       data-testid="column-headers"
@@ -77,14 +95,17 @@ function ColumnHeaders() {
       {/* Matches the row's 3px accent edge so the columns line up. */}
       <span aria-hidden="true" className="w-[3px] shrink-0" />
       <span className="flex-1 min-w-0">skill</span>
-      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.score} shrink-0 text-right`}>
-        accuracy / fluency
+      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.score} shrink-0
+        flex items-center justify-end`}>
+        accuracy / fluency{help('score')}
       </span>
-      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.coverage} shrink-0 text-right`}>
-        coverage
+      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.coverage} shrink-0
+        flex items-center justify-end`}>
+        coverage{help('coverage')}
       </span>
-      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.recency} shrink-0 text-right`}>
-        recency
+      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.recency} shrink-0
+        flex items-center justify-end`}>
+        recency{help('recency')}
       </span>
       <span className={`${COLUMN_WIDTHS.compare} shrink-0`} aria-hidden="true" />
       <span className={`${COLUMN_WIDTHS.drill} shrink-0 text-right`}>drill</span>
@@ -143,6 +164,21 @@ export default function DashboardScreen({
   const navigate = useNavigate();
   const { dashboard, loading } = useDashboardData(now);
   const [comparison, setComparison] = useState<Comparison | null>(null);
+  /**
+   * Which column's rules are open, if any.
+   *
+   * Component state, not the URL — deliberately, and for the same
+   * reason as the comparison. Reading what a column means is a
+   * momentary question, not a view you would want to come back to or
+   * send to someone.
+   *
+   * One at a time. Two open panels would push the whole list off screen
+   * to answer a question about one column.
+   */
+  const [openTopic, setOpenTopic] = useState<ColumnTopic | null>(null);
+  const onToggleTopic = useCallback((topic: ColumnTopic) => {
+    setOpenTopic(current => (current === topic ? null : topic));
+  }, []);
 
   const state = useMemo(() => decodeViewState(params), [params]);
 
@@ -279,8 +315,16 @@ export default function DashboardScreen({
           screen most of the time and position alone does not say which
           column is which. */}
       <div className="sticky top-0 z-10 bg-white/95 dark:bg-neutral-950/95 backdrop-blur">
-        <DashboardControls state={{ ...state, expanded }} onChange={setState} />
-        <ColumnHeaders />
+        <DashboardControls
+          state={{ ...state, expanded }}
+          onChange={setState}
+          openTopic={openTopic}
+          onToggleTopic={onToggleTopic}
+        />
+        <ColumnHeaders openTopic={openTopic} onToggleTopic={onToggleTopic} />
+        {/* BELOW the headers, not above: the panel explains the row of
+            labels it sits under, and opening it must not shift them. */}
+        {openTopic !== null && <ColumnLegend topic={openTopic} />}
       </div>
       <div
         data-testid="dashboard-rows"

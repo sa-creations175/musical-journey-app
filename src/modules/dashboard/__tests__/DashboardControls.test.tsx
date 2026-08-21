@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import DashboardControls from '../DashboardControls';
+import type { ColumnTopic } from '../bands';
 import {
   DEFAULT_VIEW_STATE,
   type DashboardViewState,
@@ -27,13 +28,26 @@ function state(patch: Partial<DashboardViewState> = {}): DashboardViewState {
 
 function render(
   s: DashboardViewState = state(),
-): { el: HTMLDivElement; onChange: ReturnType<typeof vi.fn> } {
+  openTopic: ColumnTopic | null = null,
+): {
+  el: HTMLDivElement;
+  onChange: ReturnType<typeof vi.fn>;
+  onToggleTopic: ReturnType<typeof vi.fn>;
+} {
   const onChange = vi.fn();
+  const onToggleTopic = vi.fn();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  act(() => root!.render(<DashboardControls state={s} onChange={onChange} />));
-  return { el: container, onChange };
+  act(() => root!.render(
+    <DashboardControls
+      state={s}
+      onChange={onChange}
+      openTopic={openTopic}
+      onToggleTopic={onToggleTopic}
+    />,
+  ));
+  return { el: container, onChange, onToggleTopic };
 }
 
 afterEach(() => {

@@ -28,10 +28,23 @@ import {
 } from './read/urlState';
 import type { FilterSpec, SortField } from './read/query';
 import { DASHBOARD_MODULE_ORDER, moduleLabelFor } from './read/catalogs';
+import { ColumnHelpButton } from './ColumnLegend';
+import type { ColumnTopic } from './bands';
 
 export interface DashboardControlsProps {
   state: DashboardViewState;
   onChange: (next: DashboardViewState) => void;
+  /**
+   * The rules panel, shared with the column headers.
+   *
+   * DUE IS THE ONE RULE WITH NO COLUMN TO HANG ON. It is deliberately a
+   * filter — after a gap everything goes due, so as a column it would
+   * read the same on every row — which leaves the filter itself as the
+   * only place its rule can be asked about. So the control carries the
+   * `?`, and the screen owns which panel is open so only one can be.
+   */
+  openTopic: ColumnTopic | null;
+  onToggleTopic: (topic: ColumnTopic) => void;
 }
 
 const SORT_FIELDS: ReadonlyArray<{ id: SortField; label: string }> = [
@@ -130,7 +143,9 @@ function ThresholdFilter({
   );
 }
 
-export default function DashboardControls({ state, onChange }: DashboardControlsProps) {
+export default function DashboardControls({
+  state, onChange, openTopic, onToggleTopic,
+}: DashboardControlsProps) {
   const [open, setOpen] = useState(false);
   const filterCount = activeFilterCount(state.filter);
   const atDefault = isDefaultViewState(state);
@@ -231,15 +246,23 @@ export default function DashboardControls({ state, onChange }: DashboardControls
         onChange={v => setFilter({ notPractisedInDays: v })}
       />
 
-      <Pill
-        testId="filter-due"
-        active={state.filter.hasDueItems === true}
-        onClick={() => setFilter({
-          hasDueItems: state.filter.hasDueItems ? undefined : true,
-        })}
-      >
-        has due items
-      </Pill>
+      <span className="inline-flex items-center">
+        <Pill
+          testId="filter-due"
+          active={state.filter.hasDueItems === true}
+          onClick={() => setFilter({
+            hasDueItems: state.filter.hasDueItems ? undefined : true,
+          })}
+        >
+          has due items
+        </Pill>
+        {/* The only rule on this screen with no column to sit on. */}
+        <ColumnHelpButton
+          topic="due"
+          open={openTopic === 'due'}
+          onToggle={() => onToggleTopic('due')}
+        />
+      </span>
 
       {/* Module filter. Modules are named, not numbered, so this is a
           set of toggles rather than a select — tapping two is one

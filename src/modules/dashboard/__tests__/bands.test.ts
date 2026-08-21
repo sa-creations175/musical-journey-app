@@ -9,6 +9,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ACCURACY_LEGEND,
+  COLUMN_RULES,
+  COLUMN_TOPIC_TITLE,
   FLUENCY_LEGEND,
   NO_VALUE,
   bandFor,
@@ -17,6 +19,7 @@ import {
   formatScore,
   legendFor,
   scoreColumnLabel,
+  type ColumnTopic,
 } from '../bands';
 import { FEEL_OPTIONS, fluencyValue } from '../../../lib/fluencyScale';
 
@@ -129,6 +132,80 @@ describe('legends', () => {
   it('labels the column by what it means', () => {
     expect(scoreColumnLabel('measured')).toBe('accuracy');
     expect(scoreColumnLabel('self-rated')).toBe('fluency');
+  });
+
+  it('states accuracy cut-offs that bandFor actually uses', () => {
+    // THE FAILURE THIS PREVENTS. A legend naming a threshold the band
+    // function does not use is worse than no legend: it is a confident,
+    // WRONG account of a colour the reader can see for themselves.
+    //
+    // Asserted at both edges, because "85 is green" alone passes even if
+    // 84 is green too — which would make the stated boundary fiction.
+    expect(ACCURACY_LEGEND.map(e => e.label))
+      .toEqual(['below 50%', '50–69%', '70–84%', '85%+']);
+    for (const entry of ACCURACY_LEGEND) {
+      expect(bandFor(entry.value, 'measured'), entry.label).toBe(entry.band);
+      if (entry.value > 0) {
+        expect(bandFor(entry.value - 1, 'measured'), entry.label).not.toBe(entry.band);
+      }
+    }
+  });
+
+  it('states fluency values that bandFor actually uses', () => {
+    expect(FLUENCY_LEGEND.map(e => e.value)).toEqual(FEEL_OPTIONS.map(o => o.value));
+    for (const entry of FLUENCY_LEGEND) {
+      expect(bandFor(entry.value, 'self-rated'), entry.label).toBe(entry.band);
+    }
+  });
+
+  it('reads the round-DOWN rule the same way the legend implies', () => {
+    // A parent lands between rungs. 62.5 sits between working on it and
+    // comfortable and reads working on it — you reach a threshold, you
+    // are not rounded up into it.
+    expect(bandFor(62.5, 'self-rated')).toBe(bandFor(50, 'self-rated'));
+    expect(bandFor(62.5, 'self-rated')).not.toBe(bandFor(75, 'self-rated'));
+  });
+});
+
+describe('column rules — every one carries its why', () => {
+  const topics: ColumnTopic[] = ['score', 'coverage', 'recency', 'due'];
+
+  it('covers all four topics, none of them empty', () => {
+    for (const topic of topics) {
+      expect(COLUMN_RULES[topic].length, topic).toBeGreaterThan(0);
+      expect(COLUMN_TOPIC_TITLE[topic], topic).toBeTruthy();
+    }
+  });
+
+  it('never states a rule without its reason', () => {
+    // A rule stated alone reads as an arbitrary constraint, and the
+    // first instinct on meeting an unexpected number is that the screen
+    // is broken. The why is what stops that.
+    for (const topic of topics) {
+      for (const { rule, why } of COLUMN_RULES[topic]) {
+        expect(rule, topic).toBeTruthy();
+        expect(why, rule).toBeTruthy();
+        // Long enough to be an explanation rather than a restatement.
+        expect(why.length, rule).toBeGreaterThan(40);
+        expect(why, rule).not.toBe(rule);
+      }
+    }
+  });
+
+  it('names the rules the design doc ships as a requirement', () => {
+    // The list in DASHBOARD_REDESIGN_DESIGN.md's Legibility requirement.
+    // Matched on the load-bearing phrase rather than whole sentences, so
+    // rewording the copy does not fail this, but dropping a RULE does.
+    const said = (topic: ColumnTopic) =>
+      COLUMN_RULES[topic].map(r => `${r.rule} ${r.why}`).join(' ');
+    expect(said('score')).toContain('last 20 eligible attempts');
+    expect(said('score')).toContain('fewer than 4 items');
+    expect(said('score')).toContain('FULLY reached');
+    expect(said('coverage')).toContain('3 or more attempts');
+    expect(said('coverage')).toContain('FULL CATALOG');
+    expect(said('coverage')).toContain('tried it');
+    expect(said('recency')).toContain('most recent, then stalest');
+    expect(said('due')).toContain('not a deadline');
   });
 });
 
