@@ -226,39 +226,29 @@ export async function getSPUnlockedTier(_userId?: string): Promise<SPTier> {
 // ===================================================================
 
 export { CIRCLE_OF_FOURTHS } from '../repertoire/circleOfFourths';
-
-/** Chromatic order anchored on the flat-side spellings used by the
- *  circle-of-fourths catalog. Index = number of semitones above C.
- *  Used by `relativeMajorOf` to advance 3 semitones — the parallel
- *  natural-minor / relative-major distance. */
-const CHROMATIC_ORDER: ReadonlyArray<string> = [
-  'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B',
-];
-
-/** Map every reasonable spelling of a key root to its canonical
- *  CHROMATIC_ORDER form. Sharps collapse to flats; exotic
- *  enharmonics (Cb, Fb, E#, B#) re-spell to their canonical letter. */
-const CHROMATIC_CANONICAL: Readonly<Record<string, string>> = {
-  C: 'C', D: 'D', E: 'E', F: 'F', G: 'G', A: 'A', B: 'B',
-  Db: 'Db', Eb: 'Eb', Gb: 'Gb', Ab: 'Ab', Bb: 'Bb',
-  'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb',
-  'Cb': 'B', 'Fb': 'E', 'E#': 'F', 'B#': 'C',
-};
+import { identityKeyForPitchClass } from '../repertoire/circleOfFourths';
+import { pitchClassOf } from '../../lib/spelling';
 
 /**
- * Relative major of a minor root — minor root + 3 semitones in
- * chromatic order. Used by the scale mini-track (Part 3) to surface
- * the relative-major scale in the same key set as the natural-minor
- * scale (e.g. C minor → Eb major).
+ * Relative major of a minor root — minor root + 3 semitones. Used by
+ * the scale mini-track (Part 3) to surface the relative-major scale in
+ * the same key set as the natural-minor scale (e.g. C minor → Eb major).
  *
- * Returns the canonical (flat-side, no enharmonic duplicate) form.
+ * Returns the IDENTITY form, which is what callers need to build an
+ * itemRef or look a cell up. Spell it before showing it — the drill
+ * modal does.
+ *
+ * Replaced a local CHROMATIC_ORDER + CHROMATIC_CANONICAL pair that
+ * duplicated circleOfFourths' own tables, character for character, in
+ * the vocabulary the app does not store. Two copies of a normalisation
+ * rule is a rule that can disagree with itself; this one now goes
+ * through the single canonicaliser.
+ *
  * Falls back to the input string when the root doesn't normalise —
  * defensive against freeform key labels.
  */
 export function relativeMajorOf(minorRoot: string): string {
-  const canonical = CHROMATIC_CANONICAL[minorRoot];
-  if (!canonical) return minorRoot;
-  const idx = CHROMATIC_ORDER.indexOf(canonical);
-  if (idx < 0) return minorRoot;
-  return CHROMATIC_ORDER[(idx + 3) % CHROMATIC_ORDER.length];
+  const pc = pitchClassOf(minorRoot);
+  if (pc === null) return minorRoot;
+  return identityKeyForPitchClass(pc + 3) ?? minorRoot;
 }

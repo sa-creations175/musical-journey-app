@@ -3643,6 +3643,95 @@ export class AppDB extends Dexie {
         .map(r => r.id);
       if (productionRowIds.length) await spacing.bulkDelete(productionRowIds);
     });
+
+    // =================================================================
+    // v36 — scale itemRefs join the identity vocabulary.
+    //
+    // The scales catalog was built by walking circleOfFourths, which
+    // spelled the sixth key **Gb**, while chord shapes and voice
+    // leading were built from the S&P catalog, which spells it **F#** —
+    // as do `songKeys.keyName`, `drillSkills.keyName` and every stored
+    // key elsewhere. So one twelfth of the scales catalog addressed its
+    // spacing rows under a name nothing else in the app used.
+    //
+    // Nothing was broken by it: `canonicaliseKey` bridged the two at
+    // every seam, correctly, and the bridge was maintained by hand. The
+    // cost was that every future writer had to know the seam existed.
+    // Gb is now a SPELLING rather than an identity (lib/spelling.ts),
+    // so the refs move to the one vocabulary and the bridge goes away.
+    //
+    // WHAT MOVES: eight itemRefs per user — one major, one natural
+    // minor, and three starting points each for major and minor
+    // pentatonic, all in the sixth key. Nothing else in any table
+    // contains a scale ref in that key.
+    //
+    //   scale:major:Gb                → scale:major:F#
+    //   scale:natural-minor:Gb        → scale:natural-minor:F#
+    //   scale:major-pentatonic:{1,5,6}:Gb  → …:F#
+    //   scale:minor-pentatonic:{1,b3,b7}:Gb → …:F#
+    //
+    // NO SCHEMA CHANGE — the stores() call repeats v35's shape because
+    // Dexie needs a version to hang an upgrade on, not because an index
+    // moved.
+    //
+    // The rewrite is written out here rather than calling
+    // `parseScaleItemRef` / `canonicaliseKey`: a migration has to keep
+    // working against the data shape it was written for, and module
+    // code is free to change underneath it. Operating on the last
+    // colon-segment is unambiguous — every scale ref ends with its key,
+    // and the pentatonic starting points ('1', 'b3', 'b7') sit one
+    // segment earlier.
+    this.version(36).stores({
+      productionLessons: 'id, pathId, [pathId+order], lastOpenedAt',
+    }).upgrade(async tx => {
+      /** Rewrite the key segment of a scale itemRef, or return null when
+       *  the ref is not a scale ref in the retired spelling. */
+      const remap = (itemRef: string): string | null => {
+        if (!itemRef.startsWith('scale:')) return null;
+        const parts = itemRef.split(':');
+        if (parts[parts.length - 1] !== 'Gb') return null;
+        parts[parts.length - 1] = 'F#';
+        return parts.join(':');
+      };
+
+      // 1. spacingState — the acquisition + due state for each cell.
+      //
+      // A row is REWRITTEN unless the destination is already taken, in
+      // which case the stale row is dropped instead. That collision is
+      // unreachable today (nothing has ever written a F#-spelled scale
+      // ref) but a merge of two devices' rows could reach it, and a
+      // rewrite there would violate the [moduleRef+itemRef+hand+style]
+      // uniqueness rather than fail loudly.
+      const spacingRows = await tx.table('spacingState').toArray();
+      const occupied = new Set(
+        spacingRows.map(r => `${r.moduleRef}|${r.itemRef}|${r.hand}|${r.style}`),
+      );
+      const toDelete: string[] = [];
+      for (const row of spacingRows) {
+        const next = remap(row.itemRef);
+        if (!next) continue;
+        const slot = `${row.moduleRef}|${next}|${row.hand}|${row.style}`;
+        if (occupied.has(slot)) { toDelete.push(row.id); continue; }
+        occupied.add(slot);
+        await tx.table('spacingState').update(row.id, { itemRef: next });
+      }
+      if (toDelete.length) await tx.table('spacingState').bulkDelete(toDelete);
+
+      // 2. practiceBlocks — the record of what each past block drilled.
+      //
+      // Migrated because these are READ, not just kept: `shapesSplit`
+      // turns a block's itemRefs back into cells, and `flexibleProposal`
+      // classifies a block by its first ref. A stale ref would resolve
+      // to nothing, silently.
+      const blocks = await tx.table('practiceBlocks').toArray();
+      for (const b of blocks) {
+        if (!Array.isArray(b.itemRefs)) continue;
+        if (!b.itemRefs.some((r: string) => remap(r))) continue;
+        await tx.table('practiceBlocks').update(b.id, {
+          itemRefs: b.itemRefs.map((r: string) => remap(r) ?? r),
+        });
+      }
+    });
   }
 }
 

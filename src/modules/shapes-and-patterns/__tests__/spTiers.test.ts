@@ -249,9 +249,12 @@ describe('computeSPUnlockedTier', () => {
 // -----------------------------------------------------------------
 
 describe('CIRCLE_OF_FOURTHS', () => {
-  it('walks 12 keys in the spec order (C → F → Bb → ... → G)', () => {
+  it('walks 12 keys in the spec order, in the identity vocabulary', () => {
+    // F#, not Gb: this array builds scale itemRefs, so it must match
+    // what `songKeys.keyName` and every other stored key holds. Gb is
+    // what the user reads — see lib/spelling.ts.
     expect(CIRCLE_OF_FOURTHS).toEqual([
-      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G',
+      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G',
     ]);
   });
 
@@ -270,10 +273,10 @@ describe('relativeMajorOf', () => {
     expect(relativeMajorOf('C')).toBe('Eb');
     expect(relativeMajorOf('Db')).toBe('E');
     expect(relativeMajorOf('D')).toBe('F');
-    expect(relativeMajorOf('Eb')).toBe('Gb');
+    expect(relativeMajorOf('Eb')).toBe('F#');
     expect(relativeMajorOf('E')).toBe('G');
     expect(relativeMajorOf('F')).toBe('Ab');
-    expect(relativeMajorOf('Gb')).toBe('A');
+    expect(relativeMajorOf('F#')).toBe('A');
     expect(relativeMajorOf('G')).toBe('Bb');
     expect(relativeMajorOf('Ab')).toBe('B');
     expect(relativeMajorOf('A')).toBe('C');
@@ -281,13 +284,21 @@ describe('relativeMajorOf', () => {
     expect(relativeMajorOf('B')).toBe('D');
   });
 
-  it('accepts sharp-side enharmonic spellings and emits flat-side canonical', () => {
+  it('accepts any spelling of the root and emits the identity form', () => {
     // C# minor → E major (3 semitones up from Db = E).
     expect(relativeMajorOf('C#')).toBe('E');
-    expect(relativeMajorOf('D#')).toBe('Gb');
-    expect(relativeMajorOf('F#')).toBe('A');
+    expect(relativeMajorOf('D#')).toBe('F#');
+    expect(relativeMajorOf('Gb')).toBe('A');
     expect(relativeMajorOf('G#')).toBe('B');
     expect(relativeMajorOf('A#')).toBe('Db');
+  });
+
+  it('never returns Gb — the output is a lookup key, not a label', () => {
+    // The old implementation emitted flat-side canonical, so this
+    // returned 'Gb' for two roots and any itemRef built from it missed.
+    for (const root of ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B']) {
+      expect(relativeMajorOf(root), `relativeMajorOf(${root})`).not.toBe('Gb');
+    }
   });
 
   it('returns the input verbatim when the root is unrecognisable', () => {

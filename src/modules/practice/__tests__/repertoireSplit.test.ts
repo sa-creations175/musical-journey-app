@@ -350,8 +350,11 @@ describe('splitRepertoireAllocation — scale-prep injection', () => {
     expect(out).toHaveLength(2);
     expect(out[0].kind).toBe('scale-prep');
     expect(out[0].plannedSeconds).toBe(90);
-    expect(out[0].label).toBe('SCALES — prep for Mirror · Gb (major + major pent)');
-    expect(out[0].why).toBe('Prime your hands and ears before playing in Gb');
+    // The song's key is stored 'F#' — the identity — and the itemRefs
+    // below carry that. The LABEL reads G♭, the default spelling. Both
+    // halves of the split appear in this one assertion pair on purpose.
+    expect(out[0].label).toBe('SCALES — prep for Mirror · G\u266D (major + major pent)');
+    expect(out[0].why).toBe('Prime your hands and ears before playing in G\u266D');
     expect(out[1].kind).toBe('spotlight');
     expect(out[1].plannedSeconds).toBe(20 * 60 - 90);
   });
@@ -369,8 +372,8 @@ describe('splitRepertoireAllocation — scale-prep injection', () => {
     const out = splitRepertoireAllocation(20 * 60, ctx);
     const prep = out.find(b => b.kind === 'scale-prep')!;
     expect(prep.scaleItemRefs).toEqual([
-      'scale:major:Gb',
-      'scale:major-pentatonic:1:Gb',
+      'scale:major:F#',
+      'scale:major-pentatonic:1:F#',
     ]);
   });
 

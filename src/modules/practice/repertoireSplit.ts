@@ -36,6 +36,9 @@ import { isSongPostComfortable } from '../repertoire/songComfortable';
 import { loadActiveSpotlight, type QueueSlot } from '../repertoire/songOfMonth';
 import { getSongReadiness, type SongReadiness } from '../repertoire/songReadiness';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
+import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
+import { SPELLING_PREF_KEY } from '../../lib/spellingPref';
+import { getPref } from '../../lib/userPrefs';
 import {
   decidePostComfortableBlock,
   type PostComfortableBlockDecision,
@@ -56,6 +59,21 @@ import {
 export { CHORD_QUIZ_SECONDS };
 
 export interface RepertoireSplitContext {
+  /**
+   * How key names in the generated block LABELS should be spelled.
+   *
+   * The itemRefs these blocks carry are identities and stay in the
+   * identity vocabulary regardless. This is only the reading of them —
+   * without it, step 2's vocabulary change would have surfaced as
+   * "prep for <song> · F#" on a screen whose every other key reads Gb.
+   *
+   * Optional, defaulting to the app default, because the session
+   * generator is called from several places and a missing spelling
+   * should read as "the usual one" rather than throw. Step 6 replaces
+   * the default with the SONG's spelling, so a sharps-spelled song's
+   * warm-up reads sharps too.
+   */
+  spelling?: Spelling;
   /** Slot 1 from the active monthly umbrella. Null when no
    *  Repertoire monthly umbrella exists. */
   spotlight: QueueSlot | null;
@@ -255,6 +273,11 @@ export async function loadRepertoireSplitContext(
     maintenanceReadiness,
     maintenancePostComfortable,
     context,
+    // Read once here rather than at each label site: this loader is the
+    // single entry point for all three generator call sites, and a
+    // per-site read is how one of them ends up spelling differently
+    // from the others.
+    spelling: await getPref<Spelling>(SPELLING_PREF_KEY, DEFAULT_SPELLING),
   };
 }
 
@@ -378,6 +401,7 @@ function buildSpotlightHalf(
     ctx.spotlightSong?.key,
     ctx.context,
     ctx.spotlightPostComfortable,
+    ctx.spelling ?? DEFAULT_SPELLING,
   );
   if (postBlocks) return postBlocks;
   return buildSongHalf({
@@ -388,6 +412,7 @@ function buildSpotlightHalf(
     readiness: ctx.spotlightReadiness,
     context: ctx.context,
     practiceKind: 'spotlight',
+    spelling: ctx.spelling ?? DEFAULT_SPELLING,
     practiceLabel: `Song of the month: ${title}`,
     practiceWhy: 'This month\'s spotlight song',
     setupWhyExtra: 'Today\'s spotlight song still needs setup',
@@ -406,6 +431,7 @@ function buildMaintenanceHalf(
     song.key,
     ctx.context,
     ctx.maintenancePostComfortable,
+    ctx.spelling ?? DEFAULT_SPELLING,
   );
   if (postBlocks) return postBlocks;
   return buildSongHalf({
@@ -416,6 +442,7 @@ function buildMaintenanceHalf(
     readiness: ctx.maintenanceReadiness,
     context: ctx.context,
     practiceKind: 'maintenance',
+    spelling: ctx.spelling ?? DEFAULT_SPELLING,
     practiceLabel: `Maintenance: ${song.title}`,
     practiceWhy: 'Oldest active song still in motion — keep it warm',
     setupWhyExtra: 'Lowest-order song in your repertoire still needs setup',
@@ -438,6 +465,7 @@ function buildPostComfortableBlocks(
   songKey: string | null | undefined,
   context: PracticeSessionContext,
   decision: PostComfortableBlockDecision | null,
+  spelling: Spelling,
 ): RepertoireSplitBlock[] | null {
   if (!decision) return null;
   if (decision.kind === 'skip') return null;
@@ -455,19 +483,19 @@ function buildPostComfortableBlocks(
     && seconds >= SCALE_PREP_MIN_SONG_SECONDS + SCALE_PREP_SECONDS;
   if (decision.kind === 'whole-song-run') {
     if (wantsPrep) {
-      const prep = scalePrepBlock(songId, title, songKey);
+      const prep = scalePrepBlock(songId, title, songKey, spelling);
       if (prep) {
-        return [prep, wholeSongRunBlock(seconds - SCALE_PREP_SECONDS, songId, title, decision.keyName)];
+        return [prep, wholeSongRunBlock(seconds - SCALE_PREP_SECONDS, songId, title, decision.keyName, spelling)];
       }
     }
-    return [wholeSongRunBlock(seconds, songId, title, decision.keyName)];
+    return [wholeSongRunBlock(seconds, songId, title, decision.keyName, spelling)];
   }
   // cell-drill-expansion → use the practice-block kind but label
   // the slot as new-key expansion. Prep is keyed off the expansion
   // key (`decision.keyName`) — the key the user is about to play
   // in, not the home key they've already moved past.
   if (wantsPrep) {
-    const prep = scalePrepBlock(songId, title, decision.keyName);
+    const prep = scalePrepBlock(songId, title, decision.keyName, spelling);
     if (prep) {
       return [
         prep,
@@ -506,6 +534,8 @@ interface SongHalfArgs {
   practiceLabel: string;
   practiceWhy: string;
   setupWhyExtra: string;
+  /** Spelling for block LABELS only — never for the itemRefs. */
+  spelling: Spelling;
 }
 
 /**
@@ -548,7 +578,7 @@ function buildSongHalf(args: SongHalfArgs): RepertoireSplitBlock[] {
     if (seconds > CHORD_QUIZ_SECONDS) {
       const afterQuiz = seconds - CHORD_QUIZ_SECONDS;
       if (afterQuiz >= SCALE_PREP_MIN_SONG_SECONDS + SCALE_PREP_SECONDS) {
-        const prep = scalePrepBlock(songId, title, args.songKey);
+        const prep = scalePrepBlock(songId, title, args.songKey, args.spelling);
         if (prep) {
           const practiceSeconds = afterQuiz - SCALE_PREP_SECONDS;
           return [
@@ -569,7 +599,7 @@ function buildSongHalf(args: SongHalfArgs): RepertoireSplitBlock[] {
   // block, optionally prefaced by a scale-prep block when the
   // allocation has room.
   if (wantsPrepBlock) {
-    const prep = scalePrepBlock(songId, title, args.songKey);
+    const prep = scalePrepBlock(songId, title, args.songKey, args.spelling);
     if (prep) {
       return [
         prep,
@@ -657,6 +687,7 @@ function scalePrepBlock(
   songId: string,
   title: string,
   rawKey: string | null | undefined,
+  spelling: Spelling,
 ): RepertoireSplitBlock | null {
   if (!rawKey) return null;
   const parsed = parseSongKeyForPrep(rawKey);
@@ -679,10 +710,13 @@ function scalePrepBlock(
         itemRefForScale({ kind: 'major',            keyName: canonicalKey }),
         itemRefForScale({ kind: 'major-pentatonic', keyName: canonicalKey, startingPoint: '1' }),
       ];
+  // `canonicalKey` is the identity — it built the itemRefs above and
+  // must not be rendered. The label reads the spelled form.
+  const readableKey = spellKey(canonicalKey, spelling);
   return {
-    label: `SCALES — prep for ${title} · ${canonicalKey} (${scaleTypes})`,
+    label: `SCALES — prep for ${title} · ${readableKey} (${scaleTypes})`,
     plannedSeconds: SCALE_PREP_SECONDS,
-    why: `Prime your hands and ears before playing in ${canonicalKey}`,
+    why: `Prime your hands and ears before playing in ${readableKey}`,
     songId,
     isTbdSpotlight: false,
     kind: 'scale-prep',
@@ -715,8 +749,9 @@ function wholeSongRunBlock(
   songId: string,
   title: string,
   keyName: string,
+  spelling: Spelling,
 ): RepertoireSplitBlock {
-  const inKey = keyName ? ` — ${keyName}` : '';
+  const inKey = keyName ? ` — ${spellKey(keyName, spelling)}` : '';
   return {
     label: `Run through ${title}`,
     plannedSeconds,

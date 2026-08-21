@@ -185,11 +185,30 @@ describe('the three S&P grids agree on every column label', () => {
     }
   });
 
-  it('is a real reconciliation, not a vacuous one — the sources DO differ', () => {
-    // Guards the test above: if someone made the two arrays identical,
-    // the agreement assertion would pass for a reason unrelated to the
-    // display function, and would no longer be testing it.
-    expect([...KEYS_CIRCLE_OF_FOURTHS]).not.toEqual([...CIRCLE_OF_FOURTHS]);
+  it('now reads from ONE vocabulary — step 2 retired the second', () => {
+    // This assertion is the inverse of the one it replaces.
+    //
+    // In step 1 the guard read `.not.toEqual(...)`: the two arrays
+    // genuinely differed, and the guard existed so the agreement test
+    // above could not pass vacuously by someone quietly making them
+    // identical. Step 2 made them identical ON PURPOSE — Gb stopped
+    // being an identity — so the guard fired, correctly, and this is
+    // what it becomes.
+    //
+    // The agreement test above is no longer load-bearing for the grids
+    // (one source cannot disagree with itself); it now guards the
+    // display function against re-introducing a split.
+    expect([...KEYS_CIRCLE_OF_FOURTHS]).toEqual([...CIRCLE_OF_FOURTHS]);
+  });
+
+  it('holds no Gb anywhere in the identity vocabulary', () => {
+    // The actual step-2 claim. Gb is a spelling now; if it reappears in
+    // either array it is an identity again, and scale itemRefs go back
+    // to addressing rows nothing else in the app can find.
+    for (const k of [...KEYS_CIRCLE_OF_FOURTHS, ...CIRCLE_OF_FOURTHS]) {
+      expect(k, `${k} is a display spelling, not an identity`).not.toBe('Gb');
+    }
+    expect([...CIRCLE_OF_FOURTHS]).toContain('F#');
   });
 
   it('shows the user flats by default, so F# never reaches a column', () => {

@@ -1,86 +1,106 @@
 /**
  * Circle-of-fourths key sequencing for the "expand keys" progression
- * path. When a song reaches comfortable in its original key and the
- * user picks Expand keys, the algorithm walks them through every
- * other key in fourths order — the standard progression for taking
- * a tune all the way around the wheel.
+ * path, and the app's one input-normaliser for key names.
  *
- * Order (matches the addendum spec):
+ * Order:
  *
- *   C → F → Bb → Eb → Ab → Db → Gb → B → E → A → D → G → (back to C)
+ *   C → F → Bb → Eb → Ab → Db → F# → B → E → A → D → G → (back to C)
  *
- * The transition between Db and B picks the natural-letter side
- * (Gb is in the flat run; B/E are in the sharp-side run) — that's
- * how the spec lays it out, and matches how most gospel / R&B / soul
- * pianists actually read the wheel.
+ * =====================================================================
+ * THIS MODULE NO LONGER OWNS A KEY VOCABULARY.
  *
- * Enharmonic input is accepted: C# / D# / F# / G# / A# / Cb all
- * normalise to their flat-side counterparts before lookup, so a
- * song with `key: 'F#'` (the canonical form used by MAJOR_KEYS) is
- * treated as a song starting at Gb on this wheel. The output
- * sequence is always in the canonical (spec) notation.
+ * It used to hold its own twelve keys, spelling the sixth one **Gb**,
+ * while `matrix/keys.ts` spelled it **F#** — and `songKeys.keyName`,
+ * `drillSkills.keyName` and every chord-shape / voice-leading itemRef
+ * stored the F# form. Two vocabularies for one wheel meant anything
+ * written against the wrong one matched zero rows and failed silently,
+ * with nothing on screen to show for it. `matrix/keyProgress.ts`
+ * documents a near-miss where a hand-written Gb table would have made a
+ * stage rule never fire on a twelfth of the keyboard.
+ *
+ * There is now ONE identity vocabulary — `CIRCLE_OF_FOURTHS_KEYS` in
+ * `matrix/keys.ts` — and this module re-exports it rather than
+ * restating it. A second copy cannot drift from a copy that does not
+ * exist.
+ *
+ * Gb has not been lost, it has been demoted from an identity to a
+ * SPELLING. It is what the user reads by default; `lib/spelling.ts`
+ * produces it at render. See that module's header for why the identity
+ * must stay put.
+ * =====================================================================
  */
 
-/** The wheel, starting at C. Twelve entries, no enharmonic duplicates.
- *  Exported so other modules (S&P session walk, scale mini-track key
- *  ordering) share the same canonical sequence. */
-export const CIRCLE_OF_FOURTHS: ReadonlyArray<string> = [
-  'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G',
-];
+import { CIRCLE_OF_FOURTHS_KEYS } from './matrix/keys';
+import { pitchClassOf } from '../../lib/spelling';
 
-/** Map every reasonable spelling of a major key to its canonical
- *  CIRCLE_OF_FOURTHS form. Naturals pass through unchanged; sharps
- *  collapse to flats except where the spec keeps a natural-letter
- *  (B for Cb, E for Fb). */
-const ENHARMONIC_TO_CANONICAL: Readonly<Record<string, string>> = {
-  // Naturals.
-  C: 'C', D: 'D', E: 'E', F: 'F', G: 'G', A: 'A', B: 'B',
-  // Flats (already canonical).
-  Db: 'Db', Eb: 'Eb', Gb: 'Gb', Ab: 'Ab', Bb: 'Bb',
-  // Sharps → flats (or natural-letter where the wheel uses one).
-  'C#': 'Db',
-  'D#': 'Eb',
-  'F#': 'Gb',
-  'G#': 'Ab',
-  'A#': 'Bb',
-  // Exotic enharmonics that occasionally show up in lead sheets.
-  'Cb': 'B',
-  'Fb': 'E',
-  'E#': 'F',
-  'B#': 'C',
-};
+/** The wheel, starting at C. Twelve entries, no enharmonic duplicates.
+ *  THE IDENTITY VOCABULARY — ASCII accidentals, and the exact strings
+ *  stored in `songKeys.keyName` and embedded in itemRefs. Never render
+ *  these directly; put them through `spellKey` first. */
+export const CIRCLE_OF_FOURTHS: ReadonlyArray<string> = CIRCLE_OF_FOURTHS_KEYS;
+
+/** Identity key name by pitch class. Derived from the vocabulary rather
+ *  than written out, so `canonicaliseKey` cannot return a name the
+ *  wheel does not contain — the failure the old hand-written map made
+ *  possible in the other direction. */
+const IDENTITY_BY_PITCH_CLASS: ReadonlyMap<number, string> = new Map(
+  CIRCLE_OF_FOURTHS.map(k => [pitchClassOf(k) as number, k]),
+);
 
 /**
- * Map any common spelling of a major key root to its canonical
- * CIRCLE_OF_FOURTHS form (flat-side, no enharmonic duplicates).
- * Returns null when the input doesn't normalise to a known key —
- * caller decides how to handle the freeform case.
+ * The identity name for a pitch class. The counterpart to `spellNote`:
+ * that one answers "what should this be called", this one answers
+ * "which of the twelve stored key names is this".
  *
- * Shared between Repertoire and the S&P session walk so a song
- * stored as 'F#' lines up with the Gb-spelled scale catalog. */
+ * Returns null only for a pitch class outside 0–11, which callers doing
+ * modular arithmetic cannot produce.
+ */
+export function identityKeyForPitchClass(pitchClass: number): string | null {
+  return IDENTITY_BY_PITCH_CLASS.get(((pitchClass % 12) + 12) % 12) ?? null;
+}
+
+/**
+ * Map any accepted spelling of a major-key root to the app's identity
+ * form. Returns null when the input does not resolve — caller decides
+ * how to handle the freeform case.
+ *
+ * INPUT ONLY. This is how a pasted, imported or legacy key name is
+ * brought into the vocabulary before it is used as a lookup. It is NOT
+ * a display function and its output must not be rendered: it answers
+ * "which key is this", not "what should this be called". The second
+ * question belongs to `spellKey`, and routing display through here is
+ * how F# would reach a screen under a flats default.
+ *
+ * Accepts sharps, flats, the four theoretical names (Cb, Fb, E#, B#)
+ * and the Unicode accidental signs, because `pitchClassOf` does — so a
+ * name that has already been through a display path still resolves.
+ */
 export function canonicaliseKey(rawKey: string): string | null {
-  return ENHARMONIC_TO_CANONICAL[rawKey] ?? null;
+  const pc = pitchClassOf(rawKey);
+  if (pc === null) return null;
+  return IDENTITY_BY_PITCH_CLASS.get(pc) ?? null;
 }
 
 /**
  * Walk the circle of fourths starting one step ahead of `originalKey`
  * and return every other key, in order, ending one step short of a
- * full rotation. Output excludes the original key itself.
+ * full rotation. Output excludes the original key itself, and is in the
+ * identity vocabulary — spell it before showing it.
  *
  * Returns an empty array when `originalKey` doesn't normalise to any
- * known key — defensive for goal-of-month songs with a freeform
- * key string. Callers should treat `[]` as "we don't know how to
- * sequence this song's keys" and surface a UI fallback.
+ * known key — defensive for goal-of-month songs with a freeform key
+ * string. Callers should treat `[]` as "we don't know how to sequence
+ * this song's keys" and surface a UI fallback.
  *
  * @example
  *   generateCircleOfFourthsSequence('C')
- *   // → ['F','Bb','Eb','Ab','Db','Gb','B','E','A','D','G']
+ *   // → ['F','Bb','Eb','Ab','Db','F#','B','E','A','D','G']
  *
- *   generateCircleOfFourthsSequence('F#')   // F# canonicalises to Gb
+ *   generateCircleOfFourthsSequence('Gb')   // Gb canonicalises to F#
  *   // → ['B','E','A','D','G','C','F','Bb','Eb','Ab','Db']
  */
 export function generateCircleOfFourthsSequence(originalKey: string): string[] {
-  const canonical = ENHARMONIC_TO_CANONICAL[originalKey];
+  const canonical = canonicaliseKey(originalKey);
   if (!canonical) return [];
   const start = CIRCLE_OF_FOURTHS.indexOf(canonical);
   if (start < 0) return [];

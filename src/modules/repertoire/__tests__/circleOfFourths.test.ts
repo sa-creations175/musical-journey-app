@@ -2,22 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { generateCircleOfFourthsSequence } from '../circleOfFourths';
 
 /**
- * Spec wheel:
- *   C → F → Bb → Eb → Ab → Db → Gb → B → E → A → D → G → (C)
+ * The wheel, in the app's IDENTITY vocabulary:
+ *   C → F → Bb → Eb → Ab → Db → F# → B → E → A → D → G → (C)
  *
- * Each starting key should yield the remaining 11 in fourths order.
- * Enharmonic input (sharps) maps to the canonical flat-side form
- * before the wheel lookup; output is always in canonical form.
+ * The sixth key reads F# here and Gb on screen, and both are correct:
+ * F# is the stored name every table is keyed on, Gb is the default
+ * spelling `lib/spelling.ts` renders it as. This module deals only in
+ * the first — these outputs go on to build itemRefs and index lookups,
+ * so a test that expected a display name here would be asserting the
+ * wrong half of the split.
+ *
+ * Each starting key yields the remaining 11 in fourths order. Any
+ * accepted spelling of the start — sharp, flat, theoretical, or one
+ * carrying a Unicode accidental — normalises before the lookup.
  */
 describe('generateCircleOfFourthsSequence', () => {
   it('starts at C and walks the wheel', () => {
     expect(generateCircleOfFourthsSequence('C')).toEqual([
-      'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G',
+      'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G',
     ]);
   });
 
   it('returns 11 keys for any valid starting point', () => {
-    for (const k of ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D', 'G']) {
+    for (const k of ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G']) {
       expect(generateCircleOfFourthsSequence(k)).toHaveLength(11);
     }
   });
@@ -51,14 +58,19 @@ describe('generateCircleOfFourthsSequence', () => {
 
   it('walks from G correctly — last step before wrapping to C', () => {
     expect(generateCircleOfFourthsSequence('G')).toEqual([
-      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'Gb', 'B', 'E', 'A', 'D',
+      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D',
     ]);
   });
 
-  it('handles the sharp-side enharmonic F# (canonicalises to Gb)', () => {
-    expect(generateCircleOfFourthsSequence('F#')).toEqual(
-      generateCircleOfFourthsSequence('Gb'),
+  it('treats Gb and F# as one key — Gb now normalises INTO the wheel', () => {
+    // The direction reversed in step 2. This module used to map F# → Gb,
+    // i.e. into a vocabulary nothing stored; it now maps Gb → F#, the
+    // name every table is actually keyed on.
+    expect(generateCircleOfFourthsSequence('Gb')).toEqual(
+      generateCircleOfFourthsSequence('F#'),
     );
+    expect(generateCircleOfFourthsSequence('C')).toContain('F#');
+    expect(generateCircleOfFourthsSequence('C')).not.toContain('Gb');
   });
 
   it('handles sharps Db/C#, Eb/D#, Ab/G#, Bb/A# as enharmonic pairs', () => {
