@@ -107,9 +107,10 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'direction, and the one that actually comes up when you are working '
     + 'out what key something is in.',
   [`${HF}/Mode Identification`]:
-    'Naming a mode from its formula or from its relationship to a parent '
-    + "scale. Theory, not ear — the ear version is Ear Training's Scales "
-    + '& Modes, and knowing one does not give you the other.',
+    'Naming a mode from its formula, or from where it sits relative to '
+    + "the major scale it comes from. Theory rather than ear: Ear "
+    + "Training's Scales & Modes is the same material by sound, and the "
+    + 'two are worth building separately.',
   [`${HF}/Pentatonic Scales`]:
     'The five-note scales, their starting points, and what they contain '
     + 'in each key. The vocabulary most soloing actually sits on.',
@@ -139,13 +140,13 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'of you.',
   [`${EAR}/Intervals`]:
     'Two notes played one after the other; name the distance. Ascending '
-    + 'and descending are separate rows because they are separate skills '
-    + '— a descending minor 6th does not feel like an ascending one, and '
-    + 'the reference tune you learned going up will not help coming down.',
+    + 'and descending are separate rows: a descending minor 6th does not '
+    + 'feel like an ascending one, and a reference tune that works going '
+    + 'up rarely works coming down.',
   [`${EAR}/Chord Recognition`]:
-    'A chord is played; name its quality. The root is deliberately not '
-    + 'the question — it changes every card — so what you are training is '
-    + 'the COLOUR of the stack, not the note it starts on.',
+    'A chord is played; name its quality. The root changes every card, so '
+    + 'what you are training is the colour of the stack rather than the '
+    + 'note it starts on.',
   [`${EAR}/Chord Progressions`]:
     'Three different drills sharing one module: hearing which key you are '
     + 'in, hearing one chord move to another, and holding a whole '
@@ -159,12 +160,11 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
   [`${EAR}/Chord Progressions/Chord Motion/Destination`]:
     'Given where the motion started, name where it landed.',
   [`${EAR}/Chord Progressions/Chord Motion/First Chord`]:
-    'Name where the motion STARTED, which is the harder direction. Only '
-    + 'attemptable in the minimal scaffold, so a low number here often '
-    + 'means you have not been in that mode rather than that you are bad '
-    + 'at it. The denominator stays all 132 motions either way — '
-    + 'narrowing it to what the scaffold has served would make the '
-    + 'percentage mean something different every session.',
+    'Name where the motion STARTED, which is the harder direction. It is '
+    + 'only asked in the minimal scaffold, so a low number here usually '
+    + 'means you have not spent time in that mode. Coverage counts all '
+    + '132 motions whichever scaffold you have been using, so the '
+    + 'percentage means the same thing each time you look at it.',
   [`${EAR}/Chord Progressions/Full Progression`]:
     'Name every chord of a progression, in order. Harder than the '
     + 'cadence-level work in Chord Motion, because it tests holding the '
@@ -177,9 +177,8 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     'Reading notation off the staff under time pressure. Four skills, and '
     + 'two of them are built out of the other two.',
   'reading/Note Recognition':
-    'One note on the staff; name the pitch. Both clefs. The answer is a '
-    + 'pitch with its octave — C4, not "third space" — because a position '
-    + 'is a coordinate and a pitch is a note.',
+    'One note on the staff; name the pitch. Both clefs, and answers are '
+    + 'pitches with their octave, like C4.',
   'reading/Key Signature Recognition':
     'The accidentals at the front of the staff, and everything that '
     + 'follows from them. Two rows per key, because seeing a signature '
@@ -187,10 +186,10 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'knowledge.',
   'reading/Notation Shapes':
     'The fast silhouette pre-read. One pick from seven: is this stack a '
-    + 'triad or a seventh, and which inversion — read off the SHAPE '
-    + 'alone. Root, quality and clef are all irrelevant here, on purpose. '
-    + 'This is the pre-read that Chord Identification then builds a full '
-    + 'answer on top of, which is why it sits above it in the list.',
+    + 'triad or a seventh, and which inversion, read off the shape alone. '
+    + 'Root, quality and clef do not come into it. This is the pre-read '
+    + 'that Chord Identification builds a full answer on top of, which is '
+    + 'why it sits above it in the list.',
   'reading/Chord Identification':
     'The full conjunctive answer: inversion AND quality AND clef, all '
     + 'three required, on a chord whose root changes every card. Notation '
@@ -214,33 +213,32 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'went rather than by how long it took.',
   [`${SP}/Voice-Leading`]:
     'Moving between chords with the smallest hand movement that works. '
-    + 'The patterns are the named ones — the diatonic cycle, 5→1, the '
-    + '2-5-1s — and each carries its own row types, because a pattern '
-    + 'practised from one starting position is not the same as the same '
-    + 'pattern from another.',
+    + 'The patterns are the named ones: the diatonic cycle, 5→1, the '
+    + '2-5-1s. Each carries its own row types, since a pattern started '
+    + 'from a different position is a different thing under the hands.',
   [`${SP}/Mental Visualisation`]:
     'Picturing a shape without touching the keys. It sits inside Shapes & '
-    + 'Patterns because it is the same material — and it is deliberately '
-    + "kept out of that module's coverage and score, because it is an aid "
-    + 'to the physical skill rather than a measure of it.',
+    + 'Patterns because it is the same material, and keeps its own '
+    + 'coverage and score: it builds the physical skill rather than '
+    + 'measuring it, so it is tracked alongside rather than counted in.',
 
   // ── Song repertoire ────────────────────────────────────────────────
   repertoire:
     'Songs you are learning, section by section. The two columns read two '
-    + 'different records: coverage counts logged PRACTICE, and the score '
-    + 'counts clean TEST run-throughs at tempo. Rolling them together '
-    + 'would let an hour of noodling read as a clean run-through.',
+    + 'different records: coverage counts logged practice, and the score '
+    + 'counts clean test run-throughs at tempo. So one tells you whether '
+    + 'you have been working on a section and the other whether it holds '
+    + 'up.',
 
   // ── Production ─────────────────────────────────────────────────────
   production:
     'Making records — which is two unrelated things: lessons you work '
     + 'through, and vocabulary you have to know cold.',
   'production/Lessons':
-    'Worked lessons, self-rated on a five-step scale of its own: not '
-    + 'started, read it, deep dive, tried it, mastered. It is NOT the '
-    + 'fluency scale and does not map onto it — a lesson has a reading '
-    + 'path and a doing path, and the scale tracks how far down it you '
-    + 'got.',
+    'Worked lessons, self-rated on a five-step scale of their own: not '
+    + 'started, read it, deep dive, tried it, mastered. A lesson has a '
+    + 'reading path and a doing path, and the rating tracks how far down '
+    + 'it you got. It is a separate scale from fluency.',
   'production/Vocabulary':
     'Producer vocabulary as flashcards, marked right or wrong. Knowing '
     + 'what a word means is what lets a tutorial, or somebody else in the '
@@ -259,8 +257,8 @@ const BY_MODULE_LABEL: Readonly<Record<string, string>> = {
   [`${EAR}::Ascending`]:
     'The same thirteen distances, played upward.',
   [`${EAR}::Descending`]:
-    'The same thirteen distances, played downward. Its own list because '
-    + 'the reference tunes that work going up almost never work coming '
+    'The same thirteen distances, played downward. A separate list, '
+    + 'because the reference tunes that work going up rarely work coming '
     + 'down.',
   [`${EAR}::Foundational Triads`]:
     'Three-note chords: the qualities everything else is a variation of.',
@@ -274,17 +272,16 @@ const BY_MODULE_LABEL: Readonly<Record<string, string>> = {
     'Ninths, elevenths, thirteenths and altered tones. Recognising these '
     + 'is recognising a colour on top of a chord you can already name.',
   [`${EAR}::Chord Accuracy`]:
-    'Every chord in the progression, named correctly. ONE SUBMITTED '
-    + 'ANSWER IS ONE RESULT, all-or-nothing: the skill is holding the '
-    + 'whole progression together, and three of four right is not that.',
+    'Every chord in the progression, named correctly. One submitted '
+    + 'answer counts as one result, all of it or none: what is being '
+    + 'tested is holding the whole progression together.',
   [`${EAR}::Inversion Accuracy`]:
-    'Whether you got the bass note right as well as the chord — the INV '
-    + 'badge. Slash progressions only, because they are the only ones '
-    + 'that grade it.',
+    'Whether you got the bass note right as well as the chord: the INV '
+    + 'badge. Slash progressions only.',
   [`${EAR}::Pattern Recognition`]:
     'Naming the progression as a shape once you have named its chords. '
-    + 'Hearing I–vi–ii–V as one thing rather than as four chords is a '
-    + 'different skill from hearing the four chords.',
+    + 'Hearing I–vi–ii–V as one familiar thing is its own skill, on top '
+    + 'of hearing the four chords that make it up.',
   [`${EAR}::Hear Simple Scale`]:
     'The scale played as single notes, up and down. Name the mode.',
   [`${EAR}::Hear Mode In Context`]:
@@ -312,16 +309,16 @@ const BY_MODULE_LABEL: Readonly<Record<string, string>> = {
     + 'note to put there.',
   [`${SP}::All Inversions Fluid`]:
     'Moving root → 1st → 2nd → root, up and down the keyboard without '
-    + 'stopping. ITS OWN SKILL, not a summary of the three rows above it: '
-    + 'knowing each inversion separately does not make the transitions '
-    + 'between them fluent, and the transitions are what playing needs.',
+    + 'stopping. Its own skill rather than a summary of the three above '
+    + 'it: the transitions are what playing actually asks for, and they '
+    + 'take separate work from the positions themselves.',
   [`${SP}::Triads`]:
     'Three-note shapes, pictured rather than played.',
   [`${SP}::Sevenths`]:
     'Four-note shapes, pictured rather than played. Inversion sits above '
-    + 'key deliberately: "major 7, second inversion" across all keys is a '
-    + 'truer weakness than any single key, because inversions trip people '
-    + 'and keys mostly do not.',
+    + 'key, so "major 7, second inversion" reads across all twelve keys '
+    + 'at once. That is usually the more useful view, since inversions '
+    + 'are what tend to trip people up.',
 };
 
 /**
@@ -392,20 +389,19 @@ export function advanceHintFor(node: TreeNode, moduleId: string): string {
     const coverage = short > 0
       ? `${plural(short, 'more logged practice session')} touching this section `
         + 'would cover it. '
-      : 'It is covered — three or more practice sessions have touched it. ';
+      : 'It is covered: three or more practice sessions have touched it. ';
     return coverage
-      + 'The score is a different record: it moves on THREE CONSECUTIVE '
-      + 'CLEAN RUN-THROUGHS at or above (performance tempo − 10) BPM, in '
-      + 'one key. Practice is the honest source for whether you worked on '
-      + 'it; a test run-through is the honest source for whether it holds '
-      + 'up.';
+      + 'The score comes from a different record: three consecutive clean '
+      + 'run-throughs at or above (performance tempo − 10) BPM, in one '
+      + 'key. Practice tells you whether you have been working on the '
+      + 'section; a test run-through tells you whether it holds up.';
   }
 
   if (moduleId === 'production' && selfRated && isLeaf) {
-    return 'Rating this lesson "tried it" covers it. "Read it" and "deep '
-      + 'dive" are recorded and neither covers it, because a lesson taken '
-      + 'in is not a lesson practised. "Mastered" is what moves the score '
-      + 'the rest of the way.';
+    return 'Rating this lesson "tried it" covers it: that is the step where '
+      + 'you have done the thing rather than read about it. "Read it" and '
+      + '"deep dive" are both recorded and both leave it uncovered. '
+      + '"Mastered" takes the score the rest of the way.';
   }
 
   const rep = selfRated ? 'rated rep' : 'attempt';
@@ -413,14 +409,14 @@ export function advanceHintFor(node: TreeNode, moduleId: string): string {
   if (isLeaf) {
     const short = COVERAGE_MIN_ENGAGEMENTS - node.engagementCount;
     if (short > 0) {
-      return `${plural(short, `more ${rep}`)} would cover it — the threshold `
+      return `${plural(short, `more ${rep}`)} would cover it: the threshold `
         + `is ${COVERAGE_MIN_ENGAGEMENTS}. Until then it stays on the `
-        + 'uncovered list however long ago you first saw it.';
+        + 'uncovered list, which is where to look for what to start next.';
     }
-    return `It is covered. The score now moves on the last ${ACCURACY_WINDOW} `
-      + `eligible ${rep}s, and that window ROLLS — an old result drops off `
-      + 'as each new one lands, so a bad run is not permanent and a good '
-      + 'one is not banked.';
+    return `It is covered. The score now reads your last ${ACCURACY_WINDOW} `
+      + `${rep}s on it, and that window rolls forward: each new one replaces `
+      + 'the oldest still in it, so the number tracks how you are playing '
+      + 'now.';
   }
 
   if (node.totalItems === 0) {
@@ -435,12 +431,12 @@ export function advanceHintFor(node: TreeNode, moduleId: string): string {
     return `${start}${uncovered === 1 ? 'is' : 'are'} still under `
       + `${COVERAGE_MIN_ENGAGEMENTS} ${rep}s. Each needs a `
       + `${ordinal(COVERAGE_MIN_ENGAGEMENTS)} to count toward coverage. `
-      + `Expand the row to see which — the percentage cannot tell you.`;
+      + 'Open this row to see which ones.';
   }
-  return 'Every item under this row is covered. The score is the mean over '
-    + `each item's last ${ACCURACY_WINDOW} eligible ${rep}s — one vote per `
-    + 'item, so a single heavily drilled item cannot speak for the whole '
-    + 'branch.';
+  return 'Everything under this row is covered. The score averages each '
+    + `item's own last ${ACCURACY_WINDOW} ${rep}s, one vote each, so it `
+    + 'stays a reading of the whole row rather than of whichever item you '
+    + 'have drilled hardest.';
 }
 
 function plural(n: number, noun: string): string {
@@ -484,20 +480,21 @@ export function rowNotesFor(
 
   if (node.excludedFromParentTotals) {
     notes.push(
-      'These numbers are this row\'s own and do NOT roll up into the module '
-      + 'above. Mental visualisation counts toward consistency and never '
-      + 'toward breadth, depth or mastery — it is an aid to the physical '
-      + 'skill, not a measure of it. Its recency does roll up, because '
-      + 'practising it is practising.',
+      'These numbers belong to this row alone and are not counted in the '
+      + 'Shapes & Patterns totals above. Picturing a shape builds the '
+      + 'physical skill rather than measuring it, so it is tracked here on '
+      + 'its own. Practising it does still refresh the recency shown above, '
+      + 'because it is still practice.',
     );
   }
 
   if (node.id.startsWith(`${SP}/Mental Visualisation`)) {
     notes.push(
-      'The attempt count is a FLOOR, not a total. The only per-item record '
-      + 'mental visualisation keeps caps at 20 entries, so a heavily '
-      + 'drilled item stops climbing and says nothing about it. Coverage '
-      + `needs ${COVERAGE_MIN_ENGAGEMENTS}, so the threshold is unaffected.`,
+      'The attempt count here is a floor rather than a total: mental '
+      + 'visualisation keeps only its last 20 reps per item, so anything '
+      + 'drilled more than that reads 20. Coverage needs '
+      + `${COVERAGE_MIN_ENGAGEMENTS}, so what counts as covered is `
+      + 'unaffected.',
     );
   }
 
@@ -506,19 +503,19 @@ export function rowNotesFor(
     notes.push(
       `${plural(ungroupable, 'stored attempt')} here predate submission `
       + 'tracking and cannot be collapsed into one result per submitted '
-      + 'answer, so they count one row per chord. Grouping them would mean '
-      + 'clustering on timestamp proximity — a guess over data never built '
-      + 'to carry it — and a number produced that way is one you cannot '
-      + 'trust. They are stated rather than silently mixed in.',
+      + 'answer, so each of them counts as one chord rather than one '
+      + 'progression. Newer attempts are grouped. Worth knowing when the '
+      + 'attempt count here looks higher than the number of times you '
+      + 'remember sitting down with it.',
     );
   }
 
   if (node.mixedKinds) {
     notes.push(
-      'The branches under this row measure different things — one is marked '
-      + 'right or wrong, another is self-rated — so it has no single score '
-      + 'to show. Both project onto 0–100, so averaging them would produce '
-      + 'a number that means neither. Open the row to see each.',
+      'The rows inside this one are scored in different ways: some marked '
+      + 'right or wrong, some self-rated. A single number cannot mean the '
+      + 'same thing for both, so this row shows a dash. Open it and each '
+      + 'side shows its own score.',
     );
   }
 
@@ -526,10 +523,10 @@ export function rowNotesFor(
   if (focus > 0) {
     notes.push(
       `${plural(focus, 'of these attempts')} ${focus === 1 ? 'was' : 'were'} `
-      + 'made in a focus pool of fewer than 4 items, and ' + (focus === 1 ? 'is' : 'are')
-      + ' left out of the score. A 3-item pool inflates a percentage: a '
-      + 'blind guess is right one time in three. They still count toward '
-      + 'coverage and recency, because you did practise the item.',
+      + 'made with fewer than 4 items selected, and ' + (focus === 1 ? 'is' : 'are')
+      + ' held out of the score: with a pool that small a guess is right '
+      + 'one time in three, so the percentage would not mean much. They '
+      + 'still count toward coverage and recency.',
     );
   }
 
@@ -540,17 +537,16 @@ export function rowNotesFor(
       + 'practice session' + (ungraded === 1 ? '' : 's') + ', which '
       + `carr${ungraded === 1 ? 'ies' : 'y'} no pass or fail and so `
       + `${ungraded === 1 ? 'sits' : 'sit'} outside the score. `
-      + 'They are the honest source for coverage and recency, and say '
-      + 'nothing about whether the section holds up.',
+      + 'They are what coverage and recency read; a tested run-through is '
+      + 'what tells you whether the section holds up.',
     );
   }
 
   if (moduleId === 'repertoire' && node.depth === 1) {
     notes.push(
-      'Keys are not in this song\'s coverage. There is no intention to learn '
-      + 'every song in every key, and counting them would make songs '
-      + 'incomparable — one at 25% because it carries four keys beside '
-      + 'another at 55% because it carries one.',
+      'Coverage here counts sections, not keys. So the percentage means '
+      + 'the same thing for every song, however many keys you have taken '
+      + 'each one into. The keys sit under each section.',
     );
   }
 

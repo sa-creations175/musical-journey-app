@@ -145,7 +145,7 @@ describe('an inherited description says whose it is', () => {
     // The silhouette read: one pick from seven, and the three things
     // that are deliberately NOT being asked.
     expect(shapeText).toContain('seven');
-    expect(shapeText).toContain('SHAPE');
+    expect(shapeText).toContain('shape alone');
     // The conjunctive answer, and the dependency between the two.
     expect(chordText).toContain('inversion AND quality AND clef');
     expect(chordText).toContain('Notation Shapes');
@@ -245,7 +245,7 @@ describe('what would advance a leaf', () => {
       dash.modules.find(m => m.moduleId === 'repertoire')!.root,
     )[0];
     const hint = advanceHintFor(section, 'repertoire');
-    expect(hint).toContain('THREE CONSECUTIVE CLEAN RUN-THROUGHS');
+    expect(hint).toContain('three consecutive clean');
     expect(hint).toContain('performance tempo − 10');
     // And that coverage is a different record from the score.
     expect(hint).toContain('practice session');
@@ -261,7 +261,7 @@ describe('what would advance a parent', () => {
     const hint = advanceHintFor(shapes, 'reading');
     expect(hint).toContain('7 items');
     expect(hint).toContain('third');
-    expect(hint).toContain('Expand');
+    expect(hint).toContain('Open this row');
   });
 
   it('changes as items become covered', () => {
@@ -289,7 +289,7 @@ describe('what would advance a parent', () => {
       .toContain('Nothing is logged here yet');
   });
 
-  it('says so when a branch is fully covered', () => {
+  it('says so when everything under a row is covered', () => {
     // Every card in one category, three attempts each. A partial
     // fixture would leave the branch uncovered and the assertion would
     // be testing the other arm.
@@ -306,7 +306,7 @@ describe('what would advance a parent', () => {
       .find(n => n.children.length > 0 && n.totalItems === cards.length
         && n.coveredItems === cards.length)!;
     expect(category, 'no fully covered branch in the fixture').toBeDefined();
-    expect(advanceHintFor(category, 'production')).toContain('Every item');
+    expect(advanceHintFor(category, 'production')).toContain('Everything under this row');
     expect(advanceHintFor(category, 'production')).not.toContain('still under');
   });
 });
@@ -323,8 +323,8 @@ describe('the row notes', () => {
     const mv = spModule().root.children.find(c => c.label === 'Mental Visualisation')!;
     expect(mv.excludedFromParentTotals).toBe(true);
     const notes = rowNotesFor(mv, 'shapes-and-patterns').join(' ');
-    expect(notes).toContain('do NOT roll up');
-    expect(notes).toContain('aid to the physical skill');
+    expect(notes).toContain('not counted in the Shapes & Patterns totals');
+    expect(notes).toContain('builds the physical skill rather than measuring it');
     // The half that DOES roll up, or the note overstates the exclusion.
     expect(notes).toContain('recency');
   });
@@ -334,12 +334,12 @@ describe('the row notes', () => {
     const item = leavesOf(mv)[0];
     for (const node of [mv, item]) {
       expect(rowNotesFor(node, 'shapes-and-patterns').join(' '), node.label)
-        .toContain('FLOOR, not a total');
+        .toContain('floor rather than a total');
     }
     // And NOT on a sibling that has no such cap.
     const shapes = spModule().root.children.find(c => c.label === 'Chord Shapes')!;
     expect(rowNotesFor(shapes, 'shapes-and-patterns').join(' '))
-      .not.toContain('FLOOR');
+      .not.toContain('floor rather than a total');
   });
 
   it('states ungroupable progression attempts, and only when there are some', () => {
@@ -356,7 +356,7 @@ describe('the row notes', () => {
       ungroupableProgressionAttempts: 12,
     }).join(' ');
     expect(said).toContain('12 stored attempts');
-    expect(said).toContain('one row per chord');
+    expect(said).toContain('one chord rather than one');
 
     // And nowhere else — the rule is about this module's storage.
     expect(rowNotesFor(
@@ -366,7 +366,7 @@ describe('the row notes', () => {
     ).join(' ')).not.toContain('predate');
   });
 
-  it('explains a dash on a row whose branches measure different things', () => {
+  it('explains a dash on a row whose items are scored differently', () => {
     const dash = assembleDashboard(source({
       lessons: [{
         id: 'wf-01', pathId: 'workflow', order: 1, rating: 100,
@@ -384,7 +384,7 @@ describe('the row notes', () => {
     expect(prod.children.find(c => c.label === 'Vocabulary')!.score).not.toBeNull();
     expect(prod.mixedKinds).toBe(true);
     expect(rowNotesFor(prod, 'production').join(' '))
-      .toContain('measure different things');
+      .toContain('scored in different ways');
   });
 
   it('accounts for focus-protected attempts at the item that has them', () => {
@@ -403,7 +403,7 @@ describe('the row notes', () => {
     expect(leaf.stats!.excludedByReason['focus-pool']).toBe(3);
     const notes = rowNotesFor(leaf, 'production').join(' ');
     expect(notes).toContain('3 of these attempts');
-    expect(notes).toContain('fewer than 4 items');
+    expect(notes).toContain('fewer than 4 items selected');
     expect(notes).toContain('coverage and recency');
 
     // And absent on an item with none.
@@ -425,7 +425,8 @@ describe('the row notes', () => {
     }), NOW);
     const song = dash.modules.find(m => m.moduleId === 'repertoire')!.root.children[0];
     expect(song.depth).toBe(1);
-    expect(rowNotesFor(song, 'repertoire').join(' ')).toContain('every song in every key');
+    expect(rowNotesFor(song, 'repertoire').join(' '))
+      .toContain('counts sections, not keys');
   });
 
   it('is EMPTY on an ordinary row', () => {
@@ -458,12 +459,158 @@ describe('the mental-viz spacing rows still reach their own numbers', () => {
     ).find(l => l.id.endsWith(`/${item.itemRef}`))!;
     expect(leaf.engagementCount).toBe(20);
     expect(rowNotesFor(leaf, 'shapes-and-patterns').join(' '))
-      .toContain('caps at 20 entries');
+      .toContain('only its last 20 reps per item');
   });
 });
 
 describe('the chord-progression catalog still holds what the notes assume', () => {
   it('has progressions to be ungroupable about', () => {
     expect(PROGRESSIONS.length).toBeGreaterThan(0);
+  });
+});
+
+// =====================================================================
+// The copy obeys the same writing rules as the column legends
+// =====================================================================
+
+/**
+ * A dashboard with data in EVERY branch that produces its own copy.
+ *
+ * THE EMPTY FIXTURE WOULD MAKE THE SWEEP BELOW USELESS, and it did:
+ * `DASHBOARD` is assembled from nothing, so repertoire has no songs,
+ * no section rows and therefore none of its hints or notes. The first
+ * version of these guards swept it, reported 60-odd strings, and could
+ * not see the repertoire copy at all — reintroducing a defence there
+ * passed. Found by reversing, not by reading.
+ *
+ * So: a song with sections and a logged practice, a rated lesson beside
+ * scored vocabulary (which is what makes production mixed-kind), and
+ * focus-protected attempts. `sweepReachesEveryBranch` asserts it stayed
+ * that way.
+ */
+const RICH = assembleDashboard(source({
+  attempts: [
+    ...[0, 1, 2, 3].map(i => ({
+      moduleId: 'production', itemId: PRODUCTION_VOCAB_FLASHCARDS[0].id,
+      correct: true, timestamp: NOW - i * 1000,
+      ...(i < 3 ? { excludeFromFluency: true } : {}),
+    } as AttemptRecord)),
+  ],
+  lessons: [{
+    id: 'wf-01', pathId: 'workflow', order: 1, rating: 100,
+    revisitCount: 1, lastOpenedAt: NOW, createdAt: NOW, updatedAt: NOW,
+  } as ProductionLesson],
+  repertoire: {
+    songs: [{ id: 's1', title: 'Nothing Even Matters', learningOrder: 1 } as never],
+    sections: [
+      { id: 'sec1', songId: 's1', name: 'Verse 1', displayOrder: 1, isArchived: false } as never,
+      { id: 'sec2', songId: 's1', name: 'Chorus', displayOrder: 2, isArchived: false } as never,
+    ],
+    keys: [], cells: [], runThroughs: [],
+    practiceLogs: [{
+      id: 'p1', songId: 's1', sectionIds: ['sec1'], timestamp: NOW, durationMinutes: 20,
+    } as never],
+  },
+}), NOW);
+
+const RICH_NODES = RICH.modules.flatMap(m =>
+  flatten(m.root).map(node => ({ node, moduleId: m.moduleId })));
+
+/**
+ * Every string this file can put on screen: descriptions, the derived
+ * hints for a spread of real row shapes, and every note.
+ *
+ * Built from ASSEMBLED nodes rather than hand-written samples, so a
+ * sentence that only appears for one row shape is still covered.
+ */
+function everyVisibleString(): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const { node, moduleId } of RICH_NODES) {
+    const described = skillDescriptionFor(node, moduleId);
+    if (described && !seen.has(described.text)) {
+      seen.add(described.text);
+      out.push(described.text);
+    }
+    const hint = advanceHintFor(node, moduleId);
+    if (!seen.has(hint)) { seen.add(hint); out.push(hint); }
+    // Both counts supplied, so the notes that need one are reached.
+    for (const note of rowNotesFor(node, moduleId, {
+      ungroupableProgressionAttempts: 7,
+    })) {
+      if (!seen.has(note)) { seen.add(note); out.push(note); }
+    }
+  }
+  return out;
+}
+
+describe('the row copy obeys the legends\' writing rules', () => {
+  const strings = everyVisibleString();
+
+  it('sweeps every branch that has copy of its own', () => {
+    // GUARD THE GUARD, and it is load-bearing: swept against an empty
+    // fixture these rules cannot see repertoire, production's mixed-kind
+    // dash, or a focus-protected item, and a defence reintroduced in any
+    // of them passes. Each phrase below comes from exactly one branch.
+    const all = strings.join('   ');
+    const branches: Array<[string, string]> = [
+      ['repertoire section hint', 'three consecutive clean'],
+      ['repertoire keys note', 'counts sections, not keys'],
+      ['ungraded practice note', 'no pass or fail'],
+      ['production lesson hint', 'Rating this lesson'],
+      ['mixed-kind note', 'scored in different ways'],
+      ['focus-protected note', 'fewer than 4 items selected'],
+      ['mental-viz exclusion', 'Shapes & Patterns totals'],
+      ['mental-viz floor', 'floor rather than a total'],
+      ['ungroupable note', 'one chord rather than one'],
+      ['uncovered item hint', 'would cover it'],
+      ['uncovered group hint', 'Open this row to see which'],
+    ];
+    for (const [name, phrase] of branches) {
+      expect(all, `${name} is not in the sweep`).toContain(phrase);
+    }
+  });
+
+  it('uses no structural word the reader has not been given', () => {
+    // Same rule as the column panels, and the same five words. The row
+    // panel has no vocabulary strip of its own, so it avoids them
+    // outright rather than defining them on every one of 3,266 rows.
+    //
+    // `leaves` stays out of the pattern: it is the verb far more often
+    // than the tree's noun, and a guard that fires on ordinary English
+    // gets weakened rather than obeyed.
+    const undefinedTerms = /\b(parent|child|children|branch|branches|leaf|descendant|descendants)\b/i;
+    for (const text of strings) {
+      expect(text, text.slice(0, 70)).not.toMatch(undefinedTerms);
+    }
+    // Guard the guard: a fixture of two strings would pass this.
+    expect(strings.length).toBeGreaterThan(60);
+  });
+
+  it('explains rather than defends', () => {
+    // THE REFRAME. The first version argued against alternatives nobody
+    // proposed — "rolling them together would let an hour of noodling
+    // read as a clean run-through", "counting them would make songs
+    // incomparable". That is the author's reasoning from the design
+    // session, written as though the reader shares the context.
+    //
+    // The tell is a counterfactual: "would have", "would make", "would
+    // mean". Caught here because it is mechanical; whether a sentence
+    // actually reads as help is not something a test can settle.
+    const counterfactual =
+      /\bwould (make|let|mean|produce|read|reverse|be|have|leave|put|give)\b/i;
+    for (const text of strings) {
+      expect(text, text.slice(0, 70)).not.toMatch(counterfactual);
+    }
+  });
+
+  it('does not tell the reader a decision was deliberate', () => {
+    // "Deliberately", "on purpose" and "by design" are addressed to
+    // someone who might otherwise think it a mistake — which is a
+    // conversation with a reviewer, not with a player.
+    for (const text of strings) {
+      expect(text, text.slice(0, 70))
+        .not.toMatch(/\b(deliberately|on purpose|by design)\b/i);
+    }
   });
 });

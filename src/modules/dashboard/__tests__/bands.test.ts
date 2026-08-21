@@ -19,6 +19,7 @@ import {
   formatScore,
   legendFor,
   scoreColumnLabel,
+  SELF_EVIDENT_RULE_MAX,
   TOPICS_USING_TREE_VOCABULARY,
   TREE_VOCABULARY,
   type ColumnTopic,
@@ -169,7 +170,7 @@ describe('legends', () => {
   });
 });
 
-describe('column rules — every one carries its why', () => {
+describe('column rules — what each one says, and that it says why', () => {
   const topics: ColumnTopic[] = ['score', 'coverage', 'recency', 'due'];
 
   it('covers all four topics, none of them empty', () => {
@@ -179,19 +180,38 @@ describe('column rules — every one carries its why', () => {
     }
   });
 
-  it('never states a rule without its reason', () => {
-    // A rule stated alone reads as an arbitrary constraint, and the
-    // first instinct on meeting an unexpected number is that the screen
-    // is broken. The why is what stops that.
+  it('drops a reason only from a rule short enough to carry itself', () => {
+    // A rule stated alone usually reads as an arbitrary constraint, and
+    // the first instinct on meeting an unexpected number is that the
+    // screen is broken. The exception is a rule that is self-evident —
+    // "an item you have never practised reads never" — where an
+    // explanation draws attention to a question nobody asked.
+    //
+    // The length cap is what stops that being an excuse: you cannot
+    // quietly drop the reason from a rule that is doing real work.
     for (const topic of topics) {
       for (const { rule, why } of COLUMN_RULES[topic]) {
         expect(rule, topic).toBeTruthy();
-        expect(why, rule).toBeTruthy();
+        if (why === undefined) {
+          expect(rule.length, `unexplained and too long: ${rule}`)
+            .toBeLessThanOrEqual(SELF_EVIDENT_RULE_MAX);
+          continue;
+        }
         // Long enough to be an explanation rather than a restatement.
         expect(why.length, rule).toBeGreaterThan(40);
         expect(why, rule).not.toBe(rule);
       }
     }
+  });
+
+  it('leaves almost every rule explained', () => {
+    // Guard the guard: the exception above is worthless if it becomes
+    // the norm, and every assertion in this block would pass on a set
+    // of rules that explained none of themselves.
+    const all = topics.flatMap(t => COLUMN_RULES[t]);
+    const unexplained = all.filter(r => r.why === undefined);
+    expect(unexplained.length).toBeGreaterThan(0);
+    expect(unexplained.length).toBeLessThan(all.length / 4);
   });
 
   it('names the rules the design doc ships as a requirement', () => {
@@ -200,23 +220,27 @@ describe('column rules — every one carries its why', () => {
     // sentences, so a writing pass does not fail this but dropping a
     // RULE does.
     const said = (topic: ColumnTopic) =>
-      COLUMN_RULES[topic].map(r => `${r.rule} ${r.why}`).join(' ');
+      COLUMN_RULES[topic].map(r => `${r.rule} ${r.why ?? ''}`).join(' ');
     expect(said('score')).toContain('last 20 attempts');
     expect(said('score')).toContain('fewer than 4 items');
-    expect(said('score')).toMatch(/only shows a rating once its average/);
+    expect(said('score')).toMatch(/rating its average has actually reached/);
     expect(said('coverage')).toContain('3 or more');
     expect(said('coverage')).toContain('full skill catalog');
     expect(said('coverage')).toContain('tried it (75)');
     expect(said('coverage')).toContain('648');
-    expect(said('recency')).toContain('most recent');
-    expect(said('recency')).toContain('oldest');
+    // Both numbers named, and tied to the word the sort control uses.
+    expect(said('recency')).toContain('12d / 61d');
+    expect(said('recency')).toContain('stalest');
+    expect(said('recency')).toContain('never');
     expect(said('due')).toContain('not a deadline');
   });
 });
 
 describe('the copy obeys its own writing rules', () => {
   const topics: ColumnTopic[] = ['score', 'coverage', 'recency', 'due'];
-  const everything = topics.flatMap(t => COLUMN_RULES[t].map(r => `${r.rule} ${r.why}`));
+  const everything = topics.flatMap(
+    t => COLUMN_RULES[t].map(r => `${r.rule} ${r.why ?? ''}`),
+  );
 
   it('uses no structural word it has not defined', () => {
     // "Parent", "child", "branch", "leaf", "descendant" are the tree's
@@ -237,7 +261,7 @@ describe('the copy obeys its own writing rules', () => {
   it('defines the vocabulary on exactly the panels that use it', () => {
     for (const topic of topics) {
       const usesIt = COLUMN_RULES[topic].some(
-        r => /\b(group row|item row)\b/.test(`${r.rule} ${r.why}`),
+        r => /\b(group row|item row)\b/.test(`${r.rule} ${r.why ?? ''}`),
       );
       expect(TOPICS_USING_TREE_VOCABULARY.has(topic), topic).toBe(usesIt);
     }
@@ -274,6 +298,26 @@ describe('the copy obeys its own writing rules', () => {
       ...TREE_VOCABULARY.map(v => `${v.term} ${v.meaning}`),
     ]) {
       expect(text, text.slice(0, 60)).not.toContain('—');
+    }
+  });
+
+  it('explains rather than defends', () => {
+    // THE REFRAME, and the same guard the row copy carries. The first
+    // version of this panel argued against alternatives nobody
+    // proposed: "most recent alone flatters", "showing it as 0 would
+    // say you practised today". That is the author's reasoning from the
+    // design session, written as though the reader shares the context.
+    //
+    // The tell is a counterfactual, which is mechanical enough to
+    // catch. Whether a sentence actually reads as help is not.
+    const counterfactual =
+      /\bwould (make|let|mean|produce|read|reverse|be|have|leave|put|give)\b/i;
+    for (const text of everything) {
+      expect(text, text.slice(0, 70)).not.toMatch(counterfactual);
+    }
+    for (const text of everything) {
+      expect(text, text.slice(0, 70))
+        .not.toMatch(/\b(deliberately|on purpose|by design)\b/i);
     }
   });
 

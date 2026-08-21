@@ -157,7 +157,7 @@ describe('the panel reads as bullets, with its terms defined first', () => {
         const { rule, why } = COLUMN_RULES[topic][i];
         // Both halves in the SAME list item — not two siblings.
         expect(item.textContent, rule).toContain(rule);
-        expect(item.textContent, rule).toContain(why);
+        if (why !== undefined) expect(item.textContent, rule).toContain(why);
       }
       act(() => root!.unmount()); container!.remove();
     }
@@ -194,7 +194,7 @@ describe('every panel states its rules with their reasons', () => {
       const text = el.querySelector('[data-testid="column-legend"]')!.textContent!;
       for (const { rule, why } of COLUMN_RULES[topic]) {
         expect(text, `${topic}: ${rule}`).toContain(rule);
-        expect(text, `${topic}: why of ${rule}`).toContain(why);
+        if (why !== undefined) expect(text, `${topic}: why of ${rule}`).toContain(why);
       }
       act(() => root!.unmount()); container!.remove();
     }
