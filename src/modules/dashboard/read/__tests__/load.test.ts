@@ -59,7 +59,7 @@ describe('every catalog has a source wired', () => {
     const et = assembleDashboard(source(), NOW).modules
       .find(m => m.moduleId === 'ear-training')!;
     expect(et.root.children.map(c => c.label).sort()).toEqual([
-      'chord progressions', 'chord recognition', 'intervals', 'scales & modes',
+      'Chord Progressions', 'Chord Recognition', 'Intervals', 'Scales & Modes',
     ]);
   });
 
@@ -69,7 +69,7 @@ describe('every catalog has a source wired', () => {
     const prod = assembleDashboard(source(), NOW).modules
       .find(m => m.moduleId === 'production')!;
     expect(prod.root.children.map(c => c.label).sort())
-      .toEqual(['lessons', 'vocabulary']);
+      .toEqual(['Lessons', 'Vocabulary']);
   });
 
   it('reads as a dash where a module mixes measured and self-rated', () => {
@@ -97,10 +97,10 @@ describe('every catalog has a source wired', () => {
     // Each branch has a real, different score.
     const branch = (label: string) =>
       prod.root.children.find(c => c.label === label)!;
-    expect(branch('lessons').score).toBe(100);
-    expect(branch('vocabulary').score).toBe(100);
-    expect(branch('lessons').accuracyKind).toBe('self-rated');
-    expect(branch('vocabulary').accuracyKind).toBe('measured');
+    expect(branch('Lessons').score).toBe(100);
+    expect(branch('Vocabulary').score).toBe(100);
+    expect(branch('Lessons').accuracyKind).toBe('self-rated');
+    expect(branch('Vocabulary').accuracyKind).toBe('measured');
 
     // And the row above them still refuses to average across units.
     expect(prod.root.mixedKinds).toBe(true);
@@ -182,7 +182,7 @@ describe('routing sources to catalogs', () => {
       } as DrillSkill],
     }), NOW);
     const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
-    const mv = sp.root.children.find(c => c.label === 'mental visualisation')!;
+    const mv = sp.root.children.find(c => c.label === 'Mental Visualisation')!;
     expect(sp.root.engagementCount).toBe(1);
     expect(mv.engagementCount).toBe(0);
   });
@@ -198,7 +198,7 @@ describe('routing sources to catalogs', () => {
       } as unknown as SpacingState],
     }), NOW);
     const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
-    const mv = sp.root.children.find(c => c.label === 'mental visualisation')!;
+    const mv = sp.root.children.find(c => c.label === 'Mental Visualisation')!;
     expect(mv.engagementCount).toBe(1);
     // Excluded from the module's totals, so the S&P row's own count
     // does not move.
@@ -233,7 +233,7 @@ describe('routing sources to catalogs', () => {
       } as DrillSkill],
     }), NOW);
     const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
-    const mv = sp.root.children.find(c => c.label === 'mental visualisation')!;
+    const mv = sp.root.children.find(c => c.label === 'Mental Visualisation')!;
 
     // The submodule has its own real numbers.
     expect(mv.score).toBe(100);
@@ -264,8 +264,8 @@ describe('routing sources to catalogs', () => {
     const prod = dashboard.modules.find(m => m.moduleId === 'production')!;
     const branch = (label: string) =>
       prod.root.children.find(c => c.label === label)!;
-    expect(branch('lessons').engagementCount).toBe(1);
-    expect(branch('vocabulary').engagementCount).toBe(0);
+    expect(branch('Lessons').engagementCount).toBe(1);
+    expect(branch('Vocabulary').engagementCount).toBe(0);
   });
 
   it('builds the repertoire catalog from loaded rows', () => {

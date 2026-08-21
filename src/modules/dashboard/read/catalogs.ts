@@ -143,25 +143,69 @@ export function catalogRefSet(catalog: ModuleCatalog): Set<string> {
 const EAR_TRAINING = 'ear training';
 
 /**
- * Lowercase a CATEGORY label.
+ * Title Case for a dashboard row label — the first letter of each word,
+ * and NOTHING else touched.
  *
- * The dashboard is a dense table with its own typography, and its rows
- * were mixing conventions: harmonic fluency's categories arrived Title
- * Case from `CATEGORY_LABELS`, production's paths Title Case from
- * `p.title`, vocabulary's clusters sentence case, and reading's
- * qualities already lowercase.
+ * ─── The convention ──────────────────────────────────────────────────
+ *
+ * Module header rows are all-caps and carry structural weight; the row
+ * component does that in CSS, so nothing here needs to. Everything
+ * BELOW a module header is Title Case. Before this, the rows mixed four
+ * conventions at once — harmonic fluency's categories arrived Title Case
+ * from `CATEGORY_LABELS`, production's paths Title Case from `p.title`,
+ * vocabulary's clusters sentence case, reading's qualities lowercase —
+ * and a blanket `.toLowerCase()` fixed the mixing by flattening things
+ * that read better capitalised.
  *
  * Applied HERE rather than at the sources, which are shared with each
- * module's own chips, sidebar and headings — surfaces with different
+ * module's own chips, sidebar and headings — surfaces with their own
  * typography that are not wrong to capitalise.
  *
- * NOT applied to proper nouns: mode names (Ionian, Dorian are
- * capitalised in music), song titles, progression names, key names.
- * Those are names of things rather than names of categories, and
- * lowercasing a song title is a different kind of change.
+ * ─── Why only the first letter of each word ──────────────────────────
+ *
+ * Lowercasing the rest would destroy meaning that lives in the case:
+ * `EQ` becomes `Eq`, `M3` becomes `M3`→`M3` only by luck, `AI era`
+ * becomes `Ai Era`. So the rest of every word is left exactly as stored.
+ *
+ * An apostrophe is NOT a word break, or `Ain't Nobody` comes out as
+ * `Ain'T Nobody`.
+ *
+ * ─── Why a lone `b` before a digit is left alone ─────────────────────
+ *
+ * THE CASE IS THE MEANING. `b3` is a flat third and `B3` is a note two
+ * octaves below middle C. Chord-motion rows are built from degree
+ * spellings (`b2 → 3`), and scale cells carry them mid-label
+ * ("from b3"), so a rule that capitalises word-initial letters
+ * unconditionally would silently transpose them. `#4` is safe either
+ * way — `#` is not a letter — and is covered for symmetry.
  */
-function categoryLabel(label: string): string {
-  return label.toLowerCase();
+export function titleCase(label: string): string {
+  let out = '';
+  for (let i = 0; i < label.length; i++) {
+    const ch = label[i];
+    const startsWord = i === 0 || !WORD_CHAR.test(label[i - 1]);
+    out += startsWord && !isAccidental(label, i) ? ch.toUpperCase() : ch;
+  }
+  return out;
+}
+
+/** What continues a word rather than starting one. Digits and
+ *  apostrophes are inside a word; punctuation and spaces are not. */
+const WORD_CHAR = /[\p{L}\p{N}'’]/u;
+
+/**
+ * A flat or sharp sign attached to a degree, not the first letter of a
+ * word.
+ *
+ * Covers both spellings a degree takes: arabic (`b3`, the scale-cell and
+ * chord-motion form) and roman (`bVII`, the borrowed-chord form). No
+ * English word puts a lowercase `b` in front of a digit or a capital,
+ * so neither shape can be a real word start.
+ */
+function isAccidental(label: string, i: number): boolean {
+  const ch = label[i];
+  if (ch !== 'b' && ch !== '#') return false;
+  return /[\d\p{Lu}]/u.test(label[i + 1] ?? '');
 }
 
 function one(id: string, label: string, path: readonly string[]): CatalogItem {
@@ -172,6 +216,15 @@ function one(id: string, label: string, path: readonly string[]): CatalogItem {
 // Ear Training
 // =====================================================================
 
+/** Spelled out, not `asc` / `desc`. A direction is a word on a row, and
+ *  the stored abbreviation is a key. Declared before the catalogs that
+ *  read it — these are module-init constants, so an ordering slip is a
+ *  TDZ crash rather than a late lookup. */
+const DIRECTION_LABEL: Readonly<Record<'asc' | 'desc', string>> = {
+  asc: 'Ascending',
+  desc: 'Descending',
+};
+
 /** Ascending and descending are separate items: different sounds,
  *  different skills. The ref composes the interval id with the
  *  direction column — see `itemRefForAttempt`. */
@@ -180,13 +233,31 @@ export const intervalsCatalog: ModuleCatalog = {
   moduleId: 'ear-training',
   label: 'intervals',
   accuracyKind: 'measured',
-  items: INTERVAL_SEEDS.flatMap(seed => (['asc', 'desc'] as const).map(dir =>
-    one(
+  items: INTERVAL_SEEDS.flatMap(seed => (['asc', 'desc'] as const).map(dir => {
+    const direction = DIRECTION_LABEL[dir];
+    return one(
       `${seed.id}:${dir}`,
-      `${seed.name} (${dir === 'asc' ? 'ascending' : 'descending'})`,
-      [EAR_TRAINING, 'intervals', dir === 'asc' ? 'ascending' : 'descending'],
-    ),
-  )),
+      titleCase(`${seed.name} (${direction})`),
+      [EAR_TRAINING, 'Intervals', direction],
+    );
+  })),
+};
+
+/**
+ * The four chord types, worded as the drill's own tab strip words them.
+ *
+ * A SEAM, not a duplication for its own sake. The strings live in
+ * `ChordFluencyTracker.tsx` as a component-local `TIER_SECTION_LABEL`,
+ * and the read layer must not import a component. Copied with the
+ * source named so the two are findable together; the alternative was
+ * rendering the raw tier id, which is the §1.8b defect — a key used as
+ * an answer.
+ */
+const CHORD_TIER_LABEL: Readonly<Record<string, string>> = {
+  foundational: 'Foundational Triads',
+  seventh: 'Seventh Chords',
+  dominant: 'Dominant Variations',
+  extensions: 'Extensions & Colors',
 };
 
 /**
@@ -204,10 +275,18 @@ export const chordRecognitionCatalog: ModuleCatalog = {
   accuracyKind: 'measured',
   items: CHORD_SEEDS.flatMap(chord => {
     const inversions = chord.intervals.length >= 4 ? [0, 1, 2, 3] : [0, 1, 2];
+    const name = titleCase(chord.name);
     return inversions.map(inv => one(
       `${chord.id}:${inv}`,
-      `${categoryLabel(chord.name)}${inv === 0 ? '' : ` (inv ${inv})`}`,
-      [EAR_TRAINING, 'chord recognition', chord.tier, categoryLabel(chord.name)],
+      `${name}${inv === 0 ? '' : ` (Inversion ${inv})`}`,
+      [
+        EAR_TRAINING,
+        'Chord Recognition',
+        // Falls back rather than rendering `undefined` if a fifth tier
+        // is ever seeded before this map hears about it.
+        CHORD_TIER_LABEL[chord.tier] ?? titleCase(chord.tier),
+        name,
+      ],
     ));
   }),
 };
@@ -221,8 +300,10 @@ export const scalesModesCatalog: ModuleCatalog = {
   label: 'scales & modes',
   accuracyKind: 'measured',
   items: MODES.flatMap(mode => [
-    one(`${mode.id}-tab1`, 'hear simple scale', [EAR_TRAINING, 'scales & modes', mode.name]),
-    one(`${mode.id}-tab2`, 'hear mode in context', [EAR_TRAINING, 'scales & modes', mode.name]),
+    one(`${mode.id}-tab1`, 'Hear Simple Scale',
+      [EAR_TRAINING, 'Scales & Modes', titleCase(mode.name)]),
+    one(`${mode.id}-tab2`, 'Hear Mode In Context',
+      [EAR_TRAINING, 'Scales & Modes', titleCase(mode.name)]),
   ]),
 };
 
@@ -254,32 +335,48 @@ export const chordProgressionsCatalog: ModuleCatalog = {
   accuracyKind: 'measured',
   items: [
     ...PROGRESSION_KEYS.map(key => one(
-      `key-detection:${key}`, key, [EAR_TRAINING, 'chord progressions', 'key detection'],
+      `key-detection:${key}`, key, [EAR_TRAINING, 'Chord Progressions', 'Key Detection'],
     )),
     ...ALL_MOTIONS.map(m => one(
       `motion:${m.startLabel}-${m.destLabel}-${m.direction}`,
-      `${m.startLabel} → ${m.destLabel} ${m.direction}`,
-      [EAR_TRAINING, 'chord progressions', 'chord motion', 'destination'],
+      motionLabel(m),
+      [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'Destination'],
     )),
     ...ALL_MOTIONS.map(m => one(
       `motion-first:${m.startLabel}-${m.destLabel}-${m.direction}`,
-      `${m.startLabel} → ${m.destLabel} ${m.direction}`,
-      [EAR_TRAINING, 'chord progressions', 'chord motion', 'first chord'],
+      motionLabel(m),
+      [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'First Chord'],
     )),
     ...PROGRESSIONS.flatMap(p => {
-      const path = [EAR_TRAINING, 'chord progressions', 'full progression', p.name];
+      const path = [
+        EAR_TRAINING, 'Chord Progressions', 'Full Progression', titleCase(p.name),
+      ];
       const rows = [
-        one(p.id, 'chord accuracy', path),
-        one(`${p.id}-pattern`, 'pattern recognition', path),
+        one(p.id, 'Chord Accuracy', path),
+        one(`${p.id}-pattern`, 'Pattern Recognition', path),
       ];
       // Only slash progressions grade inversions — the INV badge.
       if (containsSlashChords(p.numerals)) {
-        rows.splice(1, 0, one(`${p.id}-inversion`, 'inversion accuracy', path));
+        rows.splice(1, 0, one(`${p.id}-inversion`, 'Inversion Accuracy', path));
       }
       return rows;
     }),
   ],
 };
+
+/**
+ * `b2 → 3 (Ascending)`.
+ *
+ * THE DEGREE SPELLINGS ARE LEFT EXACTLY AS STORED. They are musical
+ * notation, not words: `b2` is a flat second, and `B2` would be a note.
+ * Only the direction is a word, so only the direction is cased — which
+ * matches how an interval row reads two catalogs up.
+ */
+function motionLabel(
+  m: { startLabel: string; destLabel: string; direction: 'asc' | 'desc' },
+): string {
+  return `${m.startLabel} → ${m.destLabel} (${DIRECTION_LABEL[m.direction]})`;
+}
 
 export const earTrainingCatalogs: ReadonlyArray<ModuleCatalog> = [
   intervalsCatalog,
@@ -302,9 +399,12 @@ export const harmonicFluencyCatalog: ModuleCatalog = {
   items: [...FLASHCARDS]
     .sort((a, b) =>
       (HF_CATEGORY_RANK.get(a.category) ?? 99) - (HF_CATEGORY_RANK.get(b.category) ?? 99))
+    // The leaf label is `card.question` — a whole sentence, left as
+    // written. Title Case is for names of things; a sentence in Title
+    // Case reads as a headline.
     .map(card => one(
       card.id, card.question,
-      ['harmonic fluency', categoryLabel(CATEGORY_LABELS[card.category])],
+      ['harmonic fluency', titleCase(CATEGORY_LABELS[card.category])],
     )),
 };
 
@@ -312,7 +412,7 @@ export const harmonicFluencyCatalog: ModuleCatalog = {
 // Reading — 188 items, and fewer rows than items
 // =====================================================================
 
-const SIGNATURE_ROOT = ['reading', 'key signature recognition'] as const;
+const SIGNATURE_ROOT = ['reading', 'Key Signature Recognition'] as const;
 
 /**
  * 78 stored items over three directions, shown as two rows per key.
@@ -327,17 +427,17 @@ function signatureRows(): CatalogItem[] {
   const rows: CatalogItem[] = [];
   for (const sig of SIGNATURES) {
     for (const mode of KEY_MODES) {
-      const keyName = `${sig[mode]} ${mode}`;
+      const keyName = titleCase(`${sig[mode]} ${mode}`);
       const path = [...SIGNATURE_ROOT, keyName];
       rows.push({
         id: `${sig.id}:${mode}:visual`,
-        label: 'visual recognition',
+        label: 'Visual Recognition',
         path,
         itemRefs: [signatureItemRef(sig.id, mode, 'name')],
       });
       rows.push({
         id: `${sig.id}:${mode}:conceptual`,
-        label: 'conceptual knowledge',
+        label: 'Conceptual Knowledge',
         path,
         // TWO refs, one row. The count is 78 either way.
         itemRefs: [
@@ -374,22 +474,22 @@ export const readingCatalog: ModuleCatalog = {
       noteItemRef(clef, pos),
       // `treble -4` is a staff position, which is an internal
       // coordinate. The answer is a pitch, so the row says the pitch.
-      `${clef} · ${scientificPitch(pitchAtStaffPosition(clef, pos))}`,
-      ['reading', 'note recognition', clef],
+      titleCase(`${clef} · ${scientificPitch(pitchAtStaffPosition(clef, pos))}`),
+      ['reading', 'Note Recognition', titleCase(clef)],
     ))),
     ...signatureRows(),
     ...SHAPE_FAMILIES.flatMap(family =>
       positionsForFamily(family).map(pos => one(
         shapeItemRef(family, pos),
-        `${SHAPE_FAMILY_LABEL[family]} · ${POSITION_LABEL[pos]}`,
-        ['reading', 'notation shapes'],
+        titleCase(`${SHAPE_FAMILY_LABEL[family]} · ${POSITION_LABEL[pos]}`),
+        ['reading', 'Notation Shapes'],
       ))),
     ...READING_CHORD_QUALITIES.flatMap(q =>
       clefsForFamily(q.family).flatMap(clef =>
         positionsForFamily(q.family).map(pos => one(
           chordItemRef(q.id, pos, clef),
           chordIdentificationLabel(q, pos, clef),
-          ['reading', 'chord identification', q.family],
+          ['reading', 'Chord Identification', titleCase(q.family)],
         )))),
   ],
 };
@@ -419,7 +519,7 @@ function chordIdentificationLabel(
   const parts = quality.family === 'open'
     ? [quality.label, `${clef} clef`]
     : [POSITION_LABEL[position], quality.label, `${clef} clef`];
-  return parts.join(' · ');
+  return titleCase(parts.join(' · '));
 }
 
 // =====================================================================
@@ -439,7 +539,7 @@ export const productionLessonsCatalog: ModuleCatalog = {
   items: PRODUCTION_LESSONS.map(lesson => one(
     lesson.id,
     lesson.title,
-    ['production', 'lessons', categoryLabel(PATH_LABEL.get(lesson.pathId) ?? lesson.pathId)],
+    ['production', 'Lessons', titleCase(PATH_LABEL.get(lesson.pathId) ?? lesson.pathId)],
   )),
 };
 
@@ -452,8 +552,8 @@ export const productionVocabularyCatalog: ModuleCatalog = {
   accuracyKind: 'measured',
   items: PRODUCTION_VOCAB_FLASHCARDS.map(card => one(
     card.id,
-    card.termName,
-    ['production', 'vocabulary', categoryLabel(VOCAB_CLUSTER_LABELS[card.clusterId])],
+    titleCase(card.termName),
+    ['production', 'Vocabulary', titleCase(VOCAB_CLUSTER_LABELS[card.clusterId])],
   )),
 };
 
@@ -467,13 +567,13 @@ function shapeLabel(itemRef: string): { label: string; path: string[] } {
     return { label: itemRef, path: ['shapes & patterns'] };
   }
   const quality = CHORD_QUALITY_BY_ID.get(desc.quality);
-  const inversion = inversionStateLabel(desc.inversionState);
+  const inversion = titleCase(inversionStateLabel(desc.inversionState));
   return {
-    label: `${desc.keyName}${inversion ? ` — ${inversion}` : ''}`,
+    label: titleCase(`${desc.keyName}${inversion ? ` — ${inversion}` : ''}`),
     path: [
-      'shapes & patterns', 'chord shapes',
-      quality?.label ?? desc.quality,
-      inversion || 'voicing',
+      'shapes & patterns', 'Chord Shapes',
+      titleCase(quality?.label ?? desc.quality),
+      inversion || 'Voicing',
     ],
   };
 }
@@ -496,10 +596,17 @@ export const shapesCatalog: ModuleCatalog = {
       const { label, path } = shapeLabel(ref);
       return { id: ref, label, path, itemRefs: [ref] };
     }
+    // NOTE — these two leaf labels are still raw itemRefs
+    // (`major:C`, `five-one:guide-tones:posA:Eb`), which is
+    // §1.8b's predicted recurrence on 468 rows. They are left as
+    // stored rather than Title Cased, because casing a key is not
+    // the fix: reading them off `SCALE_CELLS[].label` and
+    // `voiceLeadingSubCellLabel()` is, and that is a labelling
+    // change rather than a capitalisation one.
     if (ref.startsWith('scale:')) {
-      return one(ref, ref.slice('scale:'.length), ['shapes & patterns', 'scales']);
+      return one(ref, ref.slice('scale:'.length), ['shapes & patterns', 'Scales']);
     }
-    return one(ref, ref.slice('vl:'.length), ['shapes & patterns', 'voice-leading']);
+    return one(ref, ref.slice('vl:'.length), ['shapes & patterns', 'Voice-Leading']);
   }),
 };
 
@@ -527,11 +634,11 @@ export const mentalVizCatalog: ModuleCatalog = {
   accuracyKind: 'self-rated',
   items: MENTAL_VIZ_ITEMS.map(item => one(
     item.itemRef,
-    item.prompt,
+    titleCase(item.prompt),
     [
       'shapes & patterns',
-      'mental visualisation',
-      item.itemRef.startsWith('mv:triad:') ? 'triads' : 'sevenths',
+      'Mental Visualisation',
+      item.itemRef.startsWith('mv:triad:') ? 'Triads' : 'Sevenths',
     ],
   )),
 };
@@ -583,6 +690,18 @@ export interface DashboardModule {
   catalogs: ReadonlyArray<ModuleCatalog>;
 }
 
+/**
+ * MODULE labels — and the one place the Title Case convention stops.
+ *
+ * A module header row is all-caps, which the row component does in CSS
+ * (`uppercase` at depth 0). These strings are also what the module
+ * filter pills read, where lowercase matches every other control on the
+ * screen. Title Casing them here would change nothing on the header row
+ * and would put Title Case on a row of controls that has none.
+ *
+ * The same strings are `path[0]` on every catalog item, which is why
+ * that one segment is exempt from the convention below it.
+ */
 const MODULE_LABELS: Readonly<Record<string, string>> = {
   'harmonic-fluency': 'harmonic fluency',
   'ear-training': EAR_TRAINING,

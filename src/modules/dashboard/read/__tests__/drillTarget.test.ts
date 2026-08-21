@@ -38,7 +38,7 @@ describe('intervals — the mechanism already exists', () => {
   it('a direction row drills every interval in that direction', () => {
     // Intervals now hangs under the ear-training module row, so its
     // direction rows sit one level deeper than they used to.
-    const descending = flatten(tree).find(c => c.label === 'descending')!;
+    const descending = flatten(tree).find(c => c.label === 'Descending')!;
     const target = drillTargetFor(descending, 'intervals');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
     expect(target.focusKeys).toHaveLength(13);
@@ -69,7 +69,7 @@ describe('reading — refs pass through as they are', () => {
   it('a merged row hands over BOTH of its stored refs', () => {
     // Conceptual knowledge aggregates count and which. Drilling it must
     // serve both, not just the one the row id happens to resemble.
-    const conceptual = leavesOf(tree).find(n => n.label === 'conceptual knowledge')!;
+    const conceptual = leavesOf(tree).find(n => n.label === 'Conceptual Knowledge')!;
     const target = drillTargetFor(conceptual, 'reading');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
     expect(target.itemRefs).toHaveLength(2);

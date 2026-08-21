@@ -24,6 +24,7 @@ import {
   readingCatalog,
   scalesModesCatalog,
   shapesCatalog,
+  titleCase,
 } from '../catalogs';
 import {
   enumerateAllReadingItems,
@@ -39,8 +40,8 @@ describe('catalog sizes — the denominators', () => {
 
   it('scales & modes: 9 modes × 2 tabs = 18', () => {
     expect(catalogItemCount(scalesModesCatalog)).toBe(18);
-    expect(scalesModesCatalog.items.filter(i => i.label === 'hear simple scale')).toHaveLength(9);
-    expect(scalesModesCatalog.items.filter(i => i.label === 'hear mode in context')).toHaveLength(9);
+    expect(scalesModesCatalog.items.filter(i => i.label === 'Hear Simple Scale')).toHaveLength(9);
+    expect(scalesModesCatalog.items.filter(i => i.label === 'Hear Mode In Context')).toHaveLength(9);
   });
 
   it('chord recognition: 114 — chord x inversion, per chord size', () => {
@@ -95,8 +96,8 @@ describe('reading — 78 signature items over 52 rows', () => {
   });
 
   it('merges count and which into one conceptual-knowledge row', () => {
-    const conceptual = readingCatalog.items.filter(i => i.label === 'conceptual knowledge');
-    const visual = readingCatalog.items.filter(i => i.label === 'visual recognition');
+    const conceptual = readingCatalog.items.filter(i => i.label === 'Conceptual Knowledge');
+    const visual = readingCatalog.items.filter(i => i.label === 'Visual Recognition');
     // 13 signatures × 2 modes = 26 keys, two rows each.
     expect(conceptual).toHaveLength(26);
     expect(visual).toHaveLength(26);
@@ -108,7 +109,7 @@ describe('reading — 78 signature items over 52 rows', () => {
 
   it('keeps 78 items while showing 52 rows', () => {
     const sigRows = readingCatalog.items.filter(
-      i => i.path[1] === 'key signature recognition',
+      i => i.path[1] === 'Key Signature Recognition',
     );
     expect(sigRows).toHaveLength(52);
     expect(sigRows.reduce((n, i) => n + i.itemRefs.length, 0)).toBe(78);
@@ -136,7 +137,7 @@ describe('chord progressions — three sub-drills, one moduleId', () => {
   it('motion-first is a sibling sub-skill on the same 132 denominator', () => {
     expect(refs.filter(r => r.startsWith('motion-first:'))).toHaveLength(132);
     const firstRows = chordProgressionsCatalog.items.filter(
-      i => i.path[3] === 'first chord',
+      i => i.path[3] === 'First Chord',
     );
     expect(firstRows).toHaveLength(132);
   });
@@ -223,6 +224,129 @@ describe('catalog invariants', () => {
   });
 });
 
+describe('titleCase — first letter of each word, nothing else touched', () => {
+  it('capitalises a word start', () => {
+    expect(titleCase('scale degree math')).toBe('Scale Degree Math');
+    expect(titleCase('note recognition')).toBe('Note Recognition');
+  });
+
+  it('leaves the rest of every word exactly as stored', () => {
+    // Lowercasing the tail is what a naive Title Case does, and it
+    // destroys meaning that lives in the case.
+    expect(titleCase('EQ')).toBe('EQ');
+    expect(titleCase('AI era')).toBe('AI Era');
+    expect(titleCase('Ear-Theory Crossover')).toBe('Ear-Theory Crossover');
+    expect(titleCase('major 7th · treble clef')).toBe('Major 7th · Treble Clef');
+    expect(titleCase('2nd inversion')).toBe('2nd Inversion');
+  });
+
+  it('does not break a word at an apostrophe', () => {
+    expect(titleCase("ain't nobody")).toBe("Ain't Nobody");
+    expect(titleCase('don’t look back')).toBe('Don’t Look Back');
+  });
+
+  it('leaves a flat or sharp attached to a degree alone', () => {
+    // THE CASE IS THE MEANING. `b3` is a flat third; `B3` is a note two
+    // octaves below middle C. Chord-motion rows are built from these,
+    // and scale cells carry them mid-label.
+    expect(titleCase('b3')).toBe('b3');
+    expect(titleCase('b2 → 3')).toBe('b2 → 3');
+    // Roman spelling too: `bVII` is a flat-seven chord.
+    expect(titleCase('bVII in a major key')).toBe('bVII In A Major Key');
+    expect(titleCase('eb minor pentatonic — from b3'))
+      .toBe('Eb Minor Pentatonic — From b3');
+    // A `b` that is NOT an accidental still starts a word.
+    expect(titleCase('bass clef')).toBe('Bass Clef');
+    expect(titleCase('below the staff')).toBe('Below The Staff');
+  });
+
+  it('breaks on punctuation and dashes, not only on spaces', () => {
+    expect(titleCase('voice-leading')).toBe('Voice-Leading');
+    expect(titleCase('root–fifth')).toBe('Root–Fifth');
+    expect(titleCase('delay & saturation')).toBe('Delay & Saturation');
+    expect(titleCase('root + ♭7')).toBe('Root + ♭7');
+  });
+
+  it('is idempotent — applying it twice changes nothing', () => {
+    for (const s of ['delay & saturation', 'EQ', 'b2 → 3', "ain't nobody"]) {
+      expect(titleCase(titleCase(s)), s).toBe(titleCase(s));
+    }
+  });
+});
+
+describe('the capitalisation convention, across every catalog', () => {
+  const segments = STATIC_CATALOGS.flatMap(
+    c => c.items.flatMap(i => [...i.path.slice(1)]),
+  );
+
+  it('Title Cases every path segment below the module header', () => {
+    // GUARD THE GUARD. `expect(s).toBe(titleCase(s))` passes vacuously
+    // if titleCase is the identity, or if every segment happens to be a
+    // single already-capitalised word. Assert first that the fixture
+    // holds multi-word segments that Title Case genuinely acted on.
+    expect(segments.some(s => /^\p{Lu}\p{L}* \p{Lu}/u.test(s))).toBe(true);
+    expect(segments.some(s => s.toLowerCase() !== s)).toBe(true);
+
+    for (const catalog of STATIC_CATALOGS) {
+      for (const item of catalog.items) {
+        for (const segment of item.path.slice(1)) {
+          expect(segment, `${catalog.sourceId} · ${segment}`).toBe(titleCase(segment));
+        }
+      }
+    }
+  });
+
+  it('leaves path[0] — the module header — lowercase', () => {
+    // The row component uppercases depth 0 in CSS, and the same strings
+    // are what the module filter pills read, where lowercase matches
+    // every other control. Title Casing here would change nothing on the
+    // header and would put Title Case on a row of controls that has none.
+    for (const catalog of STATIC_CATALOGS) {
+      for (const item of catalog.items) {
+        expect(item.path[0], catalog.sourceId).toBe(item.path[0].toLowerCase());
+      }
+    }
+  });
+
+  it('starts every row label with a capital, bar two stated exceptions', () => {
+    const lower = new Map<string, string[]>();
+    for (const catalog of STATIC_CATALOGS) {
+      for (const item of catalog.items) {
+        const first = /^\p{L}/u.exec(item.label);
+        // A leading accidental is notation, not a word — see titleCase.
+        if (!first || /^[b#][\d\p{Lu}]/u.test(item.label)) continue;
+        if (first[0] !== first[0].toLowerCase()) continue;
+        const bucket = lower.get(catalog.sourceId) ?? [];
+        bucket.push(item.label);
+        lower.set(catalog.sourceId, bucket);
+      }
+    }
+
+    // EXCEPTION ONE, and it is a known gap rather than a decision. The
+    // 96 scale cells and 372 voice-leading cells still render their
+    // stored itemRef as their label (`major:C`) — RULE_LEGIBILITY
+    // §1.8b's predicted recurrence, and not a capitalisation problem,
+    // because casing a raw ref would not make it a label. Pinned at its
+    // exact size so it cannot grow quietly, and so closing it fails here
+    // and asks for this number to go rather than passing silently.
+    expect(lower.get('shapes-and-patterns')).toHaveLength(468);
+
+    // EXCEPTION TWO, and it is correct as it stands. Harmonic fluency's
+    // leaf label is the card's whole QUESTION, left as written — and two
+    // of them open on a lowercase chord symbol, because in roman-numeral
+    // notation the case IS the quality. `bVII` is a flat-seven major and
+    // `iv` a minor four; capitalising either names a different chord.
+    //
+    // `bVII` is skipped above as an accidental, so `iv` is the one that
+    // reaches here. Pinned by count and by content so the exemption
+    // stays this row rather than becoming a blanket pass for the module.
+    expect(lower.get('harmonic-fluency')).toHaveLength(1);
+    expect(lower.get('harmonic-fluency')![0]).toMatch(/^iv /);
+
+    expect([...lower.keys()].sort()).toEqual(['harmonic-fluency', 'shapes-and-patterns']);
+  });
+});
+
 describe('reading labels are read off the catalog, never built from ids', () => {
   const rows = readingCatalog.items;
   const labelsIn = (skill: string) =>
@@ -235,9 +359,14 @@ describe('reading labels are read off the catalog, never built from ids', () => 
     //
     // An id that HAPPENS to equal its own label — `octave` — is not a
     // leak; it is the label, and it arrived through `q.label`.
+    //
+    // Compared against the TITLE CASED label, because that is the
+    // dashboard's convention for everything below a module header. The
+    // id comparison stays case-sensitive on purpose: `maj` reaching a
+    // row is the defect whether or not something capitalised it first.
     for (const q of READING_CHORD_QUALITIES) {
       const row = rows.find(i => i.itemRefs[0].startsWith(`chord:${q.id}:`))!;
-      expect(row.label, q.id).toContain(q.label);
+      expect(row.label, q.id).toContain(titleCase(q.label));
       if (q.id !== q.label) {
         expect(row.label.split(/[\s·]+/), q.id).not.toContain(q.id);
       }
@@ -245,15 +374,15 @@ describe('reading labels are read off the catalog, never built from ids', () => 
   });
 
   it('names a chord row by the three things the picker asks', () => {
-    const labels = labelsIn('chord identification');
-    expect(labels).toContain('root position · major · treble clef');
-    expect(labels).toContain('third inversion · minor 7th · bass clef');
+    const labels = labelsIn('Chord Identification');
+    expect(labels).toContain('Root Position · Major · Treble Clef');
+    expect(labels).toContain('Third Inversion · Minor 7th · Bass Clef');
   });
 
   it('omits the root, because the root is the variable being tested', () => {
     // A row naming one root would describe a card that only sometimes
     // appears.
-    for (const label of labelsIn('chord identification')) {
+    for (const label of labelsIn('Chord Identification')) {
       expect(label, label).not.toMatch(/\b[A-G][#b♯♭]?\b/);
     }
   });
@@ -264,28 +393,28 @@ describe('reading labels are read off the catalog, never built from ids', () => 
     const open = READING_CHORD_QUALITIES.filter(q => q.family === 'open');
     for (const q of open) {
       const row = rows.find(i => i.itemRefs[0].startsWith(`chord:${q.id}:`))!;
-      expect(row.label, q.id).not.toContain('root position');
-      expect(row.label).toContain(q.label);
+      expect(row.label, q.id).not.toContain('Root Position');
+      expect(row.label).toContain(titleCase(q.label));
     }
   });
 
   it('uses the corrected interval names for the two that under-specified', () => {
     // [0,10] is a MINOR seventh and [0,16] a MAJOR tenth; the old
     // labels each described two different shapes.
-    const labels = labelsIn('chord identification');
-    expect(labels.some(l => l.includes('root + ♭7'))).toBe(true);
-    expect(labels.some(l => l.includes('root + major 10th'))).toBe(true);
-    expect(labels.some(l => l.includes('root–seventh'))).toBe(false);
+    const labels = labelsIn('Chord Identification');
+    expect(labels.some(l => l.includes('Root + ♭7'))).toBe(true);
+    expect(labels.some(l => l.includes('Root + Major 10th'))).toBe(true);
+    expect(labels.some(l => l.toLowerCase().includes('root–seventh'))).toBe(false);
   });
 
   it('names a note row by its pitch, not by a staff coordinate', () => {
-    const labels = labelsIn('note recognition');
-    expect(labels).toContain('treble · A3');
+    const labels = labelsIn('Note Recognition');
+    expect(labels).toContain('Treble · A3');
     expect(labels.some(l => /-\d/.test(l))).toBe(false);
   });
 
   it('names a shape row by its inversion in words', () => {
-    expect(labelsIn('notation shapes')).toContain('triad · first inversion');
+    expect(labelsIn('Notation Shapes')).toContain('Triad · First Inversion');
   });
 });
 
@@ -300,10 +429,10 @@ describe('the reading tree is ordered by what depends on what', () => {
       if (skill && order[order.length - 1] !== skill) order.push(skill);
     }
     expect(order).toEqual([
-      'note recognition',
-      'key signature recognition',
-      'notation shapes',
-      'chord identification',
+      'Note Recognition',
+      'Key Signature Recognition',
+      'Notation Shapes',
+      'Chord Identification',
     ]);
   });
 });

@@ -227,11 +227,11 @@ describe('against the real catalogs', () => {
     // submodule sits one level down: ear training > scales & modes >
     // mode > tab.
     const submodule = tree.children[0];
-    expect(submodule.label).toBe('scales & modes');
+    expect(submodule.label).toBe('Scales & Modes');
     expect(submodule.children).toHaveLength(9);
     expect(submodule.children.every(m => m.children.length === 2)).toBe(true);
     expect(submodule.children[0].children.map(t => t.label))
-      .toEqual(['hear simple scale', 'hear mode in context']);
+      .toEqual(['Hear Simple Scale', 'Hear Mode In Context']);
   });
 
   it('an untouched module reads dash, zero coverage, never', () => {

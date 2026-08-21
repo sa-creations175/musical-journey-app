@@ -539,7 +539,7 @@ describe('the controls drive the list', () => {
     click(el.querySelector('[data-testid="grouping-toggle"]')!);
     const flatRows = rowLabels(el);
     expect(flatRows.length).toBeGreaterThan(0);
-    expect(flatRows).toContain('key signature recognition');
+    expect(flatRows).toContain('Key Signature Recognition');
   });
 });
 
