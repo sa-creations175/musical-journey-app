@@ -163,6 +163,37 @@ describe('the panel reads as bullets, with its terms defined first', () => {
     }
   });
 
+  it('marks a cross-reference so it reads as a pointer, not as words', () => {
+    const el = render(<ColumnLegend topic="score" />);
+    const referenced = COLUMN_RULES.score.find(r => r.reference !== undefined)!;
+    expect(referenced, 'no rule on the score panel references another')
+      .toBeDefined();
+    const marks = [...el.querySelectorAll('[data-testid="rule-reference"]')];
+    expect(marks).toHaveLength(1);
+    expect(marks[0].textContent).toBe(referenced.reference);
+
+    // Inside the bullet it belongs to, not floating in the panel.
+    const bullet = marks[0].closest('[data-testid="column-rules"] > li')!;
+    expect(bullet).not.toBeNull();
+    expect(bullet.textContent).toContain(referenced.rule);
+
+    // Marked, never linked: it does not navigate, so it must not look
+    // like it will.
+    expect(marks[0].tagName).toBe('SPAN');
+    expect(bullet.querySelector('a')).toBeNull();
+    expect(bullet.querySelector('button')).toBeNull();
+  });
+
+  it('leaves the surrounding sentence intact around the mark', () => {
+    // Splitting text to wrap a phrase is exactly where a character goes
+    // missing. The bullet must still read as the string it came from.
+    const el = render(<ColumnLegend topic="score" />);
+    const referenced = COLUMN_RULES.score.find(r => r.reference !== undefined)!;
+    const bullet = el.querySelector('[data-testid="rule-reference"]')!
+      .closest('li')!;
+    expect(bullet.textContent).toContain(referenced.why);
+  });
+
   it('defines group row and item row ABOVE the rules that use them', () => {
     const el = render(<ColumnLegend topic="coverage" />);
     const vocabulary = el.querySelector('[data-testid="tree-vocabulary"]')!;

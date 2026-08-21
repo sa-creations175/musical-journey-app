@@ -209,6 +209,24 @@ export interface ColumnRule {
    * itself.
    */
   why?: string;
+  /**
+   * A phrase in this rule's text that names ANOTHER rule in the same
+   * panel, marked so it reads as a pointer rather than as words.
+   *
+   * "see focus practice, below" is a reference; without the marking it
+   * reads as a description of something rather than as the name of a
+   * bullet three lines down.
+   *
+   * Marked, not linked. It does not navigate, so it must not look like
+   * it will — a dotted underline says "this is named elsewhere" where a
+   * link would promise a jump that never comes.
+   *
+   * `bands.test.ts` asserts the phrase both appears in this rule and is
+   * genuinely used by another rule on the same panel. A pointer at
+   * nothing is worse than none, in the same way `aria-controls` naming
+   * a missing id is.
+   */
+  reference?: string;
 }
 
 /** A rule may go unexplained only if it is this short. Anything longer
@@ -252,30 +270,33 @@ export const COLUMN_TOPIC_TITLE: Readonly<Record<ColumnTopic, string>> = {
 export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule>>> = {
   score: [
     {
-      rule: 'Accuracy is your last 20 attempts on an item.',
+      rule: 'Accuracy is derived from your last 20 attempts on an item. A '
+        + 'group row averages the accuracy of the items inside it.',
       why: 'It reads as recent form rather than your whole history. The window '
         + 'rolls forward, so twenty attempts of focused work will move it, and '
-        + 'anything older has already dropped out. A few attempts are held out '
-        + 'of it: see focus practice, below.',
+        + 'anything older has already dropped out of the accuracy score. A few '
+        + 'attempts are held out of the accuracy calculation: see focus '
+        + 'practice, below.',
+      reference: 'focus practice',
     },
     {
       rule: 'A group row shows the rating its average has actually reached, '
         + 'using the fluency key above.',
       why: 'So a group reads at the level its weaker items are holding it to. '
         + 'Three items at comfortable (75) with one at struggled (25) average '
-        + '62.5, which reads working on it (50). When a group sits below most '
-        + 'of what is inside it, opening it shows you which item is pulling it '
-        + 'down.',
+        + '62.5: past working on it (50) but short of comfortable (75), so the '
+        + 'group reads working on it. When a group sits below most of what is '
+        + 'inside it, opening it shows you which item is pulling it down.',
     },
     {
-      rule: 'Focus practice: attempts made with fewer than 4 items selected '
-        + 'stay out of the accuracy score, and still count toward coverage and '
-        + 'recency.',
-      why: 'So you can drill two or three things hard without moving your '
-        + 'accuracy in either direction. With a pool that small a guess is '
-        + 'right one time in three and short-term recall carries the rest, so '
-        + 'the percentage would not mean much. The work still registers as '
-        + 'practice done.',
+      rule: 'Focus practice is a drill setting that narrows the pool to a '
+        + 'handful of items. With fewer than 4 items selected, those attempts '
+        + 'stay out of the accuracy score.',
+      why: 'A pool that small inflates the percentage: a guess is right one '
+        + 'time in three, and short-term recall carries most of the rest. They '
+        + 'still count toward coverage and recency, because the practice '
+        + 'happened. So you can drill two or three things hard without moving '
+        + 'your accuracy in either direction.',
     },
     {
       rule: 'A dash means nothing has been scored on this row yet.',

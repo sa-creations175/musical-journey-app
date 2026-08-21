@@ -113,6 +113,42 @@ function LegendColumn({
   );
 }
 
+/**
+ * Mark a cross-reference inside a rule's text.
+ *
+ * "see focus practice, below" names a bullet three lines down. Without
+ * the marking it reads as a description of something rather than as the
+ * name of a thing you can go and read.
+ *
+ * MARKED, NOT LINKED. It does not navigate, so it must not look like it
+ * will: a dotted underline says "this is named elsewhere on this
+ * panel", where a link would promise a jump that never arrives. Same
+ * reasoning as the chevron that is only rendered where there is
+ * something to toggle.
+ *
+ * Returns the text unchanged when there is no reference, or when the
+ * phrase is not in this half of the rule — a reference lives in one of
+ * `rule` and `why`, and both are passed through here.
+ */
+function marked(text: string, reference: string | undefined): React.ReactNode {
+  if (reference === undefined) return text;
+  const at = text.indexOf(reference);
+  if (at < 0) return text;
+  return (
+    <>
+      {text.slice(0, at)}
+      <span
+        data-testid="rule-reference"
+        className="underline decoration-dotted underline-offset-2
+          text-neutral-700 dark:text-neutral-200"
+      >
+        {reference}
+      </span>
+      {text.slice(at + reference.length)}
+    </>
+  );
+}
+
 export default function ColumnLegend({ topic }: { topic: ColumnTopic }) {
   return (
     <div
@@ -161,14 +197,16 @@ export default function ColumnLegend({ topic }: { topic: ColumnTopic }) {
           line over an indented paragraph reads as a wall of text at
           this density — which is what it was. */}
       <ul data-testid="column-rules" className="space-y-1.5">
-        {COLUMN_RULES[topic].map(({ rule, why }) => (
+        {COLUMN_RULES[topic].map(({ rule, why, reference }) => (
           <li key={rule} className="flex gap-1.5 text-[11px] leading-snug">
             <span aria-hidden="true" className="shrink-0 text-neutral-400">·</span>
             <span className="text-neutral-500 dark:text-neutral-400">
-              <span className="text-neutral-700 dark:text-neutral-200">{rule}</span>
+              <span className="text-neutral-700 dark:text-neutral-200">
+                {marked(rule, reference)}
+              </span>
               {/* The WHY, always, and on the same line. A rule without
                   its reason reads as an arbitrary constraint. */}
-              {' — '}{why}
+              {why !== undefined && <>{' — '}{marked(why, reference)}</>}
             </span>
           </li>
         ))}

@@ -301,6 +301,32 @@ describe('the copy obeys its own writing rules', () => {
     }
   });
 
+  it('points every cross-reference at a rule that exists', () => {
+    // A pointer at nothing is worse than none, the same way an
+    // `aria-controls` naming a missing id is: it is a confident claim
+    // that something is explained elsewhere.
+    let found = 0;
+    for (const topic of topics) {
+      const rules = COLUMN_RULES[topic];
+      for (const { rule, why, reference } of rules) {
+        if (reference === undefined) continue;
+        found += 1;
+        // Present in its own text, or the renderer marks nothing.
+        expect(`${rule} ${why ?? ''}`, reference).toContain(reference);
+        // And genuinely used by ANOTHER rule on the same panel — the
+        // half that makes it a reference rather than a phrase.
+        const elsewhere = rules.filter(
+          r => r.rule !== rule
+            && `${r.rule} ${r.why ?? ''}`.toLowerCase().includes(reference.toLowerCase()),
+        );
+        expect(elsewhere.length, `"${reference}" names no other rule in ${topic}`)
+          .toBeGreaterThan(0);
+      }
+    }
+    // Guard the guard: passes vacuously if nothing references anything.
+    expect(found).toBeGreaterThan(0);
+  });
+
   it('explains rather than defends', () => {
     // THE REFRAME, and the same guard the row copy carries. The first
     // version of this panel argued against alternatives nobody
