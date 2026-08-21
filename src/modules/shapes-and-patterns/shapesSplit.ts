@@ -65,6 +65,7 @@ import {
   type SPTier,
 } from './spTiers';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
+import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
 import {
   SCALES_SEGMENT_LONG_BLOCK_SECONDS,
   SCALES_SEGMENT_LONG_SECONDS,
@@ -131,6 +132,15 @@ const SCALES_LADDER: ReadonlyArray<ScaleKind> = [
 // ---------------------------------------------------------------------
 
 export interface ShapesSplitContext {
+  /**
+   * How key names in generated block LABELS are spelled. The cells
+   * those blocks carry keep identity refs regardless — this is the
+   * reading of them only.
+   *
+   * Optional, defaulting to the app default, so a caller that has not
+   * been updated reads as "the usual spelling" rather than throwing.
+   */
+  spelling?: Spelling;
   /** spacingState rows keyed by itemRef — supplies lastEngagedAt
    *  for the starting-key pick and nextDueAt for the "due cells"
    *  check. Rows for itemRefs outside the block are ignored. */
@@ -312,7 +322,7 @@ function rotateToStart(start: string): string[] {
  *      "voicings" for extension/special only; mixed becomes
  *      "inversions + voicings".
  */
-function formatShapesLabel(cells: ReadonlyArray<ShapeCell>): string {
+function formatShapesLabel(cells: ReadonlyArray<ShapeCell>, spelling: Spelling): string {
   const qualityShortNames: string[] = [];
   const seenQualities = new Set<string>();
   for (const c of cells) {
@@ -327,7 +337,10 @@ function formatShapesLabel(cells: ReadonlyArray<ShapeCell>): string {
   for (const c of cells) {
     if (!seenKeys.has(c.keyName)) {
       seenKeys.add(c.keyName);
-      keys.push(c.keyName);
+      // Dedupe on the IDENTITY, push the SPELLING — deduping on the
+      // spelled name would be fine today and wrong the moment two
+      // identities ever share one display name.
+      keys.push(spellKey(c.keyName, spelling));
     }
   }
 
@@ -417,7 +430,7 @@ function buildShapesWalk(
     kind: 'shapes-walk',
     itemRefs: kept.map(c => c.itemRef),
     plannedSeconds,
-    label: formatShapesLabel(kept),
+    label: formatShapesLabel(kept, ctx.spelling ?? DEFAULT_SPELLING),
     why: `${kept.length} drill${kept.length === 1 ? '' : 's'} across ${
       uniqueKeyCount
     } key${uniqueKeyCount === 1 ? '' : 's'} — circle-of-fourths order`,
@@ -671,14 +684,14 @@ function buildScaleLadder(
  * Three families combine with " + " before the last item so the
  * line reads like English: "major, minor + pentatonics".
  */
-function formatScalesLabel(steps: ReadonlyArray<ScaleLadderStep>): string {
+function formatScalesLabel(steps: ReadonlyArray<ScaleLadderStep>, spelling: Spelling): string {
   const orderedKeys: string[] = [];
   const seenKeys = new Set<string>();
   const kinds = new Set<ScaleKind>();
   for (const s of steps) {
     if (!seenKeys.has(s.keyName)) {
       seenKeys.add(s.keyName);
-      orderedKeys.push(s.keyName);
+      orderedKeys.push(spellKey(s.keyName, spelling));
     }
     kinds.add(s.kind);
   }
@@ -756,7 +769,7 @@ function buildScalesSegment(
     // warm-up length (which can exceed the budget when the 60s floor
     // bites). See the prepItemBreakdown floored weights below.
     plannedSeconds: steps.reduce((sum, s) => sum + s.seconds, 0),
-    label: formatScalesLabel(steps),
+    label: formatScalesLabel(steps, ctx.spelling ?? DEFAULT_SPELLING),
     why: formatScalesWhy(steps),
   };
 }
@@ -993,7 +1006,7 @@ function buildVoiceLeadingSegment(
     kind: 'voice-leading',
     itemRefs: kept.map(c => c.itemRef),
     plannedSeconds,
-    label: formatVoiceLeadingLabel(kept),
+    label: formatVoiceLeadingLabel(kept, ctx.spelling ?? DEFAULT_SPELLING),
     why: formatVoiceLeadingWhy(kept),
   };
 }
@@ -1004,7 +1017,7 @@ function buildVoiceLeadingSegment(
  *
  * Truncates pattern labels and keys to keep the line readable when
  * the cell pool fans wide. */
-function formatVoiceLeadingLabel(cells: ReadonlyArray<VLCell>): string {
+function formatVoiceLeadingLabel(cells: ReadonlyArray<VLCell>, spelling: Spelling): string {
   const seenPatterns = new Set<string>();
   const patternLabels: string[] = [];
   for (const c of cells) {
@@ -1018,7 +1031,7 @@ function formatVoiceLeadingLabel(cells: ReadonlyArray<VLCell>): string {
   for (const c of cells) {
     if (!seenKeys.has(c.keyName)) {
       seenKeys.add(c.keyName);
-      keys.push(c.keyName);
+      keys.push(spellKey(c.keyName, spelling));
     }
   }
   const patternPart = patternLabels.length <= 2
@@ -1153,7 +1166,7 @@ function buildScalesSegmentWithBudget(
     // warm-up length (which can exceed the budget when the 60s floor
     // bites). See the prepItemBreakdown floored weights below.
     plannedSeconds: steps.reduce((sum, s) => sum + s.seconds, 0),
-    label: formatScalesLabel(steps),
+    label: formatScalesLabel(steps, ctx.spelling ?? DEFAULT_SPELLING),
     why: formatScalesWhy(steps),
   };
 }

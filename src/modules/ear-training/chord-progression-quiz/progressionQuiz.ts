@@ -28,6 +28,7 @@ import {
   renderRoman,
 } from '../../repertoire/chordFunction';
 import { intervalColor } from '../../../lib/voicingColors';
+import { DEFAULT_SPELLING, type Spelling } from '../../../lib/spelling';
 
 /** Spacing-state moduleRef for every progression-quiz item. Must match
  *  the placeholder ref reserved in sessionAlgorithm/sessionDesign.ts
@@ -206,8 +207,9 @@ export function romanTokens(chords: ChordFunction[]): string[] {
 export function concreteTokens(
   chords: ChordFunction[],
   songKey: string | undefined,
+  spelling: Spelling = DEFAULT_SPELLING,
 ): string[] {
-  return collapseProgression(chords).map(c => renderConcrete(c, songKey));
+  return collapseProgression(chords).map(c => renderConcrete(c, songKey, spelling));
 }
 
 /** Joined Roman-numeral line, the canonical comparison + display string
@@ -220,8 +222,9 @@ export function romanLine(chords: ChordFunction[]): string {
 export function concreteLine(
   chords: ChordFunction[],
   songKey: string | undefined,
+  spelling: Spelling = DEFAULT_SPELLING,
 ): string {
-  return concreteTokens(chords, songKey).join(' - ');
+  return concreteTokens(chords, songKey, spelling).join(' - ');
 }
 
 /** Key-independent signature of a progression (collapsed number notation),

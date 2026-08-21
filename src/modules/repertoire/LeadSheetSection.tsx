@@ -73,6 +73,7 @@ import {
 import { useAddedFromRepertoireSet } from '../ear-training/useEtCurations';
 import { useToast } from '../../components/Toaster';
 import { useNotationMode } from '../../lib/notationPref';
+import { useSpelling } from '../../lib/spellingPref';
 import {
   normalizeArrangements,
   normalizePhrase,
@@ -364,6 +365,7 @@ export default function LeadSheetSection({
   // Same source the grid cells read, so the sequence strip and the
   // cells can never disagree about notation.
   const [notationMode] = useNotationMode();
+  const [spelling] = useSpelling();
   const isDark = useIsDarkMode();
 
   const [showNotes, setShowNotes] = useState(Boolean(section.notes));
@@ -976,7 +978,7 @@ export default function LeadSheetSection({
     // typed label, so notating this cannot leak a notation-specific
     // string into stored data.
     const patternLabel = pending.numerals
-      .map(n => patternNumeralToDisplay(n, notationMode, song.key))
+      .map(n => patternNumeralToDisplay(n, notationMode, song.key, spelling))
       .join(' → ');
     await setAddedFromRepertoire(id, true);
     if (trimmed !== '') {
@@ -1888,12 +1890,12 @@ export default function LeadSheetSection({
     const map = new Map<string, { text: string; color: string }>();
     for (const s of detectionSequence) {
       map.set(s.placementId, {
-        text: chordToDisplay(s.chord, notationMode, song.key),
+        text: chordToDisplay(s.chord, notationMode, song.key, spelling),
         color: chordPalette(s.chord, isDark).text,
       });
     }
     return map;
-  }, [detectionSequence, notationMode, song.key, isDark]);
+  }, [detectionSequence, notationMode, song.key, spelling, isDark]);
 
   /** Live token order — the anchor set the view's annotations resolve
    *  against. Deliberately UNFILTERED: hiding is applied when phrases
@@ -2634,7 +2636,7 @@ export default function LeadSheetSection({
                       >
                         <span className="font-mono text-neutral-700 dark:text-neutral-200">
                           {m.numerals
-                            .map(n => patternNumeralToDisplay(n, notationMode, song.key))
+                            .map(n => patternNumeralToDisplay(n, notationMode, song.key, spelling))
                             .join(' → ')}
                         </span>
                         <span className="text-neutral-400">{barLabel}</span>
@@ -2674,7 +2676,7 @@ export default function LeadSheetSection({
                 <div className="rounded border border-fluent/40 bg-fluent/5 p-2 space-y-2 max-w-sm">
                   <div className="font-mono text-neutral-700 dark:text-neutral-200">
                     {addingPattern.numerals
-                      .map(n => patternNumeralToDisplay(n, notationMode, song.key))
+                      .map(n => patternNumeralToDisplay(n, notationMode, song.key, spelling))
                       .join(' → ')}
                   </div>
                   <input

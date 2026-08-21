@@ -6,6 +6,8 @@ import VoiceLeadingDrillModal from './VoiceLeadingDrillModal';
 import { VOICE_LEADING_PATTERNS } from './catalog';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 
@@ -36,6 +38,7 @@ interface DisplayPattern {
  * defaults; pattern labels are editable inline.
  */
 export default function VoiceLeadingDrills() {
+  const [spelling] = useSpelling();
   const [custom, setCustom] = useState<CustomPattern[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -127,7 +130,7 @@ export default function VoiceLeadingDrills() {
         for (const s of matching) {
           const keyName = s.keyName ?? '';
           await db.drillSkills.update(s.id, {
-            label: `${trimmed} in ${keyName}`,
+            label: `${trimmed} in ${spellKey(keyName, spelling)}`,
           });
         }
       });

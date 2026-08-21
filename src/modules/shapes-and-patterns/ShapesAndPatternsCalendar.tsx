@@ -4,6 +4,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type DrillSession } from '../../lib/db';
 import { localDayKey } from '../../lib/dailyGoal';
 import { formatDuration } from './drillModel';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 const WEEKS = 26; // Roughly 6 months of history at the default zoom.
 
@@ -14,6 +16,7 @@ const WEEKS = 26; // Roughly 6 months of history at the default zoom.
  * columns stay Sunday-aligned.
  */
 export default function ShapesAndPatternsCalendar() {
+  const [spelling] = useSpelling();
   const sessions = useLiveQuery<DrillSession[]>(
     () => db.drillSessions.toArray(),
     [],
@@ -82,7 +85,7 @@ export default function ShapesAndPatternsCalendar() {
                     key={ri}
                     className={`w-3.5 h-3.5 rounded-sm ${cell ? intensity(cell.minutes) : 'bg-transparent'}`}
                     title={cell
-                      ? `${cell.key} · ${cell.minutes} min${cell.minutes === 1 ? '' : 's'}${cell.minutes === 0 ? ' (no drills)' : ''}`
+                      ? `${spellKey(cell.key, spelling)} · ${cell.minutes} min${cell.minutes === 1 ? '' : 's'}${cell.minutes === 0 ? ' (no drills)' : ''}`
                       : undefined}
                   />
                 ))}

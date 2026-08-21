@@ -1,6 +1,10 @@
+import { pitchClassOf as sharedPitchClassOf } from '../../lib/spelling';
 import type { SongChord } from '../../lib/db';
 
 // Map note names (sharp + flat spellings) to pitch class 0..11.
+// Pitch classes come from the one seam, which also accepts the ♭ / ♯
+// signs — so a chord symbol copied off a rendered lead sheet parses
+// back in rather than falling to `unparsed`.
 const PITCH_CLASS: Record<string, number> = {
   'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4,
   'F': 5, 'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9,
@@ -131,9 +135,10 @@ export function parseChord(raw: string): ParsedChord {
   };
 }
 
-/** Pitch class 0..11 for a root note name, or -1 if unrecognised. */
+/** Pitch class 0..11 for a root note name, or -1 if unrecognised.
+ *  Delegates to the shared seam so symbol-spelled names resolve too. */
 export function pitchClassOf(noteName: string): number {
-  return PITCH_CLASS[noteName] ?? -1;
+  return sharedPitchClassOf(noteName) ?? -1;
 }
 
 /**

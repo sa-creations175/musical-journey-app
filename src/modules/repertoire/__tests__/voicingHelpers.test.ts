@@ -25,12 +25,20 @@ describe('chordRootNote', () => {
     expect(chordRootNote('C', '5')).toBe('G');
   });
 
-  it('spells with flats in flat-leaning keys', () => {
-    // 4 in Bb → Eb (not D#).
-    expect(chordRootNote('Bb', '4')).toBe('Eb');
-    // F major prefers flats.
-    expect(chordRootNote('F', '7')).toBe('E');
-    expect(chordRootNote('F', '4')).toBe('Bb');
+  it('spells the resolved root in the requested spelling', () => {
+    // Used to derive the accidentals from the key ("flat-leaning keys
+    // get flats"). The reader chooses now; the key only picks the pitch.
+    // 4 in Bb is the fourth degree either way — E♭ or D♯, one pitch.
+    expect(chordRootNote('Bb', '4', 'flat')).toBe('E\u266D');
+    expect(chordRootNote('Bb', '4', 'sharp')).toBe('D\u266F');
+    // Naturals read the same in both.
+    expect(chordRootNote('F', '7', 'flat')).toBe('E');
+    expect(chordRootNote('F', '7', 'sharp')).toBe('E');
+    expect(chordRootNote('F', '4', 'flat')).toBe('B\u266D');
+  });
+
+  it('defaults to flats when no spelling is given', () => {
+    expect(chordRootNote('Bb', '4')).toBe('E\u266D');
   });
 
   it('returns empty string for an unknown key or degree', () => {
@@ -63,13 +71,14 @@ describe('notesFromVoicing', () => {
   it('renders offsets back to note names with sharp spelling', () => {
     // Natural root, key prefers sharps → G#/D#.
     expect(notesFromVoicing('E', [0, 4, 7, 11], false)).toEqual([
-      'E', 'G#', 'B', 'D#',
+      'E', 'G\u266F', 'B', 'D\u266F',
     ]);
   });
 
   it('renders offsets with flats for a flat root', () => {
     // Same maj7 offsets, root Eb → Eb G Bb D (flat default).
-    expect(notesFromVoicing('Eb', [0, 4, 7, 11])).toEqual(['Eb', 'G', 'Bb', 'D']);
+    expect(notesFromVoicing('Eb', [0, 4, 7, 11]))
+      .toEqual(['E\u266D', 'G', 'B\u266D', 'D']);
   });
 
   it('transposes: identical offsets, different keys', () => {
@@ -77,10 +86,10 @@ describe('notesFromVoicing', () => {
     const rootB = chordRootNote('B', '4'); // E (B prefers sharps)
     const rootBb = chordRootNote('Bb', '4'); // Eb (Bb prefers flats)
     expect(notesFromVoicing(rootB, [0, 4, 7, 11], false)).toEqual([
-      'E', 'G#', 'B', 'D#',
+      'E', 'G\u266F', 'B', 'D\u266F',
     ]);
     expect(notesFromVoicing(rootBb, [0, 4, 7, 11], true)).toEqual([
-      'Eb', 'G', 'Bb', 'D',
+      'E\u266D', 'G', 'B\u266D', 'D',
     ]);
   });
 

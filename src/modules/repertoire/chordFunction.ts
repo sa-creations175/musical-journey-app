@@ -1,4 +1,10 @@
 import type { ChordFunction } from '../../lib/db';
+import {
+  NOTE_NAMES_FLAT as SPELLED_FLAT,
+  NOTE_NAMES_SHARP as SPELLED_SHARP,
+  pitchClassOf,
+  type Spelling,
+} from '../../lib/spelling';
 
 // Functional-chord parser, renderer, and conversion helpers.
 //
@@ -27,16 +33,14 @@ export const SEMI_BY_DEGREE: Record<string, number> = {
   '1': 0, 'b2': 1, '2': 2, 'b3': 3, '3': 4, '4': 5,
   '#4': 6, 'b5': 6, '5': 7, 'b6': 8, '6': 9, 'b7': 10, '7': 11,
 };
-// Keep two parallel tables so display honours the key's preferred
-// accidentals. Flats dominate in the functional label convention, so
-// we default to the flat note names at render time.
-export const NOTE_NAMES_FLAT =  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-export const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const PITCH_CLASS: Record<string, number> = {
-  C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4,
-  F: 5, 'F#': 6, Gb: 6, G: 7, 'G#': 8, Ab: 8, A: 9,
-  'A#': 10, Bb: 10, B: 11,
-};
+// Note-name tables now come from `lib/spelling` — one pair for the
+// whole app, carrying the real ♭ / ♯ signs. Re-exported so existing
+// repertoire importers are unchanged.
+//
+// These are DISPLAY tables. Anything building a lookup key wants the
+// ASCII pair (`NOTE_NAMES_*_ASCII`) instead; see lib/spelling's header.
+export const NOTE_NAMES_FLAT = SPELLED_FLAT;
+export const NOTE_NAMES_SHARP = SPELLED_SHARP;
 
 const ROMAN_UPPER = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 const ROMAN_LOWER = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
@@ -49,14 +53,22 @@ const ROMAN_LOWER = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii'];
  * the input isn't a recognised key.
  */
 export function pitchClassOfKey(key: string): number {
-  const trimmed = key.trim();
-  const pc = PITCH_CLASS[trimmed];
-  return pc === undefined ? -1 : pc;
+  return pitchClassOf(key) ?? -1;
 }
 
+/**
+ * @deprecated Spelling is the USER'S choice now, not the key's.
+ *
+ * This derived accidentals from the key name itself — F# got sharps,
+ * Bb got flats — which is a reasonable default and the wrong owner. It
+ * also meant one song could not be read in flats while another was
+ * read in sharps, which is the whole point of the per-song override.
+ *
+ * Callers should take a `Spelling` and pass it down. Kept only so the
+ * two remaining derivations (shapes catalog, mental-viz voicing) can be
+ * removed in their own commit rather than inside this one.
+ */
 export function keyPrefersFlats(key: string): boolean {
-  // Tonal convention: keys with flat accidentals in their signature
-  // prefer flat spellings; F major also prefers flats (has Bb).
   return /b$/.test(key) || key === 'F';
 }
 
@@ -147,12 +159,16 @@ function parseRomanNotation(input: string): ChordFunction | null {
 
 function parseConcreteNotation(input: string, sectionKey?: string): ChordFunction | null {
   const { chord, bass } = splitSlash(input);
-  const rootMatch = chord.match(/^([A-G])([#b]?)(.*)$/);
+  // Accepts the ♭ / ♯ signs alongside ASCII b / #, because the app now
+  // RENDERS the signs — a chord symbol copied off a lead sheet and
+  // pasted back into a cell has to parse, or the display and the input
+  // disagree about what a chord name looks like.
+  const rootMatch = chord.match(/^([A-G])([#b\u266D\u266F]?)(.*)$/);
   if (!rootMatch) return null;
   const [, letter, accidental, rest] = rootMatch;
   const rootName = letter + accidental;
-  const rootPc = PITCH_CLASS[rootName];
-  if (rootPc === undefined) return null;
+  const rootPc = pitchClassOf(rootName);
+  if (rootPc === null) return null;
   const quality = rest.trim();
 
   if (!sectionKey) {
@@ -168,11 +184,11 @@ function parseConcreteNotation(input: string, sectionKey?: string): ChordFunctio
   const fn = DEGREE_BY_SEMI[interval];
   const result: ChordFunction = { function: fn, quality, raw: input };
   if (bass !== '') {
-    const bm = bass.match(/^([A-G])([#b]?)/);
+    const bm = bass.match(/^([A-G])([#b\u266D\u266F]?)/);
     if (bm) {
       const bassName = bm[1] + (bm[2] ?? '');
-      const bassPc = PITCH_CLASS[bassName];
-      if (bassPc !== undefined) {
+      const bassPc = pitchClassOf(bassName);
+      if (bassPc !== null) {
         const bassInterval = ((bassPc - keyPc) % 12 + 12) % 12;
         result.bass = DEGREE_BY_SEMI[bassInterval];
       }
@@ -264,14 +280,18 @@ export function renderRoman(cf: ChordFunction): string {
 }
 
 /** Concrete-chord-name display. Requires the section's key. */
-export function renderConcrete(cf: ChordFunction, sectionKey?: string): string {
+export function renderConcrete(
+  cf: ChordFunction,
+  sectionKey: string | undefined,
+  spelling: Spelling,
+): string {
   if (cf.unparsed) return cf.raw ?? '';
   if (!sectionKey) return renderNumbers(cf);
   const keyPc = pitchClassOfKey(sectionKey);
   if (keyPc < 0) return renderNumbers(cf);
   const semi = SEMI_BY_DEGREE[cf.function];
   if (semi === undefined) return renderNumbers(cf);
-  const names = keyPrefersFlats(sectionKey) ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
+  const names = spelling === 'flat' ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
   const rootName = names[(keyPc + semi) % 12];
   let out = rootName + cf.quality;
   if (cf.bass) {
@@ -286,12 +306,13 @@ export function renderConcrete(cf: ChordFunction, sectionKey?: string): string {
 export function renderChordFunction(
   cf: ChordFunction,
   mode: NotationMode,
-  sectionKey?: string,
+  sectionKey: string | undefined,
+  spelling: Spelling,
 ): string {
   switch (mode) {
     case 'numbers':  return renderNumbers(cf);
     case 'roman':    return renderRoman(cf);
-    case 'concrete': return renderConcrete(cf, sectionKey);
+    case 'concrete': return renderConcrete(cf, sectionKey, spelling);
     case 'stacked':  return renderNumbers(cf);
   }
 }
@@ -307,11 +328,12 @@ export function renderChordFunction(
 export function chordToDisplay(
   chord: ChordFunction | undefined,
   mode: NotationMode,
-  sectionKey?: string,
+  sectionKey: string | undefined,
+  spelling: Spelling,
 ): string {
   if (!chord || isEmpty(chord)) return '';
   if (chord.unparsed) return chord.raw ?? '';
-  return renderChordFunction(chord, mode, sectionKey);
+  return renderChordFunction(chord, mode, sectionKey, spelling);
 }
 
 // --- Detection-pattern numerals -------------------------------------
@@ -348,7 +370,8 @@ export function chordToDisplay(
 export function patternNumeralToDisplay(
   numeral: string,
   mode: NotationMode,
-  sectionKey?: string,
+  sectionKey: string | undefined,
+  spelling: Spelling,
 ): string {
   if (mode === 'roman') return numeral;
   const parsed = parsePatternNumeral(numeral);
@@ -360,6 +383,7 @@ export function patternNumeralToDisplay(
     },
     mode,
     sectionKey,
+    spelling,
   );
 }
 

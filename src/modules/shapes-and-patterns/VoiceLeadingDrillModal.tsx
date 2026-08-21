@@ -56,6 +56,8 @@ import {
 import type { DrillSession } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   /** Canonical VL sub-cell itemRef. The grid tap supplies this
@@ -100,6 +102,7 @@ export default function VoiceLeadingDrillModal({
   canGoPrevious,
   canGoNext,
 }: Props) {
+  const [spelling] = useSpelling();
   const metroState = useMetronomeState();
   const desc = useMemo(() => parseVoiceLeadingItemRef(itemRef), [itemRef]);
   const pattern = desc ? VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId) : undefined;
@@ -287,7 +290,7 @@ export default function VoiceLeadingDrillModal({
 
   const belowMin = elapsedSeconds < MIN_REP_SECONDS;
   const title = pattern && keyName
-    ? `${pattern.label} in ${keyName}`
+    ? `${pattern.label} in ${spellKey(keyName, spelling)}`
     : 'Voice-leading drill';
   const suggestionLabel = sessionTargetSeconds !== undefined
     ? `~${sessionTargetSeconds}s in this session`

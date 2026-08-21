@@ -44,47 +44,50 @@ describe('patternNumeralToDisplay — catalog templates in the reader\'s notatio
     // ChordFunction would fire the case rule AND an explicit suffix,
     // giving "Imaj" / "iimin".
     for (const n of ['ii', 'V', 'I', 'vi', 'IV', 'VII']) {
-      expect(patternNumeralToDisplay(n, 'roman')).toBe(n);
+      expect(patternNumeralToDisplay(n, 'roman', undefined, 'flat')).toBe(n);
     }
   });
 
   it('renders numbers with case spelled out as a quality suffix', () => {
-    expect(patternNumeralToDisplay('ii', 'numbers')).toBe('2min');
-    expect(patternNumeralToDisplay('V', 'numbers')).toBe('5maj');
-    expect(patternNumeralToDisplay('I', 'numbers')).toBe('1maj');
-    expect(patternNumeralToDisplay('vi', 'numbers')).toBe('6min');
-    expect(patternNumeralToDisplay('VII', 'numbers')).toBe('7maj');
+    expect(patternNumeralToDisplay('ii', 'numbers', undefined, 'flat')).toBe('2min');
+    expect(patternNumeralToDisplay('V', 'numbers', undefined, 'flat')).toBe('5maj');
+    expect(patternNumeralToDisplay('I', 'numbers', undefined, 'flat')).toBe('1maj');
+    expect(patternNumeralToDisplay('vi', 'numbers', undefined, 'flat')).toBe('6min');
+    expect(patternNumeralToDisplay('VII', 'numbers', undefined, 'flat')).toBe('7maj');
   });
 
   it('treats stacked as numbers, matching renderChordFunction', () => {
-    expect(patternNumeralToDisplay('ii', 'stacked')).toBe('2min');
+    expect(patternNumeralToDisplay('ii', 'stacked', undefined, 'flat')).toBe('2min');
   });
 
   it('renders concrete against the section key', () => {
-    expect(patternNumeralToDisplay('ii', 'concrete', 'C')).toBe('Dmin');
-    expect(patternNumeralToDisplay('V', 'concrete', 'C')).toBe('Gmaj');
-    expect(patternNumeralToDisplay('I', 'concrete', 'Ab')).toBe('Abmaj');
+    expect(patternNumeralToDisplay('ii', 'concrete', 'C', 'flat')).toBe('Dmin');
+    expect(patternNumeralToDisplay('V', 'concrete', 'C', 'flat')).toBe('Gmaj');
+    expect(patternNumeralToDisplay('I', 'concrete', 'Ab', 'flat')).toBe('A\u266Dmaj');
+    // Same pitch, the other spelling — the key is unchanged, the
+    // reading of it is not.
+    expect(patternNumeralToDisplay('I', 'concrete', 'Ab', 'sharp')).toBe('G\u266Fmaj');
   });
 
   it('covers every numeral the detection catalog actually ships', () => {
     // The full set in DETECTION_PATTERNS as of rev 5.
     const shipped = ['I', 'II', 'III', 'IV', 'V', 'VII', 'ii', 'vi'];
     for (const n of shipped) {
-      expect(patternNumeralToDisplay(n, 'numbers')).toMatch(/^[1-7](min|maj)$/);
+      expect(patternNumeralToDisplay(n, 'numbers', undefined, 'flat')).toMatch(/^[1-7](min|maj)$/);
     }
   });
 
   it('handles accidentals the catalog does not carry yet', () => {
     // No bVII entry exists today; it must not fall back to raw text if
     // one is added.
-    expect(patternNumeralToDisplay('bVII', 'numbers')).toBe('b7maj');
-    expect(patternNumeralToDisplay('bIII', 'numbers')).toBe('b3maj');
+    expect(patternNumeralToDisplay('bVII', 'numbers', undefined, 'flat')).toBe('b7maj');
+    expect(patternNumeralToDisplay('bIII', 'numbers', undefined, 'flat')).toBe('b3maj');
   });
 
   it('returns an unrecognised token unchanged rather than dropping it', () => {
     // A pattern identity is more useful mangled than missing.
-    expect(patternNumeralToDisplay('', 'numbers')).toBe('');
-    expect(patternNumeralToDisplay('N.C.', 'numbers')).toBe('N.C.');
-    expect(patternNumeralToDisplay('VIII', 'numbers')).toBe('VIII');
+    expect(patternNumeralToDisplay('', 'numbers', undefined, 'flat')).toBe('');
+    expect(patternNumeralToDisplay('N.C.', 'numbers', undefined, 'flat')).toBe('N.C.');
+    expect(patternNumeralToDisplay('VIII', 'numbers', undefined, 'flat')).toBe('VIII');
   });
 });

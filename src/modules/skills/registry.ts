@@ -13,6 +13,7 @@ import {
 } from '../../lib/db';
 import { computeTier, type Tier } from '../../lib/tier';
 import { normaliseStage } from '../repertoire/stage';
+import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
 import {
   bucketAttemptsForCatalog,
   tierAndLastFromAttempts,
@@ -63,20 +64,33 @@ export const CHORD_MOTION_CATALOG = [
  * Detection tab trains. Per-item tiers aren't wired yet so we emit
  * them as concept entries (null tier / null freshness).
  */
-export const KEY_DETECTION_CATALOG = [
-  { id: 'C',  label: 'C major' },
-  { id: 'Db', label: 'D♭ major' },
-  { id: 'D',  label: 'D major' },
-  { id: 'Eb', label: 'E♭ major' },
-  { id: 'E',  label: 'E major' },
-  { id: 'F',  label: 'F major' },
-  { id: 'F#', label: 'F# major' },
-  { id: 'G',  label: 'G major' },
-  { id: 'Ab', label: 'A♭ major' },
-  { id: 'A',  label: 'A major' },
-  { id: 'Bb', label: 'B♭ major' },
-  { id: 'B',  label: 'B major' },
+/**
+ * `id` is the IDENTITY — the ASCII key name the drill's attempts are
+ * recorded under. `label` is DERIVED from it rather than written out,
+ * because a hand-maintained pair of columns is how they disagree.
+ *
+ * They already had. Four of the five black keys were spelled with a
+ * real ♭ ('D♭ major') and the fifth with an ASCII '#' ('F# major') —
+ * so this one catalog rendered two different alphabets, and the sixth
+ * key showed a sharp on a screen where everything else showed flats.
+ *
+ * The label now follows the user's spelling setting via `spellKey`;
+ * `KEY_DETECTION_CATALOG` keeps the identity ids so stored attempts
+ * still resolve.
+ */
+export const KEY_DETECTION_KEY_IDS = [
+  'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
 ] as const;
+
+export function keyDetectionCatalog(spelling: Spelling) {
+  return KEY_DETECTION_KEY_IDS.map(id => ({
+    id,
+    label: `${spellKey(id, spelling)} major`,
+  }));
+}
+
+/** Default-spelling view, for callers with no user context to hand. */
+export const KEY_DETECTION_CATALOG = keyDetectionCatalog(DEFAULT_SPELLING);
 
 // --- Canonical skill IDs -------------------------------------------
 //

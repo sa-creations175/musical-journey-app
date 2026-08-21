@@ -35,6 +35,8 @@ import {
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingGridRows,
 } from '../shapes-and-patterns/catalog';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   /** The drilled itemRefs from the block (e.g. ['scale:major:C','scale:major:F'] or
@@ -102,6 +104,7 @@ const ACTIVITY_SUBTITLE: Record<Activity, string> = {
 };
 
 export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
+  const [spelling] = useSpelling();
   const spacingRows = useLiveQuery<SpacingState[]>(
     () => db.spacingState.where('moduleRef').equals('shapes-and-patterns').toArray(), []) ?? [];
 
@@ -216,7 +219,7 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
                     : 'text-neutral-500 dark:text-neutral-400 border-b border-transparent')
                 }
               >
-                {k}
+                {spellKey(k, spelling)}
               </div>
             );
           })}

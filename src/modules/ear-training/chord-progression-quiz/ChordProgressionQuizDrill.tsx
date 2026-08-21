@@ -17,6 +17,7 @@ import Modal from '../../../components/Modal';
 import { recordEngagement } from '../../../lib/spacingState';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import { renderConcrete, renderNumbers } from '../../repertoire/chordFunction';
+import { useSpelling } from '../../../lib/spellingPref';
 import {
   CHORD_PROGRESSION_QUIZ_MODULE_REF,
   buildBarCountOptions,
@@ -103,6 +104,7 @@ export default function ChordProgressionQuizDrill({
    *  draw from the full library (other songs). */
   songId?: string;
 }) {
+  const [spelling] = useSpelling();
   const [allItems, setAllItems] = useState<ProgressionQuizItem[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -402,7 +404,7 @@ export default function ChordProgressionQuizDrill({
                     </span>
                     {concreteKey && (
                       <span className="text-sm text-neutral-700 dark:text-neutral-200">
-                        {renderConcrete(ch, concreteKey)}
+                        {renderConcrete(ch, concreteKey, spelling)}
                       </span>
                     )}
                   </div>

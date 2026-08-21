@@ -104,13 +104,19 @@ describe('loadShapesSplitContext — song keys are NOT threaded into the warm-up
     expect((ctx as unknown as Record<string, unknown>).sotmAnchorKey).toBeUndefined();
   });
 
-  it('returns only spacing-state-relevant fields (rowsByItemRef, unlockedTier, now, scalesGoalDueSeconds)', async () => {
+  it('carries no song-derived field — only spacing state, and the display spelling', async () => {
+    // `spelling` joined this list when the S&P block labels started
+    // reading the user's setting. It is deliberately NOT a song-derived
+    // field, which is what this test guards: it comes from userPrefs,
+    // is used for LABELS only, and the song below still contributes
+    // nothing to the context.
     await db.songs.add(song({ id: 's1', key: 'Db', stage: 'learning' }));
     const ctx = await loadShapesSplitContext([], NOW);
     expect(Object.keys(ctx).sort()).toEqual([
       'now',
       'rowsByItemRef',
       'scalesGoalDueSeconds',
+      'spelling',
       'unlockedTier',
     ]);
   });

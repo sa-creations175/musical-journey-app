@@ -168,6 +168,9 @@ import type {
   ProposalCardData,
 } from './proposalTypes';
 import type { InputQuestionnaireResult } from './inputs';
+import { SPELLING_PREF_KEY } from '../../lib/spellingPref';
+import { DEFAULT_SPELLING, type Spelling } from '../../lib/spelling';
+import { getPref } from '../../lib/userPrefs';
 
 /**
  * Build proposals from the questionnaire result. Async because it
@@ -1111,6 +1114,11 @@ export async function loadShapesSplitContext(
     unlockedTier,
     now,
     scalesGoalDueSeconds,
+    // Same reasoning as loadRepertoireSplitContext: read once at the
+    // single loader so the three S&P label builders cannot spell
+    // differently from each other or from the repertoire blocks
+    // sitting beside them in the same proposal.
+    spelling: await getPref<Spelling>(SPELLING_PREF_KEY, DEFAULT_SPELLING),
   };
 }
 

@@ -26,7 +26,8 @@ import {
   cellKey,
   findSyllable,
 } from './lyricSyllables';
-import { chordToDisplay, keyPrefersFlats, parseChordFunction } from './chordFunction';
+import { chordToDisplay, parseChordFunction } from './chordFunction';
+import { useSpelling } from '../../lib/spellingPref';
 import { pitchClassOf } from './chordParser';
 import { chordRootNote, normalizeVoicing, sanitizeVoicing } from './voicingHelpers';
 import PianoKeyboard from '../../components/PianoKeyboard';
@@ -2608,19 +2609,20 @@ function ChordAddPopover({
 }) {
   const [draft, setDraft] = useState('');
   const trimmed = draft.trim();
+  const [spelling] = useSpelling();
   const parsed = trimmed === '' ? null : parseChordFunction(trimmed, sectionKey);
   const isReady =
     parsed !== null &&
     (parsed.function !== '' || parsed.quality !== '' || Boolean(parsed.bass));
   const previewText = parsed
-    ? chordToDisplay(parsed, notationMode, sectionKey)
+    ? chordToDisplay(parsed, notationMode, sectionKey, spelling)
     : '';
   const submit = () => {
     if (!parsed || !isReady) return;
     onSubmit(parsed);
   };
   const copiedText = copiedChord
-    ? chordToDisplay(copiedChord, notationMode, sectionKey)
+    ? chordToDisplay(copiedChord, notationMode, sectionKey, spelling)
     : '';
   return (
     <div
@@ -2805,7 +2807,8 @@ function ChordCellBox({
   dragStyle?: CSSProperties;
   extraClassName?: string;
 }) {
-  const text = chordToDisplay(cell.chord, notationMode, sectionKey);
+  const [spelling] = useSpelling();
+  const text = chordToDisplay(cell.chord, notationMode, sectionKey, spelling);
   const hasVoicing = Boolean(cell.voicing && cell.voicing.length > 0);
   const isDark = useIsDarkMode();
   const palette = chordPalette(cell.chord, isDark);
@@ -2967,7 +2970,8 @@ function ChordEditorPopover({
   const chordBeats = cell.beats;
   const canDec = chordBeats > 1;
   const canInc = chordBeats < barSlots;
-  const text = chordToDisplay(cell.chord, notationMode, sectionKey);
+  const [spelling] = useSpelling();
+  const text = chordToDisplay(cell.chord, notationMode, sectionKey, spelling);
 
   const manualTag = cell.chord.harmonicTag;
   const autoOnly = manualTag === undefined;
@@ -2982,12 +2986,16 @@ function ChordEditorPopover({
   // Save commits via onVoicingChange. (The popover is keyed by
   // placementId at the render site, so this local state resets cleanly
   // when the user opens a different chord.)
-  const rootNote = sectionKey ? chordRootNote(sectionKey, cell.chord.function) : '';
+  const rootNote = sectionKey ? chordRootNote(sectionKey, cell.chord.function, spelling) : '';
   const rootPc = pitchClassOf(rootNote);
   const canVoice = Boolean(onVoicingChange) && rootPc >= 0;
   const savedVoicing = cell.voicing;
   const hasVoicing = Boolean(savedVoicing && savedVoicing.length > 0);
-  const preferFlats = sectionKey ? keyPrefersFlats(sectionKey) : true;
+  // Was derived from the key name (`keyPrefersFlats`). Spelling is the
+  // user's choice now, so the popover keyboard reads the same setting
+  // as the chord symbol above it — the two disagreeing on one popover
+  // was the shape this whole seam exists to prevent.
+  const preferFlats = spelling === 'flat';
   const [editingVoicing, setEditingVoicing] = useState(false);
   const [draftVoicing, setDraftVoicing] = useState<VoicingEntry[]>([]);
   // "Save to library" naming flow: when set, an inline name field is shown

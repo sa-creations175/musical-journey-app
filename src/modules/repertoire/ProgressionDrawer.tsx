@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useNotationMode } from '../../lib/notationPref';
+import { useSpelling } from '../../lib/spellingPref';
 import { chordToDisplay, patternNumeralToDisplay } from './chordFunction';
 import { chordPalette, useIsDarkMode } from './chordColors';
 import { ChoicesAnchor, type SequenceTarget } from './SequenceChoices';
@@ -82,6 +83,7 @@ export default function ProgressionDrawer({
   undoLabel?: string;
 }) {
   const [notationMode] = useNotationMode();
+  const [spelling] = useSpelling();
   const isDark = useIsDarkMode();
   const [editing, setEditing] = useState(false);
   /** Hidden chords are OFF by default — a clean read is the whole
@@ -111,7 +113,7 @@ export default function ProgressionDrawer({
   const totalChords = sections.reduce((n, s) => n + s.order.length, 0);
 
   const labelFor = (t: ProgressionToken) =>
-    chordToDisplay(t.chord, notationMode, songKey);
+    chordToDisplay(t.chord, notationMode, songKey, spelling);
 
   /** Props for the choices row at one trigger. Built once so the four
    *  anchors cannot drift apart on what they offer — the divergence
@@ -476,7 +478,7 @@ export default function ProgressionDrawer({
                         {section.patterns.map((m, i) => (
                           <li key={`${m.patternId}-${m.matchIndex}-${i}`}>
                             {m.numerals
-                              .map(n => patternNumeralToDisplay(n, notationMode, songKey))
+                              .map(n => patternNumeralToDisplay(n, notationMode, songKey, spelling))
                               .join(' · ')}
                             <span className="text-neutral-400">
                               {' '}

@@ -11,9 +11,9 @@ import {
   NOTE_NAMES_FLAT,
   NOTE_NAMES_SHARP,
   SEMI_BY_DEGREE,
-  keyPrefersFlats,
   pitchClassOfKey,
 } from './chordFunction';
+import { DEFAULT_SPELLING, type Spelling } from '../../lib/spelling';
 import { pitchClassOf } from './chordParser';
 
 // The interval-coloring system + voicing normalization moved to the
@@ -25,12 +25,18 @@ export { intervalColor, normalizeVoicing, sanitizeVoicing } from '../../lib/voic
 /** Resolve the concrete root note name for a chord from the song key
  *  and the chord's scale degree (e.g. "4maj7" in B → degree "4" →
  *  root "E"). Returns '' when the key or degree can't be resolved. */
-export function chordRootNote(songKey: string, scaleDegree: string): string {
+export function chordRootNote(
+  songKey: string,
+  scaleDegree: string,
+  spelling: Spelling = DEFAULT_SPELLING,
+): string {
   const keyPc = pitchClassOfKey(songKey);
   if (keyPc < 0) return '';
   const semi = SEMI_BY_DEGREE[scaleDegree];
   if (semi === undefined) return '';
-  const names = keyPrefersFlats(songKey) ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
+  // Was `keyPrefersFlats(songKey)` — the key chose the accidentals.
+  // The reader chooses them now; the key only decides which pitch.
+  const names = spelling === 'flat' ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP;
   return names[(keyPc + semi) % 12];
 }
 
@@ -57,13 +63,18 @@ export function semitonesFromRoot(
 /** Convert semitone offsets back to note names for display. Handles
  *  octave-aware offsets (0–23) by folding to pitch class — a note name
  *  is octave-agnostic, so offset 4 and offset 16 both render the same
- *  name. Spelling: pass `preferFlats` (derived from the song key) for
- *  key-correct accidentals; when omitted it's inferred from the root's
- *  own accidental (sharp root → sharps, otherwise flats). */
+ *  name.
+ *
+ *  Spelling: pass `preferFlats` from the user's setting. The fallback
+ *  infers it from the root's own accidental, which is only ever right
+ *  by luck — it exists so a caller that has not been converted yet
+ *  produces something readable rather than throwing. It now also
+ *  recognises the ♯ sign, not just ASCII '#', or a sharp-spelled root
+ *  would have silently flipped the rest of the voicing to flats. */
 export function notesFromVoicing(
   rootNote: string,
   voicing: number[],
-  preferFlats: boolean = !rootNote.includes('#'),
+  preferFlats: boolean = !/[#\u266F]/.test(rootNote),
 ): string[] {
   const rootPc = pitchClassOf(rootNote);
   if (rootPc < 0) return [];

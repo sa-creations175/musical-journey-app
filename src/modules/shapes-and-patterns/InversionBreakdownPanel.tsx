@@ -21,6 +21,8 @@ import {
   findAllChordShapeSkillsForCell,
   humanAgo,
 } from './drillModel';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 type SelfAssessmentLevel = 'not_started' | 'familiar' | 'comfortable';
 
@@ -54,6 +56,7 @@ interface Props {
  * single row, effectively forwarding to DrillListModal directly.
  */
 export default function InversionBreakdownPanel({ keyName, quality, onClose }: Props) {
+  const [spelling] = useSpelling();
   // Two modal states:
   //   - `openSession`: the skill row has exactly one drill type
   //     (the seed) — start that drill immediately.
@@ -233,7 +236,7 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
   // trailing inversion-state suffix the labelFor helper appends.
   const cellLabel = (() => {
     const root = skills.find(s => (s.inversionState ?? null) === 'root') ?? skills[0];
-    if (!root?.label) return `${keyName}${qualityEntry?.suffix ?? ''}`;
+    if (!root?.label) return `${spellKey(keyName, spelling)}${qualityEntry?.suffix ?? ''}`;
     const dashIdx = root.label.indexOf(' — ');
     return dashIdx > 0 ? root.label.slice(0, dashIdx) : root.label;
   })();
