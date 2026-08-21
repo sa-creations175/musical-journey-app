@@ -90,6 +90,7 @@ import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import StageCriteriaPanel from './StageCriteriaPanel';
 import SectionGuidance from './SectionGuidance';
+import SongTimerStrip from './SongTimerStrip';
 import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
 import CellAnchoredMessage from './CellAnchoredMessage';
@@ -2012,6 +2013,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             + log a practice session
           </button>
         </div>
+        {/* Above the record it will add a row to, so the timer and
+            what it produces read as one thing. */}
+        <SongTimerStrip song={song} songs={songs} />
         <SongHeatmap logs={logs} />
         <PracticeHistory logs={logs} sections={sections} />
       </section>
