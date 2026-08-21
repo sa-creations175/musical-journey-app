@@ -25,11 +25,14 @@ import {
   SCALE_CELLS,
   MAJOR_PENT_STARTING_POINTS,
   MINOR_PENT_STARTING_POINTS,
+  scaleCellLabel,
   type ScaleCell,
   type ScaleKind,
   type PentStartingPoint,
 } from './scaleSkills';
 import { CIRCLE_OF_FOURTHS } from './spTiers';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 import ScalesDrillModal from './ScalesDrillModal';
 import ThreeBandCell, { type BandStage } from './ThreeBandCell';
 
@@ -271,6 +274,7 @@ function ScaleGroupBlock({
   handStagesOf: (itemRef: string) => { left: BandStage; right: BandStage; both: BandStage };
   onCellClick: (cell: ScaleCell) => void;
 }) {
+  const [spelling] = useSpelling();
   const groupCells = group.rows.flatMap(r => r.cells);
   const counts = countCells(groupCells, stageOf);
 
@@ -301,7 +305,9 @@ function ScaleGroupBlock({
                 key={k}
                 className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
               >
-                {k}
+                {/* Label only. CIRCLE_OF_FOURTHS is still the identity
+                    vocabulary the cells are keyed on. */}
+                {spellKey(k, spelling)}
               </div>
             ))}
           </div>
@@ -325,7 +331,7 @@ function ScaleGroupBlock({
                     left={hands.left}
                     right={hands.right}
                     both={hands.both}
-                    title={`${cell.label} — LH / RH / Both`}
+                    title={`${scaleCellLabel(cell, spelling)} — LH / RH / Both`}
                     onClick={() => onCellClick(cell)}
                   />
                 );

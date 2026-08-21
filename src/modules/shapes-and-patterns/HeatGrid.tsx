@@ -17,6 +17,8 @@ import DrillListModal from './DrillListModal';
 import InversionBreakdownPanel from './InversionBreakdownPanel';
 import ThreeBandCell, { type BandStage } from './ThreeBandCell';
 import { KEYS_CIRCLE_OF_FOURTHS } from './catalog';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface RowMeta {
   /** Stable id for React keys. */
@@ -49,6 +51,7 @@ interface Props {
  *     default drill types if it didn't exist yet).
  */
 export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAccent }: Props) {
+  const [spelling] = useSpelling();
   const [openSkill, setOpenSkill] = useState<DrillSkill | null>(null);
   // Phase 4 inversion redesign — chord-shape cells route to the
   // breakdown panel (one row per inversion state). Other kinds
@@ -135,7 +138,10 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
               key={k}
               className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
             >
-              {k}
+              {/* `k` stays the identity everywhere below (React key,
+                  descriptorFor, itemRef lookups); only the LABEL is
+                  re-spelled. See lib/spelling.ts. */}
+              {spellKey(k, spelling)}
             </div>
           ))}
         </div>

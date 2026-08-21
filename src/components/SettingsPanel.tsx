@@ -6,6 +6,8 @@ import { useUserName } from '../modules/dashboard/userName';
 import { useAuth } from '../lib/auth/useAuth';
 import { useSyncStatus } from '../lib/sync/useSyncStatus';
 import { useDevMode } from '../lib/devMode';
+import { SPELLING_LABEL, useSpelling } from '../lib/spellingPref';
+import type { Spelling } from '../lib/spelling';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
 import {
@@ -30,6 +32,41 @@ type Status =
 
 function formatDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/**
+ * Enharmonic spelling — how the app names the five black keys.
+ *
+ * Says "display" and means it: this changes names, never data. The
+ * underlying pitches, and every stored key name they are addressed by,
+ * are untouched — which is the promise `lib/spelling.ts` exists to
+ * keep, and worth stating where the user can flip the switch.
+ */
+function SpellingSection() {
+  const [spelling, setSpelling] = useSpelling();
+  return (
+    <section>
+      <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+        note &amp; key spelling
+      </h4>
+      <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
+        how the five black keys are named across drills, grids and charts.
+      </p>
+      <select
+        value={spelling}
+        onChange={e => { void setSpelling(e.target.value as Spelling); }}
+        className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+      >
+        {(Object.keys(SPELLING_LABEL) as Spelling[]).map(s => (
+          <option key={s} value={s}>{SPELLING_LABEL[s]}</option>
+        ))}
+      </select>
+      <p className="text-xs text-neutral-500 mt-2">
+        display only — the same twelve pitches either way, and no practice
+        data changes.
+      </p>
+    </section>
+  );
 }
 
 function AccountSection() {
@@ -293,6 +330,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
           {/* Sits directly under data backup & restore: same concern —
               getting practice data safely off and onto this device —
               and the merge procedure needs both together. */}
+          <SpellingSection />
+
           <SyncDiagnosticsSection />
 
           <RepertoireKeyDiagnostics />

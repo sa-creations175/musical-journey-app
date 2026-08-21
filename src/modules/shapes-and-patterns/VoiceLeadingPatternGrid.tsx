@@ -25,6 +25,8 @@ import {
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingGridRows,
 } from './catalog';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   /** Pattern id — built-in or custom. Custom ids aren't in the
@@ -63,6 +65,7 @@ const STAGE_LEGEND_LABEL: Readonly<Record<StageBucket, string>> = {
 };
 
 export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props) {
+  const [spelling] = useSpelling();
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
 
   // Pull every spacingState row whose itemRef belongs to this
@@ -115,7 +118,9 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
               key={k}
               className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
             >
-              {k}
+              {/* Label only — `k` remains the identity passed to
+                  row.itemRefForKey below. See lib/spelling.ts. */}
+              {spellKey(k, spelling)}
             </div>
           ))}
         </div>
@@ -138,7 +143,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             {KEYS_CIRCLE_OF_FOURTHS.map(k => {
               const itemRef = row.itemRefForKey(k);
               const bucket = bucketFor(stageByItemRef.get(itemRef));
-              const title = `${row.label} in ${k} — ${STAGE_LEGEND_LABEL[bucket]}`;
+              const title = `${row.label} in ${spellKey(k, spelling)} — ${STAGE_LEGEND_LABEL[bucket]}`;
               return (
                 <button
                   key={k}

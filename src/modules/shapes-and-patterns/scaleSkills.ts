@@ -32,6 +32,7 @@
  */
 
 import { CIRCLE_OF_FOURTHS } from '../repertoire/circleOfFourths';
+import { spellKey, type Spelling } from '../../lib/spelling';
 
 // ---------------------------------------------------------------------
 // Types
@@ -250,15 +251,39 @@ export function getScaleTier(itemRef: string): ScaleTier {
 
 /** Human label for a scale itemRef. Returns null when the itemRef
  *  isn't a recognised scale — composes with proposal-label fallback
- *  paths the same way `labelForShapesItemRef` does. */
-export function labelForScaleItemRef(itemRef: string): string | null {
+ *  paths the same way `labelForShapesItemRef` does.
+ *
+ *  Pass `spelling` for anything the user will read. Omitting it keeps
+ *  the catalog's own key vocabulary, which is the right choice only
+ *  for ids, logs and tests. */
+export function labelForScaleItemRef(
+  itemRef: string,
+  spelling?: Spelling,
+): string | null {
   const desc = parseScaleItemRef(itemRef);
   if (!desc) return null;
-  return labelFor(desc);
+  return labelFor(desc, spelling);
 }
 
-function labelFor(desc: ScaleDescriptor): string {
-  const base = `${desc.keyName} ${SCALE_KIND_LABEL[desc.kind]}`;
+/**
+ * Display label for a catalog cell in the reader's spelling.
+ *
+ * `ScaleCell.label` is baked at module load, before any user setting
+ * exists, so it carries the CATALOG's spelling and must not be shown
+ * as-is. This is the display path; that field is the identity one.
+ */
+export function scaleCellLabel(cell: ScaleCell, spelling: Spelling): string {
+  // Via the itemRef round-trip rather than re-composing from the cell's
+  // fields: `parseScaleItemRef` is the one place that knows how a
+  // descriptor decomposes, and a second composer here is how the two
+  // would drift. Falls back to the baked label if a ref ever fails to
+  // parse — unreachable for catalog cells, which are built from it.
+  return labelForScaleItemRef(cell.itemRef, spelling) ?? cell.label;
+}
+
+function labelFor(desc: ScaleDescriptor, spelling?: Spelling): string {
+  const key = spelling ? spellKey(desc.keyName, spelling) : desc.keyName;
+  const base = `${key} ${SCALE_KIND_LABEL[desc.kind]}`;
   switch (desc.kind) {
     case 'major':
     case 'natural-minor':

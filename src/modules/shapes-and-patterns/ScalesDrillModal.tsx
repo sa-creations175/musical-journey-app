@@ -47,6 +47,8 @@ import {
 } from './drillModel';
 import { relativeMajorOf } from './spTiers';
 import type { ScaleCell } from './scaleSkills';
+import { spellKey, type Spelling } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 import type { DrillSession } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
@@ -105,10 +107,11 @@ function suggestedDurationFor(cell: ScaleCell): number {
   return SCALE_KIND_SECONDS[cell.kind];
 }
 
-function cellTitle(cell: ScaleCell): string {
+function cellTitle(cell: ScaleCell, spelling: Spelling): string {
+  const key = spellKey(cell.keyName, spelling);
   return cell.startingPoint
-    ? `${cell.keyName} ${labelForKind(cell.kind)} — from ${cell.startingPoint}`
-    : `${cell.keyName} ${labelForKind(cell.kind)}`;
+    ? `${key} ${labelForKind(cell.kind)} — from ${cell.startingPoint}`
+    : `${key} ${labelForKind(cell.kind)}`;
 }
 
 function labelForKind(kind: ScaleCell['kind']): string {
@@ -130,6 +133,7 @@ export default function ScalesDrillModal({
   canGoPrevious,
   canGoNext,
 }: Props) {
+  const [spelling] = useSpelling();
   const metroState = useMetronomeState();
   const suggested = suggestedDurationFor(cell);
   // Launched by the in-session runner (per-item time supplied) → the
@@ -336,7 +340,7 @@ export default function ScalesDrillModal({
   };
 
   const belowMin = elapsedSeconds < MIN_REP_SECONDS;
-  const title = cellTitle(cell);
+  const title = cellTitle(cell, spelling);
   // Display: countdown in setup/running/paused, elapsed in assess.
   const displaySeconds = phase === 'assess' ? elapsedSeconds : remainingSeconds;
 
@@ -344,7 +348,9 @@ export default function ScalesDrillModal({
   // assess phase. Per design doc: drilling C natural minor primes
   // the user for Eb major next.
   const showRelativeMajor = cell.kind === 'natural-minor' && phase === 'assess';
-  const relativeMajor = showRelativeMajor ? relativeMajorOf(cell.keyName) : null;
+  const relativeMajor = showRelativeMajor
+    ? spellKey(relativeMajorOf(cell.keyName), spelling)
+    : null;
 
   return (
     <Modal
@@ -568,7 +574,7 @@ export default function ScalesDrillModal({
                 Relative major
               </div>
               <div className="text-neutral-700 dark:text-neutral-200">
-                <span className="font-mono">{cell.keyName} natural minor</span>
+                <span className="font-mono">{spellKey(cell.keyName, spelling)} natural minor</span>
                 {' → relative major: '}
                 <span className="font-mono font-medium">{relativeMajor}</span>
               </div>
