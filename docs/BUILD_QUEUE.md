@@ -31,9 +31,34 @@ couldn't tell you which sections" is a complete record. Test is per section per
 key and is the one that can fail. Until both exist, an hour of noodling and a
 clean run-through are the same row.
 
-**State.** Designed and audited. Steps 1–2 shipped. **Paused mid-flight for a
-drawer bug and never resumed** — so the first job is finding where it stopped,
-not starting.
+**State, corrected 21 Aug 2026. Not paused — the test half is finished.** The
+previous entry said "paused mid-flight for a drawer bug and never resumed,"
+which described a moment that has since been overtaken and sends the next
+reader looking for a stopped build that is not there.
+
+**What shipped is the whole step-3a thread, across 20–21 August 2026.** Listed
+in the order it landed. **The step numbers are plan order, not ship order** —
+3a-7 shipped before 3a-6, because 3a-6 was waiting on decisions that 3a-7's
+work produced.
+
+| Landed | Step | What |
+|---|---|---|
+| 20 Aug | 3a | The at-tempo rule reads run-throughs instead of the dead `atTargetTempo` field |
+| 20 Aug | 3a-2 | Quadrant membership and the key-hold primitives |
+| 20 Aug | 3a-3 | Rules 1 and 2 rewritten, and no rule names its own destination |
+| 21 Aug | 3a-4 | `logSingleKeyRun` — a run-through in any key without doing the depth work there first |
+| 21 Aug | 3a-5 | Cross-key → Internalized as depth in four plus breadth across twelve; maintenance demoted from a rung to a mode; the @deprecated `songCrossKeyProgress` read retired |
+| 21 Aug | 3a-7 | A metronome in the cell modal, and a way past the whole-song test gate |
+| 21 Aug | — | Three follow-ups from using it: the test ungated and renamed **Test song**, three visible streak slots with a reset you can watch happen, and the last 30 days in a key grouped by sitting |
+| 21 Aug | 3a-6a | `stageCriteria` as the single definition, with `evaluateAdvancement` derived from it — the rules are legible before they fire |
+| 21 Aug | 3a-6b | The song-page guidance layer: what each section is for and how to use it |
+
+**What is left is the PRACTICE half — the two-mode surface at the top of this
+entry, which is unstarted.** No persistent timer, no activity multi-select, no
+section tags; `PracticeLogModal` is still the only practice writer and is still
+mounted in `SongDetailView`. So the first job is building it, not finding where
+it stopped. Its retirement is the trigger for item 4's cross-key decision —
+check that entry before starting, not after.
 
 **Design.** `DASHBOARD_REDESIGN_DESIGN.md` → *Module trees → Song Repertoire →
 Practice and test are different events*. The dashboard already reads both:
