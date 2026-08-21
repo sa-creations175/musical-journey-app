@@ -25,6 +25,7 @@
  * same principle as the screen opening nearly empty.
  */
 import { FEEL_OPTIONS } from '../../lib/fluencyScale';
+import { FLUENCY_POOL_RULE } from '../../lib/fluencyPool';
 import type { AccuracyKind } from './read/itemStats';
 
 export type Band = 'red' | 'amber' | 'yellow-green' | 'green';
@@ -290,8 +291,7 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
     },
     {
       rule: 'Focus practice is a drill setting that narrows the pool to a '
-        + 'handful of items. With fewer than 4 items selected, those attempts '
-        + 'stay out of the accuracy score.',
+        + `handful of items. ${FLUENCY_POOL_RULE}`,
       why: 'A pool that small inflates the percentage: a guess is right one '
         + 'time in three, and short-term recall carries most of the rest. They '
         + 'still count toward coverage and recency, because the practice '
@@ -379,7 +379,7 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
       rule: 'Recency counts every attempt, including the ones the accuracy '
         + 'score leaves out.',
       why: 'So it always tells you when you last worked on something, whatever '
-        + 'came of it. Focus practice with fewer than 4 items selected, and '
+        + `came of it. ${FLUENCY_POOL_RULE} Focus practice under that, and `
         + 'repertoire sessions logged without a test, both stay out of the '
         + 'accuracy score and both show up here.',
     },

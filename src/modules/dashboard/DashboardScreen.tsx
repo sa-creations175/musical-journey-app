@@ -38,7 +38,12 @@ import {
   type FilterContext,
   type ModuleTree,
 } from './read/query';
-import { drillTargetFor } from './read/drillTarget';
+import {
+  drillTargetFor,
+  smallPoolPromptFor,
+  type FilteredDrillTarget,
+  type SmallPoolPrompt,
+} from './read/drillTarget';
 import type { TreeNode } from './read/tree';
 import {
   highlightFor,
@@ -126,6 +131,14 @@ interface VisibleRow {
   moduleId: string;
   /** Index path from the module root — the URL's address for it. */
   indexPath: number[];
+  /**
+   * This row's ancestors, root first.
+   *
+   * Carried because the under-4 prompt has to climb: a row whose pool
+   * is too small to count offers the nearest ancestor whose pool is
+   * not, and only the walk knows where a row sits.
+   */
+  ancestors: TreeNode[];
   /** Trailing module name, flat view only. */
   moduleLabel?: string;
 }
@@ -143,6 +156,7 @@ function visibleDescendants(
   basePath: number[],
   expanded: ReadonlySet<string>,
   sortChildren: (children: TreeNode[]) => TreeNode[],
+  ancestors: TreeNode[],
 ): VisibleRow[] {
   const key = expansionKey(moduleId, basePath);
   if (basePath.length > 0 && !expanded.has(key)) return [];
@@ -150,10 +164,13 @@ function visibleDescendants(
   // Children render in SORTED order but are addressed by their built
   // index, so re-sorting cannot move which rows are open.
   const indexOf = new Map(node.children.map((child, i) => [child, i]));
+  const chain = [...ancestors, node];
   for (const child of sortChildren(node.children)) {
     const indexPath = [...basePath, indexOf.get(child)!];
-    out.push({ node: child, moduleId, indexPath });
-    out.push(...visibleDescendants(child, moduleId, indexPath, expanded, sortChildren));
+    out.push({ node: child, moduleId, indexPath, ancestors: chain });
+    out.push(
+      ...visibleDescendants(child, moduleId, indexPath, expanded, sortChildren, chain),
+    );
   }
   return out;
 }
@@ -245,16 +262,19 @@ export default function DashboardScreen({
             node: row.node,
             moduleId: row.moduleId,
             indexPath: base,
+            ancestors: [module.root],
             moduleLabel: row.moduleLabel,
           },
-          ...visibleDescendants(row.node, row.moduleId, base, expanded, sortChildren),
+          ...visibleDescendants(
+            row.node, row.moduleId, base, expanded, sortChildren, [module.root],
+          ),
         ];
       });
     }
 
     return groupedView(modules, viewSpec, ctx).flatMap(({ module, submodules }) => {
       const out: VisibleRow[] = [
-        { node: module.root, moduleId: module.moduleId, indexPath: [] },
+        { node: module.root, moduleId: module.moduleId, indexPath: [], ancestors: [] },
       ];
       // A collapsed module renders as its header row alone. Six rows
       // instead of forty-four, which is a different way of looking at
@@ -266,9 +286,16 @@ export default function DashboardScreen({
       );
       for (const submodule of submodules) {
         const base = [indexOf.get(submodule)!];
-        out.push({ node: submodule, moduleId: module.moduleId, indexPath: base });
+        out.push({
+          node: submodule,
+          moduleId: module.moduleId,
+          indexPath: base,
+          ancestors: [module.root],
+        });
         out.push(
-          ...visibleDescendants(submodule, module.moduleId, base, expanded, sortChildren),
+          ...visibleDescendants(
+            submodule, module.moduleId, base, expanded, sortChildren, [module.root],
+          ),
         );
       }
       return out;
@@ -296,6 +323,21 @@ export default function DashboardScreen({
   }, []);
 
   /**
+   * The row whose pool is too small to count, if one was just tapped.
+   *
+   * Component state and one at a time, like the info panel: it answers
+   * something you did a moment ago and is not a view worth coming back
+   * to. Nothing has navigated when it opens — both ways out are in it.
+   */
+  const [smallPool, setSmallPool] = useState<
+    { nodeId: string; prompt: SmallPoolPrompt } | null
+  >(null);
+
+  const goToDrill = useCallback((target: FilteredDrillTarget) => {
+    navigate(`${target.route}?focus=${encodeURIComponent(target.focusKeys.join(','))}`);
+  }, [navigate]);
+
+  /**
    * Navigate to the drill.
    *
    * A filtered target carries its items in the URL as `focus`, in the
@@ -313,11 +355,19 @@ export default function DashboardScreen({
   const onDrill = useCallback((row: VisibleRow) => {
     const target = drillTargetFor(row.node, row.moduleId);
     if (target.kind === 'filtered' && target.focusKeys.length > 0) {
-      navigate(`${target.route}?focus=${encodeURIComponent(target.focusKeys.join(','))}`);
+      // Under the minimum, say so before going. You tap a single weak
+      // item BECAUSE it is weak, and that is the drill that will not
+      // count; finding out afterwards means the work is already done.
+      const prompt = smallPoolPromptFor(row.node, row.ancestors, row.moduleId);
+      if (prompt) {
+        setSmallPool({ nodeId: row.node.id, prompt });
+        return;
+      }
+      goToDrill(target);
       return;
     }
     navigate(target.route);
-  }, [navigate]);
+  }, [navigate, goToDrill]);
 
   if (loading) {
     return (
@@ -373,6 +423,22 @@ export default function DashboardScreen({
               compareActive={comparison?.parentId === row.node.id}
               onCompare={() => onCompare(row)}
               onDrill={() => onDrill(row)}
+              {...(smallPool?.nodeId === row.node.id
+                ? {
+                  drillPrompt: smallPool.prompt,
+                  onDrillOffer: () => {
+                    const offer = smallPool.prompt.offer;
+                    setSmallPool(null);
+                    if (offer) goToDrill(offer.target);
+                  },
+                  onDrillAnyway: () => {
+                    const target = drillTargetFor(row.node, row.moduleId);
+                    setSmallPool(null);
+                    if (target.kind === 'filtered') goToDrill(target);
+                  },
+                  onDismissDrillPrompt: () => setSmallPool(null),
+                }
+                : {})}
               infoOpen={openInfoId === row.node.id}
               onToggleInfo={() => onToggleInfo(row.node.id)}
               noteContext={noteContext}

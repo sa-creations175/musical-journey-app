@@ -42,6 +42,14 @@ async function renderAt(entry: string): Promise<HTMLDivElement> {
   return container;
 }
 
+/** The notice, by its own testid rather than by its words — the
+ *  wording is one shared sentence and belongs to `lib/fluencyPool`,
+ *  so matching on a phrase here would fail on a rewrite that changed
+ *  nothing about whether the rule fired. */
+function protectionNotice(el: HTMLElement): Element | null {
+  return el.querySelector('[data-testid="fluency-protection-notice"]');
+}
+
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
   container?.remove();
@@ -64,6 +72,6 @@ describe('?focus= reaches the quiz', () => {
   it('carries focus protection in from the URL', async () => {
     const el = await renderAt('/ear-training/intervals?focus=m7|desc');
     expect(el.textContent).toContain('1 interval selected');
-    expect(el.textContent).toMatch(/fewer than 4 items|don't count toward fluency/i);
+    expect(protectionNotice(el)).not.toBeNull();
   });
 });

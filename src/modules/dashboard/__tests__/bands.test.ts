@@ -7,6 +7,7 @@
  * renders as 0 days and claims you practised today.
  */
 import { describe, expect, it } from 'vitest';
+import { FLUENCY_POOL_RULE } from '../../../lib/fluencyPool';
 import {
   ACCURACY_LEGEND,
   COLUMN_RULES,
@@ -222,7 +223,9 @@ describe('column rules — what each one says, and that it says why', () => {
     const said = (topic: ColumnTopic) =>
       COLUMN_RULES[topic].map(r => `${r.rule} ${r.why ?? ''}`).join(' ');
     expect(said('score')).toContain('last 20 attempts');
-    expect(said('score')).toContain('fewer than 4 items');
+    // The rule is stated in one place and rendered by three surfaces,
+    // so the assertion names the source rather than a copy of it.
+    expect(said('score')).toContain(FLUENCY_POOL_RULE);
     expect(said('score')).toMatch(/rating its average has actually reached/);
     expect(said('coverage')).toContain('3 or more');
     expect(said('coverage')).toContain('full skill catalog');

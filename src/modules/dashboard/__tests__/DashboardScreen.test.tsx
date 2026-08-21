@@ -17,6 +17,7 @@ import { act } from 'react';
 import { MemoryRouter, useLocation, useSearchParams } from 'react-router-dom';
 import DashboardScreen from '../DashboardScreen';
 import { COLUMN_WIDTHS } from '../TreeRow';
+import { FLUENCY_POOL_RULE } from '../../../lib/fluencyPool';
 import { db, type AttemptRecord } from '../../../lib/db';
 import { PROGRESSIONS } from '../../ear-training/chord-progressions/catalog';
 
@@ -454,6 +455,73 @@ describe('the drill affordance', () => {
     expect(focus.split(',')).toHaveLength(26);
     expect(focus).toContain('M3|asc');
     expect(focus).not.toContain('M3:asc');
+  });
+
+  it('does not navigate when the pool is too small to count', async () => {
+    // You tap a single weak item BECAUSE it is weak, and that is the
+    // drill that will not count. Being told afterwards means the work
+    // is already done — so nothing moves until a choice is made.
+    const el = await renderScreen();
+    click(rowNamed(el, 'Chord Recognition').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Seventh Chords').querySelector('[data-testid="expand-toggle"]')!);
+    const chord = rowNamed(el, 'Major 7');
+    // Guard the guard: the row itself reports one item, so the prompt
+    // below is about the pool rather than about the row being missing.
+    expect(drillButton(chord).textContent).toBe('drill 1 item');
+
+    click(drillButton(chord));
+    expect(pathname(el)).toBe('/');
+    const prompt = el.querySelector('[data-testid="small-pool-prompt"]')!;
+    expect(prompt.textContent).toContain('This is 1 item.');
+    expect(prompt.textContent).toContain(FLUENCY_POOL_RULE);
+    expect(prompt.querySelector('[data-testid="small-pool-offer"]')!.textContent)
+      .toBe('Drill Seventh Chords (6 items) instead');
+  });
+
+  it('takes the parent when the parent is chosen', async () => {
+    const el = await renderScreen();
+    click(rowNamed(el, 'Chord Recognition').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Seventh Chords').querySelector('[data-testid="expand-toggle"]')!);
+    click(drillButton(rowNamed(el, 'Major 7')));
+    click(el.querySelector('[data-testid="small-pool-offer"]')!);
+
+    expect(pathname(el)).toBe('/ear-training/chord-recognition');
+    const focus = new URLSearchParams(search(el)).get('focus') ?? '';
+    expect(focus.split(',')).toHaveLength(6);
+    expect(focus).toContain('maj7');
+  });
+
+  it('drills the one item when that is what was asked for', async () => {
+    // Both ways out, and neither is refused. A one-item drill is a
+    // legitimate thing to want; it just will not move the number.
+    const el = await renderScreen();
+    click(rowNamed(el, 'Chord Recognition').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Seventh Chords').querySelector('[data-testid="expand-toggle"]')!);
+    click(drillButton(rowNamed(el, 'Major 7')));
+    click(el.querySelector('[data-testid="small-pool-anyway"]')!);
+
+    expect(pathname(el)).toBe('/ear-training/chord-recognition');
+    expect(new URLSearchParams(search(el)).get('focus')).toBe('maj7');
+  });
+
+  it('cancels back to the list without going anywhere', async () => {
+    const el = await renderScreen();
+    click(rowNamed(el, 'Chord Recognition').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Seventh Chords').querySelector('[data-testid="expand-toggle"]')!);
+    click(drillButton(rowNamed(el, 'Major 7')));
+    click(el.querySelector('[data-testid="small-pool-cancel"]')!);
+
+    expect(el.querySelector('[data-testid="small-pool-prompt"]')).toBeNull();
+    expect(pathname(el)).toBe('/');
+  });
+
+  it('goes straight to the drill when the pool already counts', async () => {
+    // Guard the guard for all four above: the prompt must not be
+    // firing on every filtered row.
+    const el = await renderScreen();
+    click(drillButton(rowNamed(el, 'Key Signature Recognition')));
+    expect(el.querySelector('[data-testid="small-pool-prompt"]')).toBeNull();
+    expect(pathname(el)).toBe('/reading');
   });
 
   it('opens ear training rather than the screen it started on', async () => {

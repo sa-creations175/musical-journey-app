@@ -18,7 +18,13 @@ import {
   formatScore,
 } from './bands';
 import { daysSince, type TreeNode } from './read/tree';
-import { drillTargetFor, drillTargetSummary } from './read/drillTarget';
+import {
+  drillTargetFor,
+  drillTargetSummary,
+  smallPoolPromptText,
+  type SmallPoolPrompt,
+} from './read/drillTarget';
+import { FLUENCY_POOL_RULE } from '../../lib/fluencyPool';
 import RowAffordance, { RowInfoButton } from './RowAffordance';
 import type { RowNoteContext } from './read/affordances';
 
@@ -47,6 +53,18 @@ export interface TreeRowProps {
    */
   infoOpen?: boolean;
   onToggleInfo?: () => void;
+  /**
+   * Set when this row was tapped and its pool is too small to count.
+   *
+   * Rendered beneath the row rather than as a modal: it is an answer to
+   * something you just did, in the place you did it, and a dialog over
+   * the list is the kind of thing that gets dismissed without being
+   * read. Nothing has navigated yet - both ways out are in the panel.
+   */
+  drillPrompt?: SmallPoolPrompt;
+  onDrillOffer?: () => void;
+  onDrillAnyway?: () => void;
+  onDismissDrillPrompt?: () => void;
   /** Counts the notes need that no node carries. */
   noteContext?: RowNoteContext;
   /**
@@ -87,6 +105,7 @@ function TreeRowImpl({
   node, moduleId, now, expanded, onToggleExpand,
   compareHighlight, compareActive, onCompare, onDrill, moduleLabel, accentHex,
   infoOpen, onToggleInfo, noteContext,
+  drillPrompt, onDrillOffer, onDrillAnyway, onDismissDrillPrompt,
 }: TreeRowProps) {
   const isLeaf = node.children.length === 0;
   const isModuleRow = node.depth === 0;
@@ -251,6 +270,7 @@ function TreeRowImpl({
         data-testid="drill-affordance"
         data-filtered={summary.filtered ? 'true' : 'false'}
         onClick={onDrill}
+        aria-expanded={drillPrompt ? true : undefined}
         aria-label={`${drillLabel(summary, node.totalItems)} — ${node.label}`}
         className={`${DRILL_WIDTH} shrink-0 text-right text-[11px] text-neutral-400 hover:text-fluent`}
       >
@@ -266,7 +286,76 @@ function TreeRowImpl({
         {...(noteContext ? { noteContext } : {})}
       />
     )}
+    {drillPrompt && (
+      <SmallPoolPromptPanel
+        prompt={drillPrompt}
+        {...(onDrillOffer ? { onOffer: onDrillOffer } : {})}
+        {...(onDrillAnyway ? { onAnyway: onDrillAnyway } : {})}
+        {...(onDismissDrillPrompt ? { onDismiss: onDismissDrillPrompt } : {})}
+      />
+    )}
     </>
+  );
+}
+
+/**
+ * The under-4 prompt, beneath the row that raised it.
+ *
+ * BOTH WAYS OUT ARE OFFERED, and neither is styled as the mistake. A
+ * one-item drill is a legitimate thing to want - it just will not move
+ * the accuracy number, and that is all this says. Refusing it, or
+ * hiding it behind the quieter of two buttons, would be the app
+ * managing the practice rather than reporting on it.
+ */
+function SmallPoolPromptPanel({
+  prompt, onOffer, onAnyway, onDismiss,
+}: {
+  prompt: SmallPoolPrompt;
+  onOffer?: () => void;
+  onAnyway?: () => void;
+  onDismiss?: () => void;
+}) {
+  const text = smallPoolPromptText(prompt);
+  return (
+    <div
+      data-testid="small-pool-prompt"
+      role="group"
+      aria-label="This drill would not count toward accuracy"
+      className="px-3 py-2.5 text-xs bg-developing/5 border-l-2 border-developing/50 text-neutral-700 dark:text-neutral-200"
+    >
+      <p>
+        <span className="font-medium">{text.size}</span>{' '}
+        {FLUENCY_POOL_RULE}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {text.offer && (
+          <button
+            type="button"
+            data-testid="small-pool-offer"
+            onClick={onOffer}
+            className="rounded border border-fluent/60 px-2 py-1 text-fluent hover:bg-fluent/10"
+          >
+            {text.offer}
+          </button>
+        )}
+        <button
+          type="button"
+          data-testid="small-pool-anyway"
+          onClick={onAnyway}
+          className="rounded border border-neutral-300 dark:border-neutral-600 px-2 py-1 hover:border-neutral-500"
+        >
+          {text.proceed}
+        </button>
+        <button
+          type="button"
+          data-testid="small-pool-cancel"
+          onClick={onDismiss}
+          className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+        >
+          cancel
+        </button>
+      </div>
+    </div>
   );
 }
 

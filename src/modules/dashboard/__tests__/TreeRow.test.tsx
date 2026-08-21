@@ -272,13 +272,13 @@ describe('the drill affordance says what pressing it will do', () => {
   });
 
   it('pluralises against the count it is actually showing', () => {
-    expect(drillLabel({ filtered: true, itemCount: 1 }, 1)).toBe('drill 1 item');
-    expect(drillLabel({ filtered: true, itemCount: 13 }, 13)).toBe('drill 13 items');
+    expect(drillLabel({ filtered: true, itemCount: 1, countsTowardAccuracy: false }, 1)).toBe('drill 1 item');
+    expect(drillLabel({ filtered: true, itemCount: 13, countsTowardAccuracy: true }, 13)).toBe('drill 13 items');
     // The unfiltered branch pluralises on the TOTAL, not on the
     // summary's zero — which would have said "0 items" forever.
-    expect(drillLabel({ filtered: false, itemCount: 0 }, 188))
+    expect(drillLabel({ filtered: false, itemCount: 0, countsTowardAccuracy: true }, 188))
       .toBe('open module · 188 items');
-    expect(drillLabel({ filtered: false, itemCount: 0 }, 1))
+    expect(drillLabel({ filtered: false, itemCount: 0, countsTowardAccuracy: true }, 1))
       .toBe('open module · 1 item');
   });
 

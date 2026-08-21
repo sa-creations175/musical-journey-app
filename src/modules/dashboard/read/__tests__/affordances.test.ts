@@ -16,6 +16,7 @@
  *     with real, VARYING counts.
  */
 import { describe, expect, it } from 'vitest';
+import { FLUENCY_POOL_RULE } from '../../../../lib/fluencyPool';
 import type { AttemptRecord, ProductionLesson, SpacingState } from '../../../../lib/db';
 import {
   DESCRIBED_MODULE_LABELS,
@@ -403,7 +404,7 @@ describe('the row notes', () => {
     expect(leaf.stats!.excludedByReason['focus-pool']).toBe(3);
     const notes = rowNotesFor(leaf, 'production').join(' ');
     expect(notes).toContain('3 of these attempts');
-    expect(notes).toContain('fewer than 4 items selected');
+    expect(notes).toContain(FLUENCY_POOL_RULE);
     expect(notes).toContain('coverage and recency');
 
     // And absent on an item with none.
@@ -559,7 +560,7 @@ describe('the row copy obeys the legends\' writing rules', () => {
       ['ungraded practice note', 'no pass or fail'],
       ['production lesson hint', 'Rating this lesson'],
       ['mixed-kind note', 'scored in different ways'],
-      ['focus-protected note', 'fewer than 4 items selected'],
+      ['focus-protected note', FLUENCY_POOL_RULE],
       ['mental-viz exclusion', 'Shapes & Patterns totals'],
       ['mental-viz floor', 'floor rather than a total'],
       ['ungroupable note', 'one chord rather than one'],

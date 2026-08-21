@@ -47,6 +47,14 @@ async function render(
   return container;
 }
 
+/** The notice, by its own testid rather than by its words — the
+ *  wording is one shared sentence and belongs to `lib/fluencyPool`,
+ *  so matching on a phrase here would fail on a rewrite that changed
+ *  nothing about whether the rule fired. */
+function protectionNotice(el: HTMLElement): Element | null {
+  return el.querySelector('[data-testid="fluency-protection-notice"]');
+}
+
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
   container?.remove();
@@ -84,12 +92,12 @@ describe('focus protection is not bypassed', () => {
     // 7th descending" and drilling one interval must not move an
     // accuracy number, and the screen has to say so.
     const el = await render(['m7|desc']);
-    expect(el.textContent).toMatch(/fewer than 4 items|don't count toward fluency/i);
+    expect(protectionNotice(el)).not.toBeNull();
   });
 
   it('does not warn once the pool is large enough', async () => {
     const el = await render(['M3|asc', 'm7|desc', 'P5|asc', 'm2|desc']);
     expect(el.textContent).toContain('4 intervals selected');
-    expect(el.textContent).not.toMatch(/fewer than 4 items/i);
+    expect(protectionNotice(el)).toBeNull();
   });
 });

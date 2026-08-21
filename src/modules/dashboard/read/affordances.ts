@@ -38,6 +38,7 @@
  *
  * Pure. Nodes and counts in, strings out.
  */
+import { FLUENCY_POOL_RULE } from '../../../lib/fluencyPool';
 import { moduleLabelFor } from './catalogs';
 import type { TreeNode } from './tree';
 import { COVERAGE_MIN_ENGAGEMENTS, ACCURACY_WINDOW } from './itemStats';
@@ -439,6 +440,14 @@ export function advanceHintFor(node: TreeNode, moduleId: string): string {
     + 'have drilled hardest.';
 }
 
+/**
+ * `3 items`, `1 item`.
+ *
+ * `noun` must END with the countable word, because that is where the
+ * `s` goes. Two callers passed a phrase - `of these attempts`, `of
+ * these` - and shipped `3 of these attemptss` and `3 of theses` into
+ * the row notes. Both now interpolate the count themselves.
+ */
 function plural(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
@@ -522,8 +531,9 @@ export function rowNotesFor(
   const focus = node.stats?.excludedByReason['focus-pool'] ?? 0;
   if (focus > 0) {
     notes.push(
-      `${plural(focus, 'of these attempts')} ${focus === 1 ? 'was' : 'were'} `
-      + 'made with fewer than 4 items selected, and ' + (focus === 1 ? 'is' : 'are')
+      `${FLUENCY_POOL_RULE} `
+      + `${focus} of these attempts ${focus === 1 ? 'was' : 'were'} `
+      + 'made in a smaller pool than that, and ' + (focus === 1 ? 'is' : 'are')
       + ' held out of the score: with a pool that small a guess is right '
       + 'one time in three, so the percentage would not mean much. They '
       + 'still count toward coverage and recency.',
@@ -533,7 +543,7 @@ export function rowNotesFor(
   const ungraded = node.stats?.excludedByReason['not-graded'] ?? 0;
   if (ungraded > 0) {
     notes.push(
-      `${plural(ungraded, 'of these')} ${ungraded === 1 ? 'is a' : 'are'} `
+      `${ungraded} of these ${ungraded === 1 ? 'is a' : 'are'} `
       + 'practice session' + (ungraded === 1 ? '' : 's') + ', which '
       + `carr${ungraded === 1 ? 'ies' : 'y'} no pass or fail and so `
       + `${ungraded === 1 ? 'sits' : 'sit'} outside the score. `

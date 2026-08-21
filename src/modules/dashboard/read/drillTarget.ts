@@ -21,6 +21,7 @@
  * plumbing. Deferred because the list is useful without it: tapping a
  * row and drilling that module is a minute of friction, not a wall.
  */
+import { FLUENCY_POOL_MINIMUM, poolCountsTowardAccuracy } from '../../../lib/fluencyPool';
 import { catalogRollupKey } from './canonicalItemId';
 import type { TreeNode } from './tree';
 
@@ -195,12 +196,117 @@ export function drillTargetFor(node: TreeNode, moduleId: string): DrillTarget {
 export function drillTargetSummary(target: DrillTarget): {
   filtered: boolean;
   itemCount: number;
+  /** True when a drill of this row would count toward accuracy. */
+  countsTowardAccuracy: boolean;
   reason?: UnfilteredReason;
 } {
   return target.kind === 'filtered'
-    ? { filtered: true, itemCount: target.itemRefs.length }
-    : { filtered: false, itemCount: 0, reason: target.reason };
+    ? {
+      filtered: true,
+      itemCount: target.focusKeys.length,
+      countsTowardAccuracy: poolCountsTowardAccuracy(target.focusKeys.length),
+    }
+    : {
+      filtered: false,
+      itemCount: 0,
+      // An unfiltered row hands over the whole module, which is never
+      // a small pool. The question does not arise, and answering it
+      // `false` would put a warning on rows that do not need one.
+      countsTowardAccuracy: true,
+      reason: target.reason,
+    };
 }
+
+/**
+ * What a row is offering to drill, counted the way the drill counts.
+ *
+ * ITEMS, NOT CATALOG ROWS. A chord row is four rows and one chord,
+ * because inversions are a playback setting rather than something a
+ * pool can select. Reading the row count here would put "drill 4 items"
+ * above a drill choosing between one, which is the number that decides
+ * whether the session counts - so the row would be contradicting the
+ * warning it is about to show.
+ */
+
+// ── The pool is too small to count ───────────────────────────────────
+
+/** A row worth offering instead, because drilling it would count. */
+export interface LargerPoolOffer {
+  label: string;
+  poolSize: number;
+  target: FilteredDrillTarget;
+}
+
+export interface SmallPoolPrompt {
+  /** Distinct items the tapped row would drill. */
+  poolSize: number;
+  /** The nearest ancestor whose drill would count, or null when none
+   *  does. Null is a real outcome, not a failure: the prompt still
+   *  states the rule and still lets the drill happen. */
+  offer: LargerPoolOffer | null;
+}
+
+/**
+ * Whether tapping this row should say something first.
+ *
+ * Returns null when there is nothing to say - the row cannot filter, so
+ * it drills the whole module, or its pool already counts.
+ *
+ * WHY THIS FIRES AT THE TAP rather than after. You tap a single weak
+ * item precisely because it is weak, and that is the drill that will
+ * not count - the exact opposite of the intent. Finding out afterwards
+ * means the work is already done.
+ *
+ * `ancestors` runs root-first, as the tree was walked. The climb goes
+ * OUTWARD FROM THE ROW and takes the first ancestor whose own pool
+ * counts, rather than the nearest one regardless: offering a parent
+ * that is also too small moves the problem one row up and earns a
+ * second prompt saying the same thing. Depth 0 is excluded because a
+ * module row is not a filtered drill - "open module" is a different
+ * offer, and one the row already makes for itself.
+ */
+export function smallPoolPromptFor(
+  node: TreeNode,
+  ancestors: ReadonlyArray<TreeNode>,
+  moduleId: string,
+): SmallPoolPrompt | null {
+  const target = drillTargetFor(node, moduleId);
+  if (target.kind !== 'filtered') return null;
+  if (poolCountsTowardAccuracy(target.focusKeys.length)) return null;
+
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const ancestor = ancestors[i];
+    if (ancestor.depth === 0) break;
+    const up = drillTargetFor(ancestor, moduleId);
+    if (up.kind !== 'filtered') continue;
+    if (!poolCountsTowardAccuracy(up.focusKeys.length)) continue;
+    return {
+      poolSize: target.focusKeys.length,
+      offer: { label: ancestor.label, poolSize: up.focusKeys.length, target: up },
+    };
+  }
+  return { poolSize: target.focusKeys.length, offer: null };
+}
+
+/** The prompt's own sentences, decided here so the three surfaces that
+ *  state this rule cannot drift apart. The rule itself is
+ *  `FLUENCY_POOL_RULE`; these are the parts specific to a tap. */
+export function smallPoolPromptText(prompt: SmallPoolPrompt): {
+  size: string;
+  offer: string | null;
+  proceed: string;
+} {
+  const items = (n: number) => `${n} item${n === 1 ? '' : 's'}`;
+  return {
+    size: `This is ${items(prompt.poolSize)}.`,
+    offer: prompt.offer
+      ? `Drill ${prompt.offer.label} (${items(prompt.offer.poolSize)}) instead`
+      : null,
+    proceed: `Drill ${items(prompt.poolSize)} anyway`,
+  };
+}
+
+export { FLUENCY_POOL_MINIMUM };
 
 /** Source ids whose drills accept an item filter today. Exported so a
  *  caller can explain the unevenness rather than discovering it one row

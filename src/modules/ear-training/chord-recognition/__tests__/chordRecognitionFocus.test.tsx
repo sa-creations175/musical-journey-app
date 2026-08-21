@@ -20,6 +20,7 @@ import { MemoryRouter } from 'react-router-dom';
 import ChordRecognitionQuiz from '../ChordRecognitionQuiz';
 import { CHORD_SEEDS } from '../seed';
 import type { AttemptRecord, ChordData } from '../../../../lib/db';
+import { FLUENCY_POOL_RULE } from '../../../../lib/fluencyPool';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,6 +60,14 @@ async function render(
 function answerNames(el: HTMLElement): string[] {
   return [...el.querySelectorAll('[data-testid="chord-answer"]')]
     .map(b => b.textContent ?? '');
+}
+
+/** The notice, by its own testid rather than by its words — the
+ *  wording is one shared sentence and belongs to `lib/fluencyPool`,
+ *  so matching on a phrase here would fail on a rewrite that changed
+ *  nothing about whether the rule fired. */
+function protectionNotice(el: HTMLElement): Element | null {
+  return el.querySelector('[data-testid="fluency-protection-notice"]');
 }
 
 afterEach(async () => {
@@ -106,13 +115,17 @@ describe('focus protection is not bypassed', () => {
     // must not move an accuracy number, and the screen has to say so.
     const el = await render(['maj7']);
     expect(el.textContent).toContain('1 chord selected');
-    expect(el.textContent).toMatch(/fewer than 4 items|don't count toward fluency/i);
+    expect(protectionNotice(el)).not.toBeNull();
+    // The third surface. The dashboard's legibility panel and the
+    // under-4 row prompt state the same rule in the same words; three
+    // phrasings of one rule read as three rules.
+    expect(protectionNotice(el)!.textContent).toContain(FLUENCY_POOL_RULE);
   });
 
   it('does not warn once the pool is large enough', async () => {
     const el = await render(['maj7', 'min7', 'dom7', 'dim7']);
     expect(el.textContent).toContain('4 chords selected');
-    expect(el.textContent).not.toMatch(/fewer than 4 items/i);
+    expect(protectionNotice(el)).toBeNull();
   });
 
   it('counts chords, not the catalog rows they came from', async () => {
@@ -120,7 +133,7 @@ describe('focus protection is not bypassed', () => {
     // sending its refs unfolded would read as a pool of four and skip
     // the warning while drilling one chord.
     const el = await render(['maj7', 'maj7', 'maj7', 'maj7']);
-    expect(el.textContent).toMatch(/fewer than 4 items|don't count toward fluency/i);
+    expect(protectionNotice(el)).not.toBeNull();
     // And the line above it says one, not four — a status line that
     // disagreed with the protection would be the same lie, quieter.
     expect(el.textContent).toContain('1 chord selected');

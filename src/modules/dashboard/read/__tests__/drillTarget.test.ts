@@ -10,7 +10,10 @@ import {
   drillTargetFor,
   drillTargetSummary,
   filterableModules,
+  smallPoolPromptFor,
+  smallPoolPromptText,
 } from '../drillTarget';
+import type { ModuleCatalog } from '../catalogs';
 import { buildMergedTree, buildModuleTree, flatten, leavesOf } from '../tree';
 import {
   chordRecognitionCatalog,
@@ -254,5 +257,120 @@ describe('a row resolves against its own catalog, not its module', () => {
     if (target.kind !== 'navigate') throw new Error('expected navigate');
     expect(target.reason).toBe('whole-module');
     expect(target.route).toBe('/ear-training');
+  });
+});
+
+// ── Too small to count ───────────────────────────────────────────────
+
+describe('a pool under the minimum says so before it drills', () => {
+  const tree = treeFor(chordRecognitionCatalog);
+  const nodeNamed = (label: string) => flatten(tree).find(n => n.label === label)!;
+
+  /** Root-first, as the screen walks it. */
+  function ancestorsOf(label: string) {
+    const chain: typeof tree[] = [];
+    const walk = (node: typeof tree, above: typeof tree[]): boolean => {
+      if (node.label === label) { chain.push(...above); return true; }
+      return node.children.some(c => walk(c, [...above, node]));
+    };
+    walk(tree, []);
+    return chain;
+  }
+
+  it('offers the parent whose drill would count', () => {
+    // The case from the spec: one chord, and Seventh Chords above it.
+    const prompt = smallPoolPromptFor(
+      nodeNamed('Major 7'), ancestorsOf('Major 7'), 'ear-training',
+    )!;
+    expect(prompt.poolSize).toBe(1);
+    expect(prompt.offer?.label).toBe('Seventh Chords');
+    expect(prompt.offer?.poolSize).toBe(6);
+    const text = smallPoolPromptText(prompt);
+    expect(text.size).toBe('This is 1 item.');
+    expect(text.offer).toBe('Drill Seventh Chords (6 items) instead');
+    expect(text.proceed).toBe('Drill 1 item anyway');
+  });
+
+  it('says nothing when the pool already counts', () => {
+    // Guard the guard: this row is genuinely over the line, so the
+    // null below is a decision rather than the function never firing.
+    const tier = nodeNamed('Seventh Chords');
+    expect(drillTargetSummary(drillTargetFor(tier, 'ear-training')).itemCount).toBe(6);
+    expect(smallPoolPromptFor(tier, ancestorsOf('Seventh Chords'), 'ear-training'))
+      .toBeNull();
+  });
+
+  it('says nothing on a row that cannot filter at all', () => {
+    // An "open module" row drills everything, so it is never a small
+    // pool — and warning on it would attach the rule to rows it has
+    // nothing to do with.
+    const modes = treeFor(scalesModesCatalog);
+    const mode = flatten(modes).find(n => n.depth === 2)!;
+    expect(drillTargetFor(mode, 'ear-training').kind).toBe('navigate');
+    expect(smallPoolPromptFor(mode, [modes], 'ear-training')).toBeNull();
+  });
+
+  it('the count is the POOL, not the catalog rows behind it', () => {
+    // Major 7 is four catalog rows and one chord. Counting rows would
+    // read 4, clear the minimum, and skip the warning on a drill
+    // choosing between one.
+    const chord = nodeNamed('Major 7');
+    expect(chord.itemRefs).toHaveLength(4);
+    expect(smallPoolPromptFor(chord, ancestorsOf('Major 7'), 'ear-training')?.poolSize)
+      .toBe(1);
+  });
+});
+
+describe('the climb', () => {
+  function nested(items: ModuleCatalog['items']): ModuleCatalog {
+    // `reading` because its refs pass through untranslated, so the
+    // pool size is exactly the number of refs and the arithmetic below
+    // is readable.
+    return {
+      sourceId: 'reading', moduleId: 'reading', label: 'reading',
+      accuracyKind: 'measured', items,
+    };
+  }
+  const leaf = (id: string, path: string[]) => ({ id, label: id, path, itemRefs: [id] });
+
+  it('climbs past an ancestor that is also too small', () => {
+    // Offering the nearest parent regardless would move the problem up
+    // one row and earn a second prompt saying the same thing.
+    const catalog = nested([
+      leaf('a', ['reading', 'Big', 'Small']),
+      leaf('b', ['reading', 'Big', 'Small']),
+      leaf('c', ['reading', 'Big', 'Other']),
+      leaf('d', ['reading', 'Big', 'Other']),
+      leaf('e', ['reading', 'Big', 'Other']),
+      leaf('f', ['reading', 'Big', 'Other']),
+    ]);
+    const tree = buildModuleTree(catalog, statsForAttemptCatalog(catalog, []));
+    const big = tree.children.find(n => n.label === 'Big')!;
+    const small = big.children.find(n => n.label === 'Small')!;
+    const target = small.children[0];
+    // Guard the guard: the skipped ancestor must really be too small.
+    expect(small.itemRefs).toHaveLength(2);
+    expect(big.itemRefs).toHaveLength(6);
+
+    const prompt = smallPoolPromptFor(target, [tree, big, small], 'reading')!;
+    expect(prompt.offer?.label).toBe('Big');
+    expect(prompt.offer?.poolSize).toBe(6);
+  });
+
+  it('offers nothing rather than the module row', () => {
+    // Depth 0 is not a filtered drill — "open module" is a different
+    // offer, and one the row already makes for itself. A null offer is
+    // a real outcome: the prompt still states the rule and still lets
+    // the drill happen.
+    const catalog = nested([
+      leaf('a', ['reading', 'Only']),
+      leaf('b', ['reading', 'Only']),
+    ]);
+    const tree = buildModuleTree(catalog, statsForAttemptCatalog(catalog, []));
+    const only = tree.children[0];
+    const prompt = smallPoolPromptFor(only.children[0], [tree, only], 'reading')!;
+    expect(prompt.poolSize).toBe(1);
+    expect(prompt.offer).toBeNull();
+    expect(smallPoolPromptText(prompt).offer).toBeNull();
   });
 });
