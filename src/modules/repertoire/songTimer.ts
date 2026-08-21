@@ -66,6 +66,21 @@ export interface SongTimerRecord {
   /** Completed segments, before the current one. */
   accumulatedMs: number;
   running: boolean;
+  /**
+   * When the app last saw activity.
+   *
+   * Persisted rather than held in memory for the same reason the
+   * elapsed is derived from timestamps: a reload has to be able to
+   * answer "how long was the gap?", and a tab closed at 14:00 and
+   * reopened at 23:00 is the same question as walking away for forty
+   * minutes, only with a bigger number. Keeping this in memory would
+   * have forced a second, separate restore policy for a case that is
+   * not actually different.
+   *
+   * Records written before this field existed are normalised on read
+   * to `startedAt` — the honest floor, since nothing later is known.
+   */
+  lastActivityAt: number;
 }
 
 /**
@@ -100,7 +115,53 @@ export function elapsedMinutes(record: SongTimerRecord, now: number): number {
 }
 
 export function startedRecord(songId: string, now: number): SongTimerRecord {
-  return { songId, startedAt: now, accumulatedMs: 0, running: true };
+  return {
+    songId, startedAt: now, accumulatedMs: 0, running: true, lastActivityAt: now,
+  };
+}
+
+/**
+ * How long the app has seen nothing. Drives the amber state and the
+ * question asked on return.
+ */
+export function inactivityMs(record: SongTimerRecord, now: number): number {
+  return Math.max(0, now - record.lastActivityAt);
+}
+
+/** Mark activity. Cheap and called often, so it returns the same
+ *  object when nothing moved. */
+export function withActivity(record: SongTimerRecord, now: number): SongTimerRecord {
+  if (now <= record.lastActivityAt) return record;
+  return { ...record, lastActivityAt: now };
+}
+
+/**
+ * Settle an un-attributed stretch and start a fresh one.
+ *
+ * `keepFraction` is what the user said they were doing — 1 for "I was
+ * locked in", 0 for "I was gone", and the coarse buckets between. The
+ * discarded part is subtracted from the banked total; nothing is ever
+ * dropped without an answer.
+ *
+ * Folding the live segment in and restarting it is what makes this
+ * safe to call repeatedly: each gap is settled once and cannot be
+ * counted, or discounted, twice.
+ */
+export function resolvedGap(
+  record: SongTimerRecord,
+  now: number,
+  keepFraction: number,
+): SongTimerRecord {
+  const gap = inactivityMs(record, now);
+  const clamped = Math.min(1, Math.max(0, keepFraction));
+  const discarded = gap * (1 - clamped);
+  const banked = Math.max(0, elapsedMs(record, now) - discarded);
+  return {
+    ...record,
+    accumulatedMs: banked,
+    startedAt: now,
+    lastActivityAt: now,
+  };
 }
 
 /** Fold the running segment into `accumulatedMs` and stop the clock.
@@ -141,7 +202,16 @@ export function readSongTimer(): SongTimerRecord | null {
   if (raw === null) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isRecord(parsed) ? parsed : null;
+    if (!isRecord(parsed)) return null;
+    // Normalise a record written before lastActivityAt existed rather
+    // than rejecting it — discarding a running timer over a missing
+    // field the user never knew about would be the upgrade eating
+    // their work. startedAt is the honest floor: nothing later is
+    // known to have happened.
+    return typeof parsed.lastActivityAt === 'number'
+        && Number.isFinite(parsed.lastActivityAt)
+      ? parsed
+      : { ...parsed, lastActivityAt: parsed.startedAt };
   } catch {
     return null;
   }
@@ -176,6 +246,8 @@ export function clearSongTimer(): void {
 function isRecord(value: unknown): value is SongTimerRecord {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
+  // lastActivityAt is deliberately NOT required here — readSongTimer
+  // fills it from startedAt. See the normalisation there.
   return typeof v.songId === 'string'
     && v.songId.length > 0
     && typeof v.startedAt === 'number'

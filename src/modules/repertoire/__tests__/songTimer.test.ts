@@ -12,6 +12,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearSongTimer,
+  inactivityMs,
+  resolvedGap,
+  withActivity,
   elapsedMinutes,
   elapsedMs,
   pausedRecord,
@@ -60,6 +63,7 @@ describe('elapsed derives from timestamps', () => {
     // less than the banked time.
     const r: SongTimerRecord = {
       songId: 'song-1', startedAt: T0, accumulatedMs: 4 * MIN, running: true,
+      lastActivityAt: T0,
     };
     expect(T0 - MIN - r.startedAt).toBeLessThan(0);
     expect(elapsedMs(r, T0 - MIN)).toBe(4 * MIN);
@@ -154,5 +158,111 @@ describe('storage', () => {
       throw new Error('QuotaExceededError');
     });
     expect(() => writeSongTimer(startedRecord('song-1', T0))).not.toThrow();
+  });
+});
+
+describe('inactivity and gap resolution', () => {
+  it('measures how long the app has seen nothing', () => {
+    const r = startedRecord('song-1', T0);
+    expect(inactivityMs(r, T0 + 8 * MIN)).toBe(8 * MIN);
+  });
+
+  it('activity resets the inactivity clock without touching elapsed', () => {
+    // Guard the guard: elapsed really is running, so a helper that
+    // reset the wrong field would show up here.
+    const r = withActivity(startedRecord('song-1', T0), T0 + 6 * MIN);
+    expect(inactivityMs(r, T0 + 6 * MIN)).toBe(0);
+    expect(elapsedMs(r, T0 + 6 * MIN)).toBe(6 * MIN);
+  });
+
+  it('never moves the activity clock backwards', () => {
+    const r = withActivity(startedRecord('song-1', T0 + 5 * MIN), T0);
+    expect(r.lastActivityAt).toBe(T0 + 5 * MIN);
+  });
+
+  it('"I was locked in" keeps the whole gap', () => {
+    const r = startedRecord('song-1', T0);
+    const settled = resolvedGap(r, T0 + 40 * MIN, 1);
+    expect(elapsedMs(settled, T0 + 40 * MIN)).toBe(40 * MIN);
+  });
+
+  it('"I was gone" removes the gap and keeps everything before it', () => {
+    // Ten minutes of tracked work, then a thirty-minute gap. Only the
+    // gap goes.
+    let r = startedRecord('song-1', T0);
+    r = withActivity(r, T0 + 10 * MIN);
+    const settled = resolvedGap(r, T0 + 40 * MIN, 0);
+    expect(elapsedMs(settled, T0 + 40 * MIN)).toBe(10 * MIN);
+  });
+
+  it('the coarse buckets keep their fraction of the gap', () => {
+    let r = startedRecord('song-1', T0);
+    r = withActivity(r, T0 + 10 * MIN);
+    const at = T0 + 50 * MIN;                       // a 40-minute gap
+    for (const [fraction, expected] of [[0.75, 40], [0.5, 30], [0.25, 20]] as const) {
+      expect(elapsedMs(resolvedGap(r, at, fraction), at)).toBe(expected * MIN);
+    }
+  });
+
+  it('restarts the gap, so settling twice cannot discount twice', () => {
+    let r = startedRecord('song-1', T0);
+    r = withActivity(r, T0 + 10 * MIN);
+    const at = T0 + 40 * MIN;
+    const once = resolvedGap(r, at, 0);
+    const twice = resolvedGap(once, at, 0);
+    expect(elapsedMs(twice, at)).toBe(elapsedMs(once, at));
+  });
+
+  it('a well-formed record can only ever be discounted to exactly zero', () => {
+    // The gap is bounded by the elapsed on any record built by these
+    // helpers, so discarding all of it lands on 0 and never below.
+    // Stated as the invariant rather than as a clamp test — the clamp
+    // is not what produces this, and a test claiming otherwise would
+    // pass with the clamp removed. Verified: it does.
+    const r = startedRecord('song-1', T0);
+    expect(elapsedMs(resolvedGap(r, T0 + 5 * MIN, 0), T0 + 5 * MIN)).toBe(0);
+  });
+
+  it('CLAMPS a corrupt record whose activity predates its start', () => {
+    // ---------------------------------------------------------------
+    // THERE ARE TWO CLAMPS AND THIS TESTS THE FIRST ONE.
+    //
+    // `resolvedGap` clamps the banked total at zero. `elapsedMs` ALSO
+    // clamps `accumulatedMs` at zero when it reads it. So a test that
+    // asserts through `elapsedMs` sees the second clamp absorb the
+    // negative and passes whether or not the first exists — which is
+    // exactly what happened: two drafts of this test stayed green with
+    // resolvedGap's clamp removed, and only asserting on the stored
+    // field caught it.
+    //
+    // Assert on `resolvedGap(...).accumulatedMs`. Never on the elapsed
+    // derived from it.
+    //
+    // The reachable path is the only one: nothing in this module
+    // produces lastActivityAt < startedAt, but the record crosses a
+    // process boundary and can be hand-edited. Without the clamp the
+    // stored total goes negative and rounds to a negative duration
+    // logged against a real song.
+    // ---------------------------------------------------------------
+    const corrupt: SongTimerRecord = {
+      songId: 'song-1', startedAt: T0, accumulatedMs: 0, running: true,
+      lastActivityAt: T0 - 30 * MIN,
+    };
+    // Guard the guard: the gap really does exceed the elapsed here.
+    expect(inactivityMs(corrupt, T0 + MIN)).toBeGreaterThan(elapsedMs(corrupt, T0 + MIN));
+    // ASSERTED ON THE FIELD, not through elapsedMs — which clamps
+    // accumulatedMs itself, so reading the result that way passes
+    // whether or not resolvedGap clamps. Verified by reversal: the
+    // elapsedMs version stayed green with the clamp removed.
+    expect(resolvedGap(corrupt, T0 + MIN, 0).accumulatedMs).toBe(0);
+  });
+
+  it('normalises a record written before lastActivityAt existed', () => {
+    // Rejecting it would mean an upgrade silently ate a running
+    // timer over a field the user never knew about.
+    localStorage.setItem('mja.songTimer.v1', JSON.stringify({
+      songId: 'song-1', startedAt: T0, accumulatedMs: 0, running: true,
+    }));
+    expect(readSongTimer()?.lastActivityAt).toBe(T0);
   });
 });

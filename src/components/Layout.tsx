@@ -20,6 +20,7 @@ import { useDevMode } from '../lib/devMode';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
 import { GlobalSessionBanner } from '../lib/sessionTimer/GlobalSessionBanner';
+import SongTimerActivityWatcher from '../modules/repertoire/SongTimerActivityWatcher';
 import { HardPausePromptModal } from '../lib/sessionTimer/HardPausePromptModal';
 import { BlockExpiryModal } from '../lib/sessionTimer/BlockExpiryModal';
 import { BlockRatingOverlay } from '../lib/sessionTimer/BlockRatingOverlay';
@@ -84,6 +85,10 @@ export default function Layout() {
 
   return (
     <div className="min-h-full flex flex-col">
+    {/* App level, because the song timer keeps running wherever you
+        navigate — a watcher scoped to the song page would call every
+        minute spent in another module a gap. Renders nothing. */}
+    <SongTimerActivityWatcher />
     <GlobalSessionBanner />
     <div className="flex-1 flex flex-col md:flex-row">
       <aside

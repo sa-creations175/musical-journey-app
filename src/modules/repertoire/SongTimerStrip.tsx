@@ -5,6 +5,12 @@ import {
   useSessionTimes,
 } from '../../lib/sessionTimer/SessionTimerContext';
 import { useSongTimer } from './useSongTimer';
+import { inactivityMs } from './songTimer';
+import {
+  AMBER_CHOICES,
+  getAmberMinutes,
+  setAmberMinutes,
+} from './songTimerPrefs';
 
 /**
  * The two timers, side by side, in one glance.
@@ -47,6 +53,25 @@ export default function SongTimerStrip({ song, songs }: Props) {
   const sessionTimes = useSessionTimes();
   const timer = useSongTimer(song.id);
   const [busy, setBusy] = useState(false);
+  const [amberMin, setAmberMinState] = useState<number | null>(null);
+  const [prefLoaded, setPrefLoaded] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void getAmberMinutes().then(v => {
+      if (live) { setAmberMinState(v); setPrefLoaded(true); }
+    });
+    return () => { live = false; };
+  }, []);
+
+  // Amber only once the preference has actually loaded. Defaulting to
+  // 5 while the read is in flight would flash amber on a timer that
+  // has been running for six minutes with the user right there.
+  const amber = prefLoaded
+    && amberMin !== null
+    && timer.record !== null
+    && timer.record.running
+    && inactivityMs(timer.record, Date.now()) >= amberMin * 60_000;
 
   const sessionLive = sessionState.status === 'running' || sessionState.status === 'paused';
 
@@ -94,6 +119,7 @@ export default function SongTimerStrip({ song, songs }: Props) {
           label={<SongLabel title={song.title} />}
           title="Time on this song — lead sheet work, getting it under the fingers, drilling a section, testing. All of it counts."
           time={formatMs(timer.elapsedMs)}
+          amber={amber}
           action={
             <button
               type="button"
@@ -149,6 +175,20 @@ export default function SongTimerStrip({ song, songs }: Props) {
           }
         />
       )}
+
+      {/* Only while this song's timer is running. A dial for a thing
+          that is not happening is clutter on every other song page. */}
+      {timer.isThisSong && prefLoaded && (
+        <div className="pt-1 border-t border-neutral-200 dark:border-neutral-800">
+          <AmberSetting
+            value={amberMin}
+            onChange={next => {
+              setAmberMinState(next);
+              void setAmberMinutes(next);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -158,22 +198,69 @@ function Row({
   time,
   title,
   action,
+  amber,
 }: {
   label: ReactNode;
   time: string;
   title: string;
   action?: ReactNode;
+  /** The app has seen nothing for longer than the threshold. Colours
+   *  the NUMBER and nothing else — no modal, no sound, nothing
+   *  blocked. If you are playing you ignore it; if you walked away
+   *  you see it the moment you glance back. */
+  amber?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3" title={title}>
       <span className="flex-1 min-w-0 text-[11px] uppercase tracking-wide font-medium text-neutral-600 dark:text-neutral-300">
         {label}
       </span>
-      <span className="shrink-0 font-mono tabular-nums text-sm text-neutral-800 dark:text-neutral-100">
+      <span
+        className={[
+          'shrink-0 font-mono tabular-nums text-sm transition-colors',
+          amber
+            ? 'text-[#E88943]'
+            : 'text-neutral-800 dark:text-neutral-100',
+        ].join(' ')}
+        title={amber ? 'No app activity for a while — the time is still counting.' : undefined}
+      >
         {time}
       </span>
       {action}
     </div>
+  );
+}
+
+/**
+ * The amber threshold control.
+ *
+ * Inline rather than on a settings screen, because there is no
+ * settings route and because this is exactly where you are standing
+ * when you decide the question fires too often.
+ */
+function AmberSetting({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (next: number | null) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+      <span>go amber after</span>
+      <select
+        value={value === null ? 'never' : String(value)}
+        onChange={e => onChange(e.target.value === 'never' ? null : Number(e.target.value))}
+        className="rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1 py-0.5"
+      >
+        {AMBER_CHOICES.map(c => (
+          <option key={String(c)} value={c === null ? 'never' : String(c)}>
+            {c === null ? 'never' : `${c} min`}
+          </option>
+        ))}
+      </select>
+      <span>of no app activity</span>
+    </label>
   );
 }
 
