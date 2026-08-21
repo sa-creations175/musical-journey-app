@@ -47,7 +47,26 @@ Each rule carries one tag. They're plain text so they're greppable —
 | `[FIXED]` | Was invisible or half; now surfaced. Note the commit |
 | `[DEFECT]` | Not a legibility problem — a bug that surfaced during the audit |
 
-**Current counts at time of writing:** 6 surfaced · ~15 half · ~50 invisible · 2 defects.
+**Counts, read off this file rather than estimated** — 20 August 2026, after
+the dashboard's legibility step:
+
+| Tag | Entries | `grep -c` returns |
+|---|---|---|
+| Invisible | 24 | 25 |
+| Half | 22 | 23 |
+| Surfaced | 6 | 7 |
+| Defect | 3 | 4 |
+
+The grep is always **one higher**, because each tag also appears in its own row
+of the marker table above. Nothing else in this file writes a tag in prose —
+that is deliberate, so the greps stay countable.
+
+The scoreboard at the foot of this document says "6 fully explained" and names
+six; that list is prose and includes Dev Mode, which is not a tagged entry.
+The table above is what the greps return.
+
+*The original audit line read "6 surfaced · ~15 half · ~50 invisible · 2
+defects". The tildes were estimates and two of the three were wrong.*
 
 ---
 
@@ -122,6 +141,7 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 - **Where consumed:** `chord-recognition/tierUnlock.ts:41` · `chord-progressions/progressionTierUnlock.ts:50` · `scales-modes/scaleModeTierUnlock.ts:63` · `dashboard/aggregation.ts:44` · `goals/progress.ts:327` · `skills/registry.ts:152` · `ChordMotionTab.tsx:1146`.
 - **UI:** notice says "fluency tiers." Silent on the other five. A focused session can leave you permanently short of a tier unlock with no indication.
 - **Also:** the threshold is `< 4` everywhere but measured differently — items *selected* in ET (`focusKeys.length`), cards *in queue* in HF/Production (`cards.length`). Same notice, two different rules. → **Pattern 2**
+- **Dashboard surfaces closed, 20 Aug 2026** (`a400f87`, `690f55e`). The score column's `?` states the split — out of accuracy, in for coverage and recency — with its reason, and a row whose own attempts were focus-protected says how many and which way each one counted. **Stays half-surfaced:** the in-quiz notice is unchanged, and tier unlocking, goal accuracy and the Skills catalogue still say nothing. One of six consumers now explains itself.
 
 ### 1.4 "42 motions" — the scope count is the filter's pool `[HALF]`
 
@@ -130,26 +150,32 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 - **Where:** `src/modules/ear-training/chord-progressions/ChordMotionTab.tsx:1088`.
 - **UI:** the filters are listed in the same sentence, so a careful reader can infer it — but the number is presented as a count of motions, not a count of *these* motions. `ProgressionFluencyTracker.tsx:265` renders `"${motions.length} motions"` per distance group with no filter context at all.
 
-### 1.5 Coverage denominators are spacingState-row counts, not what you can see `[INVISIBLE]`
+### 1.5 Coverage denominators are spacingState-row counts, not what you can see `[HALF]`
 
 - **Rule:** the "N" in a coverage goal is derived from itemRef cardinality, which does not match the visible catalog.
 - **Decides:** every coverage goal denominator.
 - **Where:** `src/lib/moduleItemCounts.ts:21-24` — the comment states it outright: *"The user-facing card count for Ear Training is 134; the coverage denominator is 143."* Intervals are 13 × 2 directions = 26; modes are 9 × 2 tabs = 18.
-- **UI:** invisible. `Goals.tsx:1831` renders `"Coverage · 4/26"`. Nothing says the 26 counts each interval twice.
+- **UI:** `Goals.tsx:1831` renders `"Coverage · 4/26"`. Nothing there says the 26 counts each interval twice.
+- **Moved invisible → half, 20 Aug 2026** (`a400f87`). The dashboard does not use `moduleItemCounts` at all — its denominators are catalog counts by construction (`read/catalogs.ts`) — and the coverage column's `?` now states the general rule and its reason: *the denominator is the full catalog for that row, never the current filter*, because one that moves with a setting makes the percentage mean a different thing on different days.
+- **What that leaves.** The rule is stated where most coverage numbers are now read and silent where the divergent ones still are. Goals is the remaining surface, and it is the one whose denominators actually disagree with the visible catalog. Closing it means either labelling the composition or moving Goals onto the catalog counts.
 
-### 1.6 Mental Visualization is excluded from every S&P coverage number `[INVISIBLE]`
+### 1.6 Mental Visualization is excluded from every S&P coverage number `[HALF]`
 
 - **Rule:** mental-viz drills count toward consistency only, never breadth/depth/mastery. `itemRefForSkill` returns null for them.
 - **Decides:** all S&P coverage progress.
-- **Where:** `src/lib/moduleItemCounts.ts:158-161` (April 27 design call).
-- **UI:** invisible. Drill mental viz for a month and every S&P coverage goal stays flat.
+- **Where:** `src/lib/moduleItemCounts.ts:158-161` (April 27 design call) · `dashboard/read/catalogs.ts` carries the same decision as `countsTowardModuleTotals: false`.
+- **UI in Goals:** still invisible. Drill mental viz for a month and every S&P coverage goal stays flat.
+- **Moved invisible → half, 20 Aug 2026** (`690f55e`). The mental visualisation row and everything under it now state it, with the reason and — the half that was missing from the rule as written here — **what still does roll up**: recency does, because practising it is practising. A note saying only "excluded" would overstate the exclusion.
+- **Second-order rule, surfaced at the same time.** Mental viz's only per-item record is `performanceHistory`, which caps at 20 entries, so its attempt count is a **floor, not a total**. The row says so. Coverage needs three, so the threshold itself is unaffected.
 
-### 1.7 Supplementary two-handed seventh rows don't gate acquisition `[INVISIBLE]`
+### 1.7 Supplementary two-handed seventh rows don't gate acquisition `[HALF]`
 
 - **Rule:** `supplementary` inversion states are filtered out of the tier denominator via `gatesAcquisition`.
-- **Decides:** S&P tier progress.
-- **Where:** `src/lib/moduleItemCounts.ts:146-148` · `src/modules/shapes-and-patterns/spTiers.ts:134`.
-- **UI:** invisible. The cell is drillable and looks identical to a gating one.
+- **Decides:** S&P tier progress, and the dashboard's chord-shape denominator.
+- **Where:** `src/lib/moduleItemCounts.ts:146-148` · `src/modules/shapes-and-patterns/spTiers.ts:134` · `dashboard/read/shapesScope.ts` skips them when enumerating.
+- **UI in the S&P grid:** still invisible. The cell is drillable and looks identical to a gating one.
+- **Moved invisible → half, 20 Aug 2026** (`a400f87`). The dashboard's coverage `?` states the denominator outright — **648 chord shapes, not the 720 you can open** — and why: the 72 two-handed rows are practice tools rather than shapes to own. The same entry states the other half of that denominator, that a cell is *not* multiplied by hand or by articulation.
+- **What that leaves.** The number is now explained where it is divided by. It is still unexplained at the cell you can drill, which is where the surprise happens.
 
 ### 1.8 Skills-catalogue tiers for flashcards are fabricated windows `[INVISIBLE]`
 
@@ -165,6 +191,39 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 - **Why it will recur:** the dashboard is the first surface in the app that renders **every catalog id**, across six modules. Five of those catalogs have not been audited for this. `chord-shape:maj7:C:inv1` and `mv:triad:maj:root:C` are one interpolation away from the same defect.
 - **Two labels were also wrong at the source**, which the dashboard only exposed: `root–seventh` for `[0, 10]` and `root–tenth` for `[0, 16]`. Each named a degree without its quality, so each described two different shapes. Now `root + ♭7` and `root + major 10th`.
 - **The guard:** `catalogs.test.ts` asserts no row label contains a quality's `id` unless the id *is* the label. Worth extending to the other five catalogs.
+
+**The recurrence happened, and it has a size — 468 rows.** *Found 20 Aug 2026
+while applying the Title Case convention (`1ff0d48`).* Two of the five
+un-audited catalogs label their rows with the stored itemRef:
+
+| Rows | Label today | Where the real label already lives |
+|---|---|---|
+| 96 scale cells | `major:C`, `minor-pentatonic:Eb:b3` | `SCALE_CELLS[].label` — *"Eb minor pentatonic — from b3"* |
+| 372 voice-leading cells | `five-one:guide-tones:posA:Eb` | `voiceLeadingSubCellLabel()` (`shapes-and-patterns/catalog.ts:707`) |
+
+Both label sources exist and neither is read. **This is a labelling fix, not a
+capitalisation one** — Title Casing a raw ref gives `Major:C`, which is a
+capitalised key rather than a label, so the convention deliberately does not
+touch them. `catalogs.test.ts` pins the count at 468 so it cannot grow
+quietly, and so closing it fails the test and asks for the number to be
+removed rather than passing silently.
+
+**A third id was fixed while there** (`1ff0d48`): ear training's chord-tier
+segment rendered `foundational` / `seventh` / `dominant` / `extensions`. It now
+reads the drill's own tab-strip wording. The strings are component-local in
+`ChordFluencyTracker.tsx` and the read layer cannot import a component, so they
+are copied with the source named — a seam, and the alternative was leaving an
+id on screen.
+
+**The near-miss worth recording.** The Title Case rule capitalises the first
+letter of each word, and a lone `b` or `#` before a digit or a capital is
+skipped, because **the case is the meaning**: `b3` is a flat third and `B3` is a
+note; `bVII` is a flat-seven. Without that skip the 264 chord-motion rows built
+from degree spellings would have been silently transposed, and two harmonic
+fluency questions would have been re-spelled into different chords. It would
+have read as a rendering quirk. Same family as this entry — a string whose
+*form* carries meaning, passed through a transform that only understood its
+letters.
 
 ### 1.9 The Musician Balance radar's 0–100 scores are invented targets `[HALF]`
 
@@ -249,6 +308,8 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 - **Where:** `src/lib/spacingState.ts:40, 43, 48, 52` · `COVERED_STAGES` at `goals/progress.ts:58`.
 - **UI:** invisible.
 - **The single most load-bearing invisible rule in the app.** It decides every coverage numerator, every maintenance qualification, and every S&P tier unlock. Nothing anywhere says what "covered" means.
+- **NOT surfaced by the dashboard, and it is worth saying why.** *Checked 20 Aug 2026.* The dashboard now explains its own coverage rule at length — but that is **a different rule**. `dashboard/read/itemStats.ts` covers an item at `engagementCount >= COVERAGE_MIN_ENGAGEMENTS` (3 attempts); this entry is about `acquisitionStage` reaching `acquired`, which is what `COVERED_STAGES` gates in `sessionAlgorithm/` and `goals/progress.ts`. Two rules, both called coverage, in the same app.
+- **That collision is now itself a legibility problem**, and a sharper one than either rule alone: two surfaces can show different "covered" counts for the same item and both be correct. It has the same shape as §1.12's three tier computations. Deciding whether they should reconcile is a design call, not a wiring job.
 
 ### 3.2 Scope-level maintenance — the bar is never stated `[HALF]`
 
@@ -291,6 +352,7 @@ Two SR systems run in parallel and neither shows anything.
 - **Rule:** 3 consecutive clean run-throughs at ≥ (performance tempo − 10) BPM. `cellRollup.ts:74, 90, 183`.
 - **UI:** stated on the button tooltip (`CellInteractionModal.tsx:200`), the progress dots' aria-label (`:320`), the per-attempt "below tempo" tag with explanatory title (`:408`), a banner when changing tempo (`:658`), and the whole-song modal (`WholeSongTestModal.tsx:236, 254`).
 - **The best-surfaced rule in the app.** This is the standard everything else should meet.
+- **The sixth place, added 20 Aug 2026** (`690f55e`). All five above are *at the drill*; the one place the rule was not stated was where the number gets read. A repertoire section row on the dashboard now gives the gate as what would advance it, and distinguishes it from coverage in the same breath — coverage counts logged practice, the score counts clean run-throughs, and rolling them together would let an hour of noodling read as a pass.
 
 ### 3.9 Session-timer drift `[HALF]`
 
@@ -340,16 +402,69 @@ and don't know why.
 
 ---
 
+## The dashboard's own rules — surfaced on arrival `[SURFACED]`
+
+*Added 20 August 2026.* These were never in the audit, because the surface that
+enforces them did not exist when it was taken. They are listed so the next
+audit does not have to rediscover them, and because they are the worked example
+of what the rest of this document is asking for: **every rule the screen
+depends on, readable at the number it affects, with its reason.**
+
+Sixteen rules across four `?` panels — one on each number column header, plus
+one on the due filter pill, which is the only rule with no column to sit on.
+A test asserts every rule carries a `why`, rather than trusting it:
+
+- **accuracy / fluency** — the 20-attempt window · the parent round-DOWN rule ·
+  `excludeFromFluency` · the dash that is not a zero · the mixed-kind dash
+- **coverage** — the 3-attempt threshold · full-catalog denominators · the
+  percent-plus-attempt-count readout · the lesson threshold ("tried it") ·
+  self-assessed starting stages · 648-not-720 (§1.7)
+- **recency** — both numbers and why either alone lies · "never" is not an age ·
+  why recency counts what accuracy drops · which half each sort direction reads
+- **due** — past SM-2's date, not a deadline · why it is a filter and never a
+  column · why some modules return nothing from it
+
+Plus, per row: **what skill it trains**, **what would advance it**, and the
+rules that make that particular row's numbers odd. 60 written explanations
+resolve to all 3,266 rows, each inheriting the nearest one above it and naming
+which row it borrowed from. *(Both figures read off the code, not counted by
+hand: `affordances.test.ts` asserts the row total and the table sizes.)*
+
+**The two legends are the load-bearing part.** The score column carries two
+scales sharing four colours, and a self-rated 75 is *comfortable*, not "75%
+correct". They render side by side, headed by kind, and the accuracy legend is
+*derived from the band table* rather than typed beside it — a legend naming a
+cut-off the code does not use is worse than no legend.
+
+---
+
 ## Scoreboard
 
+*Updated 20 August 2026 after the dashboard's legibility step. Counts are the
+greps from **Status markers** above, not estimates.*
+
 **Fully explained — 6:**
-min rep seconds (2.3) · tempo floor + 3-consecutive gate (3.8) · day-class calendar legend (3.5) · quick-exploration threshold (Tier 4) · Dev Mode toggle + badge · tier legend (intervals only, 1.11).
+min rep seconds (2.3) · tempo floor + 3-consecutive gate (3.8, now surfaced at
+the number as well as at the drill) · day-class calendar legend (3.5) ·
+quick-exploration threshold (Tier 4) · Dev Mode toggle + badge · tier legend
+(intervals only, 1.11). **Plus the dashboard's own sixteen**, listed above.
 
-**Half-surfaced — ~15:** the effect is named, the rule isn't — or it's stated in one module and silent in the seven others that use it.
+**Half-surfaced — 22:** the effect is named, the rule isn't — or it's stated in
+one module and silent in the others that use it. Three moved here from
+invisible on 20 Aug (§1.5, §1.6, §1.7), each because the dashboard now states
+it and the older surface still does not.
 
-**Completely invisible — ~50:** including acquisition stage, all four tier/stage unlock systems, both SR schedulers, the maintenance bar, every coverage denominator's composition, and the fact that drill days don't count as practice days.
+**Completely invisible — 24:** including acquisition stage, all four tier/stage
+unlock systems, both SR schedulers, the maintenance bar, and the fact that
+drill days don't count as practice days.
 
-**Defects (not legibility) — 2:** §1.12 three disagreeing tier computations · §2.4 first engagement bypassing Dev Mode.
+**Defects (not legibility) — 3:** §1.8b a catalog id rendered as a label (468
+rows still open) · §1.12 three disagreeing tier computations · §2.4 first
+engagement bypassing Dev Mode.
+
+**Found while fixing, not yet tagged:** §3.1's note — *two different rules are
+both called coverage*, the acquisition stage and the dashboard's 3-attempt
+threshold. Same shape as §1.12, and a design call rather than a wiring job.
 
 ---
 
@@ -358,3 +473,4 @@ min rep seconds (2.3) · tempo floor + 3-consecutive gate (3.8) · day-class cal
 | Date | Change |
 |---|---|
 | 2026-08-14 | Initial audit against `af9fccf`. No fixes applied. |
+| 2026-08-20 | Dashboard legibility step. §1.5, §1.6, §1.7 invisible → half; §1.3 and §3.8 gained their dashboard surfaces; §1.8b's predicted recurrence found and sized at 468 rows. §3.1 checked and deliberately **not** flipped — the dashboard's coverage is a different rule from the acquisition stage. Counts re-read rather than estimated. Commits `1ff0d48`, `a400f87`, `690f55e`. |

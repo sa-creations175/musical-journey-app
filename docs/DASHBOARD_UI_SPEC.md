@@ -297,6 +297,50 @@ below-tempo tag, the tempo-change banner and the whole-song modal. Five places,
 all of them at the drill. The one place it is not surfaced is where the number
 is read.
 
+### The two affordances, as built
+
+*Settled 20 August 2026. Built in `a400f87` (columns) and `690f55e` (rows).*
+
+Both are **hidden until asked**, and for the same reason: available where the
+thing is, out of the way until wanted. An always-visible legend spends vertical
+space on every screen — the scarcest thing in the case that matters most, a
+phone at the gym — on something read twice and then stopped being seen.
+
+**A `?` on each number column header, plus one on the due filter pill.** Each
+opens one panel below the headers, inside the sticky container. Under, not
+over: the panel explains the row of labels it sits beneath, and opening it must
+not shift them out from under the finger that pressed it.
+
+The score panel carries **both legends side by side**, each headed with its
+kind. The accuracy legend is *derived from the band table* rather than typed
+beside it — a legend naming a cut-off the code does not use is worse than no
+legend, because it is a confident wrong account of a colour the reader can see.
+
+**Due gets the fourth `?` because it is the one rule with no column.** It is
+deliberately a filter, so the filter is the only place its rule can be asked
+about.
+
+**An `i` after each row label, expanding inline beneath the row.** Not a sixth
+column: five is already what fits on a phone, and the affordance belongs beside
+the thing it explains. Not the label itself, which would compete with tapping
+to drill.
+
+**One panel open at a time**, across the columns, the due pill and every row —
+two open panels would push the list they explain off the screen. The open row
+is keyed by **node id, not position**: keyed by position, a sort would leave the
+panel open on whatever row landed in that slot, which is an explanation
+attached to the wrong number.
+
+Neither lives in the URL, for the same reason the comparison does not: reading
+what a column means is a momentary question, not a view worth coming back to.
+
+**Scale.** 60 written explanations resolve to all **3,266 rows** — a row takes
+its own where it has one, otherwise the nearest one above it, with a badge
+naming which row it borrowed from. *(Both numbers read off the code:
+`affordances.test.ts` asserts the row total and the table sizes. Writing one
+per item would mean 3,266 of them, most saying the same thing; leaving item
+rows blank would be the status report again.)*
+
 ---
 
 ## Mobile
@@ -314,26 +358,92 @@ Columns stay. Nothing hides — three columns is few enough.
 *Recorded 20 August 2026, after the first look at the built screen. Kept here
 rather than in conversation so nothing gets lost between sessions.*
 
-| # | Item | Where |
+| # | Item | Where | Status |
+|---|---|---|---|
+| 1 | **Sticky column headers** — accuracy / coverage / recency / drill. They must stay visible while scrolling; on a 55-row list the top is off screen most of the time, and position alone does not say which column is which. | step 7 | **done** — 7a |
+| 2 | **Capitalisation is inconsistent.** Harmonic fluency's submodules are Title Case (`Scale Degree Math`) because they read `CATEGORY_LABELS`; every other module's are lowercase (`note recognition`). One convention, applied everywhere. | step 7 | **done** — `1ff0d48`, and the decision reversed. See below. |
+| 3 | **Item counts on unfilterable rows.** A filterable row reads `drill 34 items`, which doubles as a size. An unfilterable one reads `open module` and says nothing. Make it `open module · 188 items` so both carry the same information in the same place. | step 7 | **done** — 7a |
+| 4 | **Key signatures do not read as pairs.** The relative pairs (G♭ major / E♭ minor) are correct but sit as twelve unrelated rows. A rule or spacing between each pair would make the shared signature visible. | step 7 | **done** — 7a |
+| 5 | Reading chord-identification question design — **being handled in another tab.** Do not duplicate. | elsewhere | — |
+| 6 | **468 rows still label themselves with their stored itemRef.** 96 scale cells read `major:C` and 372 voice-leading cells read `five-one:guide-tones:posA:Eb`. | open | see below |
+
+### On capitalisation — the decision, and the reversal
+
+> **Settled 20 August 2026, against what this section originally recommended.**
+> The original text is kept below the line because it was not wrong about the
+> cost, only about the outcome.
+
+**Module headers stay all-caps; everything below them is Title Case.** The
+header case is structural and the row component already does it in CSS at depth
+0, so nothing in the catalog needed to change for it. Below that, `titleCase()`
+replaces the blanket lowercase, at the same seam in the dashboard's own catalog
+layer.
+
+**Why lowercase-everywhere lost.** It fixed the *mixing* by flattening things
+that read better capitalised — song titles worst of all, which sat beside
+lowercase categories and made the repertoire branch look like two different
+lists.
+
+**The rule is first letter of each word, and nothing else touched.** Lowercasing
+the tail is what a naive Title Case does, and it destroys meaning that lives in
+the case: `EQ` → `Eq`, `AI era` → `Ai Era`. An apostrophe is not a word break,
+or "Ain't Nobody" comes out "Ain'T Nobody".
+
+**A lone `b` or `#` in front of a digit or a capital is left alone, because the
+case IS the meaning.** `b3` is a flat third and `B3` is a note two octaves below
+middle C; `bVII` is a flat-seven. Chord-motion rows are built from degree
+spellings and scale cells carry them mid-label, so an unconditional rule would
+have silently transposed 264 rows and re-spelled two harmonic fluency questions
+into different chords — and it would have read as a rendering quirk.
+
+**Two exemptions**, both because Title Case makes the label worse rather than
+better:
+
+- **Harmonic fluency's leaf label is the card's whole QUESTION.** A sentence in
+  Title Case reads as a headline.
+- **User-entered strings** — song titles, section names. Re-casing text someone
+  typed is a different kind of change from normalising a catalog constant. The
+  repertoire catalog needed no edit as a result.
+
+Two labels stopped being raw ids in the same commit: chord recognition's tier
+segment (`foundational` → `Foundational Triads`, worded as the drill's own tab
+strip does) and chord motion's `asc` → `(Ascending)`.
+
+---
+
+*Original recommendation, superseded:* **Lowercase everywhere is the smaller
+change, and it matches the app.** The nav bar, the module labels and every other
+catalog already use lowercase; harmonic fluency is the outlier because it reads
+`CATEGORY_LABELS`, which is Title Case and shared with the module's own chip
+list and sidebar. Applying `.toLowerCase()` in the dashboard's catalog leaves
+those surfaces alone — the dashboard is a dense table with its own typography,
+and a per-surface convention is defensible. Title Case everywhere would mean
+re-casing around thirty literals plus deriving Title Case from chord, mode and
+interval names that are not stored that way.
+
+### Item 6 — the labels that are still stored ids
+
+*Recorded 20 August 2026, found while applying the convention above.*
+
+`RULE_LEGIBILITY.md` §1.8b predicted this: *"the dashboard is the first surface
+in the app that renders every catalog id, across six modules. Five of those
+catalogs have not been audited for this."* Two of the five carry it, and it has
+a size.
+
+| Rows | Label today | Where the real label already lives |
 |---|---|---|
-| 1 | **Sticky column headers** — accuracy / coverage / recency / drill. They must stay visible while scrolling; on a 55-row list the top is off screen most of the time, and position alone does not say which column is which. | step 7 |
-| 2 | **Capitalisation is inconsistent.** Harmonic fluency's submodules are Title Case (`Scale Degree Math`) because they read `CATEGORY_LABELS`; every other module's are lowercase (`note recognition`). One convention, applied everywhere. | step 7 |
-| 3 | **Item counts on unfilterable rows.** A filterable row reads `drill 34 items`, which doubles as a size. An unfilterable one reads `open module` and says nothing. Make it `open module · 188 items` so both carry the same information in the same place. | step 7 |
-| 4 | **Key signatures do not read as pairs.** The relative pairs (G♭ major / E♭ minor) are correct but sit as twelve unrelated rows. A rule or spacing between each pair would make the shared signature visible. | step 7 |
-| 5 | Reading chord-identification question design — **being handled in another tab.** Do not duplicate. | elsewhere |
+| 96 scale cells | `major:C` | `SCALE_CELLS[].label` — *"Eb minor pentatonic — from b3"* |
+| 372 voice-leading cells | `five-one:guide-tones:posA:Eb` | `voiceLeadingSubCellLabel()` |
 
-### On capitalisation, since it needs a decision
+**This is a labelling fix, not a capitalisation one.** Title Casing a raw ref
+gives `Major:C`, which is a capitalised key rather than a label, so the
+convention deliberately does not touch them — and the flat spellings inside
+them (`b3`, `posB`) are exactly what the accidental rule protects.
 
-**Lowercase everywhere is the smaller change, and it matches the app.** The nav
-bar, the module labels and every other catalog already use lowercase; harmonic
-fluency is the outlier because it reads `CATEGORY_LABELS`, which is Title Case
-and shared with the module's own chip list and sidebar.
-
-Applying `.toLowerCase()` in the dashboard's catalog leaves those surfaces
-alone — the dashboard is a dense table with its own typography, and a per-
-surface convention is defensible. Title Case everywhere would mean re-casing
-around thirty literals plus deriving Title Case from chord, mode and interval
-names that are not stored that way.
+Both label sources exist and neither is read, which makes this a Pattern 1
+wiring job in `RULE_LEGIBILITY`'s terms rather than a design one. The count is
+pinned in `catalogs.test.ts` so it cannot grow quietly, and so closing it fails
+the test and asks for the number to be removed rather than passing silently.
 
 ---
 

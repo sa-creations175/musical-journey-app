@@ -2,7 +2,7 @@
 
 How I like to work with Claude, what I'm building, and the context that helps Claude help me effectively. Paste this at the start of any Claude conversation about personal projects.
 
-Last updated: April 24, 2026
+Last updated: August 20, 2026
 
 ---
 
@@ -102,7 +102,7 @@ When I'm moving fast, short answers are better. When I'm lost, longer explanatio
 
 ### A test on empty or uniform data cannot distinguish a rule from its absence
 
-This cost four catches in one workstream, and every one was found by
+This has cost seven catches in one workstream, and every one was found by
 **reintroducing the bug and watching the test stay green** — never by reading
 the test.
 
@@ -147,15 +147,41 @@ A sixth, found the same way and worth stating as the general form:
   passed whatever the screen wrote. Rendering the router's own query string
   and asserting on that fails the moment compare writes to it.
 
-**The general form of all five: an assertion against something that cannot
+**The general form of all six: an assertion against something that cannot
 change is indistinguishable from one against something that did not.** Empty
 fixtures, uniform data and unreachable globals are three faces of the same
 thing.
 
+A seventh, found by reversing rather than by reading, and a **different face of
+the same family**:
+
+- **An assertion that is true for a reason other than the one you meant.** The
+  dashboard's score column carries two legends — accuracy in percentage bands,
+  fluency in the four rating names — and merging them would be the failure
+  worth catching. The test asserted it as `labels(accuracy) !== labels(fluency)`.
+  Feeding the fluency legend the accuracy table left it **still passing**,
+  because the fluency side renders a trailing value the accuracy side does not,
+  so the two label lists differed anyway. The inequality was real; it just had
+  nothing to do with the property.
+
+  The fix is to assert what each side actually SAYS rather than that they
+  differ: accuracy states percentage ranges, fluency states the four ratings by
+  name and never a percent sign.
+
+  **The tell:** an assertion phrased as *"A is not B"*. Inequality passes for
+  every reason except the one you care about, and there are always more of
+  those than you think. Prefer *"A says X and B says Y"* — it fails when either
+  half stops being true, and it is readable a year later.
+
 ### Two habits that catch it
 
-**Reverse every property test, not only bug fixes.** Back the file up to the
-scratchpad, reintroduce the behaviour the test forbids, watch it fail, restore.
+**Reverse every property test, not only bug fixes.** Seven for seven: no trap
+in this list was ever spotted by re-reading the assertion. Back the file up to
+the scratchpad, reintroduce the behaviour the test forbids, watch it fail,
+restore. **Back it up — do not `git checkout` it.** That reverts the whole file
+to HEAD, which silently discards any uncommitted work in it. Done once during
+the dashboard build; `npm run build` caught the damage, which is a second
+argument for the type gate on top of the test gate.
 If it passes, the test is decorative. And reversing it once proves the test
 catches it *there* — where two code paths can produce the same property, both
 need their own reversal.
@@ -167,10 +193,18 @@ extra assertion, and it fails loudly the day someone simplifies the fixture.
 
 ### Numbers in reports
 
-Two catalog counts shipped wrong in reports before being caught — 432 for a
-420, 104 for a 114 — both from arithmetic done while writing rather than read
-off the source. **If a number was not read from the code, say so when writing
-it.** A number stated plainly reads as verified.
+Three counts have now shipped wrong in reports before being caught — 432 for a
+420, 104 for a 114, and 3,712 for a 3,266 — every one from arithmetic done
+while writing rather than read off the source. **If a number was not read from
+the code, say so when writing it.** A number stated plainly reads as verified,
+and that is the whole problem: the reader cannot tell a counted figure from a
+guessed one, so the guess inherits the trust.
+
+The third slipped into a commit message rather than a report, which is worse in
+one way — the message is not editable without rewriting pushed history, and
+rewriting history to correct prose is not worth it. The correction went into
+the docs instead. **Prefer reading the number even when it seems obvious**; a
+throwaway test that prints it costs a minute.
 
 ## Technical context
 
