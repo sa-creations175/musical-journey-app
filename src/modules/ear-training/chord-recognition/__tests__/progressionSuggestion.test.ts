@@ -92,11 +92,12 @@ describe('it fires only when you have jumped ahead', () => {
 
 describe('it goes quiet past tier 2', () => {
   it('says nothing once the triads and sevenths are done', () => {
-    // THE RULE THIS PINS. Tier 3 is inversions, and only 6 of its 17
-    // items can be reached in free practice — the nine seventh
-    // inversions are undrillable and the two augmented ones are
-    // correctly refused. So the ladder caps at tier 3 permanently, and
-    // naming it would point at work that cannot be done.
+    // THE RULE THIS PINS. Tier 3 is inversions, which are not a tab -
+    // they live under Foundational Triads and Seventh Chords with the
+    // gear on. The fire rule asks whether a tab is ahead of what the
+    // ladder wants, and a step with no tab has no position in that
+    // comparison. Skipping it to reach tiers 4 and 5 would recommend
+    // extensions while the ladder wants inversions.
     const s = cleared(...TIER_1, ...TIER_2);
     expect(progressionSuggestionFor('extensions', s)).toBeNull();
     expect(progressionSuggestionFor('dominant', s)).toBeNull();

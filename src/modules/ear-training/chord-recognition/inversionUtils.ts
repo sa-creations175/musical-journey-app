@@ -29,13 +29,56 @@ export const INVERSION_LABEL: Record<Inversion, string> = {
  *     at a different root — they sound identical to the ear, so
  *     there's nothing to identify.
  *
+ *   · Diminished 7th (dim7) — the same argument one note further.
+ *     [0,3,6,9] is a symmetric stack of minor thirds, so all four
+ *     inversions are the same four pitch classes; the seed's own
+ *     description says as much ("all 4 inversions are harmonically
+ *     the same"). It joins the list now that step 2 fires for
+ *     seventh chords, where before it was excluded by accident
+ *     rather than on purpose — nothing above the foundational tier
+ *     was ever asked about its inversions.
+ *
  * Excluded chords always play in root position regardless of the
  * inversion settings, and never trigger step 2.
  */
+/**
+ * Chord tiers whose chords get the identify-the-inversion step.
+ *
+ * Lives here rather than in the quiz because the tier table has to
+ * agree with it: an item listed in `TIER_3_ITEMS` whose chord is not
+ * in a trained tier can never be attempted, and a tier that cannot be
+ * completed stops the whole ladder. `chordRecognitionTiers.test.ts`
+ * asserts the two against each other.
+ *
+ * It stops at the sevenths deliberately. Extensions and dominant
+ * variations run to six and seven notes, where a rotation stops being
+ * something an ear picks out as an inversion.
+ */
+export const INVERSION_TRAINED_TIERS: ReadonlySet<string> =
+  new Set(['foundational', 'seventh']);
+
+/**
+ * Positions enabled until the player says otherwise.
+ *
+ * Lives beside the other inversion rules, not in the view, because it
+ * is load-bearing for the tier ladder rather than cosmetic: the fourth
+ * position is the only route to `maj7:3`, `min7:3` and `dom7:3`, so a
+ * default of [0,1,2] leaves three tier-3 items unattainable for anyone
+ * who never opens the drawer - which is a tier that cannot clear and a
+ * ladder that stops, exactly the failure of the version before it.
+ * `chordRecognitionTiers.test.ts` walks the tier table against THIS
+ * value rather than against a list written out in the test.
+ *
+ * Triads need no special case: `inversionsForIntervalCount(3)` is
+ * [0,1,2], so the fourth position simply does not apply to them.
+ */
+export const DEFAULT_INVERSION_POSITIONS: Inversion[] = [0, 1, 2, 3];
+
 export const INVERSION_EXCLUDED_CHORD_IDS: ReadonlySet<string> = new Set([
   'sus2',
   'sus4',
   'aug',
+  'dim7',
 ]);
 
 /**

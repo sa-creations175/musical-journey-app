@@ -30,7 +30,9 @@ import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice
 import PianoKeyboard from '../../../components/PianoKeyboard';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import {
+  DEFAULT_INVERSION_POSITIONS,
   INVERSION_EXCLUDED_CHORD_IDS,
+  INVERSION_TRAINED_TIERS,
   INVERSION_LABEL,
   attemptItemId,
   inversionsForIntervalCount,
@@ -58,10 +60,7 @@ const MODULE_ID = 'chord-recognition';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
 const PREF_INVERSION_POSITIONS = 'chordRecognitionInversionPositions';
-// Default: all three triad inversions enabled. Inversion training is
-// the polish-build feature — surface it on by default; gear icon lets
-// the user dial back to root only or any subset.
-const DEFAULT_INVERSION_POSITIONS: Inversion[] = [0, 1, 2];
+
 
 /**
  * Whether the progression suggestion has been dismissed this session.
@@ -84,6 +83,7 @@ type TierFilter = 'all' | ChordData['tier'];
 type PlaybackStyle = 'blocked' | 'broken';
 
 const TIER_ORDER: ChordData['tier'][] = ['foundational', 'seventh', 'dominant', 'extensions'];
+
 const TIER_SECTION_LABEL: Record<ChordData['tier'], string> = {
   foundational: 'Foundational Triads',
   seventh: 'Seventh Chords',
@@ -371,13 +371,23 @@ export default function ChordRecognitionQuiz({
     const candidates: AdaptiveCandidate<{ chord: ChordData; inversion: Inversion }>[] = [];
 
     for (const c of poolChordsRef.current) {
-      // Inversion training is foundational-only AND requires 2+
-      // positions enabled to be meaningful. Sus2 / Sus4 are also
-      // excluded — their character is voicing-defined rather than
-      // triad-stacked, so identifying inversions of them isn't a
-      // useful ear target. Other tiers always play root.
+      // Inversion training covers the triads AND the sevenths, needs
+      // 2+ positions enabled to be meaningful, and skips the chords
+      // whose inversions are not an ear target at all.
+      //
+      // THE SEVENTHS ARE NOT OPTIONAL HERE. This read
+      // `c.tier === 'foundational'` until 21 Aug 2026, which meant the
+      // nine seventh inversions in tier 3 could never be attempted -
+      // so tier 3 could never be cleared and tiers 4 and 5 never
+      // unlocked. One condition, voiding three fifths of a tier and
+      // capping the whole ladder.
+      //
+      // It stops at the sevenths on purpose. Extensions and dominant
+      // variations run to six and seven notes, where "third inversion"
+      // stops being something an ear can pick out, and none of them is
+      // in the tier table.
       const stepTwoEligible =
-        c.tier === 'foundational' &&
+        INVERSION_TRAINED_TIERS.has(c.tier) &&
         !INVERSION_EXCLUDED_CHORD_IDS.has(c.id) &&
         positions.length >= 2;
       const validInversions = inversionsForIntervalCount(c.intervals.length);
@@ -470,7 +480,7 @@ export default function ChordRecognitionQuiz({
   // moment). Sus2 / Sus4 are excluded from inversion training and
   // never trigger step 2.
   const stepTwoFiresFor = (chord: ChordData): boolean =>
-    chord.tier === 'foundational' &&
+    INVERSION_TRAINED_TIERS.has(chord.tier) &&
     !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id) &&
     inversionPositionsRef.current.length >= 2;
 
@@ -648,7 +658,7 @@ export default function ChordRecognitionQuiz({
   // reveal AND the rotated formula on terminal phases.
   const cardUsesInversionTraining =
     current !== null &&
-    current.chord.tier === 'foundational' &&
+    INVERSION_TRAINED_TIERS.has(current.chord.tier) &&
     !INVERSION_EXCLUDED_CHORD_IDS.has(current.chord.id) &&
     inversionPositions.length >= 2;
 
@@ -716,12 +726,13 @@ export default function ChordRecognitionQuiz({
     const today = localDayKey();
     const keys: string[] = [];
     // Per-chord weakness check: a chord is "weak" if any of its
-    // tracked inversions (or root, for non-foundational) sits in
-    // developing / needsWork / untouched. Conservative — surfaces
-    // chords that need work in any inversion the user has practised.
+    // tracked inversions (or root, where inversions are not trained)
+    // sits in developing / needsWork / untouched. Conservative —
+    // surfaces chords that need work in any inversion the user has
+    // practised.
     for (const c of chords) {
       const inversionsToCheck: Inversion[] =
-        c.tier === 'foundational' && !INVERSION_EXCLUDED_CHORD_IDS.has(c.id)
+        INVERSION_TRAINED_TIERS.has(c.tier) && !INVERSION_EXCLUDED_CHORD_IDS.has(c.id)
           ? inversionsForIntervalCount(c.intervals.length)
           : [0];
       const isWeak = inversionsToCheck.some(inv => {
@@ -776,7 +787,11 @@ export default function ChordRecognitionQuiz({
               { id: 'extensions', label: TIER_TAB_LABEL.extensions },
             ] as const).map(tab => {
               const active = tierFilter === tab.id;
-              const isFoundational = tab.id === 'foundational';
+              // The gear sits on every tab inversion training applies
+              // to. On foundational alone it would have said the
+              // setting was about triads, which stopped being true the
+              // moment step 2 started firing for sevenths.
+              const hasGear = tab.id === 'foundational' || tab.id === 'seventh';
               // Each tab is a wrapper with one or two buttons inside —
               // a button for the label, and (foundational only) a
               // sibling button for the gear. Avoids nesting interactive
@@ -789,7 +804,7 @@ export default function ChordRecognitionQuiz({
                 active
                   ? 'text-white'
                   : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-              } ${isFoundational ? 'pr-1.5' : ''}`;
+              } ${hasGear ? 'pr-1.5' : ''}`;
               const gearClass = `inline-flex items-center justify-center pr-2 py-1.5 text-[12px] leading-none rounded-md transition ${
                 active
                   ? 'text-white opacity-90 hover:opacity-100'
@@ -804,7 +819,7 @@ export default function ChordRecognitionQuiz({
                   >
                     {tab.label}
                   </button>
-                  {isFoundational && (
+                  {hasGear && (
                     <button
                       type="button"
                       aria-label="inversion training settings"
@@ -1223,9 +1238,19 @@ function InversionPicker({
 
 // ---------------------------------------------------------------------
 // Inversion settings drawer — inline below tab strip. Opens from the
-// gear icon on the Foundational Triads tab. Multi-select; saves on
-// every toggle so there's no separate save button. Click the close
-// button to dismiss.
+// gear icon on either tab inversion training applies to. Multi-select;
+// saves on every toggle so there's no separate save button. Click the
+// close button to dismiss.
+//
+// ONE SETTING FOR BOTH CHORD SIZES. A triad has three positions and a
+// seventh has four, and the drawer does not branch on that: it offers
+// all four, and every consumer already filters by chord —
+// `buildCandidates` and `InversionPicker` both intersect with
+// `inversionsForIntervalCount`, so enabling 3rd inversion simply has
+// no effect on a triad. Making the drawer chord-aware would have meant
+// a setting whose contents changed depending on which tab was open,
+// which is a worse thing to explain than a row that quietly does not
+// apply.
 // ---------------------------------------------------------------------
 
 interface InversionSettingsDrawerProps {
@@ -1254,7 +1279,7 @@ function InversionSettingsDrawer({
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-medium tracking-tight">
-            Foundational Triads — inversion training
+            Inversion training — triads and sevenths
           </h3>
           <p className="text-[11px] text-neutral-500 mt-0.5">
             {stepTwoActive
@@ -1271,8 +1296,8 @@ function InversionSettingsDrawer({
           ×
         </button>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {([0, 1, 2] as Inversion[]).map(inv => {
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {([0, 1, 2, 3] as Inversion[]).map(inv => {
           const enabled = isEnabled(inv);
           return (
             <button
@@ -1291,6 +1316,10 @@ function InversionSettingsDrawer({
           );
         })}
       </div>
+      <p className="text-[11px] text-neutral-500">
+        A triad has no 3rd inversion, so that setting applies to seventh
+        chords only — enabling it changes nothing about the triads.
+      </p>
       <p className="text-[11px] text-neutral-500">
         Per-inversion accuracy feeds tier ratings separately — your{' '}
         <span className="font-medium">C major root</span> tier and{' '}

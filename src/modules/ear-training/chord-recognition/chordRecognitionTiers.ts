@@ -32,11 +32,21 @@ const TIER_2_ITEMS = [
   'maj7', 'min7', 'dom7', 'dim7', 'm7b5', 'minMaj7',
 ] as const;
 
+/**
+ * Inversions. Every item here must be one the quiz will actually play,
+ * or the tier can never be cleared and the ladder stops dead.
+ *
+ * `aug:1` / `aug:2` WERE LISTED AND ARE NOT PLAYABLE. An augmented
+ * triad is a symmetric stack of major thirds, so its inversions sound
+ * identical and `INVERSION_EXCLUDED_CHORD_IDS` refuses them - rightly.
+ * The table was the thing that was wrong. `dim7` is excluded for the
+ * same reason and was never listed here, which is the shape this list
+ * should have had all along.
+ */
 const TIER_3_ITEMS = [
   'maj:1', 'maj:2',
   'min:1', 'min:2',
   'dim:1', 'dim:2',
-  'aug:1', 'aug:2',
   'maj7:1', 'maj7:2', 'maj7:3',
   'min7:1', 'min7:2', 'min7:3',
   'dom7:1', 'dom7:2', 'dom7:3',

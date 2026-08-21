@@ -20,6 +20,7 @@ import {
 } from '../../../lib/tier';
 import {
   INVERSION_EXCLUDED_CHORD_IDS,
+  INVERSION_TRAINED_TIERS,
   INVERSION_LABEL,
   inversionsForIntervalCount,
   parseAttemptItemId,
@@ -191,7 +192,8 @@ function ChordRow({ chord, attempts, curation, selection }: ChordRowProps) {
   // settings live. Sus2 / Sus4 are excluded — they never get inversion
   // training so the drill-down would surface mostly empty data.
   const supportsDrillDown =
-    chord.tier === 'foundational' && !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id);
+    INVERSION_TRAINED_TIERS.has(chord.tier)
+    && !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id);
   const inversions = supportsDrillDown
     ? inversionsForIntervalCount(chord.intervals.length)
     : [];

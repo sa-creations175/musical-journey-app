@@ -28,15 +28,25 @@
  *
  * ─── And what it may NOT say ─────────────────────────────────────────
  *
- * IT GOES QUIET PAST TIER 2. Tier 3 is inversions, and only 6 of its
- * 17 items can be reached in free practice: `stepTwoEligible` is
- * foundational-only, so the nine seventh-chord inversions are
- * undrillable, and `aug:1` / `aug:2` are correctly refused because a
- * symmetric stack sounds identical inverted. So the progression caps
- * at tier 3 permanently, and a suggestion naming it would point at
- * work that cannot be done - the failure this file is written to avoid,
- * one level worse. Silence is the honest answer. Logged in the build
- * queue.
+ * IT GOES QUIET PAST TIER 2, and the reason changed on 21 Aug 2026.
+ *
+ * It used to be that tier 3 could not be finished at all - nine of its
+ * seventeen items were undrillable - so naming it would have pointed
+ * at work that cannot be done. That is fixed: tier 3 is fifteen
+ * playable items and the ladder now runs to 5.
+ *
+ * What stops it here now is SHAPE, not reachability. Tier 3 is
+ * inversions, which are not a tab: they live under Foundational
+ * Triads and Seventh Chords with the gear turned on. The fire rule
+ * below asks "is this tab ahead of what the ladder wants", and a step
+ * with no tab has no position in that comparison. Skipping it to reach
+ * tiers 4 and 5 would mean recommending extensions while the ladder
+ * actually wants inversions, which is worse than saying nothing.
+ *
+ * Extending it to name the inversions - and through them tiers 4 and
+ * 5 - means a suggestion that points at a SETTING rather than a tab,
+ * and a fire rule that can order a step that has no tab. That is a
+ * design question rather than plumbing, and it is in the build queue.
  */
 import {
   UNLOCK_MIN_ACCURACY,
