@@ -124,7 +124,22 @@ The four:
 - **Mental viz excluded from S&P recency.** Both branches shared a timestamp,
   so the parent read the same either way.
 
-A fifth, found the same way and worth stating as the general form:
+A fifth, and the only one that reached the user rather than the suite:
+
+- **Module rows were not in nav order.** `groupedView` sorts module rows on
+  every render — the sort control's job — and the default view state carried a
+  real sort (`accuracy / worst-first`). So a sort was always active, on load
+  and after reset. Every test passed because nothing had been practised yet:
+  all six modules scored null, and a stable sort left them alone. Reported
+  twice before it was traced.
+
+  **This one is specific to an app whose data starts empty.** A dashboard, a
+  catalog, anything that ships with zero rows will pass an ordering,
+  aggregation or exclusion test on day one and fail it on day thirty. Seed the
+  fixture with data that VARIES before asserting anything about order or
+  arithmetic.
+
+A sixth, found the same way and worth stating as the general form:
 
 - **An assertion against something that cannot change.** A test asserted
   `window.location.search === ''` to prove the compare control writes nothing

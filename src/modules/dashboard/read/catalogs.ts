@@ -72,6 +72,16 @@ export interface CatalogItem {
    * conceptual-knowledge row.
    */
   itemRefs: readonly string[];
+  /**
+   * Draw a break after this row's branch.
+   *
+   * Key signatures are the case. A signature is shared by exactly two
+   * keys — G♭ major and E♭ minor read off the same six flats — and the
+   * tree lists them as twenty-six unrelated rows, so the one fact that
+   * makes them memorable is invisible. A rule after every second key
+   * makes the pairing visible without adding a level to the tree.
+   */
+  endsGroup?: boolean;
 }
 
 export interface ModuleCatalog {
@@ -132,6 +142,28 @@ export function catalogRefSet(catalog: ModuleCatalog): Set<string> {
 /** Every ear-training catalog hangs under one module row. */
 const EAR_TRAINING = 'ear training';
 
+/**
+ * Lowercase a CATEGORY label.
+ *
+ * The dashboard is a dense table with its own typography, and its rows
+ * were mixing conventions: harmonic fluency's categories arrived Title
+ * Case from `CATEGORY_LABELS`, production's paths Title Case from
+ * `p.title`, vocabulary's clusters sentence case, and reading's
+ * qualities already lowercase.
+ *
+ * Applied HERE rather than at the sources, which are shared with each
+ * module's own chips, sidebar and headings — surfaces with different
+ * typography that are not wrong to capitalise.
+ *
+ * NOT applied to proper nouns: mode names (Ionian, Dorian are
+ * capitalised in music), song titles, progression names, key names.
+ * Those are names of things rather than names of categories, and
+ * lowercasing a song title is a different kind of change.
+ */
+function categoryLabel(label: string): string {
+  return label.toLowerCase();
+}
+
 function one(id: string, label: string, path: readonly string[]): CatalogItem {
   return { id, label, path, itemRefs: [id] };
 }
@@ -174,8 +206,8 @@ export const chordRecognitionCatalog: ModuleCatalog = {
     const inversions = chord.intervals.length >= 4 ? [0, 1, 2, 3] : [0, 1, 2];
     return inversions.map(inv => one(
       `${chord.id}:${inv}`,
-      `${chord.name}${inv === 0 ? '' : ` (inv ${inv})`}`,
-      [EAR_TRAINING, 'chord recognition', chord.tier, chord.name],
+      `${categoryLabel(chord.name)}${inv === 0 ? '' : ` (inv ${inv})`}`,
+      [EAR_TRAINING, 'chord recognition', chord.tier, categoryLabel(chord.name)],
     ));
   }),
 };
@@ -271,7 +303,8 @@ export const harmonicFluencyCatalog: ModuleCatalog = {
     .sort((a, b) =>
       (HF_CATEGORY_RANK.get(a.category) ?? 99) - (HF_CATEGORY_RANK.get(b.category) ?? 99))
     .map(card => one(
-      card.id, card.question, ['harmonic fluency', CATEGORY_LABELS[card.category]],
+      card.id, card.question,
+      ['harmonic fluency', categoryLabel(CATEGORY_LABELS[card.category])],
     )),
 };
 
@@ -311,6 +344,9 @@ function signatureRows(): CatalogItem[] {
           signatureItemRef(sig.id, mode, 'count'),
           signatureItemRef(sig.id, mode, 'which'),
         ],
+        // The minor is the second of the pair, so its last row closes
+        // the group. KEY_MODES orders major then minor.
+        ...(mode === KEY_MODES[KEY_MODES.length - 1] ? { endsGroup: true } : {}),
       });
     }
   }
@@ -403,7 +439,7 @@ export const productionLessonsCatalog: ModuleCatalog = {
   items: PRODUCTION_LESSONS.map(lesson => one(
     lesson.id,
     lesson.title,
-    ['production', 'lessons', PATH_LABEL.get(lesson.pathId) ?? lesson.pathId],
+    ['production', 'lessons', categoryLabel(PATH_LABEL.get(lesson.pathId) ?? lesson.pathId)],
   )),
 };
 
@@ -417,7 +453,7 @@ export const productionVocabularyCatalog: ModuleCatalog = {
   items: PRODUCTION_VOCAB_FLASHCARDS.map(card => one(
     card.id,
     card.termName,
-    ['production', 'vocabulary', VOCAB_CLUSTER_LABELS[card.clusterId]],
+    ['production', 'vocabulary', categoryLabel(VOCAB_CLUSTER_LABELS[card.clusterId])],
   )),
 };
 

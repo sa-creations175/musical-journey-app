@@ -137,14 +137,14 @@ export function withModuleCollapsed(
 }
 
 /**
- * Fold every module, or unfold them all.
+ * Collapse every module, or expand them all.
  *
  * Distinct from reset, which returns to submodule depth — the opposite
- * of what folding is for. Seeing the shape of things and returning to
+ * of what collapsing is for. Seeing the shape of things and returning to
  * the default are two different wants, and one button cannot be both.
  *
- * Folding also clears deeper expansion: a branch left open inside a
- * folded module is invisible state that reappears on unfold, having
+ * Collapsing also clears deeper expansion: a branch left open inside a
+ * collapsed module is invisible state that reappears on expand, having
  * moved without being touched.
  */
 export function withAllModulesCollapsed(

@@ -247,14 +247,21 @@ describe('the drill affordance says what pressing it will do', () => {
     );
     const button = el.querySelector('[data-testid="drill-affordance"]')!;
     expect(button.getAttribute('data-filtered')).toBe('false');
-    expect(button.textContent).toBe('open module');
+    // Same information as a filterable row, same column, same word —
+    // only the verb differs, because only the verb is different.
+    expect(button.textContent).toBe('open module · 1 item');
     expect(button.textContent).not.toContain('drill');
   });
 
-  it('pluralises honestly', () => {
-    expect(drillLabel({ filtered: true, itemCount: 1 })).toBe('drill 1 item');
-    expect(drillLabel({ filtered: true, itemCount: 13 })).toBe('drill 13 items');
-    expect(drillLabel({ filtered: false, itemCount: 0 })).toBe('open module');
+  it('pluralises against the count it is actually showing', () => {
+    expect(drillLabel({ filtered: true, itemCount: 1 }, 1)).toBe('drill 1 item');
+    expect(drillLabel({ filtered: true, itemCount: 13 }, 13)).toBe('drill 13 items');
+    // The unfiltered branch pluralises on the TOTAL, not on the
+    // summary's zero — which would have said "0 items" forever.
+    expect(drillLabel({ filtered: false, itemCount: 0 }, 188))
+      .toBe('open module · 188 items');
+    expect(drillLabel({ filtered: false, itemCount: 0 }, 1))
+      .toBe('open module · 1 item');
   });
 
   it('agrees with the read layer rather than deciding for itself', () => {

@@ -283,17 +283,17 @@ export default function DashboardControls({ state, onChange }: DashboardControls
         {state.filter.match === 'any' ? 'match any' : 'match all'}
       </Pill>
 
-      {/* Fold, and unfold. Separate from reset, which returns to
-          submodule depth — the opposite of what folding is for. */}
+      {/* Collapse, and expand. Separate from reset, which returns to
+          submodule depth — the opposite of what collapsing is for. */}
       <Pill
         testId="collapse-all"
         active={allCollapsed}
-        label={allCollapsed ? 'Unfold every module' : 'Fold every module'}
+        label={allCollapsed ? 'Expand every module' : 'Collapse every module'}
         onClick={() => onChange(withAllModulesCollapsed(
           state, DASHBOARD_MODULE_ORDER, !allCollapsed,
         ))}
       >
-        {allCollapsed ? 'unfold all' : 'fold all'}
+        {allCollapsed ? 'expand all' : 'collapse all'}
       </Pill>
 
       <button

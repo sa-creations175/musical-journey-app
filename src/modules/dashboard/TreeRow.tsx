@@ -102,6 +102,7 @@ function TreeRowImpl({
       data-node-id={node.id}
       data-compare={compareHighlight ?? undefined}
       data-module-row={isModuleRow ? 'true' : undefined}
+      data-ends-group={node.endsGroup ? 'true' : undefined}
       style={headerStyle}
       className={[
         'flex items-center gap-2 border-b border-neutral-200/60 dark:border-neutral-800/60',
@@ -110,6 +111,10 @@ function TreeRowImpl({
           // by eye without reading a word.
           ? 'px-2 py-2 text-[12px] border-l-[3px] mt-2 first:mt-0'
           : 'px-2 py-1 text-[13px] border-l-[3px] border-l-transparent',
+        // A group break: a heavier rule and a little air, so a pair
+        // reads as a pair. Structure, not emphasis — it must not
+        // compete with the module headers above it.
+        node.endsGroup ? 'mb-1 border-b-neutral-300 dark:border-b-neutral-700' : '',
         headerStyle ? '' : background,
       ].join(' ')}
     >
@@ -161,7 +166,7 @@ function TreeRowImpl({
         data-testid="cell-score"
         data-band={band ?? 'none'}
         data-kind={node.accuracyKind}
-        className={`${COLUMN_RULE} w-16 shrink-0 text-right tabular-nums ${
+        className={`${COLUMN_RULE} ${COLUMN_WIDTHS.score} shrink-0 text-right tabular-nums ${
           band ? BAND_TEXT_CLASS[band] : 'text-neutral-400'
         }`}
       >
@@ -170,7 +175,7 @@ function TreeRowImpl({
 
       <div
         data-testid="cell-coverage"
-        className={`${COLUMN_RULE} w-36 shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400`}
+        className={`${COLUMN_RULE} ${COLUMN_WIDTHS.coverage} shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400`}
       >
         {formatCoverage({
           isLeaf,
@@ -182,7 +187,7 @@ function TreeRowImpl({
 
       <div
         data-testid="cell-recency"
-        className={`${COLUMN_RULE} w-24 shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400`}
+        className={`${COLUMN_RULE} ${COLUMN_WIDTHS.recency} shrink-0 text-right tabular-nums text-neutral-600 dark:text-neutral-400`}
       >
         {formatRecency({
           isLeaf,
@@ -194,7 +199,7 @@ function TreeRowImpl({
 
       {/* Compare: parents only. Comparing a leaf's children is a
           question about nothing. */}
-      <div className="w-6 shrink-0 text-center">
+      <div className={`${COLUMN_WIDTHS.compare} shrink-0 text-center`}>
         {!isLeaf && onCompare && (
           <button
             type="button"
@@ -224,30 +229,54 @@ function TreeRowImpl({
         data-testid="drill-affordance"
         data-filtered={summary.filtered ? 'true' : 'false'}
         onClick={onDrill}
-        aria-label={`${drillLabel(summary)} — ${node.label}`}
-        className="w-24 shrink-0 text-right text-[11px] text-neutral-400 hover:text-fluent"
+        aria-label={`${drillLabel(summary, node.totalItems)} — ${node.label}`}
+        className={`${DRILL_WIDTH} shrink-0 text-right text-[11px] text-neutral-400 hover:text-fluent`}
       >
-        {drillLabel(summary)}
+        {drillLabel(summary, node.totalItems)}
       </button>
     </div>
   );
 }
 
-/** What pressing the row will actually do. */
+/**
+ * What pressing the row will actually do, and how much it covers.
+ *
+ * Both halves matter and they used to be uneven: a filterable row read
+ * "drill 34 items", which doubled as a size, while an unfilterable one
+ * read "open module" and said nothing about how big it was. Same
+ * column, same word, same information — only the verb differs, because
+ * only the verb is genuinely different.
+ */
 export function drillLabel(
   summary: ReturnType<typeof drillTargetSummary>,
+  totalItems: number,
 ): string {
-  if (!summary.filtered) return 'open module';
-  return `drill ${summary.itemCount} item${summary.itemCount === 1 ? '' : 's'}`;
+  const verb = summary.filtered
+    ? `drill ${summary.itemCount}`
+    : `open module · ${totalItems}`;
+  const count = summary.filtered ? summary.itemCount : totalItems;
+  return `${verb} item${count === 1 ? '' : 's'}`;
 }
 
-/** Column headers. Exported so the screen and the row cannot disagree
- *  about which cell is which width. */
+/**
+ * Column widths, shared with the sticky header.
+ *
+ * Exported so the header and the rows cannot disagree: a header that
+ * drifts by a few pixels is worse than no header, because it points at
+ * the wrong column with total confidence.
+ */
 export const COLUMN_WIDTHS = {
   score: 'w-16',
   coverage: 'w-36',
   recency: 'w-24',
+  compare: 'w-6',
+  drill: 'w-32',
 } as const;
+
+const DRILL_WIDTH = COLUMN_WIDTHS.drill;
+
+/** The classes a header cell needs to sit over its column. */
+export const COLUMN_RULE_CLASS = COLUMN_RULE;
 
 export { NO_VALUE };
 

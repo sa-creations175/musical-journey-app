@@ -16,6 +16,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { MemoryRouter, useSearchParams } from 'react-router-dom';
 import DashboardScreen from '../DashboardScreen';
+import { COLUMN_WIDTHS } from '../TreeRow';
 import { db, type AttemptRecord } from '../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -393,14 +394,15 @@ describe('the drill affordance', () => {
     expect(buttons.every(b => b.closest('[data-testid="tree-row"]') !== null)).toBe(true);
   });
 
-  it('says "open module" on a module row whatever the module', async () => {
+  it('says "open module" on a module row, with its size', async () => {
     // Tapping a module row opens the module rather than drilling all
-    // 375 cards in one sitting.
+    // 375 cards in one sitting — and still says how many there are, so
+    // the column carries the same information on every row.
     const el = await renderScreen();
     const moduleRows = rows(el).filter(r => r.getAttribute('data-depth') === '0');
     for (const row of moduleRows) {
-      expect(row.querySelector('[data-testid="drill-affordance"]')!.textContent)
-        .toBe('open module');
+      const label = row.querySelector('[data-testid="drill-affordance"]')!.textContent!;
+      expect(label).toMatch(/^open module · \d+ items?$/);
     }
   });
 });
@@ -415,12 +417,12 @@ describe('collapsing a module', () => {
     const before = rows(el).length;
     click(moduleRows(el)[0].querySelector('[data-testid="expand-toggle"]')!);
     const after = rows(el);
-    // Six headers still there; the folded module's submodules gone.
+    // Six headers still there; the collapsed module's submodules gone.
     expect(after.filter(r => r.getAttribute('data-depth') === '0')).toHaveLength(6);
     expect(after.length).toBeLessThan(before);
   });
 
-  it('folds every module to six rows', async () => {
+  it('collapses every module to six rows', async () => {
     // The different way of looking at the same screen. Nothing is
     // hidden by distance — it is folded, and unfolds again.
     const el = await renderScreen();
@@ -447,7 +449,7 @@ describe('collapsing a module', () => {
     expect(search(el)).toContain('closed=');
   });
 
-  it('restores a folded module from the URL', async () => {
+  it('restores a collapsed module from the URL', async () => {
     const open = await renderScreen('/');
     const openCount = rows(open).length;
     await act(async () => root!.unmount());
@@ -583,8 +585,8 @@ describe('the default order is the nav bar s', () => {
   });
 });
 
-describe('fold all, end to end', () => {
-  it('folds the screen to six rows and back', async () => {
+describe('collapse all, end to end', () => {
+  it('collapses the screen to six rows and back', async () => {
     const el = await renderScreen();
     const before = rows(el).length;
     expect(before).toBeGreaterThan(6);
@@ -598,7 +600,7 @@ describe('fold all, end to end', () => {
     expect(search(el)).toBe('');
   });
 
-  it('keeps the six in nav order while folded', async () => {
+  it('keeps the six in nav order while collapsed', async () => {
     await seedVariedScalesModes();
     const el = await renderScreen();
     click(el.querySelector('[data-testid="collapse-all"]')!);
@@ -606,5 +608,72 @@ describe('fold all, end to end', () => {
       'harmonic fluency', 'ear training', 'reading',
       'shapes & patterns', 'song repertoire', 'production',
     ]);
+  });
+});
+
+describe('sticky column headers', () => {
+  it('render inside the sticky container, above the rows', async () => {
+    const el = await renderScreen();
+    const headers = el.querySelector('[data-testid="column-headers"]')!;
+    expect(headers).not.toBeNull();
+    // In the sticky container with the controls, not scrolling away
+    // with the list.
+    const sticky = headers.parentElement!;
+    expect(sticky.className).toContain('sticky');
+    expect(sticky.querySelector('[data-testid="dashboard-controls"]')).not.toBeNull();
+    // And before the list in document order.
+    const table = el.querySelector('[data-testid="dashboard-rows"]')!;
+    expect(headers.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it('names every column the rows actually have', async () => {
+    const el = await renderScreen();
+    const text = el.querySelector('[data-testid="column-headers"]')!.textContent!;
+    for (const name of ['skill', 'accuracy / fluency', 'coverage', 'recency', 'drill']) {
+      expect(text).toContain(name);
+    }
+  });
+
+  it('uses the SAME widths as the rows', async () => {
+    // A header that drifts by a few pixels is worse than no header: it
+    // points at the wrong column with total confidence.
+    const el = await renderScreen();
+    const headerCells = [...el.querySelector('[data-testid="column-headers"]')!.children];
+    const row = rows(el)[0];
+    const pairs: Array<[string, string]> = [
+      ['cell-score', COLUMN_WIDTHS.score],
+      ['cell-coverage', COLUMN_WIDTHS.coverage],
+      ['cell-recency', COLUMN_WIDTHS.recency],
+    ];
+    for (const [testId, width] of pairs) {
+      expect(row.querySelector(`[data-testid="${testId}"]`)!.className, testId)
+        .toContain(width);
+      expect(headerCells.some(c => c.className.includes(width)), testId).toBe(true);
+    }
+  });
+});
+
+describe('key signatures read as pairs', () => {
+  it('breaks after every second key, where the signature is shared', async () => {
+    // G♭ major and E♭ minor read off the same six flats. Without the
+    // break they are twenty-six unrelated rows and the one fact that
+    // makes them memorable is invisible.
+    const el = await renderScreen('/?open=reading~1');
+    const keyRows = rows(el).filter(r => r.getAttribute('data-depth') === '2');
+    expect(keyRows).toHaveLength(26);
+    const breaks = keyRows.filter(r => r.getAttribute('data-ends-group') === 'true');
+    expect(breaks).toHaveLength(13);
+    // Every second one, never two in a row.
+    keyRows.forEach((row, i) => {
+      expect(row.getAttribute('data-ends-group'), String(i))
+        .toBe(i % 2 === 1 ? 'true' : null);
+    });
+  });
+
+  it('marks nothing elsewhere', async () => {
+    const el = await renderScreen();
+    expect(rows(el).filter(r => r.getAttribute('data-ends-group') === 'true'))
+      .toHaveLength(0);
   });
 });

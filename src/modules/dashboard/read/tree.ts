@@ -99,6 +99,13 @@ export interface TreeNode {
    * merge happens to walk.
    */
   excludedFromParentTotals: boolean;
+  /**
+   * Draw a break after this row. Set from `CatalogItem.endsGroup`, and
+   * rolled up: a parent closes a group when its LAST child does, so
+   * marking the second key's last row closes the key, which closes the
+   * pair.
+   */
+  endsGroup: boolean;
   /** Mean of descendant leaf scores, or null when none is graded, or
    *  when descendants disagree about what a score means. */
   score: number | null;
@@ -149,6 +156,7 @@ function emptyNode(
     accuracyKind,
     mixedKinds: false,
     excludedFromParentTotals: false,
+    endsGroup: false,
     score: null,
     gradedLeafCount: 0,
     coveredItems: 0,
@@ -220,6 +228,24 @@ function rollUp(node: TreeNode): void {
   node.totalItems = total;
   node.engagementCount = engagements;
   node.itemRefs = refs;
+  /**
+   * A group break belongs to the row whose CHILDREN are the grouped
+   * items, and goes no further.
+   *
+   * The key-signature case: the leaf `conceptual knowledge` of E♭ minor
+   * carries the flag, so the E♭ minor row inherits it — that row is the
+   * second of the pair, and the break under it separates the pairs.
+   * Propagating further would mark "key signature recognition" too,
+   * drawing a break between two sibling SKILLS on the strength of a
+   * pairing that only exists two levels down.
+   *
+   * Bounded by "the last child is a leaf", which is the same statement
+   * in tree terms.
+   */
+  const last = node.children[node.children.length - 1];
+  node.endsGroup = last !== undefined
+    && last.endsGroup
+    && last.children.length === 0;
   node.gradedLeafCount = graded;
   node.mixedKinds = mixed;
   // A mixed node has no single unit, so it has no score to show.
@@ -318,6 +344,7 @@ export function buildMergedTree(
       leaf.stats = stats[i];
       leaf.itemRefs = [...item.itemRefs];
       leaf.engagementCount = stats[i].engagementCount;
+      leaf.endsGroup = item.endsGroup === true;
       leaf.totalItems = item.itemRefs.length;
       leaf.coveredItems = stats[i].covered ? item.itemRefs.length : 0;
       leaf.score = stats[i].score;

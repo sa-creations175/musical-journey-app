@@ -16,7 +16,7 @@
  */
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import TreeRow from './TreeRow';
+import TreeRow, { COLUMN_RULE_CLASS, COLUMN_WIDTHS } from './TreeRow';
 import DashboardControls from './DashboardControls';
 import { useDashboardData } from './useDashboardData';
 import {
@@ -45,6 +45,52 @@ import {
   toggleComparison,
   type Comparison,
 } from './compare';
+
+/**
+ * The column headers, sitting under the controls inside the sticky
+ * container.
+ *
+ * Sticky because a 55-row list puts the top off screen almost
+ * immediately, and three right-aligned number columns are
+ * indistinguishable by position alone once it is gone.
+ *
+ * Widths come from `COLUMN_WIDTHS`, shared with the row. A header that
+ * drifts by a few pixels is worse than no header: it points at the
+ * wrong column with total confidence.
+ *
+ * The score column reads "accuracy / fluency" because the column
+ * genuinely carries both and ONE header spans every block. Most rows
+ * are measured; Shapes & Patterns and the production lessons branch are
+ * self-rated, and each cell already carries its own kind. Step 7b's
+ * legends say which is which — naming only one here would make the
+ * other read as the same thing.
+ */
+function ColumnHeaders() {
+  return (
+    <div
+      data-testid="column-headers"
+      role="row"
+      className="flex items-center gap-2 border-b border-neutral-300 px-2 pb-1
+        text-[10px] uppercase tracking-wider text-neutral-400
+        dark:border-neutral-700"
+    >
+      {/* Matches the row's 3px accent edge so the columns line up. */}
+      <span aria-hidden="true" className="w-[3px] shrink-0" />
+      <span className="flex-1 min-w-0">skill</span>
+      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.score} shrink-0 text-right`}>
+        accuracy / fluency
+      </span>
+      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.coverage} shrink-0 text-right`}>
+        coverage
+      </span>
+      <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.recency} shrink-0 text-right`}>
+        recency
+      </span>
+      <span className={`${COLUMN_WIDTHS.compare} shrink-0`} aria-hidden="true" />
+      <span className={`${COLUMN_WIDTHS.drill} shrink-0 text-right`}>drill</span>
+    </div>
+  );
+}
 
 /** The module's own colour, for its header row. Undefined for a module
  *  with no meta entry, which renders untinted rather than guessing. */
@@ -234,6 +280,7 @@ export default function DashboardScreen({
           column is which. */}
       <div className="sticky top-0 z-10 bg-white/95 dark:bg-neutral-950/95 backdrop-blur">
         <DashboardControls state={{ ...state, expanded }} onChange={setState} />
+        <ColumnHeaders />
       </div>
       <div
         data-testid="dashboard-rows"
