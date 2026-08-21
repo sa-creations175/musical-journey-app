@@ -358,6 +358,7 @@ export function applyAttemptsToKey(
   performanceTempo: number | null,
   isRetest: boolean,
   now: number,
+  kind: 'test' | 'single' = 'test',
 ): { runThroughRows: SongKeyRunThrough[]; finalCount: number } {
   let count = 0;
   const rows: SongKeyRunThrough[] = attempts.map((a, i) => {
@@ -374,6 +375,7 @@ export function applyAttemptsToKey(
       tempoBpm: Math.max(1, Math.floor(a.bpm)),
       notes: null,
       isRetest,
+      kind,
       createdAt: now + i,
     };
   });
@@ -395,6 +397,81 @@ export function applyAttemptsToKey(
  * keyState from the current cells (which should yield 'solid' when
  * all cells are comfortable + test now passed).
  */
+/**
+ * Log ONE whole-song run-through in a key, at any key state.
+ *
+ * ---------------------------------------------------------------
+ * THE GAP THIS FILLS
+ *
+ * `saveKeyAttemptsAndRollup` is reached only through the whole-song
+ * test modal, and that modal opens only when every section's cell in
+ * the key is already comfortable (or the key is solid and lapsed).
+ * So there was no way to record "I played the song through in Ab
+ * once" without first doing the full depth work in Ab — which is a
+ * different activity, and not the one being claimed.
+ *
+ * That mattered because Cross-key → Internalized asks for exactly
+ * that: the four quadrant keys held, plus ONE clean at-tempo run in
+ * each of the remaining eight. Depth in four, breadth across twelve.
+ * Without this the breadth half was unwritable, so the rule could
+ * never have fired.
+ * ---------------------------------------------------------------
+ *
+ * IT CANNOT PROMOTE ANYTHING, and it is worth being exact about why,
+ * because the obvious answer is the wrong one.
+ *
+ * `markSolid: false` below is the BELT. It is not what actually holds
+ * today: `saveKeyAttemptsAndRollup` promotes only when
+ * `markSolid && finalCount >= 3`, and this function submits exactly
+ * ONE attempt, so `finalCount` cannot exceed 1 whatever markSolid
+ * says. Flipping markSolid to true here changes no behaviour at all —
+ * verified by reversal, where it left every test green.
+ *
+ * The BRACES, and the real mechanism, is the one-attempt shape plus
+ * the discrete-session semantics of `applyAttemptsToKey`: the streak
+ * restarts at 0 on every call, so ten separate clean singles produce
+ * ten rows each carrying a count of 1 and never a 2. Both halves are
+ * pinned separately in the tests, because a single test covering
+ * "singles never promote" passes for the wrong reason and would keep
+ * passing if someone widened this to take a list.
+ *
+ * The gate stays what it is: three consecutive clean runs in one
+ * sitting, through the test modal. A hundred scattered passes do not
+ * add up to a graduation, because the claim the gate makes is about
+ * consistency on demand and scattered passes are not that.
+ *
+ * It DOES count as engagement — `lastEngagedAt` moves and the decay
+ * clock resets, exactly as a cell save does. Playing the song through
+ * is engagement by any reading, and withholding that would let a key
+ * drift to lapsed while being played.
+ */
+export async function logSingleKeyRun(args: {
+  songKey: SongKey;
+  attempt: KeyAttemptDraft;
+  performanceTempo: number | null;
+  siblingCells: ReadonlyArray<SongCell>;
+  expectedSectionCount: number;
+  now: number;
+}): Promise<void> {
+  await saveKeyAttemptsAndRollup({
+    songKey: args.songKey,
+    attempts: [args.attempt],
+    // Belt, not braces — see the header. Redundant while this
+    // function submits one attempt, and load-bearing the moment
+    // anyone widens it to take a list. Kept, and not exposed as a
+    // parameter, so widening cannot silently open the gate.
+    markSolid: false,
+    performanceTempo: args.performanceTempo,
+    // A retest is a prompted re-demonstration after a lapse, which is
+    // a test-session concept. A single run is not one.
+    isRetest: false,
+    siblingCells: args.siblingCells,
+    expectedSectionCount: args.expectedSectionCount,
+    now: args.now,
+    kind: 'single',
+  });
+}
+
 export async function saveKeyAttemptsAndRollup(args: {
   songKey: SongKey;
   attempts: ReadonlyArray<KeyAttemptDraft>;
@@ -404,6 +481,10 @@ export async function saveKeyAttemptsAndRollup(args: {
   siblingCells: ReadonlyArray<SongCell>;
   expectedSectionCount: number;
   now: number;
+  /** Defaults to 'test' — the whole-song test modal is this
+   *  function's original and primary caller. `logSingleKeyRun` passes
+   *  'single'. */
+  kind?: 'test' | 'single';
 }): Promise<void> {
   const { runThroughRows, finalCount } = applyAttemptsToKey(
     args.songKey,
@@ -411,6 +492,7 @@ export async function saveKeyAttemptsAndRollup(args: {
     args.performanceTempo,
     args.isRetest,
     args.now,
+    args.kind ?? 'test',
   );
 
   // "Pass" semantics: the gate has been met AND the user opted in.

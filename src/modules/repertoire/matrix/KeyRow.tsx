@@ -32,7 +32,7 @@ interface Props {
    *  semantics — only the cumulative attempt count is meaningful at
    *  the strip level; in-session streak doesn't persist between
    *  modal opens. */
-  testSummary?: { totalAttempts: number };
+  testSummary?: { totalAttempts: number; singleRuns: number };
   /** Wall-clock instant for live-derive decay. Captured at parent
    *  mount, passed through verbatim so all 12 rows share a single
    *  reference instant. */
@@ -46,6 +46,9 @@ interface Props {
    *  (initial test) OR when the key is solid+lapsed (retest path —
    *  the only way back to fresh-solid). */
   onRunTest?: (songKeyId: string) => void;
+  /** Log-one-run callback. Unlike `onRunTest` this is offered on
+   *  EVERY key at every state — that is the whole point of it. */
+  onLogRun?: (songKeyId: string) => void;
 }
 
 export default function KeyRow({
@@ -58,6 +61,7 @@ export default function KeyRow({
   now,
   onCellTap,
   onRunTest,
+  onLogRun,
 }: Props) {
   // See isKeyRowEngaged — row existence stopped meaning "touched" once
   // all 12 keys are materialised.
@@ -98,6 +102,7 @@ export default function KeyRow({
         testSummary={testSummary}
         now={now}
         onRunTest={onRunTest}
+        onLogRun={onLogRun}
       />
     </div>
   );
@@ -224,13 +229,15 @@ function KeyStrip({
   testSummary,
   now,
   onRunTest,
+  onLogRun,
 }: {
   songKey: SongKey | null;
   sections: ReadonlyArray<SongMatrixSection>;
   cellsBySectionId: ReadonlyMap<string, SongCell>;
-  testSummary?: { totalAttempts: number };
+  testSummary?: { totalAttempts: number; singleRuns: number };
   now: number;
   onRunTest?: (songKeyId: string) => void;
+  onLogRun?: (songKeyId: string) => void;
 }) {
   const engaged = songKey !== null;
   const stateKey = songKey?.keyState ?? 'not_started';
@@ -266,6 +273,15 @@ function KeyStrip({
     && (stateKey === 'comfortable' || decayState === 'lapsed');
   const isRetestCta = decayState === 'lapsed';
   const totalAttempts = testSummary?.totalAttempts ?? 0;
+  const singleRuns = testSummary?.singleRuns ?? 0;
+  // Offered on EVERY key, at every state — no gate, which is the
+  // entire reason it exists. The whole-song test is unreachable until
+  // every cell in the key is comfortable, so before this there was no
+  // way to record having played the song through in a key you had not
+  // finished. Rendered as a quiet text link rather than a second
+  // filled button so the hierarchy stays honest: the coloured CTA is
+  // the graduation gate, this is bookkeeping.
+  const showLogRun = songKey !== null && onLogRun !== undefined;
 
   return (
     <div
@@ -289,9 +305,20 @@ function KeyStrip({
       {(stateKey === 'comfortable' || decayState === 'lapsed') && songKey && (
         <TestStatus totalAttempts={totalAttempts} />
       )}
+      {songKey && singleRuns > 0 && <RunStatus singleRuns={singleRuns} />}
       <span className="shrink-0 text-neutral-400 dark:text-neutral-500">
         {formatLastEngaged(songKey?.lastEngagedAt)}
       </span>
+      {showLogRun && (
+        <button
+          type="button"
+          onClick={() => onLogRun!(songKey!.id)}
+          title="Record one run-through of the whole song in this key. Does not unlock Solid."
+          className="shrink-0 text-[10px] uppercase tracking-wide font-medium text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+        >
+          + log a run
+        </button>
+      )}
       {showRunTest && (
         <button
           type="button"
@@ -337,6 +364,26 @@ function DecayBadge({
       title="Past 30 days — retest recommended"
     >
       Lapsed{suffix}
+    </span>
+  );
+}
+
+/**
+ * Cumulative single run-throughs in this key.
+ *
+ * Worded so it cannot be mistaken for test progress. "Tested N×" and
+ * "N runs" sit side by side and count different events — which is
+ * why `kind` exists on the row. Before it, a single run would have
+ * inflated the tested counter and made a key look further along the
+ * graduation path than it was.
+ *
+ * Hidden at zero rather than reading "0 runs": twelve rows each
+ * carrying a line that says nothing is worse than no line.
+ */
+function RunStatus({ singleRuns }: { singleRuns: number }) {
+  return (
+    <span className="shrink-0 text-neutral-500 dark:text-neutral-400 tabular-nums">
+      {singleRuns} run{singleRuns === 1 ? '' : 's'}
     </span>
   );
 }

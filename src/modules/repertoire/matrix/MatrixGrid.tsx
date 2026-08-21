@@ -38,7 +38,7 @@ interface Props {
    *  once in SongMatrixView from the run-throughs query so all 12
    *  rows share one read. Missing entries default to 0 attempts in
    *  KeyStrip — same UX as no run-throughs ever logged. */
-  testSummariesByKeyId?: ReadonlyMap<string, { totalAttempts: number }>;
+  testSummariesByKeyId?: ReadonlyMap<string, { totalAttempts: number; singleRuns: number }>;
   /** Wall-clock timestamp captured once at the parent mount. Passed
    *  through so each KeyRow's decay live-derive uses a consistent
    *  reference instant across the whole grid. */
@@ -49,6 +49,7 @@ interface Props {
   /** Plumbed through to each KeyRow → KeyStrip. Fires when the user
    *  clicks "Run test" on a comfortable key's inline strip. */
   onRunTest?: (songKeyId: string) => void;
+  onLogRun?: (songKeyId: string) => void;
 }
 
 export default function MatrixGrid({
@@ -59,6 +60,7 @@ export default function MatrixGrid({
   now,
   onCellTap,
   onRunTest,
+  onLogRun,
 }: Props) {
   // Index incoming data once so each KeyRow gets O(1) lookups
   // rather than scanning the full songKeys / songCells arrays per
@@ -121,6 +123,7 @@ export default function MatrixGrid({
               now={now}
               onCellTap={onCellTap}
               onRunTest={onRunTest}
+              onLogRun={onLogRun}
             />
           );
         })}

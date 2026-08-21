@@ -2128,6 +2128,31 @@ export interface SongKeyRunThrough {
    *  Important for Practice Sessions prioritization and the
    *  meta-dashboard. */
   isRetest: boolean;
+  /**
+   * What kind of event produced this row.
+   *
+   *   'test'   — part of a whole-song test session: a run of three
+   *              consecutive clean attempts in one sitting, which is
+   *              the gate from comfortable to solid.
+   *   'single' — one run-through logged on its own, in any key,
+   *              at any key state. Records that the song was played
+   *              through in that key. NEVER advances the gate.
+   *
+   * OPTIONAL, and absence reads as 'test'. That is a statement of
+   * fact rather than a guess: until this field existed the whole-song
+   * test modal was the only writer of this table, so every row
+   * without it came from a test session.
+   *
+   * The distinction is load-bearing in two places. The strip's
+   * "Tested N×" counter must not inflate with runs that were never
+   * tests. And the Cross-key → Internalized rule counts a clean
+   * at-tempo run in each key REGARDLESS of kind — a key you passed
+   * the full test in obviously also had a clean run in it.
+   *
+   * Non-indexed, so no Dexie version bump, and the sync layer carries
+   * it inside the data blob.
+   */
+  kind?: 'test' | 'single';
   createdAt: number;
 }
 

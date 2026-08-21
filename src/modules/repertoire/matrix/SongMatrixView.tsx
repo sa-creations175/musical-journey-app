@@ -9,6 +9,7 @@ import {
   type SongMatrixSection,
 } from '../../../lib/db';
 import CellInteractionModal from './CellInteractionModal';
+import SingleRunModal from './SingleRunModal';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
@@ -117,6 +118,13 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   const [activeTestKeyId, setActiveTestKeyId] = useState<string | null>(null);
   const handleRunTest = useCallback((keyId: string) => setActiveTestKeyId(keyId), []);
   const closeTestModal = useCallback(() => setActiveTestKeyId(null), []);
+
+  // Single-run modal — same ID-only pattern. Separate state from the
+  // test modal on purpose: they are different events, and sharing one
+  // slot would make "which modal is open" a derived question.
+  const [activeRunKeyId, setActiveRunKeyId] = useState<string | null>(null);
+  const handleLogRun = useCallback((keyId: string) => setActiveRunKeyId(keyId), []);
+  const closeRunModal = useCallback(() => setActiveRunKeyId(null), []);
 
   const visibleSections = useMemo(
     () => sections.filter(s => !s.isArchived),
@@ -228,11 +236,18 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   // strip (next session resets to 0). The cumulative count tracks
   // honest effort over time.
   const testSummariesByKeyId = useMemo(() => {
-    const m = new Map<string, { totalAttempts: number }>();
+    const m = new Map<string, { totalAttempts: number; singleRuns: number }>();
     for (const rt of songKeyRunThroughs) {
-      const prior = m.get(rt.songKeyId);
+      const prior = m.get(rt.songKeyId)
+        ?? { totalAttempts: 0, singleRuns: 0 };
+      // Two counters, because these are two different events and a
+      // single tally would misreport both. `kind` absent means 'test':
+      // until that field existed the test modal was this table's only
+      // writer, so every row without it came from a test session.
+      const isSingle = rt.kind === 'single';
       m.set(rt.songKeyId, {
-        totalAttempts: (prior?.totalAttempts ?? 0) + 1,
+        totalAttempts: prior.totalAttempts + (isSingle ? 0 : 1),
+        singleRuns: prior.singleRuns + (isSingle ? 1 : 0),
       });
     }
     return m;
@@ -261,6 +276,16 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
       : [],
     [activeTestKey, songCells],
   );
+  const activeRunKey = activeRunKeyId
+    ? songKeys.find(k => k.id === activeRunKeyId) ?? null
+    : null;
+  const activeRunSiblingCells = useMemo(
+    () => activeRunKey
+      ? songCells.filter(c => c.songKeyId === activeRunKey.id)
+      : [],
+    [activeRunKey, songCells],
+  );
+
   // Retest semantics: if the active key is currently lapsed, this is
   // a retest. Pass-through to the modal for title/copy/audit-flag.
   const activeTestIsRetest = activeTestKey !== null
@@ -304,6 +329,7 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
         now={now}
         onCellTap={handleCellTap}
         onRunTest={handleRunTest}
+        onLogRun={handleLogRun}
       />
 
 
@@ -328,6 +354,19 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
           section={activeSection}
           song={song}
           siblingCells={activeSiblingCells}
+          totalSections={visibleSections.length}
+        />
+      )}
+
+      {activeRunKey && (
+        <SingleRunModal
+          key={activeRunKey.id}
+          open={true}
+          onClose={closeRunModal}
+          onSaved={bumpRefresh}
+          songKey={activeRunKey}
+          song={song}
+          siblingCells={activeRunSiblingCells}
           totalSections={visibleSections.length}
         />
       )}
