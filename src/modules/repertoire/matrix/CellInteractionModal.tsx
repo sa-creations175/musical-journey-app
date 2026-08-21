@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import Modal from '../../../components/Modal';
 import type { Feel } from '../../../lib/fluencyScale';
 import DurationCapture from '../DurationCapture';
+import ModalMetronome from './ModalMetronome';
 import { logPracticeSession } from '../logPractice';
 import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
 import {
@@ -274,6 +275,7 @@ export default function CellInteractionModal({
           bpmInput={bpmInput}
           onBpmChange={setBpmInput}
           bpmValid={bpmValid}
+          fieldBpm={hasBpm ? parsedBpm : null}
           onClean={() => handleAddAttempt(true)}
           onNotClean={() => handleAddAttempt(false)}
         />
@@ -476,12 +478,14 @@ function AddAttemptArea({
   bpmInput,
   onBpmChange,
   bpmValid,
+  fieldBpm,
   onClean,
   onNotClean,
 }: {
   bpmInput: string;
   onBpmChange: (next: string) => void;
   bpmValid: boolean;
+  fieldBpm: number | null;
   onClean: () => void;
   onNotClean: () => void;
 }) {
@@ -522,6 +526,12 @@ function AddAttemptArea({
         >
           ✗ Not clean
         </button>
+      </div>
+      {/* Directly under the tempo field, because that is where the
+          question is asked. The modal wanted a BPM and offered
+          nothing to play against it. */}
+      <div className="mt-2">
+        <ModalMetronome fieldBpm={fieldBpm} />
       </div>
     </div>
   );

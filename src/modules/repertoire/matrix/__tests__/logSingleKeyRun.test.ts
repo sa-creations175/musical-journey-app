@@ -21,6 +21,8 @@ import {
   logSingleKeyRun,
   saveKeyAttemptsAndRollup,
 } from '../cellRollup';
+import { isHeld } from '../keyProgress';
+import { evaluateAdvancement } from '../../stage';
 
 const NOW = 1_700_000_000_000;
 const SONG = 's1';
@@ -226,5 +228,81 @@ describe('kind separates the two events', () => {
       mkKey(), [{ id: 'a1', bpm: TEMPO, wasClean: true }], TEMPO, false, NOW,
     );
     expect(runThroughRows[0].kind).toBe('test');
+  });
+});
+
+describe('testing past the gate', () => {
+  /**
+   * The override lets a song already in your hands reach Comfortable
+   * without the section-by-section work. What it must NOT do is
+   * fabricate the section work: `keyState` is recomputed from the
+   * CELLS on a pass, so a key whose sections are not comfortable
+   * stays where it is. Both halves are asserted, because the screen
+   * promises exactly this split and either half silently flipping
+   * would make it a lie.
+   */
+  it('a pass below the gate records the test but does not make the key solid', async () => {
+    const key = mkKey({ keyState: 'learning' });
+    await db.songKeys.put(key);
+
+    await saveKeyAttemptsAndRollup({
+      songKey: key,
+      attempts: [1, 2, 3].map(i => ({ id: `a${i}`, bpm: TEMPO, wasClean: true })),
+      markSolid: true,
+      performanceTempo: TEMPO,
+      isRetest: false,
+      // The section is NOT comfortable — that is the whole premise.
+      siblingCells: [mkCell({ cellState: 'learning', consecutiveCleanCount: 0 })],
+      expectedSectionCount: 1,
+      now: NOW,
+    });
+
+    const after = await db.songKeys.get('key-1');
+    // Guard the guard: the gate really was met, so a refusal here
+    // would be about the cells and not about the streak.
+    expect(after?.wholeSongTestPassedAt).toBe(NOW);
+    expect(after?.keyState).toBe('learning');
+  });
+
+  it('and that pass is what moves the song to Comfortable', async () => {
+    // The consequence the confirm dialog promises, checked against the
+    // rule rather than described. Same key, now flagged original.
+    const key = mkKey({ keyState: 'learning', isOriginalKey: true, keyName: 'C' });
+    await db.songKeys.put(key);
+    await saveKeyAttemptsAndRollup({
+      songKey: key,
+      attempts: [1, 2, 3].map(i => ({ id: `b${i}`, bpm: TEMPO, wasClean: true })),
+      markSolid: true,
+      performanceTempo: TEMPO,
+      isRetest: false,
+      siblingCells: [mkCell({ cellState: 'learning', consecutiveCleanCount: 0 })],
+      expectedSectionCount: 1,
+      now: NOW,
+    });
+    const after = (await db.songKeys.get('key-1'))!;
+
+    expect(evaluateAdvancement({
+      currentStage: 'learning',
+      songKeys: [after],
+      keyRunThroughs: [],
+      performanceTempo: TEMPO,
+      now: NOW,
+    }).suggest).toBe(true);
+  });
+
+  it('but the key still does not count toward cross-key', async () => {
+    // isHeld needs comfortable-or-better, and a forced pass leaves the
+    // key at learning. This is the trade the confirm dialog names.
+    const key = mkKey({ keyState: 'learning' });
+    await db.songKeys.put(key);
+    await saveKeyAttemptsAndRollup({
+      songKey: key,
+      attempts: [1, 2, 3].map(i => ({ id: `c${i}`, bpm: TEMPO, wasClean: true })),
+      markSolid: true, performanceTempo: TEMPO, isRetest: false,
+      siblingCells: [mkCell({ cellState: 'learning', consecutiveCleanCount: 0 })],
+      expectedSectionCount: 1, now: NOW,
+    });
+    const after = (await db.songKeys.get('key-1'))!;
+    expect(isHeld(after, NOW)).toBe(false);
   });
 });

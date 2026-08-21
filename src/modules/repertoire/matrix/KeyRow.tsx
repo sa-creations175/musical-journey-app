@@ -49,6 +49,10 @@ interface Props {
   /** Log-one-run callback. Unlike `onRunTest` this is offered on
    *  EVERY key at every state — that is the whole point of it. */
   onLogRun?: (songKeyId: string) => void;
+  /** Open the whole-song test on a key that has NOT met the gate.
+   *  Shown in place of the Run test CTA, never alongside it, so the
+   *  strip always carries exactly one test control. */
+  onTestAnyway?: (songKeyId: string) => void;
 }
 
 export default function KeyRow({
@@ -62,6 +66,7 @@ export default function KeyRow({
   onCellTap,
   onRunTest,
   onLogRun,
+  onTestAnyway,
 }: Props) {
   // See isKeyRowEngaged — row existence stopped meaning "touched" once
   // all 12 keys are materialised.
@@ -103,6 +108,7 @@ export default function KeyRow({
         now={now}
         onRunTest={onRunTest}
         onLogRun={onLogRun}
+        onTestAnyway={onTestAnyway}
       />
     </div>
   );
@@ -230,6 +236,7 @@ function KeyStrip({
   now,
   onRunTest,
   onLogRun,
+  onTestAnyway,
 }: {
   songKey: SongKey | null;
   sections: ReadonlyArray<SongMatrixSection>;
@@ -238,6 +245,7 @@ function KeyStrip({
   now: number;
   onRunTest?: (songKeyId: string) => void;
   onLogRun?: (songKeyId: string) => void;
+  onTestAnyway?: (songKeyId: string) => void;
 }) {
   const engaged = songKey !== null;
   const stateKey = songKey?.keyState ?? 'not_started';
@@ -282,6 +290,15 @@ function KeyStrip({
   // filled button so the hierarchy stays honest: the coloured CTA is
   // the graduation gate, this is bookkeeping.
   const showLogRun = songKey !== null && onLogRun !== undefined;
+  // The override, offered exactly where the CTA is NOT. Working
+  // section by section is the recommended path and stays the default,
+  // but a song already in your hands from years of playing it should
+  // not be told it cannot be tested. One test control per strip either
+  // way, so this adds no density — it fills the slot the CTA leaves
+  // empty. The effort lives in the confirm the parent raises, not in
+  // hiding the link.
+  const showTestAnyway =
+    songKey !== null && onTestAnyway !== undefined && !showRunTest;
 
   return (
     <div
@@ -317,6 +334,16 @@ function KeyStrip({
           className="shrink-0 text-[10px] uppercase tracking-wide font-medium text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
         >
           + log a run
+        </button>
+      )}
+      {showTestAnyway && (
+        <button
+          type="button"
+          onClick={() => onTestAnyway!(songKey!.id)}
+          title="Go straight to the whole-song test without working the sections first."
+          className="shrink-0 text-[10px] uppercase tracking-wide font-medium text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
+        >
+          test anyway
         </button>
       )}
       {showRunTest && (

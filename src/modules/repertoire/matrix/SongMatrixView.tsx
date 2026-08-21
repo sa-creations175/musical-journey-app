@@ -10,6 +10,7 @@ import {
 } from '../../../lib/db';
 import CellInteractionModal from './CellInteractionModal';
 import SingleRunModal from './SingleRunModal';
+import ConfirmDialog from '../../../components/ConfirmDialog';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
@@ -125,6 +126,18 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   const [activeRunKeyId, setActiveRunKeyId] = useState<string | null>(null);
   const handleLogRun = useCallback((keyId: string) => setActiveRunKeyId(keyId), []);
   const closeRunModal = useCallback(() => setActiveRunKeyId(null), []);
+
+  // Testing past the gate. The link opens a confirm, not the test —
+  // the section-by-section path is the recommended one and the
+  // override should cost a deliberate read, not a stray tap. Policy
+  // lives here rather than in KeyRow, which only reports the tap.
+  const [forceTestKeyId, setForceTestKeyId] = useState<string | null>(null);
+  const handleTestAnyway = useCallback((keyId: string) => setForceTestKeyId(keyId), []);
+  const cancelForceTest = useCallback(() => setForceTestKeyId(null), []);
+  const confirmForceTest = useCallback(() => {
+    setActiveTestKeyId(forceTestKeyId);
+    setForceTestKeyId(null);
+  }, [forceTestKeyId]);
 
   const visibleSections = useMemo(
     () => sections.filter(s => !s.isArchived),
@@ -279,6 +292,9 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   const activeRunKey = activeRunKeyId
     ? songKeys.find(k => k.id === activeRunKeyId) ?? null
     : null;
+  const forceTestKey = forceTestKeyId
+    ? songKeys.find(k => k.id === forceTestKeyId) ?? null
+    : null;
   const activeRunSiblingCells = useMemo(
     () => activeRunKey
       ? songCells.filter(c => c.songKeyId === activeRunKey.id)
@@ -330,6 +346,7 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
         onCellTap={handleCellTap}
         onRunTest={handleRunTest}
         onLogRun={handleLogRun}
+        onTestAnyway={handleTestAnyway}
       />
 
 
@@ -357,6 +374,39 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
           totalSections={visibleSections.length}
         />
       )}
+
+      <ConfirmDialog
+        open={forceTestKeyId !== null}
+        variant="default"
+        title={`Test ${forceTestKey?.keyName ?? ''} before its sections are comfortable?`}
+        confirmLabel="I already play this — test anyway"
+        cancelLabel="Work the sections first"
+        message={(
+          <div className="space-y-2">
+            <p>
+              Normally the whole-song test unlocks once every section in a key
+              is comfortable. Working section by section is the recommended
+              route, and the repetition is most of what makes the song stick.
+            </p>
+            <p>
+              This skips straight to the test:{' '}
+              <span className="font-medium">
+                three clean run-throughs in a row, in one sitting
+              </span>
+              . It is here for songs you already play — ones you brought to the
+              app rather than learned in it.
+            </p>
+            <p className="text-neutral-500">
+              Passing moves the song to Comfortable. It does not mark the
+              individual sections comfortable, so this key will not count
+              toward cross-key until you have worked them. Failing costs
+              nothing — you will have found where it breaks.
+            </p>
+          </div>
+        )}
+        onConfirm={confirmForceTest}
+        onCancel={cancelForceTest}
+      />
 
       {activeRunKey && (
         <SingleRunModal

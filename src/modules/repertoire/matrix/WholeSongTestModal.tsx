@@ -98,6 +98,13 @@ export default function WholeSongTestModal({
   // AND on retest (key is solid but lapsed → re-pass clears the
   // lapse). The only state where it stays disabled is "solid and not
   // lapsed" — there's nothing to re-confirm in that case.
+  // Opened via "test anyway": the key has not met the gate, so a pass
+  // records the whole-song test but cannot make the key Solid —
+  // keyState is recomputed from the CELLS, which are not comfortable.
+  // Both the reminder and the button label have to say so, or the
+  // screen promises something the save will not do.
+  const belowGate =
+    songKey.keyState !== 'comfortable' && songKey.keyState !== 'solid';
   const canMarkSolid =
     (songKey.keyState !== 'solid' || isRetest) && projectedCount >= 3;
   const hasContent = attempts.length > 0;
@@ -174,7 +181,9 @@ export default function WholeSongTestModal({
                 className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 title={canMarkSolid ? undefined : 'Reach 3 consecutive clean run-throughs to enable'}
               >
-                {isRetest ? 'Mark solid (re-pass)' : 'Mark solid'}
+                {belowGate
+                  ? 'Pass the test'
+                  : isRetest ? 'Mark solid (re-pass)' : 'Mark solid'}
               </button>
             )}
           </div>
@@ -186,6 +195,7 @@ export default function WholeSongTestModal({
           performanceTempo={performanceTempo}
           keyAlreadySolid={songKey.keyState === 'solid'}
           isRetest={isRetest}
+          belowGate={belowGate}
         />
 
         <StateHeader
@@ -220,10 +230,14 @@ function RuleReminder({
   performanceTempo,
   keyAlreadySolid,
   isRetest,
+  belowGate,
 }: {
   performanceTempo: number | null;
   keyAlreadySolid: boolean;
   isRetest: boolean;
+  /** Opened via "test anyway" — the key has not met the gate, so the
+   *  standard copy's promise of Solid would be false here. */
+  belowGate: boolean;
 }) {
   const floorText = performanceTempo !== null
     ? ` at or above ♩ ${performanceTempo - 10}`
@@ -245,6 +259,22 @@ function RuleReminder({
       <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
         This key is already at <span className="font-medium">Solid</span>.
         Re-attempts log to the audit trail but don't change the key's state.
+      </div>
+    );
+  }
+  if (belowGate) {
+    // The standard copy below promises Solid. That would be a false
+    // claim here: keyState is recomputed from the CELLS on a pass, and
+    // a key whose sections are not comfortable stays where it is. What
+    // a pass does do is move the SONG to Comfortable, which is the
+    // thing worth saying.
+    return (
+      <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+        You are testing ahead of the usual route — the sections in this key
+        are not marked comfortable yet.{' '}
+        <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span>{' '}
+        moves the song to Comfortable. It will not make this key Solid; that
+        still needs the sections.
       </div>
     );
   }
