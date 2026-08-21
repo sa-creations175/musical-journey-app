@@ -23,8 +23,10 @@ import {
   STAGE_LABEL,
   evaluateAdvancement,
   nextStage,
+  normaliseStage,
   type AdvancementInputs,
 } from '../stage';
+import { CIRCLE_OF_FOURTHS_KEYS } from '../matrix/keys';
 
 const NOW = 1_760_000_000_000;
 
@@ -40,14 +42,29 @@ function key(keyName: string, over: Partial<SongKey> = {}): SongKey {
   };
 }
 
+const TEMPO = 100;
+
 function inputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
   return {
     currentStage: 'learning',
     songKeys: [],
+    keyRunThroughs: [],
+    performanceTempo: TEMPO,
     now: NOW,
-    crossKeyPairs: [],
     ...over,
   };
+}
+
+/** All twelve key rows, as `materialise` creates them. */
+function allTwelve(over: (k: string) => Partial<SongKey> = () => ({})): SongKey[] {
+  return CIRCLE_OF_FOURTHS_KEYS.map(k => key(k, over(k)));
+}
+
+/** A clean run at performance tempo in each of the named keys. */
+function cleanRunsIn(keyNames: string[]) {
+  return keyNames.map(k => ({
+    songKeyId: `sk-${k}`, wasClean: true, tempoBpm: TEMPO,
+  }));
 }
 
 /** One key per quadrant — the passing shape for Comfortable → Cross-key. */
@@ -68,19 +85,12 @@ describe('no rule names its own destination', () => {
     }),
     'cross-key': inputs({
       currentStage: 'cross-key',
-      crossKeyPairs: [
-        ...['C', 'D', 'E', 'F', 'G', 'A'].map(k => ({ sectionId: 'chorus', keyName: k, sessionCount: 1 })),
-        { sectionId: 'verse', keyName: 'D', sessionCount: 1 },
-        { sectionId: 'bridge', keyName: 'E', sessionCount: 1 },
-      ],
-    }),
-    internalized: inputs({
-      currentStage: 'internalized',
-      originalKey: 'C',
-      crossKeyPairs: [
-        { sectionId: 'chorus', keyName: 'F', sessionCount: 1 },
-        { sectionId: 'chorus', keyName: 'G', sessionCount: 1 },
-      ],
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k)
+        ? {}
+        : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(
+        CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)),
+      ),
     }),
   };
 
@@ -98,9 +108,9 @@ describe('no rule names its own destination', () => {
     });
   }
 
-  it('maintenance, having nothing above it, suggests nothing', () => {
-    expect(nextStage('maintenance')).toBeNull();
-    expect(evaluateAdvancement(inputs({ currentStage: 'maintenance' })).suggest).toBe(false);
+  it('internalized is terminal — the top of the ladder suggests nothing', () => {
+    expect(nextStage('internalized')).toBeNull();
+    expect(evaluateAdvancement(inputs({ currentStage: 'internalized' })).suggest).toBe(false);
   });
 });
 
@@ -222,5 +232,110 @@ describe('Comfortable → Cross-key', () => {
       songKeys: ONE_PER_QUADRANT.map(k => key(k)),
     }));
     expect(out.suggest).toBe(true);
+  });
+});
+
+// =====================================================================
+
+describe('Cross-key → Internalized', () => {
+  /** The four quadrant keys held; the other eight run clean at tempo. */
+  function passing(): Partial<AdvancementInputs> {
+    return {
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(
+        CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)),
+      ),
+    };
+  }
+
+  it('fires on four held plus a clean at-tempo run in the other eight', () => {
+    // Guard the guard: the fixture really is four held and eight not,
+    // so neither half of the rule is vacuous.
+    const input = inputs(passing());
+    expect(input.songKeys.filter(k => k.keyState === 'comfortable')).toHaveLength(4);
+    expect(input.keyRunThroughs).toHaveLength(8);
+    expect(evaluateAdvancement(input).suggest).toBe(true);
+  });
+
+  it('does NOT fire when one of the eight has no run', () => {
+    const base = passing();
+    const input = inputs({
+      ...base,
+      keyRunThroughs: base.keyRunThroughs!.slice(1),
+    });
+    expect(input.keyRunThroughs).toHaveLength(7);
+    expect(evaluateAdvancement(input).suggest).toBe(false);
+  });
+
+  it('does NOT count a run that was not clean', () => {
+    const base = passing();
+    const runs = base.keyRunThroughs!.map((r, i) => i === 0 ? { ...r, wasClean: false } : r);
+    // Guard: still eight runs, so a rule counting rows rather than
+    // clean rows would fire.
+    expect(runs).toHaveLength(8);
+    expect(evaluateAdvancement(inputs({ ...base, keyRunThroughs: runs })).suggest).toBe(false);
+  });
+
+  it('does NOT count a run below the tempo floor', () => {
+    const base = passing();
+    const runs = base.keyRunThroughs!.map((r, i) => i === 0 ? { ...r, tempoBpm: TEMPO - 30 } : r);
+    expect(runs).toHaveLength(8);
+    expect(evaluateAdvancement(inputs({ ...base, keyRunThroughs: runs })).suggest).toBe(false);
+  });
+
+  it('does NOT fire when the four no longer cover every quadrant', () => {
+    // Depth has to still be there. Four keys held, but bunched into
+    // two quadrants — and all eight remaining keys run clean, so the
+    // breadth half alone would pass.
+    const bunched = ['C', 'F', 'Bb', 'Eb'];
+    const input = inputs({
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => bunched.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !bunched.includes(k))),
+    });
+    expect(input.keyRunThroughs).toHaveLength(8);
+    expect(evaluateAdvancement(input).suggest).toBe(false);
+  });
+
+  it('accepts a HELD key in place of a run — held satisfies it by being held', () => {
+    // Six held keys covering all four quadrants, six runs. Holding
+    // more than four is not penalised.
+    const held = ['C', 'F', 'Eb', 'F#', 'A', 'D'];
+    const input = inputs({
+      currentStage: 'cross-key',
+      songKeys: allTwelve(k => held.includes(k) ? {} : { keyState: 'learning' }),
+      keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !held.includes(k))),
+    });
+    expect(evaluateAdvancement(input).suggest).toBe(true);
+  });
+
+  it('withholds entirely when the song has no performance tempo', () => {
+    expect(evaluateAdvancement(inputs({ ...passing(), performanceTempo: null })).suggest).toBe(false);
+  });
+});
+
+// =====================================================================
+
+describe('normaliseStage', () => {
+  it('collapses the retired maintenance rung onto internalized', () => {
+    // Maintenance sat directly above internalized and was reachable
+    // only from it, so this narrows onto the state it was entered
+    // from rather than demoting anything.
+    expect(normaliseStage('maintenance')).toBe('internalized');
+  });
+
+  it('passes every live stage through untouched', () => {
+    for (const stage of STAGES) expect(normaliseStage(stage)).toBe(stage);
+  });
+
+  it('falls back to learning for unset and unrecognised values', () => {
+    expect(normaliseStage(undefined)).toBe('learning');
+    expect(normaliseStage(null)).toBe('learning');
+    expect(normaliseStage('nonsense')).toBe('learning');
+  });
+
+  it('STAGES no longer carries maintenance', () => {
+    expect(STAGES).toEqual(['learning', 'comfortable', 'cross-key', 'internalized']);
   });
 });

@@ -12,6 +12,7 @@ import {
   type Song,
 } from '../../lib/db';
 import { computeTier, type Tier } from '../../lib/tier';
+import { normaliseStage } from '../repertoire/stage';
 import {
   bucketAttemptsForCatalog,
   tierAndLastFromAttempts,
@@ -765,8 +766,10 @@ function mapProductionRating(rating: ProductionLessonRating): Tier {
 }
 
 function mapStageToTier(song: Song): Tier {
-  switch (song.stage) {
-    case 'maintenance':
+  // Read through normaliseStage: legacy rows may still hold the
+  // retired 'maintenance' string, which collapses onto internalized —
+  // where this mapping already sent it, so nothing moves tier.
+  switch (normaliseStage(song.stage)) {
     case 'internalized':
       return 'mastered';
     case 'cross-key':

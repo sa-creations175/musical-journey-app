@@ -7,6 +7,7 @@ import {
 } from '../../lib/db';
 import { whenSyncReady } from '../../lib/sync/syncReady';
 import { songKeyRowId } from './matrix/ids';
+import { normaliseStage } from './stage';
 
 /**
  * Phase 1.5 step 2 — auto-populate `songKeys` for every existing
@@ -103,7 +104,7 @@ export async function ensureSongHasOriginalKey(songId: string): Promise<void> {
 }
 
 function buildOriginalKeyRow(song: Song, now: number): SongKey {
-  const stage: RepertoireStage = song.stage ?? 'learning';
+  const stage: RepertoireStage = normaliseStage(song.stage);
   const keyState = mapStageToKeyState(stage);
   // No `key` set on the song record means we don't know the home
   // key. 'C' is a neutral default the user can change once the
@@ -160,7 +161,9 @@ function buildOriginalKeyRow(song: Song, now: number): SongKey {
  *     earn their way back to Internalized through actual practice
  *     in additional keys.
  *
- *   'maintenance' → 'solid'
+ *   (the retired 'maintenance' normalises to 'internalized' before
+ *   reaching here, and mapped to 'solid' too — so the collapse is
+ *   lossless)
  *     The legacy maintenance state mixed two things: post-mastery
  *     proficiency AND a user-declared "stop actively developing
  *     this" intent. The new model splits them — Solid carries the
@@ -176,6 +179,5 @@ export function mapStageToKeyState(stage: RepertoireStage): SongKeyState {
     case 'comfortable':  return 'comfortable';
     case 'cross-key':    return 'comfortable';
     case 'internalized': return 'solid';
-    case 'maintenance':  return 'solid';
   }
 }

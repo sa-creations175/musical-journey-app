@@ -38,15 +38,33 @@ export interface ChordShapeData {
   notes?: string;
 }
 
-// One of five user-facing learning stages. Each has its own coaching
-// guidance in src/modules/repertoire/stage.ts. Users control stage
-// advancement; the app only suggests when criteria are met.
+/**
+ * The four user-facing learning stages, IN LADDER ORDER. Each has its
+ * own coaching guidance in src/modules/repertoire/stage.ts. The user
+ * controls advancement; the app only suggests when criteria are met.
+ *
+ * Order matters and this union used to disagree with it: it listed
+ * internalized before cross-key, left over from before the April 2026
+ * reorder. The ordering that is actually read lives in `STAGES`, so
+ * the stale union was harmless — but it was the same artefact as the
+ * advancement rules that named the wrong destinations for four
+ * months, and a union that reads in a different order than the ladder
+ * is an invitation to write another one.
+ *
+ * 'maintenance' WAS a fifth rung and is retired. It is not a rung but
+ * a mode: you enter it by reaching internalized, and you hold it by
+ * passing occasional checks. A rung whose entry criteria are "you are
+ * already here" is not a rung, and a suggestion whose condition is
+ * always true is not a suggestion. Stored rows may still carry the
+ * string — read them through `normaliseStage`, which is why this
+ * union does not need to keep a value nothing should be written any
+ * more.
+ */
 export type RepertoireStage =
   | 'learning'
   | 'comfortable'
-  | 'internalized'
   | 'cross-key'
-  | 'maintenance';
+  | 'internalized';
 
 /** One reference recording, tutorial, or video tied to a song. Lives
  *  inside `Song.referenceVideos`; never persisted on its own. */

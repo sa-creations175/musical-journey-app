@@ -1,4 +1,5 @@
 import type { RepertoireStage, SongKey } from '../../lib/db';
+import { isInTempoRange } from './matrix/cellRollup';
 import { QUADRANT_COUNT, coveredQuadrants, isHeld } from './matrix/keyProgress';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
@@ -20,15 +21,39 @@ export const STAGES: RepertoireStage[] = [
   'comfortable',
   'cross-key',
   'internalized',
-  'maintenance',
 ];
+
+/**
+ * Coerce a stored stage onto the current ladder.
+ *
+ * 'maintenance' was a fifth rung and is retired — it is a mode you
+ * enter by reaching internalized, not a step above it. Rows written
+ * before that collapse onto 'internalized', which is where those songs
+ * already were: maintenance sat directly above it and was reachable
+ * only from it, so this narrows a category onto the state it was
+ * entered from rather than demoting anything or inventing a stage.
+ *
+ * Read-through rather than a migration pass, matching `normaliseFeel`.
+ * No Dexie version bump, no destructive rewrite of the user's rows,
+ * and a song that syncs down from a device still on the old build
+ * still reads correctly.
+ *
+ * Anything unrecognised falls back to the default rather than
+ * throwing: this runs on a read path over historical rows, and a
+ * corrupt value should degrade one card, not blank the screen.
+ */
+export function normaliseStage(raw: string | null | undefined): RepertoireStage {
+  if (raw === 'maintenance') return 'internalized';
+  return (STAGES as readonly string[]).includes(raw ?? '')
+    ? (raw as RepertoireStage)
+    : DEFAULT_STAGE;
+}
 
 export const STAGE_LABEL: Record<RepertoireStage, string> = {
   'learning': 'Learning',
   'comfortable': 'Comfortable',
   'cross-key': 'Cross-key',
   'internalized': 'Internalized',
-  'maintenance': 'Maintenance',
 };
 
 /** Short two-to-three-word tagline shown beside the stage badge. */
@@ -37,7 +62,6 @@ export const STAGE_TAGLINE: Record<RepertoireStage, string> = {
   'comfortable': 'smoothing the flow',
   'cross-key': 'stretching across keys',
   'internalized': 'owning it in any key',
-  'maintenance': 'keeping it warm',
 };
 
 /** Multi-sentence coaching guidance shown on Song Detail and as a
@@ -49,26 +73,26 @@ export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {
     'Work at or near target tempo. Smooth flow across sections. Make sure transitions are seamless.',
   'cross-key':
     'Take sections through other keys. Start with 5ths up/down and relative minor. Build understanding, not just finger patterns — the cross-key work is what sets up real internalization.',
+  // Absorbs what the retired 'maintenance' rung used to say. Reaching
+  // internalized IS entering maintenance, so its guidance has to carry
+  // the keeping-it-warm half — otherwise retiring the rung would have
+  // quietly deleted the only advice about what to do afterwards.
   'internalized':
-    'Now play it from memory, expressively, in any key it could come up in. Voicings, dynamics, feel — the song is yours. Cross-key work has built the foundation.',
-  'maintenance':
-    'Light-touch replay every 1–2 weeks. Keep the song at your fingertips for any performance moment.',
+    'Now play it from memory, expressively, in any key it could come up in. Voicings, dynamics, feel — the song is yours. From here it is upkeep: a light replay every week or two, in a key you did not choose, keeps it at your fingertips.',
 };
 
 /** Tailwind badge classes. Reuses the established tier palette so the
  *  Repertoire badges feel visually related to Ear Training's tier pills.
  *  Color order tracks STAGES order: needswork → developing → fluent →
- *  mastered → info. Cross-key and internalized swap colors versus
- *  the original layout so the visual progression matches the new
- *  ordering — `mastered` (deeper green) lives on the new final stage
- *  before maintenance. "Maintenance" borrows the info-blue because
- *  it reads as "steady" rather than "needs work". */
+ *  mastered. Cross-key and internalized swap colors versus the
+ *  original layout so the visual progression matches the ladder —
+ *  `mastered` (deeper green) lives on the final stage. The info-blue
+ *  that used to carry 'maintenance' left with that rung. */
 export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
   'learning': 'bg-needswork/10 text-needswork border-needswork/30',
   'comfortable': 'bg-developing/10 text-developing border-developing/30',
   'cross-key': 'bg-fluent/10 text-fluent border-fluent/30',
   'internalized': 'bg-mastered/10 text-mastered border-mastered/30',
-  'maintenance': 'bg-info/10 text-info border-info/30',
 };
 
 export const STAGE_DOT_CLASS: Record<RepertoireStage, string> = {
@@ -76,7 +100,6 @@ export const STAGE_DOT_CLASS: Record<RepertoireStage, string> = {
   'comfortable': 'bg-developing',
   'cross-key': 'bg-fluent',
   'internalized': 'bg-mastered',
-  'maintenance': 'bg-info',
 };
 
 /** Default stage for newly-seeded / newly-added songs. */
@@ -101,8 +124,13 @@ export function nextStage(stage: RepertoireStage): RepertoireStage | null {
 //   Comfortable → Cross-key:
 //     Held in four keys, one from each quadrant of the circle of
 //     fourths. The original key counts toward its own quadrant.
-//   Cross-key → Internalized:      [rewritten in 3a-5]
-//   Internalized → Maintenance:    [rewritten in 3a-5]
+//   Cross-key → Internalized:
+//     All four quadrants still held, AND every key that is not held
+//     carries at least one clean run-through at performance tempo.
+//     Depth in four, breadth across twelve.
+//   Internalized:
+//     Terminal. 'maintenance' was a fifth rung and is retired — see
+//     normaliseStage.
 //
 // ---------------------------------------------------------------
 // NO RULE NAMES ITS OWN DESTINATION.
@@ -149,19 +177,37 @@ export interface AdvancementInputs {
    * already avoids with a lazy `useState` initializer.
    */
   now: number;
-  /** Home/original key. Read only by the not-yet-rewritten
-   *  Internalized rule; leaves with it in 3a-5. */
-  originalKey?: string;
   /**
-   * Per-section cross-key coverage from the DEPRECATED
-   * `songCrossKeyProgress` table.
-   *
-   * Still here only because the last two rules have not been
-   * rewritten yet. Both leave in 3a-5, and this input leaves with
-   * them — at which point `evaluateAdvancement` reads nothing but
-   * `songKeys`.
+   * Every whole-song run-through recorded for this song, across all
+   * keys and BOTH kinds. A key you passed the full test in obviously
+   * also had a clean run in it, so filtering to `kind === 'single'`
+   * would make the harder achievement count for less.
    */
-  crossKeyPairs: Array<{ sectionId: string; keyName: string; sessionCount: number }>;
+  keyRunThroughs: AdvancementKeyRun[];
+  /**
+   * The song's performance tempo, or null when unset. Null suppresses
+   * Cross-key → Internalized, for the same reason it suppressed the
+   * old Learning rule: `isInTempoRange` deliberately returns true when
+   * there is no tempo — right for the cell gate, which switches itself
+   * off rather than blocking a user who has not set one, and wrong
+   * here, where inheriting it would let any run at any speed stand in
+   * for a run at tempo.
+   */
+  performanceTempo: number | null;
+}
+
+/**
+ * The run-through facts the breadth rule reads.
+ *
+ * Structural rather than `SongKeyRunThrough` so a caller can pass a
+ * projection and a test can build one without inventing ids and
+ * timestamps the rule never looks at.
+ */
+export interface AdvancementKeyRun {
+  songKeyId: string;
+  wasClean: boolean;
+  /** Null when the run was logged without a tempo. */
+  tempoBpm: number | null;
 }
 
 /**
@@ -255,55 +301,70 @@ export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvalua
       return { suggest: false };
     }
     case 'cross-key': {
-      // NOT YET REWRITTEN — lands in 3a-5, where it becomes "the four
-      // quadrant keys still held, plus one clean at-tempo run in each
-      // of the remaining eight". That needs an affordance that does
-      // not exist yet (3a-4): the whole-song test is the only writer
-      // of key run-throughs and it is gated on every cell in the key
-      // already being comfortable, so a single pass in an untouched
-      // key cannot currently be logged at all.
+      // ---------------------------------------------------------------
+      // DEPTH IN FOUR, BREADTH ACROSS TWELVE.
       //
-      // Until then it keeps its old criteria, reading the deprecated
-      // `songCrossKeyProgress`, where "touched" means one tap on the
-      // cross-key grid. The DESTINATION is no longer wrong — that is
-      // what `suggestion()` fixes today — but the evidence is still
-      // weak, and the two independent tallies below do not check what
-      // "6 keys across 3 sections" sounds like they check.
-      const sectionsTouched = new Set<string>();
-      const keysTouched = new Set<string>();
-      for (const p of input.crossKeyPairs) {
-        if (p.sessionCount <= 0) continue;
-        sectionsTouched.add(p.sectionId);
-        keysTouched.add(p.keyName);
+      // The four quadrant keys that earned Cross-key have to STILL be
+      // held — internalized is not a receipt for something you could
+      // once do — and every remaining key needs at least one clean
+      // run-through at tempo. Working a song in several keys is how it
+      // gets internalized rather than something done afterwards, which
+      // is why this rung sits where it does.
+      //
+      // Expressed as "every key is either held or has a clean run"
+      // rather than "the other eight have runs", because nothing
+      // records WHICH four keys earned cross-key. A key that is held
+      // satisfies the requirement by being held; a key that is not
+      // must show the run. Holding more than four is not penalised.
+      //
+      // This replaces a rule that read the deprecated
+      // `songCrossKeyProgress`, where a key counted as "touched" after
+      // ONE tap on the cross-key grid, and which checked two
+      // independent tallies — six keys anywhere and three sections
+      // anywhere — that together did not mean what "6 keys across 3
+      // sections" sounds like. Verified before replacing: six keys on
+      // the chorus plus two other sections in two other keys fired it,
+      // with no key covering more than two sections.
+      // ---------------------------------------------------------------
+      if (input.performanceTempo === null) return { suggest: false };
+
+      const held = new Set(
+        input.songKeys.filter(k => isHeld(k, input.now)).map(k => k.id),
+      );
+      if (coveredQuadrants(
+        input.songKeys.filter(k => held.has(k.id)).map(k => k.keyName),
+      ).size < QUADRANT_COUNT) {
+        return { suggest: false };
       }
-      if (keysTouched.size >= 6 && sectionsTouched.size >= 3) {
-        return suggestion(
-          input.currentStage,
-          `${keysTouched.size} keys and ${sectionsTouched.size} sections touched`,
-        );
-      }
-      return { suggest: false };
+
+      const provenByRun = new Set(
+        input.keyRunThroughs
+          .filter(r => r.wasClean && isInTempoRange(r.tempoBpm, input.performanceTempo))
+          .map(r => r.songKeyId),
+      );
+      const short = input.songKeys.filter(
+        k => !held.has(k.id) && !provenByRun.has(k.id),
+      );
+      if (short.length > 0) return { suggest: false };
+
+      return suggestion(
+        input.currentStage,
+        `all ${input.songKeys.length} keys either held or run clean at tempo`,
+      );
     }
-    case 'internalized': {
-      // NOT YET REWRITTEN — lands in 3a-5, where Maintenance stops
-      // being a rung and becomes a mode on Internalized. Old criteria
-      // retained; destination now derived rather than stated, so it
-      // no longer proposes moving back down the ladder.
-      const nonOriginal = new Set<string>();
-      for (const p of input.crossKeyPairs) {
-        if (p.sessionCount <= 0) continue;
-        if (input.originalKey && p.keyName === input.originalKey) continue;
-        nonOriginal.add(p.keyName);
-      }
-      if (nonOriginal.size >= 2) {
-        return suggestion(
-          input.currentStage,
-          `${nonOriginal.size} non-original keys touched`,
-        );
-      }
-      return { suggest: false };
-    }
-    case 'maintenance':
+    case 'internalized':
+      // TERMINAL. 'maintenance' used to sit above this and is retired:
+      // it is the mode you are in once you get here, not a step beyond
+      // it. Its entry criteria were empty — nothing extra was required
+      // — and a suggestion whose condition is always true is not a
+      // suggestion, it is a banner that never goes away.
+      //
+      // What made maintenance a real idea is the HOLDING half: periodic
+      // checks where the app picks a key and asks for a run, which
+      // lapse if you fall behind. That is an SM-2 review rather than a
+      // bespoke timer, and it lands on build-queue item 9 with the rest
+      // of the spacing work. Until then, reaching internalized is the
+      // end of the ladder and STAGE_GUIDANCE carries the upkeep advice.
       return { suggest: false };
   }
 }

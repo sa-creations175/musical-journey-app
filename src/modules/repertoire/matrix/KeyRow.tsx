@@ -299,7 +299,7 @@ function KeyStrip({
         <DecayBadge state={decayState} daysSince={daysSinceEngaged(songKey, now)} />
       )}
       <ProgressBar percent={percent} engaged={engaged} />
-      <span className="shrink-0 text-neutral-500 dark:text-neutral-400 tabular-nums">
+      <span className="shrink-0 text-neutral-700 dark:text-neutral-200 tabular-nums">
         {totalSections === 0 ? 'No sections yet' : `${comfortableInKey}/${totalSections} sections`}
       </span>
       {(stateKey === 'comfortable' || decayState === 'lapsed') && songKey && (
@@ -381,8 +381,12 @@ function DecayBadge({
  * carrying a line that says nothing is worse than no line.
  */
 function RunStatus({ singleRuns }: { singleRuns: number }) {
+  // Weighted to match the sections count, not the metadata around it.
+  // Both are progress through the key; "N/M sections", "N runs",
+  // "Today" and "+ log a run" all rendering at one weight meant
+  // nothing on the strip read first.
   return (
-    <span className="shrink-0 text-neutral-500 dark:text-neutral-400 tabular-nums">
+    <span className="shrink-0 text-neutral-700 dark:text-neutral-200 tabular-nums">
       {singleRuns} run{singleRuns === 1 ? '' : 's'}
     </span>
   );

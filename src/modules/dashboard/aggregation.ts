@@ -17,6 +17,7 @@ import { freshnessTier, aggregateCell } from '../shapes-and-patterns/drillModel'
 import { PRODUCTION_LESSONS } from '../production/content/lessons';
 import { GLOSSARY } from '../production/content/glossary';
 import { isCovered, isStarted } from '../production/lessonRating';
+import { normaliseStage } from '../repertoire/stage';
 
 // Rolling-window size for the flashcard-state proxy below. The
 // attempt-driven path gets its window from the read layer's
@@ -299,9 +300,9 @@ export async function snapshotRepertoire(now: number = Date.now()): Promise<Repe
   const byStage: Record<string, number> = {};
   const performanceReady: RepertoireSnapshot['performanceReady'] = [];
   for (const song of songs) {
-    const stage = song.stage ?? 'learning';
+    const stage = normaliseStage(song.stage);
     byStage[stage] = (byStage[stage] ?? 0) + 1;
-    if (stage === 'internalized' || stage === 'maintenance' || stage === 'cross-key') {
+    if (stage === 'internalized' || stage === 'cross-key') {
       performanceReady.push({ songId: song.id, title: song.title, artist: song.artist });
     }
   }
@@ -319,11 +320,20 @@ export async function snapshotRepertoire(now: number = Date.now()): Promise<Repe
     }
   }
 
-  // Going stale: songs with `stage` active (not just 'maintenance') whose
-  // latest log is older than 10 days (aging) or no recent log at all.
+  // Going stale: songs whose latest log is older than 10 days (aging)
+  // or which have no recent log at all.
+  //
+  // BEHAVIOUR CHANGE, 21 Aug 2026. This used to skip songs at the
+  // 'maintenance' stage, on the reading that a song in upkeep is not
+  // going stale. That rung is retired — maintenance is now the mode
+  // you are in at internalized, not a stage — so there is no longer a
+  // stored value to exclude on, and songs that carried it will start
+  // appearing here. Deliberate rather than overlooked: without the
+  // holding half (build-queue item 9) nothing distinguishes a song
+  // being kept warm from one being forgotten, and claiming otherwise
+  // would be the silent-exclusion shape this workstream keeps finding.
   const goingStale: RepertoireSnapshot['goingStale'] = [];
   for (const song of songs) {
-    if (song.stage === 'maintenance') continue;
     const latestLog = latestBySong.get(song.id);
     const lastTs = latestLog?.timestamp ?? null;
     const tier = freshnessTier(lastTs);

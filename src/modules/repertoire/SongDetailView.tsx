@@ -24,7 +24,7 @@ import {
   type ReferenceVideo,
   type Song,
   type SongKey,
-  type SongCrossKeyProgress,
+  type SongKeyRunThrough,
   type SongPracticeLog,
   type LyricSyllable,
   type SongLyricLine,
@@ -41,6 +41,7 @@ import {
   STAGE_LABEL,
   STAGE_TAGLINE,
   evaluateAdvancement,
+  normaliseStage,
   nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
@@ -316,16 +317,23 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       .then(arr => arr.sort((a, b) => b.timestamp - a.timestamp)),
     [songId],
   ) ?? [];
-  const crossKey = useLiveQuery<SongCrossKeyProgress[]>(
-    () => db.songCrossKeyProgress.where('songId').equals(songId).toArray(),
-    [songId],
-  ) ?? [];
+  // The songCrossKeyProgress subscription is gone as of 21 Aug 2026:
+  // no advancement rule reads that @deprecated table any more, and
+  // CrossKeyGrid runs its own query. A live subscription kept only to
+  // feed a deleted rule is a table this screen re-renders on for
+  // nothing.
   // The twelve key rows, for the stage rules. Learning → Comfortable
   // reads the original key's `wholeSongTestPassedAt`; Comfortable →
   // Cross-key reads which keys are still held and which quadrants
   // they cover.
   const matrixKeys = useLiveQuery<SongKey[]>(
     () => db.songKeys.where('songId').equals(songId).toArray(),
+    [songId],
+  ) ?? [];
+  // Whole-song run-throughs, for the breadth half of Cross-key →
+  // Internalized: every key not held has to show a clean run at tempo.
+  const keyRunThroughs = useLiveQuery<SongKeyRunThrough[]>(
+    () => db.songKeyRunThroughs.where('songId').equals(songId).toArray(),
     [songId],
   ) ?? [];
 
@@ -539,14 +547,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   };
 
   // --- Advancement --------------------------------------------------
-  const currentStage: RepertoireStage = song?.stage ?? DEFAULT_STAGE;
-  const crossKeyPairs = useMemo(() => (
-    crossKey.map(p => ({
-      sectionId: p.sectionId,
-      keyName: p.keyName,
-      sessionCount: p.sessionCount,
-    }))
-  ), [crossKey]);
+  // Read through normaliseStage — a row written before the
+  // 'maintenance' rung was retired still carries that string, and
+  // rendering it raw would index every STAGE_* map with a key they no
+  // longer have.
+  const currentStage: RepertoireStage = normaliseStage(song?.stage);
   // Captured once per mount rather than read during render — the
   // purity rule the matrix already observes. A stage suggestion does
   // not need second-accuracy, so a session left open overnight
@@ -556,10 +561,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const advancement = useMemo(() => evaluateAdvancement({
     currentStage,
     songKeys: matrixKeys,
+    keyRunThroughs,
+    performanceTempo: song?.tempo ?? null,
     now: advancementNow,
-    originalKey: song?.key,
-    crossKeyPairs,
-  }), [currentStage, matrixKeys, advancementNow, song?.key, crossKeyPairs]);
+  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow]);
   const nextStageOption = nextStage(currentStage);
 
   const setStage = async (stage: RepertoireStage) => {

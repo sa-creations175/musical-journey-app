@@ -21,7 +21,7 @@ import {
   db,
   type Song,
   type SongKey,
-  type SongCrossKeyProgress,
+  type SongKeyRunThrough,
   type SongPracticeLog,
 } from '../../lib/db';
 import {
@@ -29,6 +29,7 @@ import {
   STAGES,
   STAGE_LABEL,
   evaluateAdvancement,
+  normaliseStage,
   freshnessFor,
   humanAgo,
   type Freshness,
@@ -107,16 +108,17 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     () => db.songPracticeLog.orderBy('timestamp').reverse().toArray(),
     [],
   ) ?? [];
-  const crossKey = useLiveQuery<SongCrossKeyProgress[]>(
-    () => db.songCrossKeyProgress.toArray(),
-    [],
-  ) ?? [];
+
   // Every song's key rows in one read, for the stage rules. This view
   // evaluates advancement for the whole active list, so a per-song
   // query would be one round trip per card; grouped below exactly
   // like `logs` and `crossKey`.
   const matrixKeys = useLiveQuery<SongKey[]>(
     () => db.songKeys.toArray(),
+    [],
+  ) ?? [];
+  const keyRunThroughs = useLiveQuery<SongKeyRunThrough[]>(
+    () => db.songKeyRunThroughs.toArray(),
     [],
   ) ?? [];
   // See SongDetailView: captured once, not read during render.
@@ -142,15 +144,18 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     return m;
   }, [matrixKeys]);
 
-  const crossKeyBySong = useMemo(() => {
-    const m = new Map<string, Array<{ sectionId: string; keyName: string; sessionCount: number }>>();
-    for (const p of crossKey) {
-      const arr = m.get(p.songId) ?? [];
-      arr.push({ sectionId: p.sectionId, keyName: p.keyName, sessionCount: p.sessionCount });
-      m.set(p.songId, arr);
+  const runsBySong = useMemo(() => {
+    const m = new Map<string, SongKeyRunThrough[]>();
+    for (const r of keyRunThroughs) {
+      const arr = m.get(r.songId) ?? [];
+      arr.push(r);
+      m.set(r.songId, arr);
     }
     return m;
-  }, [crossKey]);
+  }, [keyRunThroughs]);
+
+  // The songCrossKeyProgress query and its grouping are gone as of
+  // 21 Aug 2026 — no advancement rule reads that @deprecated table.
 
   // Per-song freshness/advancement derived once so the dashboard
   // header and the cards share the same computation.
@@ -160,15 +165,15 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
       const lastPractisedAt = songLogs[0]?.timestamp ?? null;
       const freshness = freshnessFor(lastPractisedAt);
       const advancement = evaluateAdvancement({
-        currentStage: song.stage ?? DEFAULT_STAGE,
+        currentStage: normaliseStage(song.stage),
         songKeys: keysBySong.get(song.id) ?? [],
+        keyRunThroughs: runsBySong.get(song.id) ?? [],
+        performanceTempo: song.tempo ?? null,
         now: advancementNow,
-        originalKey: song.key,
-        crossKeyPairs: crossKeyBySong.get(song.id) ?? [],
       });
       return { song, lastPractisedAt, freshness, readyToAdvance: advancement.suggest };
     });
-  }, [songs, logsBySong, crossKeyBySong, keysBySong, advancementNow]);
+  }, [songs, logsBySong, keysBySong, runsBySong, advancementNow]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
