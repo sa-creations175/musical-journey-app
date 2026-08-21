@@ -79,11 +79,22 @@ export default function WholeSongTestModal({
   const [attempts, setAttempts] = useState<KeyAttemptDraft[]>([]);
   const [bpmInput, setBpmInput] = useState<string>(String(song.tempo ?? ''));
   const [busy, setBusy] = useState(false);
+  /**
+   * Set when a gate-relevant not-clean run knocks the streak back to
+   * zero, cleared on the next attempt.
+   *
+   * Raised HERE rather than by watching `projectedCount` fall,
+   * because the count also falls when an attempt is deleted from the
+   * log — an edit, not a failed run. Flashing on that would tell the
+   * user they lost a streak they are in the middle of correcting.
+   */
+  const [streakBroken, setStreakBroken] = useState(false);
 
   const handleClose = useCallback(() => {
     setAttempts([]);
     setBpmInput('');
     setBusy(false);
+    setStreakBroken(false);
     onClose();
   }, [onClose]);
 
@@ -116,6 +127,11 @@ export default function WholeSongTestModal({
 
   const handleAddAttempt = (wasClean: boolean) => {
     if (!bpmValid) return;
+    // A below-floor run neither advances nor resets the gate — see
+    // projectConsecutiveCleanCount — so a slow not-clean pass must not
+    // announce a reset that did not happen.
+    const gateRelevant = isInTempoRange(parsedBpm, performanceTempo);
+    setStreakBroken(!wasClean && gateRelevant && projectedCount > 0);
     setAttempts(prev => [
       ...prev,
       {
@@ -128,6 +144,7 @@ export default function WholeSongTestModal({
 
   const handleDeleteAttempt = (id: string) => {
     setAttempts(prev => prev.filter(a => a.id !== id));
+    setStreakBroken(false);
   };
 
   const handleSave = async (markSolid: boolean) => {
@@ -208,6 +225,12 @@ export default function WholeSongTestModal({
           performanceTempo={performanceTempo}
         />
 
+        <StreakMeter
+          count={projectedCount}
+          streakBroken={streakBroken}
+          performanceTempo={performanceTempo}
+        />
+
         <AttemptLog
           attempts={attempts}
           onDelete={handleDeleteAttempt}
@@ -241,16 +264,17 @@ function RuleReminder({
    *  cannot make the key Solid and the copy must not say it will. */
   sectionsIncomplete: boolean;
 }) {
-  const floorText = performanceTempo !== null
-    ? ` at or above ♩ ${performanceTempo - 10}`
-    : '';
+  // The floor, the streak and the sitting boundary all moved to
+  // StreakMeter, which sits directly beneath this and shows them as
+  // slots. This block now says only what PASSING does, which differs
+  // by state and is the part the meter cannot show.
+  void performanceTempo;
 
   if (isRetest) {
     return (
       <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-800 dark:text-red-200">
-        This key has lapsed since you last demonstrated it. Pass a retest to
-        clear the lapse: <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span>.
-        Engagement alone doesn't restore solid — only a passed retest does.
+        This key has lapsed since you last demonstrated it. Passing a retest
+        clears the lapse and restores Solid — engagement alone does not.
       </div>
     );
   }
@@ -274,19 +298,17 @@ function RuleReminder({
       <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-black/[0.07] px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
         Play through the full song in this key. Log each attempt as clean or
         not-clean.{' '}
-        <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span>{' '}
-        moves the song to Comfortable. It will not make this key Solid — that
-        needs every section here comfortable too, which is what working them
-        one at a time is for.
+        Passing <span className="font-medium">moves the song to Comfortable</span>.
+        It will not make this key Solid — that needs every section here
+        comfortable too, which is what working them one at a time is for.
       </div>
     );
   }
   return (
     <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-black/[0.07] px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
       Play through the full song in this key. Log each attempt as clean or
-      not-clean. <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span> unlocks Solid.
-      Each test session is a fresh demonstration — the streak doesn't carry
-      across opens.
+      not-clean. Every section here is comfortable, so passing{' '}
+      <span className="font-medium">unlocks Solid</span> for this key.
     </div>
   );
 }
@@ -324,24 +346,22 @@ function StateHeader({
   // solid+not-lapsed has no gate to display.
   const showHint = canMarkSolid || keyState !== 'solid' || isRetest;
 
-  let hint: { text: string; tone: 'neutral' | 'ready' } | null = null;
-  if (showHint) {
-    const readyText = isRetest ? 'Ready to mark solid (re-pass)' : 'Ready to mark solid';
-    if (remaining === 0) {
-      hint = { text: readyText, tone: 'ready' };
-    } else if (remaining === 1) {
-      hint = { text: `1 more clean run needed${gateSuffix}`, tone: 'neutral' };
-    } else {
-      hint = { text: `${remaining} more clean runs needed${gateSuffix}`, tone: 'neutral' };
-    }
-  }
+  // Readiness only. "1 more clean run needed" beside a meter reading
+  // 2 of 3 is the same fact twice, and the meter states it better.
+  const hint: { text: string; tone: 'ready' } | null =
+    showHint && remaining === 0
+      ? {
+          text: isRetest ? 'Ready to mark solid (re-pass)' : 'Ready to mark solid',
+          tone: 'ready',
+        }
+      : null;
+  void gateSuffix;
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wide font-medium ${badge.className}`}>
         {badge.label}
       </span>
-      <ConsecutiveDots count={projectedCount} />
       {hint && (
         <span className={[
           'text-xs',
@@ -356,22 +376,93 @@ function StateHeader({
   );
 }
 
-function ConsecutiveDots({ count }: { count: number }) {
+/**
+ * Three slots that fill as clean runs land.
+ *
+ * ---------------------------------------------------------------
+ * WHY A METER AND NOT A COUNT.
+ *
+ * This replaces a row of 8px dots wedged between a state badge and a
+ * sentence, which read as a bare number: hard to see, and doing
+ * nothing for the part of you that wants to finish the set. The bar
+ * is three in a row — the slots should look like three things to
+ * fill.
+ *
+ * THE RESET HAS TO BE SEEN HAPPENING. Getting to two and losing it is
+ * information about how solid the song actually is, and it is the
+ * moment the bar means anything. A number that quietly changes from 2
+ * to 0 hides the only event worth noticing, so a broken streak turns
+ * the slots red and says so in words until the next attempt.
+ *
+ * WHY CONSECUTIVE AT ALL, stated where it applies rather than left to
+ * be inferred: three in a row proves it was not luck. Three clean runs
+ * across a day with failures scattered between them is a materially
+ * weaker claim than three back to back, and what is being trained for
+ * is playing it in front of someone — once, under the pressure, no
+ * retries.
+ * ---------------------------------------------------------------
+ */
+function StreakMeter({
+  count,
+  streakBroken,
+  performanceTempo,
+}: {
+  count: number;
+  streakBroken: boolean;
+  performanceTempo: number | null;
+}) {
+  const floorText = performanceTempo !== null
+    ? ` at or above ♩ ${performanceTempo - 10}`
+    : '';
   return (
-    <span className="inline-flex items-center gap-1" aria-label={`${count} of 3 consecutive clean run-throughs`}>
-      {[0, 1, 2].map(i => (
+    <div
+      className={[
+        'rounded-md border px-3 py-2.5 flex flex-col gap-2 transition-colors',
+        streakBroken
+          ? 'border-needswork/40 bg-needswork/5'
+          : 'border-black/[0.07] bg-neutral-50 dark:bg-neutral-900',
+      ].join(' ')}
+    >
+      <div className="flex items-center gap-3 flex-wrap">
         <span
-          key={i}
-          aria-hidden
-          className={[
-            'w-2 h-2 rounded-full transition-colors',
-            i < count
-              ? 'bg-blue-500'
-              : 'bg-neutral-300 dark:bg-neutral-700',
-          ].join(' ')}
-        />
-      ))}
-    </span>
+          className="inline-flex items-center gap-2"
+          role="img"
+          aria-label={`${count} of 3 consecutive clean run-throughs`}
+        >
+          {[0, 1, 2].map(i => (
+            <span
+              key={i}
+              aria-hidden
+              className={[
+                'w-5 h-5 rounded-full border-2 transition-colors',
+                streakBroken
+                  ? 'border-needswork/50 bg-transparent'
+                  : i < count
+                    ? 'border-blue-500 bg-blue-500'
+                    : 'border-neutral-300 dark:border-neutral-600 bg-transparent',
+              ].join(' ')}
+            />
+          ))}
+        </span>
+        <span className={[
+          'text-sm font-medium tabular-nums',
+          streakBroken ? 'text-needswork' : 'text-neutral-700 dark:text-neutral-200',
+        ].join(' ')}>
+          {streakBroken ? 'not clean — back to 0 of 3' : `${count} of 3 in a row`}
+        </span>
+      </div>
+      {/* THE SITTING BOUNDARY, stated next to the thing it governs.
+          A sitting is one opening of this window: the streak starts at
+          0 every time it opens and is not stored between opens. It is
+          not a time gap and not a calendar day. Said here because a
+          rule you only find out about by losing progress to it is not
+          a rule the user agreed to. */}
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+        Three clean run-throughs{floorText}, <span className="font-medium">back to back</span>,
+        in this one sitting. Any not-clean run puts it back to zero, and closing
+        this window starts the count over.
+      </p>
+    </div>
   );
 }
 
