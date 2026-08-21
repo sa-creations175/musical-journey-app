@@ -250,7 +250,11 @@ export function inversionStateLabel(
     case 'inv2':          return '2nd inversion';
     case 'inv3':          return '3rd inversion';
     case 'fluid':         return 'All inversions fluid';
-    case 'supplementary': return 'Two-handed drills';
+    // NAMED FOR WHAT YOU PLAY, like the five above it, rather than for
+    // how you practise it. It read "Two-handed drills" until 20 Aug
+    // 2026, which framed the row as a practice tool — the exact framing
+    // reversed when supplementary rows started gating acquisition.
+    case 'supplementary': return 'Two-handed voicing';
     default:              return '';
   }
 }
