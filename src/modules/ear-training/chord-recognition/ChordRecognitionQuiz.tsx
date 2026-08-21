@@ -19,6 +19,7 @@ import { TIER_WEIGHT, computeTier, type Tier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { recordEngagement } from '../../../lib/spacingState';
 import { defaultSpeed, focusSelectionKey, speedPrefKey } from '../../../lib/goalConfig';
+import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import ItemSelectionPanel, {
   type FilterConfig,
   type FilterOption,
@@ -44,7 +45,6 @@ import {
 } from './chordRecognitionTiers';
 import {
   computeUnlockedTier,
-  getEligibleItems,
   MIX_WEIGHT,
 } from './tierUnlock';
 import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
@@ -270,15 +270,28 @@ export default function ChordRecognitionQuiz({
     return computeUnlockedTier(stats);
   }, [attempts]);
 
-  /** Eligible item-refs (attempt form) per the staged-introduction
-   *  rules. `null` while the spacingState query is hydrating —
-   *  buildCandidates treats null as "no filter applied" so the
-   *  quiz doesn't freeze with an empty candidate pool on first
-   *  paint. */
-  const eligibleItems = useMemo<ReadonlySet<string> | null>(() => {
-    if (!spacingStateRows) return null;
-    return new Set(getEligibleItems(unlockedTier, spacingStateRows));
-  }, [unlockedTier, spacingStateRows]);
+  /**
+   * ─── The staged-introduction gate is NOT applied here ─────────────
+   *
+   * `getEligibleItems` serves the unlocked tier plus at most three
+   * never-attempted items from it, and this quiz used to filter its
+   * candidate pool through it. The effect was that free practice
+   * played THREE of the thirty seeded chords - `maj:0`, `min:0`,
+   * `dim:0` - and the three tabs above foundational produced an empty
+   * pool, a still-enabled play button and no sound.
+   *
+   * The gate is for GENERATED SESSIONS, which is where it still runs
+   * (`sessionGenerator.ts` calls it directly). Chord recognition was
+   * also the only free-practice quiz applying its own gate: scales &
+   * modes and chord progressions both have one and neither uses it
+   * outside the generator, so the same tab-strip gesture meant three
+   * different things across three modules and none of it was visible.
+   *
+   * What survives is `unlockedTier`, which still leans the selection
+   * through `MIX_WEIGHT` and says what the progression suggests next.
+   * A suggestion you can decline is the thing this was always
+   * described as.
+   */
 
   /** Set of itemRefs (attempt form) that have at least one
    *  spacingState row — used to distinguish "current tier
@@ -290,7 +303,6 @@ export default function ChordRecognitionQuiz({
   }, [spacingStateRows]);
 
   const unlockedTierRef = useRef(unlockedTier); unlockedTierRef.current = unlockedTier;
-  const eligibleItemsRef = useRef(eligibleItems); eligibleItemsRef.current = eligibleItems;
   const introducedItemsRef = useRef(introducedItems); introducedItemsRef.current = introducedItems;
 
   // Toast on tier advancement. The previous-tier ref baselines on
@@ -330,18 +342,10 @@ export default function ChordRecognitionQuiz({
     inversion: Inversion;
   }>[] => {
     const today = localDayKey();
-    const focusSet = focusActiveRef.current ? new Set(focusKeysRef.current) : null;
-    const filter = filterRef.current;
     const positions = inversionPositionsRef.current;
     const candidates: AdaptiveCandidate<{ chord: ChordData; inversion: Inversion }>[] = [];
 
-    for (const c of chordsRef.current) {
-      if (focusSet) {
-        if (!focusSet.has(c.id)) continue;
-      } else if (filter !== 'all' && c.tier !== filter) {
-        continue;
-      }
-
+    for (const c of poolChordsRef.current) {
       // Inversion training is foundational-only AND requires 2+
       // positions enabled to be meaningful. Sus2 / Sus4 are also
       // excluded — their character is voicing-defined rather than
@@ -363,21 +367,17 @@ export default function ChordRecognitionQuiz({
       for (const inv of finalInversions) {
         const itemRef = attemptItemId(c.id, inv);
 
-        // Progressive-difficulty gate. eligibleItemsRef === null
-        // means the spacingState live query hasn't resolved yet —
-        // pass everything through so the quiz doesn't freeze on
-        // initial mount. Once loaded, locked tiers + not-yet-
-        // introduced items in the current tier drop here.
-        const eligible = eligibleItemsRef.current;
-        if (eligible !== null && !eligible.has(itemRef)) continue;
-
         const t = tierForChordInversion(c.id, inv, today);
 
-        // Mix-weight multiplier — boosts current-tier introduced
-        // items (×0.7) over prior-tier review (×0.2) and fresh
-        // introductions (×0.1) per the design spec. Items outside
-        // the tier system (defensive; shouldn't reach here once
-        // the eligibility gate is on) get a 1.0 passthrough.
+        // Mix-weight multiplier — leans the selection toward
+        // current-tier introduced items (x0.7) over prior-tier
+        // review (x0.2) and fresh introductions (x0.1).
+        //
+        // A LEAN, NOT A LOCK. Where a tab or a focus pool holds only
+        // items of one category they all carry the same multiplier,
+        // so the weighting cancels and the pool plays normally -
+        // which is the whole difference between suggesting an order
+        // and enforcing one.
         let mixMult = 1.0;
         if (isTrackedItem(itemRef)) {
           const itemTier = getTierForItem(itemRef);
@@ -416,6 +416,12 @@ export default function ChordRecognitionQuiz({
   const startNew = async () => {
     if (chordsRef.current.length === 0) return;
     const candidates = buildCandidates();
+    // A CARD THAT LOOKS PLAYABLE AND PLAYS NOTHING is the worst way
+    // this can fail: the button is the only feedback the press has, so
+    // a silent return is indistinguishable from broken audio. The
+    // control is disabled and says why before it can be pressed - this
+    // stays as the backstop for a pool that empties between render and
+    // click.
     if (candidates.length === 0) return;
     const picked = pickAdaptive(candidates);
     const rootMidi = pickRootMidi();
@@ -505,22 +511,43 @@ export default function ChordRecognitionQuiz({
     setPhase('fully-revealed');
   };
 
-  const answerGrid = useMemo(() => {
-    let list: ChordData[];
-    if (focusActive) {
-      const set = new Set(focusKeys);
-      list = chords.filter(c => set.has(c.id));
-    } else if (tierFilter === 'all') {
-      list = chords;
-    } else {
-      list = chords.filter(c => c.tier === tierFilter);
-    }
+  /**
+   * THE POOL. One definition, read by everything that reports on it.
+   *
+   * The three surfaces that describe this pool each used to compute it
+   * for themselves, and each got a different answer: the status line
+   * counted the CATALOG (`chords.filter(c => c.tier === …).length`,
+   * "6 in pool" over a pool of zero), the answer grid rendered buttons
+   * for chords the selector would never pick, and the dashboard row
+   * offered "drill 6 items" and sent a focus set that resolved to
+   * nothing. Three statements about one thing, none of them reading
+   * it.
+   *
+   * They are true now because free practice is ungated. They are read
+   * off the pool anyway: a number that happens to be right because
+   * nothing is filtering it goes wrong the next time something does.
+   */
+  const poolChords = useMemo(() => {
+    const list = focusActive
+      ? chords.filter(c => new Set(focusKeys).has(c.id))
+      : tierFilter === 'all'
+        ? chords
+        : chords.filter(c => c.tier === tierFilter);
     // Sort by tier then by name for consistent layout.
     return [...list].sort((a, b) => {
       const t = TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier);
       return t !== 0 ? t : a.name.localeCompare(b.name);
     });
   }, [chords, tierFilter, focusActive, focusKeys]);
+
+  const poolChordsRef = useRef(poolChords); poolChordsRef.current = poolChords;
+
+  /** Nothing to serve. Reachable through a focus pool naming chords
+   *  the catalog does not hold - a stale dashboard link, or a seed
+   *  that has since been renamed. */
+  const poolIsEmpty = poolChords.length === 0;
+
+  const answerGrid = poolChords;
 
   // Quality-side answer grid is interactive only during step 1.
   // From quality-correct-awaiting-inversion onward, the grid is
@@ -550,12 +577,14 @@ export default function ChordRecognitionQuiz({
   // Attempts still log (calendar, daily goal, streaks unaffected) but
   // are skipped from the rolling-window tier calculation.
   //
-  // Counted over DISTINCT keys, because that is what the pool is built
-  // from (`new Set(focusKeys)` in buildCandidates). Measuring the array
-  // instead would let four copies of one chord read as a pool of four
-  // and skip the protection while drilling one chord.
-  const focusPoolSize = new Set(focusKeys).size;
-  const focusProtected = focusActive && focusPoolSize < 4;
+  // COUNTED OFF THE POOL, not off the keys it was handed. Deduping the
+  // keys was only most of the way there: a key naming no chord — a
+  // stale dashboard link, a renamed seed — still counted as a chord
+  // that could be served, so two keys resolving to one chord read as
+  // a pool of two. `poolChords` is what the selector draws from, so it
+  // is the only honest answer to "how few am I choosing between".
+  const focusPoolSize = poolChords.length;
+  const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
 
   const rootName = current ? midiToNoteName(current.rootMidi) : '';
   const qualityCorrect = qualityLocked && current && selectedId === current.chord.id;
@@ -675,9 +704,8 @@ export default function ChordRecognitionQuiz({
       // say four while the quiz is choosing between one.
       return `focused practice — ${focusPoolSize} chord${focusPoolSize === 1 ? '' : 's'} selected`;
     }
-    if (tierFilter === 'all') return `all chords — ${chords.length} in pool`;
-    const count = chords.filter(c => c.tier === tierFilter).length;
-    return `${TIER_SECTION_LABEL[tierFilter].toLowerCase()} — ${count} in pool`;
+    if (tierFilter === 'all') return `all chords — ${poolChords.length} in pool`;
+    return `${TIER_SECTION_LABEL[tierFilter].toLowerCase()} — ${poolChords.length} in pool`;
   })();
 
   return (
@@ -778,6 +806,20 @@ export default function ChordRecognitionQuiz({
 
       {focusProtected && <FluencyProtectionNotice />}
 
+      {poolIsEmpty && (
+        <div
+          data-testid="empty-pool-notice"
+          role="status"
+          className="rounded-lg border border-needswork/40 bg-needswork/5 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200"
+        >
+          <span aria-hidden className="mr-1.5">ⓘ</span>
+          Nothing in this selection matches a chord the app knows, so there is
+          nothing to play. {focusActive
+            ? 'Exit focus to go back to the full pool.'
+            : 'Pick another scope above.'}
+        </div>
+      )}
+
       {/* Playback style + root + play/next */}
       <div className="flex flex-col items-center gap-3">
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
@@ -834,7 +876,10 @@ export default function ChordRecognitionQuiz({
 
         <div className="text-center">
           <div className="text-[10px] uppercase tracking-wide text-neutral-500">root note</div>
-          <div className="text-3xl sm:text-4xl font-medium font-mono tabular-nums min-h-[3rem]">
+          <div
+            data-testid="root-note"
+            className="text-3xl sm:text-4xl font-medium font-mono tabular-nums min-h-[3rem]"
+          >
             {hasPlayed ? rootName : '—'}
           </div>
         </div>
@@ -843,7 +888,9 @@ export default function ChordRecognitionQuiz({
           {!hasPlayed ? (
             <button
               onClick={startNew}
-              className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
+              data-testid="play-chord"
+              disabled={poolIsEmpty}
+              className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
             >
               play chord
             </button>
