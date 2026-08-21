@@ -89,6 +89,7 @@ import { planSectionMove } from './sectionReorder';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import StageCriteriaPanel from './StageCriteriaPanel';
+import SectionGuidance from './SectionGuidance';
 import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
 import CellAnchoredMessage from './CellAnchoredMessage';
@@ -1705,7 +1706,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                   // instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
                   <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
-                      <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
+                        <SectionGuidance surface="leadSheet" />
+                      </div>
                       <div className="flex items-center gap-3 flex-wrap text-xs">
                         {/* Editing chrome (notation / add / reorder) is
                             hidden in play mode; only the play/exit toggle
@@ -1841,7 +1845,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
                 {key === 'matrix' && (
                   <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-                    <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">matrix</h3>
+                    <div className="flex items-center gap-2 flex-wrap pr-10">
+                      <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
+                      <SectionGuidance surface="matrix" />
+                    </div>
                     <SongMatrixView song={song} onClose={() => {}} embedded />
                   </section>
                 )}
@@ -1994,7 +2001,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       {/* Practice history + heatmap */}
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">practice history</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">practice history</h3>
+            <SectionGuidance surface="practiceHistory" />
+          </div>
           <button
             onClick={() => setShowLogModal(true)}
             className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"

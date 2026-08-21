@@ -1,13 +1,13 @@
-# Song page guidance — copy in progress
+# Song page guidance — copy
 
-**Status: parked, deliberately.** Drafted 21 August 2026, edits recorded the
-same day. Not built, and not to be built until the stage ladder is settled —
-the matrix copy walks the path through a key, and that path is what 3a-5 is
-still changing. Wordsmithing around a half-rewritten rule set produces copy
-that has to be rewritten anyway.
+**Status: shipped 21 August 2026 in step 3a-6b.** The copy now lives in
+`src/modules/repertoire/songPageGuidance.ts` and is rendered by
+`SectionGuidance` behind an ⓘ beside each section heading.
 
-Ships with **3a-6**, except the practice-vs-test lines, which describe a modal
-that does not exist until **3d** and ship with it.
+**This file is the record of how the copy was decided, not a second copy of
+it.** The strings in the module are the ones that ship; edit those. Kept
+because the reasoning behind three of the edits is worth not losing, and
+because `songPageGuidance.test.ts` pins the properties that reasoning produced.
 
 **Standard.** Each surface answers two questions: what this section is for, and
 how to use it. Bulleted, never a wall of text. Instructional second person —
@@ -15,12 +15,52 @@ the dashboard's legibility layer explains numbers, this explains what to do,
 and they are different jobs with different voices. Explain what the reader is
 looking at and what to do with it, never the reasoning behind the design.
 
-**Scope.** Four surfaces: lead sheet, progressions drawer, matrix, practice
-history. *Learning status* gets the stage-criteria panel from 3a-6 instead.
-*Why this song* and *my associations* get nothing — they are self-evident, and
-guidance on a text box is noise.
+**Scope.** Three ⓘ panels: lead sheet (carrying the progressions drawer as its
+third group, since the drawer opens from there and has no heading of its own),
+matrix, and practice history. *Learning status* carries the stage-criteria
+panel from 3a-6a instead. *Why this song* and *my associations* get nothing —
+they are self-evident, and guidance on a text box is noise.
 
 ---
+
+## Decisions
+
+**1. "cell", not "square"** — cell fits a matrix.
+
+**2. The axes were backwards in the draft.** Sections are COLUMNS, keys are
+ROWS: a row read left to right is the whole song in one key, a column read top
+to bottom is one section across twelve keys. The draft had it inverted, which
+reverses what a row means. Pinned by test.
+
+**3. The matrix does not define the stages.** It points at the learning-status
+panel and names no rung. Same reason `stageCriteria` became the single
+definition of the rules in 3a-6a: two statements of one thing drift, and copy
+is the half that drifts silently because nobody re-reads it. Pinned by test,
+positively (it names the panel) and negatively (it names no rung) — "does not
+mention cross-key" alone would pass on copy that said nothing at all.
+
+**4. The matrix was rewritten for `Test song` being ungated.** The parked draft
+described the whole-song test unlocking once every section was comfortable,
+which stopped being true when the gate was removed. Copy describing a gate that
+no longer exists is worse than no copy: it tells the reader they cannot do
+something they can. Pinned by test, aimed at the gate PHRASING rather than at
+the word "unlocks" — the log-a-run bullet says it unlocks nothing, which is
+true and worth saying, and a blanket ban would have failed on correct copy.
+
+**5. The chord-function claim was FALSE and was removed, not softened.** The
+draft said "tap a chord to see what it's doing in the key". Verified against
+the code: tapping a chord opens the edit choices row — break, new row, hide,
+note — and shows no function at all. The real mechanism is the **notation**
+control (`lib/notationPref`), which re-renders every chord as numbers or roman
+numerals, and is app-wide rather than per-chord. The bullet now describes that,
+including that the choice applies everywhere. Pinned by test.
+
+---
+
+## What shipped
+
+Reproduced below as it was written. **If this disagrees with the module, the
+module is right.**
 
 ## Lead sheet
 
@@ -131,21 +171,13 @@ guidance on a text box is noise.
 
 ---
 
-## Edits recorded 21 August 2026
-
-Applied above; listed so the reasoning is not lost.
-
-1. **"cell", not "square"** — cell fits a matrix.
-2. **The axes were backwards.** The draft had sections as rows and keys as
-   columns. Sections are columns, keys are rows: a row is the whole song in one
-   key, a column is one section across twelve keys.
-3. **First bullet** gained "across all twelve keys".
-4. **Third bullet** referenced stage suggestions before anything defines stages.
-   Left open above rather than silently resolved.
+---
 
 ## Still open
 
-- The ⚠ lead-sheet claim, to verify before shipping.
-- The stage-suggestion clause in the matrix's third bullet.
-- Whether the matrix copy needs a line about **+ log a run** being the way past
-  the section-by-section path, once the test-gate override (addition #3) lands.
+- Whether the matrix copy wants a line about the relationship between
+  **Test song** and **log a run** beyond what each bullet says separately.
+  They are adjacent controls with different consequences and the copy explains
+  them one at a time.
+- The practice-vs-test lines, which describe a modal that does not exist until
+  **3d** and ship with it.
