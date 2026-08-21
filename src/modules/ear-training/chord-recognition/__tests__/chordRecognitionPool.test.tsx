@@ -23,6 +23,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ChordRecognitionQuiz from '../ChordRecognitionQuiz';
 import { CHORD_SEEDS } from '../seed';
+import { UNLOCK_MIN_ATTEMPTS } from '../tierUnlock';
 import type { AttemptRecord, ChordData } from '../../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -264,5 +265,120 @@ describe('a dashboard pool is served, not just accepted', () => {
     const el = await render(['maj13']);
     expect(answerNames(el)).toEqual(['Major 13']);
     expect(await playsSomething(el)).toBe(true);
+  });
+});
+
+// ── The progression suggestion ───────────────────────────────────────
+
+/** Enough logged attempts to clear `chordId` on the real threshold. */
+function clearing(chordId: string, at = 0): AttemptRecord[] {
+  return Array.from({ length: UNLOCK_MIN_ATTEMPTS }, (_, n) => ({
+    id: `att-${chordId}-${n}`,
+    moduleId: 'chord-recognition',
+    itemId: `${chordId}:0`,
+    correct: true,
+    timestamp: 1_700_000_000_000 + at + n,
+  }));
+}
+
+function suggestion(el: HTMLElement): Element | null {
+  return el.querySelector('[data-testid="progression-suggestion"]');
+}
+
+describe('the suggestion sits where the tap was', () => {
+  it('renders directly beneath the tab strip, not at the foot', async () => {
+    // A notice at the bottom of the section reads as a dead control:
+    // by the time you have scrolled to it you have stopped looking for
+    // an answer to what you just pressed. It has to be in the same
+    // column as the tabs, immediately after them.
+    const el = await render();
+    clickTab(el, 'Seventh Chords');
+    const note = suggestion(el);
+    expect(note).not.toBeNull();
+
+    const strip = [...el.querySelectorAll('button')]
+      .find(b => b.textContent?.trim() === 'Seventh Chords')!
+      .closest('div')!;
+    // Siblings in one column, suggestion immediately after the strip.
+    expect(note!.parentElement).toBe(strip.parentElement);
+    expect(strip.nextElementSibling).toBe(note);
+  });
+
+  it('says the whole sentence, dynamically', async () => {
+    const el = await render(undefined, [
+      ...clearing('maj'), ...clearing('min', 100), ...clearing('dim', 200),
+    ]);
+    clickTab(el, 'Extensions & Colors');
+    const text = suggestion(el)!.textContent ?? '';
+    expect(text).toContain('Suggestion — The foundational triads first.');
+    expect(text).toContain("You've cleared 3 of 6");
+    expect(text).toContain('10 attempts with 75% correct');
+    expect(text).toContain('triad with a note added');
+    expect(text).toContain('Nothing is locked');
+  });
+
+  it('the count is live rather than written down', async () => {
+    // Guard the guard: the fixture above is the only reason it reads
+    // 3, so a different history has to read differently.
+    const el = await render(undefined, clearing('maj'));
+    clickTab(el, 'Extensions & Colors');
+    expect(suggestion(el)!.textContent).toContain("You've cleared 1 of 6");
+  });
+
+  it('stays quiet where there is nothing to suggest', async () => {
+    const el = await render();
+    // On `all` — not skipping anything.
+    expect(suggestion(el)).toBeNull();
+    // On the suggested tab itself — already doing it.
+    clickTab(el, 'Foundational Triads');
+    expect(suggestion(el)).toBeNull();
+  });
+
+  it('is not shown in focus mode, where there is no tab to open', async () => {
+    const el = await render(['maj13']);
+    expect(suggestion(el)).toBeNull();
+  });
+});
+
+describe('dismissing it', () => {
+  /**
+   * ONE test, deliberately.
+   *
+   * The dismissal flag is module-level — that is what makes it last a
+   * session rather than a render — so it does not reset between tests
+   * in this file. Splitting the journey across two tests made the
+   * second one depend on the first, which is a fixture leak dressed as
+   * coverage. The whole journey belongs in one arc, and this describe
+   * must stay last in the file.
+   */
+  it('goes away, and stays gone across tab changes and a remount', async () => {
+    const el = await render();
+    clickTab(el, 'Seventh Chords');
+    // Guard the guard: it is visible before it is dismissed. If an
+    // earlier test ever dismisses it, this fails here and says so
+    // rather than throwing on a null button below.
+    expect(suggestion(el), 'suggestion should be visible before dismissal')
+      .not.toBeNull();
+
+    const close = el.querySelector('[data-testid="dismiss-suggestion"]');
+    expect(close).not.toBeNull();
+    act(() => {
+      close!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    expect(suggestion(el)).toBeNull();
+
+    // PER SESSION, not per tap: coming back on every tab change would
+    // make it noise.
+    clickTab(el, 'Foundational Triads');
+    clickTab(el, 'Extensions & Colors');
+    expect(suggestion(el)).toBeNull();
+
+    // And not per render: a remount is a route change inside the app,
+    // not the next time the app is opened.
+    if (root) await act(async () => root!.unmount());
+    container?.remove();
+    const again = await render();
+    clickTab(again, 'Seventh Chords');
+    expect(suggestion(again)).toBeNull();
   });
 });

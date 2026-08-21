@@ -48,6 +48,10 @@ import {
   MIX_WEIGHT,
 } from './tierUnlock';
 import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
+import {
+  SUGGESTION_PREFIX,
+  progressionSuggestionFor,
+} from './progressionSuggestion';
 import { useToast } from '../../../components/Toaster';
 
 const MODULE_ID = 'chord-recognition';
@@ -58,6 +62,17 @@ const PREF_INVERSION_POSITIONS = 'chordRecognitionInversionPositions';
 // the polish-build feature — surface it on by default; gear icon lets
 // the user dial back to root only or any subset.
 const DEFAULT_INVERSION_POSITIONS: Inversion[] = [0, 1, 2];
+
+/**
+ * Whether the progression suggestion has been dismissed this session.
+ *
+ * Module-level rather than a pref, deliberately. A pref would make the
+ * dismissal permanent, and the guidance is worth having again later; a
+ * component-state flag would reset on every tab change, which is how a
+ * suggestion becomes noise. This survives remounts and route changes
+ * and resets on reload.
+ */
+let sessionDismissed = false;
 
 type QuizPhase =
   | 'awaiting-quality'
@@ -254,7 +269,11 @@ export default function ChordRecognitionQuiz({
     [],
   );
 
-  const unlockedTier: ChordRecognitionTier = useMemo(() => {
+  /** Lifetime tally per item. Lifted out of the unlock memo so the
+   *  suggestion's "cleared N of M" is counted off the same rows the
+   *  unlock walk gates on - two tallies would let the visible one
+   *  drift from the one that decides. */
+  const lifetimeStats = useMemo(() => {
     const stats = new Map<string, { correct: number; total: number }>();
     for (const a of attempts) {
       if (a.moduleId !== MODULE_ID) continue;
@@ -262,13 +281,19 @@ export default function ChordRecognitionQuiz({
       // Canonicalised so a legacy bare `maj` tallies with `maj:0`.
       // computeUnlockedTier looks items up in attempt form, so an
       // unfolded legacy row would silently never satisfy its gate.
-      const cur = stats.get(canonicalItemId(MODULE_ID, a.itemId)) ?? { correct: 0, total: 0 };
+      const key = canonicalItemId(MODULE_ID, a.itemId);
+      const cur = stats.get(key) ?? { correct: 0, total: 0 };
       cur.total += 1;
       if (a.correct) cur.correct += 1;
-      stats.set(canonicalItemId(MODULE_ID, a.itemId), cur);
+      stats.set(key, cur);
     }
-    return computeUnlockedTier(stats);
+    return stats;
   }, [attempts]);
+
+  const unlockedTier: ChordRecognitionTier = useMemo(
+    () => computeUnlockedTier(lifetimeStats),
+    [lifetimeStats],
+  );
 
   /**
    * ─── The staged-introduction gate is NOT applied here ─────────────
@@ -542,6 +567,27 @@ export default function ChordRecognitionQuiz({
 
   const poolChordsRef = useRef(poolChords); poolChordsRef.current = poolChords;
 
+  /**
+   * What the progression suggests, if anything.
+   *
+   * Hidden while focus mode is on for the same reason the tab strip is:
+   * the suggestion is about which TAB to open, and there is no tab
+   * strip to act on.
+   */
+  const suggestion = useMemo(
+    () => (focusActive ? null : progressionSuggestionFor(tierFilter, lifetimeStats)),
+    [focusActive, tierFilter, lifetimeStats],
+  );
+  const [suggestionDismissed, setSuggestionDismissed] = useState(sessionDismissed);
+  const dismissSuggestion = () => {
+    // Module-level, not a pref. Dismissed, it stays gone across tab
+    // changes and route changes and comes back on the next load -
+    // which is "until I next open the app". A pref would make it
+    // permanent and a per-tap flag would make it noise.
+    sessionDismissed = true;
+    setSuggestionDismissed(true);
+  };
+
   /** Nothing to serve. Reachable through a focus pool naming chords
    *  the catalog does not hold - a stale dashboard link, or a seed
    *  that has since been renamed. */
@@ -775,6 +821,35 @@ export default function ChordRecognitionQuiz({
                 </span>
               );
             })}
+          </div>
+        )}
+
+        {/* DIRECTLY BENEATH THE TAB STRIP, in the same column — this
+            appears in response to tapping a tab, so it belongs beside
+            the tap. A notice at the foot of the section reads as a dead
+            control, because by the time you scroll to it you have
+            stopped looking for an answer to what you just pressed. */}
+        {suggestion && !suggestionDismissed && (
+          <div
+            data-testid="progression-suggestion"
+            role="note"
+            className="max-w-xl rounded-lg border border-developing/40 bg-developing/5 px-3 py-2 text-[11px] leading-relaxed text-neutral-700 dark:text-neutral-200 flex items-start gap-2"
+          >
+            <p className="flex-1">
+              <span className="font-medium">
+                {SUGGESTION_PREFIX}{suggestion.headline}
+              </span>{' '}
+              {suggestion.progress} {suggestion.why} {suggestion.disclaimer}
+            </p>
+            <button
+              type="button"
+              data-testid="dismiss-suggestion"
+              aria-label="Dismiss suggestion"
+              onClick={dismissSuggestion}
+              className="shrink-0 text-sm leading-none px-1 text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+            >
+              ×
+            </button>
           </div>
         )}
 

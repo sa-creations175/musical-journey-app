@@ -12,12 +12,14 @@ import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 const MODULE_REF = 'chord-recognition';
 
 /** Lifetime attempt count required per item before the unlock check
- *  even considers it. Below this floor an item can't gate a tier. */
-const UNLOCK_MIN_ATTEMPTS = 10;
+ *  even considers it. Below this floor an item can't gate a tier.
+ *  Exported so the surface that SAYS "cleared" can state the number
+ *  rather than leaving it as a threshold nobody can infer. */
+export const UNLOCK_MIN_ATTEMPTS = 10;
 
 /** Lifetime accuracy fraction required per item to count as cleared
  *  in the unlock check. correctAttempts / totalAttempts ≥ this. */
-const UNLOCK_MIN_ACCURACY = 0.75;
+export const UNLOCK_MIN_ACCURACY = 0.75;
 
 /** Cap on new items introduced per tier per practice session.
  *  Items beyond this stay locked until the user has at least
@@ -52,6 +54,20 @@ async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
   return stats;
 }
 
+/**
+ * ONE definition of "cleared", because two surfaces say the word.
+ *
+ * The unlock walk decides what it gates on and the suggestion line
+ * tells the player how far along they are. Written twice, those drift,
+ * and the visible one drifting means a count that says 5 of 6 beside
+ * a tier that will not open.
+ */
+function isCleared(s: ItemStats | undefined): boolean {
+  if (!s) return false;
+  if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
+  return s.correct / s.total >= UNLOCK_MIN_ACCURACY;
+}
+
 /** Pure unlock walk. Public so tests can pass fixture stats without
  *  hitting the DB. */
 export function computeUnlockedTier(
@@ -60,16 +76,26 @@ export function computeUnlockedTier(
   let unlocked: ChordRecognitionTier = 1;
   for (let tier = 1; tier < MAX_TIER; tier++) {
     const items = itemsForTier(tier as ChordRecognitionTier);
-    const allCleared = items.every(item => {
-      const s = statsByItem.get(toAttemptForm(item));
-      if (!s) return false;
-      if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
-      return s.correct / s.total >= UNLOCK_MIN_ACCURACY;
-    });
+    const allCleared = items.every(
+      item => isCleared(statsByItem.get(toAttemptForm(item))),
+    );
     if (!allCleared) break;
     unlocked = (tier + 1) as ChordRecognitionTier;
   }
   return unlocked;
+}
+
+/** How far through one tier the player is, on the same definition the
+ *  unlock walk uses. */
+export function tierProgress(
+  tier: ChordRecognitionTier,
+  statsByItem: ReadonlyMap<string, ItemStats>,
+): { cleared: number; total: number } {
+  const items = itemsForTier(tier);
+  return {
+    cleared: items.filter(i => isCleared(statsByItem.get(toAttemptForm(i)))).length,
+    total: items.length,
+  };
 }
 
 /**

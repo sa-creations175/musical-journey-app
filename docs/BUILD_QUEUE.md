@@ -86,7 +86,46 @@ three different ways, and three phrasings of one rule read as three rules.
 
 ## Queued
 
-### 3. Per-song enharmonic spelling
+### 3. Chord recognition — the progression permanently caps at tier 3
+
+**What.** Nine of the seventeen tier-3 items can never be attempted, so tier
+3 can never be cleared, so tiers 4 and 5 never unlock. A third of the ladder
+is unreachable for anyone who gets that far, silently.
+
+**Why it matters.** This is not a rough edge. `computeUnlockedTier` walks
+tier by tier and stops at the first incomplete one, so a player who clears
+the triads and the sevenths sits at tier 3 forever — and nothing tells them,
+because the ladder has no surface of its own. `sessionGenerator.ts` reads
+that capped tier, so generated sessions stop introducing new material too.
+
+**Two different causes, and only one of them is a bug.**
+
+- **`aug:1` and `aug:2` are correctly refused.** An augmented triad is a
+  symmetric stack of major thirds, so every inversion is the same chord at a
+  different root and sounds identical. `INVERSION_EXCLUDED_CHORD_IDS` is
+  right to exclude it and the quiz is right not to serve it. **The tier
+  table is what is wrong** — it lists two items the app deliberately refuses
+  to play. Fix by removing them from `TIER_3_ITEMS`.
+
+- **The nine seventh inversions are a genuine defect.** `maj7:1..3`,
+  `min7:1..3` and `dom7:1..3` are all in tier 3, and `stepTwoEligible` in
+  `ChordRecognitionQuiz.buildCandidates` reads `c.tier === 'foundational'`,
+  so the quiz only ever plays inversions of triads. One condition, and it
+  silently voids three quarters of a tier. Fixing it needs a decision about
+  what the inversion settings mean for four-note chords — the drawer offers
+  positions 0–2 and a seventh has four — rather than just widening the test.
+
+**Found 21 Aug 2026**, working out what the progression suggestion could
+honestly point at. It is why that suggestion goes quiet past tier 2: naming
+tier 3 would recommend work that cannot be done.
+
+**Where it lives.** `progressionSuggestion.ts` header ·
+`chordRecognitionTiers.ts` → `TIER_3_ITEMS` · `ChordRecognitionQuiz.tsx` →
+`stepTwoEligible`
+
+---
+
+### 4. Per-song enharmonic spelling
 
 **What.** Spelling chosen per song rather than globally, so a chart in G♭ reads
 in flats and one in F♯ reads in sharps.
@@ -111,7 +150,7 @@ which module is canonical anyway, so the reconciliation belongs here.
 
 ---
 
-### 4. Song detail page — collapse the three progress cards into one
+### 5. Song detail page — collapse the three progress cards into one
 
 **What.** One progress card in place of three overlapping ones.
 
@@ -135,7 +174,7 @@ implies. Decide it here rather than twice.
 
 ---
 
-### 5. Per-node regrouping and custom module order
+### 6. Per-node regrouping and custom module order
 
 **What.** Two halves of one want: pin the modules being focused on to the top
 regardless of sort, and offer an alternate grouping of one row's children — key
@@ -151,7 +190,7 @@ how it composes with sorting, and whether a pin survives a reset.
 
 ---
 
-### 6. Chord progression catalog rebuild
+### 7. Chord progression catalog rebuild
 
 **What.** Pare down to common basic progressions and derive the rest from Song
 Repertoire.
@@ -165,7 +204,7 @@ design pass*, items 3 and 4.
 
 ---
 
-### 7. Repertoire chord flashcards
+### 8. Repertoire chord flashcards
 
 **What.** Memorising a section's changes away from the keyboard.
 
@@ -175,7 +214,7 @@ yet.
 
 ---
 
-### 8. Personal voicing library
+### 9. Personal voicing library
 
 **What.** Add a voicing you like — from a tutorial, a song, anywhere — and have
 it become drillable in mental visualisation.
@@ -192,7 +231,7 @@ prevent.
 
 ---
 
-### 9. Spacing state for section ratings and S&P
+### 10. Spacing state for section ratings and S&P
 
 **What.** Wire self-assessments and section ratings into SM-2.
 
@@ -215,7 +254,7 @@ thing from a check the user passes or fails.
 
 ---
 
-### 10. Collapse the two song-progress ladders
+### 11. Collapse the two song-progress ladders
 
 **What.** Two things describe how far a song has come and neither knows about
 the other. `songs.stage` is stored and hand-advanced (learning → comfortable →
@@ -238,7 +277,7 @@ real one, which is a design question, not a refactor.
 
 ---
 
-### 11. MIDI-in accuracy grading
+### 12. MIDI-in accuracy grading
 
 **What.** Grade S&P and Song Repertoire from a plugged-in keyboard — exact note
 numbers, exact timestamps, no pitch detection.
@@ -276,6 +315,8 @@ of, not a changelog.
 
 | Date | What |
 |---|---|
+| 21 Aug 2026 | **Chord recognition was serving three of thirty chords.** Free practice ran its pool through the staged-introduction gate, so Seventh Chords, Dominant Variations and Extensions & Colors each produced an empty pool, an enabled play button and no sound — since 13 May. The gate now stays where it was built for, generated sessions; free practice is ungated with a dismissible suggestion in its place. |
+| 21 Aug 2026 | **Dashboard drill entries — the pool half.** Five modules filter end to end. Tap-to-drill had never worked: rows resolved against the module id where the tables are keyed on the catalog, so every ear-training row went to `/`. Repertoire remains. |
 | 20 Aug 2026 | **Dashboard step 8 — the route swap.** `/` is the new screen. Old one at `/dashboard-old` for a few days' comparison; `/dashboard-next` redirects to `/` keeping its query string. **Deletion is a separate commit** — `Dashboard.tsx` and `aggregation.ts`'s snapshot functions are still live. |
 | 20 Aug 2026 | **Dashboard steps 1–7b.** Read layer, screen, row, controls, sticky headers, tap-to-drill targeting, and the legibility layer: both column legends, four `?` panels, and a per-row `i` giving what a row trains, what would advance it, and what is odd about its numbers. |
 | 20 Aug 2026 | **Supplementary rows count** — chord shapes 648 → 720. Found by writing the legend that explained the exclusion. `RULE_LEGIBILITY.md` §1.7 closed by removing the rule rather than surfacing it. |
