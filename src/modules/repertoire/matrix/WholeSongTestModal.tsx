@@ -98,12 +98,14 @@ export default function WholeSongTestModal({
   // AND on retest (key is solid but lapsed → re-pass clears the
   // lapse). The only state where it stays disabled is "solid and not
   // lapsed" — there's nothing to re-confirm in that case.
-  // Opened via "test anyway": the key has not met the gate, so a pass
-  // records the whole-song test but cannot make the key Solid —
-  // keyState is recomputed from the CELLS, which are not comfortable.
-  // Both the reminder and the button label have to say so, or the
-  // screen promises something the save will not do.
-  const belowGate =
+  // The test is available on every key now, so it opens routinely on
+  // keys whose sections are not comfortable. A pass there records the
+  // whole-song test but cannot make the key Solid — `keyState` is
+  // recomputed from the CELLS. Both the reminder and the button label
+  // have to say so, or the screen promises something the save will
+  // not do. This is a statement of what happens, not a warning about
+  // taking a shortcut: nothing here is ahead of anything.
+  const sectionsIncomplete =
     songKey.keyState !== 'comfortable' && songKey.keyState !== 'solid';
   const canMarkSolid =
     (songKey.keyState !== 'solid' || isRetest) && projectedCount >= 3;
@@ -181,7 +183,7 @@ export default function WholeSongTestModal({
                 className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
                 title={canMarkSolid ? undefined : 'Reach 3 consecutive clean run-throughs to enable'}
               >
-                {belowGate
+                {sectionsIncomplete
                   ? 'Pass the test'
                   : isRetest ? 'Mark solid (re-pass)' : 'Mark solid'}
               </button>
@@ -195,7 +197,7 @@ export default function WholeSongTestModal({
           performanceTempo={performanceTempo}
           keyAlreadySolid={songKey.keyState === 'solid'}
           isRetest={isRetest}
-          belowGate={belowGate}
+          sectionsIncomplete={sectionsIncomplete}
         />
 
         <StateHeader
@@ -230,14 +232,14 @@ function RuleReminder({
   performanceTempo,
   keyAlreadySolid,
   isRetest,
-  belowGate,
+  sectionsIncomplete,
 }: {
   performanceTempo: number | null;
   keyAlreadySolid: boolean;
   isRetest: boolean;
-  /** Opened via "test anyway" — the key has not met the gate, so the
-   *  standard copy's promise of Solid would be false here. */
-  belowGate: boolean;
+  /** The sections in this key are not all comfortable, so a pass
+   *  cannot make the key Solid and the copy must not say it will. */
+  sectionsIncomplete: boolean;
 }) {
   const floorText = performanceTempo !== null
     ? ` at or above ♩ ${performanceTempo - 10}`
@@ -262,19 +264,20 @@ function RuleReminder({
       </div>
     );
   }
-  if (belowGate) {
-    // The standard copy below promises Solid. That would be a false
-    // claim here: keyState is recomputed from the CELLS on a pass, and
-    // a key whose sections are not comfortable stays where it is. What
-    // a pass does do is move the SONG to Comfortable, which is the
-    // thing worth saying.
+  if (sectionsIncomplete) {
+    // Same neutral styling as the standard copy — this is what the
+    // test does from here, not a caution about how you got here. Only
+    // the outcome differs: keyState is recomputed from the CELLS on a
+    // pass, so a key whose sections are not comfortable stays where it
+    // is, and what a pass moves is the SONG.
     return (
-      <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
-        You are testing ahead of the usual route — the sections in this key
-        are not marked comfortable yet.{' '}
+      <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-black/[0.07] px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
+        Play through the full song in this key. Log each attempt as clean or
+        not-clean.{' '}
         <span className="font-medium">3 consecutive clean run-throughs{floorText} in this session</span>{' '}
-        moves the song to Comfortable. It will not make this key Solid; that
-        still needs the sections.
+        moves the song to Comfortable. It will not make this key Solid — that
+        needs every section here comfortable too, which is what working them
+        one at a time is for.
       </div>
     );
   }

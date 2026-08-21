@@ -49,10 +49,6 @@ interface Props {
   /** Log-one-run callback. Unlike `onRunTest` this is offered on
    *  EVERY key at every state — that is the whole point of it. */
   onLogRun?: (songKeyId: string) => void;
-  /** Open the whole-song test on a key that has NOT met the gate.
-   *  Shown in place of the Run test CTA, never alongside it, so the
-   *  strip always carries exactly one test control. */
-  onTestAnyway?: (songKeyId: string) => void;
 }
 
 export default function KeyRow({
@@ -66,7 +62,6 @@ export default function KeyRow({
   onCellTap,
   onRunTest,
   onLogRun,
-  onTestAnyway,
 }: Props) {
   // See isKeyRowEngaged — row existence stopped meaning "touched" once
   // all 12 keys are materialised.
@@ -108,7 +103,6 @@ export default function KeyRow({
         now={now}
         onRunTest={onRunTest}
         onLogRun={onLogRun}
-        onTestAnyway={onTestAnyway}
       />
     </div>
   );
@@ -236,7 +230,6 @@ function KeyStrip({
   now,
   onRunTest,
   onLogRun,
-  onTestAnyway,
 }: {
   songKey: SongKey | null;
   sections: ReadonlyArray<SongMatrixSection>;
@@ -245,7 +238,6 @@ function KeyStrip({
   now: number;
   onRunTest?: (songKeyId: string) => void;
   onLogRun?: (songKeyId: string) => void;
-  onTestAnyway?: (songKeyId: string) => void;
 }) {
   const engaged = songKey !== null;
   const stateKey = songKey?.keyState ?? 'not_started';
@@ -270,35 +262,33 @@ function KeyStrip({
     ? computeSolidDecayState(songKey, now)
     : null;
 
-  // Test affordance: visible when the key is at comfortable (gate
-  // to Solid for the first time) OR when the key is solid+lapsed
-  // (retest is the only path back to fresh-solid). Fading keys are
-  // a heads-up only — no CTA, just the badge. Solid+not-lapsed has
-  // nothing to do here.
-  const showRunTest =
-    songKey !== null
-    && onRunTest !== undefined
-    && (stateKey === 'comfortable' || decayState === 'lapsed');
+  // ---------------------------------------------------------------
+  // ONE TEST CONTROL, ALWAYS AVAILABLE.
+  //
+  // The whole-song test used to appear only once every section in the
+  // key was comfortable. That gate is gone. Sections are somewhat
+  // arbitrary — a chorus is a chorus because it got named one — and
+  // the song is the real unit; working section by section is a good
+  // recommendation, not a rule worth enforcing. Some songs arrive
+  // already in the hands, and the app should not tell you it cannot
+  // test something you can play.
+  //
+  // WEIGHT, NOT AVAILABILITY, carries the recommendation. The control
+  // is always there; it renders as a filled CTA when there is a
+  // reason to prompt — the sections are all comfortable and Solid is
+  // one pass away, or the key has lapsed and only a retest clears it
+  // — and as a quiet link the rest of the time. Same action, same
+  // passing standard either way: three clean runs in a row, in one
+  // sitting. Taking the direct route earns no higher bar.
+  // ---------------------------------------------------------------
+  const showTest = songKey !== null && onRunTest !== undefined;
   const isRetestCta = decayState === 'lapsed';
+  const promptTest = stateKey === 'comfortable' || isRetestCta;
   const totalAttempts = testSummary?.totalAttempts ?? 0;
   const singleRuns = testSummary?.singleRuns ?? 0;
-  // Offered on EVERY key, at every state — no gate, which is the
-  // entire reason it exists. The whole-song test is unreachable until
-  // every cell in the key is comfortable, so before this there was no
-  // way to record having played the song through in a key you had not
-  // finished. Rendered as a quiet text link rather than a second
-  // filled button so the hierarchy stays honest: the coloured CTA is
-  // the graduation gate, this is bookkeeping.
+  // One pass of the whole song, recorded and nothing more. Distinct
+  // from the test, which is three in a row in one sitting.
   const showLogRun = songKey !== null && onLogRun !== undefined;
-  // The override, offered exactly where the CTA is NOT. Working
-  // section by section is the recommended path and stays the default,
-  // but a song already in your hands from years of playing it should
-  // not be told it cannot be tested. One test control per strip either
-  // way, so this adds no density — it fills the slot the CTA leaves
-  // empty. The effort lives in the confirm the parent raises, not in
-  // hiding the link.
-  const showTestAnyway =
-    songKey !== null && onTestAnyway !== undefined && !showRunTest;
 
   return (
     <div
@@ -336,28 +326,19 @@ function KeyStrip({
           + log a run
         </button>
       )}
-      {showTestAnyway && (
-        <button
-          type="button"
-          onClick={() => onTestAnyway!(songKey!.id)}
-          title="Go straight to the whole-song test without working the sections first."
-          className="shrink-0 text-[10px] uppercase tracking-wide font-medium text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
-        >
-          test anyway
-        </button>
-      )}
-      {showRunTest && (
+      {showTest && (
         <button
           type="button"
           onClick={() => onRunTest!(songKey!.id)}
+          title={testHint(stateKey, isRetestCta)}
           className={[
-            'shrink-0 px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium rounded text-white',
-            isRetestCta
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-blue-600 hover:bg-blue-700',
+            'shrink-0 text-[10px] uppercase tracking-wide font-medium',
+            promptTest
+              ? `px-2 py-0.5 rounded text-white ${isRetestCta ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`
+              : 'text-neutral-500 hover:text-fluent underline-offset-2 hover:underline',
           ].join(' ')}
         >
-          {isRetestCta ? 'Run retest →' : 'Run test →'}
+          {isRetestCta ? 'Retest song →' : promptTest ? 'Test song →' : 'Test song'}
         </button>
       )}
     </div>
@@ -407,6 +388,33 @@ function DecayBadge({
  * Hidden at zero rather than reading "0 runs": twelve rows each
  * carrying a line that says nothing is worse than no line.
  */
+/**
+ * The hover explanation that replaced the gate.
+ *
+ * With the test always available, nothing stops a reader opening it
+ * on a key whose sections are untouched — so the control itself has to
+ * say what the test is and what passing it does. The Solid caveat is
+ * the load-bearing half: `keyState` is recomputed from the CELLS on a
+ * pass, so a pass on a key whose sections are not comfortable
+ * genuinely cannot make it Solid, and saying otherwise would promise
+ * something the save does not do.
+ */
+function testHint(keyState: string, isRetest: boolean): string {
+  if (isRetest) {
+    return 'This key has lapsed. Three clean run-throughs in a row, in one '
+      + 'sitting, clears the lapse and restores Solid.';
+  }
+  if (keyState === 'comfortable') {
+    return 'Play the whole song in this key: three clean run-throughs in a '
+      + 'row, in one sitting. Every section here is comfortable, so passing '
+      + 'makes this key Solid.';
+  }
+  return 'Play the whole song in this key: three clean run-throughs in a '
+    + 'row, in one sitting. Passing moves the song to Comfortable. It will '
+    + 'not make this key Solid — that needs the sections comfortable too, '
+    + 'which is what working them one at a time is for.';
+}
+
 function RunStatus({ singleRuns }: { singleRuns: number }) {
   // Weighted to match the sections count, not the metadata around it.
   // Both are progress through the key; "N/M sections", "N runs",

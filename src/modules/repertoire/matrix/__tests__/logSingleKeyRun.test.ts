@@ -231,17 +231,18 @@ describe('kind separates the two events', () => {
   });
 });
 
-describe('testing past the gate', () => {
+describe('testing a key whose sections are not comfortable', () => {
   /**
-   * The override lets a song already in your hands reach Comfortable
-   * without the section-by-section work. What it must NOT do is
-   * fabricate the section work: `keyState` is recomputed from the
-   * CELLS on a pass, so a key whose sections are not comfortable
-   * stays where it is. Both halves are asserted, because the screen
-   * promises exactly this split and either half silently flipping
-   * would make it a lie.
+   * The whole-song test is available on every key — sections are
+   * somewhat arbitrary and the song is the real unit, so working them
+   * one at a time is a recommendation rather than a gate. What a pass
+   * must NOT do is fabricate the section work: `keyState` is
+   * recomputed from the CELLS, so a key whose sections are not
+   * comfortable stays where it is. Both halves are asserted, because
+   * the strip's hover text and the modal's reminder promise exactly
+   * this split and either half silently flipping would make them lie.
    */
-  it('a pass below the gate records the test but does not make the key solid', async () => {
+  it('a pass records the test but does not make the key solid', async () => {
     const key = mkKey({ keyState: 'learning' });
     await db.songKeys.put(key);
 

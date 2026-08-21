@@ -50,7 +50,6 @@ interface Props {
    *  clicks "Run test" on a comfortable key's inline strip. */
   onRunTest?: (songKeyId: string) => void;
   onLogRun?: (songKeyId: string) => void;
-  onTestAnyway?: (songKeyId: string) => void;
 }
 
 export default function MatrixGrid({
@@ -62,7 +61,6 @@ export default function MatrixGrid({
   onCellTap,
   onRunTest,
   onLogRun,
-  onTestAnyway,
 }: Props) {
   // Index incoming data once so each KeyRow gets O(1) lookups
   // rather than scanning the full songKeys / songCells arrays per
@@ -126,7 +124,6 @@ export default function MatrixGrid({
               onCellTap={onCellTap}
               onRunTest={onRunTest}
               onLogRun={onLogRun}
-              onTestAnyway={onTestAnyway}
             />
           );
         })}
