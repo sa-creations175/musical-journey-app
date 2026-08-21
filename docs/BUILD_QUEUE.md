@@ -51,13 +51,36 @@ filtering a pool.
 
 **Why.** This is what makes the dashboard actionable rather than informational.
 Right now a row can tell you where you are weak and then hand you the whole
-module. Intervals and Reading already carry `focus` in the URL and nothing
-reads it, so the dashboard side is done and the drill side is not.
+module.
+
+**State, 21 Aug 2026. The pool half is done; the repertoire half is not.**
+Five modules filter — intervals, reading, chord recognition, chord motion,
+scales & modes — each end to end, from the tapped row to the drill's own pool.
+
+**Tap-to-drill had never worked before that.** `drillTargetFor` resolves a row
+against its CATALOG, and the screen was handing it the MODULE id, which for all
+four ear-training catalogs is `ear-training`. Every one of those rows, intervals
+included, fell through to "nothing to drill" with route `/` — the dashboard the
+tap started on. Reading worked only because its two ids are the same string. A
+node now carries its own `sourceId`, so the caller no longer passes one.
+
+**Filterability turned out to be a property of a ROW, not a module.** Chord
+progressions is one catalog holding four sub-drills, only one of which any focus
+mechanism reads. A row is filterable only when every one of its refs maps.
+
+**What remains: repertoire.** Opening the matrix at a section rather than
+filtering a pool — a different shape, as this entry always said.
 
 **Design.** `DASHBOARD_UI_SPEC.md` → *Tap to drill* · `DASHBOARD_REDESIGN_DESIGN.md`
 → *Layout and interaction → Tap to drill*. Note the load-bearing negative case:
 `drillTargetSummary` reports `filtered: false` so a row can never imply it
 narrowed a drill it could not narrow.
+
+**Also landed here: the under-4 prompt.** Tapping a row whose pool is too small
+to count says so and offers the nearest ancestor whose drill would count, with
+both ways out available. The rule is one sentence in `lib/fluencyPool`, rendered
+by the legibility panel, the in-drill notice and the prompt — it had been worded
+three different ways, and three phrasings of one rule read as three rules.
 
 ---
 

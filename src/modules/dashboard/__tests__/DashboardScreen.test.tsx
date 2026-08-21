@@ -554,6 +554,41 @@ describe('the drill affordance', () => {
     expect(drillButton(first).textContent).toMatch(/^open module · \d+ items$/);
   });
 
+  it('sends the skill as well as the mode', async () => {
+    // Scales & modes splits every mode across two tabs because hearing
+    // a scale and naming a mode over a vamp are different skills. The
+    // right mode in the wrong tab is a drill of something else.
+    const el = await renderScreen();
+    click(rowNamed(el, 'Scales & Modes').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamed(el, 'Dorian').querySelector('[data-testid="expand-toggle"]')!);
+
+    click(drillButton(rowNamed(el, 'Hear Mode In Context')));
+    // One mode, so the small-pool prompt stands between the tap and
+    // the drill — take it anyway, which is the row's own request.
+    click(el.querySelector('[data-testid="small-pool-anyway"]')!);
+
+    expect(pathname(el)).toBe('/ear-training/scales-modes');
+    const query = new URLSearchParams(search(el));
+    expect(query.get('focus')).toBe('dorian');
+    expect(query.get('tab')).toBe('vamp');
+  });
+
+  it('offers the whole submodule when one mode is too small', async () => {
+    // The climb: Dorian is one mode, and the row above it is nine.
+    const el = await renderScreen();
+    click(rowNamed(el, 'Scales & Modes').querySelector('[data-testid="expand-toggle"]')!);
+    click(drillButton(rowNamed(el, 'Dorian')));
+    expect(el.querySelector('[data-testid="small-pool-offer"]')!.textContent)
+      .toBe('Drill Scales & Modes (9 items) instead');
+
+    click(el.querySelector('[data-testid="small-pool-offer"]')!);
+    expect(pathname(el)).toBe('/ear-training/scales-modes');
+    const query = new URLSearchParams(search(el));
+    expect(query.get('focus')!.split(',')).toHaveLength(9);
+    // Nine modes span both tabs, so the tap names neither.
+    expect(query.get('tab')).toBeNull();
+  });
+
   it('opens ear training rather than the screen it started on', async () => {
     // The module row's own dead tap: `ear-training` is a module id and
     // was in no route table, so it fell through to `/`.

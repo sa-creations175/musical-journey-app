@@ -16,6 +16,7 @@ import { recordEngagement } from '../../../lib/spacingState';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
+import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import { MODES, modeById, pickDecoys, type Mode } from './catalog';
 import { playModeScale, scaleDurationSeconds, type ModePlaybackHandle } from './modeAudio';
@@ -56,7 +57,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
   // the user knows what's coming. Attempts still log (calendar, daily
   // goal, streaks unaffected) but the rolling-window tier math ignores
   // them.
-  const focusProtected = focusActive && pool.length < 4;
+  const focusProtected = focusActive && pool.length < FLUENCY_POOL_MINIMUM;
   const [runState, setRunState] = useState<RunState>('idle');
   const [active, setActive] = useState<Mode | null>(null);
   const [rootMidi, setRootMidi] = useState<number>(() => randomRootMidi());
@@ -225,7 +226,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
   const showRootHint = runState !== 'idle';
 
   return (
-    <div className="space-y-4">
+    <div data-testid="scales-tab-scale" className="space-y-4">
       {focusProtected && <FluencyProtectionNotice />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <label className="flex flex-col gap-1">

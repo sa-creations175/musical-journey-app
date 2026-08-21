@@ -260,7 +260,7 @@ describe('the drill affordance says what pressing it will do', () => {
     // which is the only thing that decides it — an intervals row under
     // any module id in the world still drills intervals.
     const el = render(
-      <TreeRow node={leaf({}, 'measured', 'scales-modes')}
+      <TreeRow node={leaf({}, 'measured', 'harmonic-fluency')}
         moduleId="ear-training" now={NOW} expanded={false} />,
     );
     const button = el.querySelector('[data-testid="drill-affordance"]')!;
@@ -289,7 +289,7 @@ describe('the drill affordance says what pressing it will do', () => {
     // changes the answer, so looping over four of those would have run
     // the same case four times.
     const seen = new Set<boolean>();
-    for (const sourceId of ['intervals', 'reading', 'scales-modes', 'harmonic-fluency']) {
+    for (const sourceId of ['intervals', 'reading', 'production', 'harmonic-fluency']) {
       const node = leaf({}, 'measured', sourceId);
       const expected = drillTargetSummary(drillTargetFor(node, 'ear-training'));
       const el = render(

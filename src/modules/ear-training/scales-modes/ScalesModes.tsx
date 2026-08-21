@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
 import ModuleIntro from '../../../components/ModuleIntro';
 import DailyGoalBar from '../../../components/DailyGoalBar';
 import { getPref, setPref } from '../../../lib/userPrefs';
+import { useUrlTabSync } from '../../../lib/useUrlTabSync';
 import { focusSelectionKey } from '../../../lib/goalConfig';
 import HearScaleTab from './HearScaleTab';
 import SitInsideTab from './SitInsideTab';
@@ -23,6 +24,10 @@ import {
 
 type Tab = 'scale' | 'vamp';
 
+function isTab(v: string): v is Tab {
+  return v === 'scale' || v === 'vamp';
+}
+
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 
 // Scope presets shown in the top-level selector. Order matches the
@@ -30,12 +35,47 @@ const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const SCOPE_OPTIONS: ModeScope[] = ['all', 'church', 'minor-variants', 'brightest', 'darkest'];
 
 export default function ScalesModes() {
-  const [tab, setTab] = useState<Tab>('scale');
+  const [params] = useSearchParams();
+  /**
+   * `?focus=dorian,phrygian&tab=vamp` — a dashboard row tap.
+   *
+   * THE TAB IS PART OF WHAT THE ROW MEANT, not just where it lives.
+   * The catalog leaf is `dorian-tab1` or `dorian-tab2` because hearing
+   * a scale and naming a mode over a vamp are different skills; the
+   * pool underneath is the same nine modes, so the mode travels as the
+   * focus set and the skill travels as the tab. A mode row covers both
+   * and sends no tab, which lands on whichever was already open.
+   */
+  const focusKeys = useMemo(() => {
+    const raw = params.get('focus');
+    if (!raw) return undefined;
+    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+    return keys.length > 0 ? keys : undefined;
+  }, [params]);
+
+  const [tab, setTab] = useState<Tab>(() => {
+    const raw = params.get('tab');
+    return raw && isTab(raw) ? raw : 'scale';
+  });
   const [sort, setSort] = useState<ModeSortOrder>('brightness');
   const [scope, setScope] = useState<ModeScope>('all');
   const [showFocusPanel, setShowFocusPanel] = useState(false);
-  const [focusActive, setFocusActive] = useState(false);
-  const [focusKeys, setFocusKeys] = useState<string[]>([]);
+  /**
+   * FOCUS PROTECTION STILL APPLIES to a pool the dashboard sent — each
+   * tab computes it from `pool.length`, which is the rule measured on
+   * the items themselves.
+   */
+  const [focusActive, setFocusActive] = useState(
+    (focusKeys?.length ?? 0) > 0,
+  );
+  const [focusSelection, setFocusSelection] = useState<string[]>(
+    focusKeys ? [...focusKeys] : [],
+  );
+
+  // Nothing in this module persists the tab, so there is no async read
+  // to race the URL — unlike chord progressions, where the stored tab
+  // resolved after this and won.
+  useUrlTabSync<Tab>('tab', isTab, setTab);
 
   useEffect(() => {
     (async () => {
@@ -70,15 +110,15 @@ export default function ScalesModes() {
   // an explicit user selection always wins.
   const pool = useMemo(() => {
     if (focusActive) {
-      const set = new Set(focusKeys);
+      const set = new Set(focusSelection);
       return MODES.filter(m => set.has(m.id));
     }
     return filterModesByScope(MODES, scope);
-  }, [focusActive, focusKeys, scope]);
+  }, [focusActive, focusSelection, scope]);
 
   const onStartFocus = async (keys: string[]) => {
     await setPref(PREF_FOCUS, keys);
-    setFocusKeys(keys);
+    setFocusSelection(keys);
     setFocusActive(true);
     setShowFocusPanel(false);
   };
@@ -130,7 +170,9 @@ export default function ScalesModes() {
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
           <span>
             {focusActive
-              ? `focused practice — ${focusKeys.length} mode${focusKeys.length === 1 ? '' : 's'} selected`
+              // `pool`, not the selection: a key naming no mode would
+              // otherwise be counted as one that does.
+              ? `focused practice — ${pool.length} mode${pool.length === 1 ? '' : 's'} selected`
               : `${SCOPE_LABELS[scope]} — ${pool.length} in pool`}
           </span>
           {focusActive && (
@@ -177,6 +219,7 @@ export default function ScalesModes() {
             <button
               key={opt.id}
               onClick={() => setTab(opt.id)}
+              aria-pressed={tab === opt.id}
               className={`px-3 py-1.5 rounded-md transition ${
                 tab === opt.id
                   ? 'bg-fluent text-white'

@@ -115,6 +115,11 @@ const ROUTES: Readonly<Record<string, string>> = {
  *   by the pool. So a tapped chord row means every inversion of it,
  *   which is exactly what `catalogRollupKey` already expresses.
  *
+ * `scales-modes` - the leaf is `dorian-tab1` / `dorian-tab2` because
+ *   the two tabs are different skills, but the pool both tabs draw
+ *   from is keyed on the bare MODE. So the suffix comes off here and
+ *   travels as a tab param instead - see `DRILL_PARAMS`.
+ *
  * `chord-progressions` - PARTLY. See below; this is the module that
  *   made the map return null.
  *
@@ -151,6 +156,14 @@ const FOCUS_KEY_FORMAT: Readonly<
   // The one module that needs no translation, and the one where
   // assuming a translation was needed would have broken it.
   'chord-progressions': ref => (ref.startsWith('motion:') ? ref : null),
+  // `dorian-tab1` in the catalog, `dorian` in the pool.
+  'scales-modes': ref => ref.replace(/-tab[12]$/, ''),
+};
+
+/** Which of the two scales & modes tabs a catalog ref belongs to. */
+const MODE_TAB: Readonly<Record<string, string>> = {
+  '-tab1': 'scale',
+  '-tab2': 'vamp',
 };
 
 /** Extra URL params per source, keyed off the row's refs. */
@@ -159,6 +172,23 @@ const DRILL_PARAMS: Readonly<
 > = {
   // Three tabs behind one route, and `useUrlTabSync` already reads it.
   'chord-progressions': () => ({ tab: 'chord-motion' }),
+  /**
+   * Scales & modes is two tabs over ONE pool, so the tab is part of
+   * what a row means rather than where it lives. `dorian-tab1` is
+   * hearing the scale and `dorian-tab2` is naming the mode over a
+   * vamp - different skills, and the row a player tapped said which.
+   *
+   * Only when the row agrees with itself. A mode row covers both tabs,
+   * and picking one for it would silently answer a question the row
+   * did not ask; leaving it out lands on whichever tab was already
+   * open, which is the honest default.
+   */
+  'scales-modes': (refs): Record<string, string> => {
+    const tabs = new Set(
+      refs.map(ref => MODE_TAB[ref.slice(-5)]).filter(Boolean),
+    );
+    return tabs.size === 1 ? { tab: [...tabs][0]! } : {};
+  },
 };
 
 /**

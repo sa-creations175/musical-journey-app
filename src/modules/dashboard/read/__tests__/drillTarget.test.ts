@@ -20,6 +20,7 @@ import {
   chordProgressionsCatalog,
   chordRecognitionCatalog,
   earTrainingCatalogs,
+  harmonicFluencyCatalog,
   intervalsCatalog,
   readingCatalog,
   scalesModesCatalog,
@@ -98,22 +99,25 @@ describe('reading — refs pass through as they are', () => {
 });
 
 describe('modules with no filter mechanism', () => {
-  const tree = treeFor(scalesModesCatalog);
+  // Harmonic fluency, since scales & modes grew one. The negative case
+  // needs a subject that genuinely cannot filter, or it stops testing
+  // anything the day its stand-in is wired.
+  const tree = treeFor(harmonicFluencyCatalog);
 
   it('navigates, and says why, rather than pretending to filter', () => {
     // The failure this prevents: a row that opens the whole module
     // while implying it narrowed the drill.
-    const mode = flatten(tree).find(n => n.depth === 2)!;
-    const target = drillTargetFor(mode, 'scales-modes');
+    const card = flatten(tree).find(n => n.depth === 2)!;
+    const target = drillTargetFor(card, 'harmonic-fluency');
     expect(target.kind).toBe('navigate');
     if (target.kind !== 'navigate') throw new Error('unreachable');
     expect(target.reason).toBe('no-filter-mechanism');
-    expect(target.route).toBe('/ear-training/scales-modes');
+    expect(target.route).toBe('/harmonic-fluency');
   });
 
   it('summarises as unfiltered so a row cannot overclaim', () => {
     const summary = drillTargetSummary(
-      drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'scales-modes'),
+      drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'harmonic-fluency'),
     );
     expect(summary.filtered).toBe(false);
     expect(summary.itemCount).toBe(0);
@@ -125,8 +129,10 @@ describe('modules with no filter mechanism', () => {
     // a time.
     // Membership is not a promise about every row — chord progressions
     // is here on the strength of 132 refs out of 420.
-    expect(filterableModules().sort())
-      .toEqual(['chord-progressions', 'chord-recognition', 'intervals', 'reading']);
+    expect(filterableModules().sort()).toEqual([
+      'chord-progressions', 'chord-recognition', 'intervals', 'reading',
+      'scales-modes',
+    ]);
   });
 });
 
@@ -243,14 +249,15 @@ describe('a row resolves against its own catalog, not its module', () => {
     expect(target.focusKeys.every(k => k.includes('|desc'))).toBe(true);
   });
 
-  it('still refuses to filter a sibling catalog that cannot be', () => {
+  it('still refuses to filter a sibling row that cannot be', () => {
     // The fix must not make everything under ear training filterable -
-    // only what its own catalog supports.
-    const mode = flatten(tree).find(n => n.sourceId === 'scales-modes' && n.depth === 2)!;
-    const target = drillTargetFor(mode, 'ear-training');
+    // only what its own catalog supports, row by row.
+    const keyDetection = flatten(tree).find(n => n.label === 'Key Detection')!;
+    expect(keyDetection.sourceId).toBe('chord-progressions');
+    const target = drillTargetFor(keyDetection, 'ear-training');
     if (target.kind !== 'navigate') throw new Error('expected navigate');
     expect(target.reason).toBe('no-filter-mechanism');
-    expect(target.route).toBe('/ear-training/scales-modes');
+    expect(target.route).toBe('/ear-training/chord-progressions');
   });
 
   it('opens the module itself where the row spans all four', () => {
@@ -308,10 +315,10 @@ describe('a pool under the minimum says so before it drills', () => {
     // An "open module" row drills everything, so it is never a small
     // pool — and warning on it would attach the rule to rows it has
     // nothing to do with.
-    const modes = treeFor(scalesModesCatalog);
-    const mode = flatten(modes).find(n => n.depth === 2)!;
-    expect(drillTargetFor(mode, 'ear-training').kind).toBe('navigate');
-    expect(smallPoolPromptFor(mode, [modes], 'ear-training')).toBeNull();
+    const hf = treeFor(harmonicFluencyCatalog);
+    const card = flatten(hf).find(n => n.depth === 2)!;
+    expect(drillTargetFor(card, 'harmonic-fluency').kind).toBe('navigate');
+    expect(smallPoolPromptFor(card, [hf], 'harmonic-fluency')).toBeNull();
   });
 
   it('the count is the POOL, not the catalog rows behind it', () => {
@@ -449,5 +456,61 @@ describe('chord progressions — filterability is per row', () => {
     const summary = drillTargetSummary(drillTargetFor(leaf, 'ear-training'));
     expect(summary.itemCount).toBe(1);
     expect(summary.countsTowardAccuracy).toBe(false);
+  });
+});
+
+// ── Scales & modes: two tabs, one pool ───────────────────────────────
+
+describe('scales & modes — the tab is part of what the row meant', () => {
+  const tree = treeFor(scalesModesCatalog);
+  const nodeNamed = (label: string) => flatten(tree).find(n => n.label === label)!;
+  const under = (mode: string, label: string) =>
+    flatten(tree).find(n => n.label === mode)!.children.find(c => c.label === label)!;
+
+  it('strips the tab suffix off the pool keys', () => {
+    const scale = under('Dorian', 'Hear Simple Scale');
+    expect(scale.itemRefs).toEqual(['dorian-tab1']);
+    const target = drillTargetFor(scale, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.focusKeys).toEqual(['dorian']);
+    expect(target.route).toBe('/ear-training/scales-modes');
+  });
+
+  it('sends the tab the row named', () => {
+    const vamp = under('Dorian', 'Hear Mode In Context');
+    const target = drillTargetFor(vamp, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.params).toEqual({ tab: 'vamp' });
+    expect(drillHref(target)).toContain('tab=vamp');
+  });
+
+  it('sends NO tab for a row covering both skills', () => {
+    // A mode row is both. Picking one would silently answer a question
+    // the row did not ask; leaving it out lands on whichever tab was
+    // already open.
+    const mode = nodeNamed('Dorian');
+    // Guard the guard: this row really does span the two tabs.
+    expect(mode.itemRefs).toEqual(['dorian-tab1', 'dorian-tab2']);
+    const target = drillTargetFor(mode, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.params).toEqual({});
+    expect(drillHref(target)).not.toContain('tab=');
+  });
+
+  it('folds a mode row s two rows into the one mode the pool holds', () => {
+    const target = drillTargetFor(nodeNamed('Dorian'), 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.focusKeys).toEqual(['dorian']);
+    // And so it is a small pool, exactly as the drill will see it.
+    expect(drillTargetSummary(target).countsTowardAccuracy).toBe(false);
+  });
+
+  it('the submodule row drills all nine modes', () => {
+    const all = nodeNamed('Scales & Modes');
+    const target = drillTargetFor(all, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.itemRefs).toHaveLength(18);
+    expect(target.focusKeys).toHaveLength(9);
+    expect(target.params).toEqual({});
   });
 });
