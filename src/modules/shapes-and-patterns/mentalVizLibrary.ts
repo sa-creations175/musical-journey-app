@@ -21,10 +21,10 @@
 // removed here.
 
 import { KEYS } from './catalog';
+import { spellKey, type Spelling } from '../../lib/spelling';
 import type { VoicingEntry } from '../../lib/db';
 import {
   chordShapeOffsets,
-  preferFlatsFor,
   rootPcOf,
 } from './mentalVizVoicing';
 
@@ -34,8 +34,21 @@ export const MENTAL_VIZ_MODULE_REF = 'mental-viz';
 export interface MentalVizItem {
   /** e.g. "mv:triad:maj:root:C", "mv:seventh:min7:inv2:Eb". */
   itemRef: string;
-  /** "[Key] [Quality] — [Inversion/Position]". */
+  /**
+   * "[Key] [Quality] — [Inversion/Position]", in the CATALOG's key
+   * vocabulary. Baked at module load, before any user setting exists,
+   * so it is the identity form — render `mentalVizPrompt(item, spelling)`
+   * instead of showing this directly. Kept because itemRef parsing and
+   * logs want a stable string. Same split as `ScaleCell.label`.
+   */
   prompt: string;
+  /** The key this item drills, in the identity vocabulary. */
+  keyName: string;
+  /** The two halves of the prompt that carry no key, kept apart so the
+   *  display prompt can be recomposed in the reader's spelling without
+   *  parsing the baked string back out. */
+  qualityLabel: string;
+  positionLabel: string;
   /** Alternate chord name shown on the reveal card. Unset by every
    *  current item — the only producer was the extended-dominant set,
    *  cut 20 Aug 2026. Kept because MentalVizChordDrill renders it and
@@ -44,7 +57,6 @@ export interface MentalVizItem {
   altName?: string;
   rootPc: number;
   voicing: Array<number | VoicingEntry>;
-  preferFlats: boolean;
 }
 
 const TRIADS: ReadonlyArray<{ id: string; label: string }> = [
@@ -80,9 +92,11 @@ function buildShapeItems(
         items.push({
           itemRef: `mv:${section}:${q.id}:${INVERSION_TAG[inv]}:${key}`,
           prompt: `${key} ${q.label} — ${INVERSION_LABEL[inv]}`,
+          keyName: key,
+          qualityLabel: q.label,
+          positionLabel: INVERSION_LABEL[inv],
           rootPc: rootPcOf(key),
           voicing: chordShapeOffsets(q.id, inv),
-          preferFlats: preferFlatsFor(key),
         });
       }
     }
@@ -98,3 +112,19 @@ export const MENTAL_VIZ_ITEMS: MentalVizItem[] = [
 export const MENTAL_VIZ_ITEM_BY_REF: ReadonlyMap<string, MentalVizItem> = new Map(
   MENTAL_VIZ_ITEMS.map(i => [i.itemRef, i]),
 );
+
+/**
+ * The prompt as the user should read it — the only form that should
+ * reach a screen.
+ *
+ * Recomposed from the parts rather than string-replacing inside the
+ * baked `prompt`: a quality label containing a letter that looks like a
+ * key name ("m7b5") would make a substitution unsafe, and a rule that
+ * is unsafe only for some inputs is the kind that breaks quietly.
+ */
+export function mentalVizPrompt(
+  item: MentalVizItem,
+  spelling: Spelling,
+): string {
+  return `${spellKey(item.keyName, spelling)} ${item.qualityLabel} — ${item.positionLabel}`;
+}

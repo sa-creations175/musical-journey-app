@@ -9,7 +9,8 @@ import Modal from '../../components/Modal';
 import PianoKeyboard from '../../components/PianoKeyboard';
 import { recordEngagement } from '../../lib/spacingState';
 import { loadMentalVizQueue } from './mentalVizQueue';
-import { MENTAL_VIZ_MODULE_REF, type MentalVizItem } from './mentalVizLibrary';
+import { MENTAL_VIZ_MODULE_REF, mentalVizPrompt, type MentalVizItem } from './mentalVizLibrary';
+import { useSpelling } from '../../lib/spellingPref';
 
 type Rating = 'flying' | 'cruising' | 'crawling';
 type Phase = 'loading' | 'prompt' | 'reveal' | 'done';
@@ -24,6 +25,7 @@ const RATINGS: ReadonlyArray<{ value: Rating; label: string; hint: string; cls: 
 ];
 
 export default function MentalVizChordDrill({ onClose }: { onClose: () => void }) {
+  const [spelling] = useSpelling();
   const [queue, setQueue] = useState<MentalVizItem[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -103,7 +105,7 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
           <div className="text-center">
             <div className="text-[11px] uppercase tracking-wide text-neutral-500">visualize</div>
             <div className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100 mt-1">
-              {current.prompt}
+              {mentalVizPrompt(current, spelling)}
             </div>
             {phase === 'reveal' && current.altName && (
               <div className="text-sm text-neutral-500 mt-0.5">(= {current.altName})</div>
@@ -123,7 +125,7 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
               <PianoKeyboard
                 rootPc={current.rootPc}
                 voicing={current.voicing}
-                preferFlats={current.preferFlats}
+                preferFlats={spelling === 'flat'}
                 octaves={4}
                 absoluteOffsets
               />

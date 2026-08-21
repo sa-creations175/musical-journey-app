@@ -29,7 +29,8 @@
  *
  * The app's canonical identity vocabulary spells the sixth key F#
  * (`repertoire/matrix/keys.ts`). Under the default spelling that name
- * never reaches a screen — `spellKey('F#', 'flat')` is 'Gb'.
+ * never reaches a screen — `spellKey('F#', 'flat')` is 'G♭', with a
+ * real flat sign. See TWO ALPHABETS below.
  * =====================================================================
  *
  * SCOPE — the five black-key pairs, and nothing else.
@@ -73,20 +74,68 @@
 export type Spelling = 'flat' | 'sharp';
 
 /**
- * The twelve chromatic slots in each spelling. These two arrays are the
- * app's only note-name tables that anything new should read; the older
- * per-module copies (chordFunction, voicingColors, harmonic-fluency,
- * the chord-progressions tabs) are being folded into these.
+ * =====================================================================
+ * TWO ALPHABETS: ASCII IS THE IDENTITY, SYMBOLS ARE THE DISPLAY.
  *
- * Index is pitch class, 0 = C.
+ * Storage, itemRefs and every lookup use ASCII 'b' and '#' — 'Bb',
+ * 'F#'. Nothing here changes that, and nothing here may ever be written
+ * to a table. Screens get the real Unicode accidentals, MUSIC FLAT SIGN
+ * (U+266D) and MUSIC SHARP SIGN (U+266F).
+ *
+ * The immediate reason is that `b` is a letter. The grids head their
+ * columns with `text-transform: uppercase`, which turned 'Bb' into
+ * 'BB' — a flat rendered as a second capital B. Any surface that
+ * touches case does the same thing, and there is no way to write a
+ * lowercase-only letter that survives it. ♭ and ♯ have no uppercase
+ * form, so they come through whatever a surface does to their case.
+ *
+ * The larger reason is that they are the correct characters. 'b' and
+ * '#' are typewriter substitutes for them.
+ *
+ * Because the swap lives here, every surface that adopts this seam gets
+ * it without knowing about it. Do not special-case it per grid.
+ *
+ * SEE ALSO index.css, which pins these two codepoints to a font that
+ * actually contains them — the app's own mono stack starts with SF
+ * Mono, which does not, and an unpinned glyph falls back per-character
+ * to whatever the browser picks.
+ * =====================================================================
+ */
+export const FLAT_SIGN = '\u266D';
+export const SHARP_SIGN = '\u266F';
+
+/**
+ * The twelve chromatic slots, for DISPLAY. Index is pitch class, 0 = C.
+ *
+ * These are the app's only note-name tables that anything new should
+ * read; the older per-module copies (chordFunction, voicingColors,
+ * harmonic-fluency, the chord-progressions tabs) are being folded in.
  */
 export const NOTE_NAMES_FLAT: readonly string[] =
-  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+  ['C', `D${FLAT_SIGN}`, 'D', `E${FLAT_SIGN}`, 'E', 'F', `G${FLAT_SIGN}`,
+   'G', `A${FLAT_SIGN}`, 'A', `B${FLAT_SIGN}`, 'B'];
 export const NOTE_NAMES_SHARP: readonly string[] =
+  ['C', `C${SHARP_SIGN}`, 'D', `D${SHARP_SIGN}`, 'E', 'F', `F${SHARP_SIGN}`,
+   'G', `G${SHARP_SIGN}`, 'A', `A${SHARP_SIGN}`, 'B'];
+
+/**
+ * The same twelve slots in the ASCII forms that STORAGE uses. Exported
+ * because the identity vocabulary has to be nameable — Step 2's ref
+ * migration and any lookup key building needs these, and reaching for
+ * the display tables there is the mistake this pair exists to prevent.
+ */
+export const NOTE_NAMES_FLAT_ASCII: readonly string[] =
+  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+export const NOTE_NAMES_SHARP_ASCII: readonly string[] =
   ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 /**
  * Every spelling the app accepts as INPUT, mapped to pitch class.
+ *
+ * Keyed on the ASCII forms; symbol input is folded onto them first by
+ * `toAsciiAccidentals`, so 'G♭' and 'Gb' resolve identically. That
+ * matters for idempotence — re-spelling an already-displayed name has
+ * to be a no-op, or a value that round-trips through the UI degrades.
  *
  * Includes the four theoretical names. They resolve here so a freeform
  * or imported key does not fail to place; they are absent from both
@@ -101,6 +150,18 @@ const PITCH_CLASS: Readonly<Record<string, number>> = {
   'B#': 0, Cb: 11, 'E#': 5, Fb: 4,
 };
 
+/**
+ * Fold display accidentals back to their ASCII forms.
+ *
+ * Exported because it is the safe way to take anything that may have
+ * passed through a display path and use it as a lookup again. If you
+ * find yourself needing it on a value read from the database, something
+ * upstream has written a symbol into storage — fix that instead.
+ */
+export function toAsciiAccidentals(name: string): string {
+  return name.replace(/\u266D/g, 'b').replace(/\u266F/g, '#');
+}
+
 export const DEFAULT_SPELLING: Spelling = 'flat';
 
 /**
@@ -113,7 +174,7 @@ export const DEFAULT_SPELLING: Spelling = 'flat';
  * decline to re-spell something it cannot place, instead of guessing.
  */
 export function pitchClassOf(name: string): number | null {
-  const pc = PITCH_CLASS[name.trim()];
+  const pc = PITCH_CLASS[toAsciiAccidentals(name.trim())];
   return pc === undefined ? null : pc;
 }
 

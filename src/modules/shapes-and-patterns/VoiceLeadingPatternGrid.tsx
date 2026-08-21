@@ -116,7 +116,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
           {KEYS_CIRCLE_OF_FOURTHS.map(k => (
             <div
               key={k}
-              className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
+              className="text-[10px] tracking-wide text-neutral-500 text-center font-mono"
             >
               {/* Label only — `k` remains the identity passed to
                   row.itemRefForKey below. See lib/spelling.ts. */}

@@ -303,7 +303,7 @@ function ScaleGroupBlock({
             {CIRCLE_OF_FOURTHS.map(k => (
               <div
                 key={k}
-                className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
+                className="text-[10px] tracking-wide text-neutral-500 text-center font-mono"
               >
                 {/* Label only. CIRCLE_OF_FOURTHS is still the identity
                     vocabulary the cells are keyed on. */}

@@ -136,7 +136,7 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
           {keyList.map(k => (
             <div
               key={k}
-              className="text-[10px] uppercase tracking-wide text-neutral-500 text-center font-mono"
+              className="text-[10px] tracking-wide text-neutral-500 text-center font-mono"
             >
               {/* `k` stays the identity everywhere below (React key,
                   descriptorFor, itemRef lookups); only the LABEL is
@@ -171,7 +171,7 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
                     rightArp={chordBandStage(desc.quality, desc.keyName, 'right', 'arpeggiated')}
                     both={chordBandStage(desc.quality, desc.keyName, 'both', 'solid')}
                     bothArp={chordBandStage(desc.quality, desc.keyName, 'both', 'arpeggiated')}
-                    title={`${desc.quality} ${desc.keyName} — LH / RH / Both · solid (top) / arp (bottom)`}
+                    title={`${desc.quality} ${spellKey(desc.keyName, spelling)} — LH / RH / Both · solid (top) / arp (bottom)`}
                     onClick={() => { void openCell(desc); }}
                   />
                 );

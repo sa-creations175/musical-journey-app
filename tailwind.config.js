@@ -77,9 +77,13 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['DM Sans', 'Inter', 'system-ui', 'sans-serif'],
-        display: ['Bricolage Grotesque', 'DM Sans', 'system-ui', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'monospace'],
+        // 'AccidentalGlyphs' leads every stack: it is a unicode-range
+        // face covering only ♭ ♮ ♯, so it supplies those three glyphs
+        // and is transparent for everything else. See index.css — SF
+        // Mono, which heads the mono stack, contains none of them.
+        sans: ['AccidentalGlyphs', 'DM Sans', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['AccidentalGlyphs', 'Bricolage Grotesque', 'DM Sans', 'system-ui', 'sans-serif'],
+        mono: ['AccidentalGlyphs', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'monospace'],
       },
       borderRadius: {
         card: '12px',

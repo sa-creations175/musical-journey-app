@@ -11,10 +11,41 @@ html, body, #root { height: 100%; }
    with their own `overflow-x-auto` (e.g. matrix grids, scale drills). */
 html, body { overflow-x: hidden; }
 
+/* ---------------------------------------------------------------
+   MUSICAL ACCIDENTALS — ♭ (U+266D) and ♯ (U+266F).
+
+   `lib/spelling.ts` renders every key and note name with the real
+   accidental signs rather than the ASCII 'b' and '#'. Those two
+   codepoints are NOT in most UI or monospace faces: SF Mono, which
+   heads this app's own `font-mono` stack, has neither, and DM Sans
+   is served by Google Fonts in a latin subset that excludes them.
+
+   Left alone, the browser resolves each missing glyph on its own,
+   per character — so a flat arrives from some other font at some
+   other size and sits off the baseline of the letter beside it.
+   That is worse than the wrong letter it replaces.
+
+   This face pins the range to fonts that actually contain the
+   glyphs, listed per platform. `unicode-range` means it is consulted
+   ONLY for these three codepoints; everything else falls straight
+   through to the next family in the stack. Menlo leads because it is
+   monospace, which matches the grid headers these appear in most.
+
+   U+266E (natural) is included so it cannot be the odd one out if a
+   later surface needs it.
+   --------------------------------------------------------------- */
+@font-face {
+  font-family: 'AccidentalGlyphs';
+  src: local('Menlo'), local('Segoe UI Symbol'), local('Arial Unicode MS'),
+       local('Noto Music'), local('DejaVu Sans'), local('Apple Symbols');
+  unicode-range: U+266D, U+266E, U+266F;
+  font-display: swap;
+}
+
 body {
   @apply text-neutral-900 antialiased;
   background-color: #f5f7f5;
-  font-family: 'DM Sans', Inter, system-ui, sans-serif;
+  font-family: 'AccidentalGlyphs', 'DM Sans', Inter, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.5;
 }
@@ -35,7 +66,7 @@ body {
    keeps specificity low so feature-specific overrides (e.g. the
    Harmonic Diary's .diary-serif) still win. */
 h1, h2, h3, h4 {
-  font-family: 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
+  font-family: 'AccidentalGlyphs', 'Bricolage Grotesque', 'DM Sans', system-ui, sans-serif;
 }
 
 .dark body {

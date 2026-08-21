@@ -7,12 +7,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_SPELLING,
+  FLAT_SIGN,
   NOTE_NAMES_FLAT,
+  NOTE_NAMES_FLAT_ASCII,
   NOTE_NAMES_SHARP,
+  NOTE_NAMES_SHARP_ASCII,
+  SHARP_SIGN,
   pitchClassOf,
   spellKey,
   spellKeys,
   spellNote,
+  toAsciiAccidentals,
   type Spelling,
 } from '../spelling';
 
@@ -22,8 +27,13 @@ import {
 import { KEYS_CIRCLE_OF_FOURTHS } from '../../modules/shapes-and-patterns/catalog';
 import { CIRCLE_OF_FOURTHS } from '../../modules/repertoire/circleOfFourths';
 
-const BLACK_KEY_PAIRS: ReadonlyArray<[flat: string, sharp: string]> = [
-  ['Db', 'C#'], ['Eb', 'D#'], ['Gb', 'F#'], ['Ab', 'G#'], ['Bb', 'A#'],
+/** [flat-display, sharp-display, flat-ascii, sharp-ascii] */
+const BLACK_KEY_PAIRS: ReadonlyArray<[string, string, string, string]> = [
+  [`D${FLAT_SIGN}`, `C${SHARP_SIGN}`, 'Db', 'C#'],
+  [`E${FLAT_SIGN}`, `D${SHARP_SIGN}`, 'Eb', 'D#'],
+  [`G${FLAT_SIGN}`, `F${SHARP_SIGN}`, 'Gb', 'F#'],
+  [`A${FLAT_SIGN}`, `G${SHARP_SIGN}`, 'Ab', 'G#'],
+  [`B${FLAT_SIGN}`, `A${SHARP_SIGN}`, 'Bb', 'A#'],
 ];
 const NATURALS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -34,12 +44,28 @@ describe('the default', () => {
 });
 
 describe('spellKey — the five black-key pairs', () => {
-  it('names each pair by the requested side, from either input', () => {
-    for (const [flat, sharp] of BLACK_KEY_PAIRS) {
-      for (const input of [flat, sharp]) {
+  it('names each pair by the requested side, from ASCII or symbol input', () => {
+    for (const [flat, sharp, flatAscii, sharpAscii] of BLACK_KEY_PAIRS) {
+      // All four spellings of the same pitch are accepted as input and
+      // land on the same two outputs. The ASCII pair is what storage
+      // holds; the symbol pair is what a screen has already shown.
+      for (const input of [flat, sharp, flatAscii, sharpAscii]) {
         expect(spellKey(input, 'flat'), `${input} → flat`).toBe(flat);
         expect(spellKey(input, 'sharp'), `${input} → sharp`).toBe(sharp);
       }
+    }
+  });
+
+  it('emits real accidental signs, never the ASCII letter b or hash', () => {
+    // `b` is a letter, so `text-transform: uppercase` rendered Bb as BB.
+    // ♭ and ♯ have no uppercase form and survive any case transform.
+    for (const [flat, sharp] of BLACK_KEY_PAIRS) {
+      expect(flat).toContain(FLAT_SIGN);
+      expect(sharp).toContain(SHARP_SIGN);
+      expect(flat).not.toContain('b');
+      expect(sharp).not.toContain('#');
+      expect(flat.toUpperCase(), 'a flat must survive uppercasing').toBe(flat);
+      expect(sharp.toUpperCase(), 'a sharp must survive uppercasing').toBe(sharp);
     }
   });
 
@@ -51,11 +77,17 @@ describe('spellKey — the five black-key pairs', () => {
   });
 
   it('is idempotent — re-spelling an already-spelled name is a no-op', () => {
+    // Load-bearing now that output ≠ input alphabet: a name that has
+    // been through the display path must still resolve if it goes
+    // through again, or a value that round-trips the UI degrades.
+    const everyName = [
+      ...NATURALS,
+      ...BLACK_KEY_PAIRS.flat(),
+    ];
     for (const spelling of ['flat', 'sharp'] as Spelling[]) {
-      for (const [flat, sharp] of [...BLACK_KEY_PAIRS, ...NATURALS.map(n => [n, n] as [string, string])]) {
-        const once = spellKey(flat, spelling);
-        expect(spellKey(once, spelling)).toBe(once);
-        expect(spellKey(spellKey(sharp, spelling), spelling)).toBe(spellKey(sharp, spelling));
+      for (const name of everyName) {
+        const once = spellKey(name, spelling);
+        expect(spellKey(once, spelling), `${name} re-spelled`).toBe(once);
       }
     }
   });
@@ -86,6 +118,11 @@ describe('theoretical spellings — accepted as input, never emitted', () => {
       expect(NOTE_NAMES_FLAT).not.toContain(name);
       expect(NOTE_NAMES_SHARP).not.toContain(name);
     }
+  });
+
+  it('accepts the symbol forms of them too', () => {
+    expect(pitchClassOf(`C${FLAT_SIGN}`)).toBe(11);
+    expect(pitchClassOf(`B${SHARP_SIGN}`)).toBe(0);
   });
 });
 
@@ -157,10 +194,55 @@ describe('the three S&P grids agree on every column label', () => {
 
   it('shows the user flats by default, so F# never reaches a column', () => {
     const labels = spellKeys(KEYS_CIRCLE_OF_FOURTHS, DEFAULT_SPELLING);
-    expect(labels).toContain('Gb');
-    for (const sharpName of NOTE_NAMES_SHARP.filter(n => n.includes('#'))) {
+    expect(labels).toContain(`G${FLAT_SIGN}`);
+    for (const sharpName of [...NOTE_NAMES_SHARP, ...NOTE_NAMES_SHARP_ASCII]) {
+      if (!/[#\u266F]/.test(sharpName)) continue;
       expect(labels, `${sharpName} leaked into a default-spelling label`)
         .not.toContain(sharpName);
+    }
+  });
+
+  it('puts no ASCII accidental on any column, in either spelling', () => {
+    // The uppercase transform is gone from those headers, but this is
+    // the property that made it safe to remove rather than a promise
+    // that it stays gone.
+    for (const spelling of ['flat', 'sharp'] as Spelling[]) {
+      for (const label of spellKeys(KEYS_CIRCLE_OF_FOURTHS, spelling)) {
+        expect(label, `${label} carries an ASCII accidental`).not.toMatch(/[b#]/);
+        expect(label.toUpperCase(), `${label} changes under uppercase`).toBe(label);
+      }
+    }
+  });
+});
+
+/**
+ * THE IDENTITY SIDE OF THE RULE.
+ *
+ * The header promises that storage keeps ASCII and only screens get
+ * symbols. These assert the promise rather than trusting the reviewer
+ * to have kept it — a symbol reaching an itemRef or an index key is
+ * silent data loss, not a rendering glitch.
+ */
+describe('identity strings stay ASCII', () => {
+  it('keeps both ASCII tables free of accidental symbols', () => {
+    for (const name of [...NOTE_NAMES_FLAT_ASCII, ...NOTE_NAMES_SHARP_ASCII]) {
+      expect(name, name).not.toMatch(/[\u266D\u266E\u266F]/);
+    }
+  });
+
+  it('pairs each display name with its ASCII counterpart, slot for slot', () => {
+    for (let pc = 0; pc < 12; pc++) {
+      expect(toAsciiAccidentals(NOTE_NAMES_FLAT[pc])).toBe(NOTE_NAMES_FLAT_ASCII[pc]);
+      expect(toAsciiAccidentals(NOTE_NAMES_SHARP[pc])).toBe(NOTE_NAMES_SHARP_ASCII[pc]);
+    }
+  });
+
+  it('leaves the identity vocabularies the grids are keyed on untouched', () => {
+    // These are the arrays that build itemRefs and index lookups. If a
+    // symbol ever appears here, spacing history stops resolving.
+    for (const k of [...KEYS_CIRCLE_OF_FOURTHS, ...CIRCLE_OF_FOURTHS]) {
+      expect(k, `${k} is an identity and must stay ASCII`)
+        .not.toMatch(/[\u266D\u266E\u266F]/);
     }
   });
 });

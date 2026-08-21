@@ -18,6 +18,13 @@ export function rootPcOf(rootKey: string): number {
   return ROOT_PC[rootKey] ?? 0;
 }
 
+/**
+ * @deprecated Superseded by the global spelling setting (lib/spelling.ts).
+ * Mental viz derived its keyboard labels per-key — F# sharp, Bb flat —
+ * which is now the user's choice rather than the key's. No callers
+ * remain; kept only so the removal is one obvious commit rather than
+ * hidden inside a spelling change.
+ */
 export function preferFlatsFor(rootKey: string): boolean {
   return keyPrefersFlats(rootKey);
 }
