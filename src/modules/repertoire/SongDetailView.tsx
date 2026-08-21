@@ -23,6 +23,7 @@ import {
   type HarmonicDiaryEntry,
   type ReferenceVideo,
   type Song,
+  type SongCellRunThrough,
   type SongCrossKeyProgress,
   type SongPracticeLog,
   type LyricSyllable,
@@ -319,6 +320,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     () => db.songCrossKeyProgress.where('songId').equals(songId).toArray(),
     [songId],
   ) ?? [];
+  // Test run-throughs, for the Learning → Comfortable rule. It used to
+  // read `atTargetTempo` off the practice logs already loaded above;
+  // that field's only writer is being retired, and at-tempo is a test
+  // fact regardless — see the rule in stage.ts.
+  const runThroughs = useLiveQuery<SongCellRunThrough[]>(
+    () => db.songCellRunThroughs.where('songId').equals(songId).toArray(),
+    [songId],
+  ) ?? [];
 
   const { toast } = useToast();
   const { flash, isHighlighted } = useScrollHighlight();
@@ -543,7 +552,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     logs,
     originalKey: song?.key,
     crossKeyPairs,
-  }), [currentStage, logs, song?.key, crossKeyPairs]);
+    runThroughs,
+    performanceTempo: song?.tempo ?? null,
+  }), [currentStage, logs, song?.key, crossKeyPairs, runThroughs, song?.tempo]);
   const nextStageOption = nextStage(currentStage);
 
   const setStage = async (stage: RepertoireStage) => {

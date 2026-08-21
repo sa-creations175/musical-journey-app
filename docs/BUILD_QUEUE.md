@@ -83,6 +83,17 @@ rather than part of it.
 **Design.** `DASHBOARD_REDESIGN_DESIGN.md` → *Queued after this build →
 Repertoire matrix rebuild* names the overlap. No design for the collapse yet.
 
+**Carried in from the practice-vs-test audit (20 Aug 2026).** Retiring
+`PracticeLogModal` in item 1 removes one of the two writers to
+`songCrossKeyProgress`. `CrossKeyGrid.tsx` is the other and stays live, so the
+table does not go dark — but the two advancement rules that read it,
+`internalized → cross-key` and `cross-key → maintenance`, will only ever fire
+off a **manual grid tap**, never off a logged session. That is a real change in
+when those suggestions appear, and it is deliberately not fixed in item 1: the
+honest fix is to source cross-key coverage from `songKeys` / `songCells`, which
+is the same retirement of the deprecated table this card collapse already
+implies. Decide it here rather than twice.
+
 ---
 
 ### 5. Per-node regrouping and custom module order
