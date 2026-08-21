@@ -1,11 +1,18 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Modal from '../../../components/Modal';
 import {
   type Song,
   type SongCell,
   type SongKey,
+  type SongKeyRunThrough,
   type SongKeyState,
 } from '../../../lib/db';
+import {
+  HISTORY_WINDOW_DAYS,
+  MAX_SITTINGS_SHOWN,
+  summariseKeyRunHistory,
+  type SittingSummary,
+} from './keyRunHistory';
 import {
   type KeyAttemptDraft,
   isInTempoRange,
@@ -59,6 +66,12 @@ interface Props {
   siblingCells: ReadonlyArray<SongCell>;
   /** Total non-archived sections for the song. */
   totalSections: number;
+  /** Every run-through recorded against this key, of both kinds.
+   *  Passed down rather than queried here — the parent already
+   *  subscribes to the table for the strip counters, and a second
+   *  subscription for the same rows is a second thing to keep in
+   *  sync. */
+  pastRuns: ReadonlyArray<SongKeyRunThrough>;
   /** True when this is a retest after a decay lapse. Determined by
    *  the parent from the key's live-derived decay state. Affects
    *  title + rule reminder copy + the audit-log isRetest column. A
@@ -74,6 +87,7 @@ export default function WholeSongTestModal({
   song,
   siblingCells,
   totalSections,
+  pastRuns,
   isRetest,
 }: Props) {
   const [attempts, setAttempts] = useState<KeyAttemptDraft[]>([]);
@@ -89,6 +103,15 @@ export default function WholeSongTestModal({
    * user they lost a streak they are in the middle of correcting.
    */
   const [streakBroken, setStreakBroken] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Captured once per open rather than read during render, and it is
+  // the boundary of a 30-day window — a modal left open overnight
+  // showing yesterday's window is not a problem worth a ticking clock.
+  const [historyNow] = useState(() => Date.now());
+  const history = useMemo(
+    () => summariseKeyRunHistory(pastRuns, historyNow),
+    [pastRuns, historyNow],
+  );
 
   const handleClose = useCallback(() => {
     setAttempts([]);
@@ -243,6 +266,14 @@ export default function WholeSongTestModal({
           bpmValid={bpmValid}
           onClean={() => handleAddAttempt(true)}
           onNotClean={() => handleAddAttempt(false)}
+        />
+
+        {/* Last, and collapsed. The sitting above is what you are
+            doing; this is context for it. */}
+        <PastAttempts
+          history={history}
+          open={historyOpen}
+          onToggle={() => setHistoryOpen(o => !o)}
         />
       </div>
     </Modal>
@@ -600,5 +631,136 @@ function AddAttemptArea({
         </button>
       </div>
     </div>
+  );
+}
+
+// -------------------------------------------------------------------
+
+/**
+ * What has happened in this key over the last thirty days.
+ *
+ * ---------------------------------------------------------------
+ * A SINGLE SITTING CANNOT TELL YOU WHETHER A SONG IS IMPROVING.
+ *
+ * The modal showed only the sitting in progress, which answers "am I
+ * passing right now" and nothing about whether it is going better
+ * lately. This answers the second question, and it is deliberately a
+ * TIME window rather than a last-N list: twelve attempts could span a
+ * day or six months and the list would look identical either way. An
+ * empty thirty days is itself an answer.
+ *
+ * GROUPED BY SITTING, because that is the unit the gate is defined
+ * in. Three clean runs on one afternoon and three across three weeks
+ * are the same marks in a flat list and completely different claims.
+ * ---------------------------------------------------------------
+ *
+ * Collapsed by default. The summary line is worth reading on its own,
+ * so closed is still informative rather than merely tidy.
+ */
+function PastAttempts({
+  history,
+  open,
+  onToggle,
+}: {
+  history: ReturnType<typeof summariseKeyRunHistory>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { sittings, totalSittings, totalRuns, capped } = history;
+
+  if (totalRuns === 0) {
+    return (
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800 pt-2">
+        No run-throughs logged in this key in the last {HISTORY_WINDOW_DAYS} days.
+      </p>
+    );
+  }
+
+  const passedCount = sittings.filter(s => s.passed).length;
+
+  return (
+    <div className="border-t border-neutral-200 dark:border-neutral-800 pt-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 text-left text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
+      >
+        <span>
+          <span className="font-medium tabular-nums">{totalRuns}</span>
+          {' '}run-through{totalRuns === 1 ? '' : 's'} across{' '}
+          <span className="font-medium tabular-nums">{totalSittings}</span>
+          {' '}sitting{totalSittings === 1 ? '' : 's'}, last {HISTORY_WINDOW_DAYS} days
+          {passedCount > 0 && (
+            <span className="text-blue-600 dark:text-blue-400">
+              {' '}· {passedCount} passed
+            </span>
+          )}
+        </span>
+        <span aria-hidden className="text-neutral-400">{open ? '▾' : '▸'}</span>
+      </button>
+
+      {open && (
+        <ul className="mt-2 flex flex-col gap-1.5">
+          {sittings.map(s => (
+            <SittingRow key={s.startedAt} sitting={s} />
+          ))}
+          {capped && (
+            /* Said out loud. A list that stops without explaining
+               itself reads as the whole record. */
+            <li className="text-[11px] text-neutral-500 dark:text-neutral-400 pt-1">
+              Showing the most recent {MAX_SITTINGS_SHOWN} of {totalSittings} sittings.
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SittingRow({ sitting }: { sitting: SittingSummary }) {
+  const date = new Date(sitting.startedAt).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric',
+  });
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <span className="shrink-0 w-12 text-neutral-500 dark:text-neutral-400 tabular-nums">
+        {date}
+      </span>
+      <span className="flex-1 flex items-center gap-1.5 flex-wrap">
+        {sitting.runs.map((r, i) => (
+          <span
+            key={i}
+            className={[
+              'inline-flex items-center gap-0.5 tabular-nums',
+              r.wasClean
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-needswork',
+            ].join(' ')}
+            title={r.wasClean ? 'clean' : 'not clean'}
+          >
+            {r.wasClean ? '✓' : '✗'}
+            <span className="text-neutral-500 dark:text-neutral-400">
+              {r.tempoBpm ?? '—'}
+            </span>
+          </span>
+        ))}
+      </span>
+      {sitting.kind === 'single' ? (
+        /* Marked, because a lone run is not a streak attempt and
+           should not read as a sitting that fell short of one. */
+        <span className="shrink-0 text-[10px] uppercase tracking-wide text-neutral-400">
+          single run
+        </span>
+      ) : sitting.passed ? (
+        <span className="shrink-0 text-[10px] uppercase tracking-wide font-medium text-blue-600 dark:text-blue-400">
+          passed
+        </span>
+      ) : (
+        <span className="shrink-0 text-[10px] uppercase tracking-wide text-neutral-400 tabular-nums">
+          best {sitting.bestStreak}/3
+        </span>
+      )}
+    </li>
   );
 }

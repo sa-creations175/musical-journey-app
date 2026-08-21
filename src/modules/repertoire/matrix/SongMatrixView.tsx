@@ -287,6 +287,16 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
     [activeRunKey, songCells],
   );
 
+  // Every run-through recorded against the key under test, for the
+  // modal's 30-day history. Filtered from the query the strip
+  // counters already use rather than subscribing again.
+  const activeTestPastRuns = useMemo(
+    () => activeTestKey
+      ? songKeyRunThroughs.filter(r => r.songKeyId === activeTestKey.id)
+      : [],
+    [activeTestKey, songKeyRunThroughs],
+  );
+
   // Retest semantics: if the active key is currently lapsed, this is
   // a retest. Pass-through to the modal for title/copy/audit-flag.
   const activeTestIsRetest = activeTestKey !== null
@@ -382,6 +392,7 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
           song={song}
           siblingCells={activeTestSiblingCells}
           totalSections={visibleSections.length}
+          pastRuns={activeTestPastRuns}
           isRetest={activeTestIsRetest}
         />
       )}
