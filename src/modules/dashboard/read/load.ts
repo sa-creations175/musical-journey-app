@@ -24,10 +24,12 @@ import {
   type ProductionLessonSession,
   type SpacingState,
 } from '../../../lib/db';
-import { statsForAttemptCatalog, statsForCatalog } from './adapters';
+import { statsForAttemptCatalog, statsForCatalog, ungroupableCount } from './adapters';
 import {
   DASHBOARD_MODULE_ORDER,
   STATIC_MODULES,
+  catalogRefSet,
+  chordProgressionsCatalog,
   mentalVizCatalog,
   productionLessonsCatalog,
   shapesCatalog,
@@ -63,6 +65,16 @@ export interface Dashboard {
    * than every row needing a dash.
    */
   dueRefs: Set<string>;
+  /**
+   * Chord-progression attempt rows written before `submissionId`
+   * existed.
+   *
+   * Carried on the assembled dashboard rather than recomputed at the
+   * row, because it is a property of the whole stored log and no node
+   * can see it. The chord-progression rows' affordance states it; at
+   * zero it says nothing, because there is then nothing to explain.
+   */
+  ungroupableProgressionAttempts: number;
 }
 
 /**
@@ -175,7 +187,29 @@ export function assembleDashboard(
     repertoire,
   );
 
-  return { modules: ordered, dueRefs: dueRefsFrom(source.spacingRows, now) };
+  return {
+    modules: ordered,
+    dueRefs: dueRefsFrom(source.spacingRows, now),
+    ungroupableProgressionAttempts: ungroupableProgressionAttempts(source.attempts),
+  };
+}
+
+/**
+ * How many chord-progression rows cannot be collapsed.
+ *
+ * Filtered to CATALOG MEMBERSHIP as well as to the module, the same
+ * rule every numerator on this screen follows: a row for an item the
+ * catalog no longer holds contributes to nothing, so it must not
+ * contribute to the count that explains the others either.
+ */
+export function ungroupableProgressionAttempts(
+  attempts: ReadonlyArray<AttemptRecord>,
+): number {
+  const refs = catalogRefSet(chordProgressionsCatalog);
+  return ungroupableCount(
+    attempts.filter(a => a.moduleId === chordProgressionsCatalog.sourceId),
+    itemId => refs.has(itemId),
+  );
 }
 
 /** Where a module whose nav-order index is `orderIndex` belongs among

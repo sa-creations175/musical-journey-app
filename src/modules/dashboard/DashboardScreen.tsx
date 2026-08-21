@@ -47,6 +47,7 @@ import {
 } from './compare';
 import ColumnLegend, { ColumnHelpButton } from './ColumnLegend';
 import type { ColumnTopic } from './bands';
+import type { RowNoteContext } from './read/affordances';
 
 /**
  * The column headers, sitting under the controls inside the sticky
@@ -179,6 +180,17 @@ export default function DashboardScreen({
   const onToggleTopic = useCallback((topic: ColumnTopic) => {
     setOpenTopic(current => (current === topic ? null : topic));
   }, []);
+  /**
+   * Which row's explanation is expanded, if any.
+   *
+   * By node id rather than by position, so a sort or a filter cannot
+   * move the open panel onto a different row. Component state and one
+   * at a time, for the same reasons as the column panel above.
+   */
+  const [openInfoId, setOpenInfoId] = useState<string | null>(null);
+  const onToggleInfo = useCallback((nodeId: string) => {
+    setOpenInfoId(current => (current === nodeId ? null : nodeId));
+  }, []);
 
   const state = useMemo(() => decodeViewState(params), [params]);
 
@@ -196,6 +208,12 @@ export default function DashboardScreen({
     () => pruneExpansion(state.expanded, modules),
     [state.expanded, modules],
   );
+
+  // Memoised so a stable object reaches every memoised row rather than
+  // a fresh literal that re-renders all of them on every keystroke.
+  const noteContext: RowNoteContext = useMemo(() => ({
+    ungroupableProgressionAttempts: dashboard?.ungroupableProgressionAttempts ?? 0,
+  }), [dashboard]);
 
   const ctx: FilterContext = useMemo(() => ({
     now,
@@ -354,6 +372,9 @@ export default function DashboardScreen({
               compareActive={comparison?.parentId === row.node.id}
               onCompare={() => onCompare(row)}
               onDrill={() => onDrill(row)}
+              infoOpen={openInfoId === row.node.id}
+              onToggleInfo={() => onToggleInfo(row.node.id)}
+              noteContext={noteContext}
               {...(row.moduleLabel ? { moduleLabel: row.moduleLabel } : {})}
             />
           );

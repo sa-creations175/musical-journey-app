@@ -18,6 +18,7 @@ import { MemoryRouter, useSearchParams } from 'react-router-dom';
 import DashboardScreen from '../DashboardScreen';
 import { COLUMN_WIDTHS } from '../TreeRow';
 import { db, type AttemptRecord } from '../../../lib/db';
+import { PROGRESSIONS } from '../../ear-training/chord-progressions/catalog';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -734,6 +735,124 @@ describe('the column rules, asked for from the column', () => {
     expect(text).toContain('comfortable');
     expect(text).toContain('below 50%');
     expect(text).toContain('85%+');
+  });
+});
+
+describe('a row explains itself, expanded underneath it', () => {
+  const infoOn = (row: HTMLElement) =>
+    row.querySelector('[data-testid="row-info-toggle"]')!;
+
+  it('gives every row an i, and opens none of them', async () => {
+    const el = await renderScreen();
+    expect(el.querySelector('[data-testid="row-affordance"]')).toBeNull();
+    for (const row of rows(el)) expect(infoOn(row)).not.toBeNull();
+  });
+
+  it('puts the i inside the NAME cell, not in a column of its own', async () => {
+    // Five columns is already what fits on a phone, and the affordance
+    // belongs beside the thing it explains. Asserted by ancestry: the
+    // button sits in the same cell as the label, before the score.
+    const el = await renderScreen();
+    const row = rows(el)[0];
+    const nameCell = row.firstElementChild!;
+    expect(nameCell.contains(infoOn(row))).toBe(true);
+    const score = row.querySelector('[data-testid="cell-score"]')!;
+    expect(nameCell.contains(score)).toBe(false);
+  });
+
+  it('opens beneath the row it belongs to, and closes again', async () => {
+    const el = await renderScreen();
+    const row = rows(el)[0];
+    const id = row.getAttribute('data-node-id');
+    click(infoOn(row));
+
+    const panel = el.querySelector('[data-testid="row-affordance"]')!;
+    expect(panel.getAttribute('data-node-id')).toBe(id);
+    // Immediately after that row in document order, not appended
+    // somewhere else in the table.
+    expect(panel.previousElementSibling).toBe(row);
+
+    click(infoOn(rows(el)[0]));
+    expect(el.querySelector('[data-testid="row-affordance"]')).toBeNull();
+  });
+
+  it('keeps exactly one open — a second row MOVES it', async () => {
+    // A stack of open explanations would push the list they explain off
+    // the screen.
+    const el = await renderScreen();
+    click(infoOn(rows(el)[0]));
+    const second = rows(el)[1];
+    click(infoOn(second));
+    expect(el.querySelectorAll('[data-testid="row-affordance"]')).toHaveLength(1);
+    expect(el.querySelector('[data-testid="row-affordance"]')!
+      .getAttribute('data-node-id')).toBe(second.getAttribute('data-node-id'));
+  });
+
+  it('follows the ROW when a sort reorders the list', async () => {
+    // Keyed on node id rather than position. Keyed on position, a sort
+    // would leave the panel open on whatever row landed in that slot —
+    // an explanation attached to the wrong number.
+    //
+    // The fixture VARIES deliberately: sorting a uniform list is a
+    // stable no-op, and this assertion would pass on a screen that
+    // never reordered at all.
+    await seedVariedScalesModes();
+    const el = await renderScreen();
+    const before = rowLabels(el);
+    const target = rows(el).find(r => r.getAttribute('data-depth') === '1')!;
+    const id = target.getAttribute('data-node-id');
+    click(infoOn(target));
+    expect(el.querySelector('[data-testid="row-affordance"]')!
+      .getAttribute('data-node-id')).toBe(id);
+
+    click(el.querySelector('[data-testid="sort-accuracy"]')!);
+    await settle();
+
+    // Guard the guard: the sort has to have genuinely moved rows.
+    expect(rowLabels(el)).not.toEqual(before);
+    const panel = el.querySelector('[data-testid="row-affordance"]')!;
+    expect(panel.getAttribute('data-node-id')).toBe(id);
+    expect(panel.previousElementSibling!.getAttribute('data-node-id')).toBe(id);
+  });
+
+  it('says what the row trains and what would move it', async () => {
+    const el = await renderScreen();
+    const reading = rows(el).find(
+      r => r.textContent!.includes('Notation Shapes'),
+    )!;
+    click(infoOn(reading));
+    const text = el.querySelector('[data-testid="row-affordance"]')!.textContent!;
+    // The pair that took twenty minutes to reconstruct, and the reason
+    // this step exists.
+    expect(text).toContain('silhouette');
+    expect(text).toContain('Chord Identification');
+    // And what would advance it, from the row's real numbers.
+    expect(text).toContain('7 items');
+  });
+
+  it('carries the ungroupable count through from the assembled dashboard', async () => {
+    // The one note no node can compute for itself. Written as a
+    // pre-submissionId row, which is what makes it ungroupable.
+    await db.attempts.bulkPut([0, 1].map(i => ({
+      id: `att-prog-${i}`,
+      moduleId: 'chord-progressions',
+      itemId: PROGRESSIONS[0].id,
+      correct: true,
+      timestamp: NOW - i * 1000,
+    } as AttemptRecord)));
+    const el = await renderScreen();
+    const row = rows(el).find(r => r.textContent!.includes('Chord Progressions'))!;
+    click(infoOn(row));
+    expect(el.querySelector('[data-testid="row-affordance"]')!.textContent)
+      .toContain('2 stored attempts');
+  });
+
+  it('leaves the URL alone', async () => {
+    const el = await renderScreen();
+    const before = search(el);
+    click(infoOn(rows(el)[0]));
+    expect(el.querySelector('[data-testid="row-affordance"]')).not.toBeNull();
+    expect(search(el)).toBe(before);
   });
 });
 

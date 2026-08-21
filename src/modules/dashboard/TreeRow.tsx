@@ -19,6 +19,8 @@ import {
 } from './bands';
 import { daysSince, type TreeNode } from './read/tree';
 import { drillTargetFor, drillTargetSummary } from './read/drillTarget';
+import RowAffordance, { RowInfoButton } from './RowAffordance';
+import type { RowNoteContext } from './read/affordances';
 
 export interface TreeRowProps {
   node: TreeNode;
@@ -36,6 +38,17 @@ export interface TreeRowProps {
   onDrill?: () => void;
   /** Trailing module name, for the flat grouping-off view. */
   moduleLabel?: string;
+  /**
+   * Whether this row's explanation is expanded beneath it.
+   *
+   * The screen owns it, so exactly one row can be open — the same
+   * discipline as the comparison. A stack of open explanations would
+   * push the list they explain off the screen.
+   */
+  infoOpen?: boolean;
+  onToggleInfo?: () => void;
+  /** Counts the notes need that no node carries. */
+  noteContext?: RowNoteContext;
   /**
    * The module's accent, for a depth-0 header row.
    *
@@ -73,6 +86,7 @@ const COMPARE_TINT: Readonly<Record<'weakest' | 'strongest', string>> = {
 function TreeRowImpl({
   node, moduleId, now, expanded, onToggleExpand,
   compareHighlight, compareActive, onCompare, onDrill, moduleLabel, accentHex,
+  infoOpen, onToggleInfo, noteContext,
 }: TreeRowProps) {
   const isLeaf = node.children.length === 0;
   const isModuleRow = node.depth === 0;
@@ -96,6 +110,7 @@ function TreeRowImpl({
     : undefined;
 
   return (
+    <>
     <div
       data-testid="tree-row"
       data-depth={node.depth}
@@ -149,6 +164,13 @@ function TreeRowImpl({
         >
           {node.label}
         </span>
+        {onToggleInfo && (
+          <RowInfoButton
+            label={node.label}
+            open={infoOpen ?? false}
+            onToggle={onToggleInfo}
+          />
+        )}
         {moduleLabel && (
           <span
             data-testid="row-module-label"
@@ -235,6 +257,16 @@ function TreeRowImpl({
         {drillLabel(summary, node.totalItems)}
       </button>
     </div>
+    {/* Beneath the row, full width. The row itself is four fixed
+        columns and an explanation does not fit in one of them. */}
+    {infoOpen && (
+      <RowAffordance
+        node={node}
+        moduleId={moduleId}
+        {...(noteContext ? { noteContext } : {})}
+      />
+    )}
+    </>
   );
 }
 
