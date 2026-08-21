@@ -66,6 +66,24 @@ export interface TreeNode {
   /** Present only on leaves - the catalog row this node is. */
   stats?: ItemStats;
   /**
+   * The CATALOG this node's items come from, when they all come from
+   * one - `intervals`, `chord-recognition`, `reading`.
+   *
+   * Distinct from the module a row is displayed under, and that gap is
+   * the whole reason this exists. Ear training is four catalogs merged
+   * into one module row, so a caller holding only the module id has
+   * `ear-training` - which is not a drill, has no route, and is not
+   * what any focus mechanism is keyed on. Tap-to-drill silently
+   * resolved every ear-training row to "nothing to drill" for exactly
+   * that reason.
+   *
+   * Undefined where descendants disagree, which is the merged module
+   * row itself. That is the honest answer rather than a default: a row
+   * spanning four catalogs cannot be filtered to one drill, and the
+   * absence says so without anyone having to special-case depth 0.
+   */
+  sourceId?: string;
+  /**
    * The stored refs under this node, in tree order.
    *
    * A leaf carries its catalog row's refs, which is more than one where
@@ -183,6 +201,11 @@ function rollUp(node: TreeNode): void {
   let mixed = false;
   const kinds = new Set<AccuracyKind>();
   const refs: string[] = [];
+  // Unanimous-or-nothing, and counted over EVERY child including
+  // excluded ones: mental visualisation is out of Shapes & Patterns'
+  // totals but it is still a Shapes & Patterns row, and a parent that
+  // forgot it would claim a single source it does not have.
+  const sources = new Set<string | undefined>();
 
   for (const child of node.children) {
     // Two things roll up from an EXCLUDED child, and only two.
@@ -199,6 +222,7 @@ function rollUp(node: TreeNode): void {
     // neglected on the strength of a submodule that is deliberately not
     // in its numbers.
     refs.push(...child.itemRefs);
+    sources.add(child.sourceId);
     if (child.recency.mostRecentAt !== null
       && (mostRecent === null || child.recency.mostRecentAt > mostRecent)) {
       mostRecent = child.recency.mostRecentAt;
@@ -228,6 +252,7 @@ function rollUp(node: TreeNode): void {
   node.totalItems = total;
   node.engagementCount = engagements;
   node.itemRefs = refs;
+  node.sourceId = sources.size === 1 ? [...sources][0] : undefined;
   /**
    * A group break belongs to the row whose CHILDREN are the grouped
    * items, and goes no further.
@@ -342,6 +367,7 @@ export function buildMergedTree(
         `${prefix}/${item.id}`, item.label, parent.depth + 1, catalog.accuracyKind,
       );
       leaf.stats = stats[i];
+      leaf.sourceId = catalog.sourceId;
       leaf.itemRefs = [...item.itemRefs];
       leaf.engagementCount = stats[i].engagementCount;
       leaf.endsGroup = item.endsGroup === true;

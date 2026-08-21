@@ -11,12 +11,25 @@ import {
   drillTargetSummary,
   filterableModules,
 } from '../drillTarget';
-import { buildModuleTree, flatten, leavesOf } from '../tree';
-import { intervalsCatalog, readingCatalog, scalesModesCatalog } from '../catalogs';
+import { buildMergedTree, buildModuleTree, flatten, leavesOf } from '../tree';
+import {
+  earTrainingCatalogs,
+  intervalsCatalog,
+  readingCatalog,
+  scalesModesCatalog,
+} from '../catalogs';
 import { statsForAttemptCatalog } from '../adapters';
 
 function treeFor(catalog: Parameters<typeof buildModuleTree>[0]) {
   return buildModuleTree(catalog, statsForAttemptCatalog(catalog, []));
+}
+
+/** Ear training as the SCREEN builds it: four catalogs, one module
+ *  tree, every row carrying the module id `ear-training`. */
+function earTrainingTree() {
+  return buildMergedTree('ear-training', 'ear training', earTrainingCatalogs.map(
+    catalog => ({ catalog, stats: statsForAttemptCatalog(catalog, []) }),
+  ));
 }
 
 describe('intervals — the mechanism already exists', () => {
@@ -118,11 +131,68 @@ describe('degenerate rows', () => {
     expect(target.reason).toBe('nothing-to-drill');
   });
 
-  it('an unknown module does not produce a broken route', () => {
-    const tree = treeFor(scalesModesCatalog);
-    const target = drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'not-a-module');
+  it('an unknown id does not produce a broken route', () => {
+    // No source of its own AND an unrecognised module - the only way
+    // left to reach the fallback, now that a node knows its catalog.
+    const orphan = { ...treeFor(scalesModesCatalog), sourceId: undefined };
+    const target = drillTargetFor(orphan, 'not-a-module');
     if (target.kind !== 'navigate') throw new Error('expected navigate');
     expect(target.reason).toBe('nothing-to-drill');
     expect(target.route).toBe('/');
+  });
+});
+
+// ── The merged module, which is where this used to fall over ─────────
+
+describe('a row resolves against its own catalog, not its module', () => {
+  const tree = earTrainingTree();
+
+  it('the fixture really does hide the source from the caller', () => {
+    // GUARD THE GUARD. Every assertion below is worthless if these
+    // rows carry `intervals` as their module id, because then passing
+    // the module id would have worked all along.
+    const intervals = tree.children.find(n => n.label === 'Intervals')!;
+    expect(intervals.sourceId).toBe('intervals');
+    expect(tree.id).toBe('ear-training');
+    expect(tree.children.map(n => n.label)).toContain('Chord Recognition');
+  });
+
+  it('drills intervals from a row whose caller only knows ear-training', () => {
+    // THE DEAD TAP. `ROUTES` and `FOCUS_KEY_FORMAT` are keyed on the
+    // CATALOG (`intervals`); the screen walks a merged tree and holds
+    // the MODULE (`ear-training`). Resolving on what the caller passed
+    // sent every ear-training row - intervals included - to
+    // `nothing-to-drill` with route `/`, which is the dashboard the tap
+    // started on.
+    const tree2 = earTrainingTree();
+    const descending = flatten(tree2).find(
+      n => n.label === 'Descending' && n.sourceId === 'intervals',
+    )!;
+    const target = drillTargetFor(descending, 'ear-training');
+    expect(target.kind).toBe('filtered');
+    if (target.kind !== 'filtered') throw new Error('unreachable');
+    expect(target.route).toBe('/ear-training/intervals');
+    expect(target.focusKeys).toHaveLength(13);
+    expect(target.focusKeys.every(k => k.includes('|desc'))).toBe(true);
+  });
+
+  it('still refuses to filter a sibling catalog that cannot be', () => {
+    // The fix must not make everything under ear training filterable -
+    // only what its own catalog supports.
+    const mode = flatten(tree).find(n => n.sourceId === 'scales-modes' && n.depth === 2)!;
+    const target = drillTargetFor(mode, 'ear-training');
+    if (target.kind !== 'navigate') throw new Error('expected navigate');
+    expect(target.reason).toBe('no-filter-mechanism');
+    expect(target.route).toBe('/ear-training/scales-modes');
+  });
+
+  it('opens the module itself where the row spans all four', () => {
+    // No single source, so no drill - and the module id is what is
+    // left to route on. Before the route existed this was `/` too.
+    expect(tree.sourceId).toBeUndefined();
+    const target = drillTargetFor(tree, 'ear-training');
+    if (target.kind !== 'navigate') throw new Error('expected navigate');
+    expect(target.reason).toBe('whole-module');
+    expect(target.route).toBe('/ear-training');
   });
 });

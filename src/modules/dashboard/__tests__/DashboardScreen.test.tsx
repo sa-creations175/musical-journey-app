@@ -14,7 +14,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { MemoryRouter, useSearchParams } from 'react-router-dom';
+import { MemoryRouter, useLocation, useSearchParams } from 'react-router-dom';
 import DashboardScreen from '../DashboardScreen';
 import { COLUMN_WIDTHS } from '../TreeRow';
 import { db, type AttemptRecord } from '../../../lib/db';
@@ -38,11 +38,36 @@ let root: Root | null = null;
  */
 function LocationProbe() {
   const [params] = useSearchParams();
-  return <i data-testid="search">{params.toString()}</i>;
+  const location = useLocation();
+  return (
+    <>
+      <i data-testid="search">{params.toString()}</i>
+      {/* The drill affordance NAVIGATES. Reading only the query string
+          would let a tap that went to the wrong screen pass, which is
+          how the dead tap survived: the row label and the route are
+          decided together and only one of them was ever asserted. */}
+      <i data-testid="pathname">{location.pathname}</i>
+    </>
+  );
 }
 
 function search(el: HTMLElement): string {
   return el.querySelector('[data-testid="search"]')!.textContent ?? '';
+}
+
+function pathname(el: HTMLElement): string {
+  return el.querySelector('[data-testid="pathname"]')!.textContent ?? '';
+}
+
+/** The row whose name cell reads exactly `label`. */
+function rowNamed(el: HTMLElement, label: string): HTMLElement {
+  const found = rows(el).find(r => r.querySelector('span[title]')?.textContent === label);
+  if (!found) throw new Error(`no row labelled ${label}`);
+  return found;
+}
+
+function drillButton(row: HTMLElement): HTMLElement {
+  return row.querySelector('[data-testid="drill-affordance"]') as HTMLElement;
 }
 
 async function renderScreen(initialEntry = '/'): Promise<HTMLDivElement> {
@@ -405,6 +430,38 @@ describe('the drill affordance', () => {
       const label = row.querySelector('[data-testid="drill-affordance"]')!.textContent!;
       expect(label).toMatch(/^open module · \d+ items?$/);
     }
+  });
+
+  // ── Where the tap actually lands ───────────────────────────────────
+  //
+  // Everything above reads labels. A label is decided by the same
+  // resolution that picks the route, so asserting only the label let
+  // BOTH be wrong together: every ear-training row read "open module"
+  // and navigated to `/`, which is this screen.
+
+  it('drills the row it was tapped on, not the module above it', async () => {
+    const el = await renderScreen();
+    const intervals = rowNamed(el, 'Intervals');
+    // Guard the guard: a row that already said "open module" would
+    // navigate somewhere plausible and prove nothing about filtering.
+    expect(drillButton(intervals).getAttribute('data-filtered')).toBe('true');
+    expect(drillButton(intervals).textContent).toMatch(/^drill \d+ items$/);
+
+    click(drillButton(intervals));
+    expect(pathname(el)).toBe('/ear-training/intervals');
+    // The pool travels in the quiz's own key format, not the catalog's.
+    const focus = new URLSearchParams(search(el)).get('focus') ?? '';
+    expect(focus.split(',')).toHaveLength(26);
+    expect(focus).toContain('M3|asc');
+    expect(focus).not.toContain('M3:asc');
+  });
+
+  it('opens ear training rather than the screen it started on', async () => {
+    // The module row's own dead tap: `ear-training` is a module id and
+    // was in no route table, so it fell through to `/`.
+    const el = await renderScreen();
+    click(drillButton(rowNamed(el, 'ear training')));
+    expect(pathname(el)).toBe('/ear-training');
   });
 });
 

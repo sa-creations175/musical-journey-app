@@ -303,11 +303,12 @@ export default function DashboardScreen({
    * for reading — so the destination drill can restrict its pool
    * without the dashboard knowing how that drill works.
    *
-   * NOTE: neither drill reads `focus` yet. Until they do, a row
-   * labelled "drill 13 items" lands on the module with the items in the
-   * query string and nothing consuming them. That is a gap on the drill
-   * side, and it is why wiring those two reads is its own step rather
-   * than something to leave implied.
+   * Both drills read it now. What made this look wired when it was not
+   * is that the ROW never reached them: `drillTargetFor` resolves on a
+   * node's CATALOG and this loop only has the module, which for all
+   * four ear-training catalogs is `ear-training`. The node carries its
+   * own source, so the resolution no longer depends on what is passed
+   * here.
    */
   const onDrill = useCallback((row: VisibleRow) => {
     const target = drillTargetFor(row.node, row.moduleId);

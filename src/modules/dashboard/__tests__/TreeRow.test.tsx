@@ -52,22 +52,36 @@ function click(el: Element) {
   });
 }
 
+/**
+ * `sourceId` is a parameter because it is what decides filterability.
+ *
+ * The node carries its own catalog and the row resolves against that,
+ * so a fixture that hard-codes a filterable source can only ever
+ * produce filterable rows - and the negative-case test below was
+ * passing a different `moduleId` in the belief that it was choosing.
+ */
 function nodeFrom(
   items: CatalogItem[],
   stats: Partial<ItemStats>[],
   accuracyKind: ModuleCatalog['accuracyKind'] = 'measured',
+  sourceId = 'intervals',
 ): TreeNode {
   return buildModuleTree(
-    { sourceId: 'intervals', moduleId: 'ear-training', label: 'intervals', accuracyKind, items },
+    { sourceId, moduleId: 'ear-training', label: 'intervals', accuracyKind, items },
     stats.map((s, i) => ({ ...emptyItemStats(items[i].id), ...s })),
   );
 }
 
-function leaf(patch: Partial<ItemStats> = {}, kind: ModuleCatalog['accuracyKind'] = 'measured') {
+function leaf(
+  patch: Partial<ItemStats> = {},
+  kind: ModuleCatalog['accuracyKind'] = 'measured',
+  sourceId = 'intervals',
+) {
   const tree = nodeFrom(
     [{ id: 'M3:asc', label: 'Major 3rd (ascending)', path: ['intervals'], itemRefs: ['M3:asc'] }],
     [patch],
     kind,
+    sourceId,
   );
   return tree.children[0];
 }
@@ -242,8 +256,12 @@ describe('the drill affordance says what pressing it will do', () => {
     // THE NEGATIVE CASE. A row that silently opened a whole module
     // while implying it had narrowed the drill would be worse than one
     // that says where it is taking you.
+    // Unfilterable because of the CATALOG the row's items come from,
+    // which is the only thing that decides it — an intervals row under
+    // any module id in the world still drills intervals.
     const el = render(
-      <TreeRow node={leaf()} moduleId="scales-modes" now={NOW} expanded={false} />,
+      <TreeRow node={leaf({}, 'measured', 'scales-modes')}
+        moduleId="ear-training" now={NOW} expanded={false} />,
     );
     const button = el.querySelector('[data-testid="drill-affordance"]')!;
     expect(button.getAttribute('data-filtered')).toBe('false');
@@ -266,19 +284,28 @@ describe('the drill affordance says what pressing it will do', () => {
 
   it('agrees with the read layer rather than deciding for itself', () => {
     // The row must not have its own opinion about filterability.
-    const node = leaf();
-    for (const moduleId of ['intervals', 'reading', 'scales-modes', 'harmonic-fluency']) {
-      const expected = drillTargetSummary(drillTargetFor(node, moduleId));
+    //
+    // Varying the SOURCE, not the module id: the module id no longer
+    // changes the answer, so looping over four of those would have run
+    // the same case four times.
+    const seen = new Set<boolean>();
+    for (const sourceId of ['intervals', 'reading', 'scales-modes', 'harmonic-fluency']) {
+      const node = leaf({}, 'measured', sourceId);
+      const expected = drillTargetSummary(drillTargetFor(node, 'ear-training'));
       const el = render(
-        <TreeRow node={node} moduleId={moduleId} now={NOW} expanded={false} />,
+        <TreeRow node={node} moduleId="ear-training" now={NOW} expanded={false} />,
       );
+      seen.add(expected.filtered);
       expect(
         el.querySelector('[data-testid="drill-affordance"]')!.getAttribute('data-filtered'),
-        moduleId,
+        sourceId,
       ).toBe(String(expected.filtered));
       act(() => root!.unmount());
       container!.remove();
     }
+    // Guard the guard: the four sources must not all answer the same
+    // way, or the loop proves agreement on one case four times.
+    expect(seen).toEqual(new Set([true, false]));
   });
 
   it('is reachable', () => {

@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  buildMergedTree,
   buildModuleTree,
   coverageFraction,
   daysSince,
@@ -320,5 +321,62 @@ describe('engagement count roll-up', () => {
     );
     expect(tree.engagementCount).toBe(9);
     expect(tree.score).toBeNull();
+  });
+});
+
+// ── Which catalog a row came from ────────────────────────────────────
+
+describe('source roll-up', () => {
+  function merged() {
+    const a = catalog(
+      [item('a1', ['both', 'Alpha']), item('a2', ['both', 'Alpha'])],
+      { sourceId: 'alpha' },
+    );
+    const b = catalog(
+      [item('b1', ['both', 'Beta'])],
+      { sourceId: 'beta', countsTowardModuleTotals: false },
+    );
+    return buildMergedTree('both', 'both', [
+      { catalog: a, stats: a.items.map(() => stats({})) },
+      { catalog: b, stats: b.items.map(() => stats({})) },
+    ]);
+  }
+
+  it('a leaf carries its own catalog', () => {
+    const tree = merged();
+    const leaf = leavesOf(tree).find(n => n.label === 'b1')!;
+    expect(leaf.sourceId).toBe('beta');
+  });
+
+  it('a branch takes the source its children agree on', () => {
+    const tree = merged();
+    expect(tree.children.find(n => n.label === 'Alpha')!.sourceId).toBe('alpha');
+    expect(tree.children.find(n => n.label === 'Beta')!.sourceId).toBe('beta');
+  });
+
+  it('a row spanning two catalogs claims neither', () => {
+    // THE LOAD-BEARING NEGATIVE. Defaulting to the first child, or to
+    // the module id, would let the merged row claim a single drill it
+    // cannot deliver. Undefined is the honest answer.
+    const tree = merged();
+    // Guard the guard: the two branches really do disagree, so there
+    // is something for the roll-up to refuse.
+    expect(new Set(tree.children.map(n => n.sourceId)).size).toBe(2);
+    expect(tree.sourceId).toBeUndefined();
+  });
+
+  it('counts a child that is out of the module totals', () => {
+    // Mental visualisation is excluded from Shapes & Patterns coverage
+    // but is still one of its catalogs. Skipping excluded children
+    // here would leave the parent claiming `alpha` alone.
+    const tree = merged();
+    expect(tree.children.find(n => n.label === 'Beta')!.excludedFromParentTotals).toBe(true);
+    expect(tree.sourceId).toBeUndefined();
+  });
+
+  it('a single-catalog tree carries it all the way up', () => {
+    const tree = buildModuleTree(scalesModesCatalog, statsForAttemptCatalog(scalesModesCatalog, []));
+    expect(tree.sourceId).toBe('scales-modes');
+    expect(flatten(tree).every(n => n.sourceId === 'scales-modes')).toBe(true);
   });
 });

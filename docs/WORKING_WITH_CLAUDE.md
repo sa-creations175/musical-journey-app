@@ -173,10 +173,41 @@ the same family**:
   those than you think. Prefer *"A says X and B says Y"* — it fails when either
   half stops being true, and it is readable a year later.
 
+A ninth, found by rendering the screen rather than by reading either
+unit, and a **new face**: both units were correct and the bug lived
+entirely in what one passed the other.
+
+- **A fixture that cannot reproduce the real call.** Tap-to-drill
+  resolves a row against its CATALOG (`intervals`, `chord-recognition`)
+  — that is what the route table and every focus mechanism are keyed
+  on. The screen walks a MERGED tree, so what it actually had to pass
+  was the module id, and ear training's four catalogs merge under
+  `ear-training`. Every ear-training row, intervals included, fell
+  through to "nothing to drill" with route `/` — the dashboard the tap
+  started on. Reading worked only because its two ids happen to be the
+  same string.
+
+  Both tests passed a **hand-written** `moduleId="intervals"`, a string
+  the calling code cannot produce. The read layer's tests proved the
+  translation was right; the row's tests proved the label matched the
+  read layer; the screen's test asserted only that module rows read
+  "open module", which was true whatever the resolution did. Three
+  green suites over a feature that never worked once.
+
+  **The tell:** a test that supplies an argument by hand where the
+  caller derives it. Every unit test does that — the question is
+  whether the derivation is where the bug can live. Here it was the
+  ONLY place it could live.
+
+  **The habit:** where two units meet, assert through the seam at least
+  once — render the screen and click the thing. And the fix is worth
+  more than the test: the node now carries its own `sourceId`, so the
+  caller cannot pass the wrong id because it no longer passes one.
+
 ### Two habits that catch it
 
-**Reverse every property test, not only bug fixes.** Seven for seven: no trap
-in this list was ever spotted by re-reading the assertion. Back the file up to
+**Reverse every property test, not only bug fixes.** Not one trap in this
+list was ever spotted by re-reading the assertion. Back the file up to
 the scratchpad, reintroduce the behaviour the test forbids, watch it fail,
 restore. **Back it up — do not `git checkout` it.** That reverts the whole file
 to HEAD, which silently discards any uncommitted work in it. Done once during

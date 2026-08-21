@@ -57,9 +57,17 @@ export interface UnfilteredDrillTarget {
 
 export type DrillTarget = FilteredDrillTarget | UnfilteredDrillTarget;
 
-/** Route per catalog source id. A source with no route cannot be
- *  navigated to and resolves to `nothing-to-drill`. */
+/**
+ * Route per id - CATALOG source ids, plus the module id of any merged
+ * module whose own row needs one.
+ *
+ * `ear-training` is not a source and never will be; it is the module
+ * row above four of them, and without an entry here it resolved to
+ * `nothing-to-drill` with route `/`. Tapping the ear training module
+ * row navigated to the dashboard you were already on.
+ */
 const ROUTES: Readonly<Record<string, string>> = {
+  'ear-training': '/ear-training',
   'intervals': '/ear-training/intervals',
   'chord-recognition': '/ear-training/chord-recognition',
   'chord-progressions': '/ear-training/chord-progressions',
@@ -94,23 +102,42 @@ const FOCUS_KEY_FORMAT: Readonly<Record<string, (itemRef: string) => string>> = 
   'reading': ref => ref,
 };
 
-function isFilterable(moduleId: string): boolean {
-  return moduleId in FOCUS_KEY_FORMAT;
+function isFilterable(sourceId: string): boolean {
+  return sourceId in FOCUS_KEY_FORMAT;
+}
+
+/**
+ * Which id this node resolves against.
+ *
+ * THE NODE'S OWN SOURCE WINS, and the module id is a fallback rather
+ * than the answer. The two differ for every ear-training row - the
+ * catalog is `intervals`, the module is `ear-training` - and a caller
+ * walking a merged tree only has the module. Trusting it resolved
+ * every ear-training row, intervals included, to a dead tap: the label
+ * read "open module" and the route was `/`.
+ *
+ * The fallback is not a leftover. A node with no single source is the
+ * merged module row itself, and that row wants its MODULE's route,
+ * which is the one thing the caller does know.
+ */
+function resolutionIdFor(node: TreeNode, moduleId: string): string {
+  return node.sourceId ?? moduleId;
 }
 
 /**
  * Resolve a tapped row.
  *
- * `moduleId` is the catalog source id the node belongs to - the caller
- * knows it from the tree it walked, and the node does not carry it
- * because a node is reused across views.
+ * `moduleId` is the module the row is displayed under. It is used only
+ * where the node spans several catalogs and so has no source of its
+ * own - see `resolutionIdFor`.
  */
 export function drillTargetFor(node: TreeNode, moduleId: string): DrillTarget {
-  const route = ROUTES[moduleId];
+  const id = resolutionIdFor(node, moduleId);
+  const route = ROUTES[id];
   if (route === undefined || node.itemRefs.length === 0) {
     return {
       kind: 'navigate',
-      moduleId,
+      moduleId: id,
       route: route ?? '/',
       reason: 'nothing-to-drill',
     };
@@ -118,15 +145,15 @@ export function drillTargetFor(node: TreeNode, moduleId: string): DrillTarget {
   if (node.depth === 0) {
     // Tapping a module row means "open the module", not "drill all 375
     // cards in one sitting".
-    return { kind: 'navigate', moduleId, route, reason: 'whole-module' };
+    return { kind: 'navigate', moduleId: id, route, reason: 'whole-module' };
   }
-  if (!isFilterable(moduleId)) {
-    return { kind: 'navigate', moduleId, route, reason: 'no-filter-mechanism' };
+  if (!isFilterable(id)) {
+    return { kind: 'navigate', moduleId: id, route, reason: 'no-filter-mechanism' };
   }
-  const toKey = FOCUS_KEY_FORMAT[moduleId];
+  const toKey = FOCUS_KEY_FORMAT[id];
   return {
     kind: 'filtered',
-    moduleId,
+    moduleId: id,
     route,
     itemRefs: [...node.itemRefs],
     focusKeys: node.itemRefs.map(toKey),
