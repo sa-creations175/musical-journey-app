@@ -13,6 +13,7 @@ import {
 } from '../drillTarget';
 import { buildMergedTree, buildModuleTree, flatten, leavesOf } from '../tree';
 import {
+  chordRecognitionCatalog,
   earTrainingCatalogs,
   intervalsCatalog,
   readingCatalog,
@@ -115,9 +116,68 @@ describe('modules with no filter mechanism', () => {
   });
 
   it('names exactly the modules that can be filtered today', () => {
-    // Two. The unevenness is accepted and stated, not discovered one
-    // row at a time.
-    expect(filterableModules().sort()).toEqual(['intervals', 'reading']);
+    // The unevenness is accepted and stated, not discovered one row at
+    // a time.
+    expect(filterableModules().sort())
+      .toEqual(['chord-recognition', 'intervals', 'reading']);
+  });
+});
+
+// ── Chord recognition: several rows, one key ─────────────────────────
+
+describe('chord recognition — the catalog is finer than the pool', () => {
+  const tree = treeFor(chordRecognitionCatalog);
+
+  function rowNamed(label: string) {
+    return flatten(tree).find(n => n.label === label)!;
+  }
+
+  it('folds a chord row s inversions into the one key the quiz matches', () => {
+    // The catalog is one row per chord X inversion because that is
+    // what attempts store; `ChordRecognitionQuiz` filters its pool on
+    // the bare chord id.
+    const chord = rowNamed('Major 7');
+    // Guard the guard: four refs, or the fold below has nothing to do.
+    expect(chord.itemRefs).toEqual(['maj7:0', 'maj7:1', 'maj7:2', 'maj7:3']);
+    const target = drillTargetFor(chord, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.focusKeys).toEqual(['maj7']);
+    expect(target.route).toBe('/ear-training/chord-recognition');
+  });
+
+  it('DOES NOT let the fold inflate the pool past focus protection', () => {
+    // THE RULE. Every drill computes its under-4 warning from
+    // `focusKeys.length` and its pool from `new Set(focusKeys)`. Four
+    // copies of `maj7` would report a pool of four and drill one chord
+    // — protection skipped, accuracy moved, on a row the dashboard
+    // chose. The rule is about how few items you were choosing
+    // between, not about who chose them.
+    const target = drillTargetFor(rowNamed('Major 7'), 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.focusKeys.length).toBeLessThan(4);
+    expect(target.focusKeys.length).toBe(new Set(target.focusKeys).size);
+  });
+
+  it('keeps every distinct chord under a tier row', () => {
+    // The fold must not collapse rows that are genuinely different
+    // chords. Seventh chords are six, at four inversions each.
+    const tier = rowNamed('Seventh Chords');
+    const target = drillTargetFor(tier, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.itemRefs.length).toBe(24);
+    expect(target.focusKeys).toEqual(
+      ['maj7', 'min7', 'dom7', 'dim7', 'm7b5', 'minMaj7'],
+    );
+  });
+
+  it('an inversion leaf drills its chord, which is all the pool can do', () => {
+    // Honest rather than exact: which inversions get played is decided
+    // by the player's position settings, and no focus key can change
+    // that. The leaf still narrows the drill to one chord.
+    const leaf = leavesOf(tree).find(n => n.itemRefs[0] === 'min:2')!;
+    const target = drillTargetFor(leaf, 'ear-training');
+    if (target.kind !== 'filtered') throw new Error('expected filtered');
+    expect(target.focusKeys).toEqual(['min']);
   });
 });
 

@@ -117,9 +117,16 @@ const FAMILY_FILTER_OPTIONS: FilterOption[] = [
 interface Props {
   chords: ChordData[];
   attempts: AttemptRecord[];
+  /** Bare chord ids to open in focus mode on - the format
+   *  `buildCandidates` matches. Sent by a dashboard row tap, where a
+   *  chord row's four inversion refs have already been folded into the
+   *  one chord they share. */
+  initialFocusKeys?: readonly string[];
 }
 
-export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
+export default function ChordRecognitionQuiz({
+  chords, attempts, initialFocusKeys,
+}: Props) {
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
   const [playStyle, setPlayStyle] = useState<PlaybackStyle>('blocked');
   const [brokenDir, setBrokenDir] = useState<BrokenChordDirection>('asc');
@@ -133,8 +140,20 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   const [selectedInversion, setSelectedInversion] = useState<Inversion | null>(null);
   const [phase, setPhase] = useState<QuizPhase>('awaiting-quality');
   const [showFocusPanel, setShowFocusPanel] = useState(false);
-  const [focusActive, setFocusActive] = useState(false);
-  const [focusKeys, setFocusKeys] = useState<string[]>([]);
+  /**
+   * FOCUS PROTECTION STILL APPLIES to a pool the dashboard sent. Under
+   * 4 items it logs `excludeFromFluency`, because the rule is about how
+   * few items you were choosing between, not about who chose them.
+   * Tapping "Major 7" and drilling one chord must not move an accuracy
+   * number - and the four inversions that row covers are one chord, not
+   * four items, which is why the fold happens before these arrive.
+   */
+  const [focusActive, setFocusActive] = useState(
+    (initialFocusKeys?.length ?? 0) > 0,
+  );
+  const [focusKeys, setFocusKeys] = useState<string[]>(
+    initialFocusKeys ? [...initialFocusKeys] : [],
+  );
   const [showLifetime, setShowLifetime] = useState(false);
   const [showInversionSettings, setShowInversionSettings] = useState(false);
   const [inversionPositions, setInversionPositions] = useState<Inversion[]>(
@@ -530,7 +549,13 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   // Focus sessions with fewer than 4 items don't truly test fluency.
   // Attempts still log (calendar, daily goal, streaks unaffected) but
   // are skipped from the rolling-window tier calculation.
-  const focusProtected = focusActive && focusKeys.length < 4;
+  //
+  // Counted over DISTINCT keys, because that is what the pool is built
+  // from (`new Set(focusKeys)` in buildCandidates). Measuring the array
+  // instead would let four copies of one chord read as a pool of four
+  // and skip the protection while drilling one chord.
+  const focusPoolSize = new Set(focusKeys).size;
+  const focusProtected = focusActive && focusPoolSize < 4;
 
   const rootName = current ? midiToNoteName(current.rootMidi) : '';
   const qualityCorrect = qualityLocked && current && selectedId === current.chord.id;
@@ -646,7 +671,9 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
   // the pattern used by every other ear-training module.
   const scopeLabel = (() => {
     if (focusActive) {
-      return `focused practice — ${focusKeys.length} chord${focusKeys.length === 1 ? '' : 's'} selected`;
+      // Same count the protection is measured on, so the line can never
+      // say four while the quiz is choosing between one.
+      return `focused practice — ${focusPoolSize} chord${focusPoolSize === 1 ? '' : 's'} selected`;
     }
     if (tierFilter === 'all') return `all chords — ${chords.length} in pool`;
     const count = chords.filter(c => c.tier === tierFilter).length;
@@ -920,6 +947,7 @@ export default function ChordRecognitionQuiz({ chords, attempts }: Props) {
         {answerGrid.map(c => (
           <button
             key={c.id}
+            data-testid="chord-answer"
             disabled={!hasPlayed || qualityLocked}
             onClick={() => submitAnswer(c)}
             className={`${renderButtonClass(c)} ${(!hasPlayed || qualityLocked) ? 'cursor-default' : 'cursor-pointer'} disabled:cursor-default`}

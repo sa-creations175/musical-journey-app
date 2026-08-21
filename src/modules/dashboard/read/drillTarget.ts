@@ -6,7 +6,7 @@
  *
  * ─── This lands unevenly, and that is accepted ───────────────────────
  *
- * Two modules can already be told which items to serve. The rest can
+ * Some modules can be told which items to serve. The rest can
  * only be opened. That is not a gap to paper over: a row that silently
  * opened the whole module while pretending to have filtered would be
  * worse than one that says it is taking you to the module. So an
@@ -21,6 +21,7 @@
  * plumbing. Deferred because the list is useful without it: tapping a
  * row and drilling that module is a minute of friction, not a wall.
  */
+import { catalogRollupKey } from './canonicalItemId';
 import type { TreeNode } from './tree';
 
 /** Why a row can only open its module rather than drill its items. */
@@ -93,6 +94,13 @@ const ROUTES: Readonly<Record<string, string>> = {
  *   from one ref. `ReadingDrill` needs a prop that bypasses
  *   `pickCard(skill)`; audited as nearly free.
  *
+ * `chord-recognition` - the catalog is one row per chord X inversion
+ *   because that is what attempts store, but the quiz's pool filter
+ *   matches on the bare CHORD (`focusSet.has(c.id)`); which inversions
+ *   get played is decided by the player's own position settings, not
+ *   by the pool. So a tapped chord row means every inversion of it,
+ *   which is exactly what `catalogRollupKey` already expresses.
+ *
  * Everything else opens its module. Adding one here is a two-line
  * change once its drill grows the mechanism.
  */
@@ -100,7 +108,24 @@ const FOCUS_KEY_FORMAT: Readonly<Record<string, (itemRef: string) => string>> = 
   // `M3:asc` in the catalog, `M3|asc` in the quiz's focus set.
   'intervals': ref => ref.replace(/:([^:]*)$/, '|$1'),
   'reading': ref => ref,
+  // `maj:1` in the catalog, `maj` in the quiz's focus set.
+  'chord-recognition': ref => catalogRollupKey('chord-recognition', ref),
 };
+
+/**
+ * Distinct keys, first occurrence wins.
+ *
+ * THIS IS FOCUS PROTECTION, not tidiness. Several catalog refs can
+ * translate to one key - four inversions of a seventh chord are four
+ * rows and one `maj7`. Every drill computes its under-4 warning from
+ * `focusKeys.length` and its pool from `new Set(focusKeys)`, so
+ * handing over the duplicates would report a pool of four while
+ * drilling one chord, unprotected, with the accuracy number moving.
+ * The pool the dashboard sends is a pool like any other.
+ */
+function distinct(keys: string[]): string[] {
+  return [...new Set(keys)];
+}
 
 function isFilterable(sourceId: string): boolean {
   return sourceId in FOCUS_KEY_FORMAT;
@@ -156,7 +181,7 @@ export function drillTargetFor(node: TreeNode, moduleId: string): DrillTarget {
     moduleId: id,
     route,
     itemRefs: [...node.itemRefs],
-    focusKeys: node.itemRefs.map(toKey),
+    focusKeys: distinct(node.itemRefs.map(toKey)),
   };
 }
 

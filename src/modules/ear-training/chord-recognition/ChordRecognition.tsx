@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../../lib/db';
 import { seedChordQualities } from './seed';
@@ -12,6 +12,18 @@ import DailyGoalBar from '../../../components/DailyGoalBar';
 const MODULE_ID = 'chord-recognition';
 
 export default function ChordRecognition() {
+  const [params] = useSearchParams();
+  /** `?focus=maj7,min7` — a dashboard row tap. Opens the quiz already
+   *  in focus mode over exactly those chords. Bare chord ids: the
+   *  dashboard folds a row's inversion refs before sending, because
+   *  the pool filter matches on the chord. */
+  const focusKeys = useMemo(() => {
+    const raw = params.get('focus');
+    if (!raw) return undefined;
+    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+    return keys.length > 0 ? keys : undefined;
+  }, [params]);
+
   useEffect(() => {
     seedChordQualities();
     // One-shot: rewrite legacy chord-recognition attempt itemIds
@@ -45,7 +57,11 @@ export default function ChordRecognition() {
         <div className="text-sm text-neutral-500">loading chords…</div>
       ) : (
         <>
-          <ChordRecognitionQuiz chords={chords} attempts={attempts} />
+          <ChordRecognitionQuiz
+            chords={chords}
+            attempts={attempts}
+            {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
+          />
           <ChordFluencyTracker chords={chords} attempts={attempts} />
         </>
       )}
