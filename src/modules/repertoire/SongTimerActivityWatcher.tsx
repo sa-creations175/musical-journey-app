@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { readSongTimer, withActivity, writeSongTimer } from './songTimer';
+import { getAmberMinutes } from './songTimerPrefs';
 
 /**
  * Marks app activity while a song timer is running.
@@ -48,6 +49,21 @@ const SCROLL_THROTTLE_MS = 1000;
 export default function SongTimerActivityWatcher() {
   const location = useLocation();
   const lastScrollPing = useRef(0);
+  // Read once and held in a ref so the listeners never re-bind, and so
+  // the ping stays synchronous — an await inside a pointerdown handler
+  // would let a second event through before the first had written.
+  const thresholdMs = useRef<number | null>(null);
+  const [, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void getAmberMinutes().then(min => {
+      if (!live) return;
+      thresholdMs.current = min === null ? null : min * 60_000;
+      setLoaded(true);
+    });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     const ping = () => {
@@ -57,7 +73,7 @@ export default function SongTimerActivityWatcher() {
       // for the whole app, forever.
       if (record === null || !record.running) return;
       const now = Date.now();
-      const next = withActivity(record, now);
+      const next = withActivity(record, now, thresholdMs.current);
       if (next !== record) writeSongTimer(next);
     };
 
@@ -84,7 +100,7 @@ export default function SongTimerActivityWatcher() {
   useEffect(() => {
     const record = readSongTimer();
     if (record === null || !record.running) return;
-    writeSongTimer(withActivity(record, Date.now()));
+    writeSongTimer(withActivity(record, Date.now(), thresholdMs.current));
   }, [location.pathname, location.search]);
 
   return null;

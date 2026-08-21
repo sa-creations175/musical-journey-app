@@ -12,6 +12,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearSongTimer,
+  bankOpenGap,
   inactivityMs,
   resolvedGap,
   withActivity,
@@ -170,13 +171,13 @@ describe('inactivity and gap resolution', () => {
   it('activity resets the inactivity clock without touching elapsed', () => {
     // Guard the guard: elapsed really is running, so a helper that
     // reset the wrong field would show up here.
-    const r = withActivity(startedRecord('song-1', T0), T0 + 6 * MIN);
+    const r = withActivity(startedRecord('song-1', T0), T0 + 6 * MIN, null);
     expect(inactivityMs(r, T0 + 6 * MIN)).toBe(0);
     expect(elapsedMs(r, T0 + 6 * MIN)).toBe(6 * MIN);
   });
 
   it('never moves the activity clock backwards', () => {
-    const r = withActivity(startedRecord('song-1', T0 + 5 * MIN), T0);
+    const r = withActivity(startedRecord('song-1', T0 + 5 * MIN), T0, null);
     expect(r.lastActivityAt).toBe(T0 + 5 * MIN);
   });
 
@@ -190,14 +191,14 @@ describe('inactivity and gap resolution', () => {
     // Ten minutes of tracked work, then a thirty-minute gap. Only the
     // gap goes.
     let r = startedRecord('song-1', T0);
-    r = withActivity(r, T0 + 10 * MIN);
+    r = withActivity(r, T0 + 10 * MIN, null);
     const settled = resolvedGap(r, T0 + 40 * MIN, 0);
     expect(elapsedMs(settled, T0 + 40 * MIN)).toBe(10 * MIN);
   });
 
   it('the coarse buckets keep their fraction of the gap', () => {
     let r = startedRecord('song-1', T0);
-    r = withActivity(r, T0 + 10 * MIN);
+    r = withActivity(r, T0 + 10 * MIN, null);
     const at = T0 + 50 * MIN;                       // a 40-minute gap
     for (const [fraction, expected] of [[0.75, 40], [0.5, 30], [0.25, 20]] as const) {
       expect(elapsedMs(resolvedGap(r, at, fraction), at)).toBe(expected * MIN);
@@ -206,7 +207,7 @@ describe('inactivity and gap resolution', () => {
 
   it('restarts the gap, so settling twice cannot discount twice', () => {
     let r = startedRecord('song-1', T0);
-    r = withActivity(r, T0 + 10 * MIN);
+    r = withActivity(r, T0 + 10 * MIN, null);
     const at = T0 + 40 * MIN;
     const once = resolvedGap(r, at, 0);
     const twice = resolvedGap(once, at, 0);
@@ -264,5 +265,61 @@ describe('inactivity and gap resolution', () => {
       songId: 'song-1', startedAt: T0, accumulatedMs: 0, running: true,
     }));
     expect(readSongTimer()?.lastActivityAt).toBe(T0);
+  });
+});
+
+describe('an unwitnessed stretch is banked, never dropped', () => {
+  const THRESH = 5 * MIN;
+
+  it('banks the gap when activity resumes after a long silence', () => {
+    // WITHOUT THIS the first tap on returning moves lastActivityAt to
+    // now and the stretch vanishes into the total as focused
+    // practice — the one outcome the whole mechanism exists to
+    // prevent.
+    const r = withActivity(startedRecord('song-1', T0), T0 + 40 * MIN, THRESH);
+    expect(r.pendingGapMs).toBe(40 * MIN);
+  });
+
+  it('does not bank a silence under the threshold', () => {
+    const r = withActivity(startedRecord('song-1', T0), T0 + 2 * MIN, THRESH);
+    expect(r.pendingGapMs ?? 0).toBe(0);
+  });
+
+  it('banks nothing at all when the mechanism is switched off', () => {
+    const r = withActivity(startedRecord('song-1', T0), T0 + 90 * MIN, null);
+    expect(r.pendingGapMs ?? 0).toBe(0);
+  });
+
+  it('ACCUMULATES across gaps rather than replacing', () => {
+    // Two silences before anyone answers is two stretches of unknown
+    // time. Keeping only the later would quietly forgive the earlier.
+    let r = startedRecord('song-1', T0);
+    r = withActivity(r, T0 + 30 * MIN, THRESH);
+    r = withActivity(r, T0 + 80 * MIN, THRESH);
+    expect(r.pendingGapMs).toBe(80 * MIN);
+  });
+
+  it('answering a banked stretch discounts it and clears the pending flag', () => {
+    let r = startedRecord('song-1', T0);
+    r = withActivity(r, T0 + 40 * MIN, THRESH);
+    // Guard the guard: forty of the forty-one minutes are unattributed.
+    expect(r.pendingGapMs).toBe(40 * MIN);
+    const at = T0 + 41 * MIN;
+    const settled = resolvedGap(r, at, 0, r.pendingGapMs);
+    expect(elapsedMs(settled, at)).toBe(1 * MIN);
+    expect(settled.pendingGapMs).toBe(0);
+  });
+
+  it('bankOpenGap catches a silence that is still open at stop', () => {
+    // Nothing has resumed, so withActivity never ran. Stopping without
+    // this would log the silence as focused practice — the same
+    // failure one step later.
+    const r = bankOpenGap(startedRecord('song-1', T0), T0 + 50 * MIN, THRESH);
+    expect(r.pendingGapMs).toBe(50 * MIN);
+  });
+
+  it('bankOpenGap leaves a short silence alone', () => {
+    const r = bankOpenGap(startedRecord('song-1', T0), T0 + 3 * MIN, THRESH);
+    expect(r.pendingGapMs ?? 0).toBe(0);
   });
 });

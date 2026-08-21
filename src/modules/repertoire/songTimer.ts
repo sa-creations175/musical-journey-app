@@ -81,6 +81,23 @@ export interface SongTimerRecord {
    * to `startedAt` — the honest floor, since nothing later is known.
    */
   lastActivityAt: number;
+  /**
+   * Un-attributed time awaiting an answer, in ms.
+   *
+   * Banked here the moment activity resumes after a silence longer
+   * than the amber threshold — NOT dropped, and not silently counted.
+   * Without it, the first tap on returning would move `lastActivityAt`
+   * to now and the gap would vanish into the total as focused
+   * practice, which is the one outcome the whole mechanism exists to
+   * prevent.
+   *
+   * Persisted, so the question survives navigation and reload. That
+   * matters more than it looks: the strip that asks it renders only
+   * on the song detail page, while the timer runs app-wide — so the
+   * return very often happens somewhere the question cannot be shown,
+   * and it has to wait rather than expire.
+   */
+  pendingGapMs?: number;
 }
 
 /**
@@ -128,11 +145,33 @@ export function inactivityMs(record: SongTimerRecord, now: number): number {
   return Math.max(0, now - record.lastActivityAt);
 }
 
-/** Mark activity. Cheap and called often, so it returns the same
- *  object when nothing moved. */
-export function withActivity(record: SongTimerRecord, now: number): SongTimerRecord {
+/**
+ * Mark activity, banking any stretch that went unwitnessed.
+ *
+ * `amberThresholdMs` is null when the user has turned the mechanism
+ * off, in which case nothing is ever banked and the timer simply
+ * counts — a legitimate answer, and the reason 'never' is offered.
+ *
+ * Cheap and called often, so it returns the same object when nothing
+ * moved.
+ */
+export function withActivity(
+  record: SongTimerRecord,
+  now: number,
+  amberThresholdMs: number | null,
+): SongTimerRecord {
   if (now <= record.lastActivityAt) return record;
-  return { ...record, lastActivityAt: now };
+  const gap = now - record.lastActivityAt;
+  const banks = amberThresholdMs !== null && gap >= amberThresholdMs;
+  if (!banks) return { ...record, lastActivityAt: now };
+  return {
+    ...record,
+    lastActivityAt: now,
+    // Accumulated across gaps rather than replaced. Two silences
+    // before anyone answers is two stretches of unknown time, and
+    // keeping only the later one would quietly forgive the earlier.
+    pendingGapMs: (record.pendingGapMs ?? 0) + gap,
+  };
 }
 
 /**
@@ -151,8 +190,11 @@ export function resolvedGap(
   record: SongTimerRecord,
   now: number,
   keepFraction: number,
+  /** Defaults to the gap still open right now. Callers answering a
+   *  BANKED stretch pass `record.pendingGapMs` instead. */
+  gapMs?: number,
 ): SongTimerRecord {
-  const gap = inactivityMs(record, now);
+  const gap = gapMs ?? inactivityMs(record, now);
   const clamped = Math.min(1, Math.max(0, keepFraction));
   const discarded = gap * (1 - clamped);
   const banked = Math.max(0, elapsedMs(record, now) - discarded);
@@ -161,7 +203,27 @@ export function resolvedGap(
     accumulatedMs: banked,
     startedAt: now,
     lastActivityAt: now,
+    pendingGapMs: 0,
   };
+}
+
+/**
+ * Fold the currently-open silence into the banked total without
+ * answering it, so it can be asked about.
+ *
+ * Used when stopping while amber: the live gap has not been banked by
+ * `withActivity` yet, because no activity has resumed. Stopping
+ * without this would log it as focused practice, which is the same
+ * silent-counting failure one step later.
+ */
+export function bankOpenGap(
+  record: SongTimerRecord,
+  now: number,
+  amberThresholdMs: number | null,
+): SongTimerRecord {
+  const gap = inactivityMs(record, now);
+  if (amberThresholdMs === null || gap < amberThresholdMs) return record;
+  return { ...record, pendingGapMs: (record.pendingGapMs ?? 0) + gap };
 }
 
 /** Fold the running segment into `accumulatedMs` and stop the clock.

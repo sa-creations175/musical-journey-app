@@ -54,6 +54,7 @@ export default function SongTimerStrip({ song, songs }: Props) {
   const timer = useSongTimer(song.id);
   const [busy, setBusy] = useState(false);
   const [amberMin, setAmberMinState] = useState<number | null>(null);
+  const [stopAfterAnswer, setStopAfterAnswer] = useState(false);
   const [prefLoaded, setPrefLoaded] = useState(false);
 
   useEffect(() => {
@@ -98,6 +99,18 @@ export default function SongTimerStrip({ song, songs }: Props) {
     if (orphaned) discard();
   }, [orphaned, discard]);
 
+  const amberMs = amberMin === null ? null : amberMin * 60_000;
+  // Stopping folds an open silence into the pending total FIRST, so a
+  // stretch nobody has returned from is asked about rather than logged
+  // as focused practice. The question then blocks the stop until it is
+  // answered — the one place this mechanism does interrupt, because
+  // logging is the irreversible step.
+  const requestStop = () => {
+    const pending = timer.bankOpenSilence(amberMs);
+    if (pending > 0) { setStopAfterAnswer(true); return; }
+    void run(timer.stopAndLog);
+  };
+
   const run = async (fn: () => Promise<number>) => {
     if (busy) return;
     setBusy(true);
@@ -124,7 +137,7 @@ export default function SongTimerStrip({ song, songs }: Props) {
             <button
               type="button"
               disabled={busy}
-              onClick={() => void run(timer.stopAndLog)}
+              onClick={requestStop}
               className="shrink-0 px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium rounded bg-needswork text-white hover:opacity-90 disabled:opacity-40"
             >
               ■ stop
@@ -173,6 +186,22 @@ export default function SongTimerStrip({ song, songs }: Props) {
               ▶ start
             </button>
           }
+        />
+      )}
+
+      {/* THE QUESTION, inline rather than modal — consistent with
+          amber, and the strip is where you are already looking. It
+          appears whenever a stretch is banked, which is on the first
+          activity after a silence: that is the "return", and it
+          survives navigation and reload because the pending total
+          lives in the record. */}
+      {timer.isThisSong && timer.pendingGapMs > 0 && (
+        <GapQuestion
+          gapMs={timer.pendingGapMs}
+          onAnswer={f => {
+            timer.resolvePendingGap(f);
+            if (stopAfterAnswer) { setStopAfterAnswer(false); void run(timer.stopAndLog); }
+          }}
         />
       )}
 
@@ -276,4 +305,103 @@ function formatMs(ms: number): string {
   const totalMin = Math.floor(Math.max(0, ms) / 60_000);
   if (totalMin < 60) return `${totalMin}m`;
   return `${Math.floor(totalMin / 60)}h ${String(totalMin % 60).padStart(2, '0')}m`;
+}
+
+/**
+ * The question asked about a stretch the app could not see.
+ *
+ * ---------------------------------------------------------------
+ * IT IS A QUESTION, NOT AN ACCUSATION.
+ *
+ * The app has no microphone and no MIDI — Safari does not implement
+ * Web MIDI at all — so it genuinely cannot tell playing from absence.
+ * Forty minutes at the keyboard and forty minutes in the kitchen look
+ * identical to it. The second line says so outright, because "No app
+ * activity for 38 minutes" on its own reads like a reprimand for not
+ * practising.
+ *
+ * The minutes on each button matter more than they look: "about half"
+ * is a vague word, "19 min" is a number that can be checked against
+ * an actual memory of the room.
+ * ---------------------------------------------------------------
+ *
+ * Coarse buckets, not a slider. Nobody knows it was 62%, and asking
+ * for a precision that does not exist produces a confident-looking
+ * fake. One tap is the whole budget.
+ */
+function GapQuestion({
+  gapMs,
+  onAnswer,
+}: {
+  gapMs: number;
+  onAnswer: (keepFraction: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const mins = (f: number) => Math.round((gapMs / 60_000) * f);
+
+  return (
+    <div className="rounded-md border border-[#E88943]/40 bg-[#E88943]/5 px-3 py-2.5 space-y-2">
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
+          No app activity for {mins(1)} minutes.
+        </p>
+        <p className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-snug">
+          The app can’t tell whether you were playing or away. Only you know.
+        </p>
+      </div>
+      <p className="text-[11px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        How should we record this time?
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <GapChoice label="I was locked in" minutes={mins(1)} onClick={() => onAnswer(1)} />
+        {expanded ? (
+          <>
+            <GapChoice label="most of it" minutes={mins(0.75)} onClick={() => onAnswer(0.75)} indent />
+            <GapChoice label="about half" minutes={mins(0.5)} onClick={() => onAnswer(0.5)} indent />
+            <GapChoice label="barely any" minutes={mins(0.25)} onClick={() => onAnswer(0.25)} indent />
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="flex items-center justify-between gap-2 px-2 py-1.5 rounded border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
+          >
+            <span>I was here for some of it</span>
+            <span aria-hidden className="text-neutral-400">▾</span>
+          </button>
+        )}
+        <GapChoice label="I was gone" minutes={0} onClick={() => onAnswer(0)} />
+      </div>
+    </div>
+  );
+}
+
+function GapChoice({
+  label,
+  minutes,
+  onClick,
+  indent,
+}: {
+  label: string;
+  minutes: number;
+  onClick: () => void;
+  indent?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'flex items-center justify-between gap-2 px-2 py-1.5 rounded border text-xs',
+        'border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200',
+        'hover:border-fluent hover:text-fluent',
+        indent ? 'ml-4' : '',
+      ].join(' ')}
+    >
+      <span>{label}</span>
+      <span className="font-mono tabular-nums text-neutral-500 dark:text-neutral-400">
+        {minutes} min
+      </span>
+    </button>
+  );
 }

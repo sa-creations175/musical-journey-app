@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { logPracticeSession } from './logPractice';
 import {
+  bankOpenGap,
   clearSongTimer,
   elapsedMinutes,
   elapsedMs,
   readSongTimer,
+  resolvedGap,
   startedRecord,
   writeSongTimer,
   type SongTimerRecord,
@@ -56,6 +58,15 @@ export interface SongTimerApi {
   /** Throw the timer away without logging. For a record whose song no
    *  longer exists. */
   discard: () => void;
+  /** Un-attributed time awaiting an answer, in ms. 0 when there is
+   *  nothing to ask about. */
+  pendingGapMs: number;
+  /** Answer the banked stretch. `keepFraction` is 1 for "I was locked
+   *  in" through 0 for "I was gone". */
+  resolvePendingGap: (keepFraction: number) => void;
+  /** Fold a silence that is still open into the banked total so it can
+   *  be asked about. Called before stopping. */
+  bankOpenSilence: (amberThresholdMs: number | null) => number;
 }
 
 export function useSongTimer(songId: string): SongTimerApi {
@@ -136,6 +147,27 @@ export function useSongTimer(songId: string): SongTimerApi {
 
   const discard = useCallback(() => persist(null), [persist]);
 
+  const resolvePendingGap = useCallback((keepFraction: number) => {
+    const current = readSongTimer();
+    if (current === null || !(current.pendingGapMs && current.pendingGapMs > 0)) return;
+    persist(resolvedGap(current, Date.now(), keepFraction, current.pendingGapMs));
+  }, [persist]);
+
+  /**
+   * Bank an open silence and report what is now pending.
+   *
+   * Returns the total rather than a boolean so the caller can decide
+   * whether there is anything worth asking about, without re-reading
+   * storage and racing its own write.
+   */
+  const bankOpenSilence = useCallback((amberThresholdMs: number | null): number => {
+    const current = readSongTimer();
+    if (current === null) return 0;
+    const next = bankOpenGap(current, Date.now(), amberThresholdMs);
+    if (next !== current) persist(next);
+    return next.pendingGapMs ?? 0;
+  }, [persist]);
+
   return {
     record,
     isThisSong: record !== null && record.songId === songId,
@@ -144,5 +176,8 @@ export function useSongTimer(songId: string): SongTimerApi {
     stopAndLog,
     swapToThisSong,
     discard,
+    pendingGapMs: record?.pendingGapMs ?? 0,
+    resolvePendingGap,
+    bankOpenSilence,
   };
 }
