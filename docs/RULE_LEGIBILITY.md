@@ -46,6 +46,7 @@ Each rule carries one tag. They're plain text so they're greppable —
 | `[SURFACED]` | Explained where the user meets it. No work needed |
 | `[FIXED]` | Was invisible or half; now surfaced. Note the commit |
 | `[DEFECT]` | Not a legibility problem — a bug that surfaced during the audit |
+| `[CLOSED]` | The rule was removed rather than explained. Nothing left to surface |
 
 **Counts, read off this file rather than estimated** — 20 August 2026, after
 the dashboard's legibility step:
@@ -53,9 +54,10 @@ the dashboard's legibility step:
 | Tag | Entries | `grep -c` returns |
 |---|---|---|
 | Invisible | 24 | 25 |
-| Half | 22 | 23 |
+| Half | 21 | 22 |
 | Surfaced | 6 | 7 |
 | Defect | 3 | 4 |
+| Closed | 1 | 2 |
 
 The grep is always **one higher**, because each tag also appears in its own row
 of the marker table above. Nothing else in this file writes a tag in prose —
@@ -168,14 +170,16 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 - **Moved invisible → half, 20 Aug 2026** (`690f55e`). The mental visualisation row and everything under it now state it, with the reason and — the half that was missing from the rule as written here — **what still does roll up**: recency does, because practising it is practising. A note saying only "excluded" would overstate the exclusion.
 - **Second-order rule, surfaced at the same time.** Mental viz's only per-item record is `performanceHistory`, which caps at 20 entries, so its attempt count is a **floor, not a total**. The row says so. Coverage needs three, so the threshold itself is unaffected.
 
-### 1.7 Supplementary two-handed seventh rows don't gate acquisition `[HALF]`
+### 1.7 Supplementary two-handed seventh rows don't gate acquisition `[CLOSED]`
 
-- **Rule:** `supplementary` inversion states are filtered out of the tier denominator via `gatesAcquisition`.
-- **Decides:** S&P tier progress, and the dashboard's chord-shape denominator.
-- **Where:** `src/lib/moduleItemCounts.ts:146-148` · `src/modules/shapes-and-patterns/spTiers.ts:134` · `dashboard/read/shapesScope.ts` skips them when enumerating.
-- **UI in the S&P grid:** still invisible. The cell is drillable and looks identical to a gating one.
-- **Moved invisible → half, 20 Aug 2026** (`a400f87`). The dashboard's coverage `?` states the denominator outright — **648 chord shapes, not the 720 you can open** — and why: the 72 two-handed rows are practice tools rather than shapes to own. The same entry states the other half of that denominator, that a cell is *not* multiplied by hand or by articulation.
-- **What that leaves.** The number is now explained where it is divided by. It is still unexplained at the cell you can drill, which is where the surprise happens.
+- **Rule:** `supplementary` inversion states were filtered out of every coverage denominator via `gatesAcquisition`. **The rule no longer exists.**
+- **Closed 20 August 2026 by reversing the decision**, not by explaining it. Supplementary rows now gate acquisition like every other inversion state, `gatesAcquisition()` is deleted, and the chord-shape catalog is 720 rather than 648.
+- **Why the reversal.** The row seeds four two-handed drills — LH root with RH triad in root position, 1st and 2nd, plus the fluid drill between them — which is how a seventh chord actually gets played. Calling that a practice tool rather than a shape to own was the error; it is the most realistic voicing of the six.
+- **How it was found.** Reading the coverage legend written for §1.7 in the first place. Explaining the rule plainly made it obvious the rule was wrong — which is an argument for this whole document that the document could not have made for itself.
+- **What it cost:** a seventh quality needs six rows covered rather than five, so its coverage percentages drop; `tierTotalCells(2)` goes 360 → 432, moving the tier-2 unlock bar from 180 comfortable cells to 216. Both accepted.
+- **The near-miss.** `moduleItemCounts.shapesCounts()` multiplied by a **literal 5** for sevenths rather than reading the catalog. Deleting the exclusion would have left it returning 648 with nothing failing anywhere — the denominator and its own catalog disagreeing in silence. It now derives the multiplier, and a reversal test pins it.
+- **The other half.** Three goals-side matchers and two enumerators also excluded supplementary. Left alone they would have capped seventh coverage below 100% forever: a denominator grown by 72 that the numerator cannot reach.
+- **See** `DASHBOARD_REDESIGN_DESIGN.md` → *Supplementary rows count*.
 
 ### 1.8 Skills-catalogue tiers for flashcards are fabricated windows `[INVISIBLE]`
 
@@ -418,7 +422,8 @@ A test asserts every rule carries a `why`, rather than trusting it:
   `excludeFromFluency` · the dash that is not a zero · the mixed-kind dash
 - **coverage** — the 3-attempt threshold · full-catalog denominators · the
   percent-plus-attempt-count readout · the lesson threshold ("tried it") ·
-  self-assessed starting stages · 648-not-720 (§1.7)
+  self-assessed starting stages · one row is one shape however many ways you
+  practise it
 - **recency** — both numbers and why either alone lies · "never" is not an age ·
   why recency counts what accuracy drops · which half each sort direction reads
 - **due** — past SM-2's date, not a deadline · why it is a filter and never a
@@ -449,10 +454,17 @@ the number as well as at the drill) · day-class calendar legend (3.5) ·
 quick-exploration threshold (Tier 4) · Dev Mode toggle + badge · tier legend
 (intervals only, 1.11). **Plus the dashboard's own sixteen**, listed above.
 
-**Half-surfaced — 22:** the effect is named, the rule isn't — or it's stated in
-one module and silent in the others that use it. Three moved here from
-invisible on 20 Aug (§1.5, §1.6, §1.7), each because the dashboard now states
-it and the older surface still does not.
+**Half-surfaced — 21:** the effect is named, the rule isn't — or it's stated in
+one module and silent in the others that use it. Two moved here from invisible
+on 20 Aug (§1.5, §1.6), each because the dashboard now states it and the older
+surface still does not. §1.7 also moved here and then straight out again —
+see below.
+
+**Closed by removing the rule — 1:** §1.7, the supplementary-row exclusion.
+Writing the legend for it is what showed the rule was wrong. That is the
+strongest case this document has made for itself: an invisible rule survives
+because nobody has to defend it in plain words, and the moment one did, it
+did not survive.
 
 **Completely invisible — 24:** including acquisition stage, all four tier/stage
 unlock systems, both SR schedulers, the maintenance bar, and the fact that
@@ -474,3 +486,4 @@ threshold. Same shape as §1.12, and a design call rather than a wiring job.
 |---|---|
 | 2026-08-14 | Initial audit against `af9fccf`. No fixes applied. |
 | 2026-08-20 | Dashboard legibility step. §1.5, §1.6, §1.7 invisible → half; §1.3 and §3.8 gained their dashboard surfaces; §1.8b's predicted recurrence found and sized at 468 rows. §3.1 checked and deliberately **not** flipped — the dashboard's coverage is a different rule from the acquisition stage. Counts re-read rather than estimated. Commits `1ff0d48`, `a400f87`, `690f55e`. |
+| 2026-08-20 | §1.7 **closed by reversing the rule**, hours after being half-surfaced. Supplementary rows now gate acquisition; `gatesAcquisition()` deleted; chord shapes 648 → 720. New *closed* marker added for a rule removed rather than explained. |

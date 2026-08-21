@@ -57,7 +57,7 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     //
     // Chord-shape side:
     //   legacy triads (288) + 6×48 quality sub-groups (288) +
-    //   sevenths (360) + extensions (168) + special (36) = 1140
+    //   sevenths (432) + extensions (168) + special (36) = 1212
     // Scales side (Layer 1 + Layer 2 entries co-exist):
     //   legacy scale_drills (96) +
     //   scale_major (12) + scale_natural_minor (12) +
@@ -78,12 +78,16 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     // and the scope-shrank notice needs their labels) but every one
     // now contributes 0:
     //   triads bucket (288) + 6 triad-quality subs (6×48=288) +
-    //   sevenths bucket (360) + 6 seventh-quality subs (6×60=360) +
+    //   sevenths bucket (432) + 6 seventh-quality subs (6×72=432) +
     //   extensions bucket (0) + 6 extension families (0) +
     //   special bucket (0)
+    //
+    // The seventh figures went 360 → 432 on 20 Aug 2026, when the
+    // supplementary two-handed row started gating acquisition: 5
+    // inversion states per quality became 6.
     const chordShapeSide =
       288 + 6 * 48 +
-      360 + 6 * 60 +
+      432 + 6 * 72 +
       0 + 0 +
       0;
     const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
@@ -223,12 +227,12 @@ describe('itemRefMatcherForCoverageGroup — Layer 2 quality matchers', () => {
     expect(majMatcher('chord-shape:dim:C:fluid')).toBe(false);
   });
 
-  it('per-quality matchers reject the supplementary state', () => {
+  it('per-quality matchers now ACCEPT the supplementary state', () => {
     const majMatcher = itemRefMatcherForCoverageGroup('chord_shape_triads_maj')!;
     // Triads don't actually have a supplementary state in the
     // current model (that's sevenths-only), but the matcher
     // defensively excludes it for forward-compat.
-    expect(majMatcher('chord-shape:maj:C:supplementary')).toBe(false);
+    expect(majMatcher('chord-shape:maj:C:supplementary')).toBe(true);
   });
 
   it('per-quality matchers reject non-chord-shape refs', () => {
@@ -384,12 +388,12 @@ describe('Seventh-chord per-quality coverage groups', () => {
     { id: 'chord_shape_sevenths_mmaj7', quality: 'mmaj7' },
   ];
 
-  it('exposes all 6 per-quality seventh defs at 60 cells each', () => {
+  it('exposes all 6 per-quality seventh defs at 72 cells each', () => {
     for (const d of SEVENTH_QUALITY_IDS) {
       const def = getShapesCoverageGroup(d.id);
       expect(def, `missing def for ${d.id}`).toBeDefined();
-      // 12 keys × 5 acquisition-path inversion states = 60.
-      expect(def!.denominator).toBe(60);
+      // 12 keys × 6 inversion states = 72, supplementary included.
+      expect(def!.denominator).toBe(72);
       expect(def!.activityArea).toBe('chord_shape_drills');
     }
   });
@@ -400,7 +404,7 @@ describe('Seventh-chord per-quality coverage groups', () => {
       0,
     );
     expect(sum).toBe(getShapesCoverageGroup('chord_shape_sevenths')!.denominator);
-    expect(sum).toBe(360);
+    expect(sum).toBe(432);
   });
 
   it('each matcher accepts only its own quality', () => {
@@ -423,11 +427,11 @@ describe('Seventh-chord per-quality coverage groups', () => {
     }
   });
 
-  it('matchers reject the supplementary state', () => {
+  it('matchers now ACCEPT the supplementary state', () => {
     // Sevenths have a `supplementary` inversion state (two-handed
     // drills). Coverage matchers exclude it — same rule as triads.
     const m = itemRefMatcherForCoverageGroup('chord_shape_sevenths_min7')!;
-    expect(m('chord-shape:min7:C:supplementary')).toBe(false);
+    expect(m('chord-shape:min7:C:supplementary')).toBe(true);
   });
 });
 

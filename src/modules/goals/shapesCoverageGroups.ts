@@ -21,14 +21,18 @@ import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
 
 /**
  * Count of acquisition-path inversion-state rows per cell, by
- * QualityKind. Triads have 4 (root/inv1/inv2/fluid), sevenths have 5
- * (root/inv1/inv2/inv3/fluid — `supplementary` excluded), extensions
- * and special/sixth have 1 (single voicing-based row, no inversion
- * state). Drives the per-kind denominator multiplier.
+ * QualityKind. Triads have 4 (root/inv1/inv2/fluid), sevenths have 6
+ * (root/inv1/inv2/inv3/fluid/supplementary), extensions and
+ * special/sixth have 1 (single voicing-based row, no inversion state).
+ * Drives the per-kind denominator multiplier.
+ *
+ * READ OFF THE CATALOG, never a literal: the supplementary state moved
+ * into the denominator on 20 Aug 2026, and a hardcoded 5 here would
+ * have kept the old answer with nothing failing.
  */
 const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
-  triad:     INVERSION_STATES_FOR_CHORD_SHAPE_KIND.triad.filter(s => s !== 'supplementary').length,
-  seventh:   INVERSION_STATES_FOR_CHORD_SHAPE_KIND.seventh.filter(s => s !== 'supplementary').length,
+  triad:     INVERSION_STATES_FOR_CHORD_SHAPE_KIND.triad.length,
+  seventh:   INVERSION_STATES_FOR_CHORD_SHAPE_KIND.seventh.length,
   extension: 1,
   special:   1,
 };
@@ -694,9 +698,7 @@ export function itemRefMatcherForCoverageGroup(
       if (!ir.startsWith('chord-shape:')) return false;
       const parts = ir.split(':');
       if (parts.length < 3) return false;
-      if (parts[1] !== quality) return false;
-      if (parts.length >= 4 && parts[3] === 'supplementary') return false;
-      return true;
+      return parts[1] === quality;
     };
   }
 
@@ -709,9 +711,7 @@ export function itemRefMatcherForCoverageGroup(
       if (!ir.startsWith('chord-shape:')) return false;
       const parts = ir.split(':');
       if (parts.length < 3) return false;
-      if (parts[1] !== seventhQuality) return false;
-      if (parts.length >= 4 && parts[3] === 'supplementary') return false;
-      return true;
+      return parts[1] === seventhQuality;
     };
   }
 
@@ -737,20 +737,14 @@ export function itemRefMatcherForCoverageGroup(
     const parts = ir.split(':');
     if (parts.length < 3) return false;
     const q = CHORD_QUALITY_BY_ID.get(parts[1]);
-    if (q?.kind !== kind) return false;
-    // 4-part triad/seventh refs: filter out the supplementary state
-    // so two-handed seventh drills don't inflate coverage counts.
-    // 3-part extension/special refs pass without inspecting parts[3].
-    if (parts.length >= 4 && parts[3] === 'supplementary') return false;
-    return true;
+    return q?.kind === kind;
   };
 }
 
 /**
  * Enumerate the full chord-shape itemRef universe — every
- * quality × key × acquisition-path inversion state — excluding the
- * sevenths' `supplementary` state (a practice tool, not an
- * acquisition item). Keys cycle in circle-of-fourths order
+ * quality × key × inversion state, the sevenths' `supplementary`
+ * two-handed row included. Keys cycle in circle-of-fourths order
  * (C → F → Bb → … → G, matching the voice-leading section) and
  * iteration is key-major, so callers that cap the result (e.g. the
  * session generator's cold-start injector) get a spread across
@@ -772,7 +766,6 @@ export function enumerateChordShapeItemRefs(): readonly string[] {
     for (const q of CHORD_QUALITIES) {
       const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
       for (const state of states) {
-        if (state === 'supplementary') continue;
         out.push(
           state === null
             ? `chord-shape:${q.id}:${keyName}`

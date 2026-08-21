@@ -227,7 +227,6 @@ describe('column rules — what each one says, and that it says why', () => {
     expect(said('coverage')).toContain('3 or more');
     expect(said('coverage')).toContain('full skill catalog');
     expect(said('coverage')).toContain('tried it (75)');
-    expect(said('coverage')).toContain('648');
     // Both numbers named, and tied to the word the sort control uses.
     expect(said('recency')).toContain('12d / 61d');
     expect(said('recency')).toContain('stalest');

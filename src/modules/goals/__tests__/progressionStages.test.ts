@@ -52,13 +52,14 @@ describe('Chord-Shapes progression — Layer 1 Triads', () => {
 describe('Chord-Shapes progression — Layer 2 Sevenths', () => {
   // The doc claims "48 items per stage" but the inversion redesign
   // pinned sevenths to 5 acquisition states (root/inv1/inv2/inv3/fluid),
-  // so 12 × 5 = 60. Tests pin the catalog truth — see file header.
-  it('produces 6 seventh stages, each with 60 items (12 keys × 5 acquisition states)', () => {
+  // so 12 × 6 = 72, supplementary included since 20 Aug 2026.
+  // Tests pin the catalog truth — see file header.
+  it('produces 6 seventh stages, each with 72 items (12 keys × 6 inversion states)', () => {
     const sp = MODULE_PROGRESSIONS['shapes-and-patterns'];
     const seventhStages = sp.stages.slice(6, 12);
     expect(seventhStages).toHaveLength(6);
     for (const s of seventhStages) {
-      expect(s.itemRefs).toHaveLength(60);
+      expect(s.itemRefs).toHaveLength(72);
     }
     expect(seventhStages.map(s => s.id)).toEqual([
       'seventh-maj7', 'seventh-min7', 'seventh-dom7',
@@ -66,10 +67,10 @@ describe('Chord-Shapes progression — Layer 2 Sevenths', () => {
     ]);
   });
 
-  it('supplementary-state rows are excluded from acquisition counts', () => {
+  it('supplementary-state rows are INCLUDED since 20 Aug 2026', () => {
     const sp = MODULE_PROGRESSIONS['shapes-and-patterns'];
     const maj7 = sp.stages.find(s => s.id === 'seventh-maj7')!;
-    expect(maj7.itemRefs.some(r => r.endsWith(':supplementary'))).toBe(false);
+    expect(maj7.itemRefs.filter(r => r.endsWith(':supplementary'))).toHaveLength(12);
   });
 });
 

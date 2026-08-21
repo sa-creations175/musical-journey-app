@@ -127,10 +127,10 @@ describe('every catalog has a source wired', () => {
     expect(totals).toMatchObject({
       'harmonic-fluency': 375,
       'reading': 188,
-      // 648 chord shapes + 96 scales + 372 voice-leading. Mental
+      // 720 chord shapes + 96 scales + 372 voice-leading. Mental
       // visualisation's 504 are a submodule of this row and are
       // deliberately NOT in the total — see the exclusion test below.
-      'shapes-and-patterns': 1116,
+      'shapes-and-patterns': 1188,
       // 199 vocabulary cards + 56 lessons.
       'production': 255,
       // 26 intervals + 114 chord recognition + 18 scales & modes +
@@ -241,8 +241,8 @@ describe('routing sources to catalogs', () => {
     expect(mv.totalItems).toBe(504);
 
     // And none of them reach the module row, whose own chord-shape
-    // branch scored 25 and covered one of 1116.
-    expect(sp.root.totalItems).toBe(1116);
+    // branch scored 25 and covered one of 1188.
+    expect(sp.root.totalItems).toBe(1188);
     expect(sp.root.coveredItems).toBe(1);
     expect(sp.root.score).toBe(25);
 

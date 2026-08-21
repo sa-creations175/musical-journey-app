@@ -783,22 +783,25 @@ size load-bearing — 852 stops being trivia and becomes the number a percentage
 is divided by. A denominator padded with shapes that will never be drilled is
 misleading before the dashboard is even built.
 
-### Chord shapes — 852 → 648
+### Chord shapes — 852 → 720
 
 **The catalog keeps triads and sevenths only.**
 
 | Group | Qualities | Rows each | Cells | Gating |
 |---|---|---|---|---|
 | Triads | 6 | 4 (root · 1st · 2nd · fluid) | 288 | 288 |
-| Sevenths | 6 | 6 (root · 1st · 2nd · 3rd · fluid · supplementary) | 432 | 360 |
+| Sevenths | 6 | 6 (root · 1st · 2nd · 3rd · fluid · supplementary) | 432 | 432 |
 | ~~Extensions~~ | ~~14~~ | ~~1~~ | ~~168~~ | **cut** |
 | ~~Special / sixth~~ | ~~3~~ | ~~1~~ | ~~36~~ | **cut** |
 
 ```
 triads    6 × 4 × 12 = 288      288 gating
-sevenths  6 × 6 × 12 = 432      360 gating  (−72 supplementary)
+sevenths  6 × 6 × 12 = 432      432 gating
                        ───      ───
-                       720      648
+                       720      720
+
+(This block read 648 gating until 20 Aug 2026, when the supplementary
+exclusion was reversed. See "Supplementary rows count" below.)
 ```
 
 **Why the extensions went.** Two independently authored catalogs exclude
@@ -853,27 +856,101 @@ C6-vs-Cmaj13 distractor possible at all.
 
 ### The denominator, stated
 
-> **648 = quality × key × inversion-state, supplementary rows excluded.**
+> **Revised 20 August 2026 — was 648, with supplementary rows excluded.** The
+> exclusion is reversed; see **Supplementary rows count** below for why, and
+> what it cost. The paragraph that argued for the exclusion is kept there
+> rather than deleted.
+
+> **720 = quality × key × inversion-state. Every inversion state counts.**
 >
 > It does **not** multiply by hand (left / right / both) or by style (solid /
 > arpeggiated), even though `spacingState` is keyed
 > `[moduleRef+itemRef+hand+style]` and each combination carries its own
 > independent SM-2 row. Drilling C major root position right-hand-solid and
-> again left-hand-arpeggiated is two spacing rows and **one** covered cell.
+> again left-hand-arpeggiated is two spacing rows and **one** covered row.
 >
-> The cell is the shape in the key. Hands and articulation are ways of
+> The unit is the shape in the key. Hands and articulation are ways of
 > practising it, not separate things to know — and collapsing them keeps the
 > number comparable with every other module, none of which have a hand axis.
 
-`moduleItemCounts.shapesCounts()` and `spTiers.tierTotalCells()` already
-collapsed this way. What changed is that it is now stated, here and in the UI
-affordance, instead of inherited.
+```
+triads    6 × 12 × 4 = 288
+sevenths  6 × 12 × 6 = 432
+                       ───
+                       720
+```
 
-**The 72 supplementary rows stay excluded**, and now get surfaced. They are the
-two-handed LH-root + RH-triad drills — practice tools, not shapes to own.
-Folding them in would put them in the same number as knowing Cmaj7 in second
-inversion. At 72 of 720 materialisable rows they are 10% of the catalog, too
-large to stay `[INVISIBLE]` (see `docs/RULE_LEGIBILITY.md` §1.7).
+### Supplementary rows count — reversed 20 August 2026
+
+The supplementary row seeds four two-handed drills: LH root with RH triad in
+root position, first inversion and second inversion, plus the fluid drill
+moving between them. **That is how a seventh chord actually gets played.** It
+is the most realistic voicing of the six, not a tool for practising the other
+five, so it belongs in the number.
+
+*What the original decision said, kept because it was the reasoning at the
+time:* "**The 72 supplementary rows stay excluded.** They are the two-handed
+LH-root + RH-triad drills — practice tools, not shapes to own. Folding them in
+would put them in the same number as knowing Cmaj7 in second inversion."
+
+The flaw in it: "practice tool" was doing work the row could not support. A
+drill that produces a voicing you play in real music is not scaffolding for
+another voicing — it is the thing itself.
+
+**Consequences, accepted rather than discovered:**
+
+| | Before | After |
+|---|---|---|
+| Chord-shape catalog | 648 | **720** |
+| S&P module total | 1116 | **1188** |
+| Rows to cover, per seventh quality per key | 5 | **6** |
+| `tierTotalCells(2)` | 360 | **432** |
+| Tier-2 unlock bar (50%) | 180 cells | **216 cells** |
+
+Coverage percentages for sevenths drop, because the denominator grew and the
+numerator did not. That is the honest reading, not a regression.
+
+The S&P cold-start injector can now surface two-handed rows to someone who has
+never opened the module, because `enumerateChordShapeItemRefs()` no longer
+skips them.
+
+**`gatesAcquisition()` is deleted, not left returning `true`.** Its only rule
+was this exclusion, so with the exclusion gone it was a guard that always
+passed — a rule nobody can find and nobody can remove.
+
+**Twelve call sites**, and the four that mattered most were the ones not on the
+first list: `moduleItemCounts.shapesCounts()` multiplied by a **literal 5** for
+sevenths rather than reading the catalog, so deleting the exclusion would have
+left it returning 648 with nothing failing anywhere. It now derives the
+multiplier. Three goals-side matchers and two enumerators also had to follow,
+or the denominator would have grown by 72 while the numerator could not reach
+it — the same shape as the bug the catalog cut exposed, in the opposite
+direction.
+
+### Self-assessment does not seed the supplementary row
+
+The chord-shape modal that asks "how well do you know C major?" seeds a spacing
+stage for each inversion state. It skipped supplementary because supplementary
+did not gate; it still skips it, for a different and more durable reason.
+
+**Nothing should be assumed on the player's behalf.** Saying you know Cmaj7
+says nothing about whether you can play it two-handed with the triad in the
+right hand. That is a different physical skill, and seeding a stage onto a row
+never touched would be the app answering a question it did not ask. A
+self-assessment therefore takes a seventh to five of its six rows and no
+further.
+
+**The general rule, which governs anything shaped like this:**
+
+> A self-assessment is guesswork feeding the **session generator**, so it has
+> somewhere to start. The **dashboard** reports what the app has actually
+> recorded. Those are different kinds of claim and they must not
+> cross-contaminate — the dashboard's whole value is that it says *here are
+> your gaps according to what you have done*, not *according to what you once
+> told us about yourself*.
+
+This is also why coverage does not count self-assessed starting stages. That
+rule was already settled; it now has a reason that generalises.
 
 ### Structural consequence — two catalogs, not one
 
@@ -982,6 +1059,18 @@ edit, not a rewrite.
 Turned up while applying the above. **Flagged, not decided** — each needs a
 call that was not in the corrections.
 
+**0. `SHAPES_DEFAULT_TIME_PER_REP_MINUTES` is derived from a catalog that no
+longer exists.** *Logged 20 Aug 2026 during the supplementary reinstatement;
+pre-existing, and untouched by it.* `sessionAlgorithm/timePerAttempt.ts:100`
+derives the 1.66 min/rep constant from `(852 × 1.6 + 48 × 2 + 648) / 1272` —
+852 and 1272 are pre-cut chord-shape and module totals, stale since the catalog
+went to 648 and now doubly so at 720. The constant is **hardcoded on purpose**
+so the file stays dependency-free, and its own comment says "re-derive if the
+catalog shifts". The catalog has shifted twice and nobody re-derived. Nothing
+is broken — a session-length estimate does not have to be exact — but the
+derivation in the comment no longer supports the number above it, which is the
+same defect class as a legend naming a threshold the code does not use.
+
 **1. Mental visualisation is not "the same catalog as chord shapes".**
 *RESOLVED 20 Aug — the 96 extended dominant voicings are cut (see **Catalog
 cuts**), and mental viz is **its own module row**, not part of the Shapes &
@@ -1010,8 +1099,10 @@ all. There are 29 qualities, not one shape. The doc's "four, not three" is
 right for triads and wrong for everything else.
 
 **3. That same code already breaks the new denominator rule — and may be
-right to.** *RESOLVED 20 Aug — the exception is kept and stated. See the
-denominator statement under **Catalog cuts**.* `gatesAcquisition()` filters `supplementary` rows out of coverage
+right to.** *RESOLVED 20 Aug, then REVERSED the same day. The exception was
+kept and stated; on re-reading the legend it was reconsidered and removed
+outright — supplementary rows now gate like every other row, and the
+denominator rule needs no clause. See **Supplementary rows count**.* `gatesAcquisition()` filters `supplementary` rows out of coverage
 denominators (`RULE_LEGIBILITY` §1.7): they are two-handed practice tools, not
 things to acquire. That is an existing, deliberate exception to "the
 denominator is always the full catalog". Either the rule needs an "excluding

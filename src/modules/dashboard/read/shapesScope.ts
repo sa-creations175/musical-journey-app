@@ -7,10 +7,10 @@
  * way. This walks the same three sub-areas from the same sources, so a
  * catalog change flows into both.
  *
- * The `supplementary` skip is the load-bearing line: those two-handed
- * seventh rows are drillable but do not gate acquisition, which is the
- * whole difference between 720 materialisable rows and the 648 the
- * denominator counts.
+ * There is no `supplementary` skip any more. Those two-handed seventh
+ * rows were excluded from every denominator until 20 Aug 2026; they now
+ * gate acquisition like every other inversion state, and the chord-shape
+ * catalog is 720.
  */
 import {
   CHORD_QUALITIES,
@@ -26,7 +26,6 @@ export function enumerateChordShapeRefs(): string[] {
   for (const q of CHORD_QUALITIES) {
     for (const key of KEYS) {
       for (const state of INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind]) {
-        if (state === 'supplementary') continue;
         out.push(state
           ? `chord-shape:${q.id}:${key}:${state}`
           : `chord-shape:${q.id}:${key}`);

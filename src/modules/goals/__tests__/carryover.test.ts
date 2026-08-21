@@ -49,10 +49,11 @@ const MAY_END     = new Date(2026, 4, 31, 23, 59, 59, 999).getTime();
 // Catalog scope sizes — pinned in tests so any catalog drift fails
 // here loudly (mirrors the moduleItemCounts.test.ts pattern). Triad
 // per-quality groups = 12 keys × 4 inv states. Sevenths overall
-// per-quality wrapper = 6 seventh qualities × 12 keys × 5 inv
-// states (root/inv1/inv2/inv3/fluid, supplementary excluded).
+// per-quality wrapper = 6 seventh qualities × 12 keys × 6 inv
+// states — root/inv1/inv2/inv3/fluid AND supplementary, which started
+// gating acquisition on 20 Aug 2026.
 const SHAPES_TRIAD_AUG_SCOPE = 12 * 4;     // 48
-const SHAPES_SEVENTHS_SCOPE  = 6 * 12 * 5; // 360
+const SHAPES_SEVENTHS_SCOPE  = 6 * 12 * 6; // 432
 
 async function clearAll() {
   await db.goals.clear();

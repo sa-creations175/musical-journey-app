@@ -130,15 +130,21 @@ describe('tierTotalCells', () => {
     expect(tierTotalCells(1)).toBe(6 * 4 * 12);
   });
 
-  it('tier 2 = 6 sevenths × 5 acquisition-gating states × 12 keys = 360', () => {
+  it('tier 2 = 6 sevenths × 6 inversion states × 12 keys = 432', () => {
     // seventh kind has ['root', 'inv1', 'inv2', 'inv3', 'fluid',
-    // 'supplementary']; supplementary is filtered out by
-    // gatesAcquisition. 5 states × 6 × 12 = 360.
-    expect(tierTotalCells(2)).toBe(6 * 5 * 12);
+    // 'supplementary'] and ALL SIX gate since 20 Aug 2026, when the
+    // supplementary exclusion was reversed. 6 × 6 × 12 = 432.
+    expect(tierTotalCells(2)).toBe(6 * 6 * 12);
   });
 
-  it('the two tiers sum to the 648 acquisition catalog', () => {
-    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(648);
+  it('the two tiers sum to the 720 catalog', () => {
+    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(720);
+  });
+
+  it('moved the tier-2 unlock bar from 180 cells to 216', () => {
+    // A CONSEQUENCE TAKEN DELIBERATELY, pinned so it cannot drift back
+    // unnoticed: unlock is 50% of the tier's cells, and the tier grew.
+    expect(tierTotalCells(2) * SP_TIER_UNLOCK_THRESHOLD).toBe(216);
   });
 });
 

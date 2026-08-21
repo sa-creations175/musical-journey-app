@@ -189,6 +189,30 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
       return;
     }
     const stage: AcquisitionStage = level === 'familiar' ? 'acquiring' : 'acquired';
+    /**
+     * THE SUPPLEMENTARY ROW IS STILL SKIPPED, and now for a different
+     * reason than it used to be.
+     *
+     * It used to be skipped because it did not gate acquisition at all.
+     * Since 20 Aug 2026 it does — it is a shape to own like the other
+     * five — and it is skipped here anyway, because NOTHING SHOULD BE
+     * ASSUMED ON THE PLAYER'S BEHALF. Saying you know Cmaj7 says
+     * nothing about whether you can play it two-handed with the triad
+     * in the right hand; that is a different physical skill, and
+     * seeding a stage onto a row never touched would be the app
+     * answering a question it did not ask.
+     *
+     * The consequence is accepted: a self-assessment takes a seventh to
+     * five of its six rows and no further. The sixth needs real reps.
+     *
+     * The general rule, which governs anything shaped like this: a
+     * self-assessment is guesswork feeding the SESSION GENERATOR, so it
+     * has somewhere to start. The dashboard reports what the app has
+     * actually recorded. The two must not cross-contaminate — the
+     * dashboard's whole value is that it says "here are your gaps
+     * according to what you have done", not "according to what you once
+     * told us about yourself".
+     */
     const pathStates = states.filter(s => s !== 'supplementary');
     setSeedingAssessment(true);
     try {

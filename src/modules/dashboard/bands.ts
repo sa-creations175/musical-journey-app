@@ -356,18 +356,10 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
         + 'from the reps you log.',
     },
     {
-      rule: 'Shapes & Patterns divides by 648 chord shapes, and there are 720 '
-        + 'you can open and drill.',
-      why: 'The extra 72 are two-handed exercises: ways of working on a shape '
-        + 'rather than shapes to learn in their own right. They are there to '
-        + 'drill whenever they are useful, without adding to what there is to '
-        + 'cover.',
-    },
-    {
-      rule: 'One cell is one shape in one key, however many ways you practise '
-        + 'it.',
+      rule: 'In Shapes & Patterns an item row is one shape in one key, '
+        + 'however many ways you practise it.',
       why: 'Right hand, left hand, solid, broken: all of them fill in the same '
-        + 'cell. So the number stays a count of shapes you know, and stays '
+        + 'row. So the number stays a count of shapes you know, and stays '
         + 'comparable with the modules that have no hand to choose.',
     },
   ],

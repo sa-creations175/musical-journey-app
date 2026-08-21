@@ -11,7 +11,6 @@ import { addDrillSession } from '../../lib/practiceWrites';
 import {
   CHORD_QUALITY_BY_ID,
   defaultDrillForChordShape,
-  gatesAcquisition,
   isCatalogQuality,
   defaultDrillTypesForMentalViz,
   defaultDrillTypesForScale,
@@ -359,18 +358,17 @@ function defaultDrillTypesForDescriptor(desc: SkillDescriptor) {
  * something the current catalog still counts toward coverage.
  *
  * WHY THIS EXISTS — the coverage numerator would otherwise exceed the
- * denominator, in two separate ways:
+ * denominator:
  *
- *   1. Cut qualities. Practice data for the 17 qualities removed on
+ *   Cut qualities. Practice data for the 17 qualities removed on
  *      20 Aug 2026 is deliberately KEPT, so adding one back restores
  *      its history intact. Those spacingState rows still carry
  *      moduleRef 'shapes-and-patterns' and still reach `acquired`, but
- *      the denominator (648) no longer counts them.
- *   2. Supplementary rows. `gatesAcquisition` has always excluded the
- *      two-handed seventh rows from denominators, and the overall
- *      shapes coverage numerator has never filtered them — a
- *      pre-existing overcount that the smaller denominator makes
- *      visible rather than causes.
+ *      the denominator no longer counts them.
+ * Supplementary rows used to be a second reason, and are not any
+ * more: `gatesAcquisition` excluded the two-handed seventh rows from
+ * every denominator until 20 Aug 2026, when they were folded back in.
+ * They now count on both sides, like every other inversion state.
  *
  * Scale and voice-leading itemRefs pass through untouched: they are
  * part of the same moduleRef and the same coverage total.
@@ -379,8 +377,7 @@ export function countsTowardShapesCoverage(itemRef: string): boolean {
   const desc = parseShapesItemRef(itemRef);
   if (!desc) return false;
   if (desc.kind !== 'chord-shape') return true;
-  if (!isCatalogQuality(desc.quality)) return false;
-  return gatesAcquisition(desc.inversionState);
+  return isCatalogQuality(desc.quality);
 }
 
 export function parseShapesItemRef(itemRef: string): SkillDescriptor | null {

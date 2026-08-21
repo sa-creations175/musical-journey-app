@@ -4,7 +4,7 @@
  * Practice data for qualities cut from the drill catalog on 20 Aug 2026
  * is deliberately KEPT — adding a quality back should restore its
  * history at the stage it was left. That means `spacingState` holds
- * `shapes-and-patterns` rows the 648-item denominator does not count,
+ * `shapes-and-patterns` rows the 720-item denominator does not count,
  * and without this predicate on the numerator a coverage percentage can
  * read over 100%.
  *
@@ -36,11 +36,13 @@ describe('countsTowardShapesCoverage', () => {
     }
   });
 
-  it('rejects supplementary rows — practice tools, not acquisition', () => {
-    // 6 sevenths × 12 keys = the 72 rows between 720 materialisable
-    // and 648 gating.
-    expect(countsTowardShapesCoverage('chord-shape:maj7:C:supplementary')).toBe(false);
-    expect(countsTowardShapesCoverage('chord-shape:dom7:Ab:supplementary')).toBe(false);
+  it('ACCEPTS supplementary rows — shapes to own since 20 Aug 2026', () => {
+    // 6 sevenths × 12 keys = 72 rows. They sat outside every
+    // denominator until the two-handed LH-root + RH-triad voicing was
+    // recognised as a shape to own rather than a way of practising the
+    // other five.
+    expect(countsTowardShapesCoverage('chord-shape:maj7:C:supplementary')).toBe(true);
+    expect(countsTowardShapesCoverage('chord-shape:dom7:Ab:supplementary')).toBe(true);
   });
 
   it('passes scales and voice-leading through untouched', () => {
@@ -56,7 +58,7 @@ describe('countsTowardShapesCoverage', () => {
     expect(countsTowardShapesCoverage('')).toBe(false);
   });
 
-  it('the surviving catalog is exactly 12 qualities / 648 gating cells', () => {
+  it('the surviving catalog is exactly 12 qualities / 720 cells', () => {
     // Guard against a quality quietly coming back without a decision.
     const catalogRefs: string[] = [];
     for (const q of ['maj', 'min', 'dim', 'aug', 'sus2', 'sus4']) {
@@ -65,11 +67,12 @@ describe('countsTowardShapesCoverage', () => {
       }
     }
     for (const q of ['maj7', 'min7', 'dom7', 'm7b5', 'dim7', 'mmaj7']) {
-      for (const state of ['root', 'inv1', 'inv2', 'inv3', 'fluid']) {
+      // Six states, `supplementary` included since 20 Aug 2026.
+      for (const state of ['root', 'inv1', 'inv2', 'inv3', 'fluid', 'supplementary']) {
         catalogRefs.push(`chord-shape:${q}:C:${state}`);
       }
     }
     expect(catalogRefs.every(countsTowardShapesCoverage)).toBe(true);
-    expect(catalogRefs.length * 12).toBe(648);
+    expect(catalogRefs.length * 12).toBe(720);
   });
 });

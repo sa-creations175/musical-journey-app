@@ -198,29 +198,29 @@ export const INVERSION_STATES_FOR_CHORD_SHAPE_KIND: Record<
 };
 
 /**
- * Whether an inversion-state skill row counts toward acquisition —
- * i.e. shows up in coverage denominators and goal progress.
+ * `gatesAcquisition()` USED TO LIVE HERE, and it is gone.
  *
- * ONE RULE: `supplementary` rows don't gate. They host the two-handed
- * LH-root + RH-triad drills, which are practice tools rather than
- * shapes to own; counting them would put two-handed comping in the same
- * number as knowing Cmaj7 in second inversion.
+ * Its one rule was that `supplementary` rows did not count toward
+ * acquisition: they were treated as practice tools rather than shapes
+ * to own, and 72 rows — 6 sevenths × 12 keys — sat outside every
+ * coverage denominator.
  *
- * That is 72 rows — 6 sevenths × 12 keys — out of 720 materialisable,
- * so the drillable catalog is 720 and the acquisition catalog is 648.
- * At 10% of the catalog this is too large to leave unexplained; it is
- * surfaced in the coverage affordance rather than only living here.
- * See docs/RULE_LEGIBILITY.md §1.7.
+ * REVERSED 20 August 2026. The supplementary row seeds four two-handed
+ * drills — LH root with RH triad in root position, 1st and 2nd, plus
+ * the fluid drill moving between them — and that is how a seventh chord
+ * actually gets played. It is the most realistic voicing of the six,
+ * not a tool for practising the others, so it belongs in the number.
+ * The chord-shape catalog is 720, and every inversion state gates.
  *
- * The `kind` argument used to be part of this and was always dead —
- * only sevenths have a `supplementary` state, so the extension/special
- * early-return could never change the answer.
+ * The function is deleted rather than left returning `true`, because a
+ * guard that always passes is a rule nobody can find and nobody can
+ * remove. Every call site now has one fewer thing to remember.
+ *
+ * Consequences taken deliberately: a seventh quality needs six rows
+ * covered rather than five, so its coverage percentages drop; and
+ * `tierTotalCells(2)` goes 360 → 432, which moves the tier-2 unlock bar
+ * from 180 comfortable cells to 216.
  */
-export function gatesAcquisition(
-  inversionState: InversionState | null | undefined,
-): boolean {
-  return inversionState !== 'supplementary';
-}
 
 /**
  * True when `quality` is in the current DRILL catalog.

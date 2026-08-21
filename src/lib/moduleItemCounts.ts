@@ -36,8 +36,10 @@
 
 import {
   CHORD_QUALITIES,
+  INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
   voiceLeadingTotalCellCount,
+  type QualityKind,
 } from '../modules/shapes-and-patterns/catalog';
 import { SCALE_CELLS } from '../modules/shapes-and-patterns/scaleSkills';
 import { INTERVAL_SEEDS } from '../modules/ear-training/intervals/seed';
@@ -141,11 +143,15 @@ export function harmonicFluencyCounts(): HarmonicFluencyCounts {
 // =====================================================================
 
 export interface ShapesCounts {
-  /** Acquisition-path chord-shape items: triads (6×12×4 inversions =
-   *  288) + sevenths (6×12×5 inversions = 360) + extensions (14×12 =
-   *  168) + special/sixth (3×12 = 36) = 852. Excludes the
-   *  `supplementary` two-handed seventh rows — those are practice
-   *  tools, not acquisition-gating items. */
+  /** Chord-shape items: triads (6 × 12 keys × 4 inversion states = 288)
+   *  + sevenths (6 × 12 × 6 = 432) = 720. Extensions and special/sixth
+   *  contribute 0 — they were cut from the catalog on 20 Aug 2026.
+   *
+   *  EVERY inversion state counts, the sevenths' `supplementary`
+   *  two-handed row included. It was excluded until 20 Aug 2026, on the
+   *  grounds that it was a practice tool; it is the LH-root + RH-triad
+   *  voicing, which is how the chord actually gets played, so it is a
+   *  shape to own like the other five. */
   chordShapeDrills: number;
   /** Sourced from scaleSkills' SCALE_CELLS catalog — 96 after the
    *  Scales-submodule pent fan-out (3 starting points × 12 keys for
@@ -162,14 +168,23 @@ export interface ShapesCounts {
 }
 
 export function shapesCounts(): ShapesCounts {
-  // Per-quality-kind item counts. Triads + sevenths multiply by their
-  // acquisition-path inversion-state count (4 / 5); extensions +
-  // special/sixth keep their voicing-based one-row-per-cell shape.
-  const triadCount     = CHORD_QUALITIES.filter(q => q.kind === 'triad').length     * KEYS.length * 4;
-  const seventhCount   = CHORD_QUALITIES.filter(q => q.kind === 'seventh').length   * KEYS.length * 5;
-  const extensionCount = CHORD_QUALITIES.filter(q => q.kind === 'extension').length * KEYS.length;
-  const specialCount   = CHORD_QUALITIES.filter(q => q.kind === 'special').length   * KEYS.length;
-  const chordShapeDrills = triadCount + seventhCount + extensionCount + specialCount;
+  /**
+   * Per-quality-kind item counts, with the inversion-state multiplier
+   * READ OFF THE CATALOG rather than written as a literal.
+   *
+   * It used to be a hardcoded `4` for triads and `5` for sevenths. The
+   * 5 was 6 states minus the `supplementary` one, which was excluded
+   * from acquisition — so when that exclusion was reversed on
+   * 20 Aug 2026 this function would have gone on returning 648 with
+   * nothing anywhere failing. A denominator that does not follow its
+   * own catalog is how a percentage goes wrong quietly.
+   */
+  const perKind = (kind: QualityKind) =>
+    CHORD_QUALITIES.filter(q => q.kind === kind).length
+    * KEYS.length
+    * INVERSION_STATES_FOR_CHORD_SHAPE_KIND[kind].length;
+  const chordShapeDrills =
+    perKind('triad') + perKind('seventh') + perKind('extension') + perKind('special');
   const scaleDrills = SCALE_CELLS.length;
   const voiceLeading = voiceLeadingTotalCellCount();
   return {

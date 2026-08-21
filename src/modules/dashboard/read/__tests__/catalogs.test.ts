@@ -65,19 +65,21 @@ describe('catalog sizes — the denominators', () => {
     expect(productionLessonsCatalog.accuracyKind).toBe('self-rated');
   });
 
-  it('shapes & patterns: 648 chord shapes + 96 scales + 372 VL = 1116', () => {
-    expect(catalogItemCount(shapesCatalog)).toBe(1116);
+  it('shapes & patterns: 720 chord shapes + 96 scales + 372 VL = 1188', () => {
+    expect(catalogItemCount(shapesCatalog)).toBe(1188);
     const refs = catalogRefSet(shapesCatalog);
-    expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(648);
+    expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(720);
     expect([...refs].filter(r => r.startsWith('scale:'))).toHaveLength(96);
     expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(372);
   });
 
-  it('shapes excludes supplementary rows — 648 gating, not 720', () => {
-    // The 72 two-handed seventh rows are drillable but do not gate
-    // acquisition. That gap is the whole reason 720 and 648 differ.
-    const refs = catalogRefSet(shapesCatalog);
-    expect([...refs].some(r => r.endsWith(':supplementary'))).toBe(false);
+  it('INCLUDES the 72 supplementary rows — 720, not 648', () => {
+    // Reversed 20 Aug 2026. The two-handed LH-root + RH-triad row is
+    // how a seventh chord actually gets played, so it is a shape to own
+    // rather than a tool for practising the other five. 6 sevenths ×
+    // 12 keys = 72, and the catalog is 720 rather than 648.
+    const refs = [...catalogRefSet(shapesCatalog)];
+    expect(refs.filter(r => r.endsWith(':supplementary'))).toHaveLength(72);
   });
 
   it('mental visualisation: 504, and its own module row', () => {

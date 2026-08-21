@@ -28,7 +28,7 @@
  * `SP_TIER_UNLOCK_THRESHOLD` (50%) of the tier-N possible-cell
  * count is at acquisitionStage `comfortable` or `internalized`.
  * Possible cells = catalog inversion-state count × 12 keys per
- * quality, with `supplementary` filtered via `gatesAcquisition`.
+ * quality. Every inversion state counts, supplementary included.
  */
 
 import {
@@ -39,7 +39,6 @@ import {
 import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
-  gatesAcquisition,
 } from './catalog';
 import { parseShapesItemRef } from './drillModel';
 
@@ -124,7 +123,7 @@ export function shapesForTier(tier: SPTier): readonly string[] {
 
 /**
  * Total *possible* cells in a tier — sum across qualities of
- * (inversion-states that gate acquisition × 12 keys). The
+ * (inversion states × 12 keys). The
  * tier-unlock check uses this as the denominator so advancement
  * requires broad coverage of the tier, not just mastery of a few
  * touched cells.
@@ -137,8 +136,7 @@ export function tierTotalCells(tier: SPTier): number {
     const entry = CHORD_QUALITY_BY_ID.get(qualityId);
     if (!entry) return sum;
     const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[entry.kind];
-    const eligible = states.filter(s => gatesAcquisition(s));
-    return sum + eligible.length * KEY_COUNT;
+    return sum + states.length * KEY_COUNT;
   }, 0);
 }
 

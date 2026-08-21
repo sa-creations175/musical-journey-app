@@ -69,7 +69,6 @@ function enumerateAllChordShapes(): string[] {
         // Supplementary rows are practice tools, not coverage-gating
         // — moduleItemCounts and the Shapes coverage matchers both
         // exclude them. Keep parity here.
-        if (state === 'supplementary') continue;
         out.push(
           state
             ? `chord-shape:${q.id}:${key}:${state}`

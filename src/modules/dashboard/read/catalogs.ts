@@ -579,12 +579,12 @@ function shapeLabel(itemRef: string): { label: string; path: string[] } {
 }
 
 /**
- * 648 acquisition-path chord shapes + 96 scale cells + 372
- * voice-leading sub-cells.
+ * 720 chord shapes + 96 scale cells + 372 voice-leading sub-cells.
  *
- * `enumerateAllShapes` already excludes the 72 supplementary rows, and
- * that exclusion is the whole difference between the 720 rows a player
- * can drill and the 648 the denominator counts.
+ * The 72 two-handed supplementary rows were outside every denominator
+ * until 20 Aug 2026 — 648 rather than 720. They now gate acquisition
+ * like every other inversion state, so what a player can drill and what
+ * the denominator counts are the same number again.
  */
 export const shapesCatalog: ModuleCatalog = {
   sourceId: 'shapes-and-patterns',
