@@ -263,7 +263,38 @@ real one, which is a design question, not a refactor.
 
 ---
 
-### 11. MIDI-in accuracy grading
+### 11. A due column, and a spacing settings surface
+
+**What.** Two halves of one finding.
+
+A **due column on the dashboard**, across every module, sortable most-due
+first — so "what should I do now" is answerable from the screen that already
+answers "how am I doing".
+
+A **spacing settings surface**: every module's interval rule stated in plain
+language — what the algorithm does to the interval on a good answer and a bad
+one, what its ceiling is, and the ceiling editable per module.
+
+**Why. This is the same finding as the dashboard itself.** `RULE_LEGIBILITY.md`
+tracks roughly seventy rules the app enforces without ever showing, and the
+spacing caps are exactly that class: `MAX_INTERVAL_BY_MEMORY_TYPE` decides how
+often every item in every module comes back, and nobody has ever seen it.
+Nobody noticed it was wrong or right because it never surfaced — which is the
+definition of the problem, not evidence there is no problem.
+
+The repertoire cap (30 days, `integration`) is the first one to get a control,
+in the song-page redesign. That is a single module getting an exception; this
+entry is the general version, and it should replace the exception rather than
+sit beside it.
+
+**Design.** No doc yet. Needs decisions on where the settings surface lives
+(`SettingsPanel` exists as of the spelling work), whether the caps stay
+per-memory-type or become per-module, and what a due column shows for modules
+whose items are recency-driven rather than due-dated.
+
+---
+
+### 12. MIDI-in accuracy grading
 
 **What.** Grade S&P and Song Repertoire from a plugged-in keyboard — exact note
 numbers, exact timestamps, no pitch detection.
