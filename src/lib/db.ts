@@ -60,6 +60,25 @@ export interface ChordShapeData {
  * union does not need to keep a value nothing should be written any
  * more.
  */
+/** A recorded drop, with everything the notice needs to render long
+ *  after the cause has changed. */
+export interface SongStageDemotion {
+  /** When the drop was detected. */
+  at: number;
+  /** The rung it fell from, and the one it landed on. These can be
+   *  more than one apart: "four quadrants held" is shared between
+   *  comfortable → cross-key and cross-key → internalized, so one
+   *  stale key fails both rungs at once. */
+  from: RepertoireStage;
+  to: RepertoireStage;
+  /** The criterion that stopped being met, as it read at the time. */
+  criterionLabel: string;
+  /** Which key, and when it lapsed — the detail that makes the notice
+   *  actionable rather than merely true. Absent when the criterion had
+   *  nothing more specific to say. */
+  detail?: string;
+}
+
 export type RepertoireStage =
   | 'learning'
   | 'comfortable'
@@ -110,10 +129,49 @@ export interface Song {
    *  preset dropdown with an "Other" → free-text fallback.
    *  Unindexed; rides in the data JSONB blob across sync. */
   timeSignature?: string;
-  /** Current user-controlled stage. Defaults to 'learning' for new
-   *  songs. Advancement is user-driven; the UI suggests when criteria
-   *  are met but never forces a change. */
+  /**
+   * The last stage this song was OBSERVED at — not a stage the user
+   * chose.
+   *
+   * ---------------------------------------------------------------
+   * THE MEANING OF THIS FIELD CHANGED, THE FIELD DID NOT.
+   *
+   * It used to be user-controlled: a dropdown and an "advance" button
+   * wrote it, and nothing else could. Stage is DERIVED now, computed
+   * from `stageCriteria` — play it, prove it, three times. There is no
+   * dropdown, no advance button and no override.
+   *
+   * So this stops being an input and becomes a WATERMARK: the value
+   * the derivation last produced. It exists for exactly one reason —
+   * a derived value cannot notice itself changing. Comparing the fresh
+   * derivation against this is what makes a demotion detectable, and a
+   * demotion nobody detects is a demotion nobody can be told about.
+   *
+   * Existing stored values seed that comparison rather than being
+   * discarded. A song sitting at a hand-set stage simply reports its
+   * first derivation as a change, which is true.
+   * ---------------------------------------------------------------
+   */
   stage?: RepertoireStage;
+  /**
+   * The most recent demotion, kept so it can be shown.
+   *
+   * STORED, NOT DERIVED, and that is the whole point. The moment the
+   * user re-proves the key that lapsed, the criterion passes again and
+   * a derived explanation would vanish — leaving a song that silently
+   * dropped a rung and silently got it back, with nothing on screen to
+   * say either happened. The notice has to survive its own cause being
+   * fixed.
+   *
+   * Composed strings rather than references, for the same reason: the
+   * key it names may since have been re-proved, renamed, or had its
+   * spelling changed, and the notice still has to read correctly about
+   * a moment in the past.
+   *
+   * Cleared when the song climbs back to or above `from`. Unindexed,
+   * so no version bump; rides in the sync blob.
+   */
+  stageDemotion?: SongStageDemotion;
   /** User-controlled learning sequence — 1-indexed, ASC = study
    *  next. Backfilled on first load to addedDate-ASC rank for
    *  existing rows (oldest = 1). The Repertoire home's
