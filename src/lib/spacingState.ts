@@ -66,6 +66,8 @@ export type EngagementSignal =
   | { kind: 'recency' };
 
 export interface RecordEngagementInput {
+  /** Per-caller interval bounds. See `computeIntervalDays`. */
+  bounds?: IntervalBounds;
   itemRef: string;
   moduleRef: string;
   signal: EngagementSignal;
@@ -198,14 +200,39 @@ export const MAX_INTERVAL_BY_MEMORY_TYPE: Record<MemoryType, number> = {
  * priorInterval = 0 (never engaged) starts at INITIAL_INTERVAL_DAYS
  * before scaling.
  */
+export interface IntervalBounds {
+  /** Interval to grow from on a first engagement, in days. */
+  initialDays: number;
+  /** Ceiling, in days. */
+  maxDays: number;
+}
+
 export function computeIntervalDays(input: {
   memoryType: MemoryType;
   priorInterval: number;
   signal: EngagementSignal;
+  /**
+   * Per-caller override for the two ends of the sequence.
+   *
+   * OPTIONAL, so every existing caller keeps the memory-type defaults
+   * and nothing changes for them. Added for repertoire, where the
+   * floor and the ceiling became user settings — a cap that decides
+   * how often every key comes back, and that nobody has ever seen, is
+   * exactly the class of hidden rule RULE_LEGIBILITY tracks.
+   *
+   * The GROWTH RULE is not overridable, only its ends: doubling on a
+   * good signal and halving on a bad one is the algorithm, and a
+   * caller that could change it would not be using the same engine as
+   * everything else. Build-queue item 11 generalises the bounds to
+   * every module; until then repertoire is the one caller that passes
+   * them.
+   */
+  bounds?: IntervalBounds;
 }): number {
-  const { memoryType, priorInterval, signal } = input;
-  const max = MAX_INTERVAL_BY_MEMORY_TYPE[memoryType];
-  const base = priorInterval > 0 ? priorInterval : INITIAL_INTERVAL_DAYS;
+  const { memoryType, priorInterval, signal, bounds } = input;
+  const max = bounds?.maxDays ?? MAX_INTERVAL_BY_MEMORY_TYPE[memoryType];
+  const initial = bounds?.initialDays ?? INITIAL_INTERVAL_DAYS;
+  const base = priorInterval > 0 ? priorInterval : initial;
 
   let next: number;
   if (signal.kind === 'attempt') {
@@ -315,6 +342,7 @@ export async function recordEngagement(
       memoryType,
       priorInterval: 0,
       signal,
+      bounds: input.bounds,
     });
     const row: SpacingState = {
       id: crypto.randomUUID(),
@@ -345,6 +373,7 @@ export async function recordEngagement(
     memoryType,
     priorInterval: existing.currentIntervalDays,
     signal,
+    bounds: input.bounds,
   });
   const updated: SpacingState = {
     ...existing,

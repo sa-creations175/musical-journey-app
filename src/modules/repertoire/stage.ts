@@ -6,6 +6,7 @@ import {
   coveredQuadrants,
   isHeld,
 } from './matrix/keyProgress';
+import type { DueWindows } from './matrix/keySpacing';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -199,6 +200,20 @@ export interface AdvancementInputs {
    * for a run at tempo.
    */
   performanceTempo: number | null;
+  /**
+   * When each key is next due to be proven, by `songKeys.id`. A key
+   * absent from the map, or mapped to null, has never been proven —
+   * which is not the same as due now.
+   *
+   * REQUIRED, not optional with an empty-map default. A caller that
+   * forgot to pass it would see every key read as never-proven, which
+   * HOLDS the rung — so the rules would quietly stop demoting and
+   * nothing would look wrong. Same shape as the field that started
+   * this workstream.
+   */
+  dueByKeyId: ReadonlyMap<string, number | null>;
+  /** The user's due-soon and grace windows. */
+  dueWindows: DueWindows;
 }
 
 /**
@@ -297,7 +312,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
     }
 
     case 'comfortable': {
-      const held = input.songKeys.filter(k => isHeld(k, input.now));
+      const held = input.songKeys.filter(k => isHeld(k, input.now, input.dueByKeyId.get(k.id) ?? null, input.dueWindows));
       const covered = coveredQuadrants(held.map(k => k.keyName));
       const missing = KEY_QUADRANTS
         .map((q, i) => (covered.has(i) ? null : q.join(' · ')))
@@ -316,7 +331,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
 
     case 'cross-key': {
       const held = new Set(
-        input.songKeys.filter(k => isHeld(k, input.now)).map(k => k.id),
+        input.songKeys.filter(k => isHeld(k, input.now, input.dueByKeyId.get(k.id) ?? null, input.dueWindows)).map(k => k.id),
       );
       const covered = coveredQuadrants(
         input.songKeys.filter(k => held.has(k.id)).map(k => k.keyName),

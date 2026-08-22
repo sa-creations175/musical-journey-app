@@ -10,6 +10,7 @@ import { SPELLING_LABEL, useSpelling } from '../lib/spellingPref';
 import type { Spelling } from '../lib/spelling';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
+import SpacingSettingsSection from '../modules/repertoire/SpacingSettingsSection';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -264,6 +265,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
               </button>
             </div>
           </section>
+
+          <SpacingSettingsSection />
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">

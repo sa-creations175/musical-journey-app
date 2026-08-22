@@ -1,7 +1,7 @@
 import type { SongKey, SongKeyState } from '../../../lib/db';
 import { CIRCLE_OF_FOURTHS_KEYS } from './keys';
 import { spellKey, type Spelling } from '../../../lib/spelling';
-import { computeSolidDecayState } from './solidDecay';
+import { keyDueState, stateHoldsRung, type DueWindows } from './keySpacing';
 
 /**
  * The primitives the stage-advancement rules read about a key: which
@@ -135,21 +135,35 @@ export function isComfortableOrBetter(state: SongKeyState): boolean {
 /**
  * Whether the user still holds this key right now.
  *
- * Comfortable-or-better AND not lapsed. Decay applies only to solid
- * keys — `computeSolidDecayState` returns null for anything else —
- * so a merely-comfortable key is held for as long as it stays
- * comfortable, and only a key that climbed to solid can fall out of
- * hold by going stale.
+ * Comfortable-or-better AND not overdue.
  *
- * LIVE-DERIVED, never read off `songKey.solidDecayState`. That column
- * is a snapshot written on save and it goes stale by design: a key
- * that drifts solid → fading → lapsed while the song sits unopened
- * keeps a column saying 'solid' until the user next engages. The
- * decay module is explicit that in-view code must always derive, and
- * the stage rules run in view. Reading the column would mean a key
- * untouched for months still counted as held.
+ * ---------------------------------------------------------------
+ * THIS USED TO ASK A FLAT QUESTION AND NO LONGER DOES.
+ *
+ * The old rule was `computeSolidDecayState(...) !== 'lapsed'` — 30
+ * days since last engagement, every key on every song, however many
+ * times it had been proven. A song proven five times came due exactly
+ * as often as one that scraped through once: the opposite of what
+ * spacing is for, in an app that already drills every other module
+ * with a real spacing engine.
+ *
+ * It now reads a due date that STRETCHES with each pass and shortens
+ * on a failed test, with both windows around it under the user's
+ * control. Only `overdue` — past due AND past grace — stops holding
+ * the rung; due and due-soon are warnings with time left to act.
+ *
+ * `nextDueAt` is passed in rather than read here so this stays pure
+ * and synchronous. It is called inside the stage rules, which run in
+ * a `useMemo` during render, and a Dexie read there is a different
+ * kind of bug.
  */
-export function isHeld(songKey: SongKey, now: number): boolean {
+export function isHeld(
+  songKey: SongKey,
+  now: number,
+  /** When this key is next due, or null when never proven. */
+  nextDueAt: number | null,
+  windows: DueWindows,
+): boolean {
   if (!isComfortableOrBetter(songKey.keyState)) return false;
-  return computeSolidDecayState(songKey, now) !== 'lapsed';
+  return stateHoldsRung(keyDueState(nextDueAt, now, windows));
 }

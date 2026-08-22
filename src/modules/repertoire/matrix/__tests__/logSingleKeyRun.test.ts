@@ -22,11 +22,20 @@ import {
   saveKeyAttemptsAndRollup,
 } from '../cellRollup';
 import { isHeld } from '../keyProgress';
+import {
+  DUE_SOON_DEFAULT_DAYS,
+  GRACE_DEFAULT_DAYS,
+  type DueWindows,
+} from '../keySpacing';
 import { evaluateAdvancement } from '../../stage';
 
 const NOW = 1_700_000_000_000;
 const SONG = 's1';
 const TEMPO = 100;
+const WINDOWS: DueWindows = {
+  dueSoonDays: DUE_SOON_DEFAULT_DAYS,
+  graceDays: GRACE_DEFAULT_DAYS,
+};
 
 function mkKey(overrides: Partial<SongKey> = {}): SongKey {
   return {
@@ -288,6 +297,8 @@ describe('testing a key whose sections are not comfortable', () => {
       keyRunThroughs: [],
       performanceTempo: TEMPO,
       now: NOW,
+      dueByKeyId: new Map(),
+      dueWindows: WINDOWS,
     }).suggest).toBe(true);
   });
 
@@ -304,6 +315,6 @@ describe('testing a key whose sections are not comfortable', () => {
       expectedSectionCount: 1, now: NOW,
     });
     const after = (await db.songKeys.get('key-1'))!;
-    expect(isHeld(after, NOW)).toBe(false);
+    expect(isHeld(after, NOW, null, WINDOWS)).toBe(false);
   });
 });

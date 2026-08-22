@@ -91,6 +91,13 @@ import PracticeHistory from './PracticeHistory';
 import StageCriteriaPanel from './StageCriteriaPanel';
 import SectionGuidance from './SectionGuidance';
 import SongTimerStrip from './SongTimerStrip';
+import { dueByKeyId } from './matrix/proveKey';
+import {
+  SPACING_DEFAULTS,
+  getSpacingSettings,
+  windowsFrom,
+  type SongKeySpacingSettings,
+} from './spacingPrefs';
 import SongHeatmap from './SongHeatmap';
 import PracticeLogModal from './PracticeLogModal';
 import CellAnchoredMessage from './CellAnchoredMessage';
@@ -562,13 +569,34 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // evaluating against this morning's clock is acceptable; the value
   // only feeds `isHeld`'s 30-day lapse threshold.
   const [advancementNow] = useState(() => Date.now());
+  // Due dates and windows for the stage rules. Both are async reads,
+  // so they start at "never proven / defaults" — which HOLDS every
+  // rung rather than dropping one. A first paint that briefly demoted
+  // a song would be a demotion notice for a lapse that had not
+  // happened.
+  const [dueMap, setDueMap] = useState<ReadonlyMap<string, number | null>>(new Map());
+  const [spacing, setSpacing] = useState<SongKeySpacingSettings>(SPACING_DEFAULTS);
+  useEffect(() => {
+    let live = true;
+    void getSpacingSettings().then(s => { if (live) setSpacing(s); });
+    return () => { live = false; };
+  }, []);
+  const keyIds = useMemo(() => matrixKeys.map(k => k.id).join(','), [matrixKeys]);
+  useEffect(() => {
+    let live = true;
+    const ids = keyIds === '' ? [] : keyIds.split(',');
+    void dueByKeyId(ids).then(m => { if (live) setDueMap(m); });
+    return () => { live = false; };
+  }, [keyIds]);
   const advancementInputs = useMemo(() => ({
     currentStage,
     songKeys: matrixKeys,
     keyRunThroughs,
     performanceTempo: song?.tempo ?? null,
     now: advancementNow,
-  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow]);
+    dueByKeyId: dueMap,
+    dueWindows: windowsFrom(spacing),
+  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
   // One input object feeding both, so the panel and the banner cannot
   // be looking at different data even for a render.
   const criteria = useMemo(
@@ -581,7 +609,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     keyRunThroughs,
     performanceTempo: song?.tempo ?? null,
     now: advancementNow,
-  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow]);
+    dueByKeyId: dueMap,
+    dueWindows: windowsFrom(spacing),
+  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
   const nextStageOption = nextStage(currentStage);
 
   const setStage = async (stage: RepertoireStage) => {

@@ -37,6 +37,13 @@ import {
 import SongCard, { formatAddedDate } from './SongCard';
 import AddSongModal from './AddSongModal';
 import { getPref, setPref } from '../../lib/userPrefs';
+import { dueByKeyId } from './matrix/proveKey';
+import {
+  SPACING_DEFAULTS,
+  getSpacingSettings,
+  windowsFrom,
+  type SongKeySpacingSettings,
+} from './spacingPrefs';
 
 interface Props {
   songs: Song[];
@@ -123,6 +130,22 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   ) ?? [];
   // See SongDetailView: captured once, not read during render.
   const [advancementNow] = useState(() => Date.now());
+  // See SongDetailView: async, and defaulting to never-proven holds
+  // every rung rather than briefly dropping one on first paint.
+  const [dueMap, setDueMap] = useState<ReadonlyMap<string, number | null>>(new Map());
+  const [spacing, setSpacing] = useState<SongKeySpacingSettings>(SPACING_DEFAULTS);
+  useEffect(() => {
+    let live = true;
+    void getSpacingSettings().then(s => { if (live) setSpacing(s); });
+    return () => { live = false; };
+  }, []);
+  const allKeyIds = useMemo(() => matrixKeys.map(k => k.id).join(','), [matrixKeys]);
+  useEffect(() => {
+    let live = true;
+    const ids = allKeyIds === '' ? [] : allKeyIds.split(',');
+    void dueByKeyId(ids).then(m => { if (live) setDueMap(m); });
+    return () => { live = false; };
+  }, [allKeyIds]);
 
   const logsBySong = useMemo(() => {
     const m = new Map<string, SongPracticeLog[]>();
@@ -170,6 +193,8 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         keyRunThroughs: runsBySong.get(song.id) ?? [],
         performanceTempo: song.tempo ?? null,
         now: advancementNow,
+        dueByKeyId: dueMap,
+        dueWindows: windowsFrom(spacing),
       });
       return { song, lastPractisedAt, freshness, readyToAdvance: advancement.suggest };
     });

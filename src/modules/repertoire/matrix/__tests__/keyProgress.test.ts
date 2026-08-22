@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import type { SongKey, SongKeyState } from '../../../../lib/db';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../keys';
 import { DECAY_LAPSED_DAYS, MS_PER_DAY } from '../solidDecay';
+import { DUE_SOON_DEFAULT_DAYS, GRACE_DEFAULT_DAYS, type DueWindows } from '../keySpacing';
 import {
   KEY_QUADRANTS,
   QUADRANT_COUNT,
@@ -25,6 +26,14 @@ import {
 } from '../keyProgress';
 
 const NOW = 1_760_000_000_000;
+const W: DueWindows = {
+  dueSoonDays: DUE_SOON_DEFAULT_DAYS,
+  graceDays: GRACE_DEFAULT_DAYS,
+};
+/** A due date far enough ahead that the key is comfortably held. */
+const FAR = NOW + 90 * MS_PER_DAY;
+/** Past due AND past grace. */
+const LAPSED = NOW - (GRACE_DEFAULT_DAYS + 5) * MS_PER_DAY;
 
 function songKey(over: Partial<SongKey> = {}): SongKey {
   return {
@@ -126,27 +135,38 @@ describe('isComfortableOrBetter', () => {
 
 describe('isHeld', () => {
   it('holds a comfortable key', () => {
-    expect(isHeld(songKey({ keyState: 'comfortable' }), NOW)).toBe(true);
+    expect(isHeld(songKey({ keyState: 'comfortable' }), NOW, FAR, W)).toBe(true);
   });
 
   it('does not hold a key below comfortable', () => {
-    expect(isHeld(songKey({ keyState: 'learning' }), NOW)).toBe(false);
+    expect(isHeld(songKey({ keyState: 'learning' }), NOW, FAR, W)).toBe(false);
   });
 
-  it('LIVE-DERIVES the lapse instead of trusting the stored column', () => {
-    // The column is a snapshot written on save and goes stale by
-    // design: a key that drifts solid → lapsed while the song sits
-    // unopened still reads 'solid' until the next engagement. Reading
-    // it would mean a key untouched for months counted as held.
-    const stale = songKey({
+  it('reads the DUE DATE, not the old decay column or lastEngagedAt', () => {
+    // This replaces a test about live-deriving `solidDecayState`.
+    // `isHeld` no longer consults that column OR `lastEngagedAt` — it
+    // reads a due date that stretches with each pass. The old fields
+    // survive on the row for other readers, so the property worth
+    // protecting is that they no longer decide this.
+    //
+    // Fixture disagrees with itself on purpose: the column says solid,
+    // the engagement is months old, and the due date is far ahead.
+    // Only the due date is allowed to win.
+    const contradictory = songKey({
       keyState: 'solid',
-      // Guard the guard: the fixture's column must genuinely disagree
-      // with reality, or this cannot tell derive from read.
       solidDecayState: 'solid',
       lastEngagedAt: NOW - (DECAY_LAPSED_DAYS + 10) * MS_PER_DAY,
     });
-    expect(stale.solidDecayState).toBe('solid');
-    expect(isHeld(stale, NOW)).toBe(false);
+    expect(contradictory.solidDecayState).toBe('solid');
+    expect(isHeld(contradictory, NOW, FAR, W)).toBe(true);
+
+    // And the reverse: a freshly-engaged key whose due date has passed
+    // grace is NOT held, however recently it was touched. Engagement
+    // is not proving.
+    const engagedButOverdue = songKey({
+      keyState: 'solid', solidDecayState: 'solid', lastEngagedAt: NOW,
+    });
+    expect(isHeld(engagedButOverdue, NOW, LAPSED, W)).toBe(false);
   });
 
   it('holds a solid key engaged recently', () => {
@@ -154,7 +174,7 @@ describe('isHeld', () => {
       keyState: 'solid', solidDecayState: 'solid',
       lastEngagedAt: NOW - 2 * MS_PER_DAY,
     });
-    expect(isHeld(fresh, NOW)).toBe(true);
+    expect(isHeld(fresh, NOW, FAR, W)).toBe(true);
   });
 
   it('still holds a FADING key — fading is a warning, not a loss', () => {
@@ -162,7 +182,7 @@ describe('isHeld', () => {
       keyState: 'solid', solidDecayState: 'solid',
       lastEngagedAt: NOW - (DECAY_LAPSED_DAYS - 5) * MS_PER_DAY,
     });
-    expect(isHeld(fading, NOW)).toBe(true);
+    expect(isHeld(fading, NOW, FAR, W)).toBe(true);
   });
 });
 

@@ -16,7 +16,6 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { SongKey } from '../../../lib/db';
-import { DECAY_LAPSED_DAYS, MS_PER_DAY } from '../matrix/solidDecay';
 import { coveredQuadrants } from '../matrix/keyProgress';
 import {
   STAGES,
@@ -28,6 +27,11 @@ import {
   type AdvancementInputs,
 } from '../stage';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../matrix/keys';
+import {
+  DUE_SOON_DEFAULT_DAYS,
+  GRACE_DEFAULT_DAYS,
+  type DueWindows,
+} from '../matrix/keySpacing';
 
 const NOW = 1_760_000_000_000;
 
@@ -44,6 +48,18 @@ function key(keyName: string, over: Partial<SongKey> = {}): SongKey {
 }
 
 const TEMPO = 100;
+/** These rules no longer consult solidDecay at all — the day constant
+ *  is local rather than imported from a module they stopped reading. */
+const DAY = 24 * 60 * 60 * 1000;
+const WINDOWS: DueWindows = {
+  dueSoonDays: DUE_SOON_DEFAULT_DAYS,
+  graceDays: GRACE_DEFAULT_DAYS,
+};
+/** Every key due far enough ahead to be held. The rules under test are
+ *  about quadrants and runs, not about decay — a fixture where keys
+ *  were silently overdue would make every held-key assertion pass or
+ *  fail for the wrong reason. */
+const ALL_HELD: ReadonlyMap<string, number | null> = new Map();
 
 function inputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
   return {
@@ -52,6 +68,8 @@ function inputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
     keyRunThroughs: [],
     performanceTempo: TEMPO,
     now: NOW,
+    dueByKeyId: ALL_HELD,
+    dueWindows: WINDOWS,
     ...over,
   };
 }
@@ -195,24 +213,36 @@ describe('Comfortable → Cross-key', () => {
     expect(out.suggest).toBe(true);
   });
 
-  it('does not count a key that has LAPSED', () => {
-    // Cross-key is a claim about what you can play now. Guard: the
-    // same four keys fire when A is fresh, so the lapse is what moves
-    // this, not the shape of the fixture.
-    const withLapsed = [
-      key('C'), key('Eb'), key('F#'),
-      key('A', {
-        keyState: 'solid',
-        solidDecayState: 'solid',
-        lastEngagedAt: NOW - (DECAY_LAPSED_DAYS + 5) * MS_PER_DAY,
-      }),
-    ];
+  it('does not count a key that is OVERDUE', () => {
+    // Cross-key is a claim about what you can play now, and "now" is
+    // a due date that stretches with each pass rather than a flat 30
+    // days since anything was touched.
+    //
+    // Guard: the SAME four keys fire when nothing is overdue, so the
+    // due date is what moves this and not the shape of the fixture.
+    const keys = ONE_PER_QUADRANT.map(k => key(k));
+    const overdue: ReadonlyMap<string, number | null> = new Map([
+      ['sk-A', NOW - (GRACE_DEFAULT_DAYS + 5) * DAY],
+    ]);
+
     expect(evaluateAdvancement(inputs({
-      currentStage: 'comfortable', songKeys: ONE_PER_QUADRANT.map(k => key(k)),
+      currentStage: 'comfortable', songKeys: keys,
     })).suggest).toBe(true);
     expect(evaluateAdvancement(inputs({
-      currentStage: 'comfortable', songKeys: withLapsed,
+      currentStage: 'comfortable', songKeys: keys, dueByKeyId: overdue,
     })).suggest).toBe(false);
+  });
+
+  it('still counts a key that is merely DUE, not yet past grace', () => {
+    // Due is a warning with time left on it. A rule that dropped the
+    // rung the moment a key came due would leave nothing to act on.
+    const keys = ONE_PER_QUADRANT.map(k => key(k));
+    const justDue: ReadonlyMap<string, number | null> = new Map([
+      ['sk-A', NOW - 1 * DAY],
+    ]);
+    expect(evaluateAdvancement(inputs({
+      currentStage: 'comfortable', songKeys: keys, dueByKeyId: justDue,
+    })).suggest).toBe(true);
   });
 
   it('does not count keys below comfortable', () => {
