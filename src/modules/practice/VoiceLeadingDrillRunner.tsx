@@ -23,6 +23,7 @@ import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
 import { metronome } from '../../lib/metronome';
 import type { BreakdownItem } from './inSessionScaleRunner';
 import { resolveVoiceLeadingRunnerItems } from './inSessionVoiceLeadingRunner';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   items: ReadonlyArray<BreakdownItem>;
@@ -35,7 +36,11 @@ interface Props {
 
 export default function VoiceLeadingDrillRunner({ items, accent, onComplete }: Props) {
   const { setInSessionDrillActive } = useSessionTimer();
-  const cells = useMemo(() => resolveVoiceLeadingRunnerItems(items), [items]);
+  const [spelling] = useSpelling();
+  const cells = useMemo(
+    () => resolveVoiceLeadingRunnerItems(items, spelling),
+    [items, spelling],
+  );
   const [idx, setIdx] = useState(0);
   // Bumped on Redo to force the modal to remount for the SAME cell
   // (resetting its countdown), without advancing the index.

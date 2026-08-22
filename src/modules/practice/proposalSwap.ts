@@ -42,6 +42,7 @@ import { MODES } from '../ear-training/scales-modes/catalog';
 import { PRODUCTION_PATHS } from '../production/content/paths';
 import { lessonsByPath } from '../production/content/lessons';
 import type { PracticeSessionContext } from '../../lib/db';
+import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
 
 // =====================================================================
 // Types
@@ -533,8 +534,14 @@ export function applySwapWithCascade(args: {
   blockId: string;
   choice: SwapChoice;
   songsById: ReadonlyMap<string, Song>;
+  /** Spelling for rebuilt block LABELS. Optional, defaulting to the app
+   *  default, so a caller that has not been updated reads as "the usual
+   *  spelling" rather than throwing. The itemRefs rebuilt alongside stay
+   *  identities either way. */
+  spelling?: Spelling;
 }): ProposalBlock[] {
   const { blocks, blockId, choice, songsById } = args;
+  const spelling = args.spelling ?? DEFAULT_SPELLING;
   const target = blocks.find(b => b.id === blockId);
   if (!target) return blocks.slice();
 
@@ -578,13 +585,17 @@ export function applySwapWithCascade(args: {
   const pairedSet = new Set(pairedWarmupIds);
   return swapped.map(b => {
     if (!pairedSet.has(b.id)) return b;
-    return updateWarmupForSong(b, newSong);
+    return updateWarmupForSong(b, newSong, spelling);
   });
 }
 
 /** Mutate a single warm-up to follow a new song anchor. Returns the
  *  block unchanged when it isn't a recognisable Rep warm-up kind. */
-function updateWarmupForSong(b: ProposalBlock, newSong: Song): ProposalBlock {
+function updateWarmupForSong(
+  b: ProposalBlock,
+  newSong: Song,
+  spelling: Spelling,
+): ProposalBlock {
   const first = b.itemRefs[0];
   const isScalePrep = first?.startsWith('scale:') === true;
 
@@ -598,7 +609,11 @@ function updateWarmupForSong(b: ProposalBlock, newSong: Song): ProposalBlock {
       ...b,
       itemRefs: prep.scaleItemRefs,
       activityDescription:
-        `SCALES — prep for ${newSong.title} · ${prep.canonicalKey} (${prep.scaleTypesLabel})`,
+        // `canonicalKey` is the identity that built the itemRefs above
+        // and must not be rendered. This is the same label as
+        // `scalePrepBlock` in repertoireSplit.ts — see that function's
+        // note on why the two exist.
+        `SCALES — prep for ${newSong.title} · ${spellKey(prep.canonicalKey, spelling)} (${prep.scaleTypesLabel})`,
     };
   }
 
@@ -615,7 +630,13 @@ function updateWarmupForSong(b: ProposalBlock, newSong: Song): ProposalBlock {
 /** Mirror of `scalePrepBlock` from repertoireSplit.ts — returns the
  *  scale itemRefs + label fragments the cascade needs to rebuild a
  *  scale-prep warm-up's content for a different song. Returns null
- *  when the song's key can't be parsed. */
+ *  when the song's key can't be parsed.
+ *
+ *  BEING A MIRROR IS THE HAZARD. When step 2 retired Gb as an identity,
+ *  `scalePrepBlock` was fixed to spell its label and this copy was not,
+ *  so one route to the same warm-up read "· Gb" and the other read
+ *  "· F#" — a difference visible only if you swapped a song. Anything
+ *  changed in one belongs in the other; better still, collapse them. */
 function scalePrepDataForSong(song: Song):
   | { scaleItemRefs: string[]; canonicalKey: string; scaleTypesLabel: string }
   | null {

@@ -14,6 +14,7 @@ import {
   VOICE_LEADING_PATTERN_BY_ID,
 } from '../shapes-and-patterns/catalog';
 import type { BreakdownItem } from './inSessionScaleRunner';
+import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
 
 export interface VoiceLeadingRunnerItem extends BreakdownItem {
   /** "pattern in key" headline for the between-cells prep screen. */
@@ -39,13 +40,16 @@ export function isVoiceLeadingRunnerBlock(
  *  aren't recognised VL itemRefs. */
 export function resolveVoiceLeadingRunnerItems(
   items: ReadonlyArray<BreakdownItem>,
+  spelling: Spelling = DEFAULT_SPELLING,
 ): VoiceLeadingRunnerItem[] {
   const out: VoiceLeadingRunnerItem[] = [];
   for (const item of items) {
     const desc = parseVoiceLeadingItemRef(item.itemRef);
     if (!desc) continue;
     const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
-    const label = pattern ? `${pattern.label} in ${desc.keyName}` : item.itemRef;
+    const label = pattern
+      ? `${pattern.label} in ${spellKey(desc.keyName, spelling)}`
+      : item.itemRef;
     out.push({ ...item, label, subLabel: voiceLeadingSubCellLabel(desc) });
   }
   return out;

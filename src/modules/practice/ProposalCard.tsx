@@ -36,6 +36,7 @@ import {
   type SwapChoice,
 } from './proposalSwap';
 import type { ProposalBlock, ProposalCardData } from './proposalTypes';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   data: ProposalCardData;
@@ -96,6 +97,7 @@ export default function ProposalCard({
   affirmation,
   context,
 }: Props) {
+  const [spelling] = useSpelling();
   const [whyOpen, setWhyOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -294,7 +296,7 @@ export default function ProposalCard({
     // applySwap behaviour for non-anchor blocks (no cascade).
     const songsById = swapSongsById ?? new Map<string, Song>();
     setOrderedBlocks(prev =>
-      applySwapWithCascade({ blocks: prev, blockId, choice, songsById }),
+      applySwapWithCascade({ blocks: prev, blockId, choice, songsById, spelling }),
     );
     setSwapBlockId(null);
     // Swap is a structural change — same as delete/reorder, it

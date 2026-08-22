@@ -502,7 +502,7 @@ function buildPostComfortableBlocks(
         practiceBlock(
           seconds - SCALE_PREP_SECONDS,
           songId,
-          `Expand to ${decision.keyName}: ${title}`,
+          `Expand to ${spellKey(decision.keyName, spelling)}: ${title}`,
           `Cell-drill the next key in your circle-of-4ths walk`,
           'maintenance',
         ),
@@ -513,7 +513,7 @@ function buildPostComfortableBlocks(
     practiceBlock(
       seconds,
       songId,
-      `Expand to ${decision.keyName}: ${title}`,
+      `Expand to ${spellKey(decision.keyName, spelling)}: ${title}`,
       `Cell-drill the next key in your circle-of-4ths walk`,
       'maintenance',
     ),
