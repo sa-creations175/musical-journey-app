@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { keysOrderedFromOriginal } from './keys';
 import KeyRow from './KeyRow';
+import type { Spelling } from '../../../lib/spelling';
 
 /**
  * The 12-row matrix grid. Layout decisions:
@@ -31,6 +32,8 @@ import KeyRow from './KeyRow';
  */
 
 interface Props {
+  /** Resolved once by the parent so the whole grid reads one spelling. */
+  spelling: Spelling;
   sections: ReadonlyArray<SongMatrixSection>;
   songKeys: ReadonlyArray<SongKey>;
   songCells: ReadonlyArray<SongCell>;
@@ -53,6 +56,7 @@ interface Props {
 }
 
 export default function MatrixGrid({
+  spelling,
   sections,
   songKeys,
   songCells,
@@ -115,6 +119,7 @@ export default function MatrixGrid({
             <KeyRow
               key={keyName}
               keyName={keyName}
+              spelling={spelling}
               songKey={songKey}
               sections={visibleSections}
               cellsBySectionId={cellsBySectionId}

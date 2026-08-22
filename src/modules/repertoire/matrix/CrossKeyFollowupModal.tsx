@@ -9,6 +9,8 @@ import {
 } from '../../../lib/db';
 import { keysOrderedFromOriginal } from './keys';
 import { songCellRowId, songKeyRowId } from './ids';
+import { spellKey } from '../../../lib/spelling';
+import { useSongSpelling } from '../useSongSpelling';
 
 /**
  * Cross-key follow-up — auto-fires after section setup completes
@@ -49,6 +51,7 @@ export default function CrossKeyFollowupModal({
   originalKey,
   visibleSections,
 }: Props) {
+  const spelling = useSongSpelling(song);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
 
@@ -211,7 +214,7 @@ export default function CrossKeyFollowupModal({
                       : 'border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent/60',
                   ].join(' ')}
                 >
-                  {isSelected ? '✓ ' : '+ '}{keyName}
+                  {isSelected ? '✓ ' : '+ '}{spellKey(keyName, spelling)}
                 </button>
               );
             })}

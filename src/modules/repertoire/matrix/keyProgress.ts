@@ -1,5 +1,6 @@
 import type { SongKey, SongKeyState } from '../../../lib/db';
 import { CIRCLE_OF_FOURTHS_KEYS } from './keys';
+import { spellKey, type Spelling } from '../../../lib/spelling';
 import { computeSolidDecayState } from './solidDecay';
 
 /**
@@ -75,11 +76,17 @@ export const KEY_QUADRANTS: ReadonlyArray<ReadonlyArray<string>> =
   Array.from({ length: QUADRANT_COUNT }, (_, i) =>
     CIRCLE_OF_FOURTHS_KEYS.slice(i * QUADRANT_SIZE, (i + 1) * QUADRANT_SIZE));
 
-/** Human-readable member list, e.g. "C · F · Bb". Derived from the
+/** Human-readable member list, e.g. "C · F · B♭". Derived from the
  *  quadrant itself so the label can never name a key the quadrant
- *  does not contain. */
-export function quadrantLabel(quadrant: number): string {
-  return (KEY_QUADRANTS[quadrant] ?? []).join(' · ');
+ *  does not contain.
+ *
+ *  Takes a spelling because it is a LABEL — nothing renders it today,
+ *  which is exactly why it is worth converting now: an unspelled label
+ *  waiting to be used is a bug scheduled for whoever uses it. */
+export function quadrantLabel(quadrant: number, spelling: Spelling): string {
+  return (KEY_QUADRANTS[quadrant] ?? [])
+    .map(k => spellKey(k, spelling))
+    .join(' · ');
 }
 
 /**

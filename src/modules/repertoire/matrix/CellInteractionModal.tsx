@@ -20,6 +20,8 @@ import {
   projectConsecutiveCleanCount,
   saveAttemptsAndRollup,
 } from './cellRollup';
+import { spellKey, type Spelling } from '../../../lib/spelling';
+import { useSongSpelling } from '../useSongSpelling';
 
 /**
  * Cell interaction modal — opens on cell tap. Functions as a
@@ -84,6 +86,7 @@ export default function CellInteractionModal({
   siblingCells,
   totalSections,
 }: Props) {
+  const spelling = useSongSpelling(song);
   const [attempts, setAttempts] = useState<AttemptDraft[]>([]);
   // BPM defaults to song.tempo when set, else empty (forces user to
   // declare what they're working at — honest, no fake default).
@@ -212,7 +215,7 @@ export default function CellInteractionModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={makeTitle(section, songKey, song)}
+      title={makeTitle(section, songKey, song, spelling)}
       footer={
         <div className="flex items-center justify-between gap-2">
           <button
@@ -297,11 +300,12 @@ function makeTitle(
   section: SongMatrixSection,
   songKey: SongKey,
   song: Song,
+  spelling: Spelling,
 ): string {
   // Tempo lives in its own editable row in the modal body now —
   // keep it out of the title to avoid duplicating the value when
   // the user changes it via the inline edit affordance.
-  return `${section.name} · ${songKey.keyName} · ${song.title}`;
+  return `${section.name} · ${spellKey(songKey.keyName, spelling)} · ${song.title}`;
 }
 
 // -------------------------------------------------------------------

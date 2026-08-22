@@ -168,10 +168,15 @@ describe('isHeld', () => {
 
 describe('quadrantLabel', () => {
   it('names the quadrant from its own members', () => {
-    expect(quadrantLabel(2)).toBe('F# · B · E');
+    // The quadrant holds the IDENTITY names; the label reads them in the
+    // user's spelling. Both assertions matter: the membership is F#, the
+    // reading is G♭.
+    expect(quadrantLabel(2, 'flat')).toBe('G\u266D · B · E');
+    expect(quadrantLabel(2, 'sharp')).toBe('F\u266F · B · E');
+    expect(KEY_QUADRANTS[2]).toContain('F#');
   });
 
   it('is empty for a quadrant that does not exist', () => {
-    expect(quadrantLabel(9)).toBe('');
+    expect(quadrantLabel(9, 'flat')).toBe('');
   });
 });

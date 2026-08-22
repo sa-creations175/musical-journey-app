@@ -20,6 +20,7 @@ import {
   hasCrossKeyEngagement,
   songLevelStateLabel,
 } from './songLevelState';
+import { useSongSpelling } from '../useSongSpelling';
 
 /**
  * Section × key matrix view for a single song. Step 3a ships this
@@ -67,6 +68,13 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   // refresh-on-write is a small, targeted band-aid until we figure
   // out the root cause across the codebase.
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Resolved ONCE for the whole page. Passed to the grid and the banner
+  // rather than each reading the setting themselves — twelve rows and a
+  // banner disagreeing about one key's name is precisely the failure
+  // this seam exists to prevent, and it would look like a render bug.
+  // The modals below take `song` already and call the same resolver.
+  const spelling = useSongSpelling(song);
 
   const sections = useLiveQuery(
     () => db.songMatrixSections.where('songId').equals(song.id).sortBy('displayOrder'),
@@ -328,11 +336,13 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
 
 
       <WholeSongTestBanner
+        spelling={spelling}
         eligibleKeys={eligibleTestKeys}
         onRunTest={handleRunTest}
       />
 
       <MatrixGrid
+        spelling={spelling}
         sections={sections}
         songKeys={songKeys}
         songCells={songCells}

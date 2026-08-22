@@ -2,6 +2,8 @@ import { useCallback, useState } from 'react';
 import Modal from '../../../components/Modal';
 import type { Song, SongCell, SongKey } from '../../../lib/db';
 import { isInTempoRange, logSingleKeyRun } from './cellRollup';
+import { spellKey } from '../../../lib/spelling';
+import { useSongSpelling } from '../useSongSpelling';
 
 /**
  * Log ONE run-through of the whole song in one key.
@@ -49,6 +51,7 @@ export default function SingleRunModal({
   siblingCells,
   totalSections,
 }: Props) {
+  const spelling = useSongSpelling(song);
   const [bpmInput, setBpmInput] = useState<string>(String(song.tempo ?? ''));
   const [busy, setBusy] = useState(false);
 
@@ -91,7 +94,7 @@ export default function SingleRunModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={`One run-through · ${songKey.keyName} · ${song.title}`}
+      title={`One run-through · ${spellKey(songKey.keyName, spelling)} · ${song.title}`}
       footer={
         <div className="flex items-center justify-end">
           <button
@@ -107,7 +110,7 @@ export default function SingleRunModal({
       <div className="flex flex-col gap-4">
         <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-snug">
           Records that you played <span className="font-medium">{song.title}</span> all
-          the way through in <span className="font-mono">{songKey.keyName}</span>.
+          the way through in <span className="font-mono">{spellKey(songKey.keyName, spelling)}</span>.
           {' '}
           <span className="text-neutral-500">
             This does not unlock Solid — that needs the whole-song test, which is

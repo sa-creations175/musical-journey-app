@@ -3,6 +3,8 @@ import { db, type Song, type SongSection } from '../../lib/db';
 import Modal from '../../components/Modal';
 import { recordEngagement } from '../../lib/spacingState';
 import { FEEL_OPTIONS, type Feel } from '../../lib/fluencyScale';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   song: Song;
@@ -59,6 +61,7 @@ function crossKeyRowId(songId: string, sectionId: string, keyName: string): stri
  * songCrossKeyProgress row that intersects (section × key).
  */
 export default function PracticeLogModal({ song, sections, onClose, onLogged }: Props) {
+  const [spelling] = useSpelling();
   // Timer state. Seconds since start. Ticks via setInterval while
   // running; paused value preserved in pausedAt.
   const [timerRunning, setTimerRunning] = useState(false);
@@ -337,7 +340,7 @@ export default function PracticeLogModal({ song, sections, onClose, onLogged }: 
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
                 }`}
               >
-                {k}
+                {spellKey(k, spelling)}
               </button>
             ))}
           </div>

@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SongCrossKeyProgress, type SongSection } from '../../lib/db';
 import { humanAgo } from './stage';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 // Fixed 12-key order matching the app's common KEYS convention: sharps
 // and flats mixed for a pianist-familiar layout.
@@ -23,6 +25,10 @@ function progressId(songId: string, sectionId: string, keyName: string): string 
  * never auto-promoted.
  */
 export default function CrossKeyGrid({ songId, section, originalKey }: Props) {
+  // No `song` in scope here — only its id — so this reads the global
+  // setting. Step 4 gives it the song's own; the resolver is the one
+  // place that changes.
+  const [spelling] = useSpelling();
   const rows = useLiveQuery<SongCrossKeyProgress[]>(
     () => db.songCrossKeyProgress
       .where('[songId+sectionId]').equals([songId, section.id])
@@ -108,7 +114,9 @@ export default function CrossKeyGrid({ songId, section, originalKey }: Props) {
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:border-fluent hover:text-fluent'
               }`}
             >
-              <span>{k}</span>
+              {/* `k` stays the identity — bumpKey, progressId and the
+                  React key all use it. Only the label is spelled. */}
+              <span>{spellKey(k, spelling)}</span>
               {row && row.sessionCount > 0 && (
                 <span className="absolute top-0.5 right-0.5 text-[8px] font-mono tabular-nums opacity-70">
                   {row.sessionCount}
@@ -127,7 +135,7 @@ export default function CrossKeyGrid({ songId, section, originalKey }: Props) {
       <p className="text-[11px] text-neutral-500">
         {mostRecent === null
           ? 'no cross-key practice yet. tap a key above or log a full session to track progress.'
-          : `last practised ${section.name} in ${mostRecent.keyName} ${humanAgo(mostRecent.lastPracticed)}`}
+          : `last practised ${section.name} in ${spellKey(mostRecent.keyName, spelling)} ${humanAgo(mostRecent.lastPracticed)}`}
       </p>
       <p className="text-[10px] text-neutral-400">
         click a key to log a quick pass · right-click to toggle mastered · ★ = original key

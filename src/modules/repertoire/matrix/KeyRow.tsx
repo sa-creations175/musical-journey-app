@@ -1,6 +1,7 @@
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { computeSolidDecayState, daysSinceEngaged } from './solidDecay';
 import { isKeyRowEngaged } from './songLevelState';
+import { spellKey, type Spelling } from '../../../lib/spelling';
 
 /**
  * One row of the matrix: key name cell on the left (with the
@@ -15,7 +16,12 @@ import { isKeyRowEngaged } from './songLevelState';
  */
 
 interface Props {
+  /** The IDENTITY. Used for lookups and as the row's React key; never
+   *  rendered directly — see `spelling` below and lib/spelling.ts. */
   keyName: string;
+  /** How to READ `keyName`. Resolved once in SongMatrixView so every
+   *  row, cell and modal on the page cannot spell it differently. */
+  spelling: Spelling;
   /** May be null when no songKeys row exists for this key — i.e.,
    *  the key is "untouched" per the spec's untouched-vs-engaged
    *  distinction. */
@@ -53,6 +59,7 @@ interface Props {
 
 export default function KeyRow({
   keyName,
+  spelling,
   songKey,
   sections,
   cellsBySectionId,
@@ -79,6 +86,7 @@ export default function KeyRow({
       <div className="flex items-stretch">
         <KeyNameCell
           keyName={keyName}
+          spelling={spelling}
           keyState={keyState}
           isOriginal={isOriginal}
         />
@@ -119,10 +127,12 @@ const KEY_BORDER_BY_STATE: Record<string, string> = {
 
 function KeyNameCell({
   keyName,
+  spelling,
   keyState,
   isOriginal,
 }: {
   keyName: string;
+  spelling: Spelling;
   keyState: string;
   isOriginal: boolean;
 }) {
@@ -136,7 +146,7 @@ function KeyNameCell({
         dimmed ? 'text-neutral-500' : 'text-neutral-800 dark:text-neutral-100',
       ].join(' ')}
     >
-      <span className="text-sm font-medium tabular-nums">{keyName}</span>
+      <span className="text-sm font-medium tabular-nums">{spellKey(keyName, spelling)}</span>
       {isOriginal && (
         <span className="text-[9px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 leading-none">
           orig

@@ -1,4 +1,5 @@
 import type { SongKey } from '../../../lib/db';
+import { spellKey, type Spelling } from '../../../lib/spelling';
 
 /**
  * Non-blocking banner shown above the matrix grid when at least one
@@ -26,15 +27,21 @@ interface Props {
    *  freshest one. */
   eligibleKeys: ReadonlyArray<SongKey>;
   onRunTest: (songKeyId: string) => void;
+  /** Resolved by the parent so the banner and the grid beneath it name
+   *  the same key the same way. */
+  spelling: Spelling;
 }
 
-export default function WholeSongTestBanner({ eligibleKeys, onRunTest }: Props) {
+export default function WholeSongTestBanner({ eligibleKeys, onRunTest, spelling }: Props) {
   if (eligibleKeys.length === 0) return null;
 
   const target = eligibleKeys[0];
-  const keyNamesText = formatKeyList(eligibleKeys.map(k => k.keyName));
+  const targetName = spellKey(target.keyName, spelling);
+  const keyNamesText = formatKeyList(
+    eligibleKeys.map(k => spellKey(k.keyName, spelling)),
+  );
   const headline = eligibleKeys.length === 1
-    ? `All sections of ${target.keyName} are comfortable.`
+    ? `All sections of ${targetName} are comfortable.`
     : `${keyNamesText} are all comfortable.`;
 
   return (
@@ -53,7 +60,7 @@ export default function WholeSongTestBanner({ eligibleKeys, onRunTest }: Props) 
         onClick={() => onRunTest(target.id)}
         className="shrink-0 px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400 font-medium"
       >
-        Run test → {eligibleKeys.length > 1 ? `(${target.keyName})` : ''}
+        Run test → {eligibleKeys.length > 1 ? `(${targetName})` : ''}
       </button>
     </div>
   );

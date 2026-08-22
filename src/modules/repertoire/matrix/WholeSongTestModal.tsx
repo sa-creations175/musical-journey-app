@@ -19,6 +19,8 @@ import {
   projectKeyConsecutiveCleanCount,
   saveKeyAttemptsAndRollup,
 } from './cellRollup';
+import { spellKey } from '../../../lib/spelling';
+import { useSongSpelling } from '../useSongSpelling';
 
 /**
  * Whole-song test modal — the gate from comfortable → solid at the
@@ -90,6 +92,7 @@ export default function WholeSongTestModal({
   pastRuns,
   isRetest,
 }: Props) {
+  const spelling = useSongSpelling(song);
   const [attempts, setAttempts] = useState<KeyAttemptDraft[]>([]);
   const [bpmInput, setBpmInput] = useState<string>(String(song.tempo ?? ''));
   const [busy, setBusy] = useState(false);
@@ -196,7 +199,7 @@ export default function WholeSongTestModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={`${isRetest ? 'Whole-song retest' : 'Whole-song test'} · ${songKey.keyName} · ${song.title}`}
+      title={`${isRetest ? 'Whole-song retest' : 'Whole-song test'} · ${spellKey(songKey.keyName, spelling)} · ${song.title}`}
       footer={
         <div className="flex items-center justify-between gap-2">
           <button

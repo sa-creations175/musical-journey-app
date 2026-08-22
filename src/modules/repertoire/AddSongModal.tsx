@@ -6,6 +6,8 @@ import { DEFAULT_STAGE } from './stage';
 import { assignNextLearningOrder } from './seedSongs';
 import { useToast } from '../../components/Toaster';
 import { SONG_KEY_OPTIONS } from './matrix/keys';
+import { spellKey } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   onClose: () => void;
@@ -34,6 +36,7 @@ function uid(prefix: string): string {
  * Detail.
  */
 export default function AddSongModal({ onClose, onAdded }: Props) {
+  const [spelling] = useSpelling();
   const wantToLearn = useLiveQuery<WantToLearnEntry[]>(
     () => db.wantToLearn.toArray(),
     [],
@@ -301,7 +304,10 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
               >
                 <option value="">(not set)</option>
                 {SONG_KEY_OPTIONS.map(k => (
-                  <option key={k} value={k}>{k}</option>
+                  // `value` is the identity that gets stored; the visible
+                  // text is the spelling. A picker that stored what it
+                  // displayed would write '♭' into songs.key.
+                  <option key={k} value={k}>{spellKey(k, spelling)}</option>
                 ))}
               </select>
             </label>
