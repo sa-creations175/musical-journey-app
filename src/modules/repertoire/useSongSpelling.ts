@@ -1,6 +1,6 @@
 import type { Song } from '../../lib/db';
 import { useSpelling } from '../../lib/spellingPref';
-import type { Spelling } from '../../lib/spelling';
+import { resolveSpelling, type Spelling } from '../../lib/spelling';
 
 /**
  * How to spell key and note names ON A PARTICULAR SONG'S SURFACES.
@@ -8,29 +8,27 @@ import type { Spelling } from '../../lib/spelling';
  * =====================================================================
  * THE ONE PLACE A SONG'S SPELLING IS DECIDED.
  *
- * Today this returns the global setting and ignores its argument. That
- * is deliberate and temporary: the per-song override is the next step,
- * and when it lands it changes THIS FUNCTION and nothing else.
+ * A song's own `spelling` wins; `undefined` means it has no opinion and
+ * follows the global setting.
  *
- * The alternative was for each matrix surface to call `useSpelling()`
- * directly and be revisited later. That would have meant editing a
- * dozen files twice, in a part of the tree another session is about to
- * rewrite. Naming the decision now, even while it has only one input,
- * means the override arrives as a one-line change.
+ * UNDEFINED IS NOT THE SAME AS THE DEFAULT VALUE, and the difference is
+ * the whole design. If a song stored 'flat' the moment it was created,
+ * the global setting would only ever apply to songs added afterwards —
+ * which is not a global setting. Undefined means the song keeps
+ * tracking the default, so flipping it re-spells everything the user
+ * has not deliberately overridden.
  *
- * The argument is already threaded so that adding the second input does
- * not require finding the callers again — which is the failure this
- * whole workstream keeps running into. Callers that genuinely have no
- * song (a drill opened cold from a catalog grid) should call
- * `useSpelling` directly rather than passing null here: "no song" and
- * "a song with no preference" are different questions, and collapsing
- * them is how the distinction gets lost.
+ * That is also why nothing backfills the field: every existing song is
+ * already in the state it should be in.
+ *
+ * Callers that genuinely have no song (a drill opened cold from a
+ * catalog grid) should call `useSpelling` directly rather than passing
+ * null here. "No song" and "a song with no preference" happen to
+ * resolve the same way today, and they are still different questions —
+ * collapsing them is how the distinction gets lost.
  * =====================================================================
  */
-export function useSongSpelling(_song: Song | null | undefined): Spelling {
+export function useSongSpelling(song: Song | null | undefined): Spelling {
   const [globalSpelling] = useSpelling();
-  // The song is not consulted yet — see header. Referenced so the
-  // parameter is not dropped by a well-meaning lint fix.
-  void _song;
-  return globalSpelling;
+  return resolveSpelling(song?.spelling, globalSpelling);
 }

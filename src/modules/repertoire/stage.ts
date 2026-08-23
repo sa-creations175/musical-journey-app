@@ -7,6 +7,7 @@ import {
   isHeld,
 } from './matrix/keyProgress';
 import type { DueWindows } from './matrix/keySpacing';
+import { spellKey, type Spelling } from '../../lib/spelling';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -167,6 +168,13 @@ export interface AdvancementEvaluation {
 export interface AdvancementInputs {
   currentStage: RepertoireStage;
   /**
+   * How key names in the criteria COPY are spelled. The rules
+   * themselves compare `keyName` identities and are unaffected — this
+   * only decides how those keys are named back to the reader, so the
+   * criteria panel does not say F# on a page whose header says G♭.
+   */
+  spelling: Spelling;
+  /**
    * Every `songKeys` row for this song. `materialise` creates all
    * twelve up front, so a caller passing fewer is passing a filtered
    * list and will get a quieter answer than the data supports.
@@ -300,13 +308,13 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
       }
       const passed = original.wholeSongTestPassedAt !== null;
       return [{
-        label: `Whole-song test passed in the key of ${original.keyName}`,
+        label: `Whole-song test passed in the key of ${spellKey(original.keyName, input.spelling)}`,
         met: passed,
         have: passed ? 1 : 0,
         need: 1,
         ...(passed ? {} : {
           detail: 'Three clean run-throughs in a row, in one sitting. Open it '
-            + `from the row for the key of ${original.keyName} in the matrix.`,
+            + `from the row for the key of ${spellKey(original.keyName, input.spelling)} in the matrix.`,
         }),
       }];
     }
@@ -387,7 +395,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
           ...(short.length > 0
             ? {
                 detail: `Still to run: ${short.length === 1 ? 'the key of' : 'keys'} `
-                  + `${short.map(k => k.keyName).join(', ')}. `
+                  + `${short.map(k => spellKey(k.keyName, input.spelling)).join(', ')}. `
                   + 'Use "log a run" on those rows — one clean pass each is enough.',
               }
             : {}),

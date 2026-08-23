@@ -217,3 +217,21 @@ export function spellKeys(
 ): string[] {
   return keyNames.map(k => spellKey(k, spelling));
 }
+
+/**
+ * Resolve an override against a fallback — the rule for "this thing's
+ * own spelling, or the one it inherits".
+ *
+ * Trivial on its face, and it exists so the rule has ONE home. A song
+ * carries `spelling?: Spelling` where undefined means "no opinion", and
+ * that reading has to be identical in React (`useSongSpelling`) and in
+ * any pure path that cannot call a hook. Two `??` expressions in two
+ * files is two chances to decide that empty-string, or 'inherit', or
+ * null means something different.
+ */
+export function resolveSpelling(
+  override: Spelling | null | undefined,
+  fallback: Spelling,
+): Spelling {
+  return override ?? fallback;
+}

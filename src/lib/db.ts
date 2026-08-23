@@ -139,6 +139,28 @@ export interface Song {
    *  the original recording. Pre-populated songs set this for songs
    *  where the home key couldn't be determined confidently. */
   keyNeedsVerification?: boolean;
+  /**
+   * How THIS song's key and chord names are spelled, overriding the
+   * global setting. `undefined` means follow the global.
+   *
+   * THREE STATES, AND THE UNDEFINED ONE IS LOAD-BEARING. A song that
+   * pinned a concrete value at creation would make the global setting
+   * apply only to songs added afterwards — which is not a global
+   * setting. Undefined means "no opinion", so flipping the app default
+   * re-spells every song the user has not deliberately overridden.
+   *
+   * That is also why absence is not backfilled: every existing song is
+   * already in the right state.
+   *
+   * Changes NOTHING about the data. `key` still stores the identity
+   * ('F#'), every `songKeys.keyName` is untouched, and this only picks
+   * which name reaches the screen — see lib/spelling.ts.
+   *
+   * Unindexed; rides the `data` JSONB blob across sync, like
+   * `sectionOrder` and `timeSignature`, so it needs no schema version
+   * bump and no Postgres migration.
+   */
+  spelling?: 'flat' | 'sharp';
   /** Single tempo in BPM, or null/undefined if unset. */
   tempo?: number;
   /** Optional human tempo range like "60-75 BPM". Rendered verbatim. */

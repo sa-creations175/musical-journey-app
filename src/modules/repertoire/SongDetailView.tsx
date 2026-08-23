@@ -74,7 +74,7 @@ import { useSongSpelling } from './useSongSpelling';
 import { isComfortableOrBetter, quadrantHoldings } from './matrix/keyProgress';
 import { daysUntilDue, keyDueState } from './matrix/keySpacing';
 import SectionGuidance from './SectionGuidance';
-import SongTimerStrip from './SongTimerStrip';
+import CellPanel, { type CellPanelLayout } from './matrix/CellPanel';
 import { dueByKeyId } from './matrix/proveKey';
 import { stageReconciliation } from './stageTransition';
 import {
@@ -128,6 +128,8 @@ import SongMatrixView from './matrix/SongMatrixView';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 import { SONG_KEY_OPTIONS, isCanonicalSongKey } from './matrix/keys';
 import { ensureSongHasOriginalKey } from './matrixMigration';
+import { spellKey, type Spelling } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 
 
@@ -255,6 +257,13 @@ interface InnerProps {
 
 function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerProps) {
   const song = useLiveQuery<Song | undefined>(() => db.songs.get(songId), [songId]);
+  // `songSpelling` is what this page RENDERS with; `globalSpelling` is
+  // what the "follow global" option has to NAME, so the user can see
+  // what they would inherit before choosing it. Declared here beside
+  // the song they derive from — the criteria copy reads them too, not
+  // just the matrix.
+  const songSpelling = useSongSpelling(song);
+  const [globalSpelling] = useSpelling();
   const sections = useLiveQuery<SongSection[]>(
     () => db.songSections
       .where('songId').equals(songId)
@@ -475,6 +484,32 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     setWhyDraft(song.description ?? '');
     setWhyEditing(true);
   };
+  /**
+   * Returning a song to "follow global" means REMOVING the field, not
+   * setting it to a value — undefined is the third state, not a null
+   * object.
+   *
+   * Read-then-put for the reason `saveMeta` documents above: `.update`
+   * can silently no-op when its internal lookup-and-merge fails —
+   * returns 0, no throw, no signal — and a reset that quietly does
+   * nothing leaves the song pinned with a control that looks like it
+   * worked. `.put` with the full record is unambiguous upsert.
+   *
+   * NOT because `.update` mishandles undefined. It was worth checking,
+   * and it does not: Dexie 4.4.2 deletes the key, which
+   * `__tests__/songSpelling.test.ts` pins as a characterisation so a
+   * future version changing it is caught rather than assumed.
+   */
+  const setSongSpelling = async (next: Spelling | undefined) => {
+    if (!song) return;
+    const fresh = await db.songs.get(song.id);
+    if (!fresh) return;
+    const updated = { ...fresh, updatedAt: Date.now() };
+    if (next === undefined) delete updated.spelling;
+    else updated.spelling = next;
+    await db.songs.put(updated);
+  };
+
   const saveWhy = async () => {
     if (!song) return;
     const next = whyDraft.trim();
@@ -522,8 +557,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       now: advancementNow,
       dueByKeyId: dueMap,
       dueWindows: windowsFrom(spacing),
+      spelling: songSpelling,
     }),
-    [matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing],
+    [matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing, songSpelling],
   );
 
   const advancementInputs = useMemo(() => ({
@@ -534,9 +570,68 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     now: advancementNow,
     dueByKeyId: dueMap,
     dueWindows: windowsFrom(spacing),
-  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
+    spelling: songSpelling,
+  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing, songSpelling]);
   // One input object feeding both, so the panel and the banner cannot
   // be looking at different data even for a render.
+  // ---------------------------------------------------------------
+  // THE CELL PANEL LIVES HERE, NOT IN THE MATRIX.
+  //
+  // Practice mode collapses to a bar pinned at the top of the SCREEN
+  // and opens the lead sheet beneath it. The matrix cannot reach that
+  // layout from inside its own card, and the lead sheet is this
+  // page's rather than the matrix's — so the page owns the panel and
+  // the matrix only reports the tap.
+  // ---------------------------------------------------------------
+  const [panelCellId, setPanelCellId] = useState<string | null>(null);
+  const [panelLayout, setPanelLayout] = useState<CellPanelLayout>('full');
+  // `scroll-mt-28` keeps the heading clear of the pinned bar — without
+  // it the bar sits on top of the first line of what it just revealed.
+  const leadSheetRef = useRef<HTMLElement | null>(null);
+
+  const matrixCells = useLiveQuery(
+    () => db.songCells.where('songId').equals(songId).toArray(),
+    [songId],
+  ) ?? [];
+  const matrixSections = useLiveQuery(
+    () => db.songMatrixSections.where('songId').equals(songId).toArray(),
+    [songId],
+  ) ?? [];
+
+  const panelCell = panelCellId
+    ? matrixCells.find(c => c.id === panelCellId) ?? null
+    : null;
+  const panelKey = panelCell
+    ? matrixKeys.find(k => k.id === panelCell.songKeyId) ?? null
+    : null;
+  const panelSection = panelCell
+    ? matrixSections.find(sec => sec.id === panelCell.sectionId) ?? null
+    : null;
+  const visibleMatrixSections = useMemo(
+    () => matrixSections
+      .filter(sec => !sec.isArchived)
+      .sort((a, b) => a.displayOrder - b.displayOrder),
+    [matrixSections],
+  );
+
+  const openCellPanel = useCallback((cellId: string) => {
+    setPanelCellId(cellId);
+    setPanelLayout('full');
+  }, []);
+  const closeCellPanel = useCallback(() => {
+    setPanelCellId(null);
+    setPanelLayout('full');
+  }, []);
+
+  // Collapsing to the bar scrolls the lead sheet under it. Without
+  // this the panel would shrink over whatever happened to be on
+  // screen — usually the matrix it was opened from — and the button
+  // would appear to do nothing.
+  useEffect(() => {
+    if (panelLayout !== 'bar') return;
+    leadSheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [panelLayout]);
+
   const criteria = useMemo(
     () => stageCriteria(advancementInputs),
     [advancementInputs],
@@ -549,12 +644,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     now: advancementNow,
     dueByKeyId: dueMap,
     dueWindows: windowsFrom(spacing),
+    spelling: songSpelling,
   }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
 
   // Only keys that can hold a rung — comfortable or better. A key at
   // learning has nothing to lose and would read as permanently held,
   // which is true and useless.
-  const songSpelling = useSongSpelling(song);
   const holdingKeys: HoldingKey[] = useMemo(() => {
     const windows = windowsFrom(spacing);
     return matrixKeys
@@ -1672,10 +1767,41 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             <div className="flex items-center gap-3 flex-wrap text-xs text-neutral-500">
               {song.key && (
                 <span>
-                  key: <span className="font-mono text-neutral-700 dark:text-neutral-200">{song.key}</span>
+                  key: <span className="font-mono text-neutral-700 dark:text-neutral-200">{spellKey(song.key, songSpelling)}</span>
                   {song.keyNeedsVerification && <span className="ml-1 text-developing" title="estimated — verify with recording">?</span>}
                 </span>
               )}
+              {/* Beside the key because the key is the most visible thing
+                  it changes. The option list NAMES all three states —
+                  a two-way toggle cannot show that a song is inheriting,
+                  only which side is lit, and "follow global (flats)" has
+                  to say what it is inheriting as well as that it is. */}
+              <label className="inline-flex items-center gap-1">
+                spelling:
+                <select
+                  value={song.spelling ?? 'inherit'}
+                  onChange={e => {
+                    const v = e.target.value;
+                    void setSongSpelling(v === 'inherit' ? undefined : (v as Spelling));
+                  }}
+                  className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
+                  title="how this song's key and chord names are spelled. changes names only — no practice data moves."
+                >
+                  <option value="inherit">
+                    follow global ({globalSpelling === 'flat' ? 'flats' : 'sharps'})
+                  </option>
+                  <option value="flat">always flats</option>
+                  <option value="sharp">always sharps</option>
+                </select>
+                {song.spelling && (
+                  <span
+                    className="text-[10px] text-neutral-400"
+                    title="this song does not follow the global setting"
+                  >
+                    overridden
+                  </span>
+                )}
+              </label>
               {song.tempoLabel && <span>tempo: {song.tempoLabel}</span>}
               {song.timeSignature && (
                 <span>
@@ -1833,14 +1959,22 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             {advancement.reason}
           </div>
         )}
-        <SongMatrixView song={song} onClose={() => {}} embedded />
+        <SongMatrixView
+          song={song}
+          onClose={() => {}}
+          embedded
+          onCellSelected={openCellPanel}
+        />
       </section>
 
         // No backdrop-blur: it's a no-op on this opaque card AND
         // would establish a containing block that makes the mobile
         // voicing bottom sheet (position: fixed) anchor to the card
         // instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
-        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3">
+        <section
+          ref={leadSheetRef}
+          className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3 scroll-mt-28"
+        >
           <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
@@ -1994,9 +2128,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             + log a practice session
           </button>
         </div>
-        {/* Above the record it will add a row to, so the timer and
-            what it produces read as one thing. */}
-        <SongTimerStrip song={song} songs={songs} />
+        {/* The bottom timer strip is gone as of 3d-5. It sat below
+            the danger zone, inside practice history — a timer you had
+            to scroll past two cards to reach. Practice starts from a
+            matrix cell now, and the panel keeps the clock on screen
+            whatever else you are doing. */}
         <SongHeatmap logs={logs} />
         <PracticeHistory logs={logs} sections={sections} />
       </section>
@@ -2029,6 +2165,20 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             setShowLogModal(false);
             toast({ message: 'Session logged.', variant: 'success' });
           }}
+        />
+      )}
+
+      {panelCell && panelKey && panelSection && (
+        <CellPanel
+          key={panelCell.id}
+          song={song}
+          songKey={panelKey}
+          section={panelSection}
+          sections={visibleMatrixSections}
+          spelling={songSpelling}
+          layout={panelLayout}
+          onLayoutChange={setPanelLayout}
+          onClose={closeCellPanel}
         />
       )}
 

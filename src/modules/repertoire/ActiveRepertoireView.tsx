@@ -44,6 +44,8 @@ import {
   windowsFrom,
   type SongKeySpacingSettings,
 } from './spacingPrefs';
+import { resolveSpelling } from '../../lib/spelling';
+import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
   songs: Song[];
@@ -86,6 +88,7 @@ const FRESHNESS_RANK: Record<ReturnType<typeof freshnessFor>, number> = {
 };
 
 export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
+  const [globalSpelling] = useSpelling();
   const [showAdd, setShowAdd] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('learning-order');
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -198,6 +201,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         now: advancementNow,
         dueByKeyId: dueMap,
         dueWindows: windowsFrom(spacing),
+        spelling: resolveSpelling(song.spelling, globalSpelling),
       });
       const advancement = evaluateAdvancement({
         currentStage: derivedStage,
@@ -207,10 +211,14 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         now: advancementNow,
         dueByKeyId: dueMap,
         dueWindows: windowsFrom(spacing),
+        // Per song, not per page: this is a list, so the hook cannot be
+        // called per row — `resolveSpelling` is the same rule
+        // `useSongSpelling` applies, in its pure form.
+        spelling: resolveSpelling(song.spelling, globalSpelling),
       });
       return { song, lastPractisedAt, freshness, derivedStage, readyToAdvance: advancement.suggest };
     });
-  }, [songs, logsBySong, keysBySong, runsBySong, advancementNow]);
+  }, [songs, logsBySong, keysBySong, runsBySong, advancementNow, globalSpelling]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};

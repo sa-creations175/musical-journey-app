@@ -71,6 +71,7 @@ function inputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
     now: NOW,
     dueByKeyId: ALL_HELD,
     dueWindows: WINDOWS,
+    spelling: 'flat' as const,
     ...over,
   };
 }

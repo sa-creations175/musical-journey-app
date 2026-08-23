@@ -299,6 +299,7 @@ describe('testing a key whose sections are not comfortable', () => {
       now: NOW,
       dueByKeyId: new Map(),
       dueWindows: WINDOWS,
+      spelling: 'flat' as const,
     }).suggest).toBe(true);
   });
 
