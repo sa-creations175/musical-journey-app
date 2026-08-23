@@ -300,13 +300,13 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
       }
       const passed = original.wholeSongTestPassedAt !== null;
       return [{
-        label: `Whole-song test passed in ${original.keyName}`,
+        label: `Whole-song test passed in the key of ${original.keyName}`,
         met: passed,
         have: passed ? 1 : 0,
         need: 1,
         ...(passed ? {} : {
           detail: 'Three clean run-throughs in a row, in one sitting. Open it '
-            + `from the ${original.keyName} row of the matrix.`,
+            + `from the row for the key of ${original.keyName} in the matrix.`,
         }),
       }];
     }
@@ -318,8 +318,12 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
         .map((q, i) => (covered.has(i) ? null : q.join(' · ')))
         .filter((q): q is string => q !== null);
       return [{
-        label: `Comfortable in ${QUADRANT_COUNT} keys, one from each quadrant `
-          + 'of the circle of fourths',
+        // Precise about the rule: ONE key per quadrant, at Comfortable
+        // status or above, and any key within the quadrant qualifies.
+        // "Comfortable in 4 keys, one from each quadrant" implied four
+        // specific keys, which is not what the rule asks.
+        label: `One key at Comfortable status or above from each of the `
+          + `${QUADRANT_COUNT} quadrants of the circle of fourths`,
         met: covered.size >= QUADRANT_COUNT,
         have: covered.size,
         need: QUADRANT_COUNT,
@@ -366,7 +370,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
           }),
         },
         {
-          label: 'All four quadrants still held',
+          label: 'All four quadrants still held at Comfortable status or above',
           met: covered.size >= QUADRANT_COUNT,
           have: covered.size,
           need: QUADRANT_COUNT,
@@ -382,7 +386,8 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
           need: input.songKeys.length,
           ...(short.length > 0
             ? {
-                detail: `Still to run: ${short.map(k => k.keyName).join(', ')}. `
+                detail: `Still to run: ${short.length === 1 ? 'the key of' : 'keys'} `
+                  + `${short.map(k => k.keyName).join(', ')}. `
                   + 'Use "log a run" on those rows — one clean pass each is enough.',
               }
             : {}),

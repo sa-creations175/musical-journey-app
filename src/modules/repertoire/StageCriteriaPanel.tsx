@@ -111,8 +111,11 @@ function HoldingThisRung({
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {sorted.map(k => (
           <span key={k.keyName} className="text-xs whitespace-nowrap">
-            <span className="font-medium font-mono text-neutral-800 dark:text-neutral-100">
-              {spellKey(k.keyName, spelling)}
+            <span className="text-neutral-800 dark:text-neutral-100">
+              key of{' '}
+              <span className="font-medium font-mono">
+                {spellKey(k.keyName, spelling)}
+              </span>
             </span>
             <span className={[
               'ml-1',
@@ -127,7 +130,7 @@ function HoldingThisRung({
       </div>
       <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
         when a key goes overdue past its grace period it stops counting toward
-        this rung, and the song drops to whatever rung still holds.{' '}
+        this status, and the song drops to whatever status still holds.{' '}
         <span className="text-neutral-400 dark:text-neutral-500">
           the other keys don’t go overdue — a clean run is a thing that happened,
           and it stays happened. only the keys you are holding need re-proving.

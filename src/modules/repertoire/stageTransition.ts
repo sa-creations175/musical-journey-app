@@ -61,6 +61,10 @@ export function buildDemotion(input: {
   to: RepertoireStage;
   criteriaAtLanding: StageCriterion[];
   now: number;
+  /** Snapshot of which key held each quadrant, and which had lapsed,
+   *  at the moment the drop was computed. Omitted for a drop that has
+   *  nothing to do with quadrants. */
+  holdings?: { heldByQuadrant: Array<string | null>; lapsedKeys: string[] };
 }): SongStageDemotion {
   const unmet = input.criteriaAtLanding.filter(c => !c.met);
   const substantive = unmet.filter(c => !c.precondition);
@@ -71,6 +75,12 @@ export function buildDemotion(input: {
     to: input.to,
     criterionLabel: named?.label ?? 'criteria for this rung are no longer met',
     ...(named?.detail ? { detail: named.detail } : {}),
+    ...(input.holdings
+      ? {
+          heldByQuadrant: input.holdings.heldByQuadrant,
+          lapsedKeys: input.holdings.lapsedKeys,
+        }
+      : {}),
   };
 }
 
@@ -88,6 +98,7 @@ export function stageReconciliation(input: {
   derived: RepertoireStage;
   criteriaAtDerived: StageCriterion[];
   now: number;
+  holdings?: { heldByQuadrant: Array<string | null>; lapsedKeys: string[] };
 }): Partial<Song> | null {
   const movement = movementBetween(input.previous, input.derived);
   if (movement === 'none') return null;
@@ -100,6 +111,7 @@ export function stageReconciliation(input: {
         to: input.derived,
         criteriaAtLanding: input.criteriaAtDerived,
         now: input.now,
+        ...(input.holdings ? { holdings: input.holdings } : {}),
       }),
       updatedAt: input.now,
     };

@@ -89,7 +89,7 @@ import PracticeHistory from './PracticeHistory';
 import StageCriteriaPanel, { type HoldingKey } from './StageCriteriaPanel';
 import DemotionNotice from './DemotionNotice';
 import { useSongSpelling } from './useSongSpelling';
-import { isComfortableOrBetter } from './matrix/keyProgress';
+import { isComfortableOrBetter, quadrantHoldings } from './matrix/keyProgress';
 import { daysUntilDue, keyDueState } from './matrix/keySpacing';
 import SectionGuidance from './SectionGuidance';
 import SongTimerStrip from './SongTimerStrip';
@@ -663,6 +663,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       derived: currentStage,
       criteriaAtDerived: criteria,
       now: Date.now(),
+      // Snapshotted at the moment of the drop, not read live: the
+      // notice has to keep reading correctly once the key that lapsed
+      // has been re-proved.
+      holdings: quadrantHoldings(
+        matrixKeys, advancementNow, dueMap, windowsFrom(spacing),
+      ),
     });
     if (patch === null) return;
     void db.songs.update(song.id, patch);
@@ -1959,7 +1965,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         an invitation, and the two would otherwise sit
                         side by side saying opposite things. */}
                     {song.stageDemotion && (
-                      <DemotionNotice demotion={song.stageDemotion} />
+                      <DemotionNotice
+                        demotion={song.stageDemotion}
+                        spelling={songSpelling}
+                      />
                     )}
                     {advancement.suggest && advancement.reason && (
                       <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">

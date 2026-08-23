@@ -77,6 +77,25 @@ export interface SongStageDemotion {
    *  actionable rather than merely true. Absent when the criterion had
    *  nothing more specific to say. */
   detail?: string;
+  /**
+   * Which key was holding each quadrant at the moment of the drop, by
+   * quadrant index, with null for a quadrant nothing held.
+   *
+   * A SNAPSHOT, not a live read, for the same reason the rest of this
+   * record is stored: re-prove the key and a live read would show the
+   * quadrant covered again, contradicting a notice that says it fell.
+   * The notice has to describe a moment in the past.
+   *
+   * Holds IDENTITIES ('F#'), never spellings. Spelling is a display
+   * preference that can change after the fact; the identity is what
+   * the row was.
+   *
+   * Absent for a drop whose criterion had nothing to do with
+   * quadrants — the whole-song test, for instance.
+   */
+  heldByQuadrant?: Array<string | null>;
+  /** The keys that had gone overdue when the drop was computed. */
+  lapsedKeys?: string[];
 }
 
 export type RepertoireStage =

@@ -167,3 +167,40 @@ export function isHeld(
   if (!isComfortableOrBetter(songKey.keyState)) return false;
   return stateHoldsRung(keyDueState(nextDueAt, now, windows));
 }
+
+/**
+ * Which key is holding each quadrant, and which have gone overdue.
+ *
+ * The shape the demotion notice needs: showing what is still standing
+ * beside what fell is the point, because a list of absences alone does
+ * not say where the song is.
+ *
+ * A quadrant reports the FIRST held key it finds rather than all of
+ * them. The rule asks for one key per quadrant, so a second adds
+ * nothing to the claim — and naming three keys where one is required
+ * would imply the others were also lost when one lapses.
+ */
+export function quadrantHoldings(
+  songKeys: ReadonlyArray<SongKey>,
+  now: number,
+  dueByKeyId: ReadonlyMap<string, number | null>,
+  windows: DueWindows,
+): { heldByQuadrant: Array<string | null>; lapsedKeys: string[] } {
+  const heldByQuadrant: Array<string | null> = KEY_QUADRANTS.map(() => null);
+  const lapsedKeys: string[] = [];
+
+  for (const key of songKeys) {
+    if (!isComfortableOrBetter(key.keyState)) continue;
+    const due = dueByKeyId.get(key.id) ?? null;
+    const held = isHeld(key, now, due, windows);
+    if (!held) {
+      lapsedKeys.push(key.keyName);
+      continue;
+    }
+    const q = quadrantOf(key.keyName);
+    if (q === null) continue;
+    if (heldByQuadrant[q] === null) heldByQuadrant[q] = key.keyName;
+  }
+
+  return { heldByQuadrant, lapsedKeys };
+}

@@ -145,7 +145,9 @@ describe('Learning → Comfortable', () => {
       ],
     }));
     expect(out.suggest).toBe(true);
-    expect(out.reason).toContain('Whole-song test passed in C');
+    // A key always carries "key" or "keys" in prose — a bare letter at
+    // the start of a clause reads as a word, not a key.
+    expect(out.reason).toContain('Whole-song test passed in the key of C');
   });
 
   it('does NOT fire when the test passed only in some OTHER key', () => {
