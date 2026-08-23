@@ -1,11 +1,11 @@
 import type { Song } from '../../lib/db';
 import {
-  DEFAULT_STAGE,
   FRESHNESS_DOT_CLASS,
   STAGE_BADGE_CLASS,
   STAGE_LABEL,
   type Freshness,
 } from './stage';
+import type { RepertoireStage } from '../../lib/db';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -37,6 +37,11 @@ interface Props {
   addedLabel: string;
   freshness: Freshness;
   readyToAdvance?: boolean;
+  /** The DERIVED stage, passed in rather than read off the song. The
+   *  song row carries a watermark of the last derivation, and a card
+   *  reading that directly would show a stale rung for one paint after
+   *  a key lapsed. One derivation per list, shared. */
+  stage: RepertoireStage;
   onOpen: () => void;
 }
 
@@ -47,9 +52,9 @@ export default function SongCard({
   addedLabel,
   freshness,
   readyToAdvance,
+  stage,
   onOpen,
 }: Props) {
-  const stage = song.stage ?? DEFAULT_STAGE;
   void lastPractisedAt;
 
   return (

@@ -418,6 +418,60 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
  * null check would not fire. Removing either alone changes nothing;
  * removing both suggests advancing to `undefined`.
  */
+/**
+ * The stage this song is actually at.
+ *
+ * ---------------------------------------------------------------
+ * PLAY IT, PROVE IT, THREE TIMES.
+ *
+ * Nothing writes a stage any more. There is no dropdown, no "advance
+ * to Comfortable" button and no override — a rung is where the
+ * evidence puts you, and the only way up is to play the song and
+ * prove it: three clean run-throughs at tempo, back to back, in one
+ * sitting.
+ *
+ * That cuts both ways, deliberately. A rung can be LOST as well as
+ * earned, because `isHeld` reads a due date and a key that stops
+ * being re-proven stops counting. A stored stage could only ever go
+ * up, which made it a record of the best day a song ever had rather
+ * than of where it is.
+ * ---------------------------------------------------------------
+ *
+ * WALKS UP FROM THE BOTTOM rather than checking one rung. Every stage
+ * is entered by satisfying the rung below it, so the honest answer is
+ * the highest rung whose entry has been earned — and the walk is what
+ * makes a two-rung fall land correctly. "Four quadrants held" is
+ * shared between comfortable → cross-key and criterion 2 of cross-key
+ * → internalized, so one stale key fails both; a check that only
+ * asked "does this song still satisfy its current rung" would drop
+ * exactly one and stop.
+ */
+export function deriveStage(
+  input: Omit<AdvancementInputs, 'currentStage'>,
+): RepertoireStage {
+  let stage: RepertoireStage = STAGES[0];
+  for (const candidate of STAGES) {
+    const criteria = stageCriteria({ ...input, currentStage: candidate });
+    // An empty list is a terminal rung, not a satisfied one — see the
+    // note in evaluateAdvancement.
+    //
+    // BELT, NOT BRACES, and the first draft's comment claimed
+    // otherwise. Removing this line changes nothing today: `[].every()`
+    // is true, so the walk proceeds, and what actually stops it is
+    // `nextStage() === null` two lines down. Verified by reversal —
+    // taking it out left all 50 tests green. It earns its place only
+    // the day a NON-terminal rung has no criteria, where the null check
+    // would not fire. Removing BOTH makes `stage` null and the walk
+    // returns a value that is not on the ladder.
+    if (criteria.length === 0) break;
+    if (!criteria.every(c => c.met)) break;
+    const next = nextStage(candidate);
+    if (next === null) break;
+    stage = next;
+  }
+  return stage;
+}
+
 export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvaluation {
   const criteria = stageCriteria(input);
   if (criteria.length === 0 || !criteria.every(c => c.met)) {

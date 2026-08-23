@@ -34,16 +34,14 @@ import {
 import { upsertDiaryEntry } from '../harmonic-diary/data';
 import { canonicalSkillId } from '../skills/registry';
 import {
-  DEFAULT_STAGE,
-  STAGES,
   STAGE_BADGE_CLASS,
   STAGE_GUIDANCE,
   STAGE_LABEL,
   STAGE_TAGLINE,
+  deriveStage,
   evaluateAdvancement,
   normaliseStage,
   stageCriteria,
-  nextStage,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
 import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
@@ -92,6 +90,7 @@ import StageCriteriaPanel from './StageCriteriaPanel';
 import SectionGuidance from './SectionGuidance';
 import SongTimerStrip from './SongTimerStrip';
 import { dueByKeyId } from './matrix/proveKey';
+import { stageReconciliation } from './stageTransition';
 import {
   SPACING_DEFAULTS,
   getSpacingSettings,
@@ -558,11 +557,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   };
 
   // --- Advancement --------------------------------------------------
-  // Read through normaliseStage — a row written before the
-  // 'maintenance' rung was retired still carries that string, and
-  // rendering it raw would index every STAGE_* map with a key they no
-  // longer have.
-  const currentStage: RepertoireStage = normaliseStage(song?.stage);
+  // The watermark: what the derivation last produced. Read through
+  // normaliseStage because a row written before the 'maintenance' rung
+  // was retired still carries that string.
+  const lastObservedStage: RepertoireStage = normaliseStage(song?.stage);
   // Captured once per mount rather than read during render — the
   // purity rule the matrix already observes. A stage suggestion does
   // not need second-accuracy, so a session left open overnight
@@ -588,6 +586,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     void dueByKeyId(ids).then(m => { if (live) setDueMap(m); });
     return () => { live = false; };
   }, [keyIds]);
+  // DERIVED, never read off the song. Play it, prove it, three times.
+  const currentStage: RepertoireStage = useMemo(
+    () => deriveStage({
+      songKeys: matrixKeys,
+      keyRunThroughs,
+      performanceTempo: song?.tempo ?? null,
+      now: advancementNow,
+      dueByKeyId: dueMap,
+      dueWindows: windowsFrom(spacing),
+    }),
+    [matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing],
+  );
+
   const advancementInputs = useMemo(() => ({
     currentStage,
     songKeys: matrixKeys,
@@ -612,23 +623,32 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dueByKeyId: dueMap,
     dueWindows: windowsFrom(spacing),
   }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
-  const nextStageOption = nextStage(currentStage);
 
-  const setStage = async (stage: RepertoireStage) => {
-    if (!song) return;
-    const prev = song.stage ?? DEFAULT_STAGE;
-    await db.songs.update(song.id, { stage, updatedAt: Date.now() });
-    toast({
-      message: `Advanced to ${STAGE_LABEL[stage]}.`,
-      variant: 'success',
-      action: {
-        label: 'Undo',
-        onClick: async () => {
-          await db.songs.update(song.id, { stage: prev, updatedAt: Date.now() });
-        },
-      },
+  // Record a move once the derivation has real inputs behind it.
+  //
+  // In an EFFECT, never during render: this writes, and a write in a
+  // render body is a re-render loop rather than a record. Gated on the
+  // async reads having landed — `dueMap` empty means "not loaded yet",
+  // which reads every key as never-proven and holds every rung, so
+  // reconciling then would record a promotion that the next paint
+  // takes back.
+  const dueLoaded = dueMap.size > 0 || matrixKeys.length === 0;
+  useEffect(() => {
+    if (!song || !dueLoaded) return;
+    const patch = stageReconciliation({
+      song,
+      previous: lastObservedStage,
+      derived: currentStage,
+      criteriaAtDerived: criteria,
+      now: Date.now(),
     });
-  };
+    if (patch === null) return;
+    void db.songs.update(song.id, patch);
+  }, [song, dueLoaded, lastObservedStage, currentStage, criteria]);
+
+  // `setStage` is gone with the controls that called it. Nothing
+  // writes a stage now — `stageReconciliation` writes the WATERMARK,
+  // which is a record of what the derivation produced, not a choice.
 
   // --- Section CRUD helpers ----------------------------------------
   const addSection = async () => {
@@ -1894,26 +1914,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         </span>
                         <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-neutral-500 inline-flex items-center gap-1">
-                          change stage:
-                          <select
-                            value={currentStage}
-                            onChange={e => setStage(e.target.value as RepertoireStage)}
-                            className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-xs"
-                          >
-                            {STAGES.map(s => <option key={s} value={s}>{STAGE_LABEL[s]}</option>)}
-                          </select>
-                        </label>
-                        {nextStageOption && (
-                          <button
-                            onClick={() => setStage(nextStageOption)}
-                            className="px-3 py-1 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
-                          >
-                            advance to {STAGE_LABEL[nextStageOption]} →
-                          </button>
-                        )}
-                      </div>
+                      {/* The change-stage dropdown and the advance
+                          button are gone. A stage is where the
+                          evidence puts you: play it, prove it, three
+                          times. An override would make the badge a
+                          claim about what the user was willing to
+                          assert rather than about the song. */}
                     </div>
                     <p className="text-sm text-neutral-700 dark:text-neutral-200 italic leading-snug">
                       {STAGE_GUIDANCE[currentStage]}

@@ -22,6 +22,7 @@ import {
   STAGE_LABEL,
   evaluateAdvancement,
   nextStage,
+  deriveStage,
   normaliseStage,
   stageCriteria,
   type AdvancementInputs,
@@ -480,5 +481,103 @@ describe('the panel and the rule cannot disagree', () => {
     // The banner says what you DID; having a tempo set is not that.
     expect(evaluateAdvancement(passing).reason).not.toContain('performance tempo is set');
     expect(evaluateAdvancement(passing).reason).toContain('All four quadrants still held');
+  });
+});
+
+// =====================================================================
+
+describe('deriveStage — play it, prove it, three times', () => {
+  /** Every key held, one per quadrant. */
+  const quadrantKeys = () =>
+    allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' });
+
+  it('a song with nothing proven is learning', () => {
+    expect(deriveStage(inputs({ songKeys: allTwelve(() => ({ keyState: 'not_started' })) })))
+      .toBe('learning');
+  });
+
+  it('climbs to comfortable on a passed whole-song test in the original key', () => {
+    const keys = allTwelve(k => k === 'C'
+      ? { isOriginalKey: true, wholeSongTestPassedAt: NOW }
+      : { keyState: 'not_started' });
+    expect(deriveStage(inputs({ songKeys: keys }))).toBe('comfortable');
+  });
+
+  it('climbs to cross-key when four quadrants are held', () => {
+    const keys = quadrantKeys().map(k =>
+      k.keyName === 'C' ? { ...k, isOriginalKey: true, wholeSongTestPassedAt: NOW } : k);
+    expect(deriveStage(inputs({ songKeys: keys }))).toBe('cross-key');
+  });
+
+  it('climbs to internalized when the other eight have clean at-tempo runs', () => {
+    const keys = quadrantKeys().map(k =>
+      k.keyName === 'C' ? { ...k, isOriginalKey: true, wholeSongTestPassedAt: NOW } : k);
+    expect(deriveStage(inputs({
+      songKeys: keys,
+      keyRunThroughs: cleanRunsIn(
+        CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)),
+      ),
+    }))).toBe('internalized');
+  });
+
+  it('stops at the top rather than walking off the ladder', () => {
+    // TWO GUARDS PRODUCE THIS and neither reverses alone: the
+    // empty-criteria check, and `nextStage() === null`. `[].every()`
+    // is true, so the empty list reads as satisfied and the null check
+    // is what actually stops the walk today. Removing either leaves
+    // this green; removing both returns a value that is not on the
+    // ladder, which is what the first assertion catches.
+    const keys = quadrantKeys().map(k =>
+      k.keyName === 'C' ? { ...k, isOriginalKey: true, wholeSongTestPassedAt: NOW } : k);
+    const derived = deriveStage(inputs({
+      songKeys: keys,
+      keyRunThroughs: cleanRunsIn(
+        CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)),
+      ),
+    }));
+    expect(STAGES).toContain(derived);
+    expect(nextStage(derived)).toBeNull();
+  });
+});
+
+describe('deriveStage — a rung can be lost, not only earned', () => {
+  const provenTwelve = () =>
+    allTwelve(k => ONE_PER_QUADRANT.includes(k)
+      ? (k === 'C' ? { isOriginalKey: true, wholeSongTestPassedAt: NOW } : {})
+      : { keyState: 'learning' });
+  const allEightRun = () => cleanRunsIn(
+    CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)),
+  );
+
+  it('ONE OVERDUE QUADRANT KEY DROPS TWO RUNGS, and that is correct', () => {
+    // "Four quadrants held" is the whole of comfortable → cross-key AND
+    // criterion 2 of cross-key → internalized, so one stale key fails
+    // both. Guard the guard: the same song is internalized when
+    // nothing is overdue, so the due date is what moves this.
+    const base = { songKeys: provenTwelve(), keyRunThroughs: allEightRun() };
+    expect(deriveStage(inputs(base))).toBe('internalized');
+
+    const overdue: ReadonlyMap<string, number | null> = new Map([
+      ['sk-A', NOW - (GRACE_DEFAULT_DAYS + 5) * DAY],
+    ]);
+    expect(deriveStage(inputs({ ...base, dueByKeyId: overdue }))).toBe('comfortable');
+  });
+
+  it('does not drop while a key is merely due', () => {
+    const base = { songKeys: provenTwelve(), keyRunThroughs: allEightRun() };
+    const justDue: ReadonlyMap<string, number | null> = new Map([['sk-A', NOW - DAY]]);
+    expect(deriveStage(inputs({ ...base, dueByKeyId: justDue }))).toBe('internalized');
+  });
+
+  it('keeps comfortable when the original key stays proven', () => {
+    // The breadth runs are historical events and do not decay, so a
+    // song that loses its quadrants keeps the rung its whole-song test
+    // earned. Only the four depth keys can lapse.
+    const overdueAll: ReadonlyMap<string, number | null> = new Map(
+      CIRCLE_OF_FOURTHS_KEYS.map(k => [`sk-${k}`, NOW - (GRACE_DEFAULT_DAYS + 5) * DAY]),
+    );
+    expect(deriveStage(inputs({
+      songKeys: provenTwelve(), keyRunThroughs: allEightRun(), dueByKeyId: overdueAll,
+    }))).toBe('comfortable');
   });
 });

@@ -20,16 +20,16 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type Song,
+  type RepertoireStage,
   type SongKey,
   type SongKeyRunThrough,
   type SongPracticeLog,
 } from '../../lib/db';
 import {
-  DEFAULT_STAGE,
   STAGES,
   STAGE_LABEL,
   evaluateAdvancement,
-  normaliseStage,
+  deriveStage,
   freshnessFor,
   humanAgo,
   type Freshness,
@@ -187,8 +187,11 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
       const songLogs = logsBySong.get(song.id) ?? [];
       const lastPractisedAt = songLogs[0]?.timestamp ?? null;
       const freshness = freshnessFor(lastPractisedAt);
-      const advancement = evaluateAdvancement({
-        currentStage: normaliseStage(song.stage),
+      // DERIVED here too. The list and the song page must agree about
+      // what rung a song is on, and they can only do that by computing
+      // it from the same evidence rather than by reading a value one
+      // of them wrote.
+      const derivedStage = deriveStage({
         songKeys: keysBySong.get(song.id) ?? [],
         keyRunThroughs: runsBySong.get(song.id) ?? [],
         performanceTempo: song.tempo ?? null,
@@ -196,16 +199,24 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         dueByKeyId: dueMap,
         dueWindows: windowsFrom(spacing),
       });
-      return { song, lastPractisedAt, freshness, readyToAdvance: advancement.suggest };
+      const advancement = evaluateAdvancement({
+        currentStage: derivedStage,
+        songKeys: keysBySong.get(song.id) ?? [],
+        keyRunThroughs: runsBySong.get(song.id) ?? [],
+        performanceTempo: song.tempo ?? null,
+        now: advancementNow,
+        dueByKeyId: dueMap,
+        dueWindows: windowsFrom(spacing),
+      });
+      return { song, lastPractisedAt, freshness, derivedStage, readyToAdvance: advancement.suggest };
     });
   }, [songs, logsBySong, keysBySong, runsBySong, advancementNow]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of STAGES) counts[s] = 0;
-    for (const { song } of perSong) {
-      const stage = song.stage ?? DEFAULT_STAGE;
-      counts[stage] = (counts[stage] ?? 0) + 1;
+    for (const { derivedStage } of perSong) {
+      counts[derivedStage] = (counts[derivedStage] ?? 0) + 1;
     }
     return counts;
   }, [perSong]);
@@ -242,8 +253,8 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         break;
       case 'by-stage':
         rows.sort((a, b) => {
-          const sa = STAGES.indexOf(a.song.stage ?? DEFAULT_STAGE);
-          const sb = STAGES.indexOf(b.song.stage ?? DEFAULT_STAGE);
+          const sa = STAGES.indexOf(a.derivedStage);
+          const sb = STAGES.indexOf(b.derivedStage);
           if (sa !== sb) return sa - sb;
           return byDateAdded(a.song, b.song);
         });
@@ -376,7 +387,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-2">
-              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance }) => (
+              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage }) => (
                 <SortableSongRow
                   key={song.id}
                   song={song}
@@ -385,6 +396,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
                   addedLabel={formatAddedDate(song.addedDate)}
                   freshness={freshness}
                   readyToAdvance={readyToAdvance}
+                  stage={derivedStage}
                   onOpen={() => onOpenSong(song.id)}
                 />
               ))}
@@ -393,7 +405,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         </DndContext>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance }) => (
+          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage }) => (
             <SongCard
               key={song.id}
               song={song}
@@ -402,6 +414,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
               addedLabel={formatAddedDate(song.addedDate)}
               freshness={freshness}
               readyToAdvance={readyToAdvance}
+              stage={derivedStage}
               onOpen={() => onOpenSong(song.id)}
             />
           ))}
@@ -434,6 +447,7 @@ interface SortableSongRowProps {
   addedLabel: string;
   freshness: Freshness;
   readyToAdvance?: boolean;
+  stage: RepertoireStage;
   onOpen: () => void;
 }
 
