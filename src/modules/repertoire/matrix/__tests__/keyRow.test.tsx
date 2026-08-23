@@ -137,16 +137,30 @@ describe('one row, cells that are cells', () => {
   });
 });
 
-describe('the two key-level actions stayed on the key row', () => {
+describe('the two key-level actions', () => {
+  const label = (b: Element) => (b.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const find = (r: ReturnType<typeof render>, text: string) =>
+    r.buttons().find(b => label(b) === text);
+
+  it('name what they are, not a word you have to already know', () => {
+    // "test" and "run" were two cryptic words doing very different
+    // jobs — depth versus breadth — and neither said which. The count
+    // beside each is the difference: three in a row versus one pass.
+    // The FULL rule (at or above tempo minus 10, back to back, one
+    // sitting) belongs in the modal, which has room to state it.
+    const r = render({ runCounts: true });
+    expect(find(r, 'test · 3 clean in a row')).toBeDefined();
+    expect(find(r, 'run at tempo · 1 clean pass')).toBeDefined();
+    r.unmount();
+  });
+
   it('both are reachable and report the key', () => {
     // They are per-KEY. Putting them inside the panel a CELL opens
     // would mean picking an arbitrary section to reach something that
     // has nothing to do with sections.
-    const r = render();
-    const test = r.buttons().find(b => (b.textContent ?? '').trim() === 'test');
-    const run = r.buttons().find(b => (b.textContent ?? '').trim() === 'run');
-    expect(test).toBeDefined();
-    expect(run).toBeDefined();
+    const r = render({ runCounts: true });
+    const test = find(r, 'test · 3 clean in a row');
+    const run = find(r, 'run at tempo · 1 clean pass');
     act(() => { test!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     act(() => { run!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(r.tests).toEqual(['sk-F#']);
@@ -154,9 +168,49 @@ describe('the two key-level actions stayed on the key row', () => {
     r.unmount();
   });
 
-  it('reads "retest" once the key is overdue', () => {
+  it('says "test again" once the key is overdue', () => {
     const r = render({ nextDueAt: NOW - (GRACE_DEFAULT_DAYS + 5) * DAY });
-    expect(r.buttons().some(b => (b.textContent ?? '').trim() === 'retest')).toBe(true);
+    expect(find(r, 'test again · 3 clean in a row')).toBeDefined();
+    r.unmount();
+  });
+});
+
+describe('the run button appears only where a run counts', () => {
+  const label = (b: Element) => (b.textContent ?? '').replace(/\s+/g, ' ').trim();
+  const hasRun = (r: ReturnType<typeof render>) =>
+    r.buttons().some(b => label(b).startsWith('run at tempo'));
+
+  it('is absent when a clean run on this key advances nothing', () => {
+    // THE LOAD-BEARING ONE. A single run advances exactly one
+    // criterion in the whole ladder — the breadth half of Cross-key →
+    // Internalized. Everywhere else its only honest label would be
+    // "this doesn't count yet", and a control that needs that label
+    // should not be on screen.
+    const r = render();
+    expect(hasRun(r)).toBe(false);
+    r.unmount();
+  });
+
+  it('is present when it does', () => {
+    const r = render({ runCounts: true });
+    expect(hasRun(r)).toBe(true);
+    r.unmount();
+  });
+
+  it('leaves the row with an action either way', () => {
+    // Guard the guard: hiding "run" must not leave a row you cannot
+    // act on. Before Cross-key every row still offers the test.
+    const r = render();
+    expect(r.buttons().some(b => label(b).startsWith('test'))).toBe(true);
+    r.unmount();
+  });
+
+  it('defaults to hidden when the caller says nothing', () => {
+    // A caller that has not worked out the answer gets no button,
+    // rather than a button that may do nothing. The default is the
+    // safe direction precisely because it is easy to forget to pass.
+    const r = render({ runCounts: undefined });
+    expect(hasRun(r)).toBe(false);
     r.unmount();
   });
 });

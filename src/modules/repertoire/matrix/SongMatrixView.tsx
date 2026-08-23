@@ -56,10 +56,15 @@ interface Props {
    *  than a second one that could disagree with them. */
   dueByKeyId?: ReadonlyMap<string, number | null>;
   dueWindows?: DueWindows;
+  /** songKey ids where one clean at-tempo run advances something.
+   *  Resolved by the page from `keysWhereRunCounts` — the same
+   *  reading the criteria panel uses. */
+  runCountsForKeyIds?: ReadonlySet<string>;
 }
 
 export default function SongMatrixView({
   song, onClose, embedded, onCellSelected, dueByKeyId, dueWindows,
+  runCountsForKeyIds,
 }: Props) {
   // refreshKey is bumped after every save we route through this view
   // (cell save, test save). It's added to all four useLiveQuery deps
@@ -361,6 +366,7 @@ export default function SongMatrixView({
         onCellTap={handleCellTap}
         onRunTest={handleRunTest}
         onLogRun={handleLogRun}
+        runCountsForKeyIds={runCountsForKeyIds}
       />
 
 

@@ -25,6 +25,7 @@ import {
   deriveStage,
   normaliseStage,
   stageCriteria,
+  keysWhereRunCounts,
   type AdvancementInputs,
 } from '../stage';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../matrix/keys';
@@ -582,5 +583,97 @@ describe('deriveStage — a rung can be lost, not only earned', () => {
     expect(deriveStage(inputs({
       songKeys: provenTwelve(), keyRunThroughs: allEightRun(), dueByKeyId: overdueAll,
     }))).toBe('comfortable');
+  });
+});
+
+// =====================================================================
+
+describe('keysWhereRunCounts — the button and the rule are one reading', () => {
+  /** A song at Cross-key: four quadrant keys held, eight not. */
+  const atCrossKey = (over: Partial<AdvancementInputs> = {}) => inputs({
+    currentStage: 'cross-key',
+    songKeys: allTwelve(),
+    dueByKeyId: new Map(
+      // Only the four quadrant keys are held; the rest lapsed long ago,
+      // which is the ordinary shape of a song that has just arrived at
+      // Cross-key.
+      CIRCLE_OF_FOURTHS_KEYS.map(k => [
+        `sk-${k}`,
+        ONE_PER_QUADRANT.includes(k) ? NOW + 90 * DAY : NOW - 90 * DAY,
+      ]),
+    ),
+    ...over,
+  });
+
+  it('is EXACTLY the keys the criterion is still asking for', () => {
+    // THE LOAD-BEARING ASSERTION. A button offered on a key the
+    // criterion does not count is a control whose only honest label is
+    // "this doesn't count"; a key the criterion counts with no button
+    // is a criterion you cannot satisfy. Both are ruled out by
+    // deriving the two from one reading — and this is what would fail
+    // if someone re-derived either side independently.
+    const input = atCrossKey();
+    const offered = keysWhereRunCounts(input);
+    const breadth = stageCriteria(input).find(
+      c => c.label === 'Every other key run clean at tempo, at least once',
+    )!;
+    expect(breadth.need - breadth.have).toBe(offered.size);
+    // And the identities, not just the count.
+    const stillShort = new Set(
+      CIRCLE_OF_FOURTHS_KEYS.filter(k => !ONE_PER_QUADRANT.includes(k)).map(k => `sk-${k}`),
+    );
+    expect(offered).toEqual(stillShort);
+  });
+
+  it('offers nothing below Cross-key, however good the song looks', () => {
+    // A single run does not promote a key — logSingleKeyRun submits
+    // one attempt and promotion needs three — so at Learning and at
+    // Comfortable it moves nothing at all. Same songKeys, same runs,
+    // same tempo: only the rung differs.
+    for (const stage of ['learning', 'comfortable'] as const) {
+      expect(keysWhereRunCounts(atCrossKey({ currentStage: stage })).size).toBe(0);
+    }
+    // Guard the guard: the fixture DOES offer keys at Cross-key, so
+    // the two above are empty for the rung and not for the fixture.
+    expect(keysWhereRunCounts(atCrossKey()).size).toBeGreaterThan(0);
+  });
+
+  it('offers nothing when no performance tempo is set', () => {
+    // Without one there is no tempo for a run to be clean AT, so no
+    // run can qualify — the criterion says exactly this, and a button
+    // that cannot be satisfied is worse than no button.
+    expect(keysWhereRunCounts(atCrossKey({ performanceTempo: null })).size).toBe(0);
+  });
+
+  it('drops a key once one clean at-tempo run has landed on it', () => {
+    // A second run adds nothing, so the button goes.
+    const before = keysWhereRunCounts(atCrossKey());
+    expect(before.has('sk-Bb')).toBe(true);
+    const after = keysWhereRunCounts(atCrossKey({ keyRunThroughs: cleanRunsIn(['Bb']) }));
+    expect(after.has('sk-Bb')).toBe(false);
+    expect(after.size).toBe(before.size - 1);
+  });
+
+  it('offers a QUADRANT key that is not itself held', () => {
+    // The correction that matters: `short` is every key not currently
+    // held, NOT a fixed set of eight and NOT "the non-quadrant keys" —
+    // all twelve keys are in a quadrant. A quadrant is covered by ANY
+    // one held key in it, which leaves its other two still short. Here
+    // C holds quadrant 0 and F and Bb, its quadrant-mates, are offered.
+    const offered = keysWhereRunCounts(atCrossKey());
+    expect(offered.has('sk-C')).toBe(false);   // held, covers quadrant 0
+    expect(offered.has('sk-F')).toBe(true);    // same quadrant, still short
+    expect(offered.has('sk-Bb')).toBe(true);
+  });
+
+  it('shrinks as more keys are held, rather than staying at eight', () => {
+    // Six held keys leaves six short, not eight.
+    const sixHeld = ['C', 'F', 'Eb', 'F#', 'A', 'D'];
+    const offered = keysWhereRunCounts(atCrossKey({
+      dueByKeyId: new Map(CIRCLE_OF_FOURTHS_KEYS.map(k => [
+        `sk-${k}`, sixHeld.includes(k) ? NOW + 90 * DAY : NOW - 90 * DAY,
+      ])),
+    }));
+    expect(offered.size).toBe(6);
   });
 });

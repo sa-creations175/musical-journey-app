@@ -19,6 +19,7 @@ import { canonicalSkillId } from '../skills/registry';
 import {
   STAGE_BADGE_CLASS,
   STAGE_GUIDANCE,
+  keysWhereRunCounts,
   STAGE_LABEL,
   deriveStage,
   evaluateAdvancement,
@@ -651,6 +652,13 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   const criteria = useMemo(
     () => stageCriteria(advancementInputs),
+    [advancementInputs],
+  );
+  // Same input object as the criteria above, so the row's button and
+  // the panel's ask are two readings of one state rather than two
+  // beliefs about it.
+  const runCountsForKeyIds = useMemo(
+    () => keysWhereRunCounts(advancementInputs),
     [advancementInputs],
   );
   const advancement = useMemo(() => evaluateAdvancement({
@@ -2033,11 +2041,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               {STAGE_LABEL[currentStage]}
             </span>
             {currentStage === 'learning' && visibleMatrixSections.length > 0 && (
+              /* A COUNT, NOT A PERCENTAGE. "0% original" named neither
+                 the unit nor the key, and a percentage of three
+                 sections can only ever read 0 / 33 / 67 / 100 — none
+                 of which say "one of three". Naming the key ties the
+                 chip to the row you would tap. */
               <span
                 className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 tabular-nums"
-                title="sections at Comfortable in the original key"
+                title="sections you are comfortable with in the song's original key"
               >
-                {rollup.learningPercent}% original
+                {rollup.originalComfortableCount} of {rollup.originalSectionCount} sections
+                {song.key ? ` in ${spellKey(song.key, songSpelling)}` : ''}
               </span>
             )}
           </div>
@@ -2079,6 +2093,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           onCellSelected={openCellPanel}
           dueByKeyId={dueMap}
           dueWindows={windowsFrom(spacing)}
+          runCountsForKeyIds={runCountsForKeyIds}
         />
       </section>
 

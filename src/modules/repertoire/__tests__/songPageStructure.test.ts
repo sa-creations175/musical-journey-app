@@ -183,9 +183,9 @@ describe('the matrix card holds no second copy of the song', () => {
     // Named by the value it renders, not by the label — the label
     // appears in this file's own explanatory comment, and a test that
     // a comment can turn red is a test that gets loosened later.
-    expect(MATRIX).not.toContain('learningPercent');
-    expect(DETAIL).toContain('{rollup.learningPercent}% original');
-    const pill = DETAIL.indexOf('{rollup.learningPercent}% original');
+    expect(MATRIX).not.toContain('originalComfortableCount');
+    expect(DETAIL).toContain('{rollup.originalComfortableCount} of {rollup.originalSectionCount} sections');
+    const pill = DETAIL.indexOf('{rollup.originalComfortableCount} of');
     const badge = DETAIL.indexOf('STAGE_BADGE_CLASS[currentStage]');
     const grid = DETAIL.indexOf('<SongMatrixView');
     expect(badge).toBeLessThan(pill);
@@ -332,5 +332,39 @@ describe('the page reserves room for the fixed bottom drawers', () => {
     // which is what buried the last rows of the matrix.
     expect(DETAIL).toContain('paddingBottom: `var(${RESERVE_VAR}, 0px)`');
     expect(DETAIL).toContain("import LeadSheetDrawers, { RESERVE_VAR }");
+  });
+});
+
+describe('the chip counts sections instead of quoting a percentage', () => {
+  it('names the unit and the key', () => {
+    // "0% original" named neither. A percentage of three sections can
+    // only read 0 / 33 / 67 / 100, none of which say "one of three",
+    // and naming the key ties the chip to the row you would tap.
+    // Keyed on the rendered expression, not the words — the words
+    // appear in the comment explaining why they went.
+    expect(DETAIL).not.toContain('learningPercent}% original');
+    expect(DETAIL).toContain('of {rollup.originalSectionCount} sections');
+    expect(DETAIL).toContain('` in ${spellKey(song.key, songSpelling)}`');
+  });
+});
+
+describe('the run button is decided by the rule, not by the row', () => {
+  it('the page resolves it from the same input the criteria read', () => {
+    // Two readings of one state, not two beliefs about it. If the row
+    // decided for itself, a button could appear on a key the panel is
+    // not asking for — the exact thing that has no honest label.
+    expect(DETAIL).toContain('keysWhereRunCounts(advancementInputs)');
+    expect(DETAIL).toContain('stageCriteria(advancementInputs)');
+    expect(DETAIL).toContain('runCountsForKeyIds={runCountsForKeyIds}');
+  });
+
+  it('the row is given the answer rather than computing one', () => {
+    // Asserted on calls and imports rather than on names, which also
+    // appear in the comment that explains the arrangement.
+    const row = read('matrix/KeyRow.tsx');
+    for (const marker of ['keysWhereRunCounts(', 'isHeld(', "from '../../stage'"]) {
+      expect(row, marker).not.toContain(marker);
+    }
+    expect(row).toContain('runCounts');
   });
 });

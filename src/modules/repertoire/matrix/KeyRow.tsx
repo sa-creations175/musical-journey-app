@@ -45,6 +45,10 @@ interface Props {
   onCellTap?: (cellId: string) => void;
   onRunTest?: (songKeyId: string) => void;
   onLogRun?: (songKeyId: string) => void;
+  /** Whether a clean run on THIS key advances anything. Defaults to
+   *  false: a caller that has not worked out the answer gets no
+   *  button, rather than a button that may do nothing. */
+  runCounts?: boolean;
 }
 
 /**
@@ -73,6 +77,7 @@ export function gridTemplate(sectionCount: number): string {
 export default function KeyRow({
   keyName, spelling, songKey, sections, cellsBySectionId, isOriginal,
   now, nextDueAt = null, dueWindows, onCellTap, onRunTest, onLogRun,
+  runCounts = false,
 }: Props) {
   const engaged = isKeyRowEngaged(songKey);
   const keyState = songKey?.keyState ?? 'not_started';
@@ -144,14 +149,27 @@ export default function KeyRow({
       })}
 
       <div className="flex items-center justify-end gap-1 px-1.5">
-        {showActions && onLogRun && (
+        {/* ---------------------------------------------------------------
+            ONLY WHERE IT COUNTS.
+
+            `runCounts` is decided by `keysWhereRunCounts`, which reads
+            the same `breadthStatus` the criterion reads — so this
+            button appears on exactly the keys the panel is still
+            asking for, and on no others. Before Cross-key it appears
+            nowhere, because a single run advances nothing there.
+
+            The label says the whole job: one clean pass, at tempo.
+            The full rule belongs in the modal that opens, which has
+            room to state it; a button is not the place for it.
+            --------------------------------------------------------------- */}
+        {showActions && onLogRun && runCounts && (
           <button
             type="button"
             onClick={() => onLogRun(songKey.id)}
-            title="Record one run-through of the whole song in this key. Does not unlock Solid."
-            className="px-1 text-[9px] uppercase tracking-wide font-medium text-neutral-400 hover:text-fluent"
+            title="Log one clean run-through of the whole song in this key, at or above your performance tempo. This is the last key-by-key requirement for Internalized."
+            className="px-1 text-[9px] whitespace-nowrap tracking-wide font-medium text-neutral-400 hover:text-fluent"
           >
-            run
+            run at tempo · 1 clean pass
           </button>
         )}
         {showActions && onRunTest && (
@@ -162,7 +180,7 @@ export default function KeyRow({
               ? 'This key is overdue. Three clean run-throughs in a row, in one sitting, restores it.'
               : 'Play the whole song in this key: three clean run-throughs in a row, in one sitting.'}
             className={[
-              'px-1.5 py-0.5 text-[9px] uppercase tracking-wide font-medium rounded',
+              'px-1.5 py-0.5 text-[9px] whitespace-nowrap tracking-wide font-medium rounded',
               isRetest
                 ? 'bg-needswork text-white hover:opacity-90'
                 : keyState === 'comfortable'
@@ -170,7 +188,9 @@ export default function KeyRow({
                   : 'text-neutral-400 hover:text-fluent',
             ].join(' ')}
           >
-            {isRetest ? 'retest' : 'test'}
+            {/* Named by what it is, with the shape of the work beside
+                it. "test" alone was a word you had to already know. */}
+            {isRetest ? 'test again · 3 clean in a row' : 'test · 3 clean in a row'}
           </button>
         )}
       </div>

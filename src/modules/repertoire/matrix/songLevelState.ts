@@ -51,6 +51,16 @@ export interface SongLevelState {
   /** Percent (0–100) of original-key cells at 'comfortable'. Always
    *  computed; meaningful primarily when state === 'learning'. */
   learningPercent: number;
+  /** How many of the song's sections are at Comfortable in the
+   *  ORIGINAL key, and how many there are. The same reading as
+   *  `learningPercent`, before it is rounded away: with three or four
+   *  sections a percentage is false precision — 0%, 33%, 67%, 100%
+   *  are the only values it can take, and none of them say "one of
+   *  three". The song page shows these; `learningPercent` survives
+   *  for the Active Repertoire list, which has room for a bar and not
+   *  for a sentence. */
+  originalComfortableCount: number;
+  originalSectionCount: number;
   /** Percent (0–100) of non-original-key cells at 'comfortable',
    *  denominated by 11 keys × total sections per the cross-key
    *  formula on spec line 47. Always computed; meaningful when
@@ -202,6 +212,8 @@ export function computeSongLevelState(
   return {
     state,
     learningPercent,
+    originalComfortableCount: originalComfortable,
+    originalSectionCount: totalSections,
     crossKeyPercent,
     solidKeyCount: solidKeys.length,
   };

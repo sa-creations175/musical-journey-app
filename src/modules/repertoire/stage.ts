@@ -283,6 +283,84 @@ export interface StageCriterion {
  * has to be listed.
  * ---------------------------------------------------------------
  */
+/**
+ * The breadth half of Cross-key → Internalized, computed once.
+ *
+ * ---------------------------------------------------------------
+ * ONE DEFINITION, TWO READERS.
+ *
+ * The criterion reads it to say how many keys are still short. The
+ * matrix row reads it to decide whether to show its "run at tempo"
+ * button at all. Those two must not be able to disagree: a button
+ * offered on a key the criterion does not count is a control whose
+ * only honest label is "this doesn't count", and a key the criterion
+ * counts with no button on its row is a criterion you cannot satisfy.
+ *
+ * NOTE ON `short`. It is every key NOT currently held — not a fixed
+ * set of eight, and not "the non-quadrant keys". Every one of the
+ * twelve keys is in a quadrant (four quadrants of three), so there is
+ * no such thing as a non-quadrant key. A quadrant is covered by ANY
+ * one held key in it, which leaves its other two still short. Exactly
+ * four held keys makes `short` eight; six held keys makes it six.
+ * ---------------------------------------------------------------
+ */
+function breadthStatus(input: AdvancementInputs) {
+  const held = new Set(
+    input.songKeys
+      .filter(k => isHeld(k, input.now, input.dueByKeyId.get(k.id) ?? null, input.dueWindows))
+      .map(k => k.id),
+  );
+  const tempoSet = input.performanceTempo !== null;
+  // Without a performance tempo there is no tempo for a run to be
+  // clean AT, so no run can qualify — and the button must not be
+  // offered either.
+  const provenByRun = tempoSet
+    ? new Set(
+        input.keyRunThroughs
+          .filter(r => r.wasClean && isInTempoRange(r.tempoBpm, input.performanceTempo))
+          .map(r => r.songKeyId),
+      )
+    : new Set<string>();
+  const satisfied = input.songKeys.filter(
+    k => held.has(k.id) || provenByRun.has(k.id),
+  );
+  const short = input.songKeys.filter(
+    k => !held.has(k.id) && !provenByRun.has(k.id),
+  );
+  return { held, tempoSet, provenByRun, satisfied, short };
+}
+
+/**
+ * The keys where logging one clean at-tempo run actually advances
+ * something, as a set of songKey ids.
+ *
+ * ---------------------------------------------------------------
+ * THERE IS NO HONEST LABEL FOR A BUTTON THAT DOES NOTHING.
+ *
+ * A single clean run advances exactly one criterion in the whole
+ * ladder — the breadth half of Cross-key → Internalized. It does not
+ * promote a key's state (`logSingleKeyRun` submits one attempt, and
+ * promotion needs three), so at Learning and at Comfortable it moves
+ * nothing whatsoever. Asked what would prompt pressing it on a song
+ * at Learning, the answer is nothing.
+ *
+ * Empty unless ALL of:
+ *   - the song is at Cross-key, the only rung a run counts toward;
+ *   - a performance tempo is set, without which no run can be clean
+ *     AT anything;
+ *   - and, per key, that key is neither held nor already run clean —
+ *     a second run on a satisfied key adds nothing either.
+ * ---------------------------------------------------------------
+ */
+export function keysWhereRunCounts(input: AdvancementInputs): ReadonlySet<string> {
+  if (input.currentStage !== 'cross-key') return EMPTY_KEY_SET;
+  const { tempoSet, short } = breadthStatus(input);
+  if (!tempoSet) return EMPTY_KEY_SET;
+  return new Set(short.map(k => k.id));
+}
+
+const EMPTY_KEY_SET: ReadonlySet<string> = new Set<string>();
+
 export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
   switch (input.currentStage) {
     case 'learning': {
@@ -334,25 +412,10 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
     }
 
     case 'cross-key': {
-      const held = new Set(
-        input.songKeys.filter(k => isHeld(k, input.now, input.dueByKeyId.get(k.id) ?? null, input.dueWindows)).map(k => k.id),
-      );
+      const { held, tempoSet, satisfied, short } = breadthStatus(input);
       const covered = coveredQuadrants(
         input.songKeys.filter(k => held.has(k.id)).map(k => k.keyName),
       );
-
-      const tempoSet = input.performanceTempo !== null;
-      const provenByRun = tempoSet
-        ? new Set(
-            input.keyRunThroughs
-              .filter(r => r.wasClean && isInTempoRange(r.tempoBpm, input.performanceTempo))
-              .map(r => r.songKeyId),
-          )
-        : new Set<string>();
-      const satisfied = input.songKeys.filter(
-        k => held.has(k.id) || provenByRun.has(k.id),
-      );
-      const short = input.songKeys.filter(k => !held.has(k.id) && !provenByRun.has(k.id));
 
       return [
         {
