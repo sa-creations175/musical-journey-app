@@ -1625,8 +1625,13 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       </div>
 
       {/* Metadata — and everything else that answers "what IS this
-          song": the note, the links, and the associations. */}
-      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
+          song": the note, the links, and the associations.
+
+          COMPACTION, NOT DELETION. Everything it held it still holds —
+          title, artist, key, spelling, tempo, time, the note, the
+          links, the associations. It simply stopped needing this much
+          room to say it. */}
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur px-3 py-2.5 sm:px-4 sm:py-3 space-y-1.5">
         {editingMeta ? (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1765,7 +1770,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               </div>
               <button onClick={openEdit} className="text-xs text-neutral-500 hover:text-fluent">edit</button>
             </div>
-            <div className="flex items-center gap-3 flex-wrap text-xs text-neutral-500">
+            <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs text-neutral-500 leading-tight">
               {song.key && (
                 <span>
                   key: <span className="font-mono text-neutral-700 dark:text-neutral-200">{spellKey(song.key, songSpelling)}</span>
@@ -2514,7 +2519,10 @@ function SongAssociationsSection({ song }: { song: Song }) {
   // card, so a second border and a second shadow would read as a card
   // nested in a card.
   return (
-    <div className="pt-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1.5">
+    // One divider for the whole note/links/associations group rather
+    // than one per block — three horizontal rules in a card this size
+    // is more chrome than content.
+    <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
           my associations

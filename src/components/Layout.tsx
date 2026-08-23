@@ -169,7 +169,7 @@ export default function Layout() {
           // variable — safe-area inset, responsive padding, and whether
           // the page has a tagline — so it is measured, not declared.
           data-app-chrome="top"
-          className="sticky top-0 z-40 text-white px-4 sm:px-6 md:px-10 py-3 flex items-start justify-between gap-3"
+          className="sticky top-0 z-40 text-white px-4 sm:px-6 md:px-10 py-2 flex items-start justify-between gap-3"
           style={{
             backgroundColor: '#0f3d2e',
             paddingTop: 'calc(0.75rem + env(safe-area-inset-top, 0px))',
@@ -183,7 +183,7 @@ export default function Layout() {
               {pageTitle}
             </div>
             {pageTagline && (
-              <div className="text-[11px] text-white/60 leading-snug mt-0.5 line-clamp-2">
+              <div className="text-[11px] text-white/60 leading-snug line-clamp-1">
                 {pageTagline}
               </div>
             )}
@@ -219,7 +219,11 @@ export default function Layout() {
         </header>
         <BackupReminderBanner />
         <ReturnToCatalogueBanner />
-        <main className="flex-1 px-4 py-6 md:p-10 pb-24 md:pb-10 max-w-5xl w-full">
+        {/* py-4 rather than py-6/p-10. The song page's matrix is its
+            dashboard and needs to be visible on load; a page that opens
+            with three centimetres of nothing spends that on air. Applies
+            app-wide, deliberately — every screen was paying it. */}
+        <main className="flex-1 px-4 py-4 md:px-10 md:py-6 pb-24 md:pb-10 max-w-5xl w-full">
           {/* Boundary wraps ONLY the routed page. A page crash is
               contained here so the surrounding chrome — and especially
               PwaUpdateBanner below — stays mounted and can still deliver
