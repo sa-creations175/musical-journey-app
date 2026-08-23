@@ -352,6 +352,59 @@ function breadthStatus(input: AdvancementInputs) {
  *     a second run on a satisfied key adds nothing either.
  * ---------------------------------------------------------------
  */
+/**
+ * Every rung's criteria at once, grouped by the rung each one earns.
+ *
+ * ---------------------------------------------------------------
+ * THE PANEL ACCUMULATES INSTEAD OF SWAPPING.
+ *
+ * It used to show only the current rung's criteria, so the moment you
+ * satisfied one it vanished — the panel swapped wholesale to the next
+ * rung and the thing you had just earned was gone from the screen
+ * that told you to earn it. What you had done became invisible
+ * exactly when it became true.
+ *
+ * A TICK IS A LIVE READING, NOT A RECORD. Every group is recomputed
+ * against current state, including groups for rungs already passed.
+ * That is deliberate: a quadrant key can lapse, and when it does the
+ * group that depended on it un-ticks and the song drops. An
+ * achievement log would keep the tick and lie. The panel's copy says
+ * so, because a mark that can go backwards has to admit it.
+ *
+ * No rule is duplicated to do this. `stageCriteria` already takes the
+ * rung as an argument and `deriveStage` already walks the ladder
+ * calling it — this keeps the results that walk throws away.
+ * ---------------------------------------------------------------
+ */
+export type LadderGroupStatus = 'earned' | 'current' | 'ahead';
+
+export interface LadderGroup {
+  /** The rung these criteria earn — never the rung you are on. */
+  earns: RepertoireStage;
+  status: LadderGroupStatus;
+  criteria: StageCriterion[];
+}
+
+export function ladderCriteria(input: AdvancementInputs): LadderGroup[] {
+  const here = STAGES.indexOf(input.currentStage);
+  const groups: LadderGroup[] = [];
+  for (const [i, candidate] of STAGES.entries()) {
+    const earns = nextStage(candidate);
+    // The terminal rung earns nothing and has no criteria; skipping on
+    // `earns` rather than on the stage name means a fifth rung added
+    // later is picked up without touching this.
+    if (earns === null) continue;
+    const criteria = stageCriteria({ ...input, currentStage: candidate });
+    if (criteria.length === 0) continue;
+    groups.push({
+      earns,
+      status: i < here ? 'earned' : i === here ? 'current' : 'ahead',
+      criteria,
+    });
+  }
+  return groups;
+}
+
 export function keysWhereRunCounts(input: AdvancementInputs): ReadonlySet<string> {
   if (input.currentStage !== 'cross-key') return EMPTY_KEY_SET;
   const { tempoSet, short } = breadthStatus(input);

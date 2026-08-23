@@ -26,6 +26,7 @@ import {
   normaliseStage,
   stageCriteria,
   keysWhereRunCounts,
+  ladderCriteria,
   type AdvancementInputs,
 } from '../stage';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../matrix/keys';
@@ -675,5 +676,83 @@ describe('keysWhereRunCounts — the button and the rule are one reading', () =>
       ])),
     }));
     expect(offered.size).toBe(6);
+  });
+});
+
+// =====================================================================
+
+describe('ladderCriteria — the panel accumulates', () => {
+  const atComfortable = inputs({
+    currentStage: 'comfortable',
+    songKeys: [
+      key('C', { isOriginalKey: true, wholeSongTestPassedAt: NOW }),
+      ...ONE_PER_QUADRANT.filter(k => k !== 'C').map(k => key(k)),
+    ],
+  });
+
+  it('shows the rung you already earned, still ticked', () => {
+    // THE WHOLE POINT. The panel used to swap wholesale, so the
+    // criterion vanished the moment you satisfied it — what you had
+    // done became invisible exactly when it became true.
+    const groups = ladderCriteria(atComfortable);
+    const earned = groups.filter(g => g.status === 'earned');
+    expect(earned).toHaveLength(1);
+    expect(earned[0].earns).toBe('comfortable');
+    expect(earned[0].criteria.every(c => c.met)).toBe(true);
+  });
+
+  it('names the rung each group EARNS, never the rung you stand on', () => {
+    // A group headed "Comfortable" is the work that earns Comfortable.
+    // Heading it with the rung whose criteria they are would label the
+    // first group "Learning", which reads as the goal being to learn.
+    const groups = ladderCriteria(atComfortable);
+    expect(groups.map(g => g.earns))
+      .toEqual(['comfortable', 'cross-key', 'internalized']);
+    expect(groups.map(g => g.status))
+      .toEqual(['earned', 'current', 'ahead']);
+  });
+
+  it('omits the terminal rung, which earns nothing', () => {
+    const groups = ladderCriteria(inputs({ currentStage: 'internalized' }));
+    expect(groups.every(g => g.earns !== 'learning')).toBe(true);
+    expect(groups.some(g => g.status === 'current')).toBe(false);
+  });
+
+  it('is about six criteria across the whole ladder, not dozens', () => {
+    // The reason it can accumulate at all. If this grows, the
+    // collapse-the-far-ones decision needs revisiting rather than the
+    // number quietly getting worse.
+    const total = ladderCriteria(atComfortable)
+      .reduce((n, g) => n + g.criteria.length, 0);
+    expect(total).toBeLessThanOrEqual(8);
+    expect(total).toBeGreaterThanOrEqual(4);
+  });
+
+  it('un-ticks an earned rung when the key behind it lapses', () => {
+    // A tick is a live reading, not a record. This is the behaviour
+    // the panel's copy has to admit to — and it is why earned groups
+    // are recomputed rather than assumed met.
+    const lapsed = ladderCriteria(inputs({
+      currentStage: 'cross-key',
+      songKeys: [
+        key('C', { isOriginalKey: true, wholeSongTestPassedAt: NOW }),
+        ...ONE_PER_QUADRANT.filter(k => k !== 'C').map(k => key(k)),
+      ],
+      // Eb is past due AND past grace, so its quadrant stops counting.
+      dueByKeyId: new Map([['sk-Eb', NOW - (GRACE_DEFAULT_DAYS + 5) * DAY]]),
+    }));
+    const crossKey = lapsed.find(g => g.earns === 'cross-key')!;
+    expect(crossKey.criteria.every(c => c.met)).toBe(false);
+  });
+
+  it('agrees criterion-for-criterion with stageCriteria at every rung', () => {
+    // Guard against the ladder becoming a second definition. It is the
+    // same call in a loop; if it ever stops being that, this fails.
+    for (const stage of STAGES) {
+      const group = ladderCriteria(inputs({ ...atComfortable, currentStage: stage }))
+        .find(g => g.status === 'current');
+      const direct = stageCriteria({ ...atComfortable, currentStage: stage });
+      expect(group?.criteria ?? []).toEqual(direct);
+    }
   });
 });

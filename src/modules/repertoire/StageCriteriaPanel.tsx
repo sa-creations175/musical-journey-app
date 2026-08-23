@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { KEY_DUE_STATE_LABEL, type KeyDueState } from './matrix/keySpacing';
-import type { StageCriterion } from './stage';
+import { STAGE_LABEL, type LadderGroup, type StageCriterion } from './stage';
 
 /** One key that can hold a rung, and where it stands. */
 export interface HoldingKey {
@@ -31,22 +32,28 @@ export interface HoldingKey {
  * ---------------------------------------------------------------
  */
 export default function StageCriteriaPanel({
-  criteria,
+  groups,
   holding,
   spelling,
+  /** The criterion satisfied by the thing that just happened, if
+   *  anything did. Its row animates from dot to tick on arrival
+   *  rather than being already ticked — see CriterionRow. */
+  justMetLabel = null,
 }: {
-  criteria: StageCriterion[];
+  groups: LadderGroup[];
   /** The keys currently capable of holding a rung — comfortable or
    *  better. Empty until a song has one. */
   holding: HoldingKey[];
   spelling: Spelling;
+  justMetLabel?: string | null;
 }) {
   // Terminal stage. Saying "nothing more to do" would be wrong —
   // there is upkeep — but that belongs to STAGE_GUIDANCE above,
   // which carries it. An empty panel is the honest render.
-  if (criteria.length === 0) return null;
+  if (groups.length === 0) return null;
 
-  const metCount = criteria.filter(c => c.met).length;
+  const all = groups.flatMap(g => g.criteria);
+  const metCount = all.filter(c => c.met).length;
 
   return (
     <div className="rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900 px-3 py-2.5 space-y-2">
@@ -57,15 +64,109 @@ export default function StageCriteriaPanel({
         {/* "0/1" said nothing about what was being counted. It counts
             criteria, and the word is cheap. */}
         <span className="text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400">
-          {metCount} of {criteria.length} met
+          {metCount} of {all.length} met
         </span>
       </div>
-      <ul className="space-y-1.5">
-        {criteria.map(c => (
-          <CriterionRow key={c.label} criterion={c} />
+      <div className="space-y-2.5">
+        {groups.map(group => (
+          <RungGroup
+            key={group.earns}
+            group={group}
+            justMetLabel={justMetLabel}
+          />
         ))}
-      </ul>
+      </div>
+      {/* ---------------------------------------------------------------
+          THE PANEL HAS TO ADMIT THAT A TICK CAN GO BACKWARDS.
+
+          Every group is recomputed against current state, earned ones
+          included, so a lapsed quadrant key un-ticks a group you
+          passed months ago and the song drops with it. That is the
+          correct behaviour and the demotion notice reports it — but a
+          list of ticks reads as a record of things achieved unless it
+          says otherwise, and a mark that can be taken away has to say
+          so BEFORE it is taken away rather than after.
+          --------------------------------------------------------------- */}
+      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+        this is where the song stands now, not a list of things you have
+        done — a tick comes off again if the key behind it lapses.
+      </p>
       <HoldingThisRung holding={holding} spelling={spelling} />
+    </div>
+  );
+}
+
+/**
+ * One rung's criteria, headed by the rung they earn.
+ *
+ * ---------------------------------------------------------------
+ * RUNGS YOU HAVE NOT REACHED COLLAPSE.
+ *
+ * Earned and current rungs are open: what you have is worth seeing
+ * beside what is left. Everything further up is a heading and a
+ * count until you ask for it. At Learning, a wall of criteria three
+ * rungs away reads as failure rather than as a path — "0 of 8 keys"
+ * is not information you can act on today, and it is the first thing
+ * your eye lands on.
+ * ---------------------------------------------------------------
+ */
+function RungGroup({
+  group,
+  justMetLabel,
+}: {
+  group: LadderGroup;
+  justMetLabel: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const open = group.status !== 'ahead' || expanded;
+  const met = group.criteria.filter(c => c.met).length;
+  const allMet = met === group.criteria.length;
+
+  return (
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={group.status === 'ahead' ? () => setExpanded(v => !v) : undefined}
+        // Only the collapsed rungs are controls. The open ones are
+        // headings, and a heading that reports pressed state to a
+        // screen reader is a heading pretending to be a button.
+        {...(group.status === 'ahead'
+          ? { 'aria-expanded': expanded }
+          : { disabled: true, tabIndex: -1 })}
+        className={[
+          'w-full flex items-center gap-2 text-left',
+          group.status === 'ahead' ? 'cursor-pointer' : 'cursor-default',
+        ].join(' ')}
+      >
+        <StatusMark met={allMet} />
+        <span className={[
+          'text-[11px] uppercase tracking-wide font-medium',
+          group.status === 'current'
+            ? 'text-neutral-700 dark:text-neutral-200'
+            : 'text-neutral-500 dark:text-neutral-400',
+        ].join(' ')}>
+          {STAGE_LABEL[group.earns]}
+        </span>
+        <span className="text-[11px] tabular-nums text-neutral-400 dark:text-neutral-500">
+          {met} of {group.criteria.length}
+        </span>
+        {group.status === 'ahead' && (
+          <span aria-hidden className="text-[9px] text-neutral-400 ml-auto">
+            {expanded ? '▾' : '▸'}
+          </span>
+        )}
+      </button>
+      {open && (
+        <ul className="space-y-1.5 pl-6">
+          {group.criteria.map(c => (
+            <CriterionRow
+              key={c.label}
+              criterion={c}
+              justMet={c.label === justMetLabel}
+            />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -175,7 +276,91 @@ export function describeDue(k: HoldingKey): string {
 }
 
 
-function CriterionRow({ criterion }: { criterion: StageCriterion }) {
+/**
+ * The dot / tick mark, shared by a criterion row and a rung heading.
+ *
+ * ---------------------------------------------------------------
+ * A STATUS MARK, NOT A CONTROL.
+ *
+ * Unmet used to be an empty ring — which is a checkbox, and a
+ * checkbox invites a tap. Nothing here is tappable: these are things
+ * the app observes about your playing, not things you assert. You
+ * cannot tick "whole-song test passed"; you pass it.
+ *
+ * `justMet` is the moment. The tick lands WHILE YOU ARE LOOKING AT
+ * IT rather than being already there when you arrive — the row
+ * mounts showing the dot and transitions to the tick on the next
+ * frame. Under `prefers-reduced-motion` the transition is dropped and
+ * the tick is simply there; the information is identical either way,
+ * which is the test for whether an animation was carrying meaning it
+ * should not have been.
+ * ---------------------------------------------------------------
+ */
+function StatusMark({ met, justMet = false }: { met: boolean; justMet?: boolean }) {
+  const [landed, setLanded] = useState(!justMet);
+  const reduced = usePrefersReducedMotion();
+
+  useEffect(() => {
+    if (landed) return;
+    if (reduced) { setLanded(true); return; }
+    // Two frames: one to paint the un-ticked state, one to change it.
+    // A single frame can be coalesced into the mount paint, which is
+    // exactly the "already ticked on arrival" this exists to avoid.
+    const outer = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setLanded(true));
+    });
+    return () => cancelAnimationFrame(outer);
+  }, [landed, reduced]);
+
+  const showTick = met && landed;
+
+  return (
+    <span
+      aria-hidden
+      className="shrink-0 mt-[1px] w-4 h-4 flex items-center justify-center"
+    >
+      {showTick ? (
+        <span
+          className={[
+            'w-4 h-4 rounded-full bg-fluent text-white flex items-center',
+            'justify-center text-[10px] leading-none',
+            justMet && !reduced ? 'motion-safe:animate-[ping_0.4s_ease-out_1]' : '',
+          ].join(' ')}
+        >
+          ✓
+        </span>
+      ) : (
+        <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+      )}
+    </span>
+  );
+}
+
+/** The viewer's motion preference, live. Read here rather than left
+ *  to a CSS media query because the two-frame landing above is
+ *  JavaScript and has to be skipped, not merely un-animated. */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const on = () => setReduced(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return reduced;
+}
+
+function CriterionRow({
+  criterion,
+  justMet = false,
+}: {
+  criterion: StageCriterion;
+  justMet?: boolean;
+}) {
   const { label, met, have, need, detail } = criterion;
   // A yes/no criterion showing "0 of 1" is noise — the tick already
   // says it. Counts are only worth printing where there is a distance
@@ -184,32 +369,7 @@ function CriterionRow({ criterion }: { criterion: StageCriterion }) {
 
   return (
     <li className="flex items-start gap-2 text-xs">
-      {/* ---------------------------------------------------------------
-          A STATUS MARK, NOT A CONTROL.
-
-          Unmet used to be an empty ring — which is a checkbox, and a
-          checkbox invites a tap. Nothing here is tappable: these are
-          things the app observes about your playing, not things you
-          assert. You cannot tick "whole-song test passed"; you pass it.
-
-          So the ring is gone from the unmet state. What is left is a
-          small muted dot in the same 16px box, which keeps the labels
-          aligned but reads as "not yet", the way a bullet does. Met
-          keeps the filled tick — a filled mark is a state, and nothing
-          about it suggests you can empty it again by tapping.
-          --------------------------------------------------------------- */}
-      <span
-        aria-hidden
-        className="shrink-0 mt-[1px] w-4 h-4 flex items-center justify-center"
-      >
-        {met ? (
-          <span className="w-4 h-4 rounded-full bg-fluent text-white flex items-center justify-center text-[10px] leading-none">
-            ✓
-          </span>
-        ) : (
-          <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
-        )}
-      </span>
+      <StatusMark met={met} justMet={justMet} />
       <span className="flex-1 min-w-0">
         <span className={met
           ? 'text-neutral-500 dark:text-neutral-400'

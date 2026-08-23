@@ -24,7 +24,7 @@ import {
   deriveStage,
   evaluateAdvancement,
   normaliseStage,
-  stageCriteria,
+  ladderCriteria,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
 import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
@@ -650,9 +650,20 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     leadSheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [panelLayout]);
 
-  const criteria = useMemo(
-    () => stageCriteria(advancementInputs),
+  // Every rung's criteria, grouped by the rung each earns — not just
+  // the current one. What you have earned stays on the screen that
+  // asked you to earn it.
+  const ladderGroups = useMemo(
+    () => ladderCriteria(advancementInputs),
     [advancementInputs],
+  );
+  // The current rung's criteria, taken FROM the ladder rather than
+  // computed a second time — `stageReconciliation` decides promotions
+  // from these, and a second call could drift from what the panel
+  // shows. Empty at the terminal rung, which is what it was before.
+  const criteria = useMemo(
+    () => ladderGroups.find(g => g.status === 'current')?.criteria ?? [],
+    [ladderGroups],
   );
   // Same input object as the criteria above, so the row's button and
   // the panel's ask are two readings of one state rather than two
@@ -2067,7 +2078,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             the answer to "what would advance this song?",
             which had nowhere to be asked before. */}
         <StageCriteriaPanel
-          criteria={criteria}
+          groups={ladderGroups}
           holding={holdingKeys}
           spelling={songSpelling}
         />

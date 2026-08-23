@@ -321,8 +321,8 @@ describe('the criteria panel is read-only', () => {
 
   it('says what the counter counts', () => {
     // "0/1" named neither the numerator nor the denominator.
-    expect(PANEL).toContain('{metCount} of {criteria.length} met');
-    expect(PANEL).not.toContain('{metCount}/{criteria.length}');
+    expect(PANEL).toContain('{metCount} of {all.length} met');
+    expect(PANEL).not.toContain('{metCount}/{');
   });
 });
 
@@ -354,7 +354,7 @@ describe('the run button is decided by the rule, not by the row', () => {
     // decided for itself, a button could appear on a key the panel is
     // not asking for — the exact thing that has no honest label.
     expect(DETAIL).toContain('keysWhereRunCounts(advancementInputs)');
-    expect(DETAIL).toContain('stageCriteria(advancementInputs)');
+    expect(DETAIL).toContain('ladderCriteria(advancementInputs)');
     expect(DETAIL).toContain('runCountsForKeyIds={runCountsForKeyIds}');
   });
 
@@ -366,5 +366,29 @@ describe('the run button is decided by the rule, not by the row', () => {
       expect(row, marker).not.toContain(marker);
     }
     expect(row).toContain('runCounts');
+  });
+});
+
+describe('the panel accumulates instead of swapping', () => {
+  it('renders every rung, not only the current one', () => {
+    expect(DETAIL).toContain('ladderCriteria(advancementInputs)');
+    expect(DETAIL).toContain('groups={ladderGroups}');
+  });
+
+  it('takes the current rung FROM the ladder rather than recomputing it', () => {
+    // `stageReconciliation` decides promotions from these criteria. A
+    // second `stageCriteria` call here could drift from what the panel
+    // shows, which would put a promotion and its explanation out of
+    // step — the exact failure the single-definition rule exists for.
+    expect(DETAIL).toContain("ladderGroups.find(g => g.status === 'current')");
+    expect(DETAIL).not.toContain('stageCriteria(');
+  });
+
+  it('says a tick can come off again', () => {
+    // Every group is recomputed live, earned ones included, so a
+    // lapsed key un-ticks a rung passed months ago. A list of ticks
+    // reads as a record of things achieved unless it says otherwise.
+    const PANEL = read('StageCriteriaPanel.tsx');
+    expect(PANEL).toContain('a tick comes off again if the key behind it lapses');
   });
 });
