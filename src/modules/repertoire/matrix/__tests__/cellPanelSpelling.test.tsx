@@ -67,6 +67,7 @@ function render(spelling: 'flat' | 'sharp') {
         layout="full"
         onLayoutChange={() => {}}
         onClose={() => {}}
+        onFinished={() => {}}
       />,
     );
   });

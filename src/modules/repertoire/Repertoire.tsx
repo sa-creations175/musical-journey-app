@@ -148,7 +148,7 @@ export default function Repertoire() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* Module-level explainer only on the Active tab — when the
           user has drilled into a single song or is browsing the
           want-to-learn list, the broad context isn't useful. */}
@@ -166,8 +166,16 @@ export default function Repertoire() {
         />
       )}
 
+      {/* ---------------------------------------------------------------
+          ONE LINE, NOT TWO. The matrix is the song's dashboard, and a
+          dashboard below the fold is not one — so everything above it
+          has to earn its height. Three links do not need two lines
+          each: the hint that was rendered under every label is still
+          there as the `title`, where it costs nothing until it is
+          wanted.
+          --------------------------------------------------------------- */}
       <nav
-        className="flex items-center gap-1 p-1 rounded-lg border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur flex-wrap"
+        className="flex items-center gap-1 p-0.5 rounded-lg border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur flex-wrap"
         aria-label="repertoire view"
       >
         {TABS.map(t => (
@@ -176,16 +184,13 @@ export default function Repertoire() {
             onClick={() => setTab(t.id)}
             aria-pressed={tab === t.id}
             title={t.hint}
-            className={`flex-1 min-w-[150px] px-3 py-2 rounded-md text-sm transition text-center ${
+            className={`flex-1 min-w-[110px] px-3 py-1.5 rounded-md text-sm font-medium transition text-center ${
               tab === t.id
                 ? 'bg-fluent text-white shadow-sm'
                 : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           >
-            <div className="font-medium">{t.label}</div>
-            <div className={`text-[10px] mt-0.5 ${tab === t.id ? 'text-white/80' : 'text-neutral-500'}`}>
-              {t.hint}
-            </div>
+            {t.label}
           </button>
         ))}
       </nav>

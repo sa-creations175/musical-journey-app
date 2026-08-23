@@ -1624,7 +1624,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         )}
       </div>
 
-      {/* Metadata */}
+      {/* Metadata — and everything else that answers "what IS this
+          song": the note, the links, and the associations. */}
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
         {editingMeta ? (
           <div className="space-y-3 text-sm">
@@ -1887,6 +1888,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 </div>
               )}
             </div>
+
+            {/* ---------------------------------------------------------------
+                ASSOCIATIONS LIVE HERE TOO.
+
+                Sitting alone near the bottom it read as disjointed — a
+                card of its own for one textarea, two scrolls from
+                anything it relates to. It is a note about the song, the
+                same as "why this song", and it belongs beside it.
+
+                It still writes to the Harmonic Diary, unchanged. Only
+                its placement moved.
+                --------------------------------------------------------------- */}
+            <SongAssociationsSection song={song} />
           </>
         )}
       </section>
@@ -1967,10 +1981,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         />
       </section>
 
-        // No backdrop-blur: it's a no-op on this opaque card AND
-        // would establish a containing block that makes the mobile
-        // voicing bottom sheet (position: fixed) anchor to the card
-        // instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
+        {/* No backdrop-blur: it's a no-op on this opaque card AND
+            would establish a containing block that makes the mobile
+            voicing bottom sheet (position: fixed) anchor to the card
+            instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
+
+            THIS WAS RENDERING AS VISIBLE TEXT. It used to sit inside
+            `{key === 'leadSheet' && ( … )}`, where `//` is a real
+            comment because the braces make it an EXPRESSION. Unwrapping
+            the card in 3d-4 moved it into JSX CHILDREN position, where
+            `//` is just characters — and JSX has no way to tell a
+            developer note from body copy. */}
         <section
           ref={leadSheetRef}
           className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3 scroll-mt-28"
@@ -2112,8 +2133,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           )}
         </section>
 
-        <SongAssociationsSection song={song} />
-
       {/* Practice history + heatmap */}
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2179,6 +2198,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           layout={panelLayout}
           onLayoutChange={setPanelLayout}
           onClose={closeCellPanel}
+          onFinished={(minutes, sectionCount) => toast({
+            message: sectionCount > 0
+              ? `${minutes}m logged across ${sectionCount} section${sectionCount === 1 ? '' : 's'}.`
+              : `${minutes}m logged.`,
+            variant: 'success',
+          })}
         />
       )}
 
@@ -2485,17 +2510,15 @@ function SongAssociationsSection({ song }: { song: Song }) {
     setEditing(false);
   };
 
+  // No card chrome of its own any more — it sits INSIDE the metadata
+  // card, so a second border and a second shadow would read as a card
+  // nested in a card.
   return (
-    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-2">
+    <div className="pt-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1.5">
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <div>
-          <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
-            my associations
-          </h3>
-          <p className="text-[11px] text-neutral-500 mt-0.5">
-            how does this song feel to you? notes here save to your Harmonic Diary.
-          </p>
-        </div>
+        <h3 className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+          my associations
+        </h3>
         <Link
           to={`/harmonic-diary?skill=${encodeURIComponent(skillId)}`}
           className="text-[11px] text-fluent hover:underline"
@@ -2551,6 +2574,6 @@ function SongAssociationsSection({ song }: { song: Song }) {
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Song, SongKey, SongMatrixSection } from '../../../lib/db';
 import { spellKey, type Spelling } from '../../../lib/spelling';
 import { useSongTimer } from '../useSongTimer';
-import ModalMetronome from './ModalMetronome';
+import MetronomeControl from '../../../components/MetronomeControl';
 
 /**
  * What opens when you tap a cell.
@@ -51,24 +51,26 @@ interface Props {
   onClose: () => void;
   /** Called after a practice run is written, so the parent can refresh. */
   onSaved?: () => void;
+  /** Report what was recorded, so the page can confirm it. Done that
+   *  produces no visible result is indistinguishable from Done that is
+   *  broken. */
+  onFinished: (minutes: number, sectionCount: number) => void;
 }
 
 export default function CellPanel({
   song, songKey, section, sections, spelling,
-  layout, onLayoutChange, onClose, onSaved,
+  layout, onLayoutChange, onClose, onSaved, onFinished,
 }: Props) {
   const [mode, setMode] = useState<CellPanelMode>('choose');
   const timer = useSongTimer(song.id);
   const [busy, setBusy] = useState(false);
+  /** Whether THIS panel started the clock, so Cancel knows what is
+   *  its to discard. */
+  const startedHere = useRef(false);
   // The tapped cell's section is pre-ticked because tapping it IS
   // saying you are working on it. Everything else is a claim the user
   // has to make.
   const [ticked, setTicked] = useState<Set<string>>(() => new Set([section.id]));
-  const [bpmInput, setBpmInput] = useState<string>(String(song.tempo ?? ''));
-
-  const parsedBpm = parseInt(bpmInput, 10);
-  const fieldBpm = Number.isFinite(parsedBpm) && parsedBpm > 0 ? parsedBpm : null;
-
   const otherSongRunning = timer.record !== null && !timer.isThisSong;
 
   // Entering practice starts the clock — unless one is already running
@@ -78,23 +80,60 @@ export default function CellPanel({
     if (mode !== 'practice') return;
     if (timer.isThisSong) return;
     if (otherSongRunning) return;   // the swap is offered, not forced
+    startedHere.current = true;
     timer.start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
+  /**
+   * Done: stop, write the run, say what was written, close.
+   *
+   * The rating step arrives in 3d-6. Until it does, Done still has to
+   * DO something observable — a button that silently succeeds is
+   * indistinguishable from one that is broken, and the user has no way
+   * to tell which they are looking at.
+   */
   const done = async () => {
     if (busy) return;
     setBusy(true);
     try {
-      await timer.stopAndLog({
+      const minutes = await timer.stopAndLog({
         sectionIds: [...ticked],
         keys: [songKey.keyName],
       });
       onSaved?.();
+      onFinished(minutes, ticked.size);
       onClose();
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Cancel: discard.
+   *
+   * ---------------------------------------------------------------
+   * CANCEL MEANS "I DIDN'T MEAN TO START THIS".
+   *
+   * It used to close the panel and leave the clock running, which is
+   * the worst of both readings: nothing on screen said time was still
+   * being counted, and reopening practice showed a total the user had
+   * not agreed to. A control labelled Cancel that quietly keeps going
+   * is a control that lies.
+   *
+   * So it stops the timer and writes NOTHING. The alternative — "close
+   * this panel, keep timing" — is a legitimate thing to want, but it
+   * cannot be called Cancel, and it would need its own wording.
+   *
+   * Only discards a timer THIS panel started. One already running when
+   * the panel opened was adopted, not begun, and cancelling out of a
+   * panel is not a reason to throw away time the user started
+   * elsewhere.
+   * ---------------------------------------------------------------
+   */
+  const cancel = () => {
+    if (startedHere.current && timer.isThisSong) timer.discard();
+    onClose();
   };
 
   const elapsed = formatElapsed(timer.elapsedMs);
@@ -119,8 +158,7 @@ export default function CellPanel({
           <span aria-hidden className="ml-auto text-neutral-400 text-xs">▾ panel</span>
         </button>
         <div className="px-3 pb-2 flex items-center gap-2 flex-wrap">
-          <ModalMetronome fieldBpm={fieldBpm} />
-          <BpmField value={bpmInput} onChange={setBpmInput} />
+          <MetronomeControl />
           <button
             type="button"
             disabled={busy}
@@ -207,8 +245,14 @@ export default function CellPanel({
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <ModalMetronome fieldBpm={fieldBpm} />
-              <BpmField value={bpmInput} onChange={setBpmInput} />
+              {/* THE SAME CONTROL THE HEADER USES, not a reduced
+                  version of it. Groove, time signature, volume and tap
+                  tempo all matter here — a ballad practised against a
+                  straight click is the wrong click — and a second,
+                  smaller metronome would be a second thing to keep in
+                  step with the first. It drives the same singleton, so
+                  the tempo you set here is the app's tempo. */}
+              <MetronomeControl />
             </div>
 
             <SectionTicks
@@ -221,7 +265,6 @@ export default function CellPanel({
                 return next;
               })}
               onSelectAll={() => setTicked(new Set(sections.map(s => s.id)))}
-              keyLabel={keyLabel}
             />
 
             {/* FULL WIDTH AND PRIMARY WEIGHT, never behind a menu.
@@ -232,16 +275,17 @@ export default function CellPanel({
             <button
               type="button"
               onClick={() => onLayoutChange('bar')}
-              className="w-full px-3 py-3 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+              className="w-full px-3 py-3 rounded-lg bg-info text-white text-sm font-medium hover:opacity-90"
             >
-              Lead sheet
+              Open lead sheet
             </button>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-3 py-2 text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                onClick={cancel}
+                title="Stops the timer and records nothing."
+                className="px-3 py-2 text-xs text-neutral-500 hover:text-needswork"
               >
                 Cancel
               </button>
@@ -291,20 +335,19 @@ function SwapPrompt({ busy, onSwap }: { busy: boolean; onSwap: () => void }) {
  * where a finger landed.
  */
 function SectionTicks({
-  sections, ticked, onToggle, onSelectAll, keyLabel,
+  sections, ticked, onToggle, onSelectAll,
 }: {
   sections: ReadonlyArray<SongMatrixSection>;
   ticked: ReadonlySet<string>;
   onToggle: (id: string) => void;
   onSelectAll: () => void;
-  keyLabel: string;
 }) {
   const all = sections.length > 0 && sections.every(s => ticked.has(s.id));
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline gap-2">
-        <span className="text-[11px] uppercase tracking-wide font-medium text-neutral-500">
-          sections, in the key of {keyLabel}
+        <span className="text-[11px] text-neutral-600 dark:text-neutral-300">
+          Select the sections you’re working on in this practice session
         </span>
         {!all && (
           <button
@@ -340,29 +383,6 @@ function SectionTicks({
   );
 }
 
-function BpmField({
-  value, onChange,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-}) {
-  return (
-    <label className="inline-flex items-center gap-1.5 px-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-      <span className="text-xs text-neutral-500">♩</span>
-      <input
-        type="number"
-        inputMode="numeric"
-        min={1}
-        step={1}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder="BPM"
-        aria-label="Tempo BPM"
-        className="w-14 py-1 bg-transparent text-sm tabular-nums focus:outline-none"
-      />
-    </label>
-  );
-}
 
 /** `h:mm:ss` past an hour, `mm:ss` below it — seconds visible, because
  *  this one is being watched while it runs. */

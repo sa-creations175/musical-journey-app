@@ -61,10 +61,9 @@ describe('the page order is fixed', () => {
     // position of each card's own marker, so a card moved rather than
     // deleted still fails.
     const order = [
-      '{/* Metadata */}',
+      '{/* Metadata — and everything else',
       '>matrix</h3>',
       '>lead sheet</h3>',
-      '<SongAssociationsSection',
     ].map(m => {
       const at = DETAIL.indexOf(m);
       expect(at, `missing marker: ${m}`).toBeGreaterThan(-1);
@@ -100,5 +99,36 @@ describe('two cards were absorbed, not merely hidden', () => {
     const panelAt = DETAIL.indexOf('<StageCriteriaPanel');
     expect(panelAt).toBeGreaterThan(matrixAt);
     expect(panelAt).toBeLessThan(leadAt);
+  });
+});
+
+describe('associations folded into metadata', () => {
+  it('is rendered INSIDE the metadata card, not as one of its own', () => {
+    // It was a card near the bottom for a single textarea, two scrolls
+    // from anything it related to. It is a note about the song, the
+    // same as "why this song", so it sits with it — which means it
+    // renders BEFORE the matrix, not after the lead sheet.
+    const assoc = DETAIL.indexOf('<SongAssociationsSection song={song} />');
+    const matrix = DETAIL.indexOf('>matrix</h3>');
+    expect(assoc).toBeGreaterThan(-1);
+    expect(assoc).toBeLessThan(matrix);
+  });
+
+  it('carries no card chrome of its own', () => {
+    // A second border and a second shadow inside the metadata card
+    // would read as a card nested in a card. Asserted on the
+    // component's own render root rather than on the page.
+    const at = DETAIL.indexOf('function SongAssociationsSection');
+    const body = DETAIL.slice(at, at + 4000);
+    expect(body).not.toContain('rounded-2xl');
+    expect(body).not.toContain('shadow-[0_2px_12px');
+  });
+
+  it('still writes to the Harmonic Diary', () => {
+    // The whole point of "unchanged except its placement". Losing the
+    // write while keeping the textarea would look identical on screen.
+    const at = DETAIL.indexOf('function SongAssociationsSection');
+    const body = DETAIL.slice(at, at + 4000);
+    expect(body).toContain('upsertDiaryEntry');
   });
 });
