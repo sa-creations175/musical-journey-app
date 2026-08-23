@@ -1983,6 +1983,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           onClose={() => {}}
           embedded
           onCellSelected={openCellPanel}
+          dueByKeyId={dueMap}
+          dueWindows={windowsFrom(spacing)}
         />
       </section>
 

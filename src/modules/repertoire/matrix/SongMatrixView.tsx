@@ -9,6 +9,7 @@ import {
   type SongMatrixSection,
 } from '../../../lib/db';
 import CellInteractionModal from './CellInteractionModal';
+import type { DueWindows } from './keySpacing';
 import SingleRunModal from './SingleRunModal';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
@@ -54,10 +55,15 @@ interface Props {
   /** When provided, a cell tap is delegated to the parent instead of
    *  opening this component's own modal. See `handleCellTap`. */
   onCellSelected?: (cellId: string) => void;
+  /** When each key is next due to be proven, and the user's windows.
+   *  Resolved by the page — the same read the stage rules use, rather
+   *  than a second one that could disagree with them. */
+  dueByKeyId?: ReadonlyMap<string, number | null>;
+  dueWindows?: DueWindows;
 }
 
 export default function SongMatrixView({
-  song, onClose, embedded, onCellSelected,
+  song, onClose, embedded, onCellSelected, dueByKeyId, dueWindows,
 }: Props) {
   // refreshKey is bumped after every save we route through this view
   // (cell save, test save). It's added to all four useLiveQuery deps
@@ -268,23 +274,11 @@ export default function SongMatrixView({
   // streak from a prior session is meaningless to surface on the
   // strip (next session resets to 0). The cumulative count tracks
   // honest effort over time.
-  const testSummariesByKeyId = useMemo(() => {
-    const m = new Map<string, { totalAttempts: number; singleRuns: number }>();
-    for (const rt of songKeyRunThroughs) {
-      const prior = m.get(rt.songKeyId)
-        ?? { totalAttempts: 0, singleRuns: 0 };
-      // Two counters, because these are two different events and a
-      // single tally would misreport both. `kind` absent means 'test':
-      // until that field existed the test modal was this table's only
-      // writer, so every row without it came from a test session.
-      const isSingle = rt.kind === 'single';
-      m.set(rt.songKeyId, {
-        totalAttempts: prior.totalAttempts + (isSingle ? 0 : 1),
-        singleRuns: prior.singleRuns + (isSingle ? 1 : 0),
-      });
-    }
-    return m;
-  }, [songKeyRunThroughs]);
+  // `testSummariesByKeyId` lived here and is gone with the per-key
+  // strip that displayed it. Its two counters — "Tested N×" and "N
+  // runs" — are not lost: the whole-song test modal's 30-day history
+  // says the same thing and more, grouped by sitting, which is the
+  // form the counts were a worse summary of.
 
   // Banner eligibility: keyState === 'comfortable' AND test never
   // passed. Sorted by lastEngagedAt desc so the most recently worked
@@ -370,7 +364,8 @@ export default function SongMatrixView({
         sections={sections}
         songKeys={songKeys}
         songCells={songCells}
-        testSummariesByKeyId={testSummariesByKeyId}
+        dueByKeyId={dueByKeyId}
+        dueWindows={dueWindows}
         now={now}
         onCellTap={handleCellTap}
         onRunTest={handleRunTest}

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { keysOrderedFromOriginal } from './keys';
-import KeyRow from './KeyRow';
+import KeyRow, { ACTIONS_WIDTH, KEY_LABEL_WIDTH } from './KeyRow';
+import type { DueWindows } from './keySpacing';
 import type { Spelling } from '../../../lib/spelling';
 
 /**
@@ -41,7 +42,10 @@ interface Props {
    *  once in SongMatrixView from the run-throughs query so all 12
    *  rows share one read. Missing entries default to 0 attempts in
    *  KeyStrip — same UX as no run-throughs ever logged. */
-  testSummariesByKeyId?: ReadonlyMap<string, { totalAttempts: number; singleRuns: number }>;
+  /** When each key is next due to be proven, by songKey id. The
+   *  lapse is a KEY fact and is marked on the key's row. */
+  dueByKeyId?: ReadonlyMap<string, number | null>;
+  dueWindows?: DueWindows;
   /** Wall-clock timestamp captured once at the parent mount. Passed
    *  through so each KeyRow's decay live-derive uses a consistent
    *  reference instant across the whole grid. */
@@ -60,7 +64,8 @@ export default function MatrixGrid({
   sections,
   songKeys,
   songCells,
-  testSummariesByKeyId,
+  dueByKeyId,
+  dueWindows,
   now,
   onCellTap,
   onRunTest,
@@ -112,9 +117,6 @@ export default function MatrixGrid({
           const cellsBySectionId = songKey
             ? (cellsByKeyId.get(songKey.id) ?? EMPTY_CELL_MAP)
             : EMPTY_CELL_MAP;
-          const testSummary = songKey
-            ? testSummariesByKeyId?.get(songKey.id)
-            : undefined;
           return (
             <KeyRow
               key={keyName}
@@ -124,8 +126,9 @@ export default function MatrixGrid({
               sections={visibleSections}
               cellsBySectionId={cellsBySectionId}
               isOriginal={originalKeyName === keyName}
-              testSummary={testSummary}
               now={now}
+              nextDueAt={songKey ? dueByKeyId?.get(songKey.id) ?? null : null}
+              dueWindows={dueWindows}
               onCellTap={onCellTap}
               onRunTest={onRunTest}
               onLogRun={onLogRun}
@@ -144,19 +147,23 @@ const EMPTY_CELL_MAP: ReadonlyMap<string, SongCell> = new Map();
 function SectionHeaderRow({ sections }: { sections: ReadonlyArray<SongMatrixSection> }) {
   return (
     <div className="flex items-stretch border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/60">
-      {/* Spacer aligned with the key name column on rows below. */}
-      <div className="w-20 shrink-0" />
-      <div className="flex-1 flex items-stretch">
+      {/* Spacers aligned with the key column and the actions column on
+          the rows below, so the cells line up under their headers.
+          Shared constants rather than repeated literals — two widths
+          that must match are two widths that will not. */}
+      <div className={`${KEY_LABEL_WIDTH} shrink-0`} />
+      <div className="flex-1 flex items-stretch gap-px">
         {sections.map(section => (
           <div
             key={section.id}
-            className="flex-1 min-w-[44px] px-1 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 text-center truncate border-r border-neutral-200 dark:border-neutral-800 last:border-r-0"
+            className="flex-1 min-w-[36px] px-0.5 py-1 text-[9px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 text-center truncate"
             title={section.name}
           >
             {section.name}
           </div>
         ))}
       </div>
+      <div className={`${ACTIONS_WIDTH} shrink-0`} />
     </div>
   );
 }
