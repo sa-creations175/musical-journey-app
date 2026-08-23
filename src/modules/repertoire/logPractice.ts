@@ -82,6 +82,29 @@ export async function logPracticeSession(
 
   await db.songPracticeLog.add(row);
 
+  // ---------------------------------------------------------------
+  // THE NEXT PRACTICE RETIRES THE "EARNED JUST NOW" NOTICE.
+  //
+  // Not a clock. A fixed window would have an arbitrary number
+  // deciding when the news stops being news, and would expire while
+  // you were away from the instrument — which is exactly when you
+  // would want to come back and see it. The thing that supersedes
+  // "look what you just did" is doing the next thing: at that point
+  // the page is about the work in front of you again.
+  //
+  // Guarded so a song with nothing to clear takes no write, and
+  // outside any transaction for the same reason the engagement call
+  // below is — this must not be able to roll back the practice log.
+  // ---------------------------------------------------------------
+  try {
+    const song = await db.songs.get(input.songId);
+    if (song?.stageEarned !== undefined) {
+      await db.songs.update(input.songId, { stageEarned: undefined, updatedAt: now });
+    }
+  } catch (err) {
+    console.warn('[repertoire] clearing stageEarned failed', err);
+  }
+
   // ONLY when the user actually rated the session. Repertoire is
   // `integration` memory, which accepts a `rating` signal and nothing
   // else (a `recency` signal throws — see assertSignalMatchesMemoryType),

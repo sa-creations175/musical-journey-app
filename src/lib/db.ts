@@ -62,6 +62,18 @@ export interface ChordShapeData {
  */
 /** A recorded drop, with everything the notice needs to render long
  *  after the cause has changed. */
+export interface SongStageEarned {
+  /** When the climb was detected. */
+  at: number;
+  /** The rung it left, and the one it reached. */
+  from: RepertoireStage;
+  to: RepertoireStage;
+  /** The criterion that completed, as it read at the time — composed
+   *  rather than referenced, for the same reason the demotion's is:
+   *  the key it names may since have been re-spelled. */
+  criterionLabel: string;
+}
+
 export interface SongStageDemotion {
   /** When the drop was detected. */
   at: number;
@@ -213,6 +225,26 @@ export interface Song {
    * so no version bump; rides in the sync blob.
    */
   stageDemotion?: SongStageDemotion;
+  /**
+   * The rung this song most recently climbed to, and the criterion
+   * that did it — the positive counterpart of `stageDemotion`.
+   *
+   * STORED, FOR THE SAME REASON THE DEMOTION IS. Earning a rung is a
+   * moment, and a moment that only exists until the tab closes is one
+   * you lose by walking away from the piano — which is precisely what
+   * you do after passing a test. A fixed window (24 hours, a week)
+   * would be an arbitrary clock deciding when the news stops being
+   * news.
+   *
+   * CLEARED BY THE NEXT PRACTICE, not by time. The next thing you sit
+   * down and do is what supersedes it: at that point the page is
+   * about the work in front of you again, not the work behind you.
+   *
+   * Rendered in the SAME SLOT as `stageDemotion`, so the two can
+   * never sit side by side saying opposite things. Unindexed, so no
+   * version bump; rides in the sync blob.
+   */
+  stageEarned?: SongStageEarned;
   /** User-controlled learning sequence — 1-indexed, ASC = study
    *  next. Backfilled on first load to addedDate-ASC rank for
    *  existing rows (oldest = 1). The Repertoire home's

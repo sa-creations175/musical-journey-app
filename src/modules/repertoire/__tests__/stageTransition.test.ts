@@ -13,6 +13,7 @@ import type { Song } from '../../../lib/db';
 import type { StageCriterion } from '../stage';
 import {
   buildDemotion,
+  buildEarned,
   movementBetween,
   stageReconciliation,
 } from '../stageTransition';
@@ -31,6 +32,8 @@ const unmet = (label: string, detail?: string): StageCriterion =>
   ({ label, met: false, have: 0, need: 1, ...(detail ? { detail } : {}) });
 const unmetPrecondition = (label: string): StageCriterion =>
   ({ label, met: false, have: 0, need: 1, precondition: true });
+const metPrecondition = (label: string): StageCriterion =>
+  ({ label, met: true, have: 1, need: 1, precondition: true });
 
 describe('movement', () => {
   it('reads a fall as a demotion and a climb as a promotion', () => {
@@ -176,5 +179,124 @@ describe('reconciliation', () => {
     });
     expect(patch).toBeNull();
     expect(s.stageDemotion).toEqual(fell);
+  });
+});
+
+describe('the earned record', () => {
+  it('names the criterion that COMPLETED, not the next one', () => {
+    // The criteria at the rung you just reached are the next climb's,
+    // all unmet by definition. Naming one of those would tell you you
+    // had earned Cross-key because of something you have not done.
+    const earned = buildEarned({
+      from: 'learning',
+      to: 'comfortable',
+      criteriaEarningTo: [met('Whole-song test passed in the key of F')],
+      now: NOW,
+    });
+    expect(earned.criterionLabel).toBe('Whole-song test passed in the key of F');
+    expect(earned.from).toBe('learning');
+    expect(earned.to).toBe('comfortable');
+    expect(earned.at).toBe(NOW);
+  });
+
+  it('skips a precondition in favour of something you played', () => {
+    // "A performance tempo is set for this song" is something you
+    // configured. Being told you reached Internalized because of it
+    // would be true and worthless.
+    const earned = buildEarned({
+      from: 'cross-key',
+      to: 'internalized',
+      criteriaEarningTo: [
+        metPrecondition('A performance tempo is set for this song'),
+        met('All four quadrants still held at Comfortable status or above'),
+        met('Every other key run clean at tempo, at least once'),
+      ],
+      now: NOW,
+    });
+    expect(earned.criterionLabel).toBe('Every other key run clean at tempo, at least once');
+  });
+
+  it('falls back to a precondition rather than saying nothing', () => {
+    // Guard the guard: filtering preconditions out must not be able to
+    // leave the notice with no sentence.
+    const earned = buildEarned({
+      from: 'cross-key',
+      to: 'internalized',
+      criteriaEarningTo: [metPrecondition('A performance tempo is set for this song')],
+      now: NOW,
+    });
+    expect(earned.criterionLabel).toBe('A performance tempo is set for this song');
+  });
+
+  it('has a sentence even with nothing to name at all', () => {
+    expect(buildEarned({
+      from: 'learning', to: 'comfortable', criteriaEarningTo: [], now: NOW,
+    }).criterionLabel).toBe('the criteria for this rung are met');
+  });
+});
+
+describe('the two notices share one slot', () => {
+  it('a promotion records what was earned', () => {
+    const patch = stageReconciliation({
+      song: song(),
+      previous: 'learning',
+      derived: 'comfortable',
+      criteriaAtDerived: [unmet('One key from each of the 4 quadrants')],
+      criteriaEarningDerived: [met('Whole-song test passed in the key of F')],
+      now: NOW,
+    })!;
+    expect(patch.stageEarned?.to).toBe('comfortable');
+    expect(patch.stageEarned?.criterionLabel)
+      .toBe('Whole-song test passed in the key of F');
+  });
+
+  it('a demotion CLEARS any standing earned notice', () => {
+    // THE LOAD-BEARING ONE. They render in one slot, and a drop
+    // arriving while "earned just now" still stood would leave the
+    // page holding two sentences about the same song pointing in
+    // opposite directions — the older one winning purely by having
+    // been written first.
+    const patch = stageReconciliation({
+      song: song({
+        stageEarned: {
+          at: NOW - 1000, from: 'learning', to: 'comfortable',
+          criterionLabel: 'Whole-song test passed in the key of F',
+        },
+      }),
+      previous: 'comfortable',
+      derived: 'learning',
+      criteriaAtDerived: [unmet('Whole-song test passed in the key of F')],
+      now: NOW,
+    })!;
+    // ON `Object.hasOwn` RATHER THAN ON THE VALUE. `patch.stageEarned`
+    // reads undefined whether the key is set to undefined or simply
+    // absent, and those are opposite outcomes: Dexie's `update`
+    // DELETES a property whose value is undefined and IGNORES a key
+    // that isn't there. Asserting the value passes on the version
+    // that leaves the stale notice in the row — verified by removing
+    // the line and watching this stay green.
+    expect(Object.hasOwn(patch, 'stageEarned')).toBe(true);
+    expect(patch.stageEarned).toBeUndefined();
+    expect(patch.stageDemotion).toBeDefined();
+  });
+
+  it('a promotion out of a demotion clears the demotion and sets the earned', () => {
+    // Climbing back to the rung you fell from retires the notice about
+    // falling, and the same write records the climb.
+    const patch = stageReconciliation({
+      song: song({
+        stageDemotion: {
+          at: NOW - 5000, from: 'cross-key', to: 'comfortable',
+          criterionLabel: 'All four quadrants still held',
+        },
+      }),
+      previous: 'comfortable',
+      derived: 'cross-key',
+      criteriaAtDerived: [unmet('Every other key run clean at tempo')],
+      criteriaEarningDerived: [met('All four quadrants still held')],
+      now: NOW,
+    })!;
+    expect(patch.stageDemotion).toBeUndefined();
+    expect(patch.stageEarned?.to).toBe('cross-key');
   });
 });

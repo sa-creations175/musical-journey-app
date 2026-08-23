@@ -22,7 +22,7 @@ import { feelToRating, logPracticeSession } from '../logPractice';
 const SONG = 'song-1';
 
 beforeEach(async () => {
-  await Promise.all([db.songPracticeLog.clear(), db.spacingState.clear()]);
+  await Promise.all([db.songPracticeLog.clear(), db.spacingState.clear(), db.songs.clear()]);
 });
 
 async function onlyLog() {
@@ -123,5 +123,57 @@ describe('feelToRating', () => {
     expect(feelToRating(3)).toBe('cruising');
     expect(feelToRating(2)).toBe('crawling');
     expect(feelToRating(1)).toBe('crawling');
+  });
+});
+
+describe('the next practice retires "earned just now"', () => {
+  const earned = {
+    at: 1, from: 'learning' as const, to: 'comfortable' as const,
+    criterionLabel: 'Whole-song test passed in the key of F',
+  };
+
+  async function songWithEarned() {
+    await db.songs.put({
+      id: SONG, title: 'Can We Talk', addedDate: 0, updatedAt: 0,
+      stageEarned: earned,
+    } as never);
+  }
+
+  it('clears it', async () => {
+    // Retired by the thing that supersedes it, not by a clock. A
+    // fixed window would expire while you were away from the
+    // instrument — exactly when you would want to come back and see
+    // it — and would put an arbitrary number in charge of when the
+    // news stops being news.
+    await songWithEarned();
+    await logPracticeSession({ songId: SONG, durationMin: 20 });
+    expect((await db.songs.get(SONG))?.stageEarned).toBeUndefined();
+  });
+
+  it('leaves other songs alone', async () => {
+    // Guard the guard: a clear that swept the table would pass the
+    // test above and quietly delete someone else's news.
+    await songWithEarned();
+    await db.songs.put({
+      id: 'song-2', title: 'Mirror', addedDate: 0, updatedAt: 0,
+      stageEarned: earned,
+    } as never);
+    await logPracticeSession({ songId: SONG, durationMin: 20 });
+    expect((await db.songs.get('song-2'))?.stageEarned).toEqual(earned);
+  });
+
+  it('still writes the practice log when there is nothing to clear', async () => {
+    // The clear is guarded and runs outside any transaction: it must
+    // not be able to take the practice log down with it.
+    await db.songs.put({
+      id: SONG, title: 'Can We Talk', addedDate: 0, updatedAt: 0,
+    } as never);
+    await logPracticeSession({ songId: SONG, durationMin: 25 });
+    expect((await onlyLog()).durationMin).toBe(25);
+  });
+
+  it('writes the log even when the song row is missing entirely', async () => {
+    await logPracticeSession({ songId: 'ghost', durationMin: 15 });
+    expect((await onlyLog()).songId).toBe('ghost');
   });
 });

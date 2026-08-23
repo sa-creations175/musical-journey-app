@@ -28,6 +28,21 @@ function read(suffix: string): string {
   return hit[1];
 }
 
+/**
+ * Source with comments removed.
+ *
+ * These files explain themselves at length, and an assertion that a
+ * word is ABSENT will otherwise fail on the comment saying why it is
+ * absent — which reads as the code being wrong when it is right, and
+ * gets "fixed" by loosening the assertion. Absence tests take the
+ * code; presence tests can take either.
+ */
+function codeOf(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 const DETAIL = read('SongDetailView.tsx');
 
 describe('the page order is fixed', () => {
@@ -390,5 +405,43 @@ describe('the panel accumulates instead of swapping', () => {
     // reads as a record of things achieved unless it says otherwise.
     const PANEL = read('StageCriteriaPanel.tsx');
     expect(PANEL).toContain('a tick comes off again if the key behind it lapses');
+  });
+});
+
+describe('the earned notice shares the demotion notice\'s slot', () => {
+  it('renders one or the other, never both', () => {
+    // A drop and a climb are both news about where this song stands
+    // and they point in opposite directions. Side by side they read
+    // as the page disagreeing with itself. Asserted as a ternary
+    // rather than two independent conditionals — two conditionals is
+    // how both end up on screen.
+    expect(DETAIL).toContain('{song.stageDemotion ? (');
+    expect(DETAIL).toContain(') : song.stageEarned ? (');
+    expect(DETAIL).not.toContain('{song.stageEarned && (');
+  });
+
+  it('opens no dialog', () => {
+    // The explicit non-goal, kept as an assertion because it is the
+    // kind of thing a later "make sure they notice" reintroduces.
+    // You are at the piano with your hands on the keys; anything that
+    // has to be clicked away is an interruption charging you for good
+    // news. A page that visibly changed beats a dialog every time.
+    const notice = codeOf(read('EarnedNotice.tsx'));
+    for (const marker of ['role="dialog"', '<Modal', 'showModal', 'confetti', 'onClose']) {
+      expect(notice, marker).not.toContain(marker);
+    }
+  });
+
+  it('respects prefers-reduced-motion', () => {
+    const notice = read('EarnedNotice.tsx');
+    expect(notice).toContain('prefers-reduced-motion: reduce');
+    const panel = read('StageCriteriaPanel.tsx');
+    expect(panel).toContain('prefers-reduced-motion: reduce');
+  });
+
+  it('feeds the panel the criterion that just completed', () => {
+    // Part one of the moment: the tick lands where you are already
+    // looking, on the row for the thing you just did.
+    expect(DETAIL).toContain('justMetLabel={song.stageEarned?.criterionLabel ?? null}');
   });
 });

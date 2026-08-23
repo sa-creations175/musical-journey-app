@@ -1,4 +1,4 @@
-import type { RepertoireStage, Song, SongStageDemotion } from '../../lib/db';
+import type { RepertoireStage, Song, SongStageDemotion, SongStageEarned } from '../../lib/db';
 import { STAGES, type StageCriterion } from './stage';
 
 /**
@@ -92,11 +92,51 @@ export function buildDemotion(input: {
  * read path, and a write during render is a re-render loop rather than
  * a record.
  */
+/**
+ * The positive counterpart of `buildDemotion`.
+ *
+ * ---------------------------------------------------------------
+ * IT NAMES THE CRITERION THAT COMPLETED, NOT THE NEXT ONE.
+ *
+ * The criteria at the DERIVED rung are the ones for the next climb —
+ * all unmet by definition, or the song would have kept going. The
+ * ones worth naming are the criteria that EARNED the rung just
+ * reached, which are all met at this instant. They have to be passed
+ * in, because by the time anything reads them again they belong to a
+ * rung the song has left.
+ *
+ * Of those, the last substantive one: preconditions ("a performance
+ * tempo is set for this song") are things you configured, not things
+ * you played, and being told you reached Internalized because a
+ * tempo is set would be true and worthless.
+ * ---------------------------------------------------------------
+ */
+export function buildEarned(input: {
+  from: RepertoireStage;
+  to: RepertoireStage;
+  criteriaEarningTo: StageCriterion[];
+  now: number;
+}): SongStageEarned {
+  const met = input.criteriaEarningTo.filter(c => c.met);
+  const substantive = met.filter(c => !c.precondition);
+  const named = substantive[substantive.length - 1] ?? met[met.length - 1] ?? null;
+  return {
+    at: input.now,
+    from: input.from,
+    to: input.to,
+    criterionLabel: named?.label ?? 'the criteria for this rung are met',
+  };
+}
+
 export function stageReconciliation(input: {
   song: Song;
   previous: RepertoireStage;
   derived: RepertoireStage;
   criteriaAtDerived: StageCriterion[];
+  /** The criteria that earn `derived` — met at the moment of a
+   *  promotion, and the only ones that can name what just happened.
+   *  Unused for a demotion, which reads `criteriaAtDerived`. */
+  criteriaEarningDerived?: StageCriterion[];
   now: number;
   holdings?: { heldByQuadrant: Array<string | null>; lapsedKeys: string[] };
 }): Partial<Song> | null {
@@ -106,6 +146,10 @@ export function stageReconciliation(input: {
   if (movement === 'demotion') {
     return {
       stage: input.derived,
+      // A drop supersedes any standing "earned just now" — the two
+      // share one slot precisely so they can never contradict each
+      // other on screen.
+      stageEarned: undefined,
       stageDemotion: buildDemotion({
         from: input.previous,
         to: input.derived,
@@ -128,6 +172,12 @@ export function stageReconciliation(input: {
   return {
     stage: input.derived,
     ...(recovered ? { stageDemotion: undefined } : {}),
+    stageEarned: buildEarned({
+      from: input.previous,
+      to: input.derived,
+      criteriaEarningTo: input.criteriaEarningDerived ?? [],
+      now: input.now,
+    }),
     updatedAt: input.now,
   };
 }
