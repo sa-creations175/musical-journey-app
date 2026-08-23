@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getPref, setPref } from '../../lib/userPrefs';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { KEY_DUE_STATE_LABEL, type KeyDueState } from './matrix/keySpacing';
 import { STAGE_LABEL, type LadderGroup, type StageCriterion } from './stage';
@@ -39,6 +40,10 @@ export default function StageCriteriaPanel({
    *  anything did. Its row animates from dot to tick on arrival
    *  rather than being already ticked — see CriterionRow. */
   justMetLabel = null,
+  /** When that happened. Identity, not a clock: it is compared
+   *  against the last moment the panel auto-opened, so one climb
+   *  opens the panel exactly once however many times you reload. */
+  justMetAt = null,
 }: {
   groups: LadderGroup[];
   /** The keys currently capable of holding a rung — comfortable or
@@ -46,7 +51,9 @@ export default function StageCriteriaPanel({
   holding: HoldingKey[];
   spelling: Spelling;
   justMetLabel?: string | null;
+  justMetAt?: number | null;
 }) {
+  const { open, setOpen, ready } = usePanelDisclosure(justMetAt);
   // Terminal stage. Saying "nothing more to do" would be wrong —
   // there is upkeep — but that belongs to STAGE_GUIDANCE above,
   // which carries it. An empty panel is the honest render.
@@ -56,17 +63,45 @@ export default function StageCriteriaPanel({
   const metCount = all.filter(c => c.met).length;
 
   return (
+    /* ---------------------------------------------------------------
+       CLOSED BY DEFAULT, BECAUSE THE GRID IS WHAT THE PAGE IS FOR.
+
+       This is reference material you consult occasionally; the matrix
+       is the reason you opened the song. An open panel of six
+       criteria pushed several key rows below the fold on every load
+       to answer a question that was not being asked.
+
+       The heading keeps the count, so collapsed still says where you
+       stand — "1 of 5 met" is the answer at a glance, and the rows
+       behind it are the working.
+       --------------------------------------------------------------- */
     <div className="rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900 px-3 py-2.5 space-y-2">
-      <div className="flex items-center justify-between gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 text-left"
+      >
         <span className="text-[11px] uppercase tracking-wide font-medium text-neutral-500 dark:text-neutral-400">
           what would advance this song
         </span>
-        {/* "0/1" said nothing about what was being counted. It counts
-            criteria, and the word is cheap. */}
-        <span className="text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400">
-          {metCount} of {all.length} met
+        <span className="flex items-center gap-1.5">
+          {/* "0/1" said nothing about what was being counted. It counts
+              criteria, and the word is cheap. */}
+          <span className="text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400">
+            {metCount} of {all.length} met
+          </span>
+          <span aria-hidden className="text-[9px] text-neutral-400">
+            {open ? '▾' : '▸'}
+          </span>
         </span>
-      </div>
+      </button>
+      {/* `ready` gates the FIRST paint only: the stored state arrives a
+          tick after mount, and rendering the open body before it lands
+          would flash the panel open on every load for a user who keeps
+          it closed. */}
+      {ready && open && (
+      <>
       <div className="space-y-2.5">
         {groups.map(group => (
           <RungGroup
@@ -92,8 +127,70 @@ export default function StageCriteriaPanel({
         done — a tick comes off again if the key behind it lapses.
       </p>
       <HoldingThisRung holding={holding} spelling={spelling} />
+      </>
+      )}
     </div>
   );
+}
+
+/**
+ * Whether the panel is open, remembered between visits — and forced
+ * open once when a rung is earned.
+ *
+ * ---------------------------------------------------------------
+ * A TICK LANDING INSIDE A CLOSED BOX IS A TICK NOBODY SEES.
+ *
+ * The moment depends on the panel being on screen: the criterion
+ * animates from dot to tick so the change is WITNESSED rather than
+ * discovered. Collapsed by default, that animation would play inside
+ * a closed container and the payoff would be a page that quietly
+ * differed — the exact thing the sequence exists to avoid.
+ *
+ * So a climb opens the panel. Not "while a climb is standing", which
+ * would re-open it every time you loaded the page and make closing it
+ * impossible: `stageEarned` persists until the next practice. It
+ * opens once PER CLIMB, keyed on `stageEarned.at`, and after that
+ * your toggle wins. Reloading before you close it changes nothing,
+ * because the open state was already written.
+ * ---------------------------------------------------------------
+ */
+const PREF_OPEN = 'songCriteriaPanelOpen';
+const PREF_AUTO_OPENED_FOR = 'songCriteriaPanelAutoOpenedFor';
+
+function usePanelDisclosure(justMetAt: number | null) {
+  const [open, setOpenState] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      const [stored, autoOpenedFor] = await Promise.all([
+        getPref<boolean>(PREF_OPEN, false),
+        getPref<number | null>(PREF_AUTO_OPENED_FOR, null),
+      ]);
+      if (!live) return;
+      const isNewClimb = justMetAt !== null && justMetAt !== autoOpenedFor;
+      if (isNewClimb) {
+        setOpenState(true);
+        setReady(true);
+        await Promise.all([
+          setPref(PREF_OPEN, true),
+          setPref(PREF_AUTO_OPENED_FOR, justMetAt),
+        ]);
+        return;
+      }
+      setOpenState(stored);
+      setReady(true);
+    })();
+    return () => { live = false; };
+  }, [justMetAt]);
+
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    void setPref(PREF_OPEN, next);
+  };
+
+  return { open, setOpen, ready };
 }
 
 /**

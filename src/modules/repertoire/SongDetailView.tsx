@@ -2088,6 +2088,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           holding={holdingKeys}
           spelling={songSpelling}
           justMetLabel={song.stageEarned?.criterionLabel ?? null}
+          justMetAt={song.stageEarned?.at ?? null}
         />
         {/* ---------------------------------------------------------------
             ONE SLOT, TWO POSSIBLE SENTENCES.

@@ -445,3 +445,27 @@ describe('the earned notice shares the demotion notice\'s slot', () => {
     expect(DETAIL).toContain('justMetLabel={song.stageEarned?.criterionLabel ?? null}');
   });
 });
+
+describe('the criteria panel starts closed', () => {
+  const PANEL = read('StageCriteriaPanel.tsx');
+
+  it('defaults to closed and remembers the choice', () => {
+    expect(PANEL).toContain("getPref<boolean>(PREF_OPEN, false)");
+    expect(PANEL).toContain('void setPref(PREF_OPEN, next)');
+  });
+
+  it('is handed the climb timestamp, not just the label', () => {
+    // The auto-open is keyed on WHEN the climb happened. Without the
+    // timestamp the panel could only ask "is a climb standing", which
+    // is true until the next practice — it would re-open on every
+    // visit and closing it would be impossible.
+    expect(DETAIL).toContain('justMetAt={song.stageEarned?.at ?? null}');
+  });
+
+  it('gates the first paint on the stored state', () => {
+    // The pref lands a tick after mount. Rendering the body before it
+    // arrives would flash the panel open on every load for someone
+    // who keeps it closed.
+    expect(PANEL).toContain('{ready && open && (');
+  });
+});
