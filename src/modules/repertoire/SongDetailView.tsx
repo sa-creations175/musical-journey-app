@@ -1830,7 +1830,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 anywhere near the metadata. Nothing about them is fixed
                 here, they are simply where they should have been.
                 --------------------------------------------------------------- */}
-            <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="pt-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1">
               {whyEditing ? (
                 <div className="space-y-2">
                   <textarea
@@ -2525,6 +2525,28 @@ function SongAssociationsSection({ song }: { song: Song }) {
     // than one per block — three horizontal rules in a card this size
     // is more chrome than content.
     <div className="space-y-1.5">
+      {/* ---------------------------------------------------------------
+          COLLAPSED UNTIL THERE IS SOMETHING TO SHOW.
+
+          The else-branch below renders whenever nothing is saved, so an
+          empty three-row textarea and its save button held their space
+          permanently — the single tallest thing in this card, and the
+          reason the matrix started below the fold. It now opens on a
+          tap, the same way "+ add a note about this song" already does.
+
+          The heading collapses with it. A label above a one-line button
+          that already says what it is would be the label twice.
+          --------------------------------------------------------------- */}
+      {!editing && !hasSaved ? (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="text-xs text-neutral-500 hover:text-fluent"
+        >
+          + add what this song makes you feel
+        </button>
+      ) : (
+      <>
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <h3 className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">
           my associations
@@ -2583,6 +2605,8 @@ function SongAssociationsSection({ song }: { song: Song }) {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

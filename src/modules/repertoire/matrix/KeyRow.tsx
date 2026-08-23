@@ -47,9 +47,28 @@ interface Props {
   onLogRun?: (songKeyId: string) => void;
 }
 
-/** Shared by the header row so columns line up. */
-export const KEY_LABEL_WIDTH = 'w-[4.5rem]';
-export const ACTIONS_WIDTH = 'w-[5.5rem]';
+/**
+ * Column template, shared with the header row so the cells line up
+ * under their section names.
+ *
+ * ---------------------------------------------------------------
+ * CELLS ARE CAPPED, AND THE SPACE GOES TO THE RIGHT.
+ *
+ * They used to be `flex-1` with a 36px floor and no ceiling, so three
+ * sections across a wide card gave three cells ~400px wide — and
+ * because a cell is square, that made the ROW 400px tall. Twelve of
+ * those is a page.
+ *
+ * The floor was for tapping; there was never a target. `minmax(42px,
+ * 56px)` is what the S&P grid uses, and the trailing `1fr` is what
+ * absorbs the slack — so a song with three sections gets a narrow
+ * grid with white space beside it rather than three enormous squares.
+ * A row must not get taller because a song has FEWER sections.
+ * ---------------------------------------------------------------
+ */
+export function gridTemplate(sectionCount: number): string {
+  return `4.5rem repeat(${sectionCount}, minmax(42px, 56px)) auto 1fr`;
+}
 
 export default function KeyRow({
   keyName, spelling, songKey, sections, cellsBySectionId, isOriginal,
@@ -71,14 +90,14 @@ export default function KeyRow({
   return (
     <div
       className={[
-        'flex items-stretch border-b border-neutral-200 dark:border-neutral-800 last:border-b-0',
+        'grid items-stretch border-b border-neutral-200 dark:border-neutral-800 last:border-b-0',
         engaged ? '' : 'bg-neutral-50/40 dark:bg-neutral-900/40',
       ].join(' ')}
+      style={{ gridTemplateColumns: gridTemplate(sections.length) }}
     >
       <div
         className={[
-          KEY_LABEL_WIDTH,
-          'shrink-0 px-2 py-1 flex flex-col justify-center border-l-2',
+          'px-2 py-1 flex flex-col justify-center border-l-2',
           KEY_BORDER_BY_STATE[keyState] ?? KEY_BORDER_BY_STATE.not_started,
         ].join(' ')}
       >
@@ -107,12 +126,11 @@ export default function KeyRow({
         </span>
       </div>
 
-      <div className="flex-1 flex items-stretch gap-px py-px">
-        {sections.map(section => {
-          const cell = cellsBySectionId.get(section.id) ?? null;
-          const heat = cellHeat(cell, now);
-          return (
-            <div key={section.id} className="flex-1 min-w-[36px]">
+      {sections.map(section => {
+        const cell = cellsBySectionId.get(section.id) ?? null;
+        const heat = cellHeat(cell, now);
+        return (
+          <div key={section.id} className="p-px">
               <HeatCell
                 fill={heat.fill}
                 alpha={heat.alpha}
@@ -121,12 +139,11 @@ export default function KeyRow({
                 title={`${section.name} · ${spellKey(keyName, spelling)} — ${describeCell(cell)}`}
                 ariaLabel={`${section.name} in ${spellKey(keyName, spelling)}: ${describeCell(cell)}`}
               />
-            </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
 
-      <div className={[ACTIONS_WIDTH, 'shrink-0 flex items-center justify-end gap-1 pr-1.5'].join(' ')}>
+      <div className="flex items-center justify-end gap-1 px-1.5">
         {showActions && onLogRun && (
           <button
             type="button"

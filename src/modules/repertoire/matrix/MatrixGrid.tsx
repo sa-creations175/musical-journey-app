@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { keysOrderedFromOriginal } from './keys';
-import KeyRow, { ACTIONS_WIDTH, KEY_LABEL_WIDTH } from './KeyRow';
+import KeyRow, { gridTemplate } from './KeyRow';
 import type { DueWindows } from './keySpacing';
 import type { Spelling } from '../../../lib/spelling';
 
@@ -146,24 +146,25 @@ const EMPTY_CELL_MAP: ReadonlyMap<string, SongCell> = new Map();
 
 function SectionHeaderRow({ sections }: { sections: ReadonlyArray<SongMatrixSection> }) {
   return (
-    <div className="flex items-stretch border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/60">
-      {/* Spacers aligned with the key column and the actions column on
-          the rows below, so the cells line up under their headers.
-          Shared constants rather than repeated literals — two widths
-          that must match are two widths that will not. */}
-      <div className={`${KEY_LABEL_WIDTH} shrink-0`} />
-      <div className="flex-1 flex items-stretch gap-px">
-        {sections.map(section => (
-          <div
-            key={section.id}
-            className="flex-1 min-w-[36px] px-0.5 py-1 text-[9px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 text-center truncate"
-            title={section.name}
-          >
-            {section.name}
-          </div>
-        ))}
-      </div>
-      <div className={`${ACTIONS_WIDTH} shrink-0`} />
+    <div
+      className="grid items-stretch border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/60"
+      style={{ gridTemplateColumns: gridTemplate(sections.length) }}
+    >
+      {/* One template, shared with the rows, so a header can never sit
+          over the wrong column. Two column definitions that must match
+          are two definitions that will not. */}
+      <div />
+      {sections.map(section => (
+        <div
+          key={section.id}
+          className="px-0.5 py-1 text-[9px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400 text-center truncate"
+          title={section.name}
+        >
+          {section.name}
+        </div>
+      ))}
+      <div />
+      <div />
     </div>
   );
 }

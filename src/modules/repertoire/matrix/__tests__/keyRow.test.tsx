@@ -20,7 +20,7 @@ import { describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import type { SongCell, SongKey, SongMatrixSection } from '../../../../lib/db';
-import KeyRow from '../KeyRow';
+import KeyRow, { gridTemplate } from '../KeyRow';
 import {
   DUE_SOON_DEFAULT_DAYS,
   GRACE_DEFAULT_DAYS,
@@ -199,5 +199,47 @@ describe('the key name', () => {
     const r = render({ isOriginal: true });
     expect(r.text()).toContain('orig');
     r.unmount();
+  });
+});
+
+describe('the column template', () => {
+  /**
+   * A CELL NEEDS A CEILING, NOT JUST A FLOOR.
+   *
+   * The cells were `flex-1 min-w-[36px]`: a tapping floor and nothing
+   * above it, so on a wide card three sections split the row into
+   * three ~400px slabs. The 36px was a minimum for the finger, never
+   * a target for the eye. Shapes & Patterns' heat grid caps its cells
+   * and lets the LABEL column absorb the slack; this now does the same.
+   */
+  it('caps the cell columns instead of letting them absorb the row', () => {
+    const t = gridTemplate(3);
+    expect(t).toContain('repeat(3, minmax(42px, 56px))');
+    // The load-bearing half: a template written with `1fr` per cell —
+    // or `minmax(42px, 1fr)` — passes a "cells have a minimum" test
+    // and still stretches. The maximum is what fixed the bug.
+    expect(t).not.toMatch(/repeat\(\d+, minmax\([^)]*1fr\)\)/);
+  });
+
+  it('gives the slack to a column that is allowed to grow', () => {
+    // Something must absorb the leftover width or the capped cells
+    // stretch again. Here it is the trailing 1fr, after the actions.
+    expect(gridTemplate(3).trimEnd().endsWith('1fr')).toBe(true);
+  });
+
+  it('is the same template the header row uses', async () => {
+    // Two column definitions that must agree are two definitions that
+    // will not. Asserted at the source, because a header sitting over
+    // the wrong section is a purely visual failure that never throws.
+    const sources = import.meta.glob('../{KeyRow,MatrixGrid}.tsx', {
+      eager: true, query: '?raw', import: 'default',
+    }) as Record<string, string>;
+    const grid = Object.entries(sources).find(([f]) => f.includes('MatrixGrid'))?.[1] ?? '';
+    expect(grid).toContain('gridTemplate(sections.length)');
+    // No second, hand-written definition anywhere in the pair.
+    for (const [file, src] of Object.entries(sources)) {
+      const literals = src.match(/gridTemplateColumns:\s*`/g) ?? [];
+      expect(literals, file).toHaveLength(0);
+    }
   });
 });
