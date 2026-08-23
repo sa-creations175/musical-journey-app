@@ -1,23 +1,6 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type HarmonicDiaryEntry,
@@ -146,32 +129,7 @@ import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 import { SONG_KEY_OPTIONS, isCanonicalSongKey } from './matrix/keys';
 import { ensureSongHasOriginalKey } from './matrixMigration';
 
-/**
- * Canonical section keys on the song detail page. Order in this
- * tuple is the DEFAULT — used when Song.sectionOrder is unset, and
- * as a fallback for legacy / unknown keys when reading a stored
- * order. The meta header always renders first (not in this list);
- * cross-key, practice history, and danger zone always render at
- * the bottom (also not in this list). Only the five named sections
- * here participate in drag-to-reorder.
- */
-const SECTION_KEYS = [
-  'leadSheet',
-  'matrix',
-  'learningStatus',
-  'whyAndLinks',
-  'associations',
-] as const;
-type SectionKey = (typeof SECTION_KEYS)[number];
-const SECTION_KEY_SET: ReadonlySet<string> = new Set(SECTION_KEYS);
 
-const SECTION_TITLES: Record<SectionKey, string> = {
-  leadSheet:      'lead sheet',
-  matrix:         'matrix',
-  learningStatus: 'learning status',
-  whyAndLinks:    'why this song',
-  associations:   'my associations',
-};
 
 /** Time-signature dropdown options. "Other" routes the user to a
  *  free-text input so uncommon meters (9/8, 11/8, etc.) still
@@ -230,26 +188,6 @@ function seedReferenceVideosDraft(song: Song): ReferenceVideo[] {
   return [];
 }
 
-/**
- * Resolve a Song's effective section order. Drops unknown keys
- * (defensive against schema drift) and appends any missing keys at
- * the tail in DEFAULT order so a new section we add later still
- * shows up for existing songs.
- */
-function resolveSectionOrder(stored: string[] | undefined): SectionKey[] {
-  const result: SectionKey[] = [];
-  const seen = new Set<SectionKey>();
-  for (const key of stored ?? []) {
-    if (SECTION_KEY_SET.has(key) && !seen.has(key as SectionKey)) {
-      result.push(key as SectionKey);
-      seen.add(key as SectionKey);
-    }
-  }
-  for (const key of SECTION_KEYS) {
-    if (!seen.has(key)) result.push(key);
-  }
-  return result;
-}
 
 interface Props {
   songId: string | null;
@@ -376,29 +314,15 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   // wiring mirrors ActiveRepertoireView's SortableSongRow setup —
   // 5px pointer activation distance so taps don't accidentally
   // trigger a drag, keyboard sensor for accessibility.
-  const sectionOrder = useMemo(
-    () => resolveSectionOrder(song?.sectionOrder),
-    [song?.sectionOrder],
-  );
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  const handleSectionDragEnd = async (event: DragEndEvent) => {
-    if (!song) return;
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = sectionOrder.indexOf(active.id as SectionKey);
-    const newIndex = sectionOrder.indexOf(over.id as SectionKey);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const next = arrayMove(sectionOrder, oldIndex, newIndex);
-    // Read-then-put per the saveMeta precedent — db.songs.update can
-    // silently no-op when its lookup-and-merge fails. Single put
-    // also stays in lockstep with the rest of the song row.
-    const fresh = await db.songs.get(song.id);
-    if (!fresh) return;
-    await db.songs.put({ ...fresh, sectionOrder: next, updatedAt: Date.now() });
-  };
+  // The card-reorder machinery lived here and is gone: `sectionOrder`,
+  // the dnd-kit sensors, and the drag-end handler that wrote
+  // `songs.sectionOrder`. The page has a fixed order now — see the
+  // note above the cards.
+  //
+  // `songs.sectionOrder` is left on the row rather than migrated away.
+  // It is unindexed, it rides in the sync blob, and a stored order
+  // nothing reads costs nothing; a migration to remove it would touch
+  // every song for no gain.
 
   // Lead-sheet sections are reordered via an explicit reorder mode
   // (up/down arrows), not drag-and-drop — drag caused accidental
@@ -1759,317 +1683,302 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 </span>
               )}
             </div>
+
+            {/* ---------------------------------------------------------------
+                "WHY THIS SONG" AND THE LINKS LIVE HERE NOW.
+
+                They were a card of their own, two scrolls down. Both
+                answer the same question the rest of this card answers —
+                what IS this song — and neither is something you act on
+                while playing. A note about why you picked a song and a
+                link to the recording belong beside the title, not below
+                the matrix.
+
+                The links were already anchors; what they were not was
+                anywhere near the metadata. Nothing about them is fixed
+                here, they are simply where they should have been.
+                --------------------------------------------------------------- */}
+            <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 space-y-2">
+              {whyEditing ? (
+                <div className="space-y-2">
+                  <textarea
+                    rows={3}
+                    value={whyDraft}
+                    autoFocus
+                    onChange={e => setWhyDraft(e.target.value)}
+                    placeholder="what drew you to it, what you want to learn from it"
+                    className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
+                    <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
+                  </div>
+                </div>
+              ) : hasDescription ? (
+                <div className="flex items-start justify-between gap-2">
+                  <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-200">
+                    {song.description}
+                  </p>
+                  <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">edit</button>
+                </div>
+              ) : (
+                <button
+                  onClick={openWhyEditor}
+                  className="text-xs text-neutral-500 hover:text-fluent"
+                >
+                  + add a note about this song
+                </button>
+              )}
+              {(song.spotifyLink
+                || (song.referenceVideos && song.referenceVideos.length > 0)
+                || song.youtubeLink) && (
+                <div className="flex items-center gap-3 flex-wrap text-xs pt-1">
+                  {song.spotifyLink && (
+                    <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
+                  )}
+                  {song.referenceVideos && song.referenceVideos.length > 0
+                    ? song.referenceVideos.map(video => (
+                        <a
+                          key={video.id}
+                          href={video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-fluent hover:underline"
+                        >
+                          {(video.label && video.label.trim() !== '')
+                            ? video.label
+                            : hostnameOf(video.url)} ↗
+                        </a>
+                      ))
+                    // Legacy fallback — un-migrated songs still surface
+                    // their old single YouTube link until the user opens
+                    // the editor and saves (which migrates + clears it).
+                    : song.youtubeLink && (
+                      <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">
+                        youtube ↗
+                      </a>
+                    )}
+                </div>
+              )}
+            </div>
           </>
         )}
       </section>
 
-      {/* Drag-to-reorder section list. Each entry in sectionOrder
-          renders inside a SortableSection wrapper so the user can
-          rearrange them per-song. The meta header above and the
-          cross-key / practice history / danger zone below stay
-          fixed — only the five named sections participate. */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleSectionDragEnd}
-      >
-        <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
-          <div className="space-y-5">
-            {sectionOrder.map(key => (
-              <SortableSection key={key} id={key}>
-                {key === 'leadSheet' && (
-                  // No backdrop-blur: it's a no-op on this opaque card AND
-                  // would establish a containing block that makes the mobile
-                  // voicing bottom sheet (position: fixed) anchor to the card
-                  // instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
-                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
-                        <SectionGuidance surface="leadSheet" />
-                      </div>
-                      <div className="flex items-center gap-3 flex-wrap text-xs">
-                        {/* Editing chrome (notation / add / reorder) is
-                            hidden in play mode; only the play/exit toggle
-                            remains. */}
-                        {!playMode && (
-                          <>
-                            <label className="inline-flex items-center gap-1 text-neutral-500">
-                              notation:
-                              <select
-                                value={notationMode}
-                                onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
-                                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
-                                title="changes how chord functions display across the whole app"
-                              >
-                                {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
-                                  <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
-                                ))}
-                              </select>
-                            </label>
-                            {/* Song-level, never per-bar or per-section:
-                                mixing resolutions within a song would
-                                make the beat axis mean different things
-                                in different places. */}
-                            <button
-                              type="button"
-                              onClick={() => void handleToggleEighths()}
-                              aria-pressed={song.eighths === true}
-                              title="show the ‘and’ of every beat across this song"
-                              className={`px-2 py-0.5 rounded-full border ${
-                                song.eighths
-                                  ? 'border-fluent bg-fluent/10 text-fluent'
-                                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-                              }`}
-                            >
-                              eighths
-                            </button>
-                            <button
-                              onClick={addSection}
-                              className="text-neutral-500 hover:text-fluent"
-                            >
-                              + add section
-                            </button>
-                            {(sections.length > 1 || reorderMode) && (
-                              <button
-                                onClick={() => { setReorderMode(v => !v); setPlayMode(false); }}
-                                className="text-neutral-500 hover:text-fluent"
-                              >
-                                {reorderMode ? 'done' : 'reorder'}
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {sections.length > 0 && (
-                          <div
-                            role="tablist"
-                            aria-label="lead sheet view"
-                            className="inline-flex items-center gap-1 p-0.5 rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => setPlayMode(false)}
-                              aria-pressed={!playMode}
-                              className={`px-3 py-1 text-xs rounded-md transition ${
-                                !playMode
-                                  ? 'bg-fluent text-white'
-                                  : 'text-neutral-500 hover:text-fluent'
-                              }`}
-                            >
-                              edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setPlayMode(true); setReorderMode(false); }}
-                              aria-pressed={playMode}
-                              className={`px-3 py-1 text-xs rounded-md transition ${
-                                playMode
-                                  ? 'bg-fluent text-white'
-                                  : 'text-neutral-500 hover:text-fluent'
-                              }`}
-                            >
-                              play
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {sections.length === 0 ? (
-                      <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
-                    ) : (
-                      <div className={playMode ? 'space-y-1' : 'space-y-3'}>
-                        {sections.map((s, idx) => (
-                          <LeadSheetSection
-                            key={s.id}
-                            song={song}
-                            section={s}
-                            reorderMode={reorderMode}
-                            playMode={playMode}
-                            canMoveUp={idx > 0}
-                            canMoveDown={idx < sections.length - 1}
-                            highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
-                            onChange={patch => updateSection(s.id, patch)}
-                            onReplace={replaceSection}
-                            onMoveUp={() => moveSection(s, -1)}
-                            onMoveDown={() => moveSection(s, 1)}
-                            onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
-                            songLyricLines={songLyricLines}
-                            cellIndex={cellIndex}
-                            beatAxis={beatAxis}
-                            markerIndex={markerIndex}
-                            onSongLyricsChange={commitSongLyrics}
-                            armedSyllableId={armedSyllableId}
-                            onArmSyllable={handleArmSyllable}
-                            onSyllablePlaced={handleSyllablePlaced}
-                            awaitingLine={awaitingLine}
-                            onLineHeadPlaced={handleLineHeadPlaced}
-                            onArmLine={handleArmLine}
-                            onArmWord={handleArmWord}
-                            onSetLineKind={handleSetLineKind}
-                            onDuplicateLine={handleDuplicateLine}
-                            promptAnchorCellKey={promptAnchorCellKey}
-                            onPromptAnchorNode={setPromptAnchorNode}
-                            onRefusalNotice={handleRefusalNotice}
-                            patternsCollapsed={patternsCollapsed}
-                            onTogglePatterns={handleTogglePatterns}
-                            lyricTrayCollapsed={lyricTrayCollapsed}
-                            onToggleLyricTray={handleToggleLyricTray}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                )}
+      {/* ---------------------------------------------------------------
+          FIXED ORDER, NO LONGER DRAGGABLE.
 
-                {key === 'matrix' && (
-                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-                    <div className="flex items-center gap-2 flex-wrap pr-10">
-                      <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
-                      <SectionGuidance surface="matrix" />
-                    </div>
-                    <SongMatrixView song={song} onClose={() => {}} embedded />
-                  </section>
-                )}
-
-                {key === 'learningStatus' && (
-                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-                    <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">learning status</h3>
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
-                          {STAGE_LABEL[currentStage]}
-                        </span>
-                        <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
-                      </div>
-                      {/* The change-stage dropdown and the advance
-                          button are gone. A stage is where the
-                          evidence puts you: play it, prove it, three
-                          times. An override would make the badge a
-                          claim about what the user was willing to
-                          assert rather than about the song. */}
-                    </div>
-                    <p className="text-sm text-neutral-700 dark:text-neutral-200 italic leading-snug">
-                      {STAGE_GUIDANCE[currentStage]}
-                    </p>
-                    {/* Always, not only once the criteria are met.
-                        The banner below is the call to action; this is
-                        the answer to "what would advance this song?",
-                        which had nowhere to be asked before. */}
-                    <StageCriteriaPanel
-                      criteria={criteria}
-                      holding={holdingKeys}
-                      spelling={songSpelling}
-                    />
-                    {/* Above the ✨ banner: a drop is more urgent than
-                        an invitation, and the two would otherwise sit
-                        side by side saying opposite things. */}
-                    {song.stageDemotion && (
-                      <DemotionNotice
-                        demotion={song.stageDemotion}
-                        spelling={songSpelling}
-                      />
-                    )}
-                    {advancement.suggest && advancement.reason && (
-                      <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
-                        <span aria-hidden className="mr-1.5">✨</span>
-                        {advancement.reason}
-                      </div>
-                    )}
-                  </section>
-                )}
-
-                {key === 'whyAndLinks' && (
-                  <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-                    <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300 pr-10">why this song</h3>
-                    {whyEditing ? (
-                      <div className="space-y-2">
-                        <textarea
-                          rows={3}
-                          value={whyDraft}
-                          autoFocus
-                          onChange={e => setWhyDraft(e.target.value)}
-                          placeholder="what drew you to it, what you want to learn from it"
-                          className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
-                        />
-                        <div className="flex items-center gap-2">
-                          <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
-                          <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
-                        </div>
-                      </div>
-                    ) : hasDescription ? (
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-200">
-                          {song.description}
-                        </p>
-                        <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">edit</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={openWhyEditor}
-                        className="text-xs text-neutral-500 hover:text-fluent"
-                      >
-                        + add a note about this song
-                      </button>
-                    )}
-                    {(song.spotifyLink
-                      || (song.referenceVideos && song.referenceVideos.length > 0)
-                      || song.youtubeLink) && (
-                      <div className="flex items-center gap-3 flex-wrap text-xs pt-1">
-                        {song.spotifyLink && (
-                          <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
-                        )}
-                        {song.referenceVideos && song.referenceVideos.length > 0
-                          ? song.referenceVideos.map(video => (
-                              <a
-                                key={video.id}
-                                href={video.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-fluent hover:underline"
-                              >
-                                {(video.label && video.label.trim() !== '')
-                                  ? video.label
-                                  : hostnameOf(video.url)} ↗
-                              </a>
-                            ))
-                          // Legacy fallback — un-migrated songs still surface
-                          // their old single YouTube link until the user opens
-                          // the editor and saves (which migrates + clears it).
-                          : song.youtubeLink && (
-                            <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">
-                              youtube ↗
-                            </a>
-                          )}
-                      </div>
-                    )}
-                  </section>
-                )}
-
-                {key === 'associations' && (
-                  <SongAssociationsSection song={song} />
-                )}
-              </SortableSection>
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+          The five cards used to be user-reorderable, stored on
+          `songs.sectionOrder`. That freedom was worth less than a
+          shape you can learn: metadata says what the song is, the
+          matrix says where it stands and what would move it, the lead
+          sheet is what you read while playing, associations are the
+          links outward. A page whose order differs per song is a page
+          you re-read every time.
+          --------------------------------------------------------------- */}
 
       {/* ---------------------------------------------------------------
-          THE CROSS-KEY MASTERY CARD IS GONE.
+          THE MATRIX IS THE SONG'S DASHBOARD.
 
-          It was the same twelve keys against the same sections as the
-          matrix, transposed, over a COMPLETELY DISJOINT table. Tapping
-          a square there bumped `songCrossKeyProgress.sessionCount`;
-          tapping a matrix cell wrote `songCells` and run-throughs.
-          Neither could see the other, so two grids of the same thing
-          could disagree indefinitely and both be right.
-
-          `songCrossKeyProgress` has been @deprecated in db.ts since
-          Phase 1.5, no stage rule has read it since 3a-5, and its
-          `mastered` flag was a manual toggle nothing consumed. The
-          matrix answers the question it was asking, with evidence
-          behind it.
+          Status by section, by key — the same role the app dashboard
+          plays for everything else. So the derived status and what
+          would advance it belong in its header rather than in a card
+          of their own further down: the answer and the evidence for it
+          were two scrolls apart, and the card that held the answer had
+          three sources of truth in it.
           --------------------------------------------------------------- */}
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
+          <SectionGuidance surface="matrix" />
+        </div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
+              {STAGE_LABEL[currentStage]}
+            </span>
+            <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
+          </div>
+          {/* The change-stage dropdown and the advance
+              button are gone. A stage is where the
+              evidence puts you: play it, prove it, three
+              times. An override would make the badge a
+              claim about what the user was willing to
+              assert rather than about the song. */}
+        </div>
+        <p className="text-sm text-neutral-700 dark:text-neutral-200 italic leading-snug">
+          {STAGE_GUIDANCE[currentStage]}
+        </p>
+        {/* Always, not only once the criteria are met.
+            The banner below is the call to action; this is
+            the answer to "what would advance this song?",
+            which had nowhere to be asked before. */}
+        <StageCriteriaPanel
+          criteria={criteria}
+          holding={holdingKeys}
+          spelling={songSpelling}
+        />
+        {/* Above the ✨ banner: a drop is more urgent than
+            an invitation, and the two would otherwise sit
+            side by side saying opposite things. */}
+        {song.stageDemotion && (
+          <DemotionNotice
+            demotion={song.stageDemotion}
+            spelling={songSpelling}
+          />
+        )}
+        {advancement.suggest && advancement.reason && (
+          <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
+            <span aria-hidden className="mr-1.5">✨</span>
+            {advancement.reason}
+          </div>
+        )}
+        <SongMatrixView song={song} onClose={() => {}} embedded />
+      </section>
+
+        // No backdrop-blur: it's a no-op on this opaque card AND
+        // would establish a containing block that makes the mobile
+        // voicing bottom sheet (position: fixed) anchor to the card
+        // instead of the viewport. See LEAD_SHEET_PLAY_MODE_DESIGN.md.
+        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2 pr-10">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">lead sheet</h3>
+              <SectionGuidance surface="leadSheet" />
+            </div>
+            <div className="flex items-center gap-3 flex-wrap text-xs">
+              {/* Editing chrome (notation / add / reorder) is
+                  hidden in play mode; only the play/exit toggle
+                  remains. */}
+              {!playMode && (
+                <>
+                  <label className="inline-flex items-center gap-1 text-neutral-500">
+                    notation:
+                    <select
+                      value={notationMode}
+                      onChange={e => { void setNotationMode(e.target.value as NotationMode); }}
+                      className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
+                      title="changes how chord functions display across the whole app"
+                    >
+                      {(Object.keys(NOTATION_LABEL) as NotationMode[]).map(m => (
+                        <option key={m} value={m}>{NOTATION_LABEL[m]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {/* Song-level, never per-bar or per-section:
+                      mixing resolutions within a song would
+                      make the beat axis mean different things
+                      in different places. */}
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleEighths()}
+                    aria-pressed={song.eighths === true}
+                    title="show the ‘and’ of every beat across this song"
+                    className={`px-2 py-0.5 rounded-full border ${
+                      song.eighths
+                        ? 'border-fluent bg-fluent/10 text-fluent'
+                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
+                    }`}
+                  >
+                    eighths
+                  </button>
+                  <button
+                    onClick={addSection}
+                    className="text-neutral-500 hover:text-fluent"
+                  >
+                    + add section
+                  </button>
+                  {(sections.length > 1 || reorderMode) && (
+                    <button
+                      onClick={() => { setReorderMode(v => !v); setPlayMode(false); }}
+                      className="text-neutral-500 hover:text-fluent"
+                    >
+                      {reorderMode ? 'done' : 'reorder'}
+                    </button>
+                  )}
+                </>
+              )}
+              {sections.length > 0 && (
+                <div
+                  role="tablist"
+                  aria-label="lead sheet view"
+                  className="inline-flex items-center gap-1 p-0.5 rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPlayMode(false)}
+                    aria-pressed={!playMode}
+                    className={`px-3 py-1 text-xs rounded-md transition ${
+                      !playMode
+                        ? 'bg-fluent text-white'
+                        : 'text-neutral-500 hover:text-fluent'
+                    }`}
+                  >
+                    edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setPlayMode(true); setReorderMode(false); }}
+                    aria-pressed={playMode}
+                    className={`px-3 py-1 text-xs rounded-md transition ${
+                      playMode
+                        ? 'bg-fluent text-white'
+                        : 'text-neutral-500 hover:text-fluent'
+                    }`}
+                  >
+                    play
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {sections.length === 0 ? (
+            <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
+          ) : (
+            <div className={playMode ? 'space-y-1' : 'space-y-3'}>
+              {sections.map((s, idx) => (
+                <LeadSheetSection
+                  key={s.id}
+                  song={song}
+                  section={s}
+                  reorderMode={reorderMode}
+                  playMode={playMode}
+                  canMoveUp={idx > 0}
+                  canMoveDown={idx < sections.length - 1}
+                  highlighted={isHighlighted(`section-${s.id}`) || flashSectionId === s.id}
+                  onChange={patch => updateSection(s.id, patch)}
+                  onReplace={replaceSection}
+                  onMoveUp={() => moveSection(s, -1)}
+                  onMoveDown={() => moveSection(s, 1)}
+                  onDelete={sections.length > 1 ? async () => { requestDeleteSection(s); } : undefined}
+                  songLyricLines={songLyricLines}
+                  cellIndex={cellIndex}
+                  beatAxis={beatAxis}
+                  markerIndex={markerIndex}
+                  onSongLyricsChange={commitSongLyrics}
+                  armedSyllableId={armedSyllableId}
+                  onArmSyllable={handleArmSyllable}
+                  onSyllablePlaced={handleSyllablePlaced}
+                  awaitingLine={awaitingLine}
+                  onLineHeadPlaced={handleLineHeadPlaced}
+                  onArmLine={handleArmLine}
+                  onArmWord={handleArmWord}
+                  onSetLineKind={handleSetLineKind}
+                  onDuplicateLine={handleDuplicateLine}
+                  promptAnchorCellKey={promptAnchorCellKey}
+                  onPromptAnchorNode={setPromptAnchorNode}
+                  onRefusalNotice={handleRefusalNotice}
+                  patternsCollapsed={patternsCollapsed}
+                  onTogglePatterns={handleTogglePatterns}
+                  lyricTrayCollapsed={lyricTrayCollapsed}
+                  onToggleLyricTray={handleToggleLyricTray}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <SongAssociationsSection song={song} />
 
       {/* Practice history + heatmap */}
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
@@ -2373,43 +2282,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 }
 
 // -------------------------------------------------------------------
-// SortableSection — dnd-kit wrapper around a single drag-to-reorder
-// section on the song detail page. Mirrors the SortableSongRow
-// pattern in ActiveRepertoireView so the two surfaces feel
-// consistent. The drag handle sits absolutely positioned at the
-// top-right of the section card so each section's existing
-// internal header (title, inline controls) stays intact.
-// -------------------------------------------------------------------
-
-function SortableSection({
-  id,
-  children,
-}: {
-  id: SectionKey;
-  children: ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id });
-  const style: CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-  return (
-    <div ref={setNodeRef} style={style} className="relative">
-      <button
-        type="button"
-        aria-label={`drag to reorder ${SECTION_TITLES[id]} section`}
-        {...attributes}
-        {...listeners}
-        className="absolute top-2 right-2 z-10 px-2 py-1 rounded-md border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none text-xs leading-none"
-      >
-        <span aria-hidden className="font-mono">≡</span>
-      </button>
-      {children}
-    </div>
-  );
-}
+// `SortableSection` lived here and is gone with the drag-to-reorder
+// it wrapped.
 
 // -------------------------------------------------------------------
 // My associations (per-song) — syncs to the Harmonic Diary so the
