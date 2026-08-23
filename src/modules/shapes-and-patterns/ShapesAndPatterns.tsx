@@ -13,6 +13,7 @@ import {
   cleanupScaleDirectionalDrillsIfNeeded,
 } from './cleanup';
 import type { QualityKind } from './catalog';
+import SubTabs from '../../components/SubTabs';
 
 type TabId = 'chord-shapes' | 'scales' | 'voice-leading' | 'mental-viz';
 
@@ -79,29 +80,12 @@ export default function ShapesAndPatterns() {
 
       <TodayAndAttention />
 
-      <nav
-        className="flex items-center gap-1 p-1 rounded-lg border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur flex-wrap"
-        aria-label="shapes & patterns tab"
-      >
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            aria-pressed={tab === t.id}
-            title={t.hint}
-            className={`flex-1 min-w-[140px] px-3 py-2 rounded-md text-sm transition text-center ${
-              tab === t.id
-                ? 'bg-fluent text-white shadow-sm'
-                : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-            }`}
-          >
-            <div className="font-medium">{t.label}</div>
-            <div className={`text-[10px] mt-0.5 ${tab === t.id ? 'text-white/80' : 'text-neutral-500'}`}>
-              {t.hint}
-            </div>
-          </button>
-        ))}
-      </nav>
+      <SubTabs
+        tabs={TABS}
+        active={tab}
+        onChange={setTab}
+        label="shapes and patterns view"
+      />
 
       {tab === 'chord-shapes' && (
         <ChordShapeDrills scope={chordScope} onScopeChange={setChordScope} />

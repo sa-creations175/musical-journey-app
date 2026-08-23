@@ -19,6 +19,7 @@ import './devInspectSongKeys';
 import './devInspectChordDurations';
 import './devInspectSlotPositions';
 import './devInspectBarTiling';
+import SubTabs from '../../components/SubTabs';
 
 type TabId = 'active' | 'detail' | 'want-to-learn';
 
@@ -166,34 +167,12 @@ export default function Repertoire() {
         />
       )}
 
-      {/* ---------------------------------------------------------------
-          ONE LINE, NOT TWO. The matrix is the song's dashboard, and a
-          dashboard below the fold is not one — so everything above it
-          has to earn its height. Three links do not need two lines
-          each: the hint that was rendered under every label is still
-          there as the `title`, where it costs nothing until it is
-          wanted.
-          --------------------------------------------------------------- */}
-      <nav
-        className="flex items-center gap-1 p-0.5 rounded-lg border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur flex-wrap"
-        aria-label="repertoire view"
-      >
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            aria-pressed={tab === t.id}
-            title={t.hint}
-            className={`flex-1 min-w-[110px] px-3 py-1.5 rounded-md text-sm font-medium transition text-center ${
-              tab === t.id
-                ? 'bg-fluent text-white shadow-sm'
-                : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <SubTabs
+        tabs={TABS}
+        active={tab}
+        onChange={setTab}
+        label="repertoire view"
+      />
 
       {tab === 'active' && (
         <ActiveRepertoireView
