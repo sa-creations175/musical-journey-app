@@ -11,6 +11,7 @@ import type { Spelling } from '../lib/spelling';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
 import SpacingSettingsSection from '../modules/repertoire/SpacingSettingsSection';
+import SeededKeyRowsPanel from '../modules/repertoire/SeededKeyRowsPanel';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -265,6 +266,8 @@ export default function SettingsPanel({ open, onClose }: Props) {
               </button>
             </div>
           </section>
+
+          <SeededKeyRowsPanel />
 
           <SpacingSettingsSection />
 

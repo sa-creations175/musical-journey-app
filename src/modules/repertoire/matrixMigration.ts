@@ -1,13 +1,10 @@
 import {
   db,
-  type RepertoireStage,
   type Song,
   type SongKey,
-  type SongKeyState,
 } from '../../lib/db';
 import { whenSyncReady } from '../../lib/sync/syncReady';
 import { songKeyRowId } from './matrix/ids';
-import { normaliseStage } from './stage';
 
 /**
  * Phase 1.5 step 2 — auto-populate `songKeys` for every existing
@@ -104,8 +101,22 @@ export async function ensureSongHasOriginalKey(songId: string): Promise<void> {
 }
 
 function buildOriginalKeyRow(song: Song, now: number): SongKey {
-  const stage: RepertoireStage = normaliseStage(song.stage);
-  const keyState = mapStageToKeyState(stage);
+  // ---------------------------------------------------------------
+  // NO LONGER SEEDS A STATE FROM THE STAGE, and the reason is that the
+  // arrow now points the other way. Stage is DERIVED from key states;
+  // seeding a key state from a stage makes the derivation read back
+  // its own input and call it evidence.
+  //
+  // It is also what produced the phantom this repair exists to clear:
+  // a song with no key and a hand-set stage of Learning got a **C**
+  // row already at `learning`, stamped with the song's added date —
+  // a state and a date describing practice that never happened. See
+  // `seededKeyRows.ts`.
+  //
+  // Every key now starts where `reassignOriginalKey` and `materialise`
+  // already start theirs: not_started, with nothing claimed.
+  // ---------------------------------------------------------------
+  const keyState: SongKey['keyState'] = 'not_started';
   // No `key` set on the song record means we don't know the home
   // key. 'C' is a neutral default the user can change once the
   // matrix UI exposes the original-key picker (per spec, the
@@ -124,8 +135,8 @@ function buildOriginalKeyRow(song: Song, now: number): SongKey {
     // historical timestamp risks immediately surfacing a "lapsed,
     // retest now" prompt on a song the user has done nothing wrong
     // with. Honest stance: the new clock starts now.
-    solidAt: keyState === 'solid' ? now : null,
-    solidDecayState: keyState === 'solid' ? 'solid' : null,
+    solidAt: null,
+    solidDecayState: null,
     lastDecayCheckAt: null,
     livedWithSessionCount: 0,
     livedWithFirstSessionAt: null,
@@ -133,51 +144,24 @@ function buildOriginalKeyRow(song: Song, now: number): SongKey {
     livedWithSessionsInWindow: 0,
     wholeSongTestPassedAt: null,
     isRetestRecommended: false,
-    lastEngagedAt: song.addedDate ?? now,
+    // NULL, not the added date. A date here is a claim that something
+    // happened, and adding a song is not practising it — that stamp is
+    // exactly what made the phantom row look like history.
+    lastEngagedAt: null,
     createdAt: now,
     updatedAt: now,
   };
 }
 
 /**
- * Stage → keyState mapping per the design doc's migration table.
- * Inputs are the legacy RepertoireStage; outputs are the new
- * SongKeyState. Every input maps to exactly one output, no nulls.
+ * `mapStageToKeyState` lived here and is gone.
  *
- * Notes on the trickier rows:
- *
- *   'cross-key' → 'comfortable'
- *     The old Cross-key state implied the user had the original
- *     key down well enough to start working others. In the new
- *     model that's at least Comfortable on the original. The
- *     "which other keys were you working?" follow-up is a matrix-
- *     UI concern (step 3) — migration only seeds the original key.
- *
- *   'internalized' → 'solid'
- *     Closest honest equivalent. True Internalized in the new
- *     model also requires 3+ keys at Solid plus the lived-with
- *     gate, and we have none of that signal historically — so we
- *     migrate to Solid (the original-key floor) and let the user
- *     earn their way back to Internalized through actual practice
- *     in additional keys.
- *
- *   (the retired 'maintenance' normalises to 'internalized' before
- *   reaching here, and mapped to 'solid' too — so the collapse is
- *   lossless)
- *     The legacy maintenance state mixed two things: post-mastery
- *     proficiency AND a user-declared "stop actively developing
- *     this" intent. The new model splits them — Solid carries the
- *     proficiency, and a separate maintenance-intent toggle (not
- *     yet built; ships in a later step) carries the intent. We
- *     map state cleanly to Solid here; the intent semantics are
- *     deferred without losing data — the user can flip the toggle
- *     on for these songs once it ships.
+ * It translated a hand-set stage into a key state, which was the only
+ * way a migrated song could arrive with progress already on the
+ * matrix. With the stage DERIVED from key states that translation runs
+ * backwards — it would let the derivation read back its own input and
+ * call it evidence — and its last caller went with the seeding in
+ * `buildOriginalKeyRow` above. Removed rather than left unreferenced:
+ * an unused mapper between two vocabularies is an invitation to
+ * reintroduce the cycle.
  */
-export function mapStageToKeyState(stage: RepertoireStage): SongKeyState {
-  switch (stage) {
-    case 'learning':     return 'learning';
-    case 'comfortable':  return 'comfortable';
-    case 'cross-key':    return 'comfortable';
-    case 'internalized': return 'solid';
-  }
-}
