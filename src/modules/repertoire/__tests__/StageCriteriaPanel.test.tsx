@@ -22,6 +22,15 @@ import { act } from 'react';
 import StageCriteriaPanel from '../StageCriteriaPanel';
 import type { LadderGroup, StageCriterion } from '../stage';
 
+const SOURCES: Record<string, string> = import.meta.glob(
+  '../*.tsx', { eager: true, query: '?raw', import: 'default' },
+);
+function read(suffix: string): string {
+  const hit = Object.entries(SOURCES).find(([p]) => p.endsWith(suffix));
+  if (!hit) throw new Error(`no source found for ${suffix}`);
+  return hit[1];
+}
+
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -29,16 +38,29 @@ let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
 const criterion = (label: string, met: boolean): StageCriterion => ({
-  label, met, have: met ? 1 : 0, need: 1,
+  label, met, have: met ? 1 : 0, need: 1, unit: 'test',
+});
+
+/** Mirrors what `ladderCriteria` builds: the headline is one of the
+ *  group's own criteria, never a separately-authored count. */
+const group = (
+  earns: LadderGroup['earns'],
+  status: LadderGroup['status'],
+  criteria: StageCriterion[],
+  headlineIndex = criteria.length - 1,
+): LadderGroup => ({
+  earns, status, criteria, headline: criteria[headlineIndex],
 });
 
 const GROUPS: LadderGroup[] = [
-  { earns: 'comfortable', status: 'earned', criteria: [criterion('Whole-song test passed in the key of F', true)] },
-  { earns: 'cross-key', status: 'current', criteria: [criterion('One key from each of the 4 quadrants', false)] },
-  { earns: 'internalized', status: 'ahead', criteria: [
+  group('comfortable', 'earned', [criterion('Whole-song test passed in the key of F', true)]),
+  group('cross-key', 'current', [
+    { ...criterion('One key from each of the 4 quadrants', false), have: 1, need: 4, unit: 'quadrants' },
+  ]),
+  group('internalized', 'ahead', [
     criterion('A performance tempo is set for this song', true),
-    criterion('Every other key run clean at tempo', false),
-  ] },
+    { ...criterion('Every other key run clean at tempo', false), have: 0, need: 8, unit: 'keys run clean' },
+  ]),
 ];
 
 const PREF_OPEN = 'songCriteriaPanelOpen';
@@ -103,11 +125,14 @@ afterEach(() => {
 });
 
 describe('what is on screen', () => {
-  it('counts every criterion in the ladder, not just the live rung', async () => {
+  it('shows no panel-level aggregate at all', async () => {
+    // Summing met criteria across three rungs produces a number whose
+    // only honest label is "rules satisfied" — not a thing anyone
+    // wants to know, and it counted work on rungs not yet reached.
     // 2 met of 4 across three groups. Counting only the current rung
     // would read "0 of 1", which is the number the old panel showed
     // and the reason earning something looked like no progress.
-    expect((await renderOpen()).text()).toContain('2 of 4 met');
+    expect((await renderOpen()).text()).not.toContain('met');
   });
 
   it('shows earned and current rungs expanded', async () => {
@@ -122,7 +147,7 @@ describe('what is on screen', () => {
     // so the work is visible without being in the way.
     const r = await renderOpen();
     const heading = r.buttons().find(b => (b.textContent ?? '').includes('Internalized'))!;
-    expect(heading.textContent).toContain('1 of 2');
+    expect(heading.textContent).toContain('0 of 8');
     expect(r.text()).not.toContain('Every other key run clean at tempo');
   });
 
@@ -218,7 +243,7 @@ describe('the panel itself is collapsed by default', () => {
     // a glance — the rows behind it are the working.
     return render().then(r => {
       expect(r.text()).toContain('what would advance this song');
-      expect(r.text()).toContain('2 of 4 met');
+      expect(r.text()).toContain('1 of 4 quadrants');
       expect(r.text()).not.toContain('Whole-song test passed in the key of F');
       expect(r.toggle().getAttribute('aria-expanded')).toBe('false');
     });
@@ -291,5 +316,45 @@ describe('a climb opens the panel so the tick is witnessed', () => {
   it('leaves a closed panel closed when nothing was earned', async () => {
     const r = await render({ justMetAt: null });
     expect(r.toggle().getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('the counts describe the work, in the work\'s own unit', () => {
+  it('reads each rung from its own headline criterion', () => {
+    // Not met-criteria-out-of-criteria. "Internalized 1 of 3" meant
+    // one RULE satisfied — the performance tempo — which says nothing
+    // about how many keys have been played, and is not what anyone
+    // reads a number beside Internalized as meaning.
+    return renderOpen().then(r => {
+      const label = (m: string) =>
+        r.buttons().find(b => (b.textContent ?? '').includes(m))!.textContent ?? '';
+      expect(label('Comfortable')).toContain('1 of 1 test');
+      expect(label('Cross-key')).toContain('1 of 4 quadrants');
+      expect(label('Internalized')).toContain('0 of 8 keys run clean');
+    });
+  });
+
+  it('takes the unit from the criterion, never from the heading', () => {
+    // A hand-written unit beside a rule that counts something else is
+    // drift with nothing to catch it.
+    const panel = read('StageCriteriaPanel.tsx');
+    expect(panel).toContain('{group.headline.unit}');
+    for (const hardcoded of ['quadrants<', 'keys run clean<', "'quadrants'", "'keys run clean'"]) {
+      expect(panel, hardcoded).not.toContain(hardcoded);
+    }
+  });
+
+  it('shows the CURRENT rung\'s count on the collapsed header', () => {
+    // What's next, not an aggregate across rungs not yet reached.
+    return render().then(r => {
+      expect(r.toggle().textContent).toContain('1 of 4 quadrants');
+    });
+  });
+
+  it('drops it from the header once open, where the group says it', () => {
+    // Saying it twice, two lines apart, is worse than not saying it.
+    return renderOpen().then(r => {
+      expect(r.toggle().textContent).not.toContain('quadrants');
+    });
   });
 });

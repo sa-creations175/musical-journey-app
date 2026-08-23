@@ -27,13 +27,13 @@ function song(over: Partial<Song> = {}): Song {
 }
 
 const met = (label: string): StageCriterion =>
-  ({ label, met: true, have: 1, need: 1 });
+  ({ label, met: true, have: 1, need: 1, unit: 'test' });
 const unmet = (label: string, detail?: string): StageCriterion =>
-  ({ label, met: false, have: 0, need: 1, ...(detail ? { detail } : {}) });
+  ({ label, met: false, have: 0, need: 1, unit: 'test', ...(detail ? { detail } : {}) });
 const unmetPrecondition = (label: string): StageCriterion =>
-  ({ label, met: false, have: 0, need: 1, precondition: true });
+  ({ label, met: false, have: 0, need: 1, unit: 'test', precondition: true });
 const metPrecondition = (label: string): StageCriterion =>
-  ({ label, met: true, have: 1, need: 1, precondition: true });
+  ({ label, met: true, have: 1, need: 1, unit: 'test', precondition: true });
 
 describe('movement', () => {
   it('reads a fall as a demotion and a climb as a promotion', () => {

@@ -59,8 +59,14 @@ export default function StageCriteriaPanel({
   // which carries it. An empty panel is the honest render.
   if (groups.length === 0) return null;
 
-  const all = groups.flatMap(g => g.criteria);
-  const metCount = all.filter(c => c.met).length;
+  // WHAT'S NEXT, NOT A TOTAL. The header used to sum met criteria
+  // across every rung — a number whose only honest label is "rules
+  // satisfied", which is not a thing anyone wants to know, and which
+  // counted work on rungs you have not reached. Collapsed, it shows
+  // the CURRENT rung's own count instead; expanded it shows nothing,
+  // because that same count is on the current group's heading two
+  // lines below and saying it twice is worse than not saying it.
+  const current = groups.find(g => g.status === 'current');
 
   return (
     /* ---------------------------------------------------------------
@@ -88,9 +94,14 @@ export default function StageCriteriaPanel({
         <span className="flex items-center gap-1.5">
           {/* "0/1" said nothing about what was being counted. It counts
               criteria, and the word is cheap. */}
-          <span className="text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400">
-            {metCount} of {all.length} met
-          </span>
+          {!open && current && (
+            <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              <span className="tabular-nums">
+                {current.headline.have} of {current.headline.need}
+              </span>{' '}
+              {current.headline.unit}
+            </span>
+          )}
           <span aria-hidden className="text-[9px] text-neutral-400">
             {open ? '▾' : '▸'}
           </span>
@@ -216,8 +227,7 @@ function RungGroup({
 }) {
   const [expanded, setExpanded] = useState(false);
   const open = group.status !== 'ahead' || expanded;
-  const met = group.criteria.filter(c => c.met).length;
-  const allMet = met === group.criteria.length;
+  const allMet = group.criteria.every(c => c.met);
 
   return (
     <div className="space-y-1.5">
@@ -244,8 +254,15 @@ function RungGroup({
         ].join(' ')}>
           {STAGE_LABEL[group.earns]}
         </span>
-        <span className="text-[11px] tabular-nums text-neutral-400 dark:text-neutral-500">
-          {met} of {group.criteria.length}
+        {/* The rung's own work, in the rung's own unit — both read
+            off the criterion that produced them, never composed
+            here. A hand-written unit beside a rule that counts
+            something else is drift with nothing to catch it. */}
+        <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+          <span className="tabular-nums">
+            {group.headline.have} of {group.headline.need}
+          </span>{' '}
+          {group.headline.unit}
         </span>
         {group.status === 'ahead' && (
           <span aria-hidden className="text-[9px] text-neutral-400 ml-auto">

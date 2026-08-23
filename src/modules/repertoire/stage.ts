@@ -244,6 +244,18 @@ export interface StageCriterion {
   /** Progress toward `need`. A yes/no criterion uses 0 or 1 of 1. */
   have: number;
   need: number;
+  /**
+   * What `have` and `need` are counting, as a noun a heading can read
+   * straight out — "quadrants", "keys run clean", "test".
+   *
+   * IT LIVES HERE BECAUSE THE NUMBERS DO. A unit written next to the
+   * heading that renders it is a second statement of what the rule
+   * counts, and the two drift: label a rung "8 keys" beside a rule
+   * that counts quadrants and the panel is confidently wrong with
+   * nothing to catch it. Same reason `evaluateAdvancement` is derived
+   * from these criteria rather than written alongside them.
+   */
+  unit: string;
   /** What is outstanding, spelled out. Present only when unmet and
    *  only when the gap can be described more usefully than by the
    *  numbers alone. */
@@ -324,10 +336,12 @@ function breadthStatus(input: AdvancementInputs) {
   const satisfied = input.songKeys.filter(
     k => held.has(k.id) || provenByRun.has(k.id),
   );
-  const short = input.songKeys.filter(
-    k => !held.has(k.id) && !provenByRun.has(k.id),
-  );
-  return { held, tempoSet, provenByRun, satisfied, short };
+  // The keys this criterion is actually about: held keys satisfy it by
+  // being held, so the work is what is left after them.
+  const notHeld = input.songKeys.filter(k => !held.has(k.id));
+  const runClean = notHeld.filter(k => provenByRun.has(k.id));
+  const short = notHeld.filter(k => !provenByRun.has(k.id));
+  return { held, tempoSet, provenByRun, satisfied, notHeld, runClean, short };
 }
 
 /**
@@ -383,6 +397,34 @@ export interface LadderGroup {
   earns: RepertoireStage;
   status: LadderGroupStatus;
   criteria: StageCriterion[];
+  /**
+   * The count that describes this rung's WORK, for its heading.
+   *
+   * ---------------------------------------------------------------
+   * COUNT THE WORK, NOT THE RULES.
+   *
+   * The heading used to show met-criteria-out-of-criteria, so
+   * Internalized read "1 of 3" — one RULE satisfied, the performance
+   * tempo, which says nothing about how many keys have been played.
+   * Anyone reading a number beside Internalized assumes it is about
+   * keys. And Cross-key read "0 of 1" when the work is four
+   * quadrants.
+   *
+   * So the heading takes one criterion's own numbers and its own
+   * unit: the last substantive one, on the same reasoning
+   * `buildEarned` uses — preconditions are things you configured, not
+   * work you did, and a rung headlined "0 of 1 performance tempo" is
+   * measuring the setup rather than the climb.
+   * ---------------------------------------------------------------
+   */
+  headline: StageCriterion;
+}
+
+/** The criterion whose numbers speak for the rung. */
+function headlineOf(criteria: StageCriterion[]): StageCriterion {
+  const substantive = criteria.filter(c => !c.precondition);
+  return substantive[substantive.length - 1]
+    ?? criteria[criteria.length - 1];
 }
 
 export function ladderCriteria(input: AdvancementInputs): LadderGroup[] {
@@ -400,6 +442,7 @@ export function ladderCriteria(input: AdvancementInputs): LadderGroup[] {
       earns,
       status: i < here ? 'earned' : i === here ? 'current' : 'ahead',
       criteria,
+      headline: headlineOf(criteria),
     });
   }
   return groups;
@@ -425,6 +468,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
           met: false,
           have: 0,
           need: 1,
+          unit: 'original key',
           detail: 'Until one is, there is no key for the whole-song test to '
             + 'be passed in.',
         }];
@@ -435,6 +479,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
         met: passed,
         have: passed ? 1 : 0,
         need: 1,
+        unit: 'test',
         ...(passed ? {} : {
           detail: 'Three clean run-throughs in a row, in one sitting. Open it '
             + `from the row for the key of ${spellKey(original.keyName, input.spelling)} in the matrix.`,
@@ -458,6 +503,11 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
         met: covered.size >= QUADRANT_COUNT,
         have: covered.size,
         need: QUADRANT_COUNT,
+        // Quadrants, not keys: ANY key inside a quadrant covers it, so
+        // "1 of 4 keys" would name three specific ones the rule does
+        // not ask for. The original key covers its own quadrant, which
+        // is why a song that has done nothing else reads 1 of 4.
+        unit: 'quadrants',
         ...(missing.length > 0
           ? { detail: `Still to cover: ${missing.join(', ')}.` }
           : {}),
@@ -465,7 +515,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
     }
 
     case 'cross-key': {
-      const { held, tempoSet, satisfied, short } = breadthStatus(input);
+      const { held, tempoSet, notHeld, runClean, short } = breadthStatus(input);
       const covered = coveredQuadrants(
         input.songKeys.filter(k => held.has(k.id)).map(k => k.keyName),
       );
@@ -480,6 +530,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
           met: tempoSet,
           have: tempoSet ? 1 : 0,
           need: 1,
+          unit: 'performance tempo',
           ...(tempoSet ? {} : {
             detail: 'Without one there is no tempo for a run to be clean AT, '
               + 'so no run can count toward the remaining keys.',
@@ -490,6 +541,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
           met: covered.size >= QUADRANT_COUNT,
           have: covered.size,
           need: QUADRANT_COUNT,
+          unit: 'quadrants',
           ...(covered.size >= QUADRANT_COUNT ? {} : {
             detail: 'Cross-key is a claim about what you can play now, so a '
               + 'key that lapsed stops counting until you retest it.',
@@ -498,8 +550,15 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
         {
           label: 'Every other key run clean at tempo, at least once',
           met: short.length === 0,
-          have: satisfied.length,
-          need: input.songKeys.length,
+          // COUNTED AGAINST THE KEYS THAT STILL NEED A RUN, not against
+          // all twelve. A held key satisfies this by being held, so
+          // including it in the denominator counts work that is not
+          // being asked for — "4 of 12" was four keys you had not run
+          // and eight you had not either. The denominator moves as
+          // keys are held: hold a fifth and it drops from 8 to 7.
+          have: runClean.length,
+          need: notHeld.length,
+          unit: 'keys run clean',
           ...(short.length > 0
             ? {
                 detail: `Still to run: ${short.length === 1 ? 'the key of' : 'keys'} `

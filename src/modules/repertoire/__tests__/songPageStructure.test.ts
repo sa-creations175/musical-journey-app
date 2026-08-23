@@ -334,10 +334,16 @@ describe('the criteria panel is read-only', () => {
     }
   });
 
-  it('says what the counter counts', () => {
-    // "0/1" named neither the numerator nor the denominator.
-    expect(PANEL).toContain('{metCount} of {all.length} met');
-    expect(PANEL).not.toContain('{metCount}/{');
+  it('counts the work rather than the rules', () => {
+    // "0/1" named neither the numerator nor the denominator; "1 of 5
+    // met" named them and counted the wrong thing — rules satisfied
+    // across three rungs. Both numbers and the noun beside them now
+    // come off one criterion.
+    expect(PANEL).toContain('{group.headline.have} of {group.headline.need}');
+    expect(PANEL).toContain('{group.headline.unit}');
+    // No aggregate anywhere: neither the old ratio nor a renamed one.
+    expect(codeOf(PANEL)).not.toContain('of {all.length}');
+    expect(codeOf(PANEL)).not.toContain('metCount');
   });
 });
 

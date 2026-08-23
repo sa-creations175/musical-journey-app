@@ -756,3 +756,95 @@ describe('ladderCriteria — the panel accumulates', () => {
     }
   });
 });
+
+// =====================================================================
+
+describe('the counts describe the work', () => {
+  /** Four quadrant keys held, eight not — a song newly at Cross-key. */
+  const held = (keys: string[]) => new Map(
+    CIRCLE_OF_FOURTHS_KEYS.map(k => [
+      `sk-${k}`, keys.includes(k) ? NOW + 90 * DAY : NOW - 90 * DAY,
+    ]),
+  );
+  const at = (stage: AdvancementInputs['currentStage'], over: Partial<AdvancementInputs> = {}) =>
+    inputs({
+      currentStage: stage,
+      songKeys: allTwelve(),
+      dueByKeyId: held(ONE_PER_QUADRANT),
+      ...over,
+    });
+
+  const headline = (input: AdvancementInputs, earns: string) =>
+    ladderCriteria(input).find(g => g.earns === earns)!.headline;
+
+  it('counts quadrants for Cross-key, not keys', () => {
+    // ANY key inside a quadrant covers it, so "of 12 keys" would name
+    // three specific ones per quadrant that the rule does not ask for.
+    const h = headline(at('comfortable'), 'cross-key');
+    expect(h.need).toBe(4);
+    expect(h.unit).toBe('quadrants');
+  });
+
+  it('counts the keys still needing a run for Internalized, not all twelve', () => {
+    // A held key satisfies the criterion by BEING held, so counting it
+    // in the denominator counts work nobody is asking for. Four held
+    // leaves eight.
+    const h = headline(at('cross-key'), 'internalized');
+    expect(h.have).toBe(0);
+    expect(h.need).toBe(8);
+    expect(h.unit).toBe('keys run clean');
+  });
+
+  it('shrinks that denominator as another key is held', () => {
+    const h = headline(at('cross-key', { dueByKeyId: held([...ONE_PER_QUADRANT, 'F']) }), 'internalized');
+    expect(h.need).toBe(7);
+  });
+
+  it('never headlines a rung with a precondition', () => {
+    // "0 of 1 performance tempo" measures the setup, not the climb.
+    for (const stage of STAGES) {
+      for (const g of ladderCriteria(at(stage))) {
+        if (g.criteria.some(c => !c.precondition)) {
+          expect(g.headline.precondition, g.earns).toBeFalsy();
+        }
+      }
+    }
+  });
+
+  it('headlines with a criterion the group actually contains', () => {
+    // The whole point of deriving it: the heading cannot show numbers
+    // or a unit that no rule in that group produced.
+    for (const stage of STAGES) {
+      for (const g of ladderCriteria(at(stage))) {
+        expect(g.criteria).toContain(g.headline);
+      }
+    }
+  });
+
+  it('MOVES BOTH COUNTS TOGETHER WHEN A QUADRANT KEY LAPSES', () => {
+    // THE LOAD-BEARING ONE. Cross-key's covered count and
+    // Internalized's denominator are two readings of one `held` set.
+    // Computed from separate snapshots they would disagree — the
+    // panel showing four quadrants covered while eight keys still
+    // needed runs, on a song where a key had just gone overdue.
+    const before = ladderCriteria(at('cross-key'));
+    expect(before.find(g => g.earns === 'cross-key')!.headline.have).toBe(4);
+    expect(before.find(g => g.earns === 'internalized')!.headline.need).toBe(8);
+
+    // Eb goes overdue: its quadrant loses its only holder.
+    const after = ladderCriteria(at('cross-key', {
+      dueByKeyId: held(ONE_PER_QUADRANT.filter(k => k !== 'Eb')),
+    }));
+    expect(after.find(g => g.earns === 'cross-key')!.headline.have).toBe(3);
+    expect(after.find(g => g.earns === 'internalized')!.headline.need).toBe(9);
+  });
+
+  it('counts a run against the same set the denominator names', () => {
+    // Guard the guard: a numerator that counted runs on HELD keys too
+    // could exceed its own denominator.
+    const h = headline(at('cross-key', { keyRunThroughs: cleanRunsIn(['Bb', 'C']) }), 'internalized');
+    expect(h.have).toBe(1);      // Bb only — C is held, and not counted twice
+    expect(h.need).toBe(8);
+    expect(h.have).toBeLessThanOrEqual(h.need);
+  });
+});
