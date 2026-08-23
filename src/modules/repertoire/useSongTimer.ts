@@ -33,6 +33,20 @@ import {
 
 const TICK_MS = 1000;
 
+/**
+ * What the run was ON, when the surface knows.
+ *
+ * A run started from a matrix cell knows its section and its key; one
+ * started from a bare timer knows neither, and "40 minutes, couldn't
+ * tell you which sections" stays a complete record rather than a
+ * degraded one. So this is optional at the type level, not defaulted
+ * to the song's first section.
+ */
+export interface PracticeContext {
+  sectionIds?: string[];
+  keys?: string[];
+}
+
 export interface SongTimerApi {
   /** The stored timer, for any song. Null when none is running. */
   record: SongTimerRecord | null;
@@ -52,7 +66,7 @@ export interface SongTimerApi {
    * writing. Nothing is written before this is called: while running,
    * the only persisted state is the localStorage record.
    */
-  stopAndLog: () => Promise<number>;
+  stopAndLog: (context?: PracticeContext) => Promise<number>;
   /** Log whatever is running, then start fresh on this song. */
   swapToThisSong: () => Promise<number>;
   /** Throw the timer away without logging. For a record whose song no
@@ -111,7 +125,9 @@ export function useSongTimer(songId: string): SongTimerApi {
    * belong to the song being left, and attributing them to the song
    * being opened would silently move practice between songs.
    */
-  const stopAndLog = useCallback(async (): Promise<number> => {
+  const stopAndLog = useCallback(async (
+    context?: PracticeContext,
+  ): Promise<number> => {
     const current = readSongTimer();
     if (current === null) return 0;
     const at = Date.now();
@@ -122,11 +138,15 @@ export function useSongTimer(songId: string): SongTimerApi {
       await logPracticeSession({
         songId: current.songId,
         durationMin: minutes,
-        // No sections, no keys, no rating. A timer knows how long you
-        // worked and nothing else, and "40 minutes, couldn't tell you
-        // which sections" is a complete record rather than a degraded
-        // one. The two-mode surface adds activities and section tags
-        // on top of this; it does not change what the timer knows.
+        // Section and key when the surface knew them — a run from a
+        // matrix cell does. This is the thing practice work has never
+        // had: somewhere to land other than a song-level total.
+        ...(context?.sectionIds?.length ? { sectionIds: context.sectionIds } : {}),
+        ...(context?.keys?.length ? { keys: context.keys } : {}),
+        // No RATING, ever, from here. Practice is not graded — the
+        // rating step in the panel asks how it went, and a timer
+        // stopped without one records the time honestly rather than
+        // inventing a middling score.
         timestamp: at,
       });
     } catch (err) {

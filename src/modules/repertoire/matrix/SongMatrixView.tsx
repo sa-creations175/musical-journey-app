@@ -51,9 +51,14 @@ interface Props {
    *  surrounding chrome. Defaults to false for the legacy
    *  full-page replacement mode. */
   embedded?: boolean;
+  /** When provided, a cell tap is delegated to the parent instead of
+   *  opening this component's own modal. See `handleCellTap`. */
+  onCellSelected?: (cellId: string) => void;
 }
 
-export default function SongMatrixView({ song, onClose, embedded }: Props) {
+export default function SongMatrixView({
+  song, onClose, embedded, onCellSelected,
+}: Props) {
   // refreshKey is bumped after every save we route through this view
   // (cell save, test save). It's added to all four useLiveQuery deps
   // below so each write tears down and re-creates the live
@@ -116,7 +121,26 @@ export default function SongMatrixView({ song, onClose, embedded }: Props) {
   // by this component below. handleCellTap memoized for stable
   // reference passed down through MatrixGrid → KeyRow → CellSquare.
   const [activeCellId, setActiveCellId] = useState<string | null>(null);
-  const handleCellTap = useCallback((cellId: string) => setActiveCellId(cellId), []);
+  // ---------------------------------------------------------------
+  // THE PANEL IS OWNED BY THE PAGE, NOT BY THE MATRIX.
+  //
+  // Practice mode collapses to a bar pinned at the top of the SCREEN
+  // and opens the lead sheet beneath it — a layout the matrix cannot
+  // reach from inside its own card. So when the parent offers
+  // `onCellSelected`, the tap is delegated and this component opens
+  // nothing.
+  //
+  // The old modal stays reachable for callers that pass no handler,
+  // which is what keeps this file a small change rather than a
+  // rewrite while another session is working in the same tree.
+  // ---------------------------------------------------------------
+  const handleCellTap = useCallback(
+    (cellId: string) => {
+      if (onCellSelected) { onCellSelected(cellId); return; }
+      setActiveCellId(cellId);
+    },
+    [onCellSelected],
+  );
   const closeCellModal = useCallback(() => setActiveCellId(null), []);
 
   // Whole-song test modal — same ID-only pattern. The banner and

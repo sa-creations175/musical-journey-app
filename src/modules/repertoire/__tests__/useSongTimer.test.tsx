@@ -173,3 +173,49 @@ describe('one timer, whatever song you are looking at', () => {
     h.unmount();
   });
 });
+
+describe('a run records section × key', () => {
+  it('writes the sections and the key it was given', async () => {
+    // THE THING PRACTICE WORK HAS NEVER HAD. Before this a practice
+    // row could only say "40 minutes on this song"; there was nowhere
+    // for the work to land except a total.
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    await act(async () => {
+      await h.api.stopAndLog({ sectionIds: ['sec-1', 'sec-2'], keys: ['Eb'] });
+    });
+
+    const row = (await db.songPracticeLog.toArray())[0];
+    expect(row.sectionIds).toEqual(['sec-1', 'sec-2']);
+    expect(row.keys).toEqual(['Eb']);
+    h.unmount();
+  });
+
+  it('still records an untagged run as a complete one', async () => {
+    // "40 minutes, couldn't tell you which sections" stays a real
+    // record. Guard the guard: the tagged case above proves the fields
+    // are reachable, so empty here is a choice and not a broken path.
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    await act(async () => { await h.api.stopAndLog(); });
+
+    const row = (await db.songPracticeLog.toArray())[0];
+    expect(row.durationMin).toBe(15);
+    expect(row.sectionIds).toEqual([]);
+    expect(row.keys).toEqual([]);
+    h.unmount();
+  });
+
+  it('never invents a rating, tagged or not', async () => {
+    // Practice is not graded. The panel's rating step asks how it
+    // went; a timer stopped without one records the time honestly
+    // rather than a middling score nobody gave.
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    await act(async () => {
+      await h.api.stopAndLog({ sectionIds: ['sec-1'], keys: ['C'] });
+    });
+    expect((await db.songPracticeLog.toArray())[0].feelRating).toBeUndefined();
+    h.unmount();
+  });
+});
