@@ -55,6 +55,8 @@ import {
   progressionSuggestionFor,
 } from './progressionSuggestion';
 import { useToast } from '../../../components/Toaster';
+import { chordIdentityText as buildChordIdentityText, rootNoteName } from './chordIdentity';
+import { useSpelling } from '../../../lib/spellingPref';
 
 const MODULE_ID = 'chord-recognition';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
@@ -100,15 +102,9 @@ const TIER_TAB_LABEL: Record<ChordData['tier'], string> = {
   extensions: TIER_SECTION_LABEL.extensions,
 };
 
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
 function pickRootMidi(): number {
   // C3..B3 — keeps Maj13 / Dom13 top notes in a comfortable range.
   return 48 + Math.floor(Math.random() * 12);
-}
-
-function midiToNoteName(midi: number): string {
-  return NOTE_NAMES[((midi % 12) + 12) % 12];
 }
 
 const FAMILY_DOT: Record<ChordData['family'], string> = {
@@ -142,6 +138,7 @@ interface Props {
 export default function ChordRecognitionQuiz({
   chords, attempts, initialFocusKeys,
 }: Props) {
+  const [spelling] = useSpelling();
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
   const [playStyle, setPlayStyle] = useState<PlaybackStyle>('blocked');
   const [brokenDir, setBrokenDir] = useState<BrokenChordDirection>('asc');
@@ -642,7 +639,7 @@ export default function ChordRecognitionQuiz({
   const focusPoolSize = poolChords.length;
   const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
 
-  const rootName = current ? midiToNoteName(current.rootMidi) : '';
+  const rootName = current ? rootNoteName(current.rootMidi, spelling) : '';
   const qualityCorrect = qualityLocked && current && selectedId === current.chord.id;
   const qualityWrong = phase === 'quality-wrong-revealed';
   const inversionAnswered = phase === 'fully-revealed' && selectedInversion !== null;
@@ -674,10 +671,13 @@ export default function ChordRecognitionQuiz({
   // suffix can't get lost in JSX whitespace nuances. Always shows
   // root + name; appends ", <inversion label>" on the wrong-quality
   // path when training was active.
-  const chordIdentityText = current
-    ? showInversionInline
-      ? `${rootName} ${current.chord.name}, ${INVERSION_LABEL[current.inversion]}`
-      : `${rootName} ${current.chord.name}`
+  const identityText = current
+    ? buildChordIdentityText({
+        rootMidi: current.rootMidi,
+        chordName: current.chord.name,
+        inversionLabel: showInversionInline ? INVERSION_LABEL[current.inversion] : null,
+        spelling,
+      })
     : '';
 
   // Displayed formula — shows the actual played intervals (rotated
@@ -1010,7 +1010,7 @@ export default function ChordRecognitionQuiz({
             <div className="text-center space-y-1">
               <AnswerVerdict state={qualityCorrect ? 'correct' : 'incorrect'} />
               <span>
-                <span className="font-medium">{chordIdentityText}</span>
+                <span className="font-medium">{identityText}</span>
                 <span className="text-neutral-400 ml-1.5 font-mono text-xs">{displayedFormula}</span>
               </span>
             </div>
