@@ -72,19 +72,62 @@ export interface Flashcard {
 
 const MAJOR_SCALE_STEPS = [0, 2, 4, 5, 7, 9, 11]; // semitones above tonic for degrees 1..7
 
+/** Which spelling each key's signature actually uses. Twelve entries,
+ *  matching MAJOR_KEY_TONICS — see the exemption note below. */
+const KEY_USES_FLATS: Record<string, boolean> = {
+  C: false, G: false, D: false, A: false, E: false, B: false, 'F#': false,
+  F: true, Bb: true, Eb: true, Ab: true, Db: true,
+};
+
+/**
+ * TWELVE KEYS, NOT THIRTEEN. This table carried F# and Gb as separate
+ * entries mapping to the same pitch class, differing only in which
+ * note-name table they picked. That is a spelling wearing a key's
+ * clothes — the same confusion step 2 retired from the rest of the app
+ * when it made Gb a spelling of F# rather than a key in its own right.
+ *
+ * Keeping both would now be a live defect rather than an untidiness.
+ * These entries feed the reverse-key-pivot DECOY POOL, so a card could
+ * offer "F# major" and "Gb major" as two separate wrong answers for one
+ * key; and once card text follows the spelling setting, the two would
+ * render identically.
+ *
+ * The identity spelling is F#, matching songKeys, drillSkills and every
+ * itemRef. What the reader sees is the setting's business — see
+ * lib/spelling.ts.
+ */
+const MAJOR_KEY_TONICS: Record<string, number> = {
+  C: 0, G: 7, D: 2, A: 9, E: 4, B: 11, 'F#': 6,
+  F: 5, Bb: 10, Eb: 3, Ab: 8, Db: 1,
+};
+
 const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NOTE_NAMES_FLAT =  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
-const KEY_USES_FLATS: Record<string, boolean> = {
-  C: false, G: false, D: false, A: false, E: false, B: false, 'F#': false,
-  F: true, Bb: true, Eb: true, Ab: true, Db: true, Gb: true,
-};
-
-const MAJOR_KEY_TONICS: Record<string, number> = {
-  C: 0, G: 7, D: 2, A: 9, E: 4, B: 11, 'F#': 6,
-  F: 5, Bb: 10, Eb: 3, Ab: 8, Db: 1, Gb: 6,
-};
-
+/**
+ * =====================================================================
+ * THESE CARDS ARE EXEMPT FROM THE SPELLING SETTING, AND THE REASON IS
+ * NOT PREFERENCE — IT IS CORRECTNESS.
+ *
+ * `KEY_USES_FLATS` looks like the per-key derivations retired
+ * everywhere else in the spelling work, and it is not the same thing.
+ * Those chose how to READ a pitch the user had already identified. This
+ * one answers "what is the 3 of A major", and that question has exactly
+ * one right answer: C#. A major's signature contains C#; it contains no
+ * Db. Rendering it as Db under a flats preference would not be a
+ * differently-spelled truth, it would be a wrong answer to a theory
+ * question — and this module exists to drill exactly that.
+ *
+ * Same shape as reading/pitch.ts's exemption: a staff and a key
+ * signature are governed by notation rules, not by what the reader
+ * finds comfortable. `lib/spelling.ts` is a pitch-class tool and the
+ * right one for keyboards, grids and chord symbols; it is the wrong one
+ * here.
+ *
+ * The pitch tables stay local for the same reason — they are consumed
+ * by key-signature logic, not by display preference.
+ * =====================================================================
+ */
 function noteAt(semitone: number, useFlats: boolean): string {
   const n = ((semitone % 12) + 12) % 12;
   return (useFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP)[n];
@@ -1363,7 +1406,29 @@ const NOTE_SEMITONE: Record<string, number> = {
  *  so no decoy is a hidden enharmonic of the answer. */
 function noteDecoys(correct: string, count = 3): string[] {
   const sem = NOTE_SEMITONE[correct] ?? 0;
-  const pool = [sem - 1, sem + 1, sem - 2, sem + 2].map(s => noteAt(s, false));
+  // Spell the decoys the way the ANSWER is spelled. Building them from
+  // the sharp table unconditionally made every flat answer the only
+  // flat on screen — pick the odd one out and you are right without
+  // knowing any theory. See __tests__/noteDecoys.test.ts.
+  const useFlats = /[b♭]/.test(correct.slice(1));
+
+  // Matching the family is not enough on its own: only five of twelve
+  // names carry an accidental, and a black key's immediate neighbours
+  // are mostly white ones — so ±1/±2 around F# yields F, G, E, G#, and
+  // dropping G# leaves F# the only sharp again. Take the nearest
+  // same-shape decoy FIRST, then fill outward from the neighbours, so
+  // at least one option always looks like the answer.
+  const answerHasAccidental = /[b#♭♯]/.test(correct.slice(1));
+  const byDistance = [1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6]
+    .map(d => sem + d)
+    .filter(x => (((x % 12) + 12) % 12) !== (((sem % 12) + 12) % 12));
+  const spelled = byDistance.map(x => noteAt(x, useFlats));
+  const sameShape = spelled.filter(
+    n => /[b#♭♯]/.test(n.slice(1)) === answerHasAccidental,
+  );
+  const pool = sameShape.length > 0
+    ? [sameShape[0], ...spelled]
+    : spelled;
   return makeDecoys(pool, correct, count);
 }
 
