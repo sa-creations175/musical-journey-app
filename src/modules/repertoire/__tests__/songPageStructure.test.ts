@@ -224,3 +224,113 @@ describe('the metadata card is two columns', () => {
     expect(card).not.toContain('border-t border-neutral-200');
   });
 });
+
+describe('the facts row reads as facts', () => {
+  it('runs key, tempo, time, then the one control', () => {
+    // The select used to sit second, between the key and the tempo,
+    // so the eye stopped at a control every time it went looking for
+    // a fact. Asserted by position across all four.
+    const at = (m: string) => {
+      const i = DETAIL.indexOf(m);
+      expect(i, m).toBeGreaterThan(-1);
+      return i;
+    };
+    const order = [
+      'key: <span className="font-mono',
+      '{song.tempoLabel && <span>tempo:',
+      'time: <span className="font-mono',
+      'shows as:',
+    ].map(at);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('calls it "shows as", not "spelling"', () => {
+    // "spelling" made it sound like a property of the song, as if F♯
+    // and G♭ were different songs. It is a display choice and it
+    // moves no practice data.
+    expect(DETAIL).toContain('shows as:');
+    expect(DETAIL).not.toContain('\n                spelling:\n');
+  });
+
+  it('puts the links above the two write-something-down lines', () => {
+    // Links are the only thing in that column you reach for
+    // mid-practice.
+    const links = DETAIL.indexOf('spotify ↗');
+    expect(links).toBeLessThan(DETAIL.indexOf('+ add a note about this song'));
+    expect(links).toBeLessThan(DETAIL.indexOf('<SongAssociationsSection song={song} />'));
+  });
+
+  it('moves edit out of the title line and into the card corner', () => {
+    // It edits the whole card, so sitting against the title read as
+    // editing the title.
+    expect(DETAIL).toContain('absolute top-2 right-3');
+    const title = DETAIL.indexOf('{song.title}</h2>');
+    const edit = DETAIL.indexOf('absolute top-2 right-3');
+    expect(edit).toBeLessThan(title);
+  });
+});
+
+describe('the matrix card header', () => {
+  it('carries the status badge on the same line as the heading', () => {
+    // Status had a line of its own under the heading, which put the
+    // answer in the middle of the card and left the title line's whole
+    // right half empty. Both now sit inside one justify-between row.
+    const head = DETAIL.indexOf('>matrix</h3>');
+    const badge = DETAIL.indexOf('STAGE_BADGE_CLASS[currentStage]');
+    const guidance = DETAIL.indexOf('STAGE_GUIDANCE[currentStage]');
+    expect(badge).toBeGreaterThan(head);
+    // The load-bearing half: still ABOVE the guidance paragraph, i.e.
+    // it moved up into the header rather than merely being reordered
+    // within the block it used to live in.
+    expect(badge).toBeLessThan(guidance);
+    const header = DETAIL.slice(head - 400, badge);
+    expect(header).toContain('justify-between');
+  });
+
+  it('shows no stage tagline anywhere', () => {
+    // "building the shape" and its three siblings said nothing the
+    // guidance line below them did not say concretely. Removed at the
+    // source too — an exported table with no reader is how it returns.
+    expect(DETAIL).not.toContain('STAGE_TAGLINE');
+    const stage = read('stage.ts');
+    expect(stage).not.toContain('STAGE_TAGLINE');
+    expect(stage).not.toContain('building the shape');
+  });
+});
+
+describe('the criteria panel is read-only', () => {
+  const PANEL = read('StageCriteriaPanel.tsx');
+
+  it('marks an unmet criterion with a dot, not an empty ring', () => {
+    // An empty ring is a checkbox and a checkbox invites a tap.
+    // Nothing here is tappable — these are things the app observes
+    // about your playing, not things you assert.
+    expect(PANEL).not.toContain("'border-neutral-300 dark:border-neutral-600 text-transparent'");
+    expect(PANEL).toContain('w-1.5 h-1.5 rounded-full bg-neutral-300');
+  });
+
+  it('has no interactive element in a criterion row', () => {
+    // Guard the guard: restyling the marker while leaving a button
+    // around it would look right and still be a control.
+    const at = PANEL.indexOf('function CriterionRow');
+    const body = PANEL.slice(at, at + 2500);
+    for (const marker of ['<button', 'onClick', 'role="checkbox"', '<input']) {
+      expect(body, marker).not.toContain(marker);
+    }
+  });
+
+  it('says what the counter counts', () => {
+    // "0/1" named neither the numerator nor the denominator.
+    expect(PANEL).toContain('{metCount} of {criteria.length} met');
+    expect(PANEL).not.toContain('{metCount}/{criteria.length}');
+  });
+});
+
+describe('the page reserves room for the fixed bottom drawers', () => {
+  it('pads itself by the height the drawers publish', () => {
+    // The drawers are `fixed`, so the page ends underneath them —
+    // which is what buried the last rows of the matrix.
+    expect(DETAIL).toContain('paddingBottom: `var(${RESERVE_VAR}, 0px)`');
+    expect(DETAIL).toContain("import LeadSheetDrawers, { RESERVE_VAR }");
+  });
+});

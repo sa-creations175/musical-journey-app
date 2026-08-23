@@ -1,9 +1,21 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { measureSafeArea } from './leadSheetOverlay';
 
 /** Breathing room between the stack and whatever it docks above, so
  *  the inset edges read as floating rather than as a seam. */
 const DRAWER_GAP = 8;
+
+/** Gap between the collapsed stack and the last thing the page
+ *  scrolls to, so a grid row does not stop flush against a drawer. */
+const CONTENT_GAP = 12;
+
+/**
+ * CSS custom property the page reads to reserve room beneath itself.
+ * Set on the document element rather than passed down as a prop
+ * because the thing that needs the number — the page's outermost
+ * element — is an ancestor of the thing that knows it.
+ */
+export const RESERVE_VAR = '--lead-sheet-drawers-reserve';
 
 /**
  * The lead sheet's bottom drawers, stacked.
@@ -54,8 +66,57 @@ export default function LeadSheetDrawers({
     return () => window.removeEventListener('resize', measure);
   });
 
+  /* -----------------------------------------------------------------
+     THE PAGE HAS TO KNOW HOW MUCH OF ITSELF IS COVERED.
+
+     This box is `fixed`, so it is out of flow and the page beneath it
+     ends wherever its own content ends — underneath these drawers. On
+     the song page that meant the last rows of the matrix could not be
+     scrolled clear of them. `pb-24 md:pb-10` on the app shell was
+     never enough on desktop and was a guess on mobile.
+
+     WHAT IS RESERVED IS THE COLLAPSED HEIGHT, NOT THE CURRENT ONE. An
+     open drawer is up to 50vh, and padding the page by half a screen
+     because a panel happens to be open is worse than the problem. The
+     headers are what is permanently in the way, so the headers are
+     what gets measured — found by `[aria-expanded]`, which every
+     drawer header carries because it is a disclosure button. A drawer
+     that arrived without one would contribute nothing and the
+     reservation would be short, which is why the test asserts the
+     count as well as the number.
+     ----------------------------------------------------------------- */
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const apply = () => {
+      const headers = el.querySelectorAll<HTMLElement>('[aria-expanded]');
+      if (headers.length === 0) return;
+      let total = 0;
+      for (const h of headers) total += h.offsetHeight;
+      // The flex `gap-2` between siblings, once per gap.
+      total += (headers.length - 1) * DRAWER_GAP;
+      const reserve = total + dockOffset + DRAWER_GAP + CONTENT_GAP;
+      document.documentElement.style.setProperty(RESERVE_VAR, `${reserve}px`);
+    };
+    apply();
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(apply)
+      : null;
+    ro?.observe(el);
+    window.addEventListener('resize', apply);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', apply);
+      // Every other page in the app mounts no drawers. Leaving the
+      // property behind would pad them for chrome that is not there.
+      document.documentElement.style.removeProperty(RESERVE_VAR);
+    };
+  }, [dockOffset]);
+
   return (
     <div
+      ref={boxRef}
       /* Bottom chrome, so the cell-anchored overlays inset past the
          whole stack rather than past whichever drawer happens to be
          tallest. */

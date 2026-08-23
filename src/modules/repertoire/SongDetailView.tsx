@@ -20,7 +20,6 @@ import {
   STAGE_BADGE_CLASS,
   STAGE_GUIDANCE,
   STAGE_LABEL,
-  STAGE_TAGLINE,
   deriveStage,
   evaluateAdvancement,
   normaliseStage,
@@ -95,7 +94,7 @@ import {
   clearOrphanedHides,
 } from './progressionOutline';
 import ProgressionDrawer from './ProgressionDrawer';
-import LeadSheetDrawers from './LeadSheetDrawers';
+import LeadSheetDrawers, { RESERVE_VAR } from './LeadSheetDrawers';
 import type { SequenceView } from '../../lib/db';
 import {
   EMPTY_SEQUENCE_VIEW,
@@ -1617,7 +1616,13 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const hasDescription = Boolean(song.description && song.description.trim().length > 0);
 
   return (
-    <div className="space-y-5">
+    /* The drawers at the bottom are `fixed`, so they are out of flow
+       and this page would otherwise end underneath them — which is
+       exactly what happened to the last rows of the matrix. The value
+       is their collapsed height, published by LeadSheetDrawers; the
+       fallback is 0 for the case where a song has no lead sheet and
+       no drawers mount. */
+    <div className="space-y-5" style={{ paddingBottom: `var(${RESERVE_VAR}, 0px)` }}>
       {/* Top nav */}
       <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
         <button
@@ -1649,7 +1654,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           title, artist, key, spelling, tempo, time, the note, the
           links, the associations. It simply stopped needing this much
           room to say it. */}
-      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur px-3 py-2.5 sm:px-4 sm:py-3 space-y-1.5">
+      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur px-3 py-2 sm:px-4 sm:py-2.5 space-y-1 relative">
         {editingMeta ? (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1796,6 +1801,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 The divider went with the restructure. A rule between
                 two columns is a rule the columns already draw.
                 --------------------------------------------------------------- */}
+            {/* The corner, not the title line. It edits the whole card
+                — title, artist, genre, key, tempo, time — so sitting
+                against the title made it read as editing the title.
+                The right column reserves the corner with `pr-7` so a
+                long link label cannot run underneath it. */}
+            <button
+              onClick={openEdit}
+              className="absolute top-2 right-3 text-xs text-neutral-500 hover:text-fluent"
+            >
+              edit
+            </button>
             <div className="grid gap-x-5 gap-y-1.5 sm:grid-cols-2">
             <div className="min-w-0 space-y-1">
             <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -1803,7 +1819,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 <h2 className="text-lg sm:text-xl font-medium tracking-tight">{song.title}</h2>
                 <div className="text-sm text-neutral-500">{song.artist}{song.genre ? ` · ${song.genre}` : ''}</div>
               </div>
-              <button onClick={openEdit} className="text-xs text-neutral-500 hover:text-fluent">edit</button>
             </div>
             <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap text-xs text-neutral-500 leading-tight">
               {song.key && (
@@ -1812,13 +1827,30 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                   {song.keyNeedsVerification && <span className="ml-1 text-developing" title="estimated — verify with recording">?</span>}
                 </span>
               )}
-              {/* Beside the key because the key is the most visible thing
-                  it changes. The option list NAMES all three states —
-                  a two-way toggle cannot show that a song is inheriting,
-                  only which side is lit, and "follow global (flats)" has
-                  to say what it is inheriting as well as that it is. */}
+              {song.tempoLabel && <span>tempo: {song.tempoLabel}</span>}
+              {song.timeSignature && (
+                <span>
+                  time: <span className="font-mono text-neutral-700 dark:text-neutral-200">{song.timeSignature}</span>
+                </span>
+              )}
+              {/* LAST IN THE ROW, AND CALLED "SHOWS AS".
+
+                  It sat second, between the key and the tempo, where a
+                  select box interrupted a row of plain facts — the eye
+                  stopped at the control every time it went looking for
+                  the tempo. The facts read first now and the one thing
+                  you can change sits at the end of them.
+
+                  "spelling:" made it sound like a property of the song,
+                  as if F♯ and G♭ were different songs. It is a choice
+                  about how names are drawn on this screen, and nothing
+                  it does touches a single practice record.
+
+                  The option list still NAMES all three states — a
+                  two-way toggle cannot show that a song is inheriting,
+                  only which side is lit. */}
               <label className="inline-flex items-center gap-1">
-                spelling:
+                shows as:
                 <select
                   value={song.spelling ?? 'inherit'}
                   onChange={e => {
@@ -1843,12 +1875,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                   </span>
                 )}
               </label>
-              {song.tempoLabel && <span>tempo: {song.tempoLabel}</span>}
-              {song.timeSignature && (
-                <span>
-                  time: <span className="font-mono text-neutral-700 dark:text-neutral-200">{song.timeSignature}</span>
-                </span>
-              )}
             </div>
             </div>
 
@@ -1870,7 +1896,43 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     second in source order. The left block's height varies with
     the facts row wrapping, and auto-placement would let this
     slide under it. */}
-            <div className="min-w-0 space-y-1 sm:col-start-2">
+            <div className="min-w-0 space-y-1 sm:col-start-2 pr-7">
+              {/* LINKS FIRST. They are the only thing here you reach for
+                  mid-practice — pulling up the tutorial you are working
+                  from. The two write-something-down lines are occasional
+                  and neither is urgent, so they sit under it. */}
+              {(song.spotifyLink
+                || (song.referenceVideos && song.referenceVideos.length > 0)
+                || song.youtubeLink) && (
+                <div className="flex items-center gap-3 flex-wrap text-xs">
+                  {song.spotifyLink && (
+                    <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
+                  )}
+                  {song.referenceVideos && song.referenceVideos.length > 0
+                    ? song.referenceVideos.map(video => (
+                        <a
+                          key={video.id}
+                          href={video.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-fluent hover:underline"
+                        >
+                          {(video.label && video.label.trim() !== '')
+                            ? video.label
+                            : hostnameOf(video.url)} ↗
+                        </a>
+                      ))
+                    // Legacy fallback — un-migrated songs still surface
+                    // their old single YouTube link until the user opens
+                    // the editor and saves (which migrates + clears it).
+                    : song.youtubeLink && (
+                      <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">
+                        youtube ↗
+                      </a>
+                    )}
+                </div>
+              )}
+
               {whyEditing ? (
                 <div className="space-y-2">
                   <textarea
@@ -1901,38 +1963,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                   + add a note about this song
                 </button>
               )}
-              {(song.spotifyLink
-                || (song.referenceVideos && song.referenceVideos.length > 0)
-                || song.youtubeLink) && (
-                <div className="flex items-center gap-3 flex-wrap text-xs pt-1">
-                  {song.spotifyLink && (
-                    <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
-                  )}
-                  {song.referenceVideos && song.referenceVideos.length > 0
-                    ? song.referenceVideos.map(video => (
-                        <a
-                          key={video.id}
-                          href={video.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-fluent hover:underline"
-                        >
-                          {(video.label && video.label.trim() !== '')
-                            ? video.label
-                            : hostnameOf(video.url)} ↗
-                        </a>
-                      ))
-                    // Legacy fallback — un-migrated songs still surface
-                    // their old single YouTube link until the user opens
-                    // the editor and saves (which migrates + clears it).
-                    : song.youtubeLink && (
-                      <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">
-                        youtube ↗
-                      </a>
-                    )}
-                </div>
-              )}
-
             {/* ---------------------------------------------------------------
                 ASSOCIATIONS LIVE HERE TOO.
 
@@ -1974,12 +2004,31 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           three sources of truth in it.
           --------------------------------------------------------------- */}
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
-          <SectionGuidance surface="matrix" />
-        </div>
+        {/* ---------------------------------------------------------------
+            STATUS SITS IN THE CORNER, ON THE TITLE LINE.
+
+            It had a line of its own under the heading, which put the
+            answer in the middle of the card and left the whole right
+            half of the title line empty. Card name on the left, where
+            a card name goes; where the song stands on the right, where
+            a status goes. Same line, so the two read as one header.
+
+            The tagline that used to sit beside the badge — "building
+            the shape" and its three siblings — is gone. Four vague
+            phrases directly above the guidance line, which says the
+            same thing concretely and actionably.
+            --------------------------------------------------------------- */}
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
+            <SectionGuidance surface="matrix" />
+          </div>
+          {/* The change-stage dropdown and the advance button are gone.
+              A stage is where the evidence puts you: play it, prove it,
+              three times. An override would make the badge a claim
+              about what the user was willing to assert rather than
+              about the song. */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
               {STAGE_LABEL[currentStage]}
             </span>
@@ -1991,14 +2040,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 {rollup.learningPercent}% original
               </span>
             )}
-            <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
           </div>
-          {/* The change-stage dropdown and the advance
-              button are gone. A stage is where the
-              evidence puts you: play it, prove it, three
-              times. An override would make the badge a
-              claim about what the user was willing to
-              assert rather than about the song. */}
         </div>
         {/* Guidance, not a headline. At text-sm it was the largest
             text in the card, which made the advice look like the

@@ -63,14 +63,6 @@ export const STAGE_LABEL: Record<RepertoireStage, string> = {
   'internalized': 'Internalized',
 };
 
-/** Short two-to-three-word tagline shown beside the stage badge. */
-export const STAGE_TAGLINE: Record<RepertoireStage, string> = {
-  'learning': 'building the shape',
-  'comfortable': 'smoothing the flow',
-  'cross-key': 'stretching across keys',
-  'internalized': 'owning it in any key',
-};
-
 /** Multi-sentence coaching guidance shown on Song Detail and as a
  *  tooltip on Active Repertoire. Tone is coaching, not nagging. */
 export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {

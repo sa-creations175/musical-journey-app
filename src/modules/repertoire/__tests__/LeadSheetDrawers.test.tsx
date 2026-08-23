@@ -97,3 +97,72 @@ describe('LeadSheetDrawers — stacking', () => {
     expect(kids[1].hasAttribute('data-lyric-drawer')).toBe(true);
   });
 });
+
+describe('LeadSheetDrawers — the page reserves room beneath itself', () => {
+  const VAR = '--lead-sheet-drawers-reserve';
+  const read = () => document.documentElement.style.getPropertyValue(VAR);
+
+  /** jsdom does no layout, so heights are stubbed and a resize is
+   *  dispatched to make the component re-measure. Stubbing is the
+   *  point: the arithmetic is what's under test, not jsdom. */
+  function withHeights(el: HTMLElement, heights: number[]) {
+    const headers = el.querySelectorAll<HTMLElement>('[aria-expanded]');
+    headers.forEach((h, i) => {
+      Object.defineProperty(h, 'offsetHeight', {
+        value: heights[i] ?? 0, configurable: true,
+      });
+    });
+    act(() => { window.dispatchEvent(new Event('resize')); });
+  }
+
+  function drawer(label: string) {
+    // Shaped like the real ones: a disclosure button, then a panel.
+    return (
+      <div>
+        <button aria-expanded={false}>{label}</button>
+      </div>
+    );
+  }
+
+  it('publishes the COLLAPSED height, not the open one', () => {
+    // THE LOAD-BEARING ONE. An open drawer is up to 50vh; reserving
+    // that would pad the page by half a screen because a panel
+    // happens to be open. Only the headers are permanently in the
+    // way, so only the headers are measured — the tall panel below
+    // is inside the same box and must not be counted.
+    const el = render(
+      <LeadSheetDrawers>
+        <div>
+          <button aria-expanded>progressions</button>
+          <div data-panel style={{ height: 400 }}>tall open panel</div>
+        </div>
+        {drawer('lyrics')}
+      </LeadSheetDrawers>,
+    );
+    withHeights(el, [32, 32]);
+    // 32 + 32 headers, + 8 for the one gap between them, + 8 dock gap
+    // + 12 content gap. The 400px panel contributes nothing.
+    expect(read()).toBe('92px');
+  });
+
+  it('counts every drawer, not just the first', () => {
+    // Guard the guard: a measurement that read only one header would
+    // pass the test above by coincidence if both were the same height.
+    const el = render(
+      <LeadSheetDrawers>{drawer('progressions')}</LeadSheetDrawers>,
+    );
+    withHeights(el, [32]);
+    expect(read()).toBe('52px');   // 32 + no gap + 8 + 12
+  });
+
+  it('clears the property on unmount', () => {
+    // Every other page in the app mounts no drawers. A stale value
+    // would pad them for chrome that isn't there — and because it
+    // lives on documentElement, nothing else would ever clear it.
+    const el = render(<LeadSheetDrawers>{drawer('lyrics')}</LeadSheetDrawers>);
+    withHeights(el, [32]);
+    expect(read()).not.toBe('');
+    act(() => root?.unmount());
+    expect(read()).toBe('');
+  });
+});

@@ -54,8 +54,10 @@ export default function StageCriteriaPanel({
         <span className="text-[11px] uppercase tracking-wide font-medium text-neutral-500 dark:text-neutral-400">
           what would advance this song
         </span>
+        {/* "0/1" said nothing about what was being counted. It counts
+            criteria, and the word is cheap. */}
         <span className="text-[11px] tabular-nums text-neutral-500 dark:text-neutral-400">
-          {metCount}/{criteria.length}
+          {metCount} of {criteria.length} met
         </span>
       </div>
       <ul className="space-y-1.5">
@@ -182,16 +184,31 @@ function CriterionRow({ criterion }: { criterion: StageCriterion }) {
 
   return (
     <li className="flex items-start gap-2 text-xs">
+      {/* ---------------------------------------------------------------
+          A STATUS MARK, NOT A CONTROL.
+
+          Unmet used to be an empty ring — which is a checkbox, and a
+          checkbox invites a tap. Nothing here is tappable: these are
+          things the app observes about your playing, not things you
+          assert. You cannot tick "whole-song test passed"; you pass it.
+
+          So the ring is gone from the unmet state. What is left is a
+          small muted dot in the same 16px box, which keeps the labels
+          aligned but reads as "not yet", the way a bullet does. Met
+          keeps the filled tick — a filled mark is a state, and nothing
+          about it suggests you can empty it again by tapping.
+          --------------------------------------------------------------- */}
       <span
         aria-hidden
-        className={[
-          'shrink-0 mt-[1px] w-4 h-4 rounded-full border flex items-center justify-center text-[10px] leading-none',
-          met
-            ? 'border-fluent bg-fluent text-white'
-            : 'border-neutral-300 dark:border-neutral-600 text-transparent',
-        ].join(' ')}
+        className="shrink-0 mt-[1px] w-4 h-4 flex items-center justify-center"
       >
-        ✓
+        {met ? (
+          <span className="w-4 h-4 rounded-full bg-fluent text-white flex items-center justify-center text-[10px] leading-none">
+            ✓
+          </span>
+        ) : (
+          <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
+        )}
       </span>
       <span className="flex-1 min-w-0">
         <span className={met
