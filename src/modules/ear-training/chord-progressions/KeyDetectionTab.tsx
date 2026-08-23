@@ -21,6 +21,9 @@ import {
   type PlaybackHandle,
   type ProgressionStep,
 } from './progressionTheory';
+import { spellKey, spellNote, type Spelling } from '../../../lib/spelling';
+import { useSpelling } from '../../../lib/spellingPref';
+import { keyDetectionItemId } from './keyDetectionIds';
 
 const MODULE_ID = 'chord-progressions';
 
@@ -35,14 +38,16 @@ const CURATED_POOL: Progression[] = PROGRESSIONS.filter(p => p.tier <= 3);
 // multiple-choice round.
 const DECOY_DEGREES = [4, 5, 6] as const;
 
-const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const NOTE_NAMES_FLAT  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-function noteNameForKey(midi: number, key: string): string {
-  // Match the user's selected key's accidental style so displays stay
-  // consistent (F major → Bb not A#).
-  const preferFlats = /b$/.test(key) || key === 'F';
-  const pc = ((midi % 12) + 12) % 12;
-  return (preferFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP)[pc];
+/**
+ * Was two local note tables plus "match the key's accidental style so
+ * displays stay consistent (F major → Bb not A#)". The instinct was
+ * right and the owner was wrong: consistency is with the READER, not
+ * with the key. F major still shows B♭ under the flats default — it
+ * just does so because that is how this user reads, not because the
+ * key name ends in a letter b.
+ */
+function noteNameForKey(midi: number, spelling: Spelling): string {
+  return spellNote(((midi % 12) + 12) % 12, spelling);
 }
 
 function buildSteps(prog: Progression, rootMidi: number): ProgressionStep[] {
@@ -86,6 +91,7 @@ interface Props {
 
 export default function KeyDetectionTab({ attempts }: Props) {
   void attempts; // reserved for future scope/history UI
+  const [spelling] = useSpelling();
   const [runState, setRunState] = useState<RunState>('idle');
   const [round, setRound] = useState<Round | null>(null);
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
@@ -126,10 +132,13 @@ export default function KeyDetectionTab({ attempts }: Props) {
     const prog = CURATED_POOL[Math.floor(Math.random() * CURATED_POOL.length)];
     const key = KEYS[Math.floor(Math.random() * KEYS.length)];
     const tonicMidi = keyToRootMidi(key);
-    const tonicNote = noteNameForKey(tonicMidi, key);
+    // Spelled once, when the round is built. Flipping the setting
+    // mid-round leaves the question as asked rather than relabelling
+    // the options under the user — `round.key` stays the identity.
+    const tonicNote = noteNameForKey(tonicMidi, spelling);
     const decoys = DECOY_DEGREES.map(d => {
       const chord = chordAtDegree(key, d);
-      return { note: noteNameForKey(chord.rootMidi, key), midi: chord.rootMidi };
+      return { note: noteNameForKey(chord.rootMidi, spelling), midi: chord.rootMidi };
     });
     const options = shuffle([
       { note: tonicNote, midi: tonicMidi, isCorrect: true },
@@ -200,7 +209,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
 
     await addAttempt({
       moduleId: MODULE_ID,
-      itemId: `key-detection:${round.key}`,
+      itemId: keyDetectionItemId(round.key),
       correct,
       timestamp: Date.now(),
     });
@@ -365,13 +374,13 @@ export default function KeyDetectionTab({ attempts }: Props) {
             <span>
               the tonal centre is{' '}
               <span className="font-medium text-fluent">
-                {noteNameForKey(keyToRootMidi(round.key), round.key)}
+                {noteNameForKey(keyToRootMidi(round.key), spelling)}
               </span>
             </span>
           </div>
           <p className="text-xs text-neutral-500">
             hear the drone playing underneath? that's the pitch every chord leans back toward — the gravity
-            well the progression resolves into. "{round.progression.name}" in the key of {round.key}.
+            well the progression resolves into. "{round.progression.name}" in the key of {spellKey(round.key, spelling)}.
           </p>
           <Link
             to="/harmonic-fluency"

@@ -52,6 +52,7 @@ import {
   type ProgressionStep,
   type TonicContext,
 } from './progressionTheory';
+import { useSpelling } from '../../../lib/spellingPref';
 
 const MODULE_ID = 'chord-progressions';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
@@ -108,6 +109,7 @@ function songSearchUrl(service: 'spotify' | 'youtube', title: string, artist: st
 }
 
 export default function ChordProgressionsQuiz({ attempts }: Props) {
+  const [spelling] = useSpelling();
   // --- Persisted config ------------------------------------------------
   const [key, setKeyState] = useState<string>('C');
   const [tierFilter, setTierFilter] = useState<TierFilter>('all');
@@ -524,9 +526,10 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         active.chordQualities[i] ?? 'major',
         activeConfig.complexity,
         { requiresDominant, slashBassMidi },
+        spelling,
       );
     }).join(' → ');
-  }, [active, activeConfig]);
+  }, [active, activeConfig, spelling]);
 
   const activeHasSlash = active ? containsSlashChords(active.numerals) : false;
 

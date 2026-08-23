@@ -30,6 +30,8 @@ import {
   scaleItemId,
   songSearchUrl,
 } from './shared';
+import { spellNote } from '../../../lib/spelling';
+import { useSpelling } from '../../../lib/spellingPref';
 
 // Scale playback defaults slow — the whole point of this tab is
 // catching the shape of each interval step, not speed-running the scale.
@@ -53,6 +55,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
+  const [spelling] = useSpelling();
   // Focus sessions with fewer than 4 items don't truly test fluency —
   // the user knows what's coming. Attempts still log (calendar, daily
   // goal, streaks unaffected) but the rolling-window tier math ignores
@@ -222,7 +225,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
 
   const wasCorrect = submitted && active && selectedId === active.id;
 
-  const rootLabel = midiToLabel(rootMidi);
+  const rootLabel = midiToLabel(rootMidi, spelling);
   const showRootHint = runState !== 'idle';
 
   return (
@@ -241,7 +244,10 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
           >
             <option value="random">random each round</option>
             {ROOT_NOTES.map(n => (
-              <option key={n.midi} value={n.midi}>{n.label}</option>
+              // The VALUE is the midi number — the identity — and the text
+              // is the spelling. Unlike the key pickers, this one could
+              // never store a name even by accident.
+              <option key={n.midi} value={n.midi}>{spellNote(n.midi % 12, spelling)}</option>
             ))}
           </select>
         </label>

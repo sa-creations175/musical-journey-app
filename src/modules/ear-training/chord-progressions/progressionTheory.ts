@@ -1,5 +1,6 @@
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import type { ChordQuality } from './catalog';
+import { DEFAULT_SPELLING, pitchClassOf, spellNote, type Spelling } from '../../../lib/spelling';
 
 export const KEYS: readonly string[] = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
@@ -8,13 +9,11 @@ export const KEYS: readonly string[] = [
 // Root MIDI for each key using a comfortable C3..B3 range. Picking a
 // root here keeps extended jazz voicings from shooting too high.
 export function keyToRootMidi(key: string): number {
-  const sharps = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const flats = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-  const idxSharp = sharps.indexOf(key);
-  if (idxSharp >= 0) return 48 + idxSharp;
-  const idxFlat = flats.indexOf(key);
-  if (idxFlat >= 0) return 48 + idxFlat;
-  return 48;
+  // Was two local lookup tables tried in turn. `pitchClassOf` accepts
+  // both alphabets and the ♭ / ♯ signs, so a name that has been through
+  // a display path still resolves — and there is one table instead of
+  // two that could disagree. Unknown input still lands on C3.
+  return 48 + (pitchClassOf(key) ?? 0);
 }
 
 // Parse a Roman numeral like "I", "ii", "bVII", "V7b9", "iiø7", "IVmaj7"
@@ -72,9 +71,13 @@ export function voicingFor(
 }
 
 // Human-friendly chord name used on the final reveal ("In C: C → G → Am → F").
-const NOTE_NAMES: string[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-function noteName(midi: number): string {
-  return NOTE_NAMES[((midi % 12) + 12) % 12];
+//
+// Was a hardcoded FLAT-ONLY table. Correct under the app's flats
+// default, and wrong the moment the user picks sharps — an absence
+// rather than a mis-thread, but one that only shows when the setting
+// moves, which is why it rides this sweep rather than shipping alone.
+function noteName(midi: number, spelling: Spelling): string {
+  return spellNote(((midi % 12) + 12) % 12, spelling);
 }
 
 const QUALITY_SUFFIX: Record<ChordQuality, { triad: string; seventh: string; jazz: string }> = {
@@ -91,11 +94,12 @@ export function chordDisplay(
   quality: ChordQuality,
   complexity: Complexity,
   opts: { requiresDominant?: boolean; slashBassMidi?: number } = {},
+  spelling: Spelling = DEFAULT_SPELLING,
 ): string {
   const eff = effectiveComplexity(quality, complexity, opts.requiresDominant ?? false);
-  const base = `${noteName(rootMidi)}${QUALITY_SUFFIX[quality][eff]}`;
+  const base = `${noteName(rootMidi, spelling)}${QUALITY_SUFFIX[quality][eff]}`;
   return opts.slashBassMidi !== undefined
-    ? `${base}/${noteName(opts.slashBassMidi)}`
+    ? `${base}/${noteName(opts.slashBassMidi, spelling)}`
     : base;
 }
 

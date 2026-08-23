@@ -1,4 +1,5 @@
 import type { Mode } from './catalog';
+import { spellNote, type Spelling } from '../../../lib/spelling';
 
 export const MODULE_ID = 'scales-modes';
 export const PREF_SORT_ORDER = 'scalesModesSortOrder';
@@ -66,9 +67,17 @@ export function randomRootMidi(rng: () => number = Math.random): number {
   return ROOT_NOTES[Math.floor(rng() * ROOT_NOTES.length)].midi;
 }
 
-export function midiToLabel(midi: number): string {
-  const note = ((midi % 12) + 12) % 12;
-  return ROOT_NOTES[note]?.label ?? '?';
+/**
+ * Display label for a root midi.
+ *
+ * Reads the spelling rather than `ROOT_NOTES[].label`, which is the
+ * catalog's own fixed vocabulary. The picker keeps using that array —
+ * but note its option VALUE is the midi number, not the name, so the
+ * identity here was never a string in the first place. That is why this
+ * one is display-only all the way down.
+ */
+export function midiToLabel(midi: number, spelling: Spelling): string {
+  return spellNote(((midi % 12) + 12) % 12, spelling);
 }
 
 export function songSearchUrl(service: 'spotify' | 'youtube', title: string, artist: string): string {

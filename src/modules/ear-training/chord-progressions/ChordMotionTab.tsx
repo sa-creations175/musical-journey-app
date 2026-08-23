@@ -31,6 +31,8 @@ import {
   type PlaybackHandle,
 } from './progressionTheory';
 import type { ChordQuality } from './catalog';
+import { pitchClassOf, spellKey, spellNote, type Spelling } from '../../../lib/spelling';
+import { useSpelling } from '../../../lib/spellingPref';
 
 const MODULE_ID = 'chord-progressions';
 
@@ -373,24 +375,25 @@ interface Verdict {
   fullCredit: boolean;
 }
 
-const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const NOTE_NAMES_FLAT  = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-const SEMITONE: Record<string, number> = {
-  C: 0, 'C#': 1, Db: 1, D: 2, 'D#': 3, Eb: 3, E: 4, F: 5, 'F#': 6, Gb: 6,
-  G: 7, 'G#': 8, Ab: 8, A: 9, 'A#': 10, Bb: 10, B: 11,
-};
-function midiToNote(midi: number, useFlats: boolean): string {
-  const pc = ((midi % 12) + 12) % 12;
-  return (useFlats ? NOTE_NAMES_FLAT : NOTE_NAMES_SHARP)[pc];
+
+function midiToNote(midi: number, spelling: Spelling): string {
+  return spellNote(((midi % 12) + 12) % 12, spelling);
 }
-function keyPrefersFlats(key: string): boolean {
-  return /b$/.test(key) || key === 'F';
-}
+
+/**
+ * The keyboard hands back the note NAME it was rendered with, so this
+ * has to read whatever `midiToNote` just wrote — including the ♭ and ♯
+ * signs. `pitchClassOf` accepts both alphabets, which is what keeps the
+ * click round-trip working now that the labels carry signs; the local
+ * ASCII-only SEMITONE table it replaces would have returned undefined
+ * for every black key and put the click an octave off zero.
+ */
 function clickedToMidi(note: string, octave: number): number {
-  return (octave + 1) * 12 + SEMITONE[note];
+  return (octave + 1) * 12 + (pitchClassOf(note) ?? 0);
 }
 
 export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
+  const [spelling] = useSpelling();
   const [distance, setDistance] = useState<DistanceFilter>('all');
   const [direction, setDirection] = useState<DirectionFilter>('both');
   // Diatonic-only is the default starting point — chromatic motion
@@ -691,7 +694,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   };
 
   // --- Rendering -----------------------------------------------------
-  const useFlats = round ? keyPrefersFlats(round.key) : false;
+
   const tonicMidi = round ? keyToRootMidi(round.key) : 48;
   const startOctave = Math.floor(tonicMidi / 12) - 1; // C3 is midi 48 → octave 3
 
@@ -704,32 +707,32 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     // playback can't flip highlights on the current question.
     const showFirst = round.scaffold !== 'minimal' || runState === 'reveal' || clickedStart !== null;
     if (showFirst) {
-      const note = midiToNote(round.startMidi, useFlats);
+      const note = midiToNote(round.startMidi, spelling);
       const oct = Math.floor(round.startMidi / 12) - 1;
       out.push({ note, octave: oct, color: 'blue' });
     }
     if (runState === 'reveal' && verdict) {
       // Destination: green if correct, red overlaid + green reveal if wrong.
-      const destNote = midiToNote(round.destMidi, useFlats);
+      const destNote = midiToNote(round.destMidi, spelling);
       const destOct = Math.floor(round.destMidi / 12) - 1;
       out.push({ note: destNote, octave: destOct, color: 'green' });
       if (!verdict.destCorrect && clickedDest !== null) {
         out.push({
-          note: midiToNote(clickedDest, useFlats),
+          note: midiToNote(clickedDest, spelling),
           octave: Math.floor(clickedDest / 12) - 1,
           color: 'red',
         });
       }
       if (round.scaffold === 'minimal' && !verdict.firstCorrect && clickedStart !== null) {
         out.push({
-          note: midiToNote(clickedStart, useFlats),
+          note: midiToNote(clickedStart, spelling),
           octave: Math.floor(clickedStart / 12) - 1,
           color: 'red',
         });
       }
     }
     return out;
-  }, [round, runState, verdict, useFlats, clickedStart, clickedDest]);
+  }, [round, runState, verdict, spelling, clickedStart, clickedDest]);
 
 
   return (
@@ -755,7 +758,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           the pill mid-question. */}
       {round && round.scaffold === 'full' && runState !== 'idle' && (
         <p className="text-center text-sm">
-          in <span className="font-medium">{round.key} major</span>:
+          in <span className="font-medium">{spellKey(round.key, spelling)} major</span>:
         </p>
       )}
 
@@ -818,8 +821,8 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       {round && (runState === 'answering' || runState === 'reveal' || runState === 'motion') && (
         <div className="flex flex-col items-center gap-2">
           <KeyboardVisual
-            keySignature={`${round.key} major`}
-            keyLabel={round.scaffold === 'full' ? `Key of ${round.key} major` : undefined}
+            keySignature={`${spellKey(round.key, spelling)} major`}
+            keyLabel={round.scaffold === 'full' ? `Key of ${spellKey(round.key, spelling)} major` : undefined}
             octaves={2}
             startOctave={startOctave}
             width={Math.min(560, typeof window !== 'undefined' ? window.innerWidth - 48 : 520)}
@@ -863,8 +866,8 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
         const rightLabel = round.motion.direction === 'asc' ? round.motion.destLabel : round.motion.startLabel;
         const startVoice = chordVoice(round.key, round.motion.startLabel);
         const destVoice = chordVoice(round.key, round.motion.destLabel);
-        const startName = chordDisplay(startVoice.root, startVoice.quality, MOTION_COMPLEXITY, { requiresDominant: false });
-        const destName = chordDisplay(destVoice.root, destVoice.quality, MOTION_COMPLEXITY, { requiresDominant: false });
+        const startName = chordDisplay(startVoice.root, startVoice.quality, MOTION_COMPLEXITY, { requiresDominant: false }, spelling);
+        const destName = chordDisplay(destVoice.root, destVoice.quality, MOTION_COMPLEXITY, { requiresDominant: false }, spelling);
         const leftName = round.motion.direction === 'asc' ? startName : destName;
         const rightName = round.motion.direction === 'asc' ? destName : startName;
         // Harder scaffolds available for "challenge yourself" re-reps.
