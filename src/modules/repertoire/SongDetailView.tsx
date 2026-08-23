@@ -84,7 +84,6 @@ import {
   savePatternsCollapsed,
 } from './leadSheetPrefs';
 import { planSectionMove } from './sectionReorder';
-import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
 import StageCriteriaPanel, { type HoldingKey } from './StageCriteriaPanel';
 import DemotionNotice from './DemotionNotice';
@@ -2055,26 +2054,22 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         </SortableContext>
       </DndContext>
 
-      {/* Cross-key grid */}
-      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-        <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">cross-key mastery</h3>
-        {sections.filter(s => !s.hidden).length === 0 ? (
-          <p className="text-xs text-neutral-500 italic">add a section to start tracking cross-key practice.</p>
-        ) : (
-          <div className="space-y-4">
-            {sections.filter(s => !s.hidden).map(s => (
-              <div key={s.id} className="space-y-1">
-                <div className="text-xs font-medium">{s.name}</div>
-                <CrossKeyGrid
-                  songId={song.id}
-                  section={s}
-                  originalKey={song.key}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* ---------------------------------------------------------------
+          THE CROSS-KEY MASTERY CARD IS GONE.
+
+          It was the same twelve keys against the same sections as the
+          matrix, transposed, over a COMPLETELY DISJOINT table. Tapping
+          a square there bumped `songCrossKeyProgress.sessionCount`;
+          tapping a matrix cell wrote `songCells` and run-throughs.
+          Neither could see the other, so two grids of the same thing
+          could disagree indefinitely and both be right.
+
+          `songCrossKeyProgress` has been @deprecated in db.ts since
+          Phase 1.5, no stage rule has read it since 3a-5, and its
+          `mastered` flag was a manual toggle nothing consumed. The
+          matrix answers the question it was asking, with evidence
+          behind it.
+          --------------------------------------------------------------- */}
 
       {/* Practice history + heatmap */}
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">

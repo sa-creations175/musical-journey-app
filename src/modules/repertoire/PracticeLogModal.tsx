@@ -47,9 +47,6 @@ function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`;
 }
 
-function crossKeyRowId(songId: string, sectionId: string, keyName: string): string {
-  return `${songId}:${sectionId}:${keyName}`;
-}
 
 /**
  * Modal for logging a practice session. Two-phase UX:
@@ -57,8 +54,9 @@ function crossKeyRowId(songId: string, sectionId: string, keyName: string): stri
  *     practise — click "finish session" when done.
  *   · Or skip the timer and fill in duration manually.
  *
- * Submit writes a songPracticeLog row AND bumps every
- * songCrossKeyProgress row that intersects (section × key).
+ * Submit writes one songPracticeLog row. It used to also bump
+ * songCrossKeyProgress rows; that table is @deprecated and nothing
+ * reads it, so those writes are gone as of 3d-3.
  */
 export default function PracticeLogModal({ song, sections, onClose, onLogged }: Props) {
   const [spelling] = useSpelling();
@@ -137,51 +135,30 @@ export default function PracticeLogModal({ song, sections, onClose, onLogged }: 
     try {
       const now = Date.now();
       const logId = uid('plog');
-      await db.transaction('rw', [db.songPracticeLog, db.songCrossKeyProgress], async () => {
-        await db.songPracticeLog.add({
-          id: logId,
-          songId: song.id,
-          timestamp: now,
-          durationMin: effectiveDurationMin,
-          sectionIds,
-          keys,
-          feelRating: feel,
-          notes: notes.trim() || undefined,
-          atTargetTempo,
-        });
-
-        // Bump cross-key progress rows for every (section × key)
-        // pair touched. If the user practised the whole song (no
-        // sections selected), apply to every section.
-        const targetSections = sectionIds.length === 0
-          ? sections.map(s => s.id)
-          : sectionIds;
-        const targetKeys = keys.length === 0 ? (song.key ? [song.key] : []) : keys;
-
-        for (const sid of targetSections) {
-          for (const k of targetKeys) {
-            const rowId = crossKeyRowId(song.id, sid, k);
-            const existing = await db.songCrossKeyProgress.get(rowId);
-            if (existing) {
-              await db.songCrossKeyProgress.put({
-                ...existing,
-                sessionCount: existing.sessionCount + 1,
-                lastPracticed: now,
-              });
-            } else {
-              await db.songCrossKeyProgress.add({
-                id: rowId,
-                songId: song.id,
-                sectionId: sid,
-                keyName: k,
-                sessionCount: 1,
-                lastPracticed: now,
-                mastered: false,
-              });
-            }
-          }
-        }
+      // THE CROSS-KEY WRITES ARE GONE, and with them the transaction —
+      // one table needs no atomicity across two.
+      //
+      // This modal was the last writer of `songCrossKeyProgress`. That
+      // table has been @deprecated in db.ts since Phase 1.5, no stage
+      // rule has read it since 3a-5, and the card that displayed it is
+      // gone. Bumping a counter nothing reads is not persistence, it
+      // is exhaust.
+      //
+      // The modal itself retires in 3d-8, once the surface replacing it
+      // has been used. Its remaining job until then is one honest
+      // practice-log row.
+      await db.songPracticeLog.add({
+        id: logId,
+        songId: song.id,
+        timestamp: now,
+        durationMin: effectiveDurationMin,
+        sectionIds,
+        keys,
+        feelRating: feel,
+        notes: notes.trim() || undefined,
+        atTargetTempo,
       });
+
       // spacingState engagement (whole-song level for Phase 2 — cell-
       // level granularity ships in Phase 3). Outside the transaction
       // by design: a spacingState write failure must not roll back
