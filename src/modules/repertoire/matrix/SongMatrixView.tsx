@@ -16,11 +16,7 @@ import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
 import { computeSolidDecayState } from './solidDecay';
-import {
-  computeSongLevelState,
-  hasCrossKeyEngagement,
-  songLevelStateLabel,
-} from './songLevelState';
+import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
 
 /**
@@ -191,22 +187,6 @@ export default function SongMatrixView({
     setNow(Date.now());
   }, []);
 
-  const songLevelState = useMemo(
-    () => computeSongLevelState(songKeys, songCells, visibleSections.length, now),
-    [songKeys, songCells, visibleSections.length, now],
-  );
-
-  // Decay aggregates for the header pills. Walk songKeys once with
-  // live-derive — 12 keys max so memoization isn't worth the cache-
-  // invalidation noise (now changes every render).
-  let fadingKeyCount = 0;
-  let lapsedKeyCount = 0;
-  for (const k of songKeys) {
-    const state = computeSolidDecayState(k, now);
-    if (state === 'fading') fadingKeyCount++;
-    else if (state === 'lapsed') lapsedKeyCount++;
-  }
-
   // Cross-key follow-up eligibility — fires once per mount when:
   //   - The song was migrated from legacy `stage: 'cross-key'`
   //     (the only signal we have that the user was working other
@@ -340,18 +320,29 @@ export default function SongMatrixView({
         </button>
       )}
 
-      <Header
-        song={song}
-        originalKey={originalKey?.keyName ?? null}
-        sectionCount={visibleSections.length}
-        stateName={songLevelState.state}
-        learningPercent={songLevelState.learningPercent}
-        crossKeyPercent={songLevelState.crossKeyPercent}
-        solidKeyCount={songLevelState.solidKeyCount}
-        fadingKeyCount={fadingKeyCount}
-        lapsedKeyCount={lapsedKeyCount}
-      />
+      {/* ---------------------------------------------------------------
+          NO HEADER. This component renders a grid, not a page.
 
+          It used to open with a bordered sub-card carrying the title,
+          the artist, the original key, the tempo, the section count
+          and a state pill — every one of which the song page already
+          shows, three inches above, in the metadata card and the
+          matrix card's own status badge. The pill was the worst of it:
+          "Learning" in green from `songLevelState`, directly beneath
+          "Learning" in red from `deriveStage`. Two vocabularies, two
+          colours, and nothing on screen to say they were describing
+          the same song from two different rules.
+
+          Removing the duplicated-status problem was the point of this
+          redesign; it survived here because this component used to be
+          a full-page view of its own. It has exactly one caller now —
+          SongDetailView, always `embedded` — so there is no second
+          usage that needs a header, and none is left conditional for
+          a caller that does not exist.
+
+          The one fact that was NOT a duplicate, "N% original", moved
+          up beside the stage badge. See SongDetailView.
+          --------------------------------------------------------------- */}
 
       <WholeSongTestBanner
         spelling={spelling}
@@ -428,106 +419,3 @@ export default function SongMatrixView({
     </section>
   );
 }
-
-// -------------------------------------------------------------------
-
-interface HeaderProps {
-  song: Song;
-  originalKey: string | null;
-  sectionCount: number;
-  stateName: ReturnType<typeof computeSongLevelState>['state'];
-  learningPercent: number;
-  crossKeyPercent: number;
-  solidKeyCount: number;
-  fadingKeyCount: number;
-  lapsedKeyCount: number;
-}
-
-const STATE_PILL_CLASS: Record<HeaderProps['stateName'], string> = {
-  learning:     'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-700',
-  comfortable:  'bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/40 dark:text-teal-200 dark:border-teal-700',
-  solid:        'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-700',
-  cross_key:    'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/40 dark:text-purple-200 dark:border-purple-700',
-  internalized: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700',
-};
-
-function Header({
-  song,
-  originalKey,
-  sectionCount,
-  stateName,
-  learningPercent,
-  crossKeyPercent,
-  solidKeyCount,
-  fadingKeyCount,
-  lapsedKeyCount,
-}: HeaderProps) {
-  const tempoText = song.tempoLabel
-    ? song.tempoLabel
-    : song.tempo
-      ? `♩ = ${song.tempo}`
-      : null;
-  // Cross-key %% rendered alongside Learning state too, when any
-  // non-original cells exist (per spec line 283). The pill itself
-  // names the dominant state; the %% pill carries the secondary
-  // dimension.
-  const showCrossKeyPill = stateName === 'cross_key'
-    || (stateName === 'learning' && crossKeyPercent > 0);
-
-  return (
-    <header className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] px-4 py-3">
-      <div className="flex-1 min-w-0">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight truncate">
-          {song.title}
-          {song.artist && (
-            <span className="text-neutral-500 dark:text-neutral-400 font-normal"> — {song.artist}</span>
-          )}
-        </h2>
-        <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          {originalKey && (
-            <span>original key: <span className="text-neutral-700 dark:text-neutral-200 font-medium">{originalKey}</span></span>
-          )}
-          {tempoText && (
-            <span>{tempoText}</span>
-          )}
-          <span>{sectionCount === 0 ? 'no sections yet' : `${sectionCount} section${sectionCount === 1 ? '' : 's'}`}</span>
-          {solidKeyCount > 0 && (
-            <span>{solidKeyCount} key{solidKeyCount === 1 ? '' : 's'} at Solid</span>
-          )}
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${STATE_PILL_CLASS[stateName]}`}>
-          {songLevelStateLabel(stateName)}
-        </span>
-        {stateName === 'learning' && sectionCount > 0 && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 tabular-nums">
-            {learningPercent}% original
-          </span>
-        )}
-        {showCrossKeyPill && (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-purple-100/60 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 tabular-nums">
-            {crossKeyPercent}% cross-key
-          </span>
-        )}
-        {fadingKeyCount > 0 && (
-          <span
-            className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200 tabular-nums"
-            title="Solid keys past 14 days without engagement"
-          >
-            {fadingKeyCount} fading
-          </span>
-        )}
-        {lapsedKeyCount > 0 && (
-          <span
-            className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200 tabular-nums"
-            title="Solid keys past 30 days — retest recommended"
-          >
-            {lapsedKeyCount} lapsed
-          </span>
-        )}
-      </div>
-    </header>
-  );
-}
-

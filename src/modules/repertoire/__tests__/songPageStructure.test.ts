@@ -132,3 +132,95 @@ describe('associations folded into metadata', () => {
     expect(body).toContain('upsertDiaryEntry');
   });
 });
+
+describe('the matrix card holds no second copy of the song', () => {
+  const MATRIX = read('matrix/SongMatrixView.tsx');
+
+  it('the sweep found that file too', () => {
+    expect(MATRIX.length).toBeGreaterThan(5_000);
+    expect(MATRIX).toContain('<MatrixGrid');
+  });
+
+  it('renders no status pill of its own', () => {
+    // THE LOAD-BEARING ONE. It used to open with a sub-card whose pill
+    // said "Learning" in green from `songLevelState`, directly beneath
+    // "Learning" in red from `deriveStage` — two vocabularies, two
+    // colours, no way to tell they described the same song. Removing
+    // duplicated status was the point of the redesign; this component
+    // was the last place it survived.
+    expect(MATRIX).not.toContain('songLevelStateLabel');
+    expect(MATRIX).not.toContain('STATE_PILL_CLASS');
+    // And the rollup that fed it is gone, not merely unrendered — a
+    // computed value with no reader is how the pill comes back.
+    expect(MATRIX).not.toContain('computeSongLevelState');
+  });
+
+  it('does not restate the title, artist, key, tempo or section count', () => {
+    // Every one of these is in the metadata card, three inches up.
+    expect(MATRIX).not.toContain('{song.title}');
+    expect(MATRIX).not.toContain('{song.artist}');
+    expect(MATRIX).not.toContain('original key:');
+    expect(MATRIX).not.toContain('song.tempoLabel');
+    expect(MATRIX).not.toContain('no sections yet');
+  });
+
+  it('has no header element left conditional for a caller that does not exist', () => {
+    // The alternative fix was `{!embedded && <Header …/>}`. There is
+    // exactly one caller and it always passes `embedded`, so that
+    // would have left dead chrome behind for nobody.
+    expect(MATRIX).not.toContain('<header');
+    const callers = Object.entries(SOURCES)
+      .filter(([p, src]) => !p.endsWith('SongMatrixView.tsx')
+        && src.includes("from './matrix/SongMatrixView'"));
+    expect(callers.map(([p]) => p.split('/').pop())).toEqual(['SongDetailView.tsx']);
+  });
+
+  it('keeps the one fact that was not a duplicate, beside the stage badge', () => {
+    // "N% original" is the share of original-key sections at
+    // Comfortable — the run-up to the whole-song test, which the
+    // Learning criterion does not measure. It moved up rather than
+    // keeping a card alive to hold it.
+    // Named by the value it renders, not by the label — the label
+    // appears in this file's own explanatory comment, and a test that
+    // a comment can turn red is a test that gets loosened later.
+    expect(MATRIX).not.toContain('learningPercent');
+    expect(DETAIL).toContain('{rollup.learningPercent}% original');
+    const pill = DETAIL.indexOf('{rollup.learningPercent}% original');
+    const badge = DETAIL.indexOf('STAGE_BADGE_CLASS[currentStage]');
+    const grid = DETAIL.indexOf('<SongMatrixView');
+    expect(badge).toBeLessThan(pill);
+    expect(pill).toBeLessThan(grid);
+  });
+});
+
+describe('the metadata card is two columns', () => {
+  it('splits into a grid rather than stacking', () => {
+    expect(DETAIL).toContain('grid gap-x-5 gap-y-1.5 sm:grid-cols-2');
+  });
+
+  it('puts the note, the links and the associations in the SECOND column', () => {
+    // Position in source order is not the property — they were already
+    // last when the card was a stack, so an ordering assertion passes
+    // for the layout this replaced. What matters is that they sit in a
+    // column, pinned to column 2, while the facts stay in column 1.
+    const right = DETAIL.indexOf('min-w-0 space-y-1 sm:col-start-2');
+    expect(right).toBeGreaterThan(-1);
+    const facts = DETAIL.indexOf('time: <span className="font-mono');
+    expect(facts).toBeLessThan(right);
+    const column = DETAIL.slice(right, DETAIL.indexOf('>matrix</h3>'));
+    for (const marker of [
+      '+ add a note about this song',
+      'spotify ↗',
+      '<SongAssociationsSection song={song} />',
+    ]) {
+      expect(column, marker).toContain(marker);
+    }
+  });
+
+  it('drops the divider the stack needed', () => {
+    // A rule between two columns is a rule the columns already draw.
+    const at = DETAIL.indexOf('{/* Metadata — and everything else');
+    const card = DETAIL.slice(at, DETAIL.indexOf('>matrix</h3>'));
+    expect(card).not.toContain('border-t border-neutral-200');
+  });
+});

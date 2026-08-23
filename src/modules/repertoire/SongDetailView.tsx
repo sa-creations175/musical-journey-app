@@ -125,6 +125,7 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import { useScrollHighlight } from './useScrollHighlight';
 import { NOTATION_LABEL, useNotationMode, type NotationMode } from '../../lib/notationPref';
 import SongMatrixView from './matrix/SongMatrixView';
+import { computeSongLevelState } from './matrix/songLevelState';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 import { SONG_KEY_OPTIONS, isCanonicalSongKey } from './matrix/keys';
 import { ensureSongHasOriginalKey } from './matrixMigration';
@@ -612,6 +613,23 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       .filter(sec => !sec.isArchived)
       .sort((a, b) => a.displayOrder - b.displayOrder),
     [matrixSections],
+  );
+
+  // THE ONE FACT THE DELETED MATRIX SUB-CARD CARRIED THAT WAS NOT A
+  // DUPLICATE. `learningPercent` is the share of original-key cells at
+  // Comfortable — progress toward getting the song under the fingers,
+  // which happens BEFORE the whole-song test the Learning criterion
+  // names. So it is not a second rendering of the stage; it is the
+  // part of the run-up the stage rules do not measure.
+  //
+  // Recomputed here rather than plumbed out of SongMatrixView:
+  // `computeSongLevelState` is pure and this component already holds
+  // every input it takes.
+  const rollup = useMemo(
+    () => computeSongLevelState(
+      matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow,
+    ),
+    [matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow],
   );
 
   const openCellPanel = useCallback((cellId: string) => {
@@ -1763,6 +1781,23 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           </div>
         ) : (
           <>
+            {/* ---------------------------------------------------------------
+                TWO COLUMNS, NOT A STACK.
+
+                Left is what the song IS — title, artist, key, spelling,
+                tempo, time. Right is what you have written about it and
+                where it lives — the note, the links, the associations.
+                Stacked, the right-hand material pushed the matrix off
+                the screen while the whole right half of the card sat
+                empty; side by side the card is about half as tall and
+                the second column costs nothing, because the facts row
+                never used the width.
+
+                The divider went with the restructure. A rule between
+                two columns is a rule the columns already draw.
+                --------------------------------------------------------------- */}
+            <div className="grid gap-x-5 gap-y-1.5 sm:grid-cols-2">
+            <div className="min-w-0 space-y-1">
             <div className="flex items-start justify-between gap-2 flex-wrap">
               <div className="min-w-0">
                 <h2 className="text-lg sm:text-xl font-medium tracking-tight">{song.title}</h2>
@@ -1815,6 +1850,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 </span>
               )}
             </div>
+            </div>
 
             {/* ---------------------------------------------------------------
                 "WHY THIS SONG" AND THE LINKS LIVE HERE NOW.
@@ -1830,7 +1866,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 anywhere near the metadata. Nothing about them is fixed
                 here, they are simply where they should have been.
                 --------------------------------------------------------------- */}
-            <div className="pt-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1">
+            {/* The right column is PINNED to column 2 rather than just being
+    second in source order. The left block's height varies with
+    the facts row wrapping, and auto-placement would let this
+    slide under it. */}
+            <div className="min-w-0 space-y-1 sm:col-start-2">
               {whyEditing ? (
                 <div className="space-y-2">
                   <textarea
@@ -1892,7 +1932,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                     )}
                 </div>
               )}
-            </div>
 
             {/* ---------------------------------------------------------------
                 ASSOCIATIONS LIVE HERE TOO.
@@ -1905,7 +1944,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                 It still writes to the Harmonic Diary, unchanged. Only
                 its placement moved.
                 --------------------------------------------------------------- */}
-            <SongAssociationsSection song={song} />
+              <SongAssociationsSection song={song} />
+            </div>
+            </div>
           </>
         )}
       </section>
@@ -1942,6 +1983,14 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
               {STAGE_LABEL[currentStage]}
             </span>
+            {currentStage === 'learning' && visibleMatrixSections.length > 0 && (
+              <span
+                className="inline-flex items-center px-2 py-1 rounded-full text-[11px] bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 tabular-nums"
+                title="sections at Comfortable in the original key"
+              >
+                {rollup.learningPercent}% original
+              </span>
+            )}
             <span className="text-[11px] italic text-neutral-500">{STAGE_TAGLINE[currentStage]}</span>
           </div>
           {/* The change-stage dropdown and the advance
@@ -1951,7 +2000,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               claim about what the user was willing to
               assert rather than about the song. */}
         </div>
-        <p className="text-sm text-neutral-700 dark:text-neutral-200 italic leading-snug">
+        {/* Guidance, not a headline. At text-sm it was the largest
+            text in the card, which made the advice look like the
+            answer — the badge above it is the answer. */}
+        <p className="text-xs text-neutral-600 dark:text-neutral-300 italic leading-snug">
           {STAGE_GUIDANCE[currentStage]}
         </p>
         {/* Always, not only once the criteria are met.
