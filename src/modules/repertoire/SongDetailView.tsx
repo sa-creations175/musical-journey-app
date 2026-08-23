@@ -86,7 +86,11 @@ import {
 import { planSectionMove } from './sectionReorder';
 import CrossKeyGrid from './CrossKeyGrid';
 import PracticeHistory from './PracticeHistory';
-import StageCriteriaPanel from './StageCriteriaPanel';
+import StageCriteriaPanel, { type HoldingKey } from './StageCriteriaPanel';
+import DemotionNotice from './DemotionNotice';
+import { useSongSpelling } from './useSongSpelling';
+import { isComfortableOrBetter } from './matrix/keyProgress';
+import { daysUntilDue, keyDueState } from './matrix/keySpacing';
 import SectionGuidance from './SectionGuidance';
 import SongTimerStrip from './SongTimerStrip';
 import { dueByKeyId } from './matrix/proveKey';
@@ -623,6 +627,24 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dueByKeyId: dueMap,
     dueWindows: windowsFrom(spacing),
   }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
+
+  // Only keys that can hold a rung — comfortable or better. A key at
+  // learning has nothing to lose and would read as permanently held,
+  // which is true and useless.
+  const songSpelling = useSongSpelling(song);
+  const holdingKeys: HoldingKey[] = useMemo(() => {
+    const windows = windowsFrom(spacing);
+    return matrixKeys
+      .filter(k => isComfortableOrBetter(k.keyState))
+      .map(k => {
+        const due = dueMap.get(k.id) ?? null;
+        return {
+          keyName: k.keyName,
+          state: keyDueState(due, advancementNow, windows),
+          daysUntil: daysUntilDue(due, advancementNow),
+        };
+      });
+  }, [matrixKeys, dueMap, spacing, advancementNow]);
 
   // Record a move once the derivation has real inputs behind it.
   //
@@ -1928,7 +1950,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
                         The banner below is the call to action; this is
                         the answer to "what would advance this song?",
                         which had nowhere to be asked before. */}
-                    <StageCriteriaPanel criteria={criteria} />
+                    <StageCriteriaPanel
+                      criteria={criteria}
+                      holding={holdingKeys}
+                      spelling={songSpelling}
+                    />
+                    {/* Above the ✨ banner: a drop is more urgent than
+                        an invitation, and the two would otherwise sit
+                        side by side saying opposite things. */}
+                    {song.stageDemotion && (
+                      <DemotionNotice demotion={song.stageDemotion} />
+                    )}
                     {advancement.suggest && advancement.reason && (
                       <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
                         <span aria-hidden className="mr-1.5">✨</span>
