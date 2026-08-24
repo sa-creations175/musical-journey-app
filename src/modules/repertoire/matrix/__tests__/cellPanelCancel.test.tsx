@@ -117,14 +117,42 @@ describe('Cancel', () => {
   });
 });
 
-describe('Done', () => {
-  it('writes the run, reports it, and closes', async () => {
+describe('Done, and then Log it', () => {
+  /**
+   * DONE USED TO WRITE. From step 3d-6 it stops the clock and opens
+   * the rating step, and `Log it` writes — so the assertions that used
+   * to hang on Done hang on Log it, and Done acquired an assertion of
+   * its own: that it writes NOTHING.
+   *
+   * The behaviour it replaced is still tested, one button later. What
+   * is new is the state in between, which has to be recoverable: the
+   * minutes are banked in storage while the questions are open, so the
+   * tab closing costs the answers and not the sitting.
+   */
+  it('Done stops the clock and writes nothing yet', async () => {
+    writeSongTimer(startedRecord('s1', Date.now() - (12 * MIN - 5_000)));
+    const h = mount();
+    h.click('Practice');
+    h.click('Done');
+
+    expect(await db.songPracticeLog.count()).toBe(0);
+    expect(h.closedCount()).toBe(0);
+    // Paused, not discarded — and the minutes are banked where a
+    // reload can find them.
+    const held = readSongTimer();
+    expect(held?.running).toBe(false);
+    expect(held?.accumulatedMs).toBeGreaterThan(11 * MIN);
+    h.unmount();
+  });
+
+  it('Log it writes the run, reports it, and closes', async () => {
     // All three. A button that logs but neither reports nor closes is
     // indistinguishable from one that is broken.
     writeSongTimer(startedRecord('s1', Date.now() - (12 * MIN - 5_000)));
     const h = mount();
     h.click('Practice');
-    await h.clickAsync('Done');
+    h.click('Done');
+    await h.clickAsync('Log it');
 
     const rows = await db.songPracticeLog.toArray();
     expect(rows).toHaveLength(1);

@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Song, SongKey, SongMatrixSection } from '../../../lib/db';
 import { spellKey, type Spelling } from '../../../lib/spelling';
 import { useSongTimer } from '../useSongTimer';
+import { AMBER_DEFAULT_MIN, getAmberMinutes } from '../songTimerPrefs';
 import MetronomeControl from '../../../components/MetronomeControl';
+import SectionTicks from './SectionTicks';
+import RatingStep, { type RatingAnswers } from './RatingStep';
 
 /**
  * What opens when you tap a cell.
@@ -28,7 +31,13 @@ import MetronomeControl from '../../../components/MetronomeControl';
  * "start" button between you and the keyboard is one more of those.
  */
 
-export type CellPanelMode = 'choose' | 'practice';
+/**
+ * `rate` is what Done opens. It is a MODE rather than a second modal
+ * because it is the same sitting still being recorded — the header
+ * does not change, the section ticks carry across, and nothing has
+ * been written yet.
+ */
+export type CellPanelMode = 'choose' | 'practice' | 'rate';
 
 /** Full panel, or collapsed to a bar so the lead sheet can be read
  *  beneath it. The timer never leaves the screen in either. */
@@ -72,6 +81,41 @@ export default function CellPanel({
   // has to make.
   const [ticked, setTicked] = useState<Set<string>>(() => new Set([section.id]));
   const otherSongRunning = timer.record !== null && !timer.isThisSong;
+  /**
+   * The user's amber threshold, in ms, or null for "never".
+   *
+   * Read once and held, so Done does not have to await a preference
+   * before it can stop a clock.
+   *
+   * IT STARTS AT THE APP DEFAULT, NOT AT NULL. Null means "never ask",
+   * and a few hundred milliseconds of "never" is the wrong direction
+   * to be wrong in: it would let an un-attributed stretch be logged as
+   * focused practice with no question raised. Starting at the default
+   * can at worst show a question to someone who turned it off, in a
+   * window that closes as soon as the preference loads.
+   *
+   * That is the same asymmetry `SongTimerActivityWatcher` decides its
+   * event list by — a missed signal costs an amber number the user
+   * glances past, a false one costs a silently wrong record — applied
+   * to the load rather than to the events.
+   */
+  const [amberMs, setAmberMs] = useState<number | null>(
+    () => AMBER_DEFAULT_MIN * 60_000,
+  );
+  useEffect(() => {
+    let live = true;
+    getAmberMinutes()
+      .then(min => { if (live) setAmberMs(min === null ? null : min * 60_000); })
+      // Swallowed, and the default above stands. This read can fail
+      // for reasons that have nothing to do with the panel — Dexie
+      // closed under it, Safari private mode, the page going away
+      // mid-flight — and none of them are worth an unhandled rejection
+      // or a broken panel. Failing to the default is the same choice
+      // the initializer makes and for the same reason: a threshold
+      // that asks is safer than one that silently counts.
+      .catch(err => { console.warn('[repertoire] amber threshold read failed', err); });
+    return () => { live = false; };
+  }, []);
 
   // Entering practice starts the clock — unless one is already running
   // on this song, which is adopted rather than restarted. Restarting
@@ -86,20 +130,59 @@ export default function CellPanel({
   }, [mode]);
 
   /**
-   * Done: stop, write the run, say what was written, close.
+   * Done: stop the clock, ask what the work was. Writes NOTHING yet.
    *
-   * The rating step arrives in 3d-6. Until it does, Done still has to
-   * DO something observable — a button that silently succeeds is
-   * indistinguishable from one that is broken, and the user has no way
-   * to tell which they are looking at.
+   * ---------------------------------------------------------------
+   * DONE PAUSES, LOG IT WRITES.
+   *
+   * Neither obvious alternative survives: leaving the clock running
+   * while the questions are answered charges the user for the time
+   * they spent answering, and writing here and updating the row after
+   * means two writes for one sitting and a row that briefly exists in
+   * a state nothing intended.
+   *
+   * The paused record stays in localStorage, so closing the tab
+   * mid-rating loses the ANSWERS and not the minutes — the timer is
+   * still there, paused, on return. `Back to the timer` resumes it.
+   *
+   * A consequence worth knowing: `logPracticeSession` is what clears
+   * `stageEarned`, so the "earned just now" notice now retires at Log
+   * it rather than at Done. That is the better reading — stopping the
+   * clock and backing out is not finishing a sitting.
+   *
+   * The open silence is banked FIRST. A stretch the app saw nothing
+   * during that is still open at this moment has not been banked by
+   * `withActivity`, because no activity has resumed to bank it — and
+   * stopping without this would log it as focused practice, which is
+   * the silent-counting failure the whole mechanism exists to prevent,
+   * one step later.
+   * ---------------------------------------------------------------
    */
-  const done = async () => {
+  const done = () => {
+    if (busy) return;
+    timer.bankOpenSilence(amberMs);
+    timer.pause();
+    setMode('rate');
+    onLayoutChange('full');   // the bar cannot show the questions
+  };
+
+  /**
+   * Log it: write the sitting, say what was written, close.
+   *
+   * Everything the rating step collected rides along, and every field
+   * of it is optional — a sitting with nothing ticked is a complete
+   * record, on the same argument that makes `sectionIds` optional.
+   */
+  const save = async (answers: RatingAnswers) => {
     if (busy) return;
     setBusy(true);
     try {
       const minutes = await timer.stopAndLog({
         sectionIds: [...ticked],
         keys: [songKey.keyName],
+        activities: answers.activities,
+        activityOther: answers.activityOther,
+        ...(answers.feelRating !== null ? { feelRating: answers.feelRating } : {}),
       });
       onSaved?.();
       onFinished(minutes, ticked.size);
@@ -107,6 +190,13 @@ export default function CellPanel({
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Back: put the clock back on and return to the timer. Nothing has
+   *  been written, so there is nothing to undo. */
+  const backToTimer = () => {
+    timer.resume();
+    setMode('practice');
   };
 
   /**
@@ -136,6 +226,17 @@ export default function CellPanel({
     onClose();
   };
 
+  const toggleSection = useCallback((id: string) => setTicked(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  }), []);
+  const selectAllSections = useCallback(
+    () => setTicked(new Set(sections.map(s => s.id))),
+    [sections],
+  );
+
   const elapsed = formatElapsed(timer.elapsedMs);
   const keyLabel = spellKey(songKey.keyName, spelling);
 
@@ -162,7 +263,7 @@ export default function CellPanel({
           <button
             type="button"
             disabled={busy}
-            onClick={() => void done()}
+            onClick={done}
             className="ml-auto px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90 disabled:opacity-40"
           >
             Done
@@ -185,7 +286,20 @@ export default function CellPanel({
           </div>
         </header>
 
-        {mode === 'choose' ? (
+        {mode === 'rate' ? (
+          <RatingStep
+            elapsed={elapsed}
+            sections={sections}
+            ticked={ticked}
+            onToggleSection={toggleSection}
+            onSelectAllSections={selectAllSections}
+            pendingGapMs={timer.pendingGapMs}
+            onResolveGap={timer.resolvePendingGap}
+            busy={busy}
+            onBack={backToTimer}
+            onSave={answers => void save(answers)}
+          />
+        ) : mode === 'choose' ? (
           <div className="px-4 pb-4 space-y-2">
             <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-snug">
               What are you about to do?
@@ -256,15 +370,11 @@ export default function CellPanel({
             </div>
 
             <SectionTicks
+              label="Select the sections you’re working on in this practice session"
               sections={sections}
               ticked={ticked}
-              onToggle={id => setTicked(prev => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              })}
-              onSelectAll={() => setTicked(new Set(sections.map(s => s.id)))}
+              onToggle={toggleSection}
+              onSelectAll={selectAllSections}
             />
 
             {/* FULL WIDTH AND PRIMARY WEIGHT, never behind a menu.
@@ -292,7 +402,7 @@ export default function CellPanel({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void done()}
+                onClick={done}
                 className="ml-auto px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 disabled:opacity-40"
               >
                 Done
@@ -326,63 +436,10 @@ function SwapPrompt({ busy, onSwap }: { busy: boolean; onSwap: () => void }) {
   );
 }
 
-/**
- * Which sections this run covered.
- *
- * Pre-ticked with the tapped one, because tapping a cell IS saying you
- * are working on that section. Everything else stays a claim the user
- * makes — the app records what it is told, not what it infers from
- * where a finger landed.
- */
-function SectionTicks({
-  sections, ticked, onToggle, onSelectAll,
-}: {
-  sections: ReadonlyArray<SongMatrixSection>;
-  ticked: ReadonlySet<string>;
-  onToggle: (id: string) => void;
-  onSelectAll: () => void;
-}) {
-  const all = sections.length > 0 && sections.every(s => ticked.has(s.id));
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[11px] text-neutral-600 dark:text-neutral-300">
-          Select the sections you’re working on in this practice session
-        </span>
-        {!all && (
-          <button
-            type="button"
-            onClick={onSelectAll}
-            className="text-[11px] text-fluent hover:underline underline-offset-2"
-          >
-            select all
-          </button>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {sections.map(s => {
-          const on = ticked.has(s.id);
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => onToggle(s.id)}
-              aria-pressed={on}
-              className={`px-2.5 py-1 rounded-md border text-xs ${
-                on
-                  ? 'bg-fluent text-white border-fluent'
-                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent'
-              }`}
-            >
-              {s.name}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
+/* SectionTicks used to be defined here. It moved to its own file in
+ * step 3d-6, because the rating step asks about the same set at a
+ * later moment and the ticks carry across — one component, two
+ * questions, so confirming at the end is a glance and not a re-entry. */
 
 /** `h:mm:ss` past an hour, `mm:ss` below it — seconds visible, because
  *  this one is being watched while it runs. */

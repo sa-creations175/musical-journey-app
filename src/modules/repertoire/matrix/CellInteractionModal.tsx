@@ -1,10 +1,9 @@
 import { useCallback, useState } from 'react';
 import Modal from '../../../components/Modal';
-import type { Feel } from '../../../lib/fluencyScale';
 import DurationCapture from '../DurationCapture';
 import ModalMetronome from './ModalMetronome';
+import SessionFeelPicker from '../../../components/SessionFeelPicker';
 import { logPracticeSession } from '../logPractice';
-import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
 import {
   db,
   type Song,
@@ -283,7 +282,11 @@ export default function CellInteractionModal({
           onNotClean={() => handleAddAttempt(false)}
         />
 
-        <SessionFeelPicker value={rating} onChange={setRating} />
+        <SessionFeelPicker
+          label="How did this section feel?"
+          value={rating}
+          onChange={setRating}
+        />
 
         <NotesField
           value={notesInput}
@@ -543,79 +546,11 @@ function AddAttemptArea({
 
 // -------------------------------------------------------------------
 
-/**
- * Presentation for the shared four-step scale. Membership and order
- * come from FEEL_OPTIONS in lib/fluencyScale.ts — only the styling
- * lives here, so this cannot drift into offering a step the scale
- * does not define.
- */
-const FEEL_STYLES: Record<Feel, { activeClass: string; inactiveClass: string; hint: string }> = {
-  1: {
-    hint: 'breakdowns',
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-  2: {
-    hint: 'getting there',
-    activeClass: 'bg-developing text-white border-developing',
-    inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
-  },
-  3: {
-    hint: 'steady, clean',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  4: {
-    hint: 'effortless',
-    activeClass: 'bg-mastered text-white border-mastered',
-    inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
-  },
-};
-
-/**
- * Session feel picker — Flying / Cruising / Crawling. Optional: the
- * user can save a block without rating it (the run-through rows then
- * carry no rating, exactly like pre-v22 data). When picked, the
- * rating is stamped on every run-through row from the save — Phase B
- * reads it to tell an exploration session from a drill session on
- * this section. Clicking the active option again clears it.
- */
-function SessionFeelPicker({
-  value,
-  onChange,
-}: {
-  value: SongRunThroughRating | null;
-  onChange: (next: SongRunThroughRating | null) => void;
-}) {
-  return (
-    <div>
-      <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
-        How did this section feel?{' '}
-        <span className="text-neutral-400 font-normal">(optional)</span>
-      </div>
-      <div className="flex items-stretch gap-2">
-        {FEEL_OPTIONS.map(opt => {
-          const active = value === opt.feel;
-          const style = FEEL_STYLES[opt.feel];
-          return (
-            <button
-              key={opt.feel}
-              type="button"
-              onClick={() => onChange(active ? null : opt.feel)}
-              aria-pressed={active}
-              className={`flex-1 px-3 py-2 rounded-md border text-sm transition-colors ${
-                active ? style.activeClass : style.inactiveClass
-              }`}
-            >
-              <span className="font-medium">{opt.label}</span>
-              <span className="ml-1.5 opacity-70 text-[11px]">{style.hint}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+/* The four-step picker used to be defined here. It moved to
+ * `components/SessionFeelPicker` in step 3d-6, because the rating
+ * step asks the same question on the same page and a copied picker is
+ * how two scales drift into disagreeing about one session. The
+ * question is a prop; the scale is not. */
 
 // -------------------------------------------------------------------
 
