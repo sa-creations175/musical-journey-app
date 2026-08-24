@@ -1,4 +1,4 @@
-import { expansionCards } from './catalogExpansions';
+import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
 import {
   INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
 } from './intervalInversion';
@@ -146,6 +146,42 @@ export function degreeNote(key: string, degree: number): string {
   const tonic = MAJOR_KEY_TONICS[key] ?? 0;
   const semitone = tonic + MAJOR_SCALE_STEPS[degree - 1];
   return noteAt(semitone, KEY_USES_FLATS[key] ?? false);
+}
+
+/**
+ * One degree of a major scale, spelled by LETTER, written in ASCII,
+ * with its everyday name beside it when the letter-correct spelling is
+ * one nobody says out loud.
+ *
+ * =====================================================================
+ * WHY NOT `degreeNote`, DIRECTLY ABOVE.
+ *
+ * `degreeNote` answers a PITCH question — which key does the hand land
+ * on — and rounds through a semitone number to do it. That is right for
+ * an answer button, where the reader is naming a sound, and wrong for a
+ * scale written out in full.
+ *
+ * F♯ major is F# G# A# B C# D# E#. Seven letters, each used exactly
+ * once. A table with twelve slots and no letters in it can only say F
+ * for the seventh, which gives the scale two F-letters and no E — a
+ * different scale that happens to sound the same. It is the same defect
+ * `lydianChords.ts` documents for the ♯11, and it is unreachable by any
+ * flat/sharp preference: the flat spelling of F is F.
+ *
+ * So the letters come from `degreeAscii`, which carries the diatonic
+ * step count alongside the semitone count, and the parenthetical is the
+ * C♭ (B) rule — one table, read here through `practicalName`.
+ *
+ * IN ASCII RATHER THAN GLYPHS, unlike every other caller of that rule.
+ * This category writes its question, its answer and its decoys in ASCII
+ * — the buttons say "F#", not "F♯" — and a lone glyph in the
+ * explanation would be the only one on the card.
+ * =====================================================================
+ */
+export function scaleDegreeSpelled(key: string, degree: number): string {
+  const ascii = degreeAscii(key, String(degree));
+  const practical = practicalName(ascii);
+  return practical === undefined ? ascii : `${ascii} (${practical})`;
 }
 
 /** Strip "major"/"minor" suffix so "G major" → "G". */
@@ -348,7 +384,8 @@ function generateNamedNoteCards(): Flashcard[] {
     const decoyCandidates = [1, 2, 3, 4, 5, 6, 7]
       .filter(d => d !== p.degree)
       .map(d => degreeNote(p.key, d));
-    const fullScale = [1, 2, 3, 4, 5, 6, 7].map(d => degreeNote(p.key, d)).join(' ');
+    const fullScale = [1, 2, 3, 4, 5, 6, 7]
+      .map(d => scaleDegreeSpelled(p.key, d)).join(' ');
     return {
       id: `nn-${i + 1}`,
       category: 'named-notes',

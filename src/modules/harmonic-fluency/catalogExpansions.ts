@@ -152,11 +152,24 @@ export function keyboardNote(...asciiNotes: string[]): string {
   return glossed.length === 0 ? '' : ` ${glossed.join('; ')}.`;
 }
 
+/**
+ * The everyday name for a theoretical spelling — "F" for E♯, "B" for
+ * C♭. Undefined for every other note.
+ *
+ * Exported so a caller that writes in ASCII rather than glyphs can
+ * apply the same rule without keeping a second copy of the table.
+ * `noteLabelGlossed` above is the glyph-rendering caller; `catalog.ts`
+ * is the ASCII one.
+ */
+export function practicalName(ascii: string): string | undefined {
+  return PRACTICAL_NAME[ascii];
+}
+
 /** True when this spelling carries a practical name. Exported so a
  *  test can assert the parenthetical appears exactly where it is due
  *  and nowhere else. */
 export function needsPracticalName(ascii: string): boolean {
-  return ascii in PRACTICAL_NAME;
+  return practicalName(ascii) !== undefined;
 }
 
 const base = (category: Flashcard['category'], categoryName: string) =>
