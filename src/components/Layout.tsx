@@ -15,6 +15,7 @@ import {
   cleanupOrphanedWeeklyGoalsIfNeeded,
   cleanupRepertoireGoalContextIfNeeded,
 } from '../modules/goals/cleanup';
+import { migrateScaleDegreeMathIfNeeded } from '../modules/harmonic-fluency/sdmQualityMigration';
 import { getPref, setPref } from '../lib/userPrefs';
 import { useDevMode } from '../lib/devMode';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
@@ -63,6 +64,13 @@ export default function Layout() {
     // start so weeklyDerivation stops prorating their first week.
     // Idempotent.
     void cleanupCarryoverGoalStartDatesIfNeeded();
+    // Move scale-degree-math history onto the quality cards that
+    // replaced the 84 originals: attempts, lifetime totals and flags
+    // carry, SM-2 scheduling resets. Without it the category reads as
+    // never practised — the tracker filters attempts by the ids
+    // currently in the catalog. Idempotent by DATA rather than a flag,
+    // so legacy rows arriving later by sync are picked up too.
+    void migrateScaleDegreeMathIfNeeded();
     return () => {
       cancelled = true;
     };

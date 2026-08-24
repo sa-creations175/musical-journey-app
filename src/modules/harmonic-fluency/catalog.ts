@@ -1,9 +1,7 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
-import {
-  INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
-} from './intervalInversion';
+import { INTERVAL_NAMES } from './intervalInversion';
 import { intervalInversionCards } from './intervalInversionCards';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
@@ -203,186 +201,9 @@ function makeDecoys(candidates: string[], correct: string, count = 3): string[] 
 
 // --- Category 1: Scale degree math (systematic) ---------------------
 
-/** The seven degrees, as numbers. The generator loops these and the
- *  decoy pool draws from them — one list, so a decoy can never name a
- *  degree the question could not have asked about. */
-const DEGREES = [1, 2, 3, 4, 5, 6, 7];
-
 /** Three decoys, four options. Normalised across the catalog. */
 const DECOY_COUNT = 3;
 
-const INTERVAL_STEPS: Array<{ name: string; step: number }> = [
-  { name: '2nd', step: 1 },
-  { name: '3rd', step: 2 },
-  { name: '4th', step: 3 },
-  { name: '5th', step: 4 },
-  { name: '6th', step: 5 },
-  { name: '7th', step: 6 },
-];
-
-/**
- * The shared closing line — identical on all 84 cards.
- *
- * The per-card lines above it show ONE example being worked. This says
- * what the rule is, so the worked example reads as an instance rather
- * than as a fact to memorise.
- */
-const SDM_RULE =
-  'Intervals move n − 1 steps — one less, because you count the degree you '
-  + 'start on. Outside 1–7, add or subtract 7. Pairs add to 9: 2↔7, 3↔6, 4↔5. '
-  + 'On 5ths, 6ths and 7ths the pair is the shorter count, so those cards '
-  + 'show it.';
-
-/**
- * The worked method for one scale-degree-math card.
- *
- * =====================================================================
- * EVERY NUMBER IS COMPUTED FROM THE CARD'S OWN DEGREE AND INTERVAL.
- *
- * These cards used to state the answer and the path to it — 84 facts to
- * memorise instead of one rule rehearsed 84 times. This shows the move.
- *
- * NOTHING HERE IS TYPED. "a 7th = 6 steps (7 − 1)" derives the 6 from
- * the interval; "4 − 6 = −2" derives both operands; the inverted
- * interval derives from 9 − n. A hand-written teaching line can drift
- * from the answer sitting beside it, and a wrong sum in a line whose
- * whole job is to teach the sum is worse than no line at all — the
- * reader would learn the error.
- *
- * ONE OPERATION PER LINE. Chaining them with arrows onto one line is
- * what made an earlier draft unreadable: the eye cannot find where a
- * step began. The wrap line appears only when the sum actually leaves
- * 1–7, so a card that needs no wrap does not show a no-op.
- *
- * THE SHORTCUT LINE APPEARS ON EVERY CARD, including the 2nds and 3rds
- * where it saves nothing. Seeing the pairing every time is how it gets
- * learned; `SDM_RULE` is what says where it actually pays.
- * =====================================================================
- */
-function sdmExplanation(
-  startDeg: number,
-  intervalName: string,
-  steps: number,
-  dir: 'up' | 'down',
-): string {
-  // The ordinal the interval NAME carries — a 4th is 4 — recovered from
-  // the step count rather than parsed out of the string.
-  const ordinal = steps + 1;
-  const wrap = (n: number) => ((n - 1) % 7 + 7) % 7 + 1;
-  // A negative result must print with the same MINUS SIGN the operators
-  // use. JavaScript renders it as an ASCII hyphen, so "4 − 6 = -2"
-  // would put two different characters for one operation on one line.
-  const num = (n: number) => (n < 0 ? `−${Math.abs(n)}` : String(n));
-  const stepWord = steps === 1 ? 'step' : 'steps';
-
-  const lines: string[] = [
-    `${startDeg} ${dir} a ${intervalName} = ${wrap(dir === 'up' ? startDeg + steps : startDeg - steps)}`,
-    '',
-    `a ${intervalName} = ${steps} ${stepWord} (${ordinal} − 1)`,
-  ];
-
-  const raw = dir === 'up' ? startDeg + steps : startDeg - steps;
-  lines.push(dir === 'up'
-    ? `${startDeg} + ${steps} = ${num(raw)}`
-    : `${startDeg} − ${steps} = ${num(raw)}`);
-  // Only when the sum genuinely left the octave.
-  if (raw > 7) lines.push(`${raw} − 7 = ${wrap(raw)}`);
-  if (raw < 1) lines.push(`${num(raw)} + 7 = ${wrap(raw)}`);
-
-  // Pairs add to INTERVAL_PAIR_SUM, so the inverted interval is that
-  // minus n, and its step count follows from the same n − 1 rule.
-  const invOrdinal = invertedOrdinal(ordinal);
-  const invName = INTERVAL_STEPS.find(i => i.step === invOrdinal - 1)?.name
-    ?? `${invOrdinal}th`;
-  const invSteps = invOrdinal - 1;
-
-  // ONLY WHERE IT SAVES A COUNT. On a 2nd the inversion is a 7th —
-  // six steps and a wrap in place of one step — so the line would be a
-  // longer route wearing the word "shortcut". Decided by the
-  // comparison in `invertsSmaller`, never by a list of [5, 6, 7]: a
-  // literal list and a derived rule are indistinguishable while they
-  // agree, and the list is the one that goes wrong if the pairing
-  // changes.
-  if (invertsSmaller(ordinal)) {
-    lines.push('');
-    if (dir === 'up') {
-      // Working the inversion here would descend and usually wrap, so
-      // the equivalence is the teaching rather than the sum.
-      lines.push(`Shortcut: up a ${intervalName} = down a ${invName} → same distance either way.`);
-    } else {
-      const shortRaw = startDeg + invSteps;
-      if (shortRaw <= 7) {
-        lines.push(`Shortcut: down a ${intervalName} = up a ${invName} → ${startDeg} + ${invSteps} = ${shortRaw}`);
-      } else {
-        // One operation per line still holds when the shortcut wraps.
-        lines.push(`Shortcut: down a ${intervalName} = up a ${invName}`);
-        lines.push(`${startDeg} + ${invSteps} = ${shortRaw}`);
-        lines.push(`${shortRaw} − 7 = ${wrap(shortRaw)}`);
-      }
-    }
-  }
-
-  lines.push('', SDM_RULE);
-  return lines.join('\n');
-}
-
-// `stepPath` was deleted with the explanation rewrite. It rendered
-// "2 → 3 → 4 → 5 → 6" — the counting shown as a result rather than as a
-// method, which is the whole thing sdmExplanation replaced. It had no
-// other caller.
-
-function generateScaleDegreeMathCards(): Flashcard[] {
-  const cards: Flashcard[] = [];
-  for (const startDeg of [1, 2, 3, 4, 5, 6, 7]) {
-    for (const iv of INTERVAL_STEPS) {
-      for (const dir of ['up', 'down'] as const) {
-        const delta = dir === 'up' ? iv.step : -iv.step;
-        const ans = ((startDeg - 1 + delta) % 7 + 7) % 7 + 1;
-        const id = `sdm-${startDeg}-${dir}-${iv.name}`;
-        // The opposite-direction answer is the most instructive wrong
-        // degree — it is what you get for reading the arrow backwards —
-        // and the starting degree catches "I forgot to move at all".
-        // Both stay first in the pool so the chooser prefers them.
-        const oppAns = ((startDeg - 1 - delta) % 7 + 7) % 7 + 1;
-        const preferred = [oppAns, startDeg];
-        const pool = [
-          ...preferred,
-          ...DEGREES.slice().sort(
-            (a, b) => Math.abs(a - ans) - Math.abs(b - ans) || a - b,
-          ),
-        ].filter(d => d !== ans).map(String);
-        // Reachable ranks: `ans − 1` degrees sit below it and `7 − ans`
-        // above, so an answer of 1 can only ever be the lowest option.
-        const wanted = rankTarget(
-          id, Math.max(0, DECOY_COUNT - (7 - ans)), Math.min(DECOY_COUNT, ans - 1),
-        );
-        cards.push({
-          id,
-          category: 'scale-degree-math',
-          categoryName: CATEGORY_LABELS['scale-degree-math'],
-          question: `In any major key, ${startDeg} ${dir} a ${iv.name} = ?`,
-          correctAnswer: String(ans),
-          decoys: chooseDecoys(String(ans), pool, {
-            count: DECOY_COUNT,
-            seed: id,
-            label: id,
-            category: 'scale-degree-math',
-            require: ds => sortedRank(String(ans), ds) === wanted,
-          }),
-          explanation: sdmExplanation(startDeg, iv.name, iv.step, dir),
-          skillTag: `scale-degree-math-${dir}-${iv.name}`,
-          visualHint: {
-            startingDegree: startDeg,
-            destinationDegree: ans,
-            direction: dir,
-            distance: iv.step,
-          },
-        });
-      }
-    }
-  }
-  return cards;
-}
 
 // --- Category 2: Named notes across keys ----------------------------
 
@@ -1914,7 +1735,12 @@ function generatePentatonicKeyCards(): Flashcard[] {
 }
 
 export const FLASHCARDS: Flashcard[] = [
-  ...generateScaleDegreeMathCards(),
+  // `generateScaleDegreeMathCards` was here. It produced 84 cards whose
+  // answers were always plain degree numbers, so the category could be
+  // scored by counting letters and ignoring the interval's quality.
+  // `scaleDegreeQualityCards` below asks the same 84 questions as its
+  // alteration-zero subset, plus 84 more that land outside the key.
+  // `sdmQualityMigration.ts` moves a reader's history across.
   ...generateNamedNoteCards(),
   ...DIATONIC_QUALITY_CARDS,
   ...FUNCTIONAL_HARMONY_CARDS,

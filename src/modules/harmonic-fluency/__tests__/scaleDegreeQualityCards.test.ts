@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { rulesFor } from '../decoyGuard';
 import { scaleDegreeQualityCards } from '../scaleDegreeQualityCards';
+import { LEGACY_TO_QUALITY } from '../sdmQualityMigration';
 import {
   INTERVAL_QUALITIES, degreeAnswer, degreeMathExplanation, degreeResult,
   groundedLine, parseNote, type Direction,
@@ -47,21 +48,22 @@ describe('the set', () => {
   });
 
   it('carries the old 84 as its alteration-zero subset, one for one', () => {
+    // The old cards are deleted, so the claim is asserted against the
+    // migration map — which is derived from these same cards, and
+    // pinned card-by-card in sdmQualityMigration.test.ts.
     const unaltered = CARDS.filter(c => c.facts.alteration === 0);
     expect(unaltered.length).toBe(84);
-    const shape = (startDegree: number, ordinal: number, direction: string) =>
-      `${startDegree}|${ordinal}|${direction}`;
-    const mine = new Set(unaltered.map(
-      c => shape(c.facts.startDegree, c.facts.intervalId, c.facts.direction),
-    ));
-    const old = FLASHCARDS.filter(
+    expect(LEGACY_TO_QUALITY.size).toBe(84);
+    expect(new Set(LEGACY_TO_QUALITY.values()))
+      .toEqual(new Set(unaltered.map(c => c.id)));
+  });
+
+  it('has no positional scale-degree ids left in the deck', () => {
+    // The shape that renumbered. Nothing may reintroduce it.
+    const positional = FLASHCARDS.filter(
       c => /^sdm-\d-(up|down)-\d(nd|rd|th)$/.test(c.id),
     );
-    expect(old.length).toBe(84);
-    for (const card of old) {
-      const m = /^sdm-(\d)-(up|down)-(\d)/.exec(card.id)!;
-      expect(mine.has(shape(Number(m[1]), Number(m[3]), m[2])), card.id).toBe(true);
-    }
+    expect(positional.map(c => c.id)).toEqual([]);
   });
 
   it('answers the question the old cards could not ask', () => {
