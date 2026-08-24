@@ -188,6 +188,28 @@ export const BLIND_RULES: ReadonlyArray<BlindRule> = [
         + 'before widening this.',
     },
   },
+  {
+    id: 'shortest',
+    name: 'the option that is shorter than the other three',
+    pick: options => {
+      const lengths = options.map(o => o.length);
+      const min = Math.min(...lengths);
+      return lengths.filter(l => l === min).length === 1
+        ? options[lengths.indexOf(min)]
+        : null;
+    },
+    scope: {
+      categories: ['chord-construction'],
+      because:
+        'Deck-wide this is right on 15 of the 152 cards where there is a '
+        + 'uniquely shortest option — 10%, BELOW the 25% chance line, which '
+        + 'makes the shortest option mild evidence you are wrong rather '
+        + 'than a tell. In chord-construction it is right on 5 of 12 (42%), '
+        + 'because a correctly spelled chord is the one with nothing added '
+        + 'to it while every decoy carries an alteration. Re-measure '
+        + 'before widening this.',
+    },
+  },
 ];
 
 /** The rules that apply to a card in `category`. */

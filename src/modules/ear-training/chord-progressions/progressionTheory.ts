@@ -159,18 +159,24 @@ export function splitAnswer(numeral: string): { chord: string; slash: string } {
 
 export type ListeningMode = 'bass' | 'chords' | 'bass-chords';
 
-export type TonicContext = 'singleNote' | 'none';
+/**
+ * The tonic-priming settings now live in `lib/musicalPlayback.ts`,
+ * beside `playNoteSequence`, and are re-exported here so this module's
+ * existing importers do not have to care.
+ *
+ * WHY THEY MOVED. Harmonic fluency needs the same lead-in — a card
+ * asking "2 down a minor 6th" has to establish the key before it plays
+ * the two degrees, or the answer is an interval rather than a scale
+ * position. Importing them from a chord-progressions file would be a
+ * cross-module reach for a fact neither module owns; both already sit
+ * on `lib/musicalPlayback.ts`, so that is where one definition goes.
+ * Same reasoning that moved INTERVAL_NAMES out of the catalog.
+ */
+import {
+  TONIC_DURATION, TONIC_GAP, tonicLeadInSeconds, type TonicContext,
+} from '../../../lib/musicalPlayback';
 
-// Fixed priming note — not scaled by speed multiplier because it's a
-// reference pitch, not part of the music. Sustains long enough that the
-// ear has time to lock onto the tonic before the progression starts.
-export const TONIC_DURATION = 2.0;
-export const TONIC_GAP = 0.5;
-
-/** Total seconds added ahead of the progression by the given tonic context. */
-export function tonicLeadInSeconds(context: TonicContext): number {
-  return context === 'singleNote' ? TONIC_DURATION + TONIC_GAP : 0;
-}
+export { TONIC_DURATION, TONIC_GAP, tonicLeadInSeconds, type TonicContext };
 
 export interface ProgressionStep {
   /** Absolute MIDI of the chord root (tonic + numeralOffset). */

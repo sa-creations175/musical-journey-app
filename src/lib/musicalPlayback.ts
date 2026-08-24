@@ -41,6 +41,39 @@ export interface PlaybackHandle {
   stop: () => void;
 }
 
+/**
+ * Whether a drill primes the ear with the tonic before it plays.
+ *
+ * =====================================================================
+ * ONE DEFINITION, IN THE LAYER BOTH CALLERS ALREADY USE.
+ *
+ * This began in `chord-progressions/progressionTheory.ts` because that
+ * is who needed it first. It is not a chord-progressions fact: any
+ * drill whose question is "which SCALE DEGREE" rather than "which
+ * interval" has to establish a key first, or the reader hears D up to
+ * F♯ and answers "major 3rd" — correctly, to a question that was not
+ * asked.
+ *
+ * Harmonic fluency's scale-degree cards need exactly that, and reaching
+ * into an ear-training module for it would be the second copy waiting
+ * to happen. Both modules already import this file for
+ * `playNoteSequence`, so the fact lives here and progressionTheory
+ * re-exports it for its existing importers.
+ * =====================================================================
+ */
+export type TonicContext = 'singleNote' | 'none';
+
+// Fixed priming note — not scaled by speed multiplier because it's a
+// reference pitch, not part of the music. Sustains long enough that the
+// ear has time to lock onto the tonic before the drill starts.
+export const TONIC_DURATION = 2.0;
+export const TONIC_GAP = 0.5;
+
+/** Total seconds added ahead of the drill by the given tonic context. */
+export function tonicLeadInSeconds(context: TonicContext): number {
+  return context === 'singleNote' ? TONIC_DURATION + TONIC_GAP : 0;
+}
+
 function clampSpeed(m: number): number {
   return Math.max(0.1, m);
 }

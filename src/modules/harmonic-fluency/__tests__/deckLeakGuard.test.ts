@@ -43,6 +43,14 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // __tests__/strippedParentheticals.test.ts, which holds the removed
   // text and asserts it survived into the explanations.
   { category: 'chord-construction', rule: 'only-natural', cards: 4 },
+  // `shortest` is asserted in this category only — see the scope on the
+  // rule. A correctly spelled chord is the one with nothing added to
+  // it, so "C, E, G, B" sits beside three decoys that each carry an
+  // alteration. These five cannot be fixed by a chooser: the answer
+  // being the plain spelling is what the question is about. The entry
+  // exists so a NEW chord-construction card cannot arrive with the
+  // same defect unnoticed.
+  { category: 'chord-construction', rule: 'shortest', cards: 5 },
   { category: 'ear-theory', rule: 'only-accidental', cards: 1 },
   // `longest` is asserted in this category and in intervals only —
   // see the scope on the rule for the numbers. Ear-theory asks what a
@@ -194,7 +202,7 @@ describe('no decoy pins its answer', () => {
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
     // adds up to more than the deck can supply. The real figures are
-    // 28 and 21, overlapping on nothing, for 49 in all — against 124
+    // 29 and 21, overlapping on nothing, for 50 in all — against 124
     // and 36 before the guard existed. It ROSE from 41 when `longest`
     // was scoped in: nine cards that were always answerable started
     // being counted, which is a guard getting sharper rather than a
@@ -217,7 +225,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 28, tell: 21, distinct: 49 });
+      .toEqual({ blind: 29, tell: 21, distinct: 50 });
   });
 
   it('keeps the tell allowlist honest', () => {
@@ -304,6 +312,13 @@ describe('the rules fire on a card built to be answerable', () => {
     expect(rulesFor('ear-theory').map(r => r.id)).toContain('longest');
     expect(rulesFor('intervals').map(r => r.id)).toContain('longest');
     expect(rulesFor('slash-chords').map(r => r.id)).not.toContain('longest');
+    // `shortest` is narrower still — one category, and BELOW chance
+    // everywhere else, so a card whose answer is the short option is
+    // usually wrong rather than right.
+    expect(rulesFor('chord-construction').map(r => r.id)).toContain('shortest');
+    expect(rulesFor('intervals').map(r => r.id)).not.toContain('shortest');
+    expect(BLIND_RULES.find(r => r.id === 'shortest')!.scope?.because)
+      .toMatch(/\d+%/);
     // The scope has to say why, with the number that justified it, or
     // the next reader deletes it as an oversight.
     expect(rule.scope?.because).toMatch(/\d+%/);
