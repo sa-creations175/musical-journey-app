@@ -2,6 +2,7 @@ import {
   spellInterval, type Accidental, type Letter, type Pitch,
 } from '../reading/pitch';
 import type { Flashcard } from './catalog';
+import { chooseDecoys } from './decoyGuard';
 
 /**
  * The twelve keys, generated rather than hand-written.
@@ -468,6 +469,29 @@ const RELATIVE_CONTEXT =
   + 'different home. That pairing is why a song can flip between the two '
   + 'without a single accidental changing.';
 
+/**
+ * Every degree a relative/parallel-minor decoy may name, most
+ * plausible first.
+ *
+ * =====================================================================
+ * A FIXED THREE-DEGREE LIST COULD NOT ALWAYS PRODUCE A FAIR CARD.
+ *
+ * The parallel minor of B major is B minor, and the list asked for the
+ * 6, 2 and 5 — G♯, C♯ and F♯. Every decoy carried an accidental and the
+ * answer did not, so B minor was the only plain name on screen. In B
+ * major only E and B are natural, so no THREE-degree list fixes it in
+ * every key; the choice has to be made per key from a wider pool.
+ *
+ * The 6, the 2 and the 1 stay first because they are the mistakes
+ * worth making: the 6 IS the relative minor and the 1 IS the parallel
+ * one, and confusing those two is what both cards are about. The rest
+ * are there so the chooser has somewhere to go when shape demands it.
+ * A degree that happens to be the answer is filtered by the chooser,
+ * so one list serves both cards.
+ * =====================================================================
+ */
+const MINOR_DECOY_DEGREES = ['6', '2', '1', '5', '3', '4', '7'];
+
 const PARALLEL_CONTEXT =
   'The parallel minor shares the ROOT and changes the quality. It is where a '
   + 'major-key song borrows from when it leans dark — iv minor, ♭VII and '
@@ -482,11 +506,11 @@ export function generateRelativeMinorTopUps(): Flashcard[] {
       id: `ks-relative-${root}`,
       question: `The relative minor of ${noteLabel(root)} major is _____`,
       correctAnswer: `${six} minor`,
-      decoys: [
-        `${degreeLabel(root, '2')} minor`,
-        `${degreeLabel(root, '3')} minor`,
-        `${noteLabel(root)} minor`,
-      ],
+      decoys: chooseDecoys(
+        `${six} minor`,
+        MINOR_DECOY_DEGREES.map(d => `${degreeLabel(root, d)} minor`),
+        { count: 3, seed: `ks-relative-${root}`, label: `ks-relative-${root}` },
+      ),
       explanation: `${six} minor is the relative minor of ${noteLabel(root)} `
         + `major.`
         + keyboardNote(degreeAscii(root, '6'))
@@ -503,11 +527,11 @@ export function generateParallelMinorTopUps(): Flashcard[] {
     id: `ks-parallel-${root}`,
     question: `The parallel minor of ${noteLabel(root)} major is _____`,
     correctAnswer: `${noteLabel(root)} minor`,
-    decoys: [
-      `${degreeLabel(root, '6')} minor`,
-      `${degreeLabel(root, '2')} minor`,
-      `${degreeLabel(root, '5')} minor`,
-    ],
+    decoys: chooseDecoys(
+      `${noteLabel(root)} minor`,
+      MINOR_DECOY_DEGREES.map(d => `${degreeLabel(root, d)} minor`),
+      { count: 3, seed: `ks-parallel-${root}`, label: `ks-parallel-${root}` },
+    ),
     explanation: `${noteLabel(root)} minor — same root, opposite quality. `
       + PARALLEL_CONTEXT,
     skillTag: `parallel-minor-${root}`,

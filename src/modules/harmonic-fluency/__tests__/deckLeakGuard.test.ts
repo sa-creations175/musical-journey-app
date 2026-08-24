@@ -41,8 +41,12 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   { category: 'chord-construction', rule: 'only-natural', cards: 4 },
   { category: 'ear-theory', rule: 'only-accidental', cards: 1 },
   { category: 'ear-theory', rule: 'only-bracket', cards: 3 },
-  { category: 'enharmonic-equivalents', rule: 'only-prose', cards: 9 },
-  { category: 'enharmonic-equivalents', rule: 'only-slash', cards: 9 },
+  // enharmonic-equivalents / only-slash and / only-prose stood at 9
+  // each — a three-way group answers with a pair ("b3 / #9") against
+  // decoys that were single degrees, so the answer was the only option
+  // with a slash and the only one with a space, on all nine. Decoys now
+  // come from the other three-way groups: real pairs, correctly
+  // written, wrong for this question.
   { category: 'functional-harmony', rule: 'only-accidental', cards: 1 },
   { category: 'functional-harmony', rule: 'only-bracket', cards: 2 },
   { category: 'functional-harmony', rule: 'only-comma', cards: 1 },
@@ -50,20 +54,26 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   { category: 'key-signatures', rule: 'middle-of-3', cards: 6 },
   { category: 'key-signatures', rule: 'only-accidental', cards: 2 },
   { category: 'key-signatures', rule: 'only-bracket', cards: 2 },
-  { category: 'key-signatures', rule: 'only-natural', cards: 1 },
+  // key-signatures / only-natural stood at 1: the parallel minor of B
+  // major is B minor, and a fixed 6/2/5 decoy list gave it G♯, C♯ and
+  // F♯ for company — the answer was the only plain name on screen. Both
+  // minor generators now choose from a wider degree list per key.
   { category: 'modes', rule: 'middle-of-3', cards: 4 },
   { category: 'modes', rule: 'only-accidental', cards: 1 },
   { category: 'modes', rule: 'only-bracket', cards: 2 },
   { category: 'modes', rule: 'only-natural', cards: 1 },
   { category: 'modes', rule: 'only-prose', cards: 1 },
-  { category: 'named-notes', rule: 'only-accidental', cards: 1 },
-  { category: 'named-notes', rule: 'only-natural', cards: 1 },
+  // named-notes stood at 1 and 1: a key's scale can hold a single
+  // accidental (F major has only B♭), so an answer of B♭ was alone on
+  // screen. The pool now falls through to notes just outside the key,
+  // spelled the way the KEY spells them.
   { category: 'pentatonic-scales', rule: 'only-accidental', cards: 1 },
   { category: 'pentatonic-scales', rule: 'only-bracket', cards: 2 },
   { category: 'pentatonic-scales', rule: 'only-prose', cards: 1 },
   { category: 'progressions', rule: 'only-bracket', cards: 2 },
-  { category: 'reverse-key-pivots', rule: 'only-accidental', cards: 3 },
-  { category: 'reverse-key-pivots', rule: 'only-natural', cards: 4 },
+  // reverse-key-pivots stood at 3 and 4. Every option is "<key> major"
+  // and eleven keys were available, so a flat answer can always be
+  // given flat company — it just was not being asked for.
   // scale-degree-math / middle-of-3 stood at 52 and is now 0 — the
   // decoys were answer−1, answer+1 and an outlier, so three of four
   // options were consecutive and the answer was between them. The
@@ -121,7 +131,6 @@ describe('a blind solver cannot beat the deck', () => {
 const TELL_ALLOWLIST: ReadonlyArray<{ category: string; tokeniser: string; cards: number }> = [
   { category: 'diatonic-qualities', tokeniser: 'whole', cards: 2 },
   { category: 'diatonic-qualities', tokeniser: 'without-key', cards: 2 },
-  { category: 'enharmonic-equivalents', tokeniser: 'last-word', cards: 2 },
   { category: 'functional-harmony', tokeniser: 'last-word', cards: 2 },
   { category: 'key-signatures', tokeniser: 'whole', cards: 4 },
   { category: 'key-signatures', tokeniser: 'without-key', cards: 4 },

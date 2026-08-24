@@ -384,6 +384,28 @@ function generateScaleDegreeMathCards(): Flashcard[] {
 
 // --- Category 2: Named notes across keys ----------------------------
 
+/**
+ * Notes just outside the key, spelled the way the KEY spells.
+ *
+ * A fallback pool for a card whose scale cannot supply same-shape
+ * company. The spelling preference comes from the key, not from the
+ * answer: `noteDecoys` reads the accidental on the correct note, which
+ * is right where the question IS a note, and wrong here — the answer
+ * "F" carries no accidental, so it would spell A♭ major's neighbours
+ * with sharps and put G♯ on screen in a key that has never seen one.
+ */
+function chromaticNeighbours(correct: string, key: string): string[] {
+  const useFlats = KEY_USES_FLATS[key] ?? false;
+  const tonic = MAJOR_KEY_TONICS[key] ?? 0;
+  const base = NOTE_NAMES_SHARP.indexOf(correct) >= 0
+    ? NOTE_NAMES_SHARP.indexOf(correct)
+    : NOTE_NAMES_FLAT.indexOf(correct);
+  if (base < 0) return [];
+  return [1, -1, 2, -2, 3, -3, 4, -4]
+    .map(d => noteAt(base + d, useFlats))
+    .filter(n => n !== correct && n !== noteAt(tonic, useFlats));
+}
+
 function generateNamedNoteCards(): Flashcard[] {
   const pairs: Array<{ key: string; degree: number }> = [
     { key: 'C', degree: 5 }, { key: 'G', degree: 4 }, { key: 'D', degree: 3 },
@@ -397,9 +419,18 @@ function generateNamedNoteCards(): Flashcard[] {
   ];
   return pairs.map((p, i) => {
     const correct = degreeNote(p.key, p.degree);
-    const decoyCandidates = [1, 2, 3, 4, 5, 6, 7]
-      .filter(d => d !== p.degree)
-      .map(d => degreeNote(p.key, d));
+    // The other degrees of the same key come first — a wrong degree is
+    // the mistake this card is about. But a key's scale can hold only
+    // one accidental (F major has just B♭), and then an answer of B♭ is
+    // the only option on screen with a flat in it. So the pool falls
+    // through to same-shape neighbours, which are wrong notes in this
+    // key and therefore still honest decoys.
+    const decoyCandidates = [
+      ...[1, 2, 3, 4, 5, 6, 7]
+        .filter(d => d !== p.degree)
+        .map(d => degreeNote(p.key, d)),
+      ...chromaticNeighbours(correct, p.key),
+    ];
     const fullScale = [1, 2, 3, 4, 5, 6, 7]
       .map(d => scaleDegreeSpelled(p.key, d)).join(' ');
     return {
@@ -408,7 +439,9 @@ function generateNamedNoteCards(): Flashcard[] {
       categoryName: CATEGORY_LABELS['named-notes'],
       question: `In ${p.key} major, ${p.degree} of the scale = ?`,
       correctAnswer: correct,
-      decoys: makeDecoys(rotate(decoyCandidates, `nn-${i + 1}`), correct),
+      decoys: chooseDecoys(correct, decoyCandidates, {
+        count: DECOY_COUNT, seed: `nn-${i + 1}`, label: `nn-${i + 1}`,
+      }),
       explanation: `${p.key} major is ${fullScale} — degree ${p.degree} is ${correct}. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of ${p.key}, hit the ${p.degree}", you're already there.`,
       skillTag: `named-note-key-${p.key}-degree-${p.degree}`,
       visualHint: {
@@ -440,10 +473,13 @@ function generateReversePivotCards(): Flashcard[] {
   const allKeys = Object.keys(MAJOR_KEY_TONICS);
   return entries.map((e, i) => {
     const note = degreeNote(e.key, e.degree);
-    const decoys = makeDecoys(
-      rotate(allKeys.filter(k => k !== e.key), `rkp-${i + 1}`)
-        .slice(0, 3).map(k => `${k} major`),
+    // Every option is "<key> major", so the only thing separating them
+    // is the key name — and eleven of the twelve keys are available, so
+    // a flat answer can always be given flat company.
+    const decoys = chooseDecoys(
       `${e.key} major`,
+      allKeys.filter(k => k !== e.key).map(k => `${k} major`),
+      { count: DECOY_COUNT, seed: `rkp-${i + 1}`, label: `rkp-${i + 1}` },
     );
     return {
       id: `rkp-${i + 1}`,
@@ -1650,11 +1686,44 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
     '2', 'b2', '#2', '3', 'b3', '4', '#4', 'b5', '5', '#5', 'b6', '6',
     'b7', '7', '9', 'b9', '#9', '11', '#11', '13', 'b13',
   ];
-  const intervalDecoys = (correct: string, members: readonly string[]) =>
-    makeDecoys(
-      rotate(intervalPool.filter(n => !members.includes(n)), `enh-i-${correct}`),
-      correct,
-    );
+  /**
+   * Decoys for an enharmonic-equivalent card, matched to the ANSWER'S
+   * SHAPE.
+   *
+   * =====================================================================
+   * THE FIX IS DIFFERENT DECOYS, NEVER DECORATED ONES.
+   *
+   * A three-way group answers with a pair — "equivalent of #2?" is
+   * "b3 / #9" — while the decoys came out of a flat list of single
+   * degrees. So the answer was the only option with a slash in it, and
+   * the only one containing a space, on all nine three-way cards. Both
+   * were 100% reliable: pick the one with the slash and you are right
+   * without knowing what an enharmonic is.
+   *
+   * The wrong repair is to put slashes on the decoys. "b2 / 11" names
+   * two degrees that are not enharmonic with each other, so it teaches
+   * something false — the same objection `catalogExpansions.ts` records
+   * against forcing a gloss onto a decoy to produce "A♭ (G♯)".
+   *
+   * The right repair is to draw the decoys from the OTHER three-way
+   * groups, which are real pairs, correctly written, and wrong for this
+   * question. Same shape, nothing invented.
+   * =====================================================================
+   */
+  const intervalDecoys = (
+    correct: string,
+    members: readonly string[],
+    seed: string,
+  ) => {
+    const pairs = correct.includes(' / ');
+    const pool = pairs
+      ? intervalGroups
+        .filter(g => g.members.length > 2)
+        .flatMap(g => g.members.map(x => g.members.filter(y => y !== x).join(' / ')))
+        .filter(p => p !== correct)
+      : intervalPool.filter(n => !members.includes(n));
+    return chooseDecoys(correct, pool, { count: DECOY_COUNT, seed, label: seed });
+  };
   const intervalGroups: Array<{ members: string[]; context: string }> = [
     { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
     { members: ['b2', 'b9'], context: 'b2 for a Phrygian / sus flavour; b9 as the altered-dominant tension. Same pitch, different role.' },
@@ -1673,7 +1742,7 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
         categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
         question: `Enharmonic equivalent of ${m}?`,
         correctAnswer: answer,
-        decoys: intervalDecoys(answer, members),
+        decoys: intervalDecoys(answer, members, `enh-i-${m}`),
         explanation: `${members.join(' = ')} — same pitch distance, different spelling. ${context}`,
         skillTag: `enharmonic-interval-${m}`,
       });
