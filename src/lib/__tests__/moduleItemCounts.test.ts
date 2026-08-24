@@ -50,7 +50,7 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 236 + 56 + 63 + 54 = 409
+// Harmonic Fluency — 253 + 100 + 105 + 92 = 550
 // (Foundational now includes pentatonic-scales; key-signatures grew
 //  by 18 ksc-* scale-construction cards. Pentatonics went 7 → 41 on
 //  24 Aug 2026: the two keyed shapes became twelve keys each and a
@@ -60,24 +60,24 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 84 + nn 24 + ks 40 + pent 41 + tt 12 + enh 35 = 236', () => {
-    expect(c.byGroup.foundational).toBe(236);
+  it('foundational = sdm 84 + nn 24 + ks 57 + pent 41 + tt 12 + enh 35 = 253', () => {
+    expect(c.byGroup.foundational).toBe(253);
   });
 
-  it('chordKnowledge = dq 20 + cc 20 + sc 16 = 56', () => {
-    expect(c.byGroup.chordKnowledge).toBe(56);
+  it('chordKnowledge = dq 20 + cc 20 + sc 60 = 100', () => {
+    expect(c.byGroup.chordKnowledge).toBe(100);
   });
 
-  it('functionalApplied = fh 19 + rkp 24 + pr 20 = 63', () => {
-    expect(c.byGroup.functionalApplied).toBe(63);
+  it('functionalApplied = fh 52 + rkp 27 + pr 26 = 105', () => {
+    expect(c.byGroup.functionalApplied).toBe(105);
   });
 
-  it('earRecognition = mo 19 + iv 20 + et 15 = 54', () => {
-    expect(c.byGroup.earRecognition).toBe(54);
+  it('earRecognition = mo 52 + iv 25 + et 15 = 92', () => {
+    expect(c.byGroup.earRecognition).toBe(92);
   });
 
-  it('total = 409 across all 15 categories', () => {
-    expect(c.total).toBe(409);
+  it('total = 550 across all 15 categories', () => {
+    expect(c.total).toBe(550);
   });
 
   it('total equals sum of group totals', () => {

@@ -14,6 +14,16 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { GENERATED_CARD_PAIRING } from './generatedCardPairing';
 
+/**
+ * Every category that contains generated cards.
+ *
+ * Six of these were generated from the start. The other six gained
+ * generated cards with the twelve-key expansions and are pinned for the
+ * same reason — `reverse-key-pivots` and `intervals` in particular now
+ * hold BOTH positional ids from their original generator and
+ * root-suffixed ids from the top-ups, and the positional half is
+ * exactly what a mid-list insertion would renumber.
+ */
 const GENERATED_CATEGORIES = [
   'scale-degree-math',
   'named-notes',
@@ -21,6 +31,12 @@ const GENERATED_CATEGORIES = [
   'intervals',
   'tritone-pairs',
   'enharmonic-equivalents',
+  'pentatonic-scales',
+  'functional-harmony',
+  'modes',
+  'slash-chords',
+  'progressions',
+  'key-signatures',
 ] as const;
 
 /** Today's pairing, in the same `id|question` shape as the fixture. */

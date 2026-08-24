@@ -1,3 +1,4 @@
+import { expansionCards } from './catalogExpansions';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
   noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
@@ -1642,6 +1643,12 @@ export const FLASHCARDS: Flashcard[] = [
   ...EAR_THEORY_CARDS,
   ...generateTritonePairCards(),
   ...generateEnharmonicEquivalentCards(),
+  // The twelve-key expansions. APPENDED, never interleaved: every
+  // generator above numbers by position, so inserting into one of
+  // their input lists renumbers every card after it — see
+  // generatedCardIds.test.ts. These carry root-suffixed ids and cannot
+  // collide with, or repoint, anything above.
+  ...expansionCards(),
 ];
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {
