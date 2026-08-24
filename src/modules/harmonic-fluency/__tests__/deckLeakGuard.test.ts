@@ -37,10 +37,13 @@ const CATEGORIES = [...new Set(CARDS.map(c => c.category))].sort();
 // --- Allowlist 1: a rule picks the answer out of the four options ----
 
 const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: number }> = [
-  { category: 'chord-construction', rule: 'only-bracket', cards: 1 },
+  // TEN `only-bracket` / `only-prose` / `only-accidental` entries were
+  // deleted together when fourteen answers gave up the parenthetical
+  // they were explaining themselves with. See
+  // __tests__/strippedParentheticals.test.ts, which holds the removed
+  // text and asserts it survived into the explanations.
   { category: 'chord-construction', rule: 'only-natural', cards: 4 },
   { category: 'ear-theory', rule: 'only-accidental', cards: 1 },
-  { category: 'ear-theory', rule: 'only-bracket', cards: 3 },
   // enharmonic-equivalents / only-slash and / only-prose stood at 9
   // each — a three-way group answers with a pair ("b3 / #9") against
   // decoys that were single degrees, so the answer was the only option
@@ -48,32 +51,24 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // come from the other three-way groups: real pairs, correctly
   // written, wrong for this question.
   { category: 'functional-harmony', rule: 'only-accidental', cards: 1 },
-  { category: 'functional-harmony', rule: 'only-bracket', cards: 2 },
   { category: 'functional-harmony', rule: 'only-comma', cards: 1 },
-  { category: 'functional-harmony', rule: 'only-prose', cards: 1 },
   // key-signatures / middle-of-3 stood at 6, and the four tell entries
   // at 4 apiece — both came from the same twelve hand-written
   // "how many sharps" cards, whose decoys were counted by hand. They
   // now derive their decoys the way scale-degree math does.
   { category: 'key-signatures', rule: 'only-accidental', cards: 2 },
-  { category: 'key-signatures', rule: 'only-bracket', cards: 2 },
   // key-signatures / only-natural stood at 1: the parallel minor of B
   // major is B minor, and a fixed 6/2/5 decoy list gave it G♯, C♯ and
   // F♯ for company — the answer was the only plain name on screen. Both
   // minor generators now choose from a wider degree list per key.
   { category: 'modes', rule: 'middle-of-3', cards: 4 },
   { category: 'modes', rule: 'only-accidental', cards: 1 },
-  { category: 'modes', rule: 'only-bracket', cards: 2 },
   { category: 'modes', rule: 'only-natural', cards: 1 },
   { category: 'modes', rule: 'only-prose', cards: 1 },
   // named-notes stood at 1 and 1: a key's scale can hold a single
   // accidental (F major has only B♭), so an answer of B♭ was alone on
   // screen. The pool now falls through to notes just outside the key,
   // spelled the way the KEY spells them.
-  { category: 'pentatonic-scales', rule: 'only-accidental', cards: 1 },
-  { category: 'pentatonic-scales', rule: 'only-bracket', cards: 2 },
-  { category: 'pentatonic-scales', rule: 'only-prose', cards: 1 },
-  { category: 'progressions', rule: 'only-bracket', cards: 2 },
   // reverse-key-pivots stood at 3 and 4. Every option is "<key> major"
   // and eleven keys were available, so a flat answer can always be
   // given flat company — it just was not being asked for.
@@ -183,7 +178,7 @@ describe('no decoy pins its answer', () => {
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
     // adds up to more than the deck can supply. The real figures are
-    // 32 and 21, overlapping on nothing, for 53 in all — down from 124
+    // 20 and 21, overlapping on nothing, for 41 in all — down from 124
     // and 36 before the guard.
     //
     // So the honest aggregate is derived here rather than written into
@@ -203,7 +198,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 32, tell: 21, distinct: 53 });
+      .toEqual({ blind: 20, tell: 21, distinct: 41 });
   });
 
   it('keeps the tell allowlist honest', () => {
