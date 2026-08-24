@@ -1,4 +1,5 @@
 import { expansionCards } from './catalogExpansions';
+import { invertedOrdinal, invertsSmaller } from './intervalInversion';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
   noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
@@ -189,8 +190,8 @@ const INTERVAL_STEPS: Array<{ name: string; step: number }> = [
 const SDM_RULE =
   'Intervals move n − 1 steps — one less, because you count the degree you '
   + 'start on. Outside 1–7, add or subtract 7. Pairs add to 9: 2↔7, 3↔6, 4↔5. '
-  + 'The shortcut is worth it on 6ths and 7ths, where it turns a long count '
-  + 'into a short one.';
+  + 'On 5ths, 6ths and 7ths the pair is the shorter count, so those cards '
+  + 'show it.';
 
 /**
  * The worked method for one scale-degree-math card.
@@ -248,27 +249,36 @@ function sdmExplanation(
   if (raw > 7) lines.push(`${raw} − 7 = ${wrap(raw)}`);
   if (raw < 1) lines.push(`${num(raw)} + 7 = ${wrap(raw)}`);
 
-  // Pairs add to 9, so the inverted interval is 9 − n and its step
-  // count follows from the same n − 1 rule.
-  const invOrdinal = 9 - ordinal;
+  // Pairs add to INTERVAL_PAIR_SUM, so the inverted interval is that
+  // minus n, and its step count follows from the same n − 1 rule.
+  const invOrdinal = invertedOrdinal(ordinal);
   const invName = INTERVAL_STEPS.find(i => i.step === invOrdinal - 1)?.name
     ?? `${invOrdinal}th`;
   const invSteps = invOrdinal - 1;
 
-  lines.push('');
-  if (dir === 'up') {
-    // Working the inversion here would be LONGER than the sum above —
-    // it descends and usually wraps. The equivalence is the teaching.
-    lines.push(`Shortcut: up a ${intervalName} = down a ${invName} → same distance either way.`);
-  } else {
-    const shortRaw = startDeg + invSteps;
-    if (shortRaw <= 7) {
-      lines.push(`Shortcut: down a ${intervalName} = up a ${invName} → ${startDeg} + ${invSteps} = ${shortRaw}`);
+  // ONLY WHERE IT SAVES A COUNT. On a 2nd the inversion is a 7th —
+  // six steps and a wrap in place of one step — so the line would be a
+  // longer route wearing the word "shortcut". Decided by the
+  // comparison in `invertsSmaller`, never by a list of [5, 6, 7]: a
+  // literal list and a derived rule are indistinguishable while they
+  // agree, and the list is the one that goes wrong if the pairing
+  // changes.
+  if (invertsSmaller(ordinal)) {
+    lines.push('');
+    if (dir === 'up') {
+      // Working the inversion here would descend and usually wrap, so
+      // the equivalence is the teaching rather than the sum.
+      lines.push(`Shortcut: up a ${intervalName} = down a ${invName} → same distance either way.`);
     } else {
-      // One operation per line still holds when the shortcut wraps.
-      lines.push(`Shortcut: down a ${intervalName} = up a ${invName}`);
-      lines.push(`${startDeg} + ${invSteps} = ${shortRaw}`);
-      lines.push(`${shortRaw} − 7 = ${wrap(shortRaw)}`);
+      const shortRaw = startDeg + invSteps;
+      if (shortRaw <= 7) {
+        lines.push(`Shortcut: down a ${intervalName} = up a ${invName} → ${startDeg} + ${invSteps} = ${shortRaw}`);
+      } else {
+        // One operation per line still holds when the shortcut wraps.
+        lines.push(`Shortcut: down a ${intervalName} = up a ${invName}`);
+        lines.push(`${startDeg} + ${invSteps} = ${shortRaw}`);
+        lines.push(`${shortRaw} − 7 = ${wrap(shortRaw)}`);
+      }
     }
   }
 

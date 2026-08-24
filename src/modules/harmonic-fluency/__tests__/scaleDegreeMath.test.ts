@@ -18,6 +18,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
+import { INTERVAL_PAIR_SUM, invertsSmaller } from '../intervalInversion';
 
 const CARDS = FLASHCARDS.filter(c => c.category === 'scale-degree-math');
 /** Operators and negatives both use U+2212, never an ASCII hyphen. */
@@ -71,10 +72,34 @@ describe('every card, all 84', () => {
     }
   });
 
+  it('carries a shortcut ONLY where inverting saves a count', () => {
+    // BOTH HALVES. A presence-only test passes on code that shows the
+    // line everywhere — which is what shipped first, and what made a
+    // 2nd advertise a six-step route as a shortcut.
+    for (const card of CARDS) {
+      const ordinal = Number(card.question.match(/a (\d)(?:nd|rd|th)/)![1]);
+      const hasShortcut = (card.explanation ?? '').includes('Shortcut:');
+      expect(hasShortcut, `${card.id} (a ${ordinal})`)
+        .toBe(invertsSmaller(ordinal));
+    }
+  });
+
+  it('means present on 5ths, 6ths and 7ths; absent on 2nds, 3rds and 4ths', () => {
+    // Spelled out, so the expectation is legible without running the
+    // predicate in your head.
+    const withShortcut = new Set(CARDS
+      .filter(c => (c.explanation ?? '').includes('Shortcut:'))
+      .map(c => Number(c.question.match(/a (\d)(?:nd|rd|th)/)![1])));
+    expect([...withShortcut].sort()).toEqual([5, 6, 7]);
+  });
+
   it('lands the shortcut on the same answer, where it shows the sum', () => {
     // Descending cards work the inversion through. When they do, it
     // has to agree with the main chain — two routes, one destination.
-    for (const card of CARDS.filter(c => c.id.includes('-down-'))) {
+    const withSum = CARDS.filter(c => c.id.includes('-down-')
+      && (c.explanation ?? '').includes('Shortcut:'));
+    expect(withSum.length).toBeGreaterThan(0);
+    for (const card of withSum) {
       const lines = (card.explanation ?? '').split('\n');
       const at = lines.findIndex(l => l.startsWith('Shortcut:'));
       const after = lines.slice(at).join('\n');
@@ -86,15 +111,16 @@ describe('every card, all 84', () => {
 });
 
 describe('the inverted interval is derived from 9 − n', () => {
-  it('pairs 2↔7, 3↔6, 4↔5 on every card', () => {
+  it('pairs 2↔7, 3↔6, 4↔5 on every card that shows one', () => {
     const ORDINAL: Readonly<Record<string, number>> = {
       '2nd': 2, '3rd': 3, '4th': 4, '5th': 5, '6th': 6, '7th': 7,
     };
     for (const card of CARDS) {
+      const m = (card.explanation ?? '')
+        .match(/Shortcut: (?:up|down) a \S+ = (?:up|down) a (\dnd|\drd|\dth)/);
+      if (m === null) continue;
       const own = card.question.match(/a (\dnd|\drd|\dth) = \?/)![1];
-      const shortcut = (card.explanation ?? '')
-        .match(/Shortcut: (?:up|down) a \S+ = (?:up|down) a (\dnd|\drd|\dth)/)![1];
-      expect(ORDINAL[shortcut], card.id).toBe(9 - ORDINAL[own]);
+      expect(ORDINAL[m[1]], card.id).toBe(INTERVAL_PAIR_SUM - ORDINAL[own]);
     }
   });
 });
@@ -147,18 +173,19 @@ describe('formatting the method depends on', () => {
     expect([...rules][0]).toContain('Pairs add to 9: 2↔7, 3↔6, 4↔5');
   });
 
-  it('carries a shortcut line on all 84, including where it saves nothing', () => {
-    // Seeing the pairing every time is how it gets learned.
-    for (const card of CARDS) {
-      expect(card.explanation, card.id).toContain('Shortcut:');
-    }
-    expect(CARDS.find(c => c.id === 'sdm-3-up-2nd')!.explanation)
-      .toContain('Shortcut: up a 2nd = down a 7th');
+  it('shows a small card as just the direct route', () => {
+    expect(CARDS.find(c => c.id === 'sdm-7-down-2nd')!.explanation!
+      .split('\n').slice(0, 4)).toEqual([
+      '7 down a 2nd = 6',
+      '',
+      'a 2nd = 1 step (2 − 1)',
+      '7 − 1 = 6',
+    ]);
   });
 });
 
 describe('the two approved examples, verbatim', () => {
-  it('renders 3 up a 4th exactly as specified', () => {
+  it('renders 3 up a 4th with NO shortcut — a 5th is the longer count', () => {
     expect(FLASHCARDS.find(c => c.id === 'sdm-3-up-4th')!.explanation)
       .toBe([
         '3 up a 4th = 6',
@@ -166,12 +193,10 @@ describe('the two approved examples, verbatim', () => {
         'a 4th = 3 steps (4 − 1)',
         '3 + 3 = 6',
         '',
-        'Shortcut: up a 4th = down a 5th → same distance either way.',
-        '',
         'Intervals move n − 1 steps — one less, because you count the degree you '
         + 'start on. Outside 1–7, add or subtract 7. Pairs add to 9: 2↔7, 3↔6, 4↔5. '
-        + 'The shortcut is worth it on 6ths and 7ths, where it turns a long count '
-        + 'into a short one.',
+        + 'On 5ths, 6ths and 7ths the pair is the shorter count, so those cards '
+        + 'show it.',
       ].join('\n'));
   });
 
