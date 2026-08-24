@@ -8,11 +8,14 @@ import EtSelectToggle from '../EtSelectToggle';
 import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
+import ProgressBar from '../../../components/ProgressBar';
+import { barSegments, unratedLabel } from '../../../lib/progressBar';
+import {
+  spacingIntervalFor, useSpacingIntervals,
+} from '../../../lib/useSpacingIntervals';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import {
-  MIN_ATTEMPTS_FOR_TIER,
   TIER_BADGE_CLASS,
-  TIER_BAR_CLASS,
   TIER_LABEL,
   TIER_TEXT_CLASS,
   computeTier,
@@ -22,6 +25,7 @@ import {
   INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_TRAINED_TIERS,
   INVERSION_LABEL,
+  attemptItemId,
   inversionsForIntervalCount,
   parseAttemptItemId,
   type Inversion,
@@ -68,6 +72,10 @@ const FAMILY_LABEL: Record<ChordData['family'], string> = {
 };
 
 interface RollingStats {
+  /** The window's own rows, kept rather than reduced away. The strip
+   *  needs each rep's outcome and timestamp; the old code computed
+   *  totals from these and dropped them one line later. */
+  window: AttemptRecord[];
   correct: number;
   total: number;
   percent: number;
@@ -104,6 +112,7 @@ function rollingFor(
     daysSinceLastAttempt: daysSince,
   });
   return {
+    window: recent,
     correct,
     total,
     percent: total === 0 ? 0 : Math.round((correct / total) * 100),
@@ -178,12 +187,23 @@ interface ChordRowProps {
   attempts: AttemptRecord[];
   curation: EtItemCuration | undefined;
   selection: EtSelectionState;
+  /** Each item's own review interval. REQUIRED, not defaulted — a
+   *  default compiles at every call site and leaves a missed one
+   *  rendering solid ticks with nothing to say the fade is dead. */
+  intervals: ReadonlyMap<string, number>;
+  now: number;
 }
 
-function ChordRow({ chord, attempts, curation, selection }: ChordRowProps) {
+function ChordRow({
+  chord, attempts, curation, selection, intervals, now,
+}: ChordRowProps) {
   const [expanded, setExpanded] = useState(false);
   const rolling = rollingFor(attempts, chord.id);
-  const isUntouched = rolling.tier === 'untouched';
+  const seg = barSegments({
+    correct: rolling.correct,
+    wrong: rolling.total - rolling.correct,
+  });
+  const pending = unratedLabel(seg);
   const dim = curation?.hidden ? 'opacity-60' : '';
 
   // Per-inversion drill-down — only meaningful for foundational triads
@@ -240,10 +260,13 @@ function ChordRow({ chord, attempts, curation, selection }: ChordRowProps) {
               )}
             </span>
             <span className="font-mono">
-              {isUntouched ? (
-                <span className="text-neutral-400">
-                  no data yet — needs {MIN_ATTEMPTS_FOR_TIER} ({rolling.total}/{MIN_ATTEMPTS_FOR_TIER})
-                </span>
+              {/* DERIVED FROM THE BAR'S OWN SEGMENTS. "no data yet —
+                  needs 5 (4/5)" claimed there was no data beside four
+                  attempts; composing this from a separate count is how
+                  a label and a bar drift apart, which is the defect
+                  this migration exists to remove. */}
+              {pending !== null ? (
+                <span className="text-neutral-400">{pending}</span>
               ) : (
                 <>
                   {rolling.correct}/{rolling.total}
@@ -253,12 +276,12 @@ function ChordRow({ chord, attempts, curation, selection }: ChordRowProps) {
               )}
             </span>
           </div>
-          <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-            <div
-              className={`h-full ${TIER_BAR_CLASS[rolling.tier]} transition-all`}
-              style={{ width: rolling.total === 0 ? 0 : `${Math.max(4, rolling.percent)}%` }}
-            />
-          </div>
+          <ProgressBar
+            attempts={rolling.window}
+            intervalDays={spacingIntervalFor(intervals, chord.id)}
+            now={now}
+            label={chord.name}
+          />
 
           {expanded && supportsDrillDown && (
             <div className="mt-3 space-y-2 pl-3 border-l border-neutral-200 dark:border-neutral-800">
@@ -268,6 +291,8 @@ function ChordRow({ chord, attempts, curation, selection }: ChordRowProps) {
                   chordId={chord.id}
                   inversion={inv}
                   attempts={attempts}
+                  intervals={intervals}
+                  now={now}
                 />
               ))}
             </div>
@@ -282,20 +307,26 @@ interface InversionStatRowProps {
   chordId: string;
   inversion: Inversion;
   attempts: AttemptRecord[];
+  intervals: ReadonlyMap<string, number>;
+  now: number;
 }
 
-function InversionStatRow({ chordId, inversion, attempts }: InversionStatRowProps) {
+function InversionStatRow({
+  chordId, inversion, attempts, intervals, now,
+}: InversionStatRowProps) {
   const rolling = rollingFor(attempts, chordId, inversion);
-  const isUntouched = rolling.tier === 'untouched';
+  const seg = barSegments({
+    correct: rolling.correct,
+    wrong: rolling.total - rolling.correct,
+  });
+  const pending = unratedLabel(seg);
   return (
     <div>
       <div className="flex items-baseline justify-between text-[11px] text-neutral-500 mb-1 gap-2 flex-wrap">
         <span>{INVERSION_LABEL[inversion]}</span>
         <span className="font-mono">
-          {isUntouched ? (
-            <span className="text-neutral-400">
-              no data yet ({rolling.total}/{MIN_ATTEMPTS_FOR_TIER})
-            </span>
+          {pending !== null ? (
+            <span className="text-neutral-400">{pending}</span>
           ) : (
             <>
               {rolling.correct}/{rolling.total}
@@ -305,12 +336,15 @@ function InversionStatRow({ chordId, inversion, attempts }: InversionStatRowProp
           )}
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-        <div
-          className={`h-full ${TIER_BAR_CLASS[rolling.tier]} transition-all`}
-          style={{ width: rolling.total === 0 ? 0 : `${Math.max(4, rolling.percent)}%` }}
-        />
-      </div>
+      {/* THE INVERSION'S OWN REF, not the chord's. A drill-down that
+          faded against the parent chord's interval would age every
+          inversion at the root position's rate. */}
+      <ProgressBar
+        attempts={rolling.window}
+        intervalDays={spacingIntervalFor(intervals, attemptItemId(chordId, inversion))}
+        now={now}
+        label={`${chordId} ${INVERSION_LABEL[inversion]}`}
+      />
     </div>
   );
 }
@@ -340,6 +374,10 @@ export default function ChordFluencyTracker({ chords, attempts }: Props) {
   const itemRefs = useMemo(() => chords.map(c => c.id), [chords]);
   const curations = useEtCurationsLive(itemRefs);
   const selection = useEtSelection();
+  const intervals = useSpacingIntervals(MODULE_ID);
+  // Passed in rather than read per row, so every strip on the screen
+  // ages against the same instant.
+  const now = Date.now();
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
@@ -379,6 +417,8 @@ export default function ChordFluencyTracker({ chords, attempts }: Props) {
                   attempts={attempts}
                   curation={curations.get(chord.id)}
                   selection={selection}
+                  intervals={intervals}
+                  now={now}
                 />
               ))}
             </div>

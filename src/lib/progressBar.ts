@@ -183,6 +183,33 @@ export function tickStrip(
   return out;
 }
 
+/**
+ * The line beside the bar, when the item is not yet rated.
+ *
+ * ---------------------------------------------------------------
+ * "no data yet — needs 5 (4/5)" WAS A LIE, AND IN A SPECIFIC WAY.
+ *
+ * There IS data. Four attempts is data. What there is not is enough to
+ * RATE, which is a different claim, and the old string made the app say
+ * the first thing while meaning the second — beside a bar that was
+ * simultaneously painting those four attempts as an empty grey.
+ *
+ * DERIVED FROM `BarSegments`, the same object the bar's widths come
+ * from. Composing it from a separate count is how the label and the bar
+ * drift — which is the original defect wearing different clothes.
+ *
+ * Null once rated: the tracker then shows its own correct/total and
+ * tier, and a second summary of the same numbers is noise.
+ * ---------------------------------------------------------------
+ */
+export function unratedLabel(seg: BarSegments): string | null {
+  if (seg.rated) return null;
+  if (seg.attempted === 0) return 'no data yet';
+  const remaining = seg.denominator - seg.attempted;
+  return `${seg.attempted} of ${seg.denominator} attempts — `
+    + `${remaining} more to rate`;
+}
+
 // ---------------------------------------------------------------------
 // What the ⓘ says
 // ---------------------------------------------------------------------
