@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { taglineForPath, titleForPath } from '../lib/pageTitle';
 import SettingsPanel from './SettingsPanel';
 import MobileBottomNav from './MobileBottomNav';
@@ -176,8 +176,29 @@ export default function Layout() {
           }}
         >
           <div className="min-w-0">
+            {/* The eyebrow is the way home, on EVERY page — the
+                dashboard itself and an active session included.
+
+                INLINE, AND THAT IS LOAD-BEARING. This header is
+                measured at runtime by the lead sheet's cell-anchored
+                overlays (see `data-app-chrome` above). A link that
+                went `block`, or took padding to grow its tap target,
+                would change the measured height and move overlays on
+                a different page entirely.
+
+                NO CONFIRM, NO ROUTE BLOCKER, NO SPECIAL CASE for the
+                active-session route. Leaving an active session
+                auto-pauses it, that pause resumes on return, and the
+                global banner stays on screen the whole time. There is
+                nothing to lose, so there is nothing to ask about. */}
             <div className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70 leading-none">
-              HARMONY
+              <Link
+                to="/"
+                aria-label="Harmony — go to the dashboard"
+                className="hover:text-white focus-visible:text-white transition-colors"
+              >
+                HARMONY
+              </Link>
             </div>
             <div className="text-base sm:text-lg font-medium tracking-tight truncate mt-0.5">
               {pageTitle}
