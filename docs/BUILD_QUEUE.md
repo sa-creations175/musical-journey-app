@@ -77,7 +77,7 @@ the ~2,400px the pass removed; everything else combined bought ~340px.
 | 3d-10 | "Due" surfaced in the songs list and highlighted on the dashboard. |
 | — | The ⓘ status walkthrough — designed, in the spec, never built. |
 
-Item 11's due column and cross-module spacing settings queue behind all of it.
+Item 10's due column and cross-module spacing settings queue behind all of it.
 
 ---
 
@@ -126,46 +126,7 @@ three different ways, and three phrasings of one rule read as three rules.
 
 ## Queued
 
-### 3. Offer to start a session when lead-sheet editing begins
-
-**What.** When the user starts editing the lead sheet and no session is
-running, offer to start one. A nudge at the moment the work begins.
-
-**Why.** Editing the lead sheet is practice work — *building the lead sheet*
-is one of the six activities in the rating step — and right now it is the one
-kind of practice that goes completely unrecorded when it happens outside a
-session. The activity exists in the vocabulary and the app has no way to
-notice it happening.
-
-**Two boundaries, both load-bearing, both stated before the build so nobody
-helpfully overshoots them:**
-
-**Viewing the lead sheet stays completely open. No gate, ever.** Checking a
-chord, glancing at it on a phone, showing it to someone — making any of that
-require a timed session is the app charging a toll to read something the user
-wrote. Only EDITING is the trigger.
-
-**It is a nudge, not a gate.** Dismissible, and dismissing it does not stop the
-edit. The edit lands either way; the offer is about whether the time gets
-recorded, never about whether the work is permitted.
-
-**Where it hooks.** `LeadSheetSection` funnels every commit through a single
-`onChange: (patch: Partial<SongSection>) => Promise<void>` prop supplied by
-`SongDetailView` — one seam for "an edit happened", so the trigger does not
-have to be scattered across the editing controls.
-
-**Open before building:** what "start one" actually starts. Practice begins
-from a cell, and a cell is a section in a key — the section is known, since
-`LeadSheetSection` is per-section, but the key is not. Copy and placement go to
-Silas for sign-off first.
-
-**Design.** Raised 23 August 2026, out of the 3d-8 audit. Not part of the song
-page redesign steps — a separate concern about capturing practice the app
-cannot currently see. No design doc.
-
----
-
-### 4. Song detail page — collapse the three progress cards into one
+### 3. Song detail page — collapse the three progress cards into one
 
 **What.** One progress card in place of three overlapping ones.
 
@@ -190,7 +151,7 @@ belongs to a data-migration step rather than to this card collapse.
 
 ---
 
-### 5. Per-node regrouping and custom module order
+### 4. Per-node regrouping and custom module order
 
 **What.** Two halves of one want: pin the modules being focused on to the top
 regardless of sort, and offer an alternate grouping of one row's children — key
@@ -206,7 +167,7 @@ how it composes with sorting, and whether a pin survives a reset.
 
 ---
 
-### 6. Chord progression catalog rebuild
+### 5. Chord progression catalog rebuild
 
 **What.** Pare down to common basic progressions and derive the rest from Song
 Repertoire.
@@ -220,7 +181,7 @@ design pass*, items 3 and 4.
 
 ---
 
-### 7. Repertoire chord flashcards
+### 6. Repertoire chord flashcards
 
 **What.** Memorising a section's changes away from the keyboard.
 
@@ -230,7 +191,7 @@ yet.
 
 ---
 
-### 8. Personal voicing library
+### 7. Personal voicing library
 
 **What.** Add a voicing you like — from a tutorial, a song, anywhere — and have
 it become drillable in mental visualisation.
@@ -247,7 +208,7 @@ prevent.
 
 ---
 
-### 9. Spacing state for section ratings and S&P
+### 8. Spacing state for section ratings and S&P
 
 **What.** Wire self-assessments and section ratings into SM-2.
 
@@ -270,7 +231,7 @@ thing from a check the user passes or fails.
 
 ---
 
-### 10. Collapse the two song-progress ladders
+### 9. Collapse the two song-progress ladders
 
 **What.** Two things describe how far a song has come and neither knows about
 the other. `songs.stage` is stored and hand-advanced (learning → comfortable →
@@ -293,7 +254,7 @@ real one, which is a design question, not a refactor.
 
 ---
 
-### 11. A due column, and a spacing settings surface
+### 10. A due column, and a spacing settings surface
 
 **What.** Two halves of one finding.
 
@@ -324,7 +285,7 @@ whose items are recency-driven rather than due-dated.
 
 ---
 
-### 12. MIDI-in accuracy grading
+### 11. MIDI-in accuracy grading
 
 **What.** Grade S&P and Song Repertoire from a plugged-in keyboard — exact note
 numbers, exact timestamps, no pitch detection.
@@ -366,6 +327,7 @@ of, not a changelog.
 
 | Date | What |
 |---|---|
+| 23 Aug 2026 | **Lead-sheet editing offers a session.** The one kind of practice the app could not see — "building the lead sheet" was in the vocabulary and nothing noticed it happening. Fires on the WRITE, through `updateSection`, so viewing stays completely ungated; suppressed while any timer runs; hidden entirely when no cell resolves rather than showing a button that opens nothing. Starts the edited section in the song's **original key** — the lead sheet is the chart in that key, and editing is mostly early-life work anyway. |
 | 23 Aug 2026 | **3d-6 — the timer records what the work WAS, not just how long.** Six activities, multi-select, none required; "practising in time" never derived from whether the metronome ran, because the number worth seeing is how often the click was chosen and a derived value would count how often a control was on screen. **It also gave the away-time mechanism its first surface** — `withActivity` had banked long silences since 3b-4 and nothing ever asked, so the amber signal led nowhere. Done now banks an open silence before pausing and the rating step asks, 100/75/50/25/0, with the minutes each answer keeps shown beside it. |
 | 23 Aug 2026 | **The song page redesign, 3d-0a through 3d-5, plus a layout pass that took ~2,400px off the page.** Derived stage, SM-2 retest scheduling with four states, the stored demotion record, phantom key rows cleared, the Cross-Key card deleted, the page restructured, and the cell panel that starts every practice. See item 1 — the entry carries the full table and what is left. |
 | 23 Aug 2026 | **Per-song enharmonic spelling — complete, all five steps.** Was queue item 3. One seam for what a pitch is called; a global flats/sharps setting; G♭ retired as an identity and demoted to a spelling; the lead sheet, session labels and drill grids reading one spelling; the matrix keeping its identities while reading a spelling; and a per-song override. **It closed the two-circles split it was queued behind** — `circleOfFourths.ts` now derives from `matrix/keys.ts` rather than holding a second twelve, so `canonicaliseKey` can no longer return a name the matrix does not store. The near-miss worth remembering: rendering ♭ before fixing the parser would have made `D♭maj7` parse as **D**, the ♭ falling past the accidental capture group into the quality string — no error, a cell that looks perfect and means degree 2 instead of ♭2. |

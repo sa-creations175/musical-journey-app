@@ -27,6 +27,9 @@ import {
   ladderCriteria,
 } from './stage';
 import LeadSheetSection from './LeadSheetSection';
+import LeadSheetPracticeNudge from './LeadSheetPracticeNudge';
+import { cellForLeadSheetEdit } from './leadSheetNudge';
+import { readSongTimer } from './songTimer';
 import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
 import {
   LYRIC_FOLD_VERSION,
@@ -764,7 +767,65 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
 
   const updateSection = async (sectionId: string, patch: Partial<SongSection>) => {
     await db.songSections.update(sectionId, patch);
+    noticeLeadSheetEdit(sectionId);
   };
+
+  // ---------------------------------------------------------------
+  // EDITING THE LEAD SHEET IS PRACTICE THE APP COULD NOT SEE.
+  //
+  // "Building the lead sheet" has been one of the six activities in
+  // the rating step since 3d-6, so the vocabulary could always
+  // describe it — but nothing noticed it happening. A chart built
+  // across four evenings outside any session left no trace at all.
+  //
+  // The trigger is the WRITE, not the render. `updateSection` is the
+  // single funnel every LeadSheetSection commit passes through, so
+  // this does not have to be scattered across the editing controls —
+  // and it cannot fire on opening the card, scrolling it, or reading
+  // it in play mode, because none of those write.
+  //
+  // VIEWING IS NEVER GATED. That is the whole reason the trigger sits
+  // here rather than on the card: checking a chord, glancing at it on
+  // a phone, showing it to someone must stay free. Making any of that
+  // require a timed session would be the app charging a toll to read
+  // something the user wrote.
+  //
+  // AND IT IS A NUDGE. The edit is already committed on the line
+  // above by the time this runs, which is the honest signal —
+  // dismissing changes only whether the time is recorded.
+  // ---------------------------------------------------------------
+  /** The lead-sheet section whose edit is being offered a session, or
+   *  null when there is nothing to offer. */
+  const [nudgeSectionId, setNudgeSectionId] = useState<string | null>(null);
+  /** Dismissed for this visit. Not persisted: "not now" is about this
+   *  sitting, and a preference that outlived the page would quietly
+   *  turn the feature off forever on one tap. */
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
+  const noticeLeadSheetEdit = (sectionId: string) => {
+    if (nudgeDismissed) return;
+    // A timer already running — on this song or another — means the
+    // work is being counted, or the user has deliberately put it
+    // somewhere else. Either way there is nothing to offer.
+    if (readSongTimer() !== null) return;
+    setNudgeSectionId(prev => prev ?? sectionId);
+  };
+
+  /**
+   * The cell "start practising" opens: the edited section, in the
+   * song's ORIGINAL key.
+   *
+   * Null hides the nudge entirely rather than showing a button that
+   * opens nothing — the same rule the RUN button follows. It can
+   * legitimately be null: `syncMatrixSectionsForSong` runs off a write
+   * hook, so a section added seconds ago may have no matrix row yet.
+   */
+  const nudgeCellId = nudgeSectionId === null ? null : cellForLeadSheetEdit({
+    songSectionId: nudgeSectionId,
+    matrixSections,
+    songKeys: matrixKeys,
+    cells: matrixCells,
+  });
 
   // --- Song-owned lyric store (rev 3) ------------------------------
   // Lyric lines belong to the SONG, not to a section, because a line's
@@ -2239,6 +2300,18 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               )}
             </div>
           </div>
+          {nudgeCellId !== null && !nudgeDismissed && (
+            <LeadSheetPracticeNudge
+              onStart={() => {
+                setNudgeSectionId(null);
+                openCellPanel(nudgeCellId);
+              }}
+              onDismiss={() => {
+                setNudgeSectionId(null);
+                setNudgeDismissed(true);
+              }}
+            />
+          )}
           {sections.length === 0 ? (
             <p className="text-xs text-neutral-500 italic">no sections yet. click "+ add section" to start.</p>
           ) : (

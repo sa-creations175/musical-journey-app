@@ -490,3 +490,65 @@ describe('the moment is reserved for a status change', () => {
     expect(notice).toContain('criteriaMetLabels');
   });
 });
+
+describe('the lead-sheet nudge fires on the write, never on the read', () => {
+  /**
+   * SOURCE-LEVEL BECAUSE THE CLAIM IS AN ABSENCE, and the most
+   * important kind: that viewing the lead sheet triggers NOTHING.
+   *
+   * A render test proves that only for the interactions it happens to
+   * perform. What has to hold is structural — the trigger lives inside
+   * the one function that writes, so opening the card, scrolling it,
+   * or reading it in play mode cannot reach it, because none of those
+   * write.
+   *
+   * If someone later moves the call to a mount effect or an onFocus,
+   * viewing starts nudging and nothing else in the suite would notice:
+   * the strip would render, the button would work, and the app would
+   * have quietly started charging a toll to read a chart.
+   */
+  const VIEW = () => codeOf(read('SongDetailView.tsx'));
+
+  it('is called from updateSection and from nowhere else', () => {
+    const src = VIEW();
+    // Exactly one CALL. The arrow-function definition reads
+    // `const noticeLeadSheetEdit = (` and so does not match this.
+    expect(src.match(/noticeLeadSheetEdit\(/g) ?? []).toHaveLength(1);
+    expect(src).toContain('const noticeLeadSheetEdit =');
+
+    // And the call site is inside the write path. Taking the slice
+    // from `const updateSection` to the next top-level `const ` is
+    // enough to place it — the function is three lines.
+    const from = src.indexOf('const updateSection');
+    expect(from).toBeGreaterThan(-1);
+    const body = src.slice(from, from + 400);
+    expect(body).toContain('db.songSections.update');
+    expect(body).toContain('noticeLeadSheetEdit(sectionId)');
+  });
+
+  it('is not wired to any lifecycle or focus event', () => {
+    // The shapes that would turn a nudge into a gate on reading.
+    const src = VIEW();
+    expect(src).not.toMatch(/useEffect\([^)]*noticeLeadSheetEdit/);
+    expect(src).not.toMatch(/onFocus=\{[^}]*noticeLeadSheetEdit/);
+    expect(src).not.toMatch(/onScroll=\{[^}]*noticeLeadSheetEdit/);
+    expect(src).not.toMatch(/onClick=\{[^}]*noticeLeadSheetEdit/);
+  });
+
+  it('checks for a running timer before offering', () => {
+    // A timer already running means the work is being counted, or the
+    // user deliberately put it somewhere else. Either way there is
+    // nothing to offer.
+    const src = VIEW();
+    const from = src.indexOf('const noticeLeadSheetEdit');
+    const body = src.slice(from, from + 300);
+    expect(body).toContain('readSongTimer()');
+  });
+
+  it('hides the strip when no cell resolves, rather than showing a dead button', () => {
+    // Same rule as the RUN button: there is no honest label for a
+    // button that does nothing. `cellForLeadSheetEdit` returns null
+    // when the matrix row or the cell does not exist yet.
+    expect(VIEW()).toContain('nudgeCellId !== null && !nudgeDismissed');
+  });
+});
