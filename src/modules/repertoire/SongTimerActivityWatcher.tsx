@@ -53,20 +53,63 @@ export default function SongTimerActivityWatcher() {
   // the ping stays synchronous — an await inside a pointerdown handler
   // would let a second event through before the first had written.
   const thresholdMs = useRef<number | null>(null);
+  /**
+   * Whether the threshold above is a real answer yet.
+   *
+   * ---------------------------------------------------------------
+   * NULL IS AN ANSWER HERE, NOT AN ABSENCE, WHICH IS WHY THIS EXISTS.
+   *
+   * `thresholdMs` starts null, and null MEANS "never bank" — the
+   * user's own setting. So an unloaded threshold and a deliberate
+   * "never" were indistinguishable, and during the load a ping would
+   * take the `!banks` branch of `withActivity`: `lastActivityAt` moves
+   * to now and the gap it was measuring vanishes into the total as
+   * focused practice. Silent, and in the one direction that loses
+   * data — the exact failure the banking exists to prevent.
+   *
+   * The window is not theoretical. Reload the page mid-practice after
+   * a break and the first tap can easily land before a Dexie read
+   * resolves, erasing the whole break.
+   *
+   * So a ping before the answer arrives does NOTHING rather than
+   * guessing in either direction. Guessing "never" erases the gap;
+   * guessing the default banks one a "never" user then has to dismiss.
+   * Doing nothing leaves `lastActivityAt` where it is, and the first
+   * ping after the load measures the same gap correctly. Nothing is
+   * counted and nothing is discarded in the meantime.
+   * ---------------------------------------------------------------
+   */
+  const loaded = useRef(false);
   const [, setLoaded] = useState(false);
 
   useEffect(() => {
     let live = true;
-    void getAmberMinutes().then(min => {
-      if (!live) return;
-      thresholdMs.current = min === null ? null : min * 60_000;
-      setLoaded(true);
-    });
+    getAmberMinutes()
+      .then(min => {
+        if (!live) return;
+        thresholdMs.current = min === null ? null : min * 60_000;
+        loaded.current = true;
+        setLoaded(true);
+      })
+      // Swallowed. This read fails for reasons that have nothing to do
+      // with the timer — Dexie closed under it, Safari private mode,
+      // the page going away mid-flight — and an uncaught one becomes
+      // an unhandled rejection at the app level, where this is mounted
+      // for the whole session. `loaded` stays false, so the watcher
+      // goes quiet rather than guessing: the same choice as above, for
+      // the same reason.
+      .catch(err => {
+        console.warn('[repertoire] amber threshold read failed', err);
+      });
     return () => { live = false; };
   }, []);
 
   useEffect(() => {
     const ping = () => {
+      // Before the threshold is known, do nothing at all — see the
+      // note on `loaded`. Moving `lastActivityAt` here would erase the
+      // gap it was measuring.
+      if (!loaded.current) return;
       const record = readSongTimer();
       // No timer, or a paused one, has no gap to measure. Writing on
       // every tap regardless would be a localStorage write per click
@@ -98,6 +141,7 @@ export default function SongTimerActivityWatcher() {
   // change counts too, and deliberately not on `location.key`, which
   // also changes on a replace the user did not perform.
   useEffect(() => {
+    if (!loaded.current) return;   // same reason as `ping`
     const record = readSongTimer();
     if (record === null || !record.running) return;
     writeSongTimer(withActivity(record, Date.now(), thresholdMs.current));
