@@ -179,17 +179,107 @@ const INTERVAL_STEPS: Array<{ name: string; step: number }> = [
   { name: '7th', step: 6 },
 ];
 
-// Build a stepwise path string like "2 → 3 → 4 → 5 → 6" to embed in
-// the explanation so users can visually confirm the counting.
-function stepPath(startDeg: number, dir: 'up' | 'down', steps: number): string {
-  const seq: number[] = [startDeg];
-  for (let i = 1; i <= steps; i++) {
-    const delta = dir === 'up' ? i : -i;
-    const d = ((startDeg - 1 + delta) % 7 + 7) % 7 + 1;
-    seq.push(d);
+/**
+ * The shared closing line — identical on all 84 cards.
+ *
+ * The per-card lines above it show ONE example being worked. This says
+ * what the rule is, so the worked example reads as an instance rather
+ * than as a fact to memorise.
+ */
+const SDM_RULE =
+  'Intervals move n − 1 steps — one less, because you count the degree you '
+  + 'start on. Outside 1–7, add or subtract 7. Pairs add to 9: 2↔7, 3↔6, 4↔5. '
+  + 'The shortcut is worth it on 6ths and 7ths, where it turns a long count '
+  + 'into a short one.';
+
+/**
+ * The worked method for one scale-degree-math card.
+ *
+ * =====================================================================
+ * EVERY NUMBER IS COMPUTED FROM THE CARD'S OWN DEGREE AND INTERVAL.
+ *
+ * These cards used to state the answer and the path to it — 84 facts to
+ * memorise instead of one rule rehearsed 84 times. This shows the move.
+ *
+ * NOTHING HERE IS TYPED. "a 7th = 6 steps (7 − 1)" derives the 6 from
+ * the interval; "4 − 6 = −2" derives both operands; the inverted
+ * interval derives from 9 − n. A hand-written teaching line can drift
+ * from the answer sitting beside it, and a wrong sum in a line whose
+ * whole job is to teach the sum is worse than no line at all — the
+ * reader would learn the error.
+ *
+ * ONE OPERATION PER LINE. Chaining them with arrows onto one line is
+ * what made an earlier draft unreadable: the eye cannot find where a
+ * step began. The wrap line appears only when the sum actually leaves
+ * 1–7, so a card that needs no wrap does not show a no-op.
+ *
+ * THE SHORTCUT LINE APPEARS ON EVERY CARD, including the 2nds and 3rds
+ * where it saves nothing. Seeing the pairing every time is how it gets
+ * learned; `SDM_RULE` is what says where it actually pays.
+ * =====================================================================
+ */
+function sdmExplanation(
+  startDeg: number,
+  intervalName: string,
+  steps: number,
+  dir: 'up' | 'down',
+): string {
+  // The ordinal the interval NAME carries — a 4th is 4 — recovered from
+  // the step count rather than parsed out of the string.
+  const ordinal = steps + 1;
+  const wrap = (n: number) => ((n - 1) % 7 + 7) % 7 + 1;
+  // A negative result must print with the same MINUS SIGN the operators
+  // use. JavaScript renders it as an ASCII hyphen, so "4 − 6 = -2"
+  // would put two different characters for one operation on one line.
+  const num = (n: number) => (n < 0 ? `−${Math.abs(n)}` : String(n));
+  const stepWord = steps === 1 ? 'step' : 'steps';
+
+  const lines: string[] = [
+    `${startDeg} ${dir} a ${intervalName} = ${wrap(dir === 'up' ? startDeg + steps : startDeg - steps)}`,
+    '',
+    `a ${intervalName} = ${steps} ${stepWord} (${ordinal} − 1)`,
+  ];
+
+  const raw = dir === 'up' ? startDeg + steps : startDeg - steps;
+  lines.push(dir === 'up'
+    ? `${startDeg} + ${steps} = ${num(raw)}`
+    : `${startDeg} − ${steps} = ${num(raw)}`);
+  // Only when the sum genuinely left the octave.
+  if (raw > 7) lines.push(`${raw} − 7 = ${wrap(raw)}`);
+  if (raw < 1) lines.push(`${num(raw)} + 7 = ${wrap(raw)}`);
+
+  // Pairs add to 9, so the inverted interval is 9 − n and its step
+  // count follows from the same n − 1 rule.
+  const invOrdinal = 9 - ordinal;
+  const invName = INTERVAL_STEPS.find(i => i.step === invOrdinal - 1)?.name
+    ?? `${invOrdinal}th`;
+  const invSteps = invOrdinal - 1;
+
+  lines.push('');
+  if (dir === 'up') {
+    // Working the inversion here would be LONGER than the sum above —
+    // it descends and usually wraps. The equivalence is the teaching.
+    lines.push(`Shortcut: up a ${intervalName} = down a ${invName} → same distance either way.`);
+  } else {
+    const shortRaw = startDeg + invSteps;
+    if (shortRaw <= 7) {
+      lines.push(`Shortcut: down a ${intervalName} = up a ${invName} → ${startDeg} + ${invSteps} = ${shortRaw}`);
+    } else {
+      // One operation per line still holds when the shortcut wraps.
+      lines.push(`Shortcut: down a ${intervalName} = up a ${invName}`);
+      lines.push(`${startDeg} + ${invSteps} = ${shortRaw}`);
+      lines.push(`${shortRaw} − 7 = ${wrap(shortRaw)}`);
+    }
   }
-  return seq.join(' → ');
+
+  lines.push('', SDM_RULE);
+  return lines.join('\n');
 }
+
+// `stepPath` was deleted with the explanation rewrite. It rendered
+// "2 → 3 → 4 → 5 → 6" — the counting shown as a result rather than as a
+// method, which is the whole thing sdmExplanation replaced. It had no
+// other caller.
 
 function generateScaleDegreeMathCards(): Flashcard[] {
   const cards: Flashcard[] = [];
@@ -202,7 +292,6 @@ function generateScaleDegreeMathCards(): Flashcard[] {
         const oppAns = ((startDeg - 1 - delta) % 7 + 7) % 7 + 1;
         const adj1 = (ans % 7) + 1;
         const adj2 = ((ans - 2 + 7) % 7) + 1;
-        const path = stepPath(startDeg, dir, iv.step);
         cards.push({
           id: `sdm-${startDeg}-${dir}-${iv.name}`,
           category: 'scale-degree-math',
@@ -213,7 +302,7 @@ function generateScaleDegreeMathCards(): Flashcard[] {
             [String(oppAns), String(adj1), String(adj2), String(startDeg)],
             String(ans),
           ),
-          explanation: `Counting ${dir} from ${startDeg}: ${path}. This is the mental math session musicians run constantly — when an MD calls "go to the ${ans}" or a leader says "${dir} a ${iv.name}", you're doing this step-count in your head and landing on the right note, in any key.`,
+          explanation: sdmExplanation(startDeg, iv.name, iv.step, dir),
           skillTag: `scale-degree-math-${dir}-${iv.name}`,
           visualHint: {
             startingDegree: startDeg,

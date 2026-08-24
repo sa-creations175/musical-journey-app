@@ -589,8 +589,13 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
                 correct answer: <span className="font-mono text-fluent">{card.correctAnswer}</span>
               </span>
             )}
+            {/* `whitespace-pre-wrap` below is load-bearing. Most
+                explanations are one paragraph and unaffected, but
+                scale-degree-math's worked arithmetic is one operation
+                per line — without it the lines collapse into a run-on
+                and the method it exists to teach becomes unreadable. */}
             {card.explanation && (
-              <div className="mt-1 text-xs text-neutral-500 italic">
+              <div className="mt-1 text-xs text-neutral-500 italic whitespace-pre-wrap">
                 {renderExplanation
                   ? renderExplanation(card.explanation)
                   : card.explanation}
