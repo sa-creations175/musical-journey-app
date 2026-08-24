@@ -20,7 +20,6 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type Song,
-  type RepertoireStage,
   type SongKey,
   type SongKeyRunThrough,
   type SongPracticeLog,
@@ -32,12 +31,12 @@ import {
   deriveStage,
   freshnessFor,
   humanAgo,
-  type Freshness,
 } from './stage';
-import SongCard, { formatAddedDate } from './SongCard';
+import SongCard, { formatAddedDate, type SongCardProps } from './SongCard';
 import AddSongModal from './AddSongModal';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { dueByKeyId } from './matrix/proveKey';
+import { songDueReading } from './songDueState';
 import {
   SPACING_DEFAULTS,
   getSpacingSettings,
@@ -216,7 +215,20 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         // `useSongSpelling` applies, in its pure form.
         spelling: resolveSpelling(song.spelling, globalSpelling),
       });
-      return { song, lastPractisedAt, freshness, derivedStage, readyToAdvance: advancement.suggest };
+      // Rolled up from the SAME dueMap the stage rules just read, so
+      // the card and the badge beside it cannot disagree about whether
+      // a key is late.
+      const due = songDueReading(
+        keysBySong.get(song.id) ?? [],
+        dueMap,
+        advancementNow,
+        windowsFrom(spacing),
+      );
+      return {
+        song, lastPractisedAt, freshness, derivedStage, due,
+        spelling: resolveSpelling(song.spelling, globalSpelling),
+        readyToAdvance: advancement.suggest,
+      };
     });
   }, [songs, logsBySong, keysBySong, runsBySong, advancementNow, globalSpelling]);
 
@@ -395,7 +407,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-2">
-              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage }) => (
+              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling }) => (
                 <SortableSongRow
                   key={song.id}
                   song={song}
@@ -405,6 +417,8 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
                   freshness={freshness}
                   readyToAdvance={readyToAdvance}
                   stage={derivedStage}
+                  due={due}
+                  spelling={spelling}
                   onOpen={() => onOpenSong(song.id)}
                 />
               ))}
@@ -413,7 +427,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         </DndContext>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage }) => (
+          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling }) => (
             <SongCard
               key={song.id}
               song={song}
@@ -423,6 +437,8 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
               freshness={freshness}
               readyToAdvance={readyToAdvance}
               stage={derivedStage}
+              due={due}
+              spelling={spelling}
               onOpen={() => onOpenSong(song.id)}
             />
           ))}
@@ -448,16 +464,16 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   );
 }
 
-interface SortableSongRowProps {
-  song: Song;
-  lastPractisedAt: number | null;
-  lastPractisedLabel: string;
-  addedLabel: string;
-  freshness: Freshness;
-  readyToAdvance?: boolean;
-  stage: RepertoireStage;
-  onOpen: () => void;
-}
+/**
+ * Exactly `SongCard`'s props, derived rather than restated.
+ *
+ * It used to be a hand-copied list of the same eight fields, which
+ * meant adding one to the card broke this in a second place and could
+ * as easily have gone unnoticed until the wrapper silently stopped
+ * forwarding it. The wrapper adds a drag handle and forwards
+ * everything else; the type should say only that.
+ */
+type SortableSongRowProps = SongCardProps;
 
 /**
  * SongCard with a left-side drag handle, registered with dnd-kit's

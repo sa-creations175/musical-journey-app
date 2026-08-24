@@ -62,6 +62,7 @@ ship order.**
 | 23 Aug | 3d-7 | **The cell test.** Three clean runs at tempo make a section comfortable in a key. The two whole-song claims — "Test song" and "run at tempo" — stay on `KeyRow`, because a cell cannot honestly speak for a song and the two run tables exist to keep those claims apart. A test is timed and not rated. |
 | 23 Aug | 3d-8 | **The three old surfaces retired.** `PracticeLogModal`, "+ log a practice session" and `CellInteractionModal` all deleted. Session notes came back with the panel — a collapsed line at the bottom of the rating step, because the activity chips name the kind of work and a note says what happened. `SongMatrixView.onCellSelected` is required now, so the dead fallback cannot return by omission. |
 | 23 Aug | 3d-9 | **The practice calendar.** The practice history card is gone; its heatmap and session list moved intact to `/repertoire/calendar?songId=…`, reached by `view calendar →` at the top of the matrix card — the same words six other modules use. Shaped like `ShapesAndPatternsCalendar` rather than as a seventh pattern. |
+| 23 Aug | 3d-10 | **"Due" surfaced in all three places.** A chip on each song card naming the key, a banner on the song page stating the rule before it acts, and an `N due` pill on the dashboard's repertoire row. A song is due when a key still HOLDING part of its rung is due or due soon — overdue is excluded, because the rung has already dropped and the demotion notice owns that ground. |
 | 23 Aug | — | The layout pass: the matrix rebuilt on the shared `HeatCell` primitive and capped at 56px, two-column metadata, both cards reordered, the lead sheet drawers, and the criteria panel accumulating by rung with a moment when one is earned |
 
 **The layout pass found one bug worth carrying.** `HeatCell` is
@@ -74,7 +75,6 @@ the ~2,400px the pass removed; everything else combined bought ~340px.
 
 | Step | What |
 |---|---|
-| 3d-10 | "Due" surfaced in the songs list and highlighted on the dashboard. |
 | — | The ⓘ status walkthrough — designed, in the spec, never built. |
 
 Item 10's due column and cross-module spacing settings queue behind all of it.

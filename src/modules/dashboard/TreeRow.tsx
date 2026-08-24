@@ -81,6 +81,26 @@ export interface TreeRowProps {
    * gets quieter.
    */
   accentHex?: string;
+  /**
+   * A short badge on a MODULE row, when that module has something to
+   * say that no column can.
+   *
+   * ---------------------------------------------------------------
+   * PRESENTATION, NOT PART OF THE TREE MODEL.
+   *
+   * `TreeNode` deliberately carries nothing about this. A field there
+   * would be most of the plumbing for the cross-module due column
+   * (build queue item 11) arriving early, under one module's name, and
+   * before that item has decided what "due" even means for modules
+   * whose items are recency-driven rather than due-dated.
+   *
+   * So this is an optional prop the SCREEN passes, the same way
+   * `accentHex` is — one module supplies it, every other row renders
+   * without it, and nothing about the shared data model changes. When
+   * item 11 lands, it replaces this rather than extending it.
+   * ---------------------------------------------------------------
+   */
+  pill?: { label: string; title: string; onClick?: () => void };
 }
 
 /** Row background by depth. Indentation carries the structure; the
@@ -103,7 +123,7 @@ const COMPARE_TINT: Readonly<Record<'weakest' | 'strongest', string>> = {
 
 function TreeRowImpl({
   node, moduleId, now, expanded, onToggleExpand,
-  compareHighlight, compareActive, onCompare, onDrill, moduleLabel, accentHex,
+  compareHighlight, compareActive, onCompare, onDrill, moduleLabel, accentHex, pill,
   infoOpen, onToggleInfo, noteContext,
   drillPrompt, onDrillOffer, onDrillAnyway, onDismissDrillPrompt,
 }: TreeRowProps) {
@@ -183,6 +203,17 @@ function TreeRowImpl({
         >
           {node.label}
         </span>
+        {isModuleRow && pill && (
+          <button
+            type="button"
+            onClick={pill.onClick}
+            title={pill.title}
+            disabled={!pill.onClick}
+            className="shrink-0 ml-1.5 px-2 py-0.5 rounded-full border border-[#E88943]/40 bg-[#E88943]/10 text-[#E88943] text-[10px] font-medium normal-case tracking-normal hover:bg-[#E88943]/20 disabled:cursor-default"
+          >
+            {pill.label}
+          </button>
+        )}
         {onToggleInfo && (
           <RowInfoButton
             label={node.label}

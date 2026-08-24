@@ -5,11 +5,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import type {
-  Song, SongCellRunThrough, SongMatrixSection, SongPracticeLog,
+  Song, SongCellRunThrough, SongKey, SongMatrixSection, SongPracticeLog,
+  SpacingState,
 } from '../../../../lib/db';
 import {
   buildSectionIdResolver,
   repertoireCatalog,
+  repertoireDueSongCount,
   repertoireStats,
   sectionItemRef,
   type RepertoireData,
@@ -205,5 +207,74 @@ describe('stale data', () => {
     }));
     expect(stats).toHaveLength(1);
     expect(stats[0].engagementCount).toBe(0);
+  });
+});
+
+// =====================================================================
+// Due, at song grain
+// =====================================================================
+
+describe('repertoireDueSongCount', () => {
+  /**
+   * The dashboard says HOW MANY; the songs list says which, and in
+   * which key. What these pin is that the count uses the four-state
+   * rule rather than `dueRefs`' flat `nextDueAt <= now` — same table,
+   * two different questions, and the flat one counts songs whose rung
+   * has already dropped.
+   */
+  const WINDOWS = { dueSoonDays: 7, graceDays: 7 };
+
+  const key = (id: string, songId: string): SongKey => ({
+    id, songId, keyName: id, isOriginalKey: false,
+    keyState: 'comfortable', solidAt: null, solidDecayState: null,
+    lastDecayCheckAt: null, livedWithSessionCount: 0,
+    livedWithFirstSessionAt: null, livedWithWindowStartAt: null,
+    livedWithSessionsInWindow: 0, wholeSongTestPassedAt: null,
+    isRetestRecommended: false, lastEngagedAt: NOW, createdAt: 0, updatedAt: 0,
+  });
+
+  const spacing = (keyId: string, nextDueAt: number | null): SpacingState => ({
+    itemRef: `songKey:${keyId}`, moduleRef: 'repertoire', nextDueAt,
+  } as SpacingState);
+
+  it('counts a song with a key past its date', () => {
+    expect(repertoireDueSongCount(
+      [key('A', 's1')], [spacing('A', NOW - DAY)], NOW, WINDOWS,
+    )).toBe(1);
+  });
+
+  it('counts a song once however many of its keys are due', () => {
+    expect(repertoireDueSongCount(
+      [key('A', 's1'), key('D', 's1')],
+      [spacing('A', NOW - DAY), spacing('D', NOW - DAY)],
+      NOW, WINDOWS,
+    )).toBe(1);
+  });
+
+  it('does NOT count a song whose rung has already dropped', () => {
+    // The difference from `dueRefs`, which is `nextDueAt <= now` and
+    // would count this. Overdue belongs to the demotion notice.
+    expect(repertoireDueSongCount(
+      [key('A', 's1')], [spacing('A', NOW - 20 * DAY)], NOW, WINDOWS,
+    )).toBe(0);
+  });
+
+  it('ignores spacing rows from other modules', () => {
+    const foreign = {
+      itemRef: 'songKey:A', moduleRef: 'shapes', nextDueAt: NOW - DAY,
+    } as SpacingState;
+    expect(repertoireDueSongCount([key('A', 's1')], [foreign], NOW, WINDOWS)).toBe(0);
+  });
+
+  it('is zero when nothing has ever been proven', () => {
+    expect(repertoireDueSongCount([key('A', 's1')], [], NOW, WINDOWS)).toBe(0);
+  });
+
+  it('counts each song separately', () => {
+    expect(repertoireDueSongCount(
+      [key('A', 's1'), key('B', 's2')],
+      [spacing('A', NOW - DAY), spacing('B', NOW - DAY)],
+      NOW, WINDOWS,
+    )).toBe(2);
   });
 });

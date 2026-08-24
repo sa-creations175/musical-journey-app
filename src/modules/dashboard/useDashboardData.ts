@@ -6,7 +6,10 @@
  * that the untestable part of the pipeline is as small as it can be.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  SPACING_DEFAULTS, getSpacingSettings, type SongKeySpacingSettings,
+} from '../repertoire/spacingPrefs';
 import { db } from '../../lib/db';
 import {
   assembleDashboard,
@@ -37,9 +40,23 @@ export function useDashboardData(now: number): DashboardState {
   // makes a cached dashboard the wrong fix if this ever gets slow.
   const source = useLiveQuery(() => loadDashboardSource(), []);
 
+  // The user's retest windows, for the repertoire due count. Read once
+  // and defaulted until it arrives, so the first paint shows a count
+  // computed with the shipped windows rather than none at all — and a
+  // wrong count for one tick is only wrong if the user changed them,
+  // in which case it corrects itself immediately.
+  const [spacing, setSpacing] = useState<SongKeySpacingSettings>(SPACING_DEFAULTS);
+  useEffect(() => {
+    let live = true;
+    getSpacingSettings()
+      .then(s => { if (live) setSpacing(s); })
+      .catch(err => { console.warn('[dashboard] spacing settings read failed', err); });
+    return () => { live = false; };
+  }, []);
+
   const dashboard = useMemo(
-    () => (source === undefined ? null : assembleDashboard(source, now)),
-    [source, now],
+    () => (source === undefined ? null : assembleDashboard(source, now, spacing)),
+    [source, now, spacing],
   );
 
   return { dashboard, loading: source === undefined };

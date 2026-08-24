@@ -1,4 +1,6 @@
 import type { Song } from '../../lib/db';
+import type { SongDueReading } from './songDueState';
+import { spellKey, type Spelling } from '../../lib/spelling';
 import {
   FRESHNESS_DOT_CLASS,
   STAGE_BADGE_CLASS,
@@ -30,7 +32,7 @@ export function formatAddedDate(ts: number): string {
   return `added ${d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}`;
 }
 
-interface Props {
+export interface SongCardProps {
   song: Song;
   lastPractisedAt: number | null;
   lastPractisedLabel: string;
@@ -42,6 +44,14 @@ interface Props {
    *  reading that directly would show a stale rung for one paint after
    *  a key lapsed. One derivation per list, shared. */
   stage: RepertoireStage;
+  /**
+   * Re-proving still available on this song, or null when there is
+   * none. Rolled up once per list by `songDueReading` — see its header
+   * for why an OVERDUE key is not in here.
+   */
+  due: SongDueReading | null;
+  /** How the due keys are named back. Per song, resolved by the list. */
+  spelling: Spelling;
   onOpen: () => void;
 }
 
@@ -53,8 +63,10 @@ export default function SongCard({
   freshness,
   readyToAdvance,
   stage,
+  due,
+  spelling,
   onOpen,
-}: Props) {
+}: SongCardProps) {
   void lastPractisedAt;
 
   return (
@@ -79,6 +91,12 @@ export default function SongCard({
         >
           {STAGE_LABEL[stage]}
         </span>
+        {/* THE GRID'S OWN WORDS. `KeyRow` has rendered `due` and
+            `soon` against these states since 3d-0a, in these colours.
+            A card saying "needs a retest" would be a second name for a
+            fact the matrix already names, and two names for one fact
+            is how a reader starts wondering whether they are two. */}
+        {due !== null && <DueChip due={due} spelling={spelling} />}
         {readyToAdvance && (
           <span
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 border border-fluent/30 bg-fluent/10 text-fluent"
@@ -114,5 +132,34 @@ export default function SongCard({
         </button>
       </div>
     </article>
+  );
+}
+
+/**
+ * What is due, and in which key.
+ *
+ * Names the KEY, not just the fact. "due" alone sends you to the song
+ * page to find out which row to tap; the key name is the thing you act
+ * on, and it is one word. With more than one, the count carries the
+ * rest rather than a list that would not fit a card.
+ */
+function DueChip({ due, spelling }: { due: SongDueReading; spelling: Spelling }) {
+  const keys = due.state === 'due' ? due.dueKeys : due.soonKeys;
+  const first = spellKey(keys[0].key.keyName, spelling);
+  const extra = keys.length - 1;
+  const label = due.state === 'due' ? 'due' : 'soon';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${
+        due.state === 'due'
+          ? 'border-[#E88943]/40 bg-[#E88943]/10 text-[#E88943]'
+          : 'border-neutral-200 dark:border-neutral-700 text-neutral-500'
+      }`}
+      title={due.state === 'due'
+        ? 'due to be proven again'
+        : 'due soon'}
+    >
+      {label} · key of {first}{extra > 0 ? ` +${extra}` : ''}
+    </span>
   );
 }

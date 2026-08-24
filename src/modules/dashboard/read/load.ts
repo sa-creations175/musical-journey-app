@@ -42,7 +42,12 @@ import {
   productionLessonEngagements,
   shapesEngagements,
 } from './selfRated';
-import { repertoireCatalog, repertoireEngagements, type RepertoireData } from './repertoire';
+import {
+  repertoireCatalog, repertoireDueSongCount, repertoireEngagements,
+  type RepertoireData,
+} from './repertoire';
+import { SPACING_DEFAULTS, windowsFrom } from '../../repertoire/spacingPrefs';
+import type { SongKeySpacingSettings } from '../../repertoire/spacingPrefs';
 import { buildMergedTree } from './tree';
 
 /** Everything the dashboard reads, loaded once. */
@@ -75,6 +80,14 @@ export interface Dashboard {
    * zero it says nothing, because there is then nothing to explain.
    */
   ungroupableProgressionAttempts: number;
+  /**
+   * Songs with a key due or due soon on a rung they still hold.
+   *
+   * A COUNT, not a per-row flag — see `repertoireDueSongCount`. The
+   * dashboard says how many; the songs list says which, and in which
+   * key, because that is the screen you act from.
+   */
+  repertoireDueSongs: number;
 }
 
 /**
@@ -149,6 +162,16 @@ function statsFor(catalog: ModuleCatalog, source: DashboardSource): ItemStats[] 
 export function assembleDashboard(
   source: DashboardSource,
   now: number,
+  /**
+   * The user's retest windows, for the repertoire due count.
+   *
+   * Passed in rather than read here so this stays pure, and DEFAULTED
+   * rather than required so every existing caller and test keeps
+   * working — but the screen supplies the real settings. If it did
+   * not, the dashboard and the songs list could disagree about whether
+   * a key is late, which is one fact told two ways.
+   */
+  spacing: SongKeySpacingSettings = SPACING_DEFAULTS,
 ): Dashboard {
   // One tree per MODULE, not per catalog. Ear training's four catalogs
   // and production's two are branches of one row each; building per
@@ -190,6 +213,9 @@ export function assembleDashboard(
   return {
     modules: ordered,
     dueRefs: dueRefsFrom(source.spacingRows, now),
+    repertoireDueSongs: repertoireDueSongCount(
+      source.repertoire.keys, source.spacingRows, now, windowsFrom(spacing),
+    ),
     ungroupableProgressionAttempts: ungroupableProgressionAttempts(source.attempts),
   };
 }

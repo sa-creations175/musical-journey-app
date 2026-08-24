@@ -219,6 +219,7 @@ export default function DashboardScreen({
   }, [setParams]);
 
   const modules: ModuleTree[] = dashboard?.modules ?? [];
+  const dueSongs = dashboard?.repertoireDueSongs ?? 0;
 
   // Stale entries are dropped once, against the trees actually built,
   // rather than at every lookup.
@@ -420,6 +421,7 @@ export default function DashboardScreen({
               {...(row.indexPath.length === 0
                 ? { accentHex: accentFor(row.moduleId) }
                 : {})}
+              {...pillFor(row.moduleId, row.indexPath.length, dueSongs, navigate)}
               onToggleExpand={
                 row.node.children.length > 0 ? () => onToggleExpand(row) : undefined
               }
@@ -461,3 +463,32 @@ export default function DashboardScreen({
 }
 
 export { DEFAULT_VIEW_STATE };
+
+/**
+ * The repertoire module row's "N due" badge, or nothing.
+ *
+ * REPERTOIRE ONLY, and a COUNT rather than a per-row flag. `TreeNode`
+ * carries nothing about due-ness on purpose: a field there would be
+ * most of the cross-module due column's plumbing (build queue item 11)
+ * arriving early under one module's name, before that item has decided
+ * what "due" means for modules whose items are recency-driven rather
+ * than due-dated.
+ *
+ * WHICH songs, and in which key, is the songs list's answer — that is
+ * the screen you act from, and the per-song reading lives there.
+ */
+function pillFor(
+  moduleId: string,
+  depth: number,
+  dueSongs: number,
+  navigate: (to: string) => void,
+): { pill?: { label: string; title: string; onClick: () => void } } {
+  if (depth !== 0 || moduleId !== 'repertoire' || dueSongs <= 0) return {};
+  return {
+    pill: {
+      label: `${dueSongs} due`,
+      title: `${dueSongs} song${dueSongs === 1 ? '' : 's'} with a key due or due soon — open the songs list to see which`,
+      onClick: () => navigate('/repertoire'),
+    },
+  };
+}

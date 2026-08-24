@@ -71,6 +71,8 @@ import {
 import { planSectionMove } from './sectionReorder';
 import StageCriteriaPanel, { type HoldingKey } from './StageCriteriaPanel';
 import DemotionNotice from './DemotionNotice';
+import DueBanner from './DueBanner';
+import { songDueReading } from './songDueState';
 import EarnedNotice from './EarnedNotice';
 import { useSongSpelling } from './useSongSpelling';
 import { isComfortableOrBetter, quadrantHoldings } from './matrix/keyProgress';
@@ -684,6 +686,15 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     dueWindows: windowsFrom(spacing),
     spelling: songSpelling,
   }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
+
+  // Re-proving still available, from the SAME dueMap the stage rules
+  // just read — so the banner and the grid beneath it cannot disagree
+  // about whether a key is late. Excludes overdue by construction; see
+  // `songDueReading`.
+  const dueReading = useMemo(
+    () => songDueReading(matrixKeys, dueMap, advancementNow, windowsFrom(spacing)),
+    [matrixKeys, dueMap, advancementNow, spacing],
+  );
 
   // Only keys that can hold a rung — comfortable or better. A key at
   // learning has nothing to lose and would read as permanently held,
@@ -2182,6 +2193,22 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         ) : song.stageEarned ? (
           <EarnedNotice earned={song.stageEarned} />
         ) : null}
+        {/* ---------------------------------------------------------------
+            THE RULE BEFORE IT ACTS.
+
+            Below the demotion notice, because a loss already taken
+            outranks one still avoidable — and `songDueReading` excludes
+            overdue keys anyway, so the two cannot both be describing
+            the same key. Above the ✨ invitation, because keeping what
+            you have outranks reaching for more.
+            --------------------------------------------------------------- */}
+        {dueReading !== null && (
+          <DueBanner
+            due={dueReading}
+            now={advancementNow}
+            spelling={songSpelling}
+          />
+        )}
         {advancement.suggest && advancement.reason && (
           <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
             <span aria-hidden className="mr-1.5">✨</span>

@@ -46,6 +46,10 @@ import type {
   SongMatrixSection,
   SongPracticeLog,
 } from '../../../lib/db';
+import type { SpacingState } from '../../../lib/db';
+import { songDueReading } from '../../repertoire/songDueState';
+import { songKeyItemRef } from '../../repertoire/matrix/proveKey';
+import type { DueWindows } from '../../repertoire/matrix/keySpacing';
 import type { CatalogItem, ModuleCatalog } from './catalogs';
 import { statsForCatalog } from './adapters';
 import type { Engagement, ItemStats } from './itemStats';
@@ -206,4 +210,63 @@ export function repertoireStats(data: RepertoireData): {
 } {
   const catalog = repertoireCatalog(data);
   return { catalog, stats: statsForCatalog(catalog, repertoireEngagements(data)) };
+}
+
+
+// =====================================================================
+// Due, at song grain
+// =====================================================================
+
+/**
+ * How many songs have re-proving still available.
+ *
+ * ---------------------------------------------------------------
+ * A COUNT, NOT A FLAG ON EVERY ROW.
+ *
+ * `TreeNode` deliberately carries nothing about due-ness. A field
+ * there would be most of the plumbing for the cross-module due column
+ * (build queue item 11) arriving early, under one module's name, and
+ * without that item's decisions — chiefly what "due" means for modules
+ * whose items are recency-driven rather than due-dated. So repertoire
+ * reports one number and the songs list carries the per-song reading,
+ * which is where it belongs anyway.
+ *
+ * NOT `dueRefs`, which this deliberately does not reuse. That set is
+ * `nextDueAt <= now` and nothing else, which is the right rule for a
+ * filter and the wrong one here: it counts OVERDUE keys, whose rung
+ * has already dropped and which the demotion notice owns. It also
+ * cannot see the due-soon window at all. Same table, two questions.
+ * ---------------------------------------------------------------
+ *
+ * Pure. Windows come from the user's settings via the caller, so this
+ * and the songs list cannot disagree about when a key is late.
+ */
+export function repertoireDueSongCount(
+  keys: ReadonlyArray<SongKey>,
+  spacingRows: ReadonlyArray<SpacingState>,
+  now: number,
+  windows: DueWindows,
+): number {
+  const dueByKeyId = new Map<string, number | null>();
+  const byRef = new Map<string, number | null>();
+  for (const row of spacingRows) {
+    if (row.moduleRef !== 'repertoire') continue;
+    byRef.set(row.itemRef, row.nextDueAt);
+  }
+  for (const key of keys) {
+    dueByKeyId.set(key.id, byRef.get(songKeyItemRef(key.id)) ?? null);
+  }
+
+  const keysBySong = new Map<string, SongKey[]>();
+  for (const key of keys) {
+    const arr = keysBySong.get(key.songId) ?? [];
+    arr.push(key);
+    keysBySong.set(key.songId, arr);
+  }
+
+  let count = 0;
+  for (const songKeys of keysBySong.values()) {
+    if (songDueReading(songKeys, dueByKeyId, now, windows) !== null) count += 1;
+  }
+  return count;
 }
