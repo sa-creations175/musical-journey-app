@@ -31,10 +31,10 @@ tell you which sections" is a complete record. Test is per section per key and
 is the one that can fail. Until both exist, an hour of noodling and a clean
 run-through are the same row.
 
-**Design.** `claude/SONG_PAGE_REDESIGN_SPEC.md`, which is **in the Claude
-Project and not in this repo** — a terminal session cannot read it and must ask
-for the relevant section rather than working from the code alone. It is current
-and it wins over anything under `docs/`. `DASHBOARD_REDESIGN_DESIGN.md` →
+**Design.** `docs/SONG_PAGE_REDESIGN_SPEC.md` — **committed to the repo on 23
+August 2026**, having lived in the Claude Project until then, which meant every
+prompt had to carry the relevant section inline. Read it first; it is current
+and it wins over anything else under `docs/`. `DASHBOARD_REDESIGN_DESIGN.md` →
 *Module trees → Song Repertoire → Practice and test are different events* still
 holds for why the split exists.
 
