@@ -30,7 +30,7 @@ export default function PracticeHistory({ logs, sections }: Props) {
   if (logs.length === 0) {
     return (
       <p className="text-xs text-neutral-500 italic">
-        no practice sessions logged yet. click "log a practice session" to start the record.
+        no practice sessions logged yet. tap a cell in the matrix above to start one.
       </p>
     );
   }

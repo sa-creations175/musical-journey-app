@@ -85,7 +85,6 @@ import {
   type SongKeySpacingSettings,
 } from './spacingPrefs';
 import SongHeatmap from './SongHeatmap';
-import PracticeLogModal from './PracticeLogModal';
 import CellAnchoredMessage from './CellAnchoredMessage';
 import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
@@ -317,7 +316,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const [editingMeta, setEditingMeta] = useState(false);
   const [whyEditing, setWhyEditing] = useState(false);
   const [whyDraft, setWhyDraft] = useState('');
-  const [showLogModal, setShowLogModal] = useState(false);
 
   // Section-order drag state. The sortable list reads from
   // song.sectionOrder (falling back to DEFAULT_SECTION_ORDER); the
@@ -2294,18 +2292,21 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">practice history</h3>
             <SectionGuidance surface="practiceHistory" />
           </div>
-          <button
-            onClick={() => setShowLogModal(true)}
-            className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
-          >
-            + log a practice session
-          </button>
         </div>
         {/* The bottom timer strip is gone as of 3d-5. It sat below
             the danger zone, inside practice history — a timer you had
             to scroll past two cards to reach. Practice starts from a
             matrix cell now, and the panel keeps the clock on screen
-            whatever else you are doing. */}
+            whatever else you are doing.
+
+            "+ log a practice session" went with PracticeLogModal in
+            3d-8. It was a second writer of songPracticeLog — adding
+            the row itself rather than going through
+            logPracticeSession — and it initialised its feel picker to
+            3, so every session the user did not explicitly rate was
+            stored as "comfortable", a judgement they never made,
+            which then fed the spacing curve. The panel's rating step
+            replaces it and leaves an unrated session unrated. */}
         <SongHeatmap logs={logs} />
         <PracticeHistory logs={logs} sections={sections} />
       </section>
@@ -2329,17 +2330,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         </div>
       </section>
 
-      {showLogModal && (
-        <PracticeLogModal
-          song={song}
-          sections={sections}
-          onClose={() => setShowLogModal(false)}
-          onLogged={() => {
-            setShowLogModal(false);
-            toast({ message: 'Session logged.', variant: 'success' });
-          }}
-        />
-      )}
 
       {panelCell && panelKey && panelSection && (
         <CellPanel

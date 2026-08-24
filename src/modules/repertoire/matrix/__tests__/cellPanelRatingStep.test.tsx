@@ -449,3 +449,78 @@ describe('time the app could not see', () => {
     h.unmount();
   });
 });
+
+describe('a note about the session', () => {
+  /**
+   * It came back from `PracticeLogModal` when that retired in 3d-8,
+   * rather than being dropped with the rest of it. The activity chips
+   * name the KIND of work; "the bridge fell apart at bar 12" is the
+   * thing that happened, and no vocabulary of six could hold it.
+   */
+  const noteBox = () =>
+    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="A note about this session"]');
+
+  it('is a line, not a box, until it is tapped', async () => {
+    // An always-open textarea holds its space permanently and makes
+    // the step read as a form — the weight that got "my associations"
+    // folded into a one-liner on the metadata card.
+    const h = mount(30);
+    await h.settle();
+    h.toRatingStep();
+    expect(noteBox()).toBeNull();
+
+    h.click('+ add a note about this session');
+    expect(noteBox()).not.toBeNull();
+    h.unmount();
+  });
+
+  it('writes what was typed', async () => {
+    const h = mount(30);
+    await h.settle();
+    h.toRatingStep();
+    h.click('+ add a note about this session');
+    act(() => {
+      const box = noteBox()!;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype, 'value',
+      )!.set!;
+      setter.call(box, 'the bridge fell apart at bar 12');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await h.clickAsync('Log it');
+
+    expect((await onlyRow()).notes).toBe('the bridge fell apart at bar 12');
+    h.unmount();
+  });
+
+  it('omits the field when the box was opened and left blank', async () => {
+    // A textarea the user opened and thought better of holds a
+    // newline or a space, and a row whose note is " " reads as a note
+    // in every list that renders one.
+    const h = mount(30);
+    await h.settle();
+    h.toRatingStep();
+    h.click('+ add a note about this session');
+    act(() => {
+      const box = noteBox()!;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype, 'value',
+      )!.set!;
+      setter.call(box, '   \n  ');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await h.clickAsync('Log it');
+
+    expect(Object.hasOwn(await onlyRow(), 'notes')).toBe(false);
+    h.unmount();
+  });
+
+  it('is not required', async () => {
+    const h = mount(30);
+    await h.settle();
+    h.toRatingStep();
+    await h.clickAsync('Log it');
+    expect(Object.hasOwn(await onlyRow(), 'notes')).toBe(false);
+    h.unmount();
+  });
+});

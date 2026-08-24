@@ -64,6 +64,9 @@ export interface PracticeContext {
   activities?: ReadonlyArray<PracticeActivity>;
   activityOther?: string;
   feelRating?: Feel;
+  /** What happened, in the user's own words. Trimmed and dropped when
+   *  blank by `logPracticeSession`. */
+  notes?: string;
 }
 
 /**
@@ -216,6 +219,7 @@ export function useSongTimer(songId: string): SongTimerApi {
         // say on its behalf.
         ...(context?.activities?.length ? { activities: context.activities } : {}),
         ...(context?.activityOther ? { activityOther: context.activityOther } : {}),
+        ...(context?.notes ? { notes: context.notes } : {}),
         // A RATING ONLY WHEN ONE WAS GIVEN, and never invented here.
         // The rating step asks how it went and may be answered or
         // skipped; a timer stopped without one records the time

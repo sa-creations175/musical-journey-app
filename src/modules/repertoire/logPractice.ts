@@ -82,6 +82,7 @@ export async function logPracticeSession(
   const id = `plog-${crypto.randomUUID()}`;
   const activities = normaliseActivities(input.activities);
   const activityOther = (input.activityOther ?? '').trim();
+  const notes = (input.notes ?? '').trim();
 
   const row: SongPracticeLog = {
     id,
@@ -95,7 +96,11 @@ export async function logPracticeSession(
     // skip, and it would then feed stage advancement as though it were
     // real. Absent and "average" are different facts.
     ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
-    ...(input.notes ? { notes: input.notes } : {}),
+    // Trimmed, and absent when that leaves nothing. A textarea the
+    // user opened and thought better of holds a newline or a space,
+    // and a row whose note is " " reads as a note in every list that
+    // renders one.
+    ...(notes !== '' ? { notes } : {}),
     ...(input.atTargetTempo !== undefined
       ? { atTargetTempo: input.atTargetTempo }
       : {}),

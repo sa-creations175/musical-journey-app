@@ -218,6 +218,7 @@ export default function CellPanel({
         keys: [songKey.keyName],
         activities: answers.activities,
         activityOther: answers.activityOther,
+        notes: answers.notes,
         ...(answers.feelRating !== null ? { feelRating: answers.feelRating } : {}),
       });
       onSaved?.();

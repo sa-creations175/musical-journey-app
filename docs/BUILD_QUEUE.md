@@ -60,6 +60,7 @@ ship order.**
 | 23 Aug | 3d-5 | The cell panel — Practice / Test chooser, timer on entry, metronome, section ticks with select-all, Open lead sheet, collapse to a top bar |
 | 23 Aug | 3d-6 | **The rating step.** Done pauses and Log it writes; sections confirmed, six activities as a multi-select, how it went on the existing four-step scale, and the un-attributed-time question given a surface at last. Nothing in it is required. |
 | 23 Aug | 3d-7 | **The cell test.** Three clean runs at tempo make a section comfortable in a key. The two whole-song claims — "Test song" and "run at tempo" — stay on `KeyRow`, because a cell cannot honestly speak for a song and the two run tables exist to keep those claims apart. A test is timed and not rated. |
+| 23 Aug | 3d-8 | **The three old surfaces retired.** `PracticeLogModal`, "+ log a practice session" and `CellInteractionModal` all deleted. Session notes came back with the panel — a collapsed line at the bottom of the rating step, because the activity chips name the kind of work and a note says what happened. `SongMatrixView.onCellSelected` is required now, so the dead fallback cannot return by omission. |
 | 23 Aug | — | The layout pass: the matrix rebuilt on the shared `HeatCell` primitive and capped at 56px, two-column metadata, both cards reordered, the lead sheet drawers, and the criteria panel accumulating by rung with a moment when one is earned |
 
 **The layout pass found one bug worth carrying.** `HeatCell` is
@@ -72,7 +73,6 @@ the ~2,400px the pass removed; everything else combined bought ~340px.
 
 | Step | What |
 |---|---|
-| 3d-8 | Retire `PracticeLogModal` and "+ log a practice session". `CellInteractionModal` retires alongside it — the panel now covers both its practice and its test halves, and it is still reachable wherever the matrix mounts without an `onCellSelected` handler. Its retirement is the trigger for item 3's cross-key decision — check that entry before starting, not after. |
 | 3d-9 | The practice calendar, matching `ShapesAndPatternsCalendar`, replacing the practice history card. |
 | 3d-10 | "Due" surfaced in the songs list and highlighted on the dashboard. |
 | — | The ⓘ status walkthrough — designed, in the spec, never built. |
@@ -137,16 +137,17 @@ rather than part of it.
 **Design.** `DASHBOARD_REDESIGN_DESIGN.md` → *Queued after this build →
 Repertoire matrix rebuild* names the overlap. No design for the collapse yet.
 
-**Carried in from the practice-vs-test audit (20 Aug 2026).** Retiring
-`PracticeLogModal` in item 1 removes one of the two writers to
-`songCrossKeyProgress`. `CrossKeyGrid.tsx` is the other and stays live, so the
-table does not go dark — but the two advancement rules that read it,
-`internalized → cross-key` and `cross-key → maintenance`, will only ever fire
-off a **manual grid tap**, never off a logged session. That is a real change in
-when those suggestions appear, and it is deliberately not fixed in item 1: the
-honest fix is to source cross-key coverage from `songKeys` / `songCells`, which
-is the same retirement of the deprecated table this card collapse already
-implies. Decide it here rather than twice.
+**The cross-key trigger this entry used to carry is spent, and the decision it
+was waiting for was overtaken (checked 23 Aug 2026).** It said retiring
+`PracticeLogModal` would remove one of two writers to `songCrossKeyProgress`,
+leaving `CrossKeyGrid.tsx` as the other. Neither holds any more: 3d-3 removed
+the write from `PracticeLogModal` before 3d-8 deleted the file, the Cross-Key
+card and its grid are gone, and **nothing writes that table at all now** — the
+only remaining references are deletes on section-delete, song-delete and seed
+dedupe, plus backup and sync. The advancement rules it fed were rewritten in
+3a-5 and read `songKeys` / `songCells` already. So there is no decision left
+here, only a `@deprecated` table with no writers and no readers, whose drop
+belongs to a data-migration step rather than to this card collapse.
 
 ---
 

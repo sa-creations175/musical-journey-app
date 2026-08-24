@@ -40,6 +40,7 @@ export interface RatingAnswers {
   activities: PracticeActivity[];
   activityOther: string;
   feelRating: Feel | null;
+  notes: string;
 }
 
 interface Props {
@@ -70,6 +71,7 @@ export default function RatingStep({
   const [activities, setActivities] = useState<Set<PracticeActivity>>(() => new Set());
   const [other, setOther] = useState('');
   const [feel, setFeel] = useState<Feel | null>(null);
+  const [notes, setNotes] = useState('');
 
   const toggle = (a: PracticeActivity) => setActivities(prev => {
     const next = new Set(prev);
@@ -110,6 +112,8 @@ export default function RatingStep({
 
       <SessionFeelPicker label="How did it go?" value={feel} onChange={setFeel} />
 
+      <SessionNote value={notes} onChange={setNotes} />
+
       <div className="flex items-center gap-2">
         <button
           type="button"
@@ -126,6 +130,7 @@ export default function RatingStep({
             activities: [...activities],
             activityOther: other,
             feelRating: feel,
+            notes,
           })}
           className="ml-auto px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 disabled:opacity-40"
         >
@@ -133,6 +138,62 @@ export default function RatingStep({
         </button>
       </div>
     </div>
+  );
+}
+
+// -------------------------------------------------------------------
+
+/**
+ * What actually happened, in the user's own words.
+ *
+ * ---------------------------------------------------------------
+ * A DIFFERENT QUESTION FROM THE CHIPS, WHICH IS WHY IT SURVIVED.
+ *
+ * The activity chips name the KIND of work. "The bridge fell apart at
+ * bar 12" is not a kind of work — it is the thing that happened, and
+ * no vocabulary of six could hold it. It came back from
+ * `PracticeLogModal` when that retired, rather than being dropped with
+ * the rest of it.
+ *
+ * COLLAPSED, NOT AN ALWAYS-OPEN BOX. An empty textarea holds its space
+ * permanently and makes the step feel like a form — the same weight
+ * that got "my associations" folded into a one-liner on the metadata
+ * card. This opens on a tap, the same way "+ add a note about this
+ * song" already does, and once it has content it stays open so nothing
+ * typed is hidden behind a second tap.
+ * ---------------------------------------------------------------
+ *
+ * Optional like everything else here, and omitted rather than written
+ * empty when blank — see the write in `logPractice.ts`.
+ */
+function SessionNote({
+  value, onChange,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!open && value === '') {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-xs text-neutral-500 hover:text-fluent"
+      >
+        + add a note about this session
+      </button>
+    );
+  }
+  return (
+    <textarea
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      rows={3}
+      autoFocus
+      placeholder="what happened"
+      aria-label="A note about this session"
+      className="w-full px-2.5 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400"
+    />
   );
 }
 

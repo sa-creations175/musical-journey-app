@@ -8,7 +8,6 @@ import {
   type SongKeyRunThrough,
   type SongMatrixSection,
 } from '../../../lib/db';
-import CellInteractionModal from './CellInteractionModal';
 import type { DueWindows } from './keySpacing';
 import SingleRunModal from './SingleRunModal';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
@@ -48,9 +47,15 @@ interface Props {
    *  surrounding chrome. Defaults to false for the legacy
    *  full-page replacement mode. */
   embedded?: boolean;
-  /** When provided, a cell tap is delegated to the parent instead of
-   *  opening this component's own modal. See `handleCellTap`. */
-  onCellSelected?: (cellId: string) => void;
+  /**
+   * REQUIRED, not optional. It used to fall back to a modal this
+   * component owned, and that fallback is gone with
+   * `CellInteractionModal` in 3d-8 — so a caller that omitted the
+   * handler would render a grid whose cells did nothing when tapped.
+   * A required prop makes that a compile error rather than a dead
+   * surface nobody notices.
+   */
+  onCellSelected: (cellId: string) => void;
   /** When each key is next due to be proven, and the user's windows.
    *  Resolved by the page — the same read the stage rules use, rather
    *  than a second one that could disagree with them. */
@@ -122,33 +127,21 @@ export default function SongMatrixView({
   const [crossKeyAutoFired, setCrossKeyAutoFired] = useState(false);
   const closeCrossKey = useCallback(() => setCrossKeyOpen(false), []);
 
-  // Cell interaction modal — opens on cell tap. The ID-only state
-  // lets the parent stay agnostic about cell internals; the modal
-  // resolves cell + songKey + section + siblings from props passed
-  // by this component below. handleCellTap memoized for stable
-  // reference passed down through MatrixGrid → KeyRow → CellSquare.
-  const [activeCellId, setActiveCellId] = useState<string | null>(null);
   // ---------------------------------------------------------------
   // THE PANEL IS OWNED BY THE PAGE, NOT BY THE MATRIX.
   //
   // Practice mode collapses to a bar pinned at the top of the SCREEN
   // and opens the lead sheet beneath it — a layout the matrix cannot
-  // reach from inside its own card. So when the parent offers
-  // `onCellSelected`, the tap is delegated and this component opens
-  // nothing.
+  // reach from inside its own card. So the tap is delegated and this
+  // component opens nothing.
   //
-  // The old modal stays reachable for callers that pass no handler,
-  // which is what keeps this file a small change rather than a
-  // rewrite while another session is working in the same tree.
+  // It used to keep `CellInteractionModal` for callers that passed no
+  // handler. There were none — this component has one mount, and that
+  // mount has passed a handler since 3d-5 — so the modal had been
+  // unreachable for three days by the time it was deleted in 3d-8.
+  // The handler is required now, so the dead branch cannot come back
+  // by omission.
   // ---------------------------------------------------------------
-  const handleCellTap = useCallback(
-    (cellId: string) => {
-      if (onCellSelected) { onCellSelected(cellId); return; }
-      setActiveCellId(cellId);
-    },
-    [onCellSelected],
-  );
-  const closeCellModal = useCallback(() => setActiveCellId(null), []);
 
   // Whole-song test modal — same ID-only pattern. The banner and
   // each KeyStrip's "Run test" button both call handleRunTest. Modal
@@ -231,28 +224,6 @@ export default function SongMatrixView({
     setCrossKeyAutoFired(true);
     setCrossKeyOpen(true);
   }
-
-  // Resolve the active cell + its peers from already-loaded data.
-  // No additional queries — everything's in scope from the live
-  // queries above. activeCell can briefly be undefined right after
-  // a save closes the modal (activeCellId still set for one render
-  // before closeCellModal fires); the conditional render below
-  // handles both states cleanly.
-  const activeCell = activeCellId
-    ? songCells.find(c => c.id === activeCellId) ?? null
-    : null;
-  const activeSongKey = activeCell
-    ? songKeys.find(k => k.id === activeCell.songKeyId) ?? null
-    : null;
-  const activeSection = activeCell
-    ? sections.find(s => s.id === activeCell.sectionId) ?? null
-    : null;
-  const activeSiblingCells = useMemo(
-    () => activeCell
-      ? songCells.filter(c => c.songKeyId === activeCell.songKeyId)
-      : [],
-    [activeCell, songCells],
-  );
 
   // Whole-song test summaries — one map keyed by songKeyId. Just a
   // total-attempt count: discrete-session semantics mean any latest
@@ -363,7 +334,7 @@ export default function SongMatrixView({
         dueByKeyId={dueByKeyId}
         dueWindows={dueWindows}
         now={now}
-        onCellTap={handleCellTap}
+        onCellTap={onCellSelected}
         onRunTest={handleRunTest}
         onLogRun={handleLogRun}
         runCountsForKeyIds={runCountsForKeyIds}
@@ -377,21 +348,6 @@ export default function SongMatrixView({
           song={song}
           originalKey={originalKey.keyName}
           visibleSections={visibleSections}
-        />
-      )}
-
-      {activeCell && activeSongKey && activeSection && (
-        <CellInteractionModal
-          key={activeCell.id}
-          open={true}
-          onClose={closeCellModal}
-          onSaved={bumpRefresh}
-          cell={activeCell}
-          songKey={activeSongKey}
-          section={activeSection}
-          song={song}
-          siblingCells={activeSiblingCells}
-          totalSections={visibleSections.length}
         />
       )}
 
