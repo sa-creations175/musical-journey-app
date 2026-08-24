@@ -1,6 +1,7 @@
 import { db, type SongPracticeLog } from '../../lib/db';
 import { recordEngagement } from '../../lib/spacingState';
 import type { Feel } from '../../lib/fluencyScale';
+import { normaliseActivities, type PracticeActivity } from '../../lib/practiceActivities';
 
 /**
  * Write one practice session.
@@ -18,6 +19,12 @@ import type { Feel } from '../../lib/fluencyScale';
  * not a degraded one — and it is one the per-cell model structurally
  * cannot hold, since every run-through needs exactly one section and
  * one key.
+ *
+ * `activities` joins the same rule rather than becoming the exception
+ * to it. Naming what the sitting was is the thing this field exists
+ * for, and it is still optional: a taxonomy choice at the end of a
+ * practice session is the kind of bureaucracy that stops the logging
+ * happening at all, which is the failure above, one field later.
  * ---------------------------------------------------------------
  */
 export interface LogPracticeInput {
@@ -42,6 +49,18 @@ export interface LogPracticeInput {
   feelRating?: Feel;
   notes?: string;
   atTargetTempo?: boolean;
+  /**
+   * What kind of work it was. Empty or omitted means the user did not
+   * say — a complete record, not a degraded one, on the same argument
+   * as `sectionIds` above.
+   *
+   * Normalised on the way in: unknown slugs are dropped and the rest
+   * are stored in the canonical order, so two sittings that ticked the
+   * same things produce identical arrays.
+   */
+  activities?: ReadonlyArray<PracticeActivity | string>;
+  /** Free text for `'other'`. Trimmed, and dropped when blank. */
+  activityOther?: string;
   timestamp?: number;
 }
 
@@ -61,6 +80,8 @@ export async function logPracticeSession(
 ): Promise<string> {
   const now = input.timestamp ?? Date.now();
   const id = `plog-${crypto.randomUUID()}`;
+  const activities = normaliseActivities(input.activities);
+  const activityOther = (input.activityOther ?? '').trim();
 
   const row: SongPracticeLog = {
     id,
@@ -77,6 +98,22 @@ export async function logPracticeSession(
     ...(input.notes ? { notes: input.notes } : {}),
     ...(input.atTargetTempo !== undefined
       ? { atTargetTempo: input.atTargetTempo }
+      : {}),
+    // OMITTED, not `[]`, when nothing was ticked. An empty array is a
+    // claim — "I answered, and the answer was none of these" — which
+    // is not an answer the UI can produce and not one the user gave.
+    // Absent says the honest thing: nobody said. It also keeps a row
+    // written today indistinguishable from one written before the
+    // field existed, which is correct, because those are the same
+    // fact.
+    ...(activities.length > 0 ? { activities } : {}),
+    // Only alongside 'other', and only when it says something. Free
+    // text without the slug would be an activity no picker can show,
+    // and 'other' with a blank line is a real answer — "something
+    // else, and I did not say what" — so the slug does not require
+    // the text.
+    ...(activityOther !== '' && activities.includes('other')
+      ? { activityOther }
       : {}),
   };
 
@@ -114,6 +151,26 @@ export async function logPracticeSession(
   //
   // Outside any transaction by design, mirroring PracticeLogModal: a
   // spacingState failure must not roll back the practice log.
+  //
+  // ---------------------------------------------------------------
+  // AND THIS CANNOT MOVE A KEY'S RETEST CLOCK. `itemRef` is the SONG,
+  // and the clock lives on a different row: `songKey:<songKeyId>`,
+  // written only by `recordKeyProving` when a whole-song test is
+  // passed or failed, and read by `dueByKeyId` → `keyDueState` → the
+  // rung that holds or drops. Two namespaces, one engine; practice
+  // cannot reach the key rows and does not try to.
+  //
+  // That separation matters more from step 3d-6 than it did before it.
+  // Until the rating step existed, the timer path passed no
+  // `feelRating`, so this branch never ran from a timed sitting and
+  // the question never came up. Now it runs on every rated session —
+  // and it must stay unable to buy or cost a key the time that only
+  // three clean run-throughs can. `proveKey.ts`'s header states the
+  // rule from the other side: a single run cannot earn time, so it
+  // must not cost time either. Asserted, not assumed — see
+  // `practiceDoesNotMoveRetestClock` in the tests, which checks the
+  // itemRef namespace rather than any screen.
+  // ---------------------------------------------------------------
   if (input.feelRating !== undefined) {
     try {
       await recordEngagement({

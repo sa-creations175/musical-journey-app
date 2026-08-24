@@ -177,3 +177,77 @@ describe('the next practice retires "earned just now"', () => {
     expect((await onlyLog()).songId).toBe('ghost');
   });
 });
+
+describe('what kind of work it was', () => {
+  it('stores the ticked activities', async () => {
+    await logPracticeSession({
+      songId: SONG, durationMin: 45,
+      activities: ['lead-sheet', 'under-the-fingers'],
+    });
+    expect((await onlyLog()).activities).toEqual(['lead-sheet', 'under-the-fingers']);
+  });
+
+  it('OMITS the field when nothing was ticked, rather than writing []', async () => {
+    // Object.hasOwn, not toHaveProperty(row, 'activities', undefined),
+    // which reads identically for a property set to undefined and a
+    // property that is absent — opposite outcomes.
+    //
+    // The distinction is the whole point: `[]` is a claim ("I
+    // answered, and none of these applied"), and no surface can
+    // produce it. Absent says nobody said, which is also what every
+    // row written before this field existed says — correctly, because
+    // those are the same fact.
+    await logPracticeSession({ songId: SONG, durationMin: 45 });
+    expect(Object.hasOwn(await onlyLog(), 'activities')).toBe(false);
+  });
+
+  it('OMITS the field when an empty list is passed explicitly', async () => {
+    await logPracticeSession({ songId: SONG, durationMin: 45, activities: [] });
+    expect(Object.hasOwn(await onlyLog(), 'activities')).toBe(false);
+  });
+
+  it('keeps the free text alongside "other"', async () => {
+    await logPracticeSession({
+      songId: SONG, durationMin: 20,
+      activities: ['other'], activityOther: '  transcribing the bass line  ',
+    });
+    const row = await onlyLog();
+    expect(row.activities).toEqual(['other']);
+    expect(row.activityOther).toBe('transcribing the bass line');
+  });
+
+  it('keeps "other" on its own when the line was left blank', async () => {
+    // "Something else, and I did not say what" is a real answer. The
+    // slug does not require the text.
+    await logPracticeSession({
+      songId: SONG, durationMin: 20,
+      activities: ['other'], activityOther: '   ',
+    });
+    const row = await onlyLog();
+    expect(row.activities).toEqual(['other']);
+    expect(Object.hasOwn(row, 'activityOther')).toBe(false);
+  });
+
+  it('drops free text that arrives without "other"', async () => {
+    // An activity no picker can show, on a row claiming an activity
+    // the user did not tick.
+    await logPracticeSession({
+      songId: SONG, durationMin: 20,
+      activities: ['just-playing'], activityOther: 'orphaned',
+    });
+    expect(Object.hasOwn(await onlyLog(), 'activityOther')).toBe(false);
+  });
+
+  it('does not let an activity stand in for a rating', async () => {
+    // The two questions are separate and one must not answer the
+    // other. In particular "just playing" is a CATEGORY, not a lower
+    // grade of practice — nothing downgrades a sitting for carrying
+    // it, and it emits no spacing signal of its own.
+    await logPracticeSession({
+      songId: SONG, durationMin: 30, activities: ['just-playing'],
+    });
+    const row = await onlyLog();
+    expect(Object.hasOwn(row, 'feelRating')).toBe(false);
+    expect(await getSpacingState(SONG, 'repertoire')).toBeUndefined();
+  });
+});

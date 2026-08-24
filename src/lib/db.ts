@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { Feel } from './fluencyScale';
+import type { PracticeActivity } from './practiceActivities';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 
 export interface IntervalData {
@@ -894,6 +895,34 @@ export interface SongPracticeLog {
   /** Marker for sessions where the user indicated they worked at
    *  target tempo. Drives the Learning → Comfortable advancement. */
   atTargetTempo?: boolean;
+  /**
+   * What kind of work the sitting was, on the shared vocabulary in
+   * `lib/practiceActivities.ts`. Several at once is the normal case:
+   * a sitting is often lead sheet work AND getting it under the
+   * fingers, and forcing one would make the user pick whichever felt
+   * more like the "real" work.
+   *
+   * OPTIONAL, and ABSENT rather than `[]` when unanswered, for the
+   * same reason `feelRating` is. Nothing here is required — see the
+   * duration-is-the-record statement at the top of `logPractice.ts`.
+   * A reader must therefore test presence with `Object.hasOwn` or a
+   * truthiness check, never `toHaveProperty(row, 'activities',
+   * undefined)`, which cannot tell an absent field from one set to
+   * undefined.
+   *
+   * NEVER DERIVED. In particular `'in-time'` is not inferred from the
+   * metronome having run — see the rule beside the option list.
+   */
+  activities?: PracticeActivity[];
+  /**
+   * The user's own words, when `activities` includes `'other'`. The
+   * list is meant to grow in their vocabulary rather than be guessed
+   * at up front, and this is where the next entry comes from.
+   *
+   * Absent when blank. `'other'` on its own — "something else, and I
+   * did not say what" — is a legitimate answer and is stored as such.
+   */
+  activityOther?: string;
 }
 
 /**

@@ -5,12 +5,16 @@ import {
   clearSongTimer,
   elapsedMinutes,
   elapsedMs,
+  pausedRecord,
   readSongTimer,
   resolvedGap,
+  resumedRecord,
   startedRecord,
   writeSongTimer,
   type SongTimerRecord,
 } from './songTimer';
+import type { Feel } from '../../lib/fluencyScale';
+import type { PracticeActivity } from '../../lib/practiceActivities';
 
 /**
  * React binding for the song practice timer.
@@ -45,6 +49,17 @@ const TICK_MS = 1000;
 export interface PracticeContext {
   sectionIds?: string[];
   keys?: string[];
+  /**
+   * What the sitting was, and how it went — the rating step's answers.
+   *
+   * Optional at the type level for the same reason section and key
+   * are: a stop that never passed through the rating step (the swap
+   * prompt logs the song being left) has no answers to carry, and
+   * inventing them would be worse than the time going unlabelled.
+   */
+  activities?: ReadonlyArray<PracticeActivity>;
+  activityOther?: string;
+  feelRating?: Feel;
 }
 
 export interface SongTimerApi {
@@ -57,6 +72,35 @@ export interface SongTimerApi {
   /** Start on this song. Only valid when nothing else is running —
    *  the caller offers the swap otherwise. */
   start: () => void;
+  /**
+   * Stop the clock WITHOUT logging, keeping everything banked.
+   *
+   * ---------------------------------------------------------------
+   * WHAT SITS BETWEEN THE TIMER AND THE WRITE.
+   *
+   * The rating step asks three questions after the work has stopped,
+   * and neither of the two obvious shapes survives contact:
+   *
+   *   · leave it running while you answer — the minutes inflate by
+   *     however long you spent choosing, and the answer to "how did
+   *     it go" costs you time on the record;
+   *   · write on Done and update the row afterwards — two writes for
+   *     one sitting, and a row that exists in an unrated state that
+   *     nothing intended.
+   *
+   * So Done pauses and Save writes. The paused record stays in
+   * localStorage, so closing the tab mid-rating loses the ANSWERS and
+   * not the minutes — the timer is still there, paused, when you come
+   * back. Backing out resumes it.
+   * ---------------------------------------------------------------
+   */
+  pause: () => void;
+  /** Restart a paused clock without disturbing what is banked. What
+   *  backing out of the rating step calls. */
+  resume: () => void;
+  /** True when a timer exists, belongs to this song, and is stopped
+   *  but unlogged — i.e. the rating step is what it is waiting on. */
+  isPaused: boolean;
   /**
    * Stop and LOG. Writes one songPracticeLog row for the timer's own
    * song — not necessarily the song on screen, which is what makes
@@ -143,10 +187,20 @@ export function useSongTimer(songId: string): SongTimerApi {
         // had: somewhere to land other than a song-level total.
         ...(context?.sectionIds?.length ? { sectionIds: context.sectionIds } : {}),
         ...(context?.keys?.length ? { keys: context.keys } : {}),
-        // No RATING, ever, from here. Practice is not graded — the
-        // rating step in the panel asks how it went, and a timer
-        // stopped without one records the time honestly rather than
-        // inventing a middling score.
+        // What the work was, when the rating step asked and the user
+        // answered. Absent otherwise — a swap logs the song being
+        // left without ever showing that step, and it has nothing to
+        // say on its behalf.
+        ...(context?.activities?.length ? { activities: context.activities } : {}),
+        ...(context?.activityOther ? { activityOther: context.activityOther } : {}),
+        // A RATING ONLY WHEN ONE WAS GIVEN, and never invented here.
+        // The rating step asks how it went and may be answered or
+        // skipped; a timer stopped without one records the time
+        // honestly rather than a middling score nobody chose. That is
+        // also what keeps `recordEngagement` off — see logPractice.
+        ...(context?.feelRating !== undefined
+          ? { feelRating: context.feelRating }
+          : {}),
         timestamp: at,
       });
     } catch (err) {
@@ -164,6 +218,24 @@ export function useSongTimer(songId: string): SongTimerApi {
     start();
     return minutes;
   }, [stopAndLog, start]);
+
+  const pause = useCallback(() => {
+    const current = readSongTimer();
+    if (current === null) return;
+    persist(pausedRecord(current, Date.now()));
+  }, [persist]);
+
+  const resume = useCallback(() => {
+    const current = readSongTimer();
+    if (current === null) return;
+    const at = Date.now();
+    // `lastActivityAt` moves with the resume. Time spent in the
+    // rating step is not silence at the keyboard — the user was in
+    // the app answering questions — so it must not bank as a gap the
+    // moment they go back to playing.
+    persist({ ...resumedRecord(current, at), lastActivityAt: at });
+    setNow(at);
+  }, [persist]);
 
   const discard = useCallback(() => persist(null), [persist]);
 
@@ -193,6 +265,9 @@ export function useSongTimer(songId: string): SongTimerApi {
     isThisSong: record !== null && record.songId === songId,
     elapsedMs: record === null ? 0 : elapsedMs(record, now),
     start,
+    pause,
+    resume,
+    isPaused: record !== null && record.songId === songId && !record.running,
     stopAndLog,
     swapToThisSong,
     discard,

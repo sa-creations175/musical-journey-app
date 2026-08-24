@@ -219,3 +219,109 @@ describe('a run records section × key', () => {
     h.unmount();
   });
 });
+
+describe('Done pauses, Save writes', () => {
+  /**
+   * The shape the rating step needs. Neither obvious alternative
+   * survives: leaving the clock running inflates the minutes by
+   * however long you spend answering, and writing on Done then
+   * updating the row means two writes for one sitting and a row that
+   * briefly exists in a state nothing intended.
+   */
+  it('writes nothing when the clock is paused', async () => {
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    act(() => { h.api.pause(); });
+    expect(await db.songPracticeLog.count()).toBe(0);
+    h.unmount();
+  });
+
+  it('keeps the banked minutes in storage, so a reload loses the answers and not the time', async () => {
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    act(() => { h.api.pause(); });
+    const stored = readSongTimer();
+    expect(stored?.running).toBe(false);
+    expect(stored?.accumulatedMs).toBeGreaterThan(14 * MIN);
+    h.unmount();
+  });
+
+  it('logs the paused minutes, not zero, when Save comes', async () => {
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    act(() => { h.api.pause(); });
+    await act(async () => {
+      await h.api.stopAndLog({
+        sectionIds: ['sec-1'], keys: ['C'],
+        activities: ['lead-sheet', 'in-time'], feelRating: 3,
+      });
+    });
+    const [row] = await db.songPracticeLog.toArray();
+    expect(row.durationMin).toBe(15);
+    expect(row.activities).toEqual(['lead-sheet', 'in-time']);
+    expect(row.feelRating).toBe(3);
+    h.unmount();
+  });
+
+  it('does not keep counting while paused', async () => {
+    // The whole reason Done pauses rather than leaving it running:
+    // the time spent choosing must not land on the record.
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    act(() => { h.api.pause(); });
+    const atPause = readSongTimer()!.accumulatedMs;
+    vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10 * MIN);
+    await act(async () => { await h.api.stopAndLog({ keys: ['C'] }); });
+    const [row] = await db.songPracticeLog.toArray();
+    expect(row.durationMin).toBe(Math.ceil(atPause / MIN));
+    h.unmount();
+  });
+
+  it('resumes without losing what was banked', async () => {
+    // Backing out of the rating step. The minutes already counted are
+    // still counted; the clock simply runs again. Asserted by LOGGING
+    // after the resume rather than by reading `accumulatedMs` back —
+    // a resume that silently restarted from zero would leave the
+    // field looking plausible and cost the user the sitting.
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    act(() => { h.api.pause(); });
+    act(() => { h.api.resume(); });
+    expect(readSongTimer()!.running).toBe(true);
+    await act(async () => { await h.api.stopAndLog({ keys: ['C'] }); });
+    expect((await db.songPracticeLog.toArray())[0].durationMin).toBe(15);
+    h.unmount();
+  });
+
+  it('does not bank the rating step as silence on resume', async () => {
+    // Time spent answering questions is not time away from the
+    // keyboard — the user was in the app. Without moving
+    // `lastActivityAt`, going back to playing would immediately bank
+    // the whole rating step as an un-attributed gap and ask about it.
+    runningFor('song-A', 15);
+    const h = mount('song-A');
+    act(() => { h.api.pause(); });
+    const later = Date.now() + 10 * MIN;
+    vi.spyOn(Date, 'now').mockReturnValue(later);
+    act(() => { h.api.resume(); });
+    expect(readSongTimer()!.lastActivityAt).toBe(later);
+    h.unmount();
+  });
+
+  it('reports isPaused only for a stopped timer on THIS song', async () => {
+    // A timer paused mid-rating on song A must not make song B's page
+    // think it has a sitting waiting to be saved. Same failure the
+    // hook's header names for `isThisSong`, one state along.
+    runningFor('song-A', 15);
+    const a = mount('song-A');
+    expect(a.api.isPaused).toBe(false);
+    act(() => { a.api.pause(); });
+    expect(a.api.isPaused).toBe(true);
+    a.unmount();
+
+    const b = mount('song-B');
+    expect(readSongTimer()!.running).toBe(false);   // still paused, on A
+    expect(b.api.isPaused).toBe(false);
+    b.unmount();
+  });
+});
