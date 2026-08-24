@@ -142,13 +142,13 @@ function noteOf(p: Pitch): ChordNote {
  * app ended up with two circles that disagreed about F♯ versus G♭ once
  * already.
  *
- * ONE SUBSTITUTION, AND IT CHANGES THE CHORD RATHER THAN THE LABEL.
- * The circle's identity for the sixth key is F♯. F♯ maj7♯11 spells
- * F♯ A♯ C♯ E♯ B♯ — two theoretical accidentals in one chord. The same
- * five keys read as G♭ B♭ D♭ F C, which is how the chord is written
- * wherever it is actually played. So this row uses G♭ as the ROOT, not
- * as a re-spelling of a root that stays F♯: pass F♯ to `maj7Sharp11`
- * and you get the other chord, correctly.
+ * ONE SUBSTITUTION, AND IT CHOOSES THE SPELLING RATHER THAN THE
+ * PITCHES. The circle's identity for the sixth key is F♯. F♯ maj7♯11
+ * spells F♯ A♯ C♯ E♯ B♯ — two theoretical accidentals in one chord. The
+ * same five keys re-spelled are G♭ B♭ D♭ F C, which is how the chord is
+ * written wherever it is actually played. Both are correct and both
+ * sound identical; this row picks the readable one. Pass F♯ to
+ * `maj7Sharp11` and you get the sharp spelling, also correct.
  */
 const ROOT_FOR_CHORD: Readonly<Record<string, string>> = { 'F#': 'Gb' };
 

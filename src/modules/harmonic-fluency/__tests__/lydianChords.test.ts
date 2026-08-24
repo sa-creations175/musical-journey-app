@@ -114,9 +114,9 @@ describe('the rows', () => {
   });
 
   it('substitutes G♭ for the circle’s F♯ identity as a ROOT', () => {
-    // Not a re-spelling of a root that stays F♯: F♯ maj7♯11 is a
-    // different, correctly-spelled chord with two theoretical
-    // accidentals in it.
+    // Two spellings of ONE chord — B♯ and C are the same key, as are
+    // E♯ and F. Both are correct; the row picks G♭ because F♯'s
+    // spelling needs two theoretical accidentals to say the same thing.
     expect(spell('F#')).toBe('F♯ A♯ C♯ E♯ B♯');
     expect(spell('Gb')).toBe('G♭ B♭ D♭ F C');
   });
