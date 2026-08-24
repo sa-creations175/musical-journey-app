@@ -19,50 +19,65 @@ second copy of a decision is a decision that can disagree with itself.
 
 ## Next up
 
-### 1. Repertoire practice vs test — step 3
+### 1. Repertoire practice vs test — the song page redesign
 
-**What.** The two-mode surface: a practice mode and a test mode. A persistent
-timer that survives navigation, an activity multi-select, and section tags that
-stay optional.
+**What.** The two-mode surface: a practice mode and a test mode, both entered
+from a matrix cell. A timer that survives navigation, an activity multi-select,
+and section tags that stay optional.
 
-**Why.** Practice and test are different events and the app currently cannot
-tell them apart. Practice is song-level and has no pass or fail — "40 minutes,
-couldn't tell you which sections" is a complete record. Test is per section per
-key and is the one that can fail. Until both exist, an hour of noodling and a
-clean run-through are the same row.
+**Why.** Practice and test are different events and the app could not tell them
+apart. Practice is song-level and has no pass or fail — "40 minutes, couldn't
+tell you which sections" is a complete record. Test is per section per key and
+is the one that can fail. Until both exist, an hour of noodling and a clean
+run-through are the same row.
 
-**State, corrected 21 Aug 2026. Not paused — the test half is finished.** The
-previous entry said "paused mid-flight for a drawer bug and never resumed,"
-which described a moment that has since been overtaken and sends the next
-reader looking for a stopped build that is not there.
+**Design.** `claude/SONG_PAGE_REDESIGN_SPEC.md`, which is **in the Claude
+Project and not in this repo** — a terminal session cannot read it and must ask
+for the relevant section rather than working from the code alone. It is current
+and it wins over anything under `docs/`. `DASHBOARD_REDESIGN_DESIGN.md` →
+*Module trees → Song Repertoire → Practice and test are different events* still
+holds for why the split exists.
 
-**What shipped is the whole step-3a thread, across 20–21 August 2026.** Listed
-in the order it landed. **The step numbers are plan order, not ship order** —
-3a-7 shipped before 3a-6, because 3a-6 was waiting on decisions that 3a-7's
-work produced.
+**State, 23 Aug 2026. The test half shipped as step 3a; the practice half is
+roughly two-thirds built.** The previous version of this entry said the
+practice half was unstarted. That was true on 21 August and was overtaken the
+same week — the first thing to do here is read the table below, not go looking
+for a stopped build.
+
+**Landed 21–23 August 2026**, in ship order. **Step numbers are plan order, not
+ship order.**
 
 | Landed | Step | What |
 |---|---|---|
-| 20 Aug | 3a | The at-tempo rule reads run-throughs instead of the dead `atTargetTempo` field |
-| 20 Aug | 3a-2 | Quadrant membership and the key-hold primitives |
-| 20 Aug | 3a-3 | Rules 1 and 2 rewritten, and no rule names its own destination |
-| 21 Aug | 3a-4 | `logSingleKeyRun` — a run-through in any key without doing the depth work there first |
-| 21 Aug | 3a-5 | Cross-key → Internalized as depth in four plus breadth across twelve; maintenance demoted from a rung to a mode; the @deprecated `songCrossKeyProgress` read retired |
-| 21 Aug | 3a-7 | A metronome in the cell modal, and a way past the whole-song test gate |
-| 21 Aug | — | Three follow-ups from using it: the test ungated and renamed **Test song**, three visible streak slots with a reset you can watch happen, and the last 30 days in a key grouped by sitting |
-| 21 Aug | 3a-6a | `stageCriteria` as the single definition, with `evaluateAdvancement` derived from it — the rules are legible before they fire |
-| 21 Aug | 3a-6b | The song-page guidance layer: what each section is for and how to use it |
+| 21 Aug | 3d-0a | Four states for a key that needs re-proving — held, due soon, due, overdue |
+| 21 Aug | 3d-0c | A demotion that says so, and survives being fixed |
+| 21 Aug | 3d-0b | A key comes due on an SM-2 curve, not a flat 30 days, with four settings and a live sequence preview |
+| 23 Aug | 3d-1 | The stage is derived, never stored — `songs.stage` becomes a watermark of the last observed derivation, so a drop has something to compare against |
+| 23 Aug | 3d-2 | Phantom key rows cleared — five songs had an original-key row seeded to `learning` by the old migration, stamped with the song's added date |
+| 23 Aug | 3d-1b | The hold rule stated before it acts, and the drop after |
+| 23 Aug | 3d-3 | Cross-Key Mastery card deleted and `songCrossKeyProgress` writes stopped, in two parts |
+| 23 Aug | 3d-4 | The page restructured — metadata absorbs why-this-song, the links and my associations; the matrix card carries the status |
+| 23 Aug | 3d-5 | The cell panel — Practice / Test chooser, timer on entry, metronome, section ticks with select-all, Open lead sheet, collapse to a top bar |
+| 23 Aug | — | The layout pass: the matrix rebuilt on the shared `HeatCell` primitive and capped at 56px, two-column metadata, both cards reordered, the lead sheet drawers, and the criteria panel accumulating by rung with a moment when one is earned |
 
-**What is left is the PRACTICE half — the two-mode surface at the top of this
-entry, which is unstarted.** No persistent timer, no activity multi-select, no
-section tags; `PracticeLogModal` is still the only practice writer and is still
-mounted in `SongDetailView`. So the first job is building it, not finding where
-it stopped. Its retirement is the trigger for item 4's cross-key decision —
-check that entry before starting, not after.
+**The layout pass found one bug worth carrying.** `HeatCell` is
+`aspect-square w-full` and the cells had no width ceiling, so a three-section
+song gave each cell ~230px square and twelve rows came to ~2,760px — **a song
+with fewer sections got a taller matrix.** Capping at 56px bought ~2,080px of
+the ~2,400px the pass removed; everything else combined bought ~340px.
 
-**Design.** `DASHBOARD_REDESIGN_DESIGN.md` → *Module trees → Song Repertoire →
-Practice and test are different events*. The dashboard already reads both:
-coverage counts practice, the score counts clean test run-throughs.
+**What is left.**
+
+| Step | What |
+|---|---|
+| 3d-6 | **The rating step and the six-item activity vocabulary.** `Done` logs section × key and never asks what the work was, so the timer records duration and nothing else. The most important remaining step — it is what makes starting the timer worth doing. |
+| 3d-7 | Test mode in the panel. Test is greyed out in the chooser. |
+| 3d-8 | Retire `PracticeLogModal` and "+ log a practice session". Its retirement is the trigger for item 3's cross-key decision — check that entry before starting, not after. |
+| 3d-9 | The practice calendar, matching `ShapesAndPatternsCalendar`, replacing the practice history card. |
+| 3d-10 | "Due" surfaced in the songs list and highlighted on the dashboard. |
+| — | The ⓘ status walkthrough — designed, in the spec, never built. |
+
+Item 10's due column and cross-module spacing settings queue behind all of it.
 
 ---
 
@@ -111,32 +126,7 @@ three different ways, and three phrasings of one rule read as three rules.
 
 ## Queued
 
-### 3. Per-song enharmonic spelling
-
-**What.** Spelling chosen per song rather than globally, so a chart in G♭ reads
-in flats and one in F♯ reads in sharps.
-
-**Why.** **Currently blocking lead sheet work.** No design doc yet.
-
-**Blocked something twice on 20 Aug 2026** — lead sheet work, and then the
-stage-rule quadrants, where the design was written in G♭ and the stored data
-says F#. The cost is not only rules: every key name on screen is somebody
-else's spelling. Likely the next thing to start after the practice-vs-test
-workstream.
-
-**Same root, found 20 Aug 2026: the app has two circle-of-fourths modules that
-disagree.** `matrix/keys.ts` spells the sixth key **F#** and that is what
-`songKeys.keyName` stores; `repertoire/circleOfFourths.ts` spells it **Gb**,
-and its `canonicaliseKey` maps 'F#' → 'Gb' — i.e. *into* the vocabulary the
-matrix does not use. Anything written against the wrong one matches zero rows
-and fails silently. The stage-quadrant table dodged it by deriving from
-`CIRCLE_OF_FOURTHS_KEYS` rather than being written out, but the split itself is
-still there for the next writer to walk into. Per-song spelling has to decide
-which module is canonical anyway, so the reconciliation belongs here.
-
----
-
-### 4. Song detail page — collapse the three progress cards into one
+### 3. Song detail page — collapse the three progress cards into one
 
 **What.** One progress card in place of three overlapping ones.
 
@@ -160,7 +150,7 @@ implies. Decide it here rather than twice.
 
 ---
 
-### 5. Per-node regrouping and custom module order
+### 4. Per-node regrouping and custom module order
 
 **What.** Two halves of one want: pin the modules being focused on to the top
 regardless of sort, and offer an alternate grouping of one row's children — key
@@ -176,7 +166,7 @@ how it composes with sorting, and whether a pin survives a reset.
 
 ---
 
-### 6. Chord progression catalog rebuild
+### 5. Chord progression catalog rebuild
 
 **What.** Pare down to common basic progressions and derive the rest from Song
 Repertoire.
@@ -190,7 +180,7 @@ design pass*, items 3 and 4.
 
 ---
 
-### 7. Repertoire chord flashcards
+### 6. Repertoire chord flashcards
 
 **What.** Memorising a section's changes away from the keyboard.
 
@@ -200,7 +190,7 @@ yet.
 
 ---
 
-### 8. Personal voicing library
+### 7. Personal voicing library
 
 **What.** Add a voicing you like — from a tutorial, a song, anywhere — and have
 it become drillable in mental visualisation.
@@ -217,7 +207,7 @@ prevent.
 
 ---
 
-### 9. Spacing state for section ratings and S&P
+### 8. Spacing state for section ratings and S&P
 
 **What.** Wire self-assessments and section ratings into SM-2.
 
@@ -240,7 +230,7 @@ thing from a check the user passes or fails.
 
 ---
 
-### 10. Collapse the two song-progress ladders
+### 9. Collapse the two song-progress ladders
 
 **What.** Two things describe how far a song has come and neither knows about
 the other. `songs.stage` is stored and hand-advanced (learning → comfortable →
@@ -263,7 +253,7 @@ real one, which is a design question, not a refactor.
 
 ---
 
-### 11. A due column, and a spacing settings surface
+### 10. A due column, and a spacing settings surface
 
 **What.** Two halves of one finding.
 
@@ -294,7 +284,7 @@ whose items are recency-driven rather than due-dated.
 
 ---
 
-### 12. MIDI-in accuracy grading
+### 11. MIDI-in accuracy grading
 
 **What.** Grade S&P and Song Repertoire from a plugged-in keyboard — exact note
 numbers, exact timestamps, no pitch detection.
@@ -324,6 +314,7 @@ queue is the only place you have to look, not so the detail moves.
 | **`SHAPES_DEFAULT_TIME_PER_REP_MINUTES`** | Derives 1.66 from `852` and `1272`, pre-cut totals stale since the catalog went to 648 and now doubly so at 720. Nothing breaks; the comment no longer supports the number above it. | `DASHBOARD_REDESIGN_DESIGN.md` → *Found stale, not resolved*, item 0 |
 | **Mental visualisation rating scale** | Still on flying / cruising / crawling. The read layer projects the three onto the four-step fluency scale via `MENTAL_VIZ_RATING_PROJECTION` — the one number in the read layer not read off stored data. Migrating the drill makes removing the projection a single edit. | `DASHBOARD_REDESIGN_DESIGN.md` → *Design items*, item 6 |
 | **Reading key-signature overlay tier** | `OVERLAY_MIX` is defined and `renderCard` passes `keySignature: null` for every chord card. A harder tier — chords read in the context of a key — was designed and never wired. **A design question, not a feature to schedule**: does the sterile version teach chord reading or delay it? | `DASHBOARD_UI_SPEC.md` → *The key-signature overlay tier for chord cards* |
+| **Two four-step rating scales, and one of them is the one you see** | `lib/fluencyScale.ts` defines struggled / working on it / **comfortable** / in flow and owns `SongPracticeLog.feelRating`, `DrillSession.feelRating` and the dashboard's fluency projection. `lib/sessionTimer/blockRatingOptions.ts` holds its own 1–4 with the same shape and the same SM-2 mapping, but labels step 3 **Clean** — and that is the one rendered at the end of every session block, so it is the scale seen most often. **Not a bug and not urgent**: they agree on membership, order and what each step means to the engine, so nothing computes differently. What they cost is one word — the same self-assessment is asked for under two names on two screens. `fluencyScale.ts`'s header already books the merge as dashboard work, because unifying them restyles the session-block rating screen across S&P and Production. Found 23 Aug 2026 while auditing 3d-6, which deliberately reuses `fluencyScale` rather than adding a third. | `lib/fluencyScale.ts` header · `lib/sessionTimer/blockRatingOptions.ts` |
 | **Two meanings of "covered"** | `acquisitionStage` reaching `acquired` gates goals and session selection; the dashboard covers an item at 3 attempts. Two rules, both called coverage, and two surfaces can disagree about the same item while both are correct. Same shape as the three disagreeing tier computations. | `RULE_LEGIBILITY.md` §3.1 · §1.12 for the parallel |
 
 ---
@@ -335,6 +326,8 @@ of, not a changelog.
 
 | Date | What |
 |---|---|
+| 23 Aug 2026 | **The song page redesign, 3d-0a through 3d-5, plus a layout pass that took ~2,400px off the page.** Derived stage, SM-2 retest scheduling with four states, the stored demotion record, phantom key rows cleared, the Cross-Key card deleted, the page restructured, and the cell panel that starts every practice. See item 1 — the entry carries the full table and what is left. |
+| 23 Aug 2026 | **Per-song enharmonic spelling — complete, all five steps.** Was queue item 3. One seam for what a pitch is called; a global flats/sharps setting; G♭ retired as an identity and demoted to a spelling; the lead sheet, session labels and drill grids reading one spelling; the matrix keeping its identities while reading a spelling; and a per-song override. **It closed the two-circles split it was queued behind** — `circleOfFourths.ts` now derives from `matrix/keys.ts` rather than holding a second twelve, so `canonicaliseKey` can no longer return a name the matrix does not store. The near-miss worth remembering: rendering ♭ before fixing the parser would have made `D♭maj7` parse as **D**, the ♭ falling past the accidental capture group into the quality string — no error, a cell that looks perfect and means degree 2 instead of ♭2. |
 | 21 Aug 2026 | **Chord recognition tier 3 unblocked — the ladder reaches 5 again.** Nine of seventeen tier-3 items were unattainable, so tier 3 could never clear and tiers 4–5 never opened. Two causes, one bug: `stepTwoEligible` was `tier === 'foundational'`, so seventh inversions were never generated; and the table listed `aug:1`/`aug:2`, which the quiz correctly refuses. Inversion training now covers triads and sevenths, the drawer offers the fourth position, and `dim7` joins the exclusions on the same symmetry argument as `aug`. A new composition test asserts every tier item is one the quiz will actually serve — the check that was missing. |
 | 21 Aug 2026 | **Chord recognition was serving three of thirty chords.** Free practice ran its pool through the staged-introduction gate, so Seventh Chords, Dominant Variations and Extensions & Colors each produced an empty pool, an enabled play button and no sound — since 13 May. The gate now stays where it was built for, generated sessions; free practice is ungated with a dismissible suggestion in its place. |
 | 21 Aug 2026 | **Dashboard drill entries — the pool half.** Five modules filter end to end. Tap-to-drill had never worked: rows resolved against the module id where the tables are keyed on the catalog, so every ear-training row went to `/`. Repertoire remains. |
