@@ -22,10 +22,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import type { Song, SongKey, SongMatrixSection } from '../../../../lib/db';
+import type { Song, SongCell, SongKey, SongMatrixSection } from '../../../../lib/db';
 import CellPanel from '../CellPanel';
 
 const NOW = 1_760_000_000_000;
+
+const cell = (): SongCell => ({
+  id: 'cell-1', songId: 's1', songKeyId: 'sk-C', sectionId: 'sec-1',
+  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
+  lastRunAt: null, lastRunWasClean: null, notes: null,
+  lastEngagedAt: null, createdAt: 0, updatedAt: 0,
+});
 
 function song(): Song {
   return {
@@ -59,7 +66,7 @@ function render(spelling: 'flat' | 'sharp') {
   act(() => {
     root.render(
       <CellPanel
-        song={song()}
+        song={song()} cell={cell()} siblingCells={[cell()]}
         songKey={songKey()}
         section={section()}
         sections={[section()]}

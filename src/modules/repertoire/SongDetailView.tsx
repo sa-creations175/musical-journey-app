@@ -606,6 +606,12 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
   const panelKey = panelCell
     ? matrixKeys.find(k => k.id === panelCell.songKeyId) ?? null
     : null;
+  /** Every cell in the panel's key. The test's rollup needs them:
+   *  one cell going comfortable can be what makes the whole key
+   *  comfortable, and it must not have to re-query to find out. */
+  const panelSiblingCells = panelCell
+    ? matrixCells.filter(c => c.songKeyId === panelCell.songKeyId)
+    : [];
   const panelSection = panelCell
     ? matrixSections.find(sec => sec.id === panelCell.sectionId) ?? null
     : null;
@@ -2339,6 +2345,8 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
         <CellPanel
           key={panelCell.id}
           song={song}
+          cell={panelCell}
+          siblingCells={panelSiblingCells}
           songKey={panelKey}
           section={panelSection}
           sections={visibleMatrixSections}

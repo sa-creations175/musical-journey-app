@@ -75,13 +75,17 @@ describe('start and stop', () => {
     runningFor('song-A', 12);
     const h = mount('song-A');
 
-    let minutes = 0;
-    await act(async () => { minutes = await h.api.stopAndLog(); });
+    let written = { minutes: 0, practiceLogId: null as string | null };
+    await act(async () => { written = await h.api.stopAndLog(); });
 
-    expect(minutes).toBe(12);
+    expect(written.minutes).toBe(12);
     const rows = await db.songPracticeLog.toArray();
     expect(rows).toHaveLength(1);
     expect(rows[0].songId).toBe('song-A');
+    // The id comes back so a run-through logged inside this sitting
+    // can point at it. Test mode is what needs it; a null there would
+    // say "logged on its own", which is false.
+    expect(written.practiceLogId).toBe(rows[0].id);
     expect(rows[0].durationMin).toBe(12);
     expect(readSongTimer()).toBeNull();
     h.unmount();
@@ -103,9 +107,9 @@ describe('start and stop', () => {
 
   it('stopping with no timer writes nothing and does not throw', async () => {
     const h = mount('song-A');
-    let minutes = -1;
-    await act(async () => { minutes = await h.api.stopAndLog(); });
-    expect(minutes).toBe(0);
+    let written = { minutes: -1, practiceLogId: 'x' as string | null };
+    await act(async () => { written = await h.api.stopAndLog(); });
+    expect(written).toEqual({ minutes: 0, practiceLogId: null });
     expect(await db.songPracticeLog.count()).toBe(0);
     h.unmount();
   });
@@ -123,10 +127,10 @@ describe('the swap attributes minutes to the song being LEFT', () => {
     expect(h.api.record?.songId).toBe('song-A');
     expect(h.api.isThisSong).toBe(false);
 
-    let minutes = 0;
-    await act(async () => { minutes = await h.api.swapToThisSong(); });
+    let written = { minutes: 0, practiceLogId: null as string | null };
+    await act(async () => { written = await h.api.swapToThisSong(); });
 
-    expect(minutes).toBe(20);
+    expect(written.minutes).toBe(20);
     const rows = await db.songPracticeLog.toArray();
     expect(rows).toHaveLength(1);
     expect(rows[0].songId).toBe('song-A');

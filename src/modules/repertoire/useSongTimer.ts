@@ -37,6 +37,10 @@ import type { PracticeActivity } from '../../lib/practiceActivities';
 
 const TICK_MS = 1000;
 
+/** The one shape for "the stop produced no row", so the two fields
+ *  cannot disagree about it at four different return sites. */
+const NOTHING_WRITTEN = { minutes: 0, practiceLogId: null } as const;
+
 /**
  * What the run was ON, when the surface knows.
  *
@@ -60,6 +64,24 @@ export interface PracticeContext {
   activities?: ReadonlyArray<PracticeActivity>;
   activityOther?: string;
   feelRating?: Feel;
+}
+
+/**
+ * What a stop wrote.
+ *
+ * `practiceLogId` exists because a run-through logged inside a timed
+ * sitting should point at it — `songCellRunThroughs.practiceLogId` is
+ * that link, and a null there means "logged on its own", which would
+ * be false for every attempt made during a test. The caller cannot
+ * recover the id any other way: the row is written inside `stopAndLog`
+ * and has a generated id.
+ *
+ * Null when nothing was written — a zero-length timer, or a write that
+ * failed. `minutes` is 0 in the same cases, so the two agree.
+ */
+export interface PracticeWriteResult {
+  minutes: number;
+  practiceLogId: string | null;
 }
 
 export interface SongTimerApi {
@@ -106,13 +128,14 @@ export interface SongTimerApi {
    * song — not necessarily the song on screen, which is what makes
    * the swap honest.
    *
-   * Returns the minutes written, or 0 when there was nothing worth
-   * writing. Nothing is written before this is called: while running,
-   * the only persisted state is the localStorage record.
+   * Returns the minutes written and the row's id, or zero and null
+   * when there was nothing worth writing. Nothing is written before
+   * this is called: while running, the only persisted state is the
+   * localStorage record.
    */
-  stopAndLog: (context?: PracticeContext) => Promise<number>;
+  stopAndLog: (context?: PracticeContext) => Promise<PracticeWriteResult>;
   /** Log whatever is running, then start fresh on this song. */
-  swapToThisSong: () => Promise<number>;
+  swapToThisSong: () => Promise<PracticeWriteResult>;
   /** Throw the timer away without logging. For a record whose song no
    *  longer exists. */
   discard: () => void;
@@ -171,15 +194,15 @@ export function useSongTimer(songId: string): SongTimerApi {
    */
   const stopAndLog = useCallback(async (
     context?: PracticeContext,
-  ): Promise<number> => {
+  ): Promise<PracticeWriteResult> => {
     const current = readSongTimer();
-    if (current === null) return 0;
+    if (current === null) return NOTHING_WRITTEN;
     const at = Date.now();
     const minutes = elapsedMinutes(current, at);
     persist(null);
-    if (minutes <= 0) return 0;
+    if (minutes <= 0) return NOTHING_WRITTEN;
     try {
-      await logPracticeSession({
+      const practiceLogId = await logPracticeSession({
         songId: current.songId,
         durationMin: minutes,
         // Section and key when the surface knew them — a run from a
@@ -203,20 +226,20 @@ export function useSongTimer(songId: string): SongTimerApi {
           : {}),
         timestamp: at,
       });
+      return { minutes, practiceLogId };
     } catch (err) {
       // The row failed but the timer is already cleared, so the
       // minutes are gone either way. Surfacing a half-state the user
       // cannot act on is worse than losing one duration.
       console.warn('[repertoire] song timer log failed', err);
-      return 0;
+      return NOTHING_WRITTEN;
     }
-    return minutes;
   }, [persist]);
 
-  const swapToThisSong = useCallback(async (): Promise<number> => {
-    const minutes = await stopAndLog();
+  const swapToThisSong = useCallback(async (): Promise<PracticeWriteResult> => {
+    const written = await stopAndLog();
     start();
-    return minutes;
+    return written;
   }, [stopAndLog, start]);
 
   const pause = useCallback(() => {

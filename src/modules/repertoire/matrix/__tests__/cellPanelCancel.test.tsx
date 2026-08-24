@@ -20,7 +20,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import { db, type Song, type SongKey, type SongMatrixSection } from '../../../../lib/db';
+import { db, type Song, type SongCell, type SongKey, type SongMatrixSection } from '../../../../lib/db';
 import { readSongTimer, startedRecord, writeSongTimer } from '../../songTimer';
 import CellPanel from '../CellPanel';
 
@@ -45,6 +45,13 @@ const section = (): SongMatrixSection => ({
   isArchived: false, splitFromSectionId: null, createdAt: 0, updatedAt: 0,
 });
 
+const cell = (): SongCell => ({
+  id: 'cell-1', songId: 's1', songKeyId: 'sk-C', sectionId: 'sec-1',
+  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
+  lastRunAt: null, lastRunWasClean: null, notes: null,
+  lastEngagedAt: null, createdAt: 0, updatedAt: 0,
+});
+
 function mount() {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -54,7 +61,7 @@ function mount() {
   act(() => {
     root.render(
       <CellPanel
-        song={song()} songKey={songKey()} section={section()}
+        song={song()} cell={cell()} siblingCells={[cell()]} songKey={songKey()} section={section()}
         sections={[section()]} spelling="flat" layout="full"
         onLayoutChange={() => {}}
         onClose={() => { closed += 1; }}

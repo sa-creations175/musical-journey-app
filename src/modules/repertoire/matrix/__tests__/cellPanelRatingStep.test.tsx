@@ -22,7 +22,7 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
-import { db, type Song, type SongKey, type SongMatrixSection } from '../../../../lib/db';
+import { db, type Song, type SongCell, type SongKey, type SongMatrixSection } from '../../../../lib/db';
 import { readSongTimer, startedRecord, writeSongTimer } from '../../songTimer';
 import CellPanel from '../CellPanel';
 import { setAmberMinutes } from '../../songTimerPrefs';
@@ -59,6 +59,13 @@ const sections = (): SongMatrixSection[] => ([
  * practice as a fresh start and silently replaces the fixture with a
  * zero-length clock. Every duration assertion here would read 1.
  */
+const cell = (): SongCell => ({
+  id: 'cell-1', songId: 's1', songKeyId: 'sk-C', sectionId: 'sec-1',
+  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
+  lastRunAt: null, lastRunWasClean: null, notes: null,
+  lastEngagedAt: null, createdAt: 0, updatedAt: 0,
+});
+
 function mount(minutes = 0) {
   if (minutes > 0) {
     // Five seconds short of the span, because `elapsedMinutes` rounds
@@ -86,7 +93,7 @@ function mount(minutes = 0) {
   act(() => {
     root.render(
       <CellPanel
-        song={song()} songKey={songKey()} section={all[0]}
+        song={song()} cell={cell()} siblingCells={[cell()]} songKey={songKey()} section={all[0]}
         sections={all} spelling="flat" layout="full"
         onLayoutChange={() => {}}
         onClose={() => {}}

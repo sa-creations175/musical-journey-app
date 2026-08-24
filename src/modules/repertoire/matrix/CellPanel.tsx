@@ -1,28 +1,58 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Song, SongKey, SongMatrixSection } from '../../../lib/db';
+import type { Song, SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { spellKey, type Spelling } from '../../../lib/spelling';
 import { useSongTimer } from '../useSongTimer';
 import { AMBER_DEFAULT_MIN, getAmberMinutes } from '../songTimerPrefs';
 import MetronomeControl from '../../../components/MetronomeControl';
 import SectionTicks from './SectionTicks';
 import RatingStep, { type RatingAnswers } from './RatingStep';
+import TestStep from './TestStep';
+import {
+  saveAttemptsAndRollup, type AttemptDraft,
+} from './cellRollup';
 
 /**
  * What opens when you tap a cell.
  *
  * ---------------------------------------------------------------
- * EVERY PRACTICE AND EVERY TEST STARTS FROM A CELL.
+ * THE MATRIX IS THE ONE ENTRANCE. A CELL IS NOT.
  *
- * The matrix is the song's dashboard, and a cell is a section in a
- * key — the smallest thing the app can say anything true about. So
- * this is the one entrance: tap a cell, say which of the two things
- * you are about to do, and do it.
+ * This paragraph used to say "every practice and every test starts
+ * from a cell". That was written before we knew "test" was three
+ * things at TWO GRAINS, and it was never true of the app:
+ *
+ *   cell — a section in one key. Three clean runs at tempo make that
+ *          cell comfortable. THIS PANEL.
+ *   row  — the whole song in one key. "Test song" is three clean runs
+ *          in one sitting and makes the key solid; "run at tempo" is
+ *          one clean pass and is breadth evidence for Internalized.
+ *          Both live on `KeyRow`, and stay there.
+ *
+ * THE GRAINS CANNOT BE COLLAPSED, and this is a data argument rather
+ * than a layout preference. Offering the whole-song test from a Chorus
+ * cell invites recording a whole-song run as though the Chorus were
+ * the thing that was run — and once written, nothing downstream can
+ * tell the two apart. `songCellRunThroughs` and `songKeyRunThroughs`
+ * are separate tables for exactly this reason, and the stage rules
+ * read them for different claims: depth from the key rows, breadth
+ * from the run rows. A cell cannot honestly speak for a song.
+ *
+ * So the entrance is the MATRIX: cells for section work, rows for
+ * claims about the whole song in a key. Please do not move the two row
+ * actions in here to make a tidier sentence true.
+ * ---------------------------------------------------------------
  *
  * PRACTICE AND TEST ARE DIFFERENT EVENTS, not two levels of detail on
  * one. Practice is working on the song and has no pass or fail; test
  * is a run-through that is clean or is not. Asking which BEFORE the
  * work starts is what lets the timer run immediately — a mode chosen
  * afterwards would mean either timing everything or timing nothing.
+ *
+ * BOTH ARE TIMED, and only practice is rated. A test is time at the
+ * keyboard like any other, so the clock runs; but "what kind of work
+ * was it" has one answer when the answer is a test, and the attempts
+ * already say how it went. So Done opens the rating step and a test
+ * save does not.
  * ---------------------------------------------------------------
  *
  * THE TIMER STARTS ON ENTERING PRACTICE, with no second tap. The
@@ -37,7 +67,7 @@ import RatingStep, { type RatingAnswers } from './RatingStep';
  * does not change, the section ticks carry across, and nothing has
  * been written yet.
  */
-export type CellPanelMode = 'choose' | 'practice' | 'rate';
+export type CellPanelMode = 'choose' | 'practice' | 'rate' | 'test';
 
 /** Full panel, or collapsed to a bar so the lead sheet can be read
  *  beneath it. The timer never leaves the screen in either. */
@@ -45,11 +75,14 @@ export type CellPanelLayout = 'full' | 'bar';
 
 interface Props {
   song: Song;
-  // `cell` is deliberately NOT a prop yet. Practice mode needs the
-  // section and the key, both of which are passed; the cell's own
-  // state is what TEST mode reads, and it arrives with that in 3d-7.
-  // An unused prop threaded early is the same dead weight as an unused
-  // field, and this workstream has spent enough time removing those.
+  /** The tapped cell. Test mode reads its state and its clean streak;
+   *  practice mode does not look at it. */
+  cell: SongCell;
+  /** Every cell in this key, including the tapped one. The rollup
+   *  needs them to recompute the key's state without re-querying —
+   *  a cell going comfortable can be what makes the whole key
+   *  comfortable. */
+  siblingCells: ReadonlyArray<SongCell>;
   songKey: SongKey;
   section: SongMatrixSection;
   /** Every non-archived section, for the tick list. */
@@ -67,7 +100,7 @@ interface Props {
 }
 
 export default function CellPanel({
-  song, songKey, section, sections, spelling,
+  song, cell, siblingCells, songKey, section, sections, spelling,
   layout, onLayoutChange, onClose, onSaved, onFinished,
 }: Props) {
   const [mode, setMode] = useState<CellPanelMode>('choose');
@@ -121,7 +154,10 @@ export default function CellPanel({
   // on this song, which is adopted rather than restarted. Restarting
   // would throw away time the user has already spent.
   useEffect(() => {
-    if (mode !== 'practice') return;
+    // A test is time at the keyboard like any other, so the clock runs
+    // for both. What differs is the END: practice is rated, a test is
+    // scored by its attempts.
+    if (mode !== 'practice' && mode !== 'test') return;
     if (timer.isThisSong) return;
     if (otherSongRunning) return;   // the swap is offered, not forced
     startedHere.current = true;
@@ -177,7 +213,7 @@ export default function CellPanel({
     if (busy) return;
     setBusy(true);
     try {
-      const minutes = await timer.stopAndLog({
+      const { minutes } = await timer.stopAndLog({
         sectionIds: [...ticked],
         keys: [songKey.keyName],
         activities: answers.activities,
@@ -190,6 +226,68 @@ export default function CellPanel({
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Finish a test: stop the clock, write the attempts, roll the cell
+   * and the key up, close.
+   *
+   * ---------------------------------------------------------------
+   * NO RATING STEP AFTER A TEST, DELIBERATELY.
+   *
+   * "What kind of work was it" has one answer when the answer is a
+   * test, and a vocabulary entry that is always true of a surface
+   * records nothing. How it went is already recorded, more precisely
+   * than a four-step scale could: every attempt carries its tempo and
+   * whether it was clean.
+   *
+   * The minutes are still logged as practice — a test is time at the
+   * keyboard — and the row carries no rating, which is what keeps it
+   * from emitting a spacing signal. THE CELL TEST MUST NOT MOVE THE
+   * RETEST CLOCK: that belongs to the whole-song test alone, at the
+   * key grain, and this writes at the cell grain.
+   *
+   * ORDER MATTERS. The practice row is written first so its id can
+   * stamp the run-throughs — `songCellRunThroughs.practiceLogId` is
+   * what says these attempts happened inside a timed sitting, and a
+   * null there means "logged on their own", which would be false.
+   * That is why `stopAndLog` hands the id back.
+   * ---------------------------------------------------------------
+   */
+  const finishTest = async (attempts: AttemptDraft[], markComfortable: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { minutes, practiceLogId } = await timer.stopAndLog({
+        sectionIds: [section.id],
+        keys: [songKey.keyName],
+      });
+      if (attempts.length > 0 || markComfortable) {
+        await saveAttemptsAndRollup({
+          cell,
+          songKey,
+          siblingCells,
+          attempts,
+          // Notes and the feel rating belong to the practice surfaces.
+          // A test records what happened, not how it felt.
+          notes: null,
+          rating: null,
+          markComfortable,
+          performanceTempo: song.tempo ?? null,
+          expectedSectionCount: sections.length,
+          now: Date.now(),
+          practiceLogId,
+        });
+      }
+      onSaved?.();
+      onFinished(minutes, 1);
+      onClose();
+    } catch (err) {
+      console.warn('[matrix] cell test save failed', err);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
   };
 
   /** Back: put the clock back on and return to the timer. Nothing has
@@ -286,7 +384,18 @@ export default function CellPanel({
           </div>
         </header>
 
-        {mode === 'rate' ? (
+        {mode === 'test' ? (
+          <TestStep
+            elapsed={elapsed}
+            cell={cell}
+            performanceTempo={song.tempo ?? null}
+            busy={busy}
+            onOpenLeadSheet={() => onLayoutChange('bar')}
+            onCancel={cancel}
+            onFinish={(attempts, markComfortable) =>
+              void finishTest(attempts, markComfortable)}
+          />
+        ) : mode === 'rate' ? (
           <RatingStep
             elapsed={elapsed}
             sections={sections}
@@ -319,14 +428,15 @@ export default function CellPanel({
             </button>
             <button
               type="button"
-              disabled
-              className="w-full text-left px-3 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700 opacity-50 cursor-not-allowed"
+              onClick={() => setMode('test')}
+              className="w-full text-left px-3 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-fluent"
             >
               <div className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
                 Test
               </div>
               <div className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-snug">
-                A run-through at tempo, clean or not. Lands in the next step.
+                Run this section at tempo, clean or not. Three clean in a
+                row makes it comfortable. Timed, and starts now.
               </div>
             </button>
             <button
