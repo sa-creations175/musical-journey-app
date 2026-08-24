@@ -1,11 +1,14 @@
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { type AttemptRecord } from '../../../lib/db';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
+import ProgressBar from '../../../components/ProgressBar';
+import { barSegments, unratedLabel } from '../../../lib/progressBar';
+import {
+  spacingIntervalFor, useSpacingIntervals,
+} from '../../../lib/useSpacingIntervals';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import {
-  MIN_ATTEMPTS_FOR_TIER,
   TIER_BADGE_CLASS,
-  TIER_BAR_CLASS,
   TIER_LABEL,
   TIER_TEXT_CLASS,
   computeTier,
@@ -28,6 +31,13 @@ const MODULE_ID = 'chord-progressions';
 type ViewMode = 'full-progression' | 'key-detection' | 'chord-motion' | 'must-knows';
 
 interface RollingStats {
+  /** The item this window belongs to, carried WITH the stats so a
+   *  caller cannot pair one item's numbers with another's interval.
+   *  Six call sites across four views; threading the id separately is
+   *  how one of them ends up out of step. */
+  itemId: string;
+  /** The window's own rows — what the strip draws. */
+  window: AttemptRecord[];
   correct: number;
   total: number;
   percent: number;
@@ -50,11 +60,43 @@ function rollingFor(attempts: AttemptRecord[], itemId: string): RollingStats {
     daysSinceLastAttempt: daysSince,
   });
   return {
+    itemId,
+    window: recent,
     correct,
     total,
     percent: total === 0 ? 0 : Math.round((correct / total) * 100),
     tier,
   };
+}
+
+/**
+ * The fade's two ambient facts, for a tree four views deep.
+ *
+ * ---------------------------------------------------------------
+ * A CONTEXT WITH NO DEFAULT, DELIBERATELY.
+ *
+ * There are six bar call sites here across four views. Threading two
+ * props to all of them is how one gets missed — and a missed one with
+ * a DEFAULT renders solid ticks and looks entirely correct, which is
+ * the failure mode the required `intervalDays` prop exists to prevent.
+ *
+ * So the context holds null and the hook throws. A view rendered
+ * outside the provider fails loudly at the first render rather than
+ * quietly forever.
+ * ---------------------------------------------------------------
+ */
+interface StripFacts {
+  intervals: ReadonlyMap<string, number>;
+  now: number;
+}
+const StripContext = createContext<StripFacts | null>(null);
+
+function useStripFacts(): StripFacts {
+  const ctx = useContext(StripContext);
+  if (ctx === null) {
+    throw new Error('ProgressionFluencyTracker: a bar rendered outside StripContext');
+  }
+  return ctx;
 }
 
 interface ProgRowProps {
@@ -109,25 +151,37 @@ function ProgRow({ progression, attempts, curation, selection }: ProgRowProps) {
         </div>
       </div>
       <div className="min-w-0 space-y-2">
-        <StatRow label="chord accuracy" stats={chord} />
-        {hasSlash && <StatRow label="inversion accuracy" stats={inversion} />}
-        <StatRow label="pattern recognition" stats={pattern} />
+        <StatRow label="chord accuracy" barLabel={`${progression.name} chord accuracy`} stats={chord} />
+        {hasSlash && <StatRow label="inversion accuracy" barLabel={`${progression.name} inversion accuracy`} stats={inversion} />}
+        <StatRow label="pattern recognition" barLabel={`${progression.name} pattern recognition`} stats={pattern} />
       </div>
     </div>
   );
 }
 
-function StatRow({ label, stats }: { label: string; stats: RollingStats }) {
-  const isUntouched = stats.tier === 'untouched';
+function StatRow({
+  label, stats, barLabel,
+}: {
+  label: string;
+  stats: RollingStats;
+  /** Announced to a screen reader. Every row has a "chord accuracy"
+   *  bar, so the sub-skill alone would give identically-named bars
+   *  with no way to tell which progression each belongs to. */
+  barLabel: string;
+}) {
+  const { intervals, now } = useStripFacts();
+  const seg = barSegments({
+    correct: stats.correct,
+    wrong: stats.total - stats.correct,
+  });
+  const pending = unratedLabel(seg);
   return (
     <div>
       <div className="flex items-baseline justify-between text-xs text-neutral-500 mb-1 gap-2 flex-wrap">
         <span>{label}</span>
         <span className="font-mono">
-          {isUntouched ? (
-            <span className="text-neutral-400">
-              no data yet — needs {MIN_ATTEMPTS_FOR_TIER} ({stats.total}/{MIN_ATTEMPTS_FOR_TIER})
-            </span>
+          {pending !== null ? (
+            <span className="text-neutral-400">{pending}</span>
           ) : (
             <>
               {stats.correct}/{stats.total}
@@ -137,12 +191,12 @@ function StatRow({ label, stats }: { label: string; stats: RollingStats }) {
           )}
         </span>
       </div>
-      <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-        <div
-          className={`h-full ${TIER_BAR_CLASS[stats.tier]} transition-all`}
-          style={{ width: stats.total === 0 ? 0 : `${Math.max(4, stats.percent)}%` }}
-        />
-      </div>
+      <ProgressBar
+        attempts={stats.window}
+        intervalDays={spacingIntervalFor(intervals, stats.itemId)}
+        now={now}
+        label={barLabel}
+      />
     </div>
   );
 }
@@ -164,7 +218,7 @@ function SimpleStatRow({ label, stats, extra }: { label: string; stats: RollingS
         </div>
         {extra && <div className="text-[10px] text-neutral-400 mt-0.5">{extra}</div>}
       </div>
-      <StatRow label="rolling accuracy" stats={stats} />
+      <StatRow label="rolling accuracy" barLabel={`${label} rolling accuracy`} stats={stats} />
     </div>
   );
 }
@@ -328,8 +382,16 @@ export default function ProgressionFluencyTracker({ attempts }: Props) {
   // Bulk select only meaningful on the progression-listing views;
   // key-detection / chord-motion don't render per-progression rows.
   const selectionApplies = view === 'full-progression' || view === 'must-knows';
+  const intervals = useSpacingIntervals(MODULE_ID);
+  // One instant for every strip on the screen, and one subscription for
+  // every bar — a hook per StatRow would open a live query per row.
+  const stripFacts = useMemo(
+    () => ({ intervals, now: Date.now() }),
+    [intervals],
+  );
 
   return (
+    <StripContext.Provider value={stripFacts}>
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
@@ -369,5 +431,6 @@ export default function ProgressionFluencyTracker({ attempts }: Props) {
         />
       )}
     </section>
+    </StripContext.Provider>
   );
 }
