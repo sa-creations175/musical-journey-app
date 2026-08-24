@@ -43,6 +43,33 @@ export interface BlindRule {
    *  would actually do rather than naming a regex. */
   name: string;
   pick: (options: readonly string[]) => string | null;
+  /**
+   * The categories this rule applies to. Absent means every category.
+   *
+   * =====================================================================
+   * THE PRECEDENT, STATED SO THE NEXT PERSON DOES NOT "FIX" IT.
+   *
+   * A narrow rule looks like an oversight. It reads as though someone
+   * meant to generalise it and never got round to it, and the natural
+   * tidying instinct is to delete the scope and turn it on everywhere.
+   *
+   * So a scope carries `because`, and `because` carries the MEASURED
+   * NUMBER that justified it. A rule is narrow when it is a real tell
+   * in some categories and noise in others, and the only way to know
+   * which is to have counted. Widening it without recounting turns a
+   * guard into a nuisance: cards that are fine start failing the build,
+   * the allowlist grows to hold them, and the allowlist stops meaning
+   * "leaks we have not fixed yet".
+   *
+   * If the deck changes shape, re-measure and rewrite both fields
+   * together. Never one without the other.
+   * =====================================================================
+   */
+  scope?: {
+    categories: readonly string[];
+    /** Why these and not the rest — with the numbers. */
+    because: string;
+  };
 }
 
 /** The only option carrying `char`, if exactly one does. */
@@ -138,12 +165,53 @@ export const BLIND_RULES: ReadonlyArray<BlindRule> = [
     name: 'the only option with no accidental',
     pick: o => loneBy(o, s => !hasAccidental(s)),
   },
+  {
+    id: 'longest',
+    name: 'the option that is longer than the other three',
+    pick: options => {
+      const lengths = options.map(o => o.length);
+      const max = Math.max(...lengths);
+      return lengths.filter(l => l === max).length === 1
+        ? options[lengths.indexOf(max)]
+        : null;
+    },
+    scope: {
+      categories: ['intervals', 'ear-theory'],
+      because:
+        'Deck-wide this fires on 211 cards and is right on 53 — 25%, which '
+        + 'is chance exactly, and asserting it everywhere would fail cards '
+        + 'that are fine. In two categories it is a real tell: ear-theory '
+        + '8 of 13 (62%) and intervals 9 of 18 (50%), because an answer '
+        + 'that names a sound in words sits beside decoys that name it in '
+        + 'symbols. Measured after the fourteen bracketed answers were '
+        + 'stripped, which moved ear-theory from 9 of 14. Re-measure '
+        + 'before widening this.',
+    },
+  },
 ];
 
-/** The ids of every rule that would pick `correct` out of this set. */
-export function tripped(correct: string, decoys: readonly string[]): string[] {
+/** The rules that apply to a card in `category`. */
+export function rulesFor(category: string): BlindRule[] {
+  return BLIND_RULES.filter(
+    r => r.scope === undefined || r.scope.categories.includes(category),
+  );
+}
+
+/**
+ * The ids of every rule that would pick `correct` out of this set.
+ *
+ * `category` is REQUIRED rather than defaulted. A default would let a
+ * caller that forgot it skip every scoped rule and still look correct
+ * — the failure being silently narrower checking, which is exactly
+ * what nobody notices.
+ */
+export function tripped(
+  correct: string,
+  decoys: readonly string[],
+  category: string,
+): string[] {
   const options = [correct, ...decoys];
-  return BLIND_RULES.filter(r => r.pick(options) === correct).map(r => r.id);
+  return rulesFor(category).filter(r => r.pick(options) === correct).map(r => r.id);
 }
 
 /**
@@ -204,6 +272,9 @@ export interface ChooseOptions {
   seed: string;
   /** Named in the throw, so a failure says which card cannot be built. */
   label: string;
+  /** Which category the card belongs to — decides which scoped rules
+   *  apply. Required for the reason given on `tripped`. */
+  category: string;
   /**
    * An extra condition the chosen set must meet.
    *
@@ -258,7 +329,7 @@ export function chooseDecoys(
   const walk = (start: number) => {
     if (combo.length === opts.count) {
       const set = combo.map(i => pool[i]);
-      if (tripped(correct, set).length > 0) return;
+      if (tripped(correct, set, opts.category).length > 0) return;
       if (opts.require !== undefined && !opts.require(set)) return;
       // Earliest candidates win — a caller orders its pool by musical
       // relevance, and that ordering should survive the guard. Length

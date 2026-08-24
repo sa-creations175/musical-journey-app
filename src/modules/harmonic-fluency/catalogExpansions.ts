@@ -350,6 +350,7 @@ export function generateModeOfCards(): Flashcard[] {
             count: 3,
             seed: `mo-mode-of-${root}-${degree}`,
             label: `mo-mode-of-${root}-${degree}`,
+            category: 'modes',
           },
         ),
         explanation: `Starting ${noteLabel(root)} major on its ${degree} gives `
@@ -548,7 +549,12 @@ export function generateRelativeMinorTopUps(): Flashcard[] {
       decoys: chooseDecoys(
         `${six} minor`,
         MINOR_DECOY_DEGREES.map(d => `${degreeLabel(root, d)} minor`),
-        { count: 3, seed: `ks-relative-${root}`, label: `ks-relative-${root}` },
+        {
+          count: 3,
+          seed: `ks-relative-${root}`,
+          label: `ks-relative-${root}`,
+          category: 'key-signatures',
+        },
       ),
       explanation: `${six} minor is the relative minor of ${noteLabel(root)} `
         + `major.`
@@ -569,7 +575,12 @@ export function generateParallelMinorTopUps(): Flashcard[] {
     decoys: chooseDecoys(
       `${noteLabel(root)} minor`,
       MINOR_DECOY_DEGREES.map(d => `${degreeLabel(root, d)} minor`),
-      { count: 3, seed: `ks-parallel-${root}`, label: `ks-parallel-${root}` },
+      {
+        count: 3,
+        seed: `ks-parallel-${root}`,
+        label: `ks-parallel-${root}`,
+        category: 'key-signatures',
+      },
     ),
     explanation: `${noteLabel(root)} minor — same root, opposite quality. `
       + PARALLEL_CONTEXT,
@@ -609,10 +620,24 @@ export function generateIntervalTopUps(): Flashcard[] {
     const toGlossed = degreeLabelGlossed(from, degree);
     const semitones = DEGREE[degree][1];
     const correct = INTERVAL_NAME_BY_SEMITONES[semitones];
-    const decoys = [semitones - 1, semitones + 1, semitones + 2]
-      .map(s => INTERVAL_NAME_BY_SEMITONES[((s % 13) + 13) % 13])
-      .filter((n): n is string => Boolean(n) && n !== correct)
-      .slice(0, 3);
+    // Nearest distances first — a semitone out is the mistake worth
+    // making — then the rest of the table, so the chooser has room to
+    // find company for a long answer name. `longest` is asserted in
+    // this category: "Perfect 4th" beside three shorter names was the
+    // answer without the question being read.
+    const decoys = chooseDecoys(
+      correct,
+      Object.keys(INTERVAL_NAME_BY_SEMITONES)
+        .map(Number)
+        .sort((a, b) => Math.abs(a - semitones) - Math.abs(b - semitones) || a - b)
+        .map(sem => INTERVAL_NAME_BY_SEMITONES[sem]),
+      {
+        count: 3,
+        seed: `iv-${from}-${degree}`,
+        label: `iv-${from}-${degree}`,
+        category: 'intervals',
+      },
+    );
     return {
       ...base('intervals', 'Intervals'),
       id: `iv-${from}-${degree}`,

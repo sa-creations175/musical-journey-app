@@ -1,5 +1,5 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
-import { chooseDecoys, rankTarget, rotate, sortedRank } from './decoyGuard';
+import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import {
   INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
 } from './intervalInversion';
@@ -365,6 +365,7 @@ function generateScaleDegreeMathCards(): Flashcard[] {
             count: DECOY_COUNT,
             seed: id,
             label: id,
+            category: 'scale-degree-math',
             require: ds => sortedRank(String(ans), ds) === wanted,
           }),
           explanation: sdmExplanation(startDeg, iv.name, iv.step, dir),
@@ -441,6 +442,7 @@ function generateNamedNoteCards(): Flashcard[] {
       correctAnswer: correct,
       decoys: chooseDecoys(correct, decoyCandidates, {
         count: DECOY_COUNT, seed: `nn-${i + 1}`, label: `nn-${i + 1}`,
+        category: 'named-notes',
       }),
       explanation: `${p.key} major is ${fullScale} — degree ${p.degree} is ${correct}. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of ${p.key}, hit the ${p.degree}", you're already there.`,
       skillTag: `named-note-key-${p.key}-degree-${p.degree}`,
@@ -479,7 +481,12 @@ function generateReversePivotCards(): Flashcard[] {
     const decoys = chooseDecoys(
       `${e.key} major`,
       allKeys.filter(k => k !== e.key).map(k => `${k} major`),
-      { count: DECOY_COUNT, seed: `rkp-${i + 1}`, label: `rkp-${i + 1}` },
+      {
+        count: DECOY_COUNT,
+        seed: `rkp-${i + 1}`,
+        label: `rkp-${i + 1}`,
+        category: 'reverse-key-pivots',
+      },
     );
     return {
       id: `rkp-${i + 1}`,
@@ -534,7 +541,16 @@ function generateIntervalCards(): Flashcard[] {
       categoryName: CATEGORY_LABELS.intervals,
       question: `The interval from ${p.from} to ${p.to} ascending = ?`,
       correctAnswer: correct,
-      decoys: makeDecoys(rotate(decoyPool, `iv-${i + 1}`), correct),
+      // Through the chooser, because `longest` is asserted here: the
+      // interval names run from "Tritone" to "Augmented 4th", so an
+      // answer at the long end used to stand out from three short
+      // decoys on nine of the twenty cards.
+      decoys: chooseDecoys(correct, decoyPool, {
+        count: DECOY_COUNT,
+        seed: `iv-${i + 1}`,
+        label: `iv-${i + 1}`,
+        category: 'intervals',
+      }),
       explanation: `${p.from} up to ${p.to} spans ${dist} semitones — that's a ${correct}. Intervals are the raw material of melody and chord voicing: every soul lick, every gospel run, every hip-hop sample chop is a specific sequence of these distances. Naming them instantly is what turns "I can copy that riff" into "I can write my own version in any key."`,
       skillTag: `interval-${dist}-semitones`,
       visualHint: { startingNote: p.from, destinationNote: p.to },
@@ -588,6 +604,7 @@ function accidentalCountDecoys(id: string, count: number): string[] {
       count: DECOY_COUNT,
       seed: id,
       label: id,
+      category: 'key-signatures',
       require: ds => sortedRank(String(count), ds) === wanted,
     },
   );
@@ -1773,7 +1790,9 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
         .flatMap(g => g.members.map(x => g.members.filter(y => y !== x).join(' / ')))
         .filter(p => p !== correct)
       : intervalPool.filter(n => !members.includes(n));
-    return chooseDecoys(correct, pool, { count: DECOY_COUNT, seed, label: seed });
+    return chooseDecoys(correct, pool, {
+      count: DECOY_COUNT, seed, label: seed, category: 'enharmonic-equivalents',
+    });
   };
   const intervalGroups: Array<{ members: string[]; context: string }> = [
     { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },

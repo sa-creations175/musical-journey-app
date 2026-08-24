@@ -26,7 +26,7 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import {
   BLIND_RULES, TOKENISERS, cardsGivenAway, chooseDecoys, findTells, rotate,
-  type GuardedCard,
+  rulesFor, type GuardedCard,
 } from '../decoyGuard';
 
 const CARDS: GuardedCard[] = FLASHCARDS.map(c => ({
@@ -44,6 +44,13 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // text and asserts it survived into the explanations.
   { category: 'chord-construction', rule: 'only-natural', cards: 4 },
   { category: 'ear-theory', rule: 'only-accidental', cards: 1 },
+  // `longest` is asserted in this category and in intervals only —
+  // see the scope on the rule for the numbers. Ear-theory asks what a
+  // sound IS, so its answers name a feeling in words ("suspension-and-
+  // release tension") against decoys that name it in shorthand. Every
+  // one of the eight is hand-written; the fix is authored decoys of
+  // comparable weight, not a chooser.
+  { category: 'ear-theory', rule: 'longest', cards: 8 },
   // enharmonic-equivalents / only-slash and / only-prose stood at 9
   // each — a three-way group answers with a pair ("b3 / #9") against
   // decoys that were single degrees, so the answer was the only option
@@ -57,6 +64,12 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // "how many sharps" cards, whose decoys were counted by hand. They
   // now derive their decoys the way scale-degree math does.
   { category: 'key-signatures', rule: 'only-accidental', cards: 2 },
+  // One card, hand-written and prose-answered where the rest of the
+  // category names intervals: iv-inv-quality-rule answers "flips
+  // major↔minor; perfect stays perfect" against three short rules. The
+  // twenty generated interval cards and the five top-ups went from 9
+  // to 0 through the chooser.
+  { category: 'intervals', rule: 'longest', cards: 1 },
   // key-signatures / only-natural stood at 1: the parallel minor of B
   // major is B minor, and a fixed 6/2/5 decoy list gave it G♯, C♯ and
   // F♯ for company — the answer was the only plain name on screen. Both
@@ -86,7 +99,10 @@ function blindCounts(): Map<string, number> {
   const counts = new Map<string, number>();
   for (const c of CARDS) {
     const options = [c.correctAnswer, ...c.decoys];
-    for (const r of BLIND_RULES) {
+    // `rulesFor`, not BLIND_RULES: a scoped rule is a tell in its own
+    // categories and noise elsewhere, and running it everywhere would
+    // fill the allowlist with cards that are fine.
+    for (const r of rulesFor(c.category)) {
       if (r.pick(options) === c.correctAnswer) {
         const k = `${c.category}|${r.id}`;
         counts.set(k, (counts.get(k) ?? 0) + 1);
@@ -178,8 +194,11 @@ describe('no decoy pins its answer', () => {
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
     // adds up to more than the deck can supply. The real figures are
-    // 20 and 21, overlapping on nothing, for 41 in all — down from 124
-    // and 36 before the guard.
+    // 28 and 21, overlapping on nothing, for 49 in all — against 124
+    // and 36 before the guard existed. It ROSE from 41 when `longest`
+    // was scoped in: nine cards that were always answerable started
+    // being counted, which is a guard getting sharper rather than a
+    // deck getting worse.
     //
     // So the honest aggregate is derived here rather than written into
     // a commit message, where nobody can check it.
@@ -187,7 +206,7 @@ describe('no decoy pins its answer', () => {
     const leaky = new Set<string>();
     for (const c of CARDS) {
       const options = [c.correctAnswer, ...c.decoys];
-      if (BLIND_RULES.some(r => r.pick(options) === c.correctAnswer)) leaky.add(c.id);
+      if (rulesFor(c.category).some(r => r.pick(options) === c.correctAnswer)) leaky.add(c.id);
     }
     const told = new Set<string>();
     for (const category of CATEGORIES) {
@@ -198,7 +217,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 20, tell: 21, distinct: 41 });
+      .toEqual({ blind: 28, tell: 21, distinct: 49 });
   });
 
   it('keeps the tell allowlist honest', () => {
@@ -268,9 +287,26 @@ describe('the rules fire on a card built to be answerable', () => {
   });
 
   it('stays silent when nothing separates the options', () => {
-    for (const r of BLIND_RULES) {
+    // Four mode names, same shape, no accidentals, no punctuation.
+    // `longest` is excluded because "Aeolian" IS one letter longer —
+    // it fires correctly here, and it is asserted on its own below.
+    for (const r of BLIND_RULES.filter(r => r.id !== 'longest')) {
       expect(r.pick(['Dorian', 'Aeolian', 'Lydian', 'Ionian'])).toBeNull();
     }
+  });
+
+  it('scopes `longest` to the two categories that measured as tells', () => {
+    const rule = BLIND_RULES.find(r => r.id === 'longest')!;
+    expect(rule.pick(['suspension-and-release tension', 'modal ambiguity',
+      'chromatic descent', 'pedal point'])).toBe('suspension-and-release tension');
+    expect(rule.pick(['Minor 3rd', 'Major 3rd', 'Minor 6th', 'Major 6th']))
+      .toBeNull();
+    expect(rulesFor('ear-theory').map(r => r.id)).toContain('longest');
+    expect(rulesFor('intervals').map(r => r.id)).toContain('longest');
+    expect(rulesFor('slash-chords').map(r => r.id)).not.toContain('longest');
+    // The scope has to say why, with the number that justified it, or
+    // the next reader deletes it as an oversight.
+    expect(rule.scope?.because).toMatch(/\d+%/);
   });
 });
 
@@ -280,7 +316,7 @@ describe('chooseDecoys', () => {
   it('refuses the leaky set and finds the clean one', () => {
     // 4 is the answer; 3 and 5 would make it the middle of three.
     const decoys = chooseDecoys('4', ['3', '5', '1', '7', '2'], {
-      count: 3, seed: 'test-a', label: 'test-a',
+      count: 3, seed: 'test-a', label: 'test-a', category: 'test',
     });
     expect(BLIND_RULES.find(r => r.id === 'middle-of-3')!.pick(['4', ...decoys]))
       .not.toBe('4');
@@ -288,7 +324,7 @@ describe('chooseDecoys', () => {
 
   it('gives an answer with a bracket a decoy with a bracket', () => {
     const decoys = chooseDecoys('C♭ (B)', ['A♭', 'F♭ (E)', 'C', 'B♯ (C)', 'G'], {
-      count: 3, seed: 'test-b', label: 'test-b',
+      count: 3, seed: 'test-b', label: 'test-b', category: 'test',
     });
     expect(decoys.filter(d => d.includes('(')).length).toBeGreaterThan(0);
   });
@@ -297,19 +333,19 @@ describe('chooseDecoys', () => {
     // Every candidate is a plain natural; the answer is the only note
     // with an accidental and no combination fixes that.
     expect(() => chooseDecoys('B♭', ['C', 'D', 'E', 'F', 'G'], {
-      count: 3, seed: 'test-c', label: 'nn-999',
+      count: 3, seed: 'test-c', label: 'nn-999', category: 'test',
     })).toThrow(/nn-999/);
   });
 
   it('throws when the pool is too small to choose from', () => {
     expect(() => chooseDecoys('C', ['D', 'E'], {
-      count: 3, seed: 'test-d', label: 'iv-999',
+      count: 3, seed: 'test-d', label: 'iv-999', category: 'test',
     })).toThrow(/pool has 2/);
   });
 
   it('is stable across calls — the same card gets the same decoys', () => {
-    const once = chooseDecoys('4', ['3', '5', '1', '7', '2'], { count: 3, seed: 's', label: 'l' });
-    const twice = chooseDecoys('4', ['3', '5', '1', '7', '2'], { count: 3, seed: 's', label: 'l' });
+    const once = chooseDecoys('4', ['3', '5', '1', '7', '2'], { count: 3, seed: 's', label: 'l', category: 'test' });
+    const twice = chooseDecoys('4', ['3', '5', '1', '7', '2'], { count: 3, seed: 's', label: 'l', category: 'test' });
     expect(once).toEqual(twice);
   });
 
