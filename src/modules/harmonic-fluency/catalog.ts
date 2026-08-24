@@ -1,3 +1,7 @@
+import {
+  MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
+  noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
+} from './pentatonics';
 // Harmonic Fluency flashcard catalog.
 // Static data — no audio, no keys in the DB beyond per-user SM-2 state.
 // Programmatic generators fill systematic categories (scale-degree math,
@@ -954,24 +958,12 @@ const PENTATONIC_CARDS: Flashcard[] = [
     decoys: ['The b3 and b7', 'The 4th and 5th', 'The 2nd and 5th'],
     explanation: "Natural minor minus the 2 and the b6 = minor pentatonic. Pulling those out removes the half-step tensions that pull toward the b3 and 5, leaving the strong-chord-tone-only set you can sing over any minor chord without thinking.",
     skillTag: 'minor-pent-removes-from-natural-minor' },
-  { id: 'pent-8', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'In C minor pentatonic, the notes are _____',
-    correctAnswer: 'C, Eb, F, G, Bb',
-    decoys: ['C, D, Eb, F, G', 'C, Eb, F, Ab, Bb', 'C, D, F, G, Bb'],
-    explanation: "C minor pent: C, Eb, F, G, Bb. Same intervals (1, b3, 4, 5, b7) applied to C as root. Sit on these five notes over any Cm groove — D'Angelo, Aretha, every minor-key blues — and you can't really miss.",
-    skillTag: 'c-minor-pentatonic-notes' },
   { id: 'pent-9', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
     question: 'The minor pentatonic scale starting on the ___ of the major pentatonic gives you the relative minor pentatonic',
     correctAnswer: '6th (or b3 of the minor root)',
     decoys: ['5th', '3rd', '2nd'],
     explanation: "Start a major pent on its 6 and the same five notes become the relative minor pent. C major pent starting from A gives A minor pent — A, C, D, E, G — identical pitch set, different home base. Same relative-major / relative-minor logic, applied to the pentatonic subset.",
     skillTag: 'relative-pentatonic-degree' },
-  { id: 'pent-10', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'C major pentatonic and A minor pentatonic share the same _____',
-    correctAnswer: '5 notes — they are relative pentatonics (C, D, E, G, A)',
-    decoys: ['root note', 'key signature only (different notes)', '3 notes'],
-    explanation: "C major pent (C, D, E, G, A) is literally the same five notes as A minor pent (A, C, D, E, G) — just centered on a different tonic. This is the pentatonic version of the C-major / A-minor relative relationship, and it's why a single pentatonic shape covers both major-key and relative-minor-key songs.",
-    skillTag: 'c-major-a-minor-pent-shared' },
 ];
 
 const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
@@ -1543,6 +1535,96 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
   return cards;
 }
 
+
+// --- Pentatonic scales in twelve keys ------------------------------
+//
+// Replaces two hand-written C cards. The five FORMULA cards above stay
+// literal and untouched: they are key-agnostic (1, ♭3, 4, 5, ♭7) and
+// there is nothing to derive.
+//
+// Explanations are split. The formula half names this key's five notes
+// and varies; the context half is about the SOUND and is shared across
+// all twelve, because D'Angelo and Aretha are attached to minor
+// pentatonic, not to C.
+
+const MINOR_PENT_CONTEXT =
+  "The bluesy-soul backbone — every B.B. King line, every gospel and R&B "
+  + "vocal lick, the whole rock-guitar vocabulary lives in this five-note "
+  + "shape. Sit on these over any minor groove in the key and you can't "
+  + "really miss. Add the ♭5 between the 4 and the 5 and you have the blues scale.";
+
+const MAJOR_PENT_CONTEXT =
+  "The safest melodic set inside a major key — no 4, no 7, so none of the "
+  + "half-step tensions that fight the major triad. It is the bedrock of "
+  + "gospel licks, country bends and the Stevie Wonder vocal-line vocabulary.";
+
+const RELATIVE_PENT_CONTEXT =
+  "Same five pitches, different home base — the relative-major / "
+  + "relative-minor relationship applied to the pentatonic subset. Which one "
+  + "you are playing is decided by the chord underneath, not by the notes.";
+
+function generatePentatonicKeyCards(): Flashcard[] {
+  const cards: Flashcard[] = [];
+  const base = {
+    category: 'pentatonic-scales' as const,
+    categoryName: CATEGORY_LABELS['pentatonic-scales'],
+  };
+
+  for (const root of MINOR_ROOTS) {
+    const notes = minorPentatonic(root);
+    if (notes === null) continue;
+    cards.push({
+      ...base,
+      id: pentatonicCardId('minor', root),
+      question: `In ${scaleName(root, 'minor')} minor pentatonic, the notes are _____`,
+      correctAnswer: noteList(notes),
+      decoys: pentatonicDecoys(root, 'minor'),
+      explanation: `${scaleName(root, 'minor')} minor pentatonic: ${noteList(notes)} — `
+        + `the intervals 1, ♭3, 4, 5, ♭7 applied to ${noteLabel(root)} as root. `
+        + MINOR_PENT_CONTEXT,
+      skillTag: `pent-minor-${root}`,
+    });
+  }
+
+  for (const root of MAJOR_ROOTS) {
+    const notes = majorPentatonic(root);
+    if (notes === null) continue;
+    cards.push({
+      ...base,
+      id: pentatonicCardId('major', root),
+      question: `In ${scaleName(root, 'major')} major pentatonic, the notes are _____`,
+      correctAnswer: noteList(notes),
+      decoys: pentatonicDecoys(root, 'major'),
+      explanation: `${scaleName(root, 'major')} major pentatonic: ${noteList(notes)} — `
+        + `the intervals 1, 2, 3, 5, 6 applied to ${noteLabel(root)} as root. `
+        + MAJOR_PENT_CONTEXT,
+      skillTag: `pent-major-${root}`,
+    });
+  }
+
+  for (const root of MAJOR_ROOTS) {
+    const rel = relativeMinorRoot(root);
+    if (rel === null) continue;
+    const majorNotes = majorPentatonic(root);
+    if (majorNotes === null) continue;
+    cards.push({
+      ...base,
+      id: pentatonicCardId('relative', root),
+      question: `${scaleName(root, 'major')} major pentatonic and `
+        + `${scaleName(rel, 'minor')} minor pentatonic share the same _____`,
+      correctAnswer: '5 notes (identical pitch set)',
+      decoys: ['root note', 'key signature only (different notes)', '3 notes'],
+      explanation: `${scaleName(root, 'major')} major pentatonic is `
+        + `${noteList(majorNotes)}. Start on the 6th and you are in `
+        + `${scaleName(rel, 'minor')} minor pentatonic — the same five notes. `
+        + RELATIVE_PENT_CONTEXT,
+      skillTag: `pent-relative-${root}`,
+    });
+  }
+
+  return cards;
+}
+
 export const FLASHCARDS: Flashcard[] = [
   ...generateScaleDegreeMathCards(),
   ...generateNamedNoteCards(),
@@ -1552,6 +1634,7 @@ export const FLASHCARDS: Flashcard[] = [
   ...generateReversePivotCards(),
   ...MODE_CARDS,
   ...PENTATONIC_CARDS,
+  ...generatePentatonicKeyCards(),
   ...generateIntervalCards(),
   ...CHORD_CONSTRUCTION_CARDS,
   ...PROGRESSION_CARDS,

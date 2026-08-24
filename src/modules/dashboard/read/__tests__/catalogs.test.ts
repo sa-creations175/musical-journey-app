@@ -51,8 +51,8 @@ describe('catalog sizes — the denominators', () => {
     expect(catalogItemCount(chordRecognitionCatalog)).toBe(114);
   });
 
-  it('harmonic fluency: 375 cards', () => {
-    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(375);
+  it('harmonic fluency: 409 cards', () => {
+    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(409);
   });
 
   it('production vocabulary: 199 cards', () => {

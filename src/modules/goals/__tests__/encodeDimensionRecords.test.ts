@@ -165,11 +165,11 @@ describe('encodeDimensionRecords — Harmonic Fluency', () => {
     consistency: { count: 4, cadence: 'week' },
   };
 
-  it('Breadth = all uses harmonic_fluency_coverage_at_acquired with 327', () => {
+  it('Breadth = all uses harmonic_fluency_coverage_at_acquired with 409', () => {
     const records = encodeDimensionRecords(hf(baseHf));
     const breadth = records[0];
     expect(breadth.targetMetric).toBe('harmonic_fluency_coverage_at_acquired');
-    expect(breadth.targetValue).toBe(375);
+    expect(breadth.targetValue).toBe(409);
     expect(breadth.targetUnit).toBe('cards');
   });
 

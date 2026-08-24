@@ -125,7 +125,7 @@ describe('every catalog has a source wired', () => {
     // Empty source, full denominators.
     const totals = moduleItemTotals(assembleDashboard(source(), NOW));
     expect(totals).toMatchObject({
-      'harmonic-fluency': 375,
+      'harmonic-fluency': 409,
       'reading': 188,
       // 720 chord shapes + 96 scales + 372 voice-leading. Mental
       // visualisation's 504 are a submodule of this row and are
