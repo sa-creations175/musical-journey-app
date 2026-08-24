@@ -50,7 +50,7 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 253 + 100 + 105 + 92 = 550
+// Harmonic Fluency — 253 + 100 + 105 + 107 = 565
 // (Foundational now includes pentatonic-scales; key-signatures grew
 //  by 18 ksc-* scale-construction cards. Pentatonics went 7 → 41 on
 //  24 Aug 2026: the two keyed shapes became twelve keys each and a
@@ -72,12 +72,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(105);
   });
 
-  it('earRecognition = mo 52 + iv 25 + et 15 = 92', () => {
-    expect(c.byGroup.earRecognition).toBe(92);
+  it('earRecognition = mo 52 + iv 40 + et 15 = 107', () => {
+    expect(c.byGroup.earRecognition).toBe(107);
   });
 
-  it('total = 550 across all 15 categories', () => {
-    expect(c.total).toBe(550);
+  it('total = 565 across all 15 categories', () => {
+    expect(c.total).toBe(565);
   });
 
   it('total equals sum of group totals', () => {

@@ -1,5 +1,8 @@
 import { expansionCards } from './catalogExpansions';
-import { invertedOrdinal, invertsSmaller } from './intervalInversion';
+import {
+  INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
+} from './intervalInversion';
+import { intervalInversionCards } from './intervalInversionCards';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
   noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
@@ -410,21 +413,9 @@ function generateReversePivotCards(): Flashcard[] {
 
 // --- Category 8: Intervals (systematic) -----------------------------
 
-const INTERVAL_NAMES: Array<{ semitones: number; name: string }> = [
-  { semitones: 0,  name: 'Unison' },
-  { semitones: 1,  name: 'minor 2nd' },
-  { semitones: 2,  name: 'Major 2nd' },
-  { semitones: 3,  name: 'minor 3rd' },
-  { semitones: 4,  name: 'Major 3rd' },
-  { semitones: 5,  name: 'Perfect 4th' },
-  { semitones: 6,  name: 'Tritone' },
-  { semitones: 7,  name: 'Perfect 5th' },
-  { semitones: 8,  name: 'minor 6th' },
-  { semitones: 9,  name: 'Major 6th' },
-  { semitones: 10, name: 'minor 7th' },
-  { semitones: 11, name: 'Major 7th' },
-  { semitones: 12, name: 'Octave' },
-];
+// INTERVAL_NAMES moved to `intervalInversion.ts`, beside the pairing
+// rule that reads it. It was private here while `seed.ts` held the same
+// thirteen again; the inversion cards would have made a third copy.
 
 function generateIntervalCards(): Flashcard[] {
   const pairs: Array<{ from: string; to: string }> = [
@@ -1748,6 +1739,7 @@ export const FLASHCARDS: Flashcard[] = [
   // generatedCardIds.test.ts. These carry root-suffixed ids and cannot
   // collide with, or repoint, anything above.
   ...expansionCards(),
+  ...intervalInversionCards(),
 ];
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {

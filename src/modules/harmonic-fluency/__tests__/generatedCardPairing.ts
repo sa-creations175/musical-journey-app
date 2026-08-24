@@ -207,6 +207,21 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-Gb-4|The interval from G♭ to C♭ (B) ascending = ?',
   'iv-Ab-6|The interval from A♭ to F ascending = ?',
   'iv-B-7|The interval from B to A♯ ascending = ?',
+  'iv-inv-of-unison|A Unison inverted is a _____',
+  'iv-inv-of-octave|An Octave inverted is a _____',
+  'iv-inv-of-minor-2nd|A minor 2nd inverted is a _____',
+  'iv-inv-of-major-7th|A Major 7th inverted is a _____',
+  'iv-inv-of-major-2nd|A Major 2nd inverted is a _____',
+  'iv-inv-of-minor-7th|A minor 7th inverted is a _____',
+  'iv-inv-of-minor-3rd|A minor 3rd inverted is a _____',
+  'iv-inv-of-major-6th|A Major 6th inverted is a _____',
+  'iv-inv-of-major-3rd|A Major 3rd inverted is a _____',
+  'iv-inv-of-minor-6th|A minor 6th inverted is a _____',
+  'iv-inv-of-perfect-4th|A Perfect 4th inverted is a _____',
+  'iv-inv-of-perfect-5th|A Perfect 5th inverted is a _____',
+  'iv-inv-of-tritone|A Tritone inverted is a _____',
+  'iv-inv-sum|An interval and its inversion always add up to _____',
+  'iv-inv-quality-rule|When an interval inverts, its quality _____',
   // --- tritone-pairs ---
   'tt-1|Tritone of C?',
   'tt-2|Tritone of F#?',
@@ -549,4 +564,5 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'ks-parallel-Gb|The parallel minor of G♭ major is _____',
   'ks-parallel-Ab|The parallel minor of A♭ major is _____',
   'ks-parallel-A|The parallel minor of A major is _____',
-  'ks-parallel-B|The parallel minor of B major is _____',];
+  'ks-parallel-B|The parallel minor of B major is _____',
+];
