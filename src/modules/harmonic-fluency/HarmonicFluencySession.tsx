@@ -20,6 +20,7 @@ import { recordAttempt, toggleFlag } from './spacedRepetition';
 import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 import { recordEngagement } from '../../lib/spacingState';
 import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
+import LydianChordRows from './LydianChordRows';
 import FlashcardSession, {
   type CardAnsweredArgs,
   type FlashcardSessionStats,
@@ -145,6 +146,9 @@ export default function HarmonicFluencySession({
         <VisualAid card={card} answered={answered} chosen={chosen} />
       )}
       renderExplanation={text => <ModeLinkify text={text} />}
+      renderFooter={(card, { answered }) => (
+        <CardReference card={card} answered={answered} />
+      )}
       focusProtected={focusProtected}
     />
   );
@@ -227,4 +231,42 @@ function VisualAid({
     default:
       return null;
   }
+}
+
+// ---------------------------------------------------------------------
+// Reference — NOT a visual aid, and the distinction is the point.
+//
+// `renderVisualAid` is gated twice in FlashcardSession: it disappears
+// once you are on a streak in the category, and it is off entirely in
+// `text` display mode. Both are correct for a TRAINING WHEEL, which is
+// what that seam is for — a scaffold should retreat as you improve.
+//
+// A reference is the opposite kind of thing. The maj7♯11 rows are not
+// an easier way to answer "what chord says Lydian"; they are the shape
+// the answer names, and they should be readable on the hundredth
+// correct answer as on the first. They are also not one of three
+// renderings of the same content — they are content the card has never
+// carried.
+//
+// So they render through `renderFooter`, which sits outside both gates.
+// ---------------------------------------------------------------------
+
+/** Which cards carry the chord rows, and which key each opens on. */
+const LYDIAN_CHORD_CARDS: Readonly<Record<string, string | undefined>> = {
+  // "The signature chord that says 'Lydian'" — no key of its own, so
+  // it opens on the first of each quadrant.
+  'mo-15': undefined,
+  // "Lydian mode starts on which scale degree?" — the explanation is
+  // about F Lydian, so row one opens on F. That single parameter is
+  // the only difference between the two cards.
+  'mo-3': 'F',
+};
+
+function CardReference({ card, answered }: { card: Flashcard; answered: boolean }) {
+  // Reveal-side only. Before answering, the rows would hand over the
+  // ♯11 the card is asking about.
+  if (!answered) return null;
+  if (!(card.id in LYDIAN_CHORD_CARDS)) return null;
+  const openWith = LYDIAN_CHORD_CARDS[card.id];
+  return <LydianChordRows {...(openWith ? { openWith } : {})} />;
 }

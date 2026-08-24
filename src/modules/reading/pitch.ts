@@ -17,6 +17,24 @@
  * = 1, each octave = 7. Staff position is diatonic by nature — one
  * line to the next space is one letter — so the two line up directly
  * and no chromatic arithmetic is involved in placing a note.
+ *
+ * ---------------------------------------------------------------
+ * THIS MODULE HAS A CALLER OUTSIDE READING, as of 24 Aug 2026.
+ *
+ * `harmonic-fluency/lydianChords.ts` imports `spellInterval` to write
+ * maj7♯11 chords, and needs it for the same reason a staff does: the
+ * ♯11 is the root's FOURTH letter raised, so B maj7♯11 contains E♯ and
+ * not F. `lib/spelling.ts` cannot produce that and says so in its own
+ * scope note — it flips between two names for one pitch class, and E♯
+ * is not a second name for a black key, it is a different letter on
+ * F's slot.
+ *
+ * So this is no longer private to Reading. Reading's EXEMPTION from
+ * `lib/spelling` is unchanged and still permanent; what changed is that
+ * a second module needed the same distinction and borrowing it beat
+ * writing a second diatonic speller. Anything moved or narrowed here
+ * should check that caller.
+ * ---------------------------------------------------------------
  */
 
 import type { Clef } from './catalog';

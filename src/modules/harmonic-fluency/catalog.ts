@@ -828,7 +828,7 @@ const MODE_CARDS: Flashcard[] = [
   { id: 'mo-3', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: 'Lydian mode starts on which scale degree?',
     correctAnswer: '4', decoys: ['3', '5', '7'],
-    explanation: "Lydian starts on the 4th of the major scale — F Lydian from C major. The raised 4th (B natural over an F chord) gives it the bright, cinematic, 'dreamy' quality that PJ Morton, Tom Misch, and Stevie Wonder all use as a signature color.",
+    explanation: "Lydian starts on the 4th of the major scale — F Lydian from C major. F major's 4th is B♭. F Lydian's is B natural. Play F A C E and add B on top: that's Fmaj7♯11, and the B is the ♯11.",
     skillTag: 'mode-lydian-degree' },
   { id: 'mo-4', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: 'Mixolydian mode starts on which scale degree?',
