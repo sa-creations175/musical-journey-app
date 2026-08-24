@@ -77,7 +77,7 @@ the ~2,400px the pass removed; everything else combined bought ~340px.
 | 3d-10 | "Due" surfaced in the songs list and highlighted on the dashboard. |
 | — | The ⓘ status walkthrough — designed, in the spec, never built. |
 
-Item 10's due column and cross-module spacing settings queue behind all of it.
+Item 11's due column and cross-module spacing settings queue behind all of it.
 
 ---
 
@@ -126,7 +126,46 @@ three different ways, and three phrasings of one rule read as three rules.
 
 ## Queued
 
-### 3. Song detail page — collapse the three progress cards into one
+### 3. Offer to start a session when lead-sheet editing begins
+
+**What.** When the user starts editing the lead sheet and no session is
+running, offer to start one. A nudge at the moment the work begins.
+
+**Why.** Editing the lead sheet is practice work — *building the lead sheet*
+is one of the six activities in the rating step — and right now it is the one
+kind of practice that goes completely unrecorded when it happens outside a
+session. The activity exists in the vocabulary and the app has no way to
+notice it happening.
+
+**Two boundaries, both load-bearing, both stated before the build so nobody
+helpfully overshoots them:**
+
+**Viewing the lead sheet stays completely open. No gate, ever.** Checking a
+chord, glancing at it on a phone, showing it to someone — making any of that
+require a timed session is the app charging a toll to read something the user
+wrote. Only EDITING is the trigger.
+
+**It is a nudge, not a gate.** Dismissible, and dismissing it does not stop the
+edit. The edit lands either way; the offer is about whether the time gets
+recorded, never about whether the work is permitted.
+
+**Where it hooks.** `LeadSheetSection` funnels every commit through a single
+`onChange: (patch: Partial<SongSection>) => Promise<void>` prop supplied by
+`SongDetailView` — one seam for "an edit happened", so the trigger does not
+have to be scattered across the editing controls.
+
+**Open before building:** what "start one" actually starts. Practice begins
+from a cell, and a cell is a section in a key — the section is known, since
+`LeadSheetSection` is per-section, but the key is not. Copy and placement go to
+Silas for sign-off first.
+
+**Design.** Raised 23 August 2026, out of the 3d-8 audit. Not part of the song
+page redesign steps — a separate concern about capturing practice the app
+cannot currently see. No design doc.
+
+---
+
+### 4. Song detail page — collapse the three progress cards into one
 
 **What.** One progress card in place of three overlapping ones.
 
@@ -151,7 +190,7 @@ belongs to a data-migration step rather than to this card collapse.
 
 ---
 
-### 4. Per-node regrouping and custom module order
+### 5. Per-node regrouping and custom module order
 
 **What.** Two halves of one want: pin the modules being focused on to the top
 regardless of sort, and offer an alternate grouping of one row's children — key
@@ -167,7 +206,7 @@ how it composes with sorting, and whether a pin survives a reset.
 
 ---
 
-### 5. Chord progression catalog rebuild
+### 6. Chord progression catalog rebuild
 
 **What.** Pare down to common basic progressions and derive the rest from Song
 Repertoire.
@@ -181,7 +220,7 @@ design pass*, items 3 and 4.
 
 ---
 
-### 6. Repertoire chord flashcards
+### 7. Repertoire chord flashcards
 
 **What.** Memorising a section's changes away from the keyboard.
 
@@ -191,7 +230,7 @@ yet.
 
 ---
 
-### 7. Personal voicing library
+### 8. Personal voicing library
 
 **What.** Add a voicing you like — from a tutorial, a song, anywhere — and have
 it become drillable in mental visualisation.
@@ -208,7 +247,7 @@ prevent.
 
 ---
 
-### 8. Spacing state for section ratings and S&P
+### 9. Spacing state for section ratings and S&P
 
 **What.** Wire self-assessments and section ratings into SM-2.
 
@@ -231,7 +270,7 @@ thing from a check the user passes or fails.
 
 ---
 
-### 9. Collapse the two song-progress ladders
+### 10. Collapse the two song-progress ladders
 
 **What.** Two things describe how far a song has come and neither knows about
 the other. `songs.stage` is stored and hand-advanced (learning → comfortable →
@@ -254,7 +293,7 @@ real one, which is a design question, not a refactor.
 
 ---
 
-### 10. A due column, and a spacing settings surface
+### 11. A due column, and a spacing settings surface
 
 **What.** Two halves of one finding.
 
@@ -285,7 +324,7 @@ whose items are recency-driven rather than due-dated.
 
 ---
 
-### 11. MIDI-in accuracy grading
+### 12. MIDI-in accuracy grading
 
 **What.** Grade S&P and Song Repertoire from a plugged-in keyboard — exact note
 numbers, exact timestamps, no pitch detection.
