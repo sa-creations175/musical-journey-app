@@ -204,6 +204,16 @@ export interface ChooseOptions {
   seed: string;
   /** Named in the throw, so a failure says which card cannot be built. */
   label: string;
+  /**
+   * An extra condition the chosen set must meet.
+   *
+   * Exists for the one constraint a single card cannot see: where the
+   * answer must sit once the options are sorted. "Not the middle of
+   * three" is decidable here; "the middle a quarter of the time across
+   * the category" is not, so the caller computes the rank it wants and
+   * passes it down. The chooser stays the only place a set is accepted.
+   */
+  require?: (decoys: readonly string[]) => boolean;
 }
 
 /**
@@ -249,6 +259,7 @@ export function chooseDecoys(
     if (combo.length === opts.count) {
       const set = combo.map(i => pool[i]);
       if (tripped(correct, set).length > 0) return;
+      if (opts.require !== undefined && !opts.require(set)) return;
       // Earliest candidates win — a caller orders its pool by musical
       // relevance, and that ordering should survive the guard. Length
       // similarity breaks ties, which is where the 31% longest-option
@@ -382,4 +393,56 @@ export function cardsGivenAway(
 ): GuardedCard[] {
   const tokens = new Set(tells.map(t => t.token));
   return cards.filter(c => c.decoys.some(d => tokens.has(tokeniser.of(d))));
+}
+
+// =====================================================================
+// Where the answer sits once the options are sorted
+// =====================================================================
+
+/**
+ * The answer's index in the sorted option list, 0-based.
+ *
+ * Numeric sort when every option is a number, so 10 does not sort
+ * between 1 and 2. Nothing in this deck mixes the two.
+ */
+export function sortedRank(correct: string, decoys: readonly string[]): number {
+  const options = [correct, ...decoys];
+  const numeric = options.every(o => /^-?\d+$/.test(o));
+  const sorted = numeric
+    ? [...options].sort((a, b) => Number(a) - Number(b))
+    : [...options].sort();
+  return sorted.indexOf(correct);
+}
+
+/**
+ * Which rank this card should aim for.
+ *
+ * =====================================================================
+ * THE FIX FOR THE MIDDLE-OF-THREE TELL IS A DISTRIBUTION, NOT A BAN.
+ *
+ * Scale-degree math picked answer−1, answer+1 and an outlier, so three
+ * of four options were consecutive and the answer was the middle of
+ * them on 52 of 84 cards. Banning that one shape is not enough: push
+ * every answer to an end and "never the middle" becomes the new rule,
+ * which is the same defect with a different tell.
+ *
+ * So the target rank is derived from the card's own identity and
+ * cycles across the category. Derived, not random — the deck has to
+ * build identically on every load or a pinned count means nothing.
+ *
+ * `low`/`high` are the ranks actually reachable. The 1 of a major
+ * scale has nothing below it, so a card whose answer is 1 cannot put a
+ * decoy underneath however much the rotation would like it to; the
+ * caller computes the reachable window and this clamps into it rather
+ * than asking for the impossible and throwing.
+ * =====================================================================
+ */
+export function rankTarget(seed: string, low: number, high: number): number {
+  if (high <= low) return low;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return low + (Math.abs(h) % (high - low + 1));
 }

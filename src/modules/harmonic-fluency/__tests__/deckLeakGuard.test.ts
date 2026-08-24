@@ -64,11 +64,12 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   { category: 'progressions', rule: 'only-bracket', cards: 2 },
   { category: 'reverse-key-pivots', rule: 'only-accidental', cards: 3 },
   { category: 'reverse-key-pivots', rule: 'only-natural', cards: 4 },
-  // The one the whole rebuild is for: the decoys are answer−1, answer+1
-  // and an outlier, so three of four options are consecutive and the
-  // answer is the middle one. Step (b) derives the offsets from the
-  // card's identity instead.
-  { category: 'scale-degree-math', rule: 'middle-of-3', cards: 52 },
+  // scale-degree-math / middle-of-3 stood at 52 and is now 0 — the
+  // decoys were answer−1, answer+1 and an outlier, so three of four
+  // options were consecutive and the answer was between them. The
+  // offsets now come from the card's identity, so the answer's rank
+  // cycles. Entry deleted rather than left at 0: an entry pinned at a
+  // number nothing reaches is headroom.
   { category: 'slash-chords', rule: 'only-accidental', cards: 4 },
   { category: 'slash-chords', rule: 'only-slash', cards: 1 },
 ];

@@ -1,5 +1,5 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
-import { rotate } from './decoyGuard';
+import { chooseDecoys, rankTarget, rotate, sortedRank } from './decoyGuard';
 import {
   INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
 } from './intervalInversion';
@@ -202,6 +202,14 @@ function makeDecoys(candidates: string[], correct: string, count = 3): string[] 
 
 // --- Category 1: Scale degree math (systematic) ---------------------
 
+/** The seven degrees, as numbers. The generator loops these and the
+ *  decoy pool draws from them — one list, so a decoy can never name a
+ *  degree the question could not have asked about. */
+const DEGREES = [1, 2, 3, 4, 5, 6, 7];
+
+/** Three decoys, four options. Normalised across the catalog. */
+const DECOY_COUNT = 3;
+
 const INTERVAL_STEPS: Array<{ name: string; step: number }> = [
   { name: '2nd', step: 1 },
   { name: '3rd', step: 2 },
@@ -329,20 +337,36 @@ function generateScaleDegreeMathCards(): Flashcard[] {
       for (const dir of ['up', 'down'] as const) {
         const delta = dir === 'up' ? iv.step : -iv.step;
         const ans = ((startDeg - 1 + delta) % 7 + 7) % 7 + 1;
-        // Decoys: adjacent degrees and opposite-direction answer
+        const id = `sdm-${startDeg}-${dir}-${iv.name}`;
+        // The opposite-direction answer is the most instructive wrong
+        // degree — it is what you get for reading the arrow backwards —
+        // and the starting degree catches "I forgot to move at all".
+        // Both stay first in the pool so the chooser prefers them.
         const oppAns = ((startDeg - 1 - delta) % 7 + 7) % 7 + 1;
-        const adj1 = (ans % 7) + 1;
-        const adj2 = ((ans - 2 + 7) % 7) + 1;
+        const preferred = [oppAns, startDeg];
+        const pool = [
+          ...preferred,
+          ...DEGREES.slice().sort(
+            (a, b) => Math.abs(a - ans) - Math.abs(b - ans) || a - b,
+          ),
+        ].filter(d => d !== ans).map(String);
+        // Reachable ranks: `ans − 1` degrees sit below it and `7 − ans`
+        // above, so an answer of 1 can only ever be the lowest option.
+        const wanted = rankTarget(
+          id, Math.max(0, DECOY_COUNT - (7 - ans)), Math.min(DECOY_COUNT, ans - 1),
+        );
         cards.push({
-          id: `sdm-${startDeg}-${dir}-${iv.name}`,
+          id,
           category: 'scale-degree-math',
           categoryName: CATEGORY_LABELS['scale-degree-math'],
           question: `In any major key, ${startDeg} ${dir} a ${iv.name} = ?`,
           correctAnswer: String(ans),
-          decoys: makeDecoys(
-            [String(oppAns), String(adj1), String(adj2), String(startDeg)],
-            String(ans),
-          ),
+          decoys: chooseDecoys(String(ans), pool, {
+            count: DECOY_COUNT,
+            seed: id,
+            label: id,
+            require: ds => sortedRank(String(ans), ds) === wanted,
+          }),
           explanation: sdmExplanation(startDeg, iv.name, iv.step, dir),
           skillTag: `scale-degree-math-${dir}-${iv.name}`,
           visualHint: {
