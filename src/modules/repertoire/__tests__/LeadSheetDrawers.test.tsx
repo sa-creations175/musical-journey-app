@@ -159,11 +159,17 @@ describe('LeadSheetDrawers — the page reserves room beneath itself', () => {
     expect(read()).toBe('52px');
   });
 
-  it('costs ONE header side by side and TWO stacked', () => {
-    // THE POINT OF THE ROW. Two narrow bars stacked still cost two
-    // bars of vertical space, which is what was eating the bottom of
-    // the matrix — narrowing them fixed the width and kept the cost.
-    // The reservation is a function of HEIGHT, so the row halves it.
+  it('follows the layout instead of assuming it', () => {
+    // The reservation is a function of HEIGHT, and how much height
+    // two drawers cost depends entirely on how they are arranged.
+    // Reading it off geometry rather than off the breakpoint is why
+    // going from a row back to a stack needed no change here at all.
+    //
+    // The side-by-side case is not a layout the app currently
+    // produces — it is kept because the RULE is what is being
+    // asserted, and a measurement that only worked for today's
+    // arrangement is one that silently over-reserves the day the CSS
+    // moves.
     const el = render(
       <LeadSheetDrawers>
         {drawer('progressions')}
@@ -217,18 +223,26 @@ describe('LeadSheetDrawers — the page reserves room beneath itself', () => {
   });
 });
 
-describe('LeadSheetDrawers — the stack is a row, bottom right', () => {
-  it('spans nothing: it is right-aligned and auto-width from sm up', () => {
+describe('LeadSheetDrawers — narrow, stacked, hugging the right edge', () => {
+  it('spans nothing: right-aligned and auto-width from sm up', () => {
     // Two full-width bars across every page was more room than two
     // occasional drawers earn. Right rather than left because the
     // desktop sidebar is on the left, and because the matrix scrolls
     // horizontally with its key names in the first column.
     const el = render(<LeadSheetDrawers>{drawerFor('lyrics')}</LeadSheetDrawers>);
-    const box = el.querySelector('[data-lead-sheet-drawers]')!;
-    const cls = box.className;
-    for (const c of ['sm:flex-row', 'sm:justify-end', 'sm:right-3', 'sm:left-auto', 'sm:w-auto']) {
+    const cls = el.querySelector('[data-lead-sheet-drawers]')!.className;
+    for (const c of ['sm:right-3', 'sm:left-auto', 'sm:w-auto', 'sm:items-end']) {
       expect(cls, c).toContain(c);
     }
+  });
+
+  it('stays a column — a row of two equal bars is a toolbar', () => {
+    // A toolbar is a thing that is always there. Stacked and tucked
+    // into the corner they read as two things you can reach for.
+    const el = render(<LeadSheetDrawers>{drawerFor('lyrics')}</LeadSheetDrawers>);
+    const cls = el.querySelector('[data-lead-sheet-drawers]')!.className;
+    expect(cls).toContain('flex-col');
+    expect(cls).not.toContain('flex-row');
   });
 
   it('stays stacked and full width below sm', () => {
@@ -246,8 +260,12 @@ describe('LeadSheetDrawers — the stack is a row, bottom right', () => {
     // with the layout: collapsed each is a tab, open it is a panel.
     const cls = render(<LeadSheetDrawers>{drawerFor('lyrics')}</LeadSheetDrawers>)
       .querySelector('[data-lead-sheet-drawers]')!.className;
+    // Collapsed a tab, open a SHEET — not a slightly bigger tab.
+    // Open, this is something you read: chords to play from, lyrics
+    // to place. 672px is roughly 90 characters of the drawers' 11px
+    // mono, which holds a chord row without wrapping mid-bar.
     expect(cls).toContain('sm:[&>*]:w-80');
-    expect(cls).toContain('sm:[&>*:has([aria-expanded="true"])]:w-[32rem]');
+    expect(cls).toContain('sm:[&>*:has([aria-expanded="true"])]:w-[42rem]');
     // Never past the viewport on a narrow window.
     expect(cls).toContain('sm:[&>*]:max-w-[calc(100vw-1.5rem)]');
   });

@@ -140,14 +140,13 @@ export default function LeadSheetDrawers({
       className={[
         'fixed inset-x-3 z-40 flex flex-col gap-2',
         /* -------------------------------------------------------------
-           SIDE BY SIDE, BOTTOM RIGHT, FROM `sm` UP.
+           NARROW, STACKED, HUGGING THE RIGHT EDGE, FROM `sm` UP.
 
            Two full-width bars spanning every page was more room than
-           two occasional drawers earn. Stacking them narrow fixed the
-           width and kept the cost: two bars of vertical space is what
-           was eating the bottom of the matrix, and vertical is the
-           axis that matters — the reservation below is a function of
-           HEIGHT. One row halves it.
+           two occasional drawers earn. Side by side fixed the size and
+           broke the reading: a row of two equal bars is a toolbar,
+           which is a thing that is always there. Stacked and tucked
+           into the corner they read as two things you can reach for.
 
            Right rather than left because the desktop sidebar is on the
            left, so a bottom-left stack reads as part of the nav; and
@@ -159,19 +158,27 @@ export default function LeadSheetDrawers({
            a 375px phone is nearly full width anyway, so capping buys
            nothing and only risks cramping the header text.
            ------------------------------------------------------------- */
-        'sm:left-auto sm:right-3 sm:w-auto sm:flex-row sm:items-end sm:justify-end',
-        /* Collapsed each drawer is a tab; open it is a panel. `:has`
-           lets the container own BOTH the layout and the sizing, which
-           is the arrangement this file exists to protect — the
-           two-drawer bug was two components holding beliefs about each
-           other. Neither drawer knows it has a neighbour.
+        'sm:left-auto sm:right-3 sm:w-auto sm:items-end',
+        /* COLLAPSED IT IS A TAB; OPEN IT IS A SHEET.
 
-           512px rather than the 672px proposed for a stack: in a row
-           the open panel shares the width with its collapsed sibling,
-           and 672 + 320 + the gap runs past a laptop column. The
-           viewport cap is the backstop for a narrow window. */
+           Widening a tab to a slightly bigger tab is the wrong change:
+           open, this is something you READ — chords to play from,
+           lyrics to place — not a label to glance at. So it goes to a
+           readable measure rather than to whatever is left over.
+           672px is roughly 90 characters of the drawers' 11px mono,
+           which holds a chord row without wrapping mid-bar.
+
+           Stacked, nothing shares the width with it, so it can take
+           the full sheet; the viewport cap is the backstop on a narrow
+           window.
+
+           `:has` lets the container own BOTH the layout and the
+           sizing, which is the arrangement this file exists to
+           protect — the two-drawer bug was two components holding
+           beliefs about each other. Neither drawer knows it has a
+           neighbour. */
         'sm:[&>*]:w-80 sm:[&>*]:max-w-[calc(100vw-1.5rem)]',
-        'sm:[&>*:has([aria-expanded="true"])]:w-[32rem]',
+        'sm:[&>*:has([aria-expanded="true"])]:w-[42rem]',
       ].join(' ')}
     >
       {children}
