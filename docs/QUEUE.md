@@ -99,14 +99,17 @@ retirement that had already happened.
   the direction with fewer attempts.
 - **Tritone flat subjects, ttb-1..ttb-5.** Zero `ttb-` ids in the catalog. The
   twelve `tt-*` cards are unchanged and every note in the deck — subject,
-  answer and decoy — is sharp or natural.
+  answer and decoy — is sharp or natural. **No longer waiting on the keyboard**
+  — that dependency was recorded before the flat-spelling work, and the
+  parenthetical conventions it needs now exist.
 - **The two key-signature explanation strings.** `ks-21` and `ks-22` still
   carry their original text. `ks-21` already has the "Father Charles" mnemonic
   and the first-four/first-two rule; `ks-22` has neither a mnemonic nor the
   BEAD shortcut, and says only "exactly the reverse of sharps".
-- **The 10 hand-written C-only cards.** Verified by measurement, not memory:
-  functional harmony's ii-V-I family is C only, modes' "mode of C major
-  starting on X" is C only, slash chords' degree notation is C only.
+- ~~The 10 hand-written C-only cards.~~ **SHIPPED `7bc6b39`.** All three
+  families generate across twelve keys now: functional harmony's ii-V-I, V/V
+  and V/vi; modes' "mode of {key} major starting on X"; and all four
+  slash-chord degree shapes.
 - **Chord playback wherever else a chord appears** — harmonic fluency's reveal
   has none. Playback must derive from structured pitches, never from parsing
   the answer string.
