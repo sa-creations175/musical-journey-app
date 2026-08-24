@@ -542,6 +542,57 @@ function generateIntervalCards(): Flashcard[] {
   });
 }
 
+/**
+ * How many sharps or flats a key carries — 0 through 7.
+ *
+ * Seven is real, not a safety margin: C♯ major has seven sharps and C♭
+ * major seven flats. A decoy may name any count a key signature can
+ * actually have, and none it cannot.
+ */
+const ACCIDENTAL_COUNTS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+/**
+ * Decoys for a "G major has _____ sharps" card.
+ *
+ * =====================================================================
+ * TWELVE HAND-WRITTEN CARDS WITH THE SAME DEFECT AS SCALE-DEGREE MATH.
+ *
+ * Six of the twelve listed the answer flanked — 1 against 2, 0 and 3;
+ * 3 against 2, 4 and 5 — so three options were consecutive and the
+ * answer sat between them. You could score half the family by picking
+ * the middle number.
+ *
+ * The other six were clean by luck, not by rule, so all twelve are
+ * converted rather than the six that happened to fail. A rule applied
+ * only to the cards that tripped it is not a rule.
+ *
+ * The questions, explanations and ids are untouched — this replaces
+ * hand-counted decoys with the derivation scale-degree math already
+ * uses, and nothing else.
+ * =====================================================================
+ */
+function accidentalCountDecoys(id: string, count: number): string[] {
+  const highest = ACCIDENTAL_COUNTS[ACCIDENTAL_COUNTS.length - 1];
+  const wanted = rankTarget(
+    id,
+    Math.max(0, DECOY_COUNT - (highest - count)),
+    Math.min(DECOY_COUNT, count),
+  );
+  return chooseDecoys(
+    String(count),
+    ACCIDENTAL_COUNTS
+      .filter(n => n !== count)
+      .sort((a, b) => Math.abs(a - count) - Math.abs(b - count) || a - b)
+      .map(String),
+    {
+      count: DECOY_COUNT,
+      seed: id,
+      label: id,
+      require: ds => sortedRank(String(count), ds) === wanted,
+    },
+  );
+}
+
 // --- Hand-written categories ---------------------------------------
 
 const DIATONIC_QUALITY_CARDS: Flashcard[] = [
@@ -781,51 +832,51 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
 const KEY_SIG_CARDS: Flashcard[] = [
   // Counts
   { id: 'ks-1', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'C major has _____ sharps/flats', correctAnswer: '0', decoys: ['1', '2', '3'],
+    question: 'C major has _____ sharps/flats', correctAnswer: '0', decoys: accidentalCountDecoys('ks-1', 0),
     explanation: "C major has zero sharps or flats — the all-white-keys key. That simplicity is why it's the default teaching key, but most real recorded music lives in sharper or flatter keys (the warmth of Eb, the brightness of E, the grit of Db).",
     skillTag: 'key-sig-C' },
   { id: 'ks-2', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'G major has _____ sharps', correctAnswer: '1', decoys: ['2', '0', '3'],
+    question: 'G major has _____ sharps', correctAnswer: '1', decoys: accidentalCountDecoys('ks-2', 1),
     explanation: "G major has one sharp: F#. A common gospel, country, and rock key — rings nicely on guitar and isn't murderous on the voice.",
     skillTag: 'key-sig-G' },
   { id: 'ks-3', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'D major has _____ sharps', correctAnswer: '2', decoys: ['3', '1', '4'],
+    question: 'D major has _____ sharps', correctAnswer: '2', decoys: accidentalCountDecoys('ks-3', 2),
     explanation: "D major has two sharps: F#, C#. Bright and ringing on guitar and violin — countless country, rock, and uplifting gospel tunes sit here.",
     skillTag: 'key-sig-D' },
   { id: 'ks-4', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'A major has _____ sharps', correctAnswer: '3', decoys: ['2', '4', '5'],
+    question: 'A major has _____ sharps', correctAnswer: '3', decoys: accidentalCountDecoys('ks-4', 3),
     explanation: "A major has three sharps: F#, C#, G#. Big, open guitar key — common in classic rock, anthemic pop, and some soul.",
     skillTag: 'key-sig-A' },
   { id: 'ks-5', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'E major has _____ sharps', correctAnswer: '4', decoys: ['3', '5', '2'],
+    question: 'E major has _____ sharps', correctAnswer: '4', decoys: accidentalCountDecoys('ks-5', 4),
     explanation: "E major has four sharps: F#, C#, G#, D#. A guitar's natural ringing key — the home of countless blues, rock, and gospel tunes (think early B.B. King, Hendrix, soul revival).",
     skillTag: 'key-sig-E' },
   { id: 'ks-6', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'B major has _____ sharps', correctAnswer: '5', decoys: ['4', '6', '3'],
+    question: 'B major has _____ sharps', correctAnswer: '5', decoys: accidentalCountDecoys('ks-6', 5),
     explanation: "B major has five sharps: F#, C#, G#, D#, A#. Tougher to read for guitarists, but vocalists and horn players spend time here — Mariah Carey lives in B-region keys for many ballads.",
     skillTag: 'key-sig-B' },
   { id: 'ks-7', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'F# major has _____ sharps', correctAnswer: '6', decoys: ['5', '7', '4'],
+    question: 'F# major has _____ sharps', correctAnswer: '6', decoys: accidentalCountDecoys('ks-7', 6),
     explanation: "F# major has six sharps (F# C# G# D# A# E#). Rare to read in this spelling — most charts will write the same sound as Gb major (six flats). Same notes, different look on the page.",
     skillTag: 'key-sig-F-sharp' },
   { id: 'ks-8', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'F major has _____ flats', correctAnswer: '1', decoys: ['2', '0', '3'],
+    question: 'F major has _____ flats', correctAnswer: '1', decoys: accidentalCountDecoys('ks-8', 1),
     explanation: "F major has one flat: Bb. Warm, easy key for horns and vocalists; tons of jazz standards and soul ballads default here.",
     skillTag: 'key-sig-F' },
   { id: 'ks-9', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Bb major has _____ flats', correctAnswer: '2', decoys: ['3', '1', '4'],
+    question: 'Bb major has _____ flats', correctAnswer: '2', decoys: accidentalCountDecoys('ks-9', 2),
     explanation: "Bb major has two flats: Bb, Eb. The default key for brass and sax — a huge chunk of jazz, R&B, and gospel horn charts live in Bb because that's where horns sound best.",
     skillTag: 'key-sig-Bb' },
   { id: 'ks-10', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Eb major has _____ flats', correctAnswer: '3', decoys: ['2', '4', '5'],
+    question: 'Eb major has _____ flats', correctAnswer: '3', decoys: accidentalCountDecoys('ks-10', 3),
     explanation: "Eb major has three flats: Bb, Eb, Ab. The 'horn key' — a lot of soul, jazz, and gospel charts default here because it's comfortable for sax, trumpet, and trombone (Stevie Wonder's 'Superstition' is in Eb).",
     skillTag: 'key-sig-Eb' },
   { id: 'ks-11', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Ab major has _____ flats', correctAnswer: '4', decoys: ['3', '5', '2'],
+    question: 'Ab major has _____ flats', correctAnswer: '4', decoys: accidentalCountDecoys('ks-11', 4),
     explanation: "Ab major has four flats: Bb, Eb, Ab, Db. Rich, mellow key favored in ballads, gospel, and jazz — Donny Hathaway and many soul vocalists love this register.",
     skillTag: 'key-sig-Ab' },
   { id: 'ks-12', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Db major has _____ flats', correctAnswer: '5', decoys: ['4', '6', '3'],
+    question: 'Db major has _____ flats', correctAnswer: '5', decoys: accidentalCountDecoys('ks-12', 5),
     explanation: "Db major has five flats: Bb, Eb, Ab, Db, Gb. Deep, smooth key — Mariah Carey, R&B ballads, and lush jazz cuts live here. Enharmonically the same as C# major (which would be written with seven sharps).",
     skillTag: 'key-sig-Db' },
   // Relative / parallel

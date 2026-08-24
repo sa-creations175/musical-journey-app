@@ -51,7 +51,10 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   { category: 'functional-harmony', rule: 'only-bracket', cards: 2 },
   { category: 'functional-harmony', rule: 'only-comma', cards: 1 },
   { category: 'functional-harmony', rule: 'only-prose', cards: 1 },
-  { category: 'key-signatures', rule: 'middle-of-3', cards: 6 },
+  // key-signatures / middle-of-3 stood at 6, and the four tell entries
+  // at 4 apiece — both came from the same twelve hand-written
+  // "how many sharps" cards, whose decoys were counted by hand. They
+  // now derive their decoys the way scale-degree math does.
   { category: 'key-signatures', rule: 'only-accidental', cards: 2 },
   { category: 'key-signatures', rule: 'only-bracket', cards: 2 },
   // key-signatures / only-natural stood at 1: the parallel minor of B
@@ -132,10 +135,6 @@ const TELL_ALLOWLIST: ReadonlyArray<{ category: string; tokeniser: string; cards
   { category: 'diatonic-qualities', tokeniser: 'whole', cards: 2 },
   { category: 'diatonic-qualities', tokeniser: 'without-key', cards: 2 },
   { category: 'functional-harmony', tokeniser: 'last-word', cards: 2 },
-  { category: 'key-signatures', tokeniser: 'whole', cards: 4 },
-  { category: 'key-signatures', tokeniser: 'without-key', cards: 4 },
-  { category: 'key-signatures', tokeniser: 'last-word', cards: 4 },
-  { category: 'key-signatures', tokeniser: 'first-word', cards: 4 },
   { category: 'pentatonic-scales', tokeniser: 'whole', cards: 12 },
   { category: 'pentatonic-scales', tokeniser: 'without-key', cards: 12 },
   { category: 'pentatonic-scales', tokeniser: 'last-word', cards: 12 },
@@ -183,9 +182,9 @@ describe('no decoy pins its answer', () => {
     // Both allowlists are keyed per rule and per reading, so a card
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
-    // gives 44 and 81. The real figures are 38 and 25, overlapping on
-    // two cards for 61 in all — neither column total is a count of
-    // anything.
+    // adds up to more than the deck can supply. The real figures are
+    // 32 and 21, overlapping on nothing, for 53 in all — down from 124
+    // and 36 before the guard.
     //
     // So the honest aggregate is derived here rather than written into
     // a commit message, where nobody can check it.
@@ -204,7 +203,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 38, tell: 25, distinct: 61 });
+      .toEqual({ blind: 32, tell: 21, distinct: 53 });
   });
 
   it('keeps the tell allowlist honest', () => {
