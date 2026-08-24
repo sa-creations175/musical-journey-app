@@ -1,12 +1,17 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type AttemptRecord } from '../../lib/db';
+import ProgressBar from '../../components/ProgressBar';
+import {
+  FALLBACK_INTERVAL_DAYS, barSegments, unratedLabel, type TickAttempt,
+} from '../../lib/progressBar';
+import {
+  spacingIntervalFor, useSpacingIntervals,
+} from '../../lib/useSpacingIntervals';
 import { ROLLING_WINDOW_SIZE } from '../../lib/adaptiveSelection';
 import { daysBetween, localDayKey } from '../../lib/dailyGoal';
 import {
-  MIN_ATTEMPTS_FOR_TIER,
   TIER_BADGE_CLASS,
-  TIER_BAR_CLASS,
   TIER_LABEL,
   TIER_TEXT_CLASS,
   computeTier,
@@ -21,6 +26,14 @@ import {
 const MODULE_ID = 'harmonic-fluency';
 
 interface CategoryStats {
+  /**
+   * The window's reps, each carrying ITS OWN card's interval.
+   *
+   * A category is not an item. "Pentatonic scales" is 41 cards on 41
+   * schedules, so there is no single interval for this row — see
+   * `TickAttempt.intervalDays`.
+   */
+  window: TickAttempt[];
   category: FlashcardCategory;
   label: string;
   totalCardsInCategory: number;
@@ -35,6 +48,7 @@ interface CategoryStats {
 function computeCategoryStats(
   category: FlashcardCategory,
   attempts: AttemptRecord[],
+  spacingIntervals: ReadonlyMap<string, number>,
 ): CategoryStats {
   const catCards = FLASHCARDS.filter(c => c.category === category);
   const catCardIds = new Set(catCards.map(c => c.id));
@@ -57,6 +71,15 @@ function computeCategoryStats(
   });
   return {
     category,
+    // Each rep fades against the card it was ON, not against the
+    // category. Two reps of the same age in one strip read differently
+    // when their cards are on different schedules — which is the whole
+    // reason this row could not use a single interval.
+    window: recent.map(a => ({
+      correct: a.correct,
+      timestamp: a.timestamp,
+      intervalDays: spacingIntervalFor(spacingIntervals, a.itemId),
+    })),
     label: CATEGORY_LABELS[category],
     totalCardsInCategory: catCards.length,
     cardsSeen,
@@ -74,9 +97,14 @@ export default function HarmonicFluencyTracker() {
     [],
   ) ?? [];
 
+  const spacingIntervals = useSpacingIntervals(MODULE_ID);
+  const now = Date.now();
+
   const rows = useMemo(
-    () => CATEGORY_ORDER.map(cat => computeCategoryStats(cat, attempts)),
-    [attempts],
+    () => CATEGORY_ORDER.map(
+      cat => computeCategoryStats(cat, attempts, spacingIntervals),
+    ),
+    [attempts, spacingIntervals],
   );
 
   return (
@@ -89,7 +117,11 @@ export default function HarmonicFluencyTracker() {
       </div>
       <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
         {rows.map(r => {
-          const isUntouched = r.tier === 'untouched';
+          const seg = barSegments({
+            correct: r.rollingCorrect,
+            wrong: r.rollingTotal - r.rollingCorrect,
+          });
+          const pending = unratedLabel(seg);
           return (
             <div key={r.category} className="py-3 first:pt-0 last:pb-0 grid sm:grid-cols-[240px,1fr] gap-3">
               <div className="min-w-0">
@@ -118,10 +150,8 @@ export default function HarmonicFluencyTracker() {
                 <div className="flex items-baseline justify-between text-xs text-neutral-500 mb-1 gap-2 flex-wrap">
                   <span>accuracy</span>
                   <span className="font-mono">
-                    {isUntouched ? (
-                      <span className="text-neutral-400">
-                        no data yet — needs {MIN_ATTEMPTS_FOR_TIER} ({r.rollingTotal}/{MIN_ATTEMPTS_FOR_TIER})
-                      </span>
+                    {pending !== null ? (
+                      <span className="text-neutral-400">{pending}</span>
                     ) : (
                       <>
                         {r.rollingCorrect}/{r.rollingTotal}
@@ -131,12 +161,16 @@ export default function HarmonicFluencyTracker() {
                     )}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-                  <div
-                    className={`h-full ${TIER_BAR_CLASS[r.tier]} transition-all`}
-                    style={{ width: r.rollingTotal === 0 ? 0 : `${Math.max(4, r.percent)}%` }}
-                  />
-                </div>
+                {/* `intervalDays` here is only the FALLBACK for a rep
+                    whose card has no spacing row; every tick normally
+                    carries its own. A category has no interval of its
+                    own to pass. */}
+                <ProgressBar
+                  attempts={r.window}
+                  intervalDays={FALLBACK_INTERVAL_DAYS}
+                  now={now}
+                  label={r.label}
+                />
               </div>
             </div>
           );

@@ -132,6 +132,30 @@ export function tickOpacity(
 export interface TickAttempt {
   correct: boolean;
   timestamp: number;
+  /**
+   * This rep's OWN review interval, when the strip's rows do not share
+   * one.
+   *
+   * ---------------------------------------------------------------
+   * OPTIONAL, AND THAT IS THE DESIGN.
+   *
+   * Four of the five trackers show one ITEM per row, so every rep in
+   * the strip shares that item's interval and the strip-level value is
+   * exactly right. They pass nothing here and are unaffected.
+   *
+   * Harmonic fluency shows a CATEGORY per row — "pentatonic scales" is
+   * 41 cards, each separately scheduled. There is no single interval
+   * for that row, and a median across cards at 2-day and 30-day
+   * intervals would describe neither card while reading as a fact
+   * about every rep in the strip.
+   *
+   * The fade is already per-tick, so making its INPUT per-tick is the
+   * change that keeps the strip exactly right rather than approximately
+   * right. Required would have forced a value at four call sites that
+   * already have the correct one a level up.
+   * ---------------------------------------------------------------
+   */
+  intervalDays?: number;
 }
 
 export interface Tick {
@@ -177,7 +201,12 @@ export function tickStrip(
   for (let i = 0; i < ROLLING_WINDOW_SIZE; i++) {
     const a = oldestFirst[i];
     out.push(a
-      ? { correct: a.correct, opacity: tickOpacity(a.timestamp, now, intervalDays), index: i }
+      ? {
+        correct: a.correct,
+        // The rep's own interval when it has one, else the strip's.
+        opacity: tickOpacity(a.timestamp, now, a.intervalDays ?? intervalDays),
+        index: i,
+      }
       : { correct: null, opacity: 1, index: i });
   }
   return out;
