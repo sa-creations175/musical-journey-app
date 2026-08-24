@@ -59,6 +59,7 @@ ship order.**
 | 23 Aug | 3d-4 | The page restructured — metadata absorbs why-this-song, the links and my associations; the matrix card carries the status |
 | 23 Aug | 3d-5 | The cell panel — Practice / Test chooser, timer on entry, metronome, section ticks with select-all, Open lead sheet, collapse to a top bar |
 | 23 Aug | 3d-6 | **The rating step.** Done pauses and Log it writes; sections confirmed, six activities as a multi-select, how it went on the existing four-step scale, and the un-attributed-time question given a surface at last. Nothing in it is required. |
+| 23 Aug | 3d-7 | **The cell test.** Three clean runs at tempo make a section comfortable in a key. The two whole-song claims — "Test song" and "run at tempo" — stay on `KeyRow`, because a cell cannot honestly speak for a song and the two run tables exist to keep those claims apart. A test is timed and not rated. |
 | 23 Aug | — | The layout pass: the matrix rebuilt on the shared `HeatCell` primitive and capped at 56px, two-column metadata, both cards reordered, the lead sheet drawers, and the criteria panel accumulating by rung with a moment when one is earned |
 
 **The layout pass found one bug worth carrying.** `HeatCell` is
@@ -71,8 +72,7 @@ the ~2,400px the pass removed; everything else combined bought ~340px.
 
 | Step | What |
 |---|---|
-| 3d-7 | Test mode in the panel. Test is greyed out in the chooser. |
-| 3d-8 | Retire `PracticeLogModal` and "+ log a practice session". Its retirement is the trigger for item 3's cross-key decision — check that entry before starting, not after. |
+| 3d-8 | Retire `PracticeLogModal` and "+ log a practice session". `CellInteractionModal` retires alongside it — the panel now covers both its practice and its test halves, and it is still reachable wherever the matrix mounts without an `onCellSelected` handler. Its retirement is the trigger for item 3's cross-key decision — check that entry before starting, not after. |
 | 3d-9 | The practice calendar, matching `ShapesAndPatternsCalendar`, replacing the practice history card. |
 | 3d-10 | "Due" surfaced in the songs list and highlighted on the dashboard. |
 | — | The ⓘ status walkthrough — designed, in the spec, never built. |
