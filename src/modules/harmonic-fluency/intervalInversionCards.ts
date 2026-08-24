@@ -1,6 +1,6 @@
 import type { Flashcard } from './catalog';
 import {
-  INTERVAL_NAMES, INTERVAL_PAIR_SUM, intervalNameAt, inversionPairs,
+  INTERVAL_NAMES, INTERVAL_PAIR_SUM, article, intervalNameAt, inversionPairs,
   invertedSemitones, ordinalOfName,
 } from './intervalInversion';
 
@@ -47,10 +47,6 @@ const INVERSION_CONTEXT =
  * consonant sound: a unison, the way it is a university. Deriving this
  * from the first letter alone gets one of the thirteen wrong.
  */
-function article(name: string): string {
-  return /^[AEIO]/i.test(name) ? 'an' : 'a';
-}
-
 /** `iv-inv-of-minor-3rd`. Content-suffixed, never positional. */
 function slug(name: string): string {
   return name.toLowerCase().replace(/\s+/g, '-');

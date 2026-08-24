@@ -1,5 +1,6 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
+import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import {
   INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
 } from './intervalInversion';
@@ -1936,6 +1937,13 @@ export const FLASHCARDS: Flashcard[] = [
   // collide with, or repoint, anything above.
   ...expansionCards(),
   ...intervalInversionCards(),
+  // The quality-carrying rebuild of scale-degree math, ALONGSIDE the
+  // 84 above rather than in place of them. Those 84 are this set's
+  // alteration-zero subset one for one, so retiring them is a separate
+  // step with its own decision about the spacing history attached to
+  // their ids. Content-suffixed ids (`sdm-2-down-m6`) cannot collide
+  // with the positional ones above (`sdm-2-down-6th`).
+  ...scaleDegreeQualityCards(),
 ];
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {

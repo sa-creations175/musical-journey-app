@@ -20,7 +20,22 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { INTERVAL_PAIR_SUM, invertsSmaller } from '../intervalInversion';
 
-const CARDS = FLASHCARDS.filter(c => c.category === 'scale-degree-math');
+/**
+ * The ORIGINAL 84, selected by their id shape.
+ *
+ * The category now holds 252: these 84 and the 168 quality-carrying
+ * cards generated alongside them. Filtering on the category alone
+ * silently widened this file to cover both, and the two sets teach
+ * different methods — these say "2 up a 5th = 6", the new ones say
+ * "2 down a minor 6th = ♯4". A test that spans both proves neither.
+ *
+ * `sdm-2-down-6th` is positional-by-interval-name; `sdm-2-down-m6`
+ * carries the quality. The regex tells them apart without a list that
+ * would need maintaining.
+ */
+const CARDS = FLASHCARDS.filter(
+  c => c.category === 'scale-degree-math' && /^sdm-\d-(up|down)-\d(nd|rd|th)$/.test(c.id),
+);
 /** Operators and negatives both use U+2212, never an ASCII hyphen. */
 const MINUS = '−';
 

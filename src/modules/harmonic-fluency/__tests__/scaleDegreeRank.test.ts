@@ -19,7 +19,14 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { BLIND_RULES, rankTarget, sortedRank } from '../decoyGuard';
 
-const SDM = FLASHCARDS.filter(c => c.category === 'scale-degree-math');
+// The ORIGINAL 84, by id shape. The category also holds the 168
+// quality-carrying cards now, whose decoys are constrained differently
+// — they must show the same degree number as the answer, so a rank
+// target would fight that. Their leak-freeness is asserted in
+// scaleDegreeQualityCards.test.ts instead.
+const SDM = FLASHCARDS.filter(
+  c => c.category === 'scale-degree-math' && /^sdm-\d-(up|down)-\d(nd|rd|th)$/.test(c.id),
+);
 const DECOY_COUNT = 3;
 
 /** The window of ranks an answer can physically reach: `ans − 1`

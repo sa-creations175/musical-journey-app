@@ -21,6 +21,9 @@ import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 import { recordEngagement } from '../../lib/spacingState';
 import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
+import DegreeGroundedRows from './DegreeGroundedRows';
+import DegreePlayback from './DegreePlayback';
+import { qualityOfCardId } from './scaleDegreeQualityCards';
 import FlashcardSession, {
   type CardAnsweredArgs,
   type FlashcardSessionStats,
@@ -264,9 +267,29 @@ const LYDIAN_CHORD_CARDS: Readonly<Record<string, string | undefined>> = {
 
 function CardReference({ card, answered }: { card: Flashcard; answered: boolean }) {
   // Reveal-side only. Before answering, the rows would hand over the
-  // ♯11 the card is asking about.
+  // ♯11 the card is asking about — and, for a degree card, would spell
+  // the answer out in four keys.
   if (!answered) return null;
-  if (!(card.id in LYDIAN_CHORD_CARDS)) return null;
-  const openWith = LYDIAN_CHORD_CARDS[card.id];
-  return <LydianChordRows {...(openWith ? { openWith } : {})} />;
+  if (card.id in LYDIAN_CHORD_CARDS) {
+    const openWith = LYDIAN_CHORD_CARDS[card.id];
+    return <LydianChordRows {...(openWith ? { openWith } : {})} />;
+  }
+  const degree = qualityOfCardId(card.id);
+  if (degree !== null) {
+    return (
+      <>
+        <DegreeGroundedRows
+          startDegree={degree.startDegree}
+          quality={degree.quality}
+          direction={degree.direction}
+        />
+        <DegreePlayback
+          startDegree={degree.startDegree}
+          quality={degree.quality}
+          direction={degree.direction}
+        />
+      </>
+    );
+  }
+  return null;
 }

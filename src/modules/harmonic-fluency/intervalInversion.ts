@@ -144,3 +144,15 @@ export function ordinalOfName(name: string): number | undefined {
   const m = name.match(/(\d)(?:nd|rd|th)/);
   return m ? Number(m[1]) : undefined;
 }
+
+/**
+ * "a" or "an", decided by SOUND rather than by a vowel list.
+ *
+ * Interval names are the only place this deck needs it, and both
+ * callers are interval names: "an augmented 4th", "a minor 6th". Kept
+ * here rather than copied into the second caller — two copies of one
+ * rule is how "a augmented 4th" ships.
+ */
+export function article(name: string): string {
+  return /^[AEIO]/i.test(name) ? 'an' : 'a';
+}

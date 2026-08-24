@@ -35,7 +35,13 @@ const { FLASHCARDS } = await import('../catalog');
 const ordinalOf = (q: string) => Number(q.match(/a (\d)(?:nd|rd|th)/)![1]);
 
 describe('with the pairing constant moved to 7', () => {
-  const CARDS = FLASHCARDS.filter(c => c.category === 'scale-degree-math');
+  // The ORIGINAL 84 only. The category also holds the 168
+  // quality-carrying cards, whose questions read "a minor 6th" rather
+  // than "a 6th" — `ordinalOf` cannot parse those, and the inversion
+  // shortcut this file is about is not part of their method.
+  const CARDS = FLASHCARDS.filter(
+    c => c.category === 'scale-degree-math' && /^sdm-\d-(up|down)-\d(nd|rd|th)$/.test(c.id),
+  );
 
   it('the 4th GAINS a shortcut, because 7 − 4 = 3 is now smaller', () => {
     const fourths = CARDS.filter(c => ordinalOf(c.question) === 4);
