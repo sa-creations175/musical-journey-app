@@ -176,6 +176,37 @@ describe('no decoy pins its answer', () => {
     });
   }
 
+  it('counts the remaining damage as DISTINCT cards', () => {
+    // =================================================================
+    // SUMMING THE ALLOWLIST IS NOT THE NUMBER OF LEAKY CARDS.
+    //
+    // Both allowlists are keyed per rule and per reading, so a card
+    // tripping two rules is counted twice and a pentatonic card seen
+    // under four tokenisers is counted four times. Adding the columns
+    // gives 44 and 81. The real figures are 38 and 25, overlapping on
+    // two cards for 61 in all — neither column total is a count of
+    // anything.
+    //
+    // So the honest aggregate is derived here rather than written into
+    // a commit message, where nobody can check it.
+    // =================================================================
+    const leaky = new Set<string>();
+    for (const c of CARDS) {
+      const options = [c.correctAnswer, ...c.decoys];
+      if (BLIND_RULES.some(r => r.pick(options) === c.correctAnswer)) leaky.add(c.id);
+    }
+    const told = new Set<string>();
+    for (const category of CATEGORIES) {
+      const cards = CARDS.filter(c => c.category === category);
+      for (const t of TOKENISERS) {
+        for (const c of cardsGivenAway(cards, findTells(cards, t), t)) told.add(c.id);
+      }
+    }
+    const both = new Set([...leaky, ...told]);
+    expect({ blind: leaky.size, tell: told.size, distinct: both.size })
+      .toEqual({ blind: 38, tell: 25, distinct: 61 });
+  });
+
   it('keeps the tell allowlist honest', () => {
     const stale = TELL_ALLOWLIST
       .filter(a => (counts.get(`${a.category}|${a.tokeniser}`) ?? 0) < a.cards)
