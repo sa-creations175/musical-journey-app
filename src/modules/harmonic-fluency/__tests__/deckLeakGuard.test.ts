@@ -136,9 +136,6 @@ const TELL_ALLOWLIST: ReadonlyArray<{ category: string; tokeniser: string; cards
   { category: 'key-signatures', tokeniser: 'without-key', cards: 4 },
   { category: 'key-signatures', tokeniser: 'last-word', cards: 4 },
   { category: 'key-signatures', tokeniser: 'first-word', cards: 4 },
-  // Locrian on screen means Aeolian, in all twelve keys. Step (d).
-  { category: 'modes', tokeniser: 'without-key', cards: 36 },
-  { category: 'modes', tokeniser: 'last-word', cards: 36 },
   { category: 'pentatonic-scales', tokeniser: 'whole', cards: 12 },
   { category: 'pentatonic-scales', tokeniser: 'without-key', cards: 12 },
   { category: 'pentatonic-scales', tokeniser: 'last-word', cards: 12 },
@@ -187,14 +184,31 @@ describe('no decoy pins its answer', () => {
     expect(stale).toEqual([]);
   });
 
-  it('catches the mode pool, which a raw string comparison cannot', () => {
-    // The proof the tokenisers earn their keep. "A Locrian" appears
-    // once in the whole deck, so the `whole` reading sees nothing.
+  it('catches a mode pool, which a raw string comparison cannot', () => {
+    // The proof the tokenisers earn their keep, against the shape the
+    // modes category actually had: a fixed `others` list per degree,
+    // so Locrian on screen meant Aeolian in every key.
+    //
+    // A FIXTURE, NOT THE LIVE DECK. Asserting the leak against real
+    // cards was fine while it was there and would have had to be
+    // deleted the moment it was fixed — taking the proof with it. This
+    // keeps proving the detector works after the deck stops tripping it.
+    const leaky: GuardedCard[] = ['D', 'E♭', 'F', 'G'].flatMap(k => [
+      { id: `x-${k}-6`, category: 'x', correctAnswer: `${k} Aeolian`,
+        decoys: [`${k} Dorian`, `${k} Phrygian`, `${k} Locrian`] },
+      { id: `x-${k}-5`, category: 'x', correctAnswer: `${k} Mixolydian`,
+        decoys: [`${k} Lydian`, `${k} Dorian`, `${k} Ionian`] },
+    ]);
+    // Every option string is unique, so the `whole` reading is blind.
+    expect(findTells(leaky, TOKENISERS[0])).toEqual([]);
+    const byMode = findTells(leaky, TOKENISERS[1]).map(t => `${t.token}→${t.implies}`);
+    expect(byMode).toContain('Locrian→Aeolian');
+    expect(byMode).toContain('Ionian→Mixolydian');
+  });
+
+  it('finds nothing in the modes category as it now stands', () => {
     const modes = CARDS.filter(c => c.category === 'modes');
-    expect(findTells(modes, TOKENISERS[0])).toEqual([]);
-    const byMode = findTells(modes, TOKENISERS[1]);
-    expect(byMode.map(t => `${t.token}→${t.implies}`)).toContain('Locrian→Aeolian');
-    expect(byMode.map(t => `${t.token}→${t.implies}`)).toContain('Ionian→Mixolydian');
+    for (const t of TOKENISERS) expect(findTells(modes, t)).toEqual([]);
   });
 });
 

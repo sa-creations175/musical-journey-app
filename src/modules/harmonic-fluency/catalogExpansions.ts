@@ -287,10 +287,40 @@ export function generateVofViCards(): Flashcard[] {
 // =====================================================================
 
 /** The three the hand-written C cards drilled, by degree. */
-const MODE_BY_DEGREE: ReadonlyArray<{ degree: string; mode: string; others: string[] }> = [
-  { degree: '2', mode: 'Dorian', others: ['Phrygian', 'Mixolydian', 'Aeolian'] },
-  { degree: '5', mode: 'Mixolydian', others: ['Lydian', 'Dorian', 'Ionian'] },
-  { degree: '6', mode: 'Aeolian', others: ['Dorian', 'Phrygian', 'Locrian'] },
+const MODE_BY_DEGREE: ReadonlyArray<{ degree: string; mode: string }> = [
+  { degree: '2', mode: 'Dorian' },
+  { degree: '5', mode: 'Mixolydian' },
+  { degree: '6', mode: 'Aeolian' },
+];
+
+/**
+ * The seven modes, in scale-degree order — the pool every mode card
+ * draws its decoys from.
+ *
+ * =====================================================================
+ * A FIXED THREE PER ANSWER WAS THE MOST RELIABLE TELL IN THE DECK.
+ *
+ * Each degree carried its own `others` list, so an Aeolian answer was
+ * always shown against Dorian, Phrygian and Locrian; Mixolydian always
+ * against Lydian, Dorian and Ionian. Which meant:
+ *
+ *     Locrian on screen    → the answer is Aeolian
+ *     Ionian on screen     → the answer is Mixolydian
+ *     Mixolydian on screen → the answer is Dorian
+ *
+ * In all twelve keys, with no key, note or degree read. Thirty-six
+ * cards, and a raw string comparison could not see it because "A♭
+ * Locrian" appears exactly once in the whole deck — the tell lives in
+ * the mode word, not the option.
+ *
+ * So the pool is now all seven and the window rotates with the card's
+ * identity. Locrian still turns up; it just turns up beside a Dorian
+ * answer as often as an Aeolian one, which is the difference between a
+ * decoy and a signpost.
+ * =====================================================================
+ */
+const ALL_MODES = [
+  'Ionian', 'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'Aeolian', 'Locrian',
 ];
 
 const MODE_CONTEXT =
@@ -302,7 +332,7 @@ export function generateModeOfCards(): Flashcard[] {
   const out: Flashcard[] = [];
   for (const root of FLAT_TWELVE) {
     if (root === 'C') continue;
-    for (const { degree, mode, others } of MODE_BY_DEGREE) {
+    for (const { degree, mode } of MODE_BY_DEGREE) {
       const start = degreeLabel(root, degree);
       const startGlossed = degreeLabelGlossed(root, degree);
       out.push({
@@ -311,8 +341,17 @@ export function generateModeOfCards(): Flashcard[] {
         question: `The mode of ${noteLabel(root)} major starting on ${startGlossed} is _____`,
         correctAnswer: `${start} ${mode}`,
         // The same starting note under three other mode names — the
-        // question is which mode, never which note.
-        decoys: others.map(m => `${start} ${m}`),
+        // question is which mode, never which note. WHICH three comes
+        // from the rotation, not from the answer.
+        decoys: chooseDecoys(
+          `${start} ${mode}`,
+          ALL_MODES.map(m => `${start} ${m}`),
+          {
+            count: 3,
+            seed: `mo-mode-of-${root}-${degree}`,
+            label: `mo-mode-of-${root}-${degree}`,
+          },
+        ),
         explanation: `Starting ${noteLabel(root)} major on its ${degree} gives `
           + `${start} ${mode}.`
           + keyboardNote(degreeAscii(root, degree))
